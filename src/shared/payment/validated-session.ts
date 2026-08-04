@@ -44,7 +44,7 @@ export const isSessionRejection = (
  *  small fields into one entry, but the price proof is signed over the
  *  unpacked shape, so a packed record would fail its own ownership check and
  *  no Square charge would ever be refunded. */
-export const malformedChargeRejection = (
+const malformedChargeRejection = (
   paymentReference: string,
   paid: boolean,
   metadata: SessionMetadata,

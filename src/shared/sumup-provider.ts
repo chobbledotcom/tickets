@@ -16,7 +16,6 @@ import {
   getSumupCheckout,
   hasSumupCheckoutId,
 } from "#shared/db/sumup-checkouts.ts";
-import { ErrorCode, logError } from "#shared/logger.ts";
 import { isResourceId } from "#shared/payment/resource-id.ts";
 import {
   isSessionRejection,
@@ -115,11 +114,9 @@ export const sumupPaymentProvider: PaymentProvider = {
       ? await getSumupCheckout(checkout.reference)
       : null;
     if (!stored || stored.sumupId !== webhookEvent.id) {
-      logError({
-        code: ErrorCode.PAYMENT_SESSION,
-        detail: `SumUp checkout ${webhookEvent.id} came back under reference "${checkout.reference}", which is not the one staged for it (status=${checkout.status}, transaction=${checkout.transactionId})`,
-      });
-      return null;
+      throw new Error(
+        `SumUp checkout ${webhookEvent.id} came back under reference "${checkout.reference}", which is not the one staged for it (status=${checkout.status}, transaction=${checkout.transactionId})`,
+      );
     }
     const session = buildValidatedSession(checkout, stored.metadata);
     // A charge the boundary could not read: surface the rejection so a paid

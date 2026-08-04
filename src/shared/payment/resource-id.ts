@@ -1,16 +1,10 @@
 import * as v from "valibot";
 
 /**
- * A provider's id for a charge or a refund.
- *
- * A real resource id is unbroken text — `""` is the boundary's marker for "no
- * resource" (a free session that captured no money), so a charge or refund that
- * claims a resource must carry something more.
- *
- * No whitespace anywhere, and it is refused rather than trimmed: the id goes
- * back to the provider exactly as it arrived, and `" pi_123"` or `"pi 123"`
- * names no charge it can find. Accepting one books the session as refundable
- * and then fails every refund attempt, so the webhook retries for good.
+ * A provider's id for a charge or a refund. Whitespace is refused rather than
+ * trimmed, because the id goes back to the provider exactly as it arrived and
+ * `" pi_123"` names no charge it can find. `""` is the boundary's marker for a
+ * session that captured no money.
  */
 const ResourceIdSchema = v.pipe(
   v.string(),

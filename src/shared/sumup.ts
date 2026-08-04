@@ -11,8 +11,9 @@
  * - Refunds operate on the transaction id (paymentReference), not the checkout
  *
  * Amounts: the app models money in minor units (e.g. pence); SumUp's API uses
- * major units. We convert at the boundary using the configured currency's
- * decimal places (the shared currency helpers).
+ * major units. A retrieved checkout converts using the currency SumUp returned
+ * with it, so a charge taken in another currency is read at its own decimal
+ * places rather than the site's; an unusable code falls back to the site's.
  */
 
 /* jscpd:ignore-start */

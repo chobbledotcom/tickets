@@ -6,7 +6,6 @@ import {
 } from "#shared/db/sumup-checkouts.ts";
 import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
-import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { BLANK_SESSION_METADATA } from "#test-utils/payment-session.ts";
 import {
   makeSumupClient,
@@ -18,8 +17,6 @@ import {
 } from "#test-utils/sumup.ts";
 
 describe("sumup-provider resolveWebhookSession", () => {
-  const errorSpy = setupErrorSpy();
-
   beforeEach(async () => {
     await createTestDb();
   });
@@ -115,24 +112,25 @@ describe("sumup-provider resolveWebhookSession", () => {
 
   // The webhook id proved a staged row exists, so the reference SumUp answers
   // with must name that same row. Anything else — blank, unheard-of, or
-  // another booking's — is refused rather than processed under the wrong
-  // metadata. "ref_other" is staged under its own SumUp id below.
+  // another booking's — is SumUp contradicting itself about a checkout we
+  // made. The booking is encrypted under that reference, so without a match we
+  // can neither read it nor prove the charge is ours to refund, and
+  // acknowledging would strand a paid one for good. "ref_other" is staged
+  // under its own SumUp id below.
   for (const [name, reference] of [
     ["is blank", ""],
     ["matches no staged row", "unrelated"],
     ["maps to a different staged row", "ref_other"],
   ] as const) {
-    test(`returns null when the checkout reference ${name}`, async () => {
+    test(`asks to be retried when the checkout reference ${name}`, async () => {
       await stageSumupCheckout();
       await storeSumupCheckout("ref_other", SUMUP_META);
       await setSumupCheckoutId("ref_other", "co_other");
       await withFetchedSumupCheckout(sumupCheckout({ reference }), async () => {
-        expect(await resolveStaged()).toBeNull();
+        await expect(resolveStaged()).rejects.toThrow(
+          "is not the one staged for it",
+        );
       });
-      // The booking is encrypted under the reference, so an unmatched one
-      // leaves us unable to read it or prove the charge is ours to refund.
-      // Nobody would ever know unless this is raised.
-      expect(errorSpy.contains("is not the one staged for it")).toBe(true);
     });
   }
 
