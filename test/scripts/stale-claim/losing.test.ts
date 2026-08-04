@@ -164,7 +164,7 @@ describe("keeping somebody else's claim fresh for them", () => {
       await writeClaim(path, `new-owner\n${Date.now()}`);
       let firstLook = true;
       using _read = watchClaimReads(path, () => {
-        if (!firstLook) return;
+        if (!firstLook) return null;
         firstLook = false;
         return `their-supervisor\n${Date.now()}`;
       });

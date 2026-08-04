@@ -89,10 +89,10 @@ const holdClaimUntilReleased = async (
 };
 
 /** Runs `look` at every read of the claim at `path`. A record handed back is
- * what that one read sees; undefined lets the real file answer. */
+ * what that one read sees; null lets the real file answer. */
 const watchClaimReads = (
   path: string,
-  look: () => string | void,
+  look: () => string | null,
 ): Disposable => {
   const readTextFile = Deno.readTextFile;
   return stub(Deno, "readTextFile", ((
@@ -101,7 +101,7 @@ const watchClaimReads = (
   ) => {
     if (`${target}` === path) {
       const standIn = look();
-      if (typeof standIn === "string") return Promise.resolve(standIn);
+      if (standIn !== null) return Promise.resolve(standIn);
     }
     return readTextFile(target, options);
   }) as typeof Deno.readTextFile);
@@ -114,6 +114,7 @@ const countClaimReads = (
 ): Disposable =>
   watchClaimReads(path, () => {
     counter.reads += 1;
+    return null;
   });
 
 /** A real-time pause, for waits a fake clock must not intercept — letting a

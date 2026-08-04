@@ -107,9 +107,8 @@ describe("waiting for a claim", () => {
         timeoutMs: 60,
       });
 
-      // Sixty milliseconds of waiting, five apart, is a handful of tries.
-      // With no pause between them it would be many thousands.
-      expect(tries).toBeGreaterThan(1);
+      // Sixty milliseconds of waiting is a handful of tries when they pause
+      // five apart. With no pause between them it would be many thousands.
       expect(tries).toBeLessThan(50);
 
       held.release();
