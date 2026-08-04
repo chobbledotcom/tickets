@@ -104,6 +104,26 @@ describe("taking a claim", () => {
     });
   });
 
+  test("keeps a fresh file's claim when its time has nothing after it", async () => {
+    await withClaimDir(async (path) => {
+      // A time with a newline and nothing else is not a record we ever write,
+      // so the file's own age decides — and this file is new.
+      await writeClaim(path, `${LONG_AGO_MS}\n`);
+
+      await expectClaimRefused(path);
+    });
+  });
+
+  test("takes over a claim naming a time from the very start of the clock", async () => {
+    await withClaimDir(async (path) => {
+      // The file was touched a moment ago, so only reading the time it
+      // claims — 1970, however unlikely — can tell that it is abandoned.
+      await writeClaim(path, "someone-else\n1");
+
+      await withTestClaim(path, () => Promise.resolve());
+    });
+  });
+
   test("leaves a freshly made claim alone while its time is unreadable", async () => {
     await withClaimDir(async (path) => {
       // A taker between creating the file and writing the record: the file is
@@ -202,15 +222,55 @@ describe("keeping a claim fresh while it is held", () => {
     });
   });
 
-  test("a touch that lands mid-release cannot bring the claim back", async () => {
+  test("a touch armed but not yet landed dies with the release", async () => {
     await withClaimDir(async (path) => {
       await withTestClaim(
         path,
-        // Let at least one touch be queued before the release starts.
-        () => new Promise((resolve) => setTimeout(resolve, 10)),
+        // Long enough for several touches, so the release meets a rearmed
+        // timer rather than the very first one.
+        () => new Promise((resolve) => setTimeout(resolve, 12)),
+        { ...SETTINGS, touchMs: 2 },
+      );
+
+      await expect(Deno.stat(path)).rejects.toThrow();
+      // Long enough for a stray touch to land, if one had survived.
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      await expect(Deno.stat(path)).rejects.toThrow();
+    });
+  });
+
+  test("a touch already queued when the release starts is waited out", async () => {
+    await withClaimDir(async (path) => {
+      // A slow disk: each touch takes a while to land, so a touch the
+      // release failed to wait for would land visibly after it.
+      const writeTextFile = Deno.writeTextFile;
+      using _write = stub(Deno, "writeTextFile", (async (
+        target: string | URL,
+        data: string | ReadableStream<string>,
+        options?: Deno.WriteFileOptions,
+      ) => {
+        if (`${target}` === path) {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+        return writeTextFile(target, data, options);
+      }) as typeof Deno.writeTextFile);
+
+      await withTestClaim(
+        path,
+        () => {
+          // Hold the turn past the touch time, so the touch is queued —
+          // due to run, but not yet started — as the release begins.
+          const end = Date.now() + 5;
+          while (Date.now() < end) {
+            // Holding the turn is the whole job.
+          }
+          return Promise.resolve();
+        },
         { ...SETTINGS, touchMs: 1 },
       );
 
+      // Long enough for the slow touch to land, if the release leaked it.
+      await new Promise((resolve) => setTimeout(resolve, 40));
       await expect(Deno.stat(path)).rejects.toThrow();
     });
   });
@@ -277,6 +337,35 @@ describe("waiting for a claim", () => {
       await held.holding;
       expect(answer).toBe("worked");
       await expect(Deno.stat(path)).rejects.toThrow();
+    });
+  });
+
+  test("pauses between tries instead of asking as fast as it can", async () => {
+    await withClaimDir(async (path) => {
+      const held = await holdClaimUntilReleased(path);
+      let tries = 0;
+      const open = Deno.open;
+      using _open = stub(Deno, "open", ((
+        target: string | URL,
+        options?: Deno.OpenOptions,
+      ) => {
+        if (`${target}` === path && options?.createNew) tries += 1;
+        return open(target, options);
+      }) as typeof Deno.open);
+
+      await expectClaimRefused(path, {
+        ...SETTINGS,
+        retryMs: 5,
+        timeoutMs: 60,
+      });
+
+      // Sixty milliseconds of waiting, five apart, is a handful of tries.
+      // With no pause between them it would be many thousands.
+      expect(tries).toBeGreaterThan(1);
+      expect(tries).toBeLessThan(50);
+
+      held.release();
+      await held.holding;
     });
   });
 
