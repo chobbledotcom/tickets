@@ -42,6 +42,20 @@ describe("anchoring a mutant on what it sits inside", () => {
     );
   });
 
+  test("names a method whose name is written as a string", () => {
+    expect(
+      nullishAnchor('class Reader { "read-it"(x) { return x ?? 0; } }\n'),
+    ).toBe("Reader.read-it");
+  });
+
+  /** An empty name says nothing about where the mutant is, so the member
+   * contributes nothing and the anchor falls back to its class. */
+  test("skips a member whose written name is empty", () => {
+    expect(nullishAnchor('class Reader { ""(x) { return x ?? 0; } }\n')).toBe(
+      "Reader",
+    );
+  });
+
   test("anchors top-level code on the file itself", () => {
     expect(nullishAnchor("export default globalThis.x ?? 0;\n")).toBe("<file>");
   });
