@@ -36,8 +36,8 @@ src/features/admin/api-groups.ts:127:31  ?? → ||   # parseMemberDayPrices retu
 # Attendee group-capacity and snapshot lookups: the value is an array or a Map,
 # and both are always truthy.
 src/shared/db/attendees/capacity/groups.ts:130:50  ?? → ||   # rowsByGroup.get(): GroupRow[]|undefined — an array is always truthy
-src/shared/db/attendees/capacity/snapshot.ts:45:62  ?? → ||   # byListing.get(): row[]|undefined — an array is always truthy, so both operators reach perDayLoads with the same rows
-src/shared/db/attendees/capacity/snapshot.ts:82:20  ?? → ||   # knownMembership is a Map or undefined; every Map, including an empty one, is truthy
+src/shared/db/attendees/capacity/snapshot.ts:46:62  ?? → ||   # byListing.get(): row[]|undefined — an array is always truthy, so both operators reach perDayLoads with the same rows
+src/shared/db/attendees/capacity/snapshot.ts:83:20  ?? → ||   # knownMembership is a Map or undefined; every Map, including an empty one, is truthy
 
 # listing_prices sync (listing-prices.ts): `?? → ||` where the operand's only
 # falsy-non-null value equals the fallback.
