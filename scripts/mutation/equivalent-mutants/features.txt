@@ -192,3 +192,15 @@ src/features/api/payment-processing/package-pricing.ts:100:11  Missing package p
 src/shared/booking/page-packages.ts:134:40  ?? → ||   # packageGroupId is a positive group id or undefined; its only falsy value would be 0, which equals the fallback
 src/shared/booking/page-packages.ts:163:28  ?? → ||   # same package group id, same 0 fallback
 src/shared/booking/page-packages.ts:164:41  ?? → ||   # parentListingId is a positive listing id or undefined, and the fallback is 0
+
+# Public order page (order.ts) — booking-span arithmetic whose floor is applied
+# again by the capacity reading, so no span a caller can ask for tells the
+# mutant from the original.
+src/features/public/order.ts:177:16  1 → 0   # a stored daily listing's duration_days is at least 1, so Math.max never picks the floor
+src/features/public/order.ts:178:7  1 → 0   # the span of a listing not judged day by day is unused, and daysOfSpan clamps it back to one day anyway
+src/features/public/order.ts:220:21  1 → 0   # with no date chosen nothing is judged day by day, and daysOfSpan clamps the span back to one day
+src/features/public/order.ts:230:16  1 → 0   # every listing's span is at least 1, so the floor never wins; with no listings at all the reading has no days either way
+src/features/public/order.ts:195:61  ?? → ||   # spanByGroupId holds spans of at least 1, so the only falsy value is undefined
+src/features/public/order.ts:195:65  1 → 0   # the first span seen is at least 1, so Math.max returns it whichever starting value it is compared against
+src/features/public/order.ts:332:21  "" → "mutated"   # a selection key is always built as kind:id by listingOptionKey/packageOptionKey, so the kind is never missing
+src/features/public/order.ts:332:33  "" → "mutated"   # the same key always carries its id, so the id half is never missing
