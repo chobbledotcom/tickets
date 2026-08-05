@@ -40,6 +40,7 @@ interface CaptureFixtureOptions {
   feature?: string;
   hookPickle?: number;
   launchError?: Error;
+  leftCookies?: ReadonlyArray<readonly [string, string]>;
   leftPages?: ReadonlyArray<readonly [string, string]>;
   serverCloseError?: Error;
 }
@@ -193,6 +194,7 @@ const captureFixture = (
           options: attachmentOptions,
         });
       },
+      evidenceCookies: new Map(options.leftCookies),
       evidencePages: new Map(
         options.leftPages ?? [[declaration.id, PAYMENT_RESULT_PAGE]],
       ),
@@ -274,6 +276,22 @@ describe("Cucumber evidence capture", () => {
       },
     ]);
     expectCaptureClosed(calls);
+  });
+
+  test("uses the session the story left for a capture", async () => {
+    const { calls, capture, hook, world } = captureFixture({
+      leftCookies: [[declaration.id, "session=editor; Path=/"]],
+    });
+
+    await capture(world, hook);
+
+    expect(calls.cookies).toEqual([
+      {
+        name: "session",
+        url: "http://127.0.0.1:4321",
+        value: "editor",
+      },
+    ]);
   });
 
   test("rejects a request blocked while the screenshot is being prepared", async () => {

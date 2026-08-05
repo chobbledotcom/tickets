@@ -10,6 +10,7 @@ export interface EvidenceWorld {
     data: Buffer,
     options: { fileName: string; mediaType: "image/png" },
   ): void | Promise<void>;
+  evidenceCookies: ReadonlyMap<string, string>;
   evidencePages: ReadonlyMap<string, string>;
 }
 

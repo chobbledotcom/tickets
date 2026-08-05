@@ -9,6 +9,7 @@ import {
 import { PAYMENT_RESULT_CAPTURE as declaration } from "#test/scripts/specs/evidence-fixture.ts";
 
 const emptyWorld = (): EvidencePages => ({
+  evidenceCookies: new Map<EvidenceCaptureId, string>(),
   evidencePages: new Map<EvidenceCaptureId, string>(),
 });
 
@@ -37,6 +38,19 @@ describe("Evidence pages a story leaves", () => {
     expect(world.evidencePages.get("listing-ledger")).toBe(
       "/admin/ledger/revenue/2",
     );
+  });
+
+  test("keeps the session the story left for a capture", () => {
+    const world = emptyWorld();
+
+    leaveEvidencePage(
+      world,
+      ["listing-ledger"],
+      "/admin/ledger/revenue/1",
+      "session=editor",
+    );
+
+    expect(world.evidenceCookies.get("listing-ledger")).toBe("session=editor");
   });
 
   test("refuses a page that is not a whole address", () => {

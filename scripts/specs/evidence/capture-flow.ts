@@ -44,9 +44,9 @@ interface EvidenceCaptureDependencies {
 
 const browserCookie = async (
   baseUrl: string,
-  getCookie: () => Promise<string>,
+  cookie: string,
 ): Promise<{ name: string; url: string; value: string }> => {
-  const [pair] = (await getCookie()).split(";", 1);
+  const [pair] = cookie.split(";", 1);
   if (!pair) throw new Error("Test owner cookie is malformed");
   const splitAt = pair.indexOf("=");
   if (splitAt < 1 || splitAt === pair.length - 1) {
@@ -104,7 +104,11 @@ const captureProfile = async (
     const blocked = new Set<string>();
     await blockOutboundRequests(context, baseUrl, blocked);
     await context.addCookies([
-      await browserCookie(baseUrl, dependencies.getCookie),
+      await browserCookie(
+        baseUrl,
+        world.evidenceCookies.get(declaration.id) ??
+          (await dependencies.getCookie()),
+      ),
     ]);
     const page = await context.newPage();
     page.setDefaultTimeout(CAPTURE_TIMEOUT_MS);
