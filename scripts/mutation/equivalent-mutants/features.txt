@@ -202,5 +202,6 @@ src/features/public/order.ts:220:21  1 → 0   # with no date chosen nothing is 
 src/features/public/order.ts:230:16  1 → 0   # every listing's span is at least 1, so the floor never wins; with no listings at all the reading has no days either way
 src/features/public/order.ts:195:61  ?? → ||   # spanByGroupId holds spans of at least 1, so the only falsy value is undefined
 src/features/public/order.ts:195:65  1 → 0   # the first span seen is at least 1, so Math.max returns it whichever starting value it is compared against
-src/features/public/order.ts:332:21  "" → "mutated"   # a selection key is always built as kind:id by listingOptionKey/packageOptionKey, so the kind is never missing
-src/features/public/order.ts:332:33  "" → "mutated"   # the same key always carries its id, so the id half is never missing
+src/features/public/order.ts:332:21   → "mutated"   # a selection key is always built as kind:id by listingOptionKey/packageOptionKey, so the kind is never missing
+src/features/public/order.ts:332:33   → "mutated"   # the same key always carries its id, so the id half is never missing
+src/features/public/order.ts:340:77  1 → 0   # buildTicketListing sets maxPurchasable to 0 for a sold-out or closed listing and to at least 1 otherwise (max_quantity is at least 1), so the two thresholds never disagree once the checks beside them have passed

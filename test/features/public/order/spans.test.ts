@@ -20,6 +20,7 @@ import { createTestHoliday } from "#test-utils/db-helpers/holidays.ts";
 import {
   createDailyTestListing,
   createTestListing,
+  pastCloseTime,
 } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv(
@@ -68,6 +69,20 @@ describeWithEnv(
         label: "Sold Out",
         state: "unavailable",
       });
+    });
+
+    test("a listing whose sale has ended cannot be added", async () => {
+      // Plenty of room, but the sale closed yesterday: room alone is not
+      // enough to offer it.
+      const closed = await createTestListing({
+        closesAt: pastCloseTime(),
+        maxAttendees: 10,
+        name: "Sale over",
+      });
+
+      const data = await fetchAvailability("");
+
+      expect(data.states[`listing:${closed.id}`]?.state).not.toBe("available");
     });
 
     test("a package can be added on its own", async () => {
