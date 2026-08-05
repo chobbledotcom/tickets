@@ -208,12 +208,9 @@ describe("Turso migration file", () => {
       );
     }));
 
-  /**
-   * A server can answer before the whole body is sent, which breaks the write.
-   * Either the answer or the write error is a correct outcome, so which one
-   * arrives has to be chosen rather than raced: the two cases below script the
-   * order instead of sending a file large enough to lose the race with.
-   */
+  /** A server can answer before the whole body is sent, which breaks the write.
+   * Both the answer and the write error are correct outcomes, so each is
+   * scripted rather than raced. */
   test("prefers the server's answer over a later write error", () =>
     withTempDir(async (dir) => {
       const request = fakeRequest();
