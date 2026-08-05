@@ -216,8 +216,9 @@ describeWithEnv(
       );
 
       // The intact answer is saved; the ref with no id is dropped, not guessed.
+      const attendeeId = await soleAttendeeId(listing.id);
       const textAnswers = await getAttendeeTextAnswers(
-        await soleAttendeeId(listing.id),
+        attendeeId,
         await getTestPrivateKey(),
       );
       expect(textAnswers.get(goodQ.id)).toBe("Step-free entrance");
@@ -226,9 +227,10 @@ describeWithEnv(
       // Read the saved rows rather than the answers, because an answer saved
       // against an id that points at no stored text reads back as absent — the
       // same as never having been saved. Only the row itself tells them apart.
+      // Scoped to this booking: other bookings answer these questions too.
       const savedForBadRefs = await getDb().execute({
-        args: [lostQ.id, nonsenseQ.id],
-        sql: "SELECT question_id FROM attendee_answers WHERE question_id IN (?, ?)",
+        args: [attendeeId, lostQ.id, nonsenseQ.id],
+        sql: "SELECT question_id FROM attendee_answers WHERE attendee_id = ? AND question_id IN (?, ?)",
       });
       expect(savedForBadRefs.rows).toEqual([]);
 
