@@ -119,20 +119,23 @@ export const parseIgnoreLine = (line: string): ParsedIgnoreLine | null => {
   // holds only these characters and ends at the first whitespace after it.
   const located = entry.match(/^([^:]+)::([A-Za-z0-9_$\-.%~@]+)\s+(.*)$/);
   if (!located) return null;
-  const [, writtenPath, anchor, mutation] = located as unknown as string[];
-  const sourcePath = unescapePath(writtenPath!);
+  // Three groups, all of them matched, or there is no match at all.
+  const writtenPath = located[1]!;
+  const anchor = located[2]!;
+  const mutation = located[3]!;
+  const sourcePath = unescapePath(writtenPath);
   if (sourcePath === null) return null;
   // `from` and `to` are escaped, so the first arrow left is the one splitting
   // them.
-  const arrow = mutation!.indexOf("→");
+  const arrow = mutation.indexOf("→");
   if (arrow < 0) return null;
-  const newOperator = mutation!.slice(arrow + 1).trim();
+  const newOperator = mutation.slice(arrow + 1).trim();
   if (newOperator === "") return null;
   // The "from" side may be empty: an already-empty string literal mutates with
   // an empty display label (see stringLiteralMutants).
-  const operator = mutation!.slice(0, arrow).trimEnd();
+  const operator = mutation.slice(0, arrow).trimEnd();
   return {
-    anchor: anchor!,
+    anchor,
     key: `${writtenPath}::${anchor} ${operator}→${newOperator}`,
     newOperator,
     operator,
