@@ -171,17 +171,29 @@ describeWithEnv(
         maxAttendees: 8,
         name: "Sold any day",
       });
+      // A second one in no group at all: its booking has no day to sit on, so
+      // only a running total can see it.
+      const ungrouped = await createTestListing({
+        maxAttendees: 8,
+        name: "Sold any day, ungrouped",
+      });
       const [oneNight] = await listingsOfLengths("Alongside", [1]);
-      // Booked with no date at all: only a running total can see it.
+      // Booked with no date at all: only a running total can see these.
       await bookUnits(anyDay.id, 3);
-      const listings = [await reload(anyDay.id), oneNight!];
+      await bookUnits(ungrouped.id, 3);
+      const listings = [
+        await reload(anyDay.id),
+        await reload(ungrouped.id),
+        oneNight!,
+      ];
 
       const snapshot = await loadCapacitySnapshot(listings, date, 1);
       const remaining = remainingFromSnapshot(snapshot, listings, () => 1);
 
-      // Its own 5 gives way to the group's 1 left of 4; the daily listing is
-      // unaffected.
+      // Its own 5 gives way to the group's 1 left of 4; the ungrouped one keeps
+      // its 5; the daily listing is unaffected.
       expect(remaining.get(anyDay.id)).toBe(1);
+      expect(remaining.get(ungrouped.id)).toBe(5);
       expect(remaining.get(oneNight!.id)).toBe(10);
     });
 
