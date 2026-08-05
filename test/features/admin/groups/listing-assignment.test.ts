@@ -48,7 +48,10 @@ describeWithEnv("admin group listing assignment", { db: true }, () => {
 
   test("refuses a listing whose customisable-days setting differs from the group's", async () => {
     const group = await createTestGroup({ name: "Fixed Length Group" });
-    await createTestListing({ groupId: group.id, name: "Fixed member" });
+    const fixed = await createTestListing({
+      groupId: group.id,
+      name: "Fixed member",
+    });
     const customisable = await createTestListing({
       customisableDays: true,
       dayPrices: { 1: 100 },
@@ -59,7 +62,10 @@ describeWithEnv("admin group listing assignment", { db: true }, () => {
       listing_ids: [String(customisable.id)],
     });
     expectFlash(response, t("error.group_customisable_days_unexpected"), false);
-    expect(await getListingsByGroupId(group.id)).toHaveLength(1);
+    // Not just the same count: the group still holds exactly the member it had.
+    expect(
+      (await getListingsByGroupId(group.id)).map((listing) => listing.id),
+    ).toEqual([fixed.id]);
   });
 
   test("adds nothing when no listing was chosen", async () => {

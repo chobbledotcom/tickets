@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { queryAll } from "#shared/db/client.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
+import { requireListingWithCount } from "#shared/db/listings/records.ts";
 import { MAX_DURATION_DAYS } from "#shared/types.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -67,9 +67,9 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         201,
       );
       expect(high.listing.duration_days).toBe(MAX_DURATION_DAYS);
-      expect((await getListingWithCount(high.listing.id))?.duration_days).toBe(
-        MAX_DURATION_DAYS,
-      );
+      expect(
+        (await requireListingWithCount(high.listing.id)).duration_days,
+      ).toBe(MAX_DURATION_DAYS);
       await assertJson(
         apiRequest("/api/admin/listings", {
           body: {

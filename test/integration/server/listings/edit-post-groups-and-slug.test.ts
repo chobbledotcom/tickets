@@ -3,7 +3,10 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { renderListingEditError } from "#routes/admin/listings-edit.ts";
 import { listingGroups } from "#shared/db/groups.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
+import {
+  getListingWithCount,
+  requireListingWithCount,
+} from "#shared/db/listings/records.ts";
 import { FormParams } from "#shared/form-data.ts";
 import {
   expectFlashRedirect,
@@ -185,7 +188,7 @@ describeWithEnv(
         );
 
         // Nothing moved: the listing keeps its type and its membership.
-        expect((await getListingWithCount(listing.id))?.listing_type).toBe(
+        expect((await requireListingWithCount(listing.id)).listing_type).toBe(
           "daily",
         );
         expect(await listingGroups.getIds(listing.id)).toEqual([group.id]);
@@ -225,9 +228,9 @@ describeWithEnv(
           "already contains listings with a fixed number of days",
         );
 
-        expect((await getListingWithCount(listing.id))?.customisable_days).toBe(
-          false,
-        );
+        expect(
+          (await requireListingWithCount(listing.id)).customisable_days,
+        ).toBe(false);
         expect(await listingGroups.getIds(listing.id)).toEqual([group.id]);
       });
 
