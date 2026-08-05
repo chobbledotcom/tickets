@@ -55,6 +55,21 @@ describe("checking the equivalent-mutant registry resolves", () => {
     expect(await check(state)).toEqual([]);
   });
 
+  /** A file may be named anything, including something that starts with the
+   * mark a comment starts with. Written escaped, its entry is still an entry,
+   * and the checker still opens the file it names. */
+  test("resolves an entry for a source whose name starts with a comment mark", async () => {
+    const state = await project([]);
+    using _dir = state.dir;
+    await Deno.writeTextFile(join(state.root, "src", "# read.ts"), source);
+    await Deno.writeTextFile(
+      join(state.registryDir, "entries.txt"),
+      `src/%23 read.ts::${state.anchor}  ?? → ||\n`,
+    );
+
+    expect(await check(state)).toEqual([]);
+  });
+
   test("reports an entry with nothing left to suppress", async () => {
     const state = await project(["src/read.ts::noSuchThing~0000000  ?? → ||"]);
     using _dir = state.dir;

@@ -42,10 +42,18 @@ interface Span {
   start: number;
 }
 
+/** Whatever a node writes its name in: a declaration's `id`, a member's `key`,
+ * a switch case's `test`. */
+interface Label {
+  name?: string;
+  value?: unknown;
+}
+
 /** A node that might lend its name to whatever sits inside it. */
 interface NamedNode {
-  id?: { name?: string } | null;
-  key?: { name?: string; value?: unknown } | null;
+  id?: Label | null;
+  key?: Label | null;
+  test?: Label | null;
   type?: string;
 }
 
@@ -54,13 +62,15 @@ interface NamedNode {
  * to instead. A written-out key counts whether it reads as a word, a quoted
  * string, or a number — `{ 1: … }` names its member just as `{ a: … }` does,
  * and `{ "": … }` names its own, empty though that name is: dropping it would
- * put the member back in with everything unnamed, to be told apart by order. */
+ * put the member back in with everything unnamed, to be told apart by order.
+ * A `default:` case and a label built out of an expression write no name of
+ * their own, so they contribute none. */
 const nameOf = (node: NamedNode): string | null => {
-  const named = node.id?.name ?? node.key?.name;
-  if (typeof named === "string" && named !== "") return named;
-  const literalKey = node.key?.value;
-  if (typeof literalKey === "number") return String(literalKey);
-  return typeof literalKey === "string" ? literalKey : null;
+  const label = node.id ?? node.key ?? node.test;
+  if (typeof label?.name === "string" && label.name !== "") return label.name;
+  const written = label?.value;
+  if (typeof written === "number") return String(written);
+  return typeof written === "string" ? written : null;
 };
 
 /** Declarations whose name is worth carrying into the path. A block or an `if`
@@ -69,7 +79,10 @@ const nameOf = (node: NamedNode): string | null => {
  * codebase is config objects and dispatch maps — without it, two callbacks in
  * one object share a name and can only be told apart by their order. A named
  * function expression and an enum member are here for the same reason: both
- * carry a name in places nothing else does, such as an array or a call. */
+ * carry a name in places nothing else does, such as an array or a call. A
+ * switch case earns its place too: the arms of a discriminated-union switch
+ * often read alike while each narrows the value to a different type, so the
+ * label is the only thing telling one arm's expression from another's. */
 const NAMING_TYPES = new Set([
   "ClassDeclaration",
   "ClassExpression",
@@ -78,6 +91,7 @@ const NAMING_TYPES = new Set([
   "MethodDefinition",
   "Property",
   "PropertyDefinition",
+  "SwitchCase",
   "TSEnumDeclaration",
   "TSEnumMember",
   "TSInterfaceDeclaration",

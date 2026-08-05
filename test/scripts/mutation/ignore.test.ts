@@ -84,12 +84,43 @@ describe("writing a mutant key onto one line", () => {
     );
   });
 
+  /** A path is a name someone else chose, so it can hold anything the line
+   * itself uses — including, at the very front, the mark that starts a
+   * comment. Reading one back has to give the file it named, because that is
+   * what the checker opens on disk. */
   test("keeps a path holding a comment mark, a space, an arrow, or all", () => {
-    for (const name of ["a#b.ts", "a b.ts", "a #b.ts", "a→b.ts", "#a.ts"]) {
+    for (const name of [
+      "a#b.ts",
+      "a b.ts",
+      "a #b.ts",
+      "a→b.ts",
+      "#a.ts",
+      "# a.ts",
+      "%a.ts",
+    ]) {
       const key = mutantKey(`${projectRoot}/src/${name}`, mutant(1));
+      const parsed = parseIgnoreLine(`${key}   # a reason`);
 
-      expect(parseIgnoreLine(`${key}   # a reason`)?.key).toBe(key);
+      expect(parsed?.key).toBe(key);
+      expect(parsed?.sourcePath).toBe(`src/${name}`);
     }
+  });
+
+  test("writes a path starting with a comment mark so it cannot read as one", () => {
+    expect(mutantKey(`${projectRoot}/src/# a.ts`, mutant(1))).toBe(
+      "src/%23 a.ts::fn1 ??→||",
+    );
+  });
+
+  /** Escaping never writes a bare `%`, so a line carrying one names no real
+   * file — it must fail loudly rather than resolve to some other path. */
+  test("refuses a written path holding a percent that begins no escape", async () => {
+    using temp = tempFile({ prefix: "mutation-ignore-" });
+    await Deno.writeTextFile(temp.path, "src/50%.ts::fn1 ?? → ||\n");
+
+    await expect(loadIgnoreList([temp.path])).rejects.toThrow(
+      "Malformed equivalent-mutant entry",
+    );
   });
 
   /** The registry README documents the format by quoting example entries, so a

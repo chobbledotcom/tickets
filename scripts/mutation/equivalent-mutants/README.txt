@@ -36,10 +36,12 @@
 # worth re-checking whenever its neighbours change.
 #
 # Anything that would not survive a line — a space at either edge, the `#` that
-# starts this comment, a newline, an arrow of its own — is percent-encoded.
-# `%23` is a `#`; `%20` is a space; `%e2%86%92` is a `→`.
+# starts this comment, a newline, an arrow of its own — is percent-encoded, in
+# the path just as in the `from` and `to`. `%23` is a `#`; `%20` is a space;
+# `%e2%86%92` is a `→`. So a line beginning with `#` is always a comment, and a
+# file whose path begins with one is written `%23...`.
 #
-# The path must be written exactly as the canonical project-relative path.
+# The path must name the canonical project-relative path, and nothing else.
 #
 # Do NOT list a mutant whose output the linter or type checker rejects. Biome's
 # noDoubleEquals rule rejects every `=== → ==` and `!== → !=` mutant. The runner

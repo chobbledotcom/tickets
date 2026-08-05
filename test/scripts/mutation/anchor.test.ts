@@ -105,6 +105,28 @@ describe("naming what a mutant sits inside", () => {
     expect(nameOf(nullishAnchor("enum E { A = 1 ?? 0 }\n"))).toBe("E.A");
   });
 
+  test("names the switch case a mutant sits in", () => {
+    expect(
+      nameOf(
+        nullishAnchor(
+          'const read = (i) => { switch (i.kind) { case "text": return i.value ?? ""; } };\n',
+        ),
+      ),
+    ).toBe("read.text");
+  });
+
+  /** A `default:` writes no label of its own, so it lends no name and the
+   * enclosing one stands. */
+  test("names the enclosing thing for a default case", () => {
+    expect(
+      nameOf(
+        nullishAnchor(
+          'const read = (i) => { switch (i.kind) { default: return i.value ?? ""; } };\n',
+        ),
+      ),
+    ).toBe("read");
+  });
+
   test("anchors code inside no declaration on the file itself", () => {
     expect(nameOf(nullishAnchor("export default globalThis.x ?? 0;\n"))).toBe(
       "%3cfile%3e",
@@ -204,6 +226,19 @@ describe("telling apart mutants that share a name", () => {
     ).map((m) => m.anchor);
 
     expect(anchors.map(nameOf)).toEqual(["xs.first", "xs.second"]);
+    expect(anchors.filter((a) => a.includes("@"))).toEqual([]);
+  });
+
+  /** The arms of a discriminated-union switch often read alike while each one
+   * narrows the value to a different type, so what is equivalent in one arm
+   * need not be in its neighbour. The label is the only thing telling them
+   * apart, and it must, because an ordinal moves when a case is inserted. */
+  test("tells apart identical switch arms by their case labels", () => {
+    const anchors = nullishMutants(
+      'const read = (i) => { switch (i.kind) { case "text": return i.value ?? ""; case "count": return i.value ?? ""; } };\n',
+    ).map((m) => m.anchor);
+
+    expect(anchors.map(nameOf)).toEqual(["read.text", "read.count"]);
     expect(anchors.filter((a) => a.includes("@"))).toEqual([]);
   });
 

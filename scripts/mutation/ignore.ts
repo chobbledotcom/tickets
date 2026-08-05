@@ -53,13 +53,14 @@ export const listRegistryFiles = async (
 };
 
 /**
- * A mutated literal carries its own text into the displayed `from → to`, where
- * four things would not survive being written to a line and read back: a `#`
- * reads as the start of the reason, a line break of any kind ends the line
- * outright, an arrow of its own reads as the one splitting `from` from `to`,
- * and whitespace at either edge is absorbed by the spacing around that arrow —
- * which would let `"; "` and `";"` share one key. Each is escaped; interior
- * spaces are left alone, so a removed statement still reads as itself.
+ * A file's path and a mutated literal's text both carry characters of their
+ * own choosing onto the line, where four of them would not survive being
+ * written and read back: a `#` reads as the start of the reason — or, at the
+ * front, as a whole comment — a line break of any kind ends the line outright,
+ * an arrow of its own reads as the one splitting `from` from `to`, and
+ * whitespace at either edge is absorbed by the spacing around that arrow, which
+ * would let `"; "` and `";"` share one key. Each is escaped; interior spaces
+ * are left alone, so a removed statement still reads as itself.
  */
 const escapeForLine = (text: string): string =>
   text
@@ -70,9 +71,20 @@ const escapeForLine = (text: string): string =>
     .replace(/^\s+/, percentEncode)
     .replace(/\s+$/, percentEncode);
 
+/** The path a line was written with, back to the file it names — or nothing
+ * when it holds a `%` that begins no escape. Escaping never writes one, so a
+ * line carrying one names no real file and is malformed. */
+const unescapePath = (text: string): string | null => {
+  try {
+    return decodeURIComponent(text);
+  } catch {
+    return null;
+  }
+};
+
 /** Canonical key for a mutant at a project-relative path. */
 export const mutantKeyForPath = (relPath: string, mutant: Mutant): string =>
-  `${relPath}::${mutant.anchor} ${escapeForLine(mutant.operator)}→${escapeForLine(mutant.newOperator)}`;
+  `${escapeForLine(relPath)}::${mutant.anchor} ${escapeForLine(mutant.operator)}→${escapeForLine(mutant.newOperator)}`;
 
 /** Canonical key for a mutant given its absolute source path. */
 export const mutantKey = (file: string, mutant: Mutant): string =>
@@ -88,19 +100,19 @@ interface ParsedIgnoreLine {
 
 /** Parse one ignore-file line into a canonical key, or null when blank/comment. */
 export const parseIgnoreLine = (line: string): ParsedIgnoreLine | null => {
-  // A comment is a `#` with whitespace after it, which is how every reason and
-  // every note in these files is written. A path beginning with `#` has no
-  // such gap, so an entry for one still reads as an entry rather than as a
-  // comment quoting one.
+  // A written path never starts with `#` — escaping turns one into `%23` — so
+  // a line that does is a comment, with no entry it could be mistaken for.
   const text = line.trimStart();
-  if (text === "" || /^#(?:\s|$)/.test(text)) return null;
+  if (text === "" || text.startsWith("#")) return null;
   // Take the path and anchor off the front by their own shape rather than by
   // hunting for a delimiter: an anchor holds only these characters and ends at
   // the first whitespace after it, so whatever precedes is the path, whichever
   // characters it happens to use.
   const located = text.match(/^(.+)::([A-Za-z0-9_$\-.%~@]+)\s+(.*)$/);
   if (!located) return null;
-  const [, sourcePath, anchor, mutation] = located as unknown as string[];
+  const [, writtenPath, anchor, mutation] = located as unknown as string[];
+  const sourcePath = unescapePath(writtenPath!);
+  if (sourcePath === null) return null;
   // `from` and `to` are escaped, so the first arrow left is the one splitting
   // them, and only `to` can be followed by a reason.
   const arrow = mutation!.indexOf("→");
@@ -115,10 +127,10 @@ export const parseIgnoreLine = (line: string): ParsedIgnoreLine | null => {
   const operator = mutation!.slice(0, arrow).trimEnd();
   return {
     anchor: anchor!,
-    key: `${sourcePath}::${anchor} ${operator}→${newOperator}`,
+    key: `${writtenPath}::${anchor} ${operator}→${newOperator}`,
     newOperator,
     operator,
-    sourcePath: sourcePath!,
+    sourcePath,
   };
 };
 
@@ -212,7 +224,8 @@ export const ignoreListProblems = (
   mutatedFiles: string[],
   possibleKeys?: Set<string>,
 ): string[] => {
-  const relFiles = mutatedFiles.map(rel);
+  // Keys hold each path as it is written on a line, so match the written form.
+  const relFiles = mutatedFiles.map((file) => escapeForLine(rel(file)));
   const targetsMutatedFile = (key: string): boolean =>
     relFiles.some((file) => key.startsWith(`${file}:`));
   const generated = new Set(results.map((r) => mutantKey(r.file, r.mutant)));
