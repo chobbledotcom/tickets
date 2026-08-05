@@ -6,6 +6,7 @@
 
 // jscpd:ignore-start
 import { expect } from "@std/expect";
+import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { openAdminPage } from "#test/specs/support/browser.ts";
 import { listingIdNamed } from "#test/specs/support/listings.ts";
 import type { BookingChoices } from "#test/specs/support/public-booking.ts";
@@ -51,7 +52,9 @@ export const organiserAddsBooking = async (
  * text of the file itself. Followed from the link on the page, so a story can
  * never read a file the organiser has no way to reach. */
 export const downloadAttendeeList: ReadAboutOneThing = async (world, name) => {
-  const browser = await openAdminPage(world, rosterPath(world, name));
+  const path = rosterPath(world, name);
+  leaveEvidencePage(world, ["attendee-csv-export"], path);
+  const browser = await openAdminPage(world, path);
   const download = browser.links.find(({ href }) => href.includes("/export"));
   if (!download) {
     throw new Error(`The ${name} roster offers no attendee list to download`);
