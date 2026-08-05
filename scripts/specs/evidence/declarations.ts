@@ -130,7 +130,7 @@ export const EVIDENCE_CAPTURES = [
   brandedMobileCapture(
     "download.the-chosen-length-not-the-maximum",
     "attendee-csv-export",
-    ".page-regions.admin-page",
+    ".page-regions.entity-page",
   ),
   brandedMobileCapture(
     "add-ons.it-appears-in-the-list-with-its-own-link",
