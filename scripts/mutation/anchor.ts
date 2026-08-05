@@ -140,7 +140,15 @@ const namesOf = (node: NamedNode, kind: string, source: string): string[] => {
  * parameters of one function can default to the same words. An assignment and
  * a JSX prop are here because both hand a callback somewhere without ever
  * declaring it — `handlers.text = (x) => …`, `<Widget text={(x) => …} />` —
- * and the target or the prop is the only name that callback has. */
+ * and the target or the prop is the only name that callback has.
+ *
+ * What keeps a kind out is the same rule that lets one in: it must write a
+ * name of its own. Which arm of a ternary an expression sits in is a position,
+ * not a name — swapping the arms of an inverted condition would move it while
+ * the code means the same thing. Which sibling of an object is its "kind" is a
+ * guess about meaning, and a wrong guess moves an anchor when an unrelated
+ * field changes. Both would trade a rare ordinal for a commoner kind of drift,
+ * which is the thing anchors exist to stop. */
 const NAMING_TYPES = new Set([
   "AssignmentExpression",
   "AssignmentPattern",
