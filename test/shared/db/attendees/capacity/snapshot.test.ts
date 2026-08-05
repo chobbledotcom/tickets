@@ -7,7 +7,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { addDays } from "#shared/dates.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getListingRemainingForRange } from "#shared/db/attendees/capacity/remaining.ts";
 import {
   groupRemainingFromSnapshot,
@@ -20,6 +19,7 @@ import { requireValue } from "#shared/required-value.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { bookUnits } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   createDailyTestListing,
@@ -39,20 +39,6 @@ const reload = async (listingId: number): Promise<ListingWithCount> =>
     await getListingWithCount(listingId),
     `Listing ${listingId} vanished`,
   );
-
-/** Book units of a listing, on a day when one is given. */
-const book = async (
-  listingId: number,
-  quantity: number,
-  date?: string,
-): Promise<void> => {
-  const result = await attendeesApi.createAttendeeAtomic({
-    bookings: [{ ...(date ? { date } : {}), listingId, quantity }],
-    email: "booker@example.com",
-    name: "Booker",
-  });
-  if (!result.success) throw new Error(`Could not book: ${result.reason}`);
-};
 
 describeWithEnv(
   "db > attendees > capacity snapshot",
@@ -109,7 +95,7 @@ describeWithEnv(
       // A booking on the third day is inside the 3-day stay and outside the
       // 1-day one, so the lengths must not all report the same figure.
       for (const listing of listings) {
-        await book(listing.id, 4, addDays(date, 2));
+        await bookUnits(listing.id, 4, addDays(date, 2));
       }
 
       const fromSnapshot = await remainingPerOwnLength(listings, date);
@@ -141,7 +127,7 @@ describeWithEnv(
         name: "Long stay",
       });
       // Booked on the third day: only the three-day stay reaches it.
-      await book(short.id, 4, addDays(date, 2));
+      await bookUnits(short.id, 4, addDays(date, 2));
 
       const snapshot = await loadCapacitySnapshot([short, long], date, 3);
 
@@ -162,7 +148,7 @@ describeWithEnv(
         maxAttendees: 8,
         name: "Dateless",
       });
-      await book(listing.id, 3);
+      await bookUnits(listing.id, 3);
       const booked = await reload(listing.id);
       const reread = (await getListingRemainingForRange([booked], null)).get(
         listing.id,
@@ -187,7 +173,7 @@ describeWithEnv(
       });
       const [oneNight] = await listingsOfLengths("Alongside", [1]);
       // Booked with no date at all: only a running total can see it.
-      await book(anyDay.id, 3);
+      await bookUnits(anyDay.id, 3);
       const listings = [await reload(anyDay.id), oneNight!];
 
       const snapshot = await loadCapacitySnapshot(listings, date, 1);
@@ -225,7 +211,7 @@ describeWithEnv(
     test("reads one day for a stay of no days at all", async () => {
       const date = startDate();
       const [listing] = await listingsOfLengths("Zero", [1]);
-      await book(listing!.id, 4, date);
+      await bookUnits(listing!.id, 4, date);
 
       const snapshot = await loadCapacitySnapshot([listing!], date, 0);
       const remaining = remainingFromSnapshot(snapshot, [listing!], () => 0);

@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { addDays } from "#shared/dates.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
 import {
   getDatelessGroupRemaining,
   getGroupPerDayRemaining,
@@ -13,6 +12,7 @@ import {
 import { listingGroups } from "#shared/db/groups.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { bookUnits } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   createDailyTestListing,
@@ -74,20 +74,6 @@ describeWithEnv(
   },
 );
 
-/** Book units of a listing, on a day when one is given. */
-const book = async (
-  listingId: number,
-  quantity: number,
-  date?: string,
-): Promise<void> => {
-  const result = await attendeesApi.createAttendeeAtomic({
-    bookings: [{ ...(date ? { date } : {}), listingId, quantity }],
-    email: "booker@example.com",
-    name: "Booker",
-  });
-  if (!result.success) throw new Error(`Could not book: ${result.reason}`);
-};
-
 describeWithEnv(
   "db > attendees > group capacity by day",
   { db: true, triggers: true },
@@ -118,13 +104,34 @@ describeWithEnv(
         maxAttendees: 10,
         name: "Dated member",
       });
-      await book(anyDay.id, 3);
-      await book(daily.id, 2, day());
+      await bookUnits(anyDay.id, 3);
+      await bookUnits(daily.id, 2, day());
 
       const perDay = await getGroupPerDayRemaining([group.id], [day()]);
 
       // 10 less the 3 booked on any day less the 2 booked on this day.
       expect(perDay.get(group.id)?.get(day())).toBe(5);
+    });
+
+    test("counts both kinds of member against the limit on a chosen day", async () => {
+      const group = await createTestGroup({ maxAttendees: 10, name: "Both" });
+      const anyDay = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        name: "Any day counted",
+      });
+      const daily = await createDailyTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        name: "Dated counted",
+      });
+      await bookUnits(anyDay.id, 3);
+      await bookUnits(daily.id, 2, day());
+
+      const remaining = await getGroupRemainingByGroupId([group.id], day());
+
+      // 10 less the 3 booked whatever the day, less the 2 booked on this one.
+      expect(remaining.get(group.id)).toBe(5);
     });
 
     test("reports nothing left, not one, for a full group", async () => {
@@ -134,7 +141,7 @@ describeWithEnv(
         maxAttendees: 10,
         name: "Filler",
       });
-      await book(listing.id, 4);
+      await bookUnits(listing.id, 4);
 
       const remaining = await getGroupRemainingByGroupId([group.id]);
 

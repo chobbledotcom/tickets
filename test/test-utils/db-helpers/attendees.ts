@@ -380,3 +380,18 @@ export const decryptFirstAttendee = async (
   expect(attendees.length).toBe(1);
   return attendees[0]!;
 };
+
+/** Book units of a listing, on a day when one is given. Goes through the
+ * production booking path, so triggers and totals stay true. */
+export const bookUnits = async (
+  listingId: number,
+  quantity: number,
+  date?: string,
+): Promise<void> => {
+  const result = await attendeesApi.createAttendeeAtomic({
+    bookings: [{ ...(date ? { date } : {}), listingId, quantity }],
+    email: "booker@example.com",
+    name: "Booker",
+  });
+  if (!result.success) throw new Error(`Could not book: ${result.reason}`);
+};
