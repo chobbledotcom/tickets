@@ -15,6 +15,8 @@ import {
   remainingFromSnapshot,
 } from "#shared/db/attendees/capacity/snapshot.ts";
 import { listingGroups } from "#shared/db/groups.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -30,6 +32,13 @@ const startDate = (): string => addDays(todayInTz("UTC"), 2);
 
 /** Enough for the snapshot's fixed reads, far below one read per length. */
 const SNAPSHOT_CALL_LIMIT = 10;
+
+/** The listing as stored now, with its booked total up to date. */
+const reload = async (listingId: number): Promise<ListingWithCount> =>
+  requireValue(
+    await getListingWithCount(listingId),
+    `Listing ${listingId} vanished`,
+  );
 
 /** Book units of a listing, on a day when one is given. */
 const book = async (
@@ -154,14 +163,57 @@ describeWithEnv(
         name: "Dateless",
       });
       await book(listing.id, 3);
-      const reread = (await getListingRemainingForRange([listing], null)).get(
+      const booked = await reload(listing.id);
+      const reread = (await getListingRemainingForRange([booked], null)).get(
         listing.id,
       );
 
-      const snapshot = await loadCapacitySnapshot([listing], null, 1);
-      const remaining = remainingFromSnapshot(snapshot, [listing], () => 1);
+      const snapshot = await loadCapacitySnapshot([booked], null, 1);
+      const remaining = remainingFromSnapshot(snapshot, [booked], () => 1);
 
+      expect(remaining.get(listing.id)).toBe(5);
       expect(remaining.get(listing.id)).toBe(reread);
+    });
+
+    test("still reads a dateless listing by its total when a date is chosen", async () => {
+      const date = startDate();
+      const anyDay = await createTestListing({
+        maxAttendees: 8,
+        name: "Sold any day",
+      });
+      const [oneNight] = await listingsOfLengths("Alongside", [1]);
+      // Booked with no date at all: only a running total can see it.
+      await book(anyDay.id, 3);
+      const listings = [await reload(anyDay.id), oneNight!];
+
+      const snapshot = await loadCapacitySnapshot(listings, date, 1);
+      const remaining = remainingFromSnapshot(snapshot, listings, () => 1);
+
+      expect(remaining.get(anyDay.id)).toBe(5);
+      expect(remaining.get(oneNight!.id)).toBe(10);
+    });
+
+    test("a group's limit lowers what its listing has left", async () => {
+      const date = startDate();
+      const group = await createTestGroup({ maxAttendees: 4, name: "Capped" });
+      const listing = await createDailyTestListing({
+        durationDays: 1,
+        groupId: group.id,
+        maxAttendees: 10,
+        name: "Roomy but capped",
+      });
+
+      const snapshot = await loadCapacitySnapshot([listing], date, 1);
+
+      // Its own 10 gives way to the group's 4, and the group reads the same.
+      expect(
+        remainingFromSnapshot(snapshot, [listing], () => 1).get(listing.id),
+      ).toBe(4);
+      expect(
+        groupRemainingFromSnapshot(snapshot, new Map([[group.id, 1]])).get(
+          group.id,
+        ),
+      ).toBe(4);
     });
 
     test("reads one day for a stay of no days at all", async () => {
