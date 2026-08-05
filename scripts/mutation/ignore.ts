@@ -98,29 +98,17 @@ interface ParsedIgnoreLine {
   sourcePath: string;
 }
 
-/** The `path::anchor` a line or a key opens with, taken by its own shape
- * rather than by hunting for a delimiter: an anchor holds only these
- * characters and ends at the first whitespace after it, so whatever precedes
- * is the path, whichever characters it happens to use — a `:` or even a `::`
- * of its own included. */
-const LOCATION = /^(.+)::([A-Za-z0-9_$\-.%~@]+)\s+(.*)$/;
-
-/** The path a canonical key names. Every key comes from `mutantKeyForPath` or
- * from a line this module parsed, so one that does not read as a key is a
- * caller's mistake rather than a path it could not find. */
-const pathInKey = (key: string): string => {
-  const located = key.match(LOCATION);
-  if (!located) throw new Error(`Not a mutant key: ${key}`);
-  return located[1]!;
-};
-
 /** Parse one ignore-file line into a canonical key, or null when blank/comment. */
 export const parseIgnoreLine = (line: string): ParsedIgnoreLine | null => {
   // A written path never starts with `#` — escaping turns one into `%23` — so
   // a line that does is a comment, with no entry it could be mistaken for.
   const text = line.trimStart();
   if (text === "" || text.startsWith("#")) return null;
-  const located = text.match(LOCATION);
+  // Take the path and anchor off the front by their own shape rather than by
+  // hunting for a delimiter: an anchor holds only these characters and ends at
+  // the first whitespace after it, so whatever precedes is the path, whichever
+  // characters it happens to use — a `:`, or a `::` of its own, included.
+  const located = text.match(/^(.+)::([A-Za-z0-9_$\-.%~@]+)\s+(.*)$/);
   if (!located) return null;
   const [, writtenPath, anchor, mutation] = located as unknown as string[];
   const sourcePath = unescapePath(writtenPath!);
@@ -147,8 +135,10 @@ export const parseIgnoreLine = (line: string): ParsedIgnoreLine | null => {
 };
 
 export interface IgnoreList {
-  /** Every parsed entry in file order, keeping duplicates for validation. */
-  entries: string[];
+  /** Every parsed entry in file order, keeping duplicates for validation. Each
+   * carries the path it named, so scoping a run to its files never has to work
+   * that back out of the key. */
+  entries: { key: string; sourcePath: string }[];
   /** Unique entry keys, for the membership check during evaluation. */
   keys: Set<string>;
 }
@@ -160,15 +150,20 @@ export const loadIgnoreList = async (
   ignoreFiles?: (string | URL)[],
 ): Promise<IgnoreList> => {
   const files = ignoreFiles ?? (await listRegistryFiles());
-  const entries: string[] = [];
+  const entries: IgnoreList["entries"] = [];
   for (const file of files) {
     // Absence is the documented empty case; a file that exists but cannot be
     // read is a real failure the run must surface, not an empty registry.
     const text = await readTextFileOrNull(file);
     if (text === null) continue;
-    entries.push(...parseRegistryText(text, file).map((entry) => entry.key));
+    entries.push(
+      ...parseRegistryText(text, file).map(({ key, sourcePath }) => ({
+        key,
+        sourcePath,
+      })),
+    );
   }
-  return { entries, keys: new Set(entries) };
+  return { entries, keys: new Set(entries.map((entry) => entry.key)) };
 };
 
 /**
@@ -236,13 +231,8 @@ export const ignoreListProblems = (
   mutatedFiles: string[],
   possibleKeys?: Set<string>,
 ): string[] => {
-  // Keys hold each path as it is written on a line, so match the written form —
-  // and match the whole path, since one file's path can begin with another's.
-  const relFiles = new Set(
-    mutatedFiles.map((file) => escapeForLine(rel(file))),
-  );
-  const targetsMutatedFile = (key: string): boolean =>
-    relFiles.has(pathInKey(key));
+  // Whole paths, not prefixes: one file's path can begin with another's.
+  const relFiles = new Set(mutatedFiles.map(rel));
   const generated = new Set(results.map((r) => mutantKey(r.file, r.mutant)));
   const known = possibleKeys ?? generated;
   const suppressed = new Set(
@@ -253,8 +243,8 @@ export const ignoreListProblems = (
 
   const problems: string[] = [];
   const isRepeat = seenBefore();
-  for (const key of ignore.entries) {
-    if (!targetsMutatedFile(key)) continue;
+  for (const { key, sourcePath } of ignore.entries) {
+    if (!relFiles.has(sourcePath)) continue;
     if (isRepeat(key)) {
       problems.push(`duplicate entry: ${key}`);
       continue;

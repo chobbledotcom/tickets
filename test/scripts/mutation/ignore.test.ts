@@ -40,10 +40,18 @@ const result = (
   timings: [],
 });
 
-const ignoreList = (entries: string[]): IgnoreList => ({
-  entries,
-  keys: new Set(entries),
-});
+/** An ignore list of entries against `src/example.ts` unless a line names its
+ * own path, which is how a neighbouring file's entry is written. */
+const ignoreList = (
+  keys: (string | { key: string; sourcePath: string })[],
+): IgnoreList => {
+  const entries = keys.map((entry) =>
+    typeof entry === "string"
+      ? { key: entry, sourcePath: "src/example.ts" }
+      : entry,
+  );
+  return { entries, keys: new Set(entries.map((entry) => entry.key)) };
+};
 
 describe("writing a mutant key onto one line", () => {
   /** A mutated literal carries its own text into the key, and that text can
@@ -191,7 +199,12 @@ describe("mutation ignore list", () => {
 
     const loaded = await loadIgnoreList([temp.path]);
 
-    expect(loaded.entries).toEqual(["src/example.ts::readSetting ??→||"]);
+    expect(loaded.entries).toEqual([
+      {
+        key: "src/example.ts::readSetting ??→||",
+        sourcePath: "src/example.ts",
+      },
+    ]);
     expect(loaded.keys.has("src/example.ts::readSetting ??→||")).toBe(true);
   });
 
@@ -220,7 +233,9 @@ describe("mutation ignore list", () => {
 
     const loaded = await loadIgnoreList([temp.path]);
 
-    expect(loaded.entries).toEqual(['src/example.ts::fn12 →"mutated"']);
+    expect(loaded.entries).toEqual([
+      { key: 'src/example.ts::fn12 →"mutated"', sourcePath: "src/example.ts" },
+    ]);
     expect(isIgnored(loaded, file, mutant(12, "", '"mutated"'))).toBe(true);
   });
 
@@ -238,7 +253,7 @@ describe("mutation ignore list", () => {
 
     const loaded = await loadIgnoreList(await listRegistryFiles(dir.path));
 
-    expect(loaded.entries).toEqual([
+    expect(loaded.entries.map((entry) => entry.key)).toEqual([
       "src/example.ts::first ??→||",
       "src/example.ts::second ??→||",
     ]);
@@ -284,7 +299,10 @@ describe("mutation ignore list", () => {
     const ignored = mutantKey(file, mutant(1));
     const redundant = mutantKey(file, mutant(2));
     const stale = "src/example.ts::noSuchThing ??→||";
-    const otherFile = "src/other.ts::fn1 ??→||";
+    const otherFile = {
+      key: "src/other.ts::fn1 ??→||",
+      sourcePath: "src/other.ts",
+    };
 
     expect(
       ignoreListProblems(
@@ -303,7 +321,10 @@ describe("mutation ignore list", () => {
    * a neighbour's entry into this run and report it stale against mutants that
    * were never generated for it. */
   test("leaves alone an entry for a file whose path merely starts with the mutated one", () => {
-    const neighbour = "src/example.ts:backup::fn1 ??→||";
+    const neighbour = {
+      key: "src/example.ts:backup::fn1 ??→||",
+      sourcePath: "src/example.ts:backup",
+    };
 
     expect(
       ignoreListProblems(
