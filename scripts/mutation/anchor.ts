@@ -43,7 +43,8 @@ interface Span {
 }
 
 /** Whatever a node writes its name in: a declaration's `id`, a member's `key`,
- * a defaulted parameter's `left`, a switch case's `test`. */
+ * a defaulted parameter's or an assignment's `left`, a JSX prop's `name`, a
+ * switch case's `test`. */
 interface Label {
   name?: string;
   type?: string;
@@ -56,6 +57,7 @@ interface NamedNode {
   key?: Label | null;
   kind?: string;
   left?: Label | null;
+  name?: Label | null;
   static?: boolean;
   test?: Label | null;
   type?: string;
@@ -71,7 +73,7 @@ interface NamedNode {
  * private member keeps its `#`, because one class may hold `#read` and `read`
  * and the bare name is the same for both. */
 const nameOf = (node: NamedNode): string | null => {
-  const label = node.id ?? node.key ?? node.left ?? node.test;
+  const label = node.id ?? node.key ?? node.left ?? node.name ?? node.test;
   if (typeof label?.name === "string" && label.name !== "") {
     return label.type === "PrivateIdentifier" ? `#${label.name}` : label.name;
   }
@@ -80,14 +82,26 @@ const nameOf = (node: NamedNode): string | null => {
   return typeof written === "string" ? written : null;
 };
 
-/** A member or arm whose name is written as an expression — a computed key
- * `[Kind.Text]`, a case label `case Kind.Text:` — named by how it is written,
- * since it picks that member or arm out just as a plain name does. Only a key
- * or a label earns this: a binding pattern is not a name, and naming one by
- * its text would move the anchor whenever an unrelated field was
- * destructured. */
+/** Which nodes may take their name from how it is written, and where the
+ * writing sits. A computed key `[Kind.Text]`, a case label `case Kind.Text:`,
+ * an assignment target `handlers.text = …`, a namespaced JSX prop — each picks
+ * out its member or arm just as a plain name does.
+ *
+ * `AssignmentPattern` is missing on purpose, though it too has a `left`: a
+ * binding pattern is not a name, and naming a destructured parameter by its
+ * text would move the anchor whenever an unrelated field joined it. */
+const WRITTEN_NAME: Record<string, "key" | "left" | "name" | "test"> = {
+  AssignmentExpression: "left",
+  JSXAttribute: "name",
+  MethodDefinition: "key",
+  Property: "key",
+  PropertyDefinition: "key",
+  SwitchCase: "test",
+};
+
 const writtenAs = (node: NamedNode, source: string): string | null => {
-  const label = node.type === "SwitchCase" ? node.test : node.key;
+  const field = WRITTEN_NAME[node.type ?? ""];
+  const label = field === undefined ? null : node[field];
   return isSpan(label) ? source.slice(label.start, label.end) : null;
 };
 
@@ -120,13 +134,18 @@ const namesOf = (node: NamedNode, source: string): string[] => {
  * often read alike while each narrows the value to a different type, so the
  * label is the only thing telling one arm's expression from another's. A
  * defaulted parameter is here because its default is code of its own, and two
- * parameters of one function can default to the same words. */
+ * parameters of one function can default to the same words. An assignment and
+ * a JSX prop are here because both hand a callback somewhere without ever
+ * declaring it — `handlers.text = (x) => …`, `<Widget text={(x) => …} />` —
+ * and the target or the prop is the only name that callback has. */
 const NAMING_TYPES = new Set([
+  "AssignmentExpression",
   "AssignmentPattern",
   "ClassDeclaration",
   "ClassExpression",
   "FunctionDeclaration",
   "FunctionExpression",
+  "JSXAttribute",
   "MethodDefinition",
   "Property",
   "PropertyDefinition",

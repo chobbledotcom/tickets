@@ -202,7 +202,7 @@ src/shared/merge/attendee-merge.ts::buildBookingDiffItems.tb~0xvtq6y  ?? → || 
 # is unobservable: the field is computed but never read. (PII itself is
 # re-blobbed by the feature layer from `decision.pii` and `targetPii` raw —
 # not from `mergedPii` — so nothing downstream reads it either.)
-src/shared/merge/attendee-merge.ts::applyPiiDecisions~0ce4on8  = → +=   # mergedPii is computed then discarded by applyAttendeeMerge; only piiFieldsFromSource is observed
+src/shared/merge/attendee-merge.ts::applyPiiDecisions.%28mergedPii%20as%20Record%3cstring%2c%20string%3e%29%5bfield%2efield%5d~0ce4on8  = → +=   # mergedPii is computed then discarded by applyAttendeeMerge; only piiFieldsFromSource is observed
 
 # Attendee merge service (attendee-merge.ts) — `moneyReversalLegs`'s keyParts
 # prefix strings ("merge-unbill", "merge-credit") are the FIRST element of an
@@ -239,14 +239,14 @@ src/shared/stripe/webhook.ts::readHeaderPart.key~05rrw2z  1 → 2   # this chang
 
 # SumUp client: values that are never falsy apart from null.
 src/shared/sumup.ts::sumupApi.refundTransaction~0ahuvgt  ?? → ||   # withClient resolves to the callback's `true` or to null on failure, so the only non-null value is truthy and ?? false and || false agree
-src/shared/sumup.ts::sumupApi.testSumupConnection.mode~109o082  ?? → ||   # settings.sumup.keyMode is typed "test" | "live" | null, so it has no falsy non-null value and ?? "unknown" and || "unknown" agree
+src/shared/sumup.ts::sumupApi.testSumupConnection.result%2eapiKey.mode~109o082  ?? → ||   # settings.sumup.keyMode is typed "test" | "live" | null, so it has no falsy non-null value and ?? "unknown" and || "unknown" agree
 
 # rebrand scanner — four provably-equivalent survivors.
 # tagIsCode is read in exactly one place: stepTag's close, reachable only while
 # inTag is true — and every assignment of inTag=true (stepProse's unfinished
 # tag) also assigns tagIsCode. So a stale tagIsCode value can never be read.
 src/shared/rebrand.ts::freshScan.tagIsCode~0lmqhnz  false → true   # freshScan's tagIsCode: inTag starts false, so stepTag cannot run before stepProse has overwritten tagIsCode — the initial value is never read
-src/shared/rebrand.ts::stepTag~0zhp0n6  false → true   # stepTag's tagIsCode reset after closing: inTag is false from here, and the next inTag=true assignment rewrites tagIsCode first — the residual value is never read
+src/shared/rebrand.ts::stepTag.closed%2etagIsCode~0zhp0n6  false → true   # stepTag's tagIsCode reset after closing: inTag is false from here, and the next inTag=true assignment rewrites tagIsCode first — the residual value is never read
 # scanTagEnd treats "<" as an inert character (it is neither a quote nor ">"),
 # so starting the scan at the "<" itself instead of one past it visits one
 # extra no-op character and returns the same index with the same quote state.

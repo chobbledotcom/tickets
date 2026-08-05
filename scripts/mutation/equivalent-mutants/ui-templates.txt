@@ -5,7 +5,7 @@ src/ui/templates/layout.tsx::Layout.resolvedTheme~0oltraa  ?? → ||   # Theme i
 
 # Parent/child per-unit render (reservations contact-fields.ts).
 src/ui/templates/public/reservations/contact-fields.ts::pagePaid~07x8o1n  ?? → ||   # addOns?.some(...) is boolean|undefined; ?? and || agree on every boolean and on undefined
-src/ui/templates/public/reservations/form.tsx::TicketPageForm~1470qil   → "mutated"   # TicketPageForm's only caller supplies YYYY-MM-DD options; the fallback affects HTML only if it equals an option, which "mutated" never can
+src/ui/templates/public/reservations/form.tsx::TicketPageForm.html~1470qil   → "mutated"   # TicketPageForm's only caller supplies YYYY-MM-DD options; the fallback affects HTML only if it equals an option, which "mutated" never can
 src/ui/templates/public/reservations/ticket-page.tsx::ticketPage~0nmjfxs  ?? → ||   # questions is QuestionWithAnswers[]|undefined, and every present array, including [], is truthy
 src/ui/templates/public/reservations/ticket-page.tsx::ticketPage~0pcr5er  ?? → ||   # childDatesById is a ReadonlyMap|undefined, and every present Map, including an empty one, is truthy
 

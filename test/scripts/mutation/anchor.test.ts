@@ -2,11 +2,16 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { generateMutants } from "#scripts/mutation/generate.ts";
 
-/** Every `?? → ||` mutant a source produces, in source order. */
-const nullishMutants = (source: string) =>
-  generateMutants(source, "/tmp/example.ts", true).filter(
+/** Every `?? → ||` mutant a source produces, in source order. Markup needs the
+ * `.tsx` name to be read as markup rather than as a comparison. */
+const nullishMutants = (source: string, name = "/tmp/example.ts") =>
+  generateMutants(source, name, true).filter(
     (m) => m.operator === "??" && m.newOperator === "||",
   );
+
+/** The anchors of every `?? → ||` mutant in a piece of markup. */
+const markupAnchors = (source: string): string[] =>
+  nullishMutants(source, "/tmp/example.tsx").map((m) => m.anchor);
 
 /** The anchor of the one `?? → ||` mutant in a source. */
 const nullishAnchor = (source: string): string => {
@@ -123,6 +128,24 @@ describe("naming what a mutant sits inside", () => {
     expect(
       nameOf(nullishAnchor('class R { get v() { return x ?? ""; } }\n')),
     ).toBe("R.%3cget%3e.v");
+  });
+
+  /** A callback handed straight to a property or a prop is never declared, so
+   * the target or the prop name is the only name it has. */
+  test("names the target a callback is assigned to", () => {
+    expect(
+      nameOf(
+        nullishAnchor("const install = (h) => { h.text = (x) => x ?? 0; };\n"),
+      ),
+    ).toBe("install.h%2etext");
+  });
+
+  test("names the prop a callback is passed as", () => {
+    expect(
+      markupAnchors(
+        "const Page = () => <Widget text={(x) => x ?? 0} />;\n",
+      ).map(nameOf),
+    ).toEqual(["Page.text"]);
   });
 
   test("names the parameter a default belongs to", () => {
@@ -330,7 +353,36 @@ describe("telling apart mutants that share a name", () => {
       'class R { get v() { return x ?? ""; } set v(x) { this.y = x ?? ""; } }\n',
     ).map((m) => m.anchor);
 
-    expect(anchors.map(nameOf)).toEqual(["R.%3cget%3e.v", "R.%3cset%3e.v"]);
+    expect(anchors.map(nameOf)).toEqual([
+      "R.%3cget%3e.v",
+      // The setter's assignment lends its target too, which is why the two
+      // names differ by more than the marker.
+      "R.%3cset%3e.v.this%2ey",
+    ]);
+    expect(anchors.filter((a) => a.includes("@"))).toEqual([]);
+  });
+
+  /** A callback handed to a property or a prop is never declared, so without
+   * the target or the prop name there is nothing but order to tell two of them
+   * apart — and each can take a different type. */
+  test("tells apart identical callbacks assigned to different targets", () => {
+    const anchors = nullishMutants(
+      'const install = (h) => { h.text = (x) => x ?? ""; h.count = (x) => x ?? ""; };\n',
+    ).map((m) => m.anchor);
+
+    expect(anchors.map(nameOf)).toEqual([
+      "install.h%2etext",
+      "install.h%2ecount",
+    ]);
+    expect(anchors.filter((a) => a.includes("@"))).toEqual([]);
+  });
+
+  test("tells apart identical callbacks passed as different props", () => {
+    const anchors = markupAnchors(
+      'const Page = () => <Widget text={(x) => x ?? ""} count={(x) => x ?? ""} />;\n',
+    );
+
+    expect(anchors.map(nameOf)).toEqual(["Page.text", "Page.count"]);
     expect(anchors.filter((a) => a.includes("@"))).toEqual([]);
   });
 

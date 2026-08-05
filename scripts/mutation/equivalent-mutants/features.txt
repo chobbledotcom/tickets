@@ -3,9 +3,9 @@
 src/features/admin/entity-pages.ts::defineEntityPage.renderPage.ctx.baseUrl~0v3px31  ?? → ||   # opts.baseUrl is a string and the only falsy string is the empty fallback itself
 src/features/admin/entity-pages.ts::defineEntityPage.renderPage.ctx.query~1xs3bh3  ?? → ||   # opts.query is a URLSearchParams object when present, so it is always truthy
 src/features/admin/site-content-page.ts::defineSiteContentPage.tabs~0786g3u  ?? → ||   # extraTabs is an array when present, and arrays are always truthy
-src/ui/templates/admin/holidays.tsx::HolidayEditPanel~1nrsidb  ?? → ||   # values is a render-values object when present, so it is always truthy
+src/ui/templates/admin/holidays.tsx::HolidayEditPanel.html~1nrsidb  ?? → ||   # values is a render-values object when present, so it is always truthy
 src/ui/client/admin/manual-checkin.ts::initManualCheckin.filterOptions.text~0hoqwoy  ?? → ||   # textContent is string|null; its only falsy string is the empty fallback itself
-src/ui/client/admin/order-gallery.ts::initOrderGallery.refresh~1xo126t  ?? → ||   # states is a record object when present, so it is always truthy
+src/ui/client/admin/order-gallery.ts::initOrderGallery.refresh.timer~1xo126t  ?? → ||   # states is a record object when present, so it is always truthy
 
 # ticket-payment values whose present form is always truthy, whose falsy value
 # equals the fallback, or whose mutated constant is normalized before use.
@@ -131,8 +131,8 @@ src/shared/runtime.ts::buildRuntimeInfo.os~05o6squ  ?? → ||   # os is string|u
 src/shared/runtime.ts::buildRuntimeInfo.typescriptVersion~14e4wx7  ?? → ||   # typescriptVersion is string|undefined and falls back to "", so both operators agree
 src/shared/runtime.ts::buildRuntimeInfo.userAgent~17udaa2  ?? → ||   # userAgent is string|undefined and falls back to "", so both operators agree
 src/shared/square.ts::createSquareClient.checkout.paymentLinks.create.data.pre_populated_data~0evahy5  ?: → consequent only   # the buyer_phone_number ternary spreads {} when the phone is absent; the consequent-only mutant always spreads { buyer_phone_number: undefined }, but JSON.stringify omits undefined values, so the serialized request body is identical in both cases
-src/shared/square.ts::squareApi.testSquareConnection~10z1q7q  ?? → ||   # locations is an array or undefined; arrays are truthy and undefined takes [] under both operators
-src/ui/client/dom.ts::createButton~16pvzvs  = → +=   # createElement returns a new button with className "", so both assignments produce the supplied class string
+src/shared/square.ts::squareApi.testSquareConnection.locations~10z1q7q  ?? → ||   # locations is an array or undefined; arrays are truthy and undefined takes [] under both operators
+src/ui/client/dom.ts::createButton.button%2eclassName~16pvzvs  = → +=   # createElement returns a new button with className "", so both assignments produce the supplied class string
 
 # Paid-payment processing: private defaults are always supplied by their only
 # callers; optional collections are arrays (always truthy); parsed day counts and
@@ -153,7 +153,7 @@ src/features/api/payment-processing/package-pricing.ts::hasStaleStandaloneChild.
 
 # Payment success replay only loads a listing fallback while thankYouUrl is the
 # empty string, so assignment and append produce the same string for every path.
-src/features/api/webhooks.ts::processSessionAndRedirect~1sbbxjk  = → +=   # the enclosing !thankYouUrl guard narrows the string to "" before this assignment, and "" + fallback equals fallback
+src/features/api/webhooks.ts::processSessionAndRedirect.thankYouUrl~1sbbxjk  = → +=   # the enclosing !thankYouUrl guard narrows the string to "" before this assignment, and "" + fallback equals fallback
 src/ui/templates/admin/settings/payment.tsx::shownPaymentProvider~1empuiw  ?? → ||   # both operands are PaymentProviderType|null; every provider id is non-empty and truthy, while null selects the same fallback under either operator
 
 # Folded API booking: equivalents for schema-validated inputs and unused paths.
