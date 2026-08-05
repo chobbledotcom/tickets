@@ -195,3 +195,15 @@ src/shared/booking/page-packages.ts::stampChildRowPackages.parentId~0mh8ima  ?? 
 # cannot reach any branch, and a recovery count that is never exactly one.
 src/features/admin/attendee-page-data.ts::assembleTemplateData.balanceNotice~0ec14e6  0 → 1   # the fallback is used only in create mode, where fullPrice is 0; the amount paid cannot affect any balance-notice branch when no order exists
 src/features/admin/settings-page.ts::getAdvancedSettingsPageState.paymentProviderRecoveryNeeded~1fd1z1o  0 → 1   # existingPaymentProviderState resolves one configured provider directly; recoveryChoices is therefore either empty or has at least two providers, so both comparisons agree
+
+# Public order page (order.ts) — booking-span sums whose floor the capacity
+# reading applies again, and key halves that are always present.
+src/features/public/order.ts::bookingSpanDays~1ybe7gz  1 → 0   # a stored daily listing's duration_days is at least 1, so Math.max never picks the floor
+src/features/public/order.ts::bookingSpanDays~1mmd8yc  1 → 0   # the span of a listing not judged day by day is unused, and daysOfSpan clamps it back to one day anyway
+src/features/public/order.ts::widestSpanPerGroup~0ia21ee  ?? → ||   # spanByGroupId holds spans of at least 1, so the only falsy value is undefined
+src/features/public/order.ts::widestSpanPerGroup~0ia21ee  1 → 0   # the first span seen is at least 1, so Math.max returns it whichever starting value it is compared against
+src/features/public/order.ts::loadOrderPools.spanOf~13yakgc  1 → 0   # with no date chosen nothing is judged day by day, and daysOfSpan clamps the span back to one day
+src/features/public/order.ts::loadOrderPools~15mruqs  1 → 0   # every listing's span is at least 1, so the floor never wins; with no listings at all the reading has no days either way
+src/features/public/order.ts::bookingUrlFor.chosen.kind~17n3p4g   → "mutated"   # a selection key is always built as kind:id by listingOptionKey/packageOptionKey, so the kind is never missing
+src/features/public/order.ts::bookingUrlFor.chosen.rawId~1xqr8m1   → "mutated"   # the same key always carries its id, so the id half is never missing
+src/features/public/order.ts::bookingUrlFor.chosen.prefill~1vgmybj  1 → 0   # buildTicketListing sets maxPurchasable to 0 for a sold-out or closed listing and to at least 1 otherwise (max_quantity is at least 1), so the two thresholds never disagree once the checks beside them have passed

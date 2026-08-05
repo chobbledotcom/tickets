@@ -1050,11 +1050,6 @@ database-only cases fail loudly, but it cannot count provider or storage calls.
   `src/features/checkin.ts` calls `updateCheckedIn` once per eligible booking
   line. A token set with 51 lines therefore makes 51 updates. Replace it with
   one set-based update over all attendee/listing pairs.
-- **Order availability by duration.** `poolBySpan`, `remainingBySpan`, and
-  `groupRemainingBySpan` in `src/features/public/order.ts` run six capacity
-  reads per distinct duration/group combination; nine distinct durations can
-  make 54 calls. Load one capacity snapshot for the widest span and derive each
-  duration in memory.
 - **Automatic built-site assignment.** `assignSitesForEntries` and
   `assignSiteWithRenewal` in `src/shared/site-assignment.ts` mix per-unit DB
   writes with provider calls. Eleven Deno site units, or nine Bunny site units,

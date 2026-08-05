@@ -9,7 +9,7 @@ import {
   fetchAvailability,
   orderDate,
   selectOrder,
-} from "#test/integration/server/order-page-helpers.ts";
+} from "#test/features/public/order/helpers.ts";
 import { expectRedirect, expectStatus } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";

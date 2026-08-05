@@ -8,8 +8,7 @@ import { expectStatus } from "#test-utils/assertions.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
-/** Shared helpers for the server (public order) test files. Not itself a
- * test file. */
+/** Shared helpers for the public order test files. Not itself a test file. */
 
 /** Turn the public site + order page on for each test in the block. */
 export const enablePublicOrder = (): void => {
