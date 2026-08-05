@@ -46,6 +46,7 @@ interface Span {
  * a switch case's `test`. */
 interface Label {
   name?: string;
+  type?: string;
   value?: unknown;
 }
 
@@ -64,23 +65,29 @@ interface NamedNode {
  * string, or a number — `{ 1: … }` names its member just as `{ a: … }` does,
  * and `{ "": … }` names its own, empty though that name is: dropping it would
  * put the member back in with everything unnamed, to be told apart by order.
- * A `default:` case writes no name of its own, so it contributes none. */
+ * A `default:` case writes no name of its own, so it contributes none. A
+ * private member keeps its `#`, because one class may hold `#read` and `read`
+ * and the bare name is the same for both. */
 const nameOf = (node: NamedNode): string | null => {
   const label = node.id ?? node.key ?? node.test;
-  if (typeof label?.name === "string" && label.name !== "") return label.name;
+  if (typeof label?.name === "string" && label.name !== "") {
+    return label.type === "PrivateIdentifier" ? `#${label.name}` : label.name;
+  }
   const written = label?.value;
   if (typeof written === "number") return String(written);
   return typeof written === "string" ? written : null;
 };
 
-/** A case label built out of an expression — `case Kind.Text:` — named by how
- * it is written, since it picks out its arm just as a plain label does. Only a
- * case earns this: a binding pattern is not a name, and naming one by its text
- * would move the anchor whenever an unrelated field was destructured. */
-const caseLabelText = (node: NamedNode, source: string): string | null =>
-  node.type === "SwitchCase" && isSpan(node.test)
-    ? source.slice(node.test.start, node.test.end)
-    : null;
+/** A member or arm whose name is written as an expression — a computed key
+ * `[Kind.Text]`, a case label `case Kind.Text:` — named by how it is written,
+ * since it picks that member or arm out just as a plain name does. Only a key
+ * or a label earns this: a binding pattern is not a name, and naming one by
+ * its text would move the anchor whenever an unrelated field was
+ * destructured. */
+const writtenAs = (node: NamedNode, source: string): string | null => {
+  const label = node.type === "SwitchCase" ? node.test : node.key;
+  return isSpan(label) ? source.slice(label.start, label.end) : null;
+};
 
 /** The names a node adds to the path: its own, and — for a member on the class
  * itself rather than on its instances — the side of the class it sits on. One
@@ -89,7 +96,7 @@ const caseLabelText = (node: NamedNode, source: string): string | null =>
  * key alone would leave them to be told apart by order. `<static>` is written
  * the way `<file>` is, for the same reason: it says something no name can. */
 const namesOf = (node: NamedNode, source: string): string[] => {
-  const own = nameOf(node) ?? caseLabelText(node, source);
+  const own = nameOf(node) ?? writtenAs(node, source);
   if (own === null) return [];
   return node.static === true ? ["<static>", own] : [own];
 };

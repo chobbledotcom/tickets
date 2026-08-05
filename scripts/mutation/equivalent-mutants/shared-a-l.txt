@@ -4,7 +4,7 @@ src/shared/form-data.ts::FormParams.getString~0hhlva7  ?? → ||   # trim return
 src/shared/forms/validation.ts::validateSingleField~0vrlsmq  = → +=   # this assignment runs only when trimmed is the empty string, so replacing it and appending to it produce the same defaultValue
 src/features/admin/dashboard.ts::handleAdminLog.entries~1bmdvzm  1 → 2   # The query needs any number above the 200-row display limit only to detect overflow; both limits produce the same truncated flag and the same first 200 displayed rows
 src/shared/bearer.ts::bearerTokenOrNull~0zm5hxk  ?? → ||   # the optional regex capture is non-empty because the capture uses +, so only undefined reaches the null fallback
-src/shared/uptime-kuma/socket.ts::KumaSocket.changeListeners~0x9mfb4  0 → -1   # the private map's missing set and retained empty set behave identically: once adds to either, while off and emit are no-ops for both
+src/shared/uptime-kuma/socket.ts::KumaSocket.%23changeListeners~0x9mfb4  0 → -1   # the private map's missing set and retained empty set behave identically: once adds to either, while off and emit are no-ops for both
 src/shared/uptime-kuma/matching.ts::SCHEDULED_MONITOR_RULES.holds~14f0p4m  1000 → 1001   # timeout is a positive whole number of seconds and the 25,000ms deadline lies between the same integer seconds under either multiplier
 
 # `x ?? F` vs `x || F` differ only when x is falsy-but-not-null; these are all
@@ -68,7 +68,7 @@ src/shared/admin-features.ts::featureBySlug~1rzgri8  ?? → ||   # find(): Admin
 src/shared/db/admin-features.ts::requireSettingCondition.args~1i6rv6b  __required_setting_condition__ → ""   # the placeholder key is never stored: a failed condition always aborts on its NULL value
 src/shared/db/admin-features.ts::requireSettingCondition.args~1i6rv6b  __required_setting_condition__ → "__required_setting_condition__ mutated"   # same as above; no successful statement exposes this key
 src/shared/db/admin-features.ts::usageJsonEntry~0041kmq  ?? → ||   # inUseSql: a non-empty SQL string|undefined, so only undefined reaches the fallback
-src/shared/db/migrations/schema/admin-feature-triggers.ts::featureWriteTrigger.uses~0toeppz  ?? → ||   # source.columns is undefined or an array; every array, including [], is truthy
+src/shared/db/migrations/schema/admin-feature-triggers.ts::featureWriteTrigger.uses.source%2etable~0toeppz  ?? → ||   # source.columns is undefined or an array; every array, including [], is truthy
 src/shared/square-provider.ts::squarePaymentProvider.isPaymentRefunded.charged~0ek3sg6  ?? → ||   # amount is bigint|undefined, and its only falsy bigint is 0n, which equals the fallback
 src/shared/square-provider.ts::squarePaymentProvider.isPaymentRefunded.refunded~1mw8ezt  ?? → ||   # refunded amount is bigint|undefined, and its only falsy bigint is 0n, which equals the fallback
 src/shared/square-provider.ts::squarePaymentProvider.resolveWebhookSession~08j5olw  ?? → ||   # retrieveSession returns a session object or null, so every present value is truthy

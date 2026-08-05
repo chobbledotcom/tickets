@@ -79,7 +79,7 @@ scripts/compact-test-reporter.ts::CompactTapReporter.constructor~11exve5  ?? →
 scripts/compact-test-reporter.ts::CompactTapReporter.constructor~0il4lt8  ?? → ||   # the stderr option is a function when present, and functions are always truthy
 scripts/compact-test-reporter.ts::CompactTapReporter.consumeLine~1dqn0ov@2  --- → ""   # a line that trims to nothing has already returned above, so comparing the trimmed line with "" is never true
 scripts/compact-test-reporter.ts::CompactTapReporter.consumeLine~1w2cvti@2  ... → ""   # same line, same reason
-scripts/compact-test-reporter.ts::CompactTapReporter.recordFailure.location~13av20m  ?? → ||   # locationFromStack returns a location object or undefined, and objects are always truthy
+scripts/compact-test-reporter.ts::CompactTapReporter.%23recordFailure.location~13av20m  ?? → ||   # locationFromStack returns a location object or undefined, and objects are always truthy
 
 # Mutation summary: grouped results are arrays or absent, never falsy-but-set.
 scripts/mutation/summary.ts::summarize.count~009kdgl  ?? → ||   # Object.groupBy gives each status a non-empty array or nothing at all, and an array is always truthy

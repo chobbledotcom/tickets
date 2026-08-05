@@ -105,6 +105,20 @@ describe("naming what a mutant sits inside", () => {
     expect(nameOf(nullishAnchor("enum E { A = 1 ?? 0 }\n"))).toBe("E.A");
   });
 
+  /** A class may hold `#read` and `read` at once, and their bare names are the
+   * same, so the mark that tells them apart belongs in the name. */
+  test("keeps the mark that makes a private member private", () => {
+    expect(
+      nameOf(nullishAnchor("class R { #read(x) { return x ?? 0; } }\n")),
+    ).toBe("R.%23read");
+  });
+
+  test("names a member whose key is written as an expression", () => {
+    expect(
+      nameOf(nullishAnchor("const o = { [Kind.Text]: (x) => x ?? 0 };\n")),
+    ).toBe("o.Kind%2eText");
+  });
+
   test("says which side of a class a static member sits on", () => {
     expect(
       nameOf(nullishAnchor("class R { static read(x) { return x ?? 0; } }\n")),
@@ -275,6 +289,24 @@ describe("telling apart mutants that share a name", () => {
       "read.Kind%2eText",
       "read.Kind%2eCount",
     ]);
+    expect(anchors.filter((a) => a.includes("@"))).toEqual([]);
+  });
+
+  test("tells apart a private and a public member sharing a bare name", () => {
+    const anchors = nullishMutants(
+      'class R { #read(x) { return x ?? ""; } read(x) { return x ?? ""; } }\n',
+    ).map((m) => m.anchor);
+
+    expect(anchors.map(nameOf)).toEqual(["R.%23read", "R.read"]);
+    expect(anchors.filter((a) => a.includes("@"))).toEqual([]);
+  });
+
+  test("tells apart identical callbacks under keys written as expressions", () => {
+    const anchors = nullishMutants(
+      'const o = { [Kind.Text]: (x) => x ?? "", [Kind.Count]: (x) => x ?? "" };\n',
+    ).map((m) => m.anchor);
+
+    expect(anchors.map(nameOf)).toEqual(["o.Kind%2eText", "o.Kind%2eCount"]);
     expect(anchors.filter((a) => a.includes("@"))).toEqual([]);
   });
 
