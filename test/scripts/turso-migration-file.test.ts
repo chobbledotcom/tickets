@@ -201,32 +201,12 @@ describe("Turso migration file", () => {
       );
     }));
 
-  // Regression: a server that answers before the whole body is sent breaks
-  // the upload write. The caller must get the server's answer or the write
-  // error as a normal rejection — never a process-killing internal error.
-  test("still rejects when the server replies before the upload finishes", () =>
-    withTempDir(async (dir) => {
-      const path = join(dir, "database.sqlite");
-      // Big enough that the client cannot finish writing before the 400 lands.
-      await Deno.writeFile(path, new Uint8Array(8_000_000));
-
-      await withUploadServer(
-        () => new Response("invalid", { status: 400 }),
-        async (dbUrl, transport) => {
-          await expect(
-            uploadTursoDatabaseFile(
-              path,
-              uploadCredentials(dbUrl),
-              undefined,
-              transport,
-            ),
-          ).rejects.toThrow(
-            /Upload database failed \(400\): invalid|error writing a body to connection/,
-          );
-        },
-      );
-    }));
-
+  /**
+   * A server can answer before the whole body is sent, which breaks the write.
+   * Either the answer or the write error is a correct outcome, so which one
+   * arrives has to be chosen rather than raced: the two cases below script the
+   * order instead of sending a file large enough to lose the race with.
+   */
   test("prefers the server's answer over a later write error", () =>
     withTempDir(async (dir) => {
       const request = fakeRequest();
