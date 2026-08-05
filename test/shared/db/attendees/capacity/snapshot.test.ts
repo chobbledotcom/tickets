@@ -177,7 +177,11 @@ describeWithEnv(
 
     test("still reads a dateless listing by its total when a date is chosen", async () => {
       const date = startDate();
+      // In a capped group, so the reading has to fetch the group's date-less
+      // figure for it — the daily listing alongside cannot stand in.
+      const group = await createTestGroup({ maxAttendees: 4, name: "Any day" });
       const anyDay = await createTestListing({
+        groupId: group.id,
         maxAttendees: 8,
         name: "Sold any day",
       });
@@ -189,7 +193,9 @@ describeWithEnv(
       const snapshot = await loadCapacitySnapshot(listings, date, 1);
       const remaining = remainingFromSnapshot(snapshot, listings, () => 1);
 
-      expect(remaining.get(anyDay.id)).toBe(5);
+      // Its own 5 gives way to the group's 1 left of 4; the daily listing is
+      // unaffected.
+      expect(remaining.get(anyDay.id)).toBe(1);
       expect(remaining.get(oneNight!.id)).toBe(10);
     });
 

@@ -35,8 +35,9 @@ src/features/admin/api-groups.ts:127:31  ?? → ||   # parseMemberDayPrices retu
 
 # Attendee group-capacity lookups: Map values are arrays (always truthy), and
 # duration normalization clamps both a default of 0 and 1 to one day.
-src/shared/db/attendees/capacity/groups.ts:135:50  ?? → ||   # rowsByGroup.get(): GroupRow[]|undefined — an array is always truthy
-src/shared/db/attendees/capacity/groups.ts:146:14  1 → 0   # expandDailyRange normalizes both 0 and 1 to a one-day span
+src/shared/db/attendees/capacity/groups.ts:130:50  ?? → ||   # rowsByGroup.get(): GroupRow[]|undefined — an array is always truthy
+src/shared/db/attendees/capacity/snapshot.ts:45:62  ?? → ||   # byListing.get(): row[]|undefined — an array is always truthy, so both operators reach perDayLoads with the same rows
+src/shared/db/attendees/capacity/snapshot.ts:82:20  ?? → ||   # knownMembership is a Map or undefined; every Map, including an empty one, is truthy
 
 # listing_prices sync (listing-prices.ts): `?? → ||` where the operand's only
 # falsy-non-null value equals the fallback.
