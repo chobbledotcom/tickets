@@ -10,12 +10,12 @@ src/ui/client/admin/order-gallery.ts::initOrderGallery.refresh~1xo126t  ?? → |
 # ticket-payment values whose present form is always truthy, whose falsy value
 # equals the fallback, or whose mutated constant is normalized before use.
 src/features/public/ticket-payment.ts::checkAvailability~0dpsw9a  ?? → ||   # date is nullish or a non-empty ISO date; only the nullish values use the null fallback
-src/features/public/ticket-payment.ts::checkAvailability~0fy6gm8  1 → 0   # bookingDateFields clamps either default day count to one, so the produced availability rows are identical
+src/features/public/ticket-payment.ts::checkAvailability.dayCount~0fy6gm8  1 → 0   # bookingDateFields clamps either default day count to one, so the produced availability rows are identical
 src/features/public/ticket-payment.ts::resolveDayCount.shownName~037zc5x  ?? → ||   # a package stand-in is a non-empty group name or undefined, so only undefined reaches the listing-name fallback
 src/features/public/ticket-payment.ts::foldSelectedChildren.tree~12uyd8g  ?? → ||   # prebuiltTree is a BookingTree object when present, and objects are always truthy
 src/features/public/ticket-payment.ts::foldSelectedChildren.hasFoldableParent~08cbwkz  ?? → ||   # base.quantities.get(): number|undefined; the only falsy number is 0, 0??0===0||0
 src/features/public/ticket-payment.ts::EMPTY_PRICED_ORDER.fullSubtotal~16fny0e  0 → 1   # EMPTY_PRICED_ORDER.fullSubtotal is never read: bookingFactsFromOrder derives its facts from total, extras, lines, and modifierApplications
-src/features/public/ticket-payment.ts::createFreeReservation.dayCount~0fy6gm8  1 → 0   # bookingsForOrder normalizes either default day count to one, so the stored booking duration is identical
+src/features/public/ticket-payment.ts::createFreeReservation.dayCount.dayCount~0fy6gm8  1 → 0   # bookingsForOrder normalizes either default day count to one, so the stored booking duration is identical
 src/features/public/ticket-payment.ts::createFreeReservation.result.pricedOrder~1mtrtps  ?? → ||   # ledgerOrder: PricedOrder|null — an object is always truthy, null→fallback either way
 src/features/public/ticket-payment.ts::singleDailyParent.children~1kv3u53  ?? → ||   # childrenByParentId.get(): TicketListing[]|undefined — an array is always truthy, undefined→null either way
 src/features/public/ticket-payment.ts::getTicketContext.packages~0m8qaqi  ?? → ||   # pagePackages is an array when present, and arrays are always truthy
@@ -121,7 +121,7 @@ src/features/admin/listing-page-management-panels.ts::loadListingEditPanel.selec
 src/features/admin/calendar-csv.ts::logisticsColumns.agentName~0meqtch  ?? → ||   # agentNames.get() is string|undefined; "" and the "" fallback are identical
 src/features/admin/calendar-csv.ts::logisticsColumns.value~00m7ij3  ?? → ||   # startTime is string|undefined; every falsy value produces the same "" fallback
 src/features/admin/calendar-csv.ts::logisticsColumns.value~1mtw1ii  ?? → ||   # endTime is string|undefined; every falsy value produces the same "" fallback
-src/shared/forms/rendering.tsx::splitDatetime~1f0kxzu   → "mutated"   # split("T")[0] always exists, and the empty input returned before this line
+src/shared/forms/rendering.tsx::splitDatetime.date~1f0kxzu   → "mutated"   # split("T")[0] always exists, and the empty input returned before this line
 src/shared/forms/rendering.tsx::publicLinkHint~0wwelzf  || → &&   # publicLinkPath is absent or a function, so both boolean terms always agree
 src/shared/forms/rendering.tsx::renderField~1vcsvsj  ?? → ||   # beforeHtml is string|undefined and falls back to "", so both operators agree
 src/shared/runtime.ts::buildRuntimeInfo.arch~00dnfok  ?? → ||   # arch is string|undefined and falls back to "", so both operators agree
@@ -137,7 +137,7 @@ src/ui/client/dom.ts::createButton~16pvzvs  = → +=   # createElement returns a
 # Paid-payment processing: private defaults are always supplied by their only
 # callers; optional collections are arrays (always truthy); parsed day counts and
 # stored package quantities are positive; equal zero fallbacks stay equal.
-src/features/api/payment-processing/index.ts::replaySuccess~12k7fdb   → "mutated"   # replaySuccess is private and both callers always pass session.paymentReference, so the default is never evaluated
+src/features/api/payment-processing/index.ts::replaySuccess.paymentReference~12k7fdb   → "mutated"   # replaySuccess is private and both callers always pass session.paymentReference, so the default is never evaluated
 src/features/api/payment-processing/items.ts::bookingPaths.allocations~1sr8ybw  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
 src/features/api/payment-processing/items.ts::validateAllItems.expectedPrice~0mb68sn  ?? → ||   # extractIntent emits a positive dayCount or undefined, so every present value is truthy
 src/features/api/payment-processing/pricing.ts::paidByItem.current~0h5qe1t  ?? → ||   # paidByItem stores numeric charged totals; the only falsy present total is 0, and both operators keep the 0 fallback

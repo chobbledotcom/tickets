@@ -105,6 +105,8 @@ describe("writing a mutant key onto one line", () => {
       "#a.ts",
       "# a.ts",
       "%a.ts",
+      "a:b.ts",
+      "a::b.ts",
     ]) {
       const key = mutantKey(`${projectRoot}/src/${name}`, mutant(1));
       const parsed = parseIgnoreLine(`${key}   # a reason`);
@@ -156,10 +158,33 @@ describe("writing a mutant key onto one line", () => {
     );
   });
 
-  test("reads a reason that holds an arrow of its own", () => {
+  /** A reason is prose: it may hold anything, including the marks the fields
+   * before it use to say where they end. Every one of those fields escapes
+   * its own, so the reason cannot be mistaken for any of them. */
+  test("reads a reason that holds an arrow, a delimiter, or a colon", () => {
     const key = mutantKey(`${projectRoot}/src/example.ts`, mutant(1));
 
-    expect(parseIgnoreLine(`${key}   # turns a → into b`)?.key).toBe(key);
+    for (const reason of [
+      "turns a → into b",
+      "the a::b case",
+      "see Foo::bar and x::y z",
+      "a::b → c::d",
+    ]) {
+      expect(parseIgnoreLine(`${key}   # ${reason}`)?.key).toBe(key);
+    }
+  });
+
+  /** The `from` and `to` carry a mutated literal's own text, which may hold a
+   * `::` — an IPv6 address, a C++ name — with no bearing on where the path
+   * ends. */
+  test("reads a mutation whose text holds the path delimiter", () => {
+    const key = mutantKey(
+      `${projectRoot}/src/example.ts`,
+      mutant(1, '"[::1]"', '"[::ffff:1.2.3.4]"'),
+    );
+
+    expect(parseIgnoreLine(`${key}   # a reason`)?.key).toBe(key);
+    expect(parseIgnoreLine(`${key}`)?.sourcePath).toBe("src/example.ts");
   });
 
   test("tells a leading tab from a leading space", () => {

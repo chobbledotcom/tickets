@@ -119,6 +119,18 @@ describe("naming what a mutant sits inside", () => {
     ).toBe("o.Kind%2eText");
   });
 
+  test("says whether a member reads or writes", () => {
+    expect(
+      nameOf(nullishAnchor('class R { get v() { return x ?? ""; } }\n')),
+    ).toBe("R.%3cget%3e.v");
+  });
+
+  test("names the parameter a default belongs to", () => {
+    expect(
+      nameOf(nullishAnchor('const f = (first = x ?? "") => first;\n')),
+    ).toBe("f.first");
+  });
+
   test("says which side of a class a static member sits on", () => {
     expect(
       nameOf(nullishAnchor("class R { static read(x) { return x ?? 0; } }\n")),
@@ -307,6 +319,27 @@ describe("telling apart mutants that share a name", () => {
     ).map((m) => m.anchor);
 
     expect(anchors.map(nameOf)).toEqual(["o.Kind%2eText", "o.Kind%2eCount"]);
+    expect(anchors.filter((a) => a.includes("@"))).toEqual([]);
+  });
+
+  /** A fingerprint covers the mutated expression, not the whole body, so
+   * `x ?? ""` in a getter and `x ?? ""` in its setter are the same text even
+   * though one returns it and the other assigns it. */
+  test("tells apart a getter and a setter sharing a key", () => {
+    const anchors = nullishMutants(
+      'class R { get v() { return x ?? ""; } set v(x) { this.y = x ?? ""; } }\n',
+    ).map((m) => m.anchor);
+
+    expect(anchors.map(nameOf)).toEqual(["R.%3cget%3e.v", "R.%3cset%3e.v"]);
+    expect(anchors.filter((a) => a.includes("@"))).toEqual([]);
+  });
+
+  test("tells apart two parameters defaulting to the same words", () => {
+    const anchors = nullishMutants(
+      'const f = (first = x ?? "", second = x ?? "") => [first, second];\n',
+    ).map((m) => m.anchor);
+
+    expect(anchors.map(nameOf)).toEqual(["f.first", "f.second"]);
     expect(anchors.filter((a) => a.includes("@"))).toEqual([]);
   });
 

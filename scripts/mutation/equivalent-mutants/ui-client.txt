@@ -11,7 +11,7 @@ src/ui/client/order.ts::parseAddQuantity~1lqvqq7  0 → 1   # quantity 1 takes t
 # reconcile runs once on a new controller whose notice starts empty. The only
 # production caller of add always passes parseAddQuantity's positive result.
 src/ui/client/order.ts::CartController.reconcile~1kadcbh  = → +=   # empty notice plus the message equals the message
-src/ui/client/order.ts::CartController.add~0o3iajo  1 → 0   # add's default is unused; its only caller always supplies quantity
+src/ui/client/order.ts::CartController.add.quantity~0o3iajo  1 → 0   # add's default is unused; its only caller always supplies quantity
 
 # Every `= → +=` below writes to a newly-created DOM element property whose DOM
 # default is "". Concatenating the assigned text onto "" is exactly assignment.

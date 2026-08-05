@@ -82,9 +82,16 @@ const unescapePath = (text: string): string | null => {
   }
 };
 
+/** A path onto a line: everything `escapeForLine` handles, plus every `:`. A
+ * path is the one field before the `::` that ends it, so a `::` of its own
+ * would hide where it really ends; with no colon left in it, the first `::` on
+ * a line is always the delimiter. */
+const escapePath = (path: string): string =>
+  escapeForLine(path).replaceAll(":", "%3a");
+
 /** Canonical key for a mutant at a project-relative path. */
 export const mutantKeyForPath = (relPath: string, mutant: Mutant): string =>
-  `${escapeForLine(relPath)}::${mutant.anchor} ${escapeForLine(mutant.operator)}→${escapeForLine(mutant.newOperator)}`;
+  `${escapePath(relPath)}::${mutant.anchor} ${escapeForLine(mutant.operator)}→${escapeForLine(mutant.newOperator)}`;
 
 /** Canonical key for a mutant given its absolute source path. */
 export const mutantKey = (file: string, mutant: Mutant): string =>
@@ -104,23 +111,22 @@ export const parseIgnoreLine = (line: string): ParsedIgnoreLine | null => {
   // a line that does is a comment, with no entry it could be mistaken for.
   const text = line.trimStart();
   if (text === "" || text.startsWith("#")) return null;
-  // Take the path and anchor off the front by their own shape rather than by
-  // hunting for a delimiter: an anchor holds only these characters and ends at
-  // the first whitespace after it, so whatever precedes is the path, whichever
-  // characters it happens to use — a `:`, or a `::` of its own, included.
-  const located = text.match(/^(.+)::([A-Za-z0-9_$\-.%~@]+)\s+(.*)$/);
+  // Every field carries its own `#` escaped, so the first one left starts the
+  // reason — whatever the reason then goes on to say, delimiters included.
+  const reason = text.indexOf("#");
+  const entry = reason < 0 ? text : text.slice(0, reason);
+  // The path holds no colon of its own, so the first `::` ends it. The anchor
+  // holds only these characters and ends at the first whitespace after it.
+  const located = entry.match(/^([^:]+)::([A-Za-z0-9_$\-.%~@]+)\s+(.*)$/);
   if (!located) return null;
   const [, writtenPath, anchor, mutation] = located as unknown as string[];
   const sourcePath = unescapePath(writtenPath!);
   if (sourcePath === null) return null;
   // `from` and `to` are escaped, so the first arrow left is the one splitting
-  // them, and only `to` can be followed by a reason.
+  // them.
   const arrow = mutation!.indexOf("→");
   if (arrow < 0) return null;
-  const newOperator = mutation!
-    .slice(arrow + 1)
-    .replace(/\s#.*$/, "")
-    .trim();
+  const newOperator = mutation!.slice(arrow + 1).trim();
   if (newOperator === "") return null;
   // The "from" side may be empty: an already-empty string literal mutates with
   // an empty display label (see stringLiteralMutants).

@@ -43,7 +43,7 @@ interface Span {
 }
 
 /** Whatever a node writes its name in: a declaration's `id`, a member's `key`,
- * a switch case's `test`. */
+ * a defaulted parameter's `left`, a switch case's `test`. */
 interface Label {
   name?: string;
   type?: string;
@@ -54,6 +54,8 @@ interface Label {
 interface NamedNode {
   id?: Label | null;
   key?: Label | null;
+  kind?: string;
+  left?: Label | null;
   static?: boolean;
   test?: Label | null;
   type?: string;
@@ -69,7 +71,7 @@ interface NamedNode {
  * private member keeps its `#`, because one class may hold `#read` and `read`
  * and the bare name is the same for both. */
 const nameOf = (node: NamedNode): string | null => {
-  const label = node.id ?? node.key ?? node.test;
+  const label = node.id ?? node.key ?? node.left ?? node.test;
   if (typeof label?.name === "string" && label.name !== "") {
     return label.type === "PrivateIdentifier" ? `#${label.name}` : label.name;
   }
@@ -89,16 +91,22 @@ const writtenAs = (node: NamedNode, source: string): string | null => {
   return isSpan(label) ? source.slice(label.start, label.end) : null;
 };
 
-/** The names a node adds to the path: its own, and — for a member on the class
- * itself rather than on its instances — the side of the class it sits on. One
- * class may hold a static member and an instance member under the same key,
- * and their bodies can read alike while each takes a different type, so the
- * key alone would leave them to be told apart by order. `<static>` is written
- * the way `<file>` is, for the same reason: it says something no name can. */
+/** What a member is besides its name: which side of its class it sits on, and
+ * whether it reads or writes. One class may hold `static read` and `read`, or
+ * `get value` and `set value`, each taking a different type — and what a
+ * fingerprint covers is the mutated expression, not the whole body, so `x ??
+ * ""` in a getter and `x ?? ""` in its setter are the same text. The key alone
+ * would leave those to be told apart by order. Each marker is written the way
+ * `<file>` is, for the same reason: it says something no name can. */
+const markersOn = (node: NamedNode): string[] => [
+  ...(node.static === true ? ["<static>"] : []),
+  ...(node.kind === "get" || node.kind === "set" ? [`<${node.kind}>`] : []),
+];
+
+/** The names a node adds to the path: what it is, then what it is called. */
 const namesOf = (node: NamedNode, source: string): string[] => {
   const own = nameOf(node) ?? writtenAs(node, source);
-  if (own === null) return [];
-  return node.static === true ? ["<static>", own] : [own];
+  return own === null ? [] : [...markersOn(node), own];
 };
 
 /** Declarations whose name is worth carrying into the path. A block or an `if`
@@ -110,8 +118,11 @@ const namesOf = (node: NamedNode, source: string): string[] => {
  * carry a name in places nothing else does, such as an array or a call. A
  * switch case earns its place too: the arms of a discriminated-union switch
  * often read alike while each narrows the value to a different type, so the
- * label is the only thing telling one arm's expression from another's. */
+ * label is the only thing telling one arm's expression from another's. A
+ * defaulted parameter is here because its default is code of its own, and two
+ * parameters of one function can default to the same words. */
 const NAMING_TYPES = new Set([
+  "AssignmentPattern",
   "ClassDeclaration",
   "ClassExpression",
   "FunctionDeclaration",

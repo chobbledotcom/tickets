@@ -169,8 +169,8 @@ src/shared/url-safety.ts::isIpLiteral~1l2lep3  : → ": mutated"   # h never con
 src/shared/url-safety.ts::isIpLiteral~1d8tf9e  true → false   # isIpLiteral wrongly says "not an IP literal", but the dotless-host isDomainHostname fallback still rejects it
 src/ui/templates/admin/images.tsx::imageValue.alt_text~17v2zve  ?? → ||   # alt_text ?? "" vs || "": identical for every string — "" falls through to "" either way
 src/ui/templates/admin/images.tsx::imageValue.name~0pg0nzi  ?? → ||   # name ?? "" vs || "": identical for every string — "" falls through to "" either way
-src/features/admin/images.ts::parseImageTargets~01dj453   → "mutated"   # itemType destructure default: split(":") always yields ≥1 part, so the default is unreachable
-src/features/admin/images.ts::parseImageTargets~1gk0kbs   → "mutated"   # itemId destructure default: Number("") is 0 and Number("mutated") is NaN — both rejected by the id guard
+src/features/admin/images.ts::parseImageTargets.itemType~01dj453   → "mutated"   # itemType destructure default: split(":") always yields ≥1 part, so the default is unreachable
+src/features/admin/images.ts::parseImageTargets.itemId~1gk0kbs   → "mutated"   # itemId destructure default: Number("") is 0 and Number("mutated") is NaN — both rejected by the id guard
 src/features/admin/images.ts::handleImageEditGet~0t9nij6  applyFlash(request); → (removed)   # only records ?form= targeting; no form on the images pages has an id, so the flash renders at the Layout backstop either way
 src/features/admin/images.ts::handleImageDeleteGet~0t9nij6  applyFlash(request); → (removed)   # same as images.ts:56 — no id'd form on the page
 
@@ -227,8 +227,8 @@ src/shared/merge/attendee-merge.ts::moneyReversalLegs.keyParts~05pepwi  merge-cr
 # makes needsIcu always-true is a pure performance change with no observable effect.
 src/shared/rebrand.ts::needsIcu~04jw1a5  { → ""   # needsIcu `msg.includes("{")` → `includes("")`: `includes("")` is always true, so needsIcu returns true for every message and all copy is routed through ICU. ICU output equals the fast-path string for plain copy, so no input changes t()'s output — only whether a formatter is built
 src/shared/rebrand.ts::needsIcu~1bj7zw1  ' → ""   # needsIcu `msg.includes("'")` → `includes("")`: same as above — always-true makes every message use ICU, which is output-identical to the fast path; unobservable
-src/shared/rebrand.ts::buildReplacer~0hbvux2   → "mutated"   # buildReplacer `const [from = ""` default: `pair.split("|")` always returns at least one element, so element 0 (`from`) is always present and the default is never used — dead code, unobservable
-src/shared/i18n.ts::parseAcceptLanguage.entries~1poz3xi   → "mutated"   # parseAcceptLanguage `const [lang = ""` default: `part.trim().split(";")` always returns at least one element, so `lang` (element 0) is always present and the default is never used — dead code, unobservable
+src/shared/rebrand.ts::buildReplacer.from~0hbvux2   → "mutated"   # buildReplacer `const [from = ""` default: `pair.split("|")` always returns at least one element, so element 0 (`from`) is always present and the default is never used — dead code, unobservable
+src/shared/i18n.ts::parseAcceptLanguage.entries.lang~1poz3xi   → "mutated"   # parseAcceptLanguage `const [lang = ""` default: `part.trim().split(";")` always returns at least one element, so `lang` (element 0) is always present and the default is never used — dead code, unobservable
 
 # A header part without "=" has no value. Its key cannot affect timestamp or
 # signature state: a timestamp assignment remains undefined and a v1 signature

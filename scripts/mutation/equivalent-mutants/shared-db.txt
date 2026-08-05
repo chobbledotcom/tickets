@@ -34,7 +34,7 @@ src/features/admin/api-groups.ts::parsePackageMember.dayPrices~1ac0u3a  ?? → |
 # Attendee group-capacity lookups: Map values are arrays (always truthy), and
 # duration normalization clamps both a default of 0 and 1 to one day.
 src/shared/db/attendees/capacity/groups.ts::getGroupPerDayRemaining.loads~1nauhgk  ?? → ||   # rowsByGroup.get(): GroupRow[]|undefined — an array is always truthy
-src/shared/db/attendees/capacity/groups.ts::getGroupRemainingForSpan~0qui8oa  1 → 0   # expandDailyRange normalizes both 0 and 1 to a one-day span
+src/shared/db/attendees/capacity/groups.ts::getGroupRemainingForSpan.spanDays~0qui8oa  1 → 0   # expandDailyRange normalizes both 0 and 1 to a one-day span
 
 # listing_prices sync (listing-prices.ts): `?? → ||` where the operand's only
 # falsy-non-null value equals the fallback.
@@ -79,8 +79,8 @@ src/shared/db/attendees/tokens.ts::tokenResultMap~1c5bf54  ?? → ||   # tokenRe
 # db/capacity.ts — duration defaults that normalizeDurationDays clamps: a
 # `durationDays` of 0 (the mutant) and 1 (the default) both normalize to a
 # one-day span, so no input can tell the two apart.
-src/shared/db/capacity.ts::dateToRange~18guaiu  1 → 0   # dateToRange's default duration; normalizeDurationDays clamps 0 up to 1
-src/shared/db/capacity.ts::buildCapacityCondition~18guaiu  1 → 0   # buildCapacityCondition's default duration; same clamp
+src/shared/db/capacity.ts::dateToRange.durationDays~18guaiu  1 → 0   # dateToRange's default duration; normalizeDurationDays clamps 0 up to 1
+src/shared/db/capacity.ts::buildCapacityCondition.durationDays~18guaiu  1 → 0   # buildCapacityCondition's default duration; same clamp
 src/shared/db/capacity.ts::buildCapacityCondition.dayClauses.daily.dayRange~0ep36tv  1 → 0   # the per-day clause builds each day as a 1-day range; dateToRange normalizes 0 up to 1
 
 # Attendee PII (db/attendees/pii.ts) — three provably-equivalent survivors.
