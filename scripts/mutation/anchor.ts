@@ -64,8 +64,7 @@ interface NamedNode {
  * string, or a number — `{ 1: … }` names its member just as `{ a: … }` does,
  * and `{ "": … }` names its own, empty though that name is: dropping it would
  * put the member back in with everything unnamed, to be told apart by order.
- * A `default:` case and a label built out of an expression write no name of
- * their own, so they contribute none. */
+ * A `default:` case writes no name of its own, so it contributes none. */
 const nameOf = (node: NamedNode): string | null => {
   const label = node.id ?? node.key ?? node.test;
   if (typeof label?.name === "string" && label.name !== "") return label.name;
@@ -74,14 +73,23 @@ const nameOf = (node: NamedNode): string | null => {
   return typeof written === "string" ? written : null;
 };
 
+/** A case label built out of an expression — `case Kind.Text:` — named by how
+ * it is written, since it picks out its arm just as a plain label does. Only a
+ * case earns this: a binding pattern is not a name, and naming one by its text
+ * would move the anchor whenever an unrelated field was destructured. */
+const caseLabelText = (node: NamedNode, source: string): string | null =>
+  node.type === "SwitchCase" && isSpan(node.test)
+    ? source.slice(node.test.start, node.test.end)
+    : null;
+
 /** The names a node adds to the path: its own, and — for a member on the class
  * itself rather than on its instances — the side of the class it sits on. One
  * class may hold a static member and an instance member under the same key,
  * and their bodies can read alike while each takes a different type, so the
  * key alone would leave them to be told apart by order. `<static>` is written
  * the way `<file>` is, for the same reason: it says something no name can. */
-const namesOf = (node: NamedNode): string[] => {
-  const own = nameOf(node);
+const namesOf = (node: NamedNode, source: string): string[] => {
+  const own = nameOf(node) ?? caseLabelText(node, source);
   if (own === null) return [];
   return node.static === true ? ["<static>", own] : [own];
 };
@@ -150,7 +158,7 @@ interface Descent {
  * statement already fills its statement, so it is fingerprinted as itself —
  * never as the block it shares with the statements around it.
  */
-const descendTo = (program: object, mutant: Span): Descent => {
+const descendTo = (program: object, content: string, mutant: Span): Descent => {
   const width = mutant.end - mutant.start;
   const names: string[] = [];
   const path: Node[] = [];
@@ -158,7 +166,7 @@ const descendTo = (program: object, mutant: Span): Descent => {
   for (;;) {
     const record = node as Node;
     if (typeof record.type === "string" && NAMING_TYPES.has(record.type)) {
-      names.push(...namesOf(record as NamedNode));
+      names.push(...namesOf(record as NamedNode, content));
     }
     path.push(record);
     const next = Object.values(record)
@@ -215,7 +223,7 @@ export const anchorMutants = <M extends HasLocation>(
   mutants: readonly M[],
 ): (M & AnchoredMutant)[] => {
   const described = mutants.map((mutant) => {
-    const { context, names } = descendTo(program, mutant);
+    const { context, names } = descendTo(program, content, mutant);
     const name = (names.length === 0 ? ["<file>"] : names)
       .map(encodeName)
       .join(".");

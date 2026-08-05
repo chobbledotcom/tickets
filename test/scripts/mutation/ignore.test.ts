@@ -284,7 +284,7 @@ describe("mutation ignore list", () => {
     const ignored = mutantKey(file, mutant(1));
     const redundant = mutantKey(file, mutant(2));
     const stale = "src/example.ts::noSuchThing ??→||";
-    const otherFile = "src/other.ts:1:5 ??→||";
+    const otherFile = "src/other.ts::fn1 ??→||";
 
     expect(
       ignoreListProblems(
@@ -297,6 +297,21 @@ describe("mutation ignore list", () => {
       `stale (no mutant here — did the code move?): ${stale}`,
       `duplicate entry: ${ignored}`,
     ]);
+  });
+
+  /** One file's path can begin with another's, so scoping by prefix would pull
+   * a neighbour's entry into this run and report it stale against mutants that
+   * were never generated for it. */
+  test("leaves alone an entry for a file whose path merely starts with the mutated one", () => {
+    const neighbour = "src/example.ts:backup::fn1 ??→||";
+
+    expect(
+      ignoreListProblems(
+        ignoreList([neighbour]),
+        [result("ignored", 1)],
+        [file],
+      ),
+    ).toEqual([]);
   });
 
   test("accepts an exhaustive-only entry this run didn't generate, given a wider possible-key set", () => {

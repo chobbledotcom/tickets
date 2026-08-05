@@ -98,17 +98,29 @@ interface ParsedIgnoreLine {
   sourcePath: string;
 }
 
+/** The `path::anchor` a line or a key opens with, taken by its own shape
+ * rather than by hunting for a delimiter: an anchor holds only these
+ * characters and ends at the first whitespace after it, so whatever precedes
+ * is the path, whichever characters it happens to use — a `:` or even a `::`
+ * of its own included. */
+const LOCATION = /^(.+)::([A-Za-z0-9_$\-.%~@]+)\s+(.*)$/;
+
+/** The path a canonical key names. Every key comes from `mutantKeyForPath` or
+ * from a line this module parsed, so one that does not read as a key is a
+ * caller's mistake rather than a path it could not find. */
+const pathInKey = (key: string): string => {
+  const located = key.match(LOCATION);
+  if (!located) throw new Error(`Not a mutant key: ${key}`);
+  return located[1]!;
+};
+
 /** Parse one ignore-file line into a canonical key, or null when blank/comment. */
 export const parseIgnoreLine = (line: string): ParsedIgnoreLine | null => {
   // A written path never starts with `#` — escaping turns one into `%23` — so
   // a line that does is a comment, with no entry it could be mistaken for.
   const text = line.trimStart();
   if (text === "" || text.startsWith("#")) return null;
-  // Take the path and anchor off the front by their own shape rather than by
-  // hunting for a delimiter: an anchor holds only these characters and ends at
-  // the first whitespace after it, so whatever precedes is the path, whichever
-  // characters it happens to use.
-  const located = text.match(/^(.+)::([A-Za-z0-9_$\-.%~@]+)\s+(.*)$/);
+  const located = text.match(LOCATION);
   if (!located) return null;
   const [, writtenPath, anchor, mutation] = located as unknown as string[];
   const sourcePath = unescapePath(writtenPath!);
@@ -224,10 +236,13 @@ export const ignoreListProblems = (
   mutatedFiles: string[],
   possibleKeys?: Set<string>,
 ): string[] => {
-  // Keys hold each path as it is written on a line, so match the written form.
-  const relFiles = mutatedFiles.map((file) => escapeForLine(rel(file)));
+  // Keys hold each path as it is written on a line, so match the written form —
+  // and match the whole path, since one file's path can begin with another's.
+  const relFiles = new Set(
+    mutatedFiles.map((file) => escapeForLine(rel(file))),
+  );
   const targetsMutatedFile = (key: string): boolean =>
-    relFiles.some((file) => key.startsWith(`${file}:`));
+    relFiles.has(pathInKey(key));
   const generated = new Set(results.map((r) => mutantKey(r.file, r.mutant)));
   const known = possibleKeys ?? generated;
   const suppressed = new Set(

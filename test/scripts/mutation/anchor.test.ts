@@ -127,6 +127,18 @@ describe("naming what a mutant sits inside", () => {
     ).toBe("read.text");
   });
 
+  /** A label can be written as an expression rather than a plain word, and it
+   * picks out its arm just the same. */
+  test("names a switch case labelled by an enum member", () => {
+    expect(
+      nameOf(
+        nullishAnchor(
+          'const read = (i) => { switch (i.kind) { case Kind.Text: return i.value ?? ""; } };\n',
+        ),
+      ),
+    ).toBe("read.Kind%2eText");
+  });
+
   /** A `default:` writes no label of its own, so it lends no name and the
    * enclosing one stands. */
   test("names the enclosing thing for a default case", () => {
@@ -251,6 +263,18 @@ describe("telling apart mutants that share a name", () => {
     ).map((m) => m.anchor);
 
     expect(anchors.map(nameOf)).toEqual(["read.text", "read.count"]);
+    expect(anchors.filter((a) => a.includes("@"))).toEqual([]);
+  });
+
+  test("tells apart identical switch arms labelled by enum members", () => {
+    const anchors = nullishMutants(
+      'const read = (i) => { switch (i.kind) { case Kind.Text: return i.value ?? ""; case Kind.Count: return i.value ?? ""; } };\n',
+    ).map((m) => m.anchor);
+
+    expect(anchors.map(nameOf)).toEqual([
+      "read.Kind%2eText",
+      "read.Kind%2eCount",
+    ]);
     expect(anchors.filter((a) => a.includes("@"))).toEqual([]);
   });
 

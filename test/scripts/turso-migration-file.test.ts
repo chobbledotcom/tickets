@@ -248,13 +248,9 @@ describe("Turso migration file", () => {
       ).rejects.toThrow("Upload database failed (400): invalid");
     }));
 
-  /**
-   * Regression: node throws an "error" event nothing is listening for. A
-   * request raises one when the write breaks, and the file stopping because of
-   * that destroys the request with an error of its own — so taking the
-   * listeners off after the first left the second to crash the whole file from
-   * a place no caller could catch it.
-   */
+  /** One upload can raise two errors — the write breaking, then the file
+   * stopping because of it — and node throws an "error" nothing is listening
+   * for, from a place no caller can catch. */
   test("survives a second error on the same request", () =>
     withTempDir(async (dir) => {
       const request = fakeRequest();
