@@ -96,9 +96,11 @@ export const openStayListing = async (
   return rememberListing(world, name, listing);
 };
 
-/** Change how many days each new stay covers, through the listing's own edit
- * form — so a page that stops offering the field fails the story. The organiser
- * is told it saved, because a refused save redirects just the same. */
+/** Set how many days each stay covers — the listing's length box, through its
+ * own edit form, so a page that stops offering the field fails the story. On a
+ * listing booked by the day that changes every new stay's length; on an
+ * ordinary one it is just a number kept for later. The organiser is told it
+ * saved, because a refused save redirects just the same. */
 export const changeStayLength = async (
   world: TicketsWorld,
   name: string,

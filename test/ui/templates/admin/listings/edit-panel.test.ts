@@ -72,6 +72,12 @@ describe("adminListingEditPage duration warning", () => {
     // The current duration is exposed via a data attribute so the bundled
     // admin script can compare against the form's input.
     expect(html).toContain('data-duration-original="3"');
+    // Every other element initDurationWarning() hooks into must be present —
+    // if any of these IDs change, the client-side gate silently no-ops.
+    expect(html).toContain('id="listing-edit-form"');
+    expect(html).toContain('id="listing-edit-submit"');
+    // The duration input the script reads is pre-filled with the stored value.
+    expect(html).toMatch(/name="duration_days"[^>]*value="3"/);
   });
 });
 
