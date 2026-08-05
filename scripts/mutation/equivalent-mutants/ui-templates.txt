@@ -1,32 +1,32 @@
 # Known-equivalent mutants — see README.txt in this directory.
 
 # Parent/child curried atoms (shared.tsx).
-src/ui/templates/layout.tsx:48:30  ?? → ||   # Theme is "light"|"dark" or undefined, so every present value is truthy
+src/ui/templates/layout.tsx::Layout.resolvedTheme~0oltraa  ?? → ||   # Theme is "light"|"dark" or undefined, so every present value is truthy
 
 # Parent/child per-unit render (reservations contact-fields.ts).
-src/ui/templates/public/reservations/contact-fields.ts:106:50  ?? → ||   # addOns?.some(...) is boolean|undefined; ?? and || agree on every boolean and on undefined
-src/ui/templates/public/reservations/form.tsx:216:56   → "mutated"   # TicketPageForm's only caller supplies YYYY-MM-DD options; the fallback affects HTML only if it equals an option, which "mutated" never can
-src/ui/templates/public/reservations/ticket-page.tsx:200:14  ?? → ||   # questions is QuestionWithAnswers[]|undefined, and every present array, including [], is truthy
-src/ui/templates/public/reservations/ticket-page.tsx:204:19  ?? → ||   # childDatesById is a ReadonlyMap|undefined, and every present Map, including an empty one, is truthy
+src/ui/templates/public/reservations/contact-fields.ts::pagePaid~07x8o1n  ?? → ||   # addOns?.some(...) is boolean|undefined; ?? and || agree on every boolean and on undefined
+src/ui/templates/public/reservations/form.tsx::TicketPageForm.html~1470qil   → "mutated"   # TicketPageForm's only caller supplies YYYY-MM-DD options; the fallback affects HTML only if it equals an option, which "mutated" never can
+src/ui/templates/public/reservations/ticket-page.tsx::ticketPage~0nmjfxs  ?? → ||   # questions is QuestionWithAnswers[]|undefined, and every present array, including [], is truthy
+src/ui/templates/public/reservations/ticket-page.tsx::ticketPage~0pcr5er  ?? → ||   # childDatesById is a ReadonlyMap|undefined, and every present Map, including an empty one, is truthy
 
 # attendee table values and columns
-src/ui/templates/attendee-table/values.ts:54:67  ?? → ||    # getAnswerDisplay attendeeAnswerMap.get(): number[]|undefined — an array is always truthy, so ?? and || coincide
-src/ui/templates/attendee-table/columns.tsx:59:39  || → ??    # date column row.attendee.date: string|null; null gives "" under both operators, and "" is the only falsy-non-null string, which also gives "" under both
-src/ui/templates/attendee-table/columns.tsx:64:36  || → ??    # email column row.attendee.email: string (never null/undefined); "" is the only falsy value and is also the fallback, so || and ?? agree for every possible value
-src/ui/templates/attendee-table/values.ts:106:47  ?? → ||    # listing name is string|undefined; its only falsy string is the empty fallback, so ?? and || agree
+src/ui/templates/attendee-table/values.ts::getAnswerDisplay.answerIds~1spki67  ?? → ||   # getAnswerDisplay attendeeAnswerMap.get(): number[]|undefined — an array is always truthy, so ?? and || coincide
+src/ui/templates/attendee-table/columns.tsx::date.rawValue~0qlr1fl  || → ??   # date column row.attendee.date: string|null; null gives "" under both operators, and "" is the only falsy-non-null string, which also gives "" under both
+src/ui/templates/attendee-table/columns.tsx::email.cell~1c5tvxb  || → ??   # email column row.attendee.email: string (never null/undefined); "" is the only falsy value and is also the fallback, so || and ?? agree for every possible value
+src/ui/templates/attendee-table/values.ts::ATTENDEE_ROW_ORDER~0rc55ig  ?? → ||   # listing name is string|undefined; its only falsy string is the empty fallback, so ?? and || agree
 
 # attributes detail page (ui/templates/admin/attributes.tsx) — option listing count fallback.
-src/ui/templates/admin/attributes.tsx:173:61  ?? → ||   # `data.listingCounts.get(option.id) ?? 0`: listingCounts is Map<number,number> built from ids.length, so a present count is always >= 1 and an absent option returns undefined — the left side is never a falsy non-null number, so `?? 0` and `|| 0` agree on every reachable input (same class as checkout-pricing.ts:85:35 and pr-queue/render.ts:93:29)
+src/ui/templates/admin/attributes.tsx::adminAttributePage.count~1lrxphe  ?? → ||   # `data.listingCounts.get(option.id) ?? 0`: listingCounts is Map<number,number> built from ids.length, so a present count is always >= 1 and an absent option returns undefined — the left side is never a falsy non-null number, so `?? 0` and `|| 0` agree on every reachable input (same class as checkout-pricing.ts:85:35 and pr-queue/render.ts:93:29)
 
 # questions templates (ui/templates/admin/questions.tsx) — Map.get fallbacks whose
 # left operand can never be a falsy-but-non-null value, so `??` and `||` always agree.
-src/ui/templates/admin/questions.tsx:270:50  ?? → ||   # `answerCounts?.get(a.id) ?? 0`: answerCounts is Map<number,number>|undefined, so the left side is a number or undefined. The only falsy-non-null number is 0, and 0 ?? 0 === 0 || 0; undefined maps to 0 under both — no input distinguishes them (same class as attributes.tsx:173:61 and checkout-pricing.ts:85:35)
+src/ui/templates/admin/questions.tsx::adminQuestionPage.count~13bitn3  ?? → ||   # `answerCounts?.get(a.id) ?? 0`: answerCounts is Map<number,number>|undefined, so the left side is a number or undefined. The only falsy-non-null number is 0, and 0 ?? 0 === 0 || 0; undefined maps to 0 under both — no input distinguishes them (same class as attributes.tsx:173:61 and checkout-pricing.ts:85:35)
 # cache-registry table sets: invalidatorsByTable.get() is Set|undefined, and a
 # Set object is always truthy, so `?? new Set()` and `|| new Set()` agree.
 
 # questions list page (ui/templates/admin/questions.tsx) — column keys the page
 # never reads back, and a Map.get fallback over always-truthy arrays.
-src/ui/templates/admin/questions.tsx:87:50  ?? → ||   # `listingNames.get(question.id) ?? []`: listingNames is Map<number, string[]>, so the left side is an array (always truthy) or undefined — no falsy-non-null value exists, and ?? and || agree on every input (same class as questions.tsx:270:50)
-src/ui/templates/admin/questions.tsx:170:14  question → ""   # a column `key` is read only by renderTable's columnKeys/hiddenKeys lookups and saved-filter value rendering; reorderableListPage renders the questions table with only reorder options — no columnKeys, hiddenKeys, or filter — so this key is never read
-src/ui/templates/admin/questions.tsx:176:14  answers → ""   # same as questions.tsx:170:14 — the questions list table is rendered without columnKeys, hiddenKeys, or filters, so its column keys are never read
-src/ui/templates/admin/questions.tsx:187:14  listings → ""   # same as questions.tsx:170:14 — the questions list table is rendered without columnKeys, hiddenKeys, or filters, so its column keys are never read
+src/ui/templates/admin/questions.tsx::questionListingsFor.listingNames~1vj5u51  ?? → ||   # `listingNames.get(question.id) ?? []`: listingNames is Map<number, string[]>, so the left side is an array (always truthy) or undefined — no falsy-non-null value exists, and ?? and || agree on every input (same class as questions.tsx:270:50)
+src/ui/templates/admin/questions.tsx::adminQuestionsPage.columns.key~0eka7sm  question → ""   # a column `key` is read only by renderTable's columnKeys/hiddenKeys lookups and saved-filter value rendering; reorderableListPage renders the questions table with only reorder options — no columnKeys, hiddenKeys, or filter — so this key is never read
+src/ui/templates/admin/questions.tsx::adminQuestionsPage.columns.key~1c98v7j  answers → ""   # same as questions.tsx:170:14 — the questions list table is rendered without columnKeys, hiddenKeys, or filters, so its column keys are never read
+src/ui/templates/admin/questions.tsx::adminQuestionsPage.columns.key~08wyblh  listings → ""   # same as questions.tsx:170:14 — the questions list table is rendered without columnKeys, hiddenKeys, or filters, so its column keys are never read

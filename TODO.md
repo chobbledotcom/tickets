@@ -1641,6 +1641,34 @@ done — proven by a test that forces the late rejection, not by timing luck.
 
 ---
 
+## A webhook test about dropped answers fails once in a while in CI
+
+*Origin: CI on PR #2037, a branch that changes no `src/` file at all and does
+not touch this test or anything it exercises. The same commit passed the whole
+suite locally, this test included.*
+
+`finalizes a paid booking when a text-answer ref has no usable string id,
+dropping only those answers`
+(`test/integration/server/webhooks/custom-questions-single.test.ts`) failed
+once, alone, out of 21,686 passing cases.
+
+**What is not yet known is which of its assertions failed.** GitHub's job-log
+API keeps only the last 5,000 lines, and the per-case diagnostic falls outside
+that window — only the closing summary survives, which names the case and
+nothing else. So the first thing anyone picking this up needs is the failure
+itself: re-run it under load until it goes, keeping the full output.
+
+Two things are already ruled out. `logError` writes its console line
+synchronously before any async work (`src/shared/logger.ts`), so the
+`errors.contains(...)` assertion cannot be racing the log it reads. And the
+error spy is per-case (`beforeEach`/`afterEach` in
+`test/test-utils/error-spy.ts`), so it cannot be picking up a neighbour's
+output. That points at the booking or answer-saving assertions rather than the
+logging one, but pointing is not proving — do not "fix" this one from the
+shape of the test.
+
+---
+
 ## Four feature modules had no test at their mirrored path — now they do
 
 *Origin: `deno task precommit:mutation` on the notes-migration branch, which
@@ -1862,35 +1890,130 @@ catalog entries beside `payment.error.refunded` in
 
 Not done in that PR only because it was at its agreed `src/` line budget; there
 is nothing hard about it.
-## Record equivalent mutants by something that survives an edit
 
-*Origin: two breakages on PR #2025, both caught by review rather than by any
-check the branch ran.*
+## Split the form-control rules into files about one thing each
 
-`scripts/mutation/equivalent-mutants/*.txt` records each known-equivalent
-mutant as `path:line:column`, and `resolveEntries` in
-`scripts/mutation/equivalent-audit.ts` matches all three exactly. So any edit
-*above* a recorded expression silently invalidates its entry — the mutant stops
-being suppressed and `deno task mutation:audit-equivalents` fails.
+*Origin: Codex review on PR #2025. Attempted on that branch and backed out —
+see below.*
 
-It happened twice on one branch. Splitting `test-browser.ts` into `parsing.ts`
-and `forms.ts` moved six entries; then adding a single doc comment above
-`attrValue` moved three of those same entries five lines further down. Neither
-was a change to the recorded expressions themselves.
+`test/specs/support/form-controls.ts` is 478 lines, over the ~400 the repo
+asks for, and holds four separate jobs:
 
-What makes it bite: `mutation:audit-equivalents` is not part of `deno task
-precommit`, so a fully green precommit says nothing about whether the registry
-still resolves. Both breakages were found by PR reviewers.
+- reading a page's attributes (`attribute`, `hasFlag`, `usableInputsOfKind`)
+- what a page offers (`chooserFor`, `boxFor`, `choicesOffered`, the checkbox
+  and question readers)
+- why a value could not be sent (`whyValueCannotBeSent` and the rules under
+  it, plus the insisted-control machinery)
+- the story-facing helpers (`fillInAndSend`, `takeDownFromActions`)
 
-Two directions, either of which would help:
+The first three are pure and the last does the sending, so the natural shape
+is `form-controls/reading.ts`, `form-controls/rules.ts`, and a thin
+`form-controls.ts` — the same split already done for `test-browser.ts`.
 
-- **Key on something stable.** Record the expression text plus its enclosing
-  function name instead of a line and column, so an entry survives anything
-  that does not change the expression itself. This changes the file format and
-  `resolveEntries`, so existing entries need migrating.
-- **Run the audit in `precommit`** (or in CI), so drift fails on the branch
-  that caused it rather than in review. It works in a copy of the checkout and
-  runs no tests, so it is not obviously too slow — worth timing before
-  assuming it is.
+The churn is smaller than it looks: `fillInAndSend` has 15 importers and stays
+put, and every reader that would move has between one and five
+(`checkboxValueOffered` 5, `tickedCheckboxes` 4, `whyValueCannotBeSent` 3,
+`requireCheckboxOffered` 2, `choicesOffered`/`optionsOffered` 1 each). So
+about a dozen import lines change. Do not add a re-export layer in
+`form-controls.ts` to avoid touching them — that is the alias-export smell the
+repo rules out; point each caller at the file that owns what it uses.
 
-The first is the real fix; the second would catch the next one either way.
+**Why it was backed out:** attempted by slicing the file on line ranges, which
+produced an unterminated comment, duplicated imports and several unresolved
+symbols. Reverted rather than pushed half-done. Whoever picks this up should
+move whole declarations (or use an editor that understands the syntax) rather
+than cutting on line numbers, and lean on `deno task precommit` — the 214
+specs and the coverage gate both exercise this module hard.
+
+## A form found by its words alone can be sent with no button to press
+
+*Origin: Codex review on PR #2025. Real, and deliberately left for its own
+change — see the sweep below.*
+
+`findFormByButton` picks a form when the button's words appear anywhere in its
+body, then asks `buttonToPress` for the button. When no button matches but the
+words do, `buttonToPress` returns `{}` — "no button with that text at all" —
+and the form is submitted anyway, with no button data.
+
+That is on purpose for forms found by their body text, and plenty are. But it
+means a form whose button is *removed* still submits if the words survive
+elsewhere in it. Site-page deletion is exactly that shape: the heading and the
+button both say "Delete Page", so deleting the button leaves the heading, and
+the story goes on deleting pages the owner has no control to delete.
+
+The fix is not one line. Refusing every no-button case would break every story
+that legitimately finds its form by body text, so the change is to tell those
+two situations apart — probably by having the caller say which it expects, or
+by only allowing the body-text match when the form has no buttons at all.
+Either way it needs a sweep of all 215 scenarios to see which rely on which.
+
+## An arrow is found across the whole page, not on its own row
+
+*Origin: Codex review on PR #2025, raised twice. The second raise carried a
+case the first did not, which is why it is here rather than declined.*
+
+`canMove`/`move` in `test/specs/support/reordering.ts` look for a row's
+`/id/move-up` address anywhere on the page. If that form is rendered against
+the wrong row — present, but beside a different item — the story still submits
+it and passes, while the organiser looking at the named row sees no arrow.
+
+My first answer to this was that a positive scenario would catch an address
+convention changing, which is true but only covers one defect. A form
+*relocated* to another row keeps every address the template tests assert, so
+nothing catches it.
+
+Closing it means attributing controls to rows: parse the list into rows and ask
+what each row offers, rather than searching the page. `openAtState` in
+`statuses.ts` already holds the matched row, so the shape exists — the work is
+giving the shared reordering helper the same scope, for every list that uses it
+(states, site pages).
+
+### The way *into* a row is found the same way
+
+*Origin: a third Codex raise, on PR #2025, against `findsTheWayInFrom`.*
+
+`findsTheWayInFrom` in `test/specs/support/browser.ts` searches
+`row.browser.links` — every link on the page, not the matched row's. Its three
+callers all match on something a sibling row could carry:
+
+| Caller | What it matches | Its `openAt` gives |
+| --- | --- | --- |
+| `statuses.ts` | `href === /statuses/{id}` | the row's markup |
+| `site-pages.ts` | `href` matching `/pages/{id}` | the row's markup |
+| `api-keys.ts` | link text plus an address pattern | no row at all |
+
+Same defect as the arrow above: a link rendered against the wrong row still
+satisfies the search, so a deletion journey passes while the person looking at
+that row has no way in.
+
+Do it with the arrow, not before it. Two of the three callers already hold the
+matched row, but `api-keys.ts` has no row concept yet, so a real fix has to give
+every list the row-parsing shape — which is the same mechanism the arrow needs.
+Fixing the two that are easy would leave a helper whose scoping depends on which
+caller you came from, which is worse than the page-wide search it replaced.
+
+### An equivalence proof rests on types the anchor cannot see
+
+*Origin: Codex on PR #2037, against `descendTo` in `scripts/mutation/anchor.ts`.*
+
+Nearly every reason in the equivalent-mutant registry is a claim about a type:
+"`x` is `string | undefined`, so `??` and `||` agree". An anchor fingerprints
+the *expression*, so widening `x` to `number | null` leaves the anchor
+unchanged and the entry keeps suppressing a mutant whose proof is now false.
+The entry only actually hides something when no test distinguishes the two —
+ignored status is applied to survivors only, so a killable mutant still reports
+as killed — but that is exactly the case the registry is supposed to guard.
+
+Fingerprinting the enclosing function's head was tried and reverted. It costs
+more than it buys: adding or renaming any parameter invalidates every entry in
+that function's body, and it still misses the majority of proofs, whose types
+come from a called function's return, an imported shape, or a database row
+rather than the signature overhead. 166 of the 535 recorded reasons name a
+call, a return, or a row. A noisy gate that people learn to re-record past
+makes the registry less trustworthy, not more.
+
+A real fix has to re-prove entries rather than re-locate them. The most
+promising shape is to give `mutation:audit-equivalents` a way to attempt a
+distinguishing input for each entry — or, failing that, an explicit re-audit
+stamp so an entry has to be re-confirmed after the file it lives in changes
+shape, instead of resting on a proof nobody has re-read since it was written.
