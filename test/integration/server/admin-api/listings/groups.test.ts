@@ -1,9 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingGroups } from "#shared/db/groups.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { storedListingNames } from "#test-utils/db-helpers/listings.ts";
 import { apiRequest } from "#test-utils/session.ts";
 
 describeWithEnv("Admin API - Listings", { db: true }, () => {
@@ -200,6 +202,91 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
           expect(body.error).toContain("same type");
         },
       );
+    });
+
+    test("rejects a customisable-days listing created into a fixed-length group", async () => {
+      const group = await createTestGroup({ name: "Fixed Length Group" });
+      await apiRequest("/api/admin/listings", {
+        body: {
+          group_ids: [group.id],
+          listing_type: "daily",
+          max_attendees: 10,
+          name: "Fixed Length Member",
+        },
+        method: "POST",
+      });
+
+      await assertJson(
+        apiRequest("/api/admin/listings", {
+          body: {
+            customisable_days: true,
+            day_prices: { 1: 100 },
+            group_ids: [group.id],
+            listing_type: "daily",
+            max_attendees: 10,
+            name: "Customisable Candidate",
+          },
+          method: "POST",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toContain(
+            "already contains listings with a fixed number of days",
+          );
+        },
+      );
+
+      // A refused create leaves nothing behind.
+      expect(await storedListingNames()).not.toContain(
+        "Customisable Candidate",
+      );
+    });
+
+    test("rejects flipping a grouped listing's type when the update leaves membership alone", async () => {
+      const group = await createTestGroup({ name: "Type Fold Group" });
+      // A second member, so the flip would genuinely mix the group's types —
+      // a group's only member can always flip without mixing anything.
+      await apiRequest("/api/admin/listings", {
+        body: {
+          group_ids: [group.id],
+          listing_type: "standard",
+          max_attendees: 10,
+          name: "Standard Sibling",
+        },
+        method: "POST",
+      });
+      const created = await assertJson(
+        apiRequest("/api/admin/listings", {
+          body: {
+            group_ids: [group.id],
+            listing_type: "standard",
+            max_attendees: 10,
+            name: "Folded In",
+          },
+          method: "POST",
+        }),
+        201,
+      );
+
+      // The update omits group_ids, so the listing would keep its membership:
+      // the flip alone would leave it in a group of the other type.
+      await assertJson(
+        apiRequest(`/api/admin/listings/${created.listing.id}`, {
+          body: { listing_type: "daily" },
+          method: "PUT",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toContain("same type");
+        },
+      );
+
+      expect(await listingGroups.getIds(created.listing.id)).toEqual([
+        group.id,
+      ]);
+      expect(
+        (await getListingWithCount(created.listing.id))?.listing_type,
+      ).toBe("standard");
     });
 
     test("can_pay_more with valid max_price passes validation", async () => {

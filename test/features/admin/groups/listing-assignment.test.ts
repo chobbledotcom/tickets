@@ -46,6 +46,22 @@ describeWithEnv("admin group listing assignment", { db: true }, () => {
     expect(await getListingsByGroupId(group.id)).toHaveLength(1);
   });
 
+  test("refuses a listing whose customisable-days setting differs from the group's", async () => {
+    const group = await createTestGroup({ name: "Fixed Length Group" });
+    await createTestListing({ groupId: group.id, name: "Fixed member" });
+    const customisable = await createTestListing({
+      customisableDays: true,
+      dayPrices: { 1: 100 },
+      name: "Customisable outsider",
+    });
+
+    const response = await adminPost(`/admin/groups/${group.id}/add-listings`, {
+      listing_ids: [String(customisable.id)],
+    });
+    expectFlash(response, t("error.group_customisable_days_unexpected"), false);
+    expect(await getListingsByGroupId(group.id)).toHaveLength(1);
+  });
+
   test("adds nothing when no listing was chosen", async () => {
     const group = await createTestGroup({ name: "Untouched group" });
 
