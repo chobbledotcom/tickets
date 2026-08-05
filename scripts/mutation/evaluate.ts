@@ -1,8 +1,10 @@
+/* jscpd:ignore-start */
 import { resolve } from "@std/path";
 import { withCleanup } from "#scripts/cleanup.ts";
 import { dim, yellow } from "#scripts/precommit/colors.ts";
-import { projectRoot } from "#scripts/project-root.ts";
+import { projectRoot, rel } from "#scripts/project-root.ts";
 import type { StaticAssetBuild } from "#scripts/static-assets/session.ts";
+/* jscpd:ignore-end */
 import {
   mutantTestEnv,
   runTests,
@@ -18,7 +20,7 @@ import {
   runTestStages,
   type TestStageResult,
 } from "./phases.ts";
-import { rel, type Status } from "./summary.ts";
+import type { Status } from "./summary.ts";
 import {
   createMutantTestState,
   type MutantTestStateResult,

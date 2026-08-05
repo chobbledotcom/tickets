@@ -9,6 +9,7 @@ import type { Mutant } from "#scripts/mutation/generate.ts";
 import { TEST_STATE_DIR_ENV } from "#test-utils/test-state-env.ts";
 
 const mutant: Mutant = {
+  anchor: "flag",
   column: 1,
   end: 4,
   line: 1,

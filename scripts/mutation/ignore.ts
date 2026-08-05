@@ -8,25 +8,27 @@
  * it is recorded here and suppressed from the survivor count — letting the
  * tester gate CI on genuinely *new* survivors.
  *
- * Works for every mutation kind, not just `?? → ||`: an entry is matched purely
- * by location and the displayed `from → to`, so it mirrors a survivor line from
- * the report. The file format is one entry per line, plus an optional reason:
+ * Works for every mutation kind, not just `?? → ||`. One entry per line, plus
+ * an optional reason:
  *
- *   path:line:col  from → to   # why it is equivalent
+ *   path::anchor  from → to   # why it is equivalent
  *
- * Entries are location-based, so a refactor that shifts lines silently leaves
- * them pointing at nothing. `ignoreListProblems` re-checks — at run time, only
- * for the files actually being mutated — that each entry still lines up with a
- * real surviving mutant, so a stale/redundant/duplicate entry fails the run.
+ * The anchor names what the mutant sits inside and fingerprints the expression
+ * it mutates (see anchor.ts), so it moves only when that expression does.
+ * `ignoreListProblems` re-checks — at run time, for the files actually being
+ * mutated — that each entry lines up with a real surviving mutant, so a
+ * stale/redundant/duplicate entry fails the run.
  */
 
 import { fromFileUrl, join } from "@std/path";
-import { namesInDirectory, rethrowUnlessNotFound } from "#scripts/not-found.ts";
+import { namesInDirectory, readTextFileOrNull } from "#scripts/not-found.ts";
+import { rel } from "#scripts/project-root.ts";
 import { seenBefore } from "#shared/seen-before.ts";
 import type { Mutant } from "./generate.ts";
-import { type MutantResult, rel } from "./summary.ts";
+import { percentEncode } from "./percent-encode.ts";
+import type { MutantResult } from "./summary.ts";
 
-const EQUIVALENT_MUTANTS_DIR = new URL(
+export const EQUIVALENT_MUTANTS_DIR = new URL(
   "./equivalent-mutants/",
   import.meta.url,
 );
@@ -50,18 +52,54 @@ export const listRegistryFiles = async (
   );
 };
 
+/**
+ * A file's path and a mutated literal's text both carry characters of their
+ * own choosing onto the line, where four of them would not survive being
+ * written and read back: a `#` reads as the start of the reason — or, at the
+ * front, as a whole comment — a line break of any kind ends the line outright,
+ * an arrow of its own reads as the one splitting `from` from `to`, and
+ * whitespace at either edge is absorbed by the spacing around that arrow, which
+ * would let `"; "` and `";"` share one key. Each is escaped; interior spaces
+ * are left alone, so a removed statement still reads as itself.
+ */
+const escapeForLine = (text: string): string =>
+  text
+    .replaceAll("%", "%25")
+    .replaceAll("#", "%23")
+    .replaceAll("→", "%e2%86%92")
+    .replace(/[\n\r\u2028\u2029]/g, percentEncode)
+    .replace(/^\s+/, percentEncode)
+    .replace(/\s+$/, percentEncode);
+
+/** The path a line was written with, back to the file it names — or nothing
+ * when it holds a `%` that begins no escape. Escaping never writes one, so a
+ * line carrying one names no real file and is malformed. */
+const unescapePath = (text: string): string | null => {
+  try {
+    return decodeURIComponent(text);
+  } catch {
+    return null;
+  }
+};
+
+/** A path onto a line: everything `escapeForLine` handles, plus every `:`. A
+ * path is the one field before the `::` that ends it, so a `::` of its own
+ * would hide where it really ends; with no colon left in it, the first `::` on
+ * a line is always the delimiter. */
+const escapePath = (path: string): string =>
+  escapeForLine(path).replaceAll(":", "%3a");
+
 /** Canonical key for a mutant at a project-relative path. */
 export const mutantKeyForPath = (relPath: string, mutant: Mutant): string =>
-  `${relPath}:${mutant.line}:${mutant.column} ${mutant.operator}→${mutant.newOperator}`;
+  `${escapePath(relPath)}::${mutant.anchor} ${escapeForLine(mutant.operator)}→${escapeForLine(mutant.newOperator)}`;
 
 /** Canonical key for a mutant given its absolute source path. */
 export const mutantKey = (file: string, mutant: Mutant): string =>
   mutantKeyForPath(rel(file), mutant);
 
-export interface ParsedIgnoreLine {
-  column: number;
+interface ParsedIgnoreLine {
+  anchor: string;
   key: string;
-  line: number;
   newOperator: string;
   operator: string;
   sourcePath: string;
@@ -69,27 +107,47 @@ export interface ParsedIgnoreLine {
 
 /** Parse one ignore-file line into a canonical key, or null when blank/comment. */
 export const parseIgnoreLine = (line: string): ParsedIgnoreLine | null => {
-  const body = line.replace(/#.*$/, "").trim();
-  if (body === "") return null;
-  // The "from" side is `.*?` (not `.+?`): an already-empty string literal
-  // mutates with an empty display label (see stringLiteralMutants), so a
-  // legitimate key can have nothing between the location and the arrow.
-  const match = body.match(/^(.+):(\d+):(\d+)\s+(.*?)\s*→\s*(.+?)$/);
-  return match
-    ? {
-        column: Number(match[3]),
-        key: `${match[1]}:${match[2]}:${match[3]} ${match[4]}→${match[5]}`,
-        line: Number(match[2]),
-        newOperator: match[5]!,
-        operator: match[4]!,
-        sourcePath: match[1]!,
-      }
-    : null;
+  // A written path never starts with `#` — escaping turns one into `%23` — so
+  // a line that does is a comment, with no entry it could be mistaken for.
+  const text = line.trimStart();
+  if (text === "" || text.startsWith("#")) return null;
+  // Every field carries its own `#` escaped, so the first one left starts the
+  // reason — whatever the reason then goes on to say, delimiters included.
+  const reason = text.indexOf("#");
+  const entry = reason < 0 ? text : text.slice(0, reason);
+  // The path holds no colon of its own, so the first `::` ends it. The anchor
+  // holds only these characters and ends at the first whitespace after it.
+  const located = entry.match(/^([^:]+)::([A-Za-z0-9_$\-.%~@]+)\s+(.*)$/);
+  if (!located) return null;
+  // Three groups, all of them matched, or there is no match at all.
+  const writtenPath = located[1]!;
+  const anchor = located[2]!;
+  const mutation = located[3]!;
+  const sourcePath = unescapePath(writtenPath);
+  if (sourcePath === null) return null;
+  // `from` and `to` are escaped, so the first arrow left is the one splitting
+  // them.
+  const arrow = mutation.indexOf("→");
+  if (arrow < 0) return null;
+  const newOperator = mutation.slice(arrow + 1).trim();
+  if (newOperator === "") return null;
+  // The "from" side may be empty: an already-empty string literal mutates with
+  // an empty display label (see stringLiteralMutants).
+  const operator = mutation.slice(0, arrow).trimEnd();
+  return {
+    anchor,
+    key: `${writtenPath}::${anchor} ${operator}→${newOperator}`,
+    newOperator,
+    operator,
+    sourcePath,
+  };
 };
 
 export interface IgnoreList {
-  /** Every parsed entry in file order, keeping duplicates for validation. */
-  entries: string[];
+  /** Every parsed entry in file order, keeping duplicates for validation. Each
+   * carries the path it named, so scoping a run to its files never has to work
+   * that back out of the key. */
+  entries: { key: string; sourcePath: string }[];
   /** Unique entry keys, for the membership check during evaluation. */
   keys: Set<string>;
 }
@@ -101,26 +159,47 @@ export const loadIgnoreList = async (
   ignoreFiles?: (string | URL)[],
 ): Promise<IgnoreList> => {
   const files = ignoreFiles ?? (await listRegistryFiles());
-  const entries: string[] = [];
+  const entries: IgnoreList["entries"] = [];
   for (const file of files) {
-    let text: string;
-    try {
-      text = await Deno.readTextFile(file);
-    } catch (error) {
-      // Absence is the documented empty case; a file that exists but cannot
-      // be read is a real failure the run must surface, not an empty registry.
-      rethrowUnlessNotFound(error);
-      continue;
-    }
+    // Absence is the documented empty case; a file that exists but cannot be
+    // read is a real failure the run must surface, not an empty registry.
+    const text = await readTextFileOrNull(file);
+    if (text === null) continue;
     entries.push(
-      ...text
-        .split("\n")
-        .map(parseIgnoreLine)
-        .filter((entry): entry is ParsedIgnoreLine => entry !== null)
-        .map((entry) => entry.key),
+      ...parseRegistryText(text, file).map(({ key, sourcePath }) => ({
+        key,
+        sourcePath,
+      })),
     );
   }
-  return { entries, keys: new Set(entries) };
+  return { entries, keys: new Set(entries.map((entry) => entry.key)) };
+};
+
+/**
+ * Every entry in one registry file's text.
+ *
+ * A line that is neither blank nor a comment but does not parse raises, because
+ * a registry quietly missing part of itself reads exactly like one that never
+ * held those entries.
+ */
+export const parseRegistryText = (
+  text: string,
+  file: string | URL,
+): ParsedIgnoreLine[] => {
+  const parsed: ParsedIgnoreLine[] = [];
+  for (const line of text.split("\n")) {
+    const entry = parseIgnoreLine(line);
+    if (entry) {
+      parsed.push(entry);
+      continue;
+    }
+    if (line.trim() !== "" && !line.trimStart().startsWith("#")) {
+      throw new Error(
+        `Malformed equivalent-mutant entry in ${registryFilePath(file)}: ${line}`,
+      );
+    }
+  }
+  return parsed;
 };
 
 /** Whether a survivor is a recorded known-equivalent mutant. */
@@ -161,9 +240,8 @@ export const ignoreListProblems = (
   mutatedFiles: string[],
   possibleKeys?: Set<string>,
 ): string[] => {
-  const relFiles = mutatedFiles.map(rel);
-  const targetsMutatedFile = (key: string): boolean =>
-    relFiles.some((file) => key.startsWith(`${file}:`));
+  // Whole paths, not prefixes: one file's path can begin with another's.
+  const relFiles = new Set(mutatedFiles.map(rel));
   const generated = new Set(results.map((r) => mutantKey(r.file, r.mutant)));
   const known = possibleKeys ?? generated;
   const suppressed = new Set(
@@ -174,8 +252,8 @@ export const ignoreListProblems = (
 
   const problems: string[] = [];
   const isRepeat = seenBefore();
-  for (const key of ignore.entries) {
-    if (!targetsMutatedFile(key)) continue;
+  for (const { key, sourcePath } of ignore.entries) {
+    if (!relFiles.has(sourcePath)) continue;
     if (isRepeat(key)) {
       problems.push(`duplicate entry: ${key}`);
       continue;
