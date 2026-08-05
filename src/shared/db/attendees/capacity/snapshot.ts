@@ -1,16 +1,17 @@
 /**
  * One capacity reading that answers every span on a page.
  *
- * A page offering several durations used to ask the database again for each
- * one. Every one of those questions reads the same booking rows — a two-night
- * stay's days are the first two days of a five-night stay's — so this loads the
- * widest span once and works the shorter spans out from it in memory. A gallery
- * with nine durations then costs what one duration costs.
+ * A shorter stay's days are the first days of a longer one's, so a reading that
+ * covers the widest span in play answers every narrower span too — in memory,
+ * with no further reads. A page offering nine booking lengths therefore costs
+ * what one length costs, which is what keeps it inside the edge request's
+ * subrequest budget.
  */
 
 import { countsPerDate } from "#shared/capacity-rules.ts";
 import { inPlaceholders, queryAll } from "#shared/db/client.ts";
 import { listingGroups } from "#shared/db/groups.ts";
+import { clampDurationDays } from "#shared/types.ts";
 import {
   getGroupPerDayRemaining,
   getGroupRemainingByGroupId,
@@ -99,6 +100,14 @@ export const loadCapacitySnapshot = async (
   return { bookedByDay, datelessGroupRemaining, days, groupByDay, membership };
 };
 
+/** The snapshot's first `span` days. The span is clamped the same way a stored
+ * booking's is, so a caller asking for no days at all still reads one — the day
+ * the booking starts. */
+const daysOfSpan = (
+  snapshot: Pick<CapacitySnapshot, "days">,
+  span: number,
+): string[] => snapshot.days.slice(0, clampDurationDays(span));
+
 /** The lowest of a set of day-by-day figures over the given days. */
 const lowestOverDays = (
   byDay: ReadonlyMap<string, number>,
@@ -139,7 +148,7 @@ export const remainingFromSnapshot = <Listing extends ListingCapacityRow>(
           ),
         ];
       }
-      const days = snapshot.days.slice(0, spanOf(listing));
+      const days = daysOfSpan(snapshot, spanOf(listing));
       const booked = snapshot.bookedByDay.get(listing.id)!;
       const ownRemaining = Math.min(
         ...days.map((day) => listing.max_attendees - booked.get(day)!),
@@ -168,10 +177,7 @@ export const groupRemainingFromSnapshot = (
   for (const [groupId, span] of spanByGroupId) {
     const byDay = snapshot.groupByDay.get(groupId);
     if (byDay) {
-      remaining.set(
-        groupId,
-        lowestOverDays(byDay, snapshot.days.slice(0, span)),
-      );
+      remaining.set(groupId, lowestOverDays(byDay, daysOfSpan(snapshot, span)));
     }
   }
   return remaining;

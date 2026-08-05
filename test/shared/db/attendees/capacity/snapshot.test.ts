@@ -164,6 +164,18 @@ describeWithEnv(
       expect(remaining.get(listing.id)).toBe(reread);
     });
 
+    test("reads one day for a stay of no days at all", async () => {
+      const date = startDate();
+      const [listing] = await listingsOfLengths("Zero", [1]);
+      await book(listing!.id, 4, date);
+
+      const snapshot = await loadCapacitySnapshot([listing!], date, 0);
+      const remaining = remainingFromSnapshot(snapshot, [listing!], () => 0);
+
+      // Not Infinity: a span of no days would otherwise read as no limit.
+      expect(remaining.get(listing!.id)).toBe(6);
+    });
+
     test("skips the membership lookup when the caller already knows it", async () => {
       const date = startDate();
       const listings = await listingsOfLengths("Known", [2]);
