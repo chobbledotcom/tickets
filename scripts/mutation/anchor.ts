@@ -60,7 +60,6 @@ interface NamedNode {
   name?: Label | null;
   static?: boolean;
   test?: Label | null;
-  type?: string;
 }
 
 /** The name a declaration contributes, or nothing when it is anonymous. An
@@ -99,8 +98,12 @@ const WRITTEN_NAME: Record<string, "key" | "left" | "name" | "test"> = {
   SwitchCase: "test",
 };
 
-const writtenAs = (node: NamedNode, source: string): string | null => {
-  const field = WRITTEN_NAME[node.type ?? ""];
+const writtenAs = (
+  node: NamedNode,
+  kind: string,
+  source: string,
+): string | null => {
+  const field = WRITTEN_NAME[kind];
   const label = field === undefined ? null : node[field];
   return isSpan(label) ? source.slice(label.start, label.end) : null;
 };
@@ -118,8 +121,8 @@ const markersOn = (node: NamedNode): string[] => [
 ];
 
 /** The names a node adds to the path: what it is, then what it is called. */
-const namesOf = (node: NamedNode, source: string): string[] => {
-  const own = nameOf(node) ?? writtenAs(node, source);
+const namesOf = (node: NamedNode, kind: string, source: string): string[] => {
+  const own = nameOf(node) ?? writtenAs(node, kind, source);
   return own === null ? [] : [...markersOn(node), own];
 };
 
@@ -202,8 +205,9 @@ const descendTo = (program: object, content: string, mutant: Span): Descent => {
   let node: object = program;
   for (;;) {
     const record = node as Node;
-    if (typeof record.type === "string" && NAMING_TYPES.has(record.type)) {
-      names.push(...namesOf(record as NamedNode, content));
+    const kind = record.type;
+    if (typeof kind === "string" && NAMING_TYPES.has(kind)) {
+      names.push(...namesOf(record as NamedNode, kind, content));
     }
     path.push(record);
     const next = Object.values(record)
