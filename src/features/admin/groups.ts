@@ -358,9 +358,8 @@ const validateListingTypesForGroup = async (
   group: Group,
   listings: ListingWithCount[],
 ): Promise<string | null> => {
-  // Every listing joins the SAME group, so its current members are read once
-  // and each candidate is judged against that one list.
-  const siblings = await getListingsByGroupId(group.id);
+  // A candidate accepted earlier in this batch becomes a sibling for the next.
+  const siblings = [...(await getListingsByGroupId(group.id))];
   for (const listing of listings) {
     const typeError = groupListingTypeError(
       siblings,
@@ -368,6 +367,7 @@ const validateListingTypesForGroup = async (
       listing.customisable_days,
     );
     if (typeError) return typeError;
+    siblings.push(listing);
   }
   if (group.is_package) {
     const packageError = await packageMembersError(
