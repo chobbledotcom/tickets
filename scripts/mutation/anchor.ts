@@ -53,6 +53,7 @@ interface Label {
 interface NamedNode {
   id?: Label | null;
   key?: Label | null;
+  static?: boolean;
   test?: Label | null;
   type?: string;
 }
@@ -71,6 +72,18 @@ const nameOf = (node: NamedNode): string | null => {
   const written = label?.value;
   if (typeof written === "number") return String(written);
   return typeof written === "string" ? written : null;
+};
+
+/** The names a node adds to the path: its own, and — for a member on the class
+ * itself rather than on its instances — the side of the class it sits on. One
+ * class may hold a static member and an instance member under the same key,
+ * and their bodies can read alike while each takes a different type, so the
+ * key alone would leave them to be told apart by order. `<static>` is written
+ * the way `<file>` is, for the same reason: it says something no name can. */
+const namesOf = (node: NamedNode): string[] => {
+  const own = nameOf(node);
+  if (own === null) return [];
+  return node.static === true ? ["<static>", own] : [own];
 };
 
 /** Declarations whose name is worth carrying into the path. A block or an `if`
@@ -145,8 +158,7 @@ const descendTo = (program: object, mutant: Span): Descent => {
   for (;;) {
     const record = node as Node;
     if (typeof record.type === "string" && NAMING_TYPES.has(record.type)) {
-      const named = nameOf(record as NamedNode);
-      if (named !== null) names.push(named);
+      names.push(...namesOf(record as NamedNode));
     }
     path.push(record);
     const next = Object.values(record)

@@ -105,6 +105,18 @@ describe("naming what a mutant sits inside", () => {
     expect(nameOf(nullishAnchor("enum E { A = 1 ?? 0 }\n"))).toBe("E.A");
   });
 
+  test("says which side of a class a static member sits on", () => {
+    expect(
+      nameOf(nullishAnchor("class R { static read(x) { return x ?? 0; } }\n")),
+    ).toBe("R.%3cstatic%3e.read");
+  });
+
+  test("says nothing extra for an instance member", () => {
+    expect(
+      nameOf(nullishAnchor("class R { read(x) { return x ?? 0; } }\n")),
+    ).toBe("R.read");
+  });
+
   test("names the switch case a mutant sits in", () => {
     expect(
       nameOf(
@@ -239,6 +251,19 @@ describe("telling apart mutants that share a name", () => {
     ).map((m) => m.anchor);
 
     expect(anchors.map(nameOf)).toEqual(["read.text", "read.count"]);
+    expect(anchors.filter((a) => a.includes("@"))).toEqual([]);
+  });
+
+  /** One class can hold a static member and an instance member under the same
+   * key, each taking a different type, so what is equivalent on one side need
+   * not be on the other. Which side they sit on must tell them apart, because
+   * an ordinal moves when the class elements are reordered. */
+  test("tells apart a static and an instance member sharing a key", () => {
+    const anchors = nullishMutants(
+      'class R { static read(x) { return x ?? ""; } read(x) { return x ?? ""; } }\n',
+    ).map((m) => m.anchor);
+
+    expect(anchors.map(nameOf)).toEqual(["R.%3cstatic%3e.read", "R.read"]);
     expect(anchors.filter((a) => a.includes("@"))).toEqual([]);
   });
 
