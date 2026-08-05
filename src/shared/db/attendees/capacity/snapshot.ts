@@ -8,6 +8,7 @@
  * subrequest budget.
  */
 
+import { requiredMapValue } from "#fp";
 import { countsPerDate } from "#shared/capacity-rules.ts";
 import { inPlaceholders, queryAll } from "#shared/db/client.ts";
 import { listingGroups } from "#shared/db/groups.ts";
@@ -112,7 +113,12 @@ const daysOfSpan = (
 const lowestOverDays = (
   byDay: ReadonlyMap<string, number>,
   days: string[],
-): number => Math.min(...days.map((day) => byDay.get(day)!));
+): number =>
+  Math.min(
+    ...days.map((day) =>
+      requiredMapValue(byDay, day, `No capacity read for ${day}`),
+    ),
+  );
 
 /**
  * How many units each listing has left, each judged over its own booking span.
@@ -149,9 +155,17 @@ export const remainingFromSnapshot = <Listing extends ListingCapacityRow>(
         ];
       }
       const days = daysOfSpan(snapshot, spanOf(listing));
-      const booked = snapshot.bookedByDay.get(listing.id)!;
+      const booked = requiredMapValue(
+        snapshot.bookedByDay,
+        listing.id,
+        `Listing ${listing.id} was not in the capacity reading`,
+      );
       const ownRemaining = Math.min(
-        ...days.map((day) => listing.max_attendees - booked.get(day)!),
+        ...days.map(
+          (day) =>
+            listing.max_attendees -
+            requiredMapValue(booked, day, `No booking total for ${day}`),
+        ),
       );
       return [
         listing.id,
