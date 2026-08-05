@@ -1646,6 +1646,34 @@ done — proven by a test that forces the late rejection, not by timing luck.
 
 ---
 
+## A webhook test about dropped answers fails once in a while in CI
+
+*Origin: CI on PR #2037, a branch that changes no `src/` file at all and does
+not touch this test or anything it exercises. The same commit passed the whole
+suite locally, this test included.*
+
+`finalizes a paid booking when a text-answer ref has no usable string id,
+dropping only those answers`
+(`test/integration/server/webhooks/custom-questions-single.test.ts`) failed
+once, alone, out of 21,686 passing cases.
+
+**What is not yet known is which of its assertions failed.** GitHub's job-log
+API keeps only the last 5,000 lines, and the per-case diagnostic falls outside
+that window — only the closing summary survives, which names the case and
+nothing else. So the first thing anyone picking this up needs is the failure
+itself: re-run it under load until it goes, keeping the full output.
+
+Two things are already ruled out. `logError` writes its console line
+synchronously before any async work (`src/shared/logger.ts`), so the
+`errors.contains(...)` assertion cannot be racing the log it reads. And the
+error spy is per-case (`beforeEach`/`afterEach` in
+`test/test-utils/error-spy.ts`), so it cannot be picking up a neighbour's
+output. That points at the booking or answer-saving assertions rather than the
+logging one, but pointing is not proving — do not "fix" this one from the
+shape of the test.
+
+---
+
 ## Four feature modules had no test at their mirrored path — now they do
 
 *Origin: `deno task precommit:mutation` on the notes-migration branch, which
