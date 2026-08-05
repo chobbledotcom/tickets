@@ -46,17 +46,24 @@ const withUploadServer = async (
   );
   const address = server.addr;
   if (!("port" in address)) throw new Error("Expected a network address");
+  // A server that answers before reading the body leaves the client still
+  // streaming after the upload has already settled. Ending those requests here
+  // keeps every socket's failure inside the test that made it.
+  const sent: ClientRequest[] = [];
   const transport: DatabaseUploadTransport = {
     request: (url, options, receive) => {
       expect(url.protocol).toBe("https:");
       const localUrl = new URL(url);
       localUrl.protocol = "http:";
-      return httpRequest(localUrl, options, receive);
+      const request = httpRequest(localUrl, options, receive);
+      sent.push(request);
+      return request;
     },
   };
   try {
     await run(`https://127.0.0.1:${address.port}`, transport);
   } finally {
+    for (const request of sent) request.destroy();
     await server.shutdown();
     await server.finished;
   }
@@ -221,6 +228,23 @@ describe("Turso migration file", () => {
       ).rejects.toThrow("Upload database failed (400): invalid");
     }));
 
+  /** One upload can raise two errors — the write breaking, then the file
+   * stopping because of it — and node throws an "error" nothing is listening
+   * for, from a place no caller can catch. */
+  test("survives a second error on the same request", () =>
+    withTempDir(async (dir) => {
+      const request = fakeRequest();
+      await expect(
+        uploadThroughScript(dir, request, () => {
+          request.emit("error", new Error("write broke"));
+        }),
+      ).rejects.toThrow("write broke");
+
+      expect(() =>
+        request.emit("error", new Error("and the file stopped too")),
+      ).not.toThrow();
+    }));
+
   test("rejects a write error when no reply has arrived", () =>
     withTempDir(async (dir) => {
       const request = fakeRequest();
@@ -231,7 +255,10 @@ describe("Turso migration file", () => {
       ).rejects.toThrow("connection reset mid-upload");
     }));
 
-  test("ignores the duplicate body-stream rejection only mid-upload", () =>
+  // The rejection surfaces whenever the polyfill's own internal task ends, so
+  // the watch cannot be timed to the upload — it stays up once an upload has
+  // run, and earns that by only ever ignoring this one message.
+  test("ignores the duplicate body-stream rejection and nothing else", () =>
     withTempDir(async (dir) => {
       const prevented = (reason: unknown): boolean => {
         const event = new PromiseRejectionEvent("unhandledrejection", {
@@ -262,8 +289,10 @@ describe("Turso migration file", () => {
 
       request.destroy(new Error("cut mid-upload"));
       await expect(upload).rejects.toThrow("cut mid-upload");
-      // Once the upload has settled the watch is down again.
-      expect(prevented(defect())).toBe(false);
+      // Still ignored after the upload settles: a late rejection is exactly
+      // the one this watch exists for.
+      expect(prevented(defect())).toBe(true);
+      expect(prevented(new TypeError("some other failure"))).toBe(false);
     }));
 
   test("rejects an interrupted upload before opening the snapshot", () =>

@@ -23,6 +23,7 @@
 import { parseSync } from "npm:oxc-parser@0.132.0";
 import { flatMap, unique } from "#fp";
 import { lineColumnAt } from "#scripts/line-column.ts";
+import { anchorMutants } from "./anchor.ts";
 import {
   assignmentOperators,
   assignmentOperatorsExhaustive,
@@ -38,7 +39,16 @@ import {
  * source span [start, end). `operator`/`newOperator` are the human-readable
  * before → after shown in the report.
  */
-export interface Mutant {
+export interface Mutant extends RawMutant {
+  /** What this mutant sits inside, named so it survives an edit elsewhere in
+   * the file — see anchor.ts. Line and column still say where it is today; the
+   * anchor is what the equivalent-mutant registry records. */
+  anchor: string;
+}
+
+/** A mutant before it has been told what it sits inside. The generators build
+ * these; `generateMutants` anchors them on the way out. */
+interface RawMutant {
   column: number;
   end: number;
   line: number;
@@ -73,7 +83,7 @@ type MutantFn = (
   node: AstNode,
   content: string,
   exhaustive: boolean,
-) => Mutant[];
+) => RawMutant[];
 
 /** Build a mutant for the span [start, end), resolving its line/column. */
 const spanMutant = (
@@ -83,7 +93,7 @@ const spanMutant = (
   operator: string,
   newOperator: string,
   replacement?: string,
-): Mutant => {
+): RawMutant => {
   const { column, line } = lineColumnAt(content, start);
   const base = { column, end, line, newOperator, operator, start };
   return replacement === undefined ? base : { ...base, replacement };
@@ -135,7 +145,7 @@ const argumentOperatorMutants = (
   node: AstNode,
   content: string,
   swaps: ReadonlyArray<{ newOperator: string; replacement: string }>,
-): Mutant[] => {
+): RawMutant[] => {
   const { argument, end, operator, prefix, start } = node as AstNode & {
     argument: { end: number; start: number };
     end: number;
@@ -152,7 +162,7 @@ const argumentOperatorMutants = (
   );
 };
 
-const unaryMutants = (node: AstNode, content: string): Mutant[] =>
+const unaryMutants = (node: AstNode, content: string): RawMutant[] =>
   argumentOperatorMutants(
     node,
     content,
@@ -162,7 +172,7 @@ const unaryMutants = (node: AstNode, content: string): Mutant[] =>
     UNARY_MUTATIONS[(node as AstNode & { operator: string }).operator] ?? [],
   );
 
-const updateMutants = (node: AstNode, content: string): Mutant[] => {
+const updateMutants = (node: AstNode, content: string): RawMutant[] => {
   const flipped =
     (node as AstNode & { operator: "++" | "--" }).operator === "++"
       ? "--"
@@ -174,7 +184,7 @@ const updateMutants = (node: AstNode, content: string): Mutant[] => {
 
 // --- Boolean literals: `true ↔ false` ------------------------------------
 
-const booleanMutants = (node: AstNode, content: string): Mutant[] => {
+const booleanMutants = (node: AstNode, content: string): RawMutant[] => {
   if (
     typeof node.value !== "boolean" ||
     node.start === undefined ||
@@ -194,7 +204,7 @@ const literalReplacementMutants = (
   node: AstNode,
   content: string,
   replacements: string[],
-): Mutant[] => {
+): RawMutant[] => {
   const { end, start, value } = node as AstNode & {
     end: number;
     start: number;
@@ -249,7 +259,7 @@ const literalMutants: MutantFn = (node, content, exhaustive) => [
 /** Replace the whole statement with an empty one — valid even as a braceless
  * if/for/while body. Used directly for throw/break/continue, and via
  * {@link statementRemovalMutants} for side-effect expression statements. */
-const statementRemoval = (node: AstNode, content: string): Mutant[] => {
+const statementRemoval = (node: AstNode, content: string): RawMutant[] => {
   const { end, start } = node as AstNode & { end: number; start: number };
   return [
     spanMutant(
@@ -267,7 +277,10 @@ const statementRemoval = (node: AstNode, content: string): Mutant[] => {
 
 const REMOVABLE_EXPRESSIONS = new Set(["AwaitExpression", "CallExpression"]);
 
-const statementRemovalMutants = (node: AstNode, content: string): Mutant[] => {
+const statementRemovalMutants = (
+  node: AstNode,
+  content: string,
+): RawMutant[] => {
   const { expression } = node as AstNode & { expression: { type: string } };
   return REMOVABLE_EXPRESSIONS.has(expression.type)
     ? statementRemoval(node, content)
@@ -276,7 +289,7 @@ const statementRemovalMutants = (node: AstNode, content: string): Mutant[] => {
 
 // --- Control-flow removals ------------------------------------------------
 
-const returnMutants = (node: AstNode, content: string): Mutant[] => {
+const returnMutants = (node: AstNode, content: string): RawMutant[] => {
   const { argument } = node;
   if (!argument) return [];
   return [
@@ -336,7 +349,7 @@ const conditionalMutants: MutantFn = (node, content, exhaustive) => {
 
 const mutantsForNode =
   (content: string, exhaustive: boolean) =>
-  (node: AstNode): Mutant[] => {
+  (node: AstNode): RawMutant[] => {
     switch (node.type) {
       case "AssignmentExpression":
       case "BinaryExpression":
@@ -436,9 +449,10 @@ export const generateMutants = (
   const fileName = filePath.split("/").pop() as string;
   const { program } = parseSync(fileName, content);
   const mutate = mutantsForNode(content, exhaustive);
-  return flatMap((entry: { inNonRuntime: boolean; node: AstNode }) =>
+  const raw = flatMap((entry: { inNonRuntime: boolean; node: AstNode }) =>
     entry.inNonRuntime ? [] : mutate(entry.node),
   )([...walk(program)]);
+  return anchorMutants(program, content, raw);
 };
 
 /** Apply a mutant to the original source, returning the mutated source. */

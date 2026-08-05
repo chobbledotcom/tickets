@@ -9,12 +9,11 @@ import {
 import { writeWholeOrNotAtAll } from "./write-whole.ts";
 
 interface PhysicalEntry {
+  anchor: string;
   chunk: string;
-  column: number;
   index: number;
   key: string;
   line: string;
-  lineNumber: number;
   newOperator: string;
   operator: string;
   /** Which registry file the entry lives in, as an index into the file list. */
@@ -74,8 +73,7 @@ const physicalEntries = (
       throw new Error(`Duplicate equivalent-mutant entry: ${parsed.key}`);
     }
     seen.add(parsed.key);
-    const { line: lineNumber, ...rest } = parsed;
-    return [{ chunk, index, line, lineNumber, registry, ...rest }];
+    return [{ chunk, index, line, registry, ...parsed }];
   });
 
 const sourceFile = (root: string, sourcePath: string): string => {

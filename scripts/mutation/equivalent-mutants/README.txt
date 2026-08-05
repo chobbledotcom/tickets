@@ -15,8 +15,33 @@
 # new record to the file whose name covers the source path (splitting a
 # file that outgrows ~400 lines).
 #
-# Format — copy a survivor line from the report and add a reason:
-#   <path>:<line>:<col>  <from> → <to>   # why it is equivalent
+# Format — one entry per line, plus a reason:
+#   <path>::<anchor>  <from> → <to>   # why it is equivalent
+#
+# The anchor names what the mutant sits inside — a function, a method, an object
+# property, a value, nested names joined by dots — then `~` and a fingerprint of
+# the expression it mutates:
+#
+#   src/fp.ts::collectionCache.generation~0dbfxl4  0 → 1   # ...
+#
+# Both halves come from the code, so an entry that resolves has found the
+# expression it was recorded against. An anchor moves only when that expression
+# is edited or its enclosing name changes — never because code around it moved.
+# The fingerprint never reaches past the mutant's own statement, so a change to
+# a neighbouring line leaves it alone.
+#
+# Two mutants sharing a name, a `from → to`, AND character-identical text are
+# indistinguishable; those take `@1`, `@2` in source order. That ordinal is the
+# one part of an anchor that a reordering can move, so an entry carrying one is
+# worth re-checking whenever its neighbours change.
+#
+# Anything that would not survive a line — a space at either edge, the `#` that
+# starts this comment, a newline, an arrow of its own — is percent-encoded, in
+# the path just as in the `from` and `to`. `%23` is a `#`; `%20` is a space;
+# `%e2%86%92` is a `→`. So a line beginning with `#` is always a comment, and a
+# file whose path begins with one is written `%23...`.
+#
+# The path must name the canonical project-relative path, and nothing else.
 #
 # Do NOT list a mutant whose output the linter or type checker rejects. Biome's
 # noDoubleEquals rule rejects every `=== → ==` and `!== → !=` mutant. The runner

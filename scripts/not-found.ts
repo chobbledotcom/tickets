@@ -19,6 +19,11 @@ export const nullIfNotFound = <Found>(
     return null;
   });
 
+/** A file's text, or `null` when there is no such file. */
+export const readTextFileOrNull = (
+  file: string | URL,
+): Promise<string | null> => nullIfNotFound(Deno.readTextFile(file));
+
 /** The entry names in a directory that the keep-filter accepts, or none when
  * the directory itself is not there. */
 export const namesInDirectory = async (
