@@ -76,4 +76,4 @@ jobs:
           name: tickets-evidence
           path: reports/evidence
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 35
