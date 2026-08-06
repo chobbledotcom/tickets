@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import {
+  countRows,
   execute,
   TransactionValidationError,
   writeRowInTransaction,
@@ -164,7 +165,9 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
       1,
     );
     if (imported.status === "fulfilled" && !imported.value.ok) {
-      expect(imported.value.error).toContain("must be the same type");
+      expect(imported.value.error).toBe(
+        t("error.group_listing_type_mismatch", { type: "standard" }),
+      );
     } else {
       expect(standardWrite.status).toBe("rejected");
       if (standardWrite.status !== "rejected") {
@@ -222,5 +225,34 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
     expect(result.error).toBe(
       t("error.group_listing_type_mismatch", { type: "standard" }),
     );
+  });
+
+  test("rolls back an import when a member vanishes during its write", async () => {
+    const member = await createTestListing({ name: "Vanishing import member" });
+    await execute(
+      `CREATE TRIGGER delete_imported_member
+         BEFORE INSERT ON group_listings
+         WHEN NEW.listing_id = ${member.id}
+         BEGIN DELETE FROM listings WHERE id = ${member.id}; END`,
+    );
+    const before = await Promise.all([
+      countRows("groups"),
+      countRows("group_listings"),
+    ]);
+
+    const result = await importCatalog({
+      group: { name: "Vanishing member group" },
+      kind: "group",
+      members: [{ listing: member.name }],
+      version: 1,
+    });
+
+    expect(result).toEqual({
+      error: t("catalog_transfer.member_missing"),
+      ok: false,
+    });
+    expect(
+      await Promise.all([countRows("groups"), countRows("group_listings")]),
+    ).toEqual(before);
   });
 });

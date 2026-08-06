@@ -23,7 +23,10 @@ import {
   TransactionValidationError,
   writeRowInTransaction,
 } from "#shared/db/client.ts";
-import { validateKnownListingGroupMembershipsTx } from "#shared/db/groups/membership.ts";
+import {
+  type ListingGroupMembershipValidation,
+  validateListingGroupMembershipsTx,
+} from "#shared/db/groups/membership.ts";
 import {
   generateUniqueGroupSlug,
   getGroupsById,
@@ -100,6 +103,15 @@ const fail = (error: string): Result<ImportedEntity> => errorResult(error);
 const importTransactionFailure = (error: unknown): Result<ImportedEntity> => {
   if (error instanceof TransactionValidationError) return fail(error.message);
   throw error;
+};
+
+const requireImportedMembership = (
+  membership: ListingGroupMembershipValidation,
+): void => {
+  if (membership.listingMissing) {
+    throw new TransactionValidationError(t("catalog_transfer.member_missing"));
+  }
+  if (membership.error) throw new TransactionValidationError(membership.error);
 };
 
 /** Resolve a list of names to ids within one entity kind, returning the ids or
@@ -450,12 +462,11 @@ const importListing = async (
       // listing_prices, not a column). Write them here so an imported customisable
       // listing keeps its per-day prices, committed atomically with the row.
       await writeListingDayCounts(tx, newId, input.dayPrices);
-      const membershipError = await validateKnownListingGroupMembershipsTx(tx)(
+      const membership = await validateListingGroupMembershipsTx(tx)(
         [newId],
         groupResolve.ids,
       );
-      if (membershipError)
-        throw new TransactionValidationError(membershipError);
+      requireImportedMembership(membership);
       await writeMembershipsTx(tx, withNewId(specs, "listingId", newId));
       await listingParents.addIdsTx(tx, newId, parentResolve.ids);
     },
@@ -559,12 +570,11 @@ const importGroup = async (
     null,
     async (tx, newId) => {
       await writeMembershipsTx(tx, withNewId(specs, "groupId", newId));
-      const membershipError = await validateKnownListingGroupMembershipsTx(tx)(
+      const membership = await validateListingGroupMembershipsTx(tx)(
         memberResolve.ids,
         [newId],
       );
-      if (membershipError)
-        throw new TransactionValidationError(membershipError);
+      requireImportedMembership(membership);
     },
   );
   return okResult({ id, kind: "group", name: input.name });

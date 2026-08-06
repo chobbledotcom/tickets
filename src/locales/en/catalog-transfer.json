@@ -11,5 +11,6 @@
   "catalog_transfer.invalid_json": "The file is not valid JSON.",
   "catalog_transfer.imported_listing": "Imported listing {name}",
   "catalog_transfer.imported_group": "Imported group {name}",
+  "catalog_transfer.member_missing": "A listing used by this import no longer exists. Please import again.",
   "catalog_transfer.demo_disabled": "Catalog import is disabled in demo mode."
 }

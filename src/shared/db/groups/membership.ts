@@ -281,16 +281,6 @@ export const validateListingGroupMembershipTx =
   (listingId, groupIds) =>
     validateListingGroupMembershipsTx(tx)([listingId], groupIds);
 
-/** Checks memberships for listing rows the caller just wrote in this transaction. */
-export const validateKnownListingGroupMembershipsTx =
-  (tx: TxScope): MembershipsChecker<string | null> =>
-  async (listingIds, groupIds) =>
-    listingGroupMembershipErrorTx(
-      tx,
-      await listingStatesTx(tx, listingIds),
-      groupIds,
-    );
-
 /** Rechecks every member after a group becomes a package or hides its members. */
 export const packageGroupMembersErrorTx = async (
   tx: TxScope,
