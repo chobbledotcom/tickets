@@ -5,6 +5,7 @@ import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
+import { sessionCookie } from "#test/specs/support/browser.ts";
 import {
   editorAddsListing,
   editorBrowser,
@@ -152,9 +153,7 @@ When(
       this,
       ["editor-listings-without-takings"],
       "/admin/listings",
-      [...browser.debugCookies()]
-        .map(([name, value]) => `${name}=${value}`)
-        .join("; "),
+      sessionCookie(browser),
     );
   },
 );

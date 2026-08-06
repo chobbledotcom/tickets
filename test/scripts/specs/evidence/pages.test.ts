@@ -61,6 +61,15 @@ describe("Evidence pages a story leaves", () => {
     }
   });
 
+  test("accepts an HTML data page for a downloaded outcome", () => {
+    const world = emptyWorld();
+    const page = "data:text/html,%3Cmain%3ECSV%3C%2Fmain%3E";
+
+    leaveEvidencePage(world, ["listing-ledger"], page);
+
+    expect(world.evidencePages.get("listing-ledger")).toBe(page);
+  });
+
   test("opens the address the declaration fixes, ignoring what was left", () => {
     expect(
       evidencePagePath(

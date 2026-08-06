@@ -2,11 +2,13 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { restoreFromZip } from "#shared/db/backup.ts";
 import {
   adminBrowser,
   resetScenarioBrowser,
   scenarioBrowser,
+  sessionCookie,
 } from "#test/specs/support/browser.ts";
 import { rememberListing } from "#test/specs/support/listings.ts";
 import {
@@ -133,5 +135,11 @@ Then(
     );
     expect(browser.containsText(CUSTOMER)).toBe(true);
     expect(browser.containsText(CUSTOMER_EMAIL)).toBe(true);
+    leaveEvidencePage(
+      this,
+      ["backup-restore"],
+      browser.currentUrl,
+      sessionCookie(browser),
+    );
   },
 );

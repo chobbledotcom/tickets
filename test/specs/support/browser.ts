@@ -1,5 +1,6 @@
 // jscpd:ignore-start
 import { t } from "#i18n";
+import { getSessionCookieName } from "#shared/cookies.ts";
 import {
   type RowOnList,
   rowsOnList,
@@ -33,6 +34,15 @@ export const rememberBrowser = (
   who: string,
   browser: TestBrowser,
 ): TestBrowser => world.things.remember("browser", who, browser);
+
+/** The one cookie that authenticates a captured page. Other browser cookies do
+ * not change which admin account sees it. */
+export const sessionCookie = (browser: TestBrowser): string => {
+  const name = getSessionCookieName();
+  const value = browser.debugCookies().get(name);
+  if (!value) throw new Error("The browser has no admin session cookie");
+  return `${name}=${value}`;
+};
 
 /** The window somebody is already looking at. A story that never gave them one
  * has nothing to read, so it says so rather than opening a fresh window and

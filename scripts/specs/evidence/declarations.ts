@@ -125,12 +125,11 @@ export const EVIDENCE_CAPTURES = [
     "backup.restore-brings-back-bookings",
     "backup-restore",
     ".page-regions.admin-page",
-    "/admin/backup",
   ),
   brandedMobileCapture(
     "download.the-chosen-length-not-the-maximum",
     "attendee-csv-export",
-    ".page-regions.entity-page",
+    "main",
   ),
   brandedMobileCapture(
     "add-ons.it-appears-in-the-list-with-its-own-link",
