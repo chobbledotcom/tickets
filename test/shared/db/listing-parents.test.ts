@@ -144,6 +144,18 @@ describeWithEnv("db > listing-parents", { db: true }, () => {
       expect(await listingChildren.getIds(parent.id)).toEqual([]);
     });
 
+    test("replaces children when the package check allows the new edge", async () => {
+      const { parent, childA, childB } = await threeListings();
+      await listingChildren.setIds(parent.id, [childA.id]);
+
+      expect(
+        await withTransaction((tx) =>
+          setListingChildrenWithPackageCheckTx(tx, parent.id, [childB.id]),
+        ),
+      ).toBeNull();
+      expect(await listingChildren.getIds(parent.id)).toEqual([childB.id]);
+    });
+
     test("names a malformed package check response", async () => {
       await expect(
         setListingChildrenWithPackageCheckTx(

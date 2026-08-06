@@ -63,10 +63,16 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
     const parent = await createTestListing({ name: "Base unit" });
     const childA = await createTestListing({ name: "Add-on A" });
     const childB = await createTestListing({ name: "Add-on B" });
-    await postChildren(parent.id, [childA.id, childB.id]);
+    const response = await postChildren(parent.id, [childA.id, childB.id]);
+    expectFlash(response, "Required children updated");
     expect(await listingChildren.getIds(parent.id)).toEqual(
       [childA.id, childB.id].sort((a, b) => a - b),
     );
+    const logs = await getListingActivityLog(parent.id);
+    expect(
+      logs.find((entry) => entry.message.includes("required children set to"))
+        ?.message,
+    ).toBe("Listing 'Base unit' required children set to 2 listings");
   });
 
   test("renders unticked siblings without the checked attribute", async () => {

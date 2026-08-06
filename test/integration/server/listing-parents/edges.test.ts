@@ -1,9 +1,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { makeRenewalTier } from "#test/test-utils/listing-parents/helpers.ts";
-import { expectFlash } from "#test-utils/assertions.ts";
+import {
+  expectFlash,
+  expectRedirectWithFlash,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestListing,
@@ -38,8 +42,11 @@ describeWithEnv("server > listing parents > edges", { db: true }, () => {
       name: "Daily add-on",
     });
     const res = await postChildren(parent.id, [child.id]);
-    // A rejected save redirects back with an ERROR flash, not a success one.
-    expectFlash(res, expect.anything(), false);
+    expectRedirectWithFlash(
+      `/admin/listing/${parent.id}/edit`,
+      t("listings_table.children_err_child_daily", { name: "Daily add-on" }),
+      false,
+    )(res);
     expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 

@@ -13,6 +13,7 @@ import {
 } from "#shared/db/client.ts";
 import {
   assignListingsToGroup,
+  packageGroupMembersErrorTx,
   requirePackageGroupMembersTx,
 } from "#shared/db/groups/membership.ts";
 import {
@@ -283,6 +284,12 @@ describeWithEnv("db > groups > membership writes", { db: true }, () => {
       withTransaction((tx) => setListingGroupsTx(tx, listing.id, [999_999])),
     ).rejects.toMatchObject({ message: "Selected group does not exist" });
     expect(await groupIdsOf(listing.id)).toEqual([]);
+  });
+
+  test("rechecking a deleted package group names the missing group", async () => {
+    await expect(
+      withTransaction((tx) => packageGroupMembersErrorTx(tx, 999_999)),
+    ).rejects.toMatchObject({ message: "Missing group", name: "Error" });
   });
 
   test("a package member left out of the list loses its override", async () => {
