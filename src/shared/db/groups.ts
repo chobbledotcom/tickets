@@ -531,8 +531,7 @@ export const setListingGroupsTx = async (
   listingId: number,
   groupIds: number[],
 ): Promise<void> => {
-  const validation = await validateListingGroupMembershipTx(
-    tx,
+  const validation = await validateListingGroupMembershipTx(tx)(
     listingId,
     groupIds,
   );

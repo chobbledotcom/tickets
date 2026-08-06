@@ -227,27 +227,69 @@ export type ListingGroupMembershipValidation =
   | { listingMissing: true }
   | { error: string | null; listingMissing: false };
 
-export const validateListingGroupMembershipTx = async (
-  tx: TxScope,
-  listingId: number,
+type MembershipsChecker<Result> = (
+  listingIds: readonly number[],
   groupIds: readonly number[],
-): Promise<ListingGroupMembershipValidation> => {
-  const [listing] = await listingStatesTx(tx, [listingId]);
-  if (!listing) return { listingMissing: true };
+) => Promise<Result>;
+
+const listingGroupMembershipErrorTx = async (
+  tx: TxScope,
+  listings: readonly ListingState[],
+  groupIds: readonly number[],
+): Promise<string | null> => {
   const states = await groupStatesTx(tx, groupIds);
-  for (const groupId of groupIds) {
-    const checked = checkGroupListingSettings(
-      states.get(groupId),
-      (group) => group.members,
-      listing,
-      listingId,
-    );
-    if (!checked.ok) return { error: checked.error, listingMissing: false };
-    const packageError = await packageMembersErrorTx([listing], checked.group);
-    if (packageError) return { error: packageError, listingMissing: false };
+  for (const listing of listings) {
+    for (const groupId of groupIds) {
+      const checked = checkGroupListingSettings(
+        states.get(groupId),
+        (group) => group.members,
+        listing,
+        listing.id,
+      );
+      if (!checked.ok) return checked.error;
+      const packageError = await packageMembersErrorTx(
+        [listing],
+        checked.group,
+      );
+      if (packageError) return packageError;
+    }
   }
-  return { error: null, listingMissing: false };
+  return null;
 };
+
+/** Rechecks selected listing/group membership pairs inside the write transaction. */
+export const validateListingGroupMembershipsTx =
+  (tx: TxScope): MembershipsChecker<ListingGroupMembershipValidation> =>
+  async (listingIds, groupIds) => {
+    const ids = [...new Set(listingIds)];
+    const listings = await listingStatesTx(tx, ids);
+    if (listings.length !== ids.length) return { listingMissing: true };
+    return {
+      error: await listingGroupMembershipErrorTx(tx, listings, groupIds),
+      listingMissing: false,
+    };
+  };
+
+/** Rechecks one listing's selected group memberships inside the write transaction. */
+export const validateListingGroupMembershipTx =
+  (
+    tx: TxScope,
+  ): ((
+    listingId: number,
+    groupIds: readonly number[],
+  ) => Promise<ListingGroupMembershipValidation>) =>
+  (listingId, groupIds) =>
+    validateListingGroupMembershipsTx(tx)([listingId], groupIds);
+
+/** Checks memberships for listing rows the caller just wrote in this transaction. */
+export const validateKnownListingGroupMembershipsTx =
+  (tx: TxScope): MembershipsChecker<string | null> =>
+  async (listingIds, groupIds) =>
+    listingGroupMembershipErrorTx(
+      tx,
+      await listingStatesTx(tx, listingIds),
+      groupIds,
+    );
 
 /** Rechecks every member after a group becomes a package or hides its members. */
 export const packageGroupMembersErrorTx = async (

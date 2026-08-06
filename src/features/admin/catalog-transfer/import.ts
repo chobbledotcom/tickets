@@ -19,7 +19,11 @@ import type {
   ListingInput,
 } from "#shared/catalog-fields/fields.ts";
 import { isBuilderEnabled } from "#shared/config.ts";
-import { writeRowInTransaction } from "#shared/db/client.ts";
+import {
+  TransactionValidationError,
+  writeRowInTransaction,
+} from "#shared/db/client.ts";
+import { validateKnownListingGroupMembershipsTx } from "#shared/db/groups/membership.ts";
 import {
   generateUniqueGroupSlug,
   getGroupsById,
@@ -92,6 +96,11 @@ type ImportedEntity = {
 };
 
 const fail = (error: string): Result<ImportedEntity> => errorResult(error);
+
+const importTransactionFailure = (error: unknown): Result<ImportedEntity> => {
+  if (error instanceof TransactionValidationError) return fail(error.message);
+  throw error;
+};
 
 /** Resolve a list of names to ids within one entity kind, returning the ids or
  * the first reference that can't be resolved (missing or, on legacy duplicate
@@ -332,11 +341,11 @@ const parentEdgeError = (
 /** Reject a would-be child that can't sit under one of its named parents: a
  * package member is never folded under a parent, and each parent→child edge must
  * satisfy the same field-compatibility rules the edge editor enforces. */
-const validateParentEdges = async (
-  input: ListingInput,
-  parentIds: readonly number[],
-  groupIds: readonly number[],
-): Promise<string | null> => {
+const validateParentEdges = async ({
+  groupIds,
+  input,
+  parentIds,
+}: ParentEdges): Promise<string | null> => {
   if (parentIds.length === 0) return null;
   const pkg = await firstPackageGroup(groupIds);
   if (pkg) {
@@ -401,11 +410,11 @@ const importListing = async (
 
   const validationError = await validateListingInput(input);
   if (validationError) return fail(validationError);
-  const edgeError = await validateParentEdges(
+  const edgeError = await validateParentEdges({
+    groupIds: groupResolve.ids,
     input,
-    parentResolve.ids,
-    groupResolve.ids,
-  );
+    parentIds: parentResolve.ids,
+  });
   if (edgeError) return fail(edgeError);
 
   // Package overrides only apply to a package group; clear them for any regular
@@ -441,6 +450,12 @@ const importListing = async (
       // listing_prices, not a column). Write them here so an imported customisable
       // listing keeps its per-day prices, committed atomically with the row.
       await writeListingDayCounts(tx, newId, input.dayPrices);
+      const membershipError = await validateKnownListingGroupMembershipsTx(tx)(
+        [newId],
+        groupResolve.ids,
+      );
+      if (membershipError)
+        throw new TransactionValidationError(membershipError);
       await writeMembershipsTx(tx, withNewId(specs, "listingId", newId));
       await listingParents.addIdsTx(tx, newId, parentResolve.ids);
     },
@@ -542,7 +557,15 @@ const importGroup = async (
   const id = await writeRowInTransaction(
     await groups.table.insertStatement!(input),
     null,
-    (tx, newId) => writeMembershipsTx(tx, withNewId(specs, "groupId", newId)),
+    async (tx, newId) => {
+      await writeMembershipsTx(tx, withNewId(specs, "groupId", newId));
+      const membershipError = await validateKnownListingGroupMembershipsTx(tx)(
+        memberResolve.ids,
+        [newId],
+      );
+      if (membershipError)
+        throw new TransactionValidationError(membershipError);
+    },
   );
   return okResult({ id, kind: "group", name: input.name });
 };
@@ -561,7 +584,11 @@ export const importCatalog = async (
 ): Promise<Result<ImportedEntity>> => {
   const parsed = v.safeParse(CatalogTransferSchema, blob);
   if (!parsed.success) return fail(formatTransferIssues(parsed.issues));
-  return parsed.output.kind === "listing"
-    ? importListing(parsed.output, adminLevel)
-    : importGroup(parsed.output);
+  try {
+    return parsed.output.kind === "listing"
+      ? await importListing(parsed.output, adminLevel)
+      : await importGroup(parsed.output);
+  } catch (error) {
+    return importTransactionFailure(error);
+  }
 };

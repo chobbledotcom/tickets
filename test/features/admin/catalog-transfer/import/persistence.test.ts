@@ -1,13 +1,31 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
-import { getGroupPackagePrices } from "#shared/db/groups.ts";
+import {
+  execute,
+  TransactionValidationError,
+  writeRowInTransaction,
+} from "#shared/db/client.ts";
+import {
+  getGroupPackagePrices,
+  getListingsByGroupId,
+  setListingGroupsTx,
+} from "#shared/db/groups.ts";
 import { listingParents } from "#shared/db/listing-parents.ts";
 import { getGroupDayPrices } from "#shared/db/listing-prices.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
+import {
+  getListingWithCount,
+  listingsTable,
+} from "#shared/db/listings/records.ts";
+import {
+  generateUniqueListingSlug,
+  validateListingInput,
+} from "#shared/listings-actions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { testListingInput } from "#test-utils/factories.ts";
 
 const importedId = async (blob: unknown): Promise<number> => {
   const result = await importCatalog(blob);
@@ -114,5 +132,95 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
         quantity: 1,
       },
     ]);
+  });
+
+  test("keeps a concurrent listing import from mixing group types", async () => {
+    const group = await createTestGroup({ name: "Import Race Group" });
+    const standardInput = {
+      ...testListingInput({ name: "Concurrent standard" }),
+      ...(await generateUniqueListingSlug()),
+      groupIds: [group.id],
+    };
+    expect(await validateListingInput(standardInput)).toBeNull();
+
+    const [imported, standardWrite] = await Promise.allSettled([
+      importCatalog({
+        groups: [{ group: group.name }],
+        kind: "listing",
+        listing: customListing("Concurrent daily"),
+        version: 1,
+      }),
+      writeRowInTransaction(
+        await listingsTable.insertStatement!(standardInput),
+        null,
+        (tx, id) => setListingGroupsTx(tx, id, standardInput.groupIds),
+      ),
+    ]);
+
+    const importSucceeded =
+      imported.status === "fulfilled" && imported.value.ok;
+    const standardSucceeded = standardWrite.status === "fulfilled";
+    expect([importSucceeded, standardSucceeded].filter(Boolean)).toHaveLength(
+      1,
+    );
+    if (imported.status === "fulfilled" && !imported.value.ok) {
+      expect(imported.value.error).toContain("must be the same type");
+    } else {
+      expect(standardWrite.status).toBe("rejected");
+      if (standardWrite.status !== "rejected") {
+        throw new Error("The standard write should be rejected");
+      }
+      expect(standardWrite.reason).toBeInstanceOf(TransactionValidationError);
+    }
+
+    expect(
+      new Set(
+        (await getListingsByGroupId(group.id)).map(
+          (listing) => listing.listing_type,
+        ),
+      ).size,
+    ).toBe(1);
+  });
+
+  test("propagates an unexpected catalog write error", async () => {
+    await execute(
+      `CREATE TRIGGER reject_imported_listing
+         BEFORE INSERT ON listings
+         BEGIN SELECT RAISE(ABORT, 'import write failed'); END`,
+    );
+
+    await expect(
+      importCatalog({
+        kind: "listing",
+        listing: { maxAttendees: 1, name: "Rejected write" },
+        version: 1,
+      }),
+    ).rejects.toThrow("import write failed");
+  });
+
+  test("rechecks group members after importing their memberships", async () => {
+    const first = await createTestListing({ name: "First imported member" });
+    const second = await createTestListing({ name: "Second imported member" });
+    await execute(
+      `CREATE TRIGGER change_imported_member
+         BEFORE INSERT ON group_listings
+         WHEN NEW.listing_id = ${first.id}
+         BEGIN
+           UPDATE listings SET listing_type = 'daily' WHERE id = ${first.id};
+         END`,
+    );
+
+    const result = await importCatalog({
+      group: { name: "Rejected imported group" },
+      kind: "group",
+      members: [{ listing: first.name }, { listing: second.name }],
+      version: 1,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("The import should be rejected");
+    expect(result.error).toBe(
+      t("error.group_listing_type_mismatch", { type: "standard" }),
+    );
   });
 });
