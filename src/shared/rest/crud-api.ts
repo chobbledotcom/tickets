@@ -17,6 +17,7 @@
  *   });
  */
 
+/* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import { isNotNullish, reduce } from "#fp";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
@@ -25,9 +26,8 @@ import { ADMIN_API, type AuthPolicy, withAuth } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activity-log.ts";
-import type { TxScope } from "#shared/db/client.ts";
+import { TransactionValidationError, type TxScope } from "#shared/db/client.ts";
 import type { Table } from "#shared/db/table.ts";
-/* jscpd:ignore-start */
 import { byPrimaryKey } from "#shared/db/table-reader.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { type JoinWrite, writeEntity } from "#shared/rest/write-entity.ts";
@@ -172,6 +172,20 @@ export const parseUpdateName = (
 ): Result<string> => {
   const name = isNotNullish(body.name) ? String(body.name).trim() : existing;
   return name === "" ? errorResult("name cannot be empty") : okResult(name);
+};
+
+/** Turns a validation conflict discovered inside a write transaction into JSON. */
+const writeEntityOrValidationResponse = async <Row extends { id: number }>(
+  write: () => Promise<Row | null>,
+): Promise<{ row: Row | null } | { response: Response }> => {
+  try {
+    return { row: await write() };
+  } catch (error) {
+    if (error instanceof TransactionValidationError) {
+      return { response: apiErrorResponse(error.message) };
+    }
+    throw error;
+  }
 };
 
 /**
@@ -456,15 +470,19 @@ export const defineCrudApi = <
     if (config.afterWrite) {
       joinWrites.push((tx, rowId) => config.afterWrite!(tx, rowId, input));
     }
-    const fullRow = await writeEntity<FullRow>({
-      afterCommit: config.afterCommit,
-      buildStatement: getStatement,
-      existingId,
-      joinWrites,
-      plainWrite: () => plainWrite() as unknown as Promise<FullRow | null>,
-      readBack: lookupAfterWrite,
-      tableName: config.table.name,
-    });
+    const written = await writeEntityOrValidationResponse(() =>
+      writeEntity<FullRow>({
+        afterCommit: config.afterCommit,
+        buildStatement: getStatement,
+        existingId,
+        joinWrites,
+        plainWrite: () => plainWrite() as unknown as Promise<FullRow | null>,
+        readBack: lookupAfterWrite,
+        tableName: config.table.name,
+      }),
+    );
+    if ("response" in written) return written.response;
+    const fullRow = written.row;
     // writeEntity returns null only for an update whose row was deleted between
     // the entityRoute lookup and the commit. Report a clean not-found (as
     // defineResource's update path does) rather than dereferencing null in

@@ -6,18 +6,32 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
-  assignListingsToGroup,
+  TransactionValidationError,
+  withTransaction,
+  writeRowInTransaction,
+} from "#shared/db/client.ts";
+import { assignListingsToGroup } from "#shared/db/groups/membership.ts";
+import {
   getGroupPackagePrices,
+  getListingsByGroupId,
   listingGroups,
   setGroupPackageMembers,
   setListingGroups,
+  setListingGroupsTx,
 } from "#shared/db/groups.ts";
+import { listingChildren } from "#shared/db/listing-parents.ts";
+import { listingsTable } from "#shared/db/listings/records.ts";
+import {
+  generateUniqueListingSlug,
+  validateListingInput,
+} from "#shared/listings-actions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestGroup,
   getTestPackagePrices,
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { testListingInput } from "#test-utils/factories.ts";
 
 describeWithEnv("db > groups > membership writes", { db: true }, () => {
   const groupIdsOf = async (listingId: number): Promise<number[]> =>
@@ -76,6 +90,100 @@ describeWithEnv("db > groups > membership writes", { db: true }, () => {
 
     await assignListingsToGroup([], group.id);
 
+    expect(await groupIdsOf(listing.id)).toEqual([]);
+  });
+
+  test("concurrent writes cannot give an empty group mixed listing types", async () => {
+    const group = await createTestGroup({ name: "Concurrent Types" });
+    const inputs = await Promise.all(
+      [
+        testListingInput({
+          name: "Concurrent Standard",
+        }),
+        testListingInput({
+          listingType: "daily",
+          maximumDaysAfter: 30,
+          minimumDaysBefore: 0,
+          name: "Concurrent Daily",
+        }),
+      ].map(async (input) => ({
+        ...input,
+        ...(await generateUniqueListingSlug()),
+        groupIds: [group.id],
+      })),
+    );
+
+    // Both request-level checks finish while the group is empty. The write path
+    // must make the same decision again after each transaction has the lock.
+    expect(
+      await Promise.all(inputs.map((input) => validateListingInput(input))),
+    ).toEqual([null, null]);
+    const writes = await Promise.allSettled(
+      inputs.map(async (input) =>
+        writeRowInTransaction(
+          await listingsTable.insertStatement!(input),
+          null,
+          (tx, id) => setListingGroupsTx(tx, id, input.groupIds!),
+        ),
+      ),
+    );
+
+    if (writes[0]?.status === "rejected") throw writes[0].reason;
+
+    expect(writes.map(({ status }) => status)).toEqual([
+      "fulfilled",
+      "rejected",
+    ]);
+    const dailyWrite = writes[1];
+    if (dailyWrite?.status !== "rejected") {
+      throw new Error("The daily listing write should have been rejected");
+    }
+    expect(dailyWrite.reason).toBeInstanceOf(TransactionValidationError);
+    expect(
+      new Set(
+        (await getListingsByGroupId(group.id)).map(
+          (listing) => listing.listing_type,
+        ),
+      ).size,
+    ).toBe(1);
+  });
+
+  test("adding to a package rechecks fresh member rules", async () => {
+    const packageGroup = await createTestGroup({
+      isPackage: true,
+      name: "Fresh Package Rules",
+    });
+    const payMore = await createTestListing({
+      canPayMore: true,
+      maxPrice: 200,
+      name: "Fresh Pay More",
+    });
+    const parent = await createTestListing({ name: "Fresh Parent" });
+    const addOn = await createTestListing({ name: "Fresh Add On" });
+    await listingChildren.setIds(parent.id, [addOn.id]);
+
+    await expect(
+      withTransaction((tx) =>
+        setListingGroupsTx(tx, payMore.id, [packageGroup.id]),
+      ),
+    ).rejects.toBeInstanceOf(TransactionValidationError);
+
+    expect(
+      await assignListingsToGroup([payMore.id], packageGroup.id),
+    ).toContain("lets the buyer choose their own price");
+    expect(await assignListingsToGroup([addOn.id], packageGroup.id)).toContain(
+      "offered as an add-on",
+    );
+    expect(await groupIdsOf(payMore.id)).toEqual([]);
+    expect(await groupIdsOf(addOn.id)).toEqual([]);
+  });
+
+  test("adding to a deleted group reports the missing group", async () => {
+    const listing = await createTestListing({ name: "Missing Group Member" });
+
+    expect(await assignListingsToGroup([listing.id], 999_999)).toBe(
+      "Selected group does not exist",
+    );
     expect(await groupIdsOf(listing.id)).toEqual([]);
   });
 

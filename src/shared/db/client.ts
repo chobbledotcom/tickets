@@ -254,6 +254,13 @@ export class DatabaseBusyError extends namedError("DatabaseBusyError") {
   }
 }
 
+/** An expected validation failure discovered only after a write transaction has
+ * started. The REST layers turn it into their normal validation response after
+ * the transaction rolls back. */
+export class TransactionValidationError extends namedError(
+  "TransactionValidationError",
+) {}
+
 /** Backoff before each retry of a transient database failure — a contended
  *  write lock on any statement, or a fleeting upstream gateway error on a read;
  *  its length is the number of retries, so four attempts in total. */

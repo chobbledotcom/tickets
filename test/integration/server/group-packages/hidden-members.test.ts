@@ -9,7 +9,8 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { assignListingsToGroup, groups } from "#shared/db/groups.ts";
+import { assignListingsToGroup } from "#shared/db/groups/membership.ts";
+import { groups } from "#shared/db/groups.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {

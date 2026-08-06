@@ -99,9 +99,6 @@ src/shared/forms/saved-data.ts::savedFormValue~1w1m8os  ?? → ||   # getString(
 src/shared/listings-actions.ts::validateMaxPrice.minPrice~16xqeks  ?? → ||   # validateMaxPrice unitPrice: number|undefined, 0 ?? 0 === 0 || 0
 src/shared/listings-actions.ts::validateListingGroup.groupIds~1juqee2  ?? → ||   # groupIds: number[]|undefined — an array is always truthy
 src/shared/listings-actions.ts::validateListingGroup.incompatibleByType~0d42sm3  ?? → ||   # canPayMore: boolean|undefined, only falsy-non-null is false === fallback
-src/shared/listings-actions.ts::validateListingGroup.typeError~1lqe3go  ?? → ||   # listingType: "standard"|"daily"|undefined — never "", so ?? and || coincide
-src/shared/listings-actions.ts::validateListingGroup.typeError~0350hpg  ?? → ||   # customisableDays: boolean|undefined, only falsy-non-null is false === fallback
-src/shared/listings-actions.ts::validateListingGroup.typeError~1o94tt5  ?? → ||   # existingId is a positive listing id or undefined, never 0
 src/shared/listings-actions.ts::validateRenewalConfig~0ruet3x  ?? → ||   # monthsPerUnit: number|undefined, 0 ?? 0 === 0 || 0
 src/shared/listings-actions.ts::validateRenewalConfig~01imco1  ?? → ||   # initialSiteMonths: number|undefined, 0 ?? 0 === 0 || 0
 src/shared/listings-actions.ts::dayPriceFieldsFromInput.customisable_days~0350hpg  ?? → ||   # customisableDays: only falsy-non-null false === fallback

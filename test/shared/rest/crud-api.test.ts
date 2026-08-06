@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
 import { isNotNullish } from "#fp";
+import { TransactionValidationError } from "#shared/db/client.ts";
 import type { Table } from "#shared/db/table.ts";
 import {
   type CrudApiConfig,
@@ -145,6 +146,38 @@ describeWithEnv("defineCrudApi", { db: true }, () => {
       (item) => item.message === "Widget 'Created' created",
     );
     expect(entry?.listing_id).toBeNull();
+  });
+
+  test("returns a transaction validation error as JSON", async () => {
+    const response = await callRoute(
+      makeRoutes(makeTable(), {
+        afterWrite: () =>
+          Promise.reject(
+            new TransactionValidationError("Group is no longer valid"),
+          ),
+      }),
+      "POST /api/admin/widgets",
+      "POST",
+      { name: "Blocked" },
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "Group is no longer valid",
+    });
+  });
+
+  test("rethrows an unexpected transaction failure", async () => {
+    await expect(
+      callRoute(
+        makeRoutes(makeTable(), {
+          afterWrite: () => Promise.reject(new Error("write failed")),
+        }),
+        "POST /api/admin/widgets",
+        "POST",
+        { name: "Broken" },
+      ),
+    ).rejects.toThrow("write failed");
   });
 
   test("lists rows through one hydration batch", async () => {

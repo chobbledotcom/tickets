@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
+import { groupListingTypeError } from "#shared/db/groups/membership.ts";
 import {
   computeGroupSlugIndex,
   getAllGroupNames,
@@ -9,7 +10,6 @@ import {
   getListingsByGroupId,
   getListingsByGroupIds,
   groupExists,
-  groupListingTypeError,
   groups,
   isHiddenPackageMember,
   listingGroups,

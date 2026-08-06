@@ -12,7 +12,6 @@ import {
   mapParallel,
   requiredMapValue,
 } from "#fp";
-import { t } from "#i18n";
 import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
 import {
   type GroupInput,
@@ -27,11 +26,10 @@ import {
   executeBatch,
   inPlaceholders,
   queryAll,
-  resultRows,
   rowExists,
   type SqlStatement,
+  TransactionValidationError,
   type TxScope,
-  withTransaction,
 } from "#shared/db/client.ts";
 import {
   cachedEntityTable,
@@ -39,6 +37,7 @@ import {
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
 import { defineIdTable } from "#shared/db/define-id-table.ts";
+import { validateListingGroupMembershipTx } from "#shared/db/groups/membership.ts";
 import { linkTableSide } from "#shared/db/link-table.ts";
 import { listingChildren, listingParents } from "#shared/db/listing-parents.ts";
 import {
@@ -61,14 +60,8 @@ import {
   type PackageChildEdgeBlock,
   packageMemberError,
 } from "#shared/package-membership.ts";
-import { firstReason } from "#shared/reasons.ts";
 import { generateUniqueSlug, type SlugWithIndex } from "#shared/slug.ts";
-import type {
-  Group,
-  GroupListing,
-  ListingType,
-  ListingWithCount,
-} from "#shared/types.ts";
+import type { Group, GroupListing, ListingWithCount } from "#shared/types.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
 /* jscpd:ignore-end */
@@ -274,68 +267,6 @@ export const groupExists = (id: number): Promise<boolean> =>
  */
 export const getListingsByGroupId: LoadGroupListings = listingsInGroup(false);
 
-type GroupListingSettings = Pick<
-  ListingWithCount,
-  "id" | "listing_type" | "customisable_days"
->;
-
-/**
- * Given a group's already-loaded members, return the homogeneity error (or
- * null): every listing in a group must share both the same {@link ListingType}
- * and the same `customisable_days` setting, so the shared booking form can show
- * a single day-count selector (or none) for the whole group. Pass
- * `excludeListingId` to skip a specific listing (for the edit-self case).
- *
- * Callers load the members themselves — one group's with
- * {@link getListingsByGroupId}, many groups' with {@link getListingsByGroupIds}
- * — so validating a batch never issues one sibling query per listing and trips
- * the N+1 read guard.
- */
-export const groupListingTypeError = (
-  allSiblings: readonly GroupListingSettings[],
-  listingType: ListingType,
-  customisableDays: boolean,
-  excludeListingId?: number,
-): string | null =>
-  groupHomogeneityError(
-    allSiblings.filter((listing) => listing.id !== excludeListingId),
-    listingType,
-    customisableDays,
-  );
-
-/** The group-homogeneity rules as data, in precedence order: every member must
- * share one listing type, then one customisable-days setting, so the group's
- * single date/day-count selector can serve them all. Each rule finds the
- * clashing sibling and builds its message from that evidence. */
-const groupHomogeneityError = firstReason<
-  [
-    siblings: readonly GroupListingSettings[],
-    listingType: ListingType,
-    customisableDays: boolean,
-  ]
->([
-  (siblings, listingType) => {
-    const mismatch = siblings.find(
-      (sibling) => sibling.listing_type !== listingType,
-    );
-    return mismatch
-      ? t("error.group_listing_type_mismatch", { type: mismatch.listing_type })
-      : null;
-  },
-  (siblings, _listingType, customisableDays) => {
-    const mismatch = siblings.find(
-      (sibling) => sibling.customisable_days !== customisableDays,
-    );
-    return mismatch
-      ? t(
-          mismatch.customisable_days
-            ? "error.group_customisable_days_expected"
-            : "error.group_customisable_days_unexpected",
-        )
-      : null;
-  },
-]);
-
 /** Whether any of the given group ids satisfies the extra SQL `condition`.
  * Empty input → false (no query). */
 const anyGroupMatching = async (
@@ -516,93 +447,6 @@ export const packageDisplaysForRows = (
 ): Promise<Map<number, PackageDisplay>> =>
   getPackageDisplaysByIds(rows.map((row) => row.attendee.package_group_id));
 
-/**
- * Add listings to a group when their type and day choices match its members.
- *
- * Reading the members and inserting the new rows share one write transaction,
- * so concurrent additions cannot make an incompatible group.
- */
-type GroupListingSettingsRow = Omit<
-  GroupListingSettings,
-  "customisable_days"
-> & { customisable_days: number };
-
-const groupListingSettings = (
-  rows: GroupListingSettingsRow[],
-): GroupListingSettings[] =>
-  rows.map(({ customisable_days, ...listing }) => ({
-    ...listing,
-    customisable_days: customisable_days === 1,
-  }));
-
-const groupMembersSettingsTx = async (
-  tx: TxScope,
-  groupId: number,
-): Promise<GroupListingSettings[]> =>
-  groupListingSettings(
-    resultRows<GroupListingSettingsRow>(
-      await tx.execute({
-        args: [groupId],
-        sql: `SELECT listing.id, listing.listing_type, listing.customisable_days
-                FROM group_listings AS groupListing
-                JOIN listings AS listing ON listing.id = groupListing.listing_id
-               WHERE groupListing.group_id = ?`,
-      }),
-    ),
-  );
-
-const chosenListingSettingsTx = async (
-  tx: TxScope,
-  listingIds: number[],
-): Promise<GroupListingSettings[]> => {
-  const listings = groupListingSettings(
-    resultRows<GroupListingSettingsRow>(
-      await tx.execute({
-        args: listingIds,
-        sql: `SELECT listing.id, listing.listing_type, listing.customisable_days
-                FROM listings AS listing
-               WHERE listing.id IN (${inPlaceholders(listingIds)})`,
-      }),
-    ),
-  );
-  const byId = mapById(identity<GroupListingSettings>)(listings);
-  return mapNotNullish((id: number) => byId.get(id))(listingIds);
-};
-
-const groupListingAssignmentStatements = (
-  listingIds: number[],
-  groupId: number,
-): SqlStatement[] =>
-  // INSERT ... SELECT gated on the listing existing, so an unknown id is a no-op
-  // (the join table has no FK, so a stale/crafted id would otherwise leave an
-  // orphan membership row that the old `UPDATE listings WHERE id` never created).
-  listingIds.map((listingId) => ({
-    args: [groupId, listingId, listingId],
-    sql: "INSERT OR IGNORE INTO group_listings (group_id, listing_id) SELECT ?, ? WHERE EXISTS (SELECT 1 FROM listings WHERE id = ?)",
-  }));
-
-export const assignListingsToGroup = async (
-  listingIds: number[],
-  groupId: number,
-): Promise<string | null> => {
-  if (listingIds.length === 0) return null;
-  return withTransaction(async (tx) => {
-    const siblings = await groupMembersSettingsTx(tx, groupId);
-    const listings = await chosenListingSettingsTx(tx, listingIds);
-    for (const listing of listings) {
-      const typeError = groupListingTypeError(
-        siblings,
-        listing.listing_type,
-        listing.customisable_days,
-      );
-      if (typeError) return typeError;
-      siblings.push(listing);
-    }
-    await tx.batch(groupListingAssignmentStatements(listingIds, groupId));
-    return null;
-  });
-};
-
 /** One group_listings row for a DUPLICATED group, resolving both the new group
  * and the cloned listing by the slug_index each was just inserted with, so the
  * whole clone (group + listings + memberships) runs as one batch — one
@@ -702,12 +546,19 @@ export const setListingGroups: SetListingGroups = (listingId, groupIds) =>
  * so the change commits atomically with the listing row write (the admin API
  * create/update path). Mirrors {@link setListingGroups} but reads the current
  * set and runs each statement on the caller's `tx`. */
-export const setListingGroupsTx = (
+export const setListingGroupsTx = async (
   tx: TxScope,
   listingId: number,
   groupIds: number[],
-): Promise<void> =>
-  applyListingGroupDiff(
+): Promise<void> => {
+  const validation = await validateListingGroupMembershipTx(
+    tx,
+    listingId,
+    groupIds,
+  );
+  if (validation.listingMissing) return;
+  if (validation.error) throw new TransactionValidationError(validation.error);
+  await applyListingGroupDiff(
     listingId,
     groupIds,
     async () => new Set(await listingGroups.getIdsTx(tx, listingId)),
@@ -715,6 +566,7 @@ export const setListingGroupsTx = (
       for (const stmt of statements) await tx.execute(stmt);
     },
   );
+};
 
 /**
  * Remove every listing from a group (used when the group is deleted), along with

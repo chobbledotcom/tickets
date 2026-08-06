@@ -16,10 +16,10 @@
  *   return redirect('/admin/');
  */
 
-import type { InValue } from "@libsql/client";
-import type { TxScope } from "#shared/db/client.ts";
-import type { Table } from "#shared/db/table.ts";
 /* jscpd:ignore-start */
+import type { InValue } from "@libsql/client";
+import { TransactionValidationError, type TxScope } from "#shared/db/client.ts";
+import type { Table } from "#shared/db/table.ts";
 import { byPrimaryKey } from "#shared/db/table-reader.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { FormSchema } from "#shared/forms/definition.ts";
@@ -216,21 +216,28 @@ export const defineResource = <
       id,
     );
     if (!result.ok) return result;
-    const row = await writeEntity<Row>({
-      afterCommit: config.afterCommit,
-      buildStatement: () =>
-        existingId === null
-          ? table.insertStatement!(result.value)
-          : table.updateStatement!(existingId, result.value),
-      existingId,
-      joinWrites: config.afterWrite
-        ? [(tx, rowId) => config.afterWrite!(tx, rowId, result.value, form)]
-        : [],
-      plainWrite: () => fallback(result.value),
-      readBack: (rowId) => table.findByIdPrimary!(rowId),
-      tableName: table.name,
-    });
-    return { ok: true, row };
+    try {
+      const row = await writeEntity<Row>({
+        afterCommit: config.afterCommit,
+        buildStatement: () =>
+          existingId === null
+            ? table.insertStatement!(result.value)
+            : table.updateStatement!(existingId, result.value),
+        existingId,
+        joinWrites: config.afterWrite
+          ? [(tx, rowId) => config.afterWrite!(tx, rowId, result.value, form)]
+          : [],
+        plainWrite: () => fallback(result.value),
+        readBack: (rowId) => table.findByIdPrimary!(rowId),
+        tableName: table.name,
+      });
+      return { ok: true, row };
+    } catch (error) {
+      if (error instanceof TransactionValidationError) {
+        return { error: error.message, ok: false };
+      }
+      throw error;
+    }
   };
 
   const create = async (form: FormParams): Promise<CreateResult<Row>> => {

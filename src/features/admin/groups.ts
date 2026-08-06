@@ -25,8 +25,8 @@ import type {
 import { groupCatalogFields } from "#shared/catalog-fields/fields.ts";
 import { logActivity } from "#shared/db/activity-log.ts";
 import { executeBatch, type TxScope } from "#shared/db/client.ts";
+import { assignListingsToGroup } from "#shared/db/groups/membership.ts";
 import {
-  assignListingsToGroup,
   computeGroupSlugIndex,
   generateUniqueGroupSlug,
   getGroupById,
