@@ -9,8 +9,7 @@ src/ui/client/admin/order-gallery.ts::initOrderGallery.refresh.timer~1xo126t  ??
 
 # Paid snapshot collection fallbacks: every present value is an object or array,
 # which remains truthy even when empty; only undefined reaches the empty fallback.
-src/features/api/payment-processing/snapshot/fold.ts::modifierSpecs.listingIds~1k3bo9n  ?? → ||   # scopes.get(): SnapshotModifierScopeRow[]|undefined — arrays are always truthy
-src/features/api/payment-processing/snapshot/io.ts::selectedIds~1xhmyr1  ?? → ||   # values is Record<string, Value[]>|undefined — record objects are always truthy
+src/features/api/payment-processing/snapshot/build.ts::modifierSpecs.listingIds~1k3bo9n  ?? → ||   # scopes.get(): SnapshotModifierScopeRow[]|undefined — arrays are always truthy
 
 # ticket-payment values whose present form is always truthy, whose falsy value
 # equals the fallback, or whose mutated constant is normalized before use.

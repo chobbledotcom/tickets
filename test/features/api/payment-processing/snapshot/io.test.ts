@@ -8,25 +8,76 @@ import {
 } from "#shared/accounting/accounts.ts";
 import { bookingEventGroup } from "#shared/accounting/mappers.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
+import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { execute } from "#shared/db/client.ts";
 import { hashEmail, hashPhone } from "#shared/db/contact-preferences.ts";
-import { setGroupPackageMembers } from "#shared/db/groups.ts";
+import { setGroupPackageMembers, setListingGroups } from "#shared/db/groups.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import {
   modifierGroups,
   modifierListings,
   modifiersTable,
 } from "#shared/db/modifiers.ts";
-import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { bookingIntent } from "#test/features/api/payment-processing/index/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
-import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createHiddenPackageGroup,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
+
+const loadStaleScopePricing = async (scope: "groups" | "listings") => {
+  const listingLink = await createTestListing({
+    name: "Listing link",
+    unitPrice: 1000,
+  });
+  const groupLink = await createTestListing({
+    name: "Group link",
+    unitPrice: 3000,
+  });
+  const group = await createTestGroup({ name: "Modifier group" });
+  await setListingGroups(groupLink.id, [group.id]);
+  const modifier = await modifiersTable.insert({
+    calcKind: "percent",
+    calcValue: 10,
+    direction: "charge",
+    name: "Scoped charge",
+    scope,
+  });
+  await modifierListings.setIds(modifier.id, [listingLink.id]);
+  await modifierGroups.setIds(modifier.id, [group.id]);
+
+  const intent = bookingIntent(
+    [
+      { e: listingLink.id, p: listingLink.unit_price, q: 1 },
+      { e: groupLink.id, p: groupLink.unit_price, q: 1 },
+    ],
+    { modifiers: [{ i: modifier.id, q: 1 }] },
+  );
+  const snapshot = await loadPaidOrderSnapshot(`stale-${scope}-scope`, intent);
+  const pricing = priceCheckout({
+    address: intent.address,
+    date: intent.date,
+    email: intent.email,
+    items: [listingLink, groupLink].map((listing) => ({
+      listingId: listing.id,
+      name: listing.name,
+      quantity: 1,
+      slug: listing.slug,
+      unitPrice: listing.unit_price,
+    })),
+    modifiers: snapshot.modifierSpecs,
+    name: intent.name,
+    phone: intent.phone,
+    special_instructions: intent.special_instructions,
+  });
+  return { groupLink, listingLink, modifier, pricing, snapshot };
+};
 
 describeWithEnv("paid order snapshot IO", { db: true }, () => {
   test("loads one paid line in one database call", async () => {
@@ -73,6 +124,62 @@ describeWithEnv("paid order snapshot IO", { db: true }, () => {
     expect(snapshot.modifierSpecs).toEqual([]);
   });
 
+  test("ignores stale group links for a listing-scoped modifier", async () => {
+    const { listingLink, modifier, pricing, snapshot } =
+      await loadStaleScopePricing("listings");
+
+    expect(snapshot.modifierSpecs).toEqual([
+      {
+        id: modifier.id,
+        kind: "percent",
+        listingIds: [listingLink.id],
+        name: "Scoped charge",
+        quantity: 1,
+        trigger: "automatic",
+        value: 10,
+      },
+    ]);
+    expect(pricing.modifierApplications).toEqual([
+      {
+        amountApplied: 100,
+        delta: 100,
+        modifierId: modifier.id,
+        name: "Scoped charge",
+        quantity: 1,
+        scopedSubtotal: 1000,
+      },
+    ]);
+    expect(pricing.total).toBe(4100);
+  });
+
+  test("ignores stale listing links for a group-scoped modifier", async () => {
+    const { groupLink, modifier, pricing, snapshot } =
+      await loadStaleScopePricing("groups");
+
+    expect(snapshot.modifierSpecs).toEqual([
+      {
+        id: modifier.id,
+        kind: "percent",
+        listingIds: [groupLink.id],
+        name: "Scoped charge",
+        quantity: 1,
+        trigger: "automatic",
+        value: 10,
+      },
+    ]);
+    expect(pricing.modifierApplications).toEqual([
+      {
+        amountApplied: 300,
+        delta: 300,
+        modifierId: modifier.id,
+        name: "Scoped charge",
+        quantity: 1,
+        scopedSubtotal: 3000,
+      },
+    ]);
+    expect(pricing.total).toBe(4300);
+  });
+
   test("loads every paid order fact from one consistent snapshot", async () => {
     const pkg = await createHiddenPackageGroup("Snapshot package");
     const parent = await createDailyTestListing({
@@ -112,19 +219,6 @@ describeWithEnv("paid order snapshot IO", { db: true }, () => {
     await modifierListings.setIds(directModifier.id, [parent.id]);
     await modifierGroups.setIds(groupModifier.id, [pkg.id]);
 
-    const choiceQuestion = await questionsTable.insert({
-      displayType: "radio",
-      text: "Choose one",
-    });
-    const answer = await answersTable.insert({
-      questionId: choiceQuestion.id,
-      sortOrder: 0,
-      text: "Chosen",
-    });
-    const textQuestion = await questionsTable.insert({
-      displayType: "free_text",
-      text: "Add detail",
-    });
     const email = "snapshot@example.com";
     const phone = "+447700900123";
     await execute(
@@ -168,10 +262,6 @@ describeWithEnv("paid order snapshot IO", { db: true }, () => {
       [{ e: parent.id, k: "p", p: 800, q: 2, r: pkg.id }],
       {
         email,
-        listingAnswerIds: { [parent.id]: [answer.id] },
-        listingTextAnswerIds: {
-          [parent.id]: [{ q: textQuestion.id, s: 1 }],
-        },
         modifiers: [
           { i: directModifier.id, q: 2 },
           { i: groupModifier.id, q: 1 },
@@ -228,12 +318,5 @@ describeWithEnv("paid order snapshot IO", { db: true }, () => {
         value: 10,
       },
     ]);
-    expect(snapshot.questions.questionIdByAnswerId).toEqual(
-      new Map([[answer.id, choiceQuestion.id]]),
-    );
-    expect(snapshot.questions.textQuestionIds).toEqual(
-      new Set([textQuestion.id]),
-    );
-    expect(snapshot.visits).toBe(7);
   });
 });

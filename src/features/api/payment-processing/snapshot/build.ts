@@ -102,7 +102,7 @@ const modifierSpecs = (
   });
 };
 
-export const foldPaidOrderSnapshot = (
+export const buildPaidOrderSnapshot = (
   refs: ModifierRef[],
   rows: SnapshotRows,
   dayPrices: SnapshotDayPriceRow[],
@@ -145,12 +145,5 @@ export const foldPaidOrderSnapshot = (
       pricingByGroup,
     },
     publicStatusId,
-    questions: {
-      questionIdByAnswerId: new Map(
-        rows.answerRows.map((row) => [row.answerId, row.questionId]),
-      ),
-      textQuestionIds: new Set(rows.textQuestionIds),
-    },
-    visits,
   };
 };

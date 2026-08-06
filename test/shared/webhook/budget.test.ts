@@ -9,6 +9,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
 import type { EmailEntry } from "#shared/email.ts";
+import { runWithPendingWork } from "#shared/pending-work.ts";
 import type { RegistrationPackageFacts } from "#shared/registration-package-facts.ts";
 import {
   logAndNotifyRegistration,
@@ -17,6 +18,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { configureTestEmail } from "#test-utils/email.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
 import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
@@ -94,7 +96,7 @@ describeWithEnv("registration notification budget", { db: true }, () => {
     const eight = await orderEntries("Many", 8);
     const calls = (entries: EmailEntry[]): Promise<number> =>
       countDatabaseCalls(REGISTRATION_CALL_LIMIT, () =>
-        logAndNotifyRegistration(entries),
+        runWithPendingWork(() => logAndNotifyRegistration(entries)),
       );
 
     expect(await calls(eight)).toBe(await calls(one));
@@ -115,7 +117,9 @@ describeWithEnv("registration notification budget", { db: true }, () => {
     const entries = await packagedEntries("Disabled", 1, "");
 
     expect(
-      await countDatabaseCalls(1, () => logAndNotifyRegistration(entries)),
+      await countDatabaseCalls(1, () =>
+        runWithPendingWork(() => logAndNotifyRegistration(entries)),
+      ),
     ).toBe(1);
   });
 
@@ -123,7 +127,20 @@ describeWithEnv("registration notification budget", { db: true }, () => {
     const entries = await packagedEntries("Enabled", 1);
 
     expect(
-      await countDatabaseCalls(4, () => logAndNotifyRegistration(entries)),
+      await countDatabaseCalls(4, () =>
+        runWithPendingWork(() => logAndNotifyRegistration(entries)),
+      ),
+    ).toBe(4);
+  });
+
+  test("shares one package fact load between webhook and email", async () => {
+    const entries = await packagedEntries("Shared", 1);
+    await configureTestEmail();
+
+    expect(
+      await countDatabaseCalls(4, () =>
+        runWithPendingWork(() => logAndNotifyRegistration(entries)),
+      ),
     ).toBe(4);
   });
 

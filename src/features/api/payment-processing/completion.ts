@@ -4,7 +4,6 @@ import {
   saveSessionAnswers,
   sessionSuccess,
 } from "#routes/api/payment-processing/create.ts";
-import type { PaidQuestionFacts } from "#routes/api/payment-processing/snapshot/types.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import type { ModifierApplication } from "#shared/checkout-pricing.ts";
@@ -18,10 +17,9 @@ export const completePaidBooking = async (
   codeSpecs: ModifierSpec[],
   modifierApplications: ModifierApplication[],
   ticketTokens: string[],
-  questionFacts: PaidQuestionFacts,
   notificationPackages: RegistrationPackageFacts,
 ): Promise<PaymentResult> => {
-  await saveSessionAnswers(createdEntries, intent, questionFacts);
+  await saveSessionAnswers(createdEntries, intent);
   const firstEntry = createdEntries[0]!;
   const promoActivities =
     codeSpecs.length > 0

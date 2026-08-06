@@ -14,7 +14,6 @@ import {
   orderLineTotal,
   paidByItem,
 } from "#routes/api/payment-processing/pricing.ts";
-import type { PaidQuestionFacts } from "#routes/api/payment-processing/snapshot/types.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
 /* jscpd:ignore-start */
 import { lineGroupId } from "#shared/booking/signed-metadata.ts";
@@ -193,24 +192,14 @@ const textRefsWithStringId = (
 export const saveSessionAnswers = async (
   createdEntries: CreatedEntry[],
   intent: BookingIntent,
-  questionFacts: PaidQuestionFacts,
 ): Promise<void> => {
   if (!intent.listingAnswerIds && !intent.listingTextAnswerIds) return;
-  const listingAnswerIds = Object.fromEntries(
-    Object.entries(intent.listingAnswerIds ?? {}).map(
-      ([listingId, answerIds]) => [
-        listingId,
-        answerIds.filter((answerId) =>
-          questionFacts.questionIdByAnswerId.has(answerId),
-        ),
-      ],
-    ),
+  const grouped = groupListingAnswerSets(
+    createdEntries,
+    intent.listingAnswerIds ?? {},
   );
-  const grouped = groupListingAnswerSets(createdEntries, listingAnswerIds);
   for (const { attendee, listing } of createdEntries) {
-    const refs = (
-      intent.listingTextAnswerIds?.[String(listing.id)] ?? []
-    ).filter((ref) => questionFacts.textQuestionIds.has(ref.q));
+    const refs = intent.listingTextAnswerIds?.[String(listing.id)] ?? [];
     const resolvedRefs = textRefsWithStringId(refs, listing.id);
     if (resolvedRefs.length === 0) continue;
     const existing = grouped.get(attendee.id) ?? { answerIds: [] };

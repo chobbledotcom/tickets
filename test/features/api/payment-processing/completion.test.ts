@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { completePaidBooking } from "#routes/api/payment-processing/completion.ts";
 import type { CreatedEntry } from "#routes/api/payment-processing/create.ts";
-import type { PaidQuestionFacts } from "#routes/api/payment-processing/snapshot/types.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import type { ModifierApplication } from "#shared/checkout-pricing.ts";
 import { getDb } from "#shared/db/client.ts";
@@ -28,11 +27,6 @@ const bareIntent = (): BookingIntent =>
 const noPackageFacts = (): RegistrationPackageFacts => ({
   displays: new Map(),
   pricingByGroup: new Map(),
-});
-
-const noQuestionFacts = (): PaidQuestionFacts => ({
-  questionIdByAnswerId: new Map(),
-  textQuestionIds: new Set(),
 });
 
 /** One booked line, as the code that writes the booking hands it on. */
@@ -80,7 +74,6 @@ describeWithEnv(
           [],
           [],
           ["tok_a", "tok_b"],
-          noQuestionFacts(),
           noPackageFacts(),
         ),
       ).toEqual({
@@ -102,7 +95,6 @@ describeWithEnv(
         [],
         [],
         [],
-        noQuestionFacts(),
         noPackageFacts(),
       );
 
@@ -136,10 +128,6 @@ describeWithEnv(
         [],
         [],
         [],
-        {
-          questionIdByAnswerId: new Map([[answer.id, question.id]]),
-          textQuestionIds: new Set(),
-        },
         noPackageFacts(),
       );
 
@@ -184,7 +172,6 @@ describeWithEnv(
           codeSpecs,
           applications,
           [],
-          noQuestionFacts(),
           noPackageFacts(),
         ),
       );
@@ -202,7 +189,6 @@ describeWithEnv(
         [],
         [],
         [],
-        noQuestionFacts(),
         noPackageFacts(),
       );
 
@@ -239,15 +225,7 @@ describeWithEnv(
 
       const calls = await countDatabaseCalls(1, () =>
         runWithPendingWork(() =>
-          completePaidBooking(
-            [packagedEntry],
-            bareIntent(),
-            [],
-            [],
-            [],
-            noQuestionFacts(),
-            facts,
-          ),
+          completePaidBooking([packagedEntry], bareIntent(), [], [], [], facts),
         ),
       );
       expect(calls).toBe(1);

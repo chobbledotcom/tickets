@@ -269,6 +269,21 @@ const registrationWebhookUrls = (entries: RegistrationEntry[]): string[] =>
     )(entries),
   );
 
+const queueRegistrationNotifications = async (
+  entries: EmailEntry[],
+  currency: string,
+  suppliedPackageFacts?: RegistrationPackageFacts,
+): Promise<void> => {
+  const needsPackageFacts =
+    registrationWebhookUrls(entries).length > 0 ||
+    registrationEmailDelivery(entries) !== null;
+  const packageFacts = needsPackageFacts
+    ? (suppliedPackageFacts ?? (await loadRegistrationPackageFacts(entries)))
+    : suppliedPackageFacts;
+  addPendingWork(sendRegistrationWebhooks(entries, currency, packageFacts));
+  addPendingWork(sendRegistrationEmails(entries, currency, packageFacts));
+};
+
 /**
  * Apply renewal deadline bumps for a completed payment.
  * If siteTokenIndex is present, look up the built site and bump its READ_ONLY_FROM.
@@ -339,8 +354,9 @@ export const applyRenewalsForEntries = async (
  * Log attendee registration and send consolidated webhook
  * Used for single-listing registrations
  *
- * Webhook sends are queued as pending work so they run in the background
- * but complete before the edge runtime tears down the request context.
+ * Notification preparation and sends are queued as pending work so they run in
+ * the background but complete before the edge runtime tears down the request
+ * context.
  */
 export const logAndNotifyRegistration = async (
   entries: EmailEntry[],
@@ -357,14 +373,9 @@ export const logAndNotifyRegistration = async (
     })),
   ]);
   const currency = settings.currency;
-  const needsPackageFacts =
-    registrationWebhookUrls(entries).length > 0 ||
-    registrationEmailDelivery(entries) !== null;
-  const packageFacts = needsPackageFacts
-    ? (suppliedPackageFacts ?? (await loadRegistrationPackageFacts(entries)))
-    : suppliedPackageFacts;
-  addPendingWork(sendRegistrationWebhooks(entries, currency, packageFacts));
-  addPendingWork(sendRegistrationEmails(entries, currency, packageFacts));
+  addPendingWork(
+    queueRegistrationNotifications(entries, currency, suppliedPackageFacts),
+  );
   addPendingWork(assignAndNotifyBuiltSites(entries));
   addPendingWork(applyRenewalsForEntries(entries, siteTokenIndex));
 };

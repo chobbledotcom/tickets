@@ -1,5 +1,5 @@
 import { unique } from "#fp";
-import { foldPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/fold.ts";
+import { buildPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/build.ts";
 import type {
   PaidOrderSnapshot,
   SnapshotDayPriceRow,
@@ -73,16 +73,6 @@ const usableContactHashes = async (
   return Promise.all(values);
 };
 
-const selectedIds = <Value>(
-  values: Record<string, Value[]> | undefined,
-  idOf: (value: Value) => number,
-): number[] =>
-  unique(
-    Object.values(values ?? {})
-      .flat()
-      .map(idOf),
-  );
-
 const snapshotStatements = (
   eventGroup: string,
   intent: BookingIntent,
@@ -91,11 +81,6 @@ const snapshotStatements = (
   const listingIds = unique(intent.items.map((item) => item.e));
   const groupIds = [...lineGroupIds(intent.items)];
   const modifierIds = unique(intent.modifiers.map((ref) => ref.i));
-  const answerIds = selectedIds(intent.listingAnswerIds, (id) => id);
-  const textQuestionIds = selectedIds(
-    intent.listingTextAnswerIds,
-    (ref) => ref.q,
-  );
   return [
     statement(
       `SELECT EXISTS(SELECT 1 FROM transfers WHERE event_group = ? LIMIT 1) AS has_legs,
@@ -160,12 +145,18 @@ const snapshotStatements = (
     statement(
       `SELECT modifierListing.modifier_id, modifierListing.listing_id
        FROM modifier_listings AS modifierListing
-       WHERE ${selectIn("modifierListing.modifier_id", modifierIds)}
-       UNION
-       SELECT modifierGroup.modifier_id, groupListing.listing_id
-       FROM modifier_groups AS modifierGroup
-       JOIN group_listings AS groupListing ON groupListing.group_id = modifierGroup.group_id
-       WHERE ${selectIn("modifierGroup.modifier_id", modifierIds)}`,
+        JOIN modifiers AS modifier
+          ON modifier.id = modifierListing.modifier_id
+         AND modifier.scope = 'listings'
+        WHERE ${selectIn("modifierListing.modifier_id", modifierIds)}
+        UNION
+        SELECT modifierGroup.modifier_id, groupListing.listing_id
+        FROM modifier_groups AS modifierGroup
+        JOIN modifiers AS modifier
+          ON modifier.id = modifierGroup.modifier_id
+         AND modifier.scope = 'groups'
+        JOIN group_listings AS groupListing ON groupListing.group_id = modifierGroup.group_id
+        WHERE ${selectIn("modifierGroup.modifier_id", modifierIds)}`,
       [...modifierIds, ...modifierIds],
     ),
     statement(
@@ -176,16 +167,6 @@ const snapshotStatements = (
     statement(
       "SELECT id FROM attendee_statuses WHERE is_public_default = 1 ORDER BY sort_order, id",
       [],
-    ),
-    statement(
-      `SELECT id, question_id FROM answers AS answer
-       WHERE ${selectIn("answer.id", answerIds)}`,
-      answerIds,
-    ),
-    statement(
-      `SELECT id FROM questions AS question
-       WHERE ${selectIn("question.id", textQuestionIds)}`,
-      textQuestionIds,
     ),
   ];
 };
@@ -263,9 +244,6 @@ export const loadPaidOrderSnapshot = async (
     owner_attendee_id: number | null;
   }>(results[0]!)[0]!;
   const rows: SnapshotRows = {
-    answerRows: resultRows<{ id: number; question_id: number }>(
-      results[11]!,
-    ).map((row) => ({ answerId: row.id, questionId: row.question_id })),
     childEdges: resultRows<{
       child_listing_id: number;
       parent_listing_id: number;
@@ -293,9 +271,6 @@ export const loadPaidOrderSnapshot = async (
     publicStatusIds: resultRows<{ id: number }>(results[10]!).map(
       (row) => row.id,
     ),
-    textQuestionIds: resultRows<{ id: number }>(results[12]!).map(
-      (row) => row.id,
-    ),
     visitCounts: resultRows<{ visits: number }>(results[9]!).map(
       (row) => row.visits,
     ),
@@ -313,5 +288,5 @@ export const loadPaidOrderSnapshot = async (
       unitPrice: row.unit_price,
     }),
   );
-  return foldPaidOrderSnapshot(intent.modifiers, rows, dayPrices);
+  return buildPaidOrderSnapshot(intent.modifiers, rows, dayPrices);
 };

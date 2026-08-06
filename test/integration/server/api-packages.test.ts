@@ -14,6 +14,7 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { createFlexPackage } from "#test-utils/packages.ts";
 import { apiGet } from "#test-utils/parents.ts";
+import { statementSql, wrapDbClient } from "#test-utils/record-queries.ts";
 
 /** POST /api/packages/:slug/book with a minimal valid contact payload merged
  * with any extra body fields (quantity, date, dayCount, children). */
@@ -456,6 +457,42 @@ describeWithEnv("public API packages", { db: true }, () => {
     expect(bRow.quantity).toBe(5);
     expect(Number(aRow.package_group_id)).toBe(group.id);
     expect(Number(bRow.package_group_id)).toBe(group.id);
+  });
+
+  test("POST keeps a package fact read failure after a free booking", async () => {
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Free notify kit",
+      slug: "free-notify-kit",
+    });
+    const member = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 10,
+      maxQuantity: 10,
+      name: "Free notify member",
+      unitPrice: 0,
+      webhookUrl: "https://example.com/registration",
+    });
+    await setGroupPackageMembers(group.id, [
+      { listingId: member.id, price: null },
+    ]);
+    const restoreDb = wrapDbClient({
+      batch: () => {},
+      execute: (statement) =>
+        statementSql(statement).includes("groupRecord.hide_package_listings")
+          ? Promise.reject(new Error("package facts unavailable"))
+          : null,
+    });
+
+    let result: Awaited<ReturnType<typeof apiBookPackage>>;
+    try {
+      result = await apiBookPackage(group.slug);
+    } finally {
+      restoreDb();
+    }
+
+    expect(result.response.status).toBe(200);
+    expect(await bookingRows(member.id)).toHaveLength(1);
   });
 
   test("POST rejects an explicit quantity of 0 and malformed JSON", async () => {

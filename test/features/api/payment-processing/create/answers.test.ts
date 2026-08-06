@@ -26,8 +26,24 @@ const bookedEntry = async (): Promise<CreatedEntry> => {
   return { attendee, listing: loaded } as CreatedEntry;
 };
 
+const saveAndReadAnswers = async (
+  entry: CreatedEntry,
+  answers: Parameters<typeof bookingIntent>[1],
+) => {
+  await saveSessionAnswers(
+    [entry],
+    bookingIntent([{ e: entry.listing.id, p: 0, q: 1 }], answers),
+  );
+  return (
+    await getDb().execute({
+      args: [entry.attendee.id],
+      sql: "SELECT question_id, answer_id, string_id FROM attendee_answers WHERE attendee_id = ?",
+    })
+  ).rows;
+};
+
 describeWithEnv("paid booking answer saves", { db: true }, () => {
-  test("saves choice answers when there are no text answers", async () => {
+  test("saves a choice answer missing from the paid-order snapshot", async () => {
     const entry = await bookedEntry();
     const question = await questionsTable.insert({
       displayType: "radio",
@@ -38,26 +54,15 @@ describeWithEnv("paid booking answer saves", { db: true }, () => {
       sortOrder: 0,
       text: "Chosen",
     });
-    await saveSessionAnswers(
-      [entry],
-      bookingIntent([{ e: entry.listing.id, p: 0, q: 1 }], {
-        listingAnswerIds: { [entry.listing.id]: [answer.id] },
-      }),
-      {
-        questionIdByAnswerId: new Map([[answer.id, question.id]]),
-        textQuestionIds: new Set(),
-      },
-    );
-    const saved = await getDb().execute({
-      args: [entry.attendee.id],
-      sql: "SELECT question_id, answer_id, string_id FROM attendee_answers WHERE attendee_id = ?",
+    const saved = await saveAndReadAnswers(entry, {
+      listingAnswerIds: { [entry.listing.id]: [answer.id] },
     });
-    expect(saved.rows).toEqual([
+    expect(saved).toEqual([
       { answer_id: answer.id, question_id: question.id, string_id: null },
     ]);
   });
 
-  test("saves a valid text answer when there are no choice answers", async () => {
+  test("saves a text answer missing from the paid-order snapshot", async () => {
     const entry = await bookedEntry();
     const question = await questionsTable.insert({
       displayType: "free_text",
@@ -67,23 +72,12 @@ describeWithEnv("paid booking answer saves", { db: true }, () => {
       "The saved detail",
     );
     if (stringId === undefined) throw new Error("Text answer was not interned");
-    await saveSessionAnswers(
-      [entry],
-      bookingIntent([{ e: entry.listing.id, p: 0, q: 1 }], {
-        listingTextAnswerIds: {
-          [entry.listing.id]: [{ q: question.id, s: stringId }],
-        },
-      }),
-      {
-        questionIdByAnswerId: new Map(),
-        textQuestionIds: new Set([question.id]),
+    const saved = await saveAndReadAnswers(entry, {
+      listingTextAnswerIds: {
+        [entry.listing.id]: [{ q: question.id, s: stringId }],
       },
-    );
-    const saved = await getDb().execute({
-      args: [entry.attendee.id],
-      sql: "SELECT question_id, answer_id, string_id FROM attendee_answers WHERE attendee_id = ?",
     });
-    expect(saved.rows).toEqual([
+    expect(saved).toEqual([
       { answer_id: null, question_id: question.id, string_id: stringId },
     ]);
   });
