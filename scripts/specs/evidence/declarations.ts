@@ -124,7 +124,7 @@ export const EVIDENCE_CAPTURES = [
   brandedMobileCapture(
     "backup.restore-brings-back-bookings",
     "backup-restore",
-    ".page-regions.admin-page",
+    ".page-regions.entity-page",
   ),
   brandedMobileCapture(
     "download.the-chosen-length-not-the-maximum",
