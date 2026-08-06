@@ -20,7 +20,7 @@ export const csvDateColumn = (csv: string): string =>
     "Date",
     ...parse(csv, { skipFirstRow: true }).map((row) => {
       const date = row.Date;
-      if (typeof date !== "string") {
+      if (typeof date !== "string" || date.trim() === "") {
         throw new Error("Attendee CSV is missing the Date field");
       }
       return date;

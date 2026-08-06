@@ -34,6 +34,18 @@ describe("csvDateColumn", () => {
     ).toThrow("Attendee CSV is missing the Date field");
   });
 
+  test("fails when the export has an empty date", () => {
+    expect(() => csvDateColumn("Date,Name\n,Jane Doe")).toThrow(
+      "Attendee CSV is missing the Date field",
+    );
+  });
+
+  test("fails when the export has a whitespace-only date", () => {
+    expect(() => csvDateColumn("Date,Name\n   ,Jane Doe")).toThrow(
+      "Attendee CSV is missing the Date field",
+    );
+  });
+
   test("renders escaped text in the data-page preview", () => {
     const path = csvEvidencePage("Retreat & <stay>", "Date & time");
 
