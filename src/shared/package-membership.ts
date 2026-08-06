@@ -86,6 +86,28 @@ export const packageMemberError: MemberReason =
  */
 export type PackageChildEdgeBlock = "gate_in_hidden" | "child_is_member";
 
+/** Whether a proposed edge set can expose either package-child conflict. */
+export const hasChildEdges = (childIds: readonly number[]): boolean =>
+  childIds.length > 0;
+
+type PackageEdgeCheck = () => boolean | Promise<boolean>;
+
+/** Finds the first package rule broken by a proposed child-edge set. */
+export const packageChildEdgeConflict = async (
+  childIds: readonly number[],
+  parentIsHiddenPackageMember: PackageEdgeCheck,
+  childIsPackageMember: PackageEdgeCheck,
+): Promise<PackageChildEdgeBlock | null> => {
+  if (!hasChildEdges(childIds)) return null;
+  if (await parentIsHiddenPackageMember()) return "gate_in_hidden";
+  return (await childIsPackageMember()) ? "child_is_member" : null;
+};
+
 /** The user-facing error for a package / child-edge conflict. */
 export const packageChildEdgeError = (block: PackageChildEdgeBlock): string =>
   t(`error.package_${block}`);
+
+/** Converts an optional edge conflict into its operator-facing message. */
+export const packageChildEdgeErrorOrNull = (
+  block: PackageChildEdgeBlock | null,
+): string | null => (block ? packageChildEdgeError(block) : null);

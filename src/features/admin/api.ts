@@ -26,11 +26,15 @@ import {
 } from "#shared/catalog-fields/fields.ts";
 import type { TxScope } from "#shared/db/client.ts";
 import {
+  anyHiddenPackageGroup,
+  anyListingInPackageGroup,
   listingGroups,
-  packageChildEdgeConflict,
   setListingGroupsTx,
 } from "#shared/db/groups.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
+import {
+  requireListingChildrenPackageCheck,
+  setListingChildrenWithPackageCheckTx,
+} from "#shared/db/listing-parents.ts";
 import {
   syncListingPrices,
   writeListingDayCounts,
@@ -51,7 +55,10 @@ import {
   toggleListingActive,
   validateListingInput,
 } from "#shared/listings-actions.ts";
-import { packageChildEdgeError } from "#shared/package-membership.ts";
+import {
+  packageChildEdgeConflict,
+  packageChildEdgeError,
+} from "#shared/package-membership.ts";
 import {
   bodyNumber,
   type DeleteBody,
@@ -408,8 +415,9 @@ const prepareListingJoins = async (
   // only see edges that already exist, so reject the brand-new edges here,
   // before the row + edges commit together.
   const packageConflict = await packageChildEdgeConflict(
-    input.groupIds ?? [],
     submitted.childIds,
+    () => anyHiddenPackageGroup(input.groupIds ?? []),
+    () => anyListingInPackageGroup(submitted.childIds),
   );
   if (packageConflict) {
     return { error: packageChildEdgeError(packageConflict) };
@@ -439,7 +447,13 @@ const persistListingJoins = async (
   value: PreparedListingJoins,
 ): Promise<void> => {
   if (value.childEdges !== null) {
-    await listingChildren.setIdsTx(tx, listingId, value.childEdges);
+    requireListingChildrenPackageCheck(
+      await setListingChildrenWithPackageCheckTx(
+        tx,
+        listingId,
+        value.childEdges,
+      ),
+    );
   }
   if (value.groupIds !== undefined) {
     await setListingGroupsTx(tx, listingId, value.groupIds);

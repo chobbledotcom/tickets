@@ -226,6 +226,20 @@ describe("rest/resource", () => {
       );
     });
 
+    test("rethrows an unexpected after-write error on create", async () => {
+      const writeError = new Error("Unexpected write failure");
+      const resource = defineResource({
+        afterWrite: () => Promise.reject(writeError),
+        form: testForm,
+        table: createTestTable(),
+        toInput,
+      });
+
+      await expect(
+        resource.create(new FormParams({ name: "Broken", value: "1" })),
+      ).rejects.toBe(writeError);
+    });
+
     // The row commits but the read-back finds nothing, so create used to report
     // `ok: true` with a null row — every caller's first field read (a listing
     // create's `result.row.name`) then died as "Cannot read properties of null",

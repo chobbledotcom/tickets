@@ -25,7 +25,10 @@ import type {
 import { groupCatalogFields } from "#shared/catalog-fields/fields.ts";
 import { logActivity } from "#shared/db/activity-log.ts";
 import { executeBatch, type TxScope } from "#shared/db/client.ts";
-import { assignListingsToGroup } from "#shared/db/groups/membership.ts";
+import {
+  assignListingsToGroup,
+  requirePackageGroupMembersTx,
+} from "#shared/db/groups/membership.ts";
 import {
   computeGroupSlugIndex,
   generateUniqueGroupSlug,
@@ -296,17 +299,19 @@ const groupsCreateResource = defineNamedResource({
  * the row is saved, reading the dynamic `package_price_<id>` / `package_qty_<id>`
  * inputs from the raw form. When the group is not (or no longer) a package,
  * every override is cleared back to price 0 / quantity 1. */
-const writeGroupPackageMembers = (
+const writeGroupPackageMembers = async (
   tx: TxScope,
   id: number,
   input: GroupInput,
   form: FormParams,
-) =>
-  setGroupPackageMembers(
+): Promise<void> => {
+  await requirePackageGroupMembersTx(tx, id);
+  await setGroupPackageMembers(
     id,
     input.isPackage ? parsePackageMembers(form) : [],
     tx,
   );
+};
 
 /** Groups resource for REST update operations (user-provided slug). Validates
  * the package invariant and writes the dynamic overrides via afterWrite, so the

@@ -11,7 +11,10 @@ import {
   withTransaction,
   writeRowInTransaction,
 } from "#shared/db/client.ts";
-import { assignListingsToGroup } from "#shared/db/groups/membership.ts";
+import {
+  assignListingsToGroup,
+  requirePackageGroupMembersTx,
+} from "#shared/db/groups/membership.ts";
 import {
   getGroupPackagePrices,
   getListingsByGroupId,
@@ -147,18 +150,17 @@ describeWithEnv("db > groups > membership writes", { db: true }, () => {
       ),
     );
 
-    if (writes[0]?.status === "rejected") throw writes[0].reason;
-
-    expect(writes.map(({ status }) => status)).toEqual([
-      "fulfilled",
-      "rejected",
-    ]);
-    const dailyWrite = writes[1];
-    if (dailyWrite?.status !== "rejected") {
-      throw new Error("The daily listing write should have been rejected");
+    expect(writes.filter(({ status }) => status === "fulfilled")).toHaveLength(
+      1,
+    );
+    const rejectedWrites = writes.filter(({ status }) => status === "rejected");
+    expect(rejectedWrites).toHaveLength(1);
+    const rejectedWrite = rejectedWrites[0];
+    if (rejectedWrite?.status !== "rejected") {
+      throw new Error("One concurrent listing write should have been rejected");
     }
-    expect(dailyWrite.reason).toBeInstanceOf(TransactionValidationError);
-    expect(dailyWrite.reason.name).toBe("TransactionValidationError");
+    expect(rejectedWrite.reason).toBeInstanceOf(TransactionValidationError);
+    expect(rejectedWrite.reason.name).toBe("TransactionValidationError");
     expect(
       new Set(
         (await getListingsByGroupId(group.id)).map(
@@ -208,6 +210,29 @@ describeWithEnv("db > groups > membership writes", { db: true }, () => {
       t("error.package_member_gates_children_hidden", { name: parent.name }),
     );
     expect(await groupIdsOf(parent.id)).toEqual([]);
+  });
+
+  test("a group becoming a hidden package rechecks its member edges", async () => {
+    const group = await createTestGroup({ name: "New Hidden Package" });
+    const parent = await createTestListing({ name: "New Package Parent" });
+    const child = await createTestListing({ name: "New Package Child" });
+    await listingChildren.setIds(parent.id, [child.id]);
+    await assignListingsToGroup([parent.id], group.id);
+
+    await expect(
+      withTransaction(async (tx) => {
+        await tx.execute({
+          args: [group.id],
+          sql: "UPDATE groups SET is_package = 1, hide_package_listings = 1 WHERE id = ?",
+        });
+        await requirePackageGroupMembersTx(tx, group.id);
+      }),
+    ).rejects.toMatchObject({
+      message: t("error.package_member_gates_children_hidden", {
+        name: parent.name,
+      }),
+      name: "TransactionValidationError",
+    });
   });
 
   test("a customisable-days group refuses a fixed-length listing", async () => {

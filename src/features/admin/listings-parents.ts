@@ -12,11 +12,13 @@ import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 /* jscpd:ignore-end */
 import { logActivity } from "#shared/db/activity-log.ts";
-import { listingGroups, packageChildEdgeConflict } from "#shared/db/groups.ts";
+import { type TxScope, withTransaction } from "#shared/db/client.ts";
+import { listingGroups } from "#shared/db/groups.ts";
 import {
   hydrateListingLinks,
   listingChildren,
   listingParents,
+  setListingChildrenWithPackageCheckTx,
 } from "#shared/db/listing-parents.ts";
 import {
   getAllListings,
@@ -35,7 +37,10 @@ import {
   type EdgeListing,
   edgeFieldError,
 } from "#shared/listing-parents-rules.ts";
-import { packageChildEdgeError } from "#shared/package-membership.ts";
+import {
+  packageChildEdgeError,
+  packageChildEdgeErrorOrNull,
+} from "#shared/package-membership.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import type { ListingParentsSection } from "#templates/admin/listings/types.ts";
 
@@ -273,8 +278,10 @@ export const copyDuplicatedChildEdges = async (
 ): Promise<string | null> => {
   const result = await validateChildEdges(newParent, childIds);
   if (!result.ok) return result.error;
-  await listingChildren.setIds(newParent.id, result.childIds);
-  return null;
+  const packageConflict = await withTransaction((tx: TxScope) =>
+    setListingChildrenWithPackageCheckTx(tx, newParent.id, result.childIds),
+  );
+  return packageChildEdgeErrorOrNull(packageConflict);
 };
 
 type ChildEdge = { childId: number; parentId: number };
@@ -402,13 +409,8 @@ export const handleAdminListingChildren: TypedRouteHandler<"POST /admin/listing/
       return redirect(`/admin/listing/${id}/edit`, result.error, false);
     }
     const { childIds } = result;
-    // A HIDDEN package's member can't gain children (its child selector would
-    // name the collapsed members), nor can a package member be chosen AS a
-    // child. A visible package member may gate children — the package page
-    // renders its selector. Block the conflicts before persisting the edges.
-    const packageConflict = await packageChildEdgeConflict(
-      await listingGroups.getIds(id),
-      childIds,
+    const packageConflict = await withTransaction((tx: TxScope) =>
+      setListingChildrenWithPackageCheckTx(tx, id, childIds),
     );
     if (packageConflict) {
       return redirect(
@@ -417,7 +419,6 @@ export const handleAdminListingChildren: TypedRouteHandler<"POST /admin/listing/
         false,
       );
     }
-    await listingChildren.setIds(id, childIds);
     await logActivity(
       `Listing '${listing.name}' required children set to ${childIds.length} listing${
         childIds.length === 1 ? "" : "s"

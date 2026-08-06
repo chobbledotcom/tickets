@@ -13,7 +13,6 @@ import {
   groups,
   isHiddenPackageMember,
   listingGroups,
-  packageChildEdgeConflict,
   packageMembersError,
   setGroupListingsActive,
   setGroupPackageMembers,
@@ -187,12 +186,6 @@ describeWithEnv("db > group validation contracts", { db: true }, () => {
         true,
       ),
     ).toBeNull();
-  });
-
-  test("a hidden package with no proposed children has no edge conflict", async () => {
-    const hidden = await createHiddenPackageGroup("Hidden Empty Parent");
-
-    expect(await packageChildEdgeConflict([hidden.id], [])).toBeNull();
   });
 
   test("the singular hidden-package check detects one membership", async () => {

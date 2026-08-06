@@ -1,12 +1,13 @@
 /** Group membership checks and writes that must see one transaction-local view. */
 
-import { mapNotNullish } from "#fp";
+import { mapNotNullish, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import { decrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
   inPlaceholders,
   resultRows,
+  TransactionValidationError,
   type TxScope,
   withTransaction,
 } from "#shared/db/client.ts";
@@ -163,7 +164,7 @@ type ListingStateRow = Omit<GroupListingSettings, "customisable_days"> & {
 };
 
 type ListingState = GroupListingSettings & {
-  name: string;
+  name: EnvKeyEncrypted;
   canPayMore: boolean;
   hasChildren: boolean;
   hasParents: boolean;
@@ -188,32 +189,28 @@ const listingStatesTx = async (
              WHERE listing.id IN (${inPlaceholders(ids)})`,
     }),
   );
-  const states = await Promise.all(
-    rows.map(
-      async (row): Promise<ListingState> => ({
-        canPayMore: row.can_pay_more === 1,
-        customisable_days: row.customisable_days === 1,
-        hasChildren: row.has_children === 1,
-        hasParents: row.has_parents === 1,
-        id: row.id,
-        listing_type: row.listing_type,
-        name: await decrypt(row.name),
-      }),
-    ),
-  );
+  const states: ListingState[] = rows.map((row) => ({
+    canPayMore: row.can_pay_more === 1,
+    customisable_days: row.customisable_days === 1,
+    hasChildren: row.has_children === 1,
+    hasParents: row.has_parents === 1,
+    id: row.id,
+    listing_type: row.listing_type,
+    name: row.name,
+  }));
   const byId = new Map(states.map((state) => [state.id, state]));
   return mapNotNullish((id: number) => byId.get(id))(listingIds);
 };
 
 /** Checks the package rules against the transaction's current group and edge rows. */
-const packageMembersErrorTx = (
+const packageMembersErrorTx = async (
   listings: readonly ListingState[],
   group: GroupState,
-): string | null => {
+): Promise<string | null> => {
   if (!group.isPackage) return null;
   for (const listing of listings) {
     const error = packageMemberError(
-      { can_pay_more: listing.canPayMore, name: listing.name },
+      { can_pay_more: listing.canPayMore, name: await decrypt(listing.name) },
       {
         childIds: listing.hasChildren ? [listing.id] : [],
         parentIds: listing.hasParents ? [listing.id] : [],
@@ -246,10 +243,38 @@ export const validateListingGroupMembershipTx = async (
       listingId,
     );
     if (!checked.ok) return { error: checked.error, listingMissing: false };
-    const packageError = packageMembersErrorTx([listing], checked.group);
+    const packageError = await packageMembersErrorTx([listing], checked.group);
     if (packageError) return { error: packageError, listingMissing: false };
   }
   return { error: null, listingMissing: false };
+};
+
+/** Rechecks every member after a group becomes a package or hides its members. */
+export const packageGroupMembersErrorTx = async (
+  tx: TxScope,
+  groupId: number,
+): Promise<string | null> => {
+  const state = requiredMapValue(
+    await groupStatesTx(tx, [groupId]),
+    groupId,
+    "Missing group",
+  );
+  return packageMembersErrorTx(
+    await listingStatesTx(
+      tx,
+      state.members.map((listing) => listing.id),
+    ),
+    state,
+  );
+};
+
+/** Stops the containing write when its changed group no longer has valid package members. */
+export const requirePackageGroupMembersTx = async (
+  tx: TxScope,
+  groupId: number,
+): Promise<void> => {
+  const error = await packageGroupMembersErrorTx(tx, groupId);
+  if (error) throw new TransactionValidationError(error);
 };
 
 const groupListingAssignmentStatements = (
@@ -280,7 +305,7 @@ export const assignListingsToGroup = async (
       if (typeError) return typeError;
       siblings.push(listing);
     }
-    const packageError = packageMembersErrorTx(listings, state);
+    const packageError = await packageMembersErrorTx(listings, state);
     if (packageError) return packageError;
     await tx.batch(groupListingAssignmentStatements(listingIds, groupId));
     return null;

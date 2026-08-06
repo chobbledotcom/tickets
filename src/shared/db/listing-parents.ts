@@ -12,13 +12,24 @@
  */
 
 import { firstProblem, identity, mapById, mapNotNullish, unique } from "#fp";
-import { inPlaceholders, queryIdColumn } from "#shared/db/client.ts";
+import {
+  inPlaceholders,
+  queryIdColumn,
+  resultRows,
+  TransactionValidationError,
+  type TxScope,
+} from "#shared/db/client.ts";
 import { type LinkTableSide, linkTableSide } from "#shared/db/link-table.ts";
 import { requireListingsWithCountsByIds } from "#shared/db/listings/records.ts";
 import {
   type EdgeListing,
   edgeFieldError,
 } from "#shared/listing-parents-rules.ts";
+import {
+  type PackageChildEdgeBlock,
+  packageChildEdgeConflict,
+  packageChildEdgeError,
+} from "#shared/package-membership.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 
 /** A parent's chooseable children, keyed by parent id (relationship only):
@@ -41,6 +52,59 @@ export const listingParents = linkTableSide(
   "child_listing_id",
   "parent_listing_id",
 );
+
+type PackageEdgeCheckRow = {
+  child_is_package_member: number;
+  parent_is_hidden_package_member: number;
+};
+
+/** Replaces child edges only when the transaction's package memberships allow them. */
+export const setListingChildrenWithPackageCheckTx = async (
+  tx: TxScope,
+  parentId: number,
+  childIds: readonly number[],
+): Promise<PackageChildEdgeBlock | null> => {
+  const [state] = resultRows<PackageEdgeCheckRow>(
+    await tx.execute({
+      args: [parentId, ...childIds],
+      sql: `SELECT EXISTS(
+                      SELECT 1
+                        FROM group_listings AS parentMembership
+                        JOIN groups AS parentGroup
+                          ON parentGroup.id = parentMembership.group_id
+                       WHERE parentMembership.listing_id = ?
+                         AND parentGroup.is_package = 1
+                         AND parentGroup.hide_package_listings = 1
+                    ) AS parent_is_hidden_package_member,
+                    EXISTS(
+                      SELECT 1
+                        FROM group_listings AS childMembership
+                        JOIN groups AS childGroup
+                          ON childGroup.id = childMembership.group_id
+                       WHERE childMembership.listing_id IN (${inPlaceholders(childIds)})
+                         AND childGroup.is_package = 1
+                    ) AS child_is_package_member`,
+    }),
+  );
+  if (!state) throw new Error("Missing package edge check");
+  const packageConflict = await packageChildEdgeConflict(
+    childIds,
+    () => state.parent_is_hidden_package_member === 1,
+    () => state.child_is_package_member === 1,
+  );
+  if (packageConflict) return packageConflict;
+  await listingChildren.setIdsTx(tx, parentId, childIds);
+  return null;
+};
+
+/** Stops the containing write when its package edge check reports a conflict. */
+export const requireListingChildrenPackageCheck = (
+  conflict: PackageChildEdgeBlock | null,
+): void => {
+  if (conflict) {
+    throw new TransactionValidationError(packageChildEdgeError(conflict));
+  }
+};
 
 /** The requested listing ids that have at least one link on a relationship
  * side. The side's batched map includes empty keys; structural child checks need

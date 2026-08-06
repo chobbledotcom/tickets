@@ -2,7 +2,9 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import {
+  packageChildEdgeConflict,
   packageChildEdgeError,
+  packageChildEdgeErrorOrNull,
   packageMemberError,
 } from "#shared/package-membership.ts";
 
@@ -108,5 +110,35 @@ describe("packageChildEdgeError", () => {
     expect(packageChildEdgeError("child_is_member")).toBe(
       t("error.package_child_is_member"),
     );
+  });
+
+  test("keeps no conflict as null", () => {
+    expect(packageChildEdgeErrorOrNull(null)).toBeNull();
+  });
+
+  test("turns an edge conflict into its message", () => {
+    expect(packageChildEdgeErrorOrNull("child_is_member")).toBe(
+      t("error.package_child_is_member"),
+    );
+  });
+});
+
+describe("packageChildEdgeConflict", () => {
+  test("checks edge presence, hidden parents, and packaged children in order", async () => {
+    const conflict = (
+      childIds: number[],
+      parentIsHiddenPackageMember: boolean,
+      childIsPackageMember: boolean,
+    ) =>
+      packageChildEdgeConflict(
+        childIds,
+        () => parentIsHiddenPackageMember,
+        () => childIsPackageMember,
+      );
+
+    await expect(conflict([], true, true)).resolves.toBeNull();
+    await expect(conflict([1], true, true)).resolves.toBe("gate_in_hidden");
+    await expect(conflict([1], false, true)).resolves.toBe("child_is_member");
+    await expect(conflict([1], false, false)).resolves.toBeNull();
   });
 });

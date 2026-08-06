@@ -5,7 +5,7 @@
  * so that the route handlers remain thin response formatters.
  */
 
-import { firstProblem } from "#fp";
+import { firstProblem, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { formatCurrency } from "#shared/currency.ts";
@@ -141,9 +141,12 @@ const validateListingGroup: ListingUpdateCheck = async (input, existingId) => {
   return firstProblem(async (groupId: number): Promise<string | null> => {
     const checked = checkGroupListingSettings(
       groupsById.get(groupId),
-      // getListingsByGroupIds seeds an entry (possibly empty) for every id it is
-      // asked about, and we iterate those same ids, so the lookup always resolves.
-      () => siblingsByGroup.get(groupId)!,
+      () =>
+        requiredMapValue(
+          siblingsByGroup,
+          groupId,
+          "Missing group listing membership",
+        ),
       // The DB column defaults to "standard" when omitted (e.g. a JSON API
       // create that sends group_ids but no listing_type), so validate against
       // that default rather than passing undefined and reading every standard

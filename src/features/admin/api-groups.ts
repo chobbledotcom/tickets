@@ -19,6 +19,7 @@ import {
   type PackageMemberInput,
 } from "#shared/catalog-fields/fields.ts";
 import type { TxScope } from "#shared/db/client.ts";
+import { requirePackageGroupMembersTx } from "#shared/db/groups/membership.ts";
 import {
   computeGroupSlugIndex,
   generateUniqueGroupSlug,
@@ -157,6 +158,7 @@ const writePackageMembers = async (
   id: number,
   input: GroupInput,
 ): Promise<void> => {
+  await requirePackageGroupMembersTx(tx, id);
   if (input.isPackage === false) {
     await setGroupPackageMembers(id, [], tx);
     return;
