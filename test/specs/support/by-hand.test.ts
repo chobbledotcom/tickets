@@ -20,6 +20,14 @@ describe("csvDateColumn", () => {
     ).toBe("Date\n2026-08-16 to 2026-08-17");
   });
 
+  test("keeps quoted attendee line breaks out of the date column", () => {
+    expect(
+      csvDateColumn(
+        'Date,Name,Email\n2026-08-16 to 2026-08-17,"Jane\nDoe",jane@example.com',
+      ),
+    ).toBe("Date\n2026-08-16 to 2026-08-17");
+  });
+
   test("renders escaped text in the data-page preview", () => {
     const path = csvEvidencePage("Retreat & <stay>", "Date & time");
 

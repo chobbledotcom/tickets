@@ -1,3 +1,4 @@
+import { parse } from "@std/csv/parse";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
@@ -15,11 +16,9 @@ export const sessionCookie = (
 /** The date column is what this story proves. Do not put attendee names or
  * contact details into a screenshot artifact. */
 export const csvDateColumn = (csv: string): string =>
-  csv
-    .split(/\r?\n/)
-    .filter((line) => line !== "")
-    .map((line) => line.split(",", 1)[0])
-    .join("\n");
+  ["Date", ...parse(csv, { skipFirstRow: true }).map((row) => row.Date)].join(
+    "\n",
+  );
 
 const escapeHtml = (value: string): string =>
   value
