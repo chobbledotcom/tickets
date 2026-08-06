@@ -16,9 +16,16 @@ export const sessionCookie = (
 /** The date column is what this story proves. Do not put attendee names or
  * contact details into a screenshot artifact. */
 export const csvDateColumn = (csv: string): string =>
-  ["Date", ...parse(csv, { skipFirstRow: true }).map((row) => row.Date)].join(
-    "\n",
-  );
+  [
+    "Date",
+    ...parse(csv, { skipFirstRow: true }).map((row) => {
+      const date = row.Date;
+      if (typeof date !== "string") {
+        throw new Error("Attendee CSV is missing the Date field");
+      }
+      return date;
+    }),
+  ].join("\n");
 
 const escapeHtml = (value: string): string =>
   value

@@ -28,6 +28,12 @@ describe("csvDateColumn", () => {
     ).toBe("Date\n2026-08-16 to 2026-08-17");
   });
 
+  test("fails when the export has no date field", () => {
+    expect(() =>
+      csvDateColumn("Name,Email\nJane Doe,jane@example.com"),
+    ).toThrow("Attendee CSV is missing the Date field");
+  });
+
   test("renders escaped text in the data-page preview", () => {
     const path = csvEvidencePage("Retreat & <stay>", "Date & time");
 
