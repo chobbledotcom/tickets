@@ -26,6 +26,7 @@ interface CaptureCalls {
   goto: unknown[];
   page: unknown;
   serverClosed: number;
+  styles: string[];
   timeout: number[];
   waited: number;
 }
@@ -78,11 +79,16 @@ const captureFixture = (
     goto: [],
     page: null,
     serverClosed: 0,
+    styles: [],
     timeout: [],
     waited: 0,
   };
   let routeRequest: ((url: string) => Promise<void>) | undefined;
   const page = {
+    addStyleTag: ({ content }: { content: string }) => {
+      calls.styles.push(content);
+      return Promise.resolve(null);
+    },
     goto: (path: string, navigation: unknown) => {
       calls.goto.push({ navigation, path });
       return Promise.resolve(null);
@@ -276,6 +282,18 @@ describe("Cucumber evidence capture", () => {
       },
     ]);
     expectCaptureClosed(calls);
+  });
+
+  test("applies the selected theme to an HTML data page", async () => {
+    const { calls, capture, hook, world } = captureFixture({
+      leftPages: [
+        [declaration.id, "data:text/html,%3Cmain%3ECSV%3C%2Fmain%3E"],
+      ],
+    });
+
+    await capture(world, hook);
+
+    expect(calls.styles).toEqual([":root { --test-colour: blue; }"]);
   });
 
   test("uses the session the story left for a capture", async () => {

@@ -91,11 +91,8 @@ const captureProfile = async (
   dependencies: EvidenceCaptureDependencies,
 ): Promise<void> => {
   const profile = SCREENSHOT_PROFILES[profileName];
-  await storeEvidenceCss(
-    declaration,
-    await dependencies.readTheme(declaration.id),
-    dependencies.writeCss,
-  );
+  const theme = await dependencies.readTheme(declaration.id);
+  await storeEvidenceCss(declaration, theme, dependencies.writeCss);
   const context = await browser.newContext({
     baseURL: baseUrl,
     ...screenshotContextOptions(profile),
@@ -112,9 +109,15 @@ const captureProfile = async (
     ]);
     const page = await context.newPage();
     page.setDefaultTimeout(CAPTURE_TIMEOUT_MS);
-    await page.goto(evidencePagePath(declaration, world.evidencePages), {
+    const path = evidencePagePath(declaration, world.evidencePages);
+    await page.goto(path, {
       waitUntil: "domcontentloaded",
     });
+    // Download previews are self-contained documents, so they cannot read the
+    // custom CSS stored for application pages.
+    if (path.startsWith("data:text/html,")) {
+      await page.addStyleTag({ content: theme });
+    }
     await dependencies.waitForPage(page);
     const { png } = await dependencies.capturePage(page, declaration.element);
     assertNoBlockedRequests(blocked);

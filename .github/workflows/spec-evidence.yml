@@ -70,9 +70,10 @@ jobs:
         run: deno task specs:evidence
 
       - name: Upload specification evidence
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: tickets-evidence
           path: reports/evidence
           if-no-files-found: error
-          retention-days: 90
+          retention-days: 7

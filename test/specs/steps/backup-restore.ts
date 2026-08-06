@@ -8,8 +8,8 @@ import {
   adminBrowser,
   resetScenarioBrowser,
   scenarioBrowser,
-  sessionCookie,
 } from "#test/specs/support/browser.ts";
+import { sessionCookie } from "#test/specs/support/evidence.ts";
 import { rememberListing } from "#test/specs/support/listings.ts";
 import {
   requiredWorldValue,

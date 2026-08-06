@@ -5,7 +5,6 @@ import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
-import { sessionCookie } from "#test/specs/support/browser.ts";
 import {
   editorAddsListing,
   editorBrowser,
@@ -28,6 +27,7 @@ import {
   somethingSoldAndPaidFor,
   TAKINGS,
 } from "#test/specs/support/editors.ts";
+import { sessionCookie } from "#test/specs/support/evidence.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
