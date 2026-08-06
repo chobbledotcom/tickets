@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import {
   checkBatchAvailabilityImpl as checkBatchAvailability,
   checkListingAvailability as hasAvailableSpots,
@@ -219,6 +220,39 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
           .sort(),
       ).toEqual([active.id, shared.id].sort((a, b) => a - b));
       expect(byGroup.get(empty.id)?.map((l) => l.id)).toEqual([shared.id]);
+    });
+
+    test("an incompatible batch adds no listings", async () => {
+      const group = await createTestGroup({ name: "Compatible Group" });
+      const standard = await createTestListing({ name: "Standard Member" });
+      const daily = await createTestListing({
+        listingType: "daily",
+        maximumDaysAfter: 30,
+        minimumDaysBefore: 0,
+        name: "Daily Member",
+      });
+
+      expect(
+        await assignListingsToGroup([standard.id, daily.id], group.id),
+      ).toBe(t("error.group_listing_type_mismatch", { type: "standard" }));
+      expect(await listingGroups.getIds(standard.id)).toEqual([]);
+      expect(await listingGroups.getIds(daily.id)).toEqual([]);
+    });
+
+    test("a fixed-length group refuses a customisable-days listing", async () => {
+      const group = await createTestGroup({ name: "Fixed Length Group" });
+      const fixed = await createTestListing({ name: "Fixed Member" });
+      const customisable = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 100 },
+        name: "Customisable Member",
+      });
+
+      expect(await assignListingsToGroup([fixed.id], group.id)).toBeNull();
+      expect(await assignListingsToGroup([customisable.id], group.id)).toBe(
+        t("error.group_customisable_days_unexpected"),
+      );
+      expect(await listingGroups.getIds(customisable.id)).toEqual([]);
     });
 
     test("getListingsByGroupIds maps a memberless group to an empty list", async () => {

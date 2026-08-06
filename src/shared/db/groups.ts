@@ -27,9 +27,11 @@ import {
   executeBatch,
   inPlaceholders,
   queryAll,
+  resultRows,
   rowExists,
   type SqlStatement,
   type TxScope,
+  withTransaction,
 } from "#shared/db/client.ts";
 import {
   cachedEntityTable,
@@ -272,6 +274,11 @@ export const groupExists = (id: number): Promise<boolean> =>
  */
 export const getListingsByGroupId: LoadGroupListings = listingsInGroup(false);
 
+type GroupListingSettings = Pick<
+  ListingWithCount,
+  "id" | "listing_type" | "customisable_days"
+>;
+
 /**
  * Given a group's already-loaded members, return the homogeneity error (or
  * null): every listing in a group must share both the same {@link ListingType}
@@ -285,7 +292,7 @@ export const getListingsByGroupId: LoadGroupListings = listingsInGroup(false);
  * the N+1 read guard.
  */
 export const groupListingTypeError = (
-  allSiblings: readonly ListingWithCount[],
+  allSiblings: readonly GroupListingSettings[],
   listingType: ListingType,
   customisableDays: boolean,
   excludeListingId?: number,
@@ -302,7 +309,7 @@ export const groupListingTypeError = (
  * clashing sibling and builds its message from that evidence. */
 const groupHomogeneityError = firstReason<
   [
-    siblings: readonly ListingWithCount[],
+    siblings: readonly GroupListingSettings[],
     listingType: ListingType,
     customisableDays: boolean,
   ]
@@ -510,25 +517,90 @@ export const packageDisplaysForRows = (
   getPackageDisplaysByIds(rows.map((row) => row.attendee.package_group_id));
 
 /**
- * Add listings to a group (membership rows), ignoring any already present.
+ * Add listings to a group when their type and day choices match its members.
  *
- * All rows insert in a single batch transaction, so the change is atomic and
- * costs one round-trip rather than one per listing.
+ * Reading the members and inserting the new rows share one write transaction,
+ * so concurrent additions cannot make an incompatible group.
  */
-export const assignListingsToGroup = (
+type GroupListingSettingsRow = Omit<
+  GroupListingSettings,
+  "customisable_days"
+> & { customisable_days: number };
+
+const groupListingSettings = (
+  rows: GroupListingSettingsRow[],
+): GroupListingSettings[] =>
+  rows.map(({ customisable_days, ...listing }) => ({
+    ...listing,
+    customisable_days: customisable_days === 1,
+  }));
+
+const groupMembersSettingsTx = async (
+  tx: TxScope,
+  groupId: number,
+): Promise<GroupListingSettings[]> =>
+  groupListingSettings(
+    resultRows<GroupListingSettingsRow>(
+      await tx.execute({
+        args: [groupId],
+        sql: `SELECT listing.id, listing.listing_type, listing.customisable_days
+                FROM group_listings AS groupListing
+                JOIN listings AS listing ON listing.id = groupListing.listing_id
+               WHERE groupListing.group_id = ?`,
+      }),
+    ),
+  );
+
+const chosenListingSettingsTx = async (
+  tx: TxScope,
+  listingIds: number[],
+): Promise<GroupListingSettings[]> => {
+  const listings = groupListingSettings(
+    resultRows<GroupListingSettingsRow>(
+      await tx.execute({
+        args: listingIds,
+        sql: `SELECT listing.id, listing.listing_type, listing.customisable_days
+                FROM listings AS listing
+               WHERE listing.id IN (${inPlaceholders(listingIds)})`,
+      }),
+    ),
+  );
+  const byId = mapById(identity<GroupListingSettings>)(listings);
+  return mapNotNullish((id: number) => byId.get(id))(listingIds);
+};
+
+const groupListingAssignmentStatements = (
   listingIds: number[],
   groupId: number,
-): Promise<void> => {
-  if (listingIds.length === 0) return Promise.resolve();
+): SqlStatement[] =>
   // INSERT ... SELECT gated on the listing existing, so an unknown id is a no-op
   // (the join table has no FK, so a stale/crafted id would otherwise leave an
   // orphan membership row that the old `UPDATE listings WHERE id` never created).
-  return executeBatch(
-    listingIds.map((listingId) => ({
-      args: [groupId, listingId, listingId],
-      sql: "INSERT OR IGNORE INTO group_listings (group_id, listing_id) SELECT ?, ? WHERE EXISTS (SELECT 1 FROM listings WHERE id = ?)",
-    })),
-  );
+  listingIds.map((listingId) => ({
+    args: [groupId, listingId, listingId],
+    sql: "INSERT OR IGNORE INTO group_listings (group_id, listing_id) SELECT ?, ? WHERE EXISTS (SELECT 1 FROM listings WHERE id = ?)",
+  }));
+
+export const assignListingsToGroup = async (
+  listingIds: number[],
+  groupId: number,
+): Promise<string | null> => {
+  if (listingIds.length === 0) return null;
+  return withTransaction(async (tx) => {
+    const siblings = await groupMembersSettingsTx(tx, groupId);
+    const listings = await chosenListingSettingsTx(tx, listingIds);
+    for (const listing of listings) {
+      const typeError = groupListingTypeError(
+        siblings,
+        listing.listing_type,
+        listing.customisable_days,
+      );
+      if (typeError) return typeError;
+      siblings.push(listing);
+    }
+    await tx.batch(groupListingAssignmentStatements(listingIds, groupId));
+    return null;
+  });
 };
 
 /** One group_listings row for a DUPLICATED group, resolving both the new group

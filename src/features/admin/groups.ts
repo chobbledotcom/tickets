@@ -31,7 +31,6 @@ import {
   generateUniqueGroupSlug,
   getGroupById,
   getListingsByGroupId,
-  groupListingTypeError,
   groups,
   hasPackageBookings,
   isGroupSlugTaken,
@@ -351,24 +350,11 @@ export const groupFormPost = (
     loadContext: ({ id }) => getGroupById(id),
   });
 
-/** Validate that all listing types match the group; returns error message or
- * null. When the group is a package, also reject listings that can't be packaged
- * (see {@link isPackageableMember}). */
-const validateListingTypesForGroup = async (
+/** Validate package-only rules that rely on the group settings loaded for the form. */
+const packageListingError = async (
   group: Group,
   listings: ListingWithCount[],
 ): Promise<string | null> => {
-  // A candidate accepted earlier in this batch becomes a sibling for the next.
-  const siblings = [...(await getListingsByGroupId(group.id))];
-  for (const listing of listings) {
-    const typeError = groupListingTypeError(
-      siblings,
-      listing.listing_type,
-      listing.customisable_days,
-    );
-    if (typeError) return typeError;
-    siblings.push(listing);
-  }
   if (group.is_package) {
     const packageError = await packageMembersError(
       listings,
@@ -387,12 +373,15 @@ const handleAddListingsToGroup = groupFormPost(async (group, form) => {
     .filter((n) => n > 0);
   if (listingIds.length > 0) {
     const listings = compact(await getListingsWithCountsByIds(listingIds));
-    const typeError = await validateListingTypesForGroup(group, listings);
+    const packageError = await packageListingError(group, listings);
+    if (packageError) {
+      return redirect(`/admin/groups/${group.id}`, packageError, false);
+    }
+    const existingListingIds = listings.map((listing) => listing.id);
+    const typeError = await assignListingsToGroup(existingListingIds, group.id);
     if (typeError) {
       return redirect(`/admin/groups/${group.id}`, typeError, false);
     }
-    const existingListingIds = listings.map((listing) => listing.id);
-    await assignListingsToGroup(existingListingIds, group.id);
     await logActivity(
       `${existingListingIds.length} listing(s) added to group '${group.name}'`,
     );

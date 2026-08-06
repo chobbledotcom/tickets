@@ -92,6 +92,32 @@ describeWithEnv("admin group listing assignment", { db: true }, () => {
     );
   });
 
+  test("concurrent incompatible additions leave one group member", async () => {
+    const group = await createTestGroup({ name: "Concurrent group" });
+    const standard = await createTestListing({ name: "Standard outsider" });
+    const daily = await createTestListing({
+      listingType: "daily",
+      maximumDaysAfter: 30,
+      minimumDaysBefore: 0,
+      name: "Daily outsider",
+    });
+
+    await Promise.all([
+      adminPost(`/admin/groups/${group.id}/add-listings`, {
+        listing_ids: [String(standard.id)],
+      }),
+      adminPost(`/admin/groups/${group.id}/add-listings`, {
+        listing_ids: [String(daily.id)],
+      }),
+    ]);
+
+    const memberIds = (await getListingsByGroupId(group.id)).map(
+      (listing) => listing.id,
+    );
+    expect(memberIds).toHaveLength(1);
+    expect([standard.id, daily.id]).toContain(memberIds[0]);
+  });
+
   test("refuses a listing whose customisable-days setting differs from the group's", async () => {
     const group = await createTestGroup({ name: "Fixed Length Group" });
     const fixed = await createTestListing({
@@ -112,6 +138,28 @@ describeWithEnv("admin group listing assignment", { db: true }, () => {
     expect(
       (await getListingsByGroupId(group.id)).map((listing) => listing.id),
     ).toEqual([fixed.id]);
+  });
+
+  test("marks an unpackageable listing refusal as an error", async () => {
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Package group",
+    });
+    const donation = await createTestListing({
+      canPayMore: true,
+      name: "Donation",
+    });
+
+    const response = await adminPost(`/admin/groups/${group.id}/add-listings`, {
+      listing_ids: [String(donation.id)],
+    });
+
+    expectFlash(
+      response,
+      t("error.package_member_pay_more", { name: donation.name }),
+      false,
+    );
+    expect(await getListingsByGroupId(group.id)).toEqual([]);
   });
 
   test("adds nothing when no listing was chosen", async () => {

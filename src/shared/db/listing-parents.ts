@@ -11,7 +11,7 @@
  * uses them, to keep the module free of unused exports.
  */
 
-import { firstProblem, mapNotNullish, unique } from "#fp";
+import { firstProblem, identity, mapById, mapNotNullish, unique } from "#fp";
 import { inPlaceholders, queryIdColumn } from "#shared/db/client.ts";
 import { type LinkTableSide, linkTableSide } from "#shared/db/link-table.ts";
 import { requireListingsWithCountsByIds } from "#shared/db/listings/records.ts";
@@ -119,7 +119,7 @@ const listingsByIdFor = async (
     sides.flatMap((links) => [...links.values()].flat()),
   );
   const listings = await requireListingsWithCountsByIds(linkedIds);
-  return new Map(listings.map((listing) => [listing.id, listing]));
+  return mapById(identity<ListingWithCount>)(listings);
 };
 
 /** Batch and hydrate one listing relationship side. Only linked listings are
