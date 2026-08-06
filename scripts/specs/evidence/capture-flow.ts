@@ -115,7 +115,7 @@ const captureProfile = async (
     });
     // Download previews are self-contained documents, so they cannot read the
     // custom CSS stored for application pages.
-    if (path.startsWith("data:text/html,")) {
+    if (path.startsWith("data:text/html,") && theme !== "") {
       await page.addStyleTag({ content: theme });
     }
     await dependencies.waitForPage(page);

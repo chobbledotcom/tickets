@@ -44,6 +44,7 @@ interface CaptureFixtureOptions {
   leftCookies?: ReadonlyArray<readonly [string, string]>;
   leftPages?: ReadonlyArray<readonly [string, string]>;
   serverCloseError?: Error;
+  theme?: string;
 }
 
 const twoCaseFeature = validFeature.replace(
@@ -164,7 +165,8 @@ const captureFixture = (
         ? Promise.reject(options.launchError)
         : Promise.resolve(browser as never),
     readCatalog: () => Promise.resolve(fixture.catalog),
-    readTheme: () => Promise.resolve(":root { --test-colour: blue; }"),
+    readTheme: () =>
+      Promise.resolve(options.theme ?? ":root { --test-colour: blue; }"),
     startServer: () => ({
       baseUrl: "http://127.0.0.1:4321",
       close: () => {
@@ -294,6 +296,19 @@ describe("Cucumber evidence capture", () => {
     await capture(world, hook);
 
     expect(calls.styles).toEqual([":root { --test-colour: blue; }"]);
+  });
+
+  test("does not inject an empty default theme into an HTML data page", async () => {
+    const { calls, capture, hook, world } = captureFixture({
+      leftPages: [
+        [declaration.id, "data:text/html,%3Cmain%3ECSV%3C%2Fmain%3E"],
+      ],
+      theme: "",
+    });
+
+    await capture(world, hook);
+
+    expect(calls.styles).toEqual([]);
   });
 
   test("uses the session the story left for a capture", async () => {
