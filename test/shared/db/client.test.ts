@@ -23,6 +23,7 @@ import {
   resetAggregates,
   rowExists,
   setDb,
+  TransactionValidationError,
   update,
 } from "#shared/db/client.ts";
 import { runWithPrimaryReads } from "#shared/db/primary-reads.ts";
@@ -37,6 +38,12 @@ const emptyResultSet = (): ResultSet => ({
   rows: [],
   rowsAffected: 0,
   toJSON: () => ({}),
+});
+
+test("transaction validation errors keep their diagnostic name", () => {
+  expect(new TransactionValidationError("No longer valid").name).toBe(
+    "TransactionValidationError",
+  );
 });
 
 describe("extractUpdateColumns", () => {

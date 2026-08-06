@@ -5,6 +5,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import {
   TransactionValidationError,
   withTransaction,
@@ -27,6 +28,7 @@ import {
 } from "#shared/listings-actions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
+  createHiddenPackageGroup,
   createTestGroup,
   getTestPackagePrices,
 } from "#test-utils/db-helpers/groups.ts";
@@ -84,6 +86,23 @@ describeWithEnv("db > groups > membership writes", { db: true }, () => {
     expect(await groupIdsOf(two.id)).toEqual([group.id]);
   });
 
+  test("an incompatible batch adds none of its listings", async () => {
+    const group = await createTestGroup({ name: "Mixed Batch Group" });
+    const standard = await createTestListing({ name: "Standard Member" });
+    const daily = await createTestListing({
+      listingType: "daily",
+      maximumDaysAfter: 30,
+      minimumDaysBefore: 0,
+      name: "Daily Member",
+    });
+
+    expect(await assignListingsToGroup([standard.id, daily.id], group.id)).toBe(
+      t("error.group_listing_type_mismatch", { type: "standard" }),
+    );
+    expect(await groupIdsOf(standard.id)).toEqual([]);
+    expect(await groupIdsOf(daily.id)).toEqual([]);
+  });
+
   test("adding no listings touches nothing", async () => {
     const group = await createTestGroup({ name: "Bulk Empty Group" });
     const listing = await createTestListing({ name: "Bulk Untouched" });
@@ -139,6 +158,7 @@ describeWithEnv("db > groups > membership writes", { db: true }, () => {
       throw new Error("The daily listing write should have been rejected");
     }
     expect(dailyWrite.reason).toBeInstanceOf(TransactionValidationError);
+    expect(dailyWrite.reason.name).toBe("TransactionValidationError");
     expect(
       new Set(
         (await getListingsByGroupId(group.id)).map(
@@ -178,12 +198,65 @@ describeWithEnv("db > groups > membership writes", { db: true }, () => {
     expect(await groupIdsOf(addOn.id)).toEqual([]);
   });
 
+  test("a hidden package refuses a member that offers add-ons", async () => {
+    const group = await createHiddenPackageGroup("Hidden Package Rules");
+    const parent = await createTestListing({ name: "Hidden Package Parent" });
+    const child = await createTestListing({ name: "Hidden Package Child" });
+    await listingChildren.setIds(parent.id, [child.id]);
+
+    expect(await assignListingsToGroup([parent.id], group.id)).toBe(
+      t("error.package_member_gates_children_hidden", { name: parent.name }),
+    );
+    expect(await groupIdsOf(parent.id)).toEqual([]);
+  });
+
+  test("a customisable-days group refuses a fixed-length listing", async () => {
+    const group = await createTestGroup({ name: "Customisable Length Group" });
+    const customisable = await createTestListing({
+      customisableDays: true,
+      dayPrices: { 1: 100 },
+      name: "Customisable Member",
+    });
+    const fixed = await createTestListing({ name: "Fixed Member" });
+
+    expect(await assignListingsToGroup([customisable.id], group.id)).toBeNull();
+    expect(await assignListingsToGroup([fixed.id], group.id)).toBe(
+      t("error.group_customisable_days_expected"),
+    );
+    expect(await groupIdsOf(fixed.id)).toEqual([]);
+  });
+
+  test("a fixed-length group refuses a customisable-days listing", async () => {
+    const group = await createTestGroup({ name: "Fixed Length Group" });
+    const fixed = await createTestListing({ name: "Fixed Member" });
+    const customisable = await createTestListing({
+      customisableDays: true,
+      dayPrices: { 1: 100 },
+      name: "Customisable Member",
+    });
+
+    expect(await assignListingsToGroup([fixed.id], group.id)).toBeNull();
+    expect(await assignListingsToGroup([customisable.id], group.id)).toBe(
+      t("error.group_customisable_days_unexpected"),
+    );
+    expect(await groupIdsOf(customisable.id)).toEqual([]);
+  });
+
   test("adding to a deleted group reports the missing group", async () => {
     const listing = await createTestListing({ name: "Missing Group Member" });
 
     expect(await assignListingsToGroup([listing.id], 999_999)).toBe(
       "Selected group does not exist",
     );
+    expect(await groupIdsOf(listing.id)).toEqual([]);
+  });
+
+  test("listing-form membership rejects a deleted group", async () => {
+    const listing = await createTestListing({ name: "Missing Form Group" });
+
+    await expect(
+      withTransaction((tx) => setListingGroupsTx(tx, listing.id, [999_999])),
+    ).rejects.toMatchObject({ message: "Selected group does not exist" });
     expect(await groupIdsOf(listing.id)).toEqual([]);
   });
 
