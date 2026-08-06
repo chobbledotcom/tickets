@@ -446,6 +446,9 @@ const persistListingJoins = async (
   listingId: number,
   value: PreparedListingJoins,
 ): Promise<void> => {
+  if (value.groupIds !== undefined) {
+    await setListingGroupsTx(tx, listingId, value.groupIds);
+  }
   if (value.childEdges !== null) {
     requireListingChildrenPackageCheck(
       await setListingChildrenWithPackageCheckTx(
@@ -454,9 +457,6 @@ const persistListingJoins = async (
         value.childEdges,
       ),
     );
-  }
-  if (value.groupIds !== undefined) {
-    await setListingGroupsTx(tx, listingId, value.groupIds);
   }
 };
 

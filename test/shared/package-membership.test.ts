@@ -141,4 +141,14 @@ describe("packageChildEdgeConflict", () => {
     await expect(conflict([1], false, true)).resolves.toBe("child_is_member");
     await expect(conflict([1], false, false)).resolves.toBeNull();
   });
+
+  test("awaits asynchronous package checks", async () => {
+    await expect(
+      packageChildEdgeConflict(
+        [1],
+        async () => false,
+        async () => false,
+      ),
+    ).resolves.toBeNull();
+  });
 });

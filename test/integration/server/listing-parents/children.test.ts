@@ -70,9 +70,10 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
     );
     const logs = await getListingActivityLog(parent.id);
     expect(
-      logs.find((entry) => entry.message.includes("required children set to"))
-        ?.message,
-    ).toBe("Listing 'Base unit' required children set to 2 listings");
+      logs
+        .filter((entry) => entry.message.includes("required children set to"))
+        .map((entry) => entry.message),
+    ).toEqual(["Listing 'Base unit' required children set to 2 listings"]);
   });
 
   test("renders unticked siblings without the checked attribute", async () => {

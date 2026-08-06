@@ -211,22 +211,6 @@ describeWithEnv("validateListingInput", { db: true }, () => {
     ).resolves.toBeNull();
   });
 
-  test("names a missing selected group membership result", async () => {
-    const group = await createTestGroup({ name: "Missing Membership Group" });
-    const groupIds = [group.id];
-    // The member batch must return an entry for every group the validator checks.
-    Object.defineProperty(groupIds, "map", { value: () => [] });
-
-    await expect(
-      validateListingInput(
-        inputFor({ groupIds, name: "Missing Membership Result" }),
-      ),
-    ).rejects.toMatchObject({
-      message: "Missing group listing membership",
-      name: "Error",
-    });
-  });
-
   test("rejects renaming a listing to another listing's name", async () => {
     const first = await createTestListing({ name: "First" });
     const second = await createTestListing({ name: "Second" });

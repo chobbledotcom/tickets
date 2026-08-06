@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { listingGroups } from "#shared/db/groups.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import {
@@ -9,6 +10,7 @@ import {
 } from "#test/test-utils/listing-parents/helpers.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postChildren } from "#test-utils/parents.ts";
 import { apiRequest } from "#test-utils/session.ts";
@@ -47,6 +49,29 @@ describeWithEnv("server > listing parents > admin API", { db: true }, () => {
       200,
     );
     expect(await listingChildren.getIds(parent.id)).toEqual([second.id]);
+  });
+
+  test("admin API can leave a hidden package while adding children", async () => {
+    const group = await createTestGroup({
+      hidePackageListings: true,
+      isPackage: true,
+      name: "Hidden package",
+    });
+    const parent = await createTestListing({
+      groupId: group.id,
+      name: "Leaving package",
+    });
+    const child = await createTestListing({ name: "New child" });
+
+    await assertJson(
+      apiRequest(`/api/admin/listings/${parent.id}`, {
+        body: { child_listing_ids: [child.id], group_ids: [] },
+        method: "PUT",
+      }),
+      200,
+    );
+    expect(await listingGroups.getIds(parent.id)).toEqual([]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
   });
 
   test("admin API rejects a non-numeric child id entry without clearing edges", async () => {
