@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { projectRoot, toDisplayPath } from "#scripts/project-root.ts";
+import { projectRoot, rel, toDisplayPath } from "#scripts/project-root.ts";
 
 describe("projectRoot", () => {
   test("points at the folder holding the project's own config", async () => {
@@ -37,5 +37,19 @@ describe("toDisplayPath", () => {
 
   test("does not treat a '..'-prefixed filename as escaping", () => {
     expect(toDisplayPath("/base", "/base/..cache.ts")).toBe("..cache.ts");
+  });
+});
+
+describe("rel", () => {
+  test("shows a file in the project as a project-relative path", () => {
+    expect(rel(`${projectRoot}/src/example.ts`)).toBe("src/example.ts");
+  });
+
+  test("keeps a relative path unchanged", () => {
+    expect(rel("src/example.ts")).toBe("src/example.ts");
+  });
+
+  test("keeps an absolute path from outside the project", () => {
+    expect(rel("/elsewhere/example.ts")).toBe("/elsewhere/example.ts");
   });
 });

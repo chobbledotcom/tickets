@@ -15,7 +15,7 @@
 
 import { dim, red, yellow } from "#scripts/precommit/colors.ts";
 import { write } from "#scripts/precommit/write.ts";
-import { projectRoot } from "#scripts/project-root.ts";
+import { projectRoot, rel } from "#scripts/project-root.ts";
 import type { StaticAssetBuild } from "#scripts/static-assets/session.ts";
 import {
   offTerminationSignals,
@@ -37,7 +37,6 @@ import { collectModuleGraphFiles, STATE_BUILDER_ROOT } from "./state-graph.ts";
 import {
   formatSummaryLines,
   type MutantResult,
-  rel,
   type Status,
   summarize,
   writeStepSummary,

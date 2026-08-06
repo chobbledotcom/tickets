@@ -3,55 +3,55 @@
 # Table inputs make these operators equivalent: nullable query results exclude
 # undefined, paired null checks already reject both nullish values, and optional
 # conditions/dependencies are objects or arrays.
-src/shared/db/table.ts:466:28  ?? → ||   # condition?.args is an array or undefined, and every array is truthy
-src/shared/db/table.ts:575:21  ?? → ||   # dependsOn is a readonly array or undefined, and every array is truthy
-src/shared/db/table.ts:608:32  ?? → ||   # the cached table's dependsOn is the same array-or-undefined as above
+src/shared/db/table.ts::defineTable.updateStatement.args~1p65ca8  ?? → ||   # condition?.args is an array or undefined, and every array is truthy
+src/shared/db/table.ts::cachedTable~1o37jut  ?? → ||   # dependsOn is a readonly array or undefined, and every array is truthy
+src/shared/db/table.ts::defineCachedListTable.dependsOn~1o37jut  ?? → ||   # the cached table's dependsOn is the same array-or-undefined as above
 
 # Login attempt rows store an integer count. For undefined, null, zero, or any
 # non-zero integer, `(attempts ?? 0) + 1` and `(attempts || 0) + 1` agree.
-src/shared/db/login-attempts.ts:46:39  ?? → ||
-src/shared/db/users.ts:264:62  ?? → ||   # queryAll()[0] is a truthy UserAuthFields object or undefined, so both operators return the row or null
-src/shared/db/query-log.ts:71:62  ?? → ||   # queryLogScope.current() is a truthy QueryLogState object or undefined
-src/shared/db/query-log.ts:252:43  ?? → ||   # stored read counts start at 1 and remain positive, so only undefined reaches the zero fallback
-src/shared/db/query-log.ts:292:22  ?? → ||   # store is a truthy QueryLogState object or undefined
-src/shared/update.ts:153:45  ?? → ||   # the stored commit is a string or undefined and the fallback is empty, so both operators return the same string
-src/shared/update.ts:186:11  ?? → ||   # the primary row value is a string or absent and the fallback is empty, so both operators return the same string
+src/shared/db/users.ts::getUserAuthFieldsById~0q9twz3  ?? → ||   # queryAll()[0] is a truthy UserAuthFields object or undefined, so both operators return the row or null
+src/shared/db/query-log.ts::getState~0iubkry  ?? → ||   # queryLogScope.current() is a truthy QueryLogState object or undefined
+src/shared/db/query-log.ts::enforceN1Guard.count~1xuztjh  ?? → ||   # stored read counts start at 1 and remain positive, so only undefined reaches the zero fallback
+src/shared/db/query-log.ts::trackSql.state~0ab0ecr  ?? → ||   # store is a truthy QueryLogState object or undefined
+src/shared/update.ts::recordScriptVersion.changes~148v29c  ?? → ||   # the stored commit is a string or undefined and the fallback is empty, so both operators return the same string
+src/shared/update.ts::readRecordedScriptCommit~0csc5ea  ?? → ||   # the primary row value is a string or absent and the fallback is empty, so both operators return the same string
 
 # Attendee phone blind-index (attendee-phone-index.ts).
-src/shared/db/attendee-phone-index.ts:36:17  ?? → ||   # row?.id is undefined or an AUTOINCREMENT id (≥1, never 0), so ?? and || agree
+src/shared/db/attendee-phone-index.ts::findAttendeeIdByPhoneIndex~0yjm3h8  ?? → ||   # row?.id is undefined or an AUTOINCREMENT id (≥1, never 0), so ?? and || agree
 
 # Parent/child relationship DB (listing-parents.ts).
-src/shared/db/listing-parents.ts:221:52  ?? → ||   # childrenByParent.get(id): ListingWithCount[]|undefined — an array is always truthy
-src/shared/db/listing-parents.ts:222:49  ?? → ||   # parentsByChild.get(id): ListingWithCount[]|undefined — an array is always truthy
+src/shared/db/listing-parents.ts::edgeIncompatibilityAfterChange.children~0cip5re  ?? → ||   # childrenByParent.get(id): ListingWithCount[]|undefined — an array is always truthy
+src/shared/db/listing-parents.ts::edgeIncompatibilityAfterChange.parents~1cm1r1e  ?? → ||   # parentsByChild.get(id): ListingWithCount[]|undefined — an array is always truthy
 
 # Group membership and package storage (groups.ts).
-src/shared/db/groups.ts:78:58  1 → 0   # the stored group ids come from group_listings.group_id, a foreign key onto groups' INTEGER PRIMARY KEY, so SQLite never issues 0 and no stored value can tell minValue(1) from minValue(0)
-src/shared/db/groups.ts:259:7  Missing group listing membership → ""   # getListingsByGroupIds builds its result map from the ids it was given, so the single-group lookup always finds its own id and requiredMapValue never raises this message
-src/shared/db/groups.ts:225:35  ?? → ||   # entriesByGroup.get(id): readonly entry[]|undefined — an array is always truthy
-src/shared/db/groups.ts:453:20  ?? → ||   # blocked[0]: { listing, block }|undefined — the present object is always truthy
-src/shared/db/groups.ts:686:66  ?? → ||   # package rows: GroupListing[]|undefined — an array is always truthy
-src/shared/db/groups.ts:856:34  ?? → ||   # quantity is undefined or at least 1 by PackageMemberInput's contract, so every present value is truthy
-src/features/admin/api-groups.ts:127:31  ?? → ||   # parseMemberDayPrices returns a DayPrices object or undefined; every object, including {}, is truthy
+src/shared/db/groups.ts::groupIdsJson~08xarnu  1 → 0   # group_listings.group_id is only ever written from groups.id, an INTEGER PRIMARY KEY SQLite never issues as 0 — the column itself has no foreign key, so this rests on the write path rather than on a constraint
+src/shared/db/groups.ts::listingsInGroup~1orw8y7  Missing group listing membership → ""   # getListingsByGroupIds builds its result map from the ids it was given, so the single-group lookup always finds its own id and requiredMapValue never raises this message
+src/shared/db/groups.ts::getListingsByGroupIds~0zftiii  ?? → ||   # entriesByGroup.get(id): readonly entry[]|undefined — an array is always truthy
+src/shared/db/groups.ts::getGroupPackagePrices~1w9nudp  ?? → ||   # package rows: GroupListing[]|undefined — an array is always truthy
+src/shared/db/groups.ts::memberQuantityStatement~0ajbifl  ?? → ||   # quantity is undefined or at least 1 by PackageMemberInput's contract, so every present value is truthy
+src/features/admin/api-groups.ts::parsePackageMember.dayPrices~1ac0u3a  ?? → ||   # parseMemberDayPrices returns a DayPrices object or undefined; every object, including {}, is truthy
 
 # Attendee group-capacity lookups: Map values are arrays (always truthy), and
 # duration normalization clamps both a default of 0 and 1 to one day.
-src/shared/db/attendees/capacity/groups.ts:135:50  ?? → ||   # rowsByGroup.get(): GroupRow[]|undefined — an array is always truthy
-src/shared/db/attendees/capacity/groups.ts:146:14  1 → 0   # expandDailyRange normalizes both 0 and 1 to a one-day span
+src/shared/db/attendees/capacity/groups.ts::getGroupPerDayRemaining.loads~1nauhgk  ?? → ||   # rowsByGroup.get(): GroupRow[]|undefined — an array is always truthy
+src/shared/db/attendees/capacity/snapshot.ts::loadsByListing~0wzfdt0  ?? → ||   # byListing.get(): row[]|undefined — an array is always truthy, so both operators reach perDayLoads with the same rows
+src/shared/db/attendees/capacity/snapshot.ts::loadCapacitySnapshot.membership~0tc0opa  ?? → ||   # knownMembership is a Map or undefined; every Map, including an empty one, is truthy
+src/shared/db/attendees/capacity/remaining.ts::getListingRemainingForRange.durationDays~18guaiu  1 → 0   # daysOfSpan clamps the span back to one day, so a default of 0 reads the same single day
 
 # listing_prices sync (listing-prices.ts): `?? → ||` where the operand's only
 # falsy-non-null value equals the fallback.
-src/shared/db/listing-prices.ts:345:45  ?? → ||    # sourceRowStatements row.unit_price: number|null; the only falsy-non-null value is 0 and 0 ?? 0 === 0 || 0
-src/shared/db/listing-prices.ts:110:38  ?? → ||    # groupDayPriceStatements member.dayPrices: DayPrices|undefined — an object is always truthy, undefined→{} either way
-src/shared/db/listing-prices.ts:201:45  ?? → ||    # foldGroupDayRows result.get(): Map|undefined — a Map is always truthy
+src/shared/db/listing-prices.ts::sourceRowStatements~0fyy4cr  ?? → ||   # sourceRowStatements row.unit_price: number|null; the only falsy-non-null value is 0 and 0 ?? 0 === 0 || 0
+src/shared/db/listing-prices.ts::groupDayPriceStatements~0gt4zrn  ?? → ||   # groupDayPriceStatements member.dayPrices: DayPrices|undefined — an object is always truthy, undefined→{} either way
+src/shared/db/listing-prices.ts::foldGroupDayRows.byDay~1di0xpm  ?? → ||   # foldGroupDayRows result.get(): Map|undefined — a Map is always truthy
 
 # Group-cap sweep (attendees/update.ts): the boundary-delta accumulator is a
 # Map<string, number>; the only falsy-but-non-null number is 0 and the fallback
 # is 0, so `?? 0` and `|| 0` always agree.
-src/shared/db/attendees/update.ts:141:53  ?? → ||   # Map<string,number>.get delta; 0 ?? 0 === 0 || 0
-src/shared/db/attendees/update.ts:142:49  ?? → ||   # Map<string,number>.get delta; 0 ?? 0 === 0 || 0
+src/shared/db/attendees/update.ts::loadsAtBoundaries.deltas~0b895vw  ?? → ||   # Map<string,number>.get delta; 0 ?? 0 === 0 || 0
+src/shared/db/attendees/update.ts::loadsAtBoundaries.deltas~1kwldm9  ?? → ||   # Map<string,number>.get delta; 0 ?? 0 === 0 || 0
 
 # DB client (client.ts) — extractUpdateColumns assignment guard.
-src/shared/db/client.ts:71:17  0 → 1   # eqIdx===0 means the fragment starts with "="; slice(0,0) is always "" so the column is dropped by the `if (col)` guard either way — early return and fall-through agree on every input
+src/shared/db/client.ts::extractUpdateColumns.addAssignment~17cdcum  0 → 1   # eqIdx===0 means the fragment starts with "="; slice(0,0) is always "" so the column is dropped by the `if (col)` guard either way — early return and fall-through agree on every input
 
 # DB client (client.ts) — write-verb classification. The WriteVerb produced by
 # invalidateForSql is consumed ONLY by invalidateCachesForWrite, whose single
@@ -59,41 +59,41 @@ src/shared/db/client.ts:71:17  0 → 1   # eqIdx===0 means the fragment starts w
 # `verb === "update"` check happens before these sites take effect. Any two
 # non-"update" verb values are therefore indistinguishable by every possible
 # test, so mutants that only reclassify/rename a non-update verb are equivalent.
-src/shared/db/client.ts:129:19  delete → ""   # DELETEs classify as "insert" instead of "delete": both are non-"update", so every invalidator (gated or not) still fires identically
-src/shared/db/client.ts:129:71  replace → ""   # REPLACEs classify as "insert" instead of "replace": both non-"update", identical invalidation
+src/shared/db/client.ts::invalidateForSql.verb~1jsrro1  delete → ""   # DELETEs classify as "insert" instead of "delete": both are non-"update", so every invalidator (gated or not) still fires identically
+src/shared/db/client.ts::invalidateForSql.verb~1tuqlso  replace → ""   # REPLACEs classify as "insert" instead of "replace": both non-"update", identical invalidation
 
 # DB client (client.ts) — nullish-coalescing fallbacks whose left side can never
 # be a falsy non-null value, so `??` and `||` pick the same branch on every input.
-src/shared/db/client.ts:105:73  ?? → ||   # writeSqlOf's CTE capture is anchored on the literal "UPDATE" (6+ chars), never ""; a missing capture is undefined either way
-src/shared/db/client.ts:373:57  ?? → ||   # `args` is `InValue[] | undefined`; every array (including []) is truthy, so only undefined reaches the fallback under both operators
-src/shared/db/client.ts:383:36  ?? → ||   # queryOne's row comes from resultRows — libsql rows are always objects (truthy); a miss yields undefined, where ?? and || both produce null
+src/shared/db/client.ts::writeSqlOf~1begzdu  ?? → ||   # writeSqlOf's CTE capture is anchored on the literal "UPDATE" (6+ chars), never ""; a missing capture is undefined either way
+src/shared/db/client.ts::executeRead.args~0hs5u5i  ?? → ||   # `args` is `InValue[] | undefined`; every array (including []) is truthy, so only undefined reaches the fallback under both operators
+src/shared/db/client.ts::queryOne~1hu7rck  ?? → ||   # queryOne's row comes from resultRows — libsql rows are always objects (truthy); a miss yields undefined, where ?? and || both produce null
 
 # DB client (client.ts) — sentinel symbol descriptions.
-src/shared/db/client.ts:160:31  guarded-db-client → ""   # Symbol("guarded-db-client") description is debug-only metadata; the double-wrap check branches on the symbol's identity, and GUARDED_CLIENT is module-private so no test can observe the description
+src/shared/db/client.ts::GUARDED_CLIENT~1cajdnv  guarded-db-client → ""   # Symbol("guarded-db-client") description is debug-only metadata; the double-wrap check branches on the symbol's identity, and GUARDED_CLIENT is module-private so no test can observe the description
 
 # attendees/tokens.ts — `?? → ||` sites where the operand is a Map#get() whose
 # value is always a truthy object or array (never a falsy-but-non-null value),
 # so ?? and || agree for every possible value.
-src/shared/db/attendees/tokens.ts:163:45  ?? → ||    # resultsInTokenOrder: byTokenIndex.get() is Result|undefined; Result is AttendeeWithBookings or AttendeeBookingRows (always a truthy object), so ?? and || agree
-src/shared/db/attendees/tokens.ts:166:56  ?? → ||    # resultsInTokenOrder: tokenToResult.get() is Result|undefined; Result is always a truthy object (see 159), so ?? and || agree
-src/shared/db/attendees/tokens.ts:185:48  ?? → ||    # tokenResultMap: bookingsByAttendee.get() is Booking[]|undefined; an array is always truthy (even empty), so ?? and || agree
+src/shared/db/attendees/tokens.ts::resultsInTokenOrder.tokenToResult~17m7xgj  ?? → ||   # resultsInTokenOrder: byTokenIndex.get() is Result|undefined; Result is AttendeeWithBookings or AttendeeBookingRows (always a truthy object), so ?? and || agree
+src/shared/db/attendees/tokens.ts::resultsInTokenOrder~0uhrwgz  ?? → ||   # resultsInTokenOrder: tokenToResult.get() is Result|undefined; Result is always a truthy object (see 159), so ?? and || agree
+src/shared/db/attendees/tokens.ts::tokenResultMap~1c5bf54  ?? → ||   # tokenResultMap: bookingsByAttendee.get() is Booking[]|undefined; an array is always truthy (even empty), so ?? and || agree
 
 # db/capacity.ts — duration defaults that normalizeDurationDays clamps: a
 # `durationDays` of 0 (the mutant) and 1 (the default) both normalize to a
 # one-day span, so no input can tell the two apart.
-src/shared/db/capacity.ts:40:58  1 → 0    # dateToRange's default duration; normalizeDurationDays clamps 0 up to 1
-src/shared/db/capacity.ts:288:18  1 → 0    # buildCapacityCondition's default duration; same clamp
-src/shared/db/capacity.ts:300:49  1 → 0    # the per-day clause builds each day as a 1-day range; dateToRange normalizes 0 up to 1
+src/shared/db/capacity.ts::dateToRange.durationDays~18guaiu  1 → 0   # dateToRange's default duration; normalizeDurationDays clamps 0 up to 1
+src/shared/db/capacity.ts::buildCapacityCondition.durationDays~18guaiu  1 → 0   # buildCapacityCondition's default duration; same clamp
+src/shared/db/capacity.ts::buildCapacityCondition.dayClauses.daily.dayRange~0ep36tv  1 → 0   # the per-day clause builds each day as a 1-day range; dateToRange normalizes 0 up to 1
 
 # Attendee PII (db/attendees/pii.ts) — three provably-equivalent survivors.
-src/shared/db/attendees/pii.ts:64:5  attendees.pii_blob → ""   # buildPiiBlob receives AttendeePii: every field is already a string, and it supplies the only literal/version fields itself, so the stored-JSON writer cannot reject any contract input; its error label is never observed
-src/shared/db/attendees/pii.ts:88:17  ?? → ||   # decryptPiiBlob's `blob.la` is string|undefined and the fallback is "": truthy strings pass through, while both undefined and the only falsy string ("") produce "", so `??` and `||` agree on every input
-src/shared/db/attendees/pii.ts:89:17  ?? → ||   # decryptPiiBlob's `blob.lo` has the same string|undefined domain and "" fallback as latitude, so `??` and `||` agree on every input
+src/shared/db/attendees/pii.ts::buildPiiBlob~1r4bpwk  attendees.pii_blob → ""   # buildPiiBlob receives AttendeePii: every field is already a string, and it supplies the only literal/version fields itself, so the stored-JSON writer cannot reject any contract input; its error label is never observed
+src/shared/db/attendees/pii.ts::decryptPiiBlob.lat~0pjzbz9  ?? → ||   # decryptPiiBlob's `blob.la` is string|undefined and the fallback is "": truthy strings pass through, while both undefined and the only falsy string ("") produce "", so `??` and `||` agree on every input
+src/shared/db/attendees/pii.ts::decryptPiiBlob.lng~1d5jjcf  ?? → ||   # decryptPiiBlob's `blob.lo` has the same string|undefined domain and "" fallback as latitude, so `??` and `||` agree on every input
 
 # getAttendees filter/query builder (src/shared/db/attendees/select.ts) — the
 # defaulted `kind`/`join` operands are string unions that never include "".
-src/shared/db/attendees/select.ts:292:47  ?? → ||   # where.kind: AttendeeKindFilter|undefined — every member ("attendee"/"servicing"/"attendee-or-servicing") is truthy, so `?? "attendee"` and `|| "attendee"` agree on every input
-src/shared/db/attendees/select.ts:355:28  ?? → ||   # query.join: AttendeeJoin|undefined — "inner"/"left" are both truthy, so `?? "inner"` and `|| "inner"` agree on every input
+src/shared/db/attendees/select.ts::whereClauses.parts.clause~0zb4tlc  ?? → ||   # where.kind: AttendeeKindFilter|undefined — every member ("attendee"/"servicing"/"attendee-or-servicing") is truthy, so `?? "attendee"` and `|| "attendee"` agree on every input
+src/shared/db/attendees/select.ts::attendees.join~02qy6z7  ?? → ||   # query.join: AttendeeJoin|undefined — "inner"/"left" are both truthy, so `?? "inner"` and `|| "inner"` agree on every input
 
 # processed-payments read-path failure_data label: the
 # "processed_payments.failure_data" context string surfaces only in errors
@@ -102,28 +102,29 @@ src/shared/db/attendees/select.ts:355:28  ?? → ||   # query.join: AttendeeJoin
 # observable assertion. The write-path label is killed by a direct test that
 # passes an invalid StoredPaymentFailure to markSessionFailed and asserts the
 # error message carries the label.
-src/shared/db/processed-payments.ts:250:7  processed_payments.failure_data → ""   # read-path label: read errors are caught and replaced with CORRUPT_FAILURE before the message can be observed
+src/shared/db/processed-payments.ts::parseSessionFailure~1rv3mep  processed_payments.failure_data → ""   # read-path label: read errors are caught and replaced with CORRUPT_FAILURE before the message can be observed
 
 # Attendee answer collection fallbacks: all present values are arrays or answer
 # objects, so they are truthy; only undefined reaches each empty fallback.
-src/shared/db/questions/attendee-answers/save.ts:232:66  ?? → ||   # textAnswerIds is TextAnswerId[]|undefined — arrays are always truthy
-src/shared/db/questions/attendee-answers/save.ts:233:62  ?? → ||   # textAnswers is TextAnswer[]|undefined — arrays are always truthy
-src/shared/db/questions/attendee-answers/save.ts:373:44  ?? → ||   # listingAnswerIds[key] is number[]|undefined — arrays are always truthy
-src/shared/db/questions/attendee-answers/save.ts:374:48  ?? → ||   # listingTextAnswers[key] is TextAnswer[]|undefined — arrays are always truthy
-src/shared/db/questions/attendee-answers/save.ts:376:56  ?? → ||   # Map.get() returns AttendeeAnswerSet|undefined — answer-set objects are always truthy
-src/shared/db/questions/attendee-answers/save.ts:380:33  ?? → ||   # existing.textAnswers is TextAnswer[]|undefined — arrays are always truthy
+src/shared/db/questions/attendee-answers/save.ts::saveAttendeeAnswers.normalized.textAnswerIds~1h5o1g4  ?? → ||   # textAnswerIds is TextAnswerId[]|undefined — arrays are always truthy
+src/shared/db/questions/attendee-answers/save.ts::saveAttendeeAnswers.normalized.textAnswers~0ycn62j  ?? → ||   # textAnswers is TextAnswer[]|undefined — arrays are always truthy
+src/shared/db/questions/attendee-answers/save.ts::groupListingAnswerSets.answerIds~1pbmjye  ?? → ||   # listingAnswerIds[key] is number[]|undefined — arrays are always truthy
+src/shared/db/questions/attendee-answers/save.ts::groupListingAnswerSets.textAnswers~1f880d0  ?? → ||   # listingTextAnswers[key] is TextAnswer[]|undefined — arrays are always truthy
+src/shared/db/questions/attendee-answers/save.ts::groupListingAnswerSets.existing~0ka51i3  ?? → ||   # Map.get() returns AttendeeAnswerSet|undefined — answer-set objects are always truthy
+src/shared/db/questions/attendee-answers/save.ts::groupListingAnswerSets.existing%2etextAnswers~04d6ypa  ?? → ||   # existing.textAnswers is TextAnswer[]|undefined — arrays are always truthy
 
 # The news card query names a single table, so its columns need no alias to
 # resolve.
-src/shared/db/news-posts.ts:147:47  news_post → ""   # dropping the alias leaves the column names unqualified, and the read selects from one table (news_posts AS news_post) plus scalar subqueries that carry their own qualified id, so every name still resolves to the same column
-src/features/admin/api-keys.ts:147:75  ?? → ||   # entity-page load: find() returns a key row object or undefined — a row object is always truthy, so `?? null` and `|| null` agree on every input
+src/shared/db/news-posts.ts::getNewsPostCards.rows.columns~0dqqett  news_post → ""   # dropping the alias leaves the column names unqualified, and the read selects from one table (news_posts AS news_post) plus scalar subqueries that carry their own qualified id, so every name still resolves to the same column
+src/features/admin/api-keys.ts::apiKeyPage.load~0c5nk11  ?? → ||   # entity-page load: find() returns a key row object or undefined — a row object is always truthy, so `?? null` and `|| null` agree on every input
 
 # Batched package pricing (groups.ts) and its API caller: map lookups whose key
 # the loader always seeds, and an array fallback.
-src/shared/db/groups.ts:737:44  ?? → ||   # rowsByGroup.get(): GroupListing[]|undefined — an array is always truthy
-src/shared/db/groups.ts:745:13  Missing package day prices → ""   # getGroupDayPricesByGroupIds returns an entry for every group id it is given, and only those ids are looked up, so requiredMapValue never raises this message
-src/features/admin/api-groups.ts:250:11  Missing package pricing → ""   # the pricing map is built from the same package group ids the hydrate loop walks, so every lookup hits
-src/shared/db/groups.ts:160:39  ?? → ||   # getGroupsByIds holds decrypted Group objects, so a present value is always truthy and ?? null and || null agree
-src/shared/db/groups.ts:442:11  Missing listing child edges → ""   # hydrateListingLinks returns an entry for every listing id it is given, and only those ids are looked up, so requiredMapValue never raises this message
-src/shared/db/groups.ts:447:11  Missing listing parent edges → ""   # same as the child edges above — the parents map is keyed by the very listings being checked
-src/shared/db/activity-log.ts:204:5  Activity log row missing → ""   # logActivities returns one row per activity it was given, so the single-activity call always has its row and requireValue never raises this message
+src/shared/db/groups.ts::loadPackageMemberPricingByGroupIds.rows~19vergh  ?? → ||   # rowsByGroup.get(): GroupListing[]|undefined — an array is always truthy
+src/shared/db/groups.ts::loadPackageMemberPricingByGroupIds.dayPrices~1funuvq  Missing package day prices → ""   # getGroupDayPricesByGroupIds returns an entry for every group id it is given, and only those ids are looked up, so requiredMapValue never raises this message
+src/features/admin/api-groups.ts::groupApiRoutes.hydrate.pricing~02yma27  Missing package pricing → ""   # the pricing map is built from the same package group ids the hydrate loop walks, so every lookup hits
+src/shared/db/groups.ts::getGroupById~1ydaoy4  ?? → ||   # getGroupsByIds holds decrypted Group objects, so a present value is always truthy and ?? null and || null agree
+src/shared/db/groups.ts::packageMembersError~17n4dy8  ?? → ||   # blocked[0]: { listing, block }|undefined — the present object is always truthy
+src/shared/db/groups.ts::packageMembersError.blocked.childIds~05z1ovp  Missing listing child edges → ""   # hydrateListingLinks returns an entry for every listing id it is given, and only those ids are looked up, so requiredMapValue never raises this message
+src/shared/db/groups.ts::packageMembersError.blocked.parentIds~069l6kv  Missing listing parent edges → ""   # same as the child edges above — the parents map is keyed by the very listings being checked
+src/shared/db/activity-log.ts::logActivity~078kit2  Activity log row missing → ""   # logActivities returns one row per activity it was given, so the single-activity call always has its row and requireValue never raises this message

@@ -8,6 +8,7 @@ import {
   listRegistryFiles,
   loadIgnoreList,
   mutantKey,
+  parseIgnoreLine,
   registryFilePath,
 } from "#scripts/mutation/ignore.ts";
 import type { MutantResult } from "#scripts/mutation/summary.ts";
@@ -16,10 +17,13 @@ import { tempDir, tempFile } from "#test-utils/files.ts";
 
 const file = `${projectRoot}/src/example.ts`;
 
-const mutant = (line: number, operator = "??", newOperator = "||"): Mutant => ({
+/** A mutant told apart from its neighbours by `nth`, which names the thing it
+ * sits inside — that is what an entry records, so it is what has to differ. */
+const mutant = (nth: number, operator = "??", newOperator = "||"): Mutant => ({
+  anchor: `fn${nth}`,
   column: 5,
   end: 1,
-  line,
+  line: nth,
   newOperator,
   operator,
   start: 0,
@@ -36,14 +40,168 @@ const result = (
   timings: [],
 });
 
-const ignoreList = (entries: string[]): IgnoreList => ({
-  entries,
-  keys: new Set(entries),
+/** An ignore list of entries against `src/example.ts` unless a line names its
+ * own path, which is how a neighbouring file's entry is written. */
+const ignoreList = (
+  keys: (string | { key: string; sourcePath: string })[],
+): IgnoreList => {
+  const entries = keys.map((entry) =>
+    typeof entry === "string"
+      ? { key: entry, sourcePath: "src/example.ts" }
+      : entry,
+  );
+  return { entries, keys: new Set(entries.map((entry) => entry.key)) };
+};
+
+describe("writing a mutant key onto one line", () => {
+  /** A mutated literal carries its own text into the key, and that text can
+   * hold anything a source file can. Each case is a character that would
+   * otherwise end the line, start its reason, or be eaten by the spacing
+   * around the arrow. */
+  const keyFor = (operator: string): string =>
+    mutantKey(file, { ...mutant(1), newOperator: '""', operator });
+
+  test("escapes a comment mark, which would start the reason early", () => {
+    expect(keyFor("a#b")).toContain(" a%23b→");
+  });
+
+  test("escapes a newline, which would end the line outright", () => {
+    expect(keyFor("a\nb")).toContain(" a%0ab→");
+  });
+
+  test("escapes a percent, so an escape cannot be forged", () => {
+    expect(keyFor("a%23b")).toContain(" a%2523b→");
+  });
+
+  test("escapes a leading space the arrow's spacing would eat", () => {
+    expect(keyFor(" ab")).toContain(" %20ab→");
+  });
+
+  test('escapes a trailing space, so "; " and ";" differ', () => {
+    expect(keyFor("; ")).not.toBe(keyFor(";"));
+    expect(keyFor("; ")).toContain(" ;%20→");
+  });
+
+  test("escapes a carriage return, which ends the line just as a newline does", () => {
+    expect(keyFor("a\rb")).toContain(" a%0db\u2192");
+  });
+
+  test("escapes an arrow, which would read as the one splitting from and to", () => {
+    expect(keyFor("left \u2192 right")).toContain(
+      " left %e2%86%92 right\u2192",
+    );
+  });
+
+  /** A path is a name someone else chose, so it can hold anything the line
+   * itself uses — including, at the very front, the mark that starts a
+   * comment. Reading one back has to give the file it named, because that is
+   * what the checker opens on disk. */
+  test("keeps a path holding a comment mark, a space, an arrow, or all", () => {
+    for (const name of [
+      "a#b.ts",
+      "a b.ts",
+      "a #b.ts",
+      "a→b.ts",
+      "#a.ts",
+      "# a.ts",
+      "%a.ts",
+      "a:b.ts",
+      "a::b.ts",
+    ]) {
+      const key = mutantKey(`${projectRoot}/src/${name}`, mutant(1));
+      const parsed = parseIgnoreLine(`${key}   # a reason`);
+
+      expect(parsed?.key).toBe(key);
+      expect(parsed?.sourcePath).toBe(`src/${name}`);
+    }
+  });
+
+  test("writes a path starting with a comment mark so it cannot read as one", () => {
+    expect(mutantKey(`${projectRoot}/src/# a.ts`, mutant(1))).toBe(
+      "src/%23 a.ts::fn1 ??→||",
+    );
+  });
+
+  /** Escaping never writes a bare `%`, so a line carrying one names no real
+   * file — it must fail loudly rather than resolve to some other path. */
+  test("refuses a written path holding a percent that begins no escape", async () => {
+    using temp = tempFile({ prefix: "mutation-ignore-" });
+    await Deno.writeTextFile(temp.path, "src/50%.ts::fn1 ?? → ||\n");
+
+    await expect(loadIgnoreList([temp.path])).rejects.toThrow(
+      "Malformed equivalent-mutant entry",
+    );
+  });
+
+  /** The registry README documents the format by quoting example entries, so a
+   * comment line can look exactly like one. */
+  test("reads a commented-out entry as a comment, not an entry", () => {
+    const key = mutantKey(`${projectRoot}/src/example.ts`, mutant(1));
+
+    expect(parseIgnoreLine(`#   ${key}`)).toBe(null);
+    expect(parseIgnoreLine(`  # ${key}   # why`)).toBe(null);
+    expect(parseIgnoreLine("#")).toBe(null);
+  });
+
+  /** Each is a line the loader must refuse rather than turn into a record it
+   * would then fail to resolve. */
+  test("refuses a line whose fields do not make an entry", () => {
+    const key = mutantKey(`${projectRoot}/src/example.ts`, mutant(1));
+
+    // Nothing on the `to` side but a reason.
+    expect(parseIgnoreLine(`${key.split("→")[0]}→   # why`)).toBe(null);
+    // An arrow, but nothing that reads as a path and an anchor before it.
+    expect(parseIgnoreLine("not an entry → nor this")).toBe(null);
+    // A path and an anchor, but no mutation after them.
+    expect(parseIgnoreLine("src/example.ts::fn1 nothing changes here")).toBe(
+      null,
+    );
+  });
+
+  /** A reason is prose: it may hold anything, including the marks the fields
+   * before it use to say where they end. Every one of those fields escapes
+   * its own, so the reason cannot be mistaken for any of them. */
+  test("reads a reason that holds an arrow, a delimiter, or a colon", () => {
+    const key = mutantKey(`${projectRoot}/src/example.ts`, mutant(1));
+
+    for (const reason of [
+      "turns a → into b",
+      "the a::b case",
+      "see Foo::bar and x::y z",
+      "a::b → c::d",
+    ]) {
+      expect(parseIgnoreLine(`${key}   # ${reason}`)?.key).toBe(key);
+    }
+  });
+
+  /** The `from` and `to` carry a mutated literal's own text, which may hold a
+   * `::` — an IPv6 address, a C++ name — with no bearing on where the path
+   * ends. */
+  test("reads a mutation whose text holds the path delimiter", () => {
+    const key = mutantKey(
+      `${projectRoot}/src/example.ts`,
+      mutant(1, '"[::1]"', '"[::ffff:1.2.3.4]"'),
+    );
+
+    expect(parseIgnoreLine(`${key}   # a reason`)?.key).toBe(key);
+    expect(parseIgnoreLine(`${key}`)?.sourcePath).toBe("src/example.ts");
+  });
+
+  test("tells a leading tab from a leading space", () => {
+    expect(keyFor("\tab")).not.toBe(keyFor(" ab"));
+    expect(keyFor("\tab")).toContain(" %09ab\u2192");
+  });
+
+  test("leaves an interior space alone, so a statement reads as itself", () => {
+    expect(keyFor("applyFlash(request); ok()")).toContain(
+      " applyFlash(request); ok()→",
+    );
+  });
 });
 
 describe("mutation ignore list", () => {
-  test("keys mutants by project-relative path and displayed mutation", () => {
-    expect(mutantKey(file, mutant(12))).toBe("src/example.ts:12:5 ??→||");
+  test("keys mutants by path, what they sit inside, and the mutation", () => {
+    expect(mutantKey(file, mutant(12))).toBe("src/example.ts::fn12 ??→||");
   });
 
   test("matches ignored survivors by canonical key", () => {
@@ -53,22 +211,37 @@ describe("mutation ignore list", () => {
     expect(isIgnored(ignore, file, mutant(13))).toBe(false);
   });
 
-  test("loads canonical entries and ignores comments, blanks, and invalid lines", async () => {
+  test("loads canonical entries, skipping comments and blanks", async () => {
     using temp = tempFile({ prefix: "mutation-ignore-" });
     await Deno.writeTextFile(
       temp.path,
       [
         "# known equivalent mutants",
         "",
-        "not a valid entry",
-        "src/example.ts:12:5 ?? → || # nullish and or equivalent here",
+        "src/example.ts::readSetting ?? → || # nullish and or equivalent here",
       ].join("\n"),
     );
 
     const loaded = await loadIgnoreList([temp.path]);
 
-    expect(loaded.entries).toEqual(["src/example.ts:12:5 ??→||"]);
-    expect(loaded.keys.has("src/example.ts:12:5 ??→||")).toBe(true);
+    expect(loaded.entries).toEqual([
+      {
+        key: "src/example.ts::readSetting ??→||",
+        sourcePath: "src/example.ts",
+      },
+    ]);
+    expect(loaded.keys.has("src/example.ts::readSetting ??→||")).toBe(true);
+  });
+
+  /** A line that neither parses nor reads as a comment is a record that would
+   * otherwise stop suppressing its mutant without saying so. */
+  test("fails on a line that is neither a comment nor an entry", async () => {
+    using temp = tempFile({ prefix: "mutation-ignore-" });
+    await Deno.writeTextFile(temp.path, "not a valid entry\n");
+
+    await expect(loadIgnoreList([temp.path])).rejects.toThrow(
+      "Malformed equivalent-mutant entry",
+    );
   });
 
   test("loads an entry with an empty 'from' side, for an already-empty string literal mutant", async () => {
@@ -78,14 +251,16 @@ describe("mutation ignore list", () => {
     using temp = tempFile({ prefix: "mutation-ignore-" });
     await Deno.writeTextFile(
       temp.path,
-      [`src/example.ts:12:5  → "mutated" # always-empty date sentinel`].join(
+      [`src/example.ts::fn12  → "mutated" # always-empty date sentinel`].join(
         "\n",
       ),
     );
 
     const loaded = await loadIgnoreList([temp.path]);
 
-    expect(loaded.entries).toEqual(['src/example.ts:12:5 →"mutated"']);
+    expect(loaded.entries).toEqual([
+      { key: 'src/example.ts::fn12 →"mutated"', sourcePath: "src/example.ts" },
+    ]);
     expect(isIgnored(loaded, file, mutant(12, "", '"mutated"'))).toBe(true);
   });
 
@@ -93,19 +268,19 @@ describe("mutation ignore list", () => {
     using dir = tempDir({ prefix: "mutation-ignore-dir-" });
     await Deno.writeTextFile(
       `${dir.path}/b-late.txt`,
-      "src/example.ts:13:5 ?? → ||\n",
+      "src/example.ts::second ?? → ||\n",
     );
     await Deno.writeTextFile(
       `${dir.path}/a-early.txt`,
-      "src/example.ts:12:5 ?? → ||\n",
+      "src/example.ts::first ?? → ||\n",
     );
     await Deno.writeTextFile(`${dir.path}/notes.md`, "not a registry file\n");
 
     const loaded = await loadIgnoreList(await listRegistryFiles(dir.path));
 
-    expect(loaded.entries).toEqual([
-      "src/example.ts:12:5 ??→||",
-      "src/example.ts:13:5 ??→||",
+    expect(loaded.entries.map((entry) => entry.key)).toEqual([
+      "src/example.ts::first ??→||",
+      "src/example.ts::second ??→||",
     ]);
   });
 
@@ -148,8 +323,11 @@ describe("mutation ignore list", () => {
   test("reports stale, redundant, and duplicate entries for mutated files only", () => {
     const ignored = mutantKey(file, mutant(1));
     const redundant = mutantKey(file, mutant(2));
-    const stale = "src/example.ts:99:5 ??→||";
-    const otherFile = "src/other.ts:1:5 ??→||";
+    const stale = "src/example.ts::noSuchThing ??→||";
+    const otherFile = {
+      key: "src/other.ts::fn1 ??→||",
+      sourcePath: "src/other.ts",
+    };
 
     expect(
       ignoreListProblems(
@@ -162,6 +340,24 @@ describe("mutation ignore list", () => {
       `stale (no mutant here — did the code move?): ${stale}`,
       `duplicate entry: ${ignored}`,
     ]);
+  });
+
+  /** One file's path can begin with another's, so scoping by prefix would pull
+   * a neighbour's entry into this run and report it stale against mutants that
+   * were never generated for it. */
+  test("leaves alone an entry for a file whose path merely starts with the mutated one", () => {
+    const neighbour = {
+      key: "src/example.ts:backup::fn1 ??→||",
+      sourcePath: "src/example.ts:backup",
+    };
+
+    expect(
+      ignoreListProblems(
+        ignoreList([neighbour]),
+        [result("ignored", 1)],
+        [file],
+      ),
+    ).toEqual([]);
   });
 
   test("accepts an exhaustive-only entry this run didn't generate, given a wider possible-key set", () => {

@@ -40,8 +40,11 @@ import {
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import type { TicketListing } from "#shared/booking/model.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
-import { getGroupRemainingForSpan } from "#shared/db/attendees/capacity/groups.ts";
-import { getListingRemainingForRange } from "#shared/db/attendees/capacity/remaining.ts";
+import {
+  groupRemainingFromSnapshot,
+  loadCapacitySnapshot,
+  remainingFromSnapshot,
+} from "#shared/db/attendees/capacity/snapshot.ts";
 import { getSelectedAttributesForListings } from "#shared/db/attributes.ts";
 import {
   getGroupPackagePricesByGroupIds,
@@ -174,68 +177,26 @@ const bookingSpanDays = (listing: ListingWithCount): number =>
     ? Math.max(1, listing.duration_days)
     : 1;
 
-/** Remaining bookable units keyed by listing or group id. */
-type RemainingById = Map<number, number>;
-
-/** Bucket values by their booking span and run one pool query per distinct
- * span, merging the maps — the shared shell of the listing and group pool
- * loaders below. */
-const poolBySpan = async <T>(
-  values: T[],
-  spanOf: (value: T) => number,
-  query: (bucket: T[], span: number) => Promise<RemainingById>,
-): Promise<RemainingById> => {
-  const bySpan = Map.groupBy(values, spanOf);
-  const maps = await Promise.all(
-    [...bySpan].map(([span, bucket]) => query(bucket, span)),
-  );
-  return new Map(maps.flatMap((map) => [...map]));
-};
-
-/** Each involved listing's remaining units for the chosen date, judged over
- * its own booking span — one range query per distinct span. */
-const remainingBySpan = (
-  involved: ListingWithCount[],
-  date: string | null,
-): Promise<RemainingById> =>
-  poolBySpan(
-    involved,
-    (listing) => (date === null ? 1 : bookingSpanDays(listing)),
-    (bucket, span) => getListingRemainingForRange(bucket, date, span),
-  );
-
-/** Each capped group's remaining, judged over the WIDEST booking span among
- * its involved listings — the cap must hold on every day any of them would
- * occupy, and the evaluator sums the selections sharing the pool against this
- * one figure. */
-const groupRemainingBySpan = (
+/** The widest span any of a group's listings would occupy, so its cap is
+ * judged over every day one of them could take up. */
+const widestSpanPerGroup = (
   involved: ListingWithCount[],
   groupIdsByListingId: Map<number, number[]>,
-  date: string | null,
-): Promise<RemainingById> => {
+  spanOf: (listing: ListingWithCount) => number,
+): Map<number, number> => {
   const spanByGroupId = new Map<number, number>();
   for (const listing of involved) {
-    const span = date === null ? 1 : bookingSpanDays(listing);
     for (const groupId of listingGroups.idsFor(
       groupIdsByListingId,
       listing.id,
     )) {
       spanByGroupId.set(
         groupId,
-        Math.max(span, spanByGroupId.get(groupId) ?? 1),
+        Math.max(spanOf(listing), spanByGroupId.get(groupId) ?? 1),
       );
     }
   }
-  return poolBySpan(
-    [...spanByGroupId],
-    ([, span]) => span,
-    (bucket, span) =>
-      getGroupRemainingForSpan(
-        bucket.map(([groupId]) => groupId),
-        date,
-        span,
-      ),
-  );
+  return spanByGroupId;
 };
 
 /** The capacity pools the evaluator draws from, resolved for the chosen date
@@ -255,12 +216,31 @@ const loadOrderPools = async (
   const groupIdsByListingId = await listingGroups.getIdsByKeys(
     involved.map((listing) => listing.id),
   );
-  const [remainingByListingId, remainingByGroupId, holidays] =
-    await Promise.all([
-      remainingBySpan(involved, date),
-      groupRemainingBySpan(involved, groupIdsByListingId, date),
-      date === null ? Promise.resolve([]) : getActiveHolidays(),
-    ]);
+  const spanOf = (listing: ListingWithCount): number =>
+    date === null ? 1 : bookingSpanDays(listing);
+  const spanByGroupId = widestSpanPerGroup(
+    involved,
+    groupIdsByListingId,
+    spanOf,
+  );
+  const [snapshot, holidays] = await Promise.all([
+    loadCapacitySnapshot(
+      involved,
+      date,
+      Math.max(1, ...involved.map(spanOf)),
+      groupIdsByListingId,
+    ),
+    date === null ? Promise.resolve([]) : getActiveHolidays(),
+  ]);
+  const remainingByListingId = remainingFromSnapshot(
+    snapshot,
+    involved,
+    spanOf,
+  );
+  const remainingByGroupId = groupRemainingFromSnapshot(
+    snapshot,
+    spanByGroupId,
+  );
   if (date !== null) {
     for (const listing of involved) {
       if (

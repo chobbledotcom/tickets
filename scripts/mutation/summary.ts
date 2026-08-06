@@ -10,8 +10,9 @@
  */
 
 import { bold, dim, green, red, yellow } from "#scripts/precommit/colors.ts";
-import { projectRoot } from "#scripts/project-root.ts";
+import { rel } from "#scripts/project-root.ts";
 import type { Mutant } from "./generate.ts";
+import { mutantKey } from "./ignore.ts";
 import type { MutationPhase, PhaseTiming } from "./phases.ts";
 
 export type Status = "killed" | "survived" | "timed-out" | "ignored";
@@ -52,12 +53,6 @@ export interface ProgressSnapshot {
   timedOut: number;
   total: number;
 }
-
-/** Project-relative path for display (absolute paths get noisy in reports). */
-export const rel = (path: string): string =>
-  path.startsWith(`${projectRoot}/`)
-    ? path.slice(projectRoot.length + 1)
-    : path;
 
 /** Fold raw results into the score and survivor list. Pure. */
 export const summarize = (results: MutantResult[]): Summary => {
@@ -180,23 +175,24 @@ const timingLines = (s: Summary, output: TimingOutput): string[] => {
   return [...format.heading, ...s.phaseTimings.map(format.row)];
 };
 
-/** Build a "one survivor on a line" formatter from how it should wrap the
- *  location and the two operators. The terminal and Markdown reports show the
- *  same three pieces (location, old operator, new operator); only the
- *  surrounding text differs, so they share this one body. */
+/** Build a "one survivor on a line" formatter from how it should wrap the two
+ *  pieces. The terminal and Markdown reports show the same pair — where to
+ *  look, and the registry line that would suppress it — so they share this one
+ *  body. The registry line is printed whole so a proven-equivalent survivor can
+ *  be pasted straight into `scripts/mutation/equivalent-mutants/`. */
 const survivorFormatter =
-  (
-    render: (location: string, operator: string, newOperator: string) => string,
-  ) =>
-  (result: MutantResult): string => {
-    const { newOperator, operator } = result.mutant;
-    return render(survivorLocation(result), operator, newOperator);
-  };
+  (render: (location: string, entry: string) => string) =>
+  (result: MutantResult): string =>
+    render(survivorLocation(result), mutantKey(result.file, result.mutant));
 
 const survivorLine = survivorFormatter(
-  (location, operator, newOperator) =>
-    `  ${location}  ${bold(operator)} → ${bold(newOperator)}`,
+  (location, entry) => `  ${location}\n    ${bold(entry)}`,
 );
+
+/** Shown under the survivor list so nobody has to guess how to record one. */
+const RECORDING_HINT =
+  "Proven unkillable by any test? Paste its line above into a file under" +
+  " scripts/mutation/equivalent-mutants/, followed by  # and the reason.";
 
 /** The full terminal report as lines, ready for the runner to print. Pure. */
 export const formatSummaryLines = (s: Summary): string[] => {
@@ -232,15 +228,20 @@ export const formatSummaryLines = (s: Summary): string[] => {
       : [
           red("\nSurvivors — these mutations did not fail any test:"),
           ...s.survivors.map(survivorLine),
+          dim(`\n  ${RECORDING_HINT}`),
         ]),
   ];
 };
 
 // --- GitHub step summary (Markdown) --------------------------------------
 
+/** A Markdown table cell: a raw `|` would split the row into another column
+ * even inside a code span, and a backtick would close the span early. */
+const cell = (text: string): string =>
+  `<code>${text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll("|", "&#124;")}</code>`;
+
 const survivorRow = survivorFormatter(
-  (location, operator, newOperator) =>
-    `| \`${location}\` | \`${operator}\` → \`${newOperator}\` |`,
+  (location, entry) => `| ${cell(location)} | ${cell(entry)} |`,
 );
 
 const markdownSummary = (s: Summary): string => {
@@ -277,9 +278,11 @@ const markdownSummary = (s: Summary): string => {
           "",
           "These mutations did not fail any test:",
           "",
-          "| location | mutation |",
+          "| location | registry entry |",
           "| --- | --- |",
           ...s.survivors.map(survivorRow),
+          "",
+          RECORDING_HINT,
         ];
   return [
     "## 🧬 Mutation testing",
