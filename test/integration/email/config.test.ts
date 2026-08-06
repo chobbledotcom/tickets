@@ -5,6 +5,7 @@ import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { getEmailConfig, getHostEmailConfig } from "#shared/email.ts";
 import { updateBusinessEmail } from "#shared/validation/email.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { configureTestEmail } from "#test-utils/email.ts";
 
 describeWithEnv("getEmailConfig", { db: true }, () => {
   test("returns null when no provider configured", async () => {
@@ -15,11 +16,7 @@ describeWithEnv("getEmailConfig", { db: true }, () => {
   });
 
   test("returns config when all settings present", async () => {
-    await settings.update.email.provider("resend");
-    await settings.update.email.apiKey("test-key");
-    await settings.update.email.fromAddress("from@test.com");
-    settings.invalidateCache();
-    await settings.loadKeys(ALL_SETTINGS_KEYS);
+    await configureTestEmail();
 
     const config = await getEmailConfig();
     expect(config).toEqual({

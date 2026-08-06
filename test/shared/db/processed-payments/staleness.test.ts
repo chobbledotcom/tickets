@@ -3,44 +3,25 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getDb, insert } from "#shared/db/client.ts";
 import {
   deleteAllStaleReservations,
-  isReservationStale,
-  isSessionProcessed,
   releaseReservation,
   reserveSession,
   STALE_RESERVATION_MS,
 } from "#shared/db/processed-payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { useProcessedPaymentsAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
-import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
+import {
+  finalizeReservedPayment,
+  getProcessedPayment,
+} from "#test-utils/processed-payments.ts";
 
 describeWithEnv("processed-payments / staleness", { db: true }, () => {
   const ctx = useProcessedPaymentsAttendee();
-
-  describe("isReservationStale", () => {
-    test("returns false for a recent timestamp", () => {
-      expect(isReservationStale(new Date().toISOString())).toBe(false);
-    });
-
-    test("returns false for a timestamp just under the threshold", () => {
-      const justUnder = new Date(
-        Date.now() - STALE_RESERVATION_MS + 1000,
-      ).toISOString();
-      expect(isReservationStale(justUnder)).toBe(false);
-    });
-
-    test("returns true for a timestamp over the threshold", () => {
-      const stale = new Date(
-        Date.now() - STALE_RESERVATION_MS - 1000,
-      ).toISOString();
-      expect(isReservationStale(stale)).toBe(true);
-    });
-  });
 
   describe("releaseReservation", () => {
     test("deletes an unfinalized reservation", async () => {
       await reserveSession("cs_stale_to_delete");
       await releaseReservation("cs_stale_to_delete");
-      expect(await isSessionProcessed("cs_stale_to_delete")).toBeNull();
+      expect(await getProcessedPayment("cs_stale_to_delete")).toBeNull();
     });
 
     test("does not delete a finalized reservation", async () => {
@@ -48,7 +29,7 @@ describeWithEnv("processed-payments / staleness", { db: true }, () => {
       await finalizeReservedPayment("cs_finalized_no_delete", ctx.attendeeId);
       await releaseReservation("cs_finalized_no_delete");
 
-      const record = await isSessionProcessed("cs_finalized_no_delete");
+      const record = await getProcessedPayment("cs_finalized_no_delete");
       expect(record?.attendee_id).toBe(ctx.attendeeId);
     });
 
@@ -75,15 +56,15 @@ describeWithEnv("processed-payments / staleness", { db: true }, () => {
       await insertStale("cs_stale_bulk_2");
 
       expect(await deleteAllStaleReservations()).toBe(2);
-      expect(await isSessionProcessed("cs_stale_bulk_1")).toBeNull();
-      expect(await isSessionProcessed("cs_stale_bulk_2")).toBeNull();
+      expect(await getProcessedPayment("cs_stale_bulk_1")).toBeNull();
+      expect(await getProcessedPayment("cs_stale_bulk_2")).toBeNull();
     });
 
     test("does not delete fresh unfinalized reservations", async () => {
       await reserveSession("cs_fresh_bulk");
 
       expect(await deleteAllStaleReservations()).toBe(0);
-      expect(await isSessionProcessed("cs_fresh_bulk")).not.toBeNull();
+      expect(await getProcessedPayment("cs_fresh_bulk")).not.toBeNull();
     });
 
     test("does not delete finalized reservations regardless of age", async () => {
@@ -98,9 +79,9 @@ describeWithEnv("processed-payments / staleness", { db: true }, () => {
       );
 
       expect(await deleteAllStaleReservations()).toBe(0);
-      expect((await isSessionProcessed("cs_finalized_bulk"))?.attendee_id).toBe(
-        ctx.attendeeId,
-      );
+      expect(
+        (await getProcessedPayment("cs_finalized_bulk"))?.attendee_id,
+      ).toBe(ctx.attendeeId);
     });
 
     test("returns 0 when no stale reservations exist", async () => {

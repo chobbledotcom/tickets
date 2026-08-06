@@ -7,7 +7,6 @@ import { execute } from "#shared/db/client.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import { deleteListing } from "#shared/db/listings/delete.ts";
 import { listingsTable } from "#shared/db/listings/records.ts";
-import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import { runDatabasePruning } from "#shared/db/prune.ts";
 import {
   expectProcessed,
@@ -24,6 +23,7 @@ import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
+import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 const pruneReplayRowWithoutRefundReference = async (sessionId: string) => {
@@ -34,7 +34,7 @@ const pruneReplayRowWithoutRefundReference = async (sessionId: string) => {
     ["2000-01-01T00:00:00.000Z", sessionId],
   );
   await runDatabasePruning();
-  expect(await isSessionProcessed(sessionId)).toBe(null);
+  expect(await getProcessedPayment(sessionId)).toBe(null);
 };
 
 describeWithEnv(
@@ -106,7 +106,7 @@ describeWithEnv(
       const legsAfter = await transfersByAccount(attendeeAccount(original!.id));
       expect(legsAfter.length).toBe(legsBefore.length);
       expect(legsAfter.some((leg) => leg.kind === "refund_cash")).toBe(false);
-      expect((await isSessionProcessed(session.id))!.attendee_id).toBe(
+      expect((await getProcessedPayment(session.id))!.attendee_id).toBe(
         original!.id,
       );
     });

@@ -6,6 +6,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
+import type { RegistrationPackagePricing } from "#shared/registration-package-facts.ts";
 import {
   buildWebhookPayload,
   type RegistrationEntry,
@@ -34,7 +35,12 @@ const reportedPrice = (
   const overrides = new Map([
     [
       overriddenGroupId,
-      { dayPrices: new Map(), prices: new Map([[entry.listing.id, 750]]) },
+      {
+        dayPriceMap: new Map(),
+        memberIds: new Set(),
+        priceMap: new Map([[entry.listing.id, 750]]),
+        quantityMap: new Map(),
+      } satisfies RegistrationPackagePricing,
     ],
   ]);
   return buildWebhookPayload([entry], "GBP", overrides).tickets[0]?.unit_price;

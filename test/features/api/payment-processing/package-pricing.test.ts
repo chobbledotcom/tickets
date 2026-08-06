@@ -3,10 +3,10 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   anyPackageBundleMismatch,
   expectedItemPrice,
-  type PackagePricing,
   packageBundleMismatch,
 } from "#routes/api/payment-processing/package-pricing.ts";
 import type { PricedListing } from "#shared/booking/price-tree.ts";
+import type { RegistrationPackagePricing as PackagePricing } from "#shared/registration-package-facts.ts";
 
 const pkg: PackagePricing = {
   dayPriceMap: new Map([[2, new Map([[2, 700]])]]),

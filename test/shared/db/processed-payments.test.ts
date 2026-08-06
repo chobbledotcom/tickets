@@ -9,8 +9,6 @@ import {
   decryptSessionTokens,
   encryptTicketTokens,
   finalizeSessionIfUnresolved,
-  isSessionProcessed,
-  isUnresolvedReservation,
   markSessionFailed,
   parseSessionFailure,
   reserveSession,
@@ -22,16 +20,22 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import {
   expectProcessedPaymentReference,
   finalizeReservedPayment,
+  getProcessedPayment,
 } from "#test-utils/processed-payments.ts";
+import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 describeWithEnv("db > processed payments", { db: true }, () => {
   describe("reserveSession", () => {
     test("succeeds on first call", async () => {
-      const result = await reserveSession("sess_test_1");
-      expect(result.reserved).toBe(true);
+      const calls = await countDatabaseCalls(1, async () => {
+        const result = await reserveSession("sess_test_1");
+        expect(result.reserved).toBe(true);
+      });
+      expect(calls).toBe(1);
     });
 
     test("returns existing when session already reserved and finalized", async () => {
@@ -51,23 +55,27 @@ describeWithEnv("db > processed payments", { db: true }, () => {
         attendeeResult.attendees[0]!.id,
       );
 
-      const result = await reserveSession("sess_dup");
-      expect(result.reserved).toBe(false);
-      if (!result.reserved) {
-        expect(result.existing.attendee_id).toBe(
-          attendeeResult.attendees[0]!.id,
-        );
-      }
+      const calls = await countDatabaseCalls(1, async () => {
+        const result = await reserveSession("sess_dup");
+        expect(result.reserved).toBe(false);
+        if (!result.reserved) {
+          expect(result.existing.attendee_id).toBe(
+            attendeeResult.attendees[0]!.id,
+          );
+        }
+      });
+      expect(calls).toBe(1);
     });
 
     test("returns existing when session is reserved but not finalized", async () => {
       await reserveSession("sess_unfinalized");
 
-      const result = await reserveSession("sess_unfinalized");
-      expect(result.reserved).toBe(false);
-      if (!result.reserved) {
-        expect(result.existing.attendee_id).toBeNull();
-      }
+      const calls = await countDatabaseCalls(1, async () => {
+        const result = await reserveSession("sess_unfinalized");
+        expect(result.reserved).toBe(false);
+        if (!result.reserved) expect(result.existing.attendee_id).toBeNull();
+      });
+      expect(calls).toBe(1);
     });
 
     test("retries when stale reservation detected", async () => {
@@ -82,11 +90,14 @@ describeWithEnv("db > processed payments", { db: true }, () => {
         }),
       );
 
-      const result = await reserveSession("sess_stale");
-      expect(result.reserved).toBe(true);
+      const calls = await countDatabaseCalls(1, async () => {
+        const result = await reserveSession("sess_stale");
+        expect(result.reserved).toBe(true);
+      });
+      expect(calls).toBe(1);
 
       // Session was successfully re-reserved and is now tracked
-      const processed = await isSessionProcessed("sess_stale");
+      const processed = await getProcessedPayment("sess_stale");
       expect(processed).not.toBeNull();
     });
 
@@ -97,7 +108,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
         refunded: true,
         status: 409,
       });
-      const row = await isSessionProcessed("sess_failrt");
+      const row = await getProcessedPayment("sess_failrt");
       expect(await parseSessionFailure(row!.failure_data)).toEqual({
         error: "Sold out",
         refunded: true,
@@ -111,7 +122,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
         error: "Private Listing Name sold out",
         status: 409,
       });
-      const row = await isSessionProcessed("sess_failenc");
+      const row = await getProcessedPayment("sess_failenc");
       // The raw column is ciphertext: the user-facing message can embed an
       // encrypted-at-rest listing name, so it must not be stored in the clear.
       expect(row!.failure_data).not.toContain("Private Listing Name");
@@ -135,7 +146,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
         error: "Second",
         status: 409,
       });
-      const row = await isSessionProcessed("sess_failtwice");
+      const row = await getProcessedPayment("sess_failtwice");
       expect((await parseSessionFailure(row!.failure_data))?.error).toBe(
         "First",
       );
@@ -160,7 +171,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
 
       await markSessionFailed("sess_finalized_nofail", { error: "late fail" });
 
-      const row = await isSessionProcessed("sess_finalized_nofail");
+      const row = await getProcessedPayment("sess_finalized_nofail");
       // The success is preserved: attendee_id intact, no failure recorded.
       expect(row!.attendee_id).toBe(attendee.attendees[0]!.id);
       expect(row!.failure_data).toBe("");
@@ -226,40 +237,23 @@ describeWithEnv("db > processed payments", { db: true }, () => {
     });
   });
 
-  test("distinguishes unresolved rows from both terminal outcomes", () => {
-    const base = {
-      failure_data: "" as const,
-      payment_reference: "" as const,
-      payment_session_id: "state-shape",
-      processed_at: "2026-07-18T00:00:00.000Z",
-      provider_refunded_at: "",
-      ticket_tokens: "" as const,
-    };
-    expect(isUnresolvedReservation({ ...base, attendee_id: null })).toBe(true);
-    expect(isUnresolvedReservation({ ...base, attendee_id: 1 })).toBe(false);
-    expect(
-      isUnresolvedReservation({
-        ...base,
-        attendee_id: null,
-        failure_data: "encrypted" as EnvKeyEncrypted,
-      }),
-    ).toBe(false);
-  });
-
   test("rethrows the original non-constraint error", async () => {
     const sentinel = new Error("write transport failed");
     const client = getDb();
-    const original = client.execute.bind(client);
-    let first = true;
-    using executeStub = stub(client, "execute", (...args) => {
-      if (first) {
-        first = false;
-        return Promise.reject(sentinel);
-      }
-      return original(...args);
-    });
+    using batchStub = stub(client, "batch", () => Promise.reject(sentinel));
     await expect(reserveSession("non-constraint")).rejects.toBe(sentinel);
-    expect(executeStub.calls).toHaveLength(1);
+    expect(batchStub.calls).toHaveLength(1);
+  });
+
+  test("throws when the atomic lookup does not return the session", async () => {
+    const client = getDb();
+    using batchStub = stub(client, "batch", () =>
+      Promise.resolve([emptyResultSet(), emptyResultSet()]),
+    );
+    await expect(reserveSession("missing-lookup")).rejects.toThrow(
+      "Reserved payment session is missing: missing-lookup",
+    );
+    expect(batchStub.calls).toHaveLength(1);
   });
 
   test("encrypts multiple ticket tokens with their separator", async () => {
@@ -278,7 +272,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
 
       await finalizeSessionIfUnresolved("sess_heal", 42);
 
-      const row = (await isSessionProcessed("sess_heal"))!;
+      const row = (await getProcessedPayment("sess_heal"))!;
       expect(row.attendee_id).toBe(42);
       // The ledger-replay heal never writes ticket_tokens.
       expect(row.ticket_tokens).toBe("");
@@ -306,7 +300,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       // ticket_tokens (which would render the success page without the ticket).
       await finalizeSessionIfUnresolved("sess_raced", 99);
 
-      const row = (await isSessionProcessed("sess_raced"))!;
+      const row = (await getProcessedPayment("sess_raced"))!;
       expect(row.attendee_id).toBe(7);
       expect(await decryptSessionTokens(row.ticket_tokens)).toBe("tok-real");
     });
@@ -320,7 +314,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       await finalizeReservedPayment("sess_clear_tokens", 7, "secret-token");
       await clearSessionTokens("sess_clear_tokens");
       expect(
-        (await isSessionProcessed("sess_clear_tokens"))!.ticket_tokens,
+        (await getProcessedPayment("sess_clear_tokens"))!.ticket_tokens,
       ).toBe("");
     });
   });

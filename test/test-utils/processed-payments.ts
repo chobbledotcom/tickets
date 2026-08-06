@@ -1,8 +1,27 @@
 import { expect } from "@std/expect";
-import { executeBatch } from "#shared/db/client.ts";
+import { executeBatch, queryOne } from "#shared/db/client.ts";
 import { batchFinalizeStatements } from "#shared/db/payment-finalize.ts";
 import { getRefundPaymentReferences } from "#shared/db/payment-references.ts";
-import { reserveSession } from "#shared/db/processed-payments.ts";
+import {
+  type ProcessedPayment,
+  reserveSession,
+} from "#shared/db/processed-payments.ts";
+
+export const getProcessedPayment = (
+  sessionId: string,
+): Promise<ProcessedPayment | null> =>
+  queryOne<ProcessedPayment>(
+    "SELECT payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data, payment_reference, provider_refunded_at " +
+      "FROM processed_payments WHERE payment_session_id = ?",
+    [sessionId],
+  );
+
+export const expectSessionFailed = async (sessionId: string): Promise<void> => {
+  const record = await getProcessedPayment(sessionId);
+  if (!record) throw new Error(`Processed payment ${sessionId} was not stored`);
+  expect(record.attendee_id).toBeNull();
+  expect(record.failure_data).not.toBe("");
+};
 
 /** Finalize a reserved payment through the same guarded batch as checkout. */
 export const finalizeReservedPayment = async (

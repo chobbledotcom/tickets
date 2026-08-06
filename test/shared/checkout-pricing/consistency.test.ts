@@ -1,13 +1,14 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import type { ModifierRef } from "#shared/booking-intent.ts";
+import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
+import type { BookingIntent, ModifierRef } from "#shared/booking-intent.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { getDb } from "#shared/db/client.ts";
+import { hashEmail } from "#shared/db/contact-preferences.ts";
 import {
   answerModifierQuantities,
   resolveModifiers,
-  specsFromRefs,
 } from "#shared/db/modifier-resolve.ts";
 import {
   enableQueryLog,
@@ -83,12 +84,32 @@ const pricingIntent = (
  * id/quantity refs stored in provider metadata, pass them through the JSON
  * boundary the webhook parses, then re-fetch by id — exactly as production. */
 const rebuildFromMetadata = async (
+  items: CheckoutItem[],
   publicSpecs: ModifierSpec[],
   ctx: { visits: number } = { visits: 0 },
 ): Promise<ModifierSpec[]> => {
   const refs = toModifierRefs(publicSpecs) ?? [];
   const fromMetadata = JSON.parse(JSON.stringify(refs)) as ModifierRef[];
-  return specsFromRefs(fromMetadata, ctx);
+  if (ctx.visits > 0) {
+    await getDb().execute({
+      args: [await hashEmail(buyer.email), ctx.visits],
+      sql: `INSERT INTO contact_preferences (contact_hash, visits)
+            VALUES (?, ?)
+            ON CONFLICT(contact_hash) DO UPDATE SET visits = excluded.visits`,
+    });
+  }
+  const intent: BookingIntent = {
+    ...buyer,
+    date: null,
+    items: items.map((item) => ({
+      e: item.listingId,
+      p: item.unitPrice * item.quantity,
+      q: item.quantity,
+    })),
+    modifiers: fromMetadata,
+  };
+  return (await loadPaidOrderSnapshot("pricing-consistency", intent))
+    .modifierSpecs;
 };
 
 /** Assert the public specs and their webhook-rebuilt counterparts price a cart
@@ -99,7 +120,7 @@ const expectConsistent = async (
   opts: { ctx?: { visits: number }; overrides?: Partial<CheckoutIntent> } = {},
 ): Promise<void> => {
   const ctx = opts.ctx ?? { visits: 0 };
-  const webhookSpecs = await rebuildFromMetadata(publicSpecs, ctx);
+  const webhookSpecs = await rebuildFromMetadata(items, publicSpecs, ctx);
   const pub = priceCheckout(pricingIntent(items, publicSpecs, opts.overrides));
   const web = priceCheckout(pricingIntent(items, webhookSpecs, opts.overrides));
   expect(web.total).toBe(pub.total);

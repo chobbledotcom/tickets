@@ -25,6 +25,7 @@ type UnexpectedCreateRecovery = {
   error: unknown;
   intent: BookingIntent;
   placeholders: ReturnType<typeof placeholderBookings>;
+  publicStatusId: number;
   session: ValidatedSession["session"];
   ticketToken: string;
   validatedItems: ValidatedItem[];
@@ -72,6 +73,7 @@ export const recoverOrRefundUnexpectedCreate = async ({
   error,
   intent,
   placeholders,
+  publicStatusId,
   session,
   ticketToken,
   validatedItems,
@@ -97,5 +99,6 @@ export const recoverOrRefundUnexpectedCreate = async ({
     refundSpec("unexpected_error")(
       `Unexpected error completing session ${session.id}: ${String(error)}`,
     ),
+    publicStatusId,
   );
 };

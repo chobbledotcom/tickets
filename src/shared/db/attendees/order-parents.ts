@@ -38,10 +38,12 @@ import { listingParents } from "#shared/db/listing-parents.ts";
  * child listing id. Children with no in-order parent are omitted. */
 const inOrderParentByChild = async (
   listingIds: readonly number[],
+  suppliedParents?: ReadonlyMap<number, readonly number[]>,
 ): Promise<Map<number, number>> => {
-  const parentsByChild = await listingParents.getIdsByKeys(listingIds);
+  const parentsByChild =
+    suppliedParents ?? (await listingParents.getIdsByKeys(listingIds));
   const bookedInOrder = new Set(listingIds);
-  return reduce((result, [childId, parentIds]: [number, number[]]) => {
+  return reduce((result, [childId, parentIds]: [number, readonly number[]]) => {
     const inOrderParent = parentIds.find((parentId) =>
       bookedInOrder.has(parentId),
     );
@@ -65,6 +67,7 @@ const inOrderParentByChild = async (
  */
 export const annotateOrderParents = async (
   bookings: ListingBooking[],
+  parentsByChild?: ReadonlyMap<number, readonly number[]>,
 ): Promise<ListingBooking[]> => {
   // Pre-expanded orders (expandChildAllocations path) already carry orderToken
   // and exact parentListingId. Skip the edge-based recomputation to preserve
@@ -73,6 +76,7 @@ export const annotateOrderParents = async (
   if (bookings.some((b) => b.orderToken)) return bookings;
   const parentByChild = await inOrderParentByChild(
     bookings.map((b) => b.listingId),
+    parentsByChild,
   );
   if (parentByChild.size === 0) return bookings;
   const orderToken = crypto.randomUUID();

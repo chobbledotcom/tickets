@@ -102,7 +102,16 @@ src/shared/db/attendees/select.ts:355:28  ?? → ||   # query.join: AttendeeJoin
 # observable assertion. The write-path label is killed by a direct test that
 # passes an invalid StoredPaymentFailure to markSessionFailed and asserts the
 # error message carries the label.
-src/shared/db/processed-payments.ts:287:7  processed_payments.failure_data → ""   # read-path label: read errors are caught and replaced with CORRUPT_FAILURE before the message can be observed
+src/shared/db/processed-payments.ts:250:7  processed_payments.failure_data → ""   # read-path label: read errors are caught and replaced with CORRUPT_FAILURE before the message can be observed
+
+# Attendee answer collection fallbacks: all present values are arrays or answer
+# objects, so they are truthy; only undefined reaches each empty fallback.
+src/shared/db/questions/attendee-answers/save.ts:232:66  ?? → ||   # textAnswerIds is TextAnswerId[]|undefined — arrays are always truthy
+src/shared/db/questions/attendee-answers/save.ts:233:62  ?? → ||   # textAnswers is TextAnswer[]|undefined — arrays are always truthy
+src/shared/db/questions/attendee-answers/save.ts:373:44  ?? → ||   # listingAnswerIds[key] is number[]|undefined — arrays are always truthy
+src/shared/db/questions/attendee-answers/save.ts:374:48  ?? → ||   # listingTextAnswers[key] is TextAnswer[]|undefined — arrays are always truthy
+src/shared/db/questions/attendee-answers/save.ts:376:56  ?? → ||   # Map.get() returns AttendeeAnswerSet|undefined — answer-set objects are always truthy
+src/shared/db/questions/attendee-answers/save.ts:380:33  ?? → ||   # existing.textAnswers is TextAnswer[]|undefined — arrays are always truthy
 
 # The news card query names a single table, so its columns need no alias to
 # resolve.

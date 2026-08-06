@@ -3,9 +3,9 @@ import { it as test } from "@std/testing/bdd";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
 import { execute } from "#shared/db/client.ts";
-import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import { createReservedAttendee } from "#test-utils/balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRefundPayment } from "#test-utils/webhooks.ts";
 import { bookingIntent, trustedPayment } from "./helpers.ts";
@@ -43,7 +43,7 @@ describeWithEnv("payment processing balance outcomes", { db: true }, () => {
     expect((await getAttendeeBalanceState(attendeeId))?.remainingBalance).toBe(
       0,
     );
-    expect((await isSessionProcessed(id))?.attendee_id).toBe(attendeeId);
+    expect((await getProcessedPayment(id))?.attendee_id).toBe(attendeeId);
   });
 
   test("replays a ledgered balance after its reservation row is lost", async () => {
@@ -64,7 +64,7 @@ describeWithEnv("payment processing balance outcomes", { db: true }, () => {
       success: true,
       ticketTokens: [],
     });
-    expect((await isSessionProcessed(id))?.attendee_id).toBe(attendeeId);
+    expect((await getProcessedPayment(id))?.attendee_id).toBe(attendeeId);
     expect((await getAttendeeBalanceState(attendeeId))?.remainingBalance).toBe(
       0,
     );
@@ -90,6 +90,6 @@ describeWithEnv("payment processing balance outcomes", { db: true }, () => {
       1000,
     );
     expect(refund.calls[0]?.args).toEqual([`pi_${id}`]);
-    expect((await isSessionProcessed(id))?.failure_data).not.toBe("");
+    expect((await getProcessedPayment(id))?.failure_data).not.toBe("");
   });
 });

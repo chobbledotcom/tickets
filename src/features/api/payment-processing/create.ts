@@ -14,6 +14,7 @@ import {
   orderLineTotal,
   paidByItem,
 } from "#routes/api/payment-processing/pricing.ts";
+import type { PaidQuestionFacts } from "#routes/api/payment-processing/snapshot/types.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
 /* jscpd:ignore-start */
 import { lineGroupId } from "#shared/booking/signed-metadata.ts";
@@ -35,8 +36,7 @@ import type {
 } from "#shared/checkout-pricing.ts";
 /* jscpd:ignore-end */
 import { formatCurrency } from "#shared/currency.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import { requirePublicStatusId } from "#shared/db/attendee-statuses.ts";
+import type { ActivityToLog } from "#shared/db/activity-log.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import {
   decryptSessionTokens,
@@ -193,14 +193,24 @@ const textRefsWithStringId = (
 export const saveSessionAnswers = async (
   createdEntries: CreatedEntry[],
   intent: BookingIntent,
+  questionFacts: PaidQuestionFacts,
 ): Promise<void> => {
   if (!intent.listingAnswerIds && !intent.listingTextAnswerIds) return;
-  const grouped = groupListingAnswerSets(
-    createdEntries,
-    intent.listingAnswerIds ?? {},
+  const listingAnswerIds = Object.fromEntries(
+    Object.entries(intent.listingAnswerIds ?? {}).map(
+      ([listingId, answerIds]) => [
+        listingId,
+        answerIds.filter((answerId) =>
+          questionFacts.questionIdByAnswerId.has(answerId),
+        ),
+      ],
+    ),
   );
+  const grouped = groupListingAnswerSets(createdEntries, listingAnswerIds);
   for (const { attendee, listing } of createdEntries) {
-    const refs = intent.listingTextAnswerIds?.[String(listing.id)] ?? [];
+    const refs = (
+      intent.listingTextAnswerIds?.[String(listing.id)] ?? []
+    ).filter((ref) => questionFacts.textQuestionIds.has(ref.q));
     const resolvedRefs = textRefsWithStringId(refs, listing.id);
     if (resolvedRefs.length === 0) continue;
     const existing = grouped.get(attendee.id) ?? { answerIds: [] };
@@ -215,9 +225,10 @@ export const saveSessionAnswers = async (
   await saveAttendeeAnswers(grouped);
 };
 
-export const attendeeBaseFields = async (
+export const attendeeBaseFields = (
   session: ValidatedPaymentSession,
   intent: BookingIntent,
+  publicStatusId: number,
 ) => ({
   address: intent.address,
   email: intent.email,
@@ -225,26 +236,26 @@ export const attendeeBaseFields = async (
   paymentId: session.paymentReference,
   phone: intent.phone,
   special_instructions: intent.special_instructions,
-  statusId: await requirePublicStatusId(),
+  statusId: publicStatusId,
 });
 
-export const logPromoCodeModifiers = async (
+export const promoCodeActivities = (
   specs: ModifierSpec[],
   applications: ModifierApplication[],
   listing: ListingWithCount,
   attendeeId: number,
-): Promise<void> => {
+): ActivityToLog[] => {
   const byId = new Map(applications.map((a) => [a.modifierId, a]));
-  for (const spec of specs) {
+  return specs.map((spec) => {
     const delta = byId.get(spec.id)!.delta;
     const effect =
       delta < 0 ? `${formatCurrency(-delta)} off` : `+${formatCurrency(delta)}`;
-    await logActivity(
-      `Promo code '${spec.name}' used: ${effect}`,
-      listing,
+    return {
       attendeeId,
-    );
-  }
+      listing,
+      message: `Promo code '${spec.name}' used: ${effect}`,
+    };
+  });
 };
 
 /**
@@ -263,6 +274,8 @@ export const createAttendeeForSession = async (
   pricingIntent: CheckoutIntent,
   pricedOrder: PricedOrder,
   ticketToken: string,
+  publicStatusId: number,
+  parentIdsByChild: ReadonlyMap<number, readonly number[]>,
 ): Promise<HonourResult> => {
   let prepared: {
     attendeeInput: Parameters<typeof attendeesApi.createBookingAtomic>[0];
@@ -302,8 +315,9 @@ export const createAttendeeForSession = async (
     );
     prepared = {
       attendeeInput: {
-        ...(await attendeeBaseFields(session, intent)),
+        ...attendeeBaseFields(session, intent, publicStatusId),
         bookings,
+        parentIdsByChild,
         remainingBalance,
         ticketToken,
       },

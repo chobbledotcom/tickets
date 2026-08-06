@@ -11,10 +11,10 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { singleItem } from "#test-utils/factories.ts";
 import { mockRequest, withMocks } from "#test-utils/mocks.ts";
+import { expectSessionFailed } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   expectRefundedWithNote,
-  expectSessionFailed,
   findKeptPlaceholder,
   stubRefundPayment,
   stubRetrieveCheckoutSession,

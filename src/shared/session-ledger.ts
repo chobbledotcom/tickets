@@ -23,10 +23,6 @@
  * events.
  */
 
-import { bookingEventGroup } from "#shared/accounting/mappers.ts";
-import { eventGroupHasLegs } from "#shared/accounting/queries.ts";
-import { attendeeIdByLedgerEventGroup } from "#shared/db/attendees/queries.ts";
-
 /** What the ledger already records for a booking session (keyed on its event group). */
 export type BookingLedgerDisposition =
   | { status: "unrecorded" }
@@ -55,11 +51,3 @@ export const classifyBookingLedger = (
  * lookup is skipped when no legs exist (the common fresh-session case), so an
  * unrecorded session costs a single existence probe.
  */
-export const bookingLedgerDisposition = async (
-  eventId: string,
-): Promise<BookingLedgerDisposition> => {
-  const group = await bookingEventGroup(eventId);
-  const hasLegs = await eventGroupHasLegs(group);
-  const owner = hasLegs ? await attendeeIdByLedgerEventGroup(group) : null;
-  return classifyBookingLedger(hasLegs, owner);
-};

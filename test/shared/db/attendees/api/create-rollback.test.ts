@@ -18,7 +18,6 @@ import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import {
   decryptSessionTokens,
-  isSessionProcessed,
   markSessionFailed,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
@@ -26,7 +25,10 @@ import { seedOrderActivity } from "#test-utils/contact-tokens.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { expectProcessedPaymentReference } from "#test-utils/processed-payments.ts";
+import {
+  expectProcessedPaymentReference,
+  getProcessedPayment,
+} from "#test-utils/processed-payments.ts";
 
 const OCCURRED_AT = "2026-07-15T00:00:00.000Z";
 
@@ -254,7 +256,7 @@ describeWithEnv("db > attendee create rollback", { db: true }, () => {
     expect(created.ticket_token).toBe(ticketToken);
     expect(created.payment_id).toBe("pi_atomic");
 
-    const session = await isSessionProcessed(sessionId);
+    const session = await getProcessedPayment(sessionId);
     expect(session!.attendee_id).toBe(created.id);
     expect(await decryptSessionTokens(session!.ticket_tokens)).toBe(
       ticketToken,

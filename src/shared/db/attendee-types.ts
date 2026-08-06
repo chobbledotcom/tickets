@@ -102,6 +102,7 @@ export type AttendeeInput = ContactFields & {
   kind?: AttendeeKind;
   paymentId?: string;
   bookings: ListingBooking[];
+  parentIdsByChild?: ReadonlyMap<number, readonly number[]>;
   /** Order-level remaining balance in minor units (plaintext). Defaults to 0. */
   remainingBalance?: number;
   /** Owner-defined status id assigned to the new attendee. */

@@ -7,6 +7,11 @@ src/ui/templates/admin/holidays.tsx:87:45  ?? → ||   # values is a render-valu
 src/ui/client/admin/manual-checkin.ts:59:36  ?? → ||   # textContent is string|null; its only falsy string is the empty fallback itself
 src/ui/client/admin/order-gallery.ts:105:34  ?? → ||   # states is a record object when present, so it is always truthy
 
+# Paid snapshot collection fallbacks: every present value is an object or array,
+# which remains truthy even when empty; only undefined reaches the empty fallback.
+src/features/api/payment-processing/snapshot/fold.ts:95:39  ?? → ||   # scopes.get(): SnapshotModifierScopeRow[]|undefined — arrays are always truthy
+src/features/api/payment-processing/snapshot/io.ts:81:25  ?? → ||   # values is Record<string, Value[]>|undefined — record objects are always truthy
+
 # ticket-payment values whose present form is always truthy, whose falsy value
 # equals the fallback, or whose mutated constant is normalized before use.
 src/features/public/ticket-payment.ts:192:11  ?? → ||   # date is nullish or a non-empty ISO date; only the nullish values use the null fallback
@@ -139,18 +144,20 @@ src/ui/client/dom.ts:13:19  = → +=   # createElement returns a new button with
 # callers; optional collections are arrays (always truthy); parsed day counts and
 # stored package quantities are positive; equal zero fallbacks stay equal.
 src/features/api/payment-processing/index.ts:101:22   → "mutated"   # replaySuccess is private and both callers always pass session.paymentReference, so the default is never evaluated
-src/features/api/payment-processing/items.ts:89:41  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
-src/features/api/payment-processing/items.ts:175:24  ?? → ||   # extractIntent emits a positive dayCount or undefined, so every present value is truthy
+src/features/api/payment-processing/items.ts:73:41  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
+src/features/api/payment-processing/items.ts:151:59  ?? → ||   # a parent list length is non-negative; its only falsy value is 0, which equals the fallback
+src/features/api/payment-processing/items.ts:177:24  ?? → ||   # extractIntent emits a positive dayCount or undefined, so every present value is truthy
 src/features/api/payment-processing/pricing.ts:84:40  ?? → ||   # paidByItem stores numeric charged totals; the only falsy present total is 0, and both operators keep the 0 fallback
-src/features/api/payment-processing/package-pricing.ts:49:46  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
-src/features/api/payment-processing/package-pricing.ts:50:59  ?? → ||   # the running allocated quantity is non-negative and the fallback is 0, so 0 ?? 0 and 0 || 0 agree
-src/features/api/payment-processing/package-pricing.ts:166:56  ?? → ||   # stored per-package quantities are at least 1, so every present value is truthy
-src/features/api/payment-processing/package-pricing.ts:222:37  ?? → ||   # the allocated quantity is non-negative and the fallback is 0, so both operators agree for 0 and undefined
-src/features/api/payment-processing/package-pricing.ts:228:49  false → true   # orderEdgeDrifted uses buildTicketListing only to pass its listing row into buildBookingTree; the closed/availability fields never affect node keys
-src/features/api/payment-processing/package-pricing.ts:238:45  false → true   # child TicketListing availability is likewise unread by buildBookingTree's node-key construction
-src/features/api/payment-processing/package-pricing.ts:253:19  false → true   # hideListings changes node visibility only, while edgeDrifted reads node keys and child structure, never visibility
-src/features/api/payment-processing/package-pricing.ts:270:60  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
-src/features/api/payment-processing/package-pricing.ts:306:51  ?? → ||   # the allocated quantity is non-negative and the fallback is 0, so both operators agree for 0 and undefined
+src/features/api/payment-processing/package-pricing.ts:36:46  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
+src/features/api/payment-processing/package-pricing.ts:37:59  ?? → ||   # the running allocated quantity is non-negative and the fallback is 0, so 0 ?? 0 and 0 || 0 agree
+src/features/api/payment-processing/package-pricing.ts:75:56  ?? → ||   # stored per-package quantities are at least 1, so every present value is truthy
+src/features/api/payment-processing/package-pricing.ts:106:37  ?? → ||   # the allocated quantity is non-negative and the fallback is 0, so both operators agree for 0 and undefined
+src/features/api/payment-processing/package-pricing.ts:110:49  false → true   # orderEdgeDrifted uses buildTicketListing only to pass its listing row into buildBookingTree; the closed/availability fields never affect node keys
+src/features/api/payment-processing/package-pricing.ts:115:46  ?? → ||   # child id lists are arrays (always truthy), while a missing parent selects [] under either operator
+src/features/api/payment-processing/package-pricing.ts:118:42  false → true   # child TicketListing availability is likewise unread by buildBookingTree's node-key construction
+src/features/api/payment-processing/package-pricing.ts:126:19  false → true   # hideListings changes node visibility only, while edgeDrifted reads node keys and child structure, never visibility
+src/features/api/payment-processing/package-pricing.ts:143:60  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
+src/features/api/payment-processing/package-pricing.ts:159:51  ?? → ||   # the allocated quantity is non-negative and the fallback is 0, so both operators agree for 0 and undefined
 
 # Payment success replay only loads a listing fallback while thankYouUrl is the
 # empty string, so assignment and append produce the same string for every path.
@@ -185,7 +192,6 @@ src/features/public/cart.ts:76:7  continue; → (removed)   # without it a slug 
 
 # Listing detail group context (features/admin/listings-view.ts).
 src/features/admin/listings-view.ts:148:7  Missing group remaining → ""   # getGroupRemainingByGroupId returns an entry for every group id whose cap is positive, and only those ids are looked up, so requiredMapValue never raises this message
-src/features/api/payment-processing/package-pricing.ts:100:11  Missing package pricing → ""   # loadPackageMemberPricingByGroupIds is given exactly the order's group ids, and only those are looked up, so requiredMapValue never raises this message
 
 # Page packages (shared/booking/page-packages.ts): nullish fallbacks on values
 # that are only ever a number-or-undefined with a matching fallback.

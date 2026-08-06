@@ -12,10 +12,10 @@ src/shared/uptime-kuma/matching.ts:58:25  1000 → 1001   # timeout is a positiv
 src/shared/checkout-pricing.ts:324:41  ?? → ||   # intent.modifiers: an array is always truthy
 src/shared/booking-lines.ts:71:42  ?? → ||   # packageGroupId is absent or a positive database group id; an explicit 0 also has the same 0 fallback
 src/features/api/payment-processing/create.ts:63:36  ?? → ||   # lineGroupId returns undefined or a positive package group id; an explicit 0 would also keep the same 0 fallback
-src/features/api/payment-processing/create.ts:200:28  ?? → ||   # listingAnswerIds is an object when present, and objects are always truthy
-src/features/api/payment-processing/create.ts:203:67  ?? → ||   # a listing's text refs are an array when present, and arrays are always truthy
-src/features/api/payment-processing/create.ts:206:46  ?? → ||   # a grouped answer set is an object when present, and objects are always truthy
-src/features/api/payment-processing/create.ts:210:35  ?? → ||   # existing text answer ids are an array when present, and arrays are always truthy
+src/features/api/payment-processing/create.ts:200:43  ?? → ||   # listingAnswerIds is an object when present, and objects are always truthy
+src/features/api/payment-processing/create.ts:212:56  ?? → ||   # a listing's text refs are an array when present, and arrays are always truthy
+src/features/api/payment-processing/create.ts:216:46  ?? → ||   # a grouped answer set is an object when present, and objects are always truthy
+src/features/api/payment-processing/create.ts:220:35  ?? → ||   # existing text answer ids are an array when present, and arrays are always truthy
 src/shared/logistics-filter.ts:22:35  ?? → ||    # raw: string|null, only falsy string "" === fallback ""
 src/shared/config.ts:170:39  ?? → ||    # getEnv(): string|undefined, only falsy string "" === fallback ""
 src/shared/config.ts:36:5  ?? → ||    # providerValue returns boolean or null, and false stays false with either fallback operator

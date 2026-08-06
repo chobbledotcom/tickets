@@ -7,7 +7,6 @@ import * as v from "valibot";
 import { chunk, lazyRef } from "#fp";
 import { t } from "#i18n";
 import { toBase64 } from "#shared/crypto/utils.ts";
-import { packageDisplaysForRows } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   type BuyerEntryGroup,
@@ -20,6 +19,10 @@ import { getEnv } from "#shared/env.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { type FetchResult, fetchText } from "#shared/fetch.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import {
+  loadRegistrationPackageFacts,
+  type RegistrationNotification,
+} from "#shared/registration-package-facts.ts";
 import { generateSvgTicket, type SvgTicketData } from "#shared/svg-ticket.ts";
 import { buildCheckinUrl, buildTicketUrl } from "#shared/ticket-url.ts";
 import {
@@ -68,6 +71,12 @@ export type EmailConfig = {
   provider: EmailProvider;
   apiKey: string;
   fromAddress: ValidEmail;
+};
+
+export type RegistrationEmailDelivery = {
+  attendeeEmail: ValidEmail | null;
+  businessEmail: ValidEmail | null;
+  config: EmailConfig;
 };
 
 /** Read email config from DB settings. Falls back to business email for
@@ -122,6 +131,20 @@ export const resetHostEmailConfig = (): void => setHostEmailOverride(undefined);
 export const getActiveEmailConfig = (): EmailConfig | null => {
   const siteConfig = getEmailConfig();
   return siteConfig !== null ? siteConfig : getHostEmailConfig();
+};
+
+/** Resolve whether a registration has configured email and somebody to notify. */
+export const registrationEmailDelivery = (
+  entries: EmailEntry[],
+): RegistrationEmailDelivery | null => {
+  const config = getActiveEmailConfig();
+  if (!config) return null;
+  const attendeeRaw = entries[0]?.attendee.email;
+  const attendeeEmail = attendeeRaw ? parseEmail(attendeeRaw) : null;
+  const businessEmail = parseEmail(settings.businessEmail);
+  return attendeeEmail || businessEmail
+    ? { attendeeEmail, businessEmail, config }
+    : null;
 };
 
 type Headers = Record<string, string>;
@@ -413,16 +436,13 @@ export const buildTicketAttachments = async (
  * Silently skips if email is not configured.
  * Attaches one SVG ticket per entry to the confirmation email.
  */
-export const sendRegistrationEmails = async (
-  entries: EmailEntry[],
-  currency: string,
-): Promise<void> => {
-  const config = getActiveEmailConfig();
-  if (!config) return;
-
-  const attendeeRaw = entries[0]?.attendee.email;
-  const attendeeEmail = attendeeRaw ? parseEmail(attendeeRaw) : null;
-  const businessEmail = parseEmail(settings.businessEmail);
+export const sendRegistrationEmails: RegistrationNotification<
+  EmailEntry
+> = async (entries, currency, suppliedFacts) => {
+  const delivery = registrationEmailDelivery(entries);
+  if (!delivery) return;
+  const { attendeeEmail, businessEmail, config } = delivery;
+  const facts = suppliedFacts ?? (await loadRegistrationPackageFacts(entries));
   const ticketUrl = buildTicketUrl(entries);
   const promises: Promise<number | undefined>[] = [];
 
@@ -431,12 +451,10 @@ export const sendRegistrationEmails = async (
     // The buyer's confirmation hides every hidden package's member listings —
     // both in the email body and in the attached ticket SVGs — via the one
     // buyer-grouping chokepoint (a mixed order conceals each bundle it holds).
-    const groups = buyerEntryGroups(
-      entries,
-      await packageDisplaysForRows(entries),
-    );
+    const groups = buyerEntryGroups(entries, facts.displays);
     const data = await buildTemplateData(entries, currency, ticketUrl, {
       hidePackageMembers: true,
+      packageDisplays: facts.displays,
     });
     const [confirmation, attachments] = await Promise.all([
       renderEmailContent("confirmation", data),
@@ -454,7 +472,9 @@ export const sendRegistrationEmails = async (
 
   if (businessEmail) {
     // The admin notification always shows package members, even when hidden.
-    const data = await buildTemplateData(entries, currency, ticketUrl);
+    const data = await buildTemplateData(entries, currency, ticketUrl, {
+      packageDisplays: facts.displays,
+    });
     const notification = await renderEmailContent("admin", data);
     promises.push(
       sendEmail(config, {

@@ -13,7 +13,6 @@ import {
   hasPromoCodeModifiers,
   oversubscribedAnswerTiers,
   resolveModifiers,
-  specsFromRefs,
 } from "#shared/db/modifier-resolve.ts";
 import {
   getModifierAnswerIds,
@@ -606,63 +605,6 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
       const coded = await insertModifier({ name: "Coded" });
       await patchModifier(coded.id, { trigger: "code" });
       expect(await getOptionalAddOns([1])).toEqual([]);
-    });
-  });
-
-  describe("specsFromRefs", () => {
-    test("returns [] for no references", async () => {
-      expect(await specsFromRefs([])).toEqual([]);
-    });
-
-    test("rebuilds specs from references, re-fetching current values", async () => {
-      const created = await insertModifier({
-        calcKind: "fixed",
-        calcValue: 5,
-        direction: "charge",
-        name: "Parking",
-      });
-      const specs = await specsFromRefs([{ i: created.id, q: 2 }]);
-      expect(specs).toEqual([
-        {
-          id: created.id,
-          kind: "fixed",
-          listingIds: null,
-          name: "Parking",
-          quantity: 2,
-          trigger: "automatic",
-          value: toMinorUnits(5),
-        },
-      ]);
-    });
-
-    test("rebuilds the listing ids for a scoped reference", async () => {
-      const m = await insertModifier({ name: "Scoped" });
-      await patchModifier(m.id, { scope: "listings" });
-      await linkModifierListing(m.id, 3);
-      const specs = await specsFromRefs([{ i: m.id, q: 1 }]);
-      expect(specs[0]?.listingIds).toEqual([3]);
-    });
-
-    test("drops references to modifiers that no longer resolve", async () => {
-      const created = await insertModifier({ name: "Gone" });
-      await patchModifier(created.id, { active: 0 });
-      expect(await specsFromRefs([{ i: created.id, q: 1 }])).toEqual([]);
-      expect(await specsFromRefs([{ i: 9999, q: 1 }])).toEqual([]);
-    });
-
-    test("re-checks the visit gate when rebuilding references", async () => {
-      const created = await insertModifier({
-        direction: "discount",
-        minVisits: 1,
-        name: "Returning",
-      });
-
-      expect(await specsFromRefs([{ i: created.id, q: 1 }])).toEqual([]);
-      expect(
-        (await specsFromRefs([{ i: created.id, q: 1 }], { visits: 1 })).map(
-          (s) => s.name,
-        ),
-      ).toEqual(["Returning"]);
     });
   });
 });

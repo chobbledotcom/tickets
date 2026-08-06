@@ -1,14 +1,19 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { validateAllItems } from "#routes/api/payment-processing/items.ts";
+import { validateAllItems as validateSnapshotItems } from "#routes/api/payment-processing/items.ts";
+import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
 import {
   bookingIntent,
   paymentSession,
 } from "#test/features/api/payment-processing/index/helpers.ts";
+import { validateAllItems } from "#test/features/api/payment-processing/items/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createHiddenPackageGroup,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import {
   createTestListing,
   pastCloseTime,
@@ -32,6 +37,34 @@ const pricesFor = async (
   return result.items.map((item) => item.expectedPrice);
 };
 
+const closedPackage = async (
+  name: string,
+  closedName: string,
+): Promise<{
+  groupId: number;
+  intent: BookingIntent;
+}> => {
+  const group = await createTestGroup({ isPackage: true, name });
+  const closed = await createTestListing({
+    closesAt: pastCloseTime(),
+    groupId: group.id,
+    name: closedName,
+    unitPrice: 400,
+  });
+  const open = await createTestListing({ groupId: group.id, unitPrice: 400 });
+  await setGroupPackageMembers(group.id, [
+    { listingId: closed.id, price: 400 },
+    { listingId: open.id, price: 400 },
+  ]);
+  return {
+    groupId: group.id,
+    intent: bookingIntent([
+      { e: closed.id, k: "p", p: 400, q: 1, r: group.id },
+      { e: open.id, k: "p", p: 400, q: 1, r: group.id },
+    ]),
+  };
+};
+
 describeWithEnv("paid item validation boundaries", { db: true }, () => {
   test("returns the generic closed result for a single listing", async () => {
     await setupStripe();
@@ -53,6 +86,55 @@ describeWithEnv("paid item validation boundaries", { db: true }, () => {
       error: "Sorry, registration closed while you were completing payment.",
       refunded: true,
       status: 410,
+      success: false,
+    });
+    expect(refund.calls).toHaveLength(1);
+  });
+
+  test("names a closed member in a visible package", async () => {
+    await setupStripe();
+    const { intent } = await closedPackage("Visible", "Closed member");
+    using refund = stubRefundPayment("re_items_visible_closed");
+
+    expect(
+      await validateAllItems(
+        paymentSession("cs_items_visible_closed", 800, intent),
+        intent,
+      ),
+    ).toMatchObject({
+      error:
+        "Sorry, registration for Closed member closed while you were completing payment.",
+      status: 410,
+      success: false,
+    });
+    expect(refund.calls).toHaveLength(1);
+  });
+
+  test("keeps a member name private when its package facts are missing", async () => {
+    await setupStripe();
+    const { groupId, intent } = await closedPackage(
+      "Removed",
+      "Private member",
+    );
+    const session = paymentSession("cs_items_missing_package", 800, intent);
+    const loaded = await loadPaidOrderSnapshot(session.id, intent);
+    const snapshot = {
+      ...loaded,
+      notificationPackages: {
+        ...loaded.notificationPackages,
+        displays: new Map(
+          [...loaded.notificationPackages.displays].filter(
+            ([id]) => id !== groupId,
+          ),
+        ),
+      },
+    };
+    using refund = stubRefundPayment("re_items_missing_package");
+
+    expect(
+      await validateSnapshotItems(session, intent, snapshot),
+    ).toMatchObject({
+      error: "Sorry, registration closed while you were completing payment.",
       success: false,
     });
     expect(refund.calls).toHaveLength(1);

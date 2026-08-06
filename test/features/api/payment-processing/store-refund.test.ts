@@ -16,6 +16,7 @@ import {
 } from "#routes/api/payment-processing/store-refund.ts";
 import { processBooking } from "#shared/booking.ts";
 import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
+import { requirePublicStatusId } from "#shared/db/attendee-statuses.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -168,6 +169,7 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
       intent,
       bookings,
       specFor("listing full"),
+      await requirePublicStatusId(),
     );
     return { listing, result };
   };
@@ -361,6 +363,7 @@ describeWithEnv(
           ok: false,
           reason: "capacity_exceeded",
         }),
+        await requirePublicStatusId(),
       );
 
       expect(result.status).toBe(200);

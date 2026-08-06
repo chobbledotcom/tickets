@@ -24,6 +24,7 @@ import {
   deletedListingSpec,
   refuseMismatch,
 } from "#routes/api/payment-processing/refunds.ts";
+import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
 import {
   datelessGhostBookings,
   placeholderBookings,
@@ -41,7 +42,6 @@ import type { BookingIntent } from "#shared/booking-intent.ts";
 import { type PricedOrder, priceCheckout } from "#shared/checkout-pricing.ts";
 import { generateTicketToken } from "#shared/crypto/utils.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
-import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
 import {
   finalizeSessionIfUnresolved,
   markSessionFailed,
@@ -51,7 +51,7 @@ import {
   reserveSession,
 } from "#shared/db/processed-payments.ts";
 import { logDebug } from "#shared/logger.ts";
-import { bookingLedgerDisposition } from "#shared/session-ledger.ts";
+import type { BookingLedgerDisposition } from "#shared/session-ledger.ts";
 
 /** The shared shape of the two-phase session processors: reserve/process a paid
  * session by id, given its validated data, and resolve to a {@link
@@ -138,8 +138,8 @@ const replaySessionFromLedger = async (
   sessionId: string,
   listingId: number,
   paymentReference: string,
+  disposition: BookingLedgerDisposition,
 ): Promise<PaymentResult | null> => {
-  const disposition = await bookingLedgerDisposition(sessionId);
   switch (disposition.status) {
     case "unrecorded":
       return null;
@@ -178,6 +178,7 @@ const processNewBookingSession = async (
   signedListingId: number,
 ): Promise<PaymentResult> => {
   const { session, intent, verdict } = data;
+  const snapshot = await loadPaidOrderSnapshot(sessionId, intent);
 
   // Preflight: the durable ledger is the source of truth for "already honoured".
   // Replay a session the ledger already records BEFORE any validation, pricing,
@@ -188,11 +189,12 @@ const processNewBookingSession = async (
     sessionId,
     signedListingId,
     session.paymentReference,
+    snapshot.ledger,
   );
   if (replay) return replay;
 
   // Phase 2: Validate listings.
-  const validated = await validateAllItems(session, intent);
+  const validated = await validateAllItems(session, intent, snapshot);
   if ("success" in validated) {
     // A trusted session (we signed it) whose listing was deleted between checkout
     // and payment. listing_attendees has no FK to listings, so we still keep a
@@ -208,6 +210,7 @@ const processNewBookingSession = async (
         intent,
         datelessGhostBookings(intent.items),
         deletedListingSpec(session),
+        snapshot.publicStatusId,
       );
     }
     return validated;
@@ -219,8 +222,7 @@ const processNewBookingSession = async (
   // Every trigger — automatic, code, opt-in add-on, and answer — rides the same
   // metadata refs and is re-fetched by id here, re-checking the visit gate and
   // re-deriving the amount so a tampered checkout can't dodge a surcharge.
-  const visits = await buyerVisits(intent.email, intent.phone);
-  const modifierSpecs = await specsFromRefs(intent.modifiers, { visits });
+  const modifierSpecs = snapshot.modifierSpecs;
   const pricingIntent = checkoutIntentForSession(
     intent,
     validatedItems,
@@ -238,7 +240,13 @@ const processNewBookingSession = async (
       ? chargeMismatchSpec(session, verdict.agreed)
       : paidPricingRefund(validatedItems, pricedOrder, verdict.agreed);
   if (knownRefund) {
-    return storeRefundedBooking(session, intent, placeholders, knownRefund);
+    return storeRefundedBooking(
+      session,
+      intent,
+      placeholders,
+      knownRefund,
+      snapshot.publicStatusId,
+    );
   }
 
   // Otherwise try to honour it at the charged price. Expected refusal keeps a
@@ -256,6 +264,8 @@ const processNewBookingSession = async (
       codeSpecs,
       pricedOrder.modifierApplications,
       ticketTokens,
+      snapshot.questions,
+      snapshot.notificationPackages,
     );
   const honoured = await createAttendeeForSession(
     session,
@@ -264,6 +274,8 @@ const processNewBookingSession = async (
     pricingIntent,
     pricedOrder,
     ticketToken,
+    snapshot.publicStatusId,
+    snapshot.parentsByChildId,
   );
   if (honoured.ok === null) {
     return recoverOrRefundUnexpectedCreate({
@@ -271,6 +283,7 @@ const processNewBookingSession = async (
       error: honoured.error,
       intent,
       placeholders,
+      publicStatusId: snapshot.publicStatusId,
       session,
       ticketToken,
       validatedItems,
@@ -282,6 +295,7 @@ const processNewBookingSession = async (
       intent,
       placeholders,
       specForFailure(honoured),
+      snapshot.publicStatusId,
     );
   }
 
