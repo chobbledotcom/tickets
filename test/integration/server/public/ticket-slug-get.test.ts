@@ -17,6 +17,7 @@ import {
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
+import { enablePublicSite } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
@@ -152,6 +153,8 @@ describeWithEnv(
         );
         expect(html).not.toContain("<h1>");
         expect(html).not.toContain("A <b>great</b> listing");
+        // The site menu is dropped inside an embedded iframe.
+        expect(html).not.toContain("admin-nav-group");
       });
 
       test("shows header and description without iframe param", async () => {
@@ -166,6 +169,27 @@ describeWithEnv(
           "A &lt;b&gt;great&lt;/b&gt; listing",
         );
         expect(html).not.toContain('class="iframe"');
+        // With the public site off (the default), the menu's Home/Listings
+        // links would only bounce a visitor to the admin login, so no menu.
+        expect(html).not.toContain("admin-nav-group");
+      });
+
+      test("shows the site menu on a normal page when the public site is on", async () => {
+        await enablePublicSite();
+        const listing = await createTestListing({ maxAttendees: 50 });
+        const html = await assertPublicHtml(`/ticket/${listing.slug}`, "<h1>");
+        expect(html).toContain('<div class="admin-nav-group">');
+        expect(html).toContain('aria-label="Site menu"');
+      });
+
+      test("still drops the menu in iframe mode when the public site is on", async () => {
+        await enablePublicSite();
+        const listing = await createTestListing({ maxAttendees: 50 });
+        const html = await assertPublicHtml(
+          `/ticket/${listing.slug}?iframe=true`,
+          'class="iframe"',
+        );
+        expect(html).not.toContain("admin-nav-group");
       });
 
       test("does not set CSRF cookies (uses signed tokens instead)", async () => {

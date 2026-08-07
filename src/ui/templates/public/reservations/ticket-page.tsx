@@ -34,6 +34,7 @@ import { ctxStandInNames } from "#shared/package-privacy.ts";
 import type { ItemImageColumns, ListingWithCount } from "#shared/types.ts";
 import { ErrorNote } from "#templates/components/error.tsx";
 import { Layout } from "#templates/layout.tsx";
+import { PublicNav } from "#templates/public/shared.tsx";
 import {
   buildPageTree,
   headerListing,
@@ -167,6 +168,7 @@ export const ticketPage = ({
   packageGroupRemainingByGroupId = new Map(),
   packageMemberGroupIds = new Map(),
   attributesByListing = new Map(),
+  nav,
 }: TicketPageOptions): string => {
   // The canonical booking tree drives node identity + the stable form field
   // names (via nodeQuantityFieldName/nodePriceFieldName): one node per
@@ -279,6 +281,7 @@ export const ticketPage = ({
 
   return String(
     <Layout
+      beforeContent={!inIframe && nav ? <PublicNav {...nav} /> : undefined}
       bodyClass={inIframe ? "iframe" : undefined}
       contentClassName="public-page"
       headExtra={headExtra}
