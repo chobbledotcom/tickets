@@ -1,7 +1,10 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import sharp from "sharp";
-import { capturePreparedPage } from "#scripts/screenshots/capture.ts";
+import {
+  capturePreparedLayers,
+  capturePreparedPage,
+} from "#scripts/screenshots/capture.ts";
 import {
   blankWhitePng,
   whitePngWithBlackBox,
@@ -10,14 +13,16 @@ import { createGlobalStash } from "#test-utils/happy-dom.ts";
 
 interface CaptureMockConfig {
   bodyStyle?: unknown;
+  detachedStyle?: boolean;
   elementBox?: { width: number; height: number; x: number; y: number } | null;
-  screenshot?: () => Promise<Uint8Array>;
+  screenshot?: (options: { omitBackground?: boolean }) => Promise<Uint8Array>;
 }
 
 interface CaptureMockCalls {
   locatorSelectors: string[];
-  screenshotOptions: { fullPage: boolean }[];
+  screenshotOptions: { fullPage: boolean; omitBackground?: boolean }[];
   scrollFns: number;
+  styleRemovals: number;
 }
 
 const bodyStyle = (config: CaptureMockConfig): unknown =>
@@ -32,6 +37,7 @@ const buildCaptureMockPage = (
     locatorSelectors: [],
     screenshotOptions: [],
     scrollFns: 0,
+    styleRemovals: 0,
   };
   const elementLocator = {
     boundingBox: () => Promise.resolve(config.elementBox ?? null),
@@ -43,6 +49,21 @@ const buildCaptureMockPage = (
     waitFor: () => Promise.resolve(),
   };
   const page = {
+    addStyleTag: () =>
+      Promise.resolve({
+        evaluate: (fn: (node: unknown) => unknown) =>
+          Promise.resolve(
+            fn({
+              parentNode: config.detachedStyle
+                ? null
+                : {
+                    removeChild: () => {
+                      calls.styleRemovals += 1;
+                    },
+                  },
+            }),
+          ),
+      }),
     locator: (selector: string) => {
       calls.locatorSelectors.push(selector);
       return selector === "body"
@@ -52,9 +73,12 @@ const buildCaptureMockPage = (
           }
         : elementLocator;
     },
-    screenshot: async (opts: { fullPage: boolean }) => {
+    screenshot: async (opts: {
+      fullPage: boolean;
+      omitBackground?: boolean;
+    }) => {
       calls.screenshotOptions.push(opts);
-      return await (config.screenshot ?? blankWhitePng)();
+      return await (config.screenshot ?? blankWhitePng)(opts);
     },
   };
   return { calls, page: page as never };
@@ -69,16 +93,15 @@ const elementPage = (
     ...overrides,
   });
 
+const globals = createGlobalStash();
+
+beforeEach(() => {
+  globals.set("getComputedStyle", (node: { style: unknown }) => node.style);
+});
+
+afterEach(() => globals.restore());
+
 describe("capturePreparedPage", () => {
-  let globals: ReturnType<typeof createGlobalStash>;
-
-  beforeEach(() => {
-    globals = createGlobalStash();
-    globals.set("getComputedStyle", (node: { style: unknown }) => node.style);
-  });
-
-  afterEach(() => globals.restore());
-
   test("returns the body background and viewport screenshot", async () => {
     const screenshot = await blankWhitePng();
     const { calls, page } = buildCaptureMockPage({
@@ -147,5 +170,51 @@ describe("capturePreparedPage", () => {
     await expect(capturePreparedPage(page)).rejects.toThrow(
       "Could not read the page style.",
     );
+  });
+});
+
+describe("capturePreparedLayers", () => {
+  test("captures transparent background, control and text layers", async () => {
+    const { calls, page } = buildCaptureMockPage({ detachedStyle: true });
+
+    const result = await capturePreparedLayers(page);
+
+    expect(Object.keys(result)).toEqual(["background", "controls", "text"]);
+    expect(
+      calls.screenshotOptions.map(({ omitBackground }) => omitBackground),
+    ).toEqual([undefined, true, true, true]);
+    expect(calls.styleRemovals).toBe(0);
+  });
+
+  test("uses one element crop for every layer", async () => {
+    const { calls, page } = elementPage();
+
+    const result = await capturePreparedLayers(page, "#element");
+
+    expect(calls.screenshotOptions.every(({ fullPage }) => fullPage)).toBe(
+      true,
+    );
+    expect(calls.styleRemovals).toBe(3);
+    for (const png of Object.values(result)) {
+      expect(await sharp(png).metadata()).toEqual(
+        expect.objectContaining({ height: 84, width: 94 }),
+      );
+    }
+  });
+
+  test("removes the layer style when capture fails", async () => {
+    let screenshots = 0;
+    const { calls, page } = buildCaptureMockPage({
+      screenshot: async () => {
+        screenshots += 1;
+        if (screenshots === 2) throw new Error("layer capture failed");
+        return await blankWhitePng();
+      },
+    });
+
+    await expect(capturePreparedLayers(page)).rejects.toThrow(
+      "layer capture failed",
+    );
+    expect(calls.styleRemovals).toBe(1);
   });
 });

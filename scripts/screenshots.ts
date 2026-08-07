@@ -6,9 +6,13 @@ import {
   startScreenshotAppServer,
 } from "./screenshots/app-server.ts";
 import { chromiumExecutable } from "./screenshots/browser.ts";
-import { capturePreparedPage } from "./screenshots/capture.ts";
+import {
+  capturePreparedLayers,
+  capturePreparedPage,
+} from "./screenshots/capture.ts";
 import { isCompactWidth, isolateElementCss } from "./screenshots/checks.ts";
 import type { Rgb } from "./screenshots/color.ts";
+import { SCREENSHOT_LAYER_NAMES } from "./screenshots/layers.ts";
 import {
   parseScreenshotOptions,
   type ScreenshotName,
@@ -252,20 +256,17 @@ const captureScenario = async (
   server: ScreenshotAppServer,
   outputDir: string,
   social: readonly SocialTargetName[] = [],
+  layers = false,
 ): Promise<void> => {
   const { baseUrl } = server;
-  await setupAdmin(page, baseUrl, scenario.setupUsername);
-  await server.enableStripe();
-  await applyTheme(
-    page,
-    baseUrl,
-    "default",
-    `${scenario.css}\n${
-      scenario.elementSelector
-        ? isolateElementCss(scenario.elementSelector)
-        : ""
-    }`,
-  );
+  const captureCss = `${scenario.css}\n${
+    scenario.elementSelector ? isolateElementCss(scenario.elementSelector) : ""
+  }`;
+  if (scenario.adminSetup !== false) {
+    await setupAdmin(page, baseUrl, scenario.setupUsername);
+    await server.enableStripe();
+    await applyTheme(page, baseUrl, "default", captureCss);
+  }
   await scenario.run({
     balancePathFor: async (attendeeId) => {
       const { signBalanceToken } = await import("#shared/balance-link.ts");
@@ -275,6 +276,9 @@ const captureScenario = async (
     page,
     submit: (formSelector) => submit(page, formSelector),
   });
+  if (scenario.adminSetup === false) {
+    await page.addStyleTag({ content: captureCss });
+  }
   await waitForScreenshotPage(page);
   const outputPath = join(outputDir, `${scenario.name}.png`);
   const background = await captureAndWrite(
@@ -284,6 +288,18 @@ const captureScenario = async (
     scenario.fullPage,
   );
   console.log(`${scenario.name}.png`);
+  if (layers) {
+    const captures = await capturePreparedLayers(
+      page,
+      scenario.elementSelector,
+      scenario.fullPage,
+    );
+    for (const layer of SCREENSHOT_LAYER_NAMES) {
+      const name = `${scenario.name}__layer-${layer}.png`;
+      await Deno.writeFile(join(outputDir, name), captures[layer]);
+      console.log(name);
+    }
+  }
   await writeSocialVariants(
     outputPath,
     outputDir,
@@ -308,6 +324,7 @@ const main = async (): Promise<void> => {
     browser = await launchScreenshotBrowser();
     const context = await browser.newContext({
       baseURL: server.baseUrl,
+      bypassCSP: true,
       ...screenshotContextOptions(MOBILE_SCREENSHOT_PROFILE),
     });
     const page = await context.newPage();
@@ -319,6 +336,7 @@ const main = async (): Promise<void> => {
         server,
         outputDir,
         options.social ?? [],
+        options.layers ?? false,
       );
       return;
     }

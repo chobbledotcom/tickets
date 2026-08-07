@@ -55,6 +55,24 @@ describe("screenshot options", () => {
     });
   });
 
+  it("requests DOM-derived layers", () => {
+    expect(
+      parseScreenshotOptions(["--scenario", "scene.js", "--layers"]),
+    ).toEqual({
+      layers: true,
+      names: [],
+      outputDir: "screenshots",
+      scenarioPath: "scene.js",
+      themes: ["default"],
+    });
+  });
+
+  it("rejects layers without a scenario", () => {
+    expect(() => parseScreenshotOptions(["dashboard", "--layers"])).toThrow(
+      "Layers can only be captured from a scenario.",
+    );
+  });
+
   it("accepts a single social target", () => {
     expect(
       parseScreenshotOptions(["dashboard", "--social", "facebook"]),

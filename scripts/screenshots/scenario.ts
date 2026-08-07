@@ -9,6 +9,7 @@ export interface ScreenshotScenarioContext {
 }
 
 export interface ScreenshotScenario {
+  adminSetup?: boolean;
   css: string;
   elementSelector?: string;
   fullPage?: boolean;
@@ -25,6 +26,8 @@ const isScenario = (value: unknown): value is ScreenshotScenario => {
     typeof candidate.name === "string" &&
     /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(candidate.name) &&
     typeof candidate.run === "function" &&
+    (candidate.adminSetup === undefined ||
+      typeof candidate.adminSetup === "boolean") &&
     (candidate.setupUsername === undefined ||
       (typeof candidate.setupUsername === "string" &&
         candidate.setupUsername.trim().length > 0)) &&
