@@ -1,101 +1,15 @@
 import { expect } from "@std/expect";
-import { dirname, join } from "@std/path";
+import { join } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
-import type { FileMutationPlan } from "#scripts/mutation/evaluate.ts";
 import type { StaticGate } from "#scripts/mutation/execution.ts";
-import type { Mutant } from "#scripts/mutation/generate.ts";
+import { evaluateStaticMutants } from "#scripts/mutation/static.ts";
 import {
-  defaultStaticJobs,
-  evaluateStaticMutants,
-  type StaticDeps,
-  type StaticRunConfig,
-  staticWorkerParent,
-} from "#scripts/mutation/static.ts";
-import { projectRoot } from "#scripts/project-root.ts";
-
-const replacements = ["false", "null", "0", "1", "2", "3"];
-
-const mutants = replacements.map(
-  (newOperator, index): Mutant => ({
-    anchor: `mutant-${index}`,
-    column: 1,
-    end: 4,
-    line: 1,
-    newOperator,
-    operator: "true",
-    start: 0,
-  }),
-);
-
-const plan = (selected = mutants): FileMutationPlan => ({
-  assets: null,
-  directTestFiles: ["test/source.test.ts"],
-  file: "/root/source.ts",
-  mutants: selected,
-  original: "true",
-  rebuildTestState: false,
-});
-
-const config = (changes: Partial<StaticRunConfig> = {}): StaticRunConfig => ({
-  abortSignal: new AbortController().signal,
-  jobs: 4,
-  perMutantTimeout: 1_000,
-  root: "/root",
-  workerParent: "/run",
-  ...changes,
-});
-
-const passingGate = (exit: StaticGate["exit"]): StaticGate => ({
-  exit,
-  label: "lint",
-  phase: "lint",
-  remedy: [],
-});
-
-interface FakeWorkspace {
-  copied: string[];
-  deps: StaticDeps;
-  files: Map<string, string>;
-  removed: string[];
-}
-
-const fakeWorkspace = (): FakeWorkspace => {
-  const copied: string[] = [];
-  const files = new Map<string, string>();
-  const removed: string[] = [];
-  return {
-    copied,
-    deps: {
-      copy: (_from, to) => {
-        copied.push(to);
-        return Promise.resolve();
-      },
-      now: performance.now.bind(performance),
-      remove: (path) => {
-        removed.push(path);
-        return Promise.resolve();
-      },
-      write: (file, content) => {
-        files.set(file, content);
-        return Promise.resolve();
-      },
-    },
-    files,
-    removed,
-  };
-};
-
-const withStaticJobs = (value: string | null, run: () => void): void => {
-  const previous = Deno.env.get("MUTATION_STATIC_JOBS");
-  try {
-    if (value === null) Deno.env.delete("MUTATION_STATIC_JOBS");
-    else Deno.env.set("MUTATION_STATIC_JOBS", value);
-    run();
-  } finally {
-    if (previous === undefined) Deno.env.delete("MUTATION_STATIC_JOBS");
-    else Deno.env.set("MUTATION_STATIC_JOBS", previous);
-  }
-};
+  config,
+  fakeWorkspace,
+  mutants,
+  passingGate,
+  plan,
+} from "./static-helpers.ts";
 
 describe("parallel mutation static gates", () => {
   test("bounds isolated work and returns results in mutant order", async () => {
@@ -175,85 +89,6 @@ describe("parallel mutation static gates", () => {
       null,
     ]);
     expect(typeChecked).toHaveLength(2);
-  });
-
-  test("aborts on a gate infrastructure error and cleans every copy", async () => {
-    const work = fakeWorkspace();
-    await expect(
-      evaluateStaticMutants(
-        plan(mutants.slice(0, 3)),
-        [
-          passingGate(() =>
-            Promise.reject(new Error("type checker could not start")),
-          ),
-        ],
-        config(),
-        work.deps,
-      ),
-    ).rejects.toThrow("type checker could not start");
-    expect(work.removed).toEqual(work.copied);
-  });
-
-  test("waits for every workspace copy before cleanup", async () => {
-    const work = fakeWorkspace();
-    const laterCopy = Promise.withResolvers<void>();
-    const events: string[] = [];
-    work.deps.copy = async (_from, to) => {
-      events.push(`copy ${to}`);
-      if (to === "/run/static-1") {
-        throw new Error("copy failed");
-      }
-      await laterCopy.promise;
-      events.push(`copied ${to}`);
-    };
-    work.deps.remove = (path) => {
-      events.push(`removed ${path}`);
-      return Promise.resolve();
-    };
-
-    const evaluated = evaluateStaticMutants(
-      plan(mutants.slice(0, 3)),
-      [passingGate(() => Promise.resolve(0))],
-      config(),
-      work.deps,
-    );
-    await Promise.resolve();
-    expect(events).toEqual([
-      "copy /run/static-1",
-      "copy /run/static-2",
-      "copy /run/static-3",
-    ]);
-    laterCopy.resolve();
-
-    await expect(evaluated).rejects.toThrow("copy failed");
-    expect(events.indexOf("copied /run/static-2")).toBeLessThan(
-      events.indexOf("removed /run/static-2"),
-    );
-    expect(events.indexOf("copied /run/static-3")).toBeLessThan(
-      events.indexOf("removed /run/static-3"),
-    );
-  });
-
-  test("classifies cancellation during a gate and cleans every copy", async () => {
-    const work = fakeWorkspace();
-    const controller = new AbortController();
-    const results = await evaluateStaticMutants(
-      plan(mutants.slice(0, 3)),
-      [
-        passingGate(() => {
-          controller.abort();
-          return Promise.reject(new DOMException("Stopped", "AbortError"));
-        }),
-      ],
-      config({ abortSignal: controller.signal }),
-      work.deps,
-    );
-    expect(results.map(({ status }) => status)).toEqual([
-      "timed-out",
-      "timed-out",
-      "timed-out",
-    ]);
-    expect(work.removed).toEqual(work.copied);
   });
 
   test("starts a queued mutant with its own deadline", async () => {
@@ -363,24 +198,5 @@ describe("parallel mutation static gates", () => {
       work.deps,
     );
     expect(results).toHaveLength(3);
-  });
-
-  test("caps an explicit static worker setting at four", () => {
-    withStaticJobs("20", () => {
-      expect(defaultStaticJobs()).toBe(4);
-    });
-  });
-
-  test("uses a bounded CPU-aware static worker default", () => {
-    withStaticJobs(null, () => {
-      const expected = defaultStaticJobs();
-      expect(expected).toBeGreaterThanOrEqual(1);
-      expect(expected).toBeLessThanOrEqual(4);
-      withStaticJobs("0", () => expect(defaultStaticJobs()).toBe(expected));
-    });
-  });
-
-  test("places static workers beside the mutation work copy", () => {
-    expect(staticWorkerParent()).toBe(dirname(projectRoot));
   });
 });

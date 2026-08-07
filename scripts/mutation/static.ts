@@ -1,4 +1,5 @@
 import { dirname, join, relative, resolve, SEPARATOR } from "@std/path";
+import { withCleanup } from "#scripts/cleanup.ts";
 import { rethrowUnlessNotFound } from "#scripts/not-found.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 import type { FileMutationPlan, MutantEvaluation } from "./evaluate.ts";
@@ -46,7 +47,7 @@ export const defaultStaticJobs = (): number => {
   const cpuJobs = Math.max(1, navigator.hardwareConcurrency - 1);
   const requested =
     Number.isInteger(configured) && configured > 0 ? configured : cpuJobs;
-  return Math.min(MAX_STATIC_JOBS, requested);
+  return Math.min(MAX_STATIC_JOBS, cpuJobs, requested);
 };
 
 const mappedFile = (root: string, workspace: string, file: string): string => {
@@ -194,7 +195,7 @@ const removeWorkspaces = async (
   workspaces: string[],
   deps: StaticDeps,
 ): Promise<void> => {
-  await Promise.all(
+  await waitForAll(
     workspaces.map((workspace) =>
       deps.remove(workspace).catch(rethrowUnlessNotFound),
     ),
@@ -224,7 +225,7 @@ export const evaluateStaticMutants = async (
   const workspaces = Array.from({ length: jobs }, (_, index) =>
     join(config.workerParent, `static-${index + 1}`),
   );
-  try {
+  return withCleanup(async () => {
     await waitForAll(
       workspaces.map((workspace) => deps.copy(config.root, workspace)),
     );
@@ -241,9 +242,7 @@ export const evaluateStaticMutants = async (
       ),
     );
     return completedResults(cursor);
-  } finally {
-    await removeWorkspaces(workspaces, deps);
-  }
+  }, [() => removeWorkspaces(workspaces, deps)]);
 };
 
 export const staticWorkerParent = (): string => dirname(projectRoot);

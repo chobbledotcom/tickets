@@ -150,7 +150,7 @@ const settleRecord = (
  * question is asked again inside the lock: waiting for it is a moment long
  * enough to be interrupted, and an interrupted run keeps nothing.
  */
-export const keepFiles = (
+const keepFiles = (
   wasInterrupted: () => boolean,
   root: string,
   workRoot: string,

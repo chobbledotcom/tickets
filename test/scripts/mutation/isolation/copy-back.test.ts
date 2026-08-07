@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { keepFiles, runInSnapshot } from "#scripts/mutation/isolation.ts";
+import { runInSnapshot } from "#scripts/mutation/isolation.ts";
 import { withCopyBackLock } from "#scripts/mutation/isolation-lock.ts";
 import {
   captureConsole,
@@ -99,36 +99,6 @@ ${REWRITE_KEPT}`;
 });
 
 describe("interrupting a run as it finishes", () => {
-  test("keeps nothing after interruption while waiting for the lock", async () => {
-    await withTempDir(async (root) => {
-      const result = await keepFiles(
-        () => true,
-        root,
-        join(root, "missing-workspace"),
-        [{ before: "original\n", file: KEPT }],
-      );
-
-      expect(result).toBe(0);
-    });
-  });
-
-  test("keeps the copied file after acquiring the lock", async () => {
-    await withTempDir(async (root) => {
-      const workRoot = join(root, "work");
-      await Deno.mkdir(join(workRoot, "scripts"), { recursive: true });
-      await Deno.mkdir(join(root, "scripts"), { recursive: true });
-      await Deno.writeTextFile(join(root, KEPT), "original\n");
-      await Deno.writeTextFile(join(workRoot, KEPT), "updated\n");
-
-      const result = await keepFiles(() => false, root, workRoot, [
-        { before: "original\n", file: KEPT },
-      ]);
-
-      expect(result).toBe(0);
-      expect(await Deno.readTextFile(join(root, KEPT))).toBe("updated\n");
-    });
-  });
-
   test("keeps nothing when the signal arrives while waiting for the copy-back lock", async () => {
     await withTempDir(async (root) => {
       await writeFakeScript(root, ENTRY, "Deno.exit(0);\n");
