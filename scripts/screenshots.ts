@@ -12,7 +12,10 @@ import {
 } from "./screenshots/capture.ts";
 import { isCompactWidth, isolateElementCss } from "./screenshots/checks.ts";
 import type { Rgb } from "./screenshots/color.ts";
-import { SCREENSHOT_LAYER_NAMES } from "./screenshots/layers.ts";
+import {
+  addScreenshotStyle,
+  SCREENSHOT_LAYER_NAMES,
+} from "./screenshots/layers.ts";
 import {
   parseScreenshotOptions,
   type ScreenshotName,
@@ -277,7 +280,7 @@ const captureScenario = async (
     submit: (formSelector) => submit(page, formSelector),
   });
   if (scenario.adminSetup === false) {
-    await page.addStyleTag({ content: captureCss });
+    await addScreenshotStyle(page, captureCss);
   }
   await waitForScreenshotPage(page);
   const outputPath = join(outputDir, `${scenario.name}.png`);
@@ -324,7 +327,6 @@ const main = async (): Promise<void> => {
     browser = await launchScreenshotBrowser();
     const context = await browser.newContext({
       baseURL: server.baseUrl,
-      bypassCSP: true,
       ...screenshotContextOptions(MOBILE_SCREENSHOT_PROFILE),
     });
     const page = await context.newPage();

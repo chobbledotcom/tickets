@@ -83,4 +83,32 @@ describe("screenshot layer browser contracts", () => {
       },
     );
   });
+
+  test("puts disabled btn spans in the controls layer", async () => {
+    await withPage(
+      browser,
+      '<span class="btn btn--disabled">Unavailable</span>',
+      async (page) => {
+        expect(await layerStyle(page, "background", ".btn", "visibility")).toBe(
+          "hidden",
+        );
+        expect(await layerStyle(page, "controls", ".btn", "visibility")).toBe(
+          "visible",
+        );
+      },
+    );
+  });
+
+  test("applies layer masks without bypassing page CSP", async () => {
+    await withPage(
+      browser,
+      `<meta http-equiv="Content-Security-Policy" content="style-src 'none'">
+       <p>Words</p>`,
+      async (page) => {
+        expect(
+          await layerStyle(page, "background", "p", "-webkit-text-fill-color"),
+        ).toBe("rgba(0, 0, 0, 0)");
+      },
+    );
+  });
 });

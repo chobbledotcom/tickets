@@ -87,13 +87,20 @@ export const capturePreparedLayers: CaptureFunction<
       ? await elementTrimBounds(normal, background)
       : undefined;
     const entries: [ScreenshotLayerName, Uint8Array][] = [];
+    const transparent = { alpha: 0, b: 0, g: 0, r: 0 } as const;
+    const paddingByLayer: Record<
+      ScreenshotLayerName,
+      Rgb & { alpha?: number }
+    > = { background, controls: transparent, text: transparent };
     for (const layer of SCREENSHOT_LAYER_NAMES) {
       const png = await withScreenshotLayer(page, layer, () =>
         pagePng(page, fullPage, true),
       );
       entries.push([
         layer,
-        bounds ? await cropElementLayerPng(png, bounds) : png,
+        bounds
+          ? await cropElementLayerPng(png, bounds, paddingByLayer[layer])
+          : png,
       ]);
     }
     return Object.fromEntries(entries) as Record<

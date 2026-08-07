@@ -44,11 +44,12 @@ export const elementTrimBounds = async (
 export const cropElementLayerPng = async (
   png: Uint8Array,
   bounds: ElementTrimBounds,
+  background: Rgb & { alpha?: number },
 ): Promise<Uint8Array> =>
   new Uint8Array(
     await sharp(png)
       .extract(bounds)
-      .extend(padded({ alpha: 0, b: 0, g: 0, r: 0 }))
+      .extend(padded(background))
       .png()
       .toBuffer(),
   );

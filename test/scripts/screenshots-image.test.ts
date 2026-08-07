@@ -8,6 +8,20 @@ import {
 } from "#scripts/screenshots/image.ts";
 import { whitePngWithBlackBox } from "#test/scripts/screenshots-fixture.ts";
 
+const cropElementLayer = async (background: {
+  alpha?: number;
+  b: number;
+  g: number;
+  r: number;
+}) => {
+  const source = await whitePngWithBlackBox();
+  const bounds = await elementTrimBounds(source, { b: 255, g: 255, r: 255 });
+  return {
+    bounds,
+    result: await cropElementLayerPng(source, bounds, background),
+  };
+};
+
 describe("screenshot element image", () => {
   test("trims the element and adds 32 pixel padding", async () => {
     const result = await trimElementPng(await whitePngWithBlackBox(), {
@@ -39,14 +53,38 @@ describe("screenshot element image", () => {
   });
 
   test("uses the normal image crop for a transparent layer", async () => {
-    const source = await whitePngWithBlackBox();
-    const bounds = await elementTrimBounds(source, { b: 255, g: 255, r: 255 });
-    const result = await cropElementLayerPng(source, bounds);
+    const { bounds, result } = await cropElementLayer({
+      alpha: 0,
+      b: 0,
+      g: 0,
+      r: 0,
+    });
 
     expect(bounds).toEqual({ height: 20, left: 35, top: 40, width: 30 });
     expect(await sharp(result).metadata()).toEqual(
       expect.objectContaining({ height: 84, width: 94 }),
     );
+  });
+
+  test("uses the page color around a cropped background layer", async () => {
+    const { result } = await cropElementLayer({
+      b: 255,
+      g: 255,
+      r: 255,
+    });
+
+    expect([
+      ...(await sharp(result)
+        .ensureAlpha()
+        .extract({
+          height: 1,
+          left: 0,
+          top: 0,
+          width: 1,
+        })
+        .raw()
+        .toBuffer()),
+    ]).toEqual([255, 255, 255, 255]);
   });
 
   test("reports zero offsets when no edge can be trimmed", async () => {

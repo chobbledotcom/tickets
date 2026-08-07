@@ -8,7 +8,7 @@ export const SCREENSHOT_LAYER_NAMES = [
 export type ScreenshotLayerName = (typeof SCREENSHOT_LAYER_NAMES)[number];
 
 const CONTROL_SELECTOR =
-  'input, select, textarea, button, [role="button"], a.btn, a.button, a[class*="button"]';
+  'input, select, textarea, button, [role="button"], .btn, a.button, a[class*="button"]';
 const LAYER_PRIORITY =
   ":not(#__screenshot_layer_mask__):not(#__screenshot_layer_control__)";
 const HIDDEN_TEXT_STYLE = `
@@ -64,15 +64,37 @@ const LAYER_STYLES: Record<ScreenshotLayerName, string> = {
   }`,
 };
 
+export const addScreenshotStyle = async (
+  page: Page,
+  css: string,
+): Promise<() => Promise<void>> => {
+  const marker = crypto.randomUUID();
+  await page.evaluate(
+    ({ css, marker }) => {
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync(css);
+      Reflect.set(sheet, marker, true);
+      document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+    },
+    { css, marker },
+  );
+  return () =>
+    page.evaluate((marker) => {
+      document.adoptedStyleSheets = document.adoptedStyleSheets.filter(
+        (sheet) => !Reflect.get(sheet, marker),
+      );
+    }, marker);
+};
+
 export const withScreenshotLayer = async <T>(
   page: Page,
   layer: ScreenshotLayerName,
   capture: () => Promise<T>,
 ): Promise<T> => {
-  const style = await page.addStyleTag({ content: LAYER_STYLES[layer] });
+  const removeStyle = await addScreenshotStyle(page, LAYER_STYLES[layer]);
   try {
     return await capture();
   } finally {
-    await style.evaluate((node) => node.parentNode?.removeChild(node));
+    await removeStyle();
   }
 };

@@ -13,7 +13,6 @@ import { createGlobalStash } from "#test-utils/happy-dom.ts";
 
 interface CaptureMockConfig {
   bodyStyle?: unknown;
-  detachedStyle?: boolean;
   elementBox?: { width: number; height: number; x: number; y: number } | null;
   screenshot?: (options: { omitBackground?: boolean }) => Promise<Uint8Array>;
 }
@@ -49,21 +48,10 @@ const buildCaptureMockPage = (
     waitFor: () => Promise.resolve(),
   };
   const page = {
-    addStyleTag: () =>
-      Promise.resolve({
-        evaluate: (fn: (node: unknown) => unknown) =>
-          Promise.resolve(
-            fn({
-              parentNode: config.detachedStyle
-                ? null
-                : {
-                    removeChild: () => {
-                      calls.styleRemovals += 1;
-                    },
-                  },
-            }),
-          ),
-      }),
+    evaluate: (fn: (argument: never) => unknown, argument: never) => {
+      if (typeof argument === "string") calls.styleRemovals += 1;
+      return Promise.resolve(fn(argument));
+    },
     locator: (selector: string) => {
       calls.locatorSelectors.push(selector);
       return selector === "body"
@@ -97,6 +85,13 @@ const globals = createGlobalStash();
 
 beforeEach(() => {
   globals.set("getComputedStyle", (node: { style: unknown }) => node.style);
+  globals.set(
+    "CSSStyleSheet",
+    class {
+      replaceSync(_css: string): void {}
+    },
+  );
+  globals.set("document", { adoptedStyleSheets: [] });
 });
 
 afterEach(() => globals.restore());
@@ -175,7 +170,7 @@ describe("capturePreparedPage", () => {
 
 describe("capturePreparedLayers", () => {
   test("captures transparent background, control and text layers", async () => {
-    const { calls, page } = buildCaptureMockPage({ detachedStyle: true });
+    const { calls, page } = buildCaptureMockPage({});
 
     const result = await capturePreparedLayers(page);
 
@@ -183,7 +178,7 @@ describe("capturePreparedLayers", () => {
     expect(
       calls.screenshotOptions.map(({ omitBackground }) => omitBackground),
     ).toEqual([undefined, true, true, true]);
-    expect(calls.styleRemovals).toBe(0);
+    expect(calls.styleRemovals).toBe(3);
   });
 
   test("uses one element crop for every layer", async () => {
@@ -200,6 +195,20 @@ describe("capturePreparedLayers", () => {
         expect.objectContaining({ height: 84, width: 94 }),
       );
     }
+    const corners = await Promise.all(
+      Object.values(result).map(async (png) => [
+        ...(await sharp(png)
+          .ensureAlpha()
+          .extract({ height: 1, left: 0, top: 0, width: 1 })
+          .raw()
+          .toBuffer()),
+      ]),
+    );
+    expect(corners).toEqual([
+      [255, 255, 255, 255],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+    ]);
   });
 
   test("removes the layer style when capture fails", async () => {
