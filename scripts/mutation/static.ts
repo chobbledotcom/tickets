@@ -4,7 +4,7 @@ import { projectRoot } from "#scripts/project-root.ts";
 import type { FileMutationPlan, MutantEvaluation } from "./evaluate.ts";
 import type { StaticGate } from "./execution.ts";
 import { applyMutant, type Mutant } from "./generate.ts";
-import { copyMutationSnapshot } from "./isolation-state.ts";
+import { copyStaticWorkspace } from "./isolation-state.ts";
 import {
   type MutationPhase,
   measurePhase,
@@ -35,7 +35,7 @@ export interface StaticDeps {
 }
 
 const realDeps: StaticDeps = {
-  copy: copyMutationSnapshot,
+  copy: copyStaticWorkspace,
   now: performance.now.bind(performance),
   remove: (path) => Deno.remove(path, { recursive: true }),
   write: Deno.writeTextFile,

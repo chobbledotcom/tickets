@@ -17,7 +17,7 @@ import {
 
 const PROGRESS_INTERVAL = 10;
 
-interface FileRunDeps {
+export interface FileRunDeps {
   evaluateStatic: typeof evaluateStaticMutants;
   evaluateTests: typeof evaluateMutantTests;
   now(): number;
@@ -29,6 +29,19 @@ const realDeps: FileRunDeps = {
   evaluateTests: evaluateMutantTests,
   now: performance.now.bind(performance),
   timeoutSignal: AbortSignal.timeout,
+};
+
+const withTrackedOriginal = async <T>(
+  opts: FileRunOptions,
+  plan: FileMutationPlan,
+  run: () => Promise<T>,
+): Promise<T> => {
+  opts.originals.set(plan.file, plan.original);
+  try {
+    return await run();
+  } finally {
+    opts.originals.delete(plan.file);
+  }
 };
 
 export interface FileRunOptions {
@@ -65,13 +78,12 @@ const runTestsForStaticSurvivor = async (
   );
   if (remaining === 0) return { ...staticResult, status: "timed-out" };
 
-  opts.originals.set(plan.file, plan.original);
-  try {
+  return withTrackedOriginal(opts, plan, () => {
     const signal = AbortSignal.any([
       opts.abortSignal,
       deps.timeoutSignal(remaining),
     ]);
-    return await deps.evaluateTests(
+    return deps.evaluateTests(
       plan,
       staticResult.mutant,
       run,
@@ -79,9 +91,7 @@ const runTestsForStaticSurvivor = async (
       signal,
       staticResult.timings,
     );
-  } finally {
-    opts.originals.delete(plan.file);
-  }
+  });
 };
 
 const statusGlyph = (status: Status): string =>
@@ -132,19 +142,15 @@ export const runFileMutants = async (
     env: testEnv(),
     testFiles: opts.testFiles,
   };
-  opts.originals.set(plan.file, plan.original);
-  let staticResults: StaticEvaluation[];
-  try {
-    staticResults = await deps.evaluateStatic(plan, gates, {
+  const staticResults = await withTrackedOriginal(opts, plan, () =>
+    deps.evaluateStatic(plan, gates, {
       abortSignal: opts.abortSignal,
       jobs: opts.staticJobs,
       perMutantTimeout,
       root: projectRoot,
       workerParent: opts.staticWorkerParent,
-    });
-  } finally {
-    opts.originals.delete(plan.file);
-  }
+    }),
+  );
   for (const staticResult of staticResults) {
     if (opts.isAborted()) break;
     const { mutant } = staticResult;

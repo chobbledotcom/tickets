@@ -135,6 +135,7 @@ export const shouldCopySnapshotPath = (relativePath: string): boolean => {
 const copyDirectory = async (
   fromRoot: string,
   toRoot: string,
+  shouldCopy: (relativePath: string) => boolean,
   relativePath = "",
 ): Promise<void> => {
   const fromDir = join(fromRoot, relativePath);
@@ -149,23 +150,31 @@ const copyDirectory = async (
     const childPath = relativePath
       ? join(relativePath, entry.name)
       : entry.name;
-    if (!shouldCopySnapshotPath(childPath)) continue;
+    if (!shouldCopy(childPath)) continue;
 
     const from = join(fromRoot, childPath);
     const to = join(toRoot, childPath);
     if (entry.isDirectory) {
-      await copyDirectory(fromRoot, toRoot, childPath);
+      await copyDirectory(fromRoot, toRoot, shouldCopy, childPath);
     } else {
       await Deno.copyFile(from, to);
     }
   }
 };
 
+const copyMatching =
+  (shouldCopy: (relativePath: string) => boolean) =>
+  (fromRoot: string, toRoot: string): Promise<void> =>
+    copyDirectory(fromRoot, toRoot, shouldCopy);
+
 /** Copy a checkout into a snapshot, leaving out everything a run must not carry. */
-export const copyMutationSnapshot = (
-  fromRoot: string,
-  toRoot: string,
-): Promise<void> => copyDirectory(fromRoot, toRoot);
+export const copyMutationSnapshot = copyMatching(shouldCopySnapshotPath);
+
+const shouldCopyStaticWorkspacePath = (relativePath: string): boolean =>
+  pathParts(relativePath)[0] !== ".bin" && shouldCopySnapshotPath(relativePath);
+
+/** Copy only the source and configuration needed by lint and type-check. */
+export const copyStaticWorkspace = copyMatching(shouldCopyStaticWorkspacePath);
 
 const compactIso = (iso: string): string =>
   iso

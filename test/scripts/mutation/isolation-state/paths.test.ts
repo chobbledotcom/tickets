@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   copyMutationSnapshot,
+  copyStaticWorkspace,
   rewriteMutationArgs,
   shouldCopySnapshotPath,
 } from "#scripts/mutation/isolation-state.ts";
@@ -70,6 +71,28 @@ describe("mutation isolation paths", () => {
       expect(
         await pathExists(join(snapshot, "src", "ui", "static", "style.css")),
       ).toBe(false);
+    });
+  });
+
+  test("leaves harness binaries out of static workspaces", async () => {
+    await withTempDir(async (dir) => {
+      const source = join(dir, "source");
+      const snapshot = join(dir, "snapshot");
+      const workspace = join(dir, "workspace");
+      await Deno.mkdir(join(source, ".bin"), { recursive: true });
+      await Deno.writeTextFile(join(source, ".bin", "stripe-mock"), "binary");
+      await Deno.writeTextFile(join(source, "source.ts"), "export {};\n");
+
+      await copyMutationSnapshot(source, snapshot);
+      await copyStaticWorkspace(source, workspace);
+
+      expect(await pathExists(join(snapshot, ".bin", "stripe-mock"))).toBe(
+        true,
+      );
+      expect(await pathExists(join(workspace, ".bin", "stripe-mock"))).toBe(
+        false,
+      );
+      expect(await pathExists(join(workspace, "source.ts"))).toBe(true);
     });
   });
 

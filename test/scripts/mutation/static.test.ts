@@ -8,6 +8,7 @@ import {
   defaultStaticJobs,
   evaluateStaticMutants,
   type StaticDeps,
+  type StaticRunConfig,
   staticWorkerParent,
 } from "#scripts/mutation/static.ts";
 import { projectRoot } from "#scripts/project-root.ts";
@@ -35,7 +36,7 @@ const plan = (selected = mutants): FileMutationPlan => ({
   rebuildTestState: false,
 });
 
-const config = (changes = {}) => ({
+const config = (changes: Partial<StaticRunConfig> = {}): StaticRunConfig => ({
   abortSignal: new AbortController().signal,
   jobs: 4,
   perMutantTimeout: 1_000,
@@ -332,7 +333,9 @@ describe("parallel mutation static gates", () => {
       );
       expect(results).toHaveLength(3);
       expect(await Deno.readTextFile(file)).toBe("true");
-      await expect(Deno.stat(join(workerParent, "static-1"))).rejects.toThrow();
+      await expect(Deno.stat(join(workerParent, "static-1"))).rejects.toThrow(
+        Deno.errors.NotFound,
+      );
     } finally {
       await Deno.remove(home, { recursive: true });
     }
