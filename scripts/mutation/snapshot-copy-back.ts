@@ -7,6 +7,7 @@
  */
 
 import { join } from "@std/path";
+import { withCopyBackLock } from "#scripts/mutation/isolation-lock.ts";
 import { writeWholeOrNotAtAll } from "#scripts/mutation/write-whole.ts";
 import { errorMessage } from "#shared/error-message.ts";
 
@@ -110,3 +111,20 @@ export const bringFilesBack = async (
     return 1;
   }
 };
+
+/**
+ * Bring the run's kept files back, one run at a time across the checkout. The
+ * question is asked again inside the lock: waiting for it is a moment long
+ * enough to be interrupted, and an interrupted run keeps nothing.
+ */
+export const keepSnapshotFiles = (
+  wasInterrupted: () => boolean,
+  root: string,
+  workRoot: string,
+  copyBack: CopyBackFile[],
+): Promise<number> =>
+  withCopyBackLock(root, () =>
+    wasInterrupted()
+      ? Promise.resolve(0)
+      : bringFilesBack(root, workRoot, copyBack),
+  );

@@ -1430,13 +1430,15 @@ direct tests without the stale state. If the mutant survives, the runner builds
 one fresh state from the mutant and shares it across all integration-test
 batches.
 
-How it works (and why it is bespoke): it mutates the source file **in place**,
-runs the mapped tests in a fresh `deno test` subprocess, then restores the file.
-The normal `deno task mutation` command first copies the current checkout
+How it works (and why it is bespoke): static gates apply mutants in isolated
+sibling copies. Mutants that pass are written over the run's source file, tested
+in a fresh `deno test` subprocess, then restored. The normal
+`deno task mutation` command first copies the current checkout
 (including dirty source/test edits, excluding `.git`, cache/report folders,
 local databases, secrets, and generated assets) to `.mutation-runs/<id>/work`;
-all in-place writes and per-mutant bundle rebuilds happen inside that copy, not
-the live files. A run deletes that copy as soon as it ends — reporting the
+test-stage writes and per-mutant bundle rebuilds happen inside that copy, not
+the live files. Static worker copies are deleted before tests start. A run
+deletes its main copy as soon as it ends — reporting the
 failure if it cannot — so `.mutation-runs/` does not fill up with checkout
 copies. While a run is going — and until the _next_ run starts — it has a small
 `.mutation-runs/<id>/run.json` holding the child PID/status, so a stray run is
@@ -1486,7 +1488,13 @@ one was edited meanwhile, which fails the run instead of overwriting the edit.
 
 Before it runs the mapped tests, the runner puts every mutant through two cheap
 **static gates**, ordered cheapest-first: a per-file Biome **lint** and then a
-`deno check` **type-check**. Keep the Biome calls one-shot unless a new
+`deno check` **type-check**. Static gates run concurrently in isolated sibling
+copies, with a CPU-aware limit capped at four (`MUTATION_STATIC_JOBS` can lower
+it). One- and two-mutant files stay serial to avoid copy overhead. Test batches
+keep their separate `--jobs` limit and still run only after static results are
+reported in mutant order. A mutant's timeout starts when its static work leaves
+the queue. Static work and any wait for earlier tests both use that time. Keep
+the Biome calls one-shot unless a new
 benchmark proves otherwise: with pinned Biome 2.4.16, 20 warm one-file runs
 measured a 17.3 ms standalone median and a 51.2 ms `--use-server` median. Either
 gate exiting non-zero kills the mutant without spending a full `deno test` on it

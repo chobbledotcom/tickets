@@ -4,7 +4,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   runClaimIsFresh,
   withCopyBackLock,
-  withCopyBackLockWhen,
   withRunClaim,
 } from "#scripts/mutation/isolation-lock.ts";
 import {
@@ -85,37 +84,6 @@ describe("the claim a supervisor holds on its run", () => {
 });
 
 describe("the lock that keeps two runs out of one copy-back", () => {
-  test("runs work that is still wanted after taking the lock", async () => {
-    await withTempDir(async (root) => {
-      expect(
-        await withCopyBackLockWhen(
-          root,
-          () => true,
-          0,
-          () => Promise.resolve(7),
-        ),
-      ).toBe(7);
-    });
-  });
-
-  test("skips work that is no longer wanted after taking the lock", async () => {
-    await withTempDir(async (root) => {
-      let ran = false;
-      const result = await withCopyBackLockWhen(
-        root,
-        () => false,
-        3,
-        () => {
-          ran = true;
-          return Promise.resolve(7);
-        },
-      );
-
-      expect(result).toBe(3);
-      expect(ran).toBe(false);
-    });
-  });
-
   test("keeps a second run out until the first has brought its files back", async () => {
     await withTempDir(async (root) => {
       const order: string[] = [];

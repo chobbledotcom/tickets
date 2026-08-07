@@ -1,11 +1,10 @@
 /**
  * Mutation test runner.
  *
- * For each mutant we write the mutated source over the real file, run the
- * mapped test files in a fresh `deno test` subprocess, then restore the
- * original. Mutating in place (rather than in a temp copy) is what makes
- * mutations bind through this project's `#…` import-map aliases — a fresh
- * subprocess recompiles the changed file, so the tests run against the mutant.
+ * Static gates run concurrently in isolated copies. Mutants that pass them are
+ * then written over the copied run's source one at a time for tests and restored
+ * afterwards. In-place test mutation is what makes this project's `#…`
+ * import-map aliases bind to the mutant.
  *
  * A mutant is "killed" when a static gate rejects it or the tests fail,
  * "survived" when it clears every gate and the tests still pass (a gap in the
@@ -34,6 +33,7 @@ import { generateMutants } from "./generate.ts";
 import { ignoreListProblems, loadIgnoreList, mutantKey } from "./ignore.ts";
 import { type FileRunOptions, runFileMutants } from "./run-file.ts";
 import { collectModuleGraphFiles, STATE_BUILDER_ROOT } from "./state-graph.ts";
+import { defaultStaticJobs, staticWorkerParent } from "./static.ts";
 import {
   formatSummaryLines,
   type MutantResult,
@@ -160,7 +160,7 @@ const isUnmutatedTargetDirty = async (
 ): Promise<boolean> => {
   if (plan.mutants.length === 0) return false;
   for (const gate of gates) {
-    if ((await gate.exit(plan.file, signal)) === 0) continue;
+    if ((await gate.exit(plan.file, projectRoot, signal)) === 0) continue;
     console.error(
       red(
         `\nThe unmutated ${rel(plan.file)} does not pass the ${gate.label} gate.`,
@@ -255,6 +255,9 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
   if ("code" in baseline) return baseline.code;
   const { perMutantTimeout } = baseline;
   const gates = await createStaticGates();
+  console.log(
+    dim(`Using up to ${opts.staticJobs} concurrent static gate job(s).`),
+  );
 
   try {
     const totalMutants = plans.reduce(
@@ -343,6 +346,8 @@ const mutate = async (
       results,
       sourceFiles,
       staticAssets,
+      staticJobs: defaultStaticJobs(),
+      staticWorkerParent: staticWorkerParent(),
       testFiles,
       testMap,
       timeout,

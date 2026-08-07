@@ -92,14 +92,3 @@ export const withCopyBackLock = <Result>(
   root: string,
   run: LockBody<Result>,
 ): Promise<Result> => withFileLock(copyBackLockPath(root), run);
-
-/** Recheck whether copy-back is still wanted after waiting for its lock. */
-export const withCopyBackLockWhen = <Result>(
-  root: string,
-  shouldRun: () => boolean,
-  skippedResult: Result,
-  run: LockBody<Result>,
-): Promise<Result> =>
-  withCopyBackLock(root, () =>
-    shouldRun() ? run() : Promise.resolve(skippedResult),
-  );

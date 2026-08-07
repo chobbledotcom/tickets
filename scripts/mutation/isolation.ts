@@ -26,11 +26,7 @@ import {
   reportRemoveFailure,
   runIsOwned,
 } from "./isolation-cleanup.ts";
-import {
-  withCopyBackLockWhen,
-  withRunClaim,
-  withRunClaimGuard,
-} from "./isolation-lock.ts";
+import { withRunClaim, withRunClaimGuard } from "./isolation-lock.ts";
 import { readRunRecords, writeRunRecord } from "./isolation-records.ts";
 import {
   copyMutationSnapshot,
@@ -55,8 +51,8 @@ import {
   selectedRuns,
 } from "./isolation-state.ts";
 import {
-  bringFilesBack,
   type CopyBackFile,
+  keepSnapshotFiles,
   readCopyBackFiles,
 } from "./snapshot-copy-back.ts";
 
@@ -161,11 +157,11 @@ const finishChild = async (
   const failedToKeep =
     wasInterrupted() || copyBack.length === 0
       ? 0
-      : await withCopyBackLockWhen(
+      : await keepSnapshotFiles(
+          wasInterrupted,
           root,
-          () => !wasInterrupted(),
-          0,
-          () => bringFilesBack(root, record.workRoot, copyBack),
+          record.workRoot,
+          copyBack,
         );
   const interrupted = wasInterrupted();
   // A run that could not keep its files failed, whatever the child said.
