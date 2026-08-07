@@ -75,6 +75,38 @@ describe("screenshot layer browser contracts", () => {
     );
   });
 
+  test("keeps selection highlights out of the controls layer", async () => {
+    await withPage(
+      browser,
+      `<style>input::selection { background: rgb(255, 255, 0); color: rgb(0, 0, 255); }</style>
+       <input value="Selected words">`,
+      async (page) => {
+        await page
+          .locator("input")
+          .evaluate((input) => (input as HTMLInputElement).select());
+
+        expect(
+          await layerStyle(
+            page,
+            "controls",
+            "input",
+            "background-color",
+            "::selection",
+          ),
+        ).toBe("rgba(0, 0, 0, 0)");
+        expect(
+          await layerStyle(
+            page,
+            "text",
+            "input",
+            "background-color",
+            "::selection",
+          ),
+        ).toBe("rgb(255, 255, 0)");
+      },
+    );
+  });
+
   test("keeps nested generated control labels out of the controls layer", async () => {
     await withPage(
       browser,

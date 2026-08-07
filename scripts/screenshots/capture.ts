@@ -1,6 +1,7 @@
 import type { Page } from "playwright";
 import { parseRgb, type Rgb } from "./color.ts";
 import {
+  compositeScreenshotLayers,
   cropElementLayerPng,
   elementTrimBounds,
   trimElementPng,
@@ -173,9 +174,11 @@ const capturePausedLayers = async ({
   fullPage,
   page,
 }: CaptureContext): Promise<PreparedLayeredScreenshot> => {
-  const normal = await pagePng(page, fullPage, false, false);
   const bounds = elementSelector
-    ? await elementTrimBounds(normal, background)
+    ? await elementTrimBounds(
+        await pagePng(page, fullPage, false, false),
+        background,
+      )
     : undefined;
   const entries: [ScreenshotLayerName, Uint8Array][] = [];
   const transparent = { alpha: 0, b: 0, g: 0, r: 0 } as const;
@@ -196,15 +199,14 @@ const capturePausedLayers = async ({
         : png,
     ]);
   }
+  const layers = Object.fromEntries(entries) as Record<
+    ScreenshotLayerName,
+    Uint8Array
+  >;
   return {
     background,
-    layers: Object.fromEntries(entries) as Record<
-      ScreenshotLayerName,
-      Uint8Array
-    >,
-    png: bounds
-      ? await cropElementLayerPng(normal, bounds, background)
-      : normal,
+    layers,
+    png: await compositeScreenshotLayers(layers),
   };
 };
 

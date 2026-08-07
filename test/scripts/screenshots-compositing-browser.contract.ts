@@ -110,6 +110,17 @@ describe("screenshot layer compositing browser contracts", () => {
     );
   });
 
+  test("recombines backdrop-filter groups", async () => {
+    await withPage(
+      browser,
+      `<style>
+        body { background: linear-gradient(to right, red, blue); margin: 0; }
+        button { backdrop-filter: blur(8px); background: rgb(255 255 255 / 0.5); border: 0; height: 80px; width: 160px; }
+      </style><button>Words</button>`,
+      (page) => expectLayersRecombine(page, "backdrop-filter group"),
+    );
+  });
+
   test("recombines masked paint groups", async () => {
     await withPage(
       browser,

@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import sharp from "sharp";
@@ -131,7 +132,9 @@ beforeEach(() => {
         display: "block",
         filter: "none",
         getPropertyValue: (name: string) =>
-          name === "-webkit-mask-image" ? "none" : "border-box",
+          name.includes("mask") || name.includes("backdrop")
+            ? "none"
+            : "border-box",
         maskImage: "none",
         mixBlendMode: "normal",
         opacity,
@@ -233,19 +236,70 @@ describe("capturePreparedLayers", () => {
     expect(result.png).toEqual(await blankWhitePng());
     expect(
       calls.screenshotOptions.map(({ omitBackground }) => omitBackground),
-    ).toEqual([
-      undefined,
-      ...SCREENSHOT_LAYER_NAMES.map((layer) =>
+    ).toEqual(
+      SCREENSHOT_LAYER_NAMES.map((layer) =>
         layer === "background" ? undefined : true,
       ),
-    ]);
+    );
     expect(calls.screenshotOptions.map(({ animations }) => animations)).toEqual(
-      Array.from(
-        { length: SCREENSHOT_LAYER_NAMES.length + 1 },
-        () => undefined,
-      ),
+      SCREENSHOT_LAYER_NAMES.map(() => undefined),
     );
     expect(calls.styleRemovals).toBe(SCREENSHOT_LAYER_NAMES.length + 1);
+  });
+
+  test("returns a normal PNG made from the captured layer frames", async () => {
+    const images = await Promise.all([
+      blankWhitePng(),
+      sharp({
+        create: {
+          background: { alpha: 1, b: 0, g: 0, r: 255 },
+          channels: 4,
+          height: 50,
+          width: 50,
+        },
+      })
+        .png()
+        .toBuffer(),
+      sharp({
+        create: {
+          background: { alpha: 0.5, b: 0, g: 255, r: 0 },
+          channels: 4,
+          height: 50,
+          width: 50,
+        },
+      })
+        .png()
+        .toBuffer(),
+      sharp({
+        create: {
+          background: { alpha: 0.5, b: 255, g: 0, r: 0 },
+          channels: 4,
+          height: 50,
+          width: 50,
+        },
+      })
+        .png()
+        .toBuffer(),
+    ]);
+    let capture = 0;
+    const { page } = buildCaptureMockPage({
+      screenshot: () => {
+        const image = images[capture++];
+        if (!image) throw new Error("Captured more test frames than expected.");
+        return Promise.resolve(image);
+      },
+    });
+
+    const result = await capturePreparedLayers(page);
+    const combined = await sharp(result.layers.background)
+      .composite([
+        { input: Buffer.from(result.layers.controls) },
+        { input: Buffer.from(result.layers.text) },
+      ])
+      .png()
+      .toBuffer();
+
+    expect(result.png).toEqual(new Uint8Array(combined));
   });
 
   test("uses one element crop for every layer", async () => {
@@ -291,7 +345,7 @@ describe("capturePreparedLayers", () => {
     await expect(capturePreparedLayers(page)).rejects.toThrow(
       "layer capture failed",
     );
-    expect(calls.styleRemovals).toBe(2);
+    expect(calls.styleRemovals).toBe(3);
   });
 
   test("fails when capture controls were not installed before navigation", async () => {

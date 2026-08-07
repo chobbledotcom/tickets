@@ -64,6 +64,10 @@ const LAYER_STYLES: Record<ScreenshotLayerName, string> = {
     :is(${CONTROL_SELECTOR})${LAYER_PRIORITY} *::after {
       ${HIDDEN_TEXT_STYLE}
     }
+    :is(${CONTROL_SELECTOR})${LAYER_PRIORITY}::selection,
+    :is(${CONTROL_SELECTOR})${LAYER_PRIORITY} *::selection {
+      background-color: transparent !important;
+    }
     :is(${CONTROL_SELECTOR})${LAYER_PRIORITY}::placeholder {
       color: transparent !important;
       ${HIDDEN_TEXT_STYLE}
@@ -270,6 +274,10 @@ const changeLayerMarks = (page: Page, add: boolean): Promise<void> =>
         style.opacity !== "1" ||
         style.filter !== "none" ||
         style.mixBlendMode !== "normal" ||
+        [
+          style.getPropertyValue("backdrop-filter"),
+          style.getPropertyValue("-webkit-backdrop-filter"),
+        ].some((value) => value !== "" && value !== "none") ||
         [style.maskImage, style.getPropertyValue("-webkit-mask-image")].some(
           (value) => value !== "none",
         );

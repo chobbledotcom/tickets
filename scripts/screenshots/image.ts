@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import sharp from "sharp";
 import { wasImageTrimmed } from "#scripts/screenshots/checks.ts";
 import type { Rgb } from "#scripts/screenshots/color.ts";
@@ -10,6 +11,12 @@ export interface ElementTrimBounds {
   left: number;
   top: number;
   width: number;
+}
+
+interface ScreenshotLayers {
+  background: Uint8Array;
+  controls: Uint8Array;
+  text: Uint8Array;
 }
 
 const padded = (background: Rgb & { alpha?: number }) => ({
@@ -50,6 +57,19 @@ export const cropElementLayerPng = async (
     await sharp(png)
       .extract(bounds)
       .extend(padded(background))
+      .png()
+      .toBuffer(),
+  );
+
+export const compositeScreenshotLayers = async (
+  layers: ScreenshotLayers,
+): Promise<Uint8Array> =>
+  new Uint8Array(
+    await sharp(layers.background)
+      .composite([
+        { input: Buffer.from(layers.controls) },
+        { input: Buffer.from(layers.text) },
+      ])
       .png()
       .toBuffer(),
   );
