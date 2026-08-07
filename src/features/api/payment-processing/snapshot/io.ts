@@ -1,3 +1,4 @@
+/* jscpd:ignore-start */
 import { unique } from "#fp";
 import { buildPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/build.ts";
 import type {
@@ -28,6 +29,8 @@ import { decryptListingWithCount } from "#shared/db/listings/records.ts";
 import type { ListingRecordRow } from "#shared/db/listings/select.ts";
 import { rawListingsTable } from "#shared/db/listings/table.ts";
 import type { GroupListing, ListingWithCount } from "#shared/types.ts";
+
+/* jscpd:ignore-end */
 
 const selectIn = (column: string, values: readonly unknown[]): string =>
   values.length === 0 ? "0" : `${column} IN (${inPlaceholders(values)})`;
