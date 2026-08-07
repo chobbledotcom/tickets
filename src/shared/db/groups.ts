@@ -530,10 +530,12 @@ export const setListingGroupsTx = async (
   tx: TxScope,
   listingId: number,
   groupIds: number[],
+  hasChildren?: boolean,
 ): Promise<void> => {
   const validation = await validateListingGroupMembershipTx(tx)(
     listingId,
     groupIds,
+    hasChildren,
   );
   if (validation.listingMissing) return;
   if (validation.error) throw new TransactionValidationError(validation.error);

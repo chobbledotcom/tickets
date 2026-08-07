@@ -236,6 +236,7 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
          BEGIN DELETE FROM listings WHERE id = ${member.id}; END`,
     );
     const before = await Promise.all([
+      countRows("listings"),
       countRows("groups"),
       countRows("group_listings"),
     ]);
@@ -252,7 +253,11 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
       ok: false,
     });
     expect(
-      await Promise.all([countRows("groups"), countRows("group_listings")]),
+      await Promise.all([
+        countRows("listings"),
+        countRows("groups"),
+        countRows("group_listings"),
+      ]),
     ).toEqual(before);
   });
 });

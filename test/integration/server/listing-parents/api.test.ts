@@ -74,6 +74,27 @@ describeWithEnv("server > listing parents > admin API", { db: true }, () => {
     expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
   });
 
+  test("admin API can join a hidden package while clearing children", async () => {
+    const group = await createTestGroup({
+      hidePackageListings: true,
+      isPackage: true,
+      name: "Hidden package",
+    });
+    const parent = await createTestListing({ name: "Joining package" });
+    const child = await createTestListing({ name: "Former child" });
+    await postChildren(parent.id, [child.id]);
+
+    await assertJson(
+      apiRequest(`/api/admin/listings/${parent.id}`, {
+        body: { child_listing_ids: [], group_ids: [group.id] },
+        method: "PUT",
+      }),
+      200,
+    );
+    expect(await listingGroups.getIds(parent.id)).toEqual([group.id]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([]);
+  });
+
   test("admin API rejects a non-numeric child id entry without clearing edges", async () => {
     // A JSON client sending a stringified id (e.g. `"oops"`, or `"7"`) must fail
     // closed with a 400 — never be silently filtered out, which could shrink the

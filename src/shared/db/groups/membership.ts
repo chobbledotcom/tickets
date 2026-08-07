@@ -258,28 +258,53 @@ const listingGroupMembershipErrorTx = async (
 };
 
 /** Rechecks selected listing/group membership pairs inside the write transaction. */
+const validateListingGroupMembershipsWithChildStateTx = async (
+  tx: TxScope,
+  listingIds: readonly number[],
+  groupIds: readonly number[],
+  hasChildrenByListingId: ReadonlyMap<number, boolean>,
+): Promise<ListingGroupMembershipValidation> => {
+  const ids = [...new Set(listingIds)];
+  const listings = (await listingStatesTx(tx, ids)).map((listing) => {
+    const hasChildren = hasChildrenByListingId.get(listing.id);
+    return hasChildren === undefined ? listing : { ...listing, hasChildren };
+  });
+  if (listings.length !== ids.length) return { listingMissing: true };
+  return {
+    error: await listingGroupMembershipErrorTx(tx, listings, groupIds),
+    listingMissing: false,
+  };
+};
+
+/** Rechecks selected listing/group membership pairs inside the write transaction. */
 export const validateListingGroupMembershipsTx =
   (tx: TxScope): MembershipsChecker<ListingGroupMembershipValidation> =>
-  async (listingIds, groupIds) => {
-    const ids = [...new Set(listingIds)];
-    const listings = await listingStatesTx(tx, ids);
-    if (listings.length !== ids.length) return { listingMissing: true };
-    return {
-      error: await listingGroupMembershipErrorTx(tx, listings, groupIds),
-      listingMissing: false,
-    };
-  };
+  (listingIds, groupIds) =>
+    validateListingGroupMembershipsWithChildStateTx(
+      tx,
+      listingIds,
+      groupIds,
+      new Map(),
+    );
 
-/** Rechecks one listing's selected group memberships inside the write transaction. */
+/** Rechecks one listing's selected group memberships with its intended child state. */
 export const validateListingGroupMembershipTx =
   (
     tx: TxScope,
   ): ((
     listingId: number,
     groupIds: readonly number[],
+    hasChildren?: boolean,
   ) => Promise<ListingGroupMembershipValidation>) =>
-  (listingId, groupIds) =>
-    validateListingGroupMembershipsTx(tx)([listingId], groupIds);
+  (listingId, groupIds, hasChildren) =>
+    validateListingGroupMembershipsWithChildStateTx(
+      tx,
+      [listingId],
+      groupIds,
+      hasChildren === undefined
+        ? new Map()
+        : new Map([[listingId, hasChildren]]),
+    );
 
 /** Rechecks every member after a group becomes a package or hides its members. */
 export const packageGroupMembersErrorTx = async (
