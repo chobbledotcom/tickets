@@ -108,4 +108,20 @@ describeWithEnv("settings-logistics", { db: true }, () => {
     )(response);
     expect(await logisticsAgents.table.read.one({ id })).toBeNull();
   });
+
+  test("deleting an agent clears its user assignments", async () => {
+    const id = await createLogisticsAgent("Clear Users Agent");
+    const userId = (await getAllUsers())[0]!.id;
+    await adminFormPost(`/admin/logistics/${id}/edit`, {
+      name: "Clear Users Agent",
+      user_ids: String(userId),
+    });
+    expect(await agentUsers.getIds(id)).toEqual([userId]);
+
+    await adminFormPost(`/admin/logistics/${id}/delete`, {
+      confirm_identifier: "Clear Users Agent",
+    });
+
+    expect(await agentUsers.getIds(id)).toEqual([]);
+  });
 });
