@@ -9,6 +9,7 @@ import {
   SCREENSHOT_LAYER_NAMES,
   type ScreenshotLayerName,
   withScreenshotLayer,
+  withWholeOpacityGroups,
 } from "./layers.ts";
 
 export interface PreparedScreenshot {
@@ -80,8 +81,8 @@ const withPreparedCapture =
 
 export const capturePreparedLayers: CaptureFunction<
   Record<ScreenshotLayerName, Uint8Array>
-> = withPreparedCapture(
-  async ({ background, elementSelector, fullPage, page }) => {
+> = withPreparedCapture(({ background, elementSelector, fullPage, page }) =>
+  withWholeOpacityGroups(page, async () => {
     const normal = await pagePng(page, fullPage);
     const bounds = elementSelector
       ? await elementTrimBounds(normal, background)
@@ -93,7 +94,7 @@ export const capturePreparedLayers: CaptureFunction<
       Rgb & { alpha?: number }
     > = { background, controls: transparent, text: transparent };
     for (const layer of SCREENSHOT_LAYER_NAMES) {
-      const png = await withScreenshotLayer(page, layer, () =>
+      const png = await withScreenshotLayer(layer)(page, () =>
         pagePng(page, fullPage, true),
       );
       entries.push([
@@ -107,7 +108,7 @@ export const capturePreparedLayers: CaptureFunction<
       ScreenshotLayerName,
       Uint8Array
     >;
-  },
+  }),
 );
 
 export const capturePreparedPage: CaptureFunction<PreparedScreenshot> =

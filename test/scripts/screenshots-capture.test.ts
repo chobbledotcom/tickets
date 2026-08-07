@@ -48,10 +48,17 @@ const buildCaptureMockPage = (
     waitFor: () => Promise.resolve(),
   };
   const page = {
-    evaluate: (fn: (argument: never) => unknown, argument: never) => {
-      if (typeof argument === "string") calls.styleRemovals += 1;
-      return Promise.resolve(fn(argument));
-    },
+    addStyleTag: () =>
+      Promise.resolve({
+        evaluate: (fn: (node: unknown) => unknown) => {
+          calls.styleRemovals += 1;
+          return Promise.resolve(
+            fn({ parentNode: { removeChild: () => undefined } }),
+          );
+        },
+      }),
+    evaluate: (fn: (argument: never) => unknown, argument: never) =>
+      Promise.resolve(fn(argument)),
     locator: (selector: string) => {
       calls.locatorSelectors.push(selector);
       return selector === "body"
@@ -61,6 +68,10 @@ const buildCaptureMockPage = (
           }
         : elementLocator;
     },
+    route: (
+      _url: string,
+      handler: (route: { fulfill: () => Promise<void> }) => Promise<void>,
+    ) => handler({ fulfill: () => Promise.resolve() }),
     screenshot: async (opts: {
       fullPage: boolean;
       omitBackground?: boolean;
@@ -68,6 +79,8 @@ const buildCaptureMockPage = (
       calls.screenshotOptions.push(opts);
       return await (config.screenshot ?? blankWhitePng)(opts);
     },
+    unroute: () => Promise.resolve(),
+    url: () => "https://tickets.test/page",
   };
   return { calls, page: page as never };
 };
@@ -85,13 +98,30 @@ const globals = createGlobalStash();
 
 beforeEach(() => {
   globals.set("getComputedStyle", (node: { style: unknown }) => node.style);
-  globals.set(
-    "CSSStyleSheet",
-    class {
-      replaceSync(_css: string): void {}
-    },
-  );
-  globals.set("document", { adoptedStyleSheets: [] });
+  const makeElement = (
+    opacity: string,
+    parentElement: { closest: () => unknown } | null,
+  ) => {
+    const attributes = new Set<string>();
+    return {
+      attributes,
+      parentElement,
+      removeAttribute: (attribute: string) => attributes.delete(attribute),
+      setAttribute: (attribute: string) => attributes.add(attribute),
+      style: { opacity },
+    };
+  };
+  const opaque = makeElement("1", null);
+  const translucent = makeElement("0.5", null);
+  const nested = makeElement("0.5", {
+    closest: () => translucent,
+  });
+  const elements = [opaque, translucent, nested];
+  globals.set("document", {
+    body: { querySelectorAll: () => elements },
+    querySelectorAll: () =>
+      elements.filter(({ attributes }) => attributes.size > 0),
+  });
 });
 
 afterEach(() => globals.restore());

@@ -1,6 +1,13 @@
+import { Buffer } from "node:buffer";
 import { expect } from "@std/expect";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { Browser } from "playwright";
+import sharp from "sharp";
+import { capturePreparedLayers } from "#scripts/screenshots/capture.ts";
+import {
+  addScreenshotStyle,
+  withScreenshotLayer,
+} from "#scripts/screenshots/layers.ts";
 import {
   launchScreenshotBrowser,
   layerStyle,
@@ -102,9 +109,12 @@ describe("screenshot layer browser contracts", () => {
   test("applies layer masks without bypassing page CSP", async () => {
     await withPage(
       browser,
-      `<meta http-equiv="Content-Security-Policy" content="style-src 'none'">
-       <p>Words</p>`,
+      `<meta http-equiv="Content-Security-Policy" content="style-src 'self'">
+       <p style="color: rgb(255, 0, 0)">Words</p>`,
       async (page) => {
+        expect(await layerStyle(page, "text", "p", "color")).not.toBe(
+          "rgb(255, 0, 0)",
+        );
         expect(
           await layerStyle(page, "background", "p", "-webkit-text-fill-color"),
         ).toBe("rgba(0, 0, 0, 0)");
@@ -157,6 +167,95 @@ describe("screenshot layer browser contracts", () => {
             "::backdrop",
           ),
         ).toBe("rgb(1, 2, 3)");
+      },
+    );
+  });
+
+  test("keeps date picker indicator pixels out of the text layer", async () => {
+    await withPage(
+      browser,
+      `<style>
+        input { background: transparent; border: 0; color: transparent; height: 30px; width: 120px; }
+        input::-webkit-calendar-picker-indicator { background: rgb(255, 0, 0); opacity: 1; }
+      </style><input type="date">`,
+      async (page) => {
+        const redPixels = async (layer: "controls" | "text") => {
+          const png = await withScreenshotLayer(layer)(page, () =>
+            page.locator("input").screenshot({ omitBackground: true }),
+          );
+          const { data, info } = await sharp(png)
+            .ensureAlpha()
+            .raw()
+            .toBuffer({ resolveWithObject: true });
+          return data.reduce(
+            (count, red, index) =>
+              index % info.channels === 0 &&
+              red === 255 &&
+              data[index + 1] === 0 &&
+              data[index + 2] === 0
+                ? count + 1
+                : count,
+            0,
+          );
+        };
+
+        expect(await redPixels("controls")).toBeGreaterThan(0);
+        expect(await redPixels("text")).toBe(0);
+      },
+    );
+  });
+
+  test("preserves imports in screenshot CSS", async () => {
+    await withPage(browser, "<p>Imported</p>", async (page) => {
+      const removeStyle = await addScreenshotStyle(
+        page,
+        '@import url("data:text/css,p%7Bcolor%3Argb(1%2C2%2C3)%7D");',
+      );
+      try {
+        expect(await layerStyle(page, "text", "p", "color")).toBe(
+          "rgb(1, 2, 3)",
+        );
+      } finally {
+        await removeStyle();
+      }
+    });
+  });
+
+  test("layer masks outrank existing important cascade layers", async () => {
+    await withPage(
+      browser,
+      `<style>@layer __screenshot_layer__; @layer components {
+        p { -webkit-text-fill-color: rgb(255, 0, 0) !important; }
+      }</style><p>Words</p>`,
+      async (page) => {
+        expect(
+          await layerStyle(page, "background", "p", "-webkit-text-fill-color"),
+        ).toBe("rgba(0, 0, 0, 0)");
+      },
+    );
+  });
+
+  test("recombines an opacity group exactly", async () => {
+    await withPage(
+      browser,
+      `<style>
+        body { background: white; margin: 0; }
+        #group { background: red; color: blue; height: 40px; opacity: 0.5; width: 100px; }
+      </style><div id="group">Words</div>`,
+      async (page) => {
+        const normal = await page.screenshot({ type: "png" });
+        const layers = await capturePreparedLayers(page);
+        const combined = await sharp(layers.background)
+          .composite([
+            { input: Buffer.from(layers.controls) },
+            { input: Buffer.from(layers.text) },
+          ])
+          .ensureAlpha()
+          .raw()
+          .toBuffer();
+        expect(combined).toEqual(
+          await sharp(normal).ensureAlpha().raw().toBuffer(),
+        );
       },
     );
   });

@@ -17,7 +17,7 @@ export const layerStyle = (
   property: string,
   pseudo?: string,
 ): Promise<string> =>
-  withScreenshotLayer(page, layer, () =>
+  withScreenshotLayer(layer)(page, () =>
     page
       .locator(selector)
       .evaluate(
@@ -36,7 +36,11 @@ export const withPage = async (
 ): Promise<void> => {
   const page = await browser.newPage();
   try {
-    await page.setContent(content);
+    const url = `https://screenshots.test/${crypto.randomUUID()}`;
+    await page.route(url, (route) =>
+      route.fulfill({ body: content, contentType: "text/html" }),
+    );
+    await page.goto(url);
     await check(page);
   } finally {
     await page.close();

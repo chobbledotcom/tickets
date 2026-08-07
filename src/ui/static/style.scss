@@ -2,6 +2,8 @@
 
 @use "sass:map";
 
+@layer __screenshot_layer__;
+
 :root {
   --active-brightness: 0.85;
   --border-radius: 5px;
