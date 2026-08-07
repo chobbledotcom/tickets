@@ -111,4 +111,53 @@ describe("screenshot layer browser contracts", () => {
       },
     );
   });
+
+  test("puts label-backed and disclosure widgets in the controls layer", async () => {
+    await withPage(
+      browser,
+      `<label class="order-card"><input type="checkbox">Ticket</label>
+       <label class="row-select"><input type="checkbox">Row</label>
+       <details><summary>More</summary><p>Details</p></details>`,
+      async (page) => {
+        for (const selector of [".order-card", ".row-select", "summary"]) {
+          expect(
+            await layerStyle(page, "background", selector, "visibility"),
+          ).toBe("hidden");
+          expect(
+            await layerStyle(page, "controls", selector, "visibility"),
+          ).toBe("visible");
+        }
+      },
+    );
+  });
+
+  test("keeps modal backdrops out of the text layer", async () => {
+    await withPage(
+      browser,
+      "<style>dialog::backdrop { background: rgb(1, 2, 3); }</style><dialog>Words</dialog>",
+      async (page) => {
+        await page
+          .locator("dialog")
+          .evaluate((dialog) => (dialog as HTMLDialogElement).showModal());
+        expect(
+          await layerStyle(
+            page,
+            "text",
+            "dialog",
+            "background-color",
+            "::backdrop",
+          ),
+        ).toBe("rgba(0, 0, 0, 0)");
+        expect(
+          await layerStyle(
+            page,
+            "background",
+            "dialog",
+            "background-color",
+            "::backdrop",
+          ),
+        ).toBe("rgb(1, 2, 3)");
+      },
+    );
+  });
 });

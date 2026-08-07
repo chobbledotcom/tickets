@@ -8,7 +8,7 @@ export const SCREENSHOT_LAYER_NAMES = [
 export type ScreenshotLayerName = (typeof SCREENSHOT_LAYER_NAMES)[number];
 
 const CONTROL_SELECTOR =
-  'input, select, textarea, button, [role="button"], .btn, a.button, a[class*="button"]';
+  'input, select, textarea, button, summary, label:has(input), [role="button"], .btn, a.button, a[class*="button"]';
 const LAYER_PRIORITY =
   ":not(#__screenshot_layer_mask__):not(#__screenshot_layer_control__)";
 const HIDDEN_TEXT_STYLE = `
@@ -50,7 +50,8 @@ const LAYER_STYLES: Record<ScreenshotLayerName, string> = {
     }
   }`,
   text: `@layer __screenshot_layer__ {
-    html, body, body ${LAYER_PRIORITY}, body ${LAYER_PRIORITY}::before, body ${LAYER_PRIORITY}::after {
+    html, body, body ${LAYER_PRIORITY}, body ${LAYER_PRIORITY}::before, body ${LAYER_PRIORITY}::after,
+    dialog${LAYER_PRIORITY}::backdrop {
       background: transparent !important;
       border-color: transparent !important;
       box-shadow: none !important;
