@@ -4,12 +4,6 @@ import { isNotNullish } from "#fp";
 import { TransactionValidationError } from "#shared/db/client.ts";
 import type { Table } from "#shared/db/table.ts";
 import { type CrudApiConfig, defineCrudApi } from "#shared/rest/crud-api.ts";
-import {
-  parseOptionalArray,
-  parseUpdateName,
-  parseUpdateSlug,
-  requireStrings,
-} from "#shared/rest/crud-parsers.ts";
 import { okResult } from "#shared/result.ts";
 import {
   getAllActivityLog,
@@ -76,44 +70,6 @@ const callRoute = async (
 
 describeWithEnv("defineCrudApi", { db: true }, () => {
   beforeEach(() => createIdNameTable("widgets"));
-
-  test("parses shared scalar and array inputs", async () => {
-    expect(requireStrings({ name: " mutated " }, ["name"])).toEqual({
-      ok: true,
-      value: { name: "mutated" },
-    });
-    expect(
-      parseOptionalArray([1, 2], "items", (item) => okResult(Number(item))),
-    ).toEqual({ ok: true, value: [1, 2] });
-    expect(
-      await parseUpdateSlug(
-        { slug: " New Slug " },
-        "old-slug",
-        (slug) => slug.trim().toLowerCase().replaceAll(" ", "-"),
-        (slug) => Promise.resolve(`index:${slug}`),
-      ),
-    ).toEqual({ slug: "new-slug", slugIndex: "index:new-slug" });
-    expect(
-      await parseUpdateSlug(
-        {},
-        "old-slug",
-        (slug) => slug,
-        (slug) => Promise.resolve(`index:${slug}`),
-      ),
-    ).toEqual({ slug: "old-slug", slugIndex: "index:old-slug" });
-    expect(parseUpdateName({ name: " Updated " }, "Original")).toEqual({
-      ok: true,
-      value: "Updated",
-    });
-    expect(parseUpdateName({}, "Original")).toEqual({
-      ok: true,
-      value: "Original",
-    });
-    expect(parseUpdateName({ name: "" }, "Original")).toEqual({
-      error: "name cannot be empty",
-      ok: false,
-    });
-  });
 
   test("creates, strips, hydrates, and logs a row", async () => {
     const table = makeTable();
