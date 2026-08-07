@@ -176,6 +176,20 @@ type RawGroupRow = {
   id: number;
   name: EnvKeyEncrypted;
 };
+type ChildEdgeRow = {
+  child_listing_id: number;
+  parent_listing_id: number;
+};
+type LedgerRow = {
+  has_legs: number;
+  owner_attendee_id: number | null;
+};
+type ListingIdRow = {
+  listing_id: number;
+};
+type ModifierScopeRow = ListingIdRow & {
+  modifier_id: number;
+};
 type RawModifierRow = {
   calc_kind: SnapshotModifierRow["calcKind"];
   calc_value: number;
@@ -185,6 +199,17 @@ type RawModifierRow = {
   name: EnvKeyEncrypted;
   scope: SnapshotModifierRow["scope"];
   trigger: SnapshotModifierRow["trigger"];
+};
+type RawDayPriceRow = ListingIdRow & {
+  days: number;
+  group_id: number;
+  unit_price: number;
+};
+type PublicStatusRow = {
+  id: number;
+};
+type VisitCountRow = {
+  visits: number;
 };
 
 const mapListings = async (
@@ -236,51 +261,50 @@ export const loadPaidOrderSnapshot = async (
     bookingEventGroup(eventId),
     usableContactHashes(intent),
   ]);
-  const results = await queryBatch(
-    snapshotStatements(eventGroup, intent, contactHashes),
-  );
-  const ledger = resultRows<{
-    has_legs: number;
-    owner_attendee_id: number | null;
-  }>(results[0]!)[0]!;
+  const [
+    ledgerResult,
+    listingsResult,
+    groupsResult,
+    membershipsResult,
+    dayPricesResult,
+    hiddenMembersResult,
+    childEdgesResult,
+    modifiersResult,
+    modifierScopesResult,
+    visitCountsResult,
+    publicStatusesResult,
+  ] = await queryBatch(snapshotStatements(eventGroup, intent, contactHashes));
+  const ledger = resultRows<LedgerRow>(ledgerResult!)[0]!;
   const rows: SnapshotRows = {
-    childEdges: resultRows<{
-      child_listing_id: number;
-      parent_listing_id: number;
-    }>(results[6]!).map((row) => ({
+    childEdges: resultRows<ChildEdgeRow>(childEdgesResult!).map((row) => ({
       childId: row.child_listing_id,
       parentId: row.parent_listing_id,
     })),
-    groups: await mapGroups(resultRows<RawGroupRow>(results[2]!)),
-    hiddenMemberIds: resultRows<{ listing_id: number }>(results[5]!).map(
+    groups: await mapGroups(resultRows<RawGroupRow>(groupsResult!)),
+    hiddenMemberIds: resultRows<ListingIdRow>(hiddenMembersResult!).map(
       (row) => row.listing_id,
     ),
     ledger: {
       hasLegs: ledger.has_legs === 1,
       ownerAttendeeId: ledger.owner_attendee_id,
     },
-    listings: await mapListings(resultRows<ListingRecordRow>(results[1]!)),
-    memberships: resultRows<GroupListing>(results[3]!),
-    modifierScopes: resultRows<{ listing_id: number; modifier_id: number }>(
-      results[8]!,
-    ).map((row) => ({
-      listingId: row.listing_id,
-      modifierId: row.modifier_id,
-    })),
-    modifiers: await mapModifiers(resultRows<RawModifierRow>(results[7]!)),
-    publicStatusIds: resultRows<{ id: number }>(results[10]!).map(
+    listings: await mapListings(resultRows<ListingRecordRow>(listingsResult!)),
+    memberships: resultRows<GroupListing>(membershipsResult!),
+    modifierScopes: resultRows<ModifierScopeRow>(modifierScopesResult!).map(
+      (row) => ({
+        listingId: row.listing_id,
+        modifierId: row.modifier_id,
+      }),
+    ),
+    modifiers: await mapModifiers(resultRows<RawModifierRow>(modifiersResult!)),
+    publicStatusIds: resultRows<PublicStatusRow>(publicStatusesResult!).map(
       (row) => row.id,
     ),
-    visitCounts: resultRows<{ visits: number }>(results[9]!).map(
+    visitCounts: resultRows<VisitCountRow>(visitCountsResult!).map(
       (row) => row.visits,
     ),
   };
-  const dayPrices = resultRows<{
-    days: number;
-    group_id: number;
-    listing_id: number;
-    unit_price: number;
-  }>(results[4]!).map(
+  const dayPrices = resultRows<RawDayPriceRow>(dayPricesResult!).map(
     (row): SnapshotDayPriceRow => ({
       days: row.days,
       groupId: row.group_id,
