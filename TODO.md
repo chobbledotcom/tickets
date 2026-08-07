@@ -1,5 +1,32 @@
 # TODO — remaining follow-ups
 
+## Anchor the booking-page site menu to its listing/group (from PR #2051)
+
+PR #2051 shows the public site menu on booking pages (dropped in iframe mode and
+when the public site is off). It builds the menu with `publicNavProps(null)`
+(`renderCtx` in `src/features/public/ticket-submit.ts`), which takes
+`publicNavModel`'s fixed-page fast path: two cached reads, root links only, no
+active-chain highlight or contextual submenu. Codex noted that when the booking
+target is a listing or group placed on an operator page, passing its
+`listing:<id>` / `group:<id>` key instead would let `buildNavModel` highlight
+the active chain and show the page's submenu.
+
+Left out here on purpose: a non-null current makes `publicNavModel` run
+`resolveTargets` (listing + group loads, `classifyForDiscovery`, hidden-member
+and bookable-group reads) on every booking-page GET — a real cold-start /
+subrequest cost on an explicitly hot path (see "Built for cold starts" in
+AGENTS.md), for a highlight that only changes anything when the item happens to
+sit on a nav page. The tradeoff is completeness vs the booking path's latency
+budget, and the budget wins for now.
+
+Starting point: derive the current key from `ctx.galleryTarget` (`{type, id}`,
+already set for single-listing/group pages, null for multi-item combos) via
+`sitePageItemTargets.of(...)`, and pass it to `publicNavProps` in `renderCtx`;
+keep `null` for multi-item pages. Measure the added reads against the cold-start
+benches before adopting.
+
+---
+
 ## Let --kill stop a run through its supervisor, not the child's pid (from PR #2042)
 
 `deno task mutation --kill` signals the child pid stored in the run record

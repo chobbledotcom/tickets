@@ -22,6 +22,7 @@ import type {
   BookingPrefill,
   GroupAvailability,
 } from "#templates/public/reservations/types.ts";
+import type { PublicNavProps } from "#templates/public/shared.tsx";
 
 /** Parent listing id → its bookable-child candidates, each hydrated to a
  * {@link TicketListing} so availability (isSoldOut/isClosed/maxPurchasable) is
@@ -93,6 +94,9 @@ export type TicketCtx = TicketSharedContext &
     attributesByListing?: ListingAttributesById;
     baseUrl?: string;
     prefill?: BookingPrefill | undefined;
+    /** The public site menu, built on the render path only (not on
+     * submit/quote/API) and dropped in iframe mode. */
+    nav?: PublicNavProps;
   };
 
 /** Shared context provider for ticket pages */

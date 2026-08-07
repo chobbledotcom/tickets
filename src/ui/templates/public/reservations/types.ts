@@ -16,6 +16,7 @@ import type {
   Image,
   ItemImageColumns,
 } from "#shared/types.ts";
+import type { PublicNavProps } from "#templates/public/shared.tsx";
 /* jscpd:ignore-end */
 
 /** Quantity values parsed from ticket form */
@@ -122,4 +123,7 @@ export type TicketPageOptions = GroupAvailability & {
   /** Remaining spots for package member groups. */
   packageGroupRemainingByGroupId?: ReadonlyMap<number, number>;
   packageMemberGroupIds?: ReadonlyMap<number, number[]>;
+  /** The public site menu, shown above the form on a normal page and dropped
+   * in iframe mode. Set only on the render path; absent ⇒ no menu. */
+  nav?: PublicNavProps;
 };
