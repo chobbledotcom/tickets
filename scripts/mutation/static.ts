@@ -134,12 +134,10 @@ const serialStatic = async (
 ): Promise<StaticEvaluation[]> => {
   const { config, deps, plan } = context;
   const cursor = createCursor(plan.mutants.length);
-  try {
+  return withCleanup(async () => {
     await runAvailable(context, cursor, config.root);
     return completedResults(cursor);
-  } finally {
-    await deps.write(plan.file, plan.original);
-  }
+  }, [() => deps.write(plan.file, plan.original)]);
 };
 
 interface StaticCursor {

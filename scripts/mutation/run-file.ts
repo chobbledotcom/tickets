@@ -17,7 +17,7 @@ import {
 
 const PROGRESS_INTERVAL = 10;
 
-export interface FileRunDeps {
+interface FileRunDeps {
   evaluateStatic: typeof evaluateStaticMutants;
   evaluateTests: typeof evaluateMutantTests;
   now(): number;

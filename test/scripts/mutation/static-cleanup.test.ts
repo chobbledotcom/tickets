@@ -9,16 +9,37 @@ import {
   plan,
 } from "./static-helpers.ts";
 
-const rejectionOrNull = async (promise: Promise<unknown>): Promise<unknown> => {
+const aggregateErrorMessages = async (
+  promise: Promise<unknown>,
+): Promise<string[]> => {
   try {
     await promise;
-    return null;
+    throw new Error("Expected an aggregate error");
   } catch (error) {
-    return error;
+    if (!(error instanceof AggregateError)) throw error;
+    return error.errors.map((item) => String(item));
   }
 };
 
 describe("parallel mutation static cleanup", () => {
+  test("preserves serial gate and source restore errors", async () => {
+    const work = fakeWorkspace();
+    work.deps.write = (_file, content) =>
+      content === "true"
+        ? Promise.reject(new Error("restore failed"))
+        : Promise.resolve();
+    expect(
+      await aggregateErrorMessages(
+        evaluateStaticMutants(
+          plan(mutants.slice(0, 1)),
+          [passingGate(() => Promise.reject(new Error("gate failed")))],
+          config(),
+          work.deps,
+        ),
+      ),
+    ).toEqual(["Error: gate failed", "Error: restore failed"]);
+  });
+
   test("cleans every copy after a gate error", async () => {
     const work = fakeWorkspace();
     await expect(
@@ -125,26 +146,22 @@ describe("parallel mutation static cleanup", () => {
       path === "/run/static-1"
         ? Promise.reject(new Error("cleanup failed"))
         : Promise.resolve();
-    const error = await rejectionOrNull(
-      evaluateStaticMutants(
-        plan(mutants.slice(0, 3)),
-        [
-          passingGate(() =>
-            ++gateCalls === 1
-              ? Promise.reject(new Error("worker failed"))
-              : Promise.resolve(0),
-          ),
-        ],
-        config(),
-        work.deps,
+    expect(
+      await aggregateErrorMessages(
+        evaluateStaticMutants(
+          plan(mutants.slice(0, 3)),
+          [
+            passingGate(() =>
+              ++gateCalls === 1
+                ? Promise.reject(new Error("worker failed"))
+                : Promise.resolve(0),
+            ),
+          ],
+          config(),
+          work.deps,
+        ),
       ),
-    );
-
-    if (!(error instanceof AggregateError)) throw error;
-    expect(error.errors.map((item) => String(item))).toEqual([
-      "Error: worker failed",
-      "Error: cleanup failed",
-    ]);
+    ).toEqual(["Error: worker failed", "Error: cleanup failed"]);
   });
 
   test("cleans every copy after cancellation", async () => {
