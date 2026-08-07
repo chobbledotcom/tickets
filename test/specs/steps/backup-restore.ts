@@ -2,12 +2,14 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { restoreFromZip } from "#shared/db/backup.ts";
 import {
   adminBrowser,
   resetScenarioBrowser,
   scenarioBrowser,
 } from "#test/specs/support/browser.ts";
+import { sessionCookie } from "#test/specs/support/evidence.ts";
 import { rememberListing } from "#test/specs/support/listings.ts";
 import {
   requiredWorldValue,
@@ -133,5 +135,11 @@ Then(
     );
     expect(browser.containsText(CUSTOMER)).toBe(true);
     expect(browser.containsText(CUSTOMER_EMAIL)).toBe(true);
+    leaveEvidencePage(
+      this,
+      ["backup-restore"],
+      browser.currentUrl,
+      sessionCookie(browser),
+    );
   },
 );
