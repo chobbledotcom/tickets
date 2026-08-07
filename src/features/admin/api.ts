@@ -56,6 +56,7 @@ import {
   validateListingInput,
 } from "#shared/listings-actions.ts";
 import {
+  hasChildEdges,
   packageChildEdgeConflict,
   packageChildEdgeError,
 } from "#shared/package-membership.ts";
@@ -451,7 +452,7 @@ const persistListingJoins = async (
       tx,
       listingId,
       value.groupIds,
-      value.childEdges === null ? undefined : value.childEdges.length > 0,
+      value.childEdges === null ? undefined : hasChildEdges(value.childEdges),
     );
   }
   if (value.childEdges !== null) {
