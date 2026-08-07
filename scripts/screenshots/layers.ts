@@ -49,7 +49,7 @@ const LAYER_STYLES: Record<ScreenshotLayerName, string> = {
     }
   }`,
   controls: `@layer ${SCREENSHOT_LAYER} {
-    html, body { background: transparent !important; }
+    html${LAYER_PRIORITY}, body${LAYER_PRIORITY} { background: transparent !important; }
     :is(html, body)${LAYER_PRIORITY}::before,
     :is(html, body)${LAYER_PRIORITY}::after,
     :is(body, :host) ${LAYER_PRIORITY} { visibility: hidden !important; }
@@ -320,10 +320,13 @@ const changeLayerMarks = (page: Page, add: boolean): Promise<void> =>
         markPaint(element, paintStyles(element, style));
       }
 
-      const paintMark = (element: Element): string | null =>
-        [textPaint, wholePaint].find((attribute) =>
+      const paintMark = (element: Element): string | null => {
+        const ownMark = [textPaint, wholePaint].find((attribute) =>
           element.hasAttribute(attribute),
-        ) ?? null;
+        );
+        const parent = parentOf(element);
+        return ownMark ?? (parent ? paintMark(parent) : null);
+      };
       const markInheritedPaint = (
         element: Element,
         inheritedPaint: string | null,
@@ -340,7 +343,7 @@ const changeLayerMarks = (page: Page, add: boolean): Promise<void> =>
           markInheritedPaint(element, inheritedPaint);
           changeElement(element);
           if (element.shadowRoot) {
-            visitRoot(element.shadowRoot, paintMark(element));
+            visitRoot(element.shadowRoot, paintMark(element) ?? inheritedPaint);
           }
         }
       }

@@ -1,21 +1,14 @@
 import { describe, it as test } from "@std/testing/bdd";
-import { chromium } from "playwright";
-import { chromiumExecutable } from "#scripts/screenshots/browser.ts";
 import { capturePreparedLayers } from "#scripts/screenshots/capture.ts";
 import {
   expectOnlyBackgroundColor,
+  launchScreenshotBrowserWithScrollbars,
   withPage,
 } from "./screenshots-browser-helpers.ts";
 
 describe("screenshot scrollbar browser contract", () => {
   test("keeps scrollbar paint out of the text layer", async () => {
-    const executablePath = await chromiumExecutable();
-    const browser = await chromium.launch({
-      args: ["--disable-features=CDPScreenshotNewSurface"],
-      ...(executablePath ? { executablePath } : {}),
-      headless: true,
-      ignoreDefaultArgs: ["--hide-scrollbars"],
-    });
+    const browser = await launchScreenshotBrowserWithScrollbars();
     try {
       await withPage(
         browser,

@@ -1,7 +1,7 @@
 import { Buffer } from "node:buffer";
 import { expect } from "@std/expect";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
-import type { Browser } from "playwright";
+import type { Browser, Page } from "playwright";
 import sharp from "sharp";
 import { capturePreparedLayers } from "#scripts/screenshots/capture.ts";
 import {
@@ -14,6 +14,19 @@ import {
   layerStyle,
   withPage,
 } from "./screenshots-browser-helpers.ts";
+
+const expectScreenshotStyle = async (
+  page: Page,
+  css: string,
+  expectedColor: string,
+): Promise<void> => {
+  const removeStyle = await addScreenshotStyle(page, css);
+  try {
+    expect(await layerStyle(page, "text", "p", "color")).toBe(expectedColor);
+  } finally {
+    await removeStyle();
+  }
+};
 
 describe("screenshot layer browser contracts", () => {
   let browser: Browser;
@@ -136,8 +149,8 @@ describe("screenshot layer browser contracts", () => {
       `<meta http-equiv="Content-Security-Policy" content="style-src 'self'">
        <p style="color: rgb(255, 0, 0)">Words</p>`,
       async (page) => {
-        expect(await layerStyle(page, "text", "p", "color")).not.toBe(
-          "rgb(255, 0, 0)",
+        expect(await layerStyle(page, "text", "p", "color")).toBe(
+          "rgb(0, 0, 0)",
         );
         expect(
           await layerStyle(page, "background", "p", "-webkit-text-fill-color"),
@@ -264,17 +277,11 @@ describe("screenshot layer browser contracts", () => {
 
   test("preserves imports in screenshot CSS", async () => {
     await withPage(browser, "<p>Imported</p>", async (page) => {
-      const removeStyle = await addScreenshotStyle(
+      await expectScreenshotStyle(
         page,
         '@import url("data:text/css,p%7Bcolor%3Argb(1%2C2%2C3)%7D");',
+        "rgb(1, 2, 3)",
       );
-      try {
-        expect(await layerStyle(page, "text", "p", "color")).toBe(
-          "rgb(1, 2, 3)",
-        );
-      } finally {
-        await removeStyle();
-      }
     });
   });
 
@@ -282,17 +289,11 @@ describe("screenshot layer browser contracts", () => {
     await withPage(browser, "<p>Styled</p>", async (page) => {
       await page.goto(`${page.url()}#terms`);
 
-      const removeStyle = await addScreenshotStyle(
+      await expectScreenshotStyle(
         page,
         "p { color: rgb(1, 2, 3); }",
+        "rgb(1, 2, 3)",
       );
-      try {
-        expect(await layerStyle(page, "text", "p", "color")).toBe(
-          "rgb(1, 2, 3)",
-        );
-      } finally {
-        await removeStyle();
-      }
     });
   });
 
@@ -301,10 +302,16 @@ describe("screenshot layer browser contracts", () => {
       browser,
       `<style>@layer __screenshot_layer__; @layer components {
         p { -webkit-text-fill-color: rgb(255, 0, 0) !important; }
-      }</style><p>Words</p>`,
+      }
+      @layer __screenshot_layer__ {
+        body#priority-test { background: rgb(255, 0, 0) !important; }
+      }</style><script>document.body.id = "priority-test";</script><p>Words</p>`,
       async (page) => {
         expect(
           await layerStyle(page, "background", "p", "-webkit-text-fill-color"),
+        ).toBe("rgba(0, 0, 0, 0)");
+        expect(
+          await layerStyle(page, "controls", "body", "background-color"),
         ).toBe("rgba(0, 0, 0, 0)");
       },
     );

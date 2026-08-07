@@ -16,6 +16,10 @@ import {
 
 export const launchScreenshotBrowser: () => Promise<Browser> =
   defineScreenshotBrowserLauncher(chromium, chromiumExecutable);
+export const launchScreenshotBrowserWithScrollbars: () => Promise<Browser> =
+  defineScreenshotBrowserLauncher(chromium, chromiumExecutable, {
+    ignoreDefaultArgs: ["--hide-scrollbars"],
+  });
 
 export const countRgbPixels = async (
   png: Uint8Array,
@@ -30,7 +34,8 @@ export const countRgbPixels = async (
       index % info.channels === 0 &&
       red === wantedRed &&
       data[index + 1] === wantedGreen &&
-      data[index + 2] === wantedBlue
+      data[index + 2] === wantedBlue &&
+      data[index + 3] !== 0
         ? count + 1
         : count,
     0,

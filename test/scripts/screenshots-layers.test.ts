@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { afterEach, describe, it as test } from "@std/testing/bdd";
 import {
   addScreenshotStyle,
   withWholePaintGroups,
@@ -148,6 +148,7 @@ const makeRoot = (event: LinkEvent, children: FakeRoot[] = []): FakeRoot => {
 const setupPage = (
   root: FakeRoot,
 ): {
+  globals: ReturnType<typeof createGlobalStash>;
   page: never;
   styleRemoved: () => boolean;
   unrouted: () => boolean;
@@ -160,6 +161,7 @@ const setupPage = (
   let removedStyle = false;
   let removedRoute = false;
   return {
+    globals,
     page: {
       addStyleTag: () =>
         Promise.resolve({
@@ -179,7 +181,6 @@ const setupPage = (
       route: () => Promise.resolve(),
       unroute: () => {
         removedRoute = true;
-        globals.restore();
         return Promise.resolve();
       },
       url: () => "https://tickets.test/page",
@@ -190,11 +191,19 @@ const setupPage = (
 };
 
 describe("screenshot layer styles", () => {
+  let pageGlobals: ReturnType<typeof createGlobalStash> | undefined;
+
+  afterEach(() => {
+    pageGlobals?.restore();
+    pageGlobals = undefined;
+  });
+
   test("loads and removes styles in nested open shadow roots", async () => {
     const nested = makeRoot("load");
     const shadow = makeRoot("load", [nested]);
     const documentRoot = makeRoot("load", [shadow]);
     const state = setupPage(documentRoot);
+    pageGlobals = state.globals;
 
     const remove = await addScreenshotStyle(
       state.page,
@@ -217,6 +226,7 @@ describe("screenshot layer styles", () => {
   test("cleans up when a shadow-root stylesheet fails to load", async () => {
     const shadow = makeRoot("error");
     const state = setupPage(makeRoot("load", [shadow]));
+    pageGlobals = state.globals;
 
     await expect(
       addScreenshotStyle(state.page, "button { color: red; }"),
@@ -239,7 +249,8 @@ describe("screenshot layer styles", () => {
     });
     const textChild = makePaintElement();
     textChild.parentElement = text;
-    const controlHost = makePaintElement({ opacity: "0.5" }, true);
+    const controlHost = makePaintElement({}, true);
+    controlHost.parentElement = wholeGrandchild;
     const shadowControlChild = makePaintElement();
     const shadowRoot = new FakePaintRoot(controlHost, [shadowControlChild]);
     controlHost.shadowRoot = shadowRoot;

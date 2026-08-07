@@ -27,16 +27,21 @@ import {
 describe("stripe-mock ports and environment", () => {
   test("keeps a reserved port unavailable until release", () => {
     const reserved = reserveAvailablePort();
-    expect(() =>
-      Deno.listen({ hostname: "127.0.0.1", port: reserved.port }),
-    ).toThrow();
-
-    reserved.release();
-    const listener = Deno.listen({
-      hostname: "127.0.0.1",
-      port: reserved.port,
-    });
-    listener.close();
+    let listener: Deno.Listener | undefined;
+    try {
+      expect(() => {
+        listener = Deno.listen({ hostname: "127.0.0.1", port: reserved.port });
+      }).toThrow();
+      reserved.release();
+      reserved.release();
+      listener = Deno.listen({
+        hostname: "127.0.0.1",
+        port: reserved.port,
+      });
+    } finally {
+      listener?.close();
+      reserved.release();
+    }
   });
 
   test("uses the default port when the env var is absent", () => {

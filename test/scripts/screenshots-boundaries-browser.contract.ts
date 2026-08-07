@@ -2,7 +2,10 @@ import { expect } from "@std/expect";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { Browser } from "playwright";
 import { capturePreparedLayers } from "#scripts/screenshots/capture.ts";
-import { withScreenshotLayer } from "#scripts/screenshots/layers.ts";
+import {
+  type ScreenshotLayerName,
+  withScreenshotLayer,
+} from "#scripts/screenshots/layers.ts";
 import {
   countLayerRgbPixels,
   expectLayersRecombine,
@@ -31,10 +34,7 @@ describe("screenshot layer boundary browser contracts", () => {
           button { background: rgb(255, 0, 0); color: rgb(0, 0, 255); }
         </style><button>Cart</button>`;
       });
-      const shadowStyle = (
-        layer: "background" | "controls" | "text",
-        property: string,
-      ) =>
+      const shadowStyle = (layer: ScreenshotLayerName, property: string) =>
         withScreenshotLayer(layer)(page, () =>
           page.locator("#host").evaluate((host, propertyName) => {
             const button = host.shadowRoot?.querySelector("button");

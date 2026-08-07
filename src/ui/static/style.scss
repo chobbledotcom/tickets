@@ -2,6 +2,7 @@
 
 @use "sass:map";
 
+// Keep this name equal to SCREENSHOT_LAYER in scripts/screenshots/layers.ts.
 @layer __screenshot_layer__;
 
 :root {

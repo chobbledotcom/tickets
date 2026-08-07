@@ -5,6 +5,7 @@ import {
   startWithFailureCleanup,
   waitForHealthy,
 } from "#scripts/screenshots/server.ts";
+import { requireValue } from "#shared/required-value.ts";
 
 const expectOneRetry = async (
   request: () => Promise<Response>,
@@ -44,7 +45,7 @@ describe("screenshot server", () => {
     await start();
     expect(starts).toBe(1);
     expect(cleanups).toHaveLength(1);
-    await cleanups[0]?.();
+    await requireValue(cleanups[0], "Missing optional resource cleanup.")();
     expect(stops).toBe(1);
   });
 

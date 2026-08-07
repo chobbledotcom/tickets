@@ -5,6 +5,7 @@ import {
   capturePreparedLayers,
   capturePreparedPage,
 } from "#scripts/screenshots/capture.ts";
+import { SCREENSHOT_LAYER_NAMES } from "#scripts/screenshots/layers.ts";
 import {
   blankWhitePng,
   whitePngWithBlackBox,
@@ -143,12 +144,7 @@ beforeEach(() => {
   const nested = makeElement("0.5", translucent);
   const elements = [opaque, translucent, nested];
   globals.set("document", {
-    querySelectorAll: (selector: string) =>
-      selector === "html, body, body *" || selector === "*"
-        ? elements
-        : selector.startsWith("link[")
-          ? []
-          : elements.filter(({ attributes }) => attributes.size > 0),
+    querySelectorAll: (selector: string) => (selector === "*" ? elements : []),
   });
 });
 
@@ -232,20 +228,24 @@ describe("capturePreparedLayers", () => {
 
     const result = await capturePreparedLayers(page);
 
-    expect(Object.keys(result.layers)).toEqual([
-      "background",
-      "controls",
-      "text",
-    ]);
+    expect(Object.keys(result.layers)).toEqual([...SCREENSHOT_LAYER_NAMES]);
     expect(result.background).toEqual({ b: 255, g: 255, r: 255 });
     expect(result.png).toEqual(await blankWhitePng());
     expect(
       calls.screenshotOptions.map(({ omitBackground }) => omitBackground),
-    ).toEqual([undefined, undefined, true, true]);
+    ).toEqual([
+      undefined,
+      ...SCREENSHOT_LAYER_NAMES.map((layer) =>
+        layer === "background" ? undefined : true,
+      ),
+    ]);
     expect(calls.screenshotOptions.map(({ animations }) => animations)).toEqual(
-      [undefined, undefined, undefined, undefined],
+      Array.from(
+        { length: SCREENSHOT_LAYER_NAMES.length + 1 },
+        () => undefined,
+      ),
     );
-    expect(calls.styleRemovals).toBe(4);
+    expect(calls.styleRemovals).toBe(SCREENSHOT_LAYER_NAMES.length + 1);
   });
 
   test("uses one element crop for every layer", async () => {
@@ -256,7 +256,7 @@ describe("capturePreparedLayers", () => {
     expect(calls.screenshotOptions.every(({ fullPage }) => fullPage)).toBe(
       true,
     );
-    expect(calls.styleRemovals).toBe(4);
+    expect(calls.styleRemovals).toBe(SCREENSHOT_LAYER_NAMES.length + 1);
     for (const png of Object.values(result.layers)) {
       expect(await sharp(png).metadata()).toEqual(
         expect.objectContaining({ height: 84, width: 94 }),

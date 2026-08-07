@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
-import type { Browser } from "playwright";
+import type { Browser, Page } from "playwright";
 import sharp from "sharp";
 import { capturePreparedLayers } from "#scripts/screenshots/capture.ts";
 import { waitForScreenshotPage } from "#scripts/screenshots/readiness.ts";
@@ -25,6 +25,18 @@ const maxChannel = async (
       index % info.channels === channel ? Math.max(highest, value) : highest,
     0,
   );
+};
+
+const expectShadowButtonRecombines = async (
+  page: Page,
+  label: string,
+): Promise<void> => {
+  await page.locator("#host").evaluate((host) => {
+    const root = host.attachShadow({ mode: "open" });
+    root.innerHTML =
+      '<button style="background: red; color: blue">Words</button>';
+  });
+  await expectLayersRecombine(page, label);
 };
 
 describe("screenshot layer compositing browser contracts", () => {
@@ -60,14 +72,19 @@ describe("screenshot layer compositing browser contracts", () => {
     await withPage(
       browser,
       '<div id="host" style="opacity: 0.5"></div>',
-      async (page) => {
-        await page.locator("#host").evaluate((host) => {
-          const root = host.attachShadow({ mode: "open" });
-          root.innerHTML =
-            '<button style="background: red; color: blue">Words</button>';
-        });
-        await expectLayersRecombine(page, "shadow host opacity group");
-      },
+      (page) => expectShadowButtonRecombines(page, "shadow host opacity group"),
+    );
+  });
+
+  test("recombines a shadow host inside a whole-paint ancestor", async () => {
+    await withPage(
+      browser,
+      '<div style="opacity: 0.5"><div id="host"></div></div>',
+      (page) =>
+        expectShadowButtonRecombines(
+          page,
+          "shadow host ancestor opacity group",
+        ),
     );
   });
 
@@ -149,8 +166,11 @@ describe("screenshot layer compositing browser contracts", () => {
       browser,
       '<output id="result">Waiting</output>',
       async (page) => {
+        const requestStarted = Promise.withResolvers<void>();
+        const releaseResponse = Promise.withResolvers<void>();
         await page.route("https://screenshots.test/value", async (route) => {
-          await new Promise((resolve) => setTimeout(resolve, 200));
+          requestStarted.resolve();
+          await releaseResponse.promise;
           await route.fulfill({ body: "Ready" });
         });
         await page.evaluate(() => {
@@ -162,8 +182,25 @@ describe("screenshot layer compositing browser contracts", () => {
             output.textContent = value;
           })();
         });
+        await requestStarted.promise;
 
-        await waitForScreenshotPage(page);
+        // The held request proves network idle, not a coincidental paint wait,
+        // controls readiness.
+        let ready = false;
+        const readiness = (async () => {
+          await waitForScreenshotPage(page);
+          ready = true;
+        })();
+        await page.evaluate(
+          () =>
+            new Promise((resolve) =>
+              requestAnimationFrame(() => requestAnimationFrame(resolve)),
+            ),
+        );
+        expect(ready).toBe(false);
+        releaseResponse.resolve();
+
+        await readiness;
 
         expect(await page.locator("#result").textContent()).toBe("Ready");
       },
@@ -211,7 +248,10 @@ describe("screenshot layer compositing browser contracts", () => {
         const beforeAdvance = await page.evaluate(() =>
           Reflect.get(globalThis, "ticks"),
         );
-        await new Promise((resolve) => setTimeout(resolve, 20));
+        await page.waitForFunction(
+          (previous) => Reflect.get(globalThis, "ticks") !== previous,
+          beforeAdvance,
+        );
         expect(
           await page.evaluate(() => Reflect.get(globalThis, "ticks")),
         ).not.toBe(beforeAdvance);
