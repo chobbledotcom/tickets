@@ -1,3 +1,4 @@
+import { once } from "#fp";
 import {
   type CleanupTask,
   failAfterCleanups,
@@ -8,6 +9,19 @@ export interface StartupCleanup {
   add: (cleanup: CleanupTask) => void;
   run: () => Promise<void>;
 }
+
+interface Stoppable {
+  stop: CleanupTask;
+}
+
+export const startOnFirstUse = (
+  start: () => Promise<Stoppable>,
+  addCleanup: (cleanup: CleanupTask) => void,
+): (() => Promise<void>) =>
+  once(async () => {
+    const resource = await start();
+    addCleanup(resource.stop);
+  });
 
 export const startWithFailureCleanup = async <T>(
   start: (cleanup: StartupCleanup) => Promise<T>,

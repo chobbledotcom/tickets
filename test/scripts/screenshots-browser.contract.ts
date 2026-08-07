@@ -181,11 +181,23 @@ describe("screenshot browser contracts", () => {
       browser,
       '<input type="checkbox" checked><input type="date"><select><option>One</option></select>',
       async (page) => {
-        for (const selector of [
-          'input[type="checkbox"]',
-          'input[type="date"]',
-          "select",
-        ]) {
+        expect(
+          await layerStyle(
+            page,
+            "text",
+            'input[type="checkbox"]',
+            "visibility",
+          ),
+        ).toBe("hidden");
+        expect(
+          await layerStyle(
+            page,
+            "controls",
+            'input[type="checkbox"]',
+            "visibility",
+          ),
+        ).toBe("visible");
+        for (const selector of ['input[type="date"]', "select"]) {
           expect(await layerStyle(page, "text", selector, "appearance")).toBe(
             "none",
           );

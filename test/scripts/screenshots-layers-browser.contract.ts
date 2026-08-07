@@ -61,6 +61,29 @@ describe("screenshot layer browser contracts", () => {
     );
   });
 
+  test("keeps nested generated control labels out of the controls layer", async () => {
+    await withPage(
+      browser,
+      `<style>
+        button span::after {
+          content: "3";
+          -webkit-text-fill-color: rgb(255, 0, 0);
+        }
+      </style><button><span>Cart</span></button>`,
+      async (page) => {
+        expect(
+          await layerStyle(
+            page,
+            "controls",
+            "button span",
+            "-webkit-text-fill-color",
+            "::after",
+          ),
+        ).toBe("rgba(0, 0, 0, 0)");
+      },
+    );
+  });
+
   test("keeps foreignObject labels in the text layer", async () => {
     await withPage(
       browser,
@@ -137,6 +160,52 @@ describe("screenshot layer browser contracts", () => {
             await layerStyle(page, "controls", selector, "visibility"),
           ).toBe("visible");
         }
+      },
+    );
+  });
+
+  test("puts combobox options in the controls layer", async () => {
+    await withPage(
+      browser,
+      '<div role="option">Matching attendee</div>',
+      async (page) => {
+        expect(
+          await layerStyle(page, "background", '[role="option"]', "visibility"),
+        ).toBe("hidden");
+        expect(
+          await layerStyle(page, "controls", '[role="option"]', "visibility"),
+        ).toBe("visible");
+      },
+    );
+  });
+
+  test("preserves native control geometry in the text layer", async () => {
+    await withPage(
+      browser,
+      '<label><input id="check" type="checkbox"><span>Remember me</span></label>',
+      async (page) => {
+        const geometry = () =>
+          page.locator("label").evaluate((label) => {
+            const control = label.querySelector("input");
+            const words = label.querySelector("span");
+            if (!control || !words) throw new Error("Missing test control.");
+            const controlBox = control.getBoundingClientRect();
+            const wordsBox = words.getBoundingClientRect();
+            return {
+              control: [
+                controlBox.x,
+                controlBox.y,
+                controlBox.width,
+                controlBox.height,
+              ],
+              words: [wordsBox.x, wordsBox.y, wordsBox.width, wordsBox.height],
+            };
+          });
+        const normal = await geometry();
+
+        expect(await withScreenshotLayer("text")(page, geometry)).toEqual(
+          normal,
+        );
       },
     );
   });

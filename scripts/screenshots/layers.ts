@@ -10,7 +10,7 @@ export type ScreenshotLayerName = (typeof SCREENSHOT_LAYER_NAMES)[number];
 const SCREENSHOT_LAYER = "__screenshot_layer__";
 const WHOLE_OPACITY_ATTRIBUTE = "data-screenshot-whole-opacity";
 const CONTROL_SELECTOR =
-  'input, select, textarea, button, summary, label:has(input), [role="button"], .btn, a.button, a[class*="button"]';
+  'input, select, textarea, button, summary, label:has(input), [role="button"], [role="option"], .btn, a.button, a[class*="button"]';
 const LAYER_PRIORITY =
   ":not(#__screenshot_layer_mask__):not(#__screenshot_layer_control__)";
 const BACKGROUND_PRIORITY = `${LAYER_PRIORITY}:not([${WHOLE_OPACITY_ATTRIBUTE}]):not([${WHOLE_OPACITY_ATTRIBUTE}] ${LAYER_PRIORITY})`;
@@ -44,7 +44,9 @@ const LAYER_STYLES: Record<ScreenshotLayerName, string> = {
     :is(${CONTROL_SELECTOR})${LAYER_PRIORITY},
     :is(${CONTROL_SELECTOR})${LAYER_PRIORITY} *,
     :is(${CONTROL_SELECTOR})${LAYER_PRIORITY}::before,
-    :is(${CONTROL_SELECTOR})${LAYER_PRIORITY}::after {
+    :is(${CONTROL_SELECTOR})${LAYER_PRIORITY}::after,
+    :is(${CONTROL_SELECTOR})${LAYER_PRIORITY} *::before,
+    :is(${CONTROL_SELECTOR})${LAYER_PRIORITY} *::after {
       ${HIDDEN_TEXT_STYLE}
     }
     :is(${CONTROL_SELECTOR})${LAYER_PRIORITY}::placeholder {
@@ -62,7 +64,12 @@ const LAYER_STYLES: Record<ScreenshotLayerName, string> = {
       box-shadow: none !important;
       outline-color: transparent !important;
     }
-    :is(${CONTROL_SELECTOR})${LAYER_PRIORITY} { appearance: none !important; }
+    :is(input[type="checkbox"], input[type="radio"])${LAYER_PRIORITY} {
+      visibility: hidden !important;
+    }
+    :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea)${LAYER_PRIORITY} {
+      appearance: none !important;
+    }
     input${LAYER_PRIORITY}::-webkit-calendar-picker-indicator { visibility: hidden !important; }
     :is(img, picture, video, canvas, iframe, object, embed)${LAYER_PRIORITY},
     svg :is(path, circle, ellipse, line, polygon, polyline, rect, image, use)${LAYER_PRIORITY} {
