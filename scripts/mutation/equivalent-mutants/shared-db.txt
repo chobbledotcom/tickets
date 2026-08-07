@@ -70,6 +70,7 @@ src/shared/db/client.ts::executeRead.args~0hs5u5i  ?? → ||   # `args` is `InVa
 src/shared/db/client.ts::queryOne~1hu7rck  ?? → ||   # queryOne's row comes from resultRows — libsql rows are always objects (truthy); a miss yields undefined, where ?? and || both produce null
 
 # DB client (client.ts) — sentinel symbol descriptions.
+src/shared/db/client.ts::GUARDED_CLIENT~1cajdnv  guarded-db-client → ""   # Symbol descriptions do not affect symbol identity; this private symbol is used only as the proxy property key
 
 # attendees/tokens.ts — `?? → ||` sites where the operand is a Map#get() whose
 # value is always a truthy object or array (never a falsy-but-non-null value),
