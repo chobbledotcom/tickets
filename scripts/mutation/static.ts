@@ -1,5 +1,5 @@
 import { dirname, join, relative, resolve, SEPARATOR } from "@std/path";
-import { withCleanup } from "#scripts/cleanup.ts";
+import { throwCollectedErrors, withCleanup } from "#scripts/cleanup.ts";
 import { rethrowUnlessNotFound } from "#scripts/not-found.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 import type { FileMutationPlan, MutantEvaluation } from "./evaluate.ts";
@@ -20,7 +20,7 @@ export interface StaticEvaluation extends MutantEvaluation {
   mutant: Mutant;
 }
 
-export interface StaticRunConfig {
+interface StaticRunConfig {
   abortSignal: AbortSignal;
   jobs: number;
   perMutantTimeout: number;
@@ -202,10 +202,11 @@ const removeWorkspaces = async (
 
 const waitForAll = async (work: Promise<void>[]): Promise<void> => {
   const settled = await Promise.allSettled(work);
-  const failed = settled.find(
-    (result): result is PromiseRejectedResult => result.status === "rejected",
+  throwCollectedErrors(
+    settled.flatMap((result) =>
+      result.status === "rejected" ? [result.reason] : [],
+    ),
   );
-  if (failed) throw failed.reason;
 };
 
 export const evaluateStaticMutants = async (

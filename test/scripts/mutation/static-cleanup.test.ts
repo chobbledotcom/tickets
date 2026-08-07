@@ -40,20 +40,26 @@ describe("parallel mutation static cleanup", () => {
     ).toEqual(["Error: gate failed", "Error: restore failed"]);
   });
 
-  test("cleans every copy after a gate error", async () => {
+  test("cleans every copy after gate errors", async () => {
     const work = fakeWorkspace();
-    await expect(
-      evaluateStaticMutants(
-        plan(mutants.slice(0, 3)),
-        [
-          passingGate(() =>
-            Promise.reject(new Error("type checker could not start")),
-          ),
-        ],
-        config(),
-        work.deps,
+    expect(
+      await aggregateErrorMessages(
+        evaluateStaticMutants(
+          plan(mutants.slice(0, 3)),
+          [
+            passingGate(() =>
+              Promise.reject(new Error("type checker could not start")),
+            ),
+          ],
+          config(),
+          work.deps,
+        ),
       ),
-    ).rejects.toThrow("type checker could not start");
+    ).toEqual([
+      "Error: type checker could not start",
+      "Error: type checker could not start",
+      "Error: type checker could not start",
+    ]);
     expect(work.removed).toEqual(work.copied);
   });
 
@@ -93,6 +99,28 @@ describe("parallel mutation static cleanup", () => {
     expect(events.indexOf("copied /run/static-3")).toBeLessThan(
       events.indexOf("removed /run/static-3"),
     );
+  });
+
+  test("preserves every workspace copy error", async () => {
+    const work = fakeWorkspace();
+    work.deps.copy = (_from, to) =>
+      to === "/run/static-3"
+        ? Promise.resolve()
+        : Promise.reject(new Error(`copy failed: ${to}`));
+
+    expect(
+      await aggregateErrorMessages(
+        evaluateStaticMutants(
+          plan(mutants.slice(0, 3)),
+          [passingGate(() => Promise.resolve(0))],
+          config(),
+          work.deps,
+        ),
+      ),
+    ).toEqual([
+      "Error: copy failed: /run/static-1",
+      "Error: copy failed: /run/static-2",
+    ]);
   });
 
   test("waits for every workspace removal after one fails", async () => {

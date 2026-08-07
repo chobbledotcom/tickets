@@ -1,11 +1,9 @@
 import type { FileMutationPlan } from "#scripts/mutation/evaluate.ts";
 import type { StaticGate } from "#scripts/mutation/execution.ts";
 import type { Mutant } from "#scripts/mutation/generate.ts";
-import type {
-  evaluateStaticMutants,
-  StaticRunConfig,
-} from "#scripts/mutation/static.ts";
+import type { evaluateStaticMutants } from "#scripts/mutation/static.ts";
 
+type StaticRunConfig = Parameters<typeof evaluateStaticMutants>[2];
 type StaticDeps = NonNullable<Parameters<typeof evaluateStaticMutants>[3]>;
 
 const replacements = ["false", "null", "0", "1", "2", "3"];
