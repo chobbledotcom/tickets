@@ -94,7 +94,6 @@ scripts/process.ts::beforeTimeout.delayed.timeout~0g1xgyk  = → +=   # the hand
 
 # Isolated mutation runs: the exit code before any path has set one.
 scripts/mutation/isolation.ts::runInSnapshot.exitCode~1tg3w08  1 → 0   # every path overwrites this before it is returned: the claim always runs its callback, which either sets 130 on an interrupt or hands back a child whose status sets the code, and any throw is caught and sets it there
-scripts/mutation/isolation.ts::keepSnapshotFiles~1lmhedv  0 → 1   # keepSnapshotFiles' interrupted arm only runs once wasInterrupted() has latched true, and finishChild then takes the `interrupted ? 130` branch, so the number this arm hands back is never read
 scripts/mutation/isolation.ts::runInSnapshot.copyBack~11e4190  ?? → ||   # run.copyBack is a list or undefined, and a list — empty included — is truthy, so only undefined reaches the fallback and both operators yield the same []
 scripts/stale-claim.ts::startClaimTouching.scheduleNextTouch.timeout~1tjxi69  = → +=    # the uncancelled timer's one late touch bails on the stopped flag before any read or write
 src/shared/db/migrations.ts::initDb~0hi1ix2  ?? → ||   # opts.allowMissingSettings is boolean | undefined, and false ?? false and false || false both yield false

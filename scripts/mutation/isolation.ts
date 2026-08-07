@@ -26,11 +26,7 @@ import {
   reportRemoveFailure,
   runIsOwned,
 } from "./isolation-cleanup.ts";
-import {
-  withCopyBackLock,
-  withRunClaim,
-  withRunClaimGuard,
-} from "./isolation-lock.ts";
+import { withRunClaim, withRunClaimGuard } from "./isolation-lock.ts";
 import { readRunRecords, writeRunRecord } from "./isolation-records.ts";
 import {
   copyMutationSnapshot,
@@ -55,8 +51,8 @@ import {
   selectedRuns,
 } from "./isolation-state.ts";
 import {
-  bringFilesBack,
   type CopyBackFile,
+  keepSnapshotFiles,
   readCopyBackFiles,
 } from "./snapshot-copy-back.ts";
 
@@ -144,23 +140,6 @@ const settleRecord = (
   code: number,
 ): MutationRunRecord =>
   interrupted ? markInterrupted(record) : markFinished(record, code);
-
-/**
- * Bring the run's kept files back, one run at a time across the checkout. The
- * question is asked again inside the lock: waiting for it is a moment long
- * enough to be interrupted, and an interrupted run keeps nothing.
- */
-export const keepSnapshotFiles = (
-  wasInterrupted: () => boolean,
-  root: string,
-  workRoot: string,
-  copyBack: CopyBackFile[],
-): Promise<number> =>
-  withCopyBackLock(root, () =>
-    wasInterrupted()
-      ? Promise.resolve(0)
-      : bringFilesBack(root, workRoot, copyBack),
-  );
 
 /**
  * Record the child's result, then bring back what the run means to keep. The
