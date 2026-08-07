@@ -5,7 +5,6 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { spy } from "@std/testing/mock";
 import type { RegistrationPackagePricing } from "#shared/registration-package-facts.ts";
 import {
   buildWebhookPayload,
@@ -79,49 +78,13 @@ describeWithEnv("webhook payload", { db: true }, () => {
 describeWithEnv("webhook sending safety", { db: true }, () => {
   const testFetch = stubFetchEachTest(() => new Response());
 
-  test("refuses to post to an unsafe address, and says so", async () => {
-    const errorSpy = spy(console, "error");
-    try {
-      await sendWebhook(
-        "http://127.0.0.1/hook",
-        buildWebhookPayload([makeEntry()], "GBP"),
-        42,
-      );
-    } finally {
-      errorSpy.restore();
-    }
+  test("refuses to post to an unsafe address", async () => {
+    const result = await sendWebhook(
+      "http://127.0.0.1/hook",
+      buildWebhookPayload([makeEntry()], "GBP"),
+    );
 
     expect(testFetch.calls.length).toBe(0);
-    const logged = errorSpy.calls
-      .map((call) => String(call.args[0]))
-      .join("\n");
-    expect(logged).toContain("Refused to send webhook to an unsafe URL");
-    expect(logged).toContain("listing=42");
-  });
-
-  test("blames the order's first listing when a send fails", async () => {
-    testFetch.reply(() => new Response("no", { status: 500 }));
-    const first = makeEntry({
-      id: 11,
-      webhook_url: "https://example.com/hook",
-    });
-    const second = makeEntry({
-      id: 22,
-      webhook_url: "https://example.com/hook",
-    });
-    const { sendRegistrationWebhooks } = await import("#shared/webhook.ts");
-
-    const errorSpy = spy(console, "error");
-    try {
-      await sendRegistrationWebhooks([first, second], "GBP");
-    } finally {
-      errorSpy.restore();
-    }
-
-    const logged = errorSpy.calls
-      .map((call) => String(call.args[0]))
-      .join("\n");
-    expect(logged).toContain("listing=11");
-    expect(logged).not.toContain("listing=22");
+    expect(result).toEqual({ delivered: false, reason: "unsafe_url" });
   });
 });

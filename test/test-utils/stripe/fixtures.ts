@@ -32,6 +32,7 @@ export const stripeCheckoutSession = (
   created: 123,
   currency: "gbp",
   id: "cs_test",
+  livemode: false,
   metadata: {},
   payment_intent: "pi_test",
   payment_status: "paid",

@@ -17,6 +17,7 @@ const checkout = () => ({
   amount_total: 1200,
   created: 123,
   id: "cs_1",
+  livemode: false,
   metadata: { booking: "signed" },
   payment_intent: "pi_1",
   payment_status: "paid",
@@ -34,6 +35,7 @@ describe("Stripe schemas", () => {
       amount_total: 1200,
       created: 123,
       id: "cs_1",
+      livemode: false,
       metadata: { booking: "signed" },
       payment_intent: "pi_1",
       payment_status: "paid",
@@ -54,6 +56,24 @@ describe("Stripe schemas", () => {
       v.parse(StripeCheckoutSessionSchema, {
         ...checkout(),
         payment_status: "settled_some_new_way",
+      }),
+    ).toThrow();
+  });
+
+  test("accepts the documented expanded PaymentIntent shape", () => {
+    expect(
+      v.parse(StripeCheckoutSessionSchema, {
+        ...checkout(),
+        payment_intent: { id: "pi_expanded" },
+      }).payment_intent,
+    ).toEqual({ id: "pi_expanded" });
+  });
+
+  test("rejects an expanded PaymentIntent without an id", () => {
+    expect(() =>
+      v.parse(StripeCheckoutSessionSchema, {
+        ...checkout(),
+        payment_intent: {},
       }),
     ).toThrow();
   });

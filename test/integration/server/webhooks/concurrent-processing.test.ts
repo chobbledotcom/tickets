@@ -17,6 +17,10 @@ import {
   webhookMeta,
 } from "#test-utils/factories.ts";
 import { mockRequest, mockWebhookRequest } from "#test-utils/mocks.ts";
+import {
+  joinedStubs,
+  stubStripePaymentAttempt,
+} from "#test-utils/payment-attempt.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 import {
@@ -127,7 +131,7 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
     );
     await reserveSessionFn("cs_multi_concurrent");
 
-    const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+    const retrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
       Promise.resolve({
         amount_total: 500,
         currency: "gbp",
@@ -146,6 +150,7 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
         ReturnType<typeof stripeApi.retrieveCheckoutSession>
       >),
     );
+    const mockRetrieve = joinedStubs(retrieve, stubStripePaymentAttempt());
 
     try {
       const response = await handleRequest(
@@ -171,7 +176,7 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
     );
     await reserveSessionFn("cs_single_concurrent");
 
-    const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+    const retrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
       Promise.resolve({
         amount_total: 1000,
         currency: "gbp",
@@ -190,6 +195,7 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
         ReturnType<typeof stripeApi.retrieveCheckoutSession>
       >),
     );
+    const mockRetrieve = joinedStubs(retrieve, stubStripePaymentAttempt());
 
     try {
       const response = await handleRequest(

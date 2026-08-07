@@ -6,7 +6,7 @@ import * as v from "valibot";
  * `" pi_123"` names no charge it can find. `""` is the boundary's marker for a
  * session that captured no money.
  */
-const ResourceIdSchema = v.pipe(
+export const ResourceIdSchema = v.pipe(
   v.string(),
   v.regex(/^\S+$/u, "Resource id must be text with no whitespace"),
 );

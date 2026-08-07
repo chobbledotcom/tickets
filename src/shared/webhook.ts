@@ -22,7 +22,7 @@ import {
   registrationEmailDelivery,
   sendRegistrationEmails,
 } from "#shared/email.ts";
-import { errorMessage } from "#shared/error-message.ts";
+import { fetchText } from "#shared/fetch.ts";
 /* jscpd:ignore-start */
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
@@ -35,7 +35,6 @@ import {
   type RegistrationPackageFacts,
   type RegistrationPackagePricing,
 } from "#shared/registration-package-facts.ts";
-import { fetchTextFollowingSafeRedirects } from "#shared/safe-fetch.ts";
 import {
   addMonthsToRenewalDeadline,
   assignAndNotifyBuiltSites,
@@ -203,45 +202,31 @@ export const buildWebhookPayload = (
   };
 };
 
-/**
- * Send a webhook payload to a URL
- * Fires and forgets - errors are logged but don't block registration
- */
+export type WebhookDelivery =
+  | { delivered: true }
+  | {
+      delivered: false;
+      reason: "rejected" | "transport" | "unsafe_url";
+    };
+
+/** Send one direct webhook request without blocking registration on failure. */
 export const sendWebhook = async (
   webhookUrl: string,
   payload: WebhookPayload,
-  listingId?: number,
-): Promise<void> => {
-  // Defense-in-depth against SSRF: never fetch an internal/non-https URL, even
-  // if one was stored before write-time validation existed.
+): Promise<WebhookDelivery> => {
   if (!isSafeServerFetchUrl(webhookUrl)) {
-    logError({
-      code: ErrorCode.WEBHOOK_SEND,
-      detail: "Refused to send webhook to an unsafe URL",
-      listingId,
-    });
-    return;
+    return { delivered: false, reason: "unsafe_url" };
   }
   try {
-    const { ok, status } = await fetchTextFollowingSafeRedirects(webhookUrl, {
+    const { ok } = await fetchText(webhookUrl, {
       body: JSON.stringify(payload),
       headers: { "Content-Type": "application/json" },
       method: "POST",
+      redirect: "manual",
     });
-    if (!ok) {
-      const listingName = payload.tickets.map((t) => t.listing_name).join(", ");
-      logError({
-        code: ErrorCode.WEBHOOK_SEND,
-        detail: `status=${status} for '${listingName}'`,
-        listingId,
-      });
-    }
-  } catch (error) {
-    logError({
-      code: ErrorCode.WEBHOOK_SEND,
-      detail: errorMessage(error),
-      listingId,
-    });
+    return ok ? { delivered: true } : { delivered: false, reason: "rejected" };
+  } catch {
+    return { delivered: false, reason: "transport" };
   }
 };
 
@@ -256,10 +241,7 @@ export const sendRegistrationWebhooks: RegistrationNotification<
 
   const facts = suppliedFacts ?? (await loadRegistrationPackageFacts(entries));
   const payload = buildWebhookPayload(entries, currency, facts.pricingByGroup);
-  const firstListingId = entries[0]?.listing.id;
-  await Promise.allSettled(
-    webhookUrls.map((url) => sendWebhook(url, payload, firstListingId)),
-  );
+  await Promise.allSettled(webhookUrls.map((url) => sendWebhook(url, payload)));
 };
 
 const registrationWebhookUrls = (entries: RegistrationEntry[]): string[] =>

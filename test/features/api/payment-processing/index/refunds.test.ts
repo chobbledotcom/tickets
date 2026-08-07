@@ -17,6 +17,7 @@ import { stubRefundPayment } from "#test-utils/webhooks.ts";
 import {
   bookingIntent,
   expectStoredRefund,
+  paymentAttempt,
   singleListingPayment,
   trustedPayment,
 } from "./helpers.ts";
@@ -46,7 +47,7 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
       >),
     );
 
-    expect(await processPaymentSession(id, data)).toEqual({
+    expect(await processPaymentSession(paymentAttempt, id, data)).toEqual({
       detail: undefined,
       error: "This listing is no longer accepting registrations.",
       refunded: false,
@@ -54,10 +55,12 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
       success: false,
     });
     expect(await getProcessedPayment(id)).toBeNull();
-    expect(await processPaymentSession(id, data)).toMatchObject({
-      refunded: false,
-      success: false,
-    });
+    expect(await processPaymentSession(paymentAttempt, id, data)).toMatchObject(
+      {
+        refunded: false,
+        success: false,
+      },
+    );
     expect(refund.calls).toHaveLength(2);
     expect(refundState.calls).toHaveLength(2);
   });
@@ -68,7 +71,7 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
     const { data, listing } = await singleListingPayment(id, 1000, 800);
     using refund = stubRefundPayment("re_price_changed");
 
-    const result = await processPaymentSession(id, data);
+    const result = await processPaymentSession(paymentAttempt, id, data);
     await expectStoredRefund(
       result,
       {
@@ -97,6 +100,7 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
     using refund = stubRefundPayment("re_capacity");
 
     const result = await processPaymentSession(
+      paymentAttempt,
       id,
       trustedPayment(id, bookingIntent([{ e: listing.id, p: 600, q: 1 }]), 600),
     );
@@ -124,6 +128,7 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
     using refund = stubRefundPayment("re_uncertain");
 
     const result = await processPaymentSession(
+      paymentAttempt,
       id,
       trustedPayment(id, bookingIntent([{ e: listing.id, p: 500, q: 1 }]), 500),
     );

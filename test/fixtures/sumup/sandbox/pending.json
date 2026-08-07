@@ -1,0 +1,17 @@
+{
+  "evidence": {
+    "captured_on": "2026-08-05",
+    "endpoint": "GET /v0.1/checkouts/{checkout_id}",
+    "scenario": "pending",
+    "sdk": "@sumup/sdk 0.1.6"
+  },
+  "response": {
+    "checkout_reference": "reference-pending",
+    "amount": 12.34,
+    "currency": "GBP",
+    "merchant_code": "merchant-sandbox",
+    "id": "checkout-pending",
+    "status": "PENDING",
+    "transactions": []
+  }
+}

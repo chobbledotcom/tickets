@@ -22,7 +22,11 @@ import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { bookingIntent, paymentSession } from "./index/helpers.ts";
+import {
+  bookingIntent,
+  paymentAttempt,
+  paymentSession,
+} from "./index/helpers.ts";
 
 /** A signed cart line: `e` is the listing, `k`/`r` mark a package path. */
 const line = (listingId: number, groupId?: number): BookingItem =>
@@ -165,6 +169,7 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
       intent,
     );
     const result = await storeRefundedBooking(
+      paymentAttempt,
       session,
       intent,
       bookings,
@@ -268,7 +273,12 @@ describeWithEnv(
         balanceAttendeeId: attendeeId,
       });
       const session = paymentSession(sessionId, amount, intent);
-      return await settleBalanceSession(sessionId, session, intent);
+      return await settleBalanceSession(
+        paymentAttempt,
+        sessionId,
+        session,
+        intent,
+      );
     };
 
     describe("when the balance changed while they were paying", () => {
@@ -356,6 +366,7 @@ describeWithEnv(
       );
 
       const result = await storeRefundedBooking(
+        paymentAttempt,
         paymentSession("cs_full", 1000, intent),
         intent,
         bookings,

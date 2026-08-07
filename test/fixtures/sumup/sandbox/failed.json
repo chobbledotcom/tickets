@@ -1,0 +1,25 @@
+{
+  "evidence": {
+    "captured_on": "2026-08-05",
+    "endpoint": "GET /v0.1/checkouts/{checkout_id}",
+    "scenario": "failed",
+    "sdk": "@sumup/sdk 0.1.6"
+  },
+  "response": {
+    "checkout_reference": "reference-failed",
+    "amount": 42.01,
+    "currency": "GBP",
+    "merchant_code": "merchant-sandbox",
+    "id": "checkout-failed",
+    "status": "FAILED",
+    "transactions": [
+      {
+        "id": "transaction-failed-1",
+        "amount": 42.01,
+        "currency": "GBP",
+        "status": "FAILED",
+        "merchant_code": "merchant-sandbox"
+      }
+    ]
+  }
+}

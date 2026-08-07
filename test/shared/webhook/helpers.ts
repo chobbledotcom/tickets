@@ -6,16 +6,7 @@
 
 import { spy } from "@std/testing/mock";
 import { bracket, map } from "#fp";
-import { flushPendingWork, runWithPendingWork } from "#shared/pending-work.ts";
-import {
-  buildWebhookPayload,
-  type RegistrationEntry,
-  sendWebhook,
-  type WebhookListing,
-  type WebhookPayload,
-} from "#shared/webhook.ts";
-import { getAllActivityLog } from "#test-utils/activity-log.ts";
-import { createTestDbWithSetup, resetDb } from "#test-utils/db.ts";
+import type { WebhookListing, WebhookPayload } from "#shared/webhook.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
 import { stubFetchEachTest, type TestFetch } from "#test-utils/fetch-stub.ts";
 import type { EmailEntry } from "#test-utils/internal.ts";
@@ -44,13 +35,6 @@ export const listingFromDb = (
 export const flushAsync = (): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, 0));
 
-/** Let floating error logs settle, then start the test database over. */
-export const drainAndResetDb = async (): Promise<void> => {
-  await new Promise((resolve) => setTimeout(resolve, 50));
-  resetDb();
-  await createTestDbWithSetup();
-};
-
 /** The stubbed fetch for a webhook suite, plus what the first POST carried. */
 export type WebhookFetch = TestFetch & { firstBody: () => WebhookPayload };
 
@@ -68,36 +52,4 @@ export const stubWebhookFetch = (): WebhookFetch => {
     },
     reply: fetch.reply,
   };
-};
-
-/** Send the default payload with a failing fetch, and return what was logged. */
-export const sendAndCollectErrors = (
-  fetch: WebhookFetch,
-  fetchImpl: () => Promise<Response>,
-): Promise<string[]> =>
-  withErrorSpy(async (errorSpy) => {
-    fetch.reply(fetchImpl);
-    const payload = await buildWebhookPayload(defaultEntries(), "GBP");
-    await sendWebhook("https://example.com/webhook", payload);
-    return spyFirstArgs(errorSpy.calls);
-  });
-
-/** Send a webhook that fails with `status`, then return the activity log. */
-export const sendWebhookAndGetActivityLog = async (
-  fetch: WebhookFetch,
-  status: number,
-  registrationEntries?: RegistrationEntry[],
-): Promise<Awaited<ReturnType<typeof getAllActivityLog>>> => {
-  await runWithPendingWork(async () => {
-    await withErrorSpy(async () => {
-      fetch.reply(() => Promise.resolve(new Response("Error", { status })));
-      const payload = await buildWebhookPayload(
-        registrationEntries ?? defaultEntries(),
-        "GBP",
-      );
-      await sendWebhook("https://example.com/webhook", payload);
-    });
-    await flushPendingWork();
-  });
-  return getAllActivityLog();
 };

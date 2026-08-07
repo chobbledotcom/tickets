@@ -20,7 +20,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { webhookMeta } from "#test-utils/factories.ts";
-import { bookingIntent } from "./index/helpers.ts";
+import { bookingIntent, paymentAttempt } from "./index/helpers.ts";
 
 const intent = (): BookingIntent => bookingIntent([{ e: 1, p: 1000, q: 1 }]);
 
@@ -71,6 +71,7 @@ const runRecovery = async (opts: {
 }): Promise<{ completed: CreatedEntry[][]; result: PaymentResult }> => {
   const completed: CreatedEntry[][] = [];
   const result = await recoverOrRefundUnexpectedCreate({
+    attempt: paymentAttempt,
     complete: (entries) => {
       completed.push(entries);
       return Promise.resolve({
