@@ -1,60 +1,21 @@
 import { expect } from "@std/expect";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
-import { type Browser, chromium, type Page } from "playwright";
+import type { Browser } from "playwright";
 import sharp from "sharp";
-import { defineScreenshotBrowserLauncher } from "#scripts/browser-options.ts";
-import { chromiumExecutable } from "#scripts/screenshots/browser.ts";
 import { capturePreparedPage } from "#scripts/screenshots/capture.ts";
 import { isolateElementCss } from "#scripts/screenshots/checks.ts";
-import {
-  type ScreenshotLayerName,
-  withScreenshotLayer,
-} from "#scripts/screenshots/layers.ts";
 import { waitForScreenshotPage } from "#scripts/screenshots/readiness.ts";
-
-const launchBrowser = defineScreenshotBrowserLauncher(
-  chromium,
-  chromiumExecutable,
-);
-
-const layerStyle = (
-  page: Page,
-  layer: ScreenshotLayerName,
-  selector: string,
-  property: string,
-  pseudo?: string,
-): Promise<string> =>
-  withScreenshotLayer(page, layer, () =>
-    page
-      .locator(selector)
-      .evaluate(
-        (element, options) =>
-          getComputedStyle(element, options.pseudo).getPropertyValue(
-            options.property,
-          ),
-        { property, pseudo },
-      ),
-  );
-
-const withPage = async (
-  browser: Browser,
-  content: string,
-  check: (page: Page) => Promise<void>,
-): Promise<void> => {
-  const page = await browser.newPage();
-  try {
-    await page.setContent(content);
-    await check(page);
-  } finally {
-    await page.close();
-  }
-};
+import {
+  launchScreenshotBrowser,
+  layerStyle,
+  withPage,
+} from "./screenshots-browser-helpers.ts";
 
 describe("screenshot browser contracts", () => {
   let browser: Browser;
 
   beforeAll(async () => {
-    browser = await launchBrowser();
+    browser = await launchScreenshotBrowser();
   });
 
   afterAll(async () => {
@@ -179,9 +140,14 @@ describe("screenshot browser contracts", () => {
       browser,
       '<select style="background: rgb(255, 0, 0); color: rgb(0, 0, 255)"><option>Chosen value</option></select>',
       async (page) => {
-        expect(await layerStyle(page, "controls", "select", "color")).toBe(
-          "rgba(0, 0, 0, 0)",
-        );
+        expect(
+          await layerStyle(
+            page,
+            "controls",
+            "select",
+            "-webkit-text-fill-color",
+          ),
+        ).toBe("rgba(0, 0, 0, 0)");
         expect(
           await layerStyle(page, "controls", "select", "background-color"),
         ).toBe("rgb(255, 0, 0)");

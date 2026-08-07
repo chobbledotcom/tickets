@@ -12,7 +12,6 @@ const CONTROL_SELECTOR =
 const LAYER_PRIORITY =
   ":not(#__screenshot_layer_mask__):not(#__screenshot_layer_control__)";
 const HIDDEN_TEXT_STYLE = `
-  color: transparent !important;
   text-decoration-color: transparent !important;
   text-shadow: none !important;
   -webkit-text-fill-color: transparent !important;
@@ -27,7 +26,10 @@ const LAYER_STYLES: Record<ScreenshotLayerName, string> = {
     :is(${CONTROL_SELECTOR})${LAYER_PRIORITY},
     :is(${CONTROL_SELECTOR})${LAYER_PRIORITY} * { visibility: hidden !important; }
     svg text${LAYER_PRIORITY} { visibility: hidden !important; }
-    body ${LAYER_PRIORITY}::placeholder { ${HIDDEN_TEXT_STYLE} }
+    body ${LAYER_PRIORITY}::placeholder {
+      color: transparent !important;
+      ${HIDDEN_TEXT_STYLE}
+    }
   }`,
   controls: `@layer __screenshot_layer__ {
     html, body { background: transparent !important; }
@@ -37,10 +39,13 @@ const LAYER_STYLES: Record<ScreenshotLayerName, string> = {
       visibility: visible !important;
     }
     :is(${CONTROL_SELECTOR})${LAYER_PRIORITY},
-    :is(${CONTROL_SELECTOR})${LAYER_PRIORITY} * {
+    :is(${CONTROL_SELECTOR})${LAYER_PRIORITY} *,
+    :is(${CONTROL_SELECTOR})${LAYER_PRIORITY}::before,
+    :is(${CONTROL_SELECTOR})${LAYER_PRIORITY}::after {
       ${HIDDEN_TEXT_STYLE}
     }
     :is(${CONTROL_SELECTOR})${LAYER_PRIORITY}::placeholder {
+      color: transparent !important;
       ${HIDDEN_TEXT_STYLE}
     }
   }`,
@@ -52,8 +57,8 @@ const LAYER_STYLES: Record<ScreenshotLayerName, string> = {
       outline-color: transparent !important;
     }
     :is(${CONTROL_SELECTOR})${LAYER_PRIORITY} { appearance: none !important; }
-    :is(img, picture, video, canvas)${LAYER_PRIORITY},
-    svg :is(path, circle, ellipse, line, polygon, polyline, rect, image, use, foreignObject)${LAYER_PRIORITY} {
+    :is(img, picture, video, canvas, iframe, object, embed)${LAYER_PRIORITY},
+    svg :is(path, circle, ellipse, line, polygon, polyline, rect, image, use)${LAYER_PRIORITY} {
       visibility: hidden !important;
     }
   }`,
