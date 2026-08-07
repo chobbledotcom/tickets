@@ -118,9 +118,10 @@ beforeEach(() => {
   });
   const elements = [opaque, translucent, nested];
   globals.set("document", {
-    body: { querySelectorAll: () => elements },
-    querySelectorAll: () =>
-      elements.filter(({ attributes }) => attributes.size > 0),
+    querySelectorAll: (selector: string) =>
+      selector === "html, body, body *"
+        ? elements
+        : elements.filter(({ attributes }) => attributes.size > 0),
   });
 });
 
@@ -207,7 +208,7 @@ describe("capturePreparedLayers", () => {
     expect(Object.keys(result)).toEqual(["background", "controls", "text"]);
     expect(
       calls.screenshotOptions.map(({ omitBackground }) => omitBackground),
-    ).toEqual([undefined, true, true, true]);
+    ).toEqual([undefined, undefined, true, true]);
     expect(calls.styleRemovals).toBe(3);
   });
 

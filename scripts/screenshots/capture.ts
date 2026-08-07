@@ -95,7 +95,7 @@ export const capturePreparedLayers: CaptureFunction<
     > = { background, controls: transparent, text: transparent };
     for (const layer of SCREENSHOT_LAYER_NAMES) {
       const png = await withScreenshotLayer(layer)(page, () =>
-        pagePng(page, fullPage, true),
+        pagePng(page, fullPage, layer !== "background"),
       );
       entries.push([
         layer,

@@ -1,5 +1,6 @@
 import type { Browser, Page } from "playwright";
 import { chromium } from "playwright";
+import sharp from "sharp";
 import { defineScreenshotBrowserLauncher } from "#scripts/browser-options.ts";
 import { chromiumExecutable } from "#scripts/screenshots/browser.ts";
 import {
@@ -9,6 +10,26 @@ import {
 
 export const launchScreenshotBrowser: () => Promise<Browser> =
   defineScreenshotBrowserLauncher(chromium, chromiumExecutable);
+
+export const countRgbPixels = async (
+  png: Uint8Array,
+  [wantedRed, wantedGreen, wantedBlue]: readonly [number, number, number],
+): Promise<number> => {
+  const { data, info } = await sharp(png)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  return data.reduce(
+    (count, red, index) =>
+      index % info.channels === 0 &&
+      red === wantedRed &&
+      data[index + 1] === wantedGreen &&
+      data[index + 2] === wantedBlue
+        ? count + 1
+        : count,
+    0,
+  );
+};
 
 export const layerStyle = (
   page: Page,

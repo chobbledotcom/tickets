@@ -9,6 +9,7 @@ import {
   withScreenshotLayer,
 } from "#scripts/screenshots/layers.ts";
 import {
+  countRgbPixels,
   launchScreenshotBrowser,
   layerStyle,
   withPage,
@@ -252,20 +253,7 @@ describe("screenshot layer browser contracts", () => {
           const png = await withScreenshotLayer(layer)(page, () =>
             page.locator("input").screenshot({ omitBackground: true }),
           );
-          const { data, info } = await sharp(png)
-            .ensureAlpha()
-            .raw()
-            .toBuffer({ resolveWithObject: true });
-          return data.reduce(
-            (count, red, index) =>
-              index % info.channels === 0 &&
-              red === 255 &&
-              data[index + 1] === 0 &&
-              data[index + 2] === 0
-                ? count + 1
-                : count,
-            0,
-          );
+          return await countRgbPixels(png, [255, 0, 0]);
         };
 
         expect(await redPixels("controls")).toBeGreaterThan(0);

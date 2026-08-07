@@ -70,6 +70,12 @@ const LAYER_STYLES: Record<ScreenshotLayerName, string> = {
     :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea)${LAYER_PRIORITY} {
       appearance: none !important;
     }
+    input[type="file"]${LAYER_PRIORITY}::file-selector-button {
+      background: transparent !important;
+      border-color: transparent !important;
+      box-shadow: none !important;
+      outline-color: transparent !important;
+    }
     input${LAYER_PRIORITY}::-webkit-calendar-picker-indicator { visibility: hidden !important; }
     :is(img, picture, video, canvas, iframe, object, embed)${LAYER_PRIORITY},
     svg :is(path, circle, ellipse, line, polygon, polyline, rect, image, use)${LAYER_PRIORITY} {
@@ -111,8 +117,7 @@ export const addScreenshotStyle = async (
   css: string,
 ): Promise<() => Promise<void>> => {
   const marker = crypto.randomUUID();
-  const url = new URL(page.url());
-  url.hash = "";
+  const url = new URL("/custom.css", page.url());
   url.searchParams.set("screenshot-style", marker);
   const href = url.toString();
   await page.route(href, (route) =>
@@ -129,7 +134,7 @@ const defineWholeOpacityGroups = definePageChange<void>(
   async (_config, page) => {
     await page.evaluate((attribute) => {
       const marked = `[${attribute}]`;
-      for (const element of document.body.querySelectorAll("*")) {
+      for (const element of document.querySelectorAll("html, body, body *")) {
         if (
           getComputedStyle(element).opacity !== "1" &&
           !element.parentElement?.closest(marked)
