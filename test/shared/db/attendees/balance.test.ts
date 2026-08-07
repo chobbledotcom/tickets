@@ -18,10 +18,7 @@ import {
 } from "#shared/db/attendees/balance.ts";
 import { getDb } from "#shared/db/client.ts";
 import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
-import {
-  isSessionProcessed,
-  reserveSession,
-} from "#shared/db/processed-payments.ts";
+import { reserveSession } from "#shared/db/processed-payments.ts";
 import {
   enableQueryLog,
   getQueryLog,
@@ -38,6 +35,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import { expectRefundReferences } from "#test-utils/payment-references.ts";
+import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 
 describeWithEnv("db > settle attendee balance", { db: true }, () => {
   test("clears the balance, moves to the paid status and logs it", async () => {
@@ -97,7 +95,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
       ),
     );
 
-    const row = await isSessionProcessed("balance-ref-ok");
+    const row = await getProcessedPayment("balance-ref-ok");
     expect(row?.attendee_id).toBe(attendeeId);
     expect(row?.payment_reference).not.toContain("pi_balance_ok");
     await expectRefundReferences(attendeeId, ["pi_balance_ok"]);
@@ -120,7 +118,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     );
 
     expect(result).toEqual({ reason: "amount_mismatch", settled: false });
-    const row = await isSessionProcessed("balance-ref-mismatch");
+    const row = await getProcessedPayment("balance-ref-mismatch");
     expect(row?.attendee_id).toBe(null);
     expect(row?.payment_reference).toBe("");
   });

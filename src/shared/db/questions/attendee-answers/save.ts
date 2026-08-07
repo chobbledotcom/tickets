@@ -8,8 +8,10 @@
 
 import { fieldById, unique } from "#fp";
 import {
+  executeBatch,
   inPlaceholders,
   resultRows,
+  type SqlStatement,
   type TxScope,
   withTransaction,
 } from "#shared/db/client.ts";
@@ -82,6 +84,74 @@ const dedupeTextAnswerIdsByQuestion = (
   textAnswerIds: TextAnswerId[],
 ): TextAnswerId[] => dedupeByQuestion(textAnswerIds);
 
+type NormalizedAnswerSet = AttendeeAnswerSet & {
+  textAnswerIds: TextAnswerId[];
+  textAnswers: TextAnswer[];
+};
+
+const storedIdAnswerStatements = (
+  normalized: Map<number, NormalizedAnswerSet>,
+): SqlStatement[] => {
+  const attendeeIds = [...normalized.keys()];
+  const statements: SqlStatement[] = [
+    {
+      args: attendeeIds,
+      sql: `DELETE FROM attendee_answers WHERE attendee_id IN (${inPlaceholders(attendeeIds)})`,
+    },
+  ];
+  const choiceRows = [...normalized].flatMap(([attendeeId, set]) =>
+    set.answerIds.map((answerId, position) => ({
+      answerId,
+      attendeeId,
+      position,
+    })),
+  );
+  if (choiceRows.length > 0) {
+    statements.push({
+      args: choiceRows.flatMap((row) => [
+        row.attendeeId,
+        row.answerId,
+        row.position,
+      ]),
+      sql: `WITH selected(attendee_id, answer_id, position) AS (
+        VALUES ${choiceRows.map(() => "(?, ?, ?)").join(", ")}
+      ), ranked AS (
+        SELECT selected.attendee_id, selected.answer_id, answer.question_id,
+          ROW_NUMBER() OVER (
+            PARTITION BY selected.attendee_id, answer.question_id
+            ORDER BY selected.position DESC
+          ) AS choice_order
+        FROM selected
+        INNER JOIN answers AS answer ON answer.id = selected.answer_id
+      )
+      INSERT INTO attendee_answers (attendee_id, answer_id, question_id)
+      SELECT attendee_id, answer_id, question_id
+      FROM ranked
+      WHERE choice_order = 1`,
+    });
+  }
+  const textRows = [...normalized].flatMap(([attendeeId, set]) =>
+    set.textAnswerIds.map((answer) => ({ attendeeId, ...answer })),
+  );
+  if (textRows.length > 0) {
+    statements.push({
+      args: textRows.flatMap((row) => [
+        row.attendeeId,
+        row.questionId,
+        row.stringId,
+      ]),
+      sql: `WITH selected(attendee_id, question_id, string_id) AS (
+        VALUES ${textRows.map(() => "(?, ?, ?)").join(", ")}
+      )
+      INSERT INTO attendee_answers (attendee_id, question_id, string_id)
+      SELECT selected.attendee_id, selected.question_id, selected.string_id
+      FROM selected
+      INNER JOIN questions AS question ON question.id = selected.question_id`,
+    });
+  }
+  return statements;
+};
+
 /** The subset of `questionIds` that still exist — text answers reference a
  *  question directly, so a question deleted between checkout and finalize must
  *  be dropped (mirrors the deleted-answer skip on the choice path) rather than
@@ -91,7 +161,6 @@ const existingQuestionIdsTx = async (
   tx: TxScope,
   questionIds: number[],
 ): Promise<Set<number>> => {
-  if (questionIds.length === 0) return new Set();
   const rows = resultRows<{ id: number }>(
     await tx.execute(
       questionsTable.read.pick(["id"]).statement({ id: questionIds }),
@@ -147,13 +216,7 @@ const existingQuestionIdsTx = async (
 export const saveAttendeeAnswers = async (
   answersByAttendee: Map<number, number[] | AttendeeAnswerSet>,
 ): Promise<void> => {
-  const normalized = new Map<
-    number,
-    AttendeeAnswerSet & {
-      textAnswerIds: TextAnswerId[];
-      textAnswers: TextAnswer[];
-    }
-  >(
+  const normalized = new Map<number, NormalizedAnswerSet>(
     [...answersByAttendee].map(([id, set]) => {
       const answerSet = normalizeAnswerSet(set);
       return [
@@ -167,6 +230,13 @@ export const saveAttendeeAnswers = async (
     }),
   );
   if (normalized.size === 0) return;
+  const storedIdsOnly = [...normalized.values()].every(
+    (set) => set.textAnswers.length === 0,
+  );
+  if (storedIdsOnly) {
+    await executeBatch(storedIdAnswerStatements(normalized));
+    return;
+  }
   // Precompute the encrypted + HMAC-indexed string rows BEFORE opening the
   // transaction. The crypto (hybrid encryption + blind index) is CPU-bound and
   // holds no DB statement; running it inside `withTransaction` would keep the

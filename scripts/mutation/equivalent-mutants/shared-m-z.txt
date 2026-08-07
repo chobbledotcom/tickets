@@ -1,5 +1,10 @@
 # Known-equivalent mutants — see README.txt in this directory.
 
+# Registration package facts are objects when supplied, so they are always
+# truthy; undefined selects the loader under either nullish or OR fallback.
+src/shared/webhook.ts::sendRegistrationWebhooks.facts~007uooi  ?? → ||   # suppliedFacts is RegistrationPackageFacts|undefined
+src/shared/webhook.ts::queueRegistrationNotifications.packageFacts~0fhpirc  ?? → ||   # suppliedPackageFacts is RegistrationPackageFacts|undefined
+
 # CRUD configuration values are functions or objects when present, and hydrated
 # map values are records, so none can be falsy-but-non-null.
 src/shared/rest/crud-api.ts::defineCrudApi.policy~11y0iup  ?? → ||   # policy is an AuthPolicy object or undefined
@@ -171,8 +176,6 @@ src/ui/templates/admin/images.tsx::imageValue.alt_text~17v2zve  ?? → ||   # al
 src/ui/templates/admin/images.tsx::imageValue.name~0pg0nzi  ?? → ||   # name ?? "" vs || "": identical for every string — "" falls through to "" either way
 src/features/admin/images.ts::parseImageTargets.itemType~01dj453   → "mutated"   # itemType destructure default: split(":") always yields ≥1 part, so the default is unreachable
 src/features/admin/images.ts::parseImageTargets.itemId~1gk0kbs   → "mutated"   # itemId destructure default: Number("") is 0 and Number("mutated") is NaN — both rejected by the id guard
-src/features/admin/images.ts::handleImageEditGet~0t9nij6  applyFlash(request); → (removed)   # only records ?form= targeting; no form on the images pages has an id, so the flash renders at the Layout backstop either way
-src/features/admin/images.ts::handleImageDeleteGet~0t9nij6  applyFlash(request); → (removed)   # same as images.ts:56 — no id'd form on the page
 
 # Attendee merge service (attendee-merge.ts) — `?? → ||` between
 # `targetAnswers.get(qid)` (a `{answerId, answerText}` object or undefined) and

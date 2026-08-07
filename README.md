@@ -332,7 +332,7 @@ and capture IDs. It includes the app commit, image hash and dimensions, browser
 profile, viewport, and presentation type. Raw Cucumber messages and reports are
 not part of this evidence folder. The app workflow verifies the capture on pull
 requests. Main pushes and a monthly refresh upload this folder as the stable
-`tickets-evidence` artifact with GitHub's 90-day retention. The Tickets website
+`tickets-evidence` artifact with GitHub's 35-day retention. The Tickets website
 imports that artifact into a reviewed pull request
 and keeps its ordinary site build offline.
 

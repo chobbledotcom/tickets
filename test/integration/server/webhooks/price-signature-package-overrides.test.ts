@@ -3,7 +3,6 @@ import { it as test } from "@std/testing/bdd";
 import { execute } from "#shared/db/client.ts";
 import { groups, setGroupPackageMembers } from "#shared/db/groups.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
-import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import {
   expectPackageRefund,
   expectProcessed,
@@ -20,6 +19,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta, webhookMeta } from "#test-utils/factories.ts";
+import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 describeWithEnv(
@@ -42,7 +42,7 @@ describeWithEnv(
           expect(refund.calls.length).toBe(1);
           // Recorded as a terminal failure (refund settled), so a later delivery
           // replays it instead of retrying.
-          const record = await isSessionProcessed("cs_already_refunded");
+          const record = await getProcessedPayment("cs_already_refunded");
           expect(record?.failure_data).not.toBe("");
         },
       );

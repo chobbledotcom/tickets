@@ -3,12 +3,13 @@ import { describe, it as test } from "@std/testing/bdd";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import type { EmailConfig } from "#shared/email.ts";
 import { sendRegistrationEmails, sendTestEmail } from "#shared/email.ts";
-import { updateBusinessEmail } from "#shared/validation/email.ts";
+import type { RegistrationPackageFacts } from "#shared/registration-package-facts.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { validEmail } from "#test-utils/email.ts";
+import { configureTestEmail, validEmail } from "#test-utils/email.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
 import { useFetchStub } from "#test-utils/mocks.ts";
+import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 const testConfig: EmailConfig = {
   apiKey: "re_test_key",
@@ -16,24 +17,11 @@ const testConfig: EmailConfig = {
   provider: "resend",
 };
 
-const setupDbEmailConfig = async (
-  opts: { businessEmail?: string } = {},
-): Promise<void> => {
-  await settings.update.email.provider("resend");
-  await settings.update.email.apiKey("test-key");
-  await settings.update.email.fromAddress("from@test.com");
-  if (opts.businessEmail) {
-    await updateBusinessEmail(opts.businessEmail);
-  }
-  settings.invalidateCache();
-  await settings.loadKeys(ALL_SETTINGS_KEYS);
-};
-
 const setupAndSendRegistration = async (
   opts: { businessEmail?: string } = {},
   entries?: ReturnType<typeof makeEntry>[],
 ) => {
-  await setupDbEmailConfig(opts);
+  await configureTestEmail(opts);
   await sendRegistrationEmails(entries ?? [makeEntry()], "GBP");
 };
 
@@ -184,6 +172,31 @@ describeWithEnv(
       expect(decoded).toContain("VIP Bundle");
       expect(decoded).not.toContain("Secret Seat");
       expect(decoded).not.toContain("Secret Meal");
+    });
+
+    test("uses supplied package displays without reading the database", async () => {
+      await configureTestEmail();
+      const groupId = 71;
+      const entry = makeEntry(
+        { id: 72 },
+        { package_group_id: groupId, ticket_token: "supplied-package" },
+      );
+      const facts: RegistrationPackageFacts = {
+        displays: new Map([
+          [groupId, { hideListings: true, name: "Supplied package" }],
+        ]),
+        pricingByGroup: new Map(),
+      };
+
+      expect(
+        await countDatabaseCalls(0, () =>
+          sendRegistrationEmails([entry], "GBP", facts),
+        ),
+      ).toBe(0);
+      const body = fetch.getFetchJsonBody();
+      expect(body.subject).toContain("Supplied package");
+      expect(body.html).not.toContain("Test Listing");
+      expect(body.text).not.toContain("Test Listing");
     });
 
     test("attaches numbered tickets for multi-listing registration", async () => {

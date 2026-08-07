@@ -6,13 +6,13 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { validateAllItems } from "#routes/api/payment-processing/items.ts";
 import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
 import { invalidateListingsCache } from "#shared/db/listings/records.ts";
 import {
   bookingIntent,
   paymentSession,
 } from "#test/features/api/payment-processing/index/helpers.ts";
+import { validateAllItems } from "#test/features/api/payment-processing/items/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";

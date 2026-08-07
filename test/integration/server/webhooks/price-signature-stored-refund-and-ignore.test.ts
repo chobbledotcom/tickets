@@ -6,7 +6,6 @@ import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { getNoteRows, getNotesFor } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
-import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import {
   expectAcknowledgedIgnore,
@@ -25,6 +24,7 @@ import { assertJson } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { singleItem, webhookMeta } from "#test-utils/factories.ts";
+import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 
@@ -109,7 +109,7 @@ describeWithEnv(
       // …but the session is NOT finalized: attendee_id stays null and the refund
       // is the terminal outcome. If a change finalizes it, a replay would wrongly
       // hand the customer a ticket — so pin both fields.
-      const record = await isSessionProcessed("cs_unfinalized");
+      const record = await getProcessedPayment("cs_unfinalized");
       expect(record?.attendee_id).toBeNull();
       expect(record?.failure_data).not.toBe("");
     });
@@ -151,7 +151,7 @@ describeWithEnv(
           // A success finalizes (attendee_id set in the same transaction as the
           // attendee insert), so its replay returns the ticket. The store-refund path
           // is the deliberate exception above; keep the two from drifting together.
-          const record = await isSessionProcessed("cs_finalized");
+          const record = await getProcessedPayment("cs_finalized");
           expect(record?.attendee_id).toBe(attendee!.id);
         },
       );
@@ -178,7 +178,7 @@ describeWithEnv(
           async (refund) => {
             await expectStoredRefund(listing.id);
             expect(refund.calls.length).toBe(1);
-            const record = await isSessionProcessed("cs_crash_store");
+            const record = await getProcessedPayment("cs_crash_store");
             expect(record?.attendee_id).toBeNull();
             expect(record?.failure_data).not.toBe("");
           },
@@ -204,7 +204,7 @@ describeWithEnv(
           await expectStoredRefund(999999);
           expect(refund.calls.length).toBe(1);
           // Recorded as the session's terminal outcome (not finalized → no ticket).
-          const record = await isSessionProcessed("cs_missing_listing");
+          const record = await getProcessedPayment("cs_missing_listing");
           expect(record?.attendee_id).toBeNull();
           expect(record?.failure_data).not.toBe("");
         },
@@ -346,7 +346,7 @@ describeWithEnv(
           const [attendee] = await getAttendeesRaw(listing.id);
           expect(attendee?.quantity).toBe(0);
           expect(await getNoteRows("attendee", [attendee!.id])).toHaveLength(1);
-          const record = await isSessionProcessed("cs_refund_retry");
+          const record = await getProcessedPayment("cs_refund_retry");
           expect(record?.failure_data).not.toBe("");
         },
       );

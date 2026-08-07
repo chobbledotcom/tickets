@@ -366,16 +366,6 @@ export const hasPaidLine = rowExistsForIdList(
  * whose legs already exist would be mistaken for a capacity failure and refund a
  * live ticket.
  */
-export const attendeeIdByLedgerEventGroup = async (
-  eventGroup: string,
-): Promise<number | null> => {
-  const row = await queryOne<{ attendee_id: number }>(
-    "SELECT attendee_id FROM listing_attendees WHERE ledger_event_group = ? LIMIT 1",
-    [eventGroup],
-  );
-  return row?.attendee_id ?? null;
-};
-
 /**
  * Get an attendee by ID without decrypting PII
  * Used for payment callbacks and webhooks where decryption is not needed

@@ -255,9 +255,13 @@ export const buildTemplateData = async (
   entries: EmailEntry[],
   currency: string,
   ticketUrl: string,
-  options: { hidePackageMembers?: boolean } = {},
+  options: {
+    hidePackageMembers?: boolean;
+    packageDisplays?: ReadonlyMap<number, PackageDisplay>;
+  } = {},
 ): Promise<TemplateData> => {
-  const displays = await packageDisplaysForRows(entries);
+  const displays =
+    options.packageDisplays ?? (await packageDisplaysForRows(entries));
   // The buyer's confirmation (hidePackageMembers) collapses hidden packages'
   // rows; the admin notification keeps them.
   const templateEntries: TemplateEntry[] = options.hidePackageMembers

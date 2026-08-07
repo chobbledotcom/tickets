@@ -4,14 +4,16 @@ import { executeBatch } from "#shared/db/client.ts";
 import { batchFinalizeStatements } from "#shared/db/payment-finalize.ts";
 import {
   decryptSessionTokens,
-  isSessionProcessed,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { expectProcessedPaymentReference } from "#test-utils/processed-payments.ts";
+import {
+  expectProcessedPaymentReference,
+  getProcessedPayment,
+} from "#test-utils/processed-payments.ts";
 
 describeWithEnv("db > processed payment finalize guard", { db: true }, () => {
   test("rejects a missing session", async () => {
@@ -43,7 +45,7 @@ describeWithEnv("db > processed payment finalize guard", { db: true }, () => {
         "first-token",
       ),
     );
-    const finalized = await isSessionProcessed("already-finalized");
+    const finalized = await getProcessedPayment("already-finalized");
     expect(finalized!.attendee_id).toBe(attendeeId);
     expect(await decryptSessionTokens(finalized!.ticket_tokens)).toBe(
       "first-token",
@@ -67,7 +69,7 @@ describeWithEnv("db > processed payment finalize guard", { db: true }, () => {
       ),
     ).rejects.toThrow("processed_payments.processed_at");
 
-    const row = await isSessionProcessed("already-finalized");
+    const row = await getProcessedPayment("already-finalized");
     expect(row).toEqual(finalized);
     await expectProcessedPaymentReference(
       attendeeId,
