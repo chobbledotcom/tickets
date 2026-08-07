@@ -450,4 +450,27 @@ describeWithEnv("db > groups > membership writes", { db: true }, () => {
       );
     });
   });
+
+  test("writePackageMembersTx rechecks package member rules for an existing package", async () => {
+    const group = await createHiddenPackageGroup("Tx recheck members");
+    const parent = await createTestListing({
+      groupId: group.id,
+      name: "Tx recheck parent",
+    });
+    const child = await createTestListing({ name: "Tx recheck child" });
+    await listingChildren.setIds(parent.id, [child.id]);
+    const existing = { hide_package_listings: true, is_package: true };
+
+    await expect(
+      withTransaction(async (tx) => {
+        await writePackageMembersTx(
+          tx,
+          group.id,
+          existing,
+          { isPackage: true },
+          [],
+        );
+      }),
+    ).rejects.toThrow();
+  });
 });
