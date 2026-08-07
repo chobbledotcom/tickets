@@ -27,6 +27,7 @@ import { getSelectedAttributesForListings } from "#shared/db/attributes.ts";
 import { listingGroups } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getImagesForItem } from "#shared/db/images.ts";
+import { settings } from "#shared/db/settings.ts";
 /* jscpd:ignore-start */
 import {
   ATTENDEE_DEMO_FIELDS,
@@ -423,9 +424,13 @@ const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
       ...ctx.listings.map((entry) => entry.listing.id),
       ...children.map((child) => child.id),
     ]),
-    // The site menu shows above a normal booking page but is dropped in iframe
-    // mode, so an embedded page skips building it entirely.
-    getIframeMode() ? Promise.resolve(undefined) : publicNavProps(null),
+    // The site menu shows above a normal booking page so a visitor can reach
+    // the rest of the site. It is dropped in an embedded iframe, and skipped
+    // when the public site is off (its Home/Listings links would only bounce a
+    // visitor to the admin login), so neither case builds a menu it won't show.
+    getIframeMode() || !settings.features.site
+      ? Promise.resolve(undefined)
+      : publicNavProps(null),
   ]);
   const caps = childCapacityInfo(childCaps, childOwnRemaining, membership);
   return {

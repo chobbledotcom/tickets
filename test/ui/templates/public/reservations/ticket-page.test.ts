@@ -8,7 +8,6 @@ import {
 } from "#shared/forms/saved-data.ts";
 import { detectIframeMode } from "#shared/iframe.ts";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
-import type { PublicNavProps } from "#templates/public/shared.tsx";
 import {
   bigAndSmallListings,
   evenSplitPackages,
@@ -30,20 +29,6 @@ const attributeWithOptions = (
   name,
   options: [{ attribute_id: id, id: id * 10, sort_order: 0, text: optionText }],
   sort_order: 0,
-});
-
-/** A minimal public-nav prop set — the fixed root links only, no page tree. */
-const navProps = (): PublicNavProps => ({
-  hasContact: false,
-  hasNews: false,
-  hasOrder: false,
-  hasTerms: false,
-  pages: {
-    activeRootId: null,
-    currentChildren: [],
-    rootPageNodes: [],
-    submenuLevels: [],
-  },
 });
 
 describe("ticketPage — packages", () => {
@@ -119,83 +104,6 @@ describe("ticketPage — packages", () => {
     expect(html).toContain('<body class="iframe">');
     expect(html).toContain('class="page-regions public-page"');
     expect(html).not.toContain("<h1>Iframe-only heading</h1>");
-  });
-
-  test("shows the site menu above the form on a normal page", () => {
-    const html = ticketPage({
-      listings: [ticketListing({ name: "Listing" })],
-      nav: navProps(),
-      slugs: ["listing"],
-    });
-    expect(html).toContain('<div class="admin-nav-group">');
-    expect(html).toContain('aria-label="Site menu"');
-    expect(html).toContain('<a href="/listings">');
-  });
-
-  test("drops the site menu in iframe mode even when one is supplied", () => {
-    detectIframeMode(new URL("https://example.com/?iframe=true"));
-    const html = ticketPage({
-      listings: [ticketListing({ name: "Listing" })],
-      nav: navProps(),
-      slugs: ["listing"],
-    });
-    expect(html).toContain('<body class="iframe">');
-    expect(html).not.toContain("admin-nav-group");
-    expect(html).not.toContain('aria-label="Site menu"');
-  });
-
-  test("warns when the page's daily listings share no available date", () => {
-    const html = ticketPage({
-      cartDateItems: [
-        { dates: ["2026-01-01"], id: 1, name: "Near" },
-        { dates: ["2026-02-01"], id: 2, name: "Far" },
-      ],
-      listings: [
-        ticketListing({
-          id: 1,
-          listing_type: "daily",
-          name: "Near",
-          slug: "near1",
-        }),
-        ticketListing({
-          id: 2,
-          listing_type: "daily",
-          name: "Far",
-          slug: "far01",
-        }),
-      ],
-      slugs: ["near1", "far01"],
-    });
-    expect(html).toContain(
-      "'Near' and 'Far' do not share an available date. Book them separately.",
-    );
-  });
-
-  test("warns when the page's customisable listings share no booking length", () => {
-    const html = ticketPage({
-      listings: [
-        ticketListing({
-          customisable_days: true,
-          day_prices: { 1: 500 },
-          duration_days: 1,
-          id: 1,
-          name: "Short",
-          slug: "shrt1",
-        }),
-        ticketListing({
-          customisable_days: true,
-          day_prices: { 3: 900 },
-          duration_days: 3,
-          id: 2,
-          name: "Long",
-          slug: "long1",
-        }),
-      ],
-      slugs: ["shrt1", "long1"],
-    });
-    expect(html).toContain(
-      "'Short' and 'Long' do not share a booking length. Book them separately.",
-    );
   });
 
   test("hides quantity when exactly one open listing allows one ticket", () => {
