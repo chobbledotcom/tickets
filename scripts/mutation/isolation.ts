@@ -150,7 +150,7 @@ const settleRecord = (
  * question is asked again inside the lock: waiting for it is a moment long
  * enough to be interrupted, and an interrupted run keeps nothing.
  */
-const keepFiles = (
+export const keepSnapshotFiles = (
   wasInterrupted: () => boolean,
   root: string,
   workRoot: string,
@@ -178,7 +178,12 @@ const finishChild = async (
   const failedToKeep =
     wasInterrupted() || copyBack.length === 0
       ? 0
-      : await keepFiles(wasInterrupted, root, record.workRoot, copyBack);
+      : await keepSnapshotFiles(
+          wasInterrupted,
+          root,
+          record.workRoot,
+          copyBack,
+        );
   const interrupted = wasInterrupted();
   // A run that could not keep its files failed, whatever the child said.
   const exitCode = interrupted ? 130 : failedToKeep || code;

@@ -1,6 +1,8 @@
 import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { keepSnapshotFiles } from "#scripts/mutation/isolation.ts";
+import { withCopyBackLock } from "#scripts/mutation/isolation-lock.ts";
 import {
   bringFilesBack,
   putBackOwnWrites,
@@ -61,6 +63,33 @@ const keepTwoFiles = async (
 };
 
 describe("bringing files back out of a snapshot", () => {
+  test("keeps nothing when interrupted while waiting for the copy-back lock", async () => {
+    await withCheckoutAndCopy("live\n", "copy\n", async (roots) => {
+      const files = await readCopyBackFiles(roots.root, [KEPT]);
+      const lockTaken = Promise.withResolvers<void>();
+      const releaseLock = Promise.withResolvers<void>();
+      const holding = withCopyBackLock(roots.root, async () => {
+        lockTaken.resolve();
+        await releaseLock.promise;
+      });
+      await lockTaken.promise;
+
+      let interrupted = false;
+      const keeping = keepSnapshotFiles(
+        () => interrupted,
+        roots.root,
+        roots.workRoot,
+        files,
+      );
+      interrupted = true;
+      releaseLock.resolve();
+
+      expect(await keeping).toBe(0);
+      await holding;
+      expect(await Deno.readTextFile(join(roots.root, KEPT))).toBe("live\n");
+    });
+  });
+
   test("copies a file the run changed into the checkout", async () => {
     await withCheckoutAndCopy("one\ntwo\n", "one\n", async (roots) => {
       const run = await keepFile(roots);
