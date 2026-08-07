@@ -4,10 +4,16 @@ import { spy } from "@std/testing/mock";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { execute, queryOne } from "#shared/db/client.ts";
-import { isSessionProcessed } from "#shared/db/processed-payments.ts";
+import { listingQuestions } from "#shared/db/questions/queries.ts";
+import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  expectSessionFailed,
+  getProcessedPayment,
+} from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 import { stubRefundPayment } from "#test-utils/webhooks.ts";
 import {
   expectStoredRefund,
@@ -32,7 +38,38 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     expect(attendees).toHaveLength(1);
     expect(attendees[0]?.quantity).toBe(1);
     expect(attendees[0]?.price_paid).toBe(1000);
-    expect((await isSessionProcessed(id))?.attendee_id).toBe(first.attendee.id);
+    expect((await getProcessedPayment(id))?.attendee_id).toBe(
+      first.attendee.id,
+    );
+  });
+
+  test("creates a paid booking in four database calls", async () => {
+    const id = "cs_direct_booking_budget";
+    const { data } = await singleListingPayment(id, 1000);
+    const calls = await countDatabaseCalls(4, async () => {
+      expect((await processPaymentSession(id, data)).success).toBe(true);
+    });
+    expect(calls).toBe(4);
+  });
+
+  test("creates and answers a paid booking in five database calls", async () => {
+    const id = "cs_direct_answered_booking_budget";
+    const { data, listing } = await singleListingPayment(id, 1000);
+    const question = await questionsTable.insert({
+      displayType: "select",
+      text: "Meal?",
+    });
+    const answer = await answersTable.insert({
+      questionId: question.id,
+      sortOrder: 0,
+      text: "Soup",
+    });
+    await listingQuestions.setIds(listing.id, [question.id]);
+    data.intent.listingAnswerIds = { [String(listing.id)]: [answer.id] };
+    const calls = await countDatabaseCalls(5, async () => {
+      expect((await processPaymentSession(id, data)).success).toBe(true);
+    });
+    expect(calls).toBe(5);
   });
 
   test("heals a missing reservation from the durable booking ledger", async () => {
@@ -52,7 +89,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
       setSuppressDebugLogs(null);
     }
 
-    expect((await isSessionProcessed(id))?.attendee_id).toBe(attendeeId);
+    expect((await getProcessedPayment(id))?.attendee_id).toBe(attendeeId);
     expect(await getAttendeesRaw(listing.id)).toHaveLength(1);
     expect(
       debug.calls.some((call) =>
@@ -104,7 +141,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
         [listing.id],
       ),
     ).toEqual({ listing_id: listing.id, quantity: 0 });
-    expect((await isSessionProcessed(id))?.failure_data).not.toBe("");
+    await expectSessionFailed(id);
   });
 
   test("keeps a charge-mismatched booking and records a terminal refund", async () => {

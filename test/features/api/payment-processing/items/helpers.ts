@@ -1,3 +1,5 @@
+import { validateAllItems as validateSnapshotItems } from "#routes/api/payment-processing/items.ts";
+import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
@@ -6,6 +8,16 @@ import { bookingIntent } from "#test/features/api/payment-processing/index/helpe
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import type { TestListingOverrides } from "#test-utils/factories.ts";
+
+export const validateAllItems = async (
+  session: Parameters<typeof validateSnapshotItems>[0],
+  intent: BookingIntent,
+): ReturnType<typeof validateSnapshotItems> =>
+  validateSnapshotItems(
+    session,
+    intent,
+    await loadPaidOrderSnapshot(session.id, intent),
+  );
 
 export const listingPair = async (
   parentOverrides: TestListingOverrides = {},

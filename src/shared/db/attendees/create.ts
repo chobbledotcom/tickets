@@ -116,7 +116,10 @@ const prepareAttendeeWrite = async (
     };
   }
 
-  const bookings = await annotateOrderParents(rawBookings);
+  const bookings = await annotateOrderParents(
+    rawBookings,
+    input.parentIdsByChild,
+  );
   const contactInfo = contactInfoFromInput(input);
   const enc = await encryptAttendeeFields(
     {

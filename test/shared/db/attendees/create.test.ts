@@ -25,12 +25,10 @@ import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { queryOne, withTransaction } from "#shared/db/client.ts";
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
-import {
-  isSessionProcessed,
-  reserveSession,
-} from "#shared/db/processed-payments.ts";
+import { reserveSession } from "#shared/db/processed-payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 
 /** Narrow a createBookingAtomic result to the successful shape, or fail the test. */
 const expectBookingOk = (
@@ -180,7 +178,7 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     // Modifier stock consumed exactly once.
     expect(await modifierUsedQuantities([m.id])).toEqual(new Map([[m.id, 1]]));
     // Session finalized atomically: attendee_id set in the same batch.
-    const session = await isSessionProcessed("sess_batch_ok");
+    const session = await getProcessedPayment("sess_batch_ok");
     expect(session!.attendee_id).toBe(attendeeId);
     // The booking row is stamped with the legs' event group, so the per-row
     // amount-paid projection resolves exactly this booking's legs.
@@ -215,7 +213,7 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     // Nothing landed: no attendee, no legs, no stock, session left unresolved.
     await expectNothingWritten(listing.id, 0);
     expect(await modifierUsedQuantities([m.id])).toEqual(new Map());
-    expect((await isSessionProcessed("sess_batch_soldout"))!.attendee_id).toBe(
+    expect((await getProcessedPayment("sess_batch_soldout"))!.attendee_id).toBe(
       null,
     );
   });
@@ -372,7 +370,7 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
 
     await expectCapacityExceeded(plan, listing.id, 500, plan.legs.length);
     expect(
-      (await isSessionProcessed("sess_batch_existing_ledger"))!.attendee_id,
+      (await getProcessedPayment("sess_batch_existing_ledger"))!.attendee_id,
     ).toBe(null);
   });
 });

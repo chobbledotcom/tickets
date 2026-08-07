@@ -4,27 +4,28 @@
 
 `deno task mutation --kill` signals the child pid stored in the run record
 (`signalRun` in `scripts/mutation/isolation.ts`). PR #2042 shrank the window
-where that pid can be somebody else's — the record drops the pid the moment
-the child's status resolves (`markChildEnded`) — but a kill that reads the
-record in the few milliseconds between the child exiting and that record
-write can still signal a pid the child no longer owns. CodeRabbit suggested
-removing the race outright by making the stop supervisor-mediated: store the
-supervisor's pid in the run record too, have `--kill` signal the supervisor,
-and let the supervisor stop its own child (it holds the child handle, so no
-reused pid can be confused with it). Out of scope for #2042 — it changes the
-record shape and the kill flow rather than the locking this PR unified.
-Starting point: `signalRun` and `markRunning` in
-`scripts/mutation/isolation.ts` / `scripts/mutation/isolation-state.ts`.
+where that pid can be somebody else's — the record drops the pid the moment the
+child's status resolves (`markChildEnded`) — but a kill that reads the record in
+the few milliseconds between the child exiting and that record write can still
+signal a pid the child no longer owns. CodeRabbit suggested removing the race
+outright by making the stop supervisor-mediated: store the supervisor's pid in
+the run record too, have `--kill` signal the supervisor, and let the supervisor
+stop its own child (it holds the child handle, so no reused pid can be confused
+with it). Out of scope for #2042 — it changes the record shape and the kill flow
+rather than the locking this PR unified. Starting point: `signalRun` and
+`markRunning` in `scripts/mutation/isolation.ts` /
+`scripts/mutation/isolation-state.ts`.
 
 ---
 
 ## Numbered SQL parameters — adopt the pattern beyond the limiters (from PR #2040)
 
-PR #2040 rewrote the two rate-limiter upserts (`src/shared/db/login-attempts.ts`,
-`src/shared/db/token-attempts.ts`) to use SQLite's numbered parameters
-(`?1`..`?6`), with each number given a named fragment constant (`NOW`,
-`TOKEN_LIMIT`, …) that the SQL template interpolates. That turned a 25-slot
-repeated positional args array into one value per meaning. Follow-ups:
+PR #2040 rewrote the two rate-limiter upserts
+(`src/shared/db/login-attempts.ts`, `src/shared/db/token-attempts.ts`) to use
+SQLite's numbered parameters (`?1`..`?6`), with each number given a named
+fragment constant (`NOW`, `TOKEN_LIMIT`, …) that the SQL template interpolates.
+That turned a 25-slot repeated positional args array into one value per meaning.
+Follow-ups:
 
 - **Sweep other multi-use statements.** Any statement that binds the same value
   more than once is a candidate — look for args arrays that repeat a variable
@@ -33,12 +34,33 @@ repeated positional args array into one value per meaning. Follow-ups:
   single-use `?` statements are fine as they are.
 - **Consider a small define-style helper.** Something like
   `defineStatement({ ip: v.string(), now: v.number() }, (p) => sql\`... ${p.ip}
-  ...\`)` could hand back `{ sql, bind({ip, now}) }` so the parameter order
+  ...\`)`could hand back`{ sql, bind({ip, now})
+  }`so the parameter order
   lives in one place and callers pass an object instead of an ordered array —
-  the same schema-first shape as `defineTable`/`defineForm`. Only worth it if
-  the sweep finds enough call sites; two files may not justify the machinery.
+  the same schema-first shape as`defineTable`/`defineForm`.
+  Only worth it if the sweep finds enough call sites; two files may not justify
+  the machinery.
 - Starting point: the fragment-constant pattern at the top of
   `src/shared/db/token-attempts.ts`.
+
+---
+
+## Stop printing new database tokens during Turso migration (from PR #2048)
+
+CodeRabbit found that `scripts/turso-migration-steps.ts` prints the new
+full-access `DB_TOKEN` to stdout after a successful migration. The site
+migration also tells an operator to copy the printed token when automatic Bunny
+secret updates fail. Removing that output without a replacement would remove the
+only documented recovery path, so this needs a separate security design rather
+than a payment-processing change.
+
+Choose and document a secure hand-off for newly created Turso credentials. It
+must support recovery when `scripts/site-migration/run.ts` cannot update Bunny
+secrets, without putting the token in terminal logs. Then remove every token
+stdout path and update the success, failure, and recovery tests. Starting
+points: `scripts/turso-migration-steps.ts`, `scripts/site-migration/run.ts`,
+`test/scripts/turso-migration.test.ts`, and
+`test/scripts/site-migration/run.test.ts`.
 
 ---
 
@@ -64,8 +86,8 @@ everything still outstanding is captured below.
 
 ## Codex Security scan follow-ups
 
-*Origin: Codex Security scan completed on 2026-07-29 at
-`/home/user/.codex/state/plugins/codex-security/scans/tickets/codex-security-tickets-qkJ7hC/`.*
+_Origin: Codex Security scan completed on 2026-07-29 at
+`/home/user/.codex/state/plugins/codex-security/scans/tickets/codex-security-tickets-qkJ7hC/`._
 
 Findings 2 and 4 are active worktree jobs:
 
@@ -76,10 +98,10 @@ Findings 2 and 4 are active worktree jobs:
 Finding 1 (delivery-agent access to check-in attendee details) shipped on PR
 #1995.
 
-These are the remaining scan items that still look worth doing under the
-current trust model. They assume Bunny Edge remains the production runtime,
-site owners are trusted with their own content and integrations, and deployment
-operators own the risk of choosing deliberately hostile third-party endpoints.
+These are the remaining scan items that still look worth doing under the current
+trust model. They assume Bunny Edge remains the production runtime, site owners
+are trusted with their own content and integrations, and deployment operators
+own the risk of choosing deliberately hostile third-party endpoints.
 
 - **Preserve the client IP in production request scopes.** `src/edge.ts`,
   `src/deploy.ts`, and `src/serve-app.ts` should carry the platform connection
@@ -88,21 +110,21 @@ operators own the risk of choosing deliberately hostile third-party endpoints.
   IPs do not share a limiter row.
 - **Stop cross-origin redirects from replaying secrets or PII.** The shared
   fetch path in `src/shared/safe-fetch.ts` is used by registration webhooks and
-  SMS delivery. Do not let a cross-origin redirect replay attendee data,
-  ticket capability links, or Basic credentials. Prefer failing closed on
-  cross-origin redirects unless a caller has a very narrow, tested reason to
-  follow one.
-- **Make attachment caching match signed URL access.** `src/features/attachments.ts`
-  and the middleware currently let public caches keep a time-limited attachment
-  response longer than the URL authorization window. Set cache headers from the
-  signed URL expiry, or make private attachment responses non-publicly
-  cacheable, and test the exact header on a signed attachment download.
-- **Escape spreadsheet formulas in attendee CSV exports.** CSV fields that
-  start with spreadsheet formula characters need a safe prefix before export.
-  Keep the escaping in the shared CSV writer if it applies to every human-opened
-  export, or in `src/features/admin/attendees-csv.ts` if attendee exports are
-  the only affected surface. Add a regression test with attacker-controlled
-  attendee names, emails, and answers.
+  SMS delivery. Do not let a cross-origin redirect replay attendee data, ticket
+  capability links, or Basic credentials. Prefer failing closed on cross-origin
+  redirects unless a caller has a very narrow, tested reason to follow one.
+- **Make attachment caching match signed URL access.**
+  `src/features/attachments.ts` and the middleware currently let public caches
+  keep a time-limited attachment response longer than the URL authorization
+  window. Set cache headers from the signed URL expiry, or make private
+  attachment responses non-publicly cacheable, and test the exact header on a
+  signed attachment download.
+- **Escape spreadsheet formulas in attendee CSV exports.** CSV fields that start
+  with spreadsheet formula characters need a safe prefix before export. Keep the
+  escaping in the shared CSV writer if it applies to every human-opened export,
+  or in `src/features/admin/attendees-csv.ts` if attendee exports are the only
+  affected surface. Add a regression test with attacker-controlled attendee
+  names, emails, and answers.
 - **Escape booking data in HTML notification emails.** Public booking contact
   fields flow into owner notification email HTML. Keep intentional template
   markup working, but escape user-supplied field values before they reach
@@ -124,8 +146,8 @@ operators own the risk of choosing deliberately hostile third-party endpoints.
 
 ## Marketing screenshot visual cleanup
 
-*Origin: visual audit of the mobile Retina screenshots generated from
-`../tickets-site/scripts/screenshots/` on 2026-07-18.*
+_Origin: visual audit of the mobile Retina screenshots generated from
+`../tickets-site/scripts/screenshots/` on 2026-07-18._
 
 The screenshots use real application pages with scenario-specific custom CSS.
 Keep fixes in those scenarios unless the same problem also appears in the normal
@@ -150,11 +172,10 @@ actual size before marking an item complete.
   end with whichever control was filled last still focused, producing an
   unrelated black or white outline: `charity-family-fun-day-checkout.png`,
   `promo-codes-and-add-ons-checkout.png`, `equipment-hire-booking.png`,
-  `the-tempest-group-checkout.png`, and
-  `garden-party-package-checkout.png`. Add one shared scenario helper that blurs
-  the active control before capture, then use it for all filled checkout
-  scenarios. Keep deliberate focus only in a screenshot that is specifically
-  demonstrating keyboard focus.
+  `the-tempest-group-checkout.png`, and `garden-party-package-checkout.png`. Add
+  one shared scenario helper that blurs the active control before capture, then
+  use it for all filled checkout scenarios. Keep deliberate focus only in a
+  screenshot that is specifically demonstrating keyboard focus.
 - **Stack the Garden Party email field on mobile.** In
   `scripts/screenshots/packages.js`, “Your Email” and its input are squeezed
   onto one row in `garden-party-package-checkout.png`, unlike the name field
@@ -165,10 +186,10 @@ actual size before marking an item complete.
 
 - **Shorten the bulk-email preview.** In `scripts/screenshots/bulk-email.js`,
   `bulk-email-preview.png` is about twice as tall as it needs to be because the
-  warning copy, line height, and section gaps are oversized. Reduce the
-  scenario font size/line height and vertical spacing without hiding or
-  rewriting the real warning. Keep the recipients, subject, warning, and full
-  message preview visible.
+  warning copy, line height, and section gaps are oversized. Reduce the scenario
+  font size/line height and vertical spacing without hiding or rewriting the
+  real warning. Keep the recipients, subject, warning, and full message preview
+  visible.
 - **Tighten the balance summary.** In
   `scripts/screenshots/deposits-and-balance-payments.js`, the three totals in
   `deposits-and-balance-payments.png` have large vertical gaps and the payment
@@ -187,10 +208,10 @@ actual size before marking an item complete.
   accessible brown accent and confirm the selected state remains obvious.
 - **Reduce the listing-form crop height if it stays readable.** In
   `scripts/screenshots/listing-management.js`,
-  `summer-sessions-listing-form.png` is nearly 2,000 pixels tall despite
-  already being limited to the Basics fieldset. Tighten field hints, editor
-  height, and section spacing rather than removing the date or venue. Keep all
-  text comfortably readable at the rendered `split-image` size.
+  `summer-sessions-listing-form.png` is nearly 2,000 pixels tall despite already
+  being limited to the Basics fieldset. Tighten field hints, editor height, and
+  section spacing rather than removing the date or venue. Keep all text
+  comfortably readable at the rendered `split-image` size.
 
 **Final visual check:**
 
@@ -204,7 +225,7 @@ actual size before marking an item complete.
 
 ## Booking unification — phases 3 & 4
 
-*Origin: `booking-unification.md`, `booking-unification-phase2.md`.*
+_Origin: `booking-unification.md`, `booking-unification-phase2.md`._
 
 **Background.** Bookings used to have three independently-grown models: a normal
 listing, parent/child listings (`listing_parents`), and packages (`is_package`
@@ -214,10 +235,12 @@ fixed / hidden items are just configurations of one structure, walked by five
 generalized passes: render, fold, price, capacity, revalidate.
 
 **Already shipped (phases 1 & 2, PR #1462) — do not redo:**
+
 - Tree model + pure builder: `src/shared/booking/tree.ts`, `build-tree.ts`
-  (`buildBookingTree`). The public renderer `src/ui/templates/public/
-  reservations/` (entry point `ticket-page.tsx`) drives field names/rendering
-  off the tree.
+  (`buildBookingTree`). The public renderer
+  `src/ui/templates/public/
+  reservations/` (entry point `ticket-page.tsx`)
+  drives field names/rendering off the tree.
 - Unified walks: `fold-tree.ts` (`foldBookingTree`), `price-tree.ts`
   (`effectivePrice`, `priceRuleByListingId`, `packageMemberPriceRule`),
   `capacity-tree.ts` (`packageQuantityCap`, own-cap + group-pool arms).
@@ -225,11 +248,11 @@ generalized passes: render, fold, price, capacity, revalidate.
   adapter over `foldBookingTree`. Pricing flows through `effectivePrice` in
   `ticket-payment.ts`, `ticket-submit.ts`, `api/index.ts`,
   `payment-processing.ts`, `webhook.ts`.
-- v2 signed per-node metadata: `BookingItemSchema` (`src/shared/.../payments.ts`,
-  ~line 67) is `{e,q,p}` plus optional edge tags `k` (`"p"`/`"g"`) and `r`
-  (group id); `signed-metadata.ts` (`signedEdgeFor`); webhook re-walk in
-  `payment-processing.ts` (`validateAllItems`, `packageBundleMismatch`,
-  `classifySession`).
+- v2 signed per-node metadata: `BookingItemSchema`
+  (`src/shared/.../payments.ts`, ~line 67) is `{e,q,p}` plus optional edge tags
+  `k` (`"p"`/`"g"`) and `r` (group id); `signed-metadata.ts` (`signedEdgeFor`);
+  webhook re-walk in `payment-processing.ts` (`validateAllItems`,
+  `packageBundleMismatch`, `classifySession`).
 - A package member may itself be a parent: `isPackageableMember`
   (`src/shared/.../groups.ts`, ~line 115) now permits it.
 - **Row-level admin identity + per-path bookings (multi-package orders).** The
@@ -239,13 +262,13 @@ generalized passes: render, fold, price, capacity, revalidate.
   each tagged `packageGroupId`; the booking-slot unique index and the
   merge/check-in row keys are widened with `package_group_id`
   (`2026-07-05_package_slot_identity` migration, `bookingKey`,
-  `bookingSlotKey`). `PagePackage` + `buildBookingTree` build one node per
-  path, and `/order` sells packages alongside listings via the pure
-  `#shared/order` evaluator (`options.ts`/`evaluate.ts`). The admin attendee
-  editor matches: one editable line per stored booking row (labelled with its
-  path), plus blank per-(package, member) lines behind a pure-CSS toggle, so
-  an operator can view, edit, and create every path combination a public
-  buyer could — JS-free (`attendee-form-model.ts`, `attendee-page-data.ts`).
+  `bookingSlotKey`). `PagePackage` + `buildBookingTree` build one node per path,
+  and `/order` sells packages alongside listings via the pure `#shared/order`
+  evaluator (`options.ts`/`evaluate.ts`). The admin attendee editor matches: one
+  editable line per stored booking row (labelled with its path), plus blank
+  per-(package, member) lines behind a pure-CSS toggle, so an operator can view,
+  edit, and create every path combination a public buyer could — JS-free
+  (`attendee-form-model.ts`, `attendee-page-data.ts`).
 
 **Remaining:**
 
@@ -253,11 +276,11 @@ generalized passes: render, fold, price, capacity, revalidate.
   `listing_parents` and `group_listings` into a single edge table (or make one a
   view of the other). This is the only schema-migrating, hard-to-reverse phase,
   so only take it once a concrete need demands it. Shipping phases 1–2 and
-  stopping here is an explicitly *successful* outcome, not a half-finished one.
+  stopping here is an explicitly _successful_ outcome, not a half-finished one.
 
 - **Phase 4 — buyer-choice children inside a package (optional).** Let a package
-  member offer a buyer-selected child (the parent/child choice UI, nested under a
-  package). Build on demand when a real booking requires it.
+  member offer a buyer-selected child (the parent/child choice UI, nested under
+  a package). Build on demand when a real booking requires it.
 
 - **`/order` live availability: fold required-child demand into options.** The
   order gallery's evaluator (`#shared/order`) judges an option by its direct
@@ -266,30 +289,30 @@ generalized passes: render, fold, price, capacity, revalidate.
   so two selections contending for a shared child pool read as available on the
   gallery and are refused at the form. Advisory-only today (the form is the
   authority — documented in `src/features/public/order.ts`); fixing it means
-  loading each option's children in `loadOrderCatalog` and adding the
-  guaranteed folded units (and their group pools) to `unitsByListingId`.
+  loading each option's children in `loadOrderCatalog` and adding the guaranteed
+  folded units (and their group pools) to `unitsByListingId`.
 
-- **Per-path sale amounts in the ledger projection.** A booking posts ONE
-  `sale` leg per listing (`bookingFactsFromOrder` sums the order's lines by
-  listing id; the leg reference is `["sale", listingId]`), and
-  `pricePaidFromLedger` splits that total across the listing's sibling rows in
-  quantity proportion. When one listing books through two paths at DIFFERENT
-  prices in one order (package override beside its own standalone row), the
-  per-row `price_paid` readback is therefore quantity-averaged — e.g. 4×400
-  package units + 1×500 standalone reads back 1680/420 instead of 1600/500.
-  Order totals, revenue sums, and refunds are exact (the shares telescope);
-  only per-row display/merge granularity blurs, and only when per-path prices
-  differ. Fixing it needs a SQL-queryable per-path discriminator on sale legs
-  (a transfers schema addition — `reference` is a hash, `kind`/`dest_id` feed
-  reports) or re-storing the per-row amount, plus a fallback for pre-upgrade
-  rows whose legs are untagged. Do it when per-row money display matters more
-  than the schema stability of the append-only ledger.
+- **Per-path sale amounts in the ledger projection.** A booking posts ONE `sale`
+  leg per listing (`bookingFactsFromOrder` sums the order's lines by listing id;
+  the leg reference is `["sale", listingId]`), and `pricePaidFromLedger` splits
+  that total across the listing's sibling rows in quantity proportion. When one
+  listing books through two paths at DIFFERENT prices in one order (package
+  override beside its own standalone row), the per-row `price_paid` readback is
+  therefore quantity-averaged — e.g. 4×400 package units + 1×500 standalone
+  reads back 1680/420 instead of 1600/500. Order totals, revenue sums, and
+  refunds are exact (the shares telescope); only per-row display/merge
+  granularity blurs, and only when per-path prices differ. Fixing it needs a
+  SQL-queryable per-path discriminator on sale legs (a transfers schema addition
+  — `reference` is a hash, `kind`/`dest_id` feed reports) or re-storing the
+  per-row amount, plus a fallback for pre-upgrade rows whose legs are untagged.
+  Do it when per-row money display matters more than the schema stability of the
+  append-only ledger.
 
 - **Confirm the v1 drain bridge is genuinely unnecessary.** The original plan
   called for a bounded-window read-only parser for pre-cutover (v1) signed
   metadata plus a regression test for an old-shape session paid during the
   cutover window. No dedicated bridge was built. In practice the v2 schema added
-  `k`/`r` as *optional* fields to the existing `e/q/p` line shape, so old
+  `k`/`r` as _optional_ fields to the existing `e/q/p` line shape, so old
   sessions still parse (as standalone lines). Verify this covers every
   in-flight-session case and, if so, close this out; otherwise add the bridge +
   drain-window test.
@@ -298,17 +321,20 @@ generalized passes: render, fold, price, capacity, revalidate.
 
 ## Entity pages migration — slices 4–5
 
-*Origin: `edit-pages.md`.*
+_Origin: `edit-pages.md`._
 
 **Background.** "Entity pages" is one declarative, schema-driven, tabbed
 framework (`defineEntityPage`) that replaces every hand-assembled admin "edit X"
-page. A page becomes data: tabs of typed sections (summary / activity / actions /
-custom), with per-tab authorization, path-segment tabs, and in-place 400-error
+page. A page becomes data: tabs of typed sections (summary / activity / actions
+/ custom), with per-tab authorization, path-segment tabs, and in-place 400-error
 re-rendering. Migration is deliberately gradual and hardest-first.
 
 **Already shipped — do not redo:**
-- Framework: `src/shared/entity-pages/core.ts`, `src/features/admin/
-  entity-pages.ts`, `src/ui/templates/admin/entity-pages.tsx`.
+
+- Framework: `src/shared/entity-pages/core.ts`,
+  `src/features/admin/
+  entity-pages.ts`,
+  `src/ui/templates/admin/entity-pages.tsx`.
 - Attendees: `src/features/admin/attendee-page.ts` (slice 1, PRs #1500, #1502,
   #1503).
 - Listings: `src/features/admin/listing-page.ts` (slice 2).
@@ -337,7 +363,7 @@ re-rendering. Migration is deliberately gradual and hardest-first.
 
 ## Servicing — read-only guard (optional variant)
 
-*Origin: `servicing.md` (+ its review docs `review.md`, `tests.md`).*
+_Origin: `servicing.md` (+ its review docs `review.md`, `tests.md`)._
 
 **Background.** The servicing-events feature (attendee-kind rows that hold
 listing capacity without being customers) shipped and was hardened across PRs
@@ -361,14 +387,15 @@ in `validateModifier` (so a percentage or multiplier keeps its precision).
 
 ## Test quality
 
-*Origin: `TEST_QUALITY_IMPROVEMENTS.md`.*
+_Origin: `TEST_QUALITY_IMPROVEMENTS.md`._
 
 **Background.** The goal is to move past coverage-as-floor toward proving
-*assertion strength*. The priority-1 initiative — **mutation testing as a gate**
-— is fully shipped: `scripts/mutation.ts` + `scripts/mutation/`, `deno task
-mutation` and `precommit:mutation` (staged-file gate, batched to bound file
-descriptors — PRs #1478 and others). A weak-assertion audit script also exists:
-`scripts/test-quality-audit.ts`.
+_assertion strength_. The priority-1 initiative — **mutation testing as a gate**
+— is fully shipped: `scripts/mutation.ts` + `scripts/mutation/`,
+`deno task
+mutation` and `precommit:mutation` (staged-file gate, batched to
+bound file descriptors — PRs #1478 and others). A weak-assertion audit script
+also exists: `scripts/test-quality-audit.ts`.
 
 **Remaining:**
 
@@ -381,9 +408,9 @@ descriptors — PRs #1478 and others). A weak-assertion audit script also exists
   mutation cost comes down.
 
 - **Property-based tests (item 5).** `fast-check` is currently used in only one
-  test (`test/shared/booking/fold-tree.test.ts`). Add properties for: slug generation, CSV
-  round-trips (commas / quotes / CRLF), date formatting across timezones, token
-  parsers, and URL safety.
+  test (`test/shared/booking/fold-tree.test.ts`). Add properties for: slug
+  generation, CSV round-trips (commas / quotes / CRLF), date formatting across
+  timezones, token parsers, and URL safety.
 - **Weak-assertion audit lifecycle (item 6).** The script exists but isn't wired
   into CI. Escalate it: informational → CI warning → review gate for touched
   files.
@@ -401,7 +428,7 @@ descriptors — PRs #1478 and others). A weak-assertion audit script also exists
 
 ## Settings on-demand loading — generation counter
 
-*Origin: `settings-plan.md`.*
+_Origin: `settings-plan.md`._
 
 **Background.** The eager `settings.loadAll()` (decrypt every settings row on
 every request) was replaced by keyed, on-demand loading:
@@ -432,10 +459,10 @@ keeps the bundles honest by failing when a route reads a key it didn't declare.
   the common configurations but is not a full per-candidate feasibility solver:
   partial-overlap cases stay approximate — pool-subset unions (e.g. three pick-1
   slots over two 1-spot pools), a multi-pool candidate double-counted as
-  alternative supply, and jointly-infeasible cross-slot mixes. All fail SAFE (the
-  atomic submit write rejects; capacity is never clamped, only rejected), so the
-  cost is a rare dead-end submit or an over-advertised bundle, never overbooking.
-  Revisit only if a real configuration hits it.
+  alternative supply, and jointly-infeasible cross-slot mixes. All fail SAFE
+  (the atomic submit write rejects; capacity is never clamped, only rejected),
+  so the cost is a rare dead-end submit or an over-advertised bundle, never
+  overbooking. Revisit only if a real configuration hits it.
 
 - **Deferred choice-slot semantics.** Optional slots (a min/max pick count, e.g.
   "choose 0–2"); a per-slot "distinct picks" flag; per-package-unit pick mixes
@@ -451,28 +478,28 @@ keeps the bundles honest by failing when a route reads a key it didn't declare.
 
 ## Test-suite speed — remaining opportunities
 
-*Origin: the test-suite performance pass (lazy Sentry, fast `toContain`,
-migration-suite sharding, `withVirtualBackoff`, `cachedAdminPage`; see the
-Fast Tests section of AGENTS.md). These were identified during profiling but
-deliberately left for later:*
+_Origin: the test-suite performance pass (lazy Sentry, fast `toContain`,
+migration-suite sharding, `withVirtualBackoff`, `cachedAdminPage`; see the Fast
+Tests section of AGENTS.md). These were identified during profiling but
+deliberately left for later:_
 
 - **Per-file module-graph evaluation.** Every test file re-evaluates the app's
   module graph (~0.35s each after the lazy-Sentry fix, ~250 files ≈ 80-90s of
   CPU per run). The biggest remaining import-time chunks are `@libsql/client`
   (~65ms, needed) and the `#routes` feature tree (~150ms). Any further
   import-time work moved behind `once()`/dynamic import pays for itself ~250×
-  per run — profile with a `performance.now()` probe around `import("#test-utils")`
-  under `deno test` before and after.
+  per run — profile with a `performance.now()` probe around
+  `import("#test-utils")` under `deno test` before and after.
 - **`test/scripts/stripe-mock/ports.test.ts` (~4s)** spawns real child processes
   to test the harness's port handling; each spawn is inherently slow. If it
-  grows, the port-conflict cases could stub the child-process layer the same
-  way the supervisor tests do.
+  grows, the port-conflict cases could stub the child-process layer the same way
+  the supervisor tests do.
 
 ---
 
 ## Capacity rules — feature-layer adoption (stage 3)
 
-*Origin: the capacity-rules consolidation (`src/shared/capacity-rules.ts`).*
+_Origin: the capacity-rules consolidation (`src/shared/capacity-rules.ts`)._
 Stages 1–2 shipped: the declarative `CAPACITY_RULES` table exists, and the SQL
 guard (`src/shared/db/capacity.ts`), the JS preflight
 (`src/shared/db/attendees/capacity.ts`, `update.ts`), and the booking-page
@@ -480,12 +507,11 @@ limits (`booking/model.ts`, `booking/package-cap.ts`) all derive their
 per-date-vs-running-total decisions from it. Stage 3 shipped too: the
 feature-layer capacity-date call sites (`ticket-payment.ts` `bookingDateFields`,
 `qr-book.ts` `buildCheckoutIntent`, `api/listings.ts` child availability,
-`api/booking.ts` `resolveBookingDate`) consult
-`capacityDateFor`/`countsPerDate` instead of branching on
-`listing_type === "daily"` by hand. Only the *capacity-date* decisions belong
-to the table — the remaining calendar/UI daily branches (date pickers,
-sorting, display, duration spans) are date-selection logic and should stay as
-they are. Nothing further planned here.
+`api/booking.ts` `resolveBookingDate`) consult `capacityDateFor`/`countsPerDate`
+instead of branching on `listing_type === "daily"` by hand. Only the
+_capacity-date_ decisions belong to the table — the remaining calendar/UI daily
+branches (date pickers, sorting, display, duration spans) are date-selection
+logic and should stay as they are. Nothing further planned here.
 
 ---
 
@@ -497,28 +523,27 @@ recorded here because the split PR was a pure reorganisation — changing this
 behaviour there would be out of scope — and CodeRabbit flagged them as worth a
 look.
 
-- **Per-item DB reads not batched** (`src/features/api/payment-processing/items.ts`
-  `validateAllItems`, and `package-pricing.ts` `loadPackagePricingByGroup`).
-  `validateAllItems` calls `getListingWithCount` once per item in a loop, and
-  `loadPackagePricingByGroup` makes two sequential round-trips per group. Under
-  the edge subrequest budget these accumulate for larger orders. Fix direction:
-  add/use a batched `getListingsWithCount(ids)` for all order listing ids at once
-  and group the package-pricing loads, preserving the existing validation and
-  fail-closed behaviour. See the "Respect the subrequest budget" guidance in
-  AGENTS.md.
+- **Per-item DB reads not batched**
+  (`src/features/api/payment-processing/items.ts` `validateAllItems`, and
+  `package-pricing.ts` `loadPackagePricingByGroup`). `validateAllItems` calls
+  `getListingWithCount` once per item in a loop, and `loadPackagePricingByGroup`
+  makes two sequential round-trips per group. Under the edge subrequest budget
+  these accumulate for larger orders. Fix direction: add/use a batched
+  `getListingsWithCount(ids)` for all order listing ids at once and group the
+  package-pricing loads, preserving the existing validation and fail-closed
+  behaviour. See the "Respect the subrequest budget" guidance in AGENTS.md.
 
 ## Payment aggregate — safety behaviour (PR 1)
 
 New sales and existing payments are now resolved by different questions:
 `getActivePaymentProvider()` / `isPaymentsEnabled()` gate new checkouts;
-`getPaymentProviderForExistingPayments()` resolves refunds, replayed
-callbacks, and completion. When sales are off, the existing-payment path
-falls back to the last activated provider. A site already on `none`
-recovers when exactly one provider has stored credentials; when multiple
-do, the operator must choose the provider in a recovery form that keeps new
-sales off. `setPaymentProviderNone` reads the
-current provider via an atomic INSERT ... SELECT subquery so a concurrent
-activation cannot land between the read and the write.
+`getPaymentProviderForExistingPayments()` resolves refunds, replayed callbacks,
+and completion. When sales are off, the existing-payment path falls back to the
+last activated provider. A site already on `none` recovers when exactly one
+provider has stored credentials; when multiple do, the operator must choose the
+provider in a recovery form that keeps new sales off. `setPaymentProviderNone`
+reads the current provider via an atomic INSERT ... SELECT subquery so a
+concurrent activation cannot land between the read and the write.
 
 The seven accepted safety rules are recorded as acceptance constraints in
 [`docs/payment-aggregate-acceptance.md`](docs/payment-aggregate-acceptance.md).
@@ -526,13 +551,13 @@ The seven accepted safety rules are recorded as acceptance constraints in
 - **Track the provider each charge was captured with.** `main` stores only the
   opaque `payment_reference` per processed payment, not which provider captured
   it. So after an operator switches providers (Stripe → Square) and then selects
-  "none", the last-active fallback resolves every payment through Square, and
-  an older Stripe charge cannot be refunded or reconciled against the provider
-  that captured it. This predates PR 1 and is future aggregate work. Fix
-  direction: store the provider type on each `processed_payments` row at capture
-  time and dispatch existing-payment work from that per-charge provider instead
-  of one global fallback. Referenced from
-  `docs/payment-aggregate-acceptance.md` rule 2.
+  "none", the last-active fallback resolves every payment through Square, and an
+  older Stripe charge cannot be refunded or reconciled against the provider that
+  captured it. This predates PR 1 and is future aggregate work. Fix direction:
+  store the provider type on each `processed_payments` row at capture time and
+  dispatch existing-payment work from that per-charge provider instead of one
+  global fallback. Referenced from `docs/payment-aggregate-acceptance.md`
+  rule 2.
 
 - **Split payment-provider persistence out of `src/shared/db/settings.ts`.**
   Review of PR 1 correctly noted that the settings assembly is already over the
@@ -553,23 +578,23 @@ The seven accepted safety rules are recorded as acceptance constraints in
   800-line source-change limit.
 
 - **Split `src/features/api/webhooks.ts` below 400 lines.** Move the payment
-  callback and webhook processing paths into focused modules. This predates PR
-  1 and is deferred because the split would exceed its strict source-change
-  limit.
+  callback and webhook processing paths into focused modules. This predates PR 1
+  and is deferred because the split would exceed its strict source-change limit.
 
 ## Request performance: consolidate AsyncLocalStorage scopes
 
-`src/features/app/request.ts` enters eleven nested request scopes for locale, client
-IP, request ID, request cache, query logging, flash, session memoization, iframe
-mode, CSRF, saved form data, and settings auditing. Replace them with one typed
-`RequestContext` in one `AsyncLocalStorage`; retain domain methods where they add
-behavior, but migrate every internal caller with no aliases or compatibility
-wrappers. Preserve direct-render test behavior, production-disabled audit cost,
-and concurrent/nested request isolation for every mutable field. Pending work
-and storage overrides have different lifetimes and need a separate decision.
-Benchmark before and after: the synthetic result was about 38us/request for
-eleven scopes versus 2us for one. This needs a dedicated PR because it crosses
-eleven state modules and their concurrency contracts.
+`src/features/app/request.ts` enters eleven nested request scopes for locale,
+client IP, request ID, request cache, query logging, flash, session memoization,
+iframe mode, CSRF, saved form data, and settings auditing. Replace them with one
+typed `RequestContext` in one `AsyncLocalStorage`; retain domain methods where
+they add behavior, but migrate every internal caller with no aliases or
+compatibility wrappers. Preserve direct-render test behavior,
+production-disabled audit cost, and concurrent/nested request isolation for
+every mutable field. Pending work and storage overrides have different lifetimes
+and need a separate decision. Benchmark before and after: the synthetic result
+was about 38us/request for eleven scopes versus 2us for one. This needs a
+dedicated PR because it crosses eleven state modules and their concurrency
+contracts.
 
 ## Dead-export scanner matches raw text (from PR #1745 review)
 
@@ -580,11 +605,11 @@ comment, JSDoc, or string literal therefore registers a phantom "usage" — a
 CodeRabbit review on PR #1745 pointed out a JSDoc example in that very file
 doing this (fixed by rewording the comment), and the fixture strings in
 `detectors.test.ts` still contribute contrived names like `routeFoo` to the
-test-corpus symbol set. Consequences are mild today: a phantom symbol in the
-src corpus can silently mask a genuinely dead export of the same name; one in
-the test corpus can only make an export look test-used (which then flags it,
-loudly). This is a long-standing property of the whole detector file, not new
-to the dynamic-import clauses.
+test-corpus symbol set. Consequences are mild today: a phantom symbol in the src
+corpus can silently mask a genuinely dead export of the same name; one in the
+test corpus can only make an export look test-used (which then flags it,
+loudly). This is a long-standing property of the whole detector file, not new to
+the dynamic-import clauses.
 
 Proposed fix (the reviewer suggested syntax-aware parsing): a code-only
 preprocessing pass before matching. The file already has the pieces — the
@@ -592,15 +617,15 @@ call-site scanner's `skipString`/`skipComment` lexer helpers skip comments and
 string literals correctly. The pass must drop BOTH comments and ordinary
 string/template-literal contents from the matchable text (a fixture string
 containing `import { foo }` is exactly the stated failure mode), while still
-letting the lazyExport clause see its quoted name — lazyExport names live
-INSIDE a string literal (`…, "routeAdmin")`), so either match the lazyExport
-shape before stripping and stitch its names in, or blank string contents
-except when the lexer sees the string directly in lazyExport's second-argument
-position. Add regression coverage for import-shaped text in a line comment, a
-JSDoc block, and an ordinary string/template literal, plus a lazyExport entry
-that must still be detected after the pass. Out of scope for
-PR #1745 (cold-start work; the detector change there was collateral hardening)
-— the concrete self-match it introduced was fixed in-place instead.
+letting the lazyExport clause see its quoted name — lazyExport names live INSIDE
+a string literal (`…, "routeAdmin")`), so either match the lazyExport shape
+before stripping and stitch its names in, or blank string contents except when
+the lexer sees the string directly in lazyExport's second-argument position. Add
+regression coverage for import-shaped text in a line comment, a JSDoc block, and
+an ordinary string/template literal, plus a lazyExport entry that must still be
+detected after the pass. Out of scope for PR #1745 (cold-start work; the
+detector change there was collateral hardening) — the concrete self-match it
+introduced was fixed in-place instead.
 
 ## Stop patching @std/expect's `toContain` (from PR #1712)
 
@@ -614,16 +639,16 @@ harness (`scripts/test-harness.ts`) and the mutation runner
 (`scripts/mutation/runner.ts`).
 
 The preference is to **not** patch a standard library if we can avoid it. This
-is genuinely out of scope for the barrel-removal PR (it would touch far more than
-that PR's remit), so it's recorded here rather than done there.
+is genuinely out of scope for the barrel-removal PR (it would touch far more
+than that PR's remit), so it's recorded here rather than done there.
 
 Fix direction: replace the global `toContain` override with `@std/assert`'s
 native `assertStringIncludes` (and `assertArrayIncludes` where a `toContain` is
-used on arrays), which is already fast — it does not pretty-print on success — so
-no `@std` behaviour is patched. Migrate the `expect(bigHtml).toContain(...)` call
-sites (thousands, mostly rendered-HTML assertions), then delete `fast-expect.ts`,
-its test, the `--preload` flag in both runners, and the "Fast Tests" note that
-documents the override. Confirm the suite's slow-test report
+used on arrays), which is already fast — it does not pretty-print on success —
+so no `@std` behaviour is patched. Migrate the `expect(bigHtml).toContain(...)`
+call sites (thousands, mostly rendered-HTML assertions), then delete
+`fast-expect.ts`, its test, the `--preload` flag in both runners, and the "Fast
+Tests" note that documents the override. Confirm the suite's slow-test report
 (`SLOW_TEST_THRESHOLD_MS`) doesn't regress. Start points: `fast-expect.ts` for
 what it did and why, and grep `\.toContain(` under `test/` for the call sites.
 
@@ -631,58 +656,60 @@ what it did and why, and grep `\.toContain(` under `test/` for the call sites.
 
 ## Restrictions audit — "why can't I combine X with Y?" follow-ups
 
-*Origin: an audit of every place the app refuses a combination a user might
+_Origin: an audit of every place the app refuses a combination a user might
 expect to work, aimed at cutting "why can't I select this?" support queries.
 Each restriction was judged on whether its reason is genuinely insurmountable
 (structure, money-correctness, capacity, privacy, security) or a soft limit
 worth relaxing. The clearest informative wins already shipped — the package
 "which listing and why" messages, the daily-add-on "needs a date" reason, the
 payment-provider "your other key is kept" note, and the free-text "can't set a
-price" note. What's left is captured below, split into rule-relaxations (let
-the combination through) and message/UX fixes (keep the rule, stop the user
-hitting it blind). All are pre-existing behaviour — deliberate design choices,
-except the percentage-surcharge cap noted below, which is a latent correctness
-bug (harmless today because of the multiplier workaround).*
+price" note. What's left is captured below, split into rule-relaxations (let the
+combination through) and message/UX fixes (keep the rule, stop the user hitting
+it blind). All are pre-existing behaviour — deliberate design choices, except
+the percentage-surcharge cap noted below, which is a latent correctness bug
+(harmless today because of the multiplier workaround)._
 
 ### Keep the rule — stop the user hitting it blind
 
 - ~~**SumUp is offered on a currency it can't use.**~~ **Done.** The provider
   registry (`src/shared/payment-providers.ts`) now records each provider's
-  currencies (`null` = takes them all), and `providerCurrencyBlock(id, currency)`
-  turns that into the one sentence every surface shows. The settings page renders
-  an unusable provider switched off with the reason beside it, the provider
-  choice refuses to save, and the SumUp credentials save keeps its refusal.
+  currencies (`null` = takes them all), and
+  `providerCurrencyBlock(id, currency)` turns that into the one sentence every
+  surface shows. The settings page renders an unusable provider switched off
+  with the reason beside it, the provider choice refuses to save, and the SumUp
+  credentials save keeps its refusal.
 
-- **An answer's price-modifier dropdown silently omits the operator's modifier.**
-  `src/features/admin/questions.ts` (`answerTriggerModifiers`) only lists
-  `trigger === "answer"` modifiers, so a "+£5" built as *Automatic* or an add-on
-  never appears and reads as a bug. Fix: add a hint by the selector (in the
-  answers UI, `src/ui/templates/admin/questions.tsx`) — "only answer-triggered
-  modifiers appear here; create one on the Modifiers page."
+- **An answer's price-modifier dropdown silently omits the operator's
+  modifier.** `src/features/admin/questions.ts` (`answerTriggerModifiers`) only
+  lists `trigger === "answer"` modifiers, so a "+£5" built as _Automatic_ or an
+  add-on never appears and reads as a bug. Fix: add a hint by the selector (in
+  the answers UI, `src/ui/templates/admin/questions.tsx`) — "only
+  answer-triggered modifiers appear here; create one on the Modifiers page."
 
 - **Incompatible listings are offered by the add-listings picker.** The
-  group-homogeneity messages now live in the catalog and say why (`error.group_*`
-  in `src/locales/en/groups.json`), but the operator still only learns of a clash
-  when the save is refused. Better: grey out the listings that cannot join this
-  group in the add-listings picker, so the clash is visible before saving. The
-  rule to render from is `groupListingTypeError` (`src/shared/db/groups.ts`) —
-  same type, and same customisable-days setting, as the members already there.
+  group-homogeneity messages now live in the catalog and say why
+  (`error.group_*` in `src/locales/en/groups.json`), but the operator still only
+  learns of a clash when the save is refused. Better: grey out the listings that
+  cannot join this group in the add-listings picker, so the clash is visible
+  before saving. The rule to render from is `groupListingTypeError`
+  (`src/shared/db/groups.ts`) — same type, and same customisable-days setting,
+  as the members already there.
 
-- **Two save-time either/ors would be clearer as disabled controls.**
-  (a) customisable-days vs Allow Pay More (`validateCustomisableDays`,
+- **Two save-time either/ors would be clearer as disabled controls.** (a)
+  customisable-days vs Allow Pay More (`validateCustomisableDays`,
   `src/shared/listings-actions.ts`) — the two fields sit in different form
-  sections, so the operator never sees them as related; (b) a paid-default status
-  that is also a reservation (`src/features/admin/settings-statuses.ts` ~line 69)
-  — both checkboxes render side by side. Fix: mutually disable the paired
-  controls client-side with a one-line "why", turning a save-time error into an
-  obvious affordance.
+  sections, so the operator never sees them as related; (b) a paid-default
+  status that is also a reservation (`src/features/admin/settings-statuses.ts`
+  ~line 69) — both checkboxes render side by side. Fix: mutually disable the
+  paired controls client-side with a one-line "why", turning a save-time error
+  into an obvious affordance.
 
 - **"Refund processed but not recorded" reads like a failure.**
-  `src/shared/refund-ledger.ts` only auto-reverses a fully-paid clean account; on
-  a partial/credit/mixed account the provider refund fires but the operator sees
-  `error.refund_not_recorded` ("do not re-refund") with no next step. Fix: link
-  the manual-adjustment page straight from that flash and frame it as "one more
-  step", not an error.
+  `src/shared/refund-ledger.ts` only auto-reverses a fully-paid clean account;
+  on a partial/credit/mixed account the provider refund fires but the operator
+  sees `error.refund_not_recorded` ("do not re-refund") with no next step. Fix:
+  link the manual-adjustment page straight from that flash and frame it as "one
+  more step", not an error.
 
 - ~~**A multi-item cart with no shared date/length dies silently.**~~ **Done.**
   `src/shared/booking/cart-conflicts.ts` names the clashing items on the ticket
@@ -690,53 +717,57 @@ bug (harmless today because of the multiplier workaround).*
   items with no shared booking length — and tells the buyer to book them
   separately. (See "The shared reasons shape" section below.)
 
-- **A manager hits a bare "Forbidden" on owner-only pages.** `src/features/
-  auth.ts` (~line 462) returns plain text for users/statuses/bulk-email/settings.
-  Fix: ensure the nav hides these for managers (the "never render a forbidden
-  link" rule) and give the 403 an "owner-only" hint.
+- **A manager hits a bare "Forbidden" on owner-only pages.**
+  `src/features/
+  auth.ts` (~line 462) returns plain text for
+  users/statuses/bulk-email/settings. Fix: ensure the nav hides these for
+  managers (the "never render a forbidden link" rule) and give the 403 an
+  "owner-only" hint.
 
 - **A child's duration mismatch with its parent is invisible until you open both
   day-price tables.** `children_err_child_duration` / `durationsCompatible`
-  (`src/shared/listing-parents-rules.ts`) states the rule but not the clash. Fix:
-  surface the actual mismatch at save time ("parent offers 2–3 days; this child
-  prices only 1").
+  (`src/shared/listing-parents-rules.ts`) states the rule but not the clash.
+  Fix: surface the actual mismatch at save time ("parent offers 2–3 days; this
+  child prices only 1").
 
 - **The order gallery advertises availability it can't honour** once required
-  children fold in — already tracked above under *Booking unification →
-  "`/order` live availability: fold required-child demand into options"*. Same
+  children fold in — already tracked above under _Booking unification →
+  "`/order` live availability: fold required-child demand into options"_. Same
   fix; cross-referenced here because it's the buyer-facing half of this audit.
 
 ### Relax the rule — let the combination through
 
 - **Only one payment provider active at a time.** `getActivePaymentProvider`
   (`src/shared/payments.ts`) reads a single `payment_provider` setting. This is
-  *not* forced by the webhook — `getWebhookSignatureHeader` already scans every
+  _not_ forced by the webhook — `getWebhookSignatureHeader` already scans every
   provider's signature header — so the block is the single scalar plus no
   per-order provider choice. Relaxing needs checkout-time provider selection,
-  header-based webhook dispatch, and a multi-select UI. Reasonable to leave for a
-  single-merchant site; revisit if operators ask.
+  header-based webhook dispatch, and a multi-select UI. Reasonable to leave for
+  a single-merchant site; revisit if operators ask.
 
 - **A status in use by attendees can't be deleted, with no way out.**
   `src/features/admin/settings-statuses.ts` (~lines 200–221) blocks the delete
-  outright. Fix: add a "reassign these N attendees to <status>, then delete" flow
-  (the same move already used to retire a default status).
+  outright. Fix: add a "reassign these N attendees to <status>, then delete"
+  flow (the same move already used to retire a default status).
 
-- **The embed widget refuses to add a package to the cart.** `src/ui/client/
-  order.ts` (~line 489) force-navigates away from a package ("it could never
-  combine with other listings"), but the internal cart (`src/features/public/
-  cart.ts`) *does* combine packages with listings. Fix: add the package slug to
-  the running cart and build a multi-slug `/ticket/<slug>+<slug>` URL like the
-  internal gallery.
+- **The embed widget refuses to add a package to the cart.**
+  `src/ui/client/
+  order.ts` (~line 489) force-navigates away from a package
+  ("it could never combine with other listings"), but the internal cart
+  (`src/features/public/
+  cart.ts`) _does_ combine packages with listings. Fix:
+  add the package slug to the running cart and build a multi-slug
+  `/ticket/<slug>+<slug>` URL like the internal gallery.
 
 - **An answer can trigger only one modifier.** `answers.modifier_id` is a scalar
-  (`src/shared/db/questions/aggregates.ts`). Everything downstream already handles
-  arbitrary modifier sets; only the link is one-to-one. Fix: an `answer_modifiers`
-  join table. Low frequency; do on demand.
+  (`src/shared/db/questions/aggregates.ts`). Everything downstream already
+  handles arbitrary modifier sets; only the link is one-to-one. Fix: an
+  `answer_modifiers` join table. Low frequency; do on demand.
 
 - **A package can't contain a pay-what-you-want listing.** `packageMemberBlock`
   (`src/shared/package-membership.ts`) blocks it because a package needs a fixed
-  member price. Relaxable if you define bundle pricing for a pay-more member (use
-  its base price, or let the buyer choose within the bundle) — a semantics
+  member price. Relaxable if you define bundle pricing for a pay-more member
+  (use its base price, or let the buyer choose within the bundle) — a semantics
   decision, not a structural wall.
 
 - **A manager can't edit the public site, but a lower-trust editor can.**
@@ -746,37 +777,37 @@ bug (harmless today because of the multiplier workaround).*
 - **Two-level listing nesting (A→B, then B→C).** `childEdgeIneligibility`
   (`src/features/admin/listings-parents.ts`) caps nesting at one level; the
   booking fold-tree and `capacity-rules.ts` both assume exactly parent+child.
-  Real work (recursive fold + capacity), not a toggle — build only when a concrete
-  booking needs it. (See also the booking-unification phases above.)
+  Real work (recursive fold + capacity), not a toggle — build only when a
+  concrete booking needs it. (See also the booking-unification phases above.)
 
 - **Child-scoped opt-in add-ons.** An add-on reachable only through a folded-in
   child is blocked because "v1 has no child-scoped add-on render/parse path"
   (`src/features/admin/listings-parents.ts`, `modifier-resolve.ts`). The
-  `bookable_alone` flag is the current escape hatch; the real fix is to build that
-  render/parse path.
+  `bookable_alone` flag is the current escape hatch; the real fix is to build
+  that render/parse path.
 
 - **The same pay-what-you-want add-on under two parents must share one price.**
-  `foldChild` (`src/shared/booking/fold-tree.ts` ~line 281) keys the custom-price
-  map by listing id. Per-allocation pricing would allow different prices; niche,
-  do on demand.
+  `foldChild` (`src/shared/booking/fold-tree.ts` ~line 281) keys the
+  custom-price map by listing id. Per-allocation pricing would allow different
+  prices; niche, do on demand.
 
 ---
 
 ## The shared "reasons" shape for validation failures — shipped
 
-*Origin: reviewing the package-restriction work (PR #1770); built once the
-collect-all need (the multi-item "no shared date" diagnostic) arrived.*
+_Origin: reviewing the package-restriction work (PR #1770); built once the
+collect-all need (the multi-item "no shared date" diagnostic) arrived._
 
 What shipped:
 
 - **The combinator.** `src/shared/reasons.ts`: a `Reason` answers with the
-  message to show or null, and one rule list serves both runners —
-  `firstReason` (fail-fast; list order is precedence) and `allReasons`
-  (name every problem at once).
+  message to show or null, and one rule list serves both runners — `firstReason`
+  (fail-fast; list order is precedence) and `allReasons` (name every problem at
+  once).
 - **The converged tables.** The parent/child edge rules
   (`src/shared/listing-parents-rules.ts`), the package member rules
-  (`src/shared/package-membership.ts` — messages render inside the rules, so
-  the separate block-code layer is gone), and the group homogeneity rules
+  (`src/shared/package-membership.ts` — messages render inside the rules, so the
+  separate block-code layer is gone), and the group homogeneity rules
   (`groupListingTypeError` in `src/shared/db/groups.ts`). `CAPACITY_RULES`
   deliberately did NOT converge: it classifies which checks apply, it does not
   refuse with a message — a genuinely different shape.
@@ -802,17 +833,17 @@ child-duration clash at save time, and the chooser own-cap warning.
 
 ## Deferred Codex suggestions from PR #1975 (API documentation examples)
 
-*Origin: Codex review of PR #1975, which made the API documentation examples
+_Origin: Codex review of PR #1975, which made the API documentation examples
 checkable and fixed eighteen real inaccuracies in them. Both items below are
 valid and were deliberately left out: they guard mistakes nobody has made yet,
-and each costs more machinery than the defect it would catch.*
+and each costs more machinery than the defect it would catch._
 
 - **Validate admin request fields against their production constraints.**
   `test/shared/admin-api-example/helpers.ts`'s `isBlank` judges a documented
-  request value by its sign and whether it is zero. A positive *fractional*
+  request value by its sign and whether it is zero. A positive _fractional_
   value (Codex's example: `duration_days: 1.5` in the listing create body)
-  therefore passes, while `API_BODY_FIELD_RULES` requires a safe integer and
-  the real endpoint answers 400. Fixing it properly means running each request
+  therefore passes, while `API_BODY_FIELD_RULES` requires a safe integer and the
+  real endpoint answers 400. Fixing it properly means running each request
   example through the endpoint's own field rules rather than a hand-written
   check. Starting point: `API_BODY_FIELD_RULES` in `src/features/admin/api.ts`.
 
@@ -827,23 +858,24 @@ and each costs more machinery than the defect it would catch.*
 
 ## Deferred CodeRabbit suggestions from PR #1772 (servicing test relocation)
 
-*Origin: CodeRabbit review of PR #1772, which only `git mv`s the servicing
+_Origin: CodeRabbit review of PR #1772, which only `git mv`s the servicing
 db-module tests into `test/shared/db/attendees/servicing/` (plus a 4-line cwd
 fix in `code-quality.test.ts`). CodeRabbit reviewed the moved content as if new
 and raised 13 findings; every one is on **pre-existing** test code carried over
 unchanged from `main`, so they were out of scope for a rename-only PR and
-recorded here.*
+recorded here._
 
 **Done — the two vacuous tests + the corruption-repair cleanups (a follow-up
 PR).** Both suspects were confirmed and fixed:
 
-- `corruption-repair.test.ts` — the `UPDATE … kind = 'staff'` did throw under the
-  CHECK and was swallowed by `catch { return }`, so the exclusion assertions
+- `corruption-repair.test.ts` — the `UPDATE … kind = 'staff'` did throw under
+  the CHECK and was swallowed by `catch { return }`, so the exclusion assertions
   never ran (confirmed empirically). Now the corrupt row is written past the
-  CHECK via `PRAGMA ignore_check_constraints` (libsql supports it), so the reader
-  predicates are genuinely exercised — and a separate test asserts the CHECK
-  rejects the write directly. The dead `queryOne` import, the `string | null`
-  param on `insertRowWithKind`, and the redundant dynamic imports were removed.
+  CHECK via `PRAGMA ignore_check_constraints` (libsql supports it), so the
+  reader predicates are genuinely exercised — and a separate test asserts the
+  CHECK rejects the write directly. The dead `queryOne` import, the
+  `string | null` param on `insertRowWithKind`, and the redundant dynamic
+  imports were removed.
 - `lifecycle-concurrency.test.ts` (~87-110) — the raw SQL deletes were replaced
   with the production `deleteListing`, and the orphan assertion strengthened
   (attendee row survives; its booking on the deleted listing is gone).
@@ -871,7 +903,7 @@ fixtures (`recordBoilerCost`, `postCustomerSale`, `listingProfitOf`,
 next to `parseFlashCookie`. A pure reorganisation — the same 40 tests run, no
 test behaviour changed.
 
-*Nothing remains open in this section.*
+_Nothing remains open in this section._
 
 ## Logistics run sheet — should servicing events appear?
 
@@ -894,24 +926,24 @@ exclusion is deliberate, not accidental.
 
 ## Test suite speed — remaining tail work
 
-*Origin: the test-suite performance PR (grouped isolates + run-scoped test
-state).*
+_Origin: the test-suite performance PR (grouped isolates + run-scoped test
+state)._
 
 The full runner now shares isolates between test files
 (`scripts/test-groups.ts`) and prebuilds the DB setup state once per run
-(`test/test-utils/test-state.ts`). The remaining wall-clock tail is a handful
-of genuinely long suites, which now bound the slowest groups:
+(`test/test-utils/test-state.ts`). The remaining wall-clock tail is a handful of
+genuinely long suites, which now bound the slowest groups:
 
-- **Migration chain shards** (`test/integration/db/migration-restore/`, ~20s each ×4
-  shards). They already shard by `index % shardCount`; raising the shard count
-  (4 → 8) would halve each shard and shorten the tail groups. Purely
+- **Migration chain shards** (`test/integration/db/migration-restore/`, ~20s
+  each ×4 shards). They already shard by `index % shardCount`; raising the shard
+  count (4 → 8) would halve each shard and shorten the tail groups. Purely
   mechanical — the factory takes the count.
 - **Slow-test report entries >2s** (printed after every full run): the
   migration/legacy-migration suites and a few e2e journeys dominate. Each one
   fixed shortens the longest group directly.
 
-Starting point: run `deno task test`, read the slow-test report at the end,
-and profile the top entry.
+Starting point: run `deno task test`, read the slow-test report at the end, and
+profile the top entry.
 
 ## Pre-existing issues surfaced during the min-tokens-20 dedup (PR #1795)
 
@@ -920,14 +952,15 @@ pre-existing (the dedup preserved the behaviour, it did not introduce it), so
 they were left out of that PR's scope.
 
 - **Bulk email draft cleared after the send, not before**
-  (`src/features/admin/bulk-email.ts`, the `sendBulkEmails → recordContacts →
-  bulkEmailDraft("") → logActivity` sequence). `sendBulkEmails` is
-  non-idempotent, so if `recordContacts` throws after the send, a retry can
-  resend to the whole audience. Moving the draft-clear before the send trades
-  that for the opposite risk (a failed send loses the draft with no retry), so
-  it needs a deliberate decision — likely a "draft consumed" marker distinct
-  from "draft empty". Not a dedup regression: the ordering is byte-identical to
-  before the PR.
+  (`src/features/admin/bulk-email.ts`, the
+  `sendBulkEmails → recordContacts →
+  bulkEmailDraft("") → logActivity`
+  sequence). `sendBulkEmails` is non-idempotent, so if `recordContacts` throws
+  after the send, a retry can resend to the whole audience. Moving the
+  draft-clear before the send trades that for the opposite risk (a failed send
+  loses the draft with no retry), so it needs a deliberate decision — likely a
+  "draft consumed" marker distinct from "draft empty". Not a dedup regression:
+  the ordering is byte-identical to before the PR.
 
 - **Bulk-group-duplicate form loses inputs on a failed POST**
   (`src/ui/templates/admin/bulk-actions.tsx` `adminDuplicateGroupPage`). On a
@@ -953,77 +986,79 @@ they were left out of that PR's scope.
   `src/features/admin/update.ts` and `built-sites.ts`). The success flash
   (`"${successPrefix} to ${name} — the new version will be active shortly"`) and
   the activity-log line (`"${logPrefix} to ${name} (${tag})"`) are built from
-  hardcoded `successPrefix`/`logPrefix`/tail strings rather than `t()` keys. This
-  copy is byte-identical to what lived in `update.ts` on `main` before the dedup
-  (the flash string `"Updated to … — the new version will be active shortly"` was
-  already there); the dedup only moved it into the shared helper. Fix: add ICU
-  keys with `{name}`/`{version}` placeholders and pass the two call sites' prefix
-  choices as keyed variants, so the flash and log line read from the catalog.
-  Out of scope for a dedup PR (pre-existing copy, not a new string).
+  hardcoded `successPrefix`/`logPrefix`/tail strings rather than `t()` keys.
+  This copy is byte-identical to what lived in `update.ts` on `main` before the
+  dedup (the flash string
+  `"Updated to … — the new version will be active shortly"` was already there);
+  the dedup only moved it into the shared helper. Fix: add ICU keys with
+  `{name}`/`{version}` placeholders and pass the two call sites' prefix choices
+  as keyed variants, so the flash and log line read from the catalog. Out of
+  scope for a dedup PR (pre-existing copy, not a new string).
 
 - **Admin API docs prose is hardcoded, not in the catalog**
   (`src/ui/templates/admin/api-keys.tsx` — the authentication intro
-  `"Admin API endpoints require authentication…"`, the `"Public API endpoints
-  require no authentication. All responses are JSON."` line, the admin-group
-  intro `"Requires <code>Authorization: Bearer YOUR_API_KEY</code> header."`, and
-  the `"Use it with: <code>…</code>"` copy-notice line). These are all present
+  `"Admin API endpoints require authentication…"`, the
+  `"Public API endpoints
+  require no authentication. All responses are JSON."`
+  line, the admin-group intro
+  `"Requires <code>Authorization: Bearer YOUR_API_KEY</code> header."`, and the
+  `"Use it with: <code>…</code>"` copy-notice line). These are all present
   unchanged on `main` — the dedup restructured the page onto `DocsSection`/
-  `sectionsRenderer` but did not touch the wording. Developer-facing API-doc copy
-  may keep literal technical terms, but the surrounding prose still belongs in
-  `src/locales/en/*.json` (the sibling `api_keys.public_api_note` already is a
-  catalog key). Fix: add `api_keys.*` keys for the four strings, rendering the
+  `sectionsRenderer` but did not touch the wording. Developer-facing API-doc
+  copy may keep literal technical terms, but the surrounding prose still belongs
+  in `src/locales/en/*.json` (the sibling `api_keys.public_api_note` already is
+  a catalog key). Fix: add `api_keys.*` keys for the four strings, rendering the
   `<code>`-bearing ones via `Raw`. Out of scope for a dedup PR (pre-existing
   copy).
 
 - **The `/api/*/book` docs show a free response for a priced sample**
   (`src/shared/admin-api-example.ts`). Both `POST /api/listings/:slug/book` and
   `POST /api/packages/:slug/book` document their response as
-  `API_BOOK_FREE_EXAMPLE_JSON` (`amountOwed: 0`, a ticket token), even though the
-  package sample request is a priced bundle whose real response would carry a
-  `checkoutUrl` (`API_BOOK_PAID_EXAMPLE_JSON` already exists). Pre-existing: on
-  `main` both endpoints used a local `API_EXAMPLE_BOOKING_RESPONSE` const that is
-  byte-identical to `API_BOOK_FREE_EXAMPLE_JSON`, and this dedup only merged that
-  duplicate into the shared constant — it did not change which example shows. Fix
-  (a doc-accuracy pass, not a dedup): pick the example per endpoint — a paid
-  response for the priced package bundle, or document both free and paid shapes —
-  so the sample response matches the sample request.
+  `API_BOOK_FREE_EXAMPLE_JSON` (`amountOwed: 0`, a ticket token), even though
+  the package sample request is a priced bundle whose real response would carry
+  a `checkoutUrl` (`API_BOOK_PAID_EXAMPLE_JSON` already exists). Pre-existing:
+  on `main` both endpoints used a local `API_EXAMPLE_BOOKING_RESPONSE` const
+  that is byte-identical to `API_BOOK_FREE_EXAMPLE_JSON`, and this dedup only
+  merged that duplicate into the shared constant — it did not change which
+  example shows. Fix (a doc-accuracy pass, not a dedup): pick the example per
+  endpoint — a paid response for the priced package bundle, or document both
+  free and paid shapes — so the sample response matches the sample request.
 
 ## Placeholder refund — replay marker gap when the atomic ledger batch fails
 
-*Origin: Codex review on PR #1822 (atomic placeholder payment + refund ledger).*
+_Origin: Codex review on PR #1822 (atomic placeholder payment + refund ledger)._
 
-`recordPlaceholderRefund` (`src/shared/refund-ledger.ts`) posts the payment
-and completed-refund legs as one atomic `postTransferGroups` batch, so a
-refund-leg conflict rolls the payment back too (the PR's core requirement).
-When that batch fails outright, NO ledger legs land for the booking event
-group. The payment flow's durable replay guard is the ledger preflight
-(`replaySessionFromLedger` → `bookingLedgerDisposition`: `unrecorded` when
-no legs exist), and the primary guard (`markSessionFailed`'s `failure_data`
-row) is pruned by `prunePayments` once it ages past retention. So after
-pruning, a late webhook/redirect for the same already-refunded session
-re-enters `processReservedSession`, sees `unrecorded`, and re-creates a
-placeholder attendee + re-calls `tryRefund` (idempotent, so no double payout)
-instead of acknowledging the session as already handled.
+`recordPlaceholderRefund` (`src/shared/refund-ledger.ts`) posts the payment and
+completed-refund legs as one atomic `postTransferGroups` batch, so a refund-leg
+conflict rolls the payment back too (the PR's core requirement). When that batch
+fails outright, NO ledger legs land for the booking event group. The payment
+flow's durable replay guard is the ledger preflight (`replaySessionFromLedger` →
+`bookingLedgerDisposition`: `unrecorded` when no legs exist), and the primary
+guard (`markSessionFailed`'s `failure_data` row) is pruned by `prunePayments`
+once it ages past retention. So after pruning, a late webhook/redirect for the
+same already-refunded session re-enters `processReservedSession`, sees
+`unrecorded`, and re-creates a placeholder attendee + re-calls `tryRefund`
+(idempotent, so no double payout) instead of acknowledging the session as
+already handled.
 
 This is NOT fully new: on main before PR #1822 the same gap existed for a
 payment-post failure (the first `postTransfers` threw → no legs). PR #1822
-widens the failure surface from "payment-post failure only" to "payment-post
-OR refund-post failure" (because both are now one atomic batch). Closing it
+widens the failure surface from "payment-post failure only" to "payment-post OR
+refund-post failure" (because both are now one atomic batch). Closing it
 properly needs a durable handled marker that survives idempotency-row pruning
-without breaking the atomic rollback — e.g. a ledger leg that survives even
-when the refund leg conflicts (which would violate #1822's acceptance
-criterion: "a refund-reference collision proves neither transfer group is
-committed"), or a separate replay-state row outside the prunable
-`processed_payments` table. The staged-checkout runtime (deferred
-foundations item 6 in `PR_SPLIT_PLAN.md`) carries the proper replay/activation
-machinery to resolve this. Starting point: the preflight in
-`src/features/api/payment-processing/index.ts` (`replaySessionFromLedger`),
-the pruner in `src/shared/db/prune.ts` (`prunePayments`), and the
-classification in `src/shared/session-ledger.ts`.
+without breaking the atomic rollback — e.g. a ledger leg that survives even when
+the refund leg conflicts (which would violate #1822's acceptance criterion: "a
+refund-reference collision proves neither transfer group is committed"), or a
+separate replay-state row outside the prunable `processed_payments` table. The
+staged-checkout runtime (deferred foundations item 6 in `PR_SPLIT_PLAN.md`)
+carries the proper replay/activation machinery to resolve this. Starting point:
+the preflight in `src/features/api/payment-processing/index.ts`
+(`replaySessionFromLedger`), the pruner in `src/shared/db/prune.ts`
+(`prunePayments`), and the classification in `src/shared/session-ledger.ts`.
 
 ## Bunny subrequest budget follow-ups
 
-*Origin: request-fan-out audit for PR #1820.*
+_Origin: request-fan-out audit for PR #1820._
 
 Bunny stops an edge request after 50 subrequests. PR #1820 adds a request-scoped
 database guard that blocks libsql call 51 and fixes the concrete failures found
@@ -1037,8 +1072,8 @@ database-only cases fail loudly, but it cannot count provider or storage calls.
   `loadPackagePricingByGroup` loads every booked package through
   `loadPackageMemberPricingByGroupIds` in three. `validateAllItems`
   (`src/features/api/payment-processing/items.ts`) reads every order line's
-  listing in one batch instead of one call per line.
-  `getPackageDisplaysByIds` was already a single query.
+  listing in one batch instead of one call per line. `getPackageDisplaysByIds`
+  was already a single query.
 - **Outgoing webhook fan-out.** The database side is done:
   `logAndNotifyRegistration` writes every booking's activity row in one batch
   (`logActivities`), and `loadPackageOverrides` prices every booked package in
@@ -1046,26 +1081,25 @@ database-only cases fail loudly, but it cannot count provider or storage calls.
   fetches every distinct webhook URL in the request, so an order spanning many
   listings with different URLs can still run out of Bunny's external-request
   budget. Persist outbound webhook jobs and deliver them out of band.
-- **Multi-entry check-in.** `handleCheckinPost` in
-  `src/features/checkin.ts` calls `updateCheckedIn` once per eligible booking
-  line. A token set with 51 lines therefore makes 51 updates. Replace it with
-  one set-based update over all attendee/listing pairs.
+- **Multi-entry check-in.** `handleCheckinPost` in `src/features/checkin.ts`
+  calls `updateCheckedIn` once per eligible booking line. A token set with 51
+  lines therefore makes 51 updates. Replace it with one set-based update over
+  all attendee/listing pairs.
 - **Automatic built-site assignment.** `assignSitesForEntries` and
   `assignSiteWithRenewal` in `src/shared/site-assignment.ts` mix per-unit DB
   writes with provider calls. Eleven Deno site units, or nine Bunny site units,
   can exceed 50. Reserve assignments in one batch, queue provider provisioning,
   and batch-persist the successful renewal states.
 - **Old database migration.** `runPendingMigrations` in
-  `src/shared/db/migrations.ts` uses at least two marker calls per migration;
-  25 pending migrations exceed the limit before their own work.
+  `src/shared/db/migrations.ts` uses at least two marker calls per migration; 25
+  pending migrations exceed the limit before their own work.
   `applySchemaChanges` in `src/shared/db/migrations/schema-sync.ts` also runs
-  each missing-column ALTER separately. Move long migrations out of band or
-  make progress resumable in bounded request-sized steps, and batch safe ALTERs.
+  each missing-column ALTER separately. Move long migrations out of band or make
+  progress resumable in bounded request-sized steps, and batch safe ALTERs.
 - **Large in-app backups and storage cleanup.** After the first-page batch,
   `exportTable` in `src/shared/db/backup-snapshot.ts` still needs one call per
   later page; a 25,000-row table at the default page size needs about 50 pages
-  by itself.
-  `cleanupStalePendingFiles` in `src/features/admin/backup.ts` and
+  by itself. `cleanupStalePendingFiles` in `src/features/admin/backup.ts` and
   `pruneOldBackups` make one storage delete per stale object. Send large backups
   through the existing out-of-band workflow and cap cleanup work per request.
 - **Bulk email.** `sendBulkEmails` in `src/shared/email.ts` can create more than
@@ -1077,8 +1111,8 @@ database-only cases fail loudly, but it cannot count provider or storage calls.
   synchronous route a strict cap.
 - **Admin seed generation.** `createSeeds` in `src/shared/seeds.ts` uses one
   attendee batch per 50 rows; 2,501 attendees exceed 50 calls, while the form
-  permits far more. Move seed generation to CLI/background work or cap the
-  total from the request budget.
+  permits far more. Move seed generation to CLI/background work or cap the total
+  from the request budget.
 - ~~**Remaining group admin reads.**~~ Done. `validateListingTypesForGroup`
   (`src/features/admin/groups.ts`) reads the group's members once and judges
   every candidate against that list with `groupListingTypeError`, and
@@ -1099,7 +1133,7 @@ import already use bounded batches.
 
 ## Resumable paid-booking completion
 
-*Origin: CodeRabbit review of PR #1833.*
+_Origin: CodeRabbit review of PR #1833._
 
 The attendee, booking rows, ledger, modifier use, contact activity, and payment
 finalization commit atomically, but `completePaidBooking` then saves answers,
@@ -1132,7 +1166,7 @@ assignments, and renewal time are neither lost nor duplicated.
 
 ## Consistent database backup snapshots
 
-*Origin: CodeRabbit review of PR #1836.*
+_Origin: CodeRabbit review of PR #1836._
 
 `createBackup` batches each table's first page, then `exportTable` reads later
 pages with standalone queries. A write during those reads can make a backup mix
@@ -1144,47 +1178,48 @@ Add a dedicated read-only transaction or snapshot API in
 `src/shared/db/client.ts`. Do not reuse `withTransaction`: that helper opens a
 primary-routed write transaction, serializes writers, and enforces a write
 round-trip limit. Keep the first-page multi-table read efficient, account for
-the edge subrequest budget, and use the same snapshot for every later page.
-Add a regression test in `test/shared/db/backup-snapshot.test.ts` that changes
-rows between page reads and proves the exported rows all come from one database
+the edge subrequest budget, and use the same snapshot for every later page. Add
+a regression test in `test/shared/db/backup-snapshot.test.ts` that changes rows
+between page reads and proves the exported rows all come from one database
 state.
 
 ---
 
 ## Checkout stage attendee cleanup
 
-*Origin: Codex review of PR #1840.*
+_Origin: Codex review of PR #1840._
 
 Before any runtime path writes `checkout_stages`, include those rows in attendee
 deletion, purge, and merge handling. The table has no foreign key, so leaving
 the current hard-coded dependent-table lists unchanged would keep a stage linked
 to an attendee that no longer exists. Start with
-`src/shared/db/attendees/delete.ts` and
-`src/shared/merge/attendee-merge.ts`. Add direct regressions proving deletion
-removes a stage and merging repoints it without losing the unique attendee
-invariant. If both attendees have stages, require an explicit conflict decision
-instead of silently choosing or deleting one.
+`src/shared/db/attendees/delete.ts` and `src/shared/merge/attendee-merge.ts`.
+Add direct regressions proving deletion removes a stage and merging repoints it
+without losing the unique attendee invariant. If both attendees have stages,
+require an explicit conflict decision instead of silently choosing or deleting
+one.
 
 ---
 
 ## Test improvements surfaced by PR #1873 (move-only)
 
-*Origin: CodeRabbit review of PR #1873 — "Move eight integration tests to
+_Origin: CodeRabbit review of PR #1873 — "Move eight integration tests to
 test/integration/". PR #1873 was a move-only refactor: files were relocated with
-`git mv` and only relative import paths were updated. The four findings below are
-about pre-existing test code that was already on `origin/main` before the move;
-they are recorded here so a future PR can pick them up without re-reading the
-review. Each item names the file/path, what CodeRabbit proposed, why it was out
-of scope for #1873, and a starting point.*
+`git mv` and only relative import paths were updated. The four findings below
+are about pre-existing test code that was already on `origin/main` before the
+move; they are recorded here so a future PR can pick them up without re-reading
+the review. Each item names the file/path, what CodeRabbit proposed, why it was
+out of scope for #1873, and a starting point._
 
 - **Reuse shared `#test-utils` KEK helpers in `test/integration/kek-v2.test.ts`
   (lines 46–92).** `unwrapUserKey` and `ownerDataKey` repeat admin unwrap logic
-  that may already live in `test/test-utils/{crypto.ts,session.ts,test-state.ts}`.
-  A future PR should check whether a shared helper for "unwrap a v2 user's
-  DATA_KEY with the per-user-salted password KEK" and "unwrap the shared owner
-  DATA_KEY" already exists or should be extracted, then fold this file's local
-  copies into it. Keep `seedV1User` local (it constructs a legacy-only fixture)
-  and leave `sharesOwnerDataKey` as the spec-specific check. Start by searching
+  that may already live in
+  `test/test-utils/{crypto.ts,session.ts,test-state.ts}`. A future PR should
+  check whether a shared helper for "unwrap a v2 user's DATA_KEY with the
+  per-user-salted password KEK" and "unwrap the shared owner DATA_KEY" already
+  exists or should be extracted, then fold this file's local copies into it.
+  Keep `seedV1User` local (it constructs a legacy-only fixture) and leave
+  `sharesOwnerDataKey` as the spec-specific check. Start by searching
   `test/test-utils/` for `deriveKEKFromPassword`, `unwrapKey`, and
   `getUserByUsername` to see what is already shared.
 
@@ -1198,27 +1233,27 @@ of scope for #1873, and a starting point.*
   when the row is absent. This aligns with the offensive-programming rule
   against `?.` papering over a value that should always exist.
 
-- **Assert the computed cutoff in
-  `test/integration/renewals.test.ts` (lines 187–192).** The test is titled
-  "pushReadOnlyFrom is called exactly once with computed cutoff" but only checks
-  the call count via `expectReadOnlyFromPush(secretStub)`, discarding the
-  returned `{ scriptId, secretValue }`. If the cutoff month math regresses, the
-  test would still pass despite its name. A future PR should capture
-  `secretValue` from `expectReadOnlyFromPush` and assert it equals
-  `addMonthsIso(baseDate, 2)` (the expected quantity-2 cutoff) while keeping the
-  exactly-once assertion. `baseDate` is already destructured from
-  `withRenewalTest` in neighbouring tests.
+- **Assert the computed cutoff in `test/integration/renewals.test.ts` (lines
+  187–192).** The test is titled "pushReadOnlyFrom is called exactly once with
+  computed cutoff" but only checks the call count via
+  `expectReadOnlyFromPush(secretStub)`, discarding the returned
+  `{ scriptId, secretValue }`. If the cutoff month math regresses, the test
+  would still pass despite its name. A future PR should capture `secretValue`
+  from `expectReadOnlyFromPush` and assert it equals `addMonthsIso(baseDate, 2)`
+  (the expected quantity-2 cutoff) while keeping the exactly-once assertion.
+  `baseDate` is already destructured from `withRenewalTest` in neighbouring
+  tests.
 
-- **Assert the error log in
-  `test/integration/renewals.test.ts` (lines 204–210).** The test is titled
-  "siteToken present but no matching site logs error, no Bunny call" but only
-  asserts `expectNoBunnyCall(secretStub)` — the "logs error" half of the title is
-  unverified. A future PR should add a `console.error` assertion using the
-  existing error-spy helper (search `test/` for `spy(console, "error"` or an
-  `errorSpy` helper) so the test verifies the error is emitted for the missing
-  site-token match, or rename the test to drop the unverified claim. Start by
-  reading `applyRenewalsForEntries` in `src/shared/webhook.ts` to confirm it
-  calls `console.error` (or `logError`) on a missing site-token match.
+- **Assert the error log in `test/integration/renewals.test.ts` (lines
+  204–210).** The test is titled "siteToken present but no matching site logs
+  error, no Bunny call" but only asserts `expectNoBunnyCall(secretStub)` — the
+  "logs error" half of the title is unverified. A future PR should add a
+  `console.error` assertion using the existing error-spy helper (search `test/`
+  for `spy(console, "error"` or an `errorSpy` helper) so the test verifies the
+  error is emitted for the missing site-token match, or rename the test to drop
+  the unverified claim. Start by reading `applyRenewalsForEntries` in
+  `src/shared/webhook.ts` to confirm it calls `console.error` (or `logError`) on
+  a missing site-token match.
 
 - **Extract scanning helpers from `test/integration/code-quality.test.ts` into a
   focused module.** CodeRabbit suggested (PR #1872 review) pulling
@@ -1230,21 +1265,22 @@ of scope for #1873, and a starting point.*
   plumbing, not test assertions. The file is currently 699 lines (under the
   Biome 1,000-line hard ceiling but over the 400-line soft target). A
   `test/scripts/code-quality/scan-context.ts` module exporting `ScanContext`,
-  `loadScanContext`, `collectLineViolations`, `collectFileViolations`, and
-  the path constants would let the test file import them and keep only the
-  assertions and per-rule config. Start from the file-discovery helpers
-  already at the top of `code-quality.test.ts` (lines 295–360) and the
-  `ensureLoaded`/`forEachScannedFile`/`collect*Violations`/`scanSource*`
-  helpers inside the `describe("code quality", …)` block (lines 360–540).
-  This is a structural refactor (no behavior change); add a regression test
-  that re-runs the no-`../` rule against a fixture file via the extracted
-  helpers to prove parity with the inline implementation.
+  `loadScanContext`, `collectLineViolations`, `collectFileViolations`, and the
+  path constants would let the test file import them and keep only the
+  assertions and per-rule config. Start from the file-discovery helpers already
+  at the top of `code-quality.test.ts` (lines 295–360) and the
+  `ensureLoaded`/`forEachScannedFile`/`collect*Violations`/`scanSource*` helpers
+  inside the `describe("code quality", …)` block (lines 360–540). This is a
+  structural refactor (no behavior change); add a regression test that re-runs
+  the no-`../` rule against a fixture file via the extracted helpers to prove
+  parity with the inline implementation.
+
 ---
 
 ## Recover paid SumUp checkouts without a webhook or redirect
 
-*Origin: follow-up to the SumUp provider work, surfaced 2026-07-25 while
-documenting SumUp in `README.md` / `src/docs/payments.ts` (PR #1918).*
+_Origin: follow-up to the SumUp provider work, surfaced 2026-07-25 while
+documenting SumUp in `README.md` / `src/docs/payments.ts` (PR #1918)._
 
 SumUp does not sign its webhooks. If its webhook is lost and the customer never
 returns to the redirect URL, SumUp can charge the customer without creating a
@@ -1265,20 +1301,20 @@ proves they create the attendee and ledger rows exactly once.
 
 ## Square PENDING refunds — propagate a pending result, not a plain false
 
-*Origin: Codex review of PR #1911 (confirmed Square refund outcomes), thread
-on `squareApi.refundPayment` (`src/shared/square.ts`). This PR deliberately
-does NOT address it; recorded so the follow-on work can pick it up.*
+_Origin: Codex review of PR #1911 (confirmed Square refund outcomes), thread on
+`squareApi.refundPayment` (`src/shared/square.ts`). This PR deliberately does
+NOT address it; recorded so the follow-on work can pick it up._
 
 `squareApi.refundPayment` returns `false` for a Square refund that is still
 `PENDING` (an accepted-but-unsettled refund). That is the honest current-main
 boolean contract this PR ships, but it has a real downstream cost the reviewer
 flagged: the webhook/admin refund flow reads `refunded === false` as a failed
-refund, so a pending Square refund releases the reservation, returns 503, and
-— because each call mints a fresh `crypto.randomUUID()` idempotency key — a
-redelivery posts another full-refund attempt instead of waiting on the
-existing refund id. A PENDING Square refund is documented as a normal accepted
-`RefundPayment` response, so collapsing it into `false` loses the "accepted,
-not yet settled" signal.
+refund, so a pending Square refund releases the reservation, returns 503, and —
+because each call mints a fresh `crypto.randomUUID()` idempotency key — a
+redelivery posts another full-refund attempt instead of waiting on the existing
+refund id. A PENDING Square refund is documented as a normal accepted
+`RefundPayment` response, so collapsing it into `false` loses the "accepted, not
+yet settled" signal.
 
 Update: PR #1912 (stable Stripe and Square refund idempotency keys) has since
 landed on `main`; the Square refund idempotency key is now the stable
@@ -1291,8 +1327,8 @@ pending-result union below is still the real fix; the stale-key concern is
 resolved.
 
 The fix is the staged-checkout pending-result union / callback resolution this
-PR was explicitly told not to introduce: surface a pending outcome (carrying
-the refund id) separately from a plain false, and have the webhook/admin refund
+PR was explicitly told not to introduce: surface a pending outcome (carrying the
+refund id) separately from a plain false, and have the webhook/admin refund
 paths hold/redeliver against that id instead of re-posting. That is the same
 machinery planned for #1853 (`split/staged-checkout-runtime` — "Finish and
 recover paid checkouts safely") and overlaps #1905
@@ -1301,45 +1337,48 @@ resolution), so it must be designed with those branches, not duplicated here.
 Starting points: `squareApi.refundPayment` in `src/shared/square.ts` (where the
 boolean contract lives), the idempotency key in its `withClient` callback, and
 the downstream `tryRefund` in `src/features/api/payment-processing/refunds.ts`
-plus `refundReferenceAtProvider` in
-`src/features/admin/refunds/provider.ts` (both treat `false` as failed and fall
-back to `isPaymentRefunded`, which a still-pending refund also fails).
+plus `refundReferenceAtProvider` in `src/features/admin/refunds/provider.ts`
+(both treat `false` as failed and fall back to `isPaymentRefunded`, which a
+still-pending refund also fails).
 
 ---
 
 ## Validate Square orders/payments responses with Valibot schemas
 
-*Origin: CodeRabbit review of PR #1911. The refund response validation is done
+_Origin: CodeRabbit review of PR #1911. The refund response validation is done
 (`SquareRefundResponseSchema` in `src/shared/square.ts`), and the test file
-splits are complete (`refund-payment.test.ts`, `refund-transport.test.ts`,
-and the shared `mock-fetch.ts` helper all exist; `retrieve-refund.test.ts` is
-240 lines and `rest-transport.test.ts` is 372). What remains is extending the
-same boundary-validation pattern to the orders and payments client methods.*
+splits are complete (`refund-payment.test.ts`, `refund-transport.test.ts`, and
+the shared `mock-fetch.ts` helper all exist; `retrieve-refund.test.ts` is 240
+lines and `rest-transport.test.ts` is 372). What remains is extending the same
+boundary-validation pattern to the orders and payments client methods._
 
 The Square REST client still maps order and payment responses with type casts
-(`get<T>` for orders and payments). `squareFetch` returns `JSON.parse(response.text)`
-cast as `<T>`, so a malformed order or payment object — wrong field types, an
-unexpected shape — passes through unvalidated. The refund path now has a Valibot
-schema (`SquareRefundSchema` / `SquareRefundResponseSchema`) parsed with
-`v.parse` OUTSIDE `withClient`, so a malformed refund response fails loudly.
-Doing the same for orders and payments means defining `SquareOrderSchema` and
-`SquarePaymentSchema` and parsing in their respective `squareApi` methods, so
-a malformed response throws rather than being silently cast. Starting point:
-`squareFetch` and the `SquareOrderResponse` / `SquarePaymentResponse` types in
-`src/shared/square.ts`; mirror the refund schema shape that already exists.
+(`get<T>` for orders and payments). `squareFetch` returns
+`JSON.parse(response.text)` cast as `<T>`, so a malformed order or payment
+object — wrong field types, an unexpected shape — passes through unvalidated.
+The refund path now has a Valibot schema (`SquareRefundSchema` /
+`SquareRefundResponseSchema`) parsed with `v.parse` OUTSIDE `withClient`, so a
+malformed refund response fails loudly. Doing the same for orders and payments
+means defining `SquareOrderSchema` and `SquarePaymentSchema` and parsing in
+their respective `squareApi` methods, so a malformed response throws rather than
+being silently cast. Starting point: `squareFetch` and the `SquareOrderResponse`
+/ `SquarePaymentResponse` types in `src/shared/square.ts`; mirror the refund
+schema shape that already exists.
 
 ---
 
 ## Mutation coverage of `src/features/api/folded-booking.ts` (direct tests)
 
 Direct tests at `test/features/api/folded-booking.test.ts` and
-`test/features/api/folded-booking/parent-booking.test.ts` kill every non-equivalent mutant on the unchanged `folded-booking.ts`.
-Five equivalents (lines 87, 118, 176, 301, 381) are recorded in
-`scripts/mutation/equivalent-mutants/` with proofs — no unsuppressed survivors remain.
+`test/features/api/folded-booking/parent-booking.test.ts` kill every
+non-equivalent mutant on the unchanged `folded-booking.ts`. Five equivalents
+(lines 87, 118, 176, 301, 381) are recorded in
+`scripts/mutation/equivalent-mutants/` with proofs — no unsuppressed survivors
+remain.
 
 ## Split `render-selector.test.ts` by what each case actually checks
 
-*Origin: Codex review on PR #1926 (test reorganisation).*
+_Origin: Codex review on PR #1926 (test reorganisation)._
 
 `test/integration/server/parents-gate/render-selector.test.ts` holds four cases
 with three different subjects: one changes a setting and checks the effect, one
@@ -1357,7 +1396,7 @@ settings behaviour.
 
 ## Let the misplaced-test list see past request helpers
 
-*Origin: Codex reviews on PRs #1926 and #1929 (test reorganisation).*
+_Origin: Codex reviews on PRs #1926 and #1929 (test reorganisation)._
 
 The misplaced-test list only considers a test that resolves to exactly one
 source. Start-up helpers (`describeWithEnv`, the env overlay) used to drag the
@@ -1403,23 +1442,23 @@ stands, so the split can be a pure move.
 
 ## Two suites now cover the attendees list
 
-*Origin: Codex review of PR #1993 (direct tests for the four testless modules).*
+_Origin: Codex review of PR #1993 (direct tests for the four testless modules)._
 
-`test/features/admin/attendees-list.test.ts` was added because the mutation
-gate needs a test at the source's mirrored path. It calls the handlers
-directly. But `test/integration/server/attendees-list.test.ts` already drives
-the same behaviour over HTTP — authentication, the listing filter, sort order
-and paging — and `test/integration/server/attendees-csv.test.ts` covers the
-export. So the same rules are now checked twice.
+`test/features/admin/attendees-list.test.ts` was added because the mutation gate
+needs a test at the source's mirrored path. It calls the handlers directly. But
+`test/integration/server/attendees-list.test.ts` already drives the same
+behaviour over HTTP — authentication, the listing filter, sort order and paging
+— and `test/integration/server/attendees-csv.test.ts` covers the export. So the
+same rules are now checked twice.
 
 That costs runtime on every suite run, and lets the two sets of fixtures and
 expectations drift apart. The fix is to consolidate: move the route-level cases
-into the mirrored feature suite (which can call the handler directly *and* go
+into the mirrored feature suite (which can call the handler directly _and_ go
 through the router where that is the point), and delete what is left behind.
 
 Not done in #1993 because that change touches suites the PR otherwise had no
-reason to open, and the mirrored suite had to exist first. Worth doing next
-time either file is opened.
+reason to open, and the mirrored suite had to exist first. Worth doing next time
+either file is opened.
 
 Starting point: the three files named above.
 
@@ -1444,15 +1483,14 @@ properly means the workflow (and `.github/actions/backup-site/action.yml`) must
 learn to skip or handle non-Bunny hosting first.
 
 Starting points: the `hostingProvider === "bunny"` filter in
-`src/features/instance.ts`, `setSiteSecrets` in
-`src/shared/site-assignment.ts`, and the per-site loop in
-`.github/workflows/deploy-clients.yml`.
+`src/features/instance.ts`, `setSiteSecrets` in `src/shared/site-assignment.ts`,
+and the per-site loop in `.github/workflows/deploy-clients.yml`.
 
 ---
 
 ## Split the hybrid encryption section out of `src/shared/crypto/keys.ts`
 
-*Origin: reviewer suggestion on PR #1945.*
+_Origin: reviewer suggestion on PR #1945._
 
 `keys.ts` is 499 lines and holds three separate jobs: KEK derivation, symmetric
 key wrapping, and hybrid RSA+AES encryption. The hybrid section is the natural
@@ -1468,9 +1506,9 @@ split.)
 
 The move itself is mechanical, but it is wide: `encryptWithOwnerKey` and
 `decryptWithOwnerKey` are used across attendee PII, the activity log, email
-preferences, and bulk email drafts, so every importer needs repointing.
-Remember `src/docs/crypto.ts`, which re-exports whole crypto modules for the
-generated API docs — a moved export silently disappears from them otherwise.
+preferences, and bulk email drafts, so every importer needs repointing. Remember
+`src/docs/crypto.ts`, which re-exports whole crypto modules for the generated
+API docs — a moved export silently disappears from them otherwise.
 
 Starting point: the "Hybrid Encryption" section of `src/shared/crypto/keys.ts`,
 and `grep -rn "encryptWithOwnerKey\|decryptWithOwnerKey\|hybridEncrypt" src/`.
@@ -1479,7 +1517,7 @@ and `grep -rn "encryptWithOwnerKey\|decryptWithOwnerKey\|hybridEncrypt" src/`.
 
 ## Decide what happens to undated bookings when a listing starts being booked by the day
 
-*Origin: found while migrating the multi-day tests to stories (PR for batch 8).*
+_Origin: found while migrating the multi-day tests to stories (PR for batch 8)._
 
 A listing booked as one date can be switched to being booked by the day. The
 people who booked before the switch have no day of their own (`start_at` is
@@ -1489,7 +1527,7 @@ listing — see the null-start_at case in
 
 The effect is that a full listing stops being full the moment it is switched. A
 Hall with room for 2, with both places taken, accepts a further booking on any
-day after the switch, so it ends up holding 3 people. The listing's *total*
+day after the switch, so it ends up holding 3 people. The listing's _total_
 check still counts them (`attendeesApi.hasAvailableSpots(id, 1)` with no date
 returns false), so the two checks disagree.
 
@@ -1511,7 +1549,7 @@ Starting point: `attendeesApi.hasAvailableSpots` and the per-day capacity SQL in
 
 ## Tell the story of a refused "stop selling this on its own"
 
-*Origin: reviewer suggestion (Codex) on PR #1952.*
+_Origin: reviewer suggestion (Codex) on PR #1952._
 
 The site refuses to stop selling an add-on on its own when doing so would leave
 another add-on with no way to be bought — `strippedPageOrphanedAddOn` in
@@ -1533,7 +1571,7 @@ fixture.
 
 ## Test the door's confirmation steps in the browser script
 
-*Origin: reviewer suggestion (Codex) on PR #1959.*
+_Origin: reviewer suggestion (Codex) on PR #1959._
 
 `src/ui/client/scanner.js` is the only part of checking people in that nothing
 tests. It is the script that shows the organiser the question the door asked —
@@ -1558,11 +1596,11 @@ for how a client script is driven without a real browser.
 
 ## Prove a bundle's blank price really charges the thing's own price
 
-*Origin: reviewer suggestion (Codex) on PR #1968.*
+_Origin: reviewer suggestion (Codex) on PR #1968._
 
-The story `bookings.selling-things-as-one-bundle` proves the *saving* half of
+The story `bookings.selling-things-as-one-bundle` proves the _saving_ half of
 the blank-price rule: leaving a part's price empty on the bundle form stores no
-price of its own for that part. It does not prove the *charging* half — that the
+price of its own for that part. It does not prove the _charging_ half — that the
 customer is then asked for that thing's own price rather than nothing.
 
 Its rule is worded to say only what it proves. Closing the gap needs a paid
@@ -1580,8 +1618,8 @@ priced bundle reaches checkout today.
 
 ## Watch for ports being taken between tests
 
-*Origin: the chunk that took `scripts/stripe-mock/install.ts` to a full
-mutation score (#1966), and the flaky runs it uncovered.*
+_Origin: the chunk that took `scripts/stripe-mock/install.ts` to a full mutation
+score (#1966), and the flaky runs it uncovered._
 
 The tests under `test/scripts/stripe-mock/install/` failed about one run in
 three: five failed runs out of roughly fifteen, a different test each time, and
@@ -1605,47 +1643,49 @@ ever receive the same one.
 It has since been seen more, in `test/scripts/stripe-mock/lifecycle.test.ts`
 ("stops trying once the mock has been started as many times as asked", on CI for
 PR #1968, and "gives a mock time to shut itself down before killing it", on CI
-for PR #2032 — the latter now hardened: the fixture notes when it wins its
-port, and the test retries on a fresh port when that note is missing), with a
-second symptom worth knowing about. That test counts how many
-times the fake mock was started and expects one start per try asked for. A try
-whose freshly picked port already has something listening on it is abandoned
-*before* the mock is started, so the count comes up short and the test fails —
-even though the starter did try the number of times it was asked to. Handing out
-ports so no two tests can receive the same one would fix this too; short of that,
-the count is the wrong thing to measure.
+for PR #2032 — the latter now hardened: the fixture notes when it wins its port,
+and the test retries on a fresh port when that note is missing), with a second
+symptom worth knowing about. That test counts how many times the fake mock was
+started and expects one start per try asked for. A try whose freshly picked port
+already has something listening on it is abandoned _before_ the mock is started,
+so the count comes up short and the test fails — even though the starter did try
+the number of times it was asked to. Handing out ports so no two tests can
+receive the same one would fix this too; short of that, the count is the wrong
+thing to measure.
 
 ## The Turso upload suite sometimes dies with no diagnostic at all
 
-*Origin: CI on PR #2039, a branch that touches nothing this suite uses. It
-then reproduced locally under a full `deno task test:coverage` run, while
-passing many consecutive standalone runs — it needs a loaded machine.*
+_Origin: CI on PR #2039, a branch that touches nothing this suite uses. It then
+reproduced locally under a full `deno task test:coverage` run, while passing
+many consecutive standalone runs — it needs a loaded machine._
 
-`test/scripts/turso-migration-file.test.ts` fails as `fail Turso migration
+`test/scripts/turso-migration-file.test.ts` fails as
+`fail Turso migration
 file — at unknown location — No TAP diagnostic was emitted for this
-failure.` The first five cases pass and the rest never report, so the whole
-describe dies between cases rather than an assertion failing.
+failure.`
+The first five cases pass and the rest never report, so the whole describe dies
+between cases rather than an assertion failing.
 
 The suspect is the watch in `sendDatabaseFile`
-(`scripts/turso-migration-file.ts`). When a server answers before the whole
-body is sent, Deno's node:http polyfill rejects an internal task nobody
-awaits (`Failed to fetch: request body stream errored`), and
-`watchPolyfillBodyStreamDefect` swallows that duplicate while the upload is
-in flight. The watch stands down one `setTimeout(0)` after the upload
-settles — its own comment admits this is a guess about when the duplicate
-surfaces. On a loaded machine the internal rejection can land *after* that
-one timer turn, and an unhandled rejection between cases is exactly "no
-diagnostic, unknown location". A fix wants a deterministic stand-down —
-e.g. hold the watch until the request's own `close` says its internals are
-done — proven by a test that forces the late rejection, not by timing luck.
+(`scripts/turso-migration-file.ts`). When a server answers before the whole body
+is sent, Deno's node:http polyfill rejects an internal task nobody awaits
+(`Failed to fetch: request body stream errored`), and
+`watchPolyfillBodyStreamDefect` swallows that duplicate while the upload is in
+flight. The watch stands down one `setTimeout(0)` after the upload settles — its
+own comment admits this is a guess about when the duplicate surfaces. On a
+loaded machine the internal rejection can land _after_ that one timer turn, and
+an unhandled rejection between cases is exactly "no diagnostic, unknown
+location". A fix wants a deterministic stand-down — e.g. hold the watch until
+the request's own `close` says its internals are done — proven by a test that
+forces the late rejection, not by timing luck.
 
 ---
 
 ## A webhook test about dropped answers fails once in a while in CI
 
-*Origin: CI on PR #2037, a branch that changes no `src/` file at all and does
+_Origin: CI on PR #2037, a branch that changes no `src/` file at all and does
 not touch this test or anything it exercises. The same commit passed the whole
-suite locally, this test included.*
+suite locally, this test included._
 
 `finalizes a paid booking when a text-answer ref has no usable string id,
 dropping only those answers`
@@ -1664,23 +1704,27 @@ synchronously before any async work (`src/shared/logger.ts`), so the
 error spy is per-case (`beforeEach`/`afterEach` in
 `test/test-utils/error-spy.ts`), so it cannot be picking up a neighbour's
 output. That points at the booking or answer-saving assertions rather than the
-logging one, but pointing is not proving — do not "fix" this one from the
-shape of the test.
+logging one, but pointing is not proving — do not "fix" this one from the shape
+of the test.
 
 ---
 
 ## Four feature modules had no test at their mirrored path — now they do
 
-*Origin: `deno task precommit:mutation` on the notes-migration branch, which
-could not start. Closed by the direct-test pass that followed.*
+_Origin: `deno task precommit:mutation` on the notes-migration branch, which
+could not start. Closed by the direct-test pass that followed._
 
 All four now have a direct test at their mirrored path, so the gate no longer
 refuses to start on a branch that touches them:
 
-- `src/features/admin/attendee-page.ts` → `test/features/admin/attendee-page.test.ts` (100%, two recorded equivalents)
-- `src/features/admin/attendees-list.ts` → `test/features/admin/attendees-list.test.ts` (100%)
-- `src/features/admin/listing-page-data.ts` → `test/features/admin/listing-page-data/` (100%, one recorded equivalent)
-- `src/features/api/payment-processing/store-refund.ts` → `test/features/api/payment-processing/store-refund.test.ts` (100%)
+- `src/features/admin/attendee-page.ts` →
+  `test/features/admin/attendee-page.test.ts` (100%, two recorded equivalents)
+- `src/features/admin/attendees-list.ts` →
+  `test/features/admin/attendees-list.test.ts` (100%)
+- `src/features/admin/listing-page-data.ts` →
+  `test/features/admin/listing-page-data/` (100%, one recorded equivalent)
+- `src/features/api/payment-processing/store-refund.ts` →
+  `test/features/api/payment-processing/store-refund.test.ts` (100%)
 
 Every one of them now catches every mutation the gate demands, so a branch
 touching any of them can pass without first writing the tests that should
@@ -1694,31 +1738,31 @@ helpers" above).
 
 ## Two people setting a site up at the same moment can both succeed
 
-Raised on #1988 by both automated reviewers, and confirmed against the code.
-It is a production bug, not a test gap, and it is deliberately left out of that
-pull request because that branch changes no production code and this sits in
-the most security-critical path we have.
+Raised on #1988 by both automated reviewers, and confirmed against the code. It
+is a production bug, not a test gap, and it is deliberately left out of that
+pull request because that branch changes no production code and this sits in the
+most security-critical path we have.
 
 **What happens.** `handleSetupPost` (`src/features/setup.ts`) asks
 `isSetupComplete()` and then calls `settings.setup.complete`. Nothing holds
 between the asking and the doing, so two requests that arrive together can both
-be told the site is empty. `completeSetup`
-(`src/shared/db/settings/setup.ts`) then runs its batch twice.
+be told the site is empty. `completeSetup` (`src/shared/db/settings/setup.ts`)
+then runs its batch twice.
 
 The unique index on `username_index` saves us only when both people pick the
-*same* name. Two different names both insert, and the second batch's
+_same_ name. Two different names both insert, and the second batch's
 `settingUpsert` calls overwrite `PUBLIC_KEY` and `WRAPPED_PRIVATE_KEY` with a
 second keypair. The first owner is left holding a wrapped data key for a data
 key the site no longer uses — they can sign in and read nothing.
 
 **Why it is not simply "add a guard".** The batch cannot decide anything
-mid-flight, so making the owner insert conditional still leaves the four
-setting upserts landing unconditionally. Whatever fixes it has to make the
-whole ceremony refuse to run twice — an interactive transaction that re-reads
-`setup_complete` inside the write lock, or a single conditional write that
-every other statement hangs off. That is a design decision in the code that
-holds everybody's encryption keys, so it wants its own change and its own
-review, not a corner of a test PR.
+mid-flight, so making the owner insert conditional still leaves the four setting
+upserts landing unconditionally. Whatever fixes it has to make the whole
+ceremony refuse to run twice — an interactive transaction that re-reads
+`setup_complete` inside the write lock, or a single conditional write that every
+other statement hangs off. That is a design decision in the code that holds
+everybody's encryption keys, so it wants its own change and its own review, not
+a corner of a test PR.
 
 **Where to start.** `completeSetup` in `src/shared/db/settings/setup.ts` —
 `withTransaction` from `src/shared/db/client.ts` is the tool, and the header
@@ -1727,7 +1771,7 @@ are computed up front). The guard in `handleSetupPost` at
 `src/features/setup.ts:114` stays useful as the cheap first check.
 
 **Proving it.** A story cannot show this today: Cucumber awaits each step, so
-the two posts never overlap. #1988 covers the neighbouring case it *can* reach
+the two posts never overlap. #1988 covers the neighbouring case it _can_ reach
 honestly — a person who had the setup page open before somebody else finished,
 sending their stale form afterwards. A real test for this one needs both posts
 started together behind a barrier, and it should be written with the fix.
@@ -1736,7 +1780,7 @@ started together behind a barrier, and it should be written with the fix.
 
 ## An answer filed under a listing nobody booked
 
-*Origin: review of PR #1990 (the booking-check slice), 2026-07-29.*
+_Origin: review of PR #1990 (the booking-check slice), 2026-07-29._
 
 Free-text answers travel through checkout filed under the listing they belong
 to, as `{"12": [{"q": 3, "s": 400}]}`. `ListingKeySchema` in
@@ -1752,10 +1796,10 @@ answers. The buyer answered a question and the answer quietly goes nowhere.
 
 The schema is the wrong place for the check: it validates one booking's metadata
 on its own, and the listings that were bought are decided later, once the items
-have been priced and loaded. The natural home is next to
-`saveSessionAnswers`, which already has both the answer map and the booked
-listings — compare the two sets and raise any key that matches no booked
-listing, the same way an unreadable booking is raised.
+have been priced and loaded. The natural home is next to `saveSessionAnswers`,
+which already has both the answer map and the booked listings — compare the two
+sets and raise any key that matches no booked listing, the same way an
+unreadable booking is raised.
 
 Start at `saveSessionAnswers`, and at `test/shared/booking-intent.test.ts`,
 where the shape rule is covered and the "names a booked listing" rule is not.
@@ -1764,18 +1808,18 @@ where the shape rule is covered and the "names a booked listing" rule is not.
 
 ## A create whose row can't be read back should not look retryable
 
-*Origin: Codex review on PR #2002, which added the loud failure for a create
-whose just-written row can't be read back.*
+_Origin: Codex review on PR #2002, which added the loud failure for a create
+whose just-written row can't be read back._
 
 `writeEntity` (`src/shared/rest/write-entity.ts`) writes the row, commits, then
 reads it back on the primary. When a create's read-back finds nothing it now
 raises an error. That error leaves the API write path in
 `src/shared/rest/crud-api.ts` and reaches the request handler
 (`src/features/app/request.ts`), which turns any unhandled error into the shared
-503 page. The row itself was committed, so a client that treats the 503 as
-"try again" can post the same create twice and end up with two rows.
+503 page. The row itself was committed, so a client that treats the 503 as "try
+again" can post the same create twice and end up with two rows.
 
-The reviewer's suggestion was to read the row back *before* committing, so a
+The reviewer's suggestion was to read the row back _before_ committing, so a
 failed read-back rolls the insert back and there is nothing to duplicate. That
 is more than a local change: each resource can supply its own
 `lookupAfterWrite`, several of which join extra columns, and every one of them
@@ -1796,8 +1840,8 @@ answer given for a failure that should no longer happen — not a live fault.
 
 ## Record a foreign-currency charge in the money history without pretending it is ours
 
-*Origin: Codex review on PR #2021, which sent a charge taken in the wrong
-currency down the existing mismatch-and-refund path.*
+_Origin: Codex review on PR #2021, which sent a charge taken in the wrong
+currency down the existing mismatch-and-refund path._
 
 The money history holds one currency — the site's. When a charge arrives in a
 different one, `classify.ts` sends it through the ordinary mismatch flow, and
@@ -1810,26 +1854,26 @@ currency it was taken — but the operator's cash history reads wrong, and if th
 refund fails it names the wrong amount as still held.
 
 Two ways out: give the money history a currency of its own so a foreign charge
-can be filed honestly, or keep these charges out of it and record them
-somewhere that does not claim a site-currency total.
+can be filed honestly, or keep these charges out of it and record them somewhere
+that does not claim a site-currency total.
 
 Why it is not fixed in that PR: either way changes what the money history can
-hold — a stored currency per entry, plus every reader and every total that
-today assumes one currency. That is a change to the accounting store, well
-past a PR about reading provider money safely, and the wrong thing to bolt on
-without deciding which of the two shapes we want.
+hold — a stored currency per entry, plus every reader and every total that today
+assumes one currency. That is a change to the accounting store, well past a PR
+about reading provider money safely, and the wrong thing to bolt on without
+deciding which of the two shapes we want.
 
 ## Record a rejected-and-refunded payment session as finished
 
-*Origin: Codex review on PR #2021, which added the automatic refund for a paid
-charge the payment boundary cannot read.*
+_Origin: Codex review on PR #2021, which added the automatic refund for a paid
+charge the payment boundary cannot read._
 
 When a provider callback meets a `malformed_charge` rejection and refunds it,
 nothing durable is written down. No reservation, no processed-payment row, no
 ledger entry says "this session was refused and the money went back". The
-webhook simply acknowledges and moves on
-(`refundRejectedCharge` in `src/features/api/payment-processing/refunds.ts`, and
-its callers in `src/features/api/webhooks.ts` and
+webhook simply acknowledges and moves on (`refundRejectedCharge` in
+`src/features/api/payment-processing/refunds.ts`, and its callers in
+`src/features/api/webhooks.ts` and
 `src/features/api/payment-processing/classify.ts`).
 
 The reviewer's concern is that a later delivery of the same session — a webhook
@@ -1837,13 +1881,13 @@ redelivery, or the buyer opening the success page — could read it in a
 well-formed shape, still see it as paid, find no record of it, and make a real
 ticket for money that was already returned.
 
-Why it is not being fixed in that PR: every rejection reason is a fixed
-property of the provider's own stored record (an amount that is not a whole
-number of minor units, a missing or malformed currency, a SumUp amount more
-precise than its currency allows). None of those can turn well-formed on a
-later read, so the double-book needs a provider changing a completed session's
-money — which no provider does. The refund itself is already safe to repeat:
-`tryRefund` treats a provider's "already fully refunded" answer as success.
+Why it is not being fixed in that PR: every rejection reason is a fixed property
+of the provider's own stored record (an amount that is not a whole number of
+minor units, a missing or malformed currency, a SumUp amount more precise than
+its currency allows). None of those can turn well-formed on a later read, so the
+double-book needs a provider changing a completed session's money — which no
+provider does. The refund itself is already safe to repeat: `tryRefund` treats a
+provider's "already fully refunded" answer as success.
 
 If it is taken on: carry the session id in `SessionRejection`
 (`src/shared/payment/validated-session.ts`), and finish the session through the
@@ -1854,8 +1898,8 @@ circuits the way an already-processed payment does.
 
 ## Tell a buyer when their money was taken and not (yet) given back
 
-*Origin: Codex review on PR #2021, which added the "your money has been sent
-back" page for a charge the payment boundary refused and refunded.*
+_Origin: Codex review on PR #2021, which added the "your money has been sent
+back" page for a charge the payment boundary refused and refunded._
 
 That page is only shown when the refund actually went through. Three other
 outcomes still fall back to "Payment session not found", and in each of them the
@@ -1868,7 +1912,7 @@ buyer really was charged:
   the same situation, reached a different way (`refundable` is
   `paid && isResourceId(...)`, and the `paid` half is discarded today).
 - A refund the provider refused (`settled: false`, answered 503). Careful here:
-  a 503 only asks the *webhook* to be delivered again. The redirect and cancel
+  a 503 only asks the _webhook_ to be delivered again. The redirect and cancel
   paths have no retry behind them — they re-attempt only if that person happens
   to reload the page. So this outcome must not be described to the buyer as
   being in hand until an unresolved refund is actually written down somewhere
@@ -1893,73 +1937,73 @@ is nothing hard about it.
 
 ## Split the form-control rules into files about one thing each
 
-*Origin: Codex review on PR #2025. Attempted on that branch and backed out —
-see below.*
+_Origin: Codex review on PR #2025. Attempted on that branch and backed out — see
+below._
 
-`test/specs/support/form-controls.ts` is 478 lines, over the ~400 the repo
-asks for, and holds four separate jobs:
+`test/specs/support/form-controls.ts` is 478 lines, over the ~400 the repo asks
+for, and holds four separate jobs:
 
 - reading a page's attributes (`attribute`, `hasFlag`, `usableInputsOfKind`)
-- what a page offers (`chooserFor`, `boxFor`, `choicesOffered`, the checkbox
-  and question readers)
-- why a value could not be sent (`whyValueCannotBeSent` and the rules under
-  it, plus the insisted-control machinery)
+- what a page offers (`chooserFor`, `boxFor`, `choicesOffered`, the checkbox and
+  question readers)
+- why a value could not be sent (`whyValueCannotBeSent` and the rules under it,
+  plus the insisted-control machinery)
 - the story-facing helpers (`fillInAndSend`, `takeDownFromActions`)
 
-The first three are pure and the last does the sending, so the natural shape
-is `form-controls/reading.ts`, `form-controls/rules.ts`, and a thin
+The first three are pure and the last does the sending, so the natural shape is
+`form-controls/reading.ts`, `form-controls/rules.ts`, and a thin
 `form-controls.ts` — the same split already done for `test-browser.ts`.
 
 The churn is smaller than it looks: `fillInAndSend` has 15 importers and stays
 put, and every reader that would move has between one and five
 (`checkboxValueOffered` 5, `tickedCheckboxes` 4, `whyValueCannotBeSent` 3,
-`requireCheckboxOffered` 2, `choicesOffered`/`optionsOffered` 1 each). So
-about a dozen import lines change. Do not add a re-export layer in
-`form-controls.ts` to avoid touching them — that is the alias-export smell the
-repo rules out; point each caller at the file that owns what it uses.
+`requireCheckboxOffered` 2, `choicesOffered`/`optionsOffered` 1 each). So about
+a dozen import lines change. Do not add a re-export layer in `form-controls.ts`
+to avoid touching them — that is the alias-export smell the repo rules out;
+point each caller at the file that owns what it uses.
 
 **Why it was backed out:** attempted by slicing the file on line ranges, which
 produced an unterminated comment, duplicated imports and several unresolved
 symbols. Reverted rather than pushed half-done. Whoever picks this up should
 move whole declarations (or use an editor that understands the syntax) rather
-than cutting on line numbers, and lean on `deno task precommit` — the 214
-specs and the coverage gate both exercise this module hard.
+than cutting on line numbers, and lean on `deno task precommit` — the 214 specs
+and the coverage gate both exercise this module hard.
 
 ## A form found by its words alone can be sent with no button to press
 
-*Origin: Codex review on PR #2025. Real, and deliberately left for its own
-change — see the sweep below.*
+_Origin: Codex review on PR #2025. Real, and deliberately left for its own
+change — see the sweep below._
 
 `findFormByButton` picks a form when the button's words appear anywhere in its
 body, then asks `buttonToPress` for the button. When no button matches but the
-words do, `buttonToPress` returns `{}` — "no button with that text at all" —
-and the form is submitted anyway, with no button data.
+words do, `buttonToPress` returns `{}` — "no button with that text at all" — and
+the form is submitted anyway, with no button data.
 
 That is on purpose for forms found by their body text, and plenty are. But it
-means a form whose button is *removed* still submits if the words survive
+means a form whose button is _removed_ still submits if the words survive
 elsewhere in it. Site-page deletion is exactly that shape: the heading and the
 button both say "Delete Page", so deleting the button leaves the heading, and
 the story goes on deleting pages the owner has no control to delete.
 
 The fix is not one line. Refusing every no-button case would break every story
 that legitimately finds its form by body text, so the change is to tell those
-two situations apart — probably by having the caller say which it expects, or
-by only allowing the body-text match when the form has no buttons at all.
-Either way it needs a sweep of all 215 scenarios to see which rely on which.
+two situations apart — probably by having the caller say which it expects, or by
+only allowing the body-text match when the form has no buttons at all. Either
+way it needs a sweep of all 215 scenarios to see which rely on which.
 
 ## An arrow is found across the whole page, not on its own row
 
-*Origin: Codex review on PR #2025, raised twice. The second raise carried a
-case the first did not, which is why it is here rather than declined.*
+_Origin: Codex review on PR #2025, raised twice. The second raise carried a case
+the first did not, which is why it is here rather than declined._
 
 `canMove`/`move` in `test/specs/support/reordering.ts` look for a row's
-`/id/move-up` address anywhere on the page. If that form is rendered against
-the wrong row — present, but beside a different item — the story still submits
-it and passes, while the organiser looking at the named row sees no arrow.
+`/id/move-up` address anywhere on the page. If that form is rendered against the
+wrong row — present, but beside a different item — the story still submits it
+and passes, while the organiser looking at the named row sees no arrow.
 
 My first answer to this was that a positive scenario would catch an address
 convention changing, which is true but only covers one defect. A form
-*relocated* to another row keeps every address the template tests assert, so
+_relocated_ to another row keeps every address the template tests assert, so
 nothing catches it.
 
 Closing it means attributing controls to rows: parse the list into rows and ask
@@ -1968,19 +2012,19 @@ what each row offers, rather than searching the page. `openAtState` in
 giving the shared reordering helper the same scope, for every list that uses it
 (states, site pages).
 
-### The way *into* a row is found the same way
+### The way _into_ a row is found the same way
 
-*Origin: a third Codex raise, on PR #2025, against `findsTheWayInFrom`.*
+_Origin: a third Codex raise, on PR #2025, against `findsTheWayInFrom`._
 
 `findsTheWayInFrom` in `test/specs/support/browser.ts` searches
 `row.browser.links` — every link on the page, not the matched row's. Its three
 callers all match on something a sibling row could carry:
 
-| Caller | What it matches | Its `openAt` gives |
-| --- | --- | --- |
-| `statuses.ts` | `href === /statuses/{id}` | the row's markup |
-| `site-pages.ts` | `href` matching `/pages/{id}` | the row's markup |
-| `api-keys.ts` | link text plus an address pattern | no row at all |
+| Caller          | What it matches                   | Its `openAt` gives |
+| --------------- | --------------------------------- | ------------------ |
+| `statuses.ts`   | `href === /statuses/{id}`         | the row's markup   |
+| `site-pages.ts` | `href` matching `/pages/{id}`     | the row's markup   |
+| `api-keys.ts`   | link text plus an address pattern | no row at all      |
 
 Same defect as the arrow above: a link rendered against the wrong row still
 satisfies the search, so a deletion journey passes while the person looking at
@@ -1994,23 +2038,24 @@ caller you came from, which is worse than the page-wide search it replaced.
 
 ### An equivalence proof rests on types the anchor cannot see
 
-*Origin: Codex on PR #2037, against `descendTo` in `scripts/mutation/anchor.ts`.*
+_Origin: Codex on PR #2037, against `descendTo` in
+`scripts/mutation/anchor.ts`._
 
 Nearly every reason in the equivalent-mutant registry is a claim about a type:
 "`x` is `string | undefined`, so `??` and `||` agree". An anchor fingerprints
-the *expression*, so widening `x` to `number | null` leaves the anchor
-unchanged and the entry keeps suppressing a mutant whose proof is now false.
-The entry only actually hides something when no test distinguishes the two —
-ignored status is applied to survivors only, so a killable mutant still reports
-as killed — but that is exactly the case the registry is supposed to guard.
+the _expression_, so widening `x` to `number | null` leaves the anchor unchanged
+and the entry keeps suppressing a mutant whose proof is now false. The entry
+only actually hides something when no test distinguishes the two — ignored
+status is applied to survivors only, so a killable mutant still reports as
+killed — but that is exactly the case the registry is supposed to guard.
 
 Fingerprinting the enclosing function's head was tried and reverted. It costs
 more than it buys: adding or renaming any parameter invalidates every entry in
 that function's body, and it still misses the majority of proofs, whose types
 come from a called function's return, an imported shape, or a database row
-rather than the signature overhead. 166 of the 535 recorded reasons name a
-call, a return, or a row. A noisy gate that people learn to re-record past
-makes the registry less trustworthy, not more.
+rather than the signature overhead. 166 of the 535 recorded reasons name a call,
+a return, or a row. A noisy gate that people learn to re-record past makes the
+registry less trustworthy, not more.
 
 A real fix has to re-prove entries rather than re-locate them. The most
 promising shape is to give `mutation:audit-equivalents` a way to attempt a

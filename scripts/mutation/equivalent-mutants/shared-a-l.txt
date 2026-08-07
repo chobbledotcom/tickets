@@ -12,7 +12,6 @@ src/shared/uptime-kuma/matching.ts::SCHEDULED_MONITOR_RULES.holds~14f0p4m  1000 
 src/shared/checkout-pricing.ts::priceCheckout.modifierSpecs~1b95fmx  ?? → ||   # intent.modifiers: an array is always truthy
 src/shared/booking-lines.ts::checkoutBookingLines.packageGroupId~0eqzp6w  ?? → ||   # packageGroupId is absent or a positive database group id; an explicit 0 also has the same 0 fallback
 src/features/api/payment-processing/create.ts::bookingSlot.packageGroupId~0zn56vl  ?? → ||   # lineGroupId returns undefined or a positive package group id; an explicit 0 would also keep the same 0 fallback
-src/features/api/payment-processing/create.ts::saveSessionAnswers.grouped~1qjy0pt  ?? → ||   # listingAnswerIds is an object when present, and objects are always truthy
 src/features/api/payment-processing/create.ts::saveSessionAnswers.refs~13mow4w  ?? → ||   # a listing's text refs are an array when present, and arrays are always truthy
 src/features/api/payment-processing/create.ts::saveSessionAnswers.existing~1kealbd  ?? → ||   # a grouped answer set is an object when present, and objects are always truthy
 src/features/api/payment-processing/create.ts::saveSessionAnswers.textAnswerIds~1ex96yt  ?? → ||   # existing text answer ids are an array when present, and arrays are always truthy
@@ -72,7 +71,6 @@ src/shared/db/migrations/schema/admin-feature-triggers.ts::featureWriteTrigger.u
 src/shared/square-provider.ts::squarePaymentProvider.isPaymentRefunded.charged~0ek3sg6  ?? → ||   # amount is bigint|undefined, and its only falsy bigint is 0n, which equals the fallback
 src/shared/square-provider.ts::squarePaymentProvider.isPaymentRefunded.refunded~1mw8ezt  ?? → ||   # refunded amount is bigint|undefined, and its only falsy bigint is 0n, which equals the fallback
 src/shared/square-provider.ts::squarePaymentProvider.resolveWebhookSession~08j5olw  ?? → ||   # retrieveSession returns a session object or null, so every present value is truthy
-src/shared/square-provider.ts::squarePaymentProvider.retrieveSession.paymentReference~1nqjvuw  ?? → ||   # the tender's paymentId is string|undefined, and its only falsy string is the empty fallback itself
 
 # Invariant-based, confirmed by reading toUnits: `lineIdxs` comes from toUnits,
 # which assigns lineIdx as the flatMap array index, so the sort's input is

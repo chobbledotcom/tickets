@@ -15,7 +15,6 @@ import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import {
   decryptSessionTokens,
-  isSessionProcessed,
   releaseReservation,
 } from "#shared/db/processed-payments.ts";
 import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers/reads.ts";
@@ -34,7 +33,10 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
-import { expectProcessedPaymentReference } from "#test-utils/processed-payments.ts";
+import {
+  expectProcessedPaymentReference,
+  getProcessedPayment,
+} from "#test-utils/processed-payments.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 
 const contactCountsByHash = async (hash: string) =>
@@ -167,7 +169,7 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
               (message) => message === "Promo code 'RECOVER' used: £1 off",
             ),
           ).toHaveLength(1);
-          const processed = await isSessionProcessed(sessionId);
+          const processed = await getProcessedPayment(sessionId);
           expect(processed?.attendee_id).toBe(attendee!.id);
           expect(await decryptSessionTokens(processed!.ticket_tokens)).toBe(
             ticketToken,
@@ -225,7 +227,7 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
           await assertJson(webhookRequest(), 200, (json) => {
             expect(json.processed).toBe(true);
           });
-          const replayed = await isSessionProcessed(sessionId);
+          const replayed = await getProcessedPayment(sessionId);
           expect(replayed?.attendee_id).toBe(attendee!.id);
           expect(await decryptSessionTokens(replayed!.ticket_tokens)).toBe("");
           expect(await getAttendeesRaw(listing.id)).toEqual([attendee]);
@@ -356,7 +358,7 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
         );
         expect(decrypted!.id).toBe(committed.attendeeId);
         expect(decrypted!.ticket_token).toBe(committed.ticketToken);
-        const processed = await isSessionProcessed(sessionId);
+        const processed = await getProcessedPayment(sessionId);
         expect(processed!.attendee_id).toBe(committed.attendeeId);
         expect(await decryptSessionTokens(processed!.ticket_tokens)).toBe("");
         const replayedRedirect = await redirectRequest(sessionId);

@@ -4,13 +4,13 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
 import { execute } from "#shared/db/client.ts";
-import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { createReservedAttendee } from "#test-utils/balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 const balanceSession = (
@@ -67,13 +67,15 @@ describeWithEnv("server (balance payment replay)", { db: true }, () => {
       "DELETE FROM processed_payments WHERE payment_session_id = ?",
       [sessionId],
     );
-    expect(await isSessionProcessed(sessionId)).toBe(null);
+    expect(await getProcessedPayment(sessionId)).toBe(null);
 
     const replay = await handleRequest(
       mockRequest(`/payment/success?session_id=${sessionId}`),
     );
     await expectHtmlResponse(replay, 200, 'data-payment-result="success"');
-    expect((await isSessionProcessed(sessionId))?.attendee_id).toBe(attendeeId);
+    expect((await getProcessedPayment(sessionId))?.attendee_id).toBe(
+      attendeeId,
+    );
     expect(mockRefund.calls.length).toBe(0);
 
     // The replay recreated the pruned idempotency row, but it must restore the

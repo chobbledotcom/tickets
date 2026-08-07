@@ -9,15 +9,25 @@ import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { listingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import type { ModifierSpec } from "#shared/payments.ts";
+import { runWithPendingWork } from "#shared/pending-work.ts";
+import type { RegistrationPackageFacts } from "#shared/registration-package-facts.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { configureTestEmail } from "#test-utils/email.ts";
+import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";
+import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 import { bookingIntent } from "./index/helpers.ts";
 
 /** What the checkout signed, with no answers and nothing added on top. */
 const bareIntent = (): BookingIntent =>
   bookingIntent([{ e: 1, p: 1000, q: 1 }]);
+
+const noPackageFacts = (): RegistrationPackageFacts => ({
+  displays: new Map(),
+  pricingByGroup: new Map(),
+});
 
 /** One booked line, as the code that writes the booking hands it on. */
 const bookedLine = async (
@@ -52,6 +62,8 @@ describeWithEnv(
   "finishing off a booking that has been paid",
   { db: true },
   () => {
+    stubFetchEachTest(() => new Response());
+
     test("hands back the first line's booking, listing, and tickets", async () => {
       const { attendeeId, entry, listingId } = await bookedLine("First Line");
 
@@ -62,6 +74,7 @@ describeWithEnv(
           [],
           [],
           ["tok_a", "tok_b"],
+          noPackageFacts(),
         ),
       ).toEqual({
         attendee: { id: attendeeId },
@@ -82,6 +95,7 @@ describeWithEnv(
         [],
         [],
         [],
+        noPackageFacts(),
       );
 
       expect(result).toMatchObject({
@@ -114,6 +128,7 @@ describeWithEnv(
         [],
         [],
         [],
+        noPackageFacts(),
       );
 
       const saved = await getDb().execute({
@@ -150,23 +165,70 @@ describeWithEnv(
         },
       ];
 
-      await completePaidBooking(
-        [entry],
-        bareIntent(),
-        codeSpecs,
-        applications,
-        [],
+      const calls = await countDatabaseCalls(1, () =>
+        completePaidBooking(
+          [entry],
+          bareIntent(),
+          codeSpecs,
+          applications,
+          [],
+          noPackageFacts(),
+        ),
       );
 
+      expect(calls).toBe(1);
       expect(await logMentions("Promo code 'Ten off' used")).toBe(true);
     });
 
     test("writes down no code when the buyer used none", async () => {
       const { entry } = await bookedLine("Codeless Line");
 
-      await completePaidBooking([entry], bareIntent(), [], [], []);
+      await completePaidBooking(
+        [entry],
+        bareIntent(),
+        [],
+        [],
+        [],
+        noPackageFacts(),
+      );
 
       expect(await logMentions("Promo code")).toBe(false);
+    });
+
+    test("reuses paid package facts for notification rendering", async () => {
+      const { entry } = await bookedLine("Paid package member");
+      await configureTestEmail();
+      const packageGroupId = 91;
+      const packagedEntry: CreatedEntry = {
+        attendee: { ...entry.attendee, package_group_id: packageGroupId },
+        listing: {
+          ...entry.listing,
+          webhook_url: "https://example.com/registration",
+        },
+      };
+      const facts: RegistrationPackageFacts = {
+        displays: new Map([
+          [packageGroupId, { hideListings: true, name: "Paid package" }],
+        ]),
+        pricingByGroup: new Map([
+          [
+            packageGroupId,
+            {
+              dayPriceMap: new Map(),
+              memberIds: new Set([entry.listing.id]),
+              priceMap: new Map([[entry.listing.id, 1000]]),
+              quantityMap: new Map([[entry.listing.id, 1]]),
+            },
+          ],
+        ]),
+      };
+
+      const calls = await countDatabaseCalls(1, () =>
+        runWithPendingWork(() =>
+          completePaidBooking([packagedEntry], bareIntent(), [], [], [], facts),
+        ),
+      );
+      expect(calls).toBe(1);
     });
   },
 );

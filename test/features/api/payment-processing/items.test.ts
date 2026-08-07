@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { validateAllItems } from "#routes/api/payment-processing/items.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
+import { validateAllItems } from "#test/features/api/payment-processing/items/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createHiddenPackageGroup,

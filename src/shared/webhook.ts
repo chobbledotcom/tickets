@@ -10,14 +10,18 @@ import {
   packageMemberPriceRule,
 } from "#shared/booking/price-tree.ts";
 import { bookedSpanDays } from "#shared/dates.ts";
-import { logActivities, logActivity } from "#shared/db/activity-log.ts";
-import { getBuiltSiteByRenewalTokenIndex } from "#shared/db/built-sites.ts";
 import {
-  loadPackageMemberPricingByGroupIds,
-  type PackageMemberPricing,
-} from "#shared/db/groups.ts";
+  type ActivityToLog,
+  logActivities,
+  logActivity,
+} from "#shared/db/activity-log.ts";
+import { getBuiltSiteByRenewalTokenIndex } from "#shared/db/built-sites.ts";
 import { settings } from "#shared/db/settings.ts";
-import { type EmailEntry, sendRegistrationEmails } from "#shared/email.ts";
+import {
+  type EmailEntry,
+  registrationEmailDelivery,
+  sendRegistrationEmails,
+} from "#shared/email.ts";
 import { errorMessage } from "#shared/error-message.ts";
 /* jscpd:ignore-start */
 import { ErrorCode, logError } from "#shared/logger.ts";
@@ -25,6 +29,12 @@ import { nowIso } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 /* jscpd:ignore-end */
+import {
+  loadRegistrationPackageFacts,
+  type RegistrationNotification,
+  type RegistrationPackageFacts,
+  type RegistrationPackagePricing,
+} from "#shared/registration-package-facts.ts";
 import { fetchTextFollowingSafeRedirects } from "#shared/safe-fetch.ts";
 import {
   addMonthsToRenewalDeadline,
@@ -114,28 +124,7 @@ export type RegistrationEntry = {
  * positive amount or an explicit free `0`; members with no override are absent)
  * and each customisable member's per-day overrides (day count → minor units) —
  * the loader's shape, minus the fields the payload never reads. */
-type PackageGroupPricing = Pick<PackageMemberPricing, "prices" | "dayPrices">;
-
-/** Per-group package pricing, loaded once per payload for the order's package
- * groups. */
-type PackageOverrides = ReadonlyMap<number, PackageGroupPricing>;
-
-/** Load the package price overrides for every package the order books through,
- * so a package member's full unit price can be reported from its configured
- * override rather than the amount collected. Lines carry the group they were
- * booked under, or 0 when they are not part of a package; every package is
- * listed once and priced in one batch, so a long order costs the same reads as
- * a short one. */
-const loadPackageOverrides = (
-  entries: RegistrationEntry[],
-): Promise<PackageOverrides> =>
-  loadPackageMemberPricingByGroupIds(
-    unique(
-      mapNotNullish((e: RegistrationEntry) =>
-        e.attendee.package_group_id > 0 ? e.attendee.package_group_id : null,
-      )(entries),
-    ),
-  );
+type PackagePricingByGroup = ReadonlyMap<number, RegistrationPackagePricing>;
 
 /** The full per-unit price for a booking line: the shared checkout evaluation
  * ({@link packageMemberPriceRule} + {@link effectivePrice}) over the span
@@ -148,16 +137,16 @@ const loadPackageOverrides = (
  * price for the booked span; everything else reports the listing's base. */
 const ticketUnitPrice = (
   entry: RegistrationEntry,
-  overrides: PackageOverrides,
+  pricingByGroup: PackagePricingByGroup,
 ): number => {
   const { listing, attendee } = entry;
   const groupPricing =
     attendee.package_group_id > 0
-      ? overrides.get(attendee.package_group_id)
+      ? pricingByGroup.get(attendee.package_group_id)
       : undefined;
   const rule = packageMemberPriceRule(
-    groupPricing?.prices.get(listing.id),
-    groupPricing?.dayPrices.get(listing.id),
+    groupPricing?.priceMap.get(listing.id),
+    groupPricing?.dayPriceMap.get(listing.id),
     listing.customisable_days,
   );
   return effectivePrice(
@@ -174,7 +163,7 @@ const ticketUnitPrice = (
 export const buildWebhookPayload = (
   entries: RegistrationEntry[],
   currency: string,
-  overrides: PackageOverrides = new Map(),
+  pricingByGroup: PackagePricingByGroup = new Map(),
 ): WebhookPayload => {
   const first = entries[0]!;
   const totalPricePaid = sumOf((e: RegistrationEntry) =>
@@ -208,7 +197,7 @@ export const buildWebhookPayload = (
       listing_slug: entry.listing.slug,
       quantity: entry.attendee.quantity,
       ticket_token: entry.attendee.ticket_token,
-      unit_price: ticketUnitPrice(entry, overrides),
+      unit_price: ticketUnitPrice(entry, pricingByGroup),
     })),
     timestamp: nowIso(),
   };
@@ -259,26 +248,40 @@ export const sendWebhook = async (
 /**
  * Send consolidated webhook to all unique webhook URLs for the given entries
  */
-export const sendRegistrationWebhooks = async (
-  entries: RegistrationEntry[],
-  currency: string,
-): Promise<void> => {
-  const webhookUrls = unique(
-    mapNotNullish((e: RegistrationEntry) => e.listing.webhook_url || null)(
-      entries,
-    ),
-  );
+export const sendRegistrationWebhooks: RegistrationNotification<
+  RegistrationEntry
+> = async (entries, currency, suppliedFacts) => {
+  const webhookUrls = registrationWebhookUrls(entries);
   if (webhookUrls.length === 0) return;
 
-  const payload = buildWebhookPayload(
-    entries,
-    currency,
-    await loadPackageOverrides(entries),
-  );
+  const facts = suppliedFacts ?? (await loadRegistrationPackageFacts(entries));
+  const payload = buildWebhookPayload(entries, currency, facts.pricingByGroup);
   const firstListingId = entries[0]?.listing.id;
   await Promise.allSettled(
     webhookUrls.map((url) => sendWebhook(url, payload, firstListingId)),
   );
+};
+
+const registrationWebhookUrls = (entries: RegistrationEntry[]): string[] =>
+  unique(
+    mapNotNullish(
+      (entry: RegistrationEntry) => entry.listing.webhook_url || null,
+    )(entries),
+  );
+
+const queueRegistrationNotifications = async (
+  entries: EmailEntry[],
+  currency: string,
+  suppliedPackageFacts?: RegistrationPackageFacts,
+): Promise<void> => {
+  const needsPackageFacts =
+    registrationWebhookUrls(entries).length > 0 ||
+    registrationEmailDelivery(entries) !== null;
+  const packageFacts = needsPackageFacts
+    ? (suppliedPackageFacts ?? (await loadRegistrationPackageFacts(entries)))
+    : suppliedPackageFacts;
+  addPendingWork(sendRegistrationWebhooks(entries, currency, packageFacts));
+  addPendingWork(sendRegistrationEmails(entries, currency, packageFacts));
 };
 
 /**
@@ -351,23 +354,28 @@ export const applyRenewalsForEntries = async (
  * Log attendee registration and send consolidated webhook
  * Used for single-listing registrations
  *
- * Webhook sends are queued as pending work so they run in the background
- * but complete before the edge runtime tears down the request context.
+ * Notification preparation and sends are queued as pending work so they run in
+ * the background but complete before the edge runtime tears down the request
+ * context.
  */
 export const logAndNotifyRegistration = async (
   entries: EmailEntry[],
   siteTokenIndex?: string,
+  priorActivities: readonly ActivityToLog[] = [],
+  suppliedPackageFacts?: RegistrationPackageFacts,
 ): Promise<void> => {
-  await logActivities(
-    entries.map(({ listing, attendee }) => ({
+  await logActivities([
+    ...priorActivities,
+    ...entries.map(({ listing, attendee }) => ({
       attendeeId: attendee.id,
       listing,
       message: `Attendee registered for '${listing.name}'`,
     })),
-  );
+  ]);
   const currency = settings.currency;
-  addPendingWork(sendRegistrationWebhooks(entries, currency));
-  addPendingWork(sendRegistrationEmails(entries, currency));
+  addPendingWork(
+    queueRegistrationNotifications(entries, currency, suppliedPackageFacts),
+  );
   addPendingWork(assignAndNotifyBuiltSites(entries));
   addPendingWork(applyRenewalsForEntries(entries, siteTokenIndex));
 };
