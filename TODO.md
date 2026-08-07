@@ -1,27 +1,5 @@
 # TODO — remaining follow-ups
 
-## Group-day-limit over-capacity check: drop the counting arm for members a group can never hold
-
-Surfaced while migrating `test/e2e/duration-days/booking-flows.test.ts` to
-Cucumber. `groupCapOverflowDay` in `src/shared/db/attendees/update.ts` counts
-non-daily group members as a flat base on every day — but a mixed-type group
-can never exist. The homogeneity rule (`groupHomogeneityError` in
-`src/shared/db/groups.ts`) is enforced on every write boundary, and that is
-now pinned by refusal tests on each of them: the group page's add-listings
-(`test/features/admin/groups/listing-assignment.test.ts`), the listing create
-and edit forms (`test/integration/server/listings-create.test.ts`,
-`test/integration/server/listings/edit-post-groups-and-slug.test.ts`), the
-JSON API create/update (`test/integration/server/admin-api/listings/groups.test.ts`)
-and the catalog import (`test/integration/server/catalog-transfer.test.ts`,
-`test/features/admin/catalog-transfer/import/refusal-messages.test.ts`).
-
-The remaining simplification: delete the dead `base` arm from
-`groupCapOverflowDay` and let the check read per-day ranges only. The boundary
-tests above make that safe — any future path that lets a mixed group form
-would fail several of them at once.
-
----
-
 ## Let --kill stop a run through its supervisor, not the child's pid (from PR #2042)
 
 `deno task mutation --kill` signals the child pid stored in the run record

@@ -68,10 +68,11 @@ src/features/admin/api.ts::prepareListingJoins.result.wouldBeGroupIds~1juqee2  ?
 src/features/admin/attendee-page.ts::attendeePage.tabs.sections.load~1e06wxq  ?? → ||   # ctx.query.get("token"): string|null; the only falsy-non-null value "" equals the "" fallback
 src/shared/db/name-registry.ts::matchName.ids~140086l  ?? → ||   # matchName index.get(): number[]|undefined — an array is always truthy
 src/shared/db/name-registry.ts::isNameTakenAnywhere.ownedByOther~1x88e07  ?? → ||   # isNameTakenAnywhere index.get(): number[]|undefined — an array is always truthy
-src/features/admin/catalog-transfer/import.ts::membershipSpec.quantity~0yrngiz  ?? → ||   # membershipSpec quantity comes from the PositiveInt schema (at least 1) or is undefined, so it is never 0
-src/features/admin/catalog-transfer/import.ts::loadChildAddOnChecker.wouldBe.active~1hbkt0d  true → false   # childOnlyAddOnCheckerForListings resolves only ids and groupIds; it never reads ListingGroupMembership.active
-src/features/admin/catalog-transfer/import.ts::loadParentEdgeContext.childEdge~08stb2y  0 → 1   # edgeFieldError never reads EdgeListing.id, and child reachability uses the separate placeholder id declared above
-src/features/admin/catalog-transfer/import.ts::importGroup.isPackage~0u7qcwn  ?? → ||   # isPackage is boolean|undefined, and false equals the false fallback
+src/features/admin/catalog-transfer/import-listing.ts::membershipSpec.quantity~0yrngiz  ?? → ||   # membershipSpec quantity comes from the PositiveInt schema (at least 1) or is undefined, so it is never 0
+src/features/admin/catalog-transfer/import-listing.ts::firstPackageGroup~14gkvgf  ?? → ||   # the found value is a Group object and therefore truthy; a miss is undefined, so both operators return null
+src/features/admin/catalog-transfer/import-listing.ts::loadChildAddOnChecker.wouldBe.active~1hbkt0d  true → false   # childOnlyAddOnCheckerForListings resolves only ids and groupIds; it never reads ListingGroupMembership.active
+src/features/admin/catalog-transfer/import-listing.ts::validateParentEdges.childEdge~08stb2y  0 → 1   # edgeFieldError never reads EdgeListing.id, and child reachability uses the separate placeholder id declared above
+src/features/admin/catalog-transfer/import.ts::importGroup.specs~0u7qcwn  ?? → ||   # isPackage is boolean|undefined, and false equals the false fallback
 src/features/admin/catalog-transfer/schema.ts::formatTransferIssues.parts~0f9t11y  ?? → ||   # formatTransferIssues flat.root: string[]|undefined — an array is always truthy
 src/features/admin/catalog-transfer/schema.ts::formatTransferIssues.parts~19zbaq1  ?? → ||   # formatTransferIssues flat.nested: object|undefined — an object is always truthy
 

@@ -90,6 +90,10 @@ export type PackageChildEdgeBlock = "gate_in_hidden" | "child_is_member";
 export const hasChildEdges = (childIds: readonly number[]): boolean =>
   childIds.length > 0;
 
+export const packageGroups = <Group extends { is_package: boolean }>(
+  groups: readonly Group[],
+): Group[] => groups.filter((group) => group.is_package);
+
 type PackageEdgeCheck = () => boolean | Promise<boolean>;
 
 /** Finds the first package rule broken by a proposed child-edge set. */

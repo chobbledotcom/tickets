@@ -5,6 +5,7 @@ import {
   packageChildEdgeConflict,
   packageChildEdgeError,
   packageChildEdgeErrorOrNull,
+  packageGroups,
   packageMemberError,
 } from "#shared/package-membership.ts";
 
@@ -96,6 +97,17 @@ describe("packageMemberError", () => {
 
   test("allows a plain fixed-price listing with no edges", () => {
     expect(packageMemberError(listing("Day Pass"), edges(), false)).toBeNull();
+  });
+});
+
+describe("packageGroups", () => {
+  test("keeps only package groups", () => {
+    expect(
+      packageGroups([
+        { id: 1, is_package: false },
+        { id: 2, is_package: true },
+      ]),
+    ).toEqual([{ id: 2, is_package: true }]);
   });
 });
 
