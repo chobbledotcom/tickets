@@ -2,11 +2,15 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { bodyToCreateInput } from "#routes/admin/api.ts";
+import { listingGroups } from "#shared/db/groups.ts";
+import { listingChildren } from "#shared/db/listing-parents.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { rescuingPageSetup } from "#test/test-utils/listing-parents/helpers.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { postChildren } from "#test-utils/parents.ts";
 import { apiRequest } from "#test-utils/session.ts";
 
 const expectListingApiError = (
@@ -160,6 +164,27 @@ describeWithEnv("Admin API listing regressions", { db: true }, () => {
       }),
       200,
     );
+  });
+
+  test("can join a hidden package while clearing children", async () => {
+    const group = await createTestGroup({
+      hidePackageListings: true,
+      isPackage: true,
+      name: "Hidden package",
+    });
+    const parent = await createTestListing({ name: "Joining package" });
+    const child = await createTestListing({ name: "Former child" });
+    await postChildren(parent.id, [child.id]);
+
+    await assertJson(
+      apiRequest(`/api/admin/listings/${parent.id}`, {
+        body: { child_listing_ids: [], group_ids: [group.id] },
+        method: "PUT",
+      }),
+      200,
+    );
+    expect(await listingGroups.getIds(parent.id)).toEqual([group.id]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
   test("deletes a listing through its API route", async () => {

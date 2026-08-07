@@ -58,6 +58,7 @@ src/features/admin/api.ts::UNCREATED_PARENT_ID~05rrw2z  1 → 0   # the mutation
 src/features/admin/api.ts::prepareListingJoins.packageConflict~1juqee2  ?? → ||   # groupIds is an array or undefined; every array, including [], is truthy
 src/features/admin/api.ts::prepareListingJoins.result~0i1al4o  ?? → ||   # an existing listing id is positive and truthy, otherwise optional access yields undefined
 src/features/admin/api.ts::prepareListingJoins.result.wouldBeGroupIds~1juqee2  ?? → ||   # groupIds is an array or undefined; every array, including [], is truthy
+src/features/admin/api.ts::persistListingJoins~0u3nxl8  0 → 1   # one child skips the early membership check but the package edge writer rejects the same transaction after the membership diff; empty and multi-child sets make both expressions agree
 
 # attendee entity page: `?? → ||` where the operand's only falsy-non-null
 # value equals the "" fallback.

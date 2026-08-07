@@ -213,6 +213,21 @@ describeWithEnv("db > groups > membership writes", { db: true }, () => {
     expect(await groupIdsOf(parent.id)).toEqual([]);
   });
 
+  test("validates a hidden package membership against children being cleared", async () => {
+    const group = await createHiddenPackageGroup("Combined package update");
+    const parent = await createTestListing({ name: "Combined parent" });
+    const child = await createTestListing({ name: "Combined child" });
+    await listingChildren.setIds(parent.id, [child.id]);
+
+    await withTransaction(async (tx) => {
+      await setListingGroupsTx(tx, parent.id, [group.id], false);
+      await listingChildren.setIdsTx(tx, parent.id, []);
+    });
+
+    expect(await groupIdsOf(parent.id)).toEqual([group.id]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([]);
+  });
+
   test("a group becoming a hidden package rechecks its member edges", async () => {
     const group = await createTestGroup({ name: "New Hidden Package" });
     const parent = await createTestListing({ name: "New Package Parent" });
