@@ -14,6 +14,7 @@ import {
 
 const world = {
   attach: () => Promise.resolve(),
+  evidenceCookies: new Map<string, string>(),
   evidencePages: new Map<string, string>(),
 };
 

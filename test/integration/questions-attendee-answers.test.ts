@@ -19,7 +19,7 @@ import {
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { withPoisonedTransactionWrite } from "#test-utils/db-poison.ts";
+import { withPoisonedWrite } from "#test-utils/db-poison.ts";
 import { expectRejects } from "#test-utils/servicing.ts";
 
 /** The choice answer ids one attendee has saved (undefined when none). Shared by
@@ -169,7 +169,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       const { a1, a2, att } = await seedColourAttendeeWithRed();
       expect(await choiceAnswersFor(att)).toEqual([a1.id]);
 
-      await withPoisonedTransactionWrite(
+      await withPoisonedWrite(
         (sql) => sql.includes("INSERT INTO attendee_answers"),
         "insert boom",
       )(async () => {
@@ -198,7 +198,7 @@ describeWithEnv("custom questions", { db: true }, () => {
         "Keep me",
       );
 
-      await withPoisonedTransactionWrite(
+      await withPoisonedWrite(
         (sql) => sql.includes("INSERT INTO attendee_answers"),
         "insert boom",
       )(async () => {

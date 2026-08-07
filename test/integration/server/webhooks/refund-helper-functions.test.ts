@@ -10,11 +10,11 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { expectSessionFailed } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
   expectAttendeeCreatedWithPiiBlob,
-  expectSessionFailed,
   expectWebhookProcessed,
   stubRefundPayment,
   stubRetrieveCheckoutSession,
@@ -56,10 +56,10 @@ describeWithEnv(
           "We could not find this payment session.",
         );
         // The rejected session must not leave a processed-payment row behind.
-        const { isSessionProcessed } = await import(
-          "#shared/db/processed-payments.ts"
+        const { getProcessedPayment } = await import(
+          "#test-utils/processed-payments.ts"
         );
-        expect(await isSessionProcessed("cs_null_ref")).toBeNull();
+        expect(await getProcessedPayment("cs_null_ref")).toBeNull();
       } finally {
         mockRetrieve.restore();
       }

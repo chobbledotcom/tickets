@@ -15,7 +15,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { withPoisonedTransactionWrite } from "#test-utils/db-poison.ts";
+import { withPoisonedWrite } from "#test-utils/db-poison.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import {
   adminFormPost,
@@ -104,7 +104,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     test("rolls back assign-all when saving listing links fails", async () => {
       const listing = await createTestListing({ name: "Rollback listing" });
       const qId = await createQuestion("Rollback assignment?");
-      const failLinkInsert = withPoisonedTransactionWrite(
+      const failLinkInsert = withPoisonedWrite(
         (sql) => sql.includes("INSERT INTO listing_questions"),
         "link insert failed",
       );

@@ -11,7 +11,6 @@
 import { unique } from "#fp";
 import { t } from "#i18n";
 import { itemsSubtotal } from "#shared/booking-fee.ts";
-import type { ModifierRef } from "#shared/booking-intent.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
 import {
@@ -715,28 +714,4 @@ export const firstChildUnreachableAddOnForListings = async (
     if (error) return error;
   }
   return null;
-};
-
-/**
- * Rebuild modifier specs from the references stored in session metadata,
- * re-fetching each modifier's current values (and scope) from the database.
- * References to modifiers that have since been removed or deactivated are
- * dropped (the webhook then sees a total mismatch and refunds).
- */
-export const specsFromRefs = async (
-  refs: ModifierRef[],
-  ctx: PricingContext = NO_VISITS,
-): Promise<ModifierSpec[]> => {
-  if (refs.length === 0) return [];
-  const byId = await activeModifiersById();
-  const refModifiers = refs
-    .map((ref) => byId.get(ref.i))
-    .filter((modifier): modifier is Modifier => modifier !== undefined);
-  const scopes = await listingIdsByModifierId(refModifiers);
-  const specs = refs.map((ref) => {
-    const modifier = byId.get(ref.i);
-    if (modifier && modifier.min_visits > ctx.visits) return null;
-    return modifier ? toSpec(modifier, ref.q, scopes.get(modifier.id)!) : null;
-  });
-  return specs.filter((s): s is ModifierSpec => s !== null);
 };

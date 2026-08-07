@@ -19,10 +19,7 @@ import {
   listingsTable,
 } from "#shared/db/listings/records.ts";
 import { listingReader } from "#shared/db/listings/select.ts";
-import {
-  isSessionProcessed,
-  reserveSession,
-} from "#shared/db/processed-payments.ts";
+import { reserveSession } from "#shared/db/processed-payments.ts";
 import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers/reads.ts";
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
 import { listingQuestions } from "#shared/db/questions/queries.ts";
@@ -38,7 +35,10 @@ import {
 } from "#test-utils/db-helpers/attributes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
-import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
+import {
+  finalizeReservedPayment,
+  getProcessedPayment,
+} from "#test-utils/processed-payments.ts";
 import { withTestSession } from "#test-utils/session.ts";
 
 describeWithEnv("db > listings", { db: true, triggers: true }, () => {
@@ -101,7 +101,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       await deleteListing(listing.id);
 
       // The attendee is orphaned, not purged, so its payment record survives.
-      const processed = await isSessionProcessed("sess_listing_delete");
+      const processed = await getProcessedPayment("sess_listing_delete");
       expect(processed?.attendee_id).toBe(attendee.id);
     });
 
@@ -233,7 +233,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
 
       await deleteListing(listing1.id);
 
-      const processed = await isSessionProcessed("sess_multi_listing");
+      const processed = await getProcessedPayment("sess_multi_listing");
       expect(processed?.attendee_id).toBe(attendeeId);
     });
 

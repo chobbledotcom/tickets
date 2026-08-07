@@ -3,6 +3,7 @@ import { type Stub, stub } from "@std/testing/mock";
 import type { SessionMetadata } from "#shared/payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import type { Attendee } from "#shared/types.ts";
+import { expectSessionFailed } from "#test-utils/processed-payments.ts";
 import { assertJson } from "./assertions.ts";
 import { signedMeta } from "./factories.ts";
 import { mockWebhookRequest } from "./mocks.ts";
@@ -195,17 +196,6 @@ export const findKeptPlaceholder = async (
   // duplicate-placeholder regression fails here rather than silently passing.
   expect(placeholders.length).toBe(1);
   return placeholders[0]!;
-};
-
-/** A terminal payment failure has no ticket attendee and keeps its details. */
-export const expectSessionFailed = async (sessionId: string): Promise<void> => {
-  const { isSessionProcessed } = await import(
-    "#shared/db/processed-payments.ts"
-  );
-  const record = await isSessionProcessed(sessionId);
-  if (!record) throw new Error(`Processed payment ${sessionId} was not stored`);
-  expect(record.attendee_id).toBeNull();
-  expect(record.failure_data).not.toBe("");
 };
 
 /**

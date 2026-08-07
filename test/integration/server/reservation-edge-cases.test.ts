@@ -121,10 +121,10 @@ describeWithEnv(
         );
         // The session is recorded as a terminal failure (placeholder kept, no
         // ticket attendee): attendee_id stays null and failure_data is set.
-        const { isSessionProcessed } = await import(
-          "#shared/db/processed-payments.ts"
+        const { getProcessedPayment } = await import(
+          "#test-utils/processed-payments.ts"
         );
-        const record = await isSessionProcessed("cs_addon_sold");
+        const record = await getProcessedPayment("cs_addon_sold");
         expect(record?.attendee_id).toBeNull();
         expect(record?.failure_data).not.toBe("");
       } finally {

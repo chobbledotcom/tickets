@@ -26,6 +26,7 @@ interface CaptureCalls {
   goto: unknown[];
   page: unknown;
   serverClosed: number;
+  styles: string[];
   timeout: number[];
   waited: number;
 }
@@ -40,8 +41,10 @@ interface CaptureFixtureOptions {
   feature?: string;
   hookPickle?: number;
   launchError?: Error;
+  leftCookies?: ReadonlyArray<readonly [string, string]>;
   leftPages?: ReadonlyArray<readonly [string, string]>;
   serverCloseError?: Error;
+  theme?: string;
 }
 
 const twoCaseFeature = validFeature.replace(
@@ -77,11 +80,16 @@ const captureFixture = (
     goto: [],
     page: null,
     serverClosed: 0,
+    styles: [],
     timeout: [],
     waited: 0,
   };
   let routeRequest: ((url: string) => Promise<void>) | undefined;
   const page = {
+    addStyleTag: ({ content }: { content: string }) => {
+      calls.styles.push(content);
+      return Promise.resolve(null);
+    },
     goto: (path: string, navigation: unknown) => {
       calls.goto.push({ navigation, path });
       return Promise.resolve(null);
@@ -157,7 +165,8 @@ const captureFixture = (
         ? Promise.reject(options.launchError)
         : Promise.resolve(browser as never),
     readCatalog: () => Promise.resolve(fixture.catalog),
-    readTheme: () => Promise.resolve(":root { --test-colour: blue; }"),
+    readTheme: () =>
+      Promise.resolve(options.theme ?? ":root { --test-colour: blue; }"),
     startServer: () => ({
       baseUrl: "http://127.0.0.1:4321",
       close: () => {
@@ -193,6 +202,7 @@ const captureFixture = (
           options: attachmentOptions,
         });
       },
+      evidenceCookies: new Map(options.leftCookies),
       evidencePages: new Map(
         options.leftPages ?? [[declaration.id, PAYMENT_RESULT_PAGE]],
       ),
@@ -274,6 +284,47 @@ describe("Cucumber evidence capture", () => {
       },
     ]);
     expectCaptureClosed(calls);
+  });
+
+  test("applies the selected theme to an HTML data page", async () => {
+    const { calls, capture, hook, world } = captureFixture({
+      leftPages: [
+        [declaration.id, "data:text/html,%3Cmain%3ECSV%3C%2Fmain%3E"],
+      ],
+    });
+
+    await capture(world, hook);
+
+    expect(calls.styles).toEqual([":root { --test-colour: blue; }"]);
+  });
+
+  test("does not inject an empty default theme into an HTML data page", async () => {
+    const { calls, capture, hook, world } = captureFixture({
+      leftPages: [
+        [declaration.id, "data:text/html,%3Cmain%3ECSV%3C%2Fmain%3E"],
+      ],
+      theme: "",
+    });
+
+    await capture(world, hook);
+
+    expect(calls.styles).toEqual([]);
+  });
+
+  test("uses the session the story left for a capture", async () => {
+    const { calls, capture, hook, world } = captureFixture({
+      leftCookies: [[declaration.id, "session=editor; Path=/"]],
+    });
+
+    await capture(world, hook);
+
+    expect(calls.cookies).toEqual([
+      {
+        name: "session",
+        url: "http://127.0.0.1:4321",
+        value: "editor",
+      },
+    ]);
   });
 
   test("rejects a request blocked while the screenshot is being prepared", async () => {

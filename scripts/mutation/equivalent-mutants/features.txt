@@ -7,6 +7,10 @@ src/ui/templates/admin/holidays.tsx::HolidayEditPanel.html~1nrsidb  ?? → ||   
 src/ui/client/admin/manual-checkin.ts::initManualCheckin.filterOptions.text~0hoqwoy  ?? → ||   # textContent is string|null; its only falsy string is the empty fallback itself
 src/ui/client/admin/order-gallery.ts::initOrderGallery.refresh.timer~1xo126t  ?? → ||   # states is a record object when present, so it is always truthy
 
+# Paid snapshot collection fallbacks: every present value is an object or array,
+# which remains truthy even when empty; only undefined reaches the empty fallback.
+src/features/api/payment-processing/snapshot/build.ts::modifierSpecs.listingIds~1k3bo9n  ?? → ||   # scopes.get(): SnapshotModifierScopeRow[]|undefined — arrays are always truthy
+
 # ticket-payment values whose present form is always truthy, whose falsy value
 # equals the fallback, or whose mutated constant is normalized before use.
 src/features/public/ticket-payment.ts::checkAvailability~0dpsw9a  ?? → ||   # date is nullish or a non-empty ISO date; only the nullish values use the null fallback
@@ -139,17 +143,19 @@ src/ui/client/dom.ts::createButton.button%2eclassName~16pvzvs  = → +=   # crea
 # stored package quantities are positive; equal zero fallbacks stay equal.
 src/features/api/payment-processing/index.ts::replaySuccess.paymentReference~12k7fdb   → "mutated"   # replaySuccess is private and both callers always pass session.paymentReference, so the default is never evaluated
 src/features/api/payment-processing/items.ts::bookingPaths.allocations~1sr8ybw  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
+src/features/api/payment-processing/items.ts::validateAllItems.staleNonStandaloneChild~0bp0o7q  ?? → ||   # a parent list length is non-negative; its only falsy value is 0, which equals the fallback
 src/features/api/payment-processing/items.ts::validateAllItems.expectedPrice~0mb68sn  ?? → ||   # extractIntent emits a positive dayCount or undefined, so every present value is truthy
 src/features/api/payment-processing/pricing.ts::paidByItem.current~0h5qe1t  ?? → ||   # paidByItem stores numeric charged totals; the only falsy present total is 0, and both operators keep the 0 fallback
 src/features/api/payment-processing/package-pricing.ts::allocatedUnitsByChild~1sr8ybw  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
 src/features/api/payment-processing/package-pricing.ts::allocatedUnitsByChild.prior~0fwromb  ?? → ||   # the running allocated quantity is non-negative and the fallback is 0, so 0 ?? 0 and 0 || 0 agree
 src/features/api/payment-processing/package-pricing.ts::packageBundleMismatch.count~0paa7g7  ?? → ||   # stored per-package quantities are at least 1, so every present value is truthy
-src/features/api/payment-processing/package-pricing.ts::orderEdgeDrifted.fullyFolded~0b7s0d3  ?? → ||   # the allocated quantity is non-negative and the fallback is 0, so both operators agree for 0 and undefined
-src/features/api/payment-processing/package-pricing.ts::orderEdgeDrifted.topLevel~1g6e18j  false → true   # orderEdgeDrifted uses buildTicketListing only to pass its listing row into buildBookingTree; the closed/availability fields never affect node keys
-src/features/api/payment-processing/package-pricing.ts::orderEdgeDrifted.childrenByParentId~0iift5t  false → true   # child TicketListing availability is likewise unread by buildBookingTree's node-key construction
-src/features/api/payment-processing/package-pricing.ts::orderEdgeDrifted.packages.hideListings~0xzhsy5  false → true   # hideListings changes node visibility only, while edgeDrifted reads node keys and child structure, never visibility
-src/features/api/payment-processing/package-pricing.ts::orderEdgeDrifted~1sr8ybw  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
-src/features/api/payment-processing/package-pricing.ts::hasStaleStandaloneChild.allocated~0ystvom  ?? → ||   # the allocated quantity is non-negative and the fallback is 0, so both operators agree for 0 and undefined
+src/features/api/payment-processing/package-pricing.ts::orderEdgeDriftedFromFacts.fullyFolded~0b7s0d3  ?? → ||   # the allocated quantity is non-negative and the fallback is 0, so both operators agree for 0 and undefined
+src/features/api/payment-processing/package-pricing.ts::orderEdgeDriftedFromFacts.topLevel~1g6e18j  false → true   # orderEdgeDriftedFromFacts uses buildTicketListing only to pass its listing row into buildBookingTree; the closed/availability fields never affect node keys
+src/features/api/payment-processing/package-pricing.ts::orderEdgeDriftedFromFacts.childrenByParentId~0t0xtlh  ?? → ||   # child id lists are arrays (always truthy), while a missing parent selects [] under either operator
+src/features/api/payment-processing/package-pricing.ts::orderEdgeDriftedFromFacts.childrenByParentId~04idxs9  false → true   # child TicketListing availability is likewise unread by buildBookingTree's node-key construction
+src/features/api/payment-processing/package-pricing.ts::orderEdgeDriftedFromFacts.packages.hideListings~0xzhsy5  false → true   # hideListings changes node visibility only, while edgeDrifted reads node keys and child structure, never visibility
+src/features/api/payment-processing/package-pricing.ts::orderEdgeDriftedFromFacts~1sr8ybw  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
+src/features/api/payment-processing/package-pricing.ts::hasStaleStandaloneChildFromFacts.allocated~0ystvom  ?? → ||   # the allocated quantity is non-negative and the fallback is 0, so both operators agree for 0 and undefined
 
 # Payment success replay only loads a listing fallback while thankYouUrl is the
 # empty string, so assignment and append produce the same string for every path.
@@ -183,7 +189,6 @@ src/features/public/cart.ts::resolveCartSlugs~1nfyz8t@2  continue; → (removed)
 
 # Listing detail group context (features/admin/listings-view.ts).
 src/features/admin/listings-view.ts::loadGroupContext.remaining~08seojj  Missing group remaining → ""   # getGroupRemainingByGroupId returns an entry for every group id whose cap is positive, and only those ids are looked up, so requiredMapValue never raises this message
-src/features/api/payment-processing/package-pricing.ts::loadPackagePricingByGroup.pricing~1bkld7z  Missing package pricing → ""   # loadPackageMemberPricingByGroupIds is given exactly the order's group ids, and only those are looked up, so requiredMapValue never raises this message
 
 # Page packages (shared/booking/page-packages.ts): nullish fallbacks on values
 # that are only ever a number-or-undefined with a matching fallback.

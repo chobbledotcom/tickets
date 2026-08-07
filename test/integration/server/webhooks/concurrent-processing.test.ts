@@ -5,7 +5,6 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -18,6 +17,7 @@ import {
   webhookMeta,
 } from "#test-utils/factories.ts";
 import { mockRequest, mockWebhookRequest } from "#test-utils/mocks.ts";
+import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
@@ -102,7 +102,7 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
 
       const attendees = await getAttendeesRaw(listing.id);
       expect(attendees).toHaveLength(1);
-      const processed = await isSessionProcessed("cs_webhook_concurrent");
+      const processed = await getProcessedPayment("cs_webhook_concurrent");
       expect(processed?.attendee_id).toBe(attendees[0]!.id);
       expect(processed?.failure_data).toBe("");
     } finally {

@@ -14,6 +14,7 @@ import {
 /** The pages a running story has left behind, one for each screenshot it is
  * setting up. */
 export interface EvidencePages {
+  evidenceCookies: Map<EvidenceCaptureId, string>;
   evidencePages: Map<EvidenceCaptureId, string>;
 }
 
@@ -23,10 +24,13 @@ export const leaveEvidencePage = (
   world: EvidencePages,
   captureIds: readonly EvidenceCaptureId[],
   path: string,
+  cookie?: string,
 ): void => {
   const address = v.parse(EvidencePathSchema, path);
-  for (const captureId of captureIds)
+  for (const captureId of captureIds) {
     world.evidencePages.set(captureId, address);
+    if (cookie !== undefined) world.evidenceCookies.set(captureId, cookie);
+  }
 };
 
 /** The address to open for one screenshot: the one its declaration fixes, or

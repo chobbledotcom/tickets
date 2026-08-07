@@ -44,9 +44,9 @@ interface EvidenceCaptureDependencies {
 
 const browserCookie = async (
   baseUrl: string,
-  getCookie: () => Promise<string>,
+  cookie: string,
 ): Promise<{ name: string; url: string; value: string }> => {
-  const [pair] = (await getCookie()).split(";", 1);
+  const [pair] = cookie.split(";", 1);
   if (!pair) throw new Error("Test owner cookie is malformed");
   const splitAt = pair.indexOf("=");
   if (splitAt < 1 || splitAt === pair.length - 1) {
@@ -91,11 +91,8 @@ const captureProfile = async (
   dependencies: EvidenceCaptureDependencies,
 ): Promise<void> => {
   const profile = SCREENSHOT_PROFILES[profileName];
-  await storeEvidenceCss(
-    declaration,
-    await dependencies.readTheme(declaration.id),
-    dependencies.writeCss,
-  );
+  const theme = await dependencies.readTheme(declaration.id);
+  await storeEvidenceCss(declaration, theme, dependencies.writeCss);
   const context = await browser.newContext({
     baseURL: baseUrl,
     ...screenshotContextOptions(profile),
@@ -104,13 +101,23 @@ const captureProfile = async (
     const blocked = new Set<string>();
     await blockOutboundRequests(context, baseUrl, blocked);
     await context.addCookies([
-      await browserCookie(baseUrl, dependencies.getCookie),
+      await browserCookie(
+        baseUrl,
+        world.evidenceCookies.get(declaration.id) ??
+          (await dependencies.getCookie()),
+      ),
     ]);
     const page = await context.newPage();
     page.setDefaultTimeout(CAPTURE_TIMEOUT_MS);
-    await page.goto(evidencePagePath(declaration, world.evidencePages), {
+    const path = evidencePagePath(declaration, world.evidencePages);
+    await page.goto(path, {
       waitUntil: "domcontentloaded",
     });
+    // Download previews are self-contained documents, so they cannot read the
+    // custom CSS stored for application pages.
+    if (path.startsWith("data:text/html,") && theme !== "") {
+      await page.addStyleTag({ content: theme });
+    }
     await dependencies.waitForPage(page);
     const { png } = await dependencies.capturePage(page, declaration.element);
     assertNoBlockedRequests(blocked);

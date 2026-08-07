@@ -6,6 +6,7 @@
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
 import { resetEffectiveDomain } from "#shared/config.ts";
+import type { RegistrationPackagePricing } from "#shared/registration-package-facts.ts";
 import {
   buildWebhookPayload,
   type RegistrationEntry,
@@ -20,6 +21,16 @@ import {
 import type { EmailEntry } from "#test-utils/internal.ts";
 
 describeWithEnv("buildWebhookPayload", { db: true }, () => {
+  const packagePricing = (
+    prices: ReadonlyMap<number, number> = new Map(),
+    dayPriceMap: ReadonlyMap<number, ReadonlyMap<number, number>> = new Map(),
+  ): RegistrationPackagePricing => ({
+    dayPriceMap,
+    memberIds: new Set(),
+    priceMap: prices,
+    quantityMap: new Map(),
+  });
+
   beforeEach(async () => {
     resetEffectiveDomain();
     const { settings: s } = await import("#shared/db/settings.ts");
@@ -83,9 +94,7 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
         },
       ),
     ];
-    const overrides = new Map([
-      [7, { dayPrices: new Map(), prices: new Map([[42, 900]]) }],
-    ]);
+    const overrides = new Map([[7, packagePricing(new Map([[42, 900]]))]]);
 
     const payload = buildWebhookPayload(entries, "GBP", overrides);
 
@@ -97,11 +106,7 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
 
   /** The payload for entries whose package group 7 carries NO overrides. */
   const payloadWithEmptyOverrides = (entries: EmailEntry[]) =>
-    buildWebhookPayload(
-      entries,
-      "GBP",
-      new Map([[7, { dayPrices: new Map(), prices: new Map() }]]),
-    );
+    buildWebhookPayload(entries, "GBP", new Map([[7, packagePricing()]]));
 
   test("falls back to the base price for a package member with no override", async () => {
     const entries = [
@@ -142,13 +147,7 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
       entries,
       "GBP",
       new Map([
-        [
-          7,
-          {
-            dayPrices: new Map([[44, new Map([[2, 1500]])]]),
-            prices: new Map(),
-          },
-        ],
+        [7, packagePricing(new Map(), new Map([[44, new Map([[2, 1500]])]]))],
       ]),
     );
     expect(payload.tickets[0]!.unit_price).toBe(1500);

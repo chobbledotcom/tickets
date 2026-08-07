@@ -7,11 +7,8 @@
  *    - Creates the attendee and sets attendee_id atomically, closing the crash
  *    window between creation and a separate finalize call.
  *
- * If reserveSession fails (session already claimed), we check if it's:
- * - Finalized (attendee_id set) → return success with existing attendee
- * - Still processing (attendee_id NULL) → check staleness
- *   - Stale (>5min old) → delete and retry (process likely crashed)
- *   - Fresh → return conflict error (still being processed)
+ * reserveSession() claims missing and stale unresolved rows with one conditional
+ * upsert. A lookup in the same batch returns any existing outcome.
  */
 
 import * as v from "valibot";
@@ -20,10 +17,14 @@ import type {
   EnvKeyEncrypted,
   OwnerKeyEncrypted,
 } from "#shared/crypto/sealed.ts";
-import { execute, insert, queryOne } from "#shared/db/client.ts";
+import {
+  execute,
+  executeBatchWithResults,
+  resultRows,
+} from "#shared/db/client.ts";
 import { encryptPaymentReference } from "#shared/db/payment-references.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
-import { isoBefore, nowIso, nowMs } from "#shared/now.ts";
+import { isoBefore, nowIso } from "#shared/now.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
 export { STALE_RESERVATION_MS };
@@ -85,31 +86,6 @@ export type ReserveSessionResult =
   | { reserved: true }
   | { reserved: false; existing: ProcessedPayment };
 
-/**
- * Check if a payment session has already been processed
- */
-export const isSessionProcessed = (
-  sessionId: string,
-): Promise<ProcessedPayment | null> =>
-  queryOne<ProcessedPayment>(
-    "SELECT payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data, payment_reference, provider_refunded_at " +
-      "FROM processed_payments WHERE payment_session_id = ?",
-    [sessionId],
-  );
-
-/**
- * Check if a reservation is stale (abandoned by a crashed process)
- */
-export const isReservationStale = (processedAt: string): boolean => {
-  const reservedAt = new Date(processedAt).getTime();
-  return nowMs() - reservedAt > STALE_RESERVATION_MS;
-};
-
-/** True when a row is an in-progress reservation with no recorded outcome — the
- * in-memory mirror of the {@link UNRESOLVED_RESERVATION} SQL predicate. */
-export const isUnresolvedReservation = (row: ProcessedPayment): boolean =>
-  row.attendee_id === null && row.failure_data === "";
-
 /** Execute a SQL statement parameterized by a single payment session ID */
 const execWithSessionId = (sessionId: string, sql: string): Promise<unknown> =>
   execute(sql, [sessionId]);
@@ -127,13 +103,10 @@ const sessionIdWrite =
  * Deletes only a still-unresolved row, so it never clobbers a finalized success
  * or a recorded terminal failure that a racing delivery may have written.
  *
- * Two callers:
- *  - {@link reserveSession} releases a *stale* reservation (abandoned by a
- *    crashed process) before retrying the claim.
- *  - the webhook releases a *fresh* reservation whose refund of a real payment
- *    just failed: recording no outcome but holding the lock would make the next
- *    redelivery collide and return 409 until the row goes stale (~5 min),
- *    gating refund recovery on a local timer instead of provider redelivery.
+ * The webhook releases a *fresh* reservation whose refund of a real payment
+ * just failed: recording no outcome but holding the lock would make the next
+ * redelivery collide and return 409 until the row goes stale (~5 min), gating
+ * refund recovery on a local timer instead of provider redelivery.
  */
 export const releaseReservation: (sessionId: string) => Promise<void> =
   sessionIdWrite(
@@ -156,54 +129,42 @@ export const deleteAllStaleReservations = async (): Promise<number> => {
 };
 
 /**
- * Reserve a payment session for processing (first phase of two-phase lock)
- * Inserts with NULL attendee_id to claim the session.
- * Returns { reserved: true } if we claimed it, or { reserved: false, existing } if already claimed.
- *
- * Handles abandoned reservations: if an existing reservation has NULL attendee_id
- * and is older than STALE_RESERVATION_MS, we assume the process crashed and
- * delete the stale record to allow retry.
+ * Reserve a payment session for processing (first phase of two-phase lock).
+ * Missing and stale unresolved rows are claimed atomically. Existing fresh,
+ * finalized, and failed rows are returned without changing them.
  */
 export const reserveSession = async (
   sessionId: string,
 ): Promise<ReserveSessionResult> => {
-  try {
-    const { sql, args } = insert("processed_payments", {
-      attendee_id: null,
-      payment_session_id: sessionId,
-      processed_at: nowIso(),
-    });
-    await execute(sql, args);
-    return { reserved: true };
-  } catch (e) {
-    const errorMsg = String(e);
-    if (
-      errorMsg.includes("UNIQUE constraint") ||
-      errorMsg.includes("PRIMARY KEY constraint")
-    ) {
-      // Session already claimed - get existing record (must exist: UNIQUE error proves it)
-      const existing = (await isSessionProcessed(sessionId))!;
-
-      // Check if reservation is stale (abandoned by crashed process). A row
-      // carrying a recorded terminal failure is never stale — it is replayed
-      // by the caller instead of being deleted and re-processed.
-      if (
-        isUnresolvedReservation(existing) &&
-        isReservationStale(existing.processed_at)
-      ) {
-        // Release the abandoned row and retry the claim. This recurses at most
-        // one extra level: any row present after the delete must have been
-        // inserted at ~now (by this retry or a racing request), so it is fresh
-        // — isReservationStale is false for it and we fall through to the
-        // conflict return rather than looping.
-        await releaseReservation(sessionId);
-        return reserveSession(sessionId);
-      }
-
-      return { existing, reserved: false };
-    }
-    throw e;
+  const claimedAt = nowIso();
+  const staleBefore = isoBefore(STALE_RESERVATION_MS);
+  const [claimResult, lookupResult] = await executeBatchWithResults([
+    {
+      args: [sessionId, claimedAt, staleBefore],
+      sql: `INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at)
+            VALUES (?, NULL, ?)
+            ON CONFLICT(payment_session_id) DO UPDATE SET
+              attendee_id = NULL,
+              processed_at = excluded.processed_at,
+              ticket_tokens = '',
+              failure_data = '',
+              payment_reference = '',
+              provider_refunded_at = ''
+            WHERE ${UNRESOLVED_RESERVATION}
+              AND processed_payments.processed_at < ?
+            RETURNING payment_session_id`,
+    },
+    {
+      args: [sessionId],
+      sql: "SELECT payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data, payment_reference, provider_refunded_at FROM processed_payments WHERE payment_session_id = ?",
+    },
+  ]);
+  if (resultRows(claimResult!)[0] !== undefined) return { reserved: true };
+  const existing = resultRows<ProcessedPayment>(lookupResult!)[0];
+  if (!existing) {
+    throw new Error(`Reserved payment session is missing: ${sessionId}`);
   }
+  return { existing, reserved: false };
 };
 
 /** Encrypt ticket tokens for the atomic payment finalize. */

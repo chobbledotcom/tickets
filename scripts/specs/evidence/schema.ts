@@ -45,10 +45,11 @@ const EvidenceProfilesSchema = v.pipe(
  * handing the finished address over with leaveEvidencePage. */
 export const EvidencePathSchema = v.pipe(
   TrimmedTextSchema,
-  v.startsWith("/", "Evidence path must start with /"),
   v.check(
-    (path) => !path.includes("{"),
-    "Evidence path must be a whole address, not a placeholder",
+    (path) =>
+      path.startsWith("data:text/html,") ||
+      (path.startsWith("/") && !path.includes("{")),
+    "Evidence path must be a whole address or HTML data page",
   ),
 );
 

@@ -116,6 +116,22 @@ export const EVIDENCE_CAPTURES = [
     "/admin/site/pages",
   ),
   brandedMobileCapture(
+    "editors.the-listings-show-no-money",
+    "editor-listings-without-takings",
+    ".page-regions.admin-page",
+    "/admin/listings",
+  ),
+  brandedMobileCapture(
+    "backup.restore-brings-back-bookings",
+    "backup-restore",
+    ".page-regions.entity-page",
+  ),
+  brandedMobileCapture(
+    "download.the-chosen-length-not-the-maximum",
+    "attendee-csv-export",
+    "main",
+  ),
+  brandedMobileCapture(
     "add-ons.it-appears-in-the-list-with-its-own-link",
     "add-on-in-the-list",
     "main",
