@@ -16,7 +16,7 @@ import type { Status } from "./summary.ts";
 export type Outcome = "failed" | "passed" | "timed-out";
 
 export interface StaticGate {
-  exit(file: string, signal: AbortSignal): Promise<number>;
+  exit(file: string, workspace: string, signal: AbortSignal): Promise<number>;
   label: string;
   phase: "lint" | "type-check";
   remedy: string[];
@@ -62,8 +62,11 @@ const realGateDeps: StaticGateDeps = {
   resolveBiome: resolveBiomeCommand,
 };
 
-const quietCommandOptions = (signal: AbortSignal): Deno.CommandOptions => ({
-  cwd: projectRoot,
+const quietCommandOptions = (
+  workspace: string,
+  signal: AbortSignal,
+): Deno.CommandOptions => ({
+  cwd: workspace,
   signal,
   stderr: "null",
   stdout: "null",
@@ -72,7 +75,7 @@ const quietCommandOptions = (signal: AbortSignal): Deno.CommandOptions => ({
 const createLinter = async (deps: StaticGateDeps): Promise<StaticGate> => {
   const resolved = await deps.resolveBiome([]);
   return {
-    exit: (file, signal) =>
+    exit: (file, workspace, signal) =>
       deps.commandExit(resolved.command, {
         args: [
           ...resolved.args,
@@ -81,7 +84,7 @@ const createLinter = async (deps: StaticGateDeps): Promise<StaticGate> => {
           "--no-errors-on-unmatched",
           file,
         ],
-        ...quietCommandOptions(signal),
+        ...quietCommandOptions(workspace, signal),
       }),
     label: "lint",
     phase: "lint",
@@ -93,9 +96,9 @@ const createLinter = async (deps: StaticGateDeps): Promise<StaticGate> => {
 };
 
 const createTypeChecker = (deps: StaticGateDeps): StaticGate => ({
-  exit: (file, signal) =>
+  exit: (file, workspace, signal) =>
     deps.denoExit(["check", file], {
-      ...quietCommandOptions(signal),
+      ...quietCommandOptions(workspace, signal),
     }),
   label: "type-check",
   phase: "type-check",
