@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  reserveAvailablePort,
   STRIPE_MOCK_FAILED_TO_START,
   startStripeMock,
   stripeMockEnv,
@@ -24,6 +25,20 @@ import {
 } from "#test/test-utils/stripe-mock/ports.ts";
 
 describe("stripe-mock ports and environment", () => {
+  test("keeps a reserved port unavailable until release", () => {
+    const reserved = reserveAvailablePort();
+    expect(() =>
+      Deno.listen({ hostname: "127.0.0.1", port: reserved.port }),
+    ).toThrow();
+
+    reserved.release();
+    const listener = Deno.listen({
+      hostname: "127.0.0.1",
+      port: reserved.port,
+    });
+    listener.close();
+  });
+
   test("uses the default port when the env var is absent", () => {
     expect(stripeMockPortFromEnv(testEnv({}))).toBe(stripeMock.defaultPort);
   });

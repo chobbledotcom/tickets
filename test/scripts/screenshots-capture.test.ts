@@ -108,7 +108,8 @@ beforeEach(() => {
       parentElement,
       removeAttribute: (attribute: string) => attributes.delete(attribute),
       setAttribute: (attribute: string) => attributes.add(attribute),
-      style: { opacity },
+      shadowRoot: null,
+      style: { filter: "none", opacity },
     };
   };
   const opaque = makeElement("1", null);
@@ -121,7 +122,9 @@ beforeEach(() => {
     querySelectorAll: (selector: string) =>
       selector === "html, body, body *"
         ? elements
-        : elements.filter(({ attributes }) => attributes.size > 0),
+        : selector.startsWith("link[")
+          ? []
+          : elements.filter(({ attributes }) => attributes.size > 0),
   });
 });
 

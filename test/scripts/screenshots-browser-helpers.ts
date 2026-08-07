@@ -31,6 +31,20 @@ export const countRgbPixels = async (
   );
 };
 
+export const countLayerRgbPixels =
+  (
+    page: Page,
+    selector: string,
+    color: readonly [number, number, number],
+  ): ((layer: ScreenshotLayerName) => Promise<number>) =>
+  async (layer) =>
+    countRgbPixels(
+      await withScreenshotLayer(layer)(page, () =>
+        page.locator(selector).screenshot({ omitBackground: true }),
+      ),
+      color,
+    );
+
 export const layerStyle = (
   page: Page,
   layer: ScreenshotLayerName,

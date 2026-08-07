@@ -1,0 +1,112 @@
+import { expect } from "@std/expect";
+import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
+import type { Browser } from "playwright";
+import { withScreenshotLayer } from "#scripts/screenshots/layers.ts";
+import {
+  countLayerRgbPixels,
+  launchScreenshotBrowser,
+  layerStyle,
+  withPage,
+} from "./screenshots-browser-helpers.ts";
+
+describe("screenshot layer boundary browser contracts", () => {
+  let browser: Browser;
+
+  beforeAll(async () => {
+    browser = await launchScreenshotBrowser();
+  });
+
+  afterAll(async () => {
+    await browser.close();
+  });
+
+  test("applies layer masks inside open shadow roots", async () => {
+    await withPage(browser, '<div id="host"></div>', async (page) => {
+      await page.locator("#host").evaluate((host) => {
+        const root = host.attachShadow({ mode: "open" });
+        root.innerHTML = `<style>
+          button { background: rgb(255, 0, 0); color: rgb(0, 0, 255); }
+        </style><button>Cart</button>`;
+      });
+      const shadowStyle = (
+        layer: "background" | "controls" | "text",
+        property: string,
+      ) =>
+        withScreenshotLayer(layer)(page, () =>
+          page.locator("#host").evaluate((host, propertyName) => {
+            const button = host.shadowRoot?.querySelector("button");
+            if (!button) throw new Error("Missing shadow button.");
+            return getComputedStyle(button).getPropertyValue(propertyName);
+          }, property),
+        );
+
+      expect(await shadowStyle("background", "visibility")).toBe("hidden");
+      expect(await shadowStyle("controls", "-webkit-text-fill-color")).toBe(
+        "rgba(0, 0, 0, 0)",
+      );
+      expect(await shadowStyle("text", "background-color")).toBe(
+        "rgba(0, 0, 0, 0)",
+      );
+    });
+  });
+
+  test("keeps disclosure markers out of the text layer", async () => {
+    await withPage(
+      browser,
+      "<style>summary::marker { color: rgb(255, 0, 0); }</style><details open><summary>More</summary></details>",
+      async (page) => {
+        const redPixels = countLayerRgbPixels(page, "summary", [255, 0, 0]);
+
+        expect(await redPixels("controls")).toBeGreaterThan(0);
+        expect(await redPixels("text")).toBe(0);
+      },
+    );
+  });
+
+  test("separates body-generated content", async () => {
+    await withPage(
+      browser,
+      `<style>
+        body::before { background: rgb(255, 0, 0); color: rgb(0, 0, 255); content: "Banner"; }
+      </style>`,
+      async (page) => {
+        expect(
+          await layerStyle(
+            page,
+            "background",
+            "body",
+            "-webkit-text-fill-color",
+            "::before",
+          ),
+        ).toBe("rgba(0, 0, 0, 0)");
+        expect(
+          await layerStyle(page, "controls", "body", "visibility", "::before"),
+        ).toBe("hidden");
+        expect(
+          await layerStyle(
+            page,
+            "text",
+            "body",
+            "background-color",
+            "::before",
+          ),
+        ).toBe("rgba(0, 0, 0, 0)");
+      },
+    );
+  });
+
+  test("puts for-linked gallery labels in the controls layer", async () => {
+    await withPage(
+      browser,
+      '<input id="gallery-1" type="radio"><label for="gallery-1">Thumbnail</label>',
+      async (page) => {
+        expect(
+          await layerStyle(page, "background", "label", "visibility"),
+        ).toBe("hidden");
+        expect(await layerStyle(page, "controls", "label", "visibility")).toBe(
+          "visible",
+        );
+      },
+    );
+  });
+});

@@ -4,12 +4,9 @@ import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { Browser, Page } from "playwright";
 import sharp from "sharp";
 import { capturePreparedLayers } from "#scripts/screenshots/capture.ts";
+import { addScreenshotStyle } from "#scripts/screenshots/layers.ts";
 import {
-  addScreenshotStyle,
-  withScreenshotLayer,
-} from "#scripts/screenshots/layers.ts";
-import {
-  countRgbPixels,
+  countLayerRgbPixels,
   launchScreenshotBrowser,
   withPage,
 } from "./screenshots-browser-helpers.ts";
@@ -18,7 +15,11 @@ const expectRootOpacityRecombines = async (
   page: Page,
   root: "body" | "html",
 ): Promise<void> => {
-  const normal = await page.screenshot({ type: "png" });
+  const normal = await page.screenshot({
+    animations: "disabled",
+    caret: "hide",
+    type: "png",
+  });
   const metadata = await sharp(normal).metadata();
   if (!metadata.width || !metadata.height) {
     throw new Error("Could not measure the screenshot.");
@@ -96,13 +97,7 @@ describe("screenshot layer edge browser contracts", () => {
         input::file-selector-button { background: rgb(255, 0, 0); border: 0; }
       </style><input type="file">`,
       async (page) => {
-        const redPixels = async (layer: "controls" | "text") =>
-          countRgbPixels(
-            await withScreenshotLayer(layer)(page, () =>
-              page.locator("input").screenshot({ omitBackground: true }),
-            ),
-            [255, 0, 0],
-          );
+        const redPixels = countLayerRgbPixels(page, "input", [255, 0, 0]);
 
         expect(await redPixels("controls")).toBeGreaterThan(0);
         expect(await redPixels("text")).toBe(0);
@@ -122,4 +117,15 @@ describe("screenshot layer edge browser contracts", () => {
       );
     });
   }
+
+  test("recombines a filter group exactly", async () => {
+    await withPage(
+      browser,
+      `<style>
+        body { background: white; margin: 0; }
+        button { background: rgb(200, 0, 0); color: rgb(100, 0, 0); filter: brightness(2); }
+      </style><button>Words</button>`,
+      (page) => expectRootOpacityRecombines(page, "body"),
+    );
+  });
 });

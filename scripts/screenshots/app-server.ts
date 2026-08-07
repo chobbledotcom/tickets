@@ -12,7 +12,7 @@ import {
   waitForHealthy,
 } from "#scripts/screenshots/server.ts";
 import {
-  findAvailablePort,
+  reserveAvailablePort,
   startStripeMock,
   stripeMockEnv,
 } from "#scripts/stripe-mock.ts";
@@ -34,28 +34,32 @@ const startAppServer = async ({
   add,
   run,
 }: StartupCleanup): Promise<ScreenshotAppServer> => {
-  const stripePort = findAvailablePort();
-  const enableStripeMock = startOnFirstUse(
-    () => startStripeMock({ port: stripePort }),
-    add,
-  );
+  const stripePort = reserveAvailablePort();
+  add(stripePort.release);
+  const enableStripeMock = startOnFirstUse(async () => {
+    stripePort.release();
+    return await startStripeMock({ port: stripePort.port });
+  }, add);
   const tempDir = await Deno.makeTempDir({ prefix: "tickets-screenshots-" });
   add(() => removeTree(tempDir));
-  const port = findAvailablePort();
-  const baseUrl = `http://127.0.0.1:${port}`;
+  const appPort = reserveAvailablePort();
+  add(appPort.release);
+  const baseUrl = `http://127.0.0.1:${appPort.port}`;
   const dbUrl = `file:${join(tempDir, "screenshots.db")}`;
-  const child = denoCommand(["run", "-A", "src/index.ts"], {
+  const command = denoCommand(["run", "-A", "src/index.ts"], {
     cwd: ROOT,
     env: {
       ...Deno.env.toObject(),
-      ...stripeMockEnv(stripePort),
+      ...stripeMockEnv(stripePort.port),
       DB_ENCRYPTION_KEY: DB_KEY,
       DB_URL: dbUrl,
-      PORT: String(port),
+      PORT: String(appPort.port),
     },
     stderr: "inherit",
     stdout: "null",
-  }).spawn();
+  });
+  appPort.release();
+  const child = command.spawn();
   add(() => stopProcess(child, STOP_TIMEOUT_MS));
 
   const deadline = Date.now() + TIMEOUT_MS;

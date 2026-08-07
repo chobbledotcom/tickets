@@ -27,7 +27,7 @@ import {
   runIsOwned,
 } from "./isolation-cleanup.ts";
 import {
-  withCopyBackLock,
+  withCopyBackLockWhen,
   withRunClaim,
   withRunClaimGuard,
 } from "./isolation-lock.ts";
@@ -146,23 +146,6 @@ const settleRecord = (
   interrupted ? markInterrupted(record) : markFinished(record, code);
 
 /**
- * Bring the run's kept files back, one run at a time across the checkout. The
- * question is asked again inside the lock: waiting for it is a moment long
- * enough to be interrupted, and an interrupted run keeps nothing.
- */
-const keepFiles = (
-  wasInterrupted: () => boolean,
-  root: string,
-  workRoot: string,
-  copyBack: CopyBackFile[],
-): Promise<number> =>
-  withCopyBackLock(root, () =>
-    wasInterrupted()
-      ? Promise.resolve(0)
-      : bringFilesBack(root, workRoot, copyBack),
-  );
-
-/**
  * Record the child's result, then bring back what the run means to keep. The
  * supervisor's claim on the run stays fresh throughout, so a clear-up
  * elsewhere can neither take the copy before its kept files are read nor take
@@ -178,7 +161,12 @@ const finishChild = async (
   const failedToKeep =
     wasInterrupted() || copyBack.length === 0
       ? 0
-      : await keepFiles(wasInterrupted, root, record.workRoot, copyBack);
+      : await withCopyBackLockWhen(
+          root,
+          () => !wasInterrupted(),
+          0,
+          () => bringFilesBack(root, record.workRoot, copyBack),
+        );
   const interrupted = wasInterrupted();
   // A run that could not keep its files failed, whatever the child said.
   const exitCode = interrupted ? 130 : failedToKeep || code;
