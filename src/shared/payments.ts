@@ -374,18 +374,14 @@ export const getActivePaymentProvider = (): Promise<PaymentProvider | null> =>
     logDebug("Payment", "No payment provider configured in settings"),
   );
 
-/** Provider implementation for work on an existing payment. */
-export type ExistingPaymentProvider = PaymentProvider | null;
-
 /**
- * Resolve the provider for refunds, callbacks, and completion of payments that
- * already exist. New sales use {@link getActivePaymentProvider}.
+ * Resolve the provider for an admin action on an existing payment. Automatic
+ * settlement uses a request-bound PaymentAttempt instead.
  */
-export const getPaymentProviderForExistingPayments =
-  (): Promise<ExistingPaymentProvider> =>
-    resolveProvider(
-      () =>
-        existingPaymentProviderState(paymentsApi.getConfiguredProvider())
-          .provider,
-      " for existing payments",
-    );
+export const getAdminPaymentProvider = (): Promise<PaymentProvider | null> =>
+  resolveProvider(
+    () =>
+      existingPaymentProviderState(paymentsApi.getConfiguredProvider())
+        .provider,
+    " for existing payments",
+  );

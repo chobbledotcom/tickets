@@ -37,6 +37,7 @@ import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
+import type { PaymentAttempt } from "#shared/payment-attempt.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 import { recordPlaceholderRefund } from "#shared/refund-ledger.ts";
@@ -96,6 +97,7 @@ type PlaceholderBookings = Parameters<
  * terminal failure rather than mutating anything.
  */
 export const settleBalanceSession = async (
+  attempt: PaymentAttempt,
   sessionId: string,
   session: ValidatedPaymentSession,
   intent: BookingIntent,
@@ -123,6 +125,7 @@ export const settleBalanceSession = async (
   );
   if (!settled.settled) {
     return refundAndFail(
+      attempt,
       session,
       BALANCE_CHANGED_MESSAGE,
       listingId,
@@ -153,6 +156,7 @@ export const settleBalanceSession = async (
  * released for re-processing.
  */
 export const storeRefundedBooking = async (
+  attempt: PaymentAttempt,
   session: ValidatedPaymentSession,
   intent: BookingIntent,
   bookings: PlaceholderBookings,
@@ -171,7 +175,11 @@ export const storeRefundedBooking = async (
   });
   const attendeeId = (stored as Extract<typeof stored, { success: true }>)
     .attendees[0]!.id;
-  const refunded = await tryRefund(session.paymentReference, listingId);
+  const refunded = await tryRefund(
+    attempt,
+    session.paymentReference,
+    listingId,
+  );
   await recordPlaceholderRefund(
     {
       amount: session.amountTotal,

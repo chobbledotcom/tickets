@@ -50,6 +50,7 @@ export const webhookEvent = (opts: {
       // and refuses a session that carries none.
       currency: "gbp",
       id: opts.sessionId,
+      livemode: false,
       metadata: opts.metadata,
       payment_intent: opts.paymentIntent ?? null,
       payment_status: opts.paymentStatus ?? "paid",

@@ -10,6 +10,10 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import {
+  joinedStubs,
+  stubStripePaymentAttempt,
+} from "#test-utils/payment-attempt.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 
@@ -22,7 +26,7 @@ describeWithEnv(
     test("extractIntent rejects missing items in metadata", async () => {
       await setupStripe();
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+      const retrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           amount_total: 1000,
           currency: "gbp",
@@ -38,6 +42,7 @@ describeWithEnv(
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
       );
+      const mockRetrieve = joinedStubs(retrieve, stubStripePaymentAttempt());
 
       try {
         const redirectResponse = await handleRequest(
@@ -168,7 +173,7 @@ describeWithEnv(
         unitPrice: 1000,
       });
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+      const retrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           amount_total: 1000,
           currency: "gbp",
@@ -185,6 +190,7 @@ describeWithEnv(
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
       );
+      const mockRetrieve = joinedStubs(retrieve, stubStripePaymentAttempt());
 
       try {
         const response = await handleRequest(

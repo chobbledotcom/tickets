@@ -1,11 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
-import {
-  getSquareClient,
-  resetSquareClient,
-  testSquareConnection,
-} from "#shared/square.ts";
+import { squareApi } from "#shared/square.ts";
 import {
   configureSquare,
   oneLocation,
@@ -30,14 +26,16 @@ describeSquare(() => {
 
     /** Drive one request through the client and return the host it called. */
     const hostFor = async (
-      client: NonNullable<Awaited<ReturnType<typeof getSquareClient>>>,
+      client: NonNullable<
+        Awaited<ReturnType<typeof squareApi.getSquareClient>>
+      >,
     ): Promise<string> => {
       await client.locations.list();
       return new URL(calledUrl).host;
     };
 
     test("returns null when access token not set", async () => {
-      const client = await getSquareClient();
+      const client = await squareApi.getSquareClient();
       expect(client).toBeNull();
       expect(debugMessages(debugLog())).toEqual([
         "[Square] No access token configured, cannot create client",
@@ -46,7 +44,7 @@ describeSquare(() => {
 
     test("returns client when access token is set in database", async () => {
       await settings.update.square.accessToken("EAAAl_test_123");
-      const client = await getSquareClient();
+      const client = await squareApi.getSquareClient();
       expect(client).not.toBeNull();
       expect(debugLog().calls.at(-1)?.args[0]).toBe(
         "[Square] Creating new Square client (production)",
@@ -55,18 +53,18 @@ describeSquare(() => {
 
     test("returns cached client on second call with same token", async () => {
       await settings.update.square.accessToken("EAAAl_cache_test");
-      const client1 = await getSquareClient();
+      const client1 = await squareApi.getSquareClient();
       expect(client1).not.toBeNull();
 
       // Second call with same token returns the very same cached instance.
-      const client2 = await getSquareClient();
+      const client2 = await squareApi.getSquareClient();
       expect(client2).toBe(client1);
     });
 
     test("returns client in sandbox mode when sandbox setting enabled", async () => {
       await settings.update.square.accessToken("EAAAl_sandbox_123");
       await settings.update.square.sandbox(true);
-      const client = await getSquareClient();
+      const client = await squareApi.getSquareClient();
       expect(client).not.toBeNull();
       // Sandbox mode must route requests to the sandbox host.
       using _fetch = trackFetch();
@@ -79,14 +77,14 @@ describeSquare(() => {
     test("recreates client when sandbox setting changes", async () => {
       await settings.update.square.accessToken("EAAAl_sandbox_toggle");
       await settings.update.square.sandbox(false);
-      const client1 = await getSquareClient();
+      const client1 = await squareApi.getSquareClient();
       expect(client1).not.toBeNull();
       using _fetch = trackFetch();
       expect(await hostFor(client1!)).toBe("connect.squareup.com");
 
       // Toggling sandbox creates a new client configured for the sandbox host.
       await settings.update.square.sandbox(true);
-      const client2 = await getSquareClient();
+      const client2 = await squareApi.getSquareClient();
       expect(client2).not.toBe(client1);
       expect(await hostFor(client2!)).toBe("connect.squareupsandbox.com");
     });
@@ -95,20 +93,22 @@ describeSquare(() => {
   describe("resetSquareClient", () => {
     test("resets client state after token removed from db", async () => {
       await settings.update.square.accessToken("EAAAl_test_123");
-      const client1 = await getSquareClient();
+      const client1 = await squareApi.getSquareClient();
       expect(client1).not.toBeNull();
 
-      resetSquareClient();
+      squareApi.resetSquareClient();
       resetDb();
       await createTestDb();
 
-      const client2 = await getSquareClient();
+      const client2 = await squareApi.getSquareClient();
       expect(client2).toBeNull();
     });
   });
 
   describe("testSquareConnection", () => {
-    type ConnectionResult = Awaited<ReturnType<typeof testSquareConnection>>;
+    type ConnectionResult = Awaited<
+      ReturnType<typeof squareApi.testSquareConnection>
+    >;
 
     /** Run an assertion only when the test named a value for it. */
     const when = <T>(value: T | undefined, assert: (value: T) => void) => {
@@ -157,12 +157,12 @@ describeSquare(() => {
     ) => {
       await configureSquare(config);
       await withSquareClient({ locationsList }, async () => {
-        assert(await testSquareConnection());
+        assert(await squareApi.testSquareConnection());
       });
     };
 
     test("returns error when no access token configured", async () => {
-      expect(await testSquareConnection()).toEqual({
+      expect(await squareApi.testSquareConnection()).toEqual({
         accessToken: {
           error: "No Square access token configured",
           valid: false,

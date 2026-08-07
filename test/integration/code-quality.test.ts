@@ -209,8 +209,6 @@ const ALLOWED_TEST_HOOKS: string[] = [
   "shared/limits.ts:PRUNE_INTERVAL_HOURS",
   // Reset cached Square client between tests
   "shared/square.ts:resetSquareClient",
-  // Test helper for creating signed Square webhook payloads
-  "shared/square.ts:constructTestWebhookEvent",
   // Raw attendee fetch for testing encrypted data (production uses batched getListingWithAttendeesRaw)
   "shared/db/attendees/queries.ts:getAttendeesRaw",
   // Single attendee fetch for tests (production uses batched getListingWithAttendeeRaw)

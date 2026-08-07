@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
-import { isCurrency, money } from "#shared/payment/money.ts";
+import { money } from "#shared/payment/money.ts";
 
 describe("money", () => {
   // The cases that must build a charge: a non-negative whole minor-unit
@@ -36,25 +36,6 @@ describe("money", () => {
   for (const [amount, currency, reason] of malformed) {
     it(`refuses ${reason} (amount=${String(amount)}, currency=${String(currency)})`, () => {
       expect(money(amount, currency)).toBe(null);
-    });
-  }
-
-  // The guard an adapter asks before handing a provider's currency to Intl,
-  // which throws on anything that is not a real code. It answers for the value
-  // as given — "gbp" is only well formed once `money` has upper-cased it.
-  const wellFormed: [unknown, boolean][] = [
-    ["GBP", true],
-    ["gbp", false],
-    ["GB", false],
-    ["GBPX", false],
-    ["G B", false],
-    ["", false],
-    [null, false],
-    [123, false],
-  ];
-  for (const [value, expected] of wellFormed) {
-    it(`says ${String(value)} is ${expected ? "" : "not "}a currency code`, () => {
-      expect(isCurrency(value)).toBe(expected);
     });
   }
 });

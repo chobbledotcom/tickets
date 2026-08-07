@@ -11,7 +11,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
-import { setupStripe } from "#test-utils/settings.ts";
+import { setupBoundStripePaymentAttempt } from "#test-utils/payment-attempt.ts";
 
 describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
   describe("payment success token verification", () => {
@@ -44,7 +44,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
     });
 
     test("renders ticket link from verified tokens", async () => {
-      await setupStripe();
+      using _attempt = await setupBoundStripePaymentAttempt();
 
       const listing = await createTestListing({
         maxAttendees: 50,

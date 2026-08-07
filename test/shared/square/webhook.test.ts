@@ -3,12 +3,10 @@ import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { settings } from "#shared/db/settings.ts";
 import type { WebhookEvent } from "#shared/payments.ts";
-import {
-  constructTestWebhookEvent,
-  verifyWebhookSignature,
-} from "#shared/square.ts";
+import { verifySquareWebhookSignature } from "#shared/square/webhook.ts";
 import { describeSquare } from "#test/test-utils/square/harness.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
+import { constructTestWebhookEvent } from "#test-utils/square/webhook.ts";
 
 describeSquare(() => {
   describe("verifyWebhookSignature", () => {
@@ -29,7 +27,8 @@ describeSquare(() => {
 
     /** Verify a payload against a signature using the shared notification URL. */
     const verify = (payload: string, signature: string) =>
-      verifyWebhookSignature(
+      verifySquareWebhookSignature(
+        settings.square.webhookSignatureKey,
         payload,
         signature,
         TEST_NOTIFICATION_URL,
@@ -89,7 +88,13 @@ describeSquare(() => {
         );
         expect(errorSpy.calls).toHaveLength(1);
         expect(errorSpy.calls[0]!.args[0]).toBe(
-          `[Error] E_SQUARE_SIGNATURE detail="mismatch: notificationUrl=${TEST_NOTIFICATION_URL}, receivedLength=${receivedSignature.length}, expectedLength=${expectedSignature.length}, receivedPrefix=${receivedSignature.slice(0, 8)}..., expectedPrefix=${expectedSignature.slice(0, 8)}..., bodyLength=${toBytes(payload).length}"`,
+          `[Error] E_SQUARE_SIGNATURE detail="mismatch: notificationUrl=${TEST_NOTIFICATION_URL}, receivedLength=${receivedSignature.length}, expectedLength=${expectedSignature.length}, receivedPrefix=${receivedSignature.slice(
+            0,
+            8,
+          )}..., expectedPrefix=${expectedSignature.slice(
+            0,
+            8,
+          )}..., bodyLength=${toBytes(payload).length}"`,
         );
       } finally {
         errorSpy.restore();
@@ -181,7 +186,8 @@ describeSquare(() => {
 
       // Signature should be verifiable with the same secret (stored in DB)
       await settings.update.square.webhookSignatureKey(secret);
-      const result = await verifyWebhookSignature(
+      const result = await verifySquareWebhookSignature(
+        secret,
         payload,
         signature,
         notificationUrl,

@@ -1,0 +1,84 @@
+{
+  "evidence": {
+    "captured_on": "2026-08-05",
+    "checkout_endpoint": "GET /v0.1/checkouts/{checkout_id}",
+    "refund_authority_path": "transaction_events",
+    "scenario": "refunded",
+    "sdk": "@sumup/sdk 0.1.6",
+    "transaction_endpoint": "GET /v2.1/merchants/{merchant_code}/transactions?id={transaction_id}",
+    "transaction_history_endpoint": "GET /v2.1/merchants/{merchant_code}/transactions/history"
+  },
+  "checkout_response": {
+    "checkout_reference": "reference-paid",
+    "amount": 23.45,
+    "currency": "GBP",
+    "merchant_code": "merchant-sandbox",
+    "id": "checkout-paid",
+    "status": "PAID",
+    "transactions": [
+      {
+        "id": "transaction-paid-1",
+        "amount": 23.45,
+        "currency": "GBP",
+        "status": "SUCCESSFUL",
+        "merchant_code": "merchant-sandbox"
+      }
+    ],
+    "transaction_id": "transaction-paid-1"
+  },
+  "transaction_response": {
+    "id": "transaction-paid-1",
+    "amount": 23.45,
+    "currency": "GBP",
+    "status": "SUCCESSFUL",
+    "merchant_code": "merchant-sandbox",
+    "simple_status": "SUCCESSFUL",
+    "transaction_events": [
+      {
+        "event_type": "PAYOUT",
+        "status": "PENDING",
+        "amount": 22.88
+      },
+      {
+        "event_type": "REFUND",
+        "status": "REFUNDED",
+        "amount": 23.45
+      }
+    ],
+    "events": [
+      {
+        "type": "PAYOUT",
+        "status": "SCHEDULED",
+        "amount": 22.88
+      },
+      {
+        "type": "REFUND",
+        "status": "REFUNDED",
+        "amount": 23.45
+      }
+    ]
+  },
+  "transaction_history_response": {
+    "items": [
+      {
+        "id": "transaction-paid-1",
+        "transaction_id": "transaction-paid-1",
+        "transaction_code": "transaction-code-paid-1",
+        "amount": 23.45,
+        "currency": "GBP",
+        "status": "SUCCESSFUL",
+        "type": "PAYMENT",
+        "refunded_amount": 23.45
+      },
+      {
+        "id": "transaction-history-2",
+        "transaction_id": "transaction-paid-1",
+        "transaction_code": "transaction-code-paid-1",
+        "amount": 23.45,
+        "currency": "GBP",
+        "status": "REFUNDED",
+        "type": "REFUND"
+      }
+    ]
+  }
+}

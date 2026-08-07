@@ -10,6 +10,10 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import {
+  joinedStubs,
+  stubStripePaymentAttempt,
+} from "#test-utils/payment-attempt.ts";
 import { expectSessionFailed } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
@@ -98,7 +102,7 @@ describeWithEnv(
 
       // This tests the case where result.refunded is undefined
       // This happens when validatePaidSession fails (no refund attempt)
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+      const retrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           amount_total: 0,
           currency: "gbp",
@@ -114,6 +118,7 @@ describeWithEnv(
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
       );
+      const mockRetrieve = joinedStubs(retrieve, stubStripePaymentAttempt());
 
       try {
         const response = await handleRequest(
@@ -191,7 +196,7 @@ describeWithEnv(
       await setupStripe();
 
       // Mock empty items list (edge case where items parsed but empty after filtering)
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+      const retrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           amount_total: 0,
           currency: "gbp",
@@ -207,6 +212,7 @@ describeWithEnv(
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
       );
+      const mockRetrieve = joinedStubs(retrieve, stubStripePaymentAttempt());
 
       const mockRefund = stubRefundPayment();
 

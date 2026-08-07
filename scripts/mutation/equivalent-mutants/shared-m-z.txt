@@ -25,10 +25,10 @@ src/features/api/webhooks.ts::singleListingThankYou~0cl1whb  ?? → ||   # strin
 # both ?? "" and || "" yield "".
 src/features/api/webhooks.ts::processSessionAndRedirect.explicitThankYou~14utous  ?? → ||   # string|"" fallback; "" ?? "" = "" || "" = ""
 
-# webhooks.ts: .find(Boolean) returns undefined|truthy (Boolean("") is
+# payment-webhook.ts: .find(Boolean) returns undefined|truthy (Boolean("") is
 # false, so "" never returned). ?? null and || null agree.
-src/features/api/webhooks.ts::getWebhookSignatureHeader~09vhuo6  ?? → ||   # find(Boolean) → undefined|truthy; never ""
-src/features/api/webhooks.ts::authenticateWebhook.signature~0pl7bfz  ?? → ||   # getWebhookSignatureHeader → null|truthy; never ""
+src/features/api/payment-webhook.ts::getWebhookSignatureHeader~09vhuo6  ?? → ||   # find(Boolean) → undefined|truthy; never ""
+src/features/api/payment-webhook.ts::authenticateWebhook.signature~0pl7bfz  ?? → ||   # getWebhookSignatureHeader → null|truthy; never ""
 
 # require-provider.ts: getPaymentProviderForExistingPayments() returns
 # Promise<ExistingPaymentProvider>; its awaited PaymentProvider|null value is
@@ -241,7 +241,6 @@ src/shared/stripe/webhook.ts::readHeaderPart.key~0pq15rq  ?: → alternate only 
 src/shared/stripe/webhook.ts::readHeaderPart.key~05rrw2z  1 → 2   # this changes only the no-separator key arm; value-less recognized and unknown keys are all ignored
 
 # SumUp client: values that are never falsy apart from null.
-src/shared/sumup.ts::sumupApi.refundTransaction~0ahuvgt  ?? → ||   # withClient resolves to the callback's `true` or to null on failure, so the only non-null value is truthy and ?? false and || false agree
 src/shared/sumup.ts::sumupApi.testSumupConnection.result%2eapiKey.mode~109o082  ?? → ||   # settings.sumup.keyMode is typed "test" | "live" | null, so it has no falsy non-null value and ?? "unknown" and || "unknown" agree
 
 # rebrand scanner — four provably-equivalent survivors.
@@ -260,7 +259,6 @@ src/features/admin/attributes.ts::handleAddOption.onValid.sortOrder~1g336tf  0 �
 # Payment plumbing (main #2020): an ignored success flag, non-empty provider
 # strings, a sort tie-break, and validation messages nothing reads.
 src/shared/payment-helpers.ts::safeAsync~0wej7k3  true → false   # safeAsync getValue returns true; guardedWithValue only null-checks it, and the inner fn () => fn() ignores the value, so true/false are indistinguishable
-src/shared/stripe-provider.ts::toValidatedSession.paymentReference~17zvm8m  ?? → ||   # payment_intent is null | nonEmptyString; the only non-null values are truthy, so ?? and || agree
 src/shared/validation/money.ts::PositiveMoneySchema~0jfm1h7  false → true   # a leading "-" only admits values <= 0, which v.minValue(1) rejects either way
 src/shared/payment-signature.ts::canonicalPricePayload.entries~0kqbt3q  1 → 0   # sort() only checks for a strictly negative result; -1/0 and -1/1 order identically
 src/shared/payment/money.ts::CurrencySchema~1qa2mi1  Currency must be three uppercase letters → ""   # message text of the currency regex; validation outcome is identical

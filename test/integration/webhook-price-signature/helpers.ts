@@ -10,6 +10,7 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { mockRequest, mockWebhookRequest } from "#test-utils/mocks.ts";
+import { stubStripePaymentAttempt } from "#test-utils/payment-attempt.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 /**
@@ -54,28 +55,28 @@ export const stubCompletedSession = async (object: {
   amount_total: number;
   id: string;
   metadata: Record<string, string>;
-}) => {
-  const { stripePaymentProvider } = await import("#shared/stripe-provider.ts");
-  return stub(stripePaymentProvider, "verifyWebhookSignature", () =>
-    Promise.resolve({
-      listing: {
-        data: {
-          object: {
-            ...object,
-            created: 1_700_000_000,
-            currency: "gbp",
-            payment_intent: `pi_${object.id}`,
-            payment_status: "paid",
-            url: null,
+}) =>
+  stubStripePaymentAttempt({
+    verifyWebhookSignature: () =>
+      Promise.resolve({
+        listing: {
+          data: {
+            object: {
+              ...object,
+              created: 1_700_000_000,
+              currency: "gbp",
+              livemode: false,
+              payment_intent: `pi_${object.id}`,
+              payment_status: "paid",
+              url: null,
+            },
           },
+          id: `evt_${object.id}`,
+          type: "checkout.session.completed",
         },
-        id: `evt_${object.id}`,
-        type: "checkout.session.completed",
-      },
-      valid: true as const,
-    }),
-  );
-};
+        valid: true as const,
+      }),
+  });
 
 export const webhookRequest = () =>
   handleRequest(mockWebhookRequest({}, { "stripe-signature": "sig_valid" }));

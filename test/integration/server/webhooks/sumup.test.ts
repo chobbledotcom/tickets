@@ -13,10 +13,15 @@ import {
 import { assembleCheckoutMetadata } from "#shared/payment-helpers.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { sumupApi } from "#shared/sumup.ts";
+import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest, mockWebhookRequest } from "#test-utils/mocks.ts";
+import {
+  joinedStubs,
+  stubProviderPaymentAttempt,
+} from "#test-utils/payment-attempt.ts";
 
 // jscpd:ignore-end
 
@@ -74,8 +79,8 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
     reference: string,
     status: "FAILED" | "PAID",
     transactionId: string,
-  ) =>
-    stub(sumupApi, "retrieveCheckoutById", () =>
+  ) => {
+    const retrieve = stub(sumupApi, "retrieveCheckoutById", () =>
       Promise.resolve({
         amountMinor: 1000,
         currency: "GBP",
@@ -84,6 +89,11 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
         transactionId,
       }),
     );
+    return joinedStubs(
+      retrieve,
+      stubProviderPaymentAttempt(sumupPaymentProvider),
+    );
+  };
 
   test("processes an unsigned SumUp webhook end to end, idempotently", async () => {
     const listing = await createTestListing({ unitPrice: 1000 });
@@ -110,6 +120,7 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
     const fetchStub = stub(sumupApi, "retrieveCheckoutById", () =>
       Promise.resolve(null),
     );
+    const attempt = stubProviderPaymentAttempt(sumupPaymentProvider);
     try {
       const response = await handleRequest(
         mockWebhookRequest({
@@ -122,6 +133,7 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
       expect(fetchStub.calls.length).toBe(0);
     } finally {
       fetchStub.restore();
+      attempt.restore();
     }
   });
 

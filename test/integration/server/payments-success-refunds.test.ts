@@ -20,12 +20,12 @@ import {
 import { signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 // jscpd:ignore-end
-import { setupStripe } from "#test-utils/settings.ts";
+import { setupBoundStripePaymentAttempt } from "#test-utils/payment-attempt.ts";
 
 describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
   describe("GET /payment/success (ticket)", () => {
     test("skips refund for ticket payment when listing not found", async () => {
-      await setupStripe();
+      using _attempt = await setupBoundStripePaymentAttempt();
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
@@ -62,7 +62,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
     });
 
     test("a multi-item session with a now-hidden, deactivated member refunds without leaking the member name", async () => {
-      await setupStripe();
+      using _attempt = await setupBoundStripePaymentAttempt();
       const visible = await createTestListing({
         name: "Open Add-On",
         unitPrice: 500,
@@ -119,7 +119,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
     });
 
     test("a package session whose group was deleted refunds without naming members", async () => {
-      await setupStripe();
+      using _attempt = await setupBoundStripePaymentAttempt();
       // A package checkout signed while the group existed; the group is then
       // deleted and a member deactivated before /payment/success. The stale
       // group can no longer say whether it hid its listings, so the refund
@@ -185,7 +185,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
     });
 
     test("refunds ticket payment when listing is inactive", async () => {
-      await setupStripe();
+      using _attempt = await setupBoundStripePaymentAttempt();
 
       const listing = await createTestListing({
         maxAttendees: 50,
@@ -238,7 +238,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
     });
 
     test("shows refund failure message when refund fails", async () => {
-      await setupStripe();
+      using _attempt = await setupBoundStripePaymentAttempt();
 
       const listing = await fillSoleCapacityListing();
 
@@ -304,7 +304,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
     });
 
     test("ticket payment capacity failure is kept as a placeholder and refunded", async () => {
-      await setupStripe();
+      using _attempt = await setupBoundStripePaymentAttempt();
 
       const listing1 = await createTestListing({
         maxAttendees: 50,

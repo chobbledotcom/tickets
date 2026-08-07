@@ -86,42 +86,57 @@ const parseSignatureHeader = (header: string): SignatureParseResult => {
 export type StripeWebhookEvent = WebhookEvent &
   Pick<Stripe.Event, "id" | "type">;
 
+const verifierFor =
+  (getSecret: () => string) =>
+  async (
+    payload: string,
+    signature: string,
+    toleranceSeconds = DEFAULT_TOLERANCE_SECONDS,
+  ): Promise<WebhookVerifyResult> => {
+    const secret = getSecret();
+    if (!secret) {
+      logError({ code: ErrorCode.CONFIG_MISSING, detail: "webhook secret" });
+      return { error: "Webhook secret not configured", valid: false };
+    }
+    const parsed = parseSignatureHeader(signature);
+    if (!parsed.ok) {
+      logError({
+        code: ErrorCode.STRIPE_SIGNATURE,
+        detail: `invalid header: ${parsed.reason}`,
+      });
+      return { error: "Invalid signature header format", valid: false };
+    }
+    const timestampDelta = nowSeconds() - parsed.timestamp;
+    if (Math.abs(timestampDelta) > toleranceSeconds) {
+      logError({
+        code: ErrorCode.STRIPE_SIGNATURE,
+        detail: `timestamp out of tolerance delta=${timestampDelta}s tolerance=${toleranceSeconds}s`,
+      });
+      return { error: "Timestamp outside tolerance window", valid: false };
+    }
+    const expected = await hmacSha256Hex(
+      `${parsed.timestamp}.${payload}`,
+      secret,
+    );
+    const valid = parsed.signatures.some((candidate) =>
+      secureCompare(candidate, expected),
+    );
+    if (!valid) {
+      logError({ code: ErrorCode.STRIPE_SIGNATURE, detail: "mismatch" });
+    }
+    return finishWebhookVerification(
+      valid,
+      payload,
+      ErrorCode.STRIPE_SIGNATURE,
+    );
+  };
+
+/** Bind Stripe webhook verification to one signing secret. */
+export const createStripeWebhookVerifier = (
+  secret: string,
+): ReturnType<typeof verifierFor> => verifierFor(() => secret);
+
 /** Verify a Stripe webhook signature with edge-compatible Web Crypto. */
-export const verifyWebhookSignature = async (
-  payload: string,
-  signature: string,
-  toleranceSeconds = DEFAULT_TOLERANCE_SECONDS,
-): Promise<WebhookVerifyResult> => {
-  const secret = settings.stripe.webhookSecret;
-  if (!secret) {
-    logError({ code: ErrorCode.CONFIG_MISSING, detail: "webhook secret" });
-    return { error: "Webhook secret not configured", valid: false };
-  }
-  const parsed = parseSignatureHeader(signature);
-  if (!parsed.ok) {
-    logError({
-      code: ErrorCode.STRIPE_SIGNATURE,
-      detail: `invalid header: ${parsed.reason}`,
-    });
-    return { error: "Invalid signature header format", valid: false };
-  }
-  const timestampDelta = nowSeconds() - parsed.timestamp;
-  if (Math.abs(timestampDelta) > toleranceSeconds) {
-    logError({
-      code: ErrorCode.STRIPE_SIGNATURE,
-      detail: `timestamp out of tolerance delta=${timestampDelta}s tolerance=${toleranceSeconds}s`,
-    });
-    return { error: "Timestamp outside tolerance window", valid: false };
-  }
-  const expected = await hmacSha256Hex(
-    `${parsed.timestamp}.${payload}`,
-    secret,
-  );
-  const valid = parsed.signatures.some((candidate) =>
-    secureCompare(candidate, expected),
-  );
-  if (!valid) {
-    logError({ code: ErrorCode.STRIPE_SIGNATURE, detail: "mismatch" });
-  }
-  return finishWebhookVerification(valid, payload, ErrorCode.STRIPE_SIGNATURE);
-};
+export const verifyWebhookSignature = verifierFor(
+  () => settings.stripe.webhookSecret,
+);

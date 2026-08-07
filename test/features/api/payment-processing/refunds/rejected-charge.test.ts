@@ -6,13 +6,19 @@ import {
   refundRejectedCharge,
   tryRefund,
 } from "#routes/api/payment-processing/refunds.ts";
-import { settings } from "#shared/db/settings.ts";
-import { paymentsApi } from "#shared/payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
+import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { signedMeta, webhookMeta } from "#test-utils/factories.ts";
+import { testPaymentAttempt } from "#test-utils/payment-attempt.ts";
 
 setupTestEncryptionKey();
+
+const attempt = testPaymentAttempt({
+  isPaymentRefunded: (reference) =>
+    stripePaymentProvider.isPaymentRefunded(reference),
+  refundPayment: (reference) => stripePaymentProvider.refundPayment(reference),
+});
 
 /** What Stripe answers a refund it accepted with. */
 const succeededRefund = {
@@ -32,27 +38,10 @@ const succeededRefund = {
  * false because no provider was resolvable.
  */
 describe("tryRefund resource id", () => {
-  /** Run `body` with Stripe as the provider a refund resolves to. The key has
-   *  to be there as well as the choice: an existing payment is only refunded
-   *  through a provider this site still holds credentials for. */
-  const withStripeConfigured = async <T>(
-    body: () => Promise<T>,
-  ): Promise<T> => {
-    const original = paymentsApi.getConfiguredProvider;
-    paymentsApi.getConfiguredProvider = () => "stripe";
-    settings.setForTest({ stripe_secret_key: "sk_test_rejected_charge" });
-    try {
-      return await body();
-    } finally {
-      settings.clearTestOverrides();
-      paymentsApi.getConfiguredProvider = original;
-    }
-  };
-
   /** Run `body` and prove it never reached Stripe — spies keep the real
    *  methods, so a call would leave for the provider and be counted here. */
   const withStripeProvider = (run: () => Promise<void>): Promise<void> =>
-    withStripeConfigured(async () => {
+    (async () => {
       const refundSpy = spy(stripeApi, "refundPayment");
       const intentSpy = spy(stripeApi, "retrievePaymentIntent");
       try {
@@ -63,7 +52,7 @@ describe("tryRefund resource id", () => {
         refundSpy.restore();
         intentSpy.restore();
       }
-    });
+    })();
 
   /** Run `body` with Stripe.s refund answering `answer`, handing back what it
    *  returned and the arguments the refund was actually called with. Stubbed,
@@ -78,7 +67,7 @@ describe("tryRefund resource id", () => {
         Promise.resolve(answer),
       );
       try {
-        const result = await withStripeConfigured(body);
+        const result = await body();
         return { calls: refundStub.calls.map((call) => call.args), result };
       } finally {
         refundStub.restore();
@@ -103,18 +92,18 @@ describe("tryRefund resource id", () => {
 
   it("refuses an empty provider resource id before any provider call", () =>
     withStripeProvider(async () => {
-      expect(await tryRefund("")).toBe(false);
+      expect(await tryRefund(attempt, "")).toBe(false);
     }));
 
   it("refuses a whitespace-only provider resource id before any provider call", () =>
     withStripeProvider(async () => {
-      expect(await tryRefund("   ")).toBe(false);
-      expect(await tryRefund("\t\n")).toBe(false);
+      expect(await tryRefund(attempt, "   ")).toBe(false);
+      expect(await tryRefund(attempt, "\t\n")).toBe(false);
     }));
 
   it("refunds a rejected paid charge whose price proof verifies", async () => {
     const { calls, result } = await withSucceedingRefund(() =>
-      refundRejectedCharge(ourRejection("pi_usable")),
+      refundRejectedCharge(attempt, ourRejection("pi_usable")),
     );
     expect(calls).toEqual([["pi_usable"]]);
     expect(result).toEqual({ refunded: true, settled: true });
@@ -125,7 +114,7 @@ describe("tryRefund resource id", () => {
       // A foreign instance signed with its own key, so the proof must not
       // pass and no refund may be issued from here.
       expect(
-        await refundRejectedCharge({
+        await refundRejectedCharge(attempt, {
           metadata: {
             ...signedMeta(
               { email: "a@example.com", items: "[]", name: "A" },
@@ -145,7 +134,7 @@ describe("tryRefund resource id", () => {
       // Legacy/unsigned sessions carry an empty proof, so nothing can prove
       // the charge is ours and no refund may be issued.
       expect(
-        await refundRejectedCharge({
+        await refundRejectedCharge(attempt, {
           metadata: webhookMeta({
             email: "a@example.com",
             items: "[]",
@@ -160,9 +149,9 @@ describe("tryRefund resource id", () => {
 
   it("does not refund a blank-reference rejection", () =>
     withStripeProvider(async () => {
-      expect(await refundRejectedCharge({ reason: "blank_reference" })).toEqual(
-        { refunded: false, settled: true },
-      );
+      expect(
+        await refundRejectedCharge(attempt, { reason: "blank_reference" }),
+      ).toEqual({ refunded: false, settled: true });
     }));
 
   /** Run the callbacks' answer for a rejection, collecting what it logged. */
@@ -171,6 +160,7 @@ describe("tryRefund resource id", () => {
   ): Promise<{ status: number; page: string; logged: string[] }> => {
     const logged: string[] = [];
     const response = await answerRejectedSession(
+      attempt,
       ourRejection(reference),
       `cs_${reference}`,
       (detail) => logged.push(detail),

@@ -6,14 +6,11 @@ import {
 } from "#shared/db/sumup-checkouts.ts";
 import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
-import { BLANK_SESSION_METADATA } from "#test-utils/payment-session.ts";
 import {
-  makeSumupClient,
   SUMUP_META,
   stageSumupCheckout,
   sumupCheckout,
   withFetchedSumupCheckout,
-  withSumupClient,
 } from "#test-utils/sumup.ts";
 
 describe("sumup-provider resolveWebhookSession", () => {
@@ -34,16 +31,6 @@ describe("sumup-provider resolveWebhookSession", () => {
   /** Resolve the webhook the staging row maps to SumUp id "co_1". */
   const resolveStaged = () =>
     sumupPaymentProvider.resolveWebhookSession(listing("co_1"));
-
-  /** The refusal a paid charge earns when its money was captured but the
-   *  boundary cannot read its amount or currency. The metadata comes back in
-   *  the canonical shape the price proof was signed over, not as staged. */
-  const REFUNDABLE_REJECTION = {
-    metadata: { ...BLANK_SESSION_METADATA, ...SUMUP_META },
-    paymentReference: "txn",
-    reason: "malformed_charge",
-    refundable: true,
-  };
 
   test("returns null when the listing carries no id", async () => {
     expect(
@@ -70,44 +57,6 @@ describe("sumup-provider resolveWebhookSession", () => {
     await withFetchedSumupCheckout(null, async () => {
       await expect(resolveStaged()).rejects.toThrow("co_1");
     });
-  });
-
-  for (const [name, checkoutOverrides] of [
-    ["a malformed paid charge", { currency: "GB" }],
-    ["a paid charge with no readable amount", { amountMinor: null }],
-    ["a paid charge with no currency", { currency: null }],
-  ] as const) {
-    test(`returns a refundable rejection for ${name}`, async () => {
-      await stageSumupCheckout();
-      await withFetchedSumupCheckout(
-        sumupCheckout(checkoutOverrides),
-        async () => {
-          expect(await resolveStaged()).toEqual(REFUNDABLE_REJECTION);
-        },
-      );
-    });
-  }
-
-  test("hands a paid charge SumUp priced in a malformed currency to the refund path", async () => {
-    await stageSumupCheckout();
-    // The real adapter reads this response: a currency the currency helpers
-    // cannot format must not make the fetch fail, or the webhook would ack
-    // the charge as unrecognized and the captured money would be stranded.
-    await withSumupClient(
-      makeSumupClient({
-        get: () =>
-          Promise.resolve({
-            amount: 10,
-            checkout_reference: "ref",
-            currency: "GB",
-            status: "PAID",
-            transaction_id: "txn",
-          }),
-      }),
-      async () => {
-        expect(await resolveStaged()).toEqual(REFUNDABLE_REJECTION);
-      },
-    );
   });
 
   // The webhook id proved a staged row exists, so the reference SumUp answers

@@ -11,7 +11,7 @@ import {
 } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRefundPayment } from "#test-utils/webhooks.ts";
-import { bookingIntent, trustedPayment } from "./helpers.ts";
+import { bookingIntent, paymentAttempt, trustedPayment } from "./helpers.ts";
 
 const balanceData = (
   id: string,
@@ -34,6 +34,7 @@ describeWithEnv("payment processing balance outcomes", { db: true }, () => {
 
     expect(
       await processPaymentSession(
+        paymentAttempt,
         id,
         balanceData(id, attendeeId, listingId, 1500),
       ),
@@ -54,14 +55,14 @@ describeWithEnv("payment processing balance outcomes", { db: true }, () => {
     const { attendeeId, listingId } = await createReservedAttendee(1200);
     const id = "cs_direct_balance_replay";
     const data = balanceData(id, attendeeId, listingId, 1200);
-    await processPaymentSession(id, data);
+    await processPaymentSession(paymentAttempt, id, data);
     await execute(
       "DELETE FROM processed_payments WHERE payment_session_id = ?",
       [id],
     );
     using refund = stubRefundPayment("re_should_not_run");
 
-    expect(await processPaymentSession(id, data)).toEqual({
+    expect(await processPaymentSession(paymentAttempt, id, data)).toEqual({
       attendee: { id: attendeeId },
       listingId,
       success: true,
@@ -83,12 +84,14 @@ describeWithEnv("payment processing balance outcomes", { db: true }, () => {
     data.verdict = { agreed: 1000, verdict: "mismatch" };
     using refund = stubRefundPayment("re_balance_mismatch");
 
-    expect(await processPaymentSession(id, data)).toMatchObject({
-      detail: "Provider charged 900 but signed total was 1000",
-      refunded: true,
-      status: 409,
-      success: false,
-    });
+    expect(await processPaymentSession(paymentAttempt, id, data)).toMatchObject(
+      {
+        detail: "Provider charged 900 but signed total was 1000",
+        refunded: true,
+        status: 409,
+        success: false,
+      },
+    );
     expect((await getAttendeeBalanceState(attendeeId))?.remainingBalance).toBe(
       1000,
     );

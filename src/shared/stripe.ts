@@ -6,7 +6,6 @@ import {
   assembleCheckoutMetadata,
   buildProviderLineItems,
 } from "#shared/payment-helpers.ts";
-import { refundIdempotencyKey } from "#shared/payment-idempotency.ts";
 import type { CheckoutIntent, SetupWebhookEndpoint } from "#shared/payments.ts";
 import type {
   StripeCheckoutLineItemParams,
@@ -18,12 +17,12 @@ import {
   setupWebhookEndpoint,
   testStripeConnection,
 } from "#shared/stripe/endpoints.ts";
+import {
+  createStripePaymentOperations,
+  type StripePaymentOperations,
+} from "#shared/stripe/operations.ts";
 import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
-import type {
-  StripeCheckoutSession,
-  StripeExpandedPaymentIntent,
-  StripeRefund,
-} from "#shared/stripe/schemas.ts";
+import type { StripeCheckoutSession } from "#shared/stripe/schemas.ts";
 
 /* jscpd:ignore-end */
 
@@ -88,16 +87,9 @@ const createCheckoutSession = async (
   return session;
 };
 
-export interface StripeApi {
+export interface StripeApi extends StripePaymentOperations {
   cleanupOldWebhookEndpoints: typeof cleanupOldWebhookEndpoints;
   createCheckoutSession: typeof createCheckoutSession;
-  refundPayment: (intentId: string) => Promise<StripeRefund | null>;
-  retrieveCheckoutSession: (
-    id: string,
-  ) => Promise<StripeCheckoutSession | null>;
-  retrievePaymentIntent: (
-    id: string,
-  ) => Promise<StripeExpandedPaymentIntent | null>;
   setupWebhookEndpoint: SetupWebhookEndpoint;
   testStripeConnection: () => Promise<StripeConnectionTestResult>;
 }
@@ -105,24 +97,7 @@ export interface StripeApi {
 export const stripeApi: StripeApi = {
   cleanupOldWebhookEndpoints,
   createCheckoutSession,
-  refundPayment: async (intentId) => {
-    const idempotencyKey = await refundIdempotencyKey("stripe", intentId);
-    return stripeClientRuntime.run(
-      (client) =>
-        client.refunds.create({ payment_intent: intentId }, idempotencyKey),
-      ErrorCode.STRIPE_REFUND,
-    );
-  },
-  retrieveCheckoutSession: (id) =>
-    stripeClientRuntime.run(
-      (client) => client.checkout.sessions.retrieve(id),
-      ErrorCode.STRIPE_SESSION,
-    ),
-  retrievePaymentIntent: (id) =>
-    stripeClientRuntime.run(
-      (client) => client.paymentIntents.retrieveWithLatestCharge(id),
-      ErrorCode.STRIPE_SESSION,
-    ),
+  ...createStripePaymentOperations(stripeClientRuntime.run),
   setupWebhookEndpoint,
   testStripeConnection,
 };

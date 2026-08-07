@@ -9,6 +9,10 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import {
+  joinedStubs,
+  stubStripePaymentAttempt,
+} from "#test-utils/payment-attempt.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
@@ -31,7 +35,7 @@ const followPaymentRedirectAndGetAttendees = async (
   },
   listingId: number,
 ) => {
-  const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+  const retrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
     Promise.resolve({
       amount_total: session.amountTotal,
       currency: "gbp",
@@ -50,6 +54,7 @@ const followPaymentRedirectAndGetAttendees = async (
       ReturnType<typeof stripeApi.retrieveCheckoutSession>
     >),
   );
+  const mockRetrieve = joinedStubs(retrieve, stubStripePaymentAttempt());
 
   try {
     const redirectResponse = await handleRequest(

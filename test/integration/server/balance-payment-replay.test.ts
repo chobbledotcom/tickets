@@ -10,8 +10,8 @@ import { createReservedAttendee } from "#test-utils/balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { setupBoundStripePaymentAttempt } from "#test-utils/payment-attempt.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
-import { setupStripe } from "#test-utils/settings.ts";
 
 const balanceSession = (
   sessionId: string,
@@ -25,6 +25,7 @@ const balanceSession = (
   created: 1_782_000_000,
   currency: "gbp",
   id: sessionId,
+  livemode: false,
   metadata: signedMeta(
     {
       balance_attendee_id: String(attendeeId),
@@ -41,7 +42,7 @@ const balanceSession = (
 
 describeWithEnv("server (balance payment replay)", { db: true }, () => {
   test("replays a ledgered balance payment when the idempotency row is gone", async () => {
-    await setupStripe();
+    using _attempt = await setupBoundStripePaymentAttempt();
     const { attendeeId, listingId } = await createReservedAttendee(1500);
     const sessionId = "cs_balance_replay_lost_row";
     const session = balanceSession(sessionId, attendeeId, listingId, 1500);

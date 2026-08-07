@@ -13,6 +13,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest, withMocks } from "#test-utils/mocks.ts";
+import { stubStripePaymentAttempt } from "#test-utils/payment-attempt.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 
@@ -41,10 +42,12 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       await setupStripe();
 
       await withMocks(
-        () =>
-          stub(stripeApi, "retrieveCheckoutSession", () =>
+        () => ({
+          attempt: stubStripePaymentAttempt(),
+          retrieve: stub(stripeApi, "retrieveCheckoutSession", () =>
             Promise.resolve(null),
           ),
+        }),
         async () => {
           const response = await handleRequest(
             mockRequest("/payment/cancel?session_id=cs_invalid"),
@@ -93,8 +96,9 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       const refundSpy = spy(stripeApi, "refundPayment");
       try {
         await withMocks(
-          () =>
-            stub(stripePaymentProvider, "retrieveSession", () =>
+          () => ({
+            attempt: stubStripePaymentAttempt(),
+            retrieve: stub(stripePaymentProvider, "retrieveSession", () =>
               Promise.resolve({
                 metadata: signedMeta(
                   { email: "a@example.com", items: "[]", name: "A" },
@@ -105,6 +109,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
                 refundable: true,
               }),
             ),
+          }),
           async () => {
             const response = await handleRequest(
               mockRequest("/payment/cancel?session_id=cs_rejected"),

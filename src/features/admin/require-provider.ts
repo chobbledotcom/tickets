@@ -1,5 +1,5 @@
 import {
-  getPaymentProviderForExistingPayments,
+  getAdminPaymentProvider,
   type PaymentProvider,
 } from "#shared/payments.ts";
 
@@ -7,6 +7,6 @@ import {
 export const requirePaymentProvider = async <T>(
   onMissing: () => T,
 ): Promise<PaymentProvider | T> => {
-  const provider = await getPaymentProviderForExistingPayments();
+  const provider = await getAdminPaymentProvider();
   return provider ?? onMissing();
 };

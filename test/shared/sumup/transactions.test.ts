@@ -1,46 +1,38 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
-import { getTransactionStatus, refundTransaction } from "#shared/sumup.ts";
+import { isTransactionRefunded, refundTransaction } from "#shared/sumup.ts";
 import {
   makeSumupClient,
   setupSumupSuite,
+  sumupSandboxFixture,
   withSumupClient,
 } from "#test-utils/sumup.ts";
 
 describe("sumup transactions", () => {
   const { errorSpy } = setupSumupSuite();
 
-  describe("getTransactionStatus", () => {
+  describe("isTransactionRefunded", () => {
     test("returns null when merchant code is absent", async () => {
       settings.setForTest({ sumup_merchant_code: "" });
       await withSumupClient(makeSumupClient({}), async () => {
-        expect(await getTransactionStatus("txn")).toBeNull();
+        expect(await isTransactionRefunded("txn")).toBeNull();
       });
     });
 
-    test("returns the transaction status", async () => {
+    test("uses the reviewed refund events as authority", async () => {
+      const fixture = await sumupSandboxFixture("refunded");
       const client = makeSumupClient({
-        txnGet: () => Promise.resolve({ status: "SUCCESSFUL" }),
+        txnGet: () => Promise.resolve(fixture.transaction_response),
       });
       await withSumupClient(client, async () => {
-        expect(await getTransactionStatus("txn")).toBe("SUCCESSFUL");
+        expect(await isTransactionRefunded("txn")).toBe(true);
       });
     });
 
-    test("reports SumUp's status verbatim, even when it is empty", async () => {
-      const client = makeSumupClient({
-        txnGet: () => Promise.resolve({ status: "" }),
-      });
-      await withSumupClient(client, async () => {
-        expect(await getTransactionStatus("txn")).toBe("");
-      });
-    });
-
-    test("returns null when the status field is absent", async () => {
-      const client = makeSumupClient({ txnGet: () => Promise.resolve({}) });
-      await withSumupClient(client, async () => {
-        expect(await getTransactionStatus("txn")).toBeNull();
+    test("returns null when the client is unavailable", async () => {
+      await withSumupClient(null, async () => {
+        expect(await isTransactionRefunded("txn")).toBeNull();
       });
     });
   });

@@ -2,6 +2,7 @@ import { mapNotNullish } from "#fp";
 import { settings } from "#shared/db/settings.ts";
 import { getEnv } from "#shared/env.ts";
 import {
+  type ClientRunner,
   cachedClientFactory,
   createWithClient,
 } from "#shared/payment-helpers.ts";
@@ -96,10 +97,15 @@ const cache = cachedClientFactory({
 });
 
 const get = (): Promise<StripeClient | null> => cache.getClient();
-const run = createWithClient(get, {
+const errorHandling = {
   errorDetail: sanitizeStripeError,
-  shouldPropagate: (error) => error instanceof StripeProtocolError,
-});
+  shouldPropagate: (error: unknown) => error instanceof StripeProtocolError,
+};
+const run = createWithClient(get, errorHandling);
+const bind = (secretKey: string): ClientRunner<StripeClient> => {
+  const client = stripeClientRuntime.create(secretKey);
+  return createWithClient(() => client, errorHandling);
+};
 
 /** Shared Stripe client lifecycle for payment and endpoint operations. */
-export const stripeClientRuntime = { create, get, run };
+export const stripeClientRuntime = { bind, create, get, run };
