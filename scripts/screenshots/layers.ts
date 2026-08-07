@@ -112,6 +112,7 @@ export const addScreenshotStyle = async (
 ): Promise<() => Promise<void>> => {
   const marker = crypto.randomUUID();
   const url = new URL(page.url());
+  url.hash = "";
   url.searchParams.set("screenshot-style", marker);
   const href = url.toString();
   await page.route(href, (route) =>
@@ -148,6 +149,7 @@ const defineWholeOpacityGroups = definePageChange<void>(
 
 export const withWholeOpacityGroups: PageChange = defineWholeOpacityGroups();
 
-export const withScreenshotLayer = definePageChange<ScreenshotLayerName>(
-  (layer, page) => addScreenshotStyle(page, LAYER_STYLES[layer]),
-);
+export const withScreenshotLayer: (layer: ScreenshotLayerName) => PageChange =
+  definePageChange<ScreenshotLayerName>((layer, page) =>
+    addScreenshotStyle(page, LAYER_STYLES[layer]),
+  );

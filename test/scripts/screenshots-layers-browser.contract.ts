@@ -290,6 +290,24 @@ describe("screenshot layer browser contracts", () => {
     });
   });
 
+  test("adds screenshot CSS on a page with a URL fragment", async () => {
+    await withPage(browser, "<p>Styled</p>", async (page) => {
+      await page.goto(`${page.url()}#terms`);
+
+      const removeStyle = await addScreenshotStyle(
+        page,
+        "p { color: rgb(1, 2, 3); }",
+      );
+      try {
+        expect(await layerStyle(page, "text", "p", "color")).toBe(
+          "rgb(1, 2, 3)",
+        );
+      } finally {
+        await removeStyle();
+      }
+    });
+  });
+
   test("layer masks outrank existing important cascade layers", async () => {
     await withPage(
       browser,
