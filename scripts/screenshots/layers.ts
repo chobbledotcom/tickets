@@ -8,42 +8,47 @@ export const SCREENSHOT_LAYER_NAMES = [
 export type ScreenshotLayerName = (typeof SCREENSHOT_LAYER_NAMES)[number];
 
 const CONTROL_SELECTOR =
-  'input, select, textarea, button, [role="button"], a.button, a[class*="button"]';
-const CONTROL_LETTERING_SELECTOR =
-  'input, textarea, button, [role="button"], a.button, a[class*="button"]';
+  'input, select, textarea, button, [role="button"], a.btn, a.button, a[class*="button"]';
+const LAYER_PRIORITY =
+  ":not(#__screenshot_layer_mask__):not(#__screenshot_layer_control__)";
 
 const LAYER_STYLES: Record<ScreenshotLayerName, string> = {
   background: `
-    body *, body *::before, body *::after {
+    body ${LAYER_PRIORITY}, body ${LAYER_PRIORITY}::before, body ${LAYER_PRIORITY}::after {
       color: transparent !important;
       text-shadow: none !important;
       -webkit-text-fill-color: transparent !important;
     }
-    :is(${CONTROL_SELECTOR}) { visibility: hidden !important; }
-    svg text { visibility: hidden !important; }
-    *::placeholder { color: transparent !important; }
+    :is(${CONTROL_SELECTOR})${LAYER_PRIORITY},
+    :is(${CONTROL_SELECTOR})${LAYER_PRIORITY} * { visibility: hidden !important; }
+    svg text${LAYER_PRIORITY} { visibility: hidden !important; }
+    body ${LAYER_PRIORITY}::placeholder { color: transparent !important; }
   `,
   controls: `
     html, body { background: transparent !important; }
-    body :not(#__screenshot_layer_mask__) { visibility: hidden !important; }
-    :is(${CONTROL_SELECTOR}):not(#__screenshot_layer_mask__):not(#__screenshot_layer_control__),
-    :is(${CONTROL_SELECTOR}):not(#__screenshot_layer_mask__):not(#__screenshot_layer_control__) * {
+    body ${LAYER_PRIORITY} { visibility: hidden !important; }
+    :is(${CONTROL_SELECTOR})${LAYER_PRIORITY},
+    :is(${CONTROL_SELECTOR})${LAYER_PRIORITY} * {
       visibility: visible !important;
     }
-    :is(${CONTROL_LETTERING_SELECTOR}), :is(${CONTROL_LETTERING_SELECTOR}) * {
+    :is(${CONTROL_SELECTOR})${LAYER_PRIORITY},
+    :is(${CONTROL_SELECTOR})${LAYER_PRIORITY} * {
       color: transparent !important;
       text-shadow: none !important;
       -webkit-text-fill-color: transparent !important;
     }
   `,
   text: `
-    html, body, body * {
+    html, body, body ${LAYER_PRIORITY}, body ${LAYER_PRIORITY}::before, body ${LAYER_PRIORITY}::after {
       background: transparent !important;
       border-color: transparent !important;
       box-shadow: none !important;
       outline-color: transparent !important;
     }
-    img, picture, video, canvas, svg { visibility: hidden !important; }
+    :is(img, picture, video, canvas)${LAYER_PRIORITY},
+    svg :is(path, circle, ellipse, line, polygon, polyline, rect, image, use, foreignObject)${LAYER_PRIORITY} {
+      visibility: hidden !important;
+    }
   `,
 };
 
