@@ -8,7 +8,10 @@ import { listingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { getProcessedPayment } from "#test-utils/processed-payments.ts";
+import {
+  expectSessionFailed,
+  getProcessedPayment,
+} from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 import { stubRefundPayment } from "#test-utils/webhooks.ts";
@@ -138,7 +141,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
         [listing.id],
       ),
     ).toEqual({ listing_id: listing.id, quantity: 0 });
-    expect((await getProcessedPayment(id))?.failure_data).not.toBe("");
+    await expectSessionFailed(id);
   });
 
   test("keeps a charge-mismatched booking and records a terminal refund", async () => {

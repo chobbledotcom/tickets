@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { executeBatch, queryOne } from "#shared/db/client.ts";
 import { batchFinalizeStatements } from "#shared/db/payment-finalize.ts";
@@ -20,7 +21,12 @@ export const expectSessionFailed = async (sessionId: string): Promise<void> => {
   const record = await getProcessedPayment(sessionId);
   if (!record) throw new Error(`Processed payment ${sessionId} was not stored`);
   expect(record.attendee_id).toBeNull();
-  expect(record.failure_data).not.toBe("");
+  const failureData: unknown = record.failure_data;
+  assert(
+    typeof failureData === "string",
+    `Processed payment ${sessionId} failure data was not a string`,
+  );
+  expect(failureData.length).toBeGreaterThan(0);
 };
 
 /** Finalize a reserved payment through the same guarded batch as checkout. */

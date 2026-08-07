@@ -1,10 +1,16 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
+import { PRICE_TYPE_GROUP_DAY } from "#shared/db/listing-prices.ts";
 import { loadRegistrationPackageFacts } from "#shared/registration-package-facts.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  type DbCallHooks,
+  statementSql,
+  wrapDbClient,
+} from "#test-utils/record-queries.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 const row = (packageGroupId: number) => ({
@@ -36,11 +42,31 @@ describeWithEnv("loadRegistrationPackageFacts", { db: true }, () => {
     await setGroupPackageMembers(group.id, [
       { dayPrices: { 2: 1400 }, listingId: member.id, price: 750, quantity: 3 },
     ]);
-    const facts = await loadRegistrationPackageFacts([
-      row(group.id),
-      row(group.id),
-      row(0),
-    ]);
+    const packageQueries: Parameters<DbCallHooks["execute"]>[0][] = [];
+    const restoreDb = wrapDbClient({
+      batch: () => {},
+      execute: (statement) => {
+        if (statementSql(statement).includes("groupListing.group_id IN")) {
+          packageQueries.push(statement);
+        }
+        return null;
+      },
+    });
+    let facts: Awaited<ReturnType<typeof loadRegistrationPackageFacts>>;
+    try {
+      facts = await loadRegistrationPackageFacts([
+        row(group.id),
+        row(group.id),
+        row(0),
+      ]);
+    } finally {
+      restoreDb();
+    }
+    expect(
+      packageQueries.map((statement) =>
+        typeof statement === "string" ? undefined : statement.args,
+      ),
+    ).toEqual([[group.id], [PRICE_TYPE_GROUP_DAY, group.id]]);
     expect(facts.displays).toEqual(
       new Map([[group.id, { hideListings: true, name: "Weekend bundle" }]]),
     );

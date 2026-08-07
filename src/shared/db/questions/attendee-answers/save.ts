@@ -161,7 +161,6 @@ const existingQuestionIdsTx = async (
   tx: TxScope,
   questionIds: number[],
 ): Promise<Set<number>> => {
-  if (questionIds.length === 0) return new Set();
   const rows = resultRows<{ id: number }>(
     await tx.execute(
       questionsTable.read.pick(["id"]).statement({ id: questionIds }),
@@ -217,11 +216,6 @@ const existingQuestionIdsTx = async (
 export const saveAttendeeAnswers = async (
   answersByAttendee: Map<number, number[] | AttendeeAnswerSet>,
 ): Promise<void> => {
-  const storedIdsOnly = [...answersByAttendee.values()].every(
-    (set) =>
-      !Array.isArray(set) &&
-      (set.textAnswers === undefined || set.textAnswers.length === 0),
-  );
   const normalized = new Map<number, NormalizedAnswerSet>(
     [...answersByAttendee].map(([id, set]) => {
       const answerSet = normalizeAnswerSet(set);
@@ -236,6 +230,9 @@ export const saveAttendeeAnswers = async (
     }),
   );
   if (normalized.size === 0) return;
+  const storedIdsOnly = [...normalized.values()].every(
+    (set) => set.textAnswers.length === 0,
+  );
   if (storedIdsOnly) {
     await executeBatch(storedIdAnswerStatements(normalized));
     return;

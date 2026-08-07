@@ -11,7 +11,7 @@ import { execute } from "#shared/db/client.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { webhookMeta } from "#test-utils/factories.ts";
-import { getProcessedPayment } from "#test-utils/processed-payments.ts";
+import { expectSessionFailed } from "#test-utils/processed-payments.ts";
 
 export const bookingIntent = (
   items: BookingItem[],
@@ -103,7 +103,5 @@ export const expectStoredRefund = async (
   expect(result.refunded).toBe(true);
   expect((await getAttendeesRaw(expected.listingId))[0]?.quantity).toBe(0);
   expect(refund.calls).toHaveLength(1);
-  expect(
-    (await getProcessedPayment(expected.sessionId))?.failure_data,
-  ).not.toBe("");
+  await expectSessionFailed(expected.sessionId);
 };

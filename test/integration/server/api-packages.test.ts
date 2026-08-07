@@ -476,12 +476,18 @@ describeWithEnv("public API packages", { db: true }, () => {
     await setGroupPackageMembers(group.id, [
       { listingId: member.id, price: null },
     ]);
+    let packageFactFailureRan = false;
     const restoreDb = wrapDbClient({
       batch: () => {},
-      execute: (statement) =>
-        statementSql(statement).includes("groupRecord.hide_package_listings")
-          ? Promise.reject(new Error("package facts unavailable"))
-          : null,
+      execute: (statement) => {
+        if (
+          !statementSql(statement).includes("groupRecord.hide_package_listings")
+        ) {
+          return null;
+        }
+        packageFactFailureRan = true;
+        return Promise.reject(new Error("package facts unavailable"));
+      },
     });
 
     let result: Awaited<ReturnType<typeof apiBookPackage>>;
@@ -491,6 +497,7 @@ describeWithEnv("public API packages", { db: true }, () => {
       restoreDb();
     }
 
+    expect(packageFactFailureRan).toBe(true);
     expect(result.response.status).toBe(200);
     expect(await bookingRows(member.id)).toHaveLength(1);
   });

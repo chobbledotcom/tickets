@@ -23,7 +23,7 @@ const bookedEntry = async (): Promise<CreatedEntry> => {
   );
   const loaded = await getListingWithCount(listing.id);
   if (loaded === null) throw new Error(`Listing ${listing.id} was not created`);
-  return { attendee, listing: loaded } as CreatedEntry;
+  return { attendee, listing: loaded };
 };
 
 const saveAndReadAnswers = async (

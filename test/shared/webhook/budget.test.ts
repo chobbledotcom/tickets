@@ -15,19 +15,19 @@ import {
   logAndNotifyRegistration,
   sendRegistrationWebhooks,
 } from "#shared/webhook.ts";
+import { stubWebhookFetch } from "#test/shared/webhook/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
-import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 /** Enough for the fixed reads, far below one read per line or per package. */
 const REGISTRATION_CALL_LIMIT = 10;
 
 describeWithEnv("registration notification budget", { db: true }, () => {
-  stubFetchEachTest(() => new Response());
+  const fetchSpy = stubWebhookFetch();
 
   /** One booking line per listing, all sharing one webhook URL. */
   const orderEntries = async (
@@ -145,8 +145,12 @@ describeWithEnv("registration notification budget", { db: true }, () => {
   });
 
   test("uses supplied package facts without reading the database", async () => {
-    const [entry] = await packagedEntries("Supplied", 1);
-    const groupId = entry!.attendee.package_group_id;
+    const [storedEntry] = await packagedEntries("Supplied", 1);
+    const entry = {
+      ...storedEntry!,
+      listing: { ...storedEntry!.listing, name: "Supplied package" },
+    };
+    const groupId = entry.attendee.package_group_id;
     const facts: RegistrationPackageFacts = {
       displays: new Map([
         [groupId, { hideListings: false, name: "Supplied package" }],
@@ -156,17 +160,20 @@ describeWithEnv("registration notification budget", { db: true }, () => {
           groupId,
           {
             dayPriceMap: new Map(),
-            memberIds: new Set([entry!.listing.id]),
-            priceMap: new Map([[entry!.listing.id, 500]]),
-            quantityMap: new Map([[entry!.listing.id, 1]]),
+            memberIds: new Set([entry.listing.id]),
+            priceMap: new Map([[entry.listing.id, 500]]),
+            quantityMap: new Map([[entry.listing.id, 1]]),
           },
         ],
       ]),
     };
     expect(
       await countDatabaseCalls(0, () =>
-        sendRegistrationWebhooks([entry!], "GBP", facts),
+        sendRegistrationWebhooks([entry], "GBP", facts),
       ),
     ).toBe(0);
+    const payload = fetchSpy.firstBody();
+    expect(payload.tickets[0]!.listing_name).toBe("Supplied package");
+    expect(payload.tickets[0]!.unit_price).toBe(500);
   });
 });

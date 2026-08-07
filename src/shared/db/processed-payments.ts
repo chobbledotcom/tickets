@@ -137,9 +137,7 @@ export const reserveSession = async (
   sessionId: string,
 ): Promise<ReserveSessionResult> => {
   const claimedAt = nowIso();
-  const staleBefore = new Date(
-    new Date(claimedAt).getTime() - STALE_RESERVATION_MS,
-  ).toISOString();
+  const staleBefore = isoBefore(STALE_RESERVATION_MS);
   const [claimResult, lookupResult] = await executeBatchWithResults([
     {
       args: [sessionId, claimedAt, staleBefore],

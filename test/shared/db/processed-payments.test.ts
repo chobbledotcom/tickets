@@ -78,7 +78,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       expect(calls).toBe(1);
     });
 
-    test("retries when stale reservation detected", async () => {
+    test("claims a stale reservation in one database call", async () => {
       const oldTimestamp = new Date(
         nowMs() - STALE_RESERVATION_MS - 1000,
       ).toISOString();

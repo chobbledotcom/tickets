@@ -223,6 +223,7 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
       );
       const rows = await getAttendeesByListingIds([listing.id]);
       expect(rows.length).toBe(1);
+      expect(rows[0]?.status_id).toBe(await requirePublicStatusId());
       // Kept, but holding nothing — a quantity-1 row here would take a place
       // from a real buyer.
       expect(rows[0]?.quantity).toBe(0);

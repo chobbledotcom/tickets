@@ -236,7 +236,11 @@ export const promoCodeActivities = (
 ): ActivityToLog[] => {
   const byId = new Map(applications.map((a) => [a.modifierId, a]));
   return specs.map((spec) => {
-    const delta = byId.get(spec.id)!.delta;
+    const delta = requiredMapValue(
+      byId,
+      spec.id,
+      `Modifier application ${spec.id} was not loaded for promo code activity`,
+    ).delta;
     const effect =
       delta < 0 ? `${formatCurrency(-delta)} off` : `+${formatCurrency(delta)}`;
     return {

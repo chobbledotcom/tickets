@@ -10,7 +10,10 @@ import {
 } from "#routes/api/payment-processing/create.ts";
 import { specForFailure } from "#routes/api/payment-processing/store-refund.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
-import type { PricedOrder } from "#shared/checkout-pricing.ts";
+import type {
+  ModifierApplication,
+  PricedOrder,
+} from "#shared/checkout-pricing.ts";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import { decryptWithOwnerKey } from "#shared/crypto/keys.ts";
 import { logActivities } from "#shared/db/activity-log.ts";
@@ -18,8 +21,10 @@ import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { queryAll } from "#shared/db/client.ts";
 import type {
   CheckoutIntent,
+  ModifierSpec,
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
+import type { ListingWithCount } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -84,6 +89,23 @@ test("builds standalone and package booking slots", () => {
     listingId: 7,
     packageGroupId: 9,
   });
+});
+
+test("fails when a promo code has no pricing application", () => {
+  const spec: ModifierSpec = {
+    id: 1,
+    kind: "fixed",
+    listingIds: null,
+    name: "Missing application",
+    quantity: 1,
+    trigger: "code",
+    value: -100,
+  };
+  const listing: ListingWithCount = testListingWithCount();
+
+  expect(() => promoCodeActivities([spec], [], listing, 1)).toThrow(
+    "Modifier application 1 was not loaded for promo code activity",
+  );
 });
 
 type PreparationOptions = {
@@ -273,20 +295,32 @@ describeWithEnv("payment booking lines", { db: true }, () => {
     ["money off", "POUNDOFF", -100, "Promo code 'POUNDOFF' used: £1 off"],
   ] as const) {
     test(`writes down ${name}`, async () => {
-      const listing = await createTestListing();
+      const listing: ListingWithCount = await createTestListing();
       const attendee = await bookTestAttendee(
         [listing.id],
         `${code} buyer`,
         `${code.toLowerCase()}@example.com`,
       );
+      const spec: ModifierSpec = {
+        id: 1,
+        kind: "fixed",
+        listingIds: null,
+        name: code,
+        quantity: 1,
+        trigger: "code",
+        value: delta,
+      };
+      const application: ModifierApplication = {
+        amountApplied: Math.abs(delta),
+        delta,
+        modifierId: 1,
+        name: code,
+        quantity: 1,
+        scopedSubtotal: listing.unit_price,
+      };
 
       await logActivities(
-        promoCodeActivities(
-          [{ id: 1, name: code } as never],
-          [{ delta, modifierId: 1 } as never],
-          listing as never,
-          attendee.id,
-        ),
+        promoCodeActivities([spec], [application], listing, attendee.id),
       );
 
       const [row] = await queryAll<{ message: string }>(

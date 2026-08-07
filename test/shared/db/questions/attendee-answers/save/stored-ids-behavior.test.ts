@@ -115,22 +115,29 @@ describeWithEnv(
       ]);
     });
 
-    test("saves one plain text answer", async () => {
-      const question = await createQuestion("Plain", {
+    test("omits a deleted choice while saving plain text", async () => {
+      const choiceQuestion = await createQuestion("Removed choice");
+      const choice = await addAnswer(choiceQuestion.id, 0, "Removed");
+      const plainQuestion = await createQuestion("Plain", {
         displayType: "free_text",
       });
       const attendee = await createAttendee((await createTestListing()).id);
+      await execute("DELETE FROM answers WHERE id = ?", [choice.id]);
+
       await saveAttendeeAnswers(
         new Map([
           [
             attendee.id,
             {
-              answerIds: [],
-              textAnswers: [{ questionId: question.id, text: "One answer" }],
+              answerIds: [choice.id],
+              textAnswers: [
+                { questionId: plainQuestion.id, text: "Plain answer" },
+              ],
             },
           ],
         ]),
       );
+
       expect(await storedRowsFor(attendee.id)).toEqual([
         { answer_id: null, string_id: expect.any(Number) },
       ]);
@@ -204,13 +211,13 @@ describeWithEnv(
       ).toBe(0);
     });
 
-    test("keeps the array form on the plaintext transaction path", async () => {
+    test("saves the array form in one batch call", async () => {
       const attendee = await createAttendee((await createTestListing()).id);
       expect(
-        await countDatabaseCalls(3, () =>
+        await countDatabaseCalls(1, () =>
           saveAttendeeAnswers(new Map([[attendee.id, []]])),
         ),
-      ).toBe(3);
+      ).toBe(1);
     });
   },
 );

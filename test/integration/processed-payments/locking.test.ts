@@ -167,20 +167,19 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
         reserveSession(sessionId),
       );
       await allWaiting.promise;
-      gates[0]!.resolve();
-      const winner = await attempts[0]!;
-      expect(winner.reserved).toBe(true);
-      for (const gate of gates.slice(1)) gate.resolve();
+      for (const gate of gates) gate.resolve();
 
       const results = await Promise.all(attempts);
       const stored = await getProcessedPayment(sessionId);
+      if (stored === null)
+        throw new Error(`Session ${sessionId} was not stored`);
       expect(results.filter((result) => result.reserved)).toHaveLength(1);
       const losers = results.filter((result) => !result.reserved);
       expect(losers).toHaveLength(callerCount - 1);
       expect(losers.map((result) => result.existing.processed_at)).toEqual(
-        Array(callerCount - 1).fill(stored!.processed_at),
+        Array(callerCount - 1).fill(stored.processed_at),
       );
-      expect(stored!.processed_at).not.toBe(staleTime);
+      expect(stored.processed_at).not.toBe(staleTime);
       expect(batch.calls).toHaveLength(callerCount);
     });
   });
