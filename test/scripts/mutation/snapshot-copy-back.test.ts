@@ -1,8 +1,12 @@
 import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
+import { withCopyBackLock } from "#scripts/mutation/isolation-lock.ts";
 import {
   bringFilesBack,
+  type CopyBackFile,
+  keepSnapshotFiles,
   putBackOwnWrites,
   readCopyBackFiles,
 } from "#scripts/mutation/snapshot-copy-back.ts";
@@ -43,14 +47,21 @@ const keepFile = async (
   );
 };
 
+const prepareTwoFiles = async (roots: {
+  root: string;
+  workRoot: string;
+}): Promise<CopyBackFile[]> => {
+  await Deno.writeTextFile(join(roots.root, SECOND), "a\n");
+  await Deno.writeTextFile(join(roots.workRoot, SECOND), "b\n");
+  return await readCopyBackFiles(roots.root, [KEPT, SECOND]);
+};
+
 /** Keep a second file too, break it via `breakSecond`, then bring both back. */
 const keepTwoFiles = async (
   roots: { root: string; workRoot: string },
   breakSecond: (paths: { live: string; inWork: string }) => Promise<void>,
 ): ReturnType<typeof captureConsole<number>> => {
-  await Deno.writeTextFile(join(roots.root, SECOND), "a\n");
-  await Deno.writeTextFile(join(roots.workRoot, SECOND), "b\n");
-  const files = await readCopyBackFiles(roots.root, [KEPT, SECOND]);
+  const files = await prepareTwoFiles(roots);
   await breakSecond({
     inWork: join(roots.workRoot, SECOND),
     live: join(roots.root, SECOND),
@@ -61,6 +72,33 @@ const keepTwoFiles = async (
 };
 
 describe("bringing files back out of a snapshot", () => {
+  test("keeps nothing when interrupted while waiting for the copy-back lock", async () => {
+    await withCheckoutAndCopy("live\n", "copy\n", async (roots) => {
+      const files = await readCopyBackFiles(roots.root, [KEPT]);
+      const lockTaken = Promise.withResolvers<void>();
+      const releaseLock = Promise.withResolvers<void>();
+      const holding = withCopyBackLock(roots.root, async () => {
+        lockTaken.resolve();
+        await releaseLock.promise;
+      });
+      await lockTaken.promise;
+
+      let interrupted = false;
+      const keeping = keepSnapshotFiles(
+        () => interrupted,
+        roots.root,
+        roots.workRoot,
+        files,
+      );
+      interrupted = true;
+      releaseLock.resolve();
+
+      expect(await keeping).toBe(0);
+      await holding;
+      expect(await Deno.readTextFile(join(roots.root, KEPT))).toBe("live\n");
+    });
+  });
+
   test("copies a file the run changed into the checkout", async () => {
     await withCheckoutAndCopy("one\ntwo\n", "one\n", async (roots) => {
       const run = await keepFile(roots);
@@ -116,6 +154,31 @@ describe("bringing files back out of a snapshot", () => {
       expect(await Deno.readTextFile(join(roots.root, KEPT))).toBe(
         "one\ntwo\n",
       );
+    });
+  });
+
+  test("stops when a file changes after the first checks", async () => {
+    await withCheckoutAndCopy("one\ntwo\n", "one\n", async (roots) => {
+      const files = await prepareTwoFiles(roots);
+      const readTextFile = Deno.readTextFile.bind(Deno);
+      using _read = stub(Deno, "readTextFile", async (path) => {
+        const text = await readTextFile(path);
+        if (String(path) === join(roots.workRoot, KEPT)) {
+          await Deno.writeTextFile(join(roots.root, SECOND), "edited\n");
+        }
+        return text;
+      });
+
+      const run = await captureConsole(() =>
+        bringFilesBack(roots.root, roots.workRoot, files),
+      );
+
+      expect(run.result).toBe(1);
+      expect(run.errors.join("\n")).toContain(
+        `${SECOND} changed while the isolated run was going`,
+      );
+      expect(await readTextFile(join(roots.root, KEPT))).toBe("one\ntwo\n");
+      expect(await readTextFile(join(roots.root, SECOND))).toBe("edited\n");
     });
   });
 
@@ -177,6 +240,22 @@ describe("bringing files back out of a snapshot", () => {
       expect(await Deno.readTextFile(join(roots.root, KEPT))).toBe(
         "one\ntwo\n",
       );
+    });
+  });
+
+  test("reports each file it could not put back on its own line", async () => {
+    await withCheckoutAndCopy("one\n", "one\n", async (roots) => {
+      const run = await captureConsole(async () => {
+        await putBackOwnWrites(roots.root, [
+          { after: "x\n", before: "y\n", file: "missing-a.txt" },
+          { after: "x\n", before: "y\n", file: "missing-b.txt" },
+        ]);
+        return 0;
+      });
+
+      expect(run.errors).toHaveLength(1);
+      expect(run.errors[0]).toContain("missing-a.txt:");
+      expect(run.errors[0]).toContain("\nmissing-b.txt:");
     });
   });
 
