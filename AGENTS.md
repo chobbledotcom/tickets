@@ -168,25 +168,27 @@ GitHub.
   `agentPage`/`requireAgentOr` were an agent-only page+guard pair with no route
   wiring (agents are gated via `deliveryPage`/`requireDeliveryOr`), so both were
   deleted rather than exempted.
-- **Keep files under ~400 lines**: When refactoring a file, aim to keep it under
-  400 lines — and if hitting that target means splitting one file into several,
-  so be it: a new file is cheaper than an overloaded one. When you end up with a
-  handful of files all about the same thing, group them in a folder and give
-  them shorter names that don't repeat the folder's name (`ledger/project.ts`,
-  not `ledger/ledger-project.ts` — see the `src/shared/ledger/` and
-  `src/shared/db/attendees/` examples in [Modularised](#modularised)). While
-  you're at it, use the split as a chance to separate pure from non-pure code —
-  push the data-in/data-out logic into its own file and keep the IO in a thin
-  shell (see [Pure, functional](#pure-functional)). **The same 400-line limit
-  applies to test files**, and matters just as much: smaller, more specific test
-  files let us run mutation tests far faster, because a source file's mutants
-  only need to run against the narrow test file that covers it, not one giant
-  suite. Biome enforces a hard 1,000-line ceiling as a lint error
-  (`nursery.noExcessiveLinesPerFile` in `biome.json`); it applies to every file,
-  with no exceptions — never add an override to let one file past it. (Expect a
-  known side effect when splitting: jscpd cannot fully scan very large files, so
-  a split routinely _surfaces_ duplication that was silently passing inside the
-  monolith — budget for extracting helpers, not just moving tests.)
+- **Keep code and test files under ~400 lines**: When refactoring a code or test
+  file, aim to keep it under 400 lines — and if hitting that target means
+  splitting one file into several, so be it: a new file is cheaper than an
+  overloaded one. When you end up with a handful of files all about the same
+  thing, group them in a folder and give them shorter names that don't repeat
+  the folder's name (`ledger/project.ts`, not `ledger/ledger-project.ts` — see
+  the `src/shared/ledger/` and `src/shared/db/attendees/` examples in
+  [Modularised](#modularised)). While you're at it, use the split as a chance to
+  separate pure from non-pure code — push the data-in/data-out logic into its
+  own file and keep the IO in a thin shell (see
+  [Pure, functional](#pure-functional)). **The same 400-line limit applies to
+  test files**, and matters just as much: smaller, more specific test files let
+  us run mutation tests far faster, because a source file's mutants only need to
+  run against the narrow test file that covers it, not one giant suite. Biome
+  enforces a hard 1,000-line ceiling for every code and test file; never add an
+  override to let one past it. Root instruction files such as `AGENTS.md` are
+  exempt because their policy must be available as one automatically loaded
+  document, but their sections should still stay concise. (Expect a known side
+  effect when splitting: jscpd cannot fully scan very large files, so a split
+  routinely _surfaces_ duplication that was silently passing inside the monolith
+  — budget for extracting helpers, not just moving tests.)
 - **Good citizen — fix what you spot**: If you notice a bug, a coverage gap, or
   a flaky/fragile test while working — even in code you were not asked to touch
   and did not write — fix it in passing rather than stepping around it. A green
