@@ -11,22 +11,25 @@ const CONTROL_SELECTOR =
   'input, select, textarea, button, [role="button"], a.btn, a.button, a[class*="button"]';
 const LAYER_PRIORITY =
   ":not(#__screenshot_layer_mask__):not(#__screenshot_layer_control__)";
+const HIDDEN_TEXT_STYLE = `
+  color: transparent !important;
+  text-decoration-color: transparent !important;
+  text-shadow: none !important;
+  -webkit-text-fill-color: transparent !important;
+  -webkit-text-stroke-color: transparent !important;
+`;
 
 const LAYER_STYLES: Record<ScreenshotLayerName, string> = {
-  background: `
+  background: `@layer __screenshot_layer__ {
     body ${LAYER_PRIORITY}, body ${LAYER_PRIORITY}::before, body ${LAYER_PRIORITY}::after {
-      color: transparent !important;
-      text-decoration-color: transparent !important;
-      text-shadow: none !important;
-      -webkit-text-fill-color: transparent !important;
-      -webkit-text-stroke-color: transparent !important;
+      ${HIDDEN_TEXT_STYLE}
     }
     :is(${CONTROL_SELECTOR})${LAYER_PRIORITY},
     :is(${CONTROL_SELECTOR})${LAYER_PRIORITY} * { visibility: hidden !important; }
     svg text${LAYER_PRIORITY} { visibility: hidden !important; }
-    body ${LAYER_PRIORITY}::placeholder { color: transparent !important; }
-  `,
-  controls: `
+    body ${LAYER_PRIORITY}::placeholder { ${HIDDEN_TEXT_STYLE} }
+  }`,
+  controls: `@layer __screenshot_layer__ {
     html, body { background: transparent !important; }
     body ${LAYER_PRIORITY} { visibility: hidden !important; }
     :is(${CONTROL_SELECTOR})${LAYER_PRIORITY},
@@ -35,25 +38,25 @@ const LAYER_STYLES: Record<ScreenshotLayerName, string> = {
     }
     :is(${CONTROL_SELECTOR})${LAYER_PRIORITY},
     :is(${CONTROL_SELECTOR})${LAYER_PRIORITY} * {
-      color: transparent !important;
-      text-decoration-color: transparent !important;
-      text-shadow: none !important;
-      -webkit-text-fill-color: transparent !important;
-      -webkit-text-stroke-color: transparent !important;
+      ${HIDDEN_TEXT_STYLE}
     }
-  `,
-  text: `
+    :is(${CONTROL_SELECTOR})${LAYER_PRIORITY}::placeholder {
+      ${HIDDEN_TEXT_STYLE}
+    }
+  }`,
+  text: `@layer __screenshot_layer__ {
     html, body, body ${LAYER_PRIORITY}, body ${LAYER_PRIORITY}::before, body ${LAYER_PRIORITY}::after {
       background: transparent !important;
       border-color: transparent !important;
       box-shadow: none !important;
       outline-color: transparent !important;
     }
+    :is(${CONTROL_SELECTOR})${LAYER_PRIORITY} { appearance: none !important; }
     :is(img, picture, video, canvas)${LAYER_PRIORITY},
     svg :is(path, circle, ellipse, line, polygon, polyline, rect, image, use, foreignObject)${LAYER_PRIORITY} {
       visibility: hidden !important;
     }
-  `,
+  }`,
 };
 
 export const withScreenshotLayer = async <T>(

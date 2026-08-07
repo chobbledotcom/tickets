@@ -195,6 +195,42 @@ describe("screenshot browser contracts", () => {
     );
   });
 
+  test("keeps placeholder lettering out of the controls layer", async () => {
+    await withPage(
+      browser,
+      '<input placeholder="Your name" style="color: rgb(0, 0, 255)">',
+      async (page) => {
+        expect(
+          await layerStyle(page, "controls", "input", "color", "::placeholder"),
+        ).toBe("rgba(0, 0, 0, 0)");
+        expect(
+          await layerStyle(page, "text", "input", "color", "::placeholder"),
+        ).not.toBe("rgba(0, 0, 0, 0)");
+      },
+    );
+  });
+
+  test("keeps native widget chrome out of the text layer", async () => {
+    await withPage(
+      browser,
+      '<input type="checkbox" checked><input type="date"><select><option>One</option></select>',
+      async (page) => {
+        for (const selector of [
+          'input[type="checkbox"]',
+          'input[type="date"]',
+          "select",
+        ]) {
+          expect(await layerStyle(page, "text", selector, "appearance")).toBe(
+            "none",
+          );
+          expect(
+            await layerStyle(page, "controls", selector, "appearance"),
+          ).toBe("auto");
+        }
+      },
+    );
+  });
+
   test("keeps text stroke and decoration paint out of non-text layers", async () => {
     await withPage(
       browser,
@@ -304,9 +340,11 @@ describe("screenshot browser contracts", () => {
   test("layer masks override ID-based element isolation", async () => {
     await withPage(
       browser,
-      '<div id="target"><button>Save</button><img alt="Square" src="data:image/svg+xml,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot;/>"></div>',
+      '<div id="page"><div id="dialog"><div id="target"><button>Save</button><img alt="Square" src="data:image/svg+xml,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot;/>"></div></div></div>',
       async (page) => {
-        await page.addStyleTag({ content: isolateElementCss("#target") });
+        await page.addStyleTag({
+          content: isolateElementCss("#page #dialog #target"),
+        });
 
         expect(
           await layerStyle(page, "background", "button", "visibility"),
