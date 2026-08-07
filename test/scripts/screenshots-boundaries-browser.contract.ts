@@ -1,9 +1,12 @@
 import { expect } from "@std/expect";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { Browser } from "playwright";
+import { capturePreparedLayers } from "#scripts/screenshots/capture.ts";
 import { withScreenshotLayer } from "#scripts/screenshots/layers.ts";
 import {
   countLayerRgbPixels,
+  expectBackgroundColorNotText,
+  expectLayersRecombine,
   launchScreenshotBrowser,
   layerStyle,
   withPage,
@@ -106,6 +109,40 @@ describe("screenshot layer boundary browser contracts", () => {
         expect(await layerStyle(page, "controls", "label", "visibility")).toBe(
           "visible",
         );
+      },
+    );
+  });
+
+  test("does not reveal controls hidden by themselves or an ancestor", async () => {
+    await withPage(
+      browser,
+      `<button style="visibility: hidden">Direct</button>
+       <div style="visibility: hidden"><button>Inherited</button></div>`,
+      async (page) => {
+        const hiddenVisibility = (selector: string) =>
+          withScreenshotLayer("controls")(page, () =>
+            page
+              .locator(selector)
+              .evaluate((element) => getComputedStyle(element).visibility),
+          );
+
+        expect(await hiddenVisibility("body > button")).toBe("hidden");
+        expect(await hiddenVisibility("div button")).toBe("hidden");
+        await expectLayersRecombine(page, "hidden controls");
+      },
+    );
+  });
+
+  test("keeps border images out of the text layer", async () => {
+    await withPage(
+      browser,
+      `<style>
+        div { border: 10px solid transparent; border-image: linear-gradient(rgb(255, 0, 0), rgb(255, 0, 0)) 1; height: 50px; width: 100px; }
+      </style><div>Words</div>`,
+      async (page) => {
+        const layers = await capturePreparedLayers(page);
+
+        await expectBackgroundColorNotText(layers, [255, 0, 0]);
       },
     );
   });

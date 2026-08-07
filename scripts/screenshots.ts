@@ -9,6 +9,7 @@ import { chromiumExecutable } from "./screenshots/browser.ts";
 import {
   capturePreparedLayers,
   capturePreparedPage,
+  installLayerCaptureClock,
 } from "./screenshots/capture.ts";
 import { isCompactWidth, isolateElementCss } from "./screenshots/checks.ts";
 import type { Rgb } from "./screenshots/color.ts";
@@ -313,6 +314,12 @@ const captureScenario = async (
   );
 };
 
+const installLayerClock = (page: Page, layers: boolean): Promise<void> =>
+  layers ? installLayerCaptureClock(page) : Promise.resolve();
+
+const elementCaptureCss = (selector: string | undefined): string =>
+  selector ? isolateElementCss(selector) : "";
+
 const main = async (): Promise<void> => {
   Deno.env.set("PW_TEST_SCREENSHOT_NO_FONTS_READY", "1");
   const options = parseScreenshotOptions(Deno.args);
@@ -330,6 +337,7 @@ const main = async (): Promise<void> => {
       ...screenshotContextOptions(MOBILE_SCREENSHOT_PROFILE),
     });
     const page = await context.newPage();
+    await installLayerClock(page, options.layers ?? false);
     page.setDefaultTimeout(TIMEOUT_MS);
     if (scenario) {
       await captureScenario(
@@ -353,7 +361,7 @@ const main = async (): Promise<void> => {
           page,
           server.baseUrl,
           theme,
-          elementSelector ? isolateElementCss(elementSelector) : "",
+          elementCaptureCss(elementSelector),
         );
         const outputPath = join(themeDir, `${name}.png`);
         const background = await capture(

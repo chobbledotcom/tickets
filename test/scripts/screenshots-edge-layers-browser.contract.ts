@@ -1,49 +1,13 @@
-import { Buffer } from "node:buffer";
 import { expect } from "@std/expect";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
-import type { Browser, Page } from "playwright";
-import sharp from "sharp";
-import { capturePreparedLayers } from "#scripts/screenshots/capture.ts";
+import type { Browser } from "playwright";
 import { addScreenshotStyle } from "#scripts/screenshots/layers.ts";
 import {
   countLayerRgbPixels,
+  expectLayersRecombine,
   launchScreenshotBrowser,
   withPage,
 } from "./screenshots-browser-helpers.ts";
-
-const expectRootOpacityRecombines = async (
-  page: Page,
-  root: "body" | "html",
-): Promise<void> => {
-  const normal = await page.screenshot({
-    animations: "disabled",
-    caret: "hide",
-    type: "png",
-  });
-  const metadata = await sharp(normal).metadata();
-  if (!metadata.width || !metadata.height) {
-    throw new Error("Could not measure the screenshot.");
-  }
-  const layers = await capturePreparedLayers(page);
-  const combined = await sharp({
-    create: {
-      background: "white",
-      channels: 4,
-      height: metadata.height,
-      width: metadata.width,
-    },
-  })
-    .composite([
-      { input: Buffer.from(layers.background) },
-      { input: Buffer.from(layers.controls) },
-      { input: Buffer.from(layers.text) },
-    ])
-    .raw()
-    .toBuffer();
-  expect(combined, `${root} opacity should recombine exactly`).toEqual(
-    await sharp(normal).ensureAlpha().raw().toBuffer(),
-  );
-};
 
 describe("screenshot layer edge browser contracts", () => {
   let browser: Browser;
@@ -113,7 +77,7 @@ describe("screenshot layer edge browser contracts", () => {
           ${root} { opacity: 0.5; }
           body { background: red; color: blue; margin: 0; }
         </style><p>Words</p>`,
-        (page) => expectRootOpacityRecombines(page, root),
+        (page) => expectLayersRecombine(page, `${root} opacity`),
       );
     });
   }
@@ -125,7 +89,7 @@ describe("screenshot layer edge browser contracts", () => {
         body { background: white; margin: 0; }
         button { background: rgb(200, 0, 0); color: rgb(100, 0, 0); filter: brightness(2); }
       </style><button>Words</button>`,
-      (page) => expectRootOpacityRecombines(page, "body"),
+      (page) => expectLayersRecombine(page, "filter group"),
     );
   });
 });

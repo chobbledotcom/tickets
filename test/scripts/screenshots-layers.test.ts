@@ -1,6 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { addScreenshotStyle } from "#scripts/screenshots/layers.ts";
+import {
+  addScreenshotStyle,
+  withWholePaintGroups,
+} from "#scripts/screenshots/layers.ts";
 import { createGlobalStash } from "#test-utils/happy-dom.ts";
 
 type LinkEvent = "error" | "load";
@@ -20,6 +23,87 @@ interface FakeRoot {
   links: FakeLink[];
   querySelectorAll: (selector: string) => unknown[];
 }
+
+interface FakePaintStyle {
+  backgroundClip: string;
+  content: string;
+  display: string;
+  filter: string;
+  getPropertyValue: (name: string) => string;
+  mixBlendMode: string;
+  opacity: string;
+  visibility: string;
+}
+
+interface FakePaintElement {
+  attributes: Set<string>;
+  getRootNode: () => unknown;
+  hasAttribute: (name: string) => boolean;
+  matches: () => boolean;
+  parentElement: FakePaintElement | null;
+  pseudos: Record<string, FakePaintStyle>;
+  removeAttribute: (name: string) => void;
+  root: unknown;
+  setAttribute: (name: string) => void;
+  shadowRoot: FakePaintRoot | null;
+  style: FakePaintStyle;
+}
+
+interface PaintStyleOptions
+  extends Partial<Omit<FakePaintStyle, "getPropertyValue">> {
+  webkitBackgroundClip?: string;
+}
+
+const makePaintStyle = (options: PaintStyleOptions = {}): FakePaintStyle => {
+  const { webkitBackgroundClip = "border-box", ...overrides } = options;
+  return {
+    backgroundClip: "border-box",
+    content: '"paint"',
+    display: "block",
+    filter: "none",
+    getPropertyValue: (name) =>
+      name === "-webkit-background-clip" ? webkitBackgroundClip : "",
+    mixBlendMode: "normal",
+    opacity: "1",
+    visibility: "visible",
+    ...overrides,
+  };
+};
+
+class FakePaintRoot {
+  constructor(
+    readonly host: FakePaintElement,
+    readonly elements: FakePaintElement[],
+  ) {}
+
+  querySelectorAll(): FakePaintElement[] {
+    return this.elements;
+  }
+}
+
+const makePaintElement = (
+  style: PaintStyleOptions = {},
+  matchesControl = false,
+): FakePaintElement => {
+  const attributes = new Set<string>();
+  const element: FakePaintElement = {
+    attributes,
+    getRootNode: () => element.root,
+    hasAttribute: (name) => attributes.has(name),
+    matches: () => matchesControl,
+    parentElement: null,
+    pseudos: {
+      "::after": makePaintStyle({ content: '"after"', display: "none" }),
+      "::before": makePaintStyle({ content: "none" }),
+    },
+    removeAttribute: (name) => attributes.delete(name),
+    root: null,
+    setAttribute: (name) => attributes.add(name),
+    shadowRoot: null,
+    style: makePaintStyle(style),
+  };
+  return element;
+};
 
 const makeLink = (): FakeLink => {
   const listeners = new Map<LinkEvent, () => void>();
@@ -130,5 +214,87 @@ describe("screenshot layer styles", () => {
     expect(shadow.links[0]?.removed).toBe(true);
     expect(state.styleRemoved()).toBe(true);
     expect(state.unrouted()).toBe(true);
+  });
+
+  test("marks paint groups and visible controls across composed trees", async () => {
+    const globals = createGlobalStash();
+    const whole = makePaintElement({ opacity: "0.5" });
+    const wholeChild = makePaintElement();
+    wholeChild.parentElement = whole;
+    const text = makePaintElement({
+      webkitBackgroundClip: "border-box, text",
+    });
+    const textChild = makePaintElement();
+    textChild.parentElement = text;
+    const controlHost = makePaintElement({}, true);
+    const shadowControlChild = makePaintElement();
+    const shadowRoot = new FakePaintRoot(controlHost, [shadowControlChild]);
+    controlHost.shadowRoot = shadowRoot;
+    shadowControlChild.root = shadowRoot;
+    const hiddenControl = makePaintElement({ visibility: "hidden" }, true);
+    const generatedWhole = makePaintElement();
+    generatedWhole.pseudos["::before"] = makePaintStyle({
+      filter: "blur(1px)",
+    });
+    const generatedText = makePaintElement();
+    generatedText.pseudos["::before"] = makePaintStyle({
+      backgroundClip: "text",
+    });
+    const plain = makePaintElement();
+    const topLevel = [
+      whole,
+      wholeChild,
+      text,
+      textChild,
+      controlHost,
+      hiddenControl,
+      generatedWhole,
+      generatedText,
+      plain,
+    ];
+    const documentRoot = { querySelectorAll: () => topLevel };
+    for (const element of topLevel) element.root = documentRoot;
+    globals.set("ShadowRoot", FakePaintRoot);
+    globals.set("document", documentRoot);
+    globals.set(
+      "getComputedStyle",
+      (element: FakePaintElement, pseudo?: string) =>
+        pseudo ? element.pseudos[pseudo] : element.style,
+    );
+    const page = {
+      evaluate: (fn: (argument: never) => unknown, argument: never) =>
+        Promise.resolve(fn(argument)),
+    } as never;
+
+    try {
+      await withWholePaintGroups(page, () => {
+        expect([...whole.attributes]).toEqual(["data-screenshot-whole-paint"]);
+        expect([...wholeChild.attributes]).toEqual([]);
+        expect([...text.attributes]).toEqual(["data-screenshot-text-paint"]);
+        expect([...textChild.attributes]).toEqual([]);
+        expect(
+          controlHost.attributes.has("data-screenshot-visible-control"),
+        ).toBe(true);
+        expect(
+          shadowControlChild.attributes.has("data-screenshot-visible-control"),
+        ).toBe(true);
+        expect(hiddenControl.attributes.size).toBe(0);
+        expect(
+          generatedWhole.attributes.has("data-screenshot-whole-paint"),
+        ).toBe(true);
+        expect(generatedText.attributes.has("data-screenshot-text-paint")).toBe(
+          true,
+        );
+        expect(plain.attributes.size).toBe(0);
+        return Promise.resolve();
+      });
+
+      expect(topLevel.every((element) => element.attributes.size === 0)).toBe(
+        true,
+      );
+      expect(shadowControlChild.attributes.size).toBe(0);
+    } finally {
+      globals.restore();
+    }
   });
 });
