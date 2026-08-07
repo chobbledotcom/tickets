@@ -16,8 +16,10 @@ const LAYER_STYLES: Record<ScreenshotLayerName, string> = {
   background: `
     body ${LAYER_PRIORITY}, body ${LAYER_PRIORITY}::before, body ${LAYER_PRIORITY}::after {
       color: transparent !important;
+      text-decoration-color: transparent !important;
       text-shadow: none !important;
       -webkit-text-fill-color: transparent !important;
+      -webkit-text-stroke-color: transparent !important;
     }
     :is(${CONTROL_SELECTOR})${LAYER_PRIORITY},
     :is(${CONTROL_SELECTOR})${LAYER_PRIORITY} * { visibility: hidden !important; }
@@ -34,8 +36,10 @@ const LAYER_STYLES: Record<ScreenshotLayerName, string> = {
     :is(${CONTROL_SELECTOR})${LAYER_PRIORITY},
     :is(${CONTROL_SELECTOR})${LAYER_PRIORITY} * {
       color: transparent !important;
+      text-decoration-color: transparent !important;
       text-shadow: none !important;
       -webkit-text-fill-color: transparent !important;
+      -webkit-text-stroke-color: transparent !important;
     }
   `,
   text: `

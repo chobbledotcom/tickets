@@ -195,6 +195,54 @@ describe("screenshot browser contracts", () => {
     );
   });
 
+  test("keeps text stroke and decoration paint out of non-text layers", async () => {
+    await withPage(
+      browser,
+      `<style>
+        #words, button {
+          text-decoration: underline;
+          text-decoration-color: rgb(255, 0, 0);
+          -webkit-text-stroke: 1px rgb(0, 128, 0);
+        }
+      </style><p id="words">Words</p><button>Save</button>`,
+      async (page) => {
+        expect(
+          await layerStyle(
+            page,
+            "background",
+            "#words",
+            "text-decoration-color",
+          ),
+        ).toBe("rgba(0, 0, 0, 0)");
+        expect(
+          await layerStyle(
+            page,
+            "background",
+            "#words",
+            "-webkit-text-stroke-color",
+          ),
+        ).toBe("rgba(0, 0, 0, 0)");
+        expect(
+          await layerStyle(page, "controls", "button", "text-decoration-color"),
+        ).toBe("rgba(0, 0, 0, 0)");
+        expect(
+          await layerStyle(
+            page,
+            "controls",
+            "button",
+            "-webkit-text-stroke-color",
+          ),
+        ).toBe("rgba(0, 0, 0, 0)");
+        expect(
+          await layerStyle(page, "text", "#words", "text-decoration-color"),
+        ).toBe("rgb(255, 0, 0)");
+        expect(
+          await layerStyle(page, "text", "#words", "-webkit-text-stroke-color"),
+        ).toBe("rgb(0, 128, 0)");
+      },
+    );
+  });
+
   test("removes pseudo-element chrome from the text layer", async () => {
     await withPage(
       browser,
