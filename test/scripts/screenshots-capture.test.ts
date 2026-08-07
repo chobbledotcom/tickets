@@ -4,7 +4,6 @@ import sharp from "sharp";
 import {
   capturePreparedLayers,
   capturePreparedPage,
-  installLayerCaptureClock,
 } from "#scripts/screenshots/capture.ts";
 import {
   blankWhitePng,
@@ -20,7 +19,11 @@ interface CaptureMockConfig {
 
 interface CaptureMockCalls {
   locatorSelectors: string[];
-  screenshotOptions: { fullPage: boolean; omitBackground?: boolean }[];
+  screenshotOptions: {
+    animations?: string;
+    fullPage: boolean;
+    omitBackground?: boolean;
+  }[];
   scrollFns: number;
   styleRemovals: number;
 }
@@ -78,6 +81,7 @@ const buildCaptureMockPage = (
       handler: (route: { fulfill: () => Promise<void> }) => Promise<void>,
     ) => handler({ fulfill: () => Promise.resolve() }),
     screenshot: async (opts: {
+      animations?: string;
       fullPage: boolean;
       omitBackground?: boolean;
     }) => {
@@ -125,7 +129,9 @@ beforeEach(() => {
         content: "none",
         display: "block",
         filter: "none",
-        getPropertyValue: () => "border-box",
+        getPropertyValue: (name: string) =>
+          name === "-webkit-mask-image" ? "none" : "border-box",
+        maskImage: "none",
         mixBlendMode: "normal",
         opacity,
         visibility: "visible",
@@ -226,11 +232,20 @@ describe("capturePreparedLayers", () => {
 
     const result = await capturePreparedLayers(page);
 
-    expect(Object.keys(result)).toEqual(["background", "controls", "text"]);
+    expect(Object.keys(result.layers)).toEqual([
+      "background",
+      "controls",
+      "text",
+    ]);
+    expect(result.background).toEqual({ b: 255, g: 255, r: 255 });
+    expect(result.png).toEqual(await blankWhitePng());
     expect(
       calls.screenshotOptions.map(({ omitBackground }) => omitBackground),
     ).toEqual([undefined, undefined, true, true]);
-    expect(calls.styleRemovals).toBe(3);
+    expect(calls.screenshotOptions.map(({ animations }) => animations)).toEqual(
+      [undefined, undefined, undefined, undefined],
+    );
+    expect(calls.styleRemovals).toBe(4);
   });
 
   test("uses one element crop for every layer", async () => {
@@ -241,14 +256,14 @@ describe("capturePreparedLayers", () => {
     expect(calls.screenshotOptions.every(({ fullPage }) => fullPage)).toBe(
       true,
     );
-    expect(calls.styleRemovals).toBe(3);
-    for (const png of Object.values(result)) {
+    expect(calls.styleRemovals).toBe(4);
+    for (const png of Object.values(result.layers)) {
       expect(await sharp(png).metadata()).toEqual(
         expect.objectContaining({ height: 84, width: 94 }),
       );
     }
     const corners = await Promise.all(
-      Object.values(result).map(async (png) => [
+      Object.values(result.layers).map(async (png) => [
         ...(await sharp(png)
           .ensureAlpha()
           .extract({ height: 1, left: 0, top: 0, width: 1 })
@@ -276,7 +291,7 @@ describe("capturePreparedLayers", () => {
     await expect(capturePreparedLayers(page)).rejects.toThrow(
       "layer capture failed",
     );
-    expect(calls.styleRemovals).toBe(1);
+    expect(calls.styleRemovals).toBe(2);
   });
 
   test("fails when capture controls were not installed before navigation", async () => {
@@ -285,112 +300,6 @@ describe("capturePreparedLayers", () => {
 
     await expect(capturePreparedLayers(page)).rejects.toThrow(
       "Layer capture was not installed before navigation.",
-    );
-  });
-});
-
-describe("installLayerCaptureClock", () => {
-  test("holds page callbacks while layer captures are frozen", async () => {
-    let intervalCallback: unknown;
-    let timeoutCallback: unknown;
-    let frameCallback: unknown;
-    const nativeCalls: unknown[][] = [];
-    globals.set("setInterval", (callback: unknown, ...args: unknown[]) => {
-      intervalCallback = callback;
-      nativeCalls.push(["interval", ...args]);
-      return 1;
-    });
-    globals.set("setTimeout", (callback: unknown, ...args: unknown[]) => {
-      timeoutCallback = callback;
-      nativeCalls.push(["timeout", callback, ...args]);
-      return 2;
-    });
-    globals.set("requestAnimationFrame", (callback: unknown) => {
-      frameCallback = callback;
-      return 3;
-    });
-    let installs = 0;
-    const page = {
-      addInitScript: (script: () => void) => {
-        script();
-        return Promise.resolve();
-      },
-      clock: {
-        install: () => {
-          installs += 1;
-          return Promise.resolve();
-        },
-      },
-    } as never;
-
-    await installLayerCaptureClock(page);
-    expect(installs).toBe(1);
-
-    const intervalRuns: unknown[] = [];
-    setInterval((value) => intervalRuns.push(value), 10, "ready");
-    if (typeof intervalCallback !== "function") {
-      throw new Error("Interval callback was not installed.");
-    }
-    Reflect.apply(intervalCallback, globalThis, ["ready"]);
-    expect(intervalRuns).toEqual(["ready"]);
-
-    Reflect.apply(Reflect.get(globalThis, "setTimeout"), globalThis, [
-      "literal callback",
-      5,
-    ]);
-    expect(nativeCalls.at(-1)).toEqual(["timeout", "literal callback", 5]);
-
-    const setFrozen = Reflect.get(globalThis, "__setLayerCaptureFrozen");
-    if (typeof setFrozen !== "function") {
-      throw new Error("Layer capture controls were not installed.");
-    }
-    Reflect.apply(setFrozen, globalThis, [true]);
-
-    let timeoutRuns = 0;
-    setTimeout(() => {
-      timeoutRuns += 1;
-    }, 20);
-    if (typeof timeoutCallback !== "function") {
-      throw new Error("Timeout callback was not installed.");
-    }
-    Reflect.apply(timeoutCallback, globalThis, []);
-    Reflect.apply(intervalCallback, globalThis, ["frozen"]);
-
-    let frameTime = 0;
-    requestAnimationFrame((time) => {
-      frameTime = time;
-    });
-    if (typeof frameCallback !== "function") {
-      throw new Error("Animation frame callback was not installed.");
-    }
-    Reflect.apply(frameCallback, globalThis, [25]);
-    expect(intervalRuns).toEqual(["ready"]);
-    expect(timeoutRuns).toBe(0);
-    expect(frameTime).toBe(0);
-
-    Reflect.apply(setFrozen, globalThis, [false]);
-    await Promise.resolve();
-    expect(timeoutRuns).toBe(1);
-
-    requestAnimationFrame((time) => {
-      frameTime = time;
-    });
-    if (typeof frameCallback !== "function") {
-      throw new Error("Animation frame callback was not installed.");
-    }
-    Reflect.apply(frameCallback, globalThis, [50]);
-    expect(frameTime).toBe(50);
-  });
-
-  test("fails when the browser has no animation frame method", async () => {
-    globals.set("requestAnimationFrame", undefined);
-    const page = {
-      addInitScript: (script: () => void) => Promise.resolve(script()),
-      clock: { install: () => Promise.resolve() },
-    } as never;
-
-    await expect(installLayerCaptureClock(page)).rejects.toThrow(
-      "Missing browser method: requestAnimationFrame",
     );
   });
 });

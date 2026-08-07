@@ -37,11 +37,12 @@ export const countRgbPixels = async (
   );
 };
 
-export const expectBackgroundColorNotText = async (
+export const expectOnlyBackgroundColor = async (
   layers: Record<ScreenshotLayerName, Uint8Array>,
   color: readonly [number, number, number],
 ): Promise<void> => {
   expect(await countRgbPixels(layers.background, color)).toBeGreaterThan(0);
+  expect(await countRgbPixels(layers.controls, color)).toBe(0);
   expect(await countRgbPixels(layers.text, color)).toBe(0);
 };
 
@@ -63,16 +64,11 @@ export const expectLayersRecombine = async (
   page: Page,
   label: string,
 ): Promise<void> => {
-  const normal = await page.screenshot({
-    animations: "disabled",
-    caret: "hide",
-    type: "png",
-  });
+  const { layers, png: normal } = await capturePreparedLayers(page);
   const metadata = await sharp(normal).metadata();
   if (!metadata.width || !metadata.height) {
     throw new Error("Could not measure the screenshot.");
   }
-  const layers = await capturePreparedLayers(page);
   const combined = await sharp({
     create: {
       background: "white",

@@ -5,8 +5,8 @@ import { capturePreparedLayers } from "#scripts/screenshots/capture.ts";
 import { withScreenshotLayer } from "#scripts/screenshots/layers.ts";
 import {
   countLayerRgbPixels,
-  expectBackgroundColorNotText,
   expectLayersRecombine,
+  expectOnlyBackgroundColor,
   launchScreenshotBrowser,
   layerStyle,
   withPage,
@@ -140,9 +140,9 @@ describe("screenshot layer boundary browser contracts", () => {
         div { border: 10px solid transparent; border-image: linear-gradient(rgb(255, 0, 0), rgb(255, 0, 0)) 1; height: 50px; width: 100px; }
       </style><div>Words</div>`,
       async (page) => {
-        const layers = await capturePreparedLayers(page);
+        const { layers } = await capturePreparedLayers(page);
 
-        await expectBackgroundColorNotText(layers, [255, 0, 0]);
+        await expectOnlyBackgroundColor(layers, [255, 0, 0]);
       },
     );
   });

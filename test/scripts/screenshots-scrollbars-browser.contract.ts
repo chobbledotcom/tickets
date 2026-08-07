@@ -3,7 +3,7 @@ import { chromium } from "playwright";
 import { chromiumExecutable } from "#scripts/screenshots/browser.ts";
 import { capturePreparedLayers } from "#scripts/screenshots/capture.ts";
 import {
-  expectBackgroundColorNotText,
+  expectOnlyBackgroundColor,
   withPage,
 } from "./screenshots-browser-helpers.ts";
 
@@ -26,9 +26,9 @@ describe("screenshot scrollbar browser contract", () => {
           #scroll::-webkit-scrollbar-thumb { background: rgb(255, 0, 0); }
         </style><div id="scroll"><div>Words</div></div>`,
         async (page) => {
-          const layers = await capturePreparedLayers(page);
+          const { layers } = await capturePreparedLayers(page);
 
-          await expectBackgroundColorNotText(layers, [255, 0, 0]);
+          await expectOnlyBackgroundColor(layers, [255, 0, 0]);
         },
       );
     } finally {

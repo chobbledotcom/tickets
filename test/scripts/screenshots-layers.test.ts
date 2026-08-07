@@ -30,6 +30,7 @@ interface FakePaintStyle {
   display: string;
   filter: string;
   getPropertyValue: (name: string) => string;
+  maskImage: string;
   mixBlendMode: string;
   opacity: string;
   visibility: string;
@@ -52,17 +53,27 @@ interface FakePaintElement {
 interface PaintStyleOptions
   extends Partial<Omit<FakePaintStyle, "getPropertyValue">> {
   webkitBackgroundClip?: string;
+  webkitMaskImage?: string;
 }
 
 const makePaintStyle = (options: PaintStyleOptions = {}): FakePaintStyle => {
-  const { webkitBackgroundClip = "border-box", ...overrides } = options;
+  const {
+    webkitBackgroundClip = "border-box",
+    webkitMaskImage = "none",
+    ...overrides
+  } = options;
   return {
     backgroundClip: "border-box",
     content: '"paint"',
     display: "block",
     filter: "none",
     getPropertyValue: (name) =>
-      name === "-webkit-background-clip" ? webkitBackgroundClip : "",
+      name === "-webkit-background-clip"
+        ? webkitBackgroundClip
+        : name === "-webkit-mask-image"
+          ? webkitMaskImage
+          : "",
+    maskImage: "none",
     mixBlendMode: "normal",
     opacity: "1",
     visibility: "visible",
@@ -221,12 +232,14 @@ describe("screenshot layer styles", () => {
     const whole = makePaintElement({ opacity: "0.5" });
     const wholeChild = makePaintElement();
     wholeChild.parentElement = whole;
+    const wholeGrandchild = makePaintElement();
+    wholeGrandchild.parentElement = wholeChild;
     const text = makePaintElement({
       webkitBackgroundClip: "border-box, text",
     });
     const textChild = makePaintElement();
     textChild.parentElement = text;
-    const controlHost = makePaintElement({}, true);
+    const controlHost = makePaintElement({ opacity: "0.5" }, true);
     const shadowControlChild = makePaintElement();
     const shadowRoot = new FakePaintRoot(controlHost, [shadowControlChild]);
     controlHost.shadowRoot = shadowRoot;
@@ -240,16 +253,21 @@ describe("screenshot layer styles", () => {
     generatedText.pseudos["::before"] = makePaintStyle({
       backgroundClip: "text",
     });
+    const masked = makePaintElement({
+      webkitMaskImage: "linear-gradient(black, transparent)",
+    });
     const plain = makePaintElement();
     const topLevel = [
       whole,
       wholeChild,
+      wholeGrandchild,
       text,
       textChild,
       controlHost,
       hiddenControl,
       generatedWhole,
       generatedText,
+      masked,
       plain,
     ];
     const documentRoot = { querySelectorAll: () => topLevel };
@@ -270,6 +288,7 @@ describe("screenshot layer styles", () => {
       await withWholePaintGroups(page, () => {
         expect([...whole.attributes]).toEqual(["data-screenshot-whole-paint"]);
         expect([...wholeChild.attributes]).toEqual([]);
+        expect([...wholeGrandchild.attributes]).toEqual([]);
         expect([...text.attributes]).toEqual(["data-screenshot-text-paint"]);
         expect([...textChild.attributes]).toEqual([]);
         expect(
@@ -278,6 +297,9 @@ describe("screenshot layer styles", () => {
         expect(
           shadowControlChild.attributes.has("data-screenshot-visible-control"),
         ).toBe(true);
+        expect(
+          shadowControlChild.attributes.has("data-screenshot-whole-paint"),
+        ).toBe(true);
         expect(hiddenControl.attributes.size).toBe(0);
         expect(
           generatedWhole.attributes.has("data-screenshot-whole-paint"),
@@ -285,6 +307,7 @@ describe("screenshot layer styles", () => {
         expect(generatedText.attributes.has("data-screenshot-text-paint")).toBe(
           true,
         );
+        expect(masked.attributes.has("data-screenshot-whole-paint")).toBe(true);
         expect(plain.attributes.size).toBe(0);
         return Promise.resolve();
       });

@@ -29,7 +29,8 @@ const HIDDEN_TEXT_STYLE = `
 
 const LAYER_STYLES: Record<ScreenshotLayerName, string> = {
   background: `@layer ${SCREENSHOT_LAYER} {
-    body${BACKGROUND_PRIORITY}::before, body${BACKGROUND_PRIORITY}::after,
+    :is(html, body)${BACKGROUND_PRIORITY}::before,
+    :is(html, body)${BACKGROUND_PRIORITY}::after,
     :is(body, :host) ${BACKGROUND_PRIORITY},
     :is(body, :host) ${BACKGROUND_PRIORITY}::before,
     :is(body, :host) ${BACKGROUND_PRIORITY}::after {
@@ -49,7 +50,8 @@ const LAYER_STYLES: Record<ScreenshotLayerName, string> = {
   }`,
   controls: `@layer ${SCREENSHOT_LAYER} {
     html, body { background: transparent !important; }
-    body${LAYER_PRIORITY}::before, body${LAYER_PRIORITY}::after,
+    :is(html, body)${LAYER_PRIORITY}::before,
+    :is(html, body)${LAYER_PRIORITY}::after,
     :is(body, :host) ${LAYER_PRIORITY} { visibility: hidden !important; }
     ${VISIBLE_CONTROL_PRIORITY} {
       visibility: visible !important;
@@ -77,7 +79,8 @@ const LAYER_STYLES: Record<ScreenshotLayerName, string> = {
   }`,
   text: `@layer ${SCREENSHOT_LAYER} {
     html${TEXT_CHROME_PRIORITY}, body${TEXT_CHROME_PRIORITY},
-    body${TEXT_CHROME_PRIORITY}::before, body${TEXT_CHROME_PRIORITY}::after,
+    :is(html, body)${TEXT_CHROME_PRIORITY}::before,
+    :is(html, body)${TEXT_CHROME_PRIORITY}::after,
     :is(body, :host) ${TEXT_CHROME_PRIORITY},
     :is(body, :host) ${TEXT_CHROME_PRIORITY}::before,
     :is(body, :host) ${TEXT_CHROME_PRIORITY}::after,
@@ -266,7 +269,10 @@ const changeLayerMarks = (page: Page, add: boolean): Promise<void> =>
       const isWholePaint = (style: CSSStyleDeclaration): boolean =>
         style.opacity !== "1" ||
         style.filter !== "none" ||
-        style.mixBlendMode !== "normal";
+        style.mixBlendMode !== "normal" ||
+        [style.maskImage, style.getPropertyValue("-webkit-mask-image")].some(
+          (value) => value !== "none",
+        );
       const isTextPaint = (style: CSSStyleDeclaration): boolean =>
         [
           style.backgroundClip,
@@ -314,10 +320,28 @@ const changeLayerMarks = (page: Page, add: boolean): Promise<void> =>
         markPaint(element, paintStyles(element, style));
       }
 
-      function visitRoot(root: Document | ShadowRoot): void {
+      const paintMark = (element: Element): string | null =>
+        [textPaint, wholePaint].find((attribute) =>
+          element.hasAttribute(attribute),
+        ) ?? null;
+      const markInheritedPaint = (
+        element: Element,
+        inheritedPaint: string | null,
+      ): void => {
+        if (!inheritedPaint || element.parentElement) return;
+        element.setAttribute(inheritedPaint, "");
+      };
+
+      function visitRoot(
+        root: Document | ShadowRoot,
+        inheritedPaint: string | null = null,
+      ): void {
         for (const element of root.querySelectorAll("*")) {
+          markInheritedPaint(element, inheritedPaint);
           changeElement(element);
-          if (element.shadowRoot) visitRoot(element.shadowRoot);
+          if (element.shadowRoot) {
+            visitRoot(element.shadowRoot, paintMark(element));
+          }
         }
       }
       visitRoot(document);

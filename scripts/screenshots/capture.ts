@@ -6,6 +6,7 @@ import {
   trimElementPng,
 } from "./image.ts";
 import {
+  addScreenshotStyle,
   SCREENSHOT_LAYER_NAMES,
   type ScreenshotLayerName,
   withScreenshotLayer,
@@ -15,6 +16,14 @@ export interface PreparedScreenshot {
   background: Rgb;
   png: Uint8Array;
 }
+
+export interface PreparedLayeredScreenshot extends PreparedScreenshot {
+  layers: Record<ScreenshotLayerName, Uint8Array>;
+}
+
+const PAUSED_ANIMATIONS_STYLE = `
+  *, *::before, *::after { animation-play-state: paused !important; }
+`;
 
 type CaptureArguments = readonly [
   page: Page,
@@ -47,11 +56,11 @@ const pagePng = async (
   page: Page,
   fullPage: boolean,
   omitBackground = false,
-  frozen = false,
+  disableAnimations = true,
 ): Promise<Uint8Array> =>
   new Uint8Array(
     await page.screenshot({
-      ...(frozen ? {} : { animations: "disabled" as const }),
+      ...(disableAnimations ? { animations: "disabled" as const } : {}),
       caret: "hide",
       fullPage,
       ...(omitBackground ? { omitBackground } : {}),
@@ -158,13 +167,13 @@ export const installLayerCaptureClock = async (page: Page): Promise<void> => {
   });
 };
 
-const captureLayers = async (
-  page: Page,
-  elementSelector: string | undefined,
-  fullPage: boolean,
-  background: Rgb,
-): Promise<Record<ScreenshotLayerName, Uint8Array>> => {
-  const normal = await pagePng(page, fullPage, false, true);
+const capturePausedLayers = async ({
+  background,
+  elementSelector,
+  fullPage,
+  page,
+}: CaptureContext): Promise<PreparedLayeredScreenshot> => {
+  const normal = await pagePng(page, fullPage, false, false);
   const bounds = elementSelector
     ? await elementTrimBounds(normal, background)
     : undefined;
@@ -178,7 +187,7 @@ const captureLayers = async (
     };
   for (const layer of SCREENSHOT_LAYER_NAMES) {
     const png = await withScreenshotLayer(layer)(page, () =>
-      pagePng(page, fullPage, layer !== "background", true),
+      pagePng(page, fullPage, layer !== "background", false),
     );
     entries.push([
       layer,
@@ -187,16 +196,36 @@ const captureLayers = async (
         : png,
     ]);
   }
-  return Object.fromEntries(entries) as Record<ScreenshotLayerName, Uint8Array>;
+  return {
+    background,
+    layers: Object.fromEntries(entries) as Record<
+      ScreenshotLayerName,
+      Uint8Array
+    >,
+    png: bounds
+      ? await cropElementLayerPng(normal, bounds, background)
+      : normal,
+  };
 };
 
-export const capturePreparedLayers: CaptureFunction<
-  Record<ScreenshotLayerName, Uint8Array>
-> = withPreparedCapture(({ background, elementSelector, fullPage, page }) =>
-  runAndResumeClock(page, () =>
-    captureLayers(page, elementSelector, fullPage, background),
-  ),
-);
+const captureLayers = async (
+  context: CaptureContext,
+): Promise<PreparedLayeredScreenshot> => {
+  const removePausedAnimations = await addScreenshotStyle(
+    context.page,
+    PAUSED_ANIMATIONS_STYLE,
+  );
+  try {
+    return await capturePausedLayers(context);
+  } finally {
+    await removePausedAnimations();
+  }
+};
+
+export const capturePreparedLayers: CaptureFunction<PreparedLayeredScreenshot> =
+  withPreparedCapture((context) =>
+    runAndResumeClock(context.page, () => captureLayers(context)),
+  );
 
 export const capturePreparedPage: CaptureFunction<PreparedScreenshot> =
   withPreparedCapture(

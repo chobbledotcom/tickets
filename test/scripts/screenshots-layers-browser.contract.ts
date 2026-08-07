@@ -318,8 +318,7 @@ describe("screenshot layer browser contracts", () => {
         #group { background: red; color: blue; height: 40px; opacity: 0.5; width: 100px; }
       </style><div id="group">Words</div>`,
       async (page) => {
-        const normal = await page.screenshot({ type: "png" });
-        const layers = await capturePreparedLayers(page);
+        const { layers, png: normal } = await capturePreparedLayers(page);
         const combined = await sharp(layers.background)
           .composite([
             { input: Buffer.from(layers.controls) },

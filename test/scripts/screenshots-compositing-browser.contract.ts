@@ -3,10 +3,11 @@ import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { Browser } from "playwright";
 import sharp from "sharp";
 import { capturePreparedLayers } from "#scripts/screenshots/capture.ts";
+import { waitForScreenshotPage } from "#scripts/screenshots/readiness.ts";
 import {
   countRgbPixels,
-  expectBackgroundColorNotText,
   expectLayersRecombine,
+  expectOnlyBackgroundColor,
   launchScreenshotBrowser,
   withPage,
 } from "./screenshots-browser-helpers.ts";
@@ -49,11 +50,25 @@ describe("screenshot layer compositing browser contracts", () => {
           button { background: rgb(200, 0, 0); color: rgb(100, 0, 0); filter: brightness(2); }
         </style><button>Words</button>`;
       });
-      const layers = await capturePreparedLayers(page);
+      const { layers } = await capturePreparedLayers(page);
 
-      await expectBackgroundColorNotText(layers, [255, 0, 0]);
-      expect(await countRgbPixels(layers.controls, [255, 0, 0])).toBe(0);
+      await expectOnlyBackgroundColor(layers, [255, 0, 0]);
     });
+  });
+
+  test("recombines a whole-paint shadow host", async () => {
+    await withPage(
+      browser,
+      '<div id="host" style="opacity: 0.5"></div>',
+      async (page) => {
+        await page.locator("#host").evaluate((host) => {
+          const root = host.attachShadow({ mode: "open" });
+          root.innerHTML =
+            '<button style="background: red; color: blue">Words</button>';
+        });
+        await expectLayersRecombine(page, "shadow host opacity group");
+      },
+    );
   });
 
   test("recombines generated opacity groups", async () => {
@@ -78,6 +93,83 @@ describe("screenshot layer compositing browser contracts", () => {
     );
   });
 
+  test("recombines masked paint groups", async () => {
+    await withPage(
+      browser,
+      `<style>
+        body { background: white; margin: 0; }
+        div { background: red; color: blue; font: 80px sans-serif; mask-image: linear-gradient(to right, transparent, black); }
+      </style><div>Words</div>`,
+      (page) => expectLayersRecombine(page, "masked paint group"),
+    );
+  });
+
+  test("separates generated content owned by the html root", async () => {
+    await withPage(
+      browser,
+      `<style>
+        html::before { background: red; color: blue; content: "Banner"; }
+      </style>`,
+      async (page) => {
+        const { layers } = await capturePreparedLayers(page);
+
+        await expectOnlyBackgroundColor(layers, [255, 0, 0]);
+        expect(await countRgbPixels(layers.controls, [0, 0, 255])).toBe(0);
+        expect(await countRgbPixels(layers.background, [0, 0, 255])).toBe(0);
+        expect(await countRgbPixels(layers.text, [0, 0, 255])).toBeGreaterThan(
+          0,
+        );
+      },
+    );
+  });
+
+  test("uses one animation state for normal and layered captures", async () => {
+    await withPage(
+      browser,
+      `<style>
+        @keyframes pulse { from { background: red; } to { background: blue; } }
+        button { animation: pulse 10s infinite alternate; border: 0; height: 80px; width: 160px; }
+      </style><button>Words</button>`,
+      async (page) => {
+        const { layers, png } = await capturePreparedLayers(page);
+        const pixelAt = (image: Uint8Array) =>
+          sharp(image)
+            .extract({ height: 1, left: 20, top: 20, width: 1 })
+            .removeAlpha()
+            .raw()
+            .toBuffer();
+
+        expect(await pixelAt(layers.controls)).toEqual(await pixelAt(png));
+      },
+    );
+  });
+
+  test("waits for pending page requests before capture", async () => {
+    await withPage(
+      browser,
+      '<output id="result">Waiting</output>',
+      async (page) => {
+        await page.route("https://screenshots.test/value", async (route) => {
+          await new Promise((resolve) => setTimeout(resolve, 200));
+          await route.fulfill({ body: "Ready" });
+        });
+        await page.evaluate(() => {
+          void (async () => {
+            const response = await fetch("/value");
+            const value = await response.text();
+            const output = document.querySelector("output");
+            if (!output) throw new Error("Missing test output.");
+            output.textContent = value;
+          })();
+        });
+
+        await waitForScreenshotPage(page);
+
+        expect(await page.locator("#result").textContent()).toBe("Ready");
+      },
+    );
+  });
+
   test("keeps background-clipped lettering in the text layer", async () => {
     await withPage(
       browser,
@@ -86,7 +178,7 @@ describe("screenshot layer compositing browser contracts", () => {
         p { background: rgb(255, 0, 0); background-clip: text; color: transparent; font: 80px sans-serif; margin: 0; }
       </style><p>Words</p>`,
       async (page) => {
-        const layers = await capturePreparedLayers(page);
+        const { layers } = await capturePreparedLayers(page);
 
         expect(await countRgbPixels(layers.background, [255, 0, 0])).toBe(0);
         expect(await countRgbPixels(layers.text, [255, 0, 0])).toBeGreaterThan(
@@ -111,7 +203,7 @@ describe("screenshot layer compositing browser contracts", () => {
         setInterval(update, 1);
       </script>`,
       async (page) => {
-        const layers = await capturePreparedLayers(page);
+        const { layers } = await capturePreparedLayers(page);
 
         expect(await maxChannel(layers.background, 0)).toBe(
           await maxChannel(layers.controls, 1),

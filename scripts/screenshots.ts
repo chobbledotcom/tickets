@@ -285,22 +285,27 @@ const captureScenario = async (
   }
   await waitForScreenshotPage(page);
   const outputPath = join(outputDir, `${scenario.name}.png`);
-  const background = await captureAndWrite(
-    page,
-    outputPath,
-    scenario.elementSelector,
-    scenario.fullPage,
-  );
+  const layered = layers
+    ? await capturePreparedLayers(
+        page,
+        scenario.elementSelector,
+        scenario.fullPage,
+      )
+    : undefined;
+  const background = layered
+    ? layered.background
+    : await captureAndWrite(
+        page,
+        outputPath,
+        scenario.elementSelector,
+        scenario.fullPage,
+      );
+  if (layered) await Deno.writeFile(outputPath, layered.png);
   console.log(`${scenario.name}.png`);
-  if (layers) {
-    const captures = await capturePreparedLayers(
-      page,
-      scenario.elementSelector,
-      scenario.fullPage,
-    );
+  if (layered) {
     for (const layer of SCREENSHOT_LAYER_NAMES) {
       const name = `${scenario.name}__layer-${layer}.png`;
-      await Deno.writeFile(join(outputDir, name), captures[layer]);
+      await Deno.writeFile(join(outputDir, name), layered.layers[layer]);
       console.log(name);
     }
   }
