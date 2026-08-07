@@ -28,7 +28,7 @@ export interface StaticRunConfig {
   workerParent: string;
 }
 
-export interface StaticDeps {
+interface StaticDeps {
   copy(from: string, to: string): Promise<void>;
   now(): number;
   remove(path: string): Promise<void>;

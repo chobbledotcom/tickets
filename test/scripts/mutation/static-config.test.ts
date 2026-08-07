@@ -19,17 +19,29 @@ const withStaticJobs = (value: string | null, run: () => void): void => {
   }
 };
 
+const withHardwareConcurrency = (value: number, run: () => void): void => {
+  Object.defineProperty(navigator, "hardwareConcurrency", {
+    configurable: true,
+    value,
+  });
+  try {
+    run();
+  } finally {
+    Reflect.deleteProperty(navigator, "hardwareConcurrency");
+  }
+};
+
 describe("mutation static worker configuration", () => {
   test("caps an explicit setting at the CPU-aware limit", () => {
-    Object.defineProperty(navigator, "hardwareConcurrency", {
-      configurable: true,
-      value: 2,
-    });
-    try {
+    withHardwareConcurrency(2, () => {
       withStaticJobs("20", () => expect(defaultStaticJobs()).toBe(1));
-    } finally {
-      Reflect.deleteProperty(navigator, "hardwareConcurrency");
-    }
+    });
+  });
+
+  test("uses an explicit setting below the CPU-aware limit", () => {
+    withHardwareConcurrency(4, () => {
+      withStaticJobs("2", () => expect(defaultStaticJobs()).toBe(2));
+    });
   });
 
   test("uses a bounded CPU-aware default", () => {
