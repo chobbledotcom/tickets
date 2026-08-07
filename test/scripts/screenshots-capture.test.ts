@@ -146,7 +146,10 @@ beforeEach(() => {
   const translucent = makeElement("0.5", null);
   const nested = makeElement("0.5", translucent);
   const elements = [opaque, translucent, nested];
+  const root = { childNodes: [] };
   globals.set("document", {
+    body: root,
+    documentElement: root,
     querySelectorAll: (selector: string) => (selector === "*" ? elements : []),
   });
 });
@@ -189,7 +192,7 @@ describe("capturePreparedPage", () => {
 
     const result = await capturePreparedPage(page, "#element");
 
-    expect(calls.locatorSelectors).toEqual(["body", "#element"]);
+    expect(calls.locatorSelectors).toEqual(["#element", "body"]);
     expect(calls.scrollFns).toBe(1);
     expect(calls.screenshotOptions[0]?.fullPage).toBe(true);
     expect(await sharp(result.png).metadata()).toEqual(
@@ -330,6 +333,15 @@ describe("capturePreparedLayers", () => {
       [0, 0, 0, 0],
       [0, 0, 0, 0],
     ]);
+  });
+
+  test("rejects a layered element that has no visible box", async () => {
+    const { calls, page } = elementPage({ elementBox: null });
+
+    await expect(capturePreparedLayers(page, "#missing")).rejects.toThrow(
+      "Could not measure screenshot element: #missing",
+    );
+    expect(calls.screenshotOptions).toEqual([]);
   });
 
   test("removes the layer style when capture fails", async () => {

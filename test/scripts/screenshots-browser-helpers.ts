@@ -10,6 +10,7 @@ import {
   installLayerCaptureClock,
 } from "#scripts/screenshots/capture.ts";
 import {
+  SCREENSHOT_LAYER_NAMES,
   type ScreenshotLayerName,
   withScreenshotLayer,
 } from "#scripts/screenshots/layers.ts";
@@ -42,13 +43,16 @@ export const countRgbPixels = async (
   );
 };
 
-export const expectOnlyBackgroundColor = async (
+export const expectOnlyLayerColor = async (
   layers: Record<ScreenshotLayerName, Uint8Array>,
   color: readonly [number, number, number],
+  wantedLayer: ScreenshotLayerName,
 ): Promise<void> => {
-  expect(await countRgbPixels(layers.background, color)).toBeGreaterThan(0);
-  expect(await countRgbPixels(layers.controls, color)).toBe(0);
-  expect(await countRgbPixels(layers.text, color)).toBe(0);
+  for (const layer of SCREENSHOT_LAYER_NAMES) {
+    const count = await countRgbPixels(layers[layer], color);
+    if (layer === wantedLayer) expect(count).toBeGreaterThan(0);
+    else expect(count).toBe(0);
+  }
 };
 
 export const countLayerRgbPixels =

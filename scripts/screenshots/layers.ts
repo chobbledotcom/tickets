@@ -11,6 +11,7 @@ const SCREENSHOT_LAYER = "__screenshot_layer__";
 const WHOLE_PAINT_ATTRIBUTE = "data-screenshot-whole-paint";
 const TEXT_PAINT_ATTRIBUTE = "data-screenshot-text-paint";
 const VISIBLE_CONTROL_ATTRIBUTE = "data-screenshot-visible-control";
+const ROOT_TEXT_ATTRIBUTE = "data-screenshot-root-text";
 const CONTROL_SELECTOR =
   'input, select, textarea, button, summary, label:has(input), label[for], [role="button"], [role="option"], .btn, a.button, a[class*="button"]';
 const LAYER_PRIORITY =
@@ -26,9 +27,11 @@ const HIDDEN_TEXT_STYLE = `
   -webkit-text-fill-color: transparent !important;
   -webkit-text-stroke-color: transparent !important;
 `;
+const ROOT_TEXT_STYLE = `[${ROOT_TEXT_ATTRIBUTE}] { display: contents !important; }`;
 
 const LAYER_STYLES: Record<ScreenshotLayerName, string> = {
   background: `@layer ${SCREENSHOT_LAYER} {
+    ${ROOT_TEXT_STYLE}
     :is(html, body)${BACKGROUND_PRIORITY}::before,
     :is(html, body)${BACKGROUND_PRIORITY}::after,
     :is(body, :host) ${BACKGROUND_PRIORITY},
@@ -49,6 +52,7 @@ const LAYER_STYLES: Record<ScreenshotLayerName, string> = {
     }
   }`,
   controls: `@layer ${SCREENSHOT_LAYER} {
+    ${ROOT_TEXT_STYLE}
     html${LAYER_PRIORITY}, body${LAYER_PRIORITY} { background: transparent !important; }
     :is(html, body)${LAYER_PRIORITY}::before,
     :is(html, body)${LAYER_PRIORITY}::after,
@@ -68,6 +72,9 @@ const LAYER_STYLES: Record<ScreenshotLayerName, string> = {
     :is(${CONTROL_SELECTOR})${LAYER_PRIORITY} *::selection {
       background-color: transparent !important;
     }
+    :is(${CONTROL_SELECTOR})${LAYER_PRIORITY} svg text${LAYER_PRIORITY} {
+      visibility: hidden !important;
+    }
     :is(${CONTROL_SELECTOR})${LAYER_PRIORITY}::placeholder {
       color: transparent !important;
       ${HIDDEN_TEXT_STYLE}
@@ -82,6 +89,7 @@ const LAYER_STYLES: Record<ScreenshotLayerName, string> = {
     }
   }`,
   text: `@layer ${SCREENSHOT_LAYER} {
+    ${ROOT_TEXT_STYLE}
     html${TEXT_CHROME_PRIORITY}, body${TEXT_CHROME_PRIORITY},
     :is(html, body)${TEXT_CHROME_PRIORITY}::before,
     :is(html, body)${TEXT_CHROME_PRIORITY}::after,
@@ -233,7 +241,14 @@ export const addScreenshotStyle = async (
 
 const changeLayerMarks = (page: Page, add: boolean): Promise<void> =>
   page.evaluate(
-    ({ add, controlSelector, textPaint, visibleControl, wholePaint }) => {
+    ({
+      add,
+      controlSelector,
+      rootText,
+      textPaint,
+      visibleControl,
+      wholePaint,
+    }) => {
       const attributes = [textPaint, visibleControl, wholePaint];
       const parentOf = (element: Element): Element | null => {
         if (element.parentElement) return element.parentElement;
@@ -253,13 +268,13 @@ const changeLayerMarks = (page: Page, add: boolean): Promise<void> =>
         }
         return false;
       };
-      const insideControl = (element: Element): boolean => {
+      const containingControl = (element: Element): Element | null => {
         let current: Element | null = element;
         while (current) {
-          if (current.matches(controlSelector)) return true;
+          if (current.matches(controlSelector)) return current;
           current = parentOf(current);
         }
-        return false;
+        return null;
       };
       const generatedStyle = (
         element: Element,
@@ -297,7 +312,9 @@ const changeLayerMarks = (page: Page, add: boolean): Promise<void> =>
         style: CSSStyleDeclaration,
       ): void => {
         if (style.visibility !== "visible") return;
-        if (insideControl(element)) element.setAttribute(visibleControl, "");
+        if (containingControl(element)) {
+          element.setAttribute(visibleControl, "");
+        }
       };
       const paintStyles = (element: Element, style: CSSStyleDeclaration) =>
         [
@@ -314,8 +331,34 @@ const changeLayerMarks = (page: Page, add: boolean): Promise<void> =>
           element.setAttribute(textPaint, "");
           return;
         }
-        if (styles.some(isWholePaint)) element.setAttribute(wholePaint, "");
+        if (styles.some(isWholePaint)) {
+          (containingControl(element) ?? element).setAttribute(wholePaint, "");
+        }
       };
+
+      const wrapContainerText = (container: ParentNode): void => {
+        for (const node of [...container.childNodes]) {
+          if (node.nodeType !== 3 || !node.textContent?.trim()) continue;
+          const wrapper = document.createElement("span");
+          wrapper.setAttribute(rootText, "");
+          node.parentNode?.replaceChild(wrapper, node);
+          wrapper.append(node);
+        }
+      };
+      const wrapRootText = (root: Document | ShadowRoot): void => {
+        const containers: ParentNode[] =
+          root === document
+            ? [document.documentElement, document.body]
+            : [root];
+        for (const container of containers) wrapContainerText(container);
+      };
+      const unwrapRootText = (root: Document | ShadowRoot): void => {
+        for (const wrapper of root.querySelectorAll(`[${rootText}]`)) {
+          wrapper.replaceWith(...wrapper.childNodes);
+        }
+      };
+      const beforeVisit = add ? wrapRootText : () => {};
+      const afterVisit = add ? () => {} : unwrapRootText;
 
       function changeElement(element: Element): void {
         if (!add) {
@@ -347,6 +390,7 @@ const changeLayerMarks = (page: Page, add: boolean): Promise<void> =>
         root: Document | ShadowRoot,
         inheritedPaint: string | null = null,
       ): void {
+        beforeVisit(root);
         for (const element of root.querySelectorAll("*")) {
           markInheritedPaint(element, inheritedPaint);
           changeElement(element);
@@ -354,12 +398,14 @@ const changeLayerMarks = (page: Page, add: boolean): Promise<void> =>
             visitRoot(element.shadowRoot, paintMark(element) ?? inheritedPaint);
           }
         }
+        afterVisit(root);
       }
       visitRoot(document);
     },
     {
       add,
       controlSelector: CONTROL_SELECTOR,
+      rootText: ROOT_TEXT_ATTRIBUTE,
       textPaint: TEXT_PAINT_ATTRIBUTE,
       visibleControl: VISIBLE_CONTROL_ATTRIBUTE,
       wholePaint: WHOLE_PAINT_ATTRIBUTE,

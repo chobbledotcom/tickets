@@ -6,7 +6,10 @@ import {
   elementTrimBounds,
   trimElementPng,
 } from "#scripts/screenshots/image.ts";
-import { whitePngWithBlackBox } from "#test/scripts/screenshots-fixture.ts";
+import {
+  solidPng,
+  whitePngWithBlackBox,
+} from "#test/scripts/screenshots-fixture.ts";
 
 const cropElementLayer = async (background: {
   alpha?: number;
@@ -36,16 +39,7 @@ describe("screenshot element image", () => {
   });
 
   test("rejects an image whose background was not trimmed", async () => {
-    const source = await sharp({
-      create: {
-        background: "black",
-        channels: 3,
-        height: 10,
-        width: 10,
-      },
-    })
-      .png()
-      .toBuffer();
+    const source = await solidPng({ alpha: 1, b: 0, g: 0, r: 0 }, 10);
 
     await expect(
       trimElementPng(source, { b: 255, g: 255, r: 255 }),
@@ -87,20 +81,11 @@ describe("screenshot element image", () => {
     ]).toEqual([255, 255, 255, 255]);
   });
 
-  test("reports zero offsets when no edge can be trimmed", async () => {
-    const source = await sharp({
-      create: {
-        background: "black",
-        channels: 3,
-        height: 10,
-        width: 10,
-      },
-    })
-      .png()
-      .toBuffer();
+  test("rejects bounds when no edge can be trimmed", async () => {
+    const source = await solidPng({ alpha: 1, b: 0, g: 0, r: 0 }, 10);
 
-    expect(await elementTrimBounds(source, { b: 255, g: 255, r: 255 })).toEqual(
-      { height: 10, left: 0, top: 0, width: 10 },
-    );
+    await expect(
+      elementTrimBounds(source, { b: 255, g: 255, r: 255 }),
+    ).rejects.toThrow("has no visible content");
   });
 });

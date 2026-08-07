@@ -9,7 +9,7 @@ import {
 import {
   countLayerRgbPixels,
   expectLayersRecombine,
-  expectOnlyBackgroundColor,
+  expectOnlyLayerColor,
   launchScreenshotBrowser,
   layerStyle,
   withPage,
@@ -62,6 +62,45 @@ describe("screenshot layer boundary browser contracts", () => {
 
         expect(await redPixels("controls")).toBeGreaterThan(0);
         expect(await redPixels("text")).toBe(0);
+      },
+    );
+  });
+
+  test("keeps SVG control labels only in the text layer", async () => {
+    await withPage(
+      browser,
+      '<button><svg width="120" height="40"><text x="5" y="30" fill="rgb(0, 0, 255)" font-size="30">Words</text></svg></button>',
+      async (page) => {
+        const { layers } = await capturePreparedLayers(page);
+
+        await expectOnlyLayerColor(layers, [0, 0, 255], "text");
+      },
+    );
+  });
+
+  test("keeps direct body text only in the text layer", async () => {
+    await withPage(
+      browser,
+      '<body style="background: white; color: rgb(0, 0, 255); font: 40px sans-serif">Words</body>',
+      async (page) => {
+        const { layers } = await capturePreparedLayers(page);
+
+        await expectOnlyLayerColor(layers, [0, 0, 255], "text");
+      },
+    );
+  });
+
+  test("keeps whole-paint control descendants with their control", async () => {
+    await withPage(
+      browser,
+      `<style>
+        button { background: rgb(255, 0, 0); border: 0; }
+        button span { filter: brightness(2); }
+      </style><button><span>Words</span></button>`,
+      async (page) => {
+        const { layers } = await capturePreparedLayers(page);
+
+        await expectOnlyLayerColor(layers, [255, 0, 0], "background");
       },
     );
   });
@@ -142,7 +181,7 @@ describe("screenshot layer boundary browser contracts", () => {
       async (page) => {
         const { layers } = await capturePreparedLayers(page);
 
-        await expectOnlyBackgroundColor(layers, [255, 0, 0]);
+        await expectOnlyLayerColor(layers, [255, 0, 0], "background");
       },
     );
   });

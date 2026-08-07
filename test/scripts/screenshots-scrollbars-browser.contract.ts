@@ -1,7 +1,7 @@
 import { describe, it as test } from "@std/testing/bdd";
 import { capturePreparedLayers } from "#scripts/screenshots/capture.ts";
 import {
-  expectOnlyBackgroundColor,
+  expectOnlyLayerColor,
   launchScreenshotBrowserWithScrollbars,
   withPage,
 } from "./screenshots-browser-helpers.ts";
@@ -21,7 +21,7 @@ describe("screenshot scrollbar browser contract", () => {
         async (page) => {
           const { layers } = await capturePreparedLayers(page);
 
-          await expectOnlyBackgroundColor(layers, [255, 0, 0]);
+          await expectOnlyLayerColor(layers, [255, 0, 0], "background");
         },
       );
     } finally {

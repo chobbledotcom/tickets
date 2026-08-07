@@ -7,7 +7,7 @@ import { waitForScreenshotPage } from "#scripts/screenshots/readiness.ts";
 import {
   countRgbPixels,
   expectLayersRecombine,
-  expectOnlyBackgroundColor,
+  expectOnlyLayerColor,
   launchScreenshotBrowser,
   withPage,
 } from "./screenshots-browser-helpers.ts";
@@ -64,7 +64,7 @@ describe("screenshot layer compositing browser contracts", () => {
       });
       const { layers } = await capturePreparedLayers(page);
 
-      await expectOnlyBackgroundColor(layers, [255, 0, 0]);
+      await expectOnlyLayerColor(layers, [255, 0, 0], "background");
     });
   });
 
@@ -141,7 +141,7 @@ describe("screenshot layer compositing browser contracts", () => {
       async (page) => {
         const { layers } = await capturePreparedLayers(page);
 
-        await expectOnlyBackgroundColor(layers, [255, 0, 0]);
+        await expectOnlyLayerColor(layers, [255, 0, 0], "background");
         expect(await countRgbPixels(layers.controls, [0, 0, 255])).toBe(0);
         expect(await countRgbPixels(layers.background, [0, 0, 255])).toBe(0);
         expect(await countRgbPixels(layers.text, [0, 0, 255])).toBeGreaterThan(
@@ -168,6 +168,20 @@ describe("screenshot layer compositing browser contracts", () => {
             .toBuffer();
 
         expect(await pixelAt(layers.controls)).toEqual(await pixelAt(png));
+      },
+    );
+  });
+
+  test("keeps transitioned control chrome in one layer", async () => {
+    await withPage(
+      browser,
+      `<style>
+        button { background: red; border: 0; height: 80px; transition: background 10s; width: 160px; }
+      </style><button>Words</button>`,
+      async (page) => {
+        const { layers } = await capturePreparedLayers(page);
+
+        await expectOnlyLayerColor(layers, [255, 0, 0], "controls");
       },
     );
   });

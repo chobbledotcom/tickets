@@ -19,21 +19,55 @@ interface ScreenshotLayers {
   text: Uint8Array;
 }
 
-const padded = (background: Rgb & { alpha?: number }) => ({
+interface ImageSize {
+  height: number;
+  width: number;
+}
+
+const imageSize = async (
+  image: ReturnType<typeof sharp>,
+): Promise<ImageSize> => {
+  const metadata = await image.metadata();
+  return {
+    height: requireValue(metadata.height, "The screenshot PNG has no height."),
+    width: requireValue(metadata.width, "The screenshot PNG has no width."),
+  };
+};
+
+const padded = (
+  background: Rgb & { alpha?: number },
+  padding = ELEMENT_PADDING,
+) => ({
   background,
-  bottom: ELEMENT_PADDING,
-  left: ELEMENT_PADDING,
-  right: ELEMENT_PADDING,
-  top: ELEMENT_PADDING,
+  bottom: padding,
+  left: padding,
+  right: padding,
+  top: padding,
 });
+
+const trimScreenshot = async (
+  png: Uint8Array,
+  background: Rgb,
+  padding: number,
+) => {
+  const image = sharp(png);
+  const source = await imageSize(image);
+  const result = await image
+    .trim({ background, threshold: 5 })
+    .extend(padded(background, padding))
+    .png()
+    .toBuffer({ resolveWithObject: true });
+  if (!wasImageTrimmed(source, result.info, padding)) {
+    throw new Error("The selected screenshot element has no visible content.");
+  }
+  return result;
+};
 
 export const elementTrimBounds = async (
   png: Uint8Array,
   background: Rgb,
 ): Promise<ElementTrimBounds> => {
-  const result = await sharp(png)
-    .trim({ background, threshold: 5 })
-    .toBuffer({ resolveWithObject: true });
+  const result = await trimScreenshot(png, background, 0);
   return {
     height: result.info.height,
     left: -requireValue(
@@ -78,17 +112,6 @@ export const trimElementPng = async (
   png: Uint8Array,
   background: Rgb,
 ): Promise<Uint8Array> => {
-  const image = sharp(png);
-  const source = await image.metadata();
-  requireValue(source.width, "The screenshot PNG has no width.");
-  requireValue(source.height, "The screenshot PNG has no height.");
-  const result = await image
-    .trim({ background, threshold: 5 })
-    .extend(padded(background))
-    .png()
-    .toBuffer({ resolveWithObject: true });
-  if (!wasImageTrimmed(source, result.info, ELEMENT_PADDING)) {
-    throw new Error("The selected screenshot element has no visible content.");
-  }
+  const result = await trimScreenshot(png, background, ELEMENT_PADDING);
   return new Uint8Array(result.data);
 };

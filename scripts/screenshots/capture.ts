@@ -23,7 +23,10 @@ export interface PreparedLayeredScreenshot extends PreparedScreenshot {
 }
 
 const PAUSED_ANIMATIONS_STYLE = `
-  *, *::before, *::after { animation-play-state: paused !important; }
+  *, *::before, *::after {
+    animation-play-state: paused !important;
+    transition: none !important;
+  }
 `;
 
 type CaptureArguments = readonly [
@@ -73,10 +76,26 @@ const prepareCapture = async (
   page: Page,
   elementSelector: string | undefined,
   fullPage: boolean,
-): Promise<{ background: Rgb; fullPage: boolean }> => ({
-  background: await readBodyBackground(page),
-  fullPage: elementSelector ? true : fullPage,
-});
+): Promise<{ background: Rgb; fullPage: boolean }> => {
+  if (elementSelector) {
+    const element = page.locator(elementSelector).first();
+    await element.waitFor({ state: "attached" });
+    if (!(await element.boundingBox())) {
+      throw new Error(
+        `Could not measure screenshot element: ${elementSelector}`,
+      );
+    }
+    await element.evaluate((node) =>
+      Reflect.apply(Reflect.get(node, "scrollIntoView"), node, [
+        { block: "center" },
+      ]),
+    );
+  }
+  return {
+    background: await readBodyBackground(page),
+    fullPage: elementSelector ? true : fullPage,
+  };
+};
 
 const withPreparedCapture =
   <Result>(
@@ -238,19 +257,6 @@ export const capturePreparedPage: CaptureFunction<PreparedScreenshot> =
           png: await pagePng(page, fullPage),
         };
       }
-      const element = page.locator(elementSelector).first();
-      await element.waitFor({ state: "attached" });
-      const initialBox = await element.boundingBox();
-      if (!initialBox) {
-        throw new Error(
-          `Could not measure screenshot element: ${elementSelector}`,
-        );
-      }
-      await element.evaluate((node) =>
-        Reflect.apply(Reflect.get(node, "scrollIntoView"), node, [
-          { block: "center" },
-        ]),
-      );
       return {
         background,
         png: await trimElementPng(await pagePng(page, fullPage), background),

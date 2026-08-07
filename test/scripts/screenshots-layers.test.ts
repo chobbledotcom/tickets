@@ -4,7 +4,10 @@ import {
   addScreenshotStyle,
   withWholePaintGroups,
 } from "#scripts/screenshots/layers.ts";
-import { createGlobalStash } from "#test-utils/happy-dom.ts";
+import {
+  createDomInstaller,
+  createGlobalStash,
+} from "#test-utils/happy-dom.ts";
 
 type LinkEvent = "error" | "load";
 
@@ -82,13 +85,15 @@ const makePaintStyle = (options: PaintStyleOptions = {}): FakePaintStyle => {
 };
 
 class FakePaintRoot {
+  readonly childNodes = [];
+
   constructor(
     readonly host: FakePaintElement,
     readonly elements: FakePaintElement[],
   ) {}
 
-  querySelectorAll(): FakePaintElement[] {
-    return this.elements;
+  querySelectorAll(selector: string): FakePaintElement[] {
+    return selector === "*" ? this.elements : [];
   }
 }
 
@@ -115,6 +120,11 @@ const makePaintElement = (
   };
   return element;
 };
+
+const evaluationPage = {
+  evaluate: (fn: (argument: never) => unknown, argument: never) =>
+    Promise.resolve(fn(argument)),
+} as never;
 
 const makeLink = (): FakeLink => {
   const listeners = new Map<LinkEvent, () => void>();
@@ -237,6 +247,27 @@ describe("screenshot layer styles", () => {
     expect(state.unrouted()).toBe(true);
   });
 
+  test("wraps direct root text only while layer marks are active", async () => {
+    const dom = createDomInstaller(["ShadowRoot", "getComputedStyle"]);
+    const window = dom.installDom("Words <p>Element</p>   ");
+    const originalText = window.document.body.firstChild;
+    if (!originalText) throw new Error("Missing root text fixture.");
+    try {
+      await withWholePaintGroups(evaluationPage, () => {
+        const wrapper = window.document.body.firstElementChild;
+        expect(wrapper?.getAttribute("data-screenshot-root-text")).toBe("");
+        expect(wrapper?.textContent).toBe("Words ");
+        expect(window.document.body.lastChild?.nodeType).toBe(3);
+        return Promise.resolve();
+      });
+
+      expect(window.document.body.firstChild).toBe(originalText);
+      expect(window.document.body.textContent).toBe("Words Element   ");
+    } finally {
+      await dom.cleanup();
+    }
+  });
+
   test("marks paint groups and visible controls across composed trees", async () => {
     const globals = createGlobalStash();
     const whole = makePaintElement({ opacity: "0.5" });
@@ -281,7 +312,13 @@ describe("screenshot layer styles", () => {
       masked,
       plain,
     ];
-    const documentRoot = { querySelectorAll: () => topLevel };
+    const root = { childNodes: [] };
+    const documentRoot = {
+      body: root,
+      documentElement: root,
+      querySelectorAll: (selector: string) =>
+        selector === "*" ? topLevel : [],
+    };
     for (const element of topLevel) element.root = documentRoot;
     globals.set("ShadowRoot", FakePaintRoot);
     globals.set("document", documentRoot);
@@ -290,13 +327,8 @@ describe("screenshot layer styles", () => {
       (element: FakePaintElement, pseudo?: string) =>
         pseudo ? element.pseudos[pseudo] : element.style,
     );
-    const page = {
-      evaluate: (fn: (argument: never) => unknown, argument: never) =>
-        Promise.resolve(fn(argument)),
-    } as never;
-
     try {
-      await withWholePaintGroups(page, () => {
+      await withWholePaintGroups(evaluationPage, () => {
         expect([...whole.attributes]).toEqual(["data-screenshot-whole-paint"]);
         expect([...wholeChild.attributes]).toEqual([]);
         expect([...wholeGrandchild.attributes]).toEqual([]);
