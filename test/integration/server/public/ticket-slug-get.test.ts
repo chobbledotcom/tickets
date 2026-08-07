@@ -152,6 +152,8 @@ describeWithEnv(
         );
         expect(html).not.toContain("<h1>");
         expect(html).not.toContain("A <b>great</b> listing");
+        // The site menu is dropped inside an embedded iframe.
+        expect(html).not.toContain("admin-nav-group");
       });
 
       test("shows header and description without iframe param", async () => {
@@ -166,6 +168,9 @@ describeWithEnv(
           "A &lt;b&gt;great&lt;/b&gt; listing",
         );
         expect(html).not.toContain('class="iframe"');
+        // A normal booking page shows the site menu so visitors can navigate.
+        expect(html).toContain('<div class="admin-nav-group">');
+        expect(html).toContain('aria-label="Site menu"');
       });
 
       test("does not set CSRF cookies (uses signed tokens instead)", async () => {

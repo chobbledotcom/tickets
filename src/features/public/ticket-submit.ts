@@ -33,6 +33,7 @@ import {
   applyDemoOverrides,
 } from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { getIframeMode } from "#shared/iframe.ts";
 /* jscpd:ignore-end */
 import type { CheckoutIntent } from "#shared/payments.ts";
 import type { Group, ListingWithCount } from "#shared/types.ts";
@@ -49,6 +50,7 @@ import {
   applyBookingPageParentSoldOut,
   childCapacityInfo,
 } from "./discovery.ts";
+import { publicNavProps } from "./site-nav.ts";
 /* jscpd:ignore-start */
 import {
   extractContact,
@@ -403,6 +405,7 @@ const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
     membership,
     galleryImages,
     attributesByListing,
+    nav,
   ] = await Promise.all([
     getSharedGroupCapacities(children),
     getGroupRemainingByListingId(children),
@@ -420,6 +423,9 @@ const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
       ...ctx.listings.map((entry) => entry.listing.id),
       ...children.map((child) => child.id),
     ]),
+    // The site menu shows above a normal booking page but is dropped in iframe
+    // mode, so an embedded page skips building it entirely.
+    getIframeMode() ? Promise.resolve(undefined) : publicNavProps(null),
   ]);
   const caps = childCapacityInfo(childCaps, childOwnRemaining, membership);
   return {
@@ -439,6 +445,7 @@ const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
       caps,
       holidays,
     ),
+    ...(nav ? { nav } : {}),
   };
 };
 
