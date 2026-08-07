@@ -6,13 +6,13 @@ import type { Mutant } from "#scripts/mutation/generate.ts";
 import { mutantKey } from "#scripts/mutation/ignore.ts";
 import {
   type FileRunOptions,
-  type MutantLoopContext,
   runFileMutants,
 } from "#scripts/mutation/run-file.ts";
 import type { StaticEvaluation } from "#scripts/mutation/static.ts";
 import type { Status } from "#scripts/mutation/summary.ts";
 
 type FileRunDeps = NonNullable<Parameters<typeof runFileMutants>[3]>;
+type MutantLoopContext = Parameters<typeof runFileMutants>[2];
 
 const mutants = Array.from(
   { length: 4 },
