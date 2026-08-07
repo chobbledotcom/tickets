@@ -70,18 +70,20 @@ const context = (
 const staticResult = (
   mutant: Mutant,
   status: StaticEvaluation["status"],
-  elapsedMs = 5,
+  deadlineAt = 95,
+  durationMs = 5,
 ): StaticEvaluation => ({
+  deadlineAt,
   detectedBy: status === "killed" ? "lint" : null,
-  elapsedMs,
   mutant,
   status,
-  timings: [{ durationMs: elapsedMs, phase: "lint" }],
+  timings: [{ durationMs, phase: "lint" }],
 });
 
 const dependencies = (changes: Partial<FileRunDeps> = {}): FileRunDeps => ({
   evaluateStatic: () => Promise.resolve([]),
   evaluateTests: () => Promise.reject(new Error("Unexpected test evaluation")),
+  now: () => 0,
   timeoutSignal: () => new AbortController().signal,
   ...changes,
 });
@@ -124,9 +126,9 @@ describe("mutation file coordinator", () => {
         expect(config.workerParent).toBe("/workers");
         return Promise.resolve([
           staticResult(mutants[0]!, "killed"),
-          staticResult(mutants[1]!, "survived", 5.2),
-          staticResult(mutants[2]!, "survived", 101),
-          staticResult(mutants[3]!, "survived", 20),
+          staticResult(mutants[1]!, "survived", 95),
+          staticResult(mutants[2]!, "survived", -1),
+          staticResult(mutants[3]!, "survived", 80),
         ]);
       },
       evaluateTests: (
@@ -177,6 +179,43 @@ describe("mutation file coordinator", () => {
     expect(lines[1]).toContain("last timed-out");
     expect(lines[2]).toContain("last ignored");
     expect(opts.originals.size).toBe(0);
+  });
+
+  test("keeps a mutant deadline running while earlier tests run", async () => {
+    const opts = options();
+    let now = 0;
+    const tested: string[] = [];
+    const timeouts: number[] = [];
+    const deps = dependencies({
+      evaluateStatic: () =>
+        Promise.resolve([
+          staticResult(mutants[0]!, "survived", 100),
+          staticResult(mutants[1]!, "survived", 100),
+        ]),
+      evaluateTests: (_plan, mutant) => {
+        tested.push(mutant.anchor);
+        now = 120;
+        return Promise.resolve({
+          detectedBy: null,
+          status: "survived",
+          timings: [],
+        });
+      },
+      now: () => now,
+      timeoutSignal: (milliseconds) => {
+        timeouts.push(milliseconds);
+        return new AbortController().signal;
+      },
+    });
+
+    await runFileMutants(plan, opts, context(), deps);
+
+    expect(tested).toEqual(["mutant-0"]);
+    expect(timeouts).toEqual([100]);
+    expect(opts.results.map(({ status }) => status)).toEqual([
+      "survived",
+      "timed-out",
+    ]);
   });
 
   test("stops before test evaluation when the run is aborted", async () => {

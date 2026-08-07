@@ -15,7 +15,7 @@ const MAX_STATIC_JOBS = 4;
 const PARALLEL_STATIC_MIN_MUTANTS = 3;
 
 export interface StaticEvaluation extends MutantEvaluation {
-  elapsedMs: number;
+  deadlineAt: number;
   mutant: Mutant;
 }
 
@@ -65,8 +65,8 @@ const staticEvaluation = (
   timings: PhaseTiming[],
   startedAt: number,
 ): StaticEvaluation => ({
+  deadlineAt: startedAt + context.config.perMutantTimeout,
   detectedBy,
-  elapsedMs: context.deps.now() - startedAt,
   mutant,
   status,
   timings,
@@ -201,6 +201,14 @@ const removeWorkspaces = async (
   );
 };
 
+const waitForAll = async (work: Promise<void>[]): Promise<void> => {
+  const settled = await Promise.allSettled(work);
+  const failed = settled.find(
+    (result): result is PromiseRejectedResult => result.status === "rejected",
+  );
+  if (failed) throw failed.reason;
+};
+
 export const evaluateStaticMutants = async (
   plan: FileMutationPlan,
   gates: StaticGate[],
@@ -217,7 +225,7 @@ export const evaluateStaticMutants = async (
     join(config.workerParent, `static-${index + 1}`),
   );
   try {
-    await Promise.all(
+    await waitForAll(
       workspaces.map((workspace) => deps.copy(config.root, workspace)),
     );
     const stop = new AbortController();
@@ -227,15 +235,11 @@ export const evaluateStaticMutants = async (
     };
     const workerContext = { ...context, config: workerConfig };
     const cursor = createCursor(plan.mutants.length);
-    const settled = await Promise.allSettled(
+    await waitForAll(
       workspaces.map((workspace) =>
         runWorker(workerContext, cursor, workspace, stop),
       ),
     );
-    const failed = settled.find(
-      (result): result is PromiseRejectedResult => result.status === "rejected",
-    );
-    if (failed) throw failed.reason;
     return completedResults(cursor);
   } finally {
     await removeWorkspaces(workspaces, deps);

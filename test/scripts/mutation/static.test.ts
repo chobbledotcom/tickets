@@ -193,6 +193,46 @@ describe("parallel mutation static gates", () => {
     expect(work.removed).toEqual(work.copied);
   });
 
+  test("waits for every workspace copy before cleanup", async () => {
+    const work = fakeWorkspace();
+    const laterCopy = Promise.withResolvers<void>();
+    const events: string[] = [];
+    work.deps.copy = async (_from, to) => {
+      events.push(`copy ${to}`);
+      if (to === "/run/static-1") {
+        throw new Error("copy failed");
+      }
+      await laterCopy.promise;
+      events.push(`copied ${to}`);
+    };
+    work.deps.remove = (path) => {
+      events.push(`removed ${path}`);
+      return Promise.resolve();
+    };
+
+    const evaluated = evaluateStaticMutants(
+      plan(mutants.slice(0, 3)),
+      [passingGate(() => Promise.resolve(0))],
+      config(),
+      work.deps,
+    );
+    await Promise.resolve();
+    expect(events).toEqual([
+      "copy /run/static-1",
+      "copy /run/static-2",
+      "copy /run/static-3",
+    ]);
+    laterCopy.resolve();
+
+    await expect(evaluated).rejects.toThrow("copy failed");
+    expect(events.indexOf("copied /run/static-2")).toBeLessThan(
+      events.indexOf("removed /run/static-2"),
+    );
+    expect(events.indexOf("copied /run/static-3")).toBeLessThan(
+      events.indexOf("removed /run/static-3"),
+    );
+  });
+
   test("classifies cancellation during a gate and cleans every copy", async () => {
     const work = fakeWorkspace();
     const controller = new AbortController();

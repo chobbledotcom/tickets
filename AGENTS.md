@@ -1493,7 +1493,8 @@ copies, with a CPU-aware limit capped at four (`MUTATION_STATIC_JOBS` can lower
 it). One- and two-mutant files stay serial to avoid copy overhead. Test batches
 keep their separate `--jobs` limit and still run only after static results are
 reported in mutant order. A mutant's timeout starts when its static work leaves
-the queue; static time is deducted before its test stage starts. Keep the Biome calls one-shot unless a new
+the queue. Static work and any wait for earlier tests both use that time. Keep
+the Biome calls one-shot unless a new
 benchmark proves otherwise: with pinned Biome 2.4.16, 20 warm one-file runs
 measured a 17.3 ms standalone median and a 51.2 ms `--use-server` median. Either
 gate exiting non-zero kills the mutant without spending a full `deno test` on it

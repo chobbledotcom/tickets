@@ -20,12 +20,14 @@ const PROGRESS_INTERVAL = 10;
 interface FileRunDeps {
   evaluateStatic: typeof evaluateStaticMutants;
   evaluateTests: typeof evaluateMutantTests;
+  now(): number;
   timeoutSignal(milliseconds: number): AbortSignal;
 }
 
 const realDeps: FileRunDeps = {
   evaluateStatic: evaluateStaticMutants,
   evaluateTests: evaluateMutantTests,
+  now: performance.now.bind(performance),
   timeoutSignal: AbortSignal.timeout,
 };
 
@@ -54,13 +56,12 @@ const runTestsForStaticSurvivor = async (
   staticResult: StaticEvaluation,
   run: TestRunConfig,
   opts: FileRunOptions,
-  perMutantTimeout: number,
   deps: FileRunDeps,
 ): Promise<MutantEvaluation> => {
   if (staticResult.status !== "survived") return staticResult;
   const remaining = Math.max(
     0,
-    Math.ceil(perMutantTimeout - staticResult.elapsedMs),
+    Math.ceil(staticResult.deadlineAt - deps.now()),
   );
   if (remaining === 0) return { ...staticResult, status: "timed-out" };
 
@@ -152,7 +153,6 @@ export const runFileMutants = async (
       staticResult,
       run,
       opts,
-      perMutantTimeout,
       deps,
     );
     if (opts.isAborted()) break;
