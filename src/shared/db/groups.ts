@@ -26,6 +26,7 @@ import {
   executeBatch,
   inPlaceholders,
   queryAll,
+  resultRows,
   rowExists,
   type SqlStatement,
   TransactionValidationError,
@@ -384,6 +385,24 @@ export const hasPackageBookings = (groupId: number): Promise<boolean> =>
       WHERE package_group_id = ? AND quantity > 0 LIMIT 1`,
     [groupId],
   );
+
+/** Transaction-local recheck: whether any sold booking still holds this
+ *  group's package id. Used inside the group write transaction so a checkout
+ *  that commits between a request-level sold-hidden check and the write rolls
+ *  the un-packaging back rather than revealing concealed member names. */
+export const hasPackageBookingsTx = async (
+  tx: TxScope,
+  groupId: number,
+): Promise<boolean> => {
+  const rows = resultRows<{ id: number }>(
+    await tx.execute({
+      args: [groupId],
+      sql: `SELECT 1 AS id FROM listing_attendees
+             WHERE package_group_id = ? AND quantity > 0 LIMIT 1`,
+    }),
+  );
+  return rows.length > 0;
+};
 
 /** The package displays for a set of (possibly repeated or zero)
  * `package_group_id`s — only ids naming a live package appear in the map. Lets

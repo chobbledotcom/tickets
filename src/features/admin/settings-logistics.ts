@@ -76,7 +76,7 @@ const parseAssignedUserIds = async (form: FormParams): Promise<number[]> =>
 
 const logisticsAgentEditResource = defineNamedResource({
   ...logisticsAgentsResourceConfig,
-  afterWrite: async (tx, id, _input, form): Promise<void> => {
+  afterWrite: async (tx, id, _input, form, _existing): Promise<void> => {
     await agentUsers.setIdsTx(tx, id, await parseAssignedUserIds(form));
   },
 });

@@ -18,23 +18,21 @@ import {
   groupCatalogFields,
   type PackageMemberInput,
 } from "#shared/catalog-fields/fields.ts";
-import type { TxScope } from "#shared/db/client.ts";
-import { requirePackageGroupMembersTx } from "#shared/db/groups/membership.ts";
+import { writePackageMembersTx } from "#shared/db/groups/membership.ts";
 import {
   computeGroupSlugIndex,
   generateUniqueGroupSlug,
   groups,
   loadPackageMemberPricingByGroupIds,
-  setGroupPackageMembers,
 } from "#shared/db/groups.ts";
+import { defineCrudApi } from "#shared/rest/crud-api.ts";
 import {
   type DeleteBody,
-  defineCrudApi,
   parseOptionalArray,
   parseUpdateName,
   parseUpdateSlug,
   requireStrings,
-} from "#shared/rest/crud-api.ts";
+} from "#shared/rest/crud-parsers.ts";
 import {
   errorResult,
   okResult,
@@ -151,21 +149,10 @@ const parsePackageMembers = (
  * Persist package overrides in the group write's transaction, with
  * partial-update semantics: clearing the group's package flag clears all
  * overrides; absent `package_members` leaves existing rows untouched; otherwise
- * the rows are set.
+ * the rows are set. Rechecks the sold-hidden invariant when un-packaging so a
+ * checkout that committed between the request-level check and this write rolls
+ * the change back rather than revealing concealed member names.
  */
-const writePackageMembers = async (
-  tx: TxScope,
-  id: number,
-  input: GroupInput,
-): Promise<void> => {
-  await requirePackageGroupMembersTx(tx, id);
-  if (input.isPackage === false) {
-    await setGroupPackageMembers(id, [], tx);
-    return;
-  }
-  if (input.packageMembers === undefined) return;
-  await setGroupPackageMembers(id, input.packageMembers, tx);
-};
 
 /** Map a stored membership row (plus any per-day overrides) to the JSON
  * `package_members` entry shape clients PUT, so list and single-row hydration
@@ -235,7 +222,14 @@ const toGroupInput = async (
 };
 
 export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
-  afterWrite: writePackageMembers,
+  afterWrite: (tx, id, input, existing) =>
+    writePackageMembersTx(
+      tx,
+      id,
+      existing,
+      input,
+      input.isPackage === false ? [] : input.packageMembers,
+    ),
   getAll: () => groups.cache.getAll(),
   // Only package groups appear in the map; non-package groups hydrate to no
   // extra fields. Single-row responses use this same batch path with one row.

@@ -7,6 +7,9 @@ import {
   soldHiddenPackageError,
   validateGroupWithPackage,
 } from "#routes/admin/groups.ts";
+import { withTransaction } from "#shared/db/client.ts";
+import { writePackageMembersTx } from "#shared/db/groups/membership.ts";
+import { hasPackageBookingsTx } from "#shared/db/groups.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -109,5 +112,53 @@ describeWithEnv("admin group validation", { db: true }, () => {
         group.id,
       ),
     ).toBeNull();
+  });
+
+  test("hasPackageBookingsTx sees sold tickets inside a transaction", async () => {
+    const group = await soldPackage("Tx sold detect", true);
+
+    await withTransaction(async (tx) => {
+      expect(await hasPackageBookingsTx(tx, group.id)).toBe(true);
+    });
+  });
+
+  test("hasPackageBookingsTx returns false for a package with no bookings", async () => {
+    const group = await createHiddenPackageGroup("Tx unsold detect");
+
+    await withTransaction(async (tx) => {
+      expect(await hasPackageBookingsTx(tx, group.id)).toBe(false);
+    });
+  });
+
+  test("writePackageMembersTx rolls back un-packaging a sold hidden package", async () => {
+    const group = await soldPackage("Tx unpackage blocked", true);
+    const existing = { hide_package_listings: true, is_package: true };
+
+    await expect(
+      withTransaction(async (tx) => {
+        await writePackageMembersTx(
+          tx,
+          group.id,
+          existing,
+          { isPackage: false },
+          [],
+        );
+      }),
+    ).rejects.toThrow(t("error.sold_hidden_package"));
+  });
+
+  test("writePackageMembersTx allows un-packaging a sold hidden package with no bookings", async () => {
+    const group = await createHiddenPackageGroup("Tx unpackage ok");
+    const existing = { hide_package_listings: true, is_package: true };
+
+    await withTransaction(async (tx) => {
+      await writePackageMembersTx(
+        tx,
+        group.id,
+        existing,
+        { isPackage: false },
+        [],
+      );
+    });
   });
 });

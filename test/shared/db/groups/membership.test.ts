@@ -301,10 +301,10 @@ describeWithEnv("db > groups > membership writes", { db: true }, () => {
     expect(await groupIdsOf(listing.id)).toEqual([]);
   });
 
-  test("rechecking a deleted package group names the missing group", async () => {
+  test("rechecking a deleted package group leaves not-found handling to its caller", async () => {
     await expect(
       withTransaction((tx) => packageGroupMembersErrorTx(tx, 999_999)),
-    ).rejects.toMatchObject({ message: "Missing group", name: "Error" });
+    ).resolves.toBeNull();
   });
 
   test("a package member left out of the list loses its override", async () => {

@@ -3,14 +3,13 @@ import { beforeEach, it as test } from "@std/testing/bdd";
 import { isNotNullish } from "#fp";
 import { TransactionValidationError } from "#shared/db/client.ts";
 import type { Table } from "#shared/db/table.ts";
+import { type CrudApiConfig, defineCrudApi } from "#shared/rest/crud-api.ts";
 import {
-  type CrudApiConfig,
-  defineCrudApi,
   parseOptionalArray,
   parseUpdateName,
   parseUpdateSlug,
   requireStrings,
-} from "#shared/rest/crud-api.ts";
+} from "#shared/rest/crud-parsers.ts";
 import { okResult } from "#shared/result.ts";
 import {
   getAllActivityLog,

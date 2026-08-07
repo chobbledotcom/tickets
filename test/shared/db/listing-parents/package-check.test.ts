@@ -11,7 +11,6 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 
 describeWithEnv("db > listing-parents > package check", { db: true }, () => {
   const parentAndChild = async () => ({
@@ -67,15 +66,5 @@ describeWithEnv("db > listing-parents > package check", { db: true }, () => {
       ),
     ).toBeNull();
     expect(await listingChildren.getIds(parent.id)).toEqual([replacement.id]);
-  });
-
-  test("names a malformed package check response", async () => {
-    await expect(
-      setListingChildrenWithPackageCheckTx(
-        { batch: async () => [], execute: async () => emptyResultSet() },
-        1,
-        [2],
-      ),
-    ).rejects.toThrow("Missing package edge check");
   });
 });

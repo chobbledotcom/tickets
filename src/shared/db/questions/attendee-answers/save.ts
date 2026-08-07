@@ -13,6 +13,7 @@ import {
   resultRows,
   type SqlStatement,
   type TxScope,
+  txIdSet,
   withTransaction,
 } from "#shared/db/client.ts";
 import type { TextAnswer, TextAnswerId } from "#shared/db/question-types.ts";
@@ -157,17 +158,13 @@ const storedIdAnswerStatements = (
  *  be dropped (mirrors the deleted-answer skip on the choice path) rather than
  *  inserting an orphan row whose plaintext the admin UI can never surface.
  *  Read on the open transaction so it shares the save's snapshot. */
-const existingQuestionIdsTx = async (
+const existingQuestionIdsTx = (
   tx: TxScope,
   questionIds: number[],
-): Promise<Set<number>> => {
-  const rows = resultRows<{ id: number }>(
-    await tx.execute(
-      questionsTable.read.pick(["id"]).statement({ id: questionIds }),
-    ),
+): Promise<Set<number>> =>
+  txIdSet(tx, questionIds, (unique) =>
+    questionsTable.read.pick(["id"]).statement({ id: unique }),
   );
-  return new Set(rows.map((row) => row.id));
-};
 
 /**
  * Replace every listed attendee's answers in one atomic transaction: each

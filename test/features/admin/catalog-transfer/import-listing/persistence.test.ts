@@ -260,4 +260,38 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
       ]),
     ).toEqual(before);
   });
+
+  test("rolls back when a parent listing vanishes during import", async () => {
+    const parent = await createTestListing({ name: "Vanishing parent" });
+    // The parent is resolved from the name index before the transaction
+    // opens. Once inside the transaction, the child listing INSERT fires this
+    // trigger, deleting the parent before the package-aware edge check runs.
+    // The check sees the parent is gone and rolls the whole import back
+    // rather than leaving an orphan edge pointing at a deleted listing.
+    await execute(
+      `CREATE TRIGGER delete_imported_parent
+         AFTER INSERT ON listings
+         BEGIN DELETE FROM listings WHERE id = ${parent.id}; END`,
+    );
+    const before = await Promise.all([
+      countRows("listings"),
+      countRows("listing_parents"),
+    ]);
+
+    const result = await importCatalog({
+      kind: "listing",
+      listing: { maxAttendees: 2, name: "Child of vanished" },
+      parents: [parent.name],
+      version: 1,
+    });
+
+    expect(result).toEqual({
+      error: t("catalog_transfer.parent_missing"),
+      ok: false,
+    });
+    // The trigger's delete and the child insert both roll back together.
+    expect(
+      await Promise.all([countRows("listings"), countRows("listing_parents")]),
+    ).toEqual(before);
+  });
 });

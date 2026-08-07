@@ -8,10 +8,14 @@ import {
 } from "#shared/db/client.ts";
 import {
   type ListingGroupMembershipValidation,
+  packageGroupIdsTx,
   validateListingGroupMembershipsTx,
 } from "#shared/db/groups/membership.ts";
 import { getGroupsById, groups, listingGroups } from "#shared/db/groups.ts";
-import { listingParents } from "#shared/db/listing-parents.ts";
+import {
+  addParentEdgesWithPackageCheckTx,
+  listingParents,
+} from "#shared/db/listing-parents.ts";
 import {
   syncListingPrices,
   writeListingDayCounts,
@@ -313,12 +317,12 @@ export const importListing = async (
   });
   if (edgeError) return fail(edgeError);
 
-  const packageGroupIds = new Set(
+  const preTxPackageGroupIds = new Set(
     packageGroups(await groups.cache.getAll()).map((group) => group.id),
   );
   const newMember: DayPricedListing = dayPriceFieldsFromInput(input);
   for (let i = 0; i < memberships.length; i++) {
-    if (!packageGroupIds.has(groupResolve.ids[i]!)) continue;
+    if (!preTxPackageGroupIds.has(groupResolve.ids[i]!)) continue;
     const dayError = memberDayOverrideError(
       listing.name,
       memberships[i]!.dayPrices,
@@ -326,13 +330,6 @@ export const importListing = async (
     );
     if (dayError) return fail(dayError);
   }
-  const specs = memberships.map((membership, index) => ({
-    ...membershipSpec(
-      membership,
-      packageGroupIds.has(groupResolve.ids[index]!),
-    ),
-    groupId: groupResolve.ids[index]!,
-  }));
   const id = await writeRowInTransaction(
     await listingsTable.insertStatement!(input),
     null,
@@ -341,8 +338,22 @@ export const importListing = async (
       requireImportedMembership(
         await validateListingGroupMembershipsTx(tx)([newId], groupResolve.ids),
       );
-      await writeMembershipsTx(tx, withNewId(specs, "listingId", newId));
-      await listingParents.addIdsTx(tx, newId, parentResolve.ids);
+      const packageGroupIds = await packageGroupIdsTx(tx, groupResolve.ids);
+      await writeMembershipsTx(
+        tx,
+        withNewId(
+          memberships.map((membership, index) => ({
+            ...membershipSpec(
+              membership,
+              packageGroupIds.has(groupResolve.ids[index]!),
+            ),
+            groupId: groupResolve.ids[index]!,
+          })),
+          "listingId",
+          newId,
+        ),
+      );
+      await addParentEdgesWithPackageCheckTx(tx, newId, parentResolve.ids);
     },
   );
   await syncListingPrices(id);

@@ -6,12 +6,12 @@ import { isNotNullish } from "#fp";
 import { validateDateRange } from "#routes/admin/holidays.ts";
 import { OWNER_API } from "#routes/auth.ts";
 import { type HolidayInput, holidays } from "#shared/db/holidays.ts";
+import { defineCrudApi } from "#shared/rest/crud-api.ts";
 import {
   type DeleteBody,
-  defineCrudApi,
   parseUpdateName,
   requireStrings,
-} from "#shared/rest/crud-api.ts";
+} from "#shared/rest/crud-parsers.ts";
 import { okResult } from "#shared/result.ts";
 import type { Holiday } from "#shared/types.ts";
 

@@ -24,10 +24,10 @@ import type {
 } from "#shared/catalog-fields/fields.ts";
 import { groupCatalogFields } from "#shared/catalog-fields/fields.ts";
 import { logActivity } from "#shared/db/activity-log.ts";
-import { executeBatch, type TxScope } from "#shared/db/client.ts";
+import { executeBatch } from "#shared/db/client.ts";
 import {
   assignListingsToGroup,
-  requirePackageGroupMembersTx,
+  writePackageMembersTx,
 } from "#shared/db/groups/membership.ts";
 import {
   computeGroupSlugIndex,
@@ -39,7 +39,6 @@ import {
   isGroupSlugTaken,
   packageMembersError,
   resetGroupListings,
-  setGroupPackageMembers,
 } from "#shared/db/groups.ts";
 import {
   clearImageUsesForItemStatement,
@@ -295,30 +294,23 @@ const groupsCreateResource = defineNamedResource({
   toInput: extractGroupCreateInput,
 });
 
-/** Persist the group's per-listing package overrides (price + quantity) after
- * the row is saved, reading the dynamic `package_price_<id>` / `package_qty_<id>`
- * inputs from the raw form. When the group is not (or no longer) a package,
- * every override is cleared back to price 0 / quantity 1. */
-const writeGroupPackageMembers = async (
-  tx: TxScope,
-  id: number,
-  input: GroupInput,
-  form: FormParams,
-): Promise<void> => {
-  await requirePackageGroupMembersTx(tx, id);
-  await setGroupPackageMembers(
-    id,
-    input.isPackage ? parsePackageMembers(form) : [],
-    tx,
-  );
-};
-
 /** Groups resource for REST update operations (user-provided slug). Validates
- * the package invariant and writes the dynamic overrides via afterWrite, so the
- * generic CRUD edit route handles packages without a bespoke handler. */
+ *  the package invariant and writes the dynamic overrides via afterWrite, so the
+ *  generic CRUD edit route handles packages without a bespoke handler.
+ *  `afterWrite` reads the `package_price_<id>` / `package_qty_<id>` inputs from
+ *  the raw form, clears all overrides when the group is not a package, and
+ *  rechecks the sold-hidden invariant so a checkout that committed between the
+ *  request-level check and this write rolls the change back. */
 const groupsResource = defineNamedResource({
   ...groupResourceBase,
-  afterWrite: writeGroupPackageMembers,
+  afterWrite: (tx, id, input, form, existing) =>
+    writePackageMembersTx(
+      tx,
+      id,
+      existing,
+      input,
+      input.isPackage ? parsePackageMembers(form) : [],
+    ),
   form: getGroupForm(),
   toInput: extractGroupEditInput,
 });

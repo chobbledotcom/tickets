@@ -12,6 +12,7 @@
  */
 
 import { firstProblem, identity, mapById, mapNotNullish, unique } from "#fp";
+import { t } from "#i18n";
 import {
   inPlaceholders,
   queryIdColumn,
@@ -58,6 +59,21 @@ type PackageEdgeCheckRow = {
   parent_is_hidden_package_member: number;
 };
 
+/** Reports whether the parent-side hidden-package flag and the child-side
+ *  package-member flag together form a forbidden child edge, given the ids
+ *  whose membership triggered one of the flags. Both edge-writers call this
+ *  with the ids they are about to link, then convert the result into a
+ *  returned error (children writer) or a thrown one (parent-edge writer). */
+const edgeConflictFor = (
+  ids: readonly number[],
+  state: PackageEdgeCheckRow,
+): Promise<PackageChildEdgeBlock | null> =>
+  packageChildEdgeConflict(
+    ids,
+    () => state.parent_is_hidden_package_member === 1,
+    () => state.child_is_package_member === 1,
+  );
+
 /** Replaces child edges only when the transaction's package memberships allow them. */
 export const setListingChildrenWithPackageCheckTx = async (
   tx: TxScope,
@@ -86,13 +102,8 @@ export const setListingChildrenWithPackageCheckTx = async (
                     ) AS child_is_package_member`,
     }),
   );
-  if (!state) throw new Error("Missing package edge check");
-  const packageConflict = await packageChildEdgeConflict(
-    childIds,
-    () => state.parent_is_hidden_package_member === 1,
-    () => state.child_is_package_member === 1,
-  );
-  if (packageConflict) return packageConflict;
+  const conflict = await edgeConflictFor(childIds, state!);
+  if (conflict) return conflict;
   await listingChildren.setIdsTx(tx, parentId, childIds);
   return null;
 };
@@ -104,6 +115,48 @@ export const requireListingChildrenPackageCheck = (
   if (conflict) {
     throw new TransactionValidationError(packageChildEdgeError(conflict));
   }
+};
+
+/** Adds parent edges for a freshly-created child only when the transaction's
+ *  package memberships allow them, and only when every parent still exists.
+ *  Mirrors {@link setListingChildrenWithPackageCheckTx} from the child side: the
+ *  child is `childId`, the parents are `parentIds`. A vanished parent rolls the
+ *  write back rather than leaving an orphan edge to a deleted listing. */
+export const addParentEdgesWithPackageCheckTx = async (
+  tx: TxScope,
+  childId: number,
+  parentIds: readonly number[],
+): Promise<void> => {
+  if (parentIds.length === 0) return;
+  const [state] = resultRows<PackageEdgeCheckRow & { parent_count: number }>(
+    await tx.execute({
+      args: [childId, ...parentIds, ...parentIds],
+      sql: `SELECT EXISTS(
+                      SELECT 1
+                        FROM group_listings AS childMembership
+                        JOIN groups AS childGroup
+                          ON childGroup.id = childMembership.group_id
+                       WHERE childMembership.listing_id = ?
+                         AND childGroup.is_package = 1
+                    ) AS child_is_package_member,
+                    EXISTS(
+                      SELECT 1
+                        FROM group_listings AS parentMembership
+                        JOIN groups AS parentGroup
+                          ON parentGroup.id = parentMembership.group_id
+                       WHERE parentMembership.listing_id IN (${inPlaceholders(parentIds)})
+                         AND parentGroup.is_package = 1
+                         AND parentGroup.hide_package_listings = 1
+                    ) AS parent_is_hidden_package_member,
+                    (SELECT COUNT(*) FROM listings
+                       WHERE id IN (${inPlaceholders(parentIds)})) AS parent_count`,
+    }),
+  );
+  if (state!.parent_count !== parentIds.length) {
+    throw new TransactionValidationError(t("catalog_transfer.parent_missing"));
+  }
+  requireListingChildrenPackageCheck(await edgeConflictFor(parentIds, state!));
+  await listingParents.addIdsTx(tx, childId, parentIds);
 };
 
 /** The requested listing ids that have at least one link on a relationship

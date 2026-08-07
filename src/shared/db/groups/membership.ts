@@ -1,7 +1,8 @@
 /** Group membership checks and writes that must see one transaction-local view. */
 
-import { mapNotNullish, requiredMapValue } from "#fp";
+import { mapNotNullish } from "#fp";
 import { t } from "#i18n";
+import type { PackageMemberInput } from "#shared/catalog-fields/fields.ts";
 import { decrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
@@ -9,8 +10,13 @@ import {
   resultRows,
   TransactionValidationError,
   type TxScope,
+  txIdSet,
   withTransaction,
 } from "#shared/db/client.ts";
+import {
+  hasPackageBookingsTx,
+  setGroupPackageMembers,
+} from "#shared/db/groups.ts";
 import { packageMemberError } from "#shared/package-membership.ts";
 import { firstReason } from "#shared/reasons.ts";
 import type { ListingType } from "#shared/types.ts";
@@ -36,7 +42,7 @@ export const groupListingTypeError = (
   );
 
 /** Checks one candidate listing against a group's current member settings. */
-export const groupListingSettingsError = (
+const groupListingSettingsError = (
   allSiblings: readonly GroupListingSettings[],
   listing: GroupListingSettings,
   excludeListingId?: number,
@@ -154,6 +160,18 @@ const groupStatesTx = async (
   }
   return states;
 };
+
+/** Returns the set of group ids that are packages in the transaction's current
+ *  view, so a catalog import derives package overrides from fresh state rather
+ *  than a pre-transaction snapshot that can go stale. */
+export const packageGroupIdsTx = (
+  tx: TxScope,
+  groupIds: readonly number[],
+): Promise<Set<number>> =>
+  txIdSet(tx, groupIds, (unique) => ({
+    args: unique,
+    sql: `SELECT id FROM groups WHERE is_package = 1 AND id IN (${inPlaceholders(unique)})`,
+  }));
 
 type ListingStateRow = Omit<GroupListingSettings, "customisable_days"> & {
   name: EnvKeyEncrypted;
@@ -311,11 +329,9 @@ export const packageGroupMembersErrorTx = async (
   tx: TxScope,
   groupId: number,
 ): Promise<string | null> => {
-  const state = requiredMapValue(
-    await groupStatesTx(tx, [groupId]),
-    groupId,
-    "Missing group",
-  );
+  const state = (await groupStatesTx(tx, [groupId])).get(groupId);
+  // The row write can lose a race to a delete; its normal read-back reports 404.
+  if (!state) return null;
   return packageMembersErrorTx(
     await listingStatesTx(
       tx,
@@ -332,6 +348,68 @@ export const requirePackageGroupMembersTx = async (
 ): Promise<void> => {
   const error = await packageGroupMembersErrorTx(tx, groupId);
   if (error) throw new TransactionValidationError(error);
+};
+
+/** Rechecks the sold-hidden invariant inside the write transaction: if the
+ *  group was a hidden package and is being un-packaged, a checkout that
+ *  committed between the request-level `soldHiddenPackageError` check and this
+ *  write must roll back rather than reveal concealed member names. */
+const requireNotSoldHiddenPackageTx = async (
+  tx: TxScope,
+  groupId: number,
+  wasHiddenPackage: boolean,
+  isPackaging: boolean,
+): Promise<void> => {
+  if (!wasHiddenPackage || isPackaging) return;
+  if (await hasPackageBookingsTx(tx, groupId)) {
+    throw new TransactionValidationError(t("error.sold_hidden_package"));
+  }
+};
+
+/** The package-relevant slice of a stored group row, used to detect whether a
+ *  write is un-packaging a hidden package that has sold tickets. */
+type PackageRow = {
+  hide_package_listings: boolean;
+  is_package: boolean;
+};
+
+/** Runs both package guards in one call so every group write path applies the
+ *  same transaction-local checks: package members stay valid, and a hidden
+ *  package with sold tickets cannot be un-packaged. */
+const requirePackageGuardsTx = async (
+  tx: TxScope,
+  groupId: number,
+  existing: PackageRow | null,
+  isPackaging: boolean,
+): Promise<void> => {
+  await requirePackageGroupMembersTx(tx, groupId);
+  const wasHiddenPackage =
+    existing?.is_package === true && existing?.hide_package_listings === true;
+  await requireNotSoldHiddenPackageTx(
+    tx,
+    groupId,
+    wasHiddenPackage,
+    isPackaging,
+  );
+};
+
+/** Guards a group write and replaces its package members in one call: every
+ *  group write path applies the same sold-hidden check and the same "empty
+ *  when un-packaging" rule. `members` is already resolved by the caller
+ *  (parsed from a form or taken from the API input); pass `undefined` to leave
+ *  existing overrides untouched. */
+export const writePackageMembersTx = async (
+  tx: TxScope,
+  id: number,
+  existing: PackageRow | null,
+  input: { isPackage?: boolean | undefined },
+  members: PackageMemberInput[] | undefined,
+): Promise<void> => {
+  const isPackaging = input.isPackage !== false;
+  await requirePackageGuardsTx(tx, id, existing, isPackaging);
+  if (members !== undefined) {
+    await setGroupPackageMembers(id, isPackaging ? members : [], tx);
+  }
 };
 
 const groupListingAssignmentStatements = (

@@ -5,7 +5,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { t } from "#i18n";
 import { handleRequest } from "#routes";
+import { getDb } from "#shared/db/client.ts";
 import {
   getGroupPackagePrices,
   groups,
@@ -28,6 +30,7 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
+import { soldPackage } from "./groups/helpers.ts";
 
 /** Create a package group with one member carrying a `price` override via the
  * JSON API, returning the group. */
@@ -159,6 +162,29 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         200,
         (body) => {
           expect(body.group.name).toBe("Cookie Group");
+        },
+      );
+    });
+
+    test("returns 404 when the group vanishes during update", async () => {
+      const group = await createTestGroup({ name: "Vanishing group" });
+      await getDb().execute(
+        `CREATE TRIGGER delete_group_during_update
+         AFTER UPDATE ON groups
+         WHEN NEW.id = ${group.id}
+         BEGIN
+           DELETE FROM groups WHERE id = NEW.id;
+         END`,
+      );
+
+      await assertJson(
+        apiRequest(`/api/admin/groups/${group.id}`, {
+          body: { name: "Gone" },
+          method: "PUT",
+        }),
+        404,
+        (body) => {
+          expect(body.error).toBe("Group not found");
         },
       );
     });
@@ -860,6 +886,23 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
           expect(body.error).toContain("Packages cannot contain");
         },
       );
+    });
+
+    test("PUT rejects un-packaging a hidden package with sold tickets", async () => {
+      const group = await soldPackage("Hidden sold unpackage", true);
+
+      await assertJson(
+        apiRequest(`/api/admin/groups/${group.id}`, {
+          body: { is_package: false },
+          method: "PUT",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe(t("error.sold_hidden_package"));
+        },
+      );
+      const refreshed = await groups.cache.getAll();
+      expect(refreshed.find((g) => g.id === group.id)?.is_package).toBe(true);
     });
   });
 

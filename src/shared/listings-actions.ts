@@ -41,7 +41,7 @@ import {
 import { isNameTakenAnywhere } from "#shared/db/name-registry.ts";
 import type { EdgeListing } from "#shared/listing-parents-rules.ts";
 import { packageMemberError } from "#shared/package-membership.ts";
-import { parseUpdateSlug } from "#shared/rest/crud-api.ts";
+import { parseUpdateSlug } from "#shared/rest/crud-parsers.ts";
 import { generateUniqueSlug, normalizeSlug } from "#shared/slug.ts";
 import { deleteListingAttachmentFile } from "#shared/storage.ts";
 import {
