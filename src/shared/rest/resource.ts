@@ -264,10 +264,9 @@ export const defineResource = <
 
   const update = (id: InValue, form: FormParams): Promise<UpdateResult<Row>> =>
     withExistingRow(id, async (): Promise<UpdateResult<Row>> => {
-      // Only load the pre-update row when an afterWrite hook needs it; the
-      // sold-hidden package recheck reads the old is_package/hide flags, and
-      // other afterWrite hooks may branch on the prior state. A resource with
-      // no afterWrite skips the extra round-trip.
+      // Only load the pre-update row when an afterWrite hook needs it; some
+      // hooks branch on the prior state. A resource with no afterWrite skips
+      // the extra round-trip.
       const existing =
         config.afterWrite && table.findByIdPrimary
           ? await table.findByIdPrimary(id as number)

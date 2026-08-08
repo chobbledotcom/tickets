@@ -28,6 +28,7 @@ import {
   memberDayOverrideError,
   membershipSpec,
   nameTakenError,
+  requireDayPriceOk,
   requireImportedMembership,
   resolveNames,
   withNewId,
@@ -66,7 +67,6 @@ const membersHomogeneous = (
 
 const importedGroupMembersError = async (
   group: GroupTransfer["group"],
-  members: GroupTransfer["members"],
   memberIds: readonly number[],
   listings: readonly ListingWithCount[],
 ): Promise<string | null> => {
@@ -75,11 +75,18 @@ const importedGroupMembersError = async (
   const homogeneityError = membersHomogeneous(memberListings);
   if (homogeneityError) return homogeneityError;
   if (!group.isPackage) return null;
-  const packageError = await packageMembersError(
-    memberListings,
-    group.hidePackageListings,
-  );
-  if (packageError) return packageError;
+  return packageMembersError(memberListings, group.hidePackageListings);
+};
+
+/** Day-price override validation inside the write transaction, so a listing
+ *  whose day counts changed between the pre-tx read and this write rolls
+ *  back rather than committing an override for a day count it no longer offers. */
+const importedGroupDayPriceErrorTx = async (
+  memberIds: readonly number[],
+  members: GroupTransfer["members"],
+): Promise<string | null> => {
+  const listings = await requireListingsWithCountsByIds([...memberIds]);
+  const listingById = mapById(identity<ListingWithCount>)(listings);
   for (let i = 0; i < members.length; i++) {
     const member = listingById.get(memberIds[i]!)!;
     const dayError = memberDayOverrideError(
@@ -110,7 +117,6 @@ const importGroup = async (
   const listings = await requireListingsWithCountsByIds(memberResolve.ids);
   const memberError = await importedGroupMembersError(
     group,
-    members,
     memberResolve.ids,
     listings,
   );
@@ -126,6 +132,13 @@ const importGroup = async (
     await groups.table.insertStatement!(input),
     null,
     async (tx, newId) => {
+      if (group.isPackage) {
+        const dayError = await importedGroupDayPriceErrorTx(
+          memberResolve.ids,
+          members,
+        );
+        requireDayPriceOk(dayError);
+      }
       await writeMembershipsTx(tx, withNewId(specs, "groupId", newId));
       requireImportedMembership(
         await validateListingGroupMembershipsTx(tx)(memberResolve.ids, [newId]),

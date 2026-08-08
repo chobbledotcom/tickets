@@ -14,95 +14,16 @@ import {
   withTransaction,
 } from "#shared/db/client.ts";
 import {
+  checkGroupListingSettings,
+  type GroupListingSettings,
+  groupListingSettingsError,
+} from "#shared/db/groups/homogeneity.ts";
+import {
   hasPackageBookingsTx,
   setGroupPackageMembers,
 } from "#shared/db/groups.ts";
 import { packageMemberError } from "#shared/package-membership.ts";
-import { firstReason } from "#shared/reasons.ts";
 import type { ListingType } from "#shared/types.ts";
-
-/** The listing fields every group member must share. */
-export type GroupListingSettings = {
-  id: number;
-  listing_type: ListingType;
-  customisable_days: boolean;
-};
-
-/** Returns the first setting that conflicts with the group's existing members. */
-export const groupListingTypeError = (
-  allSiblings: readonly GroupListingSettings[],
-  listingType: ListingType,
-  customisableDays: boolean,
-  excludeListingId?: number,
-): string | null =>
-  groupHomogeneityError(
-    allSiblings.filter((listing) => listing.id !== excludeListingId),
-    listingType,
-    customisableDays,
-  );
-
-/** Checks one candidate listing against a group's current member settings. */
-const groupListingSettingsError = (
-  allSiblings: readonly GroupListingSettings[],
-  listing: GroupListingSettings,
-  excludeListingId?: number,
-): string | null =>
-  groupListingTypeError(
-    allSiblings,
-    listing.listing_type,
-    listing.customisable_days,
-    excludeListingId,
-  );
-
-/** A loaded group paired with the result of checking one listing against it. */
-export type GroupListingCheck<Group> =
-  | { group: Group; ok: true }
-  | { error: string; group: null; ok: false };
-
-/** Rejects a missing group or incompatible listing while preserving the loaded group. */
-export const checkGroupListingSettings = <Group>(
-  group: Group | undefined,
-  members: (group: Group) => readonly GroupListingSettings[],
-  listing: GroupListingSettings,
-  excludeListingId?: number,
-): GroupListingCheck<Group> => {
-  if (!group) {
-    return { error: "Selected group does not exist", group: null, ok: false };
-  }
-  const error = groupListingSettingsError(
-    members(group),
-    listing,
-    excludeListingId,
-  );
-  return error ? { error, group: null, ok: false } : { group, ok: true };
-};
-
-const groupHomogeneityError = firstReason<
-  [
-    siblings: readonly GroupListingSettings[],
-    listingType: ListingType,
-    customisableDays: boolean,
-  ]
->([
-  (siblings, listingType) => {
-    const mismatch = siblings.find(
-      (sibling) => sibling.listing_type !== listingType,
-    );
-    return mismatch
-      ? t("error.group_listing_type_mismatch", { type: mismatch.listing_type })
-      : null;
-  },
-  (siblings, _listingType, customisableDays) => {
-    const mismatch = siblings.find(
-      (sibling) => sibling.customisable_days !== customisableDays,
-    );
-    return mismatch
-      ? mismatch.customisable_days
-        ? t("error.group_customisable_days_expected")
-        : t("error.group_customisable_days_unexpected")
-      : null;
-  },
-]);
 
 type GroupStateRow = {
   group_id: number;
@@ -373,16 +294,42 @@ type PackageRow = {
   is_package: boolean;
 };
 
+type ExistingPackageRow = {
+  hide_package_listings: number;
+  is_package: number;
+};
+
+/** Reads the group's pre-update package flags inside the write transaction,
+ *  so `wasHiddenPackage` reflects state that hasn't gone stale between the
+ *  route-level snapshot and this write. Returns null on create (no prior row). */
+const readExistingPackageFlagsTx = async (
+  tx: TxScope,
+  groupId: number,
+): Promise<PackageRow | null> => {
+  const rows = resultRows<ExistingPackageRow>(
+    await tx.execute({
+      args: [groupId],
+      sql: "SELECT is_package, hide_package_listings FROM groups WHERE id = ?",
+    }),
+  );
+  if (rows.length === 0) return null;
+  const row = rows[0]!;
+  return {
+    hide_package_listings: row.hide_package_listings === 1,
+    is_package: row.is_package === 1,
+  };
+};
+
 /** Runs both package guards in one call so every group write path applies the
  *  same transaction-local checks: package members stay valid, and a hidden
  *  package with sold tickets cannot be un-packaged. */
 const requirePackageGuardsTx = async (
   tx: TxScope,
   groupId: number,
-  existing: PackageRow | null,
   isPackaging: boolean,
 ): Promise<void> => {
   await requirePackageGroupMembersTx(tx, groupId);
+  const existing = await readExistingPackageFlagsTx(tx, groupId);
   const wasHiddenPackage =
     existing?.is_package === true && existing?.hide_package_listings === true;
   await requireNotSoldHiddenPackageTx(
@@ -401,12 +348,11 @@ const requirePackageGuardsTx = async (
 export const writePackageMembersTx = async (
   tx: TxScope,
   id: number,
-  existing: PackageRow | null,
   input: { isPackage?: boolean | undefined },
   members: PackageMemberInput[] | undefined,
 ): Promise<void> => {
   const isPackaging = input.isPackage !== false;
-  await requirePackageGuardsTx(tx, id, existing, isPackaging);
+  await requirePackageGuardsTx(tx, id, isPackaging);
   if (members !== undefined) {
     await setGroupPackageMembers(id, isPackaging ? members : [], tx);
   }

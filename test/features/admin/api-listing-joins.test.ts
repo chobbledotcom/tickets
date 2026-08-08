@@ -5,23 +5,37 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import {
   persistListingJoins,
   prepareListingJoins,
 } from "#routes/admin/api-listing-joins.ts";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import type { BlindIndex } from "#shared/crypto/sealed.ts";
 import { withTransaction } from "#shared/db/client.ts";
 import { listingGroups } from "#shared/db/groups.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createHiddenPackageGroup,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { testListingInput } from "#test-utils/factories.ts";
 
-const baseInput = (overrides: Partial<ListingInput> = {}): ListingInput =>
-  ({
-    name: "Test listing",
-    ...overrides,
-  }) as unknown as ListingInput;
+const baseInput = (
+  overrides: Parameters<typeof testListingInput>[0] = {},
+): ReturnType<typeof testListingInput> & {
+  slug: string;
+  slugIndex: BlindIndex;
+} => {
+  const { groupIds, ...rest } = overrides;
+  return {
+    ...testListingInput({ name: "Test listing", ...rest }),
+    ...(groupIds !== undefined ? { groupIds } : {}),
+    slug: "test-listing",
+    slugIndex: "test-listing-index" as BlindIndex,
+  };
+};
 
 describeWithEnv("api-listing-joins", { db: true }, () => {
   test("returns null child edges when child_listing_ids is omitted", async () => {
@@ -74,6 +88,22 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
     expect("value" in result).toBe(true);
     if ("value" in result) {
       expect(result.value.childEdges).toEqual([child.id]);
+    }
+  });
+
+  test("rejects child edges when the listing is in a hidden package", async () => {
+    const hiddenPackage = await createHiddenPackageGroup("Edge hidden pkg");
+    const child = await createTestListing({ name: "Hidden pkg child" });
+
+    const result = await prepareListingJoins(
+      baseInput({ groupIds: [hiddenPackage.id] }),
+      { child_listing_ids: [child.id] },
+      null,
+    );
+
+    expect("error" in result).toBe(true);
+    if ("error" in result) {
+      expect(result.error).toBe(t("error.package_gate_in_hidden"));
     }
   });
 

@@ -45,7 +45,6 @@ import {
   listingInputToEdge,
   validateListingInput,
 } from "#shared/listings-actions.ts";
-import { packageGroups } from "#shared/package-membership.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { seenBefore } from "#shared/seen-before.ts";
 import {
@@ -85,6 +84,11 @@ export const requireImportedMembership = (
     throw new TransactionValidationError(t("catalog_transfer.member_missing"));
   }
   if (membership.error) throw new TransactionValidationError(membership.error);
+};
+
+/** Throws a day-price override error as a transaction validation failure. */
+export const requireDayPriceOk = (error: string | null): void => {
+  if (error) throw new TransactionValidationError(error);
 };
 
 export const resolveNames = (
@@ -317,19 +321,7 @@ export const importListing = async (
   });
   if (edgeError) return fail(edgeError);
 
-  const preTxPackageGroupIds = new Set(
-    packageGroups(await groups.cache.getAll()).map((group) => group.id),
-  );
   const newMember: DayPricedListing = dayPriceFieldsFromInput(input);
-  for (let i = 0; i < memberships.length; i++) {
-    if (!preTxPackageGroupIds.has(groupResolve.ids[i]!)) continue;
-    const dayError = memberDayOverrideError(
-      listing.name,
-      memberships[i]!.dayPrices,
-      newMember,
-    );
-    if (dayError) return fail(dayError);
-  }
   const id = await writeRowInTransaction(
     await listingsTable.insertStatement!(input),
     null,
@@ -339,6 +331,15 @@ export const importListing = async (
         await validateListingGroupMembershipsTx(tx)([newId], groupResolve.ids),
       );
       const packageGroupIds = await packageGroupIdsTx(tx, groupResolve.ids);
+      for (let i = 0; i < memberships.length; i++) {
+        if (!packageGroupIds.has(groupResolve.ids[i]!)) continue;
+        const dayError = memberDayOverrideError(
+          listing.name,
+          memberships[i]!.dayPrices,
+          newMember,
+        );
+        requireDayPriceOk(dayError);
+      }
       await writeMembershipsTx(
         tx,
         withNewId(
@@ -353,7 +354,12 @@ export const importListing = async (
           newId,
         ),
       );
-      await addParentEdgesWithPackageCheckTx(tx, newId, parentResolve.ids);
+      await addParentEdgesWithPackageCheckTx(
+        tx,
+        newId,
+        parentResolve.ids,
+        t("catalog_transfer.parent_missing"),
+      );
     },
   );
   await syncListingPrices(id);

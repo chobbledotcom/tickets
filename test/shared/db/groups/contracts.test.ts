@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
-import { groupListingTypeError } from "#shared/db/groups/membership.ts";
+import { checkGroupListingSettings } from "#shared/db/groups/homogeneity.ts";
 import {
   computeGroupSlugIndex,
   getAllGroupNames,
@@ -133,23 +133,33 @@ describeWithEnv("db > group validation contracts", { db: true }, () => {
       groupId: customGroup.id,
       name: "Custom Member",
     });
+    const customMembers = await getListingsByGroupId(customGroup.id);
     expect(
-      groupListingTypeError(
-        await getListingsByGroupId(customGroup.id),
-        "standard",
-        false,
-      ),
-    ).toBe(t("error.group_customisable_days_expected"));
+      checkGroupListingSettings(customMembers, (members) => members, {
+        customisable_days: false,
+        id: 0,
+        listing_type: "standard",
+      }),
+    ).toEqual({
+      error: t("error.group_customisable_days_expected"),
+      group: null,
+      ok: false,
+    });
 
     const fixedGroup = await createTestGroup({ name: "Fixed Group" });
     await createTestListing({ groupId: fixedGroup.id, name: "Fixed Member" });
+    const fixedMembers = await getListingsByGroupId(fixedGroup.id);
     expect(
-      groupListingTypeError(
-        await getListingsByGroupId(fixedGroup.id),
-        "standard",
-        true,
-      ),
-    ).toBe(t("error.group_customisable_days_unexpected"));
+      checkGroupListingSettings(fixedMembers, (members) => members, {
+        customisable_days: true,
+        id: 0,
+        listing_type: "standard",
+      }),
+    ).toEqual({
+      error: t("error.group_customisable_days_unexpected"),
+      group: null,
+      ok: false,
+    });
   });
 
   test("a type mismatch names the type already in the group", async () => {
@@ -161,12 +171,16 @@ describeWithEnv("db > group validation contracts", { db: true }, () => {
     });
 
     expect(
-      groupListingTypeError(
+      checkGroupListingSettings(
         await getListingsByGroupId(group.id),
-        "standard",
-        false,
+        (members) => members,
+        { customisable_days: false, id: 0, listing_type: "standard" },
       ),
-    ).toBe(t("error.group_listing_type_mismatch", { type: "daily" }));
+    ).toEqual({
+      error: t("error.group_listing_type_mismatch", { type: "daily" }),
+      group: null,
+      ok: false,
+    });
   });
 
   test("matching customisable-day settings are accepted", async () => {
@@ -180,12 +194,15 @@ describeWithEnv("db > group validation contracts", { db: true }, () => {
     });
 
     expect(
-      groupListingTypeError(
+      checkGroupListingSettings(
         await getListingsByGroupId(group.id),
-        "standard",
-        true,
+        (members) => members,
+        { customisable_days: true, id: 0, listing_type: "standard" },
       ),
-    ).toBeNull();
+    ).toEqual({
+      group: await getListingsByGroupId(group.id),
+      ok: true,
+    });
   });
 
   test("the singular hidden-package check detects one membership", async () => {

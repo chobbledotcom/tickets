@@ -177,16 +177,22 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
          END`,
       );
 
-      await assertJson(
-        apiRequest(`/api/admin/groups/${group.id}`, {
-          body: { name: "Gone" },
-          method: "PUT",
-        }),
-        404,
-        (body) => {
-          expect(body.error).toBe("Group not found");
-        },
-      );
+      try {
+        await assertJson(
+          apiRequest(`/api/admin/groups/${group.id}`, {
+            body: { name: "Gone" },
+            method: "PUT",
+          }),
+          404,
+          (body) => {
+            expect(body.error).toBe("Group not found");
+          },
+        );
+      } finally {
+        await getDb().execute(
+          "DROP TRIGGER IF EXISTS delete_group_during_update",
+        );
+      }
     });
   });
 

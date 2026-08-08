@@ -392,33 +392,19 @@ describeWithEnv("db > groups > membership writes", { db: true }, () => {
       "UPDATE listing_attendees SET package_group_id = ? WHERE attendee_id = ?",
       [group.id, attendee.id],
     );
-    const existing = { hide_package_listings: true, is_package: true };
 
     await expect(
       withTransaction(async (tx) => {
-        await writePackageMembersTx(
-          tx,
-          group.id,
-          existing,
-          { isPackage: false },
-          [],
-        );
+        await writePackageMembersTx(tx, group.id, { isPackage: false }, []);
       }),
     ).rejects.toThrow(t("error.sold_hidden_package"));
   });
 
   test("writePackageMembersTx allows un-packaging an unsold hidden package", async () => {
     const group = await createHiddenPackageGroup("Tx ok unpackage");
-    const existing = { hide_package_listings: true, is_package: true };
 
     await withTransaction(async (tx) => {
-      await writePackageMembersTx(
-        tx,
-        group.id,
-        existing,
-        { isPackage: false },
-        [],
-      );
+      await writePackageMembersTx(tx, group.id, { isPackage: false }, []);
     });
   });
 
@@ -438,16 +424,9 @@ describeWithEnv("db > groups > membership writes", { db: true }, () => {
       "UPDATE listing_attendees SET package_group_id = ? WHERE attendee_id = ?",
       [group.id, attendee.id],
     );
-    const existing = { hide_package_listings: true, is_package: true };
 
     await withTransaction(async (tx) => {
-      await writePackageMembersTx(
-        tx,
-        group.id,
-        existing,
-        { isPackage: true },
-        [],
-      );
+      await writePackageMembersTx(tx, group.id, { isPackage: true }, []);
     });
   });
 
@@ -459,17 +438,10 @@ describeWithEnv("db > groups > membership writes", { db: true }, () => {
     });
     const child = await createTestListing({ name: "Tx recheck child" });
     await listingChildren.setIds(parent.id, [child.id]);
-    const existing = { hide_package_listings: true, is_package: true };
 
     await expect(
       withTransaction(async (tx) => {
-        await writePackageMembersTx(
-          tx,
-          group.id,
-          existing,
-          { isPackage: true },
-          [],
-        );
+        await writePackageMembersTx(tx, group.id, { isPackage: true }, []);
       }),
     ).rejects.toThrow();
   });

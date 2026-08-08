@@ -12,7 +12,6 @@
  */
 
 import { firstProblem, identity, mapById, mapNotNullish, unique } from "#fp";
-import { t } from "#i18n";
 import {
   inPlaceholders,
   queryIdColumn,
@@ -121,11 +120,15 @@ export const requireListingChildrenPackageCheck = (
  *  package memberships allow them, and only when every parent still exists.
  *  Mirrors {@link setListingChildrenWithPackageCheckTx} from the child side: the
  *  child is `childId`, the parents are `parentIds`. A vanished parent rolls the
- *  write back rather than leaving an orphan edge to a deleted listing. */
+ *  write back rather than leaving an orphan edge to a deleted listing.
+ *  `missingError` is the message thrown when a named parent no longer exists,
+ *  supplied by the caller so this shared DB helper does not hardcode a
+ *  catalog-import-specific message. */
 export const addParentEdgesWithPackageCheckTx = async (
   tx: TxScope,
   childId: number,
   parentIds: readonly number[],
+  missingError: string,
 ): Promise<void> => {
   if (parentIds.length === 0) return;
   const [state] = resultRows<PackageEdgeCheckRow & { parent_count: number }>(
@@ -152,8 +155,8 @@ export const addParentEdgesWithPackageCheckTx = async (
                        WHERE id IN (${inPlaceholders(parentIds)})) AS parent_count`,
     }),
   );
-  if (state!.parent_count !== parentIds.length) {
-    throw new TransactionValidationError(t("catalog_transfer.parent_missing"));
+  if (state!.parent_count !== new Set(parentIds).size) {
+    throw new TransactionValidationError(missingError);
   }
   requireListingChildrenPackageCheck(await edgeConflictFor(parentIds, state!));
   await listingParents.addIdsTx(tx, childId, parentIds);

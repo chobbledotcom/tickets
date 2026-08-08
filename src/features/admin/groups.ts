@@ -303,11 +303,10 @@ const groupsCreateResource = defineNamedResource({
  *  request-level check and this write rolls the change back. */
 const groupsResource = defineNamedResource({
   ...groupResourceBase,
-  afterWrite: (tx, id, input, form, existing) =>
+  afterWrite: (tx, id, input, form) =>
     writePackageMembersTx(
       tx,
       id,
-      existing,
       input,
       input.isPackage ? parsePackageMembers(form) : [],
     ),

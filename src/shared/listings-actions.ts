@@ -10,7 +10,7 @@ import { t } from "#i18n";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activity-log.ts";
-import { checkGroupListingSettings } from "#shared/db/groups/membership.ts";
+import { checkGroupListingSettings } from "#shared/db/groups/homogeneity.ts";
 import {
   getGroupsById,
   getListingsByGroupIds,

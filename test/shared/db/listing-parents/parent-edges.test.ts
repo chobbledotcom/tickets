@@ -27,7 +27,12 @@ describeWithEnv(
       const child = await createTestListing({ name: "Real child" });
 
       await withTransaction(async (tx) => {
-        await addParentEdgesWithPackageCheckTx(tx, child.id, [parent.id]);
+        await addParentEdgesWithPackageCheckTx(
+          tx,
+          child.id,
+          [parent.id],
+          t("catalog_transfer.parent_missing"),
+        );
       });
 
       expect(await listingParents.getIds(child.id)).toEqual([parent.id]);
@@ -38,7 +43,12 @@ describeWithEnv(
 
       await expect(
         withTransaction(async (tx) => {
-          await addParentEdgesWithPackageCheckTx(tx, child.id, [99999]);
+          await addParentEdgesWithPackageCheckTx(
+            tx,
+            child.id,
+            [99999],
+            t("catalog_transfer.parent_missing"),
+          );
         }),
       ).rejects.toThrow(t("catalog_transfer.parent_missing"));
     });
@@ -47,7 +57,12 @@ describeWithEnv(
       const child = await createTestListing({ name: "No-edge child" });
 
       await withTransaction(async (tx) => {
-        await addParentEdgesWithPackageCheckTx(tx, child.id, []);
+        await addParentEdgesWithPackageCheckTx(
+          tx,
+          child.id,
+          [],
+          t("catalog_transfer.parent_missing"),
+        );
       });
 
       expect(await listingParents.getIds(child.id)).toEqual([]);
@@ -66,7 +81,12 @@ describeWithEnv(
 
       await expect(
         withTransaction(async (tx) => {
-          await addParentEdgesWithPackageCheckTx(tx, child.id, [parent.id]);
+          await addParentEdgesWithPackageCheckTx(
+            tx,
+            child.id,
+            [parent.id],
+            t("catalog_transfer.parent_missing"),
+          );
         }),
       ).rejects.toThrow();
     });

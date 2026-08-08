@@ -1,8 +1,4 @@
-/**
- * JSON body parsing and validation helpers shared by the CRUD API factory and
- * per-resource API modules. Extracted from `crud-api.ts` so the factory stays
- * focused on route generation.
- */
+/** JSON body parsing and validation helpers for CRUD API modules. */
 
 import { isNotNullish, reduce } from "#fp";
 import { apiErrorResponse } from "#routes/api/cors.ts";

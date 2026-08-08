@@ -25,6 +25,7 @@ import {
   groups,
   loadPackageMemberPricingByGroupIds,
 } from "#shared/db/groups.ts";
+import { packageGroups } from "#shared/package-membership.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
 import {
   type DeleteBody,
@@ -222,11 +223,10 @@ const toGroupInput = async (
 };
 
 export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
-  afterWrite: (tx, id, input, existing) =>
+  afterWrite: (tx, id, input) =>
     writePackageMembersTx(
       tx,
       id,
-      existing,
       input,
       input.isPackage === false ? [] : input.packageMembers,
     ),
@@ -234,12 +234,12 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
   // Only package groups appear in the map; non-package groups hydrate to no
   // extra fields. Single-row responses use this same batch path with one row.
   hydrate: async (rows) => {
-    const packageGroups = rows.filter((row) => row.is_package);
+    const pkgGroups = packageGroups(rows);
     const pricingByGroup = await loadPackageMemberPricingByGroupIds(
-      packageGroups.map((row) => row.id),
+      pkgGroups.map((row) => row.id),
     );
     return new Map(
-      packageGroups.map((row) => {
+      pkgGroups.map((row) => {
         const pricing = requiredMapValue(
           pricingByGroup,
           row.id,
