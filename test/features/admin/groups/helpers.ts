@@ -1,9 +1,10 @@
 /** Shared arrange helpers for the admin group route tests. */
 
+import { expect } from "@std/expect";
 import { handleRequest } from "#routes";
 import type { GroupInput } from "#shared/catalog-fields/fields.ts";
 import { computeGroupSlugIndex } from "#shared/db/groups.ts";
-import type { Group } from "#shared/types.ts";
+import type { Group, ListingWithCount } from "#shared/types.ts";
 import {
   createSoldPackageMember,
   createTestGroup,
@@ -57,26 +58,35 @@ export const soldPackage = async (
 
 /** Create a package group with one member carrying a `price` override via the
  *  JSON API, returning the group. */
-export const packagedGroup = async (name: string, price: number) => {
+export const packagedGroup = async (
+  name: string,
+  price: number,
+): Promise<Group> => {
   const group = await createTestGroup({ isPackage: true, name });
   const listing = await createTestListing({ groupId: group.id });
-  await apiRequest(`/api/admin/groups/${group.id}`, {
+  const response = await apiRequest(`/api/admin/groups/${group.id}`, {
     body: {
       is_package: true,
       package_members: [{ listing_id: listing.id, price }],
     },
     method: "PUT",
   });
+  expect(response.status).toBe(200);
   return group;
 };
 
 /** A fresh group with one member listing, for package PUT tests. */
-export const groupWithMember = async (name: string) => {
+export const groupWithMember = async (
+  name: string,
+): Promise<{ group: Group; listing: ListingWithCount }> => {
   const group = await createTestGroup({ name });
   const listing = await createTestListing({ groupId: group.id });
   return { group, listing };
 };
 
 /** PUT a group via the JSON API. */
-export const putGroup = (groupId: number, body: Record<string, unknown>) =>
+export const putGroup = (
+  groupId: number,
+  body: Record<string, unknown>,
+): Promise<Response> =>
   apiRequest(`/api/admin/groups/${groupId}`, { body, method: "PUT" });

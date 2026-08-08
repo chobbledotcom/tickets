@@ -12,6 +12,7 @@
  */
 
 import { firstProblem, identity, mapById, mapNotNullish, unique } from "#fp";
+import { t } from "#i18n";
 import {
   inPlaceholders,
   queryIdColumn,
@@ -114,9 +115,7 @@ export const setListingChildrenWithPackageCheckTx = async (
   );
   if (!state!.parent_exists) return null;
   if (state!.child_count !== new Set(childIds).size) {
-    throw new TransactionValidationError(
-      "A listing selected as a child was deleted. Please try again.",
-    );
+    throw new TransactionValidationError(t("error.child_listing_deleted"));
   }
   const conflict = await edgeConflictFor(childIds, state!);
   if (conflict) return conflict;

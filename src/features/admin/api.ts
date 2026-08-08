@@ -37,13 +37,6 @@ import { defineCrudApi } from "#shared/rest/crud-api.ts";
 import { type DeleteBody, withApiEntity } from "#shared/rest/crud-parsers.ts";
 import type { AdminListing, Listing, ListingWithCount } from "#shared/types.ts";
 
-export {
-  bodyToCreateInput,
-  bodyToUpdateInput,
-  type CreateListingBody,
-  type UpdateListingBody,
-} from "./api-listing-body.ts";
-
 import { bodyToCreateInput, bodyToUpdateInput } from "./api-listing-body.ts";
 import {
   type PreparedListingJoins,

@@ -35,13 +35,6 @@ import type { AdminSession } from "#shared/types.ts";
 
 /* jscpd:ignore-end */
 
-export type {
-  AfterCommitConfig,
-  AfterWriteHook,
-  CrudApiConfig,
-  CrudSideEffect,
-} from "#shared/rest/crud-api-types.ts";
-
 import type { CrudApiConfig } from "#shared/rest/crud-api-types.ts";
 
 /** Strip internal keys from a row before sending in the response */

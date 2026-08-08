@@ -26,7 +26,7 @@ import type { FormSchema } from "#shared/forms/definition.ts";
 import type { Field } from "#shared/forms/field.ts";
 import type { FieldValues } from "#shared/forms/values.ts";
 import { mapValidationError } from "#shared/optional-validate.ts";
-import type { AfterCommitConfig } from "#shared/rest/crud-api.ts";
+import type { AfterCommitConfig } from "#shared/rest/crud-api-types.ts";
 import { writeEntity } from "#shared/rest/write-entity.ts";
 import { transactionValidationMessageOrRethrow } from "#shared/rest/write-error.ts";
 import { okResult, type Result } from "#shared/result.ts";

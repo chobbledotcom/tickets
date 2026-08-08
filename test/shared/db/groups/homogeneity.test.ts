@@ -11,7 +11,7 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv("db > group listing homogeneity", { db: true }, () => {
-  test("customisable-day errors describe the existing member", async () => {
+  test("a fixed candidate is rejected by a customisable group", async () => {
     const customGroup = await createTestGroup({ name: "Custom Group" });
     await createTestListing({
       customisableDays: true,
@@ -32,7 +32,9 @@ describeWithEnv("db > group listing homogeneity", { db: true }, () => {
       group: null,
       ok: false,
     });
+  });
 
+  test("a customisable candidate is rejected by a fixed group", async () => {
     const fixedGroup = await createTestGroup({ name: "Fixed Group" });
     await createTestListing({ groupId: fixedGroup.id, name: "Fixed Member" });
     const fixedMembers = await getListingsByGroupId(fixedGroup.id);
@@ -80,14 +82,15 @@ describeWithEnv("db > group listing homogeneity", { db: true }, () => {
       name: "Matching Custom Member",
     });
 
+    const members = await getListingsByGroupId(group.id);
     expect(
-      checkGroupListingSettings(
-        await getListingsByGroupId(group.id),
-        (members) => members,
-        { customisable_days: true, id: 0, listing_type: "standard" },
-      ),
+      checkGroupListingSettings(members, (rows) => rows, {
+        customisable_days: true,
+        id: 0,
+        listing_type: "standard",
+      }),
     ).toEqual({
-      group: await getListingsByGroupId(group.id),
+      group: members,
       ok: true,
     });
   });

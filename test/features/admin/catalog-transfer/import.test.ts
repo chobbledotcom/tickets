@@ -1,6 +1,14 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
+import {
+  importCatalog,
+  importedGroupDayPriceErrorTx,
+} from "#routes/admin/catalog-transfer/import.ts";
+import { missingMemberId } from "#routes/admin/catalog-transfer/import-listing.ts";
+import {
+  TransactionValidationError,
+  withTransaction,
+} from "#shared/db/client.ts";
 import {
   getGroupPackagePrices,
   getListingsByGroupId,
@@ -91,5 +99,41 @@ describeWithEnv("catalog group import", { db: true }, () => {
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("The package import should be rejected");
     expect(result.error).toContain("5-day");
+  });
+});
+
+test("missingMemberId finds the first gap", () => {
+  const found = new Map([
+    [1, {}],
+    [3, {}],
+  ]);
+  expect(missingMemberId([1, 3], found)).toBeNull();
+  expect(missingMemberId([1, 2, 3], found)).toBe(2);
+  expect(missingMemberId([], found)).toBeNull();
+});
+
+describeWithEnv("in-tx member validation", { db: true }, () => {
+  test("throws when a resolved member is missing from the tx SELECT", async () => {
+    const member = await createTestListing({
+      customisableDays: true,
+      dayPrices: { 1: 1000 },
+      durationDays: 1,
+      listingType: "daily",
+      name: "Tx missing member",
+    });
+
+    let caught: unknown;
+    try {
+      await withTransaction((tx) =>
+        importedGroupDayPriceErrorTx(
+          tx,
+          [member.id + 99999],
+          [{ listing: "Tx missing member" }],
+        ),
+      );
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(TransactionValidationError);
   });
 });

@@ -159,7 +159,6 @@ export const bodyToUpdateInput = async (
   if (!parsedName.ok) return parsedName;
 
   return withParsedGroupIds(body, async (groupIds) => {
-    const existingGroupIds = await listingGroups.getIds(existing.id);
     const maxAttendees = bodyNumber(
       body,
       "max_attendees",
@@ -181,7 +180,7 @@ export const bodyToUpdateInput = async (
         body.day_prices !== undefined
           ? parseDayPrices(body.day_prices)
           : existing.day_prices,
-      groupIds: groupIds ?? existingGroupIds,
+      groupIds: groupIds ?? (await listingGroups.getIds(existing.id)),
       maxAttendees,
       maxPrice: bodyNumber(body, "max_price", existing.max_price),
       name: parsedName.value,

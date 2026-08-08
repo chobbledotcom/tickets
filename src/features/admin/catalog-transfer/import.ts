@@ -1,12 +1,14 @@
 /* jscpd:ignore-start */
 import * as v from "valibot";
 import { identity, mapById } from "#fp";
+import { t } from "#i18n";
 import type { GroupInput } from "#shared/catalog-fields/fields.ts";
 import { decrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
   inPlaceholders,
   resultRows,
+  TransactionValidationError,
   type TxScope,
   writeRowInTransaction,
 } from "#shared/db/client.ts";
@@ -28,13 +30,15 @@ import type {
   ListingType,
   ListingWithCount,
 } from "#shared/types.ts";
+import { parseDayPrices } from "#shared/types.ts";
 import {
   fail,
   type ImportedEntity,
   importListing,
   importTransactionFailure,
-  memberDayOverrideError,
+  memberDayOverrideKey,
   membershipSpec,
+  missingMemberId,
   nameTakenError,
   requireDayPriceOk,
   requireImportedMembership,
@@ -91,13 +95,17 @@ const importedGroupMembersError = async (
  *  back rather than committing an override for a day count it no longer offers.
  *  Reads the member listings through the transaction so the day-count check
  *  sees the current state, not the request-level cache. */
-const importedGroupDayPriceErrorTx = async (
+export const importedGroupDayPriceErrorTx = async (
   tx: TxScope,
   memberIds: readonly number[],
   members: GroupTransfer["members"],
 ): Promise<string | null> => {
   const rows = resultRows<
-    DayPricedListing & { id: number; name: EnvKeyEncrypted }
+    Omit<DayPricedListing, "day_prices"> & {
+      id: number;
+      name: EnvKeyEncrypted;
+      day_prices: string;
+    }
   >(
     await tx.execute({
       args: [...memberIds],
@@ -110,21 +118,25 @@ const importedGroupDayPriceErrorTx = async (
                       WHERE listingPrice.listing_id = listing.id
                         AND listingPrice.price_type = 'day_count'
                    ), '{}') AS day_prices
-              FROM listings AS listing
-             WHERE listing.id IN (${inPlaceholders(memberIds)})`,
+            FROM listings AS listing
+           WHERE listing.id IN (${inPlaceholders(memberIds)})`,
     }),
   );
-  const listingById = mapById(
-    identity<DayPricedListing & { id: number; name: EnvKeyEncrypted }>,
-  )(rows);
+  const listingById = mapById(identity<(typeof rows)[number]>)(rows);
+  const missing = missingMemberId(memberIds, listingById);
+  if (missing !== null)
+    throw new TransactionValidationError(t("catalog_transfer.member_missing"));
   for (let i = 0; i < members.length; i++) {
-    const member = listingById.get(memberIds[i]!)!;
-    const dayError = memberDayOverrideError(
-      await decrypt(member.name),
-      members[i]!.dayPrices,
-      member,
-    );
-    if (dayError) return dayError;
+    const memberId = memberIds[i]!;
+    const member = listingById.get(memberId)!;
+    const parsedDayPrices = parseDayPrices(member.day_prices);
+    const overrideKey = memberDayOverrideKey(members[i]!.dayPrices, {
+      ...member,
+      day_prices: parsedDayPrices,
+    });
+    if (overrideKey !== null) {
+      return `"${await decrypt(member.name)}" does not offer a ${overrideKey}-day booking, so it can't carry a package day-price override for it.`;
+    }
   }
   return null;
 };

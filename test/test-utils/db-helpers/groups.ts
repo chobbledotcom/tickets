@@ -1,5 +1,4 @@
 import type { GroupInput } from "#shared/catalog-fields/fields.ts";
-import { execute } from "#shared/db/client.ts";
 import type { Group } from "#shared/types.ts";
 import { doAuthenticatedFormRequest } from "./request.ts";
 
@@ -139,10 +138,11 @@ export const createSoldPackageMember = async (
     member.id,
     `${name} buyer`,
     `${name.toLowerCase().replace(/\s+/g, "-")}@example.com`,
-  );
-  await execute(
-    "UPDATE listing_attendees SET package_group_id = ? WHERE attendee_id = ?",
-    [group.id, attendee.id],
+    1,
+    "",
+    "",
+    "",
+    group.id,
   );
   return { attendeeId: attendee.id, group, member };
 };

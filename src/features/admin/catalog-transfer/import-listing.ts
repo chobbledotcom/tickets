@@ -147,19 +147,45 @@ export const membershipSpec = (
       }
     : { dayPrices: {}, packagePrice: null, quantity: 1 };
 
-export const memberDayOverrideError = (
-  memberName: string,
+/** The first id in {@link memberIds} that is absent from {@link found}, or
+ *  null when every id was found. Used to detect a member that was deleted
+ *  between name resolution and the transaction's SELECT. */
+export const missingMemberId = (
+  memberIds: readonly number[],
+  found: ReadonlyMap<number, unknown>,
+): number | null => {
+  for (const id of memberIds) {
+    if (!found.has(id)) return id;
+  }
+  return null;
+};
+
+/** The day-count key a package member's override targets but the member does
+ *  not offer, or null when every override day is valid. Split from
+ *  {@link memberDayPriceError} so callers can skip decrypting the member name
+ *  until an error is certain. */
+export const memberDayOverrideKey = (
   dayPrices: Record<string, number> | undefined,
   member: DayPricedListing,
 ): string | null => {
   if (!dayPrices) return null;
   const offered = new Set(availableDayCounts(member));
   for (const key of Object.keys(dayPrices)) {
-    if (!offered.has(Number(key))) {
-      return `"${memberName}" does not offer a ${key}-day booking, so it can't carry a package day-price override for it.`;
-    }
+    if (!offered.has(Number(key))) return key;
   }
   return null;
+};
+
+/** The error message for a package member whose day-price override targets a
+ *  day count the member does not offer, or null when the override is valid. */
+export const memberDayPriceError = (
+  memberName: string,
+  ...args: Parameters<typeof memberDayOverrideKey>
+): string | null => {
+  const key = memberDayOverrideKey(...args);
+  return key === null
+    ? null
+    : `"${memberName}" does not offer a ${key}-day booking, so it can't carry a package day-price override for it.`;
 };
 
 const listingDataToInput = (
@@ -333,7 +359,7 @@ export const importListing = async (
       const packageGroupIds = await packageGroupIdsTx(tx, groupResolve.ids);
       for (let i = 0; i < memberships.length; i++) {
         if (!packageGroupIds.has(groupResolve.ids[i]!)) continue;
-        const dayError = memberDayOverrideError(
+        const dayError = memberDayPriceError(
           listing.name,
           memberships[i]!.dayPrices,
           newMember,

@@ -5,10 +5,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
-import {
-  TransactionValidationError,
-  withTransaction,
-} from "#shared/db/client.ts";
+import { withTransaction } from "#shared/db/client.ts";
 import { writePackageMembersTx } from "#shared/db/groups/membership.ts";
 import {
   getGroupPackagePrices,
@@ -36,7 +33,7 @@ const runAndFirstPrice = async (
     await writePackageMembersTx(tx, groupId, existing, { isPackage }, []);
   });
   const prices = await getGroupPackagePrices(groupId);
-  return prices[0]?.package_price ?? null;
+  return prices[0]!.package_price;
 };
 
 describeWithEnv(
@@ -132,7 +129,11 @@ describeWithEnv(
             [],
           );
         }),
-      ).rejects.toBeInstanceOf(TransactionValidationError);
+      ).rejects.toThrow(
+        t("error.package_member_gates_children_hidden", {
+          name: "Tx recheck parent",
+        }),
+      );
     });
   },
 );

@@ -5,6 +5,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { getGroupPackagePrices, groups } from "#shared/db/groups.ts";
+import { getGroupDayPrices } from "#shared/db/listing-prices.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -149,7 +150,6 @@ describeWithEnv("Admin API - Groups - package fields", { db: true }, () => {
   });
 
   test("PUT saves a member's day_prices and GET round-trips them", async () => {
-    const { getGroupDayPrices } = await import("#shared/db/listing-prices.ts");
     const { group, listing } = await groupWithMember("DayRoundTrip");
     await assertJson(
       putGroup(group.id, {
