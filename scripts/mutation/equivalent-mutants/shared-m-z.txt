@@ -2,10 +2,6 @@
 
 # Registration package facts are objects when supplied, so they are always
 # truthy; undefined selects the loader under either nullish or OR fallback.
-src/shared/webhook.ts::sendRegistrationWebhooks.facts~007uooi  ?? → ||   # suppliedFacts is RegistrationPackageFacts|undefined
-src/shared/webhook.ts::queueRegistrationNotifications.packageFacts~0fhpirc  ?? → ||   # suppliedPackageFacts is RegistrationPackageFacts|undefined
-src/shared/webhook.ts::queueRegistrationNotifications.needsPackageFacts~0psd33c  || → &&   # when only one notification needs facts, that notification performs the same single fallback load
-src/shared/webhook.ts::queueRegistrationNotifications.needsPackageFacts~0u9opea  0 → 1   # with exactly one webhook and no email, the webhook performs the same single fallback load
 
 # CRUD configuration values are functions or objects when present, and hydrated
 # map values are records, so none can be falsy-but-non-null.

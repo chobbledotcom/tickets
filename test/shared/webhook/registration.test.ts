@@ -5,6 +5,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { runWithPendingWork } from "#shared/pending-work.ts";
 import {
   logAndNotifyRegistration,
   sendRegistrationWebhooks,
@@ -22,6 +23,7 @@ import {
 } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { configureTestEmail } from "#test-utils/email.ts";
 import {
   makeTestAttendee as makeAttendee,
   makeTestEntry as makeEntry,
@@ -110,6 +112,9 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
       "Registration webhook URL limit exceeded",
     );
     expect(fetchSpy.calls.length).toBe(0);
+    expect(await activityMessages()).toEqual([
+      "Registration notification delivery failed",
+    ]);
   });
 
   test("records one value-free activity for all failed deliveries", async () => {
@@ -225,5 +230,26 @@ describeWithEnv("logAndNotifyRegistration", { db: true }, () => {
     await flushAsync();
 
     expect(fetchSpy.calls.length).toBe(0);
+  });
+
+  test("still sends email when the webhook URL limit is exceeded", async () => {
+    await configureTestEmail();
+    const entries = Array.from({ length: 17 }, (_, index) =>
+      makeEntry({
+        id: index + 1,
+        webhook_url: `https://hook-${index}.com`,
+      }),
+    );
+
+    await runWithPendingWork(() => logAndNotifyRegistration(entries));
+
+    expect(fetchSpy.calls.length).toBe(1);
+    const [url] = fetchSpy.calls[0]!.args as [string, RequestInit];
+    expect(url).toBe("https://api.resend.com/emails");
+    expect(
+      (await activityMessages()).filter(
+        (message) => message === "Registration notification delivery failed",
+      ),
+    ).toHaveLength(1);
   });
 });

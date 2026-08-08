@@ -242,6 +242,10 @@ export const sendRegistrationWebhooks: RegistrationNotification<
 > = async (entries, currency, suppliedFacts) => {
   const webhookUrls = registrationWebhookUrls(entries);
   if (webhookUrls.length === 0) return;
+  if (webhookUrls.length > MAX_REGISTRATION_WEBHOOK_URLS) {
+    await logActivities([{ message: REGISTRATION_DELIVERY_FAILED }]);
+    throw new Error("Registration webhook URL limit exceeded");
+  }
 
   const facts = suppliedFacts ?? (await loadRegistrationPackageFacts(entries));
   const payload = buildWebhookPayload(entries, currency, facts.pricingByGroup);
@@ -253,17 +257,12 @@ export const sendRegistrationWebhooks: RegistrationNotification<
   }
 };
 
-const registrationWebhookUrls = (entries: RegistrationEntry[]): string[] => {
-  const urls = unique(
+const registrationWebhookUrls = (entries: RegistrationEntry[]): string[] =>
+  unique(
     mapNotNullish(
       (entry: RegistrationEntry) => entry.listing.webhook_url || null,
     )(entries),
   );
-  if (urls.length > MAX_REGISTRATION_WEBHOOK_URLS) {
-    throw new Error("Registration webhook URL limit exceeded");
-  }
-  return urls;
-};
 
 const queueRegistrationNotifications = async (
   entries: EmailEntry[],
