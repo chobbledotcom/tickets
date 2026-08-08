@@ -223,10 +223,11 @@ const toGroupInput = async (
 };
 
 export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
-  afterWrite: (tx, id, input) =>
+  afterWrite: (tx, id, input, existing) =>
     writePackageMembersTx(
       tx,
       id,
+      existing,
       input,
       input.isPackage === false ? [] : input.packageMembers,
     ),

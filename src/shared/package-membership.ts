@@ -18,7 +18,6 @@
  */
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { firstReason, type Reason, reason } from "#shared/reasons.ts";
 
 /* jscpd:ignore-end */
 
@@ -31,41 +30,51 @@ type MemberEdges = {
   parentIds: readonly number[];
 };
 
-/** A member rule over the listing, its touching edges, and whether the package
- * hides its listings (an input that omitted the flag reads as "not hidden"). */
-type MemberReason = Reason<
-  [
-    listing: MemberListing,
-    edges: MemberEdges,
-    hidePackageListings: boolean | undefined,
-  ]
->;
+/** The member rules' block checks as data, in precedence order. The name is
+ *  only needed for the error message, so callers can check membership rules
+ *  without decrypting, then decrypt only the listing that fails. */
+type MemberBlockKey = "pay_more" | "is_addon" | "gates_children_hidden";
 
-/** A member rule whose message names the blocked listing. Every message begins
- * "Packages cannot contain …" so the operator sees which of their listings is
- * the problem and exactly how to fix it. */
-const memberReason = (
-  messageKey: string,
-  blocks: (
-    listing: MemberListing,
-    edges: MemberEdges,
-    hidePackageListings: boolean | undefined,
-  ) => boolean,
-): MemberReason =>
-  reason(blocks, (listing) =>
-    t(`error.package_member_${messageKey}`, { name: listing.name }),
-  );
+type MemberBlockPredicate = (
+  listing: MemberListing,
+  edges: MemberEdges,
+  hidePackageListings: boolean | undefined,
+) => boolean;
 
-/** The member rules as data, in precedence order. */
-const PACKAGE_MEMBER_RULES: readonly MemberReason[] = [
-  memberReason("pay_more", (listing) => listing.can_pay_more),
-  memberReason("is_addon", (_listing, edges) => edges.parentIds.length > 0),
-  memberReason(
-    "gates_children_hidden",
-    (_listing, edges, hidePackageListings) =>
+const PACKAGE_MEMBER_BLOCKS: ReadonlyArray<{
+  key: MemberBlockKey;
+  blocks: MemberBlockPredicate;
+}> = [
+  { blocks: (listing) => listing.can_pay_more, key: "pay_more" },
+  {
+    blocks: (_listing, edges) => edges.parentIds.length > 0,
+    key: "is_addon",
+  },
+  {
+    blocks: (_listing, edges, hidePackageListings) =>
       hidePackageListings === true && edges.childIds.length > 0,
-  ),
+    key: "gates_children_hidden",
+  },
 ];
+
+/** The first rule that blocks a listing from a package, without needing the
+ *  listing's name — so the caller can check without decrypting. */
+export const memberBlockKey = (
+  listing: MemberListing,
+  edges: MemberEdges,
+  hidePackageListings: boolean | undefined,
+): MemberBlockKey | null => {
+  for (const { key, blocks } of PACKAGE_MEMBER_BLOCKS) {
+    if (blocks(listing, edges, hidePackageListings)) return key;
+  }
+  return null;
+};
+
+/** The user-facing message for a known block key, naming the listing. */
+export const packageMemberMessage = (
+  key: MemberBlockKey,
+  name: string,
+): string => t(`error.package_member_${key}`, { name });
 
 /**
  * The user-facing error naming the listing and the specific reason it can't be
@@ -73,8 +82,14 @@ const PACKAGE_MEMBER_RULES: readonly MemberReason[] = [
  * listing's name and pay-more flag, its touching edges, and whether the
  * package hides its listings.
  */
-export const packageMemberError: MemberReason =
-  firstReason(PACKAGE_MEMBER_RULES);
+export const packageMemberError = (
+  listing: MemberListing,
+  edges: MemberEdges,
+  hidePackageListings: boolean | undefined,
+): string | null => {
+  const key = memberBlockKey(listing, edges, hidePackageListings);
+  return key ? packageMemberMessage(key, listing.name) : null;
+};
 
 /**
  * Why a would-be parent/child edge conflicts with package membership — distinct

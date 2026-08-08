@@ -22,7 +22,10 @@ import {
   hasPackageBookingsTx,
   setGroupPackageMembers,
 } from "#shared/db/groups.ts";
-import { packageMemberError } from "#shared/package-membership.ts";
+import {
+  memberBlockKey,
+  packageMemberMessage,
+} from "#shared/package-membership.ts";
 import type { ListingType } from "#shared/types.ts";
 
 type GroupStateRow = {
@@ -141,22 +144,26 @@ const listingStatesTx = async (
   return mapNotNullish((id: number) => byId.get(id))(listingIds);
 };
 
-/** Checks the package rules against the transaction's current group and edge rows. */
+/** Checks the package rules against the transaction's current group and edge rows.
+ *  Only decrypts the name of the first listing that fails a rule, so a large
+ *  package with all-valid members does no crypto work under the write lock. */
 const packageMembersErrorTx = async (
   listings: readonly ListingState[],
   group: GroupState,
 ): Promise<string | null> => {
   if (!group.isPackage) return null;
   for (const listing of listings) {
-    const error = packageMemberError(
-      { can_pay_more: listing.canPayMore, name: await decrypt(listing.name) },
+    const key = memberBlockKey(
+      { can_pay_more: listing.canPayMore, name: "" },
       {
         childIds: listing.hasChildren ? [listing.id] : [],
         parentIds: listing.hasParents ? [listing.id] : [],
       },
       group.hideListings,
     );
-    if (error) return error;
+    if (key) {
+      return packageMemberMessage(key, await decrypt(listing.name));
+    }
   }
   return null;
 };
@@ -287,37 +294,16 @@ const requireNotSoldHiddenPackageTx = async (
   }
 };
 
-/** The package-relevant slice of a stored group row, used to detect whether a
- *  write is un-packaging a hidden package that has sold tickets. */
+/** The pre-update package flags, supplied by the caller from the row loaded
+ *  *before* the write transaction's UPDATE executes. The row write runs before
+ *  this hook (`writeRowInTransaction` executes the statement, then the
+ *  `afterWrite` callbacks), so reading the flags here from the DB would return
+ *  the post-update state — the old flags would be gone. The caller's snapshot
+ *  is the only source of the pre-update `is_package` / `hide_package_listings`
+ *  values. */
 type PackageRow = {
   hide_package_listings: boolean;
   is_package: boolean;
-};
-
-type ExistingPackageRow = {
-  hide_package_listings: number;
-  is_package: number;
-};
-
-/** Reads the group's pre-update package flags inside the write transaction,
- *  so `wasHiddenPackage` reflects state that hasn't gone stale between the
- *  route-level snapshot and this write. Returns null on create (no prior row). */
-const readExistingPackageFlagsTx = async (
-  tx: TxScope,
-  groupId: number,
-): Promise<PackageRow | null> => {
-  const rows = resultRows<ExistingPackageRow>(
-    await tx.execute({
-      args: [groupId],
-      sql: "SELECT is_package, hide_package_listings FROM groups WHERE id = ?",
-    }),
-  );
-  if (rows.length === 0) return null;
-  const row = rows[0]!;
-  return {
-    hide_package_listings: row.hide_package_listings === 1,
-    is_package: row.is_package === 1,
-  };
 };
 
 /** Runs both package guards in one call so every group write path applies the
@@ -326,10 +312,10 @@ const readExistingPackageFlagsTx = async (
 const requirePackageGuardsTx = async (
   tx: TxScope,
   groupId: number,
+  existing: PackageRow | null,
   isPackaging: boolean,
 ): Promise<void> => {
   await requirePackageGroupMembersTx(tx, groupId);
-  const existing = await readExistingPackageFlagsTx(tx, groupId);
   const wasHiddenPackage =
     existing?.is_package === true && existing?.hide_package_listings === true;
   await requireNotSoldHiddenPackageTx(
@@ -342,17 +328,19 @@ const requirePackageGuardsTx = async (
 
 /** Guards a group write and replaces its package members in one call: every
  *  group write path applies the same sold-hidden check and the same "empty
- *  when un-packaging" rule. `members` is already resolved by the caller
- *  (parsed from a form or taken from the API input); pass `undefined` to leave
- *  existing overrides untouched. */
+ *  when un-packaging" rule. `existing` is the pre-update row (null on create),
+ *  supplied by the caller from before the write transaction's row UPDATE.
+ *  `members` is already resolved by the caller (parsed from a form or taken
+ *  from the API input); pass `undefined` to leave existing overrides untouched. */
 export const writePackageMembersTx = async (
   tx: TxScope,
   id: number,
+  existing: PackageRow | null,
   input: { isPackage?: boolean | undefined },
   members: PackageMemberInput[] | undefined,
 ): Promise<void> => {
   const isPackaging = input.isPackage !== false;
-  await requirePackageGuardsTx(tx, id, isPackaging);
+  await requirePackageGuardsTx(tx, id, existing, isPackaging);
   if (members !== undefined) {
     await setGroupPackageMembers(id, isPackaging ? members : [], tx);
   }

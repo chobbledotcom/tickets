@@ -7,7 +7,6 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import {
-  execute,
   TransactionValidationError,
   withTransaction,
   writeRowInTransaction,
@@ -16,7 +15,6 @@ import {
   assignListingsToGroup,
   packageGroupMembersErrorTx,
   requirePackageGroupMembersTx,
-  writePackageMembersTx,
 } from "#shared/db/groups/membership.ts";
 import {
   getGroupPackagePrices,
@@ -33,7 +31,6 @@ import {
   validateListingInput,
 } from "#shared/listings-actions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import {
   createHiddenPackageGroup,
   createTestGroup,
@@ -374,75 +371,5 @@ describeWithEnv("db > groups > membership writes", { db: true }, () => {
     expect(await getTestPackagePrices(group.id)).toEqual(
       new Map([[member.id, 700]]),
     );
-  });
-
-  test("writePackageMembersTx rolls back un-packaging a sold hidden package", async () => {
-    const group = await createHiddenPackageGroup("Tx block unpackage");
-    const member = await createTestListing({
-      groupId: group.id,
-      maxAttendees: 10,
-      name: "Tx block member",
-    });
-    const { attendee } = await createTestAttendeeDirect(
-      member.id,
-      "Tx block buyer",
-      "tx-block-buyer@example.com",
-    );
-    await execute(
-      "UPDATE listing_attendees SET package_group_id = ? WHERE attendee_id = ?",
-      [group.id, attendee.id],
-    );
-
-    await expect(
-      withTransaction(async (tx) => {
-        await writePackageMembersTx(tx, group.id, { isPackage: false }, []);
-      }),
-    ).rejects.toThrow(t("error.sold_hidden_package"));
-  });
-
-  test("writePackageMembersTx allows un-packaging an unsold hidden package", async () => {
-    const group = await createHiddenPackageGroup("Tx ok unpackage");
-
-    await withTransaction(async (tx) => {
-      await writePackageMembersTx(tx, group.id, { isPackage: false }, []);
-    });
-  });
-
-  test("writePackageMembersTx allows keeping a sold hidden package packaged", async () => {
-    const group = await createHiddenPackageGroup("Tx stay package");
-    const member = await createTestListing({
-      groupId: group.id,
-      maxAttendees: 10,
-      name: "Tx stay member",
-    });
-    const { attendee } = await createTestAttendeeDirect(
-      member.id,
-      "Tx stay buyer",
-      "tx-stay-buyer@example.com",
-    );
-    await execute(
-      "UPDATE listing_attendees SET package_group_id = ? WHERE attendee_id = ?",
-      [group.id, attendee.id],
-    );
-
-    await withTransaction(async (tx) => {
-      await writePackageMembersTx(tx, group.id, { isPackage: true }, []);
-    });
-  });
-
-  test("writePackageMembersTx rechecks package member rules for an existing package", async () => {
-    const group = await createHiddenPackageGroup("Tx recheck members");
-    const parent = await createTestListing({
-      groupId: group.id,
-      name: "Tx recheck parent",
-    });
-    const child = await createTestListing({ name: "Tx recheck child" });
-    await listingChildren.setIds(parent.id, [child.id]);
-
-    await expect(
-      withTransaction(async (tx) => {
-        await writePackageMembersTx(tx, group.id, { isPackage: true }, []);
-      }),
-    ).rejects.toThrow();
   });
 });

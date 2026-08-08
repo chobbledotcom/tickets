@@ -62,10 +62,14 @@ describeWithEnv("settings-logistics", { db: true }, () => {
   test("the edit afterWrite drops unknown user ids", async () => {
     const id = await createLogisticsAgent("Unknown Id Van");
 
-    await adminFormPost(`/admin/logistics/${id}/edit`, {
+    const { response } = await adminFormPost(`/admin/logistics/${id}/edit`, {
       name: "Unknown Id Van",
       user_ids: "99999",
     });
+    await expectFlashRedirect(
+      "/admin/logistics",
+      "Logistics agent updated",
+    )(response);
 
     expect(await agentUsers.getIds(id)).toEqual([]);
   });

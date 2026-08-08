@@ -88,7 +88,8 @@ describeWithEnv(
             t("catalog_transfer.parent_missing"),
           );
         }),
-      ).rejects.toThrow();
+      ).rejects.toThrow(t("error.package_gate_in_hidden"));
+      expect(await listingParents.getIds(child.id)).toEqual([]);
     });
   },
 );
