@@ -6,9 +6,14 @@ import {
   startScreenshotAppServer,
 } from "./screenshots/app-server.ts";
 import { chromiumExecutable } from "./screenshots/browser.ts";
-import { capturePreparedPage } from "./screenshots/capture.ts";
+import {
+  capturePreparedLayers,
+  capturePreparedPage,
+  installLayerCaptureClock,
+} from "./screenshots/capture.ts";
 import { isCompactWidth, isolateElementCss } from "./screenshots/checks.ts";
 import type { Rgb } from "./screenshots/color.ts";
+import { SCREENSHOT_LAYER_NAMES } from "./screenshots/layers.ts";
 import {
   parseScreenshotOptions,
   type ScreenshotName,
@@ -27,6 +32,7 @@ import {
   applySocialTarget,
   type SocialTargetName,
 } from "./screenshots/social.ts";
+import { addScreenshotStyle } from "./screenshots/style.ts";
 
 const ROOT = dirname(dirname(fromFileUrl(import.meta.url)));
 const USERNAME = "screenshots";
@@ -252,20 +258,17 @@ const captureScenario = async (
   server: ScreenshotAppServer,
   outputDir: string,
   social: readonly SocialTargetName[] = [],
+  layers = false,
 ): Promise<void> => {
   const { baseUrl } = server;
-  await setupAdmin(page, baseUrl, scenario.setupUsername);
-  await server.enableStripe();
-  await applyTheme(
-    page,
-    baseUrl,
-    "default",
-    `${scenario.css}\n${
-      scenario.elementSelector
-        ? isolateElementCss(scenario.elementSelector)
-        : ""
-    }`,
-  );
+  const captureCss = `${scenario.css}\n${
+    scenario.elementSelector ? isolateElementCss(scenario.elementSelector) : ""
+  }`;
+  if (scenario.adminSetup !== false) {
+    await setupAdmin(page, baseUrl, scenario.setupUsername);
+    await server.enableStripe();
+    await applyTheme(page, baseUrl, "default", captureCss);
+  }
   await scenario.run({
     balancePathFor: async (attendeeId) => {
       const { signBalanceToken } = await import("#shared/balance-link.ts");
@@ -275,15 +278,35 @@ const captureScenario = async (
     page,
     submit: (formSelector) => submit(page, formSelector),
   });
+  if (scenario.adminSetup === false) {
+    await addScreenshotStyle(page, captureCss);
+  }
   await waitForScreenshotPage(page);
   const outputPath = join(outputDir, `${scenario.name}.png`);
-  const background = await captureAndWrite(
-    page,
-    outputPath,
-    scenario.elementSelector,
-    scenario.fullPage,
-  );
+  const layered = layers
+    ? await capturePreparedLayers(
+        page,
+        scenario.elementSelector,
+        scenario.fullPage,
+      )
+    : undefined;
+  const background = layered
+    ? layered.background
+    : await captureAndWrite(
+        page,
+        outputPath,
+        scenario.elementSelector,
+        scenario.fullPage,
+      );
+  if (layered) await Deno.writeFile(outputPath, layered.png);
   console.log(`${scenario.name}.png`);
+  if (layered) {
+    for (const layer of SCREENSHOT_LAYER_NAMES) {
+      const name = `${scenario.name}__layer-${layer}.png`;
+      await Deno.writeFile(join(outputDir, name), layered.layers[layer]);
+      console.log(name);
+    }
+  }
   await writeSocialVariants(
     outputPath,
     outputDir,
@@ -293,6 +316,12 @@ const captureScenario = async (
     social,
   );
 };
+
+const installLayerClock = (page: Page, layers: boolean): Promise<void> =>
+  layers ? installLayerCaptureClock(page) : Promise.resolve();
+
+const elementCaptureCss = (selector: string | undefined): string =>
+  selector ? isolateElementCss(selector) : "";
 
 const main = async (): Promise<void> => {
   Deno.env.set("PW_TEST_SCREENSHOT_NO_FONTS_READY", "1");
@@ -311,6 +340,7 @@ const main = async (): Promise<void> => {
       ...screenshotContextOptions(MOBILE_SCREENSHOT_PROFILE),
     });
     const page = await context.newPage();
+    await installLayerClock(page, options.layers ?? false);
     page.setDefaultTimeout(TIMEOUT_MS);
     if (scenario) {
       await captureScenario(
@@ -319,6 +349,7 @@ const main = async (): Promise<void> => {
         server,
         outputDir,
         options.social ?? [],
+        options.layers ?? false,
       );
       return;
     }
@@ -333,7 +364,7 @@ const main = async (): Promise<void> => {
           page,
           server.baseUrl,
           theme,
-          elementSelector ? isolateElementCss(elementSelector) : "",
+          elementCaptureCss(elementSelector),
         );
         const outputPath = join(themeDir, `${name}.png`);
         const background = await capture(

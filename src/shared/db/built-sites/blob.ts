@@ -1,6 +1,7 @@
 import * as v from "valibot";
 import { isScheduledTaskKey } from "#shared/scheduled-keys.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
+import { optionalStringThat } from "#shared/validation/string.ts";
 import { builtSiteBlobColumns } from "./fields.ts";
 import type {
   BuiltSiteBlobFields,
@@ -42,7 +43,7 @@ const SiteDataBlobSchema = v.union([
   }),
   v.strictObject({
     ...siteDataFields,
-    sk: v.optional(v.pipe(v.string(), v.check(isScheduledTaskKey))),
+    sk: optionalStringThat(isScheduledTaskKey),
     v: v.literal(SITE_DATA_BLOB_VERSION),
   }),
 ]);

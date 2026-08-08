@@ -8,6 +8,7 @@ src/ui/templates/public/reservations/contact-fields.ts::pagePaid~07x8o1n  ?? →
 src/ui/templates/public/reservations/form.tsx::TicketPageForm.html~1470qil   → "mutated"   # TicketPageForm's only caller supplies YYYY-MM-DD options; the fallback affects HTML only if it equals an option, which "mutated" never can
 src/ui/templates/public/reservations/ticket-page.tsx::ticketPage~0nmjfxs  ?? → ||   # questions is QuestionWithAnswers[]|undefined, and every present array, including [], is truthy
 src/ui/templates/public/reservations/ticket-page.tsx::ticketPage~0pcr5er  ?? → ||   # childDatesById is a ReadonlyMap|undefined, and every present Map, including an empty one, is truthy
+src/ui/templates/public/reservations/ticket-page.tsx::cartConflicts.concealed.childrenByParentId~1gqpisn  ?? → ||   # childrenByParentId is Map<...>|undefined, and every present Map, including an empty one, is truthy — no falsy-non-null value exists, so ?? and || pick the same operand
 
 # attendee table values and columns
 src/ui/templates/attendee-table/values.ts::getAnswerDisplay.answerIds~1spki67  ?? → ||   # getAnswerDisplay attendeeAnswerMap.get(): number[]|undefined — an array is always truthy, so ?? and || coincide

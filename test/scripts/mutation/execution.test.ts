@@ -107,9 +107,11 @@ describe("mutation test execution", () => {
     const signal = new AbortController().signal;
     const gates = await createStaticGates(deps);
     expect(
-      await Promise.all(gates.map((gate) => gate.exit("source.ts", signal))),
+      await Promise.all(
+        gates.map((gate) => gate.exit("source.ts", projectRoot, signal)),
+      ),
     ).toEqual([0, 0]);
-    expect(await gates[0]!.exit("second.ts", signal)).toBe(0);
+    expect(await gates[0]!.exit("second.ts", projectRoot, signal)).toBe(0);
     expect(biomeCalls.map((options) => options.args)).toEqual([
       ["lint", "--error-on-warnings", "--no-errors-on-unmatched", "source.ts"],
       ["lint", "--error-on-warnings", "--no-errors-on-unmatched", "second.ts"],
@@ -152,7 +154,7 @@ describe("mutation test execution", () => {
     const gates = await createStaticGates(deps);
     const lint = gates[0];
     if (!lint) throw new Error("Expected lint gate");
-    await lint.exit("source.ts", new AbortController().signal);
+    await lint.exit("source.ts", projectRoot, new AbortController().signal);
 
     expect(commands).toEqual([
       {

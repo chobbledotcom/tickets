@@ -53,6 +53,7 @@ const triesBeforeGivingUp = async (
       await expect(
         startStripeMock({
           budgetMs: 50,
+          choosePort: () => port,
           delayMs: 1,
           paths,
           startAttempts: 3,

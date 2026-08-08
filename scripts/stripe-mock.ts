@@ -62,12 +62,30 @@ export const stripeMockEnv = (
   STRIPE_MOCK_PORT: String(port),
 });
 
-/** Ask the OS for a currently free localhost port. */
-export const findAvailablePort = (): number => {
+export interface PortReservation {
+  port: number;
+  release: () => void;
+}
+
+/** Hold a free localhost port until its future owner is ready to bind it. */
+export const reserveAvailablePort = (): PortReservation => {
   const listener = Deno.listen({ hostname: "127.0.0.1", port: 0 });
   const { port } = listener.addr as Deno.NetAddr;
-  listener.close();
-  return port;
+  let held = true;
+  return {
+    port,
+    release: () => {
+      if (held) listener.close();
+      held = false;
+    },
+  };
+};
+
+/** Ask the OS for a currently free localhost port. */
+export const findAvailablePort = (): number => {
+  const reservation = reserveAvailablePort();
+  reservation.release();
+  return reservation.port;
 };
 
 const chooseStripeMockPort = (env: StripeMockEnvSource): number =>

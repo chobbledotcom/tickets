@@ -1,3 +1,3 @@
 import { scenario } from "./base.ts";
 
-export default { ...scenario, setupUsername: "site-owner" };
+export default { ...scenario, adminSetup: true, setupUsername: "site-owner" };
