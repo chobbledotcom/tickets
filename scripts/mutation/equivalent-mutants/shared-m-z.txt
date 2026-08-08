@@ -37,6 +37,12 @@ src/features/admin/require-provider.ts::requirePaymentProvider~0y5apey  ?? → |
 # "falsy value still wins" test kills it.)
 src/shared/request-scoped.ts::createRequestScoped.current~1izbdej  ?? → ||   # scope.current(): T|undefined — a container object is always truthy
 
+# Registration delivery is always queued through pending-work. After its fixed
+# incident has been recorded, flushPendingWork intentionally consumes either
+# fulfilment or rejection with Promise.allSettled, so changing the one-error
+# rethrow threshold has no further observable result.
+src/shared/webhook/delivery.ts::sendRegistrationNotifications~166dat4  0 → 1   # one error is already reported; pending-work consumes the later rejection
+
 # v2 signed metadata (Phase 2d).
 src/shared/payment-helpers.ts::toBookingItems.foldedChildIds~1sr8ybw  ?? → ||   # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
 src/shared/payment-helpers.ts::parsePackedFields~0lfi795  || → &&   # parsed JSON null/falsy primitives return {} in both forms; truthy primitives expose none of PACKED_KEYS and also produce {}

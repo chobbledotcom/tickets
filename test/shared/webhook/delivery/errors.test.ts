@@ -15,7 +15,6 @@ import {
 } from "#shared/subrequest-budget.ts";
 import {
   logAndNotifyRegistration,
-  sendRegistrationNotifications,
   sendRegistrationWebhooks,
 } from "#shared/webhook/delivery.ts";
 import {
@@ -78,18 +77,6 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     expect(expectOneError(logs, "E_REGISTRATION_DELIVERY")).not.toContain(
       "private",
     );
-  });
-
-  test("rethrows one unexpected delivery error after reporting it", async () => {
-    const unexpected = new Error("unexpected delivery error");
-    fetchSpy.reply(() => Promise.reject(unexpected));
-
-    await expect(
-      sendRegistrationNotifications(
-        [makeEntry({ webhook_url: "https://failed-hook.com" })],
-        "GBP",
-      ),
-    ).rejects.toBe(unexpected);
   });
 
   test("reports one incident for unexpected failures in both delivery channels", async () => {

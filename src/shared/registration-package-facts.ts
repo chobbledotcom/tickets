@@ -30,7 +30,7 @@ export class RegistrationDeliveryError extends Error {
   }
 }
 
-export const registrationDeliveryResult = (
+const registrationDeliveryResult = (
   deliveries: readonly { delivered: boolean }[],
 ): RegistrationDeliveryResult => ({
   failed: deliveries.some(({ delivered }) => !delivered),

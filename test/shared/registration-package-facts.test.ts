@@ -5,7 +5,6 @@ import { PRICE_TYPE_GROUP_DAY } from "#shared/db/listing-prices.ts";
 import {
   loadRegistrationPackageFacts,
   RegistrationDeliveryError,
-  registrationDeliveryResult,
   waitForRegistrationDeliveries,
 } from "#shared/registration-package-facts.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -32,17 +31,14 @@ const registrationDeliveryError = async (
   return error;
 };
 
-test("marks a registration failed exactly when any delivery failed", () => {
-  expect(registrationDeliveryResult([])).toEqual({ failed: false });
+test("marks a registration failed exactly when any delivery failed", async () => {
+  expect(await waitForRegistrationDeliveries([])).toEqual({ failed: false });
   expect(
-    registrationDeliveryResult([{ delivered: true }, { delivered: true }]),
+    await waitForRegistrationDeliveries<{ delivered: boolean }>([
+      Promise.resolve({ delivered: true }),
+      Promise.resolve({ delivered: true }),
+    ]),
   ).toEqual({ failed: false });
-  expect(
-    registrationDeliveryResult([{ delivered: true }, { delivered: false }]),
-  ).toEqual({ failed: true });
-});
-
-test("combines completed registration deliveries", async () => {
   expect(
     await waitForRegistrationDeliveries<{ delivered: boolean }>([
       Promise.resolve({ delivered: true }),

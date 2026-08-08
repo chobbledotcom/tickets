@@ -297,7 +297,10 @@ const emailDelivery =
 
 const reportedEmailDelivery = emailDelivery(failedEmailDelivery);
 
-export const deliverRegistrationEmail = emailDelivery((error) => {
+export const deliverRegistrationEmail: (
+  config: EmailConfig,
+  msg: EmailMessage,
+) => Promise<EmailDeliveryResult> = emailDelivery((error) => {
   if (!(error instanceof TypeError)) throw error;
   return failedEmailDelivery(error);
 });

@@ -97,10 +97,6 @@ const ERROR_DEFS = {
 
   // Email errors
   EMAIL_SEND: ["E_EMAIL_SEND", "Email send failed"],
-  EMAIL_TEMPLATE_RENDER: [
-    "E_EMAIL_TEMPLATE_RENDER",
-    "Email template render failed",
-  ],
   // Broken image records/files (fallback red pixel served instead)
   IMAGE_BROKEN: ["E_IMAGE_BROKEN", "Broken image"],
 
@@ -171,7 +167,6 @@ const ERROR_DEFS = {
     "E_WEBHOOK_PRICE_SIGNATURE",
     "Webhook price signature invalid, missing, or charge differs from it",
   ],
-  WEBHOOK_SEND: ["E_WEBHOOK_SEND", "Webhook send failed"],
 } as const;
 
 type ErrorDefs = typeof ERROR_DEFS;

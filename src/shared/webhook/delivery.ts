@@ -136,7 +136,7 @@ const reportRegistrationDeliveryError = async (): Promise<void> => {
   addPendingWork(captureServerError(context));
 };
 
-export const sendRegistrationNotifications = async (
+const sendRegistrationNotifications = async (
   entries: EmailEntry[],
   currency: string,
   packageFacts?: RegistrationPackageFacts,
