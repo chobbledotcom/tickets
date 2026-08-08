@@ -60,6 +60,7 @@ src/features/admin/api.ts::bodyToUpdateInput.existing~0xlflfs  ?? → ||   # sto
 src/features/admin/api.ts::bodyToUpdateInput.groupIds~0nj5jla  ?? → ||   # parsed group ids are an array or undefined; every array, including [], is truthy
 src/features/admin/api-listing-joins.ts::UNCREATED_PARENT_ID~05rrw2z  1 → 0   # the mutation changes sentinel -1 to -0; positive listing ids match neither value
 src/features/admin/api-listing-joins.ts::prepareListingJoins.packageConflict~1juqee2  ?? → ||   # groupIds is an array or undefined; every array, including [], is truthy
+src/features/admin/api-listing-joins.ts::prepareListingJoins.result~0i1al4o  ?? → ||   # existing?.id is a positive autoincrement id or undefined; never a falsy non-null value
 src/features/admin/api-listing-joins.ts::prepareListingJoins.result.wouldBeGroupIds~1juqee2  ?? → ||   # groupIds is an array or undefined; every array, including [], is truthy
 
 # attendee entity page: `?? → ||` where the operand's only falsy-non-null
