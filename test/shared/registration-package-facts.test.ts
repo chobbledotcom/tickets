@@ -4,6 +4,7 @@ import { setGroupPackageMembers } from "#shared/db/groups.ts";
 import { PRICE_TYPE_GROUP_DAY } from "#shared/db/listing-prices.ts";
 import {
   loadRegistrationPackageFacts,
+  RegistrationDeliveryError,
   registrationDeliveryResult,
   waitForRegistrationDeliveries,
 } from "#shared/registration-package-facts.ts";
@@ -20,6 +21,16 @@ import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 const row = (packageGroupId: number) => ({
   attendee: { package_group_id: packageGroupId },
 });
+
+const registrationDeliveryError = async (
+  outcome: Promise<unknown>,
+): Promise<RegistrationDeliveryError> => {
+  const error = await outcome.catch((reason) => reason);
+  expect(error).toBeInstanceOf(RegistrationDeliveryError);
+  if (!(error instanceof RegistrationDeliveryError)) throw error;
+  expect(error.message).toBe("Unexpected registration delivery failure");
+  return error;
+};
 
 test("marks a registration failed exactly when any delivery failed", () => {
   expect(registrationDeliveryResult([])).toEqual({ failed: false });
@@ -55,7 +66,24 @@ test("waits for every registration delivery before rejecting", async () => {
   await Promise.resolve();
   expect(rejected).toBe(false);
   pending.resolve({ delivered: true });
-  await expect(outcome).rejects.toBe(failure);
+  const error = await registrationDeliveryError(outcome);
+  expect(error.failed).toBe(false);
+  expect(error.reasons).toEqual([failure]);
+});
+
+test("keeps every registration delivery rejection", async () => {
+  const failure = new Error("unexpected delivery failure");
+  const secondFailure = new Error("another delivery failure");
+  const error = await registrationDeliveryError(
+    waitForRegistrationDeliveries([
+      Promise.resolve({ delivered: false }),
+      Promise.reject(failure),
+      Promise.reject(secondFailure),
+    ]),
+  );
+
+  expect(error.failed).toBe(true);
+  expect(error.reasons).toEqual([failure, secondFailure]);
 });
 
 describeWithEnv("loadRegistrationPackageFacts", { db: true }, () => {

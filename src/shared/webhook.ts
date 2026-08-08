@@ -3,7 +3,7 @@
  * Sends consolidated registration data to configured webhook URLs
  */
 
-import { compact, mapNotNullish, sumOf, unique } from "#fp";
+import { flatMap, mapNotNullish, sumOf, unique } from "#fp";
 import {
   effectivePrice,
   NO_CUSTOM_PRICES,
@@ -31,12 +31,14 @@ import { addPendingWork } from "#shared/pending-work.ts";
 /* jscpd:ignore-end */
 import {
   loadRegistrationPackageFacts,
+  RegistrationDeliveryError,
   type RegistrationDeliveryResult,
   type RegistrationNotification,
   type RegistrationPackageFacts,
   type RegistrationPackagePricing,
   waitForRegistrationDeliveries,
 } from "#shared/registration-package-facts.ts";
+import { captureServerError } from "#shared/sentry.ts";
 import {
   addMonthsToRenewalDeadline,
   assignAndNotifyBuiltSites,
@@ -271,17 +273,20 @@ export const sendRegistrationWebhooks: RegistrationNotification<
   );
 };
 
-const completedRegistrationDeliveryOrNull =
-  (code: (typeof ErrorCode)["EMAIL_SEND" | "WEBHOOK_SEND"]) =>
-  (
-    result: PromiseSettledResult<RegistrationDeliveryResult>,
-  ): RegistrationDeliveryResult | null => {
-    if (result.status === "rejected") {
-      logError({ code, error: result.reason });
-      return null;
-    }
-    return result.value;
-  };
+type CompletedRegistrationDelivery = RegistrationDeliveryResult & {
+  errors: readonly unknown[];
+};
+
+const completedRegistrationDelivery = (
+  result: PromiseSettledResult<RegistrationDeliveryResult>,
+): CompletedRegistrationDelivery => {
+  if (result.status === "fulfilled") {
+    return { ...result.value, errors: [] };
+  }
+  return result.reason instanceof RegistrationDeliveryError
+    ? { errors: result.reason.reasons, failed: result.reason.failed }
+    : { errors: [result.reason], failed: false };
+};
 
 const recordRegistrationDeliveryFailure = async (): Promise<void> => {
   try {
@@ -295,6 +300,14 @@ const recordRegistrationDeliveryFailure = async (): Promise<void> => {
   }
 };
 
+const reportRegistrationDeliveryError = async (): Promise<void> => {
+  const context = { code: ErrorCode.REGISTRATION_DELIVERY };
+  logErrorLocal(context);
+  await recordRegistrationDeliveryFailure();
+  addPendingWork(sendNtfyError(context.code));
+  addPendingWork(captureServerError(context));
+};
+
 const sendRegistrationNotifications = async (
   entries: EmailEntry[],
   currency: string,
@@ -304,17 +317,19 @@ const sendRegistrationNotifications = async (
     sendRegistrationWebhooks(entries, currency, packageFacts),
     sendRegistrationEmails(entries, currency, packageFacts),
   ]);
-  const deliveries = compact([
-    completedRegistrationDeliveryOrNull(ErrorCode.WEBHOOK_SEND)(webhookResult),
-    completedRegistrationDeliveryOrNull(ErrorCode.EMAIL_SEND)(emailResult),
-  ]);
-  if (deliveries.some(({ failed }) => failed)) {
+  const deliveries = [
+    completedRegistrationDelivery(webhookResult),
+    completedRegistrationDelivery(emailResult),
+  ];
+  const errors = flatMap((delivery: CompletedRegistrationDelivery) => [
+    ...delivery.errors,
+  ])(deliveries);
+  if (errors.length > 0) {
+    await reportRegistrationDeliveryError();
+  } else if (deliveries.some(({ failed }) => failed)) {
     await recordRegistrationDeliveryFailure();
   }
-  const rejected = [webhookResult, emailResult].find(
-    (result) => result.status === "rejected",
-  );
-  if (rejected) throw rejected.reason;
+  if (errors.length > 0) throw errors[0];
 };
 
 const registrationWebhookUrls = (entries: RegistrationEntry[]): string[] =>

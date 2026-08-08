@@ -484,9 +484,13 @@ The failure activity is exactly one value-free entry in one batch when any email
 or webhook delivery fails, regardless of endpoint count, and zero entries when
 all succeed. It is never one `logError` fan-out per endpoint. Expected delivery
 refusal does not call ntfy or Sentry. The 47-call path before this batch leaves
-room for all three safe unexpected-error sinks instead; an attempted failure-
-activity write is call 48 and reports its own failure to console only. No
-diagnostic path exceeds 50.
+room for all three safe unexpected-error sinks instead. Collect every settled
+email and webhook outcome before reporting: preserve expected refusals and every
+unexpected reason in memory, emit one fixed `E_REGISTRATION_DELIVERY` console
+class, write the same single failure activity, and send one ntfy plus one Sentry
+message with no raw exception attached. Then rethrow the first original reason
+locally. An attempted failure-activity write is call 48 and reports its own
+failure to console only. No diagnostic path exceeds 50.
 
 The maximum automatic refund/storage branch includes claim, snapshot, attempted
 create, one recovery read, one refunded-result batch, provider refund/status
@@ -615,6 +619,10 @@ The full test plan is fixed. It must include direct deterministic tests for:
   consolidated value-free failure activity for one, two, and 16 failures, zero
   for all-success, and no ntfy/Sentry fan-out. Accept a 64 KiB response body;
   cancel and return the typed failure for one byte over;
+- mixed registration delivery outcomes preserve a refused sibling beside every
+  unexpected reason, wait for both channels, create one failure activity, make
+  exactly one ntfy/Sentry fan-out, attach no raw exception, and only then rethrow
+  the first original reason locally;
 - one paid-order snapshot DB round trip whose rows drive validation, modifier
   resolution, email, webhook, cancel, and refund rendering; direct query-count
   tests must fail if any removed parallel reader returns;

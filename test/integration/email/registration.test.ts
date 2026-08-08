@@ -3,7 +3,10 @@ import { describe, it as test } from "@std/testing/bdd";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import type { EmailConfig } from "#shared/email.ts";
 import { sendRegistrationEmails, sendTestEmail } from "#shared/email.ts";
-import type { RegistrationPackageFacts } from "#shared/registration-package-facts.ts";
+import {
+  RegistrationDeliveryError,
+  type RegistrationPackageFacts,
+} from "#shared/registration-package-facts.ts";
 import {
   runWithSubrequestBudget,
   withSubrequestAllowance,
@@ -245,7 +248,15 @@ describeWithEnv(
         ),
       );
 
-      await expect(sending).rejects.toThrow("Subrequest allowance exceeded");
+      const error = await sending.catch((reason) => reason);
+      expect(error).toBeInstanceOf(RegistrationDeliveryError);
+      if (!(error instanceof RegistrationDeliveryError)) throw error;
+      expect(error.reasons).toHaveLength(1);
+      expect(error.reasons[0]).toBeInstanceOf(Error);
+      if (!(error.reasons[0] instanceof Error)) throw error.reasons[0];
+      expect(error.reasons[0].message).toContain(
+        "Subrequest allowance exceeded",
+      );
       expect(fetch.callCount()).toBe(0);
     });
 

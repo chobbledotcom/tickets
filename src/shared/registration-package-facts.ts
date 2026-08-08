@@ -21,6 +21,15 @@ type PackageRow = { attendee: { package_group_id: number } };
 
 export type RegistrationDeliveryResult = { failed: boolean };
 
+export class RegistrationDeliveryError extends Error {
+  constructor(
+    readonly failed: boolean,
+    readonly reasons: readonly unknown[],
+  ) {
+    super("Unexpected registration delivery failure");
+  }
+}
+
 export const registrationDeliveryResult = (
   deliveries: readonly { delivered: boolean }[],
 ): RegistrationDeliveryResult => ({
@@ -33,13 +42,18 @@ export const waitForRegistrationDeliveries = async <
   deliveries: Promise<Delivery>[],
 ): Promise<RegistrationDeliveryResult> => {
   const results = await Promise.allSettled(deliveries);
-  const rejected = results.find((result) => result.status === "rejected");
-  if (rejected) throw rejected.reason;
-  return registrationDeliveryResult(
+  const delivery = registrationDeliveryResult(
     results
       .filter((result) => result.status === "fulfilled")
       .map((result) => result.value),
   );
+  const reasons = results
+    .filter((result) => result.status === "rejected")
+    .map((result) => result.reason);
+  if (reasons.length > 0) {
+    throw new RegistrationDeliveryError(delivery.failed, reasons);
+  }
+  return delivery;
 };
 
 export type RegistrationNotification<Entry extends PackageRow> = (

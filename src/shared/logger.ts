@@ -127,6 +127,10 @@ const ERROR_DEFS = {
     "E_PAYMENT_WEBHOOK_SETUP",
     "Payment webhook setup failed",
   ],
+  REGISTRATION_DELIVERY: [
+    "E_REGISTRATION_DELIVERY",
+    "Registration notification delivery failed",
+  ],
   SQUARE_CHECKOUT: ["E_SQUARE_CHECKOUT", "Square checkout failed"],
   SQUARE_ORDER: ["E_SQUARE_ORDER", "Square order validation failed"],
   SQUARE_REFUND: ["E_SQUARE_REFUND", "Square refund failed"],

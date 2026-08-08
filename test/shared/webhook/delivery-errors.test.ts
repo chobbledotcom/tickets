@@ -2,6 +2,11 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { runWithPendingWork } from "#shared/pending-work.ts";
 import {
+  RegistrationDeliveryError,
+  type RegistrationPackageFacts,
+} from "#shared/registration-package-facts.ts";
+import { initSentry } from "#shared/sentry.ts";
+import {
   runWithSubrequestBudget,
   withSubrequestAllowance,
 } from "#shared/subrequest-budget.ts";
@@ -17,7 +22,28 @@ import {
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
+import { resetSentry } from "#test-utils/sentry.ts";
+
+const registrationLogs = (
+  entries: ReturnType<typeof makeEntry>[],
+  packageFacts?: RegistrationPackageFacts,
+) =>
+  withErrorSpy(async (errorSpy) => {
+    await runWithPendingWork(() =>
+      logAndNotifyRegistration(entries, undefined, [], packageFacts),
+    );
+    return errorSpy.calls.map(({ args }) => String(args[0]));
+  });
+
+const expectOneError = (logs: string[], code: string): string => {
+  expect(logs).toHaveLength(1);
+  const [log] = logs;
+  if (!log) throw new Error("Expected one error log");
+  expect(log).toContain(code);
+  return log;
+};
 
 describeWithEnv("registration delivery errors", { db: true }, () => {
   const fetchSpy = stubWebhookFetch();
@@ -28,34 +54,47 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
       makeEntry({ webhook_url: "https://private-webhook.example.com" }),
     ];
 
-    const logs = await withErrorSpy(async (errorSpy) => {
-      await runWithPendingWork(() => logAndNotifyRegistration(entries));
-      return errorSpy.calls.map(({ args }) => String(args[0]));
-    });
+    const logs = await registrationLogs(entries);
 
-    expect(logs).toHaveLength(1);
-    expect(logs[0]).toContain("E_WEBHOOK_SEND");
-    expect(logs[0]).not.toContain("private");
+    expect(expectOneError(logs, "E_REGISTRATION_DELIVERY")).not.toContain(
+      "private",
+    );
   });
 
-  test("reports unexpected failures from both delivery channels", async () => {
+  test("reports one incident for unexpected failures in both delivery channels", async () => {
     await configureTestEmail();
     fetchSpy.reply(() =>
       Promise.reject(new Error("unexpected delivery error")),
     );
 
-    const logs = await withErrorSpy(async (errorSpy) => {
-      await runWithPendingWork(() =>
-        logAndNotifyRegistration([
-          makeEntry({ webhook_url: "https://failed-hook.com" }),
-        ]),
-      );
-      return errorSpy.calls.map(({ args }) => String(args[0]));
-    });
+    const logs = await registrationLogs([
+      makeEntry({ webhook_url: "https://failed-hook.com" }),
+    ]);
 
-    expect(logs).toHaveLength(2);
-    expect(logs[0]).toContain("E_WEBHOOK_SEND");
-    expect(logs[1]).toContain("E_EMAIL_SEND");
+    expectOneError(logs, "E_REGISTRATION_DELIVERY");
+  });
+
+  test("reports an error while a notification channel is prepared", async () => {
+    await configureTestEmail();
+    const privateValue = "PRIVATE-CHANNEL-PREPARATION-ERROR";
+    const displays = new Map();
+    displays.get = () => {
+      throw new Error(privateValue);
+    };
+
+    const logs = await registrationLogs(
+      [makeEntry({}, { package_group_id: 1 })],
+      { displays, pricingByGroup: new Map() },
+    );
+
+    expect(expectOneError(logs, "E_REGISTRATION_DELIVERY")).not.toContain(
+      privateValue,
+    );
+    expect(
+      (await activityMessages()).filter(
+        (message) => message === "Registration notification delivery failed",
+      ),
+    ).toHaveLength(1);
   });
 
   test("records an email refusal when the webhook throws", async () => {
@@ -77,6 +116,77 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     expect(await activityMessages()).toContain(
       "Registration notification delivery failed",
     );
+  });
+
+  test("records a refused sibling when another webhook throws", async () => {
+    fetchSpy.reply((url) =>
+      url === "https://refused-hook.com"
+        ? new Response("refused", { status: 503 })
+        : Promise.reject(new Error("unexpected webhook error")),
+    );
+
+    await withErrorSpy(() =>
+      runWithPendingWork(() =>
+        logAndNotifyRegistration([
+          makeEntry({ id: 1, webhook_url: "https://refused-hook.com" }),
+          makeEntry({ id: 2, webhook_url: "https://failed-hook.com" }),
+        ]),
+      ),
+    );
+
+    expect(
+      (await activityMessages()).filter(
+        (message) => message === "Registration notification delivery failed",
+      ),
+    ).toHaveLength(1);
+  });
+
+  test("keeps raw delivery errors out of the incident fan-out", async () => {
+    const privateValue = "PRIVATE-DELIVERY-ERROR";
+    using _env = withEnv({
+      NTFY_URL: "https://ntfy.example.test/delivery",
+      SENTRY_URL: "https://key@bugs.example.test/2",
+    });
+    await configureTestEmail();
+    await initSentry();
+    fetchSpy.reply((url) =>
+      url.includes("ntfy.example.test") || url.includes("bugs.example.test")
+        ? new Response("{}")
+        : Promise.reject(new Error(privateValue)),
+    );
+
+    try {
+      const logs = await registrationLogs([
+        makeEntry({ webhook_url: "https://failed-hook.com" }),
+      ]);
+      const sentryCall = fetchSpy.calls.find(({ args }) =>
+        String(args[0]).includes("bugs.example.test"),
+      );
+      if (!sentryCall) throw new Error("Sentry request was not sent");
+      const body = (sentryCall.args[1] as RequestInit).body;
+      const sentryBody =
+        typeof body === "string"
+          ? body
+          : new TextDecoder().decode(body as Uint8Array);
+
+      expect(expectOneError(logs, "E_REGISTRATION_DELIVERY")).not.toContain(
+        privateValue,
+      );
+      expect(sentryBody).toContain("Registration notification delivery failed");
+      expect(sentryBody).not.toContain(privateValue);
+      expect(
+        fetchSpy.calls.filter(({ args }) =>
+          String(args[0]).includes("ntfy.example.test"),
+        ),
+      ).toHaveLength(1);
+      expect(
+        fetchSpy.calls.filter(({ args }) =>
+          String(args[0]).includes("bugs.example.test"),
+        ),
+      ).toHaveLength(1);
+    } finally {
+      resetSentry();
+    }
   });
 
   test("waits for sibling sends before rejecting an unexpected failure", async () => {
@@ -111,7 +221,10 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
         slow.resolve(new Response());
         await sending;
       }
-      expect(await outcome.promise).toBe(unexpected);
+      const error = await outcome.promise;
+      expect(error).toBeInstanceOf(RegistrationDeliveryError);
+      if (!(error instanceof RegistrationDeliveryError)) throw error;
+      expect(error.reasons).toEqual([unexpected]);
     });
   });
 
@@ -148,7 +261,6 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
       return errorSpy.calls.map(({ args }) => String(args[0]));
     });
 
-    expect(logs).toHaveLength(1);
-    expect(logs[0]).toContain("E_DB_QUERY");
+    expectOneError(logs, "E_DB_QUERY");
   });
 });
