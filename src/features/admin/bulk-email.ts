@@ -69,11 +69,11 @@ import {
   updateEmailTemplate,
 } from "#shared/db/email-templates.ts";
 import { settings } from "#shared/db/settings.ts";
+import { sendBulkEmails } from "#shared/email/bulk.ts";
 import {
   EMAIL_PROVIDER_LABELS,
   type EmailConfig,
   getEmailConfig,
-  sendBulkEmails,
 } from "#shared/email.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { MAX_EMAIL_TEMPLATES } from "#shared/limits.ts";

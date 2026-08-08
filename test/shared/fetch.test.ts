@@ -44,11 +44,38 @@ describe("fetchText", () => {
   test("handles empty response body", async () => {
     using _fetch = stubFetch(new Response(null, { status: 204 }));
 
-    const result = await fetchText("https://example.com/empty");
+    const result = await fetchText("https://example.com/empty", undefined, 0);
 
     expect(result.status).toBe(204);
     expect(result.ok).toBe(true);
     expect(result.text).toBe("");
+  });
+
+  test("accepts a response body at the byte limit", async () => {
+    using _fetch = stubFetch(new Response("four"));
+
+    const result = await fetchText("https://example.com/limited", undefined, 4);
+
+    expect(result.text).toBe("four");
+  });
+
+  test("cancels a response body above the byte limit", async () => {
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      cancel: () => {
+        cancelled = true;
+      },
+      start: (controller) => {
+        controller.enqueue(new TextEncoder().encode("four"));
+        controller.enqueue(new TextEncoder().encode("!"));
+      },
+    });
+    using _fetch = stubFetch(new Response(body));
+
+    await expect(
+      fetchText("https://example.com/too-large", undefined, 4),
+    ).rejects.toThrow("Response body exceeds 4 bytes");
+    expect(cancelled).toBe(true);
   });
 
   test("forwards request init options", async () => {

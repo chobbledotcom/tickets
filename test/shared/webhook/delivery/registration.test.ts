@@ -5,20 +5,25 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { runWithPendingWork } from "#shared/pending-work.ts";
 import {
   logAndNotifyRegistration,
   sendRegistrationWebhooks,
-  type WebhookPayload,
-} from "#shared/webhook.ts";
+} from "#shared/webhook/delivery.ts";
+import type { WebhookPayload } from "#shared/webhook.ts";
 import {
   flushAsync,
   listingFromDb,
   spyFirstArgs,
   stubWebhookFetch,
 } from "#test/shared/webhook/helpers.ts";
-import { getAllActivityLog } from "#test-utils/activity-log.ts";
+import {
+  activityMessages,
+  getAllActivityLog,
+} from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { configureTestEmail } from "#test-utils/email.ts";
 import {
   makeTestAttendee as makeAttendee,
   makeTestEntry as makeEntry,
@@ -40,6 +45,7 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
     const urls = spyFirstArgs(fetchSpy.calls);
     expect(urls).toContain("https://hook-a.com");
     expect(urls).toContain("https://hook-b.com");
+    expect(await activityMessages()).toEqual([]);
   });
 
   test("deduplicates identical webhook URLs", async () => {
@@ -87,6 +93,80 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
     expect(fetchSpy.calls.length).toBe(1);
     expect(fetchSpy.firstBody().tickets[0]!.unit_price).toBe(900);
   });
+
+  test("accepts 16 distinct webhook URLs", async () => {
+    const entries = Array.from({ length: 16 }, (_, index) =>
+      makeEntry({ id: index + 1, webhook_url: `https://hook-${index}.com` }),
+    );
+
+    await sendRegistrationWebhooks(entries, "GBP");
+
+    expect(fetchSpy.calls.length).toBe(16);
+  });
+
+  test("refuses 17 distinct webhook URLs before fetching", async () => {
+    const entries = Array.from({ length: 17 }, (_, index) =>
+      makeEntry({ id: index + 1, webhook_url: `https://hook-${index}.com` }),
+    );
+
+    const result = await sendRegistrationWebhooks(entries, "GBP");
+
+    expect(result).toEqual({ failed: true });
+    expect(fetchSpy.calls.length).toBe(0);
+    expect(await activityMessages()).toEqual([]);
+  });
+
+  test("records one value-free activity for all failed deliveries", async () => {
+    const sentinels = {
+      attendee: "PRIVATE-ATTENDEE-VALUE",
+      body: "PRIVATE-BODY-VALUE",
+      provider: "PRIVATE-PROVIDER-VALUE",
+      url: "private-url-value",
+    };
+    const entries = [
+      makeEntry(
+        { id: 1, webhook_url: `https://${sentinels.url}-a.com` },
+        { name: sentinels.attendee, special_instructions: sentinels.body },
+      ),
+      makeEntry({
+        id: 2,
+        webhook_url: `https://${sentinels.url}-${sentinels.provider}.com`,
+      }),
+    ];
+    fetchSpy.reply(() => new Response("refused", { status: 503 }));
+
+    await runWithPendingWork(() => logAndNotifyRegistration(entries));
+
+    const messages = await activityMessages();
+    expect(
+      messages.filter(
+        (message) => message === "Registration notification delivery failed.",
+      ),
+    ).toHaveLength(1);
+    for (const value of Object.values(sentinels)) {
+      expect(messages.join("\n")).not.toContain(value);
+    }
+  });
+
+  for (const count of [1, 2, 16]) {
+    test(`records exactly one failure activity for ${count} refused webhook sends`, async () => {
+      fetchSpy.reply(() => new Response("refused", { status: 503 }));
+      const entries = Array.from({ length: count }, (_, index) =>
+        makeEntry({
+          id: index + 1,
+          webhook_url: `https://failed-hook-${index}.com`,
+        }),
+      );
+
+      await runWithPendingWork(() => logAndNotifyRegistration(entries));
+
+      expect(
+        (await activityMessages()).filter(
+          (message) => message === "Registration notification delivery failed.",
+        ),
+      ).toHaveLength(1);
+    });
+  }
 });
 
 describeWithEnv("logAndNotifyRegistration", { db: true }, () => {
@@ -109,6 +189,11 @@ describeWithEnv("logAndNotifyRegistration", { db: true }, () => {
     const body = JSON.parse(options.body as string) as WebhookPayload;
     expect(body.notification_type).toBe("registration.completed");
     expect(body.name).toBe("Jane Doe");
+    expect(
+      (await activityMessages()).filter(
+        (message) => message === "Registration notification delivery failed.",
+      ),
+    ).toHaveLength(0);
   });
 
   test("does not send webhook when listing has no webhook_url", async () => {
@@ -173,5 +258,26 @@ describeWithEnv("logAndNotifyRegistration", { db: true }, () => {
     await flushAsync();
 
     expect(fetchSpy.calls.length).toBe(0);
+  });
+
+  test("still sends email when the webhook URL limit is exceeded", async () => {
+    await configureTestEmail();
+    const entries = Array.from({ length: 17 }, (_, index) =>
+      makeEntry({
+        id: index + 1,
+        webhook_url: `https://hook-${index}.com`,
+      }),
+    );
+
+    await runWithPendingWork(() => logAndNotifyRegistration(entries));
+
+    expect(fetchSpy.calls.length).toBe(1);
+    const [url] = fetchSpy.calls[0]!.args as [string, RequestInit];
+    expect(url).toBe("https://api.resend.com/emails");
+    expect(
+      (await activityMessages()).filter(
+        (message) => message === "Registration notification delivery failed.",
+      ),
+    ).toHaveLength(1);
   });
 });

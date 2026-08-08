@@ -19,11 +19,48 @@ export interface RegistrationPackageFacts {
 
 type PackageRow = { attendee: { package_group_id: number } };
 
+export type RegistrationDeliveryResult = { failed: boolean };
+
+export class RegistrationDeliveryError extends Error {
+  constructor(
+    readonly failed: boolean,
+    readonly reasons: readonly unknown[],
+  ) {
+    super("Unexpected registration delivery failure");
+  }
+}
+
+const registrationDeliveryResult = (
+  deliveries: readonly { delivered: boolean }[],
+): RegistrationDeliveryResult => ({
+  failed: deliveries.some(({ delivered }) => !delivered),
+});
+
+export const waitForRegistrationDeliveries = async <
+  Delivery extends { delivered: boolean },
+>(
+  deliveries: Promise<Delivery>[],
+): Promise<RegistrationDeliveryResult> => {
+  const results = await Promise.allSettled(deliveries);
+  const delivery = registrationDeliveryResult(
+    results
+      .filter((result) => result.status === "fulfilled")
+      .map((result) => result.value),
+  );
+  const reasons = results
+    .filter((result) => result.status === "rejected")
+    .map((result) => result.reason);
+  if (reasons.length > 0) {
+    throw new RegistrationDeliveryError(delivery.failed, reasons);
+  }
+  return delivery;
+};
+
 export type RegistrationNotification<Entry extends PackageRow> = (
   entries: Entry[],
   currency: string,
   suppliedFacts?: RegistrationPackageFacts,
-) => Promise<void>;
+) => Promise<RegistrationDeliveryResult>;
 
 export const loadRegistrationPackageFacts = async (
   rows: readonly PackageRow[],

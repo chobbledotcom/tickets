@@ -32,7 +32,7 @@ import {
   saveAttendeeAnswers,
 } from "#shared/db/questions/attendee-answers/save.ts";
 import type { CheckoutIntent, CheckoutItem } from "#shared/payments.ts";
-import { logAndNotifyRegistration } from "#shared/webhook.ts";
+import { logAndNotifyRegistration } from "#shared/webhook/delivery.ts";
 import { computeListingTextAnswerIdMap } from "./parse.ts";
 
 export type PathParams = OrderSpan & {
