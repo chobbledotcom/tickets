@@ -6,7 +6,10 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { withTransaction } from "#shared/db/client.ts";
-import { writePackageMembersTx } from "#shared/db/groups/membership.ts";
+import {
+  assignListingsToGroup,
+  writePackageMembersTx,
+} from "#shared/db/groups/membership.ts";
 import {
   getGroupPackagePrices,
   setGroupPackageMembers,
@@ -16,6 +19,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createHiddenPackageGroup,
   createSoldPackageMember,
+  createTestGroup,
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
@@ -134,6 +138,49 @@ describeWithEnv(
           name: "Tx recheck parent",
         }),
       );
+    });
+
+    test("a group becoming a hidden package rechecks its member edges", async () => {
+      const group = await createTestGroup({ name: "New Hidden Package" });
+      const parent = await createTestListing({ name: "New Package Parent" });
+      const child = await createTestListing({ name: "New Package Child" });
+      await listingChildren.setIds(parent.id, [child.id]);
+      await assignListingsToGroup([parent.id], group.id);
+
+      await expect(
+        withTransaction(async (tx) => {
+          await tx.execute({
+            args: [group.id],
+            sql: "UPDATE groups SET is_package = 1, hide_package_listings = 1 WHERE id = ?",
+          });
+          await writePackageMembersTx(
+            tx,
+            group.id,
+            { hide_package_listings: false, is_package: false },
+            { isPackage: true },
+            undefined,
+          );
+        }),
+      ).rejects.toMatchObject({
+        message: t("error.package_member_gates_children_hidden", {
+          name: parent.name,
+        }),
+        name: "TransactionValidationError",
+      });
+    });
+
+    test("a deleted package group leaves not-found handling to its caller", async () => {
+      await expect(
+        withTransaction((tx) =>
+          writePackageMembersTx(
+            tx,
+            999_999,
+            null,
+            { isPackage: true },
+            undefined,
+          ),
+        ),
+      ).resolves.toBeUndefined();
     });
   },
 );

@@ -253,7 +253,7 @@ export const validateListingGroupMembershipTx =
     );
 
 /** Rechecks every member after a group becomes a package or hides its members. */
-export const packageGroupMembersErrorTx = async (
+const packageGroupMembersErrorTx = async (
   tx: TxScope,
   groupId: number,
 ): Promise<string | null> => {
@@ -270,7 +270,7 @@ export const packageGroupMembersErrorTx = async (
 };
 
 /** Stops the containing write when its changed group no longer has valid package members. */
-export const requirePackageGroupMembersTx = async (
+const requirePackageGroupMembersTx = async (
   tx: TxScope,
   groupId: number,
 ): Promise<void> => {
@@ -362,12 +362,16 @@ export const assignListingsToGroup = async (
 ): Promise<string | null> => {
   if (listingIds.length === 0) return null;
   return withTransaction(async (tx) => {
+    const ids = [...new Set(listingIds)];
     const [groups, listings] = await Promise.all([
       groupStatesTx(tx, [groupId]),
-      listingStatesTx(tx, listingIds),
+      listingStatesTx(tx, ids),
     ]);
     const state = groups.get(groupId);
     if (!state) return "Selected group does not exist";
+    if (listings.length !== ids.length) {
+      return t("error.selected_listing_deleted");
+    }
     const siblings = [...state.members];
     for (const listing of listings) {
       const typeError = groupListingSettingsError(siblings, listing);
@@ -376,7 +380,7 @@ export const assignListingsToGroup = async (
     }
     const packageError = await packageMembersErrorTx(listings, state);
     if (packageError) return packageError;
-    await tx.batch(groupListingAssignmentStatements(listingIds, groupId));
+    await tx.batch(groupListingAssignmentStatements(ids, groupId));
     return null;
   });
 };

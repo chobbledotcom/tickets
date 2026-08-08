@@ -11,11 +11,7 @@ import {
   withTransaction,
   writeRowInTransaction,
 } from "#shared/db/client.ts";
-import {
-  assignListingsToGroup,
-  packageGroupMembersErrorTx,
-  requirePackageGroupMembersTx,
-} from "#shared/db/groups/membership.ts";
+import { assignListingsToGroup } from "#shared/db/groups/membership.ts";
 import {
   getGroupPackagePrices,
   getListingsByGroupId,
@@ -88,6 +84,19 @@ describeWithEnv("db > groups > membership writes", { db: true }, () => {
 
     expect(await groupIdsOf(one.id)).toEqual([group.id]);
     expect(await groupIdsOf(two.id)).toEqual([group.id]);
+  });
+
+  test("a vanished listing rejects the whole batch", async () => {
+    const group = await createTestGroup({ name: "Vanished Batch Group" });
+    const remaining = await createTestListing({ name: "Remaining Batch Row" });
+
+    expect(
+      await assignListingsToGroup(
+        [remaining.id, remaining.id, 999_999],
+        group.id,
+      ),
+    ).toBe(t("error.selected_listing_deleted"));
+    expect(await groupIdsOf(remaining.id)).toEqual([]);
   });
 
   test("an incompatible batch adds none of its listings", async () => {
@@ -228,29 +237,6 @@ describeWithEnv("db > groups > membership writes", { db: true }, () => {
     expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
-  test("a group becoming a hidden package rechecks its member edges", async () => {
-    const group = await createTestGroup({ name: "New Hidden Package" });
-    const parent = await createTestListing({ name: "New Package Parent" });
-    const child = await createTestListing({ name: "New Package Child" });
-    await listingChildren.setIds(parent.id, [child.id]);
-    await assignListingsToGroup([parent.id], group.id);
-
-    await expect(
-      withTransaction(async (tx) => {
-        await tx.execute({
-          args: [group.id],
-          sql: "UPDATE groups SET is_package = 1, hide_package_listings = 1 WHERE id = ?",
-        });
-        await requirePackageGroupMembersTx(tx, group.id);
-      }),
-    ).rejects.toMatchObject({
-      message: t("error.package_member_gates_children_hidden", {
-        name: parent.name,
-      }),
-      name: "TransactionValidationError",
-    });
-  });
-
   test("a customisable-days group refuses a fixed-length listing", async () => {
     const group = await createTestGroup({ name: "Customisable Length Group" });
     const customisable = await createTestListing({
@@ -299,12 +285,6 @@ describeWithEnv("db > groups > membership writes", { db: true }, () => {
       withTransaction((tx) => setListingGroupsTx(tx, listing.id, [999_999])),
     ).rejects.toMatchObject({ message: "Selected group does not exist" });
     expect(await groupIdsOf(listing.id)).toEqual([]);
-  });
-
-  test("rechecking a deleted package group leaves not-found handling to its caller", async () => {
-    await expect(
-      withTransaction((tx) => packageGroupMembersErrorTx(tx, 999_999)),
-    ).resolves.toBeNull();
   });
 
   test("a package member left out of the list loses its override", async () => {
