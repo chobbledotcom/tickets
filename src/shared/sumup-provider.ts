@@ -12,19 +12,17 @@
  * - No webhook endpoint to set up (return_url is set per checkout)
  */
 
-/* jscpd:ignore-start */
 import {
   getSumupCheckout,
   hasSumupCheckoutId,
 } from "#shared/db/sumup-checkouts.ts";
 import { isResourceId } from "#shared/payment/resource-id.ts";
-import type { SessionRejection } from "#shared/payment/validated-session.ts";
-import type {
-  PaymentAttempt,
-  PaymentAttemptConfig,
-} from "#shared/payment-attempt.ts";
 import {
-  extractSessionMetadata,
+  isSessionRejection,
+  type SessionRejection,
+  validatedPaymentSession,
+} from "#shared/payment/validated-session.ts";
+import {
   makeCreateCheckoutSession,
   toCanonicalIso,
 } from "#shared/payment-helpers.ts";
@@ -39,16 +37,11 @@ import type {
 } from "#shared/payments.ts";
 import {
   createCheckout,
-  createSumupClientOperations,
-  isTransactionRefunded,
+  getTransactionStatus,
   refundTransaction,
   retrieveCheckoutById,
   type SumupCheckout,
-  type SumupClientOperations,
-  sumupApi,
 } from "#shared/sumup.ts";
-
-/* jscpd:ignore-end */
 
 /** Map SumUp's checkout lifecycle to the provider-agnostic payment status.
  * FAILED (declined) and EXPIRED are terminal — the redirect handler shows the
@@ -56,22 +49,24 @@ import {
 const toPaymentStatus = (status: SumupCheckout["status"]): PaymentStatus =>
   status === "PAID" ? "paid" : status === "PENDING" ? "unpaid" : "failed";
 
-/** Build a validated session from a parsed checkout and its staged metadata. */
+/** Build a validated session from a fetched checkout and its staged metadata.
+ * The metadata was written by our own buildItemsMetadata, so it always carries
+ * the required fields. Returns a rejection when the checkout's charge or
+ * resource id is malformed (the boundary validates both), so a paid charge the
+ * boundary cannot read still reaches the refund path. */
 const buildValidatedSession = (
   checkout: SumupCheckout,
   metadata: Record<string, string>,
-): ValidatedPaymentSession => {
-  const createdAt = toCanonicalIso(checkout.createdAt);
-  return {
+): ValidatedPaymentSession | SessionRejection =>
+  validatedPaymentSession({
     amountTotal: checkout.amountMinor,
-    ...(createdAt === undefined ? {} : { createdAt }),
+    createdAt: toCanonicalIso(checkout.createdAt),
     currency: checkout.currency,
     id: checkout.reference,
-    metadata: extractSessionMetadata(metadata as SessionMetadata),
+    metadata: metadata as SessionMetadata,
     paymentReference: checkout.transactionId,
     paymentStatus: toPaymentStatus(checkout.status),
-  };
-};
+  });
 
 /** SumUp's checkout-session builder (see {@link makeCreateCheckoutSession}). */
 const createSumupCheckoutSession = makeCreateCheckoutSession(
@@ -80,51 +75,55 @@ const createSumupCheckoutSession = makeCreateCheckoutSession(
   (result) => ({ id: result?.reference, url: result?.url }),
 );
 
-type SumupProviderOperations = SumupClientOperations;
-
-const resolveWebhookSession = async (
-  operations: SumupProviderOperations,
-  webhookEvent: WebhookEvent,
-): Promise<ValidatedPaymentSession | "skip" | SessionRejection | null> => {
-  if (!webhookEvent.id) return null;
-  // Unsigned webhooks only fetch checkouts we created.
-  if (!(await hasSumupCheckoutId(webhookEvent.id))) return "skip";
-  const checkout = await operations.retrieveCheckoutById(webhookEvent.id);
-  if (!checkout) {
-    throw new Error(`SumUp checkout ${webhookEvent.id} could not be read`);
-  }
-  // SumUp must return the reference staged for this checkout id.
-  const stored = isResourceId(checkout.reference)
-    ? await getSumupCheckout(checkout.reference)
-    : null;
-  if (!stored || stored.sumupId !== webhookEvent.id) {
-    throw new Error(
-      `SumUp checkout ${webhookEvent.id} came back under reference "${checkout.reference}", which is not the one staged for it (status=${checkout.status}, transaction=${checkout.transactionId})`,
-    );
-  }
-  const session = buildValidatedSession(checkout, stored.metadata);
-  return session.paymentStatus === "paid" ? session : "skip";
-};
-
-const createSumupProvider = (
-  operations: SumupProviderOperations,
-): PaymentProvider => ({
+/** SumUp payment provider implementation. */
+export const sumupPaymentProvider: PaymentProvider = {
   checkoutCompletedEventType: "CHECKOUT_STATUS_CHANGED",
   createCheckoutSession: createSumupCheckoutSession,
 
   async isPaymentRefunded(paymentReference: string): Promise<boolean> {
-    return (await operations.isTransactionRefunded(paymentReference)) === true;
+    return (await getTransactionStatus(paymentReference)) === "REFUNDED";
   },
 
   refundPayment(paymentReference: string): Promise<boolean> {
-    return operations.refundTransaction(paymentReference);
+    return refundTransaction(paymentReference);
   },
   requiresWebhookSignature: false,
 
   async resolveWebhookSession(
     webhookEvent: WebhookEvent,
   ): Promise<ValidatedPaymentSession | "skip" | SessionRejection | null> {
-    return await resolveWebhookSession(operations, webhookEvent);
+    if (!webhookEvent.id) return null;
+    // Unsigned webhooks: only fetch checkouts we created. Spam or another
+    // integration's listings are acknowledged without an API call.
+    if (!(await hasSumupCheckoutId(webhookEvent.id))) return "skip";
+    // The staging row already proved this checkout is ours, so a failed fetch
+    // is SumUp being unreachable rather than a checkout we never made.
+    // Throwing answers retryably; acknowledging is terminal, and a paid
+    // checkout would be left with the money taken and no booking.
+    const checkout = await retrieveCheckoutById(webhookEvent.id);
+    if (!checkout) {
+      throw new Error(`SumUp checkout ${webhookEvent.id} could not be read`);
+    }
+    // The reference SumUp echoes back must be the one we generated for this
+    // checkout and staged under this webhook id. If it is blank, unknown, or
+    // another booking's, SumUp has contradicted itself about a checkout we
+    // created. Raise it: the booking is encrypted under that reference, so
+    // without a match we can neither read it nor prove the charge is ours to
+    // refund — and a paid charge is then sitting with SumUp unbooked.
+    const stored = isResourceId(checkout.reference)
+      ? await getSumupCheckout(checkout.reference)
+      : null;
+    if (!stored || stored.sumupId !== webhookEvent.id) {
+      throw new Error(
+        `SumUp checkout ${webhookEvent.id} came back under reference "${checkout.reference}", which is not the one staged for it (status=${checkout.status}, transaction=${checkout.transactionId})`,
+      );
+    }
+    const session = buildValidatedSession(checkout, stored.metadata);
+    // A charge the boundary could not read: surface the rejection so a paid
+    // one still reaches the refund path.
+    if (isSessionRejection(session)) return session;
+    // Not yet (or never) paid: acknowledge without processing.
+    return session.paymentStatus === "paid" ? session : "skip";
   },
 
   /* jscpd:ignore-start -- PaymentProvider interface conformance, not
@@ -140,7 +139,7 @@ const createSumupProvider = (
     // means checkout creation failed after staging — nothing to retrieve.
     const stored = await getSumupCheckout(sessionId);
     if (!stored?.sumupId) return null;
-    const checkout = await operations.retrieveCheckoutById(stored.sumupId);
+    const checkout = await retrieveCheckoutById(stored.sumupId);
     return checkout && buildValidatedSession(checkout, stored.metadata);
   },
 
@@ -175,26 +174,4 @@ const createSumupProvider = (
       return Promise.resolve({ error: "Invalid JSON payload", valid: false });
     }
   },
-});
-
-const configuredOperations: SumupProviderOperations = {
-  isTransactionRefunded,
-  refundTransaction,
-  retrieveCheckoutById,
-};
-
-/** SumUp payment provider implementation. */
-export const sumupPaymentProvider: PaymentProvider =
-  createSumupProvider(configuredOperations);
-
-type SumupAttemptConfig = Extract<PaymentAttemptConfig, { type: "sumup" }>;
-
-/** Bind settlement to the credentials captured when the payment was observed. */
-export const createSumupPaymentAttempt = (
-  config: SumupAttemptConfig,
-): PaymentAttempt => {
-  const client = sumupApi.getSumupClient(config.apiKey);
-  if (!client) throw new Error("SumUp API key is required");
-  const operations = createSumupClientOperations(client, config.merchantCode);
-  return { ...createSumupProvider(operations), currency: config.currency };
 };

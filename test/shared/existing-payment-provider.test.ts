@@ -5,21 +5,23 @@ import {
   CONFIG_KEYS,
   settings,
 } from "#shared/db/settings.ts";
-import { getAdminPaymentProvider } from "#shared/payments.ts";
+import { getPaymentProviderForExistingPayments } from "#shared/payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { debugLogged, useDebugLogSpy } from "#test-utils/debug-log.ts";
 
-describeWithEnv("getAdminPaymentProvider", { db: true }, () => {
+describeWithEnv("getPaymentProviderForExistingPayments", { db: true }, () => {
   const debugSpy = useDebugLogSpy();
 
   test("returns null when no provider was ever configured", async () => {
-    expect(await getAdminPaymentProvider()).toBeNull();
+    expect(await getPaymentProviderForExistingPayments()).toBeNull();
   });
 
   test("returns the active provider when new sales are on", async () => {
     await settings.update.stripe.secretKey("sk_test_active");
     await settings.update.paymentProvider("stripe");
-    expect((await getAdminPaymentProvider())?.type).toBe("stripe");
+    expect((await getPaymentProviderForExistingPayments())?.type).toBe(
+      "stripe",
+    );
     expect(
       debugLogged(
         debugSpy,
@@ -33,7 +35,9 @@ describeWithEnv("getAdminPaymentProvider", { db: true }, () => {
     await settings.update.paymentProvider("stripe");
     await settings.update.setPaymentProviderNone();
     expect(settings.paymentProvider).toBeNull();
-    expect((await getAdminPaymentProvider())?.type).toBe("stripe");
+    expect((await getPaymentProviderForExistingPayments())?.type).toBe(
+      "stripe",
+    );
     expect(
       debugLogged(
         debugSpy,
@@ -44,7 +48,7 @@ describeWithEnv("getAdminPaymentProvider", { db: true }, () => {
 
   test("returns null when sales are off and no provider was ever activated", async () => {
     await settings.update.setPaymentProviderNone();
-    expect(await getAdminPaymentProvider()).toBeNull();
+    expect(await getPaymentProviderForExistingPayments()).toBeNull();
   });
 
   test("does not use a remembered provider whose credentials were removed", async () => {
@@ -53,12 +57,12 @@ describeWithEnv("getAdminPaymentProvider", { db: true }, () => {
     settings.invalidateCache();
     await settings.loadKeys(ALL_SETTINGS_KEYS);
 
-    expect(await getAdminPaymentProvider()).toBeNull();
+    expect(await getPaymentProviderForExistingPayments()).toBeNull();
   });
 
   test("does not use an active provider without credentials", async () => {
     await settings.update.paymentProvider("stripe");
-    expect(await getAdminPaymentProvider()).toBeNull();
+    expect(await getPaymentProviderForExistingPayments()).toBeNull();
   });
 
   test("recovers from a sales-off site with one set of credentials", async () => {
@@ -70,7 +74,9 @@ describeWithEnv("getAdminPaymentProvider", { db: true }, () => {
 
     expect(settings.paymentProvider).toBeNull();
     expect(settings.lastActivePaymentProvider).toBeNull();
-    expect((await getAdminPaymentProvider())?.type).toBe("stripe");
+    expect((await getPaymentProviderForExistingPayments())?.type).toBe(
+      "stripe",
+    );
   });
 
   test("does not guess when several providers have credentials", async () => {
@@ -81,7 +87,7 @@ describeWithEnv("getAdminPaymentProvider", { db: true }, () => {
     settings.invalidateCache();
     await settings.loadKeys(ALL_SETTINGS_KEYS);
 
-    expect(await getAdminPaymentProvider()).toBeNull();
+    expect(await getPaymentProviderForExistingPayments()).toBeNull();
   });
 
   test("throws when the current provider setting is corrupt", async () => {
@@ -91,7 +97,7 @@ describeWithEnv("getAdminPaymentProvider", { db: true }, () => {
     settings.invalidateCache();
     await settings.loadKeys(ALL_SETTINGS_KEYS);
 
-    await expect(getAdminPaymentProvider()).rejects.toThrow(
+    await expect(getPaymentProviderForExistingPayments()).rejects.toThrow(
       "Invalid payment_provider setting: mutated",
     );
   });
@@ -103,6 +109,6 @@ describeWithEnv("getAdminPaymentProvider", { db: true }, () => {
     settings.invalidateCache();
     await settings.loadKeys(ALL_SETTINGS_KEYS);
 
-    expect((await getAdminPaymentProvider())?.type).toBe("sumup");
+    expect((await getPaymentProviderForExistingPayments())?.type).toBe("sumup");
   });
 });

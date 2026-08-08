@@ -3,7 +3,6 @@ const checkout = {
   created: 123,
   currency: "gbp",
   id: "cs_1",
-  livemode: false,
   metadata: {},
   payment_intent: "pi_1",
   payment_status: "paid",

@@ -6,7 +6,6 @@ import type { BookingIntent } from "#shared/booking-intent.ts";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
 import {
   bookingIntent,
-  paymentAttempt,
   paymentSession,
 } from "#test/features/api/payment-processing/index/helpers.ts";
 import { validateAllItems } from "#test/features/api/payment-processing/items/helpers.ts";
@@ -133,7 +132,7 @@ describeWithEnv("paid item validation boundaries", { db: true }, () => {
     using refund = stubRefundPayment("re_items_missing_package");
 
     expect(
-      await validateSnapshotItems(paymentAttempt, session, intent, snapshot),
+      await validateSnapshotItems(session, intent, snapshot),
     ).toMatchObject({
       error: "Sorry, registration closed while you were completing payment.",
       success: false,

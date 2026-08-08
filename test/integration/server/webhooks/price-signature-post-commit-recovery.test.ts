@@ -4,10 +4,13 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { bookingEventGroup } from "#shared/accounting/mappers.ts";
 import { allTransfers } from "#shared/accounting/queries.ts";
+import { legReference } from "#shared/accounting/refs.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { execute } from "#shared/db/client.ts";
+import { execute, queryOne } from "#shared/db/client.ts";
+import { hashEmail, hashPhone } from "#shared/db/contact-preferences.ts";
+import { getRecentBookingTokens } from "#shared/db/contact-tokens.ts";
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import {
@@ -24,11 +27,6 @@ import {
   signedMeta,
   webhookRequest,
 } from "#test/integration/webhook-price-signature/helpers.ts";
-import {
-  contactCounts,
-  expectContactActivity,
-  expectedBookingReferences,
-} from "#test/integration/webhook-price-signature/recovery-helpers.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
@@ -40,6 +38,48 @@ import {
   getProcessedPayment,
 } from "#test-utils/processed-payments.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
+
+const contactCountsByHash = async (hash: string) =>
+  queryOne<{ public_booking_count: number; visits: number }>(
+    `SELECT public_booking_count, visits FROM contact_preferences
+     WHERE contact_hash = ?`,
+    [hash],
+  );
+
+const contactCounts = async (email: string) =>
+  contactCountsByHash(await hashEmail(email));
+
+const phoneContactCounts = async (phone: string) =>
+  contactCountsByHash(await hashPhone(phone));
+
+const expectedBookingReferences = async (
+  sessionId: string,
+  listingId: number,
+  modifierId: number,
+): Promise<string[]> =>
+  Promise.all([
+    legReference(["booking", sessionId, "sale", listingId]),
+    legReference(["booking", sessionId, "mod", modifierId]),
+    legReference(["booking", sessionId, "payment"]),
+  ]);
+
+const expectContactActivity = async (
+  email: string,
+  phone: string,
+  privateKey: CryptoKey,
+  ticketToken: string,
+): Promise<void> => {
+  const expectedCounts = { public_booking_count: 1, visits: 1 };
+  expect(await contactCounts(email)).toEqual(expectedCounts);
+  expect(await phoneContactCounts(phone)).toEqual(expectedCounts);
+  const expectedTokens = [{ source: "public" as const, token: ticketToken }];
+  expect(
+    await getRecentBookingTokens(await hashEmail(email), privateKey, 10),
+  ).toEqual(expectedTokens);
+  expect(
+    await getRecentBookingTokens(await hashPhone(phone), privateKey, 10),
+  ).toEqual(expectedTokens);
+};
 
 describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
   test("recovers a committed result across webhook, redirect, and ledger replay", async () => {
@@ -157,15 +197,12 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
           );
           await expectContactActivity(email, phone, privateKey, ticketToken);
 
-          const retrieve = stubRetrieveCheckoutSession(
-            {
-              amountTotal: 900,
-              metadata,
-              paymentIntent: `pi_${sessionId}`,
-              sessionId,
-            },
-            false,
-          );
+          const retrieve = stubRetrieveCheckoutSession({
+            amountTotal: 900,
+            metadata,
+            paymentIntent: `pi_${sessionId}`,
+            sessionId,
+          });
           try {
             const redirect = await handleRequest(
               mockRequest(`/payment/success?session_id=${sessionId}`),
@@ -287,15 +324,12 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
           return result;
         },
       );
-      const retrieve = stubRetrieveCheckoutSession(
-        {
-          amountTotal: 1000,
-          metadata,
-          paymentIntent: `pi_${sessionId}`,
-          sessionId,
-        },
-        false,
-      );
+      const retrieve = stubRetrieveCheckoutSession({
+        amountTotal: 1000,
+        metadata,
+        paymentIntent: `pi_${sessionId}`,
+        sessionId,
+      });
       try {
         const firstWebhook = webhookRequest();
         const committed = await committedBooking.promise;

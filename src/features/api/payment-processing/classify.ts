@@ -14,12 +14,15 @@ import type {
 } from "#routes/api/webhook-types.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
+import { settings } from "#shared/db/settings.ts";
 import { t } from "#shared/i18n.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { isSessionRejection } from "#shared/payment/validated-session.ts";
-import type { PaymentAttempt } from "#shared/payment-attempt.ts";
 import { parsePriceProof, verifyPrice } from "#shared/payment-signature.ts";
-import type { ValidatedPaymentSession } from "#shared/payments.ts";
+import {
+  getPaymentProviderForExistingPayments,
+  type ValidatedPaymentSession,
+} from "#shared/payments.ts";
 /* jscpd:ignore-end */
 
 /** Makes a logger that records a payment-session error, prefixed with the
@@ -95,14 +98,13 @@ type SessionClass = SignedVerdict | { verdict: "ignore" };
 
 export const classifySession = async (
   session: ValidatedPaymentSession,
-  currency: string,
 ): Promise<SessionClass> => {
   const evaluation = await evaluatePriceProof(session);
   if (evaluation === null || !evaluation.valid) return { verdict: "ignore" };
   // A charge in a currency other than the site's cannot be honored at the
   // signed total — the amount is in the wrong unit — so it is refused like any
   // other mismatch and refunded rather than dropped.
-  if (session.currency !== currency) {
+  if (session.currency !== settings.currency.toUpperCase()) {
     return { agreed: evaluation.total, verdict: "mismatch" };
   }
   return session.amountTotal === evaluation.total
@@ -116,9 +118,8 @@ export const classifySession = async (
  *  so a booking nothing can read is raised for the owner. */
 export const classifySessionIntent = async (
   session: ValidatedPaymentSession,
-  currency: string,
 ): Promise<{ verdict: SignedVerdict; intent: BookingIntent } | null> => {
-  const verdict = await classifySession(session, currency);
+  const verdict = await classifySession(session);
   if (verdict.verdict === "ignore") return null;
   const intent = extractIntent(session);
   if (intent === null) {
@@ -130,30 +131,26 @@ export const classifySessionIntent = async (
   return { intent, verdict };
 };
 
-export const classifyAttemptSession = async (
-  onUnrecognized: () => Response,
-  attempt: PaymentAttempt,
-  session: ValidatedPaymentSession,
-): Promise<
-  | { ok: true; data: { verdict: SignedVerdict; intent: BookingIntent } }
-  | { ok: false; response: Response }
-> => {
-  const data = await classifySessionIntent(session, attempt.currency);
-  return data === null
-    ? { ok: false, response: onUnrecognized() }
-    : { data, ok: true };
-};
-
 export const validatePaidSession = async (
-  attempt: PaymentAttempt,
   sessionId: string,
 ): Promise<SessionValidation> => {
-  const session = await attempt.retrieveSession(sessionId);
+  // An in-flight checkout may complete after the operator switched new sales
+  // off, so resolve the provider that captured the payment rather than the
+  // new-sales gate.
+  const provider = await getPaymentProviderForExistingPayments();
+  if (!provider) {
+    logRedirectError(`No payment provider configured (session=${sessionId})`);
+    return {
+      ok: false,
+      response: paymentErrorResponse("Payment provider not configured"),
+    };
+  }
+
+  const session = await provider.retrieveSession(sessionId);
   if (isSessionRejection(session)) {
     return {
       ok: false,
       response: await answerRejectedSession(
-        attempt,
         session,
         sessionId,
         logRedirectError,
@@ -190,15 +187,13 @@ export const validatePaidSession = async (
   // cannot prove ownership (foreign instance sharing the provider, replayed or
   // corrupt data), so we neither process nor refund it — refunding an
   // unverifiable session could refund another instance's payment.
-  const classified = await classifyAttemptSession(
-    () => {
-      logRedirectError(`Unrecognized payment session (session=${sessionId})`);
-      return paymentErrorResponse("Payment session not recognized");
-    },
-    attempt,
-    session,
-  );
-  return classified.ok
-    ? { data: { session, ...classified.data }, ok: true }
-    : classified;
+  const classified = await classifySessionIntent(session);
+  if (classified === null) {
+    logRedirectError(`Unrecognized payment session (session=${sessionId})`);
+    return {
+      ok: false,
+      response: paymentErrorResponse("Payment session not recognized"),
+    };
+  }
+  return { data: { session, ...classified }, ok: true };
 };

@@ -19,7 +19,6 @@ import {
   mockWebhookRequest,
   withMocks,
 } from "#test-utils/mocks.ts";
-import { stubStripePaymentAttempt } from "#test-utils/payment-attempt.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
@@ -88,8 +87,13 @@ describeWithEnv(
           unitPrice: 1000,
         });
 
-        using _mockVerify = stubStripePaymentAttempt({
-          verifyWebhookSignature: () =>
+        const { stripePaymentProvider } = await import(
+          "#shared/stripe-provider.ts"
+        );
+        using _mockVerify = stub(
+          stripePaymentProvider,
+          "verifyWebhookSignature",
+          () =>
             Promise.resolve({
               listing: checkoutSessionEvent({
                 amountTotal: 1000,
@@ -107,7 +111,7 @@ describeWithEnv(
               }),
               valid: true as const,
             }),
-        });
+        );
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );

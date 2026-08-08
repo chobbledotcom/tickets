@@ -24,9 +24,12 @@ import {
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { isResourceId } from "#shared/payment/resource-id.ts";
 import type { SessionRejection } from "#shared/payment/validated-session.ts";
-import type { PaymentAttempt } from "#shared/payment-attempt.ts";
 import { parsePriceProof, verifyPrice } from "#shared/payment-signature.ts";
-import type { ValidatedPaymentSession } from "#shared/payments.ts";
+import {
+  type ExistingPaymentProvider,
+  getPaymentProviderForExistingPayments,
+  type ValidatedPaymentSession,
+} from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 
 /** User-facing message when the listing price changed between checkout and payment */
@@ -36,6 +39,23 @@ const PRICE_CHANGED_MESSAGE =
 /** The diagnostic message from a failed payment result. */
 export const failureDetail = (result: PaymentFailureResult): string =>
   result.detail ?? result.error;
+
+/**
+ * Resolve the provider for refunding or reconciling an existing payment. Falls
+ * back to the last activated provider when new sales are off, so refunds keep
+ * working after the operator switches new sales off. When none is configured,
+ * log a structured error with the caller's code/detail and return null, so each
+ * caller can pick its own fallback (a false, a 400, ...).
+ */
+export const getPaymentProviderOrLog = async (
+  code: ErrorCodeType,
+  detail: string,
+  listingId?: number,
+): Promise<ExistingPaymentProvider> => {
+  const provider = await getPaymentProviderForExistingPayments();
+  if (!provider) logError({ code, detail, listingId });
+  return provider;
+};
 
 /** What became of a rejected session's charge. `settled` means nothing is left
  *  owing; `refunded` means money actually moved. They are kept apart because
@@ -51,7 +71,6 @@ const NOTHING_TO_REFUND: RejectionOutcome = { refunded: false, settled: true };
  * reference is usable. A blank-reference rejection names no charge to refund.
  */
 export const refundRejectedCharge = async (
-  attempt: PaymentAttempt,
   rejection: SessionRejection,
 ): Promise<RejectionOutcome> => {
   if (rejection.reason === "blank_reference" || !rejection.refundable) {
@@ -68,7 +87,7 @@ export const refundRejectedCharge = async (
   ) {
     return NOTHING_TO_REFUND;
   }
-  const refunded = await tryRefund(attempt, rejection.paymentReference);
+  const refunded = await tryRefund(rejection.paymentReference);
   return { refunded, settled: refunded };
 };
 
@@ -78,12 +97,11 @@ export const refundRejectedCharge = async (
  * acknowledging money that is still out there.
  */
 export const answerRejectedSession = async (
-  attempt: PaymentAttempt,
   rejection: SessionRejection,
   sessionId: string,
   log: (detail: string) => void,
 ): Promise<Response> => {
-  const { refunded, settled } = await refundRejectedCharge(attempt, rejection);
+  const { refunded, settled } = await refundRejectedCharge(rejection);
   log(
     `Session rejected as ${rejection.reason} (session=${sessionId}, refunded: ${refunded})`,
   );
@@ -100,7 +118,6 @@ export const answerRejectedSession = async (
  * Logs an error if refund fails.
  */
 export const tryRefund = async (
-  attempt: PaymentAttempt,
   paymentReference: string,
   listingId?: number,
 ): Promise<boolean> => {
@@ -110,7 +127,14 @@ export const tryRefund = async (
   // a reference that reaches here from a stored or legacy row.
   if (!isResourceId(paymentReference)) return false;
 
-  if (await attempt.refundPayment(paymentReference)) {
+  const provider = await getPaymentProviderOrLog(
+    ErrorCode.PAYMENT_REFUND,
+    "No payment provider configured for refund",
+    listingId,
+  );
+  if (!provider) return false;
+
+  if (await provider.refundPayment(paymentReference)) {
     logDebug("Payment", "Refund issued");
     return true;
   }
@@ -122,7 +146,7 @@ export const tryRefund = async (
   // customer — so confirm via the provider's refund-status query before
   // reporting failure. Without this, a redelivery after a recovered refund would
   // loop on a 503 retry for money already returned.
-  if (await attempt.isPaymentRefunded(paymentReference)) {
+  if (await provider.isPaymentRefunded(paymentReference)) {
     logDebug("Payment", "Payment already fully refunded");
     return true;
   }
@@ -137,16 +161,11 @@ export const tryRefund = async (
 
 /** Attempt refund and log activity if successful */
 const refundAndLog = async (
-  attempt: PaymentAttempt,
   session: ValidatedPaymentSession,
   error: string,
   listingId: number,
 ): Promise<boolean> => {
-  const refunded = await tryRefund(
-    attempt,
-    session.paymentReference,
-    listingId,
-  );
+  const refunded = await tryRefund(session.paymentReference, listingId);
   if (refunded) {
     await logActivity(`Automatic refund: ${error}`, listingId);
   }
@@ -160,14 +179,13 @@ const refundAndLog = async (
  * re-spelled at each site.
  */
 export const refundAndFail = async (
-  attempt: PaymentAttempt,
   session: ValidatedPaymentSession,
   message: string,
   listingId: number,
   status: number | undefined,
   detail?: string,
 ): Promise<PaymentFailureResult> => {
-  const refunded = await refundAndLog(attempt, session, message, listingId);
+  const refunded = await refundAndLog(session, message, listingId);
   return {
     detail,
     error: message,
@@ -184,7 +202,6 @@ export const refundAndFail = async (
  * refund so the customer gets their money back.
  */
 export const validationFailure = (
-  attempt: PaymentAttempt,
   session: ValidatedPaymentSession,
   validation: { error: string; status?: number },
   listingId: number,
@@ -197,30 +214,16 @@ export const validationFailure = (
       success: false,
     };
   }
-  return refundAndFail(
-    attempt,
-    session,
-    validation.error,
-    listingId,
-    validation.status,
-  );
+  return refundAndFail(session, validation.error, listingId, validation.status);
 };
 
 /** Log a price mismatch and refund the session */
 const priceMismatchRefund = (
-  attempt: PaymentAttempt,
   session: ValidatedPaymentSession,
   detail: string,
   listingId: number,
 ): Promise<PaymentResult> =>
-  refundAndFail(
-    attempt,
-    session,
-    PRICE_CHANGED_MESSAGE,
-    listingId,
-    409,
-    detail,
-  );
+  refundAndFail(session, PRICE_CHANGED_MESSAGE, listingId, 409, detail);
 
 /** The internal log line for a charge that didn't match our signed total. */
 const chargedVsSigned = (
@@ -234,14 +237,12 @@ const chargedVsSigned = (
  * total. Defers the alert so a slow ntfy never delays the money.
  */
 export const refuseMismatch = (
-  attempt: PaymentAttempt,
   session: ValidatedPaymentSession,
   agreed: number,
   listingId: number,
 ): Promise<PaymentResult> => {
   addPendingWork(sendNtfyError(ErrorCode.WEBHOOK_PRICE_SIGNATURE));
   return priceMismatchRefund(
-    attempt,
     session,
     chargedVsSigned(session, agreed),
     listingId,

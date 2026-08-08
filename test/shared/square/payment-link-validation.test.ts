@@ -5,7 +5,7 @@ import {
   PaymentUserError,
 } from "#shared/payment-helpers.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
-import type { CreatePaymentLinkInput } from "#shared/square/client.ts";
+import type { CreatePaymentLinkInput } from "#shared/square.ts";
 import { squareApi } from "#shared/square.ts";
 import {
   configureSquare,

@@ -12,14 +12,14 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
-import { setupBoundStripePaymentAttempt } from "#test-utils/payment-attempt.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
 describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
   describe("GET /payment/success (ticket)", () => {
     test("shows thank_you_url for single-ticket success", async () => {
-      using _attempt = await setupBoundStripePaymentAttempt();
+      await setupStripe();
 
       const listing = await createTestListing({
         maxAttendees: 50,
@@ -65,7 +65,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
     });
 
     test("suppresses thank_you_url for a hidden package's sole member", async () => {
-      using _attempt = await setupBoundStripePaymentAttempt();
+      await setupStripe();
 
       const group = await createTestGroup({
         isPackage: true,
@@ -121,7 +121,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
     });
 
     test("suppresses thank_you_url on replay for a hidden package's sole member", async () => {
-      using _attempt = await setupBoundStripePaymentAttempt();
+      await setupStripe();
 
       const group = await createTestGroup({
         isPackage: true,
@@ -184,7 +184,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
     });
 
     test("handles duplicate session replay (already processed)", async () => {
-      using _attempt = await setupBoundStripePaymentAttempt();
+      await setupStripe();
 
       const listing = await createTestListing({
         maxAttendees: 50,
@@ -240,7 +240,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
     });
 
     test("handles single-item cart session replay (shows thank_you_url)", async () => {
-      using _attempt = await setupBoundStripePaymentAttempt();
+      await setupStripe();
 
       const listing = await createTestListing({
         maxAttendees: 50,
@@ -297,7 +297,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
     });
 
     test("handles ticket duplicate session replay (already processed)", async () => {
-      using _attempt = await setupBoundStripePaymentAttempt();
+      await setupStripe();
 
       const listing1 = await createTestListing({
         maxAttendees: 50,

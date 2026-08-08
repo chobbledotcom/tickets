@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { stub } from "@std/testing/mock";
+import { type Stub, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { signBalanceToken } from "#shared/balance-link.ts";
 import { requirePaidDefaultStatus } from "#shared/db/attendee-statuses.ts";
@@ -14,10 +14,6 @@ import {
 import { signMeta, webhookMeta } from "#test-utils/factories.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
-import {
-  joinedStubs,
-  stubStripePaymentAttempt,
-} from "#test-utils/payment-attempt.ts";
 import { testCsrfToken } from "#test-utils/session.ts";
 
 /** A settle identity (session id + business time) for settleAttendeeBalance. */
@@ -120,7 +116,6 @@ export const balanceSession = (
   created: 1_700_000_000,
   currency: "gbp",
   id,
-  livemode: false,
   metadata: {
     ...signMeta(
       webhookMeta({
@@ -141,12 +136,14 @@ export const balanceSession = (
 /** Stub retrieveCheckoutSession to return a {@link balanceSession}. */
 export const stubBalanceSession = (
   ...args: Parameters<typeof balanceSession>
-) => {
-  const session = stub(stripeApi, "retrieveCheckoutSession", () =>
+): Stub<
+  typeof stripeApi,
+  Parameters<typeof stripeApi.retrieveCheckoutSession>,
+  Promise<Awaited<ReturnType<typeof stripeApi.retrieveCheckoutSession>>>
+> =>
+  stub(stripeApi, "retrieveCheckoutSession", () =>
     Promise.resolve(balanceSession(...args)),
   );
-  return joinedStubs(session, stubStripePaymentAttempt());
-};
 
 /** Drive the success webhook for `sessionId` and assert it cleared the balance
  * and flipped the attendee onto the paid default status. */

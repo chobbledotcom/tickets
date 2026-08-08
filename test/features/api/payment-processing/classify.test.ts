@@ -6,7 +6,6 @@ import {
   validatePaidSession,
 } from "#routes/api/payment-processing/classify.ts";
 import type { SessionRejection } from "#shared/payment/validated-session.ts";
-import type { PaymentAttempt } from "#shared/payment-attempt.ts";
 import type {
   SessionMetadata,
   ValidatedPaymentSession,
@@ -15,22 +14,18 @@ import { runWithPendingWork } from "#shared/pending-work.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
-import { testPaymentAttempt } from "#test-utils/payment-attempt.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 /** Makes the provider answer with this checkout — or with nothing, for a
  *  checkout it has never heard of — for as long as the test runs. */
 const providerAnswers = async (
   answer: ValidatedPaymentSession | SessionRejection | null,
-): Promise<PaymentAttempt> => {
+): Promise<Disposable> => {
+  const { stub } = await import("@std/testing/mock");
   const { stripePaymentProvider } = await import("#shared/stripe-provider.ts");
-  return testPaymentAttempt({
-    isPaymentRefunded: (paymentReference) =>
-      stripePaymentProvider.isPaymentRefunded(paymentReference),
-    refundPayment: (paymentReference) =>
-      stripePaymentProvider.refundPayment(paymentReference),
-    retrieveSession: () => Promise.resolve(answer),
-  });
+  return stub(stripePaymentProvider, "retrieveSession", () =>
+    Promise.resolve(answer),
+  );
 };
 
 /** A paid checkout for one ticket at the given price, with a price proof made
@@ -62,7 +57,7 @@ describeWithEnv("telling whether a checkout is ours", { db: true }, () => {
   test("trusts a checkout whose proof and amount both agree", async () => {
     await setupStripe();
 
-    expect(await classifySession(paidSession(), "GBP")).toEqual({
+    expect(await classifySession(paidSession())).toEqual({
       agreed: 500,
       verdict: "trusted",
     });
@@ -73,7 +68,7 @@ describeWithEnv("telling whether a checkout is ours", { db: true }, () => {
     // the money we signed for, which is a refund rather than a booking.
     await setupStripe();
 
-    expect(await classifySession(paidSession({}, 900), "GBP")).toEqual({
+    expect(await classifySession(paidSession({}, 900))).toEqual({
       agreed: 500,
       verdict: "mismatch",
     });
@@ -85,7 +80,7 @@ describeWithEnv("telling whether a checkout is ours", { db: true }, () => {
     // not booked, so the captured money is never stranded.
     await setupStripe();
 
-    expect(await classifySession(paidSession({}, 500, "USD"), "GBP")).toEqual({
+    expect(await classifySession(paidSession({}, 500, "USD"))).toEqual({
       agreed: 500,
       verdict: "mismatch",
     });
@@ -104,7 +99,7 @@ describeWithEnv("telling whether a checkout is ours", { db: true }, () => {
       await setupStripe();
 
       expect(
-        await classifySession(paidSession({ price_proof: priceProof }), "GBP"),
+        await classifySession(paidSession({ price_proof: priceProof })),
       ).toEqual({ verdict: "ignore" });
     });
   }
@@ -114,7 +109,7 @@ describeWithEnv("reading the booking out of a checkout", { db: true }, () => {
   test("hands back the verdict and the booking together", async () => {
     await setupStripe();
 
-    const classified = await classifySessionIntent(paidSession(), "GBP");
+    const classified = await classifySessionIntent(paidSession());
 
     expect(classified?.verdict).toEqual({ agreed: 500, verdict: "trusted" });
     expect(classified?.intent.items).toEqual([{ e: 1, p: 500, q: 1 }]);
@@ -123,9 +118,9 @@ describeWithEnv("reading the booking out of a checkout", { db: true }, () => {
   test("says nothing about a checkout we cannot show is ours", async () => {
     await setupStripe();
 
-    expect(
-      await classifySessionIntent(paidSession({ price_proof: "" }), "GBP"),
-    ).toBe(null);
+    expect(await classifySessionIntent(paidSession({ price_proof: "" }))).toBe(
+      null,
+    );
   });
 
   test("raises a checkout that is ours but whose booking will not read", async () => {
@@ -148,7 +143,6 @@ describeWithEnv("reading the booking out of a checkout", { db: true }, () => {
             500,
           ),
         ),
-        "GBP",
       ),
     );
 
@@ -172,12 +166,27 @@ const loggedAbout = async (step: string, words: string): Promise<boolean> =>
   );
 
 describeWithEnv("checking a checkout before it is used", { db: true }, () => {
+  test("refuses when no payment provider is set up", async () => {
+    const result = await runWithPendingWork(() =>
+      validatePaidSession("cs_no_provider"),
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("Expected the check to refuse");
+    expect(await result.response.text()).toContain(
+      "Payment provider not configured",
+    );
+    expect(
+      await loggedAbout("redirect", "No payment provider configured"),
+    ).toBe(true);
+  });
+
   test("refuses a checkout the provider has never heard of", async () => {
     await setupStripe();
-    const attempt = await providerAnswers(null);
+    using _provider = await providerAnswers(null);
 
     const result = await runWithPendingWork(() =>
-      validatePaidSession(attempt, "cs_missing"),
+      validatePaidSession("cs_missing"),
     );
 
     expect(result.ok).toBe(false);
@@ -192,7 +201,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
     await setupStripe();
     const { stripeApi } = await import("#shared/stripe.ts");
     const { stub } = await import("@std/testing/mock");
-    const attempt = await providerAnswers({
+    using _provider = await providerAnswers({
       metadata: signedMeta(
         { email: "refunded@example.com", items: "[]", name: "Refunded" },
         500,
@@ -208,7 +217,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
     );
 
     const result = await runWithPendingWork(() =>
-      validatePaidSession(attempt, "cs_refunded"),
+      validatePaidSession("cs_refunded"),
     );
 
     expect(result.ok).toBe(false);
@@ -234,7 +243,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
   // error telling them to contact support.
   test("shows the cancelled page when the checkout failed", async () => {
     await setupStripe();
-    const attempt = await providerAnswers({
+    using _provider = await providerAnswers({
       amountTotal: 0,
       currency: "GBP",
       id: "cs_failed",
@@ -246,7 +255,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
       paymentStatus: "failed" as const,
     });
 
-    const result = await validatePaidSession(attempt, "cs_failed");
+    const result = await validatePaidSession("cs_failed");
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("Expected the check to refuse");
@@ -256,7 +265,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
 
   test("refuses a checkout the provider does not call paid", async () => {
     await setupStripe();
-    const attempt = await providerAnswers({
+    using _provider = await providerAnswers({
       amountTotal: 500,
       currency: "GBP",
       id: "cs_unpaid",
@@ -266,7 +275,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
     });
 
     const result = await runWithPendingWork(() =>
-      validatePaidSession(attempt, "cs_unpaid"),
+      validatePaidSession("cs_unpaid"),
     );
 
     expect(result.ok).toBe(false);
@@ -281,10 +290,10 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
 
   test("refuses a paid checkout we cannot show is ours", async () => {
     await setupStripe();
-    const attempt = await providerAnswers(paidSession({ price_proof: "" }));
+    using _provider = await providerAnswers(paidSession({ price_proof: "" }));
 
     const result = await runWithPendingWork(() =>
-      validatePaidSession(attempt, "cs_foreign"),
+      validatePaidSession("cs_foreign"),
     );
 
     expect(result.ok).toBe(false);
@@ -299,9 +308,9 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
 
   test("passes on the checkout, its verdict, and its booking", async () => {
     await setupStripe();
-    const attempt = await providerAnswers(paidSession());
+    using _provider = await providerAnswers(paidSession());
 
-    const result = await validatePaidSession(attempt, "cs_classify");
+    const result = await validatePaidSession("cs_classify");
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("Expected the check to pass");

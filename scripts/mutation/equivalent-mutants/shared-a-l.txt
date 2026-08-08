@@ -68,6 +68,9 @@ src/shared/db/admin-features.ts::requireSettingCondition.args~1i6rv6b  __require
 src/shared/db/admin-features.ts::requireSettingCondition.args~1i6rv6b  __required_setting_condition__ → "__required_setting_condition__ mutated"   # same as above; no successful statement exposes this key
 src/shared/db/admin-features.ts::usageJsonEntry~0041kmq  ?? → ||   # inUseSql: a non-empty SQL string|undefined, so only undefined reaches the fallback
 src/shared/db/migrations/schema/admin-feature-triggers.ts::featureWriteTrigger.uses.source%2etable~0toeppz  ?? → ||   # source.columns is undefined or an array; every array, including [], is truthy
+src/shared/square-provider.ts::squarePaymentProvider.isPaymentRefunded.charged~0ek3sg6  ?? → ||   # amount is bigint|undefined, and its only falsy bigint is 0n, which equals the fallback
+src/shared/square-provider.ts::squarePaymentProvider.isPaymentRefunded.refunded~1mw8ezt  ?? → ||   # refunded amount is bigint|undefined, and its only falsy bigint is 0n, which equals the fallback
+src/shared/square-provider.ts::squarePaymentProvider.resolveWebhookSession~08j5olw  ?? → ||   # retrieveSession returns a session object or null, so every present value is truthy
 
 # Invariant-based, confirmed by reading toUnits: `lineIdxs` comes from toUnits,
 # which assigns lineIdx as the flatMap array index, so the sort's input is

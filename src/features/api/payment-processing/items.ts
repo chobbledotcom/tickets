@@ -27,7 +27,6 @@ import {
   standaloneLineListingIds,
 } from "#shared/booking/signed-metadata.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
-import type { PaymentAttempt } from "#shared/payment-attempt.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 
@@ -103,7 +102,6 @@ const bookingPaths = (intent: BookingIntent): BookingPaths => {
 
 /** Validate all booking items and return per-item pricing info or a failure result. */
 export const validateAllItems = async (
-  attempt: PaymentAttempt,
   session: ValidatedPaymentSession,
   intent: BookingIntent,
   snapshot: PaidOrderSnapshot,
@@ -164,7 +162,7 @@ export const validateAllItems = async (
       listingsById.get(item.e),
       includeListingName,
     );
-    if (!vp.ok) return validationFailure(attempt, session, vp, item.e);
+    if (!vp.ok) return validationFailure(session, vp, item.e);
     const itemGroupId = lineGroupId(item);
     // `null` here means "fail closed" (the line is no longer a valid package
     // member); it is carried through so the price-mismatch pass refunds it via

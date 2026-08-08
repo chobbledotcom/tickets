@@ -3,7 +3,13 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
+import {
+  ALL_SETTINGS_KEYS,
+  CONFIG_KEYS,
+  settings,
+} from "#shared/db/settings.ts";
 import { stripeApi } from "#shared/stripe.ts";
+import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestListing,
@@ -133,6 +139,55 @@ describeWithEnv(
       } finally {
         mockVerify.restore();
         refundStub.restore();
+      }
+    });
+
+    test("tryRefund logs error when no payment provider is configured", async () => {
+      await setupStripe();
+
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        name: "WH Tryrefund Noprov",
+        unitPrice: 500,
+      });
+      await deactivateTestListing(listing.id);
+
+      const event = checkoutSessionEvent({
+        amountTotal: 500,
+        eventId: "evt_tryrefund_noprov",
+        metadata: signedMeta(
+          {
+            email: "noprov@example.com",
+            items: singleItem(listing.id, 1, 500),
+            name: "No Provider",
+          },
+          500,
+        ),
+        paymentIntent: "pi_tryrefund_noprov",
+        sessionId: "cs_tryrefund_noprov",
+      });
+      // The provider disappears after the initial webhook check but before the
+      // refund attempt. The refund stays retryable when no fallback resolves.
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        async () => {
+          await settings.update.setPaymentProviderNone();
+          await settings.update.stripe.secretKey("");
+          await settings.setRaw(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, "");
+          settings.invalidateCache();
+          await settings.loadKeys(ALL_SETTINGS_KEYS);
+          return { listing: event, valid: true as const };
+        },
+      );
+
+      try {
+        // The payment has a reference but the refund couldn't go through (no
+        // provider), so it is retryable: 5xx for the provider to re-deliver once
+        // reconfigured, rather than ack a still-charged customer.
+        expect(await postWebhookForRetry()).toContain("no longer accepting");
+      } finally {
+        mockVerify.restore();
       }
     });
 

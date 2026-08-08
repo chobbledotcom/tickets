@@ -18,7 +18,6 @@ import { stubRefundPayment } from "#test-utils/webhooks.ts";
 import {
   expectStoredRefund,
   ledgeredPaymentWithoutReservation,
-  paymentAttempt,
   singleListingPayment,
 } from "./helpers.ts";
 
@@ -27,16 +26,14 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     const id = "cs_direct_booking";
     const { data, listing } = await singleListingPayment(id, 1000);
 
-    const first = await processPaymentSession(paymentAttempt, id, data);
+    const first = await processPaymentSession(id, data);
     expect(first.success).toBe(true);
     if (!first.success) throw new Error(first.error);
     expect(first.listingId).toBe(listing.id);
     expect(first.ticketTokens).toHaveLength(1);
     expect(first.ticketTokens[0]).toMatch(/^[A-Za-z0-9_-]+$/);
 
-    expect(await processPaymentSession(paymentAttempt, id, data)).toEqual(
-      first,
-    );
+    expect(await processPaymentSession(id, data)).toEqual(first);
     const attendees = await getAttendeesRaw(listing.id);
     expect(attendees).toHaveLength(1);
     expect(attendees[0]?.quantity).toBe(1);
@@ -50,9 +47,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     const id = "cs_direct_booking_budget";
     const { data } = await singleListingPayment(id, 1000);
     const calls = await countDatabaseCalls(4, async () => {
-      expect(
-        (await processPaymentSession(paymentAttempt, id, data)).success,
-      ).toBe(true);
+      expect((await processPaymentSession(id, data)).success).toBe(true);
     });
     expect(calls).toBe(4);
   });
@@ -72,9 +67,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     await listingQuestions.setIds(listing.id, [question.id]);
     data.intent.listingAnswerIds = { [String(listing.id)]: [answer.id] };
     const calls = await countDatabaseCalls(5, async () => {
-      expect(
-        (await processPaymentSession(paymentAttempt, id, data)).success,
-      ).toBe(true);
+      expect((await processPaymentSession(id, data)).success).toBe(true);
     });
     expect(calls).toBe(5);
   });
@@ -86,7 +79,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     setSuppressDebugLogs(false);
     using debug = spy(console, "debug");
     try {
-      expect(await processPaymentSession(paymentAttempt, id, data)).toEqual({
+      expect(await processPaymentSession(id, data)).toEqual({
         attendee: { id: attendeeId },
         listingId: listing.id,
         success: true,
@@ -116,7 +109,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     ]);
     await execute("DELETE FROM attendees WHERE id = ?", [attendeeId]);
 
-    expect(await processPaymentSession(paymentAttempt, id, data)).toEqual({
+    expect(await processPaymentSession(id, data)).toEqual({
       detail: `Ledger already records session ${id} with no live booking (listing ${listing.id})`,
       error: "This payment has already been processed.",
       status: 200,
@@ -132,7 +125,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     await execute("DELETE FROM listings WHERE id = ?", [listing.id]);
     using refund = stubRefundPayment("re_deleted");
 
-    const result = await processPaymentSession(paymentAttempt, id, data);
+    const result = await processPaymentSession(id, data);
     expect(result).toEqual({
       detail: `Listing not found for a signed session (session=${id})`,
       error:
@@ -158,7 +151,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     data.verdict = { agreed: 900, verdict: "mismatch" };
     using refund = stubRefundPayment("re_mismatch");
 
-    const result = await processPaymentSession(paymentAttempt, id, data);
+    const result = await processPaymentSession(id, data);
     await expectStoredRefund(
       result,
       {

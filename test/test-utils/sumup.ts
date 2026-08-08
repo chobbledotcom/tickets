@@ -7,7 +7,6 @@ import {
   setSumupCheckoutId,
   storeSumupCheckout,
 } from "#shared/db/sumup-checkouts.ts";
-import type { SumupCheckoutResponse } from "#shared/sumup/schemas.ts";
 import { type SumupCheckout, sumupApi } from "#shared/sumup.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
@@ -57,39 +56,6 @@ export const sumupCheckout = (
   transactionId: "txn",
   ...over,
 });
-
-/** A complete checkout response shaped like SumUp's reviewed sandbox bodies. */
-export const sumupCheckoutResponse = (
-  over: Partial<SumupCheckoutResponse> = {},
-): SumupCheckoutResponse => ({
-  amount: 10,
-  checkout_reference: "ref",
-  currency: "GBP",
-  id: "checkout-id",
-  merchant_code: "MC123",
-  status: "PAID",
-  transaction_id: "txn",
-  transactions: [
-    {
-      amount: 10,
-      currency: "GBP",
-      id: "txn",
-      merchant_code: "MC123",
-      status: "SUCCESSFUL",
-    },
-  ],
-  ...over,
-});
-
-/** Read one reviewed SumUp sandbox response fixture. */
-export const sumupSandboxFixture = async (
-  name: "failed" | "paid" | "pending" | "refunded",
-): Promise<Record<string, unknown>> =>
-  JSON.parse(
-    await Deno.readTextFile(
-      new URL(`../fixtures/sumup/sandbox/${name}.json`, import.meta.url),
-    ),
-  );
 
 /** Stage {@link SUMUP_META} for reference "ref" mapped to SumUp id "co_1". */
 export const stageSumupCheckout = async (): Promise<void> => {

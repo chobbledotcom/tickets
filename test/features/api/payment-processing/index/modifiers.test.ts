@@ -6,7 +6,7 @@ import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { expectModifierUsage } from "#test-utils/modifiers.ts";
-import { bookingIntent, paymentAttempt, trustedPayment } from "./helpers.ts";
+import { bookingIntent, trustedPayment } from "./helpers.ts";
 
 describeWithEnv("payment processing modifiers", { db: true }, () => {
   test("records and logs a code discount after the booking commits", async () => {
@@ -27,11 +27,7 @@ describeWithEnv("payment processing modifiers", { db: true }, () => {
     });
 
     expect(
-      await processPaymentSession(
-        paymentAttempt,
-        id,
-        trustedPayment(id, intent, 900),
-      ),
+      await processPaymentSession(id, trustedPayment(id, intent, 900)),
     ).toMatchObject({ listingId: listing.id, success: true });
     await expectModifierUsage(modifier.id, 100, {
       totalRevenue: -100,

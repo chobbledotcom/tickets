@@ -14,7 +14,7 @@ import {
   expectPackageBookingAccepted,
   submitPackageBooking,
 } from "#test-utils/packages.ts";
-import { setupBoundStripePaymentAttempt } from "#test-utils/payment-attempt.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 /** The REAL booking rows for a listing (a refunded order's quantity-0
  * placeholder is not a booking), newest first, with their parent allocation. */
@@ -264,7 +264,7 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
   });
 
   test("a paid package books the folded child on the signed allocation", async () => {
-    using _attempt = await setupBoundStripePaymentAttempt();
+    await setupStripe();
     const { child, group, other, parent } = await packageWithChild(
       "Paid Kit",
       "paid-kit-pkg",
@@ -301,7 +301,7 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
   });
 
   test("a child edge removed mid-checkout refunds instead of booking a stale bundle", async () => {
-    using _attempt = await setupBoundStripePaymentAttempt();
+    await setupStripe();
     const { stub } = await import("@std/testing/mock");
     const { child, group, other, parent } = await packageWithChild(
       "Drift Kit",
@@ -347,7 +347,7 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
   });
 
   test("a child edge added mid-checkout refunds instead of booking without the add-on", async () => {
-    using _attempt = await setupBoundStripePaymentAttempt();
+    await setupStripe();
     const { stub } = await import("@std/testing/mock");
     const { createTestGroup } = await import(
       "#test-utils/db-helpers/groups.ts"

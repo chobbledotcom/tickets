@@ -1,7 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { formatPaymentError } from "#routes/api/payment-processing/format-error.ts";
-import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
+import {
+  formatPaymentError,
+  processPaymentSession,
+} from "#routes/api/payment-processing/index.ts";
 import {
   markSessionFailed,
   reserveSession,
@@ -10,7 +12,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
-import { bookingIntent, paymentAttempt, trustedPayment } from "./helpers.ts";
+import { bookingIntent, trustedPayment } from "./helpers.ts";
 
 const failure = (refunded?: boolean) => ({
   error: "Booking failed.",
@@ -45,7 +47,7 @@ describeWithEnv(
       );
       await reserveSession(id);
 
-      expect(await processPaymentSession(paymentAttempt, id, data)).toEqual({
+      expect(await processPaymentSession(id, data)).toEqual({
         error: "Payment is being processed. Please wait a moment and refresh.",
         status: 409,
         success: false,
@@ -70,7 +72,6 @@ describeWithEnv(
 
       expect(
         await processPaymentSession(
-          paymentAttempt,
           id,
           trustedPayment(
             id,
@@ -101,7 +102,6 @@ describeWithEnv(
 
       expect(
         await processPaymentSession(
-          paymentAttempt,
           id,
           trustedPayment(
             id,

@@ -14,7 +14,6 @@ import {
 } from "#test-utils/assertions.ts";
 import { signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
-import { stubStripePaymentAttempt } from "#test-utils/payment-attempt.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 // jscpd:ignore-end
 
@@ -44,7 +43,6 @@ export const withStripeSuccess = async (
   order: StripeOrder,
   body: (response: Response) => Promise<void>,
 ): Promise<void> => {
-  using _attempt = stubStripePaymentAttempt();
   const sessionId = order.sessionId;
   const metadata = signMeta(
     {

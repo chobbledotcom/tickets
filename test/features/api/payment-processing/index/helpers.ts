@@ -11,19 +11,7 @@ import { execute } from "#shared/db/client.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { webhookMeta } from "#test-utils/factories.ts";
-import { testPaymentAttempt } from "#test-utils/payment-attempt.ts";
 import { expectSessionFailed } from "#test-utils/processed-payments.ts";
-
-export const paymentAttempt = testPaymentAttempt({
-  isPaymentRefunded: async (paymentReference) =>
-    (
-      await import("#shared/stripe-provider.ts")
-    ).stripePaymentProvider.isPaymentRefunded(paymentReference),
-  refundPayment: async (paymentReference) =>
-    (
-      await import("#shared/stripe-provider.ts")
-    ).stripePaymentProvider.refundPayment(paymentReference),
-});
 
 export const bookingIntent = (
   items: BookingItem[],
@@ -96,7 +84,7 @@ export const ledgeredPaymentWithoutReservation = async (
   }
 > => {
   const payment = await singleListingPayment(id, unitPrice);
-  const first = await processPaymentSession(paymentAttempt, id, payment.data);
+  const first = await processPaymentSession(id, payment.data);
   assert(first.success, "Expected first payment to succeed");
   await execute("DELETE FROM processed_payments WHERE payment_session_id = ?", [
     id,

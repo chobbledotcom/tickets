@@ -14,7 +14,7 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
-import { setupBoundStripePaymentAttempt } from "#test-utils/payment-attempt.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 /** Assert every package member's most recent booking landed on `date` and
  *  carries the package's group id — the shared check for a dated package
@@ -40,7 +40,7 @@ const expectMembersBookedOnDate = async (
 describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
   describe("GET /payment/success (ticket)", () => {
     test("processes ticket payment success", async () => {
-      using _attempt = await setupBoundStripePaymentAttempt();
+      await setupStripe();
 
       const listing1 = await createTestListing({
         maxAttendees: 50,
@@ -108,7 +108,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       // The webhook/redirect package path threads intent.packageGroupId onto the
       // created booking rows, so tickets/emails group the order by the persisted
       // id rather than membership equality.
-      using _attempt = await setupBoundStripePaymentAttempt();
+      await setupStripe();
       const { getDb } = await import("#shared/db/client.ts");
       const group = await createTestGroup({
         isPackage: true,
@@ -166,7 +166,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       // A dated package rides the order-level `date` metadata; the webhook's
       // tree revalidation must accept the tagged dated lines (no false drift)
       // and persist each member's row on that date.
-      using _attempt = await setupBoundStripePaymentAttempt();
+      await setupStripe();
       const { addDays } = await import("#shared/dates.ts");
       const { todayInTz } = await import("#shared/timezone.ts");
       const group = await createTestGroup({
@@ -233,7 +233,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       // own 1200); the hut keeps its own 2-day price. The webhook's
       // expectedItemPrice must re-derive both from CURRENT config — a mismatch
       // would refund instead of booking.
-      using _attempt = await setupBoundStripePaymentAttempt();
+      await setupStripe();
       const { addDays } = await import("#shared/dates.ts");
       const { todayInTz } = await import("#shared/timezone.ts");
       const { setGroupPackageMembers } = await import("#shared/db/groups.ts");
@@ -308,7 +308,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
     });
 
     test("returns error for invalid ticket metadata", async () => {
-      using _attempt = await setupBoundStripePaymentAttempt();
+      await setupStripe();
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({

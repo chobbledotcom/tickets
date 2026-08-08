@@ -1,11 +1,11 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
-import { stubStripePaymentAttempt } from "#test-utils/payment-attempt.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
@@ -60,13 +60,18 @@ describeWithEnv("server webhooks > signature validation", { db: true }, () => {
   test("returns 400 when signature verification fails", async () => {
     await setupStripe();
 
-    const mockVerify = stubStripePaymentAttempt({
-      verifyWebhookSignature: () =>
+    const { stripePaymentProvider } = await import(
+      "#shared/stripe-provider.ts"
+    );
+    const mockVerify = stub(
+      stripePaymentProvider,
+      "verifyWebhookSignature",
+      () =>
         Promise.resolve({
           error: "Invalid signature",
           valid: false,
         }),
-    });
+    );
 
     try {
       const response = await handleRequest(

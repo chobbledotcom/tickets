@@ -239,11 +239,8 @@ export const stubWebhookVerify = async (listingData: {
   type: string;
   data: { object: Record<string, unknown> };
 }) => {
-  const { stubStripePaymentAttempt } = await import(
-    "#test-utils/payment-attempt.ts"
+  const { stripePaymentProvider } = await import("#shared/stripe-provider.ts");
+  return stub(stripePaymentProvider, "verifyWebhookSignature", () =>
+    Promise.resolve({ listing: listingData, valid: true as const }),
   );
-  return stubStripePaymentAttempt({
-    verifyWebhookSignature: () =>
-      Promise.resolve({ listing: listingData, valid: true as const }),
-  });
 };

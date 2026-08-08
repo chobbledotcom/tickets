@@ -24,7 +24,6 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
-import { testPaymentAttempt } from "#test-utils/payment-attempt.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   stubRefundPayment,
@@ -100,17 +99,6 @@ const mockSession = (id: string): ValidatedPaymentSession => ({
   metadata: webhookMeta({ name: "Buyer" }),
   paymentReference: `pi_${id}`,
   paymentStatus: "paid",
-});
-
-const refundAttempt = testPaymentAttempt({
-  isPaymentRefunded: async (reference) =>
-    (
-      await import("#shared/stripe-provider.ts")
-    ).stripePaymentProvider.isPaymentRefunded(reference),
-  refundPayment: async (reference) =>
-    (
-      await import("#shared/stripe-provider.ts")
-    ).stripePaymentProvider.refundPayment(reference),
 });
 
 const stubStripeRefund = async (
@@ -277,7 +265,14 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
   });
 
   test("tryRefund returns false for an empty payment reference", async () => {
-    expect(await tryRefund(refundAttempt, "")).toBe(false);
+    expect(await tryRefund("")).toBe(false);
+  });
+
+  test("tryRefund logs the provider-missing detail when no provider is configured", async () => {
+    expect(await tryRefund("pi_no_provider")).toBe(false);
+    expect(
+      errorLogged(errorSpy, "No payment provider configured for refund"),
+    ).toBe(true);
   });
 
   /** Direct `tryRefund` return-value pins the redirect tests do not own. */
@@ -296,9 +291,9 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
       await setupStripe();
       const restore = await stubStripeRefund(refundSucceeds, alreadyRefunded);
       try {
-        expect(
-          await tryRefund(refundAttempt, `pi_${name.replace(/\s/g, "_")}`),
-        ).toBe(expected);
+        expect(await tryRefund(`pi_${name.replace(/\s/g, "_")}`)).toBe(
+          expected,
+        );
       } finally {
         restore();
       }
@@ -307,7 +302,6 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
 
   test("validationFailure short-circuits 404 without refunding", () => {
     const result = validationFailure(
-      refundAttempt,
       mockSession("cs_404"),
       { error: "Listing not found", status: 404 },
       1,
@@ -325,7 +319,6 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
     const restore = await stubStripeRefund(true, false);
     try {
       const result = await validationFailure(
-        refundAttempt,
         mockSession("cs_410"),
         { error: "no longer accepting", status: 410 },
         1,
@@ -341,12 +334,7 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
     await setupStripe();
     const restore = await stubStripeRefund(true, false);
     try {
-      const result = await refuseMismatch(
-        refundAttempt,
-        mockSession("cs_price"),
-        1000,
-        1,
-      );
+      const result = await refuseMismatch(mockSession("cs_price"), 1000, 1);
       expect(result.success).toBe(false);
       if (result.success) throw new Error("expected a failure result");
       expect(result.refunded).toBe(true);

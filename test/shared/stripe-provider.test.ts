@@ -166,30 +166,6 @@ describeStripe("stripe-provider", () => {
       );
     });
 
-    test("uses the id from an expanded PaymentIntent", async () => {
-      const client = await stripeClient();
-      await whileRetrieving(
-        client,
-        () =>
-          Promise.resolve(
-            stripeCheckoutSession({
-              metadata: {
-                email: "expanded@example.com",
-                items: '[{"e":1,"q":1}]',
-                name: "Expanded Intent",
-              },
-              payment_intent: { id: "pi_expanded" },
-            }),
-          ),
-        async () => {
-          expect(
-            asSession(await stripePaymentProvider.retrieveSession("cs_test"))
-              .paymentReference,
-          ).toBe("pi_expanded");
-        },
-      );
-    });
-
     test("returns valid session for single-listing checkout", async () => {
       const client = await stripeClient();
       await whileRetrieving(

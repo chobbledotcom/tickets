@@ -51,14 +51,12 @@ import {
   reserveSession,
 } from "#shared/db/processed-payments.ts";
 import { logDebug } from "#shared/logger.ts";
-import type { PaymentAttempt } from "#shared/payment-attempt.ts";
 import type { BookingLedgerDisposition } from "#shared/session-ledger.ts";
 
 /** The shared shape of the two-phase session processors: reserve/process a paid
  * session by id, given its validated data, and resolve to a {@link
  * PaymentResult}. */
 type SessionProcessor = (
-  attempt: PaymentAttempt,
   sessionId: string,
   data: ValidatedSession,
 ) => Promise<PaymentResult>;
@@ -175,7 +173,6 @@ const replayBalanceFromLedger = async (
     : null;
 
 const processNewBookingSession = async (
-  attempt: PaymentAttempt,
   sessionId: string,
   data: ValidatedSession,
   signedListingId: number,
@@ -197,7 +194,7 @@ const processNewBookingSession = async (
   if (replay) return replay;
 
   // Phase 2: Validate listings.
-  const validated = await validateAllItems(attempt, session, intent, snapshot);
+  const validated = await validateAllItems(session, intent, snapshot);
   if ("success" in validated) {
     // A trusted session (we signed it) whose listing was deleted between checkout
     // and payment. listing_attendees has no FK to listings, so we still keep a
@@ -209,7 +206,6 @@ const processNewBookingSession = async (
     // else) never reaches here.
     if (validated.status === 404) {
       return storeRefundedBooking(
-        attempt,
         session,
         intent,
         datelessGhostBookings(intent.items),
@@ -245,7 +241,6 @@ const processNewBookingSession = async (
       : paidPricingRefund(validatedItems, pricedOrder, verdict.agreed);
   if (knownRefund) {
     return storeRefundedBooking(
-      attempt,
       session,
       intent,
       placeholders,
@@ -283,7 +278,6 @@ const processNewBookingSession = async (
   );
   if (honoured.ok === null) {
     return recoverOrRefundUnexpectedCreate({
-      attempt,
       complete,
       error: honoured.error,
       intent,
@@ -296,7 +290,6 @@ const processNewBookingSession = async (
   }
   if (!honoured.ok) {
     return storeRefundedBooking(
-      attempt,
       session,
       intent,
       placeholders,
@@ -321,11 +314,7 @@ const processNewBookingSession = async (
  * records it so a later redirect/webhook replays the same result instead of
  * re-running refunds or stalling behind the idempotency lock.
  */
-const processReservedSession: SessionProcessor = async (
-  attempt,
-  sessionId,
-  data,
-) => {
+const processReservedSession: SessionProcessor = async (sessionId, data) => {
   const { session, intent, verdict } = data;
   const signedListingId = intent.items[0]!.e;
   if (intent.balanceAttendeeId) {
@@ -340,15 +329,14 @@ const processReservedSession: SessionProcessor = async (
     );
     if (replay) return replay;
     if (verdict.verdict === "mismatch") {
-      return refuseMismatch(attempt, session, verdict.agreed, signedListingId);
+      return refuseMismatch(session, verdict.agreed, signedListingId);
     }
-    return settleBalanceSession(attempt, sessionId, session, intent);
+    return settleBalanceSession(sessionId, session, intent);
   }
-  return processNewBookingSession(attempt, sessionId, data, signedListingId);
+  return processNewBookingSession(sessionId, data, signedListingId);
 };
 
 export const processPaymentSession: SessionProcessor = async (
-  attempt,
   sessionId,
   data,
 ) => {
@@ -358,7 +346,7 @@ export const processPaymentSession: SessionProcessor = async (
     return handleReservationConflict(data.intent, reservation.existing);
   }
 
-  const result = await processReservedSession(attempt, sessionId, data);
+  const result = await processReservedSession(sessionId, data);
 
   // A refund of a real payment that FAILED must stay retryable, and the very
   // next provider redelivery should re-attempt it. Releasing the reservation
@@ -391,4 +379,17 @@ export const processPaymentSession: SessionProcessor = async (
   }
 
   return result;
+};
+
+/**
+ * Format error message based on refund status
+ */
+export const formatPaymentError = (result: PaymentFailureResult): string => {
+  if (result.refunded === true) {
+    return `${result.error} Your payment has been automatically refunded.`;
+  }
+  if (result.refunded === false) {
+    return `${result.error} Please contact support for a refund.`;
+  }
+  return result.error;
 };

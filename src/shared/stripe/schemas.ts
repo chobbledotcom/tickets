@@ -20,9 +20,8 @@ type StripeCheckoutSessionFields = {
    *  a missing currency is never defaulted to the site's. */
   currency?: string | null;
   id: string;
-  livemode: boolean;
   metadata: Stripe.Checkout.Session["metadata"];
-  payment_intent: string | Pick<Stripe.PaymentIntent, "id"> | null;
+  payment_intent: string | null;
   payment_status: (typeof StripePaymentStatuses)[number];
   url: string | null;
 };
@@ -32,11 +31,8 @@ export const StripeCheckoutSessionSchema = v.object({
   created: v.number(),
   currency: v.optional(v.nullable(v.string())),
   id: NonEmptyTextSchema,
-  livemode: v.boolean(),
   metadata: MetadataSchema,
-  payment_intent: v.nullable(
-    v.union([NonEmptyTextSchema, v.object({ id: NonEmptyTextSchema })]),
-  ),
+  payment_intent: NonEmptyNullableStringSchema,
   payment_status: StripePaymentStatusSchema,
   url: NonEmptyNullableStringSchema,
 }) as v.GenericSchema<unknown, StripeCheckoutSessionFields>;

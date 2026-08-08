@@ -16,10 +16,8 @@ import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
 import { queryBatchPrimary, resultRows } from "#shared/db/client.ts";
 import { UNRESOLVED_RESERVATION } from "#shared/db/processed-payments.ts";
-import type { PaymentAttempt } from "#shared/payment-attempt.ts";
 
 type UnexpectedCreateRecovery = {
-  attempt: PaymentAttempt;
   complete: (
     entries: CreatedEntry[],
     ticketTokens: string[],
@@ -71,7 +69,6 @@ const loadRecoveryFacts = async (
 /** Resolve an uncertain atomic create from primary state. Refund only when the
  * unresolved reservation and missing prepared token prove the batch rolled back. */
 export const recoverOrRefundUnexpectedCreate = async ({
-  attempt,
   complete,
   error,
   intent,
@@ -96,7 +93,6 @@ export const recoverOrRefundUnexpectedCreate = async ({
   }
   if (decision.kind === "rethrow") throw error;
   return storeRefundedBooking(
-    attempt,
     session,
     intent,
     placeholders,

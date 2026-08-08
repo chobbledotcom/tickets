@@ -10,7 +10,6 @@ import { squarePaymentProvider } from "#shared/square-provider.ts";
 import { configureSquare } from "#test/test-utils/square/fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockWebhookRequest, withMocks } from "#test-utils/mocks.ts";
-import { stubProviderPaymentAttempt } from "#test-utils/payment-attempt.ts";
 
 // jscpd:ignore-end
 
@@ -30,12 +29,11 @@ describeWithEnv("Square payment webhooks", { db: true }, () => {
 
     await withMocks(
       () => ({
-        attempt: stubProviderPaymentAttempt(squarePaymentProvider, {
-          verifyWebhookSignature: () =>
-            Promise.resolve({ listing: event, valid: true as const }),
-        }),
         order: stub(squareApi, "retrieveOrder"),
         payment: stub(squareApi, "retrievePayment"),
+        verify: stub(squarePaymentProvider, "verifyWebhookSignature", () =>
+          Promise.resolve({ listing: event, valid: true as const }),
+        ),
       }),
       async ({ order, payment }) => {
         const response = await handleRequest(

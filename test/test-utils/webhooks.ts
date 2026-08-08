@@ -1,12 +1,8 @@
 import { expect } from "@std/expect";
-import { stub } from "@std/testing/mock";
+import { type Stub, stub } from "@std/testing/mock";
 import type { SessionMetadata } from "#shared/payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import type { Attendee } from "#shared/types.ts";
-import {
-  joinedStubs,
-  stubStripePaymentAttempt,
-} from "#test-utils/payment-attempt.ts";
 import { expectSessionFailed } from "#test-utils/processed-payments.ts";
 import { assertJson } from "./assertions.ts";
 import { signedMeta } from "./factories.ts";
@@ -45,7 +41,6 @@ export const checkoutSessionEvent = (opts: {
       created: opts.created ?? 1_700_000_000,
       currency: "gbp",
       id: opts.sessionId,
-      livemode: false,
       metadata: opts.metadata,
       payment_intent:
         opts.paymentIntent === undefined
@@ -62,7 +57,9 @@ export const checkoutSessionEvent = (opts: {
 /**
  * POST the standard signed webhook request and assert its JSON response,
  * then always run `cleanup` (typically restoring the `verifyWebhookSignature`
- * stub, and any other stub the test installed).
+ * stub, and any other stub the test installed) — the
+ * `try { await assertJson(handleRequest(mockWebhookRequest(...))) } finally {
+ * ...restore() }` scaffold that wraps nearly every `server-webhooks` test.
  * Currying the differing parts (expected status, JSON assertions, the
  * cleanup callback, and — rarely — a non-default signature header) here
  * keeps that scaffold defined once instead of hand-copied at every call site.
@@ -128,7 +125,10 @@ const stubAndPostWebhook = async <T = Record<string, unknown>>(
 
 /**
  * The "happy path" webhook assertion: assert the webhook was processed
- * successfully. This is the common successful `server-webhooks` test shape.
+ * successfully. This is the single most common `server-webhooks` test shape —
+ * dozens of tests across many topics (modifiers, promo codes,
+ * customisable-days pricing, can_pay_more boundaries, ...) end with exactly
+ * this outcome.
  */
 export const expectWebhookProcessed = async (
   event: Parameters<typeof stubWebhookVerify>[0],
@@ -312,15 +312,17 @@ export const stubRetrieveCheckoutSession = (
     | { metadata: Record<string, unknown> }
     | { email: string; items: string; name: string }
   ),
-  bindAttempt = true,
-) => {
-  const retrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+): Stub<
+  typeof stripeApi,
+  Parameters<typeof stripeApi.retrieveCheckoutSession>,
+  Promise<Awaited<ReturnType<typeof stripeApi.retrieveCheckoutSession>>>
+> =>
+  stub(stripeApi, "retrieveCheckoutSession", () =>
     Promise.resolve({
       amount_total: session.amountTotal,
       created: 1_700_000_000,
       currency: "gbp",
       id: session.sessionId,
-      livemode: false,
       metadata:
         "metadata" in session
           ? session.metadata
@@ -339,10 +341,6 @@ export const stubRetrieveCheckoutSession = (
       ReturnType<typeof stripeApi.retrieveCheckoutSession>
     >),
   );
-  return bindAttempt
-    ? joinedStubs(retrieve, stubStripePaymentAttempt())
-    : retrieve;
-};
 
 /** Assert a listing has exactly one attendee recorded with the given
  *  `price_paid` — the tail check for a processed webhook whose test cares

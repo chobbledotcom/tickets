@@ -14,10 +14,6 @@ import {
   webhookMeta,
 } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
-import {
-  joinedStubs,
-  stubStripePaymentAttempt,
-} from "#test-utils/payment-attempt.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
@@ -83,7 +79,7 @@ describeWithEnv(
 
       // amountTotal (800) differs from expectedPrice (1000 * 1 = 1000)
       // Price decreased after checkout was created — should refund
-      const retrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           amount_total: 800,
           currency: "gbp",
@@ -102,7 +98,6 @@ describeWithEnv(
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
       );
-      const mockRetrieve = joinedStubs(retrieve, stubStripePaymentAttempt());
 
       const mockRefund = stubRefundPayment("re_redirect");
 
