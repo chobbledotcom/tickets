@@ -2,16 +2,15 @@ import { expect } from "@std/expect";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { Browser } from "playwright";
 import { capturePreparedLayers } from "#scripts/screenshots/capture.ts";
-import {
-  type ScreenshotLayerName,
-  withScreenshotLayer,
-} from "#scripts/screenshots/layers.ts";
+import type { ScreenshotLayerName } from "#scripts/screenshots/layers.ts";
 import {
   countLayerRgbPixels,
+  countRgbPixels,
   expectLayersRecombine,
   expectOnlyLayerColor,
   launchScreenshotBrowser,
   layerStyle,
+  withLayer,
   withPage,
 } from "./screenshots-browser-helpers.ts";
 
@@ -35,7 +34,7 @@ describe("screenshot layer boundary browser contracts", () => {
         </style><button>Cart</button>`;
       });
       const shadowStyle = (layer: ScreenshotLayerName, property: string) =>
-        withScreenshotLayer(layer)(page, () =>
+        withLayer(page, layer, () =>
           page.locator("#host").evaluate((host, propertyName) => {
             const button = host.shadowRoot?.querySelector("button");
             if (!button) throw new Error("Missing shadow button.");
@@ -78,14 +77,18 @@ describe("screenshot layer boundary browser contracts", () => {
     );
   });
 
-  test("keeps direct body text only in the text layer", async () => {
+  test("keeps styled direct body text unchanged in one layer", async () => {
     await withPage(
       browser,
-      '<body style="background: white; color: rgb(0, 0, 255); font: 40px sans-serif">Words</body>',
+      `<style>body { color: rgb(0, 0, 255); font: 40px sans-serif; } span { color: rgb(255, 0, 0); }</style>
+       Words`,
       async (page) => {
         const { layers } = await capturePreparedLayers(page);
 
-        await expectOnlyLayerColor(layers, [0, 0, 255], "text");
+        await expectOnlyLayerColor(layers, [0, 0, 255], "background");
+        for (const layer of Object.values(layers)) {
+          expect(await countRgbPixels(layer, [255, 0, 0])).toBe(0);
+        }
       },
     );
   });
@@ -159,7 +162,7 @@ describe("screenshot layer boundary browser contracts", () => {
        <div style="visibility: hidden"><button>Inherited</button></div>`,
       async (page) => {
         const hiddenVisibility = (selector: string) =>
-          withScreenshotLayer("controls")(page, () =>
+          withLayer(page, "controls", () =>
             page
               .locator(selector)
               .evaluate((element) => getComputedStyle(element).visibility),

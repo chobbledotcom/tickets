@@ -13,10 +13,7 @@ import {
 } from "./screenshots/capture.ts";
 import { isCompactWidth, isolateElementCss } from "./screenshots/checks.ts";
 import type { Rgb } from "./screenshots/color.ts";
-import {
-  addScreenshotStyle,
-  SCREENSHOT_LAYER_NAMES,
-} from "./screenshots/layers.ts";
+import { SCREENSHOT_LAYER_NAMES } from "./screenshots/layers.ts";
 import {
   parseScreenshotOptions,
   type ScreenshotName,
@@ -35,6 +32,7 @@ import {
   applySocialTarget,
   type SocialTargetName,
 } from "./screenshots/social.ts";
+import { addScreenshotStyle } from "./screenshots/style.ts";
 
 const ROOT = dirname(dirname(fromFileUrl(import.meta.url)));
 const USERNAME = "screenshots";

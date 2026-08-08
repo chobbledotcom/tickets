@@ -4,14 +4,12 @@ import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { Browser, Page } from "playwright";
 import sharp from "sharp";
 import { capturePreparedLayers } from "#scripts/screenshots/capture.ts";
-import {
-  addScreenshotStyle,
-  withScreenshotLayer,
-} from "#scripts/screenshots/layers.ts";
+import { addScreenshotStyle } from "#scripts/screenshots/style.ts";
 import {
   countRgbPixels,
   launchScreenshotBrowser,
   layerStyle,
+  withLayer,
   withPage,
 } from "./screenshots-browser-helpers.ts";
 
@@ -249,9 +247,7 @@ describe("screenshot layer browser contracts", () => {
           });
         const normal = await geometry();
 
-        expect(await withScreenshotLayer("text")(page, geometry)).toEqual(
-          normal,
-        );
+        expect(await withLayer(page, "text", geometry)).toEqual(normal);
       },
     );
   });
@@ -295,7 +291,7 @@ describe("screenshot layer browser contracts", () => {
       </style><input type="date">`,
       async (page) => {
         const redPixels = async (layer: "controls" | "text") => {
-          const png = await withScreenshotLayer(layer)(page, () =>
+          const png = await withLayer(page, layer, () =>
             page.locator("input").screenshot({ omitBackground: true }),
           );
           return await countRgbPixels(png, [255, 0, 0]);

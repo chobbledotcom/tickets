@@ -27,6 +27,17 @@ const maxChannel = async (
   );
 };
 
+const captureAgainstBrowser = async (page: Page) => {
+  const browserPng = new Uint8Array(
+    await page.screenshot({ caret: "hide", type: "png" }),
+  );
+  const layered = await capturePreparedLayers(page);
+  expect(await sharp(layered.png).ensureAlpha().raw().toBuffer()).toEqual(
+    await sharp(browserPng).ensureAlpha().raw().toBuffer(),
+  );
+  return layered.layers;
+};
+
 const expectShadowButtonRecombines = async (
   page: Page,
   label: string,
@@ -182,6 +193,92 @@ describe("screenshot layer compositing browser contracts", () => {
         const { layers } = await capturePreparedLayers(page);
 
         await expectOnlyLayerColor(layers, [255, 0, 0], "controls");
+      },
+    );
+  });
+
+  test("keeps modal stacking in browser paint order", async () => {
+    await withPage(
+      browser,
+      `<style>
+        body { background: white; color: blue; }
+        dialog { background: white; color: red; }
+        dialog::backdrop { background: rgb(0 0 0 / 0.5); }
+      </style><button>Under</button><dialog>Over</dialog>`,
+      async (page) => {
+        await page
+          .locator("dialog")
+          .evaluate((dialog) => (dialog as HTMLDialogElement).showModal());
+
+        const layers = await captureAgainstBrowser(page);
+
+        expect(await maxChannel(layers.controls, 3)).toBe(0);
+        expect(await maxChannel(layers.text, 3)).toBe(0);
+      },
+    );
+  });
+
+  test("keeps clipped paint together", async () => {
+    await withPage(
+      browser,
+      `<style>
+        body { background: white; margin: 0; }
+        div { background: red; clip-path: polygon(0 0, 70% 0, 40% 100%, 0 100%); color: blue; font: 80px sans-serif; }
+      </style><div>Words</div>`,
+      async (page) => {
+        const layers = await captureAgainstBrowser(page);
+
+        await expectOnlyLayerColor(layers, [255, 0, 0], "background");
+        await expectOnlyLayerColor(layers, [0, 0, 255], "background");
+      },
+    );
+  });
+
+  test("keeps generated images with their owner", async () => {
+    const icon =
+      "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect width='40' height='40' fill='red' fill-opacity='.5'/%3E%3C/svg%3E";
+    await withPage(
+      browser,
+      `<style>
+        button::before { content: url("${icon}"); }
+      </style><button>Words</button>`,
+      async (page) => {
+        const layers = await captureAgainstBrowser(page);
+
+        expect(await countRgbPixels(layers.controls, [255, 127, 127])).toBe(0);
+        expect(await countRgbPixels(layers.text, [255, 127, 127])).toBe(0);
+      },
+    );
+  });
+
+  test("marks paint once for the complete layer sequence", async () => {
+    await withPage(
+      browser,
+      '<div style="opacity: 0.5">Words</div>',
+      async (page) => {
+        await page.evaluate(() => {
+          const records: MutationRecord[] = [];
+          new MutationObserver((changes) => records.push(...changes)).observe(
+            document,
+            {
+              attributeFilter: ["data-screenshot-whole-paint"],
+              attributes: true,
+              subtree: true,
+            },
+          );
+          Reflect.set(globalThis, "paintMarkRecords", records);
+        });
+
+        await capturePreparedLayers(page);
+        await page.evaluate(() => Promise.resolve());
+
+        expect(
+          await page.evaluate(
+            () =>
+              (Reflect.get(globalThis, "paintMarkRecords") as MutationRecord[])
+                .length,
+          ),
+        ).toBe(2);
       },
     );
   });

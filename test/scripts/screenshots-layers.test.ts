@@ -1,9 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import {
-  addScreenshotStyle,
-  withWholePaintGroups,
-} from "#scripts/screenshots/layers.ts";
+import { withWholePaintGroups } from "#scripts/screenshots/layers.ts";
+import { addScreenshotStyle } from "#scripts/screenshots/style.ts";
 import {
   createDomInstaller,
   createGlobalStash,
@@ -56,12 +54,14 @@ interface FakePaintElement {
 interface PaintStyleOptions
   extends Partial<Omit<FakePaintStyle, "getPropertyValue">> {
   webkitBackgroundClip?: string;
+  webkitClipPath?: string;
   webkitMaskImage?: string;
 }
 
 const makePaintStyle = (options: PaintStyleOptions = {}): FakePaintStyle => {
   const {
     webkitBackgroundClip = "border-box",
+    webkitClipPath = "none",
     webkitMaskImage = "none",
     ...overrides
   } = options;
@@ -73,9 +73,11 @@ const makePaintStyle = (options: PaintStyleOptions = {}): FakePaintStyle => {
     getPropertyValue: (name) =>
       name === "-webkit-background-clip"
         ? webkitBackgroundClip
-        : name === "-webkit-mask-image"
-          ? webkitMaskImage
-          : "",
+        : name === "-webkit-clip-path"
+          ? webkitClipPath
+          : name === "-webkit-mask-image"
+            ? webkitMaskImage
+            : "",
     maskImage: "none",
     mixBlendMode: "normal",
     opacity: "1",
@@ -85,11 +87,10 @@ const makePaintStyle = (options: PaintStyleOptions = {}): FakePaintStyle => {
 };
 
 class FakePaintRoot {
-  readonly childNodes = [];
-
   constructor(
     readonly host: FakePaintElement,
     readonly elements: FakePaintElement[],
+    readonly childNodes: { nodeType: number; textContent: string }[] = [],
   ) {}
 
   querySelectorAll(selector: string): FakePaintElement[] {
@@ -247,21 +248,25 @@ describe("screenshot layer styles", () => {
     expect(state.unrouted()).toBe(true);
   });
 
-  test("wraps direct root text only while layer marks are active", async () => {
+  test("marks direct root text without changing the document tree", async () => {
     const dom = createDomInstaller(["ShadowRoot", "getComputedStyle"]);
     const window = dom.installDom("Words <p>Element</p>   ");
     const originalText = window.document.body.firstChild;
     if (!originalText) throw new Error("Missing root text fixture.");
     try {
       await withWholePaintGroups(evaluationPage, () => {
-        const wrapper = window.document.body.firstElementChild;
-        expect(wrapper?.getAttribute("data-screenshot-root-text")).toBe("");
-        expect(wrapper?.textContent).toBe("Words ");
+        expect(window.document.body.firstChild).toBe(originalText);
+        expect(
+          window.document.body.getAttribute("data-screenshot-whole-paint"),
+        ).toBe("");
         expect(window.document.body.lastChild?.nodeType).toBe(3);
         return Promise.resolve();
       });
 
       expect(window.document.body.firstChild).toBe(originalText);
+      expect(
+        window.document.body.hasAttribute("data-screenshot-whole-paint"),
+      ).toBe(false);
       expect(window.document.body.textContent).toBe("Words Element   ");
     } finally {
       await dom.cleanup();
@@ -283,7 +288,11 @@ describe("screenshot layer styles", () => {
     const controlHost = makePaintElement({}, true);
     controlHost.parentElement = wholeGrandchild;
     const shadowControlChild = makePaintElement();
-    const shadowRoot = new FakePaintRoot(controlHost, [shadowControlChild]);
+    const shadowRoot = new FakePaintRoot(
+      controlHost,
+      [shadowControlChild],
+      [{ nodeType: 3, textContent: "Shadow words" }],
+    );
     controlHost.shadowRoot = shadowRoot;
     shadowControlChild.root = shadowRoot;
     const hiddenControl = makePaintElement({ visibility: "hidden" }, true);
@@ -298,7 +307,13 @@ describe("screenshot layer styles", () => {
     const masked = makePaintElement({
       webkitMaskImage: "linear-gradient(black, transparent)",
     });
+    const clipped = makePaintElement({ webkitClipPath: "circle(50%)" });
+    const generatedImage = makePaintElement();
+    generatedImage.pseudos["::after"] = makePaintStyle({
+      content: 'url("icon.svg")',
+    });
     const plain = makePaintElement();
+    const topLayerRoot = Object.assign(makePaintElement(), { childNodes: [] });
     const topLevel = [
       whole,
       wholeChild,
@@ -310,14 +325,21 @@ describe("screenshot layer styles", () => {
       generatedWhole,
       generatedText,
       masked,
+      clipped,
+      generatedImage,
       plain,
+      topLayerRoot,
     ];
     const root = { childNodes: [] };
     const documentRoot = {
       body: root,
-      documentElement: root,
+      documentElement: topLayerRoot,
       querySelectorAll: (selector: string) =>
-        selector === "*" ? topLevel : [],
+        selector === "*"
+          ? topLevel
+          : selector.includes("dialog:modal")
+            ? [plain]
+            : [],
     };
     for (const element of topLevel) element.root = documentRoot;
     globals.set("ShadowRoot", FakePaintRoot);
@@ -351,7 +373,16 @@ describe("screenshot layer styles", () => {
           true,
         );
         expect(masked.attributes.has("data-screenshot-whole-paint")).toBe(true);
+        expect(clipped.attributes.has("data-screenshot-whole-paint")).toBe(
+          true,
+        );
+        expect(
+          generatedImage.attributes.has("data-screenshot-whole-paint"),
+        ).toBe(true);
         expect(plain.attributes.size).toBe(0);
+        expect(topLayerRoot.attributes.has("data-screenshot-whole-paint")).toBe(
+          true,
+        );
         return Promise.resolve();
       });
 

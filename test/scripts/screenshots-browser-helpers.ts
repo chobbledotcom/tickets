@@ -12,8 +12,16 @@ import {
 import {
   SCREENSHOT_LAYER_NAMES,
   type ScreenshotLayerName,
-  withScreenshotLayer,
+  withScreenshotLayerStyle,
+  withWholePaintGroups,
 } from "#scripts/screenshots/layers.ts";
+
+export const withLayer = <T>(
+  page: Page,
+  layer: ScreenshotLayerName,
+  run: () => Promise<T>,
+): Promise<T> =>
+  withWholePaintGroups(page, () => withScreenshotLayerStyle(layer)(page, run));
 
 export const launchScreenshotBrowser: () => Promise<Browser> =
   defineScreenshotBrowserLauncher(chromium, chromiumExecutable);
@@ -63,7 +71,7 @@ export const countLayerRgbPixels =
   ): ((layer: ScreenshotLayerName) => Promise<number>) =>
   async (layer) =>
     countRgbPixels(
-      await withScreenshotLayer(layer)(page, () =>
+      await withLayer(page, layer, () =>
         page.locator(selector).screenshot({ omitBackground: true }),
       ),
       color,
@@ -105,7 +113,7 @@ export const layerStyle = (
   property: string,
   pseudo?: string,
 ): Promise<string> =>
-  withScreenshotLayer(layer)(page, () =>
+  withLayer(page, layer, () =>
     page
       .locator(selector)
       .evaluate(

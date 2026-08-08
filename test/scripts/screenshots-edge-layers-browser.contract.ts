@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { Browser } from "playwright";
-import { addScreenshotStyle } from "#scripts/screenshots/layers.ts";
+import { addScreenshotStyle } from "#scripts/screenshots/style.ts";
 import {
   countLayerRgbPixels,
   expectLayersRecombine,

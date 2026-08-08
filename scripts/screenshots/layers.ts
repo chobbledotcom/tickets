@@ -1,4 +1,6 @@
 import type { Page } from "playwright";
+import { withCleanup } from "#scripts/cleanup.ts";
+import { addScreenshotStyle } from "#scripts/screenshots/style.ts";
 
 export const SCREENSHOT_LAYER_NAMES = [
   "background",
@@ -11,7 +13,6 @@ const SCREENSHOT_LAYER = "__screenshot_layer__";
 const WHOLE_PAINT_ATTRIBUTE = "data-screenshot-whole-paint";
 const TEXT_PAINT_ATTRIBUTE = "data-screenshot-text-paint";
 const VISIBLE_CONTROL_ATTRIBUTE = "data-screenshot-visible-control";
-const ROOT_TEXT_ATTRIBUTE = "data-screenshot-root-text";
 const CONTROL_SELECTOR =
   'input, select, textarea, button, summary, label:has(input), label[for], [role="button"], [role="option"], .btn, a.button, a[class*="button"]';
 const LAYER_PRIORITY =
@@ -27,11 +28,9 @@ const HIDDEN_TEXT_STYLE = `
   -webkit-text-fill-color: transparent !important;
   -webkit-text-stroke-color: transparent !important;
 `;
-const ROOT_TEXT_STYLE = `[${ROOT_TEXT_ATTRIBUTE}] { display: contents !important; }`;
 
 const LAYER_STYLES: Record<ScreenshotLayerName, string> = {
   background: `@layer ${SCREENSHOT_LAYER} {
-    ${ROOT_TEXT_STYLE}
     :is(html, body)${BACKGROUND_PRIORITY}::before,
     :is(html, body)${BACKGROUND_PRIORITY}::after,
     :is(body, :host) ${BACKGROUND_PRIORITY},
@@ -52,7 +51,6 @@ const LAYER_STYLES: Record<ScreenshotLayerName, string> = {
     }
   }`,
   controls: `@layer ${SCREENSHOT_LAYER} {
-    ${ROOT_TEXT_STYLE}
     html${LAYER_PRIORITY}, body${LAYER_PRIORITY} { background: transparent !important; }
     :is(html, body)${LAYER_PRIORITY}::before,
     :is(html, body)${LAYER_PRIORITY}::after,
@@ -89,7 +87,6 @@ const LAYER_STYLES: Record<ScreenshotLayerName, string> = {
     }
   }`,
   text: `@layer ${SCREENSHOT_LAYER} {
-    ${ROOT_TEXT_STYLE}
     html${TEXT_CHROME_PRIORITY}, body${TEXT_CHROME_PRIORITY},
     :is(html, body)${TEXT_CHROME_PRIORITY}::before,
     :is(html, body)${TEXT_CHROME_PRIORITY}::after,
@@ -142,21 +139,10 @@ const LAYER_STYLES: Record<ScreenshotLayerName, string> = {
   }`,
 };
 
-const runAndCleanUp = async <T>(
-  run: () => Promise<T>,
-  cleanUp: () => Promise<void>,
-): Promise<T> => {
-  try {
-    return await run();
-  } finally {
-    await cleanUp();
-  }
-};
-
 const withTemporaryPageChange = async <T>(
   start: () => Promise<() => Promise<void>>,
   run: () => Promise<T>,
-): Promise<T> => runAndCleanUp(run, await start());
+): Promise<T> => withCleanup(run, [await start()]);
 
 type PageChange = <T>(page: Page, run: () => Promise<T>) => Promise<T>;
 
@@ -168,87 +154,9 @@ const definePageChange =
   (page, run) =>
     withTemporaryPageChange(() => start(config, page), run);
 
-export const addScreenshotStyle = async (
-  page: Page,
-  css: string,
-): Promise<() => Promise<void>> => {
-  const marker = crypto.randomUUID();
-  const url = new URL("/custom.css", page.url());
-  url.searchParams.set("screenshot-style", marker);
-  const href = url.toString();
-  await page.route(href, (route) =>
-    route.fulfill({ body: css, contentType: "text/css" }),
-  );
-  const style = await page.addStyleTag({ url: href });
-  const cleanUp = async (): Promise<void> => {
-    await page.evaluate((styleMarker) => {
-      const removeFromOpenRoots = (root: Document | ShadowRoot): void => {
-        for (const element of root.querySelectorAll("*")) {
-          if (element.shadowRoot) removeFromOpenRoots(element.shadowRoot);
-        }
-        for (const link of root.querySelectorAll(
-          `link[data-screenshot-style="${styleMarker}"]`,
-        )) {
-          link.remove();
-        }
-      };
-      removeFromOpenRoots(document);
-    }, marker);
-    await style.evaluate((node) => node.parentNode?.removeChild(node));
-    await page.unroute(href);
-  };
-  try {
-    await page.evaluate(
-      async ({ href, marker }) => {
-        const addToOpenRoots = async (
-          root: Document | ShadowRoot,
-        ): Promise<void> => {
-          const shadowRoots = Array.from(
-            root.querySelectorAll("*"),
-            (element) => element.shadowRoot,
-          ).filter(
-            (shadowRoot): shadowRoot is ShadowRoot => shadowRoot !== null,
-          );
-          await Promise.all(
-            shadowRoots.map(async (shadowRoot) => {
-              const link = document.createElement("link");
-              link.dataset.screenshotStyle = marker;
-              link.rel = "stylesheet";
-              link.href = href;
-              await new Promise<void>((resolve, reject) => {
-                link.addEventListener("load", () => resolve(), { once: true });
-                link.addEventListener(
-                  "error",
-                  () => reject(new Error("Could not load screenshot style.")),
-                  { once: true },
-                );
-                shadowRoot.appendChild(link);
-              });
-              await addToOpenRoots(shadowRoot);
-            }),
-          );
-        };
-        await addToOpenRoots(document);
-      },
-      { href, marker },
-    );
-  } catch (error) {
-    await cleanUp();
-    throw error;
-  }
-  return cleanUp;
-};
-
 const changeLayerMarks = (page: Page, add: boolean): Promise<void> =>
   page.evaluate(
-    ({
-      add,
-      controlSelector,
-      rootText,
-      textPaint,
-      visibleControl,
-      wholePaint,
-    }) => {
+    ({ add, controlSelector, textPaint, visibleControl, wholePaint }) => {
       const attributes = [textPaint, visibleControl, wholePaint];
       const parentOf = (element: Element): Element | null => {
         if (element.parentElement) return element.parentElement;
@@ -289,9 +197,12 @@ const changeLayerMarks = (page: Page, add: boolean): Promise<void> =>
         style.opacity !== "1" ||
         style.filter !== "none" ||
         style.mixBlendMode !== "normal" ||
+        style.content.includes("url(") ||
         [
           style.getPropertyValue("backdrop-filter"),
           style.getPropertyValue("-webkit-backdrop-filter"),
+          style.getPropertyValue("clip-path"),
+          style.getPropertyValue("-webkit-clip-path"),
         ].some((value) => value !== "" && value !== "none") ||
         [style.maskImage, style.getPropertyValue("-webkit-mask-image")].some(
           (value) => value !== "none",
@@ -336,29 +247,33 @@ const changeLayerMarks = (page: Page, add: boolean): Promise<void> =>
         }
       };
 
-      const wrapContainerText = (container: ParentNode): void => {
-        for (const node of [...container.childNodes]) {
-          if (node.nodeType !== 3 || !node.textContent?.trim()) continue;
-          const wrapper = document.createElement("span");
-          wrapper.setAttribute(rootText, "");
-          node.parentNode?.replaceChild(wrapper, node);
-          wrapper.append(node);
-        }
-      };
-      const wrapRootText = (root: Document | ShadowRoot): void => {
+      const markRootText = (root: Document | ShadowRoot): void => {
         const containers: ParentNode[] =
           root === document
             ? [document.documentElement, document.body]
             : [root];
-        for (const container of containers) wrapContainerText(container);
-      };
-      const unwrapRootText = (root: Document | ShadowRoot): void => {
-        for (const wrapper of root.querySelectorAll(`[${rootText}]`)) {
-          wrapper.replaceWith(...wrapper.childNodes);
+        if (
+          containers.some((container) =>
+            [...container.childNodes].some(
+              (node) =>
+                node.nodeType === 3 && Boolean(node.textContent?.trim()),
+            ),
+          )
+        ) {
+          (root instanceof ShadowRoot ? root.host : document.body).setAttribute(
+            wholePaint,
+            "",
+          );
         }
       };
-      const beforeVisit = add ? wrapRootText : () => {};
-      const afterVisit = add ? () => {} : unwrapRootText;
+      const markTopLayer = (root: Document | ShadowRoot): void => {
+        if (
+          root.querySelectorAll(":is(dialog:modal, [popover]:popover-open)")
+            .length > 0
+        ) {
+          document.documentElement.setAttribute(wholePaint, "");
+        }
+      };
 
       function changeElement(element: Element): void {
         if (!add) {
@@ -390,7 +305,10 @@ const changeLayerMarks = (page: Page, add: boolean): Promise<void> =>
         root: Document | ShadowRoot,
         inheritedPaint: string | null = null,
       ): void {
-        beforeVisit(root);
+        if (add) {
+          markRootText(root);
+          markTopLayer(root);
+        }
         for (const element of root.querySelectorAll("*")) {
           markInheritedPaint(element, inheritedPaint);
           changeElement(element);
@@ -398,14 +316,12 @@ const changeLayerMarks = (page: Page, add: boolean): Promise<void> =>
             visitRoot(element.shadowRoot, paintMark(element) ?? inheritedPaint);
           }
         }
-        afterVisit(root);
       }
       visitRoot(document);
     },
     {
       add,
       controlSelector: CONTROL_SELECTOR,
-      rootText: ROOT_TEXT_ATTRIBUTE,
       textPaint: TEXT_PAINT_ATTRIBUTE,
       visibleControl: VISIBLE_CONTROL_ATTRIBUTE,
       wholePaint: WHOLE_PAINT_ATTRIBUTE,
@@ -419,11 +335,8 @@ const defineWholePaintGroups = definePageChange<void>(async (_config, page) => {
 
 export const withWholePaintGroups: PageChange = defineWholePaintGroups();
 
-const withLayerStyle = definePageChange<ScreenshotLayerName>((layer, page) =>
+export const withScreenshotLayerStyle: (
+  layer: ScreenshotLayerName,
+) => PageChange = definePageChange<ScreenshotLayerName>((layer, page) =>
   addScreenshotStyle(page, LAYER_STYLES[layer]),
 );
-
-export const withScreenshotLayer =
-  (layer: ScreenshotLayerName): PageChange =>
-  (page, run) =>
-    withWholePaintGroups(page, () => withLayerStyle(layer)(page, run));
