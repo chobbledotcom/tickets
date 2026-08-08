@@ -30,6 +30,7 @@ src/shared/db/groups.ts::getListingsByGroupIds~0zftiii  ?? → ||   # entriesByG
 src/shared/db/groups.ts::getGroupPackagePrices~1w9nudp  ?? → ||   # package rows: GroupListing[]|undefined — an array is always truthy
 src/shared/db/groups.ts::memberQuantityStatement~0ajbifl  ?? → ||   # quantity is undefined or at least 1 by PackageMemberInput's contract, so every present value is truthy
 src/features/admin/api-groups.ts::parsePackageMember.dayPrices~1ac0u3a  ?? → ||   # parseMemberDayPrices returns a DayPrices object or undefined; every object, including {}, is truthy
+src/shared/listings-actions.ts::validateListingGroup.checked~0ndre14  Missing group listing membership → ""   # getListingsByGroupIds creates an entry for every non-empty requested group id, and validateListingGroup returns before calling it for an empty list
 
 # Attendee group-capacity lookups: Map values are arrays (always truthy), and
 # duration normalization clamps both a default of 0 and 1 to one day.
@@ -69,7 +70,7 @@ src/shared/db/client.ts::executeRead.args~0hs5u5i  ?? → ||   # `args` is `InVa
 src/shared/db/client.ts::queryOne~1hu7rck  ?? → ||   # queryOne's row comes from resultRows — libsql rows are always objects (truthy); a miss yields undefined, where ?? and || both produce null
 
 # DB client (client.ts) — sentinel symbol descriptions.
-src/shared/db/client.ts::GUARDED_CLIENT~1cajdnv  guarded-db-client → ""   # Symbol("guarded-db-client") description is debug-only metadata; the double-wrap check branches on the symbol's identity, and GUARDED_CLIENT is module-private so no test can observe the description
+src/shared/db/client.ts::GUARDED_CLIENT~1cajdnv  guarded-db-client → ""   # Symbol descriptions do not affect symbol identity; this private symbol is used only as the proxy property key
 
 # attendees/tokens.ts — `?? → ||` sites where the operand is a Map#get() whose
 # value is always a truthy object or array (never a falsy-but-non-null value),

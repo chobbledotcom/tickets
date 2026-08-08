@@ -1,19 +1,18 @@
 /** Shared arrange helpers for the admin group route tests. */
 
+import { expect } from "@std/expect";
 import { handleRequest } from "#routes";
 import type { GroupInput } from "#shared/catalog-fields/fields.ts";
-import { execute } from "#shared/db/client.ts";
 import { computeGroupSlugIndex } from "#shared/db/groups.ts";
-import type { Group } from "#shared/types.ts";
-import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import type { Group, ListingWithCount } from "#shared/types.ts";
 import {
-  createHiddenPackageGroup,
+  createSoldPackageMember,
   createTestGroup,
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import type { TestFormValues } from "#test-utils/form-values.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
-import { getTestSession } from "#test-utils/session.ts";
+import { apiRequest, getTestSession } from "#test-utils/session.ts";
 
 /** Post a signed-in admin form and hand back the raw response, so a rejected
  * save can be read from its flash message instead of throwing. */
@@ -55,24 +54,39 @@ export const groupInput = async (
 export const soldPackage = async (
   name: string,
   hidden: boolean,
+): Promise<Group> => (await createSoldPackageMember(name, hidden)).group;
+
+/** Create a package group with one member carrying a `price` override via the
+ *  JSON API, returning the group. */
+export const packagedGroup = async (
+  name: string,
+  price: number,
 ): Promise<Group> => {
-  const group = hidden
-    ? await createHiddenPackageGroup(name)
-    : await createTestGroup({ isPackage: true, name });
-  const member = await createTestListing({
-    groupId: group.id,
-    maxAttendees: 10,
-    name: `${name} member`,
+  const group = await createTestGroup({ isPackage: true, name });
+  const listing = await createTestListing({ groupId: group.id });
+  const response = await apiRequest(`/api/admin/groups/${group.id}`, {
+    body: {
+      is_package: true,
+      package_members: [{ listing_id: listing.id, price }],
+    },
+    method: "PUT",
   });
-  const { attendee } = await createTestAttendeeDirect(
-    member.id,
-    `${name} buyer`,
-    `${name.toLowerCase().replaceAll(" ", "-")}@example.com`,
-  );
-  await execute(
-    `UPDATE listing_attendees SET package_group_id = ?
-      WHERE attendee_id = ?`,
-    [group.id, attendee.id],
-  );
+  expect(response.status).toBe(200);
   return group;
 };
+
+/** A fresh group with one member listing, for package PUT tests. */
+export const groupWithMember = async (
+  name: string,
+): Promise<{ group: Group; listing: ListingWithCount }> => {
+  const group = await createTestGroup({ name });
+  const listing = await createTestListing({ groupId: group.id });
+  return { group, listing };
+};
+
+/** PUT a group via the JSON API. */
+export const putGroup = (
+  groupId: number,
+  body: Record<string, unknown>,
+): Promise<Response> =>
+  apiRequest(`/api/admin/groups/${groupId}`, { body, method: "PUT" });

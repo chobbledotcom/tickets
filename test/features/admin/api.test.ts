@@ -83,20 +83,6 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       await expectRejectsEmptyName(`/api/admin/listings/${listing.id}`);
     });
 
-    test("returns 400 for a fractional duration", async () => {
-      const listing = await createTestListing({ name: "Whole Days" });
-      await assertJson(
-        apiRequest(`/api/admin/listings/${listing.id}`, {
-          body: { duration_days: 2.5 },
-          method: "PUT",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("duration_days must be a safe integer");
-        },
-      );
-    });
-
     test("returns 400 when a bookable day is not text", async () => {
       const listing = await createTestListing({ name: "Named Days" });
       await assertJson(

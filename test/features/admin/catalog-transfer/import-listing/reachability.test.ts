@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
-import { assignListingsToGroup } from "#shared/db/groups.ts";
+import { assignListingsToGroup } from "#shared/db/groups/membership.ts";
 import { listingParents } from "#shared/db/listing-parents.ts";
 import { requireListingWithCount } from "#shared/db/listings/records.ts";
 import { requireSuccess } from "#shared/result.ts";

@@ -175,8 +175,12 @@ describeWithEnv(
     });
 
     test("groups on listings page show Registration Closed in read-only mode", async () => {
-      const { groups, computeGroupSlugIndex, assignListingsToGroup } =
-        await import("#shared/db/groups.ts");
+      const { groups, computeGroupSlugIndex } = await import(
+        "#shared/db/groups.ts"
+      );
+      const { assignListingsToGroup } = await import(
+        "#shared/db/groups/membership.ts"
+      );
       const { listingsTable } = await import("#shared/db/listings/records.ts");
       const { computeSlugIndex } = await import("#shared/db/listings/table.ts");
       await enablePublicSite();

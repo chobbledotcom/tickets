@@ -24,20 +24,21 @@ import type {
 } from "#shared/catalog-fields/fields.ts";
 import { groupCatalogFields } from "#shared/catalog-fields/fields.ts";
 import { logActivity } from "#shared/db/activity-log.ts";
-import { executeBatch, type TxScope } from "#shared/db/client.ts";
+import { executeBatch } from "#shared/db/client.ts";
 import {
   assignListingsToGroup,
+  writePackageMembersTx,
+} from "#shared/db/groups/membership.ts";
+import {
   computeGroupSlugIndex,
   generateUniqueGroupSlug,
   getGroupById,
   getListingsByGroupId,
-  groupListingTypeError,
   groups,
   hasPackageBookings,
   isGroupSlugTaken,
   packageMembersError,
   resetGroupListings,
-  setGroupPackageMembers,
 } from "#shared/db/groups.ts";
 import {
   clearImageUsesForItemStatement,
@@ -293,28 +294,23 @@ const groupsCreateResource = defineNamedResource({
   toInput: extractGroupCreateInput,
 });
 
-/** Persist the group's per-listing package overrides (price + quantity) after
- * the row is saved, reading the dynamic `package_price_<id>` / `package_qty_<id>`
- * inputs from the raw form. When the group is not (or no longer) a package,
- * every override is cleared back to price 0 / quantity 1. */
-const writeGroupPackageMembers = (
-  tx: TxScope,
-  id: number,
-  input: GroupInput,
-  form: FormParams,
-) =>
-  setGroupPackageMembers(
-    id,
-    input.isPackage ? parsePackageMembers(form) : [],
-    tx,
-  );
-
 /** Groups resource for REST update operations (user-provided slug). Validates
- * the package invariant and writes the dynamic overrides via afterWrite, so the
- * generic CRUD edit route handles packages without a bespoke handler. */
+ *  the package invariant and writes the dynamic overrides via afterWrite, so the
+ *  generic CRUD edit route handles packages without a bespoke handler.
+ *  `afterWrite` reads the `package_price_<id>` / `package_qty_<id>` inputs from
+ *  the raw form, clears all overrides when the group is not a package, and
+ *  rechecks the sold-hidden invariant so a checkout that committed between the
+ *  request-level check and this write rolls the change back. */
 const groupsResource = defineNamedResource({
   ...groupResourceBase,
-  afterWrite: writeGroupPackageMembers,
+  afterWrite: (tx, id, input, form, existing) =>
+    writePackageMembersTx(
+      tx,
+      id,
+      existing,
+      input,
+      input.isPackage ? parsePackageMembers(form) : [],
+    ),
   form: getGroupForm(),
   toInput: extractGroupEditInput,
 });
@@ -351,24 +347,11 @@ export const groupFormPost = (
     loadContext: ({ id }) => getGroupById(id),
   });
 
-/** Validate that all listing types match the group; returns error message or
- * null. When the group is a package, also reject listings that can't be packaged
- * (see {@link isPackageableMember}). */
-const validateListingTypesForGroup = async (
+/** Validate package-only rules that rely on the group settings loaded for the form. */
+const packageListingError = async (
   group: Group,
   listings: ListingWithCount[],
 ): Promise<string | null> => {
-  // Every listing joins the SAME group, so its current members are read once
-  // and each candidate is judged against that one list.
-  const siblings = await getListingsByGroupId(group.id);
-  for (const listing of listings) {
-    const typeError = groupListingTypeError(
-      siblings,
-      listing.listing_type,
-      listing.customisable_days,
-    );
-    if (typeError) return typeError;
-  }
   if (group.is_package) {
     const packageError = await packageMembersError(
       listings,
@@ -387,12 +370,15 @@ const handleAddListingsToGroup = groupFormPost(async (group, form) => {
     .filter((n) => n > 0);
   if (listingIds.length > 0) {
     const listings = compact(await getListingsWithCountsByIds(listingIds));
-    const typeError = await validateListingTypesForGroup(group, listings);
+    const packageError = await packageListingError(group, listings);
+    if (packageError) {
+      return redirect(`/admin/groups/${group.id}`, packageError, false);
+    }
+    const existingListingIds = listings.map((listing) => listing.id);
+    const typeError = await assignListingsToGroup(existingListingIds, group.id);
     if (typeError) {
       return redirect(`/admin/groups/${group.id}`, typeError, false);
     }
-    const existingListingIds = listings.map((listing) => listing.id);
-    await assignListingsToGroup(existingListingIds, group.id);
     await logActivity(
       `${existingListingIds.length} listing(s) added to group '${group.name}'`,
     );

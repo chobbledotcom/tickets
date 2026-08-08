@@ -1,459 +1,59 @@
-/**
- * Validate and apply a catalog transfer blob (see schema.ts), creating one new
- * listing or group with all its facets — group memberships (with package
- * overrides), parent references, and per-day overrides — resolving every
- * cross-reference by name.
- *
- * Every failure path returns an intelligible, field-level message rather than a
- * raw system error: shape errors from the schema, an already-used name, an
- * unresolved/ambiguous reference, or a reused business rule (group type
- * compatibility, package rules, parent-edge compatibility). The write itself is
- * one transaction, so a partial import can never persist.
- */
-
+/* jscpd:ignore-start */
 import * as v from "valibot";
 import { identity, mapById } from "#fp";
 import { t } from "#i18n";
-import type {
-  GroupInput,
-  ListingInput,
-} from "#shared/catalog-fields/fields.ts";
-import { isBuilderEnabled } from "#shared/config.ts";
-import { writeRowInTransaction } from "#shared/db/client.ts";
+import type { GroupInput } from "#shared/catalog-fields/fields.ts";
+import { decrypt } from "#shared/crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
+import {
+  inPlaceholders,
+  resultRows,
+  TransactionValidationError,
+  type TxScope,
+  writeRowInTransaction,
+} from "#shared/db/client.ts";
+import { validateListingGroupMembershipsTx } from "#shared/db/groups/membership.ts";
 import {
   generateUniqueGroupSlug,
-  getGroupsById,
   groups,
-  listingGroups,
   packageMembersError,
 } from "#shared/db/groups.ts";
-import { listingParents } from "#shared/db/listing-parents.ts";
-import {
-  syncListingPrices,
-  writeListingDayCounts,
-} from "#shared/db/listing-prices.ts";
-import {
-  getListingsById,
-  listingsTable,
-  requireListingsWithCountsByIds,
-} from "#shared/db/listings/records.ts";
-import {
-  childOnlyAddOnCheckerForListings,
-  type ListingGroupMembership,
-  toListingGroupMembership,
-} from "#shared/db/modifier-resolve.ts";
+import { requireListingsWithCountsByIds } from "#shared/db/listings/records.ts";
 import {
   isNameTakenAnywhere,
   loadCatalogNameIndex,
-  matchName,
-  type NameIndex,
-  normalizeEntityName,
 } from "#shared/db/name-registry.ts";
-import { settings } from "#shared/db/settings.ts";
-import {
-  childAddOnError,
-  type EdgeListing,
-  edgeFieldError,
-} from "#shared/listing-parents-rules.ts";
-import {
-  dayPriceFieldsFromInput,
-  generateUniqueListingSlug,
-  listingInputToEdge,
-  validateListingInput,
-} from "#shared/listings-actions.ts";
-import { errorResult, okResult, type Result } from "#shared/result.ts";
-import { seenBefore } from "#shared/seen-before.ts";
-import {
-  type AdminLevel,
-  availableDayCounts,
-  clampDurationDays,
-  type DayPricedListing,
-  type Group,
-  type Listing,
-  type ListingType,
-  type ListingWithCount,
-  parseDayPrices,
+import { okResult, type Result } from "#shared/result.ts";
+import type {
+  AdminLevel,
+  DayPricedListing,
+  ListingType,
+  ListingWithCount,
 } from "#shared/types.ts";
-import { type ImportedMembership, writeMembershipsTx } from "./membership.ts";
+import { parseDayPrices } from "#shared/types.ts";
+import {
+  fail,
+  type ImportedEntity,
+  importListing,
+  importTransactionFailure,
+  memberDayOverrideKey,
+  membershipSpec,
+  missingMemberId,
+  nameTakenError,
+  requireDayPriceOk,
+  requireImportedMembership,
+  resolveNames,
+  withNewId,
+} from "./import-listing.ts";
+import { writeMembershipsTx } from "./membership.ts";
 import {
   CatalogTransferSchema,
   formatTransferIssues,
   type GroupTransfer,
-  type ListingData,
-  type ListingTransfer,
 } from "./schema.ts";
 
-/** The result of an import attempt: the created entity's kind/id/name, or an
- * operator-facing error explaining what to fix. */
-type ImportedEntity = {
-  kind: "listing" | "group";
-  id: number;
-  name: string;
-};
+/* jscpd:ignore-end */
 
-const fail = (error: string): Result<ImportedEntity> => errorResult(error);
-
-/** Resolve a list of names to ids within one entity kind, returning the ids or
- * the first reference that can't be resolved (missing or, on legacy duplicate
- * data, ambiguous) as an intelligible error. `noun` names the referenced kind
- * in the message. */
-const resolveNames = (
-  index: NameIndex,
-  names: readonly string[],
-  noun: string,
-): { ids: number[] } | { error: string } => {
-  const ids: number[] = [];
-  const isRepeat = seenBefore();
-  for (const name of names) {
-    // A repeated reference would insert a duplicate edge/membership row and trip
-    // a unique index (a raw 500); reject it with an intelligible message first.
-    if (isRepeat(normalizeEntityName(name))) {
-      return {
-        error: `The ${noun} "${name}" is referenced more than once — remove the duplicate.`,
-      };
-    }
-    const match = matchName(index, name);
-    if (!match.ok) {
-      return {
-        error:
-          match.reason === "missing"
-            ? `No ${noun} named "${name}" exists — it must already exist to import this reference.`
-            : `More than one ${noun} is named "${name}"; names must be unique to import by name.`,
-      };
-    }
-    ids.push(match.id);
-  }
-  return { ids };
-};
-
-/** The uniform "this name is already taken" refusal for both entity kinds. */
-const nameTakenError = (name: string): string =>
-  `A listing or group named "${name}" already exists — rename or remove it before importing.`;
-
-/** One membership to write once the new row's id is known — carries the peer id
- * (the group for a listing import, the listing for a group import); the new
- * row's own id fills the other side. */
-type MembershipSpec = Omit<ImportedMembership, "listingId" | "groupId"> &
-  Partial<Pick<ImportedMembership, "listingId" | "groupId">>;
-
-/** Fill the freshly-created row's id into whichever side (`listingId` for a
- * listing import, `groupId` for a group import) the specs left open, ready for
- * {@link writeMembershipsTx}. */
-const withNewId = (
-  specs: readonly MembershipSpec[],
-  newIdField: "listingId" | "groupId",
-  newId: number,
-): ImportedMembership[] =>
-  specs.map((spec) => ({ ...spec, [newIdField]: newId }) as ImportedMembership);
-
-/** The first of `groupIds` that names a package group, or null — the "is this
- * listing a package member?" check the parent-edge guard needs. */
-const firstPackageGroup = async (
-  groupIds: readonly number[],
-): Promise<Group | null> => {
-  if (groupIds.length === 0) return null;
-  // Resolve against the cached group set rather than one read per group, so a
-  // child listing that belongs to many groups doesn't trip the request N+1 guard.
-  const byId = await getGroupsById();
-  for (const groupId of groupIds) {
-    const group = byId.get(groupId);
-    if (group?.is_package) return group;
-  }
-  return null;
-};
-
-/** Read the shared package-override fields off a membership/member entry.
- * `isPackage` false clears every override (price/quantity/day prices) — those
- * only apply to a package group, and the normal group save drops them when a
- * group isn't a package, so a blob can't plant a hidden free price or quantity
- * that silently activates if the group is later converted. */
-const membershipSpec = (
-  entry: {
-    packagePrice?: number | null | undefined;
-    quantity?: number | undefined;
-    dayPrices?: Record<string, number> | undefined;
-  },
-  isPackage: boolean,
-): MembershipSpec =>
-  isPackage
-    ? {
-        dayPrices: entry.dayPrices ? parseDayPrices(entry.dayPrices) : {},
-        packagePrice: entry.packagePrice ?? null,
-        quantity: entry.quantity ?? 1,
-      }
-    : { dayPrices: {}, packagePrice: null, quantity: 1 };
-
-/** Reject a package day-price override for a day count the member doesn't offer.
- * The package editor only renders override inputs for a member's available day
- * counts (a customisable listing's priced spans within its duration); a blob
- * override outside them would be a hidden `group_day` row that could activate
- * after a later duration/day-price edit, so refuse it with a field-level
- * message. `member` is the listing whose spans the override must fit — the
- * existing member on a group import, the new listing itself on a listing
- * import. */
-const memberDayOverrideError = (
-  memberName: string,
-  dayPrices: Record<string, number> | undefined,
-  member: DayPricedListing,
-): string | null => {
-  if (!dayPrices) return null;
-  const offered = new Set(availableDayCounts(member));
-  for (const key of Object.keys(dayPrices)) {
-    if (!offered.has(Number(key))) {
-      return `"${memberName}" does not offer a ${key}-day booking, so it can't carry a package day-price override for it.`;
-    }
-  }
-  return null;
-};
-
-/** Project a validated listing blob onto a `ListingInput`, minting a fresh slug
- * and clearing the non-transferred attachment columns. Optional fields
- * pass through untouched so the table applies its own column defaults. */
-const listingDataToInput = (
-  data: ListingData,
-  slug: string,
-  slugIndex: string,
-  groupIds: number[],
-): ListingInput => {
-  const { closesAt, dayPrices, ...rest } = data;
-  // The cast bridges valibot's `T | undefined` optionals to the input's exact
-  // optionals — the same shape buildDuplicateListingInput uses for rowToInput.
-  return {
-    ...rest,
-    attachmentName: "",
-    attachmentUrl: "",
-    closesAt: closesAt === null ? undefined : closesAt,
-    dayPrices: dayPrices === undefined ? undefined : parseDayPrices(dayPrices),
-    groupIds,
-    slug,
-    slugIndex,
-  } as ListingInput;
-};
-
-/** A listing row projected onto the edge-compatibility shape. */
-const listingToEdge = (listing: Listing): EdgeListing => ({
-  customisable_days: listing.customisable_days,
-  day_prices: listing.day_prices,
-  duration_days: clampDurationDays(listing.duration_days),
-  id: listing.id,
-  listing_type: listing.listing_type,
-  months_per_unit: listing.months_per_unit,
-  name: listing.name,
-});
-
-/** Build the add-on reachability check for the imported child when it needs one. */
-const loadChildAddOnChecker = async (
-  input: ListingInput,
-  groupIds: readonly number[],
-  byId: Awaited<ReturnType<typeof getListingsById>>,
-): Promise<Awaited<
-  ReturnType<typeof childOnlyAddOnCheckerForListings>
-> | null> => {
-  // A child that joins a group can inherit a group-scoped opt-in add-on. If that
-  // add-on's would-be scope reaches only this (suppressed) child and not the
-  // parent's page, the add-on becomes unbookable — the same dead-end the edge
-  // editor rejects. Resolve every add-on's would-be scope once (the new child
-  // appended at placeholder id 0 with its would-be groups) and reuse it per
-  // parent. A child with no groups can't inherit such an add-on, so skip the work.
-  // A `bookable_alone` child keeps its OWN booking page, so its add-on is still
-  // reachable there, so skip the check rather than reject a valid child.
-  if (groupIds.length === 0 || input.bookableAlone) return null;
-  const allMembership = await listingGroups.getIdsByKeys([...byId.keys()]);
-  const wouldBe: ListingGroupMembership[] = [
-    ...[...byId.values()].map((listing) =>
-      toListingGroupMembership(listing, allMembership),
-    ),
-    // Active is irrelevant here; the placeholder child serves a booking page.
-    { active: true, groupIds: [...groupIds], id: 0 },
-  ];
-  return childOnlyAddOnCheckerForListings(wouldBe);
-};
-
-type ParentEdges = {
-  groupIds: readonly number[];
-  input: ListingInput;
-  parentIds: readonly number[];
-};
-
-/** Load every shared value needed to validate all named parents. */
-const loadParentEdgeContext = async ({
-  groupIds,
-  input,
-  parentIds,
-}: ParentEdges) => {
-  // Batched reads keep a many-parent import within the request subrequest limit.
-  const [byId, nestedParentLinks, parentGroupIds, allGroups] =
-    await Promise.all([
-      getListingsById(),
-      listingParents.getIdsByKeys(parentIds),
-      listingGroups.getIdsByKeys([...parentIds]),
-      groups.cache.getAll(),
-    ]);
-  return {
-    addOnChecker: await loadChildAddOnChecker(input, groupIds, byId),
-    byId,
-    childEdge: listingInputToEdge(input, 0),
-    hiddenPackageIds: new Set(
-      allGroups
-        .filter((group) => group.is_package && group.hide_package_listings)
-        .map((group) => group.id),
-    ),
-    input,
-    nestedParentLinks,
-    parentGroupIds,
-  };
-};
-
-type ParentEdgeContext = Awaited<ReturnType<typeof loadParentEdgeContext>>;
-
-/** Apply every edge-editor rule to one proposed parent. */
-const parentEdgeError = (
-  parentId: number,
-  context: ParentEdgeContext,
-): string | null => {
-  const parent = context.byId.get(parentId)!;
-  if (context.nestedParentLinks.get(parentId)!.length > 0) {
-    return t("listings_table.children_err_parent_is_child", {
-      name: parent.name,
-    });
-  }
-  const parentIsHiddenPackageMember = listingGroups
-    .idsFor(context.parentGroupIds, parentId)
-    .some((groupId) => context.hiddenPackageIds.has(groupId));
-  if (parentIsHiddenPackageMember) {
-    return `"${parent.name}" is a member of a hidden package, so it cannot offer add-on children.`;
-  }
-  const fieldError = edgeFieldError(listingToEdge(parent), context.childEdge);
-  if (fieldError) return fieldError;
-  const addOn = context.addOnChecker?.(0, [parentId]);
-  return addOn ? childAddOnError(addOn, context.input.name) : null;
-};
-
-/** Reject a would-be child that can't sit under one of its named parents: a
- * package member is never folded under a parent, and each parent→child edge must
- * satisfy the same field-compatibility rules the edge editor enforces. */
-const validateParentEdges = async (
-  input: ListingInput,
-  parentIds: readonly number[],
-  groupIds: readonly number[],
-): Promise<string | null> => {
-  if (parentIds.length === 0) return null;
-  const pkg = await firstPackageGroup(groupIds);
-  if (pkg) {
-    return `"${input.name}" is a member of the package "${pkg.name}", so it cannot also be an add-on child of another listing.`;
-  }
-  const context = await loadParentEdgeContext({ groupIds, input, parentIds });
-  for (const parentId of parentIds) {
-    const error = parentEdgeError(parentId, context);
-    if (error) return error;
-  }
-  return null;
-};
-
-/** Apply role/site policy the interactive create paths enforce but a raw blob
- * bypasses: an `editor` may not set a webhook URL (it receives attendee PII) or
- * toggle `use_defaults`; a listing can only assign a built site where the
- * builder is configured; and logistics can only be required where logistics is
- * enabled (the form forces `uses_logistics` off otherwise). */
-const applyImportPolicy = (
-  input: ListingInput,
-  adminLevel: AdminLevel | undefined,
-): ListingInput => {
-  const policed: ListingInput = { ...input };
-  if (adminLevel === "editor") {
-    policed.webhookUrl = "";
-    policed.useDefaults = false;
-  }
-  if (!isBuilderEnabled()) {
-    policed.assignBuiltSite = false;
-    policed.initialSiteMonths = 0;
-  }
-  if (!settings.features.logistics) {
-    policed.usesLogistics = false;
-  }
-  return policed;
-};
-
-const importListing = async (
-  transfer: ListingTransfer,
-  adminLevel: AdminLevel | undefined,
-): Promise<Result<ImportedEntity>> => {
-  const { groups: memberships, listing, parents } = transfer;
-  if (await isNameTakenAnywhere(listing.name)) {
-    return fail(nameTakenError(listing.name));
-  }
-
-  const index = await loadCatalogNameIndex();
-  const parentResolve = resolveNames(index.listing, parents, "listing");
-  if ("error" in parentResolve) return fail(parentResolve.error);
-  const groupResolve = resolveNames(
-    index.group,
-    memberships.map((m) => m.group),
-    "group",
-  );
-  if ("error" in groupResolve) return fail(groupResolve.error);
-
-  const { slug, slugIndex } = await generateUniqueListingSlug();
-  const input = applyImportPolicy(
-    listingDataToInput(listing, slug, slugIndex, groupResolve.ids),
-    adminLevel,
-  );
-
-  const validationError = await validateListingInput(input);
-  if (validationError) return fail(validationError);
-  const edgeError = await validateParentEdges(
-    input,
-    parentResolve.ids,
-    groupResolve.ids,
-  );
-  if (edgeError) return fail(edgeError);
-
-  // Package overrides only apply to a package group; clear them for any regular
-  // group the listing joins (matching the normal group save).
-  const packageGroupIds = new Set(
-    (await groups.cache.getAll()).filter((g) => g.is_package).map((g) => g.id),
-  );
-  // A package day-price override must target a day count this listing offers —
-  // the new listing itself is the member here, so validate against its own spans.
-  const newMember: DayPricedListing = dayPriceFieldsFromInput(input);
-  for (let i = 0; i < memberships.length; i++) {
-    if (!packageGroupIds.has(groupResolve.ids[i]!)) continue;
-    const dayError = memberDayOverrideError(
-      listing.name,
-      memberships[i]!.dayPrices,
-      newMember,
-    );
-    if (dayError) return fail(dayError);
-  }
-  const specs = memberships.map((m, i) => {
-    const groupId = groupResolve.ids[i]!;
-    return {
-      ...membershipSpec(m, packageGroupIds.has(groupId)),
-      groupId,
-    };
-  });
-  const id = await writeRowInTransaction(
-    await listingsTable.insertStatement!(input),
-    null,
-    async (tx, newId) => {
-      // insertStatement bypasses the listingsTable wrapper, which normally writes
-      // the listing's own `day_count` price rows (their source of truth is
-      // listing_prices, not a column). Write them here so an imported customisable
-      // listing keeps its per-day prices, committed atomically with the row.
-      await writeListingDayCounts(tx, newId, input.dayPrices);
-      await writeMembershipsTx(tx, withNewId(specs, "listingId", newId));
-      await listingParents.addIdsTx(tx, newId, parentResolve.ids);
-    },
-  );
-  // insertStatement bypassed the table wrapper, so re-sync the derived `base`
-  // price row from the just-written `unit_price` column (as afterCommit does).
-  await syncListingPrices(id);
-  return okResult({ id, kind: "listing", name: input.name });
-};
-
-/** Every listing in a group must share both its type and its customisable-days
- * setting (so the shared booking form shows one selector). Returns the first
- * mismatch as an intelligible error, or null when the members are homogeneous. */
 const membersHomogeneous = (
   listings: readonly {
     name: string;
@@ -463,23 +63,22 @@ const membersHomogeneous = (
 ): string | null => {
   const [first, ...rest] = listings;
   if (!first) return null;
-  const typeMismatch = rest.find((l) => l.listing_type !== first.listing_type);
+  const typeMismatch = rest.find(
+    (listing) => listing.listing_type !== first.listing_type,
+  );
   if (typeMismatch) {
     return `All listings in a group must be the same type, but "${first.name}" is ${first.listing_type} and "${typeMismatch.name}" is ${typeMismatch.listing_type}.`;
   }
   const customMismatch = rest.find(
-    (l) => l.customisable_days !== first.customisable_days,
+    (listing) => listing.customisable_days !== first.customisable_days,
   );
-  if (customMismatch) {
-    return `All listings in a group must agree on customisable days, but "${first.name}" and "${customMismatch.name}" differ.`;
-  }
-  return null;
+  return customMismatch
+    ? `All listings in a group must agree on customisable days, but "${first.name}" and "${customMismatch.name}" differ.`
+    : null;
 };
 
-/** Validate the resolved members against every rule the group editor applies. */
 const importedGroupMembersError = async (
   group: GroupTransfer["group"],
-  members: GroupTransfer["members"],
   memberIds: readonly number[],
   listings: readonly ListingWithCount[],
 ): Promise<string | null> => {
@@ -488,19 +87,56 @@ const importedGroupMembersError = async (
   const homogeneityError = membersHomogeneous(memberListings);
   if (homogeneityError) return homogeneityError;
   if (!group.isPackage) return null;
-  const packageError = await packageMembersError(
-    memberListings,
-    group.hidePackageListings,
+  return packageMembersError(memberListings, group.hidePackageListings);
+};
+
+/** Day-price override validation inside the write transaction, so a listing
+ *  whose day counts changed between the pre-tx read and this write rolls
+ *  back rather than committing an override for a day count it no longer offers.
+ *  Reads the member listings through the transaction so the day-count check
+ *  sees the current state, not the request-level cache. */
+export const importedGroupDayPriceErrorTx = async (
+  tx: TxScope,
+  memberIds: readonly number[],
+  members: GroupTransfer["members"],
+): Promise<string | null> => {
+  const rows = resultRows<
+    Omit<DayPricedListing, "day_prices"> & {
+      id: number;
+      name: EnvKeyEncrypted;
+      day_prices: string;
+    }
+  >(
+    await tx.execute({
+      args: [...memberIds],
+      sql: `SELECT listing.id, listing.name, listing.customisable_days,
+                   listing.duration_days,
+                   COALESCE((
+                     SELECT json_group_object(
+                       listingPrice.price_id, listingPrice.unit_price)
+                       FROM listing_prices AS listingPrice
+                      WHERE listingPrice.listing_id = listing.id
+                        AND listingPrice.price_type = 'day_count'
+                   ), '{}') AS day_prices
+            FROM listings AS listing
+           WHERE listing.id IN (${inPlaceholders(memberIds)})`,
+    }),
   );
-  if (packageError) return packageError;
+  const listingById = mapById(identity<(typeof rows)[number]>)(rows);
+  const missing = missingMemberId(memberIds, listingById);
+  if (missing !== null)
+    throw new TransactionValidationError(t("catalog_transfer.member_missing"));
   for (let i = 0; i < members.length; i++) {
-    const member = listingById.get(memberIds[i]!)!;
-    const dayError = memberDayOverrideError(
-      member.name,
-      members[i]!.dayPrices,
-      member,
-    );
-    if (dayError) return dayError;
+    const memberId = memberIds[i]!;
+    const member = listingById.get(memberId)!;
+    const parsedDayPrices = parseDayPrices(member.day_prices);
+    const overrideKey = memberDayOverrideKey(members[i]!.dayPrices, {
+      ...member,
+      day_prices: parsedDayPrices,
+    });
+    if (overrideKey !== null) {
+      return `"${await decrypt(member.name)}" does not offer a ${overrideKey}-day booking, so it can't carry a package day-price override for it.`;
+    }
   }
   return null;
 };
@@ -509,14 +145,13 @@ const importGroup = async (
   transfer: GroupTransfer,
 ): Promise<Result<ImportedEntity>> => {
   const { group, members } = transfer;
-  if (await isNameTakenAnywhere(group.name)) {
+  if (await isNameTakenAnywhere(group.name))
     return fail(nameTakenError(group.name));
-  }
 
   const index = await loadCatalogNameIndex();
   const memberResolve = resolveNames(
     index.listing,
-    members.map((m) => m.listing),
+    members.map((member) => member.listing),
     "listing",
   );
   if ("error" in memberResolve) return fail(memberResolve.error);
@@ -524,7 +159,6 @@ const importGroup = async (
   const listings = await requireListingsWithCountsByIds(memberResolve.ids);
   const memberError = await importedGroupMembersError(
     group,
-    members,
     memberResolve.ids,
     listings,
   );
@@ -532,36 +166,43 @@ const importGroup = async (
 
   const { slug, slugIndex } = await generateUniqueGroupSlug();
   const input: GroupInput = { ...group, slug, slugIndex };
-  // Package overrides only apply to a package group; a non-package group clears
-  // them (matching the normal group save).
-  const isPackage = group.isPackage ?? false;
-  const specs = members.map((m, i) => ({
-    ...membershipSpec(m, isPackage),
-    listingId: memberResolve.ids[i]!,
+  const specs = members.map((member, index) => ({
+    ...membershipSpec(member, group.isPackage ?? false),
+    listingId: memberResolve.ids[index]!,
   }));
   const id = await writeRowInTransaction(
     await groups.table.insertStatement!(input),
     null,
-    (tx, newId) => writeMembershipsTx(tx, withNewId(specs, "groupId", newId)),
+    async (tx, newId) => {
+      if (group.isPackage) {
+        const dayError = await importedGroupDayPriceErrorTx(
+          tx,
+          memberResolve.ids,
+          members,
+        );
+        requireDayPriceOk(dayError);
+      }
+      await writeMembershipsTx(tx, withNewId(specs, "groupId", newId));
+      requireImportedMembership(
+        await validateListingGroupMembershipsTx(tx)(memberResolve.ids, [newId]),
+      );
+    },
   );
   return okResult({ id, kind: "group", name: input.name });
 };
 
-/**
- * Parse, validate, and apply a catalog transfer blob. Returns the created
- * entity on success, or an intelligible error describing exactly what to fix.
- * Never throws for bad input — malformed JSON is rejected upstream and every
- * validation failure returns `{ ok: false, error }`. `adminLevel` is the
- * importing user's role, so the same field locks the interactive create paths
- * enforce for editors are applied to an uploaded listing.
- */
+/** Parses, validates, and applies one catalog transfer blob. */
 export const importCatalog = async (
   blob: unknown,
   adminLevel?: AdminLevel,
 ): Promise<Result<ImportedEntity>> => {
   const parsed = v.safeParse(CatalogTransferSchema, blob);
   if (!parsed.success) return fail(formatTransferIssues(parsed.issues));
-  return parsed.output.kind === "listing"
-    ? importListing(parsed.output, adminLevel)
-    : importGroup(parsed.output);
+  try {
+    return parsed.output.kind === "listing"
+      ? await importListing(parsed.output, adminLevel)
+      : await importGroup(parsed.output);
+  } catch (error) {
+    return importTransactionFailure(error);
+  }
 };

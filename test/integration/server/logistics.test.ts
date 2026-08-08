@@ -14,6 +14,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createListingWithAttendeeAndLogistics } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createLogisticsAgent } from "#test-utils/db-helpers/logistics-agents.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { awaitTestRequest, withExpectedError } from "#test-utils/mocks.ts";
 import {
@@ -24,13 +25,6 @@ import {
   createTestManagerSession,
 } from "#test-utils/session.ts";
 import { enableFeature, storedFeatureEnabled } from "#test-utils/settings.ts";
-
-const createAgent = async (name: string): Promise<number> => {
-  const { response } = await adminFormPost("/admin/logistics", { name });
-  expect(response.status).toBe(302);
-  const agents = await logisticsAgents.getAll();
-  return agents.find((a) => a.name === name)!.id;
-};
 
 /** Create a listing + attendee pair and assign logistics agents to the
  *  booking line. Delegates to the shared `createListingWithAttendeeAndLogistics`
@@ -126,7 +120,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
     });
 
     test("edits an agent", async () => {
-      const id = await createAgent("Van A");
+      const id = await createLogisticsAgent("Van A");
       const editForm = await adminGet(`/admin/logistics/${id}`);
       const editHtml = await editForm.text();
       // The form must post to the real edit route (no stray /agents/ segment).
@@ -151,7 +145,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
     });
 
     test("assigns users to an agent, drops unknown ids, and pre-checks them", async () => {
-      const id = await createAgent("Crewed Van");
+      const id = await createLogisticsAgent("Crewed Van");
       const userId = (await getAllUsers())[0]!.id;
 
       // Assigning a real user persists the link.
@@ -178,7 +172,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
     });
 
     test("rolls back the name when assigned-user writes fail", async () => {
-      const id = await createAgent("Atomic van");
+      const id = await createLogisticsAgent("Atomic van");
       const userId = (await getAllUsers())[0]!.id;
       await getDb().execute(`
         CREATE TRIGGER fail_agent_user_link
@@ -206,7 +200,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
     });
 
     test("does not offer or accept editors as logistics drivers", async () => {
-      const id = await createAgent("No Editors Van");
+      const id = await createLogisticsAgent("No Editors Van");
       const { userId: agentUserId } = await createTestAgentSession({
         username: "drivableagent",
       });
@@ -228,7 +222,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
     });
 
     test("shows a delete confirmation and deletes the agent", async () => {
-      const id = await createAgent("Doomed Van");
+      const id = await createLogisticsAgent("Doomed Van");
       const confirm = await adminGet(`/admin/logistics/${id}/delete`);
       const confirmHtml = await confirm.text();
       expect(confirmHtml).toContain(`action="/admin/logistics/${id}/delete"`);
@@ -248,7 +242,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
     });
 
     test("deleting an agent clears its booking references", async () => {
-      const id = await createAgent("Assigned Van");
+      const id = await createLogisticsAgent("Assigned Van");
       const { attendeeId, listingId } = await createBookingWithAgent(id);
 
       await adminFormPost(`/admin/logistics/${id}/delete`, {
@@ -277,7 +271,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
     });
 
     test("rejects an empty name in place with submitted assignments", async () => {
-      const id = await createAgent("Keep Me");
+      const id = await createLogisticsAgent("Keep Me");
       const userId = (await getAllUsers())[0]!.id;
       const { response } = await adminFormPost(`/admin/logistics/${id}/edit`, {
         name: "   ",
@@ -297,7 +291,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
     });
 
     test("keeps edit and actions unavailable in read-only mode", async () => {
-      const id = await createAgent("Read only van");
+      const id = await createLogisticsAgent("Read only van");
       using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
 
       expectStatus(404)(await adminGet(`/admin/logistics/${id}`));
@@ -305,7 +299,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
     });
 
     test("keeps the entity page owner-only", async () => {
-      const id = await createAgent("Owner van");
+      const id = await createLogisticsAgent("Owner van");
       const response = await awaitTestRequest(`/admin/logistics/${id}`, {
         cookie: await createTestManagerSession("logistics-manager"),
       });

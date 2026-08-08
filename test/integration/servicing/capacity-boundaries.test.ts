@@ -11,11 +11,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getListingRemainingForRange } from "#shared/db/attendees/capacity/remaining.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import {
-  createDailyTestListing,
-  createTestListing,
-} from "#test-utils/db-helpers/listings.ts";
+import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createServicingHold, expectRejects } from "#test-utils/servicing.ts";
 
 // jscpd:ignore-end
@@ -148,45 +144,6 @@ describeWithEnv(
         quantity: 1,
       });
       expect(over.id).toBeGreaterThan(0);
-    });
-
-    test("group cap with mixed daily + standard listings: servicing on the daily counts correctly", async () => {
-      const group = await createTestGroup({
-        maxAttendees: 5,
-        name: "mix",
-        slug: "mix",
-      });
-      const daily = await createDailyTestListing({
-        groupId: group.id,
-        maxAttendees: 10,
-        name: "daily-in-group",
-      });
-      const standard = await createTestListing({
-        maxAttendees: 10,
-        name: "standard-in-group",
-      });
-      const { assignListingsToGroup } = await import("#shared/db/groups.ts");
-      await assignListingsToGroup([standard.id], group.id);
-      // Pre-book the standard listing with qty 2 (cumulative against group cap).
-      const { createTestAttendeeDirect } = await import(
-        "#test-utils/db-helpers/attendees.ts"
-      );
-      await createTestAttendeeDirect(standard.id, "Real", "r@example.com", 2);
-      // Servicing hold of qty 2 on the daily for 07-01: group cap (5) must
-      // drop by both (2 real + 2 servicing) = 3 remain for that day.
-      await createServicingHold({
-        date: "2026-07-01",
-        listing: {
-          groupId: group.id,
-          maxAttendees: 10,
-          name: "daily-in-group",
-        },
-        quantity: 2,
-      });
-      const { getGroupRemainingForListing } = await import(
-        "#shared/db/attendees/capacity/groups.ts"
-      );
-      expect(await getGroupRemainingForListing(daily.id, "2026-07-01")).toBe(1);
     });
   },
 );

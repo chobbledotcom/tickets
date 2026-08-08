@@ -1,10 +1,16 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
+import { assignListingsToGroup } from "#shared/db/groups/membership.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { makeRenewalTier } from "#test/test-utils/listing-parents/helpers.ts";
-import { expectFlash } from "#test-utils/assertions.ts";
+import {
+  expectFlash,
+  expectRedirectWithFlash,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   createTestListing,
   updateTestListing,
@@ -38,8 +44,11 @@ describeWithEnv("server > listing parents > edges", { db: true }, () => {
       name: "Daily add-on",
     });
     const res = await postChildren(parent.id, [child.id]);
-    // A rejected save redirects back with an ERROR flash, not a success one.
-    expectFlash(res, expect.anything(), false);
+    expectRedirectWithFlash(
+      `/admin/listing/${parent.id}/edit`,
+      t("listings_table.children_err_child_daily", { name: "Daily add-on" }),
+      false,
+    )(res);
     expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
@@ -239,6 +248,23 @@ describeWithEnv("server > listing parents > edges", { db: true }, () => {
     res.body?.cancel();
     expectFlash(res, "Required children updated");
     expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
+  });
+
+  test("keeps a package child conflict as an error flash", async () => {
+    const parent = await createTestListing({ name: "Plain parent" });
+    const child = await createTestListing({ name: "Package child" });
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Package group",
+    });
+    await assignListingsToGroup([child.id], group.id);
+
+    expectRedirectWithFlash(
+      `/admin/listing/${parent.id}/edit`,
+      t("error.package_child_is_member"),
+      false,
+    )(await postChildren(parent.id, [child.id]));
+    expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
   test("addIdsTx adds a child under each parent without disturbing others", async () => {

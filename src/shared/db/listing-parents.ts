@@ -11,14 +11,26 @@
  * uses them, to keep the module free of unused exports.
  */
 
-import { firstProblem, mapNotNullish, unique } from "#fp";
-import { inPlaceholders, queryIdColumn } from "#shared/db/client.ts";
+import { firstProblem, identity, mapById, mapNotNullish, unique } from "#fp";
+import { t } from "#i18n";
+import {
+  inPlaceholders,
+  queryIdColumn,
+  resultRows,
+  TransactionValidationError,
+  type TxScope,
+} from "#shared/db/client.ts";
 import { type LinkTableSide, linkTableSide } from "#shared/db/link-table.ts";
 import { requireListingsWithCountsByIds } from "#shared/db/listings/records.ts";
 import {
   type EdgeListing,
   edgeFieldError,
 } from "#shared/listing-parents-rules.ts";
+import {
+  type PackageChildEdgeBlock,
+  packageChildEdgeConflict,
+  packageChildEdgeError,
+} from "#shared/package-membership.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 
 /** A parent's chooseable children, keyed by parent id (relationship only):
@@ -41,6 +53,130 @@ export const listingParents = linkTableSide(
   "child_listing_id",
   "parent_listing_id",
 );
+
+type PackageEdgeCheckRow = {
+  child_is_package_member: number;
+  parent_is_hidden_package_member: number;
+};
+
+/** Reports whether the parent-side hidden-package flag and the child-side
+ *  package-member flag together form a forbidden child edge, given the ids
+ *  whose membership triggered one of the flags. Both edge-writers call this
+ *  with the ids they are about to link, then convert the result into a
+ *  returned error (children writer) or a thrown one (parent-edge writer). */
+const edgeConflictFor = (
+  ids: readonly number[],
+  state: PackageEdgeCheckRow,
+): Promise<PackageChildEdgeBlock | null> =>
+  packageChildEdgeConflict(
+    ids,
+    () => state.parent_is_hidden_package_member === 1,
+    () => state.child_is_package_member === 1,
+  );
+
+/** Replaces child edges only when the transaction's package memberships allow
+ *  them and every endpoint still exists. `listing_parents` has no foreign key,
+ *  so a deleted parent or child would leave an orphan edge that later
+ *  relationship hydration can't resolve. */
+export const setListingChildrenWithPackageCheckTx = async (
+  tx: TxScope,
+  parentId: number,
+  childIds: readonly number[],
+): Promise<PackageChildEdgeBlock | null> => {
+  const [state] = resultRows<
+    PackageEdgeCheckRow & {
+      child_count: number;
+      parent_exists: number;
+    }
+  >(
+    await tx.execute({
+      args: [parentId, ...childIds, ...childIds, parentId],
+      sql: `SELECT EXISTS(
+                      SELECT 1
+                        FROM group_listings AS parentMembership
+                        JOIN groups AS parentGroup
+                          ON parentGroup.id = parentMembership.group_id
+                       WHERE parentMembership.listing_id = ?
+                         AND parentGroup.is_package = 1
+                         AND parentGroup.hide_package_listings = 1
+                    ) AS parent_is_hidden_package_member,
+                    EXISTS(
+                      SELECT 1
+                        FROM group_listings AS childMembership
+                        JOIN groups AS childGroup
+                          ON childGroup.id = childMembership.group_id
+                       WHERE childMembership.listing_id IN (${inPlaceholders(childIds)})
+                         AND childGroup.is_package = 1
+                    ) AS child_is_package_member,
+                    (SELECT COUNT(*) FROM listings
+                       WHERE id IN (${inPlaceholders(childIds)})) AS child_count,
+                    EXISTS(SELECT 1 FROM listings WHERE id = ?) AS parent_exists`,
+    }),
+  );
+  if (!state!.parent_exists) return null;
+  if (state!.child_count !== new Set(childIds).size) {
+    throw new TransactionValidationError(t("error.child_listing_deleted"));
+  }
+  const conflict = await edgeConflictFor(childIds, state!);
+  if (conflict) return conflict;
+  await listingChildren.setIdsTx(tx, parentId, childIds);
+  return null;
+};
+
+/** Stops the containing write when its package edge check reports a conflict. */
+export const requireListingChildrenPackageCheck = (
+  conflict: PackageChildEdgeBlock | null,
+): void => {
+  if (conflict) {
+    throw new TransactionValidationError(packageChildEdgeError(conflict));
+  }
+};
+
+/** Adds parent edges for a freshly-created child only when the transaction's
+ *  package memberships allow them, and only when every parent still exists.
+ *  Mirrors {@link setListingChildrenWithPackageCheckTx} from the child side: the
+ *  child is `childId`, the parents are `parentIds`. A vanished parent rolls the
+ *  write back rather than leaving an orphan edge to a deleted listing.
+ *  `missingError` is the message thrown when a named parent no longer exists,
+ *  supplied by the caller so this shared DB helper does not hardcode a
+ *  catalog-import-specific message. */
+export const addParentEdgesWithPackageCheckTx = async (
+  tx: TxScope,
+  childId: number,
+  parentIds: readonly number[],
+  missingError: string,
+): Promise<void> => {
+  if (parentIds.length === 0) return;
+  const [state] = resultRows<PackageEdgeCheckRow & { parent_count: number }>(
+    await tx.execute({
+      args: [childId, ...parentIds, ...parentIds],
+      sql: `SELECT EXISTS(
+                      SELECT 1
+                        FROM group_listings AS childMembership
+                        JOIN groups AS childGroup
+                          ON childGroup.id = childMembership.group_id
+                       WHERE childMembership.listing_id = ?
+                         AND childGroup.is_package = 1
+                    ) AS child_is_package_member,
+                    EXISTS(
+                      SELECT 1
+                        FROM group_listings AS parentMembership
+                        JOIN groups AS parentGroup
+                          ON parentGroup.id = parentMembership.group_id
+                       WHERE parentMembership.listing_id IN (${inPlaceholders(parentIds)})
+                         AND parentGroup.is_package = 1
+                         AND parentGroup.hide_package_listings = 1
+                    ) AS parent_is_hidden_package_member,
+                    (SELECT COUNT(*) FROM listings
+                       WHERE id IN (${inPlaceholders(parentIds)})) AS parent_count`,
+    }),
+  );
+  if (state!.parent_count !== new Set(parentIds).size) {
+    throw new TransactionValidationError(missingError);
+  }
+  requireListingChildrenPackageCheck(await edgeConflictFor(parentIds, state!));
+  await listingParents.addIdsTx(tx, childId, parentIds);
+};
 
 /** The requested listing ids that have at least one link on a relationship
  * side. The side's batched map includes empty keys; structural child checks need
@@ -119,7 +255,7 @@ const listingsByIdFor = async (
     sides.flatMap((links) => [...links.values()].flat()),
   );
   const listings = await requireListingsWithCountsByIds(linkedIds);
-  return new Map(listings.map((listing) => [listing.id, listing]));
+  return mapById(identity<ListingWithCount>)(listings);
 };
 
 /** Batch and hydrate one listing relationship side. Only linked listings are

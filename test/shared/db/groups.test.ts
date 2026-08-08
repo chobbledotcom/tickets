@@ -11,10 +11,10 @@ import {
 } from "#shared/db/attendees/capacity/groups.ts";
 import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#shared/db/attendees/create.ts";
 import { getDb } from "#shared/db/client.ts";
+import { assignListingsToGroup } from "#shared/db/groups/membership.ts";
 import {
   anyHiddenPackageGroup,
   anyListingInPackageGroup,
-  assignListingsToGroup,
   computeGroupSlugIndex,
   getActiveListingsByGroupId,
   getGroupBySlugIndex,
