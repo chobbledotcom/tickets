@@ -73,15 +73,23 @@ const edgeConflictFor = (
     () => state.child_is_package_member === 1,
   );
 
-/** Replaces child edges only when the transaction's package memberships allow them. */
+/** Replaces child edges only when the transaction's package memberships allow
+ *  them and every endpoint still exists. `listing_parents` has no foreign key,
+ *  so a deleted parent or child would leave an orphan edge that later
+ *  relationship hydration can't resolve. */
 export const setListingChildrenWithPackageCheckTx = async (
   tx: TxScope,
   parentId: number,
   childIds: readonly number[],
 ): Promise<PackageChildEdgeBlock | null> => {
-  const [state] = resultRows<PackageEdgeCheckRow>(
+  const [state] = resultRows<
+    PackageEdgeCheckRow & {
+      child_count: number;
+      parent_exists: number;
+    }
+  >(
     await tx.execute({
-      args: [parentId, ...childIds],
+      args: [parentId, ...childIds, ...childIds, parentId],
       sql: `SELECT EXISTS(
                       SELECT 1
                         FROM group_listings AS parentMembership
@@ -98,9 +106,18 @@ export const setListingChildrenWithPackageCheckTx = async (
                           ON childGroup.id = childMembership.group_id
                        WHERE childMembership.listing_id IN (${inPlaceholders(childIds)})
                          AND childGroup.is_package = 1
-                    ) AS child_is_package_member`,
+                    ) AS child_is_package_member,
+                    (SELECT COUNT(*) FROM listings
+                       WHERE id IN (${inPlaceholders(childIds)})) AS child_count,
+                    EXISTS(SELECT 1 FROM listings WHERE id = ?) AS parent_exists`,
     }),
   );
+  if (!state!.parent_exists) return null;
+  if (state!.child_count !== new Set(childIds).size) {
+    throw new TransactionValidationError(
+      "A listing selected as a child was deleted. Please try again.",
+    );
+  }
   const conflict = await edgeConflictFor(childIds, state!);
   if (conflict) return conflict;
   await listingChildren.setIdsTx(tx, parentId, childIds);

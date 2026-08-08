@@ -1,13 +1,17 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
-import { withTransaction } from "#shared/db/client.ts";
+import {
+  TransactionValidationError,
+  withTransaction,
+} from "#shared/db/client.ts";
 import { assignListingsToGroup } from "#shared/db/groups/membership.ts";
 import {
   listingChildren,
   requireListingChildrenPackageCheck,
   setListingChildrenWithPackageCheckTx,
 } from "#shared/db/listing-parents.ts";
+import { listingsTable } from "#shared/db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -66,5 +70,30 @@ describeWithEnv("db > listing-parents > package check", { db: true }, () => {
       ),
     ).toBeNull();
     expect(await listingChildren.getIds(parent.id)).toEqual([replacement.id]);
+  });
+
+  test("rolls back when a child endpoint was deleted before the tx", async () => {
+    const { parent, child } = await parentAndChild();
+    await listingsTable.deleteById(child.id);
+
+    await expect(
+      withTransaction((tx) =>
+        setListingChildrenWithPackageCheckTx(tx, parent.id, [child.id]),
+      ),
+    ).rejects.toBeInstanceOf(TransactionValidationError);
+    expect(await listingChildren.getIds(parent.id)).toEqual([]);
+  });
+
+  test("returns null when the parent endpoint was deleted before the tx", async () => {
+    const child = await createTestListing({ name: "Orphaned child" });
+    const parent = await createTestListing({ name: "Vanished parent" });
+    await listingsTable.deleteById(parent.id);
+
+    expect(
+      await withTransaction((tx) =>
+        setListingChildrenWithPackageCheckTx(tx, parent.id, [child.id]),
+      ),
+    ).toBeNull();
+    expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 });

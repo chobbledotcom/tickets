@@ -21,12 +21,10 @@
 import type { InValue } from "@libsql/client";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
-import { ADMIN_API, type AuthPolicy, withAuth } from "#routes/auth.ts";
+import { ADMIN_API, withAuth } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activity-log.ts";
-import type { TxScope } from "#shared/db/client.ts";
-import type { Table } from "#shared/db/table.ts";
 import { byPrimaryKey } from "#shared/db/table-reader.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { parseAndValidate, withApiEntity } from "#shared/rest/crud-parsers.ts";
@@ -34,122 +32,17 @@ import { type JoinWrite, writeEntity } from "#shared/rest/write-entity.ts";
 import { writeEntityOrValidationResponse } from "#shared/rest/write-error.ts";
 import type { Result } from "#shared/result.ts";
 import type { AdminSession } from "#shared/types.ts";
+
 /* jscpd:ignore-end */
 
-/**
- * An atomic body-only side effect (e.g. relationship edges) for a create/update.
- * Two-phase so the whole write is all-or-nothing:
- * `validate` runs BEFORE the write and either rejects (400, nothing written) or
- * yields a prepared `value`; `persist` then runs in the SAME transaction as the
- * row write (see `writeWithSideEffect`), so a failure rolls the row write back
- * too — never an orphan row without its side effect. A resource with no side
- * effects omits it and takes the plain (untransacted) single-statement path.
- */
-export interface CrudSideEffect<Input, FullRow, Prepared> {
-  /** Persist the prepared value on the open write transaction `tx`, given the
-   * written row's `id`. A throw rolls back the row write with it. */
-  persist: (tx: TxScope, id: number, value: Prepared) => Promise<void>;
-  /** Validate the side effect against the would-be `input` (the post-save row
-   * fields), the raw `body`, and the `existing` full row on update (null on
-   * create). Returns `{ error }` to reject the whole write, or `{ value }` with
-   * the prepared data to persist once the row exists. */
-  validate: (
-    input: Input,
-    body: Record<string, unknown>,
-    existing: FullRow | null,
-  ) => Promise<{ error: string } | { value: Prepared }>;
-}
+export type {
+  AfterCommitConfig,
+  AfterWriteHook,
+  CrudApiConfig,
+  CrudSideEffect,
+} from "#shared/rest/crud-api-types.ts";
 
-/** The post-commit hook shared by every write-config: it runs after a
- * create/update has committed and the row has been re-read, keyed on the row
- * id. Unlike `afterWrite` (which shares the write transaction), this fires
- * post-commit — for reconciling a derived table (e.g. listing_prices) that the
- * transactional `insertStatement`/`updateStatement` path would otherwise
- * bypass. */
-export interface AfterCommitConfig {
-  afterCommit?: (id: number) => Promise<void>;
-}
-
-/** A join-table write run inside the row's write transaction, given the open
- * transaction scope, the written row's id, the parsed input, and the existing
- * row (the pre-update state, null on create). */
-export type AfterWriteHook<Input, FullRow> = (
-  tx: TxScope,
-  id: number,
-  input: Input,
-  existing: FullRow | null,
-) => Promise<void>;
-
-/** Configuration for defineCrudApi */
-export interface CrudApiConfig<
-  Row,
-  Input,
-  FullRow extends Row = Row,
-  Prepared = void,
-> extends AfterCommitConfig {
-  /** Side-effect run with the written row's id and the parsed input to persist
-   * join-table rows (a listing's groups, a group's package members) that live
-   * outside the main table. Runs inside the SAME transaction as the row write
-   * (it receives the transaction scope), so a failure rolls the row write back
-   * rather than leaving partial state. */
-  afterWrite?: AfterWriteHook<Input, FullRow>;
-  /** Extra route entries to merge in (can also override generated routes) */
-  extraRoutes?: Record<string, RouteHandlerFn>;
-  /** Fetch all rows (from cache) — may return a richer row type than the table (e.g. joined counts) */
-  getAll: () => Promise<FullRow[]>;
-  /** Optionally hydrate response rows in one batched call, keyed by row id. A
-   * single-row response passes an array of one through this same path. */
-  hydrate?: (
-    rows: FullRow[],
-  ) => Promise<ReadonlyMap<number, Record<string, unknown>>>;
-  /** When true, activity log entries for create/update are linked to the row's id as listing_id */
-  linkActivityToRow?: boolean;
-  /** Extra keys added to the list response alongside the row array (e.g. admin_level) */
-  listExtras?: (session: AdminSession) => Record<string, unknown>;
-  /** Custom single-row lookup (e.g. to include joined counts). Defaults to reading the row by its key. */
-  lookup?: (id: number) => Promise<FullRow | null>;
-  /** Custom single-row lookup used ONLY to read a row back right after committing
-   * its own write, which must be pinned to the primary (read-your-writes): the
-   * default `lookup` runs in "read" mode and can hit a replica that lags the
-   * commit, returning null for the just-written row and crashing on `.id`.
-   * Defaults to `table.findByIdPrimary`; a resource whose `lookup` joins extra
-   * columns (e.g. listings' counts) must pass a primary-pinned equivalent so the
-   * write response still carries those columns. */
-  lookupAfterWrite?: (id: number) => Promise<FullRow | null>;
-  /** Resource name (lowercase plural, used in routes and log messages) */
-  name: string;
-  /** Field on Row that holds the display name (for delete confirmation) */
-  nameField: keyof FullRow & string;
-  /** Custom delete logic (e.g. cascade). If not provided, uses table.deleteById */
-  onDelete?: (id: InValue) => Promise<void>;
-  /** Auth policy for all generated routes. Defaults to ADMIN_API (any admin);
-   * pass OWNER_API for resources whose web management is owner-only. */
-  policy?: AuthPolicy<"json">;
-  /** An atomic body-only side effect run around the row write. `Prepared` is
-   * the value its `validate` carries forward to its
-   * `persist`, inferred per resource. See {@link CrudSideEffect}. */
-  sideEffect?: CrudSideEffect<Input, FullRow, Prepared>;
-  /** Singular display name for activity log (e.g. "Holiday") */
-  singular: string;
-  /** Keys to strip from response (e.g. "slug_index") */
-  stripKeys?: string[];
-  /** Table with CRUD operations */
-  table: Table<Row, Input>;
-  /** Convert JSON body to Input for create */
-  toCreateInput: (
-    body: Record<string, unknown>,
-  ) => Result<Input> | Promise<Result<Input>>;
-  /** Convert JSON body + existing row to Input for update */
-  toUpdateInput: (
-    body: Record<string, unknown>,
-    existing: FullRow,
-  ) => Result<Input> | Promise<Result<Input>>;
-  /** Optional validation (return error message or null) */
-  validate?: (input: Input, id?: number) => Promise<string | null>;
-  /** Optional delete guard: a returned message blocks the deletion with a 400
-   * (e.g. a sold hidden package whose tickets still resolve through it). */
-  validateDelete?: (id: number) => Promise<string | null>;
-}
+import type { CrudApiConfig } from "#shared/rest/crud-api-types.ts";
 
 /** Strip internal keys from a row before sending in the response */
 const stripRow = <Row>(row: Row, keys: string[]): Record<string, unknown> => {
