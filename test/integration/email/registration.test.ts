@@ -4,6 +4,10 @@ import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import type { EmailConfig } from "#shared/email.ts";
 import { sendRegistrationEmails, sendTestEmail } from "#shared/email.ts";
 import type { RegistrationPackageFacts } from "#shared/registration-package-facts.ts";
+import {
+  runWithSubrequestBudget,
+  withSubrequestAllowance,
+} from "#shared/subrequest-budget.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { configureTestEmail, validEmail } from "#test-utils/email.ts";
@@ -226,6 +230,32 @@ describeWithEnv(
 
       // Both calls were attempted (Promise.allSettled)
       expect(fetch.callCount()).toBe(2);
+    });
+
+    test("throws when the email subrequest allowance is exhausted", async () => {
+      await configureTestEmail();
+      const facts: RegistrationPackageFacts = {
+        displays: new Map(),
+        pricingByGroup: new Map(),
+      };
+
+      const sending = runWithSubrequestBudget(() =>
+        withSubrequestAllowance({ database: 50, external: 0, total: 50 }, () =>
+          sendRegistrationEmails([makeEntry()], "GBP", facts),
+        ),
+      );
+
+      await expect(sending).rejects.toThrow("Subrequest allowance exceeded");
+      expect(fetch.callCount()).toBe(0);
+    });
+
+    test("returns a failed delivery for a network error", async () => {
+      await configureTestEmail();
+      fetch.restubFetch(() => Promise.reject(new TypeError("Network error")));
+
+      expect(await sendRegistrationEmails([makeEntry()], "GBP")).toEqual({
+        failed: true,
+      });
     });
   },
 );

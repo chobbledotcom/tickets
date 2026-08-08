@@ -27,6 +27,21 @@ export const registrationDeliveryResult = (
   failed: deliveries.some(({ delivered }) => !delivered),
 });
 
+export const waitForRegistrationDeliveries = async <
+  Delivery extends { delivered: boolean },
+>(
+  deliveries: Promise<Delivery>[],
+): Promise<RegistrationDeliveryResult> => {
+  const results = await Promise.allSettled(deliveries);
+  const rejected = results.find((result) => result.status === "rejected");
+  if (rejected) throw rejected.reason;
+  return registrationDeliveryResult(
+    results
+      .filter((result) => result.status === "fulfilled")
+      .map((result) => result.value),
+  );
+};
+
 export type RegistrationNotification<Entry extends PackageRow> = (
   entries: Entry[],
   currency: string,

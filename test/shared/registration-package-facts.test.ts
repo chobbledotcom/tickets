@@ -5,6 +5,7 @@ import { PRICE_TYPE_GROUP_DAY } from "#shared/db/listing-prices.ts";
 import {
   loadRegistrationPackageFacts,
   registrationDeliveryResult,
+  waitForRegistrationDeliveries,
 } from "#shared/registration-package-facts.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
@@ -28,6 +29,33 @@ test("marks a registration failed exactly when any delivery failed", () => {
   expect(
     registrationDeliveryResult([{ delivered: true }, { delivered: false }]),
   ).toEqual({ failed: true });
+});
+
+test("combines completed registration deliveries", async () => {
+  expect(
+    await waitForRegistrationDeliveries<{ delivered: boolean }>([
+      Promise.resolve({ delivered: true }),
+      Promise.resolve({ delivered: false }),
+    ]),
+  ).toEqual({ failed: true });
+});
+
+test("waits for every registration delivery before rejecting", async () => {
+  const pending = Promise.withResolvers<{ delivered: true }>();
+  const failure = new Error("unexpected delivery failure");
+  const outcome = waitForRegistrationDeliveries([
+    Promise.reject(failure),
+    pending.promise,
+  ]);
+  let rejected = false;
+  outcome.catch(() => {
+    rejected = true;
+  });
+
+  await Promise.resolve();
+  expect(rejected).toBe(false);
+  pending.resolve({ delivered: true });
+  await expect(outcome).rejects.toBe(failure);
 });
 
 describeWithEnv("loadRegistrationPackageFacts", { db: true }, () => {

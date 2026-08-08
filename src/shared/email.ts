@@ -22,7 +22,7 @@ import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   loadRegistrationPackageFacts,
   type RegistrationNotification,
-  registrationDeliveryResult,
+  waitForRegistrationDeliveries,
 } from "#shared/registration-package-facts.ts";
 import { generateSvgTicket, type SvgTicketData } from "#shared/svg-ticket.ts";
 import { buildCheckinUrl, buildTicketUrl } from "#shared/ticket-url.ts";
@@ -334,43 +334,53 @@ type EmailDeliveryResult =
   | { delivered: true; status: number }
   | { delivered: false; detail: string; status: number | undefined };
 
+const failedEmailDelivery = (error: unknown): EmailDeliveryResult => ({
+  delivered: false,
+  detail: errorMessage(error),
+  status: undefined,
+});
+
 /** Deliver one email and return enough safe detail for its caller to report. */
-const deliverEmail = async (
-  config: EmailConfig,
-  msg: EmailMessage,
-): Promise<EmailDeliveryResult> => {
-  const buildRequest = PROVIDERS[config.provider];
-  if (!buildRequest) {
-    return {
-      delivered: false,
-      detail: `unknown provider: ${config.provider}`,
-      status: undefined,
-    };
-  }
-  try {
-    const { ok, status } = await sendRequest(buildRequest(config, msg));
-    return ok
-      ? { delivered: true, status }
-      : {
-          delivered: false,
-          detail: `status=${status} to=${msg.to}`,
-          status,
-        };
-  } catch (error) {
-    return {
-      delivered: false,
-      detail: errorMessage(error),
-      status: undefined,
-    };
-  }
-};
+const emailDelivery =
+  (recover: (error: unknown) => EmailDeliveryResult) =>
+  async (
+    config: EmailConfig,
+    msg: EmailMessage,
+  ): Promise<EmailDeliveryResult> => {
+    const buildRequest = PROVIDERS[config.provider];
+    if (!buildRequest) {
+      return {
+        delivered: false,
+        detail: `unknown provider: ${config.provider}`,
+        status: undefined,
+      };
+    }
+    try {
+      const { ok, status } = await sendRequest(buildRequest(config, msg));
+      return ok
+        ? { delivered: true, status }
+        : {
+            delivered: false,
+            detail: `status=${status} to=${msg.to}`,
+            status,
+          };
+    } catch (error) {
+      return recover(error);
+    }
+  };
+
+const reportedEmailDelivery = emailDelivery(failedEmailDelivery);
+const registrationMessageDelivery = emailDelivery((error) => {
+  if (!(error instanceof TypeError)) throw error;
+  return failedEmailDelivery(error);
+});
 
 /** Send a single email via the configured provider. Logs errors, never throws. Returns HTTP status or undefined on non-HTTP errors. */
 export const sendEmail = async (
   config: EmailConfig,
   msg: EmailMessage,
 ): Promise<number | undefined> => {
-  const delivery = await deliverEmail(config, msg);
+  const delivery = await reportedEmailDelivery(config, msg);
   if (!delivery.delivered) {
     logError({ code: ErrorCode.EMAIL_SEND, detail: delivery.detail });
   }
@@ -498,10 +508,9 @@ export const sendRegistrationEmails: RegistrationNotification<
     });
   }
 
-  const deliveries = await Promise.all(
-    messages.map((message) => deliverEmail(config, message)),
+  return await waitForRegistrationDeliveries(
+    messages.map((message) => registrationMessageDelivery(config, message)),
   );
-  return registrationDeliveryResult(deliveries);
 };
 
 // ---------------------------------------------------------------------------
