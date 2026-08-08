@@ -2,7 +2,7 @@ import { rethrowUnlessNotFound } from "./not-found.ts";
 
 export type CleanupTask = () => void | Promise<void>;
 
-const throwCollectedErrors = (errors: unknown[]): void => {
+export const throwCollectedErrors = (errors: unknown[]): void => {
   if (errors.length === 1) throw errors[0];
   if (errors.length > 1) {
     throw new AggregateError(errors, "Multiple errors occurred");

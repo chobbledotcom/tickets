@@ -20,6 +20,7 @@ test("loads a screenshot scenario without a setup username", async () => {
 test("loads a screenshot scenario with a setup username", async () => {
   const scenario = await loadFixture("with-username");
 
+  expect(scenario.adminSetup).toBe(true);
   expect(scenario.setupUsername).toBe("site-owner");
 });
 
@@ -42,6 +43,7 @@ for (const name of [
   "invalid-name-type",
   "invalid-name-format",
   "invalid-run",
+  "invalid-admin-setup",
   "invalid-username-type",
   "invalid-selector",
   "invalid-full-page",

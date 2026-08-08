@@ -38,6 +38,8 @@ Options:
                    tests that import the app / Stripe; slower).
   --jobs <n>       Concurrent test-file batches per mutant (default: CPU-aware,
                    or MUTATION_JOBS when set).
+                   Static gates use separate CPU-aware workers, capped at 4;
+                   set MUTATION_STATIC_JOBS to lower that cap.
   --timeout <ms>   Per-mutant timeout floor (default ${DEFAULT_TIMEOUT}).
   -h, --help       Show this help.
 
