@@ -50,7 +50,7 @@ import {
   isPaidListing,
   type ListingWithCount,
 } from "#shared/types.ts";
-import { logAndNotifyRegistration } from "#shared/webhook.ts";
+import { logAndNotifyRegistration } from "#shared/webhook/delivery.ts";
 import {
   extractContact,
   type TicketFormValues,

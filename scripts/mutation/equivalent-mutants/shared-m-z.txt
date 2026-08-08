@@ -1,10 +1,5 @@
 # Known-equivalent mutants — see README.txt in this directory.
 
-# Registration package facts are objects when supplied, so they are always
-# truthy; undefined selects the loader under either nullish or OR fallback.
-src/shared/webhook.ts::sendRegistrationWebhooks.facts~007uooi  ?? → ||   # suppliedFacts is RegistrationPackageFacts|undefined
-src/shared/webhook.ts::queueRegistrationNotifications.packageFacts~0fhpirc  ?? → ||   # suppliedPackageFacts is RegistrationPackageFacts|undefined
-
 # CRUD configuration values are functions or objects when present, and hydrated
 # map values are records, so none can be falsy-but-non-null.
 src/shared/rest/crud-api.ts::defineCrudApi.policy~11y0iup  ?? → ||   # policy is an AuthPolicy object or undefined
@@ -41,6 +36,12 @@ src/features/admin/require-provider.ts::requirePaymentProvider~0y5apey  ?? → |
 # equivalent — a falsy scoped value must win over the fallback — and the
 # "falsy value still wins" test kills it.)
 src/shared/request-scoped.ts::createRequestScoped.current~1izbdej  ?? → ||   # scope.current(): T|undefined — a container object is always truthy
+
+# Registration delivery is always queued through pending-work. After its fixed
+# incident has been recorded, flushPendingWork intentionally consumes either
+# fulfilment or rejection with Promise.allSettled, so changing the one-error
+# rethrow threshold has no further observable result.
+src/shared/webhook/delivery.ts::sendRegistrationNotifications~166dat4  0 → 1   # one error is already reported; pending-work consumes the later rejection
 
 # v2 signed metadata (Phase 2d).
 src/shared/payment-helpers.ts::toBookingItems.foldedChildIds~1sr8ybw  ?? → ||   # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way

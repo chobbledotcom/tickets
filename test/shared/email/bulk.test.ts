@@ -5,9 +5,9 @@ import {
   BULK_UNSUBSCRIBE_PLACEHOLDER,
   type BulkEmailPayload,
   type BulkSendResult,
-  type EmailConfig,
   sendBulkEmails,
-} from "#shared/email.ts";
+} from "#shared/email/bulk.ts";
+import type { EmailConfig } from "#shared/email.ts";
 import { validEmail } from "#test-utils/email.ts";
 import { useFetchStub } from "#test-utils/mocks.ts";
 
