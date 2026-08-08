@@ -154,7 +154,8 @@ export const bodyToUpdateInput = async (
   body: Record<string, unknown>,
   resolved: ListingWithCount,
 ): Promise<Result<ListingInput>> => {
-  const existing = (await getStoredListingWithCount(resolved.id)) ?? resolved;
+  const stored = await getStoredListingWithCount(resolved.id);
+  const existing = stored === null ? resolved : stored;
   const parsedName = parseUpdateName(body, existing.name);
   if (!parsedName.ok) return parsedName;
 
@@ -180,7 +181,10 @@ export const bodyToUpdateInput = async (
         body.day_prices !== undefined
           ? parseDayPrices(body.day_prices)
           : existing.day_prices,
-      groupIds: groupIds ?? (await listingGroups.getIds(existing.id)),
+      groupIds:
+        groupIds === undefined
+          ? await listingGroups.getIds(existing.id)
+          : groupIds,
       maxAttendees,
       maxPrice: bodyNumber(body, "max_price", existing.max_price),
       name: parsedName.value,

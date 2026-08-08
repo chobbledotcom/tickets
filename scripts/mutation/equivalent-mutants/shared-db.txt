@@ -19,19 +19,6 @@ src/shared/update.ts::readRecordedScriptCommit~0csc5ea  ?? → ||   # the primar
 # Attendee phone blind-index (attendee-phone-index.ts).
 src/shared/db/attendee-phone-index.ts::findAttendeeIdByPhoneIndex~0yjm3h8  ?? → ||   # row?.id is undefined or an AUTOINCREMENT id (≥1, never 0), so ?? and || agree
 
-# Parent/child relationship DB (listing-parents.ts).
-src/shared/db/listing-parents.ts::edgeIncompatibilityAfterChange.children~0cip5re  ?? → ||   # childrenByParent.get(id): ListingWithCount[]|undefined — an array is always truthy
-src/shared/db/listing-parents.ts::edgeIncompatibilityAfterChange.parents~1cm1r1e  ?? → ||   # parentsByChild.get(id): ListingWithCount[]|undefined — an array is always truthy
-
-# Group membership and package storage (groups.ts).
-src/shared/db/groups.ts::groupIdsJson~08xarnu  1 → 0   # group_listings.group_id is only ever written from groups.id, an INTEGER PRIMARY KEY SQLite never issues as 0 — the column itself has no foreign key, so this rests on the write path rather than on a constraint
-src/shared/db/groups.ts::listingsInGroup~1orw8y7  Missing group listing membership → ""   # getListingsByGroupIds builds its result map from the ids it was given, so the single-group lookup always finds its own id and requiredMapValue never raises this message
-src/shared/db/groups.ts::getListingsByGroupIds~0zftiii  ?? → ||   # entriesByGroup.get(id): readonly entry[]|undefined — an array is always truthy
-src/shared/db/groups.ts::getGroupPackagePrices~1w9nudp  ?? → ||   # package rows: GroupListing[]|undefined — an array is always truthy
-src/shared/db/groups.ts::memberQuantityStatement~0ajbifl  ?? → ||   # quantity is undefined or at least 1 by PackageMemberInput's contract, so every present value is truthy
-src/features/admin/api-groups.ts::parsePackageMember.dayPrices~1ac0u3a  ?? → ||   # parseMemberDayPrices returns a DayPrices object or undefined; every object, including {}, is truthy
-src/shared/listings-actions.ts::validateListingGroup.checked~0ndre14  Missing group listing membership → ""   # getListingsByGroupIds creates an entry for every non-empty requested group id, and validateListingGroup returns before calling it for an empty list
-
 # Attendee group-capacity lookups: Map values are arrays (always truthy), and
 # duration normalization clamps both a default of 0 and 1 to one day.
 src/shared/db/attendees/capacity/groups.ts::getGroupPerDayRemaining.loads~1nauhgk  ?? → ||   # rowsByGroup.get(): GroupRow[]|undefined — an array is always truthy
@@ -108,24 +95,10 @@ src/shared/db/processed-payments.ts::parseSessionFailure~1rv3mep  processed_paym
 # Attendee answer collection fallbacks: all present values are arrays or answer
 # objects, so they are truthy; only undefined reaches each empty fallback.
 src/shared/db/questions/attendee-answers/save.ts::saveAttendeeAnswers.normalized.textAnswerIds~1h5o1g4  ?? → ||   # textAnswerIds is TextAnswerId[]|undefined — arrays are always truthy
-src/shared/db/questions/attendee-answers/save.ts::saveAttendeeAnswers.normalized.textAnswers~0ycn62j  ?? → ||   # textAnswers is TextAnswer[]|undefined — arrays are always truthy
-src/shared/db/questions/attendee-answers/save.ts::groupListingAnswerSets.answerIds~1pbmjye  ?? → ||   # listingAnswerIds[key] is number[]|undefined — arrays are always truthy
-src/shared/db/questions/attendee-answers/save.ts::groupListingAnswerSets.textAnswers~1f880d0  ?? → ||   # listingTextAnswers[key] is TextAnswer[]|undefined — arrays are always truthy
-src/shared/db/questions/attendee-answers/save.ts::groupListingAnswerSets.existing~0ka51i3  ?? → ||   # Map.get() returns AttendeeAnswerSet|undefined — answer-set objects are always truthy
-src/shared/db/questions/attendee-answers/save.ts::groupListingAnswerSets.existing%2etextAnswers~04d6ypa  ?? → ||   # existing.textAnswers is TextAnswer[]|undefined — arrays are always truthy
 
 # The news card query names a single table, so its columns need no alias to
 # resolve.
 src/shared/db/news-posts.ts::getNewsPostCards.rows.columns~0dqqett  news_post → ""   # dropping the alias leaves the column names unqualified, and the read selects from one table (news_posts AS news_post) plus scalar subqueries that carry their own qualified id, so every name still resolves to the same column
 src/features/admin/api-keys.ts::apiKeyPage.load~0c5nk11  ?? → ||   # entity-page load: find() returns a key row object or undefined — a row object is always truthy, so `?? null` and `|| null` agree on every input
 
-# Batched package pricing (groups.ts) and its API caller: map lookups whose key
-# the loader always seeds, and an array fallback.
-src/shared/db/groups.ts::loadPackageMemberPricingByGroupIds.rows~19vergh  ?? → ||   # rowsByGroup.get(): GroupListing[]|undefined — an array is always truthy
-src/shared/db/groups.ts::loadPackageMemberPricingByGroupIds.dayPrices~1funuvq  Missing package day prices → ""   # getGroupDayPricesByGroupIds returns an entry for every group id it is given, and only those ids are looked up, so requiredMapValue never raises this message
-src/features/admin/api-groups.ts::groupApiRoutes.hydrate.pricing~02yma27  Missing package pricing → ""   # the pricing map is built from the same package group ids the hydrate loop walks, so every lookup hits
-src/shared/db/groups.ts::getGroupById~1ydaoy4  ?? → ||   # getGroupsByIds holds decrypted Group objects, so a present value is always truthy and ?? null and || null agree
-src/shared/db/groups.ts::packageMembersError~17n4dy8  ?? → ||   # blocked[0]: { listing, block }|undefined — the present object is always truthy
-src/shared/db/groups.ts::packageMembersError.blocked.childIds~05z1ovp  Missing listing child edges → ""   # hydrateListingLinks returns an entry for every listing id it is given, and only those ids are looked up, so requiredMapValue never raises this message
-src/shared/db/groups.ts::packageMembersError.blocked.parentIds~069l6kv  Missing listing parent edges → ""   # same as the child edges above — the parents map is keyed by the very listings being checked
 src/shared/db/activity-log.ts::logActivity~078kit2  Activity log row missing → ""   # logActivities returns one row per activity it was given, so the single-activity call always has its row and requireValue never raises this message

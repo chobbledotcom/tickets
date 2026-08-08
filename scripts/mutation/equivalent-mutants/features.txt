@@ -56,26 +56,17 @@ src/features/public/ticket-form.ts::listingsWithQuantity.withQty.qty~0q3jgeq  ??
 
 # Admin listing API fallbacks receive only objects, arrays, positive ids, or
 # nullish values, so no valid request can distinguish these operators.
-src/features/admin/api-listing-body.ts::bodyToUpdateInput.existing~0xlflfs  ?? → ||   # stored listing lookup returns a ListingWithCount object or null; listing objects are truthy
 src/features/admin/api-listing-joins.ts::UNCREATED_PARENT_ID~05rrw2z  1 → 0   # the mutation changes sentinel -1 to -0; positive listing ids match neither value
 src/features/admin/api-listing-joins.ts::prepareListingJoins.packageConflict~1juqee2  ?? → ||   # groupIds is an array or undefined; every array, including [], is truthy
-src/features/admin/api-listing-joins.ts::prepareListingJoins.result~0i1al4o  ?? → ||   # existing?.id is a positive autoincrement id or undefined; never a falsy non-null value
-src/features/admin/api-listing-joins.ts::prepareListingJoins.result.wouldBeGroupIds~1juqee2  ?? → ||   # groupIds is an array or undefined; every array, including [], is truthy
 
 # attendee entity page: `?? → ||` where the operand's only falsy-non-null
 # value equals the "" fallback.
 src/features/admin/attendee-page.ts::attendeePage.tabs.sections.load~1e06wxq  ?? → ||   # ctx.query.get("token"): string|null; the only falsy-non-null value "" equals the "" fallback
 src/shared/db/name-registry.ts::matchName.ids~140086l  ?? → ||   # matchName index.get(): number[]|undefined — an array is always truthy
 src/shared/db/name-registry.ts::isNameTakenAnywhere.ownedByOther~1x88e07  ?? → ||   # isNameTakenAnywhere index.get(): number[]|undefined — an array is always truthy
-src/features/admin/catalog-transfer/import-listing.ts::membershipSpec.quantity~0yrngiz  ?? → ||   # membershipSpec quantity comes from the PositiveInt schema (at least 1) or is undefined, so it is never 0
-src/features/admin/catalog-transfer/import-listing.ts::firstPackageGroup~14gkvgf  ?? → ||   # the found value is a Group object and therefore truthy; a miss is undefined, so both operators return null
-src/features/admin/catalog-transfer/import-listing.ts::loadChildAddOnChecker.wouldBe.active~1hbkt0d  true → false   # childOnlyAddOnCheckerForListings resolves only ids and groupIds; it never reads ListingGroupMembership.active
-src/features/admin/catalog-transfer/import-listing.ts::validateParentEdges.childEdge~08stb2y  0 → 1   # edgeFieldError never reads EdgeListing.id, and child reachability uses the separate placeholder id declared above
 src/features/admin/catalog-transfer/import.ts::importGroup.specs~0u7qcwn  ?? → ||   # isPackage is boolean|undefined, and false equals the false fallback
 src/features/admin/catalog-transfer/schema.ts::formatTransferIssues.parts~0f9t11y  ?? → ||   # formatTransferIssues flat.root: string[]|undefined — an array is always truthy
 src/features/admin/catalog-transfer/schema.ts::formatTransferIssues.parts~19zbaq1  ?? → ||   # formatTransferIssues flat.nested: object|undefined — an object is always truthy
-
-src/shared/listings-actions.ts::strippedPageOrphanedAddOn~05ffdhd  && → ||   # clearing false means mayStripPage never loads a flagged child; clearing true without a flagged child only reruns unchanged reachability, which cannot create an orphan
 
 # attendee merge/refund route: mutants with no observable effect.
 src/features/admin/attendee-refunds.ts::handleAdminRefundAllGet~0mgteeu  ?? → ||   # flash.error: string|undefined from applyFlash; a refund error flash is always a non-empty message, so the only falsy-non-null value "" never occurs and ?? / || agree
@@ -209,8 +200,5 @@ src/features/public/order.ts::bookingUrlFor.chosen.kind~17n3p4g   → "mutated" 
 src/features/public/order.ts::bookingUrlFor.chosen.rawId~1xqr8m1   → "mutated"   # the same key always carries its id, so the id half is never missing
 src/features/public/order.ts::bookingUrlFor.chosen.prefill~1vgmybj  1 → 0   # buildTicketListing sets maxPurchasable to 0 for a sold-out or closed listing and to at least 1 otherwise (max_quantity is at least 1), so the two thresholds never disagree once the checks beside them have passed
 
-# Listing parent editor: present link arrays and cloned ids are truthy, and the
-# in-memory child add-on resolver reads group ids but not listing activity.
+# Listing parent editor: present link arrays are truthy.
 src/features/admin/listings-parents.ts::loadListingParentsSection.offeredUnder~0sst7oc  ?? → ||   # listingsByKey.get() returns an array or undefined; arrays are always truthy
-src/features/admin/listings-parents.ts::childOnlyAddOnResolver.allListings.active~1hbkt0d  true → false   # childOnlyAddOnNameForListings expands group ids only and never reads ListingGroupMembership.active
-src/features/admin/listings-parents.ts::remapDuplicatedGroupEdges.toEdge.childId~1us6y6n  ?? → ||   # clone ids and listing ids are positive, so both operands are always truthy when present

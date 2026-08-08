@@ -153,7 +153,7 @@ const packageMembersErrorTx = async (
   if (!group.isPackage) return null;
   for (const listing of listings) {
     const key = memberBlockKey(
-      { can_pay_more: listing.canPayMore, name: "" },
+      { can_pay_more: listing.canPayMore },
       {
         childIds: listing.hasChildren ? [listing.id] : [],
         parentIds: listing.hasParents ? [listing.id] : [],

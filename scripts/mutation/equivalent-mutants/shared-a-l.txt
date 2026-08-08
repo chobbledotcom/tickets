@@ -92,26 +92,6 @@ src/shared/crypto/utils.ts::constantTimeEqual~0nflsgj  ?? → ||   # bufB[i]: nu
 # non-null string is "" which equals the "" fallback, so ?? and || agree.
 src/shared/forms/saved-data.ts::savedFormValue~1w1m8os  ?? → ||   # getString(): string|undefined, "" ?? "" === "" || ""
 
-# Listing business logic (listings-actions.ts) — optional-field defaults where the
-# fallback equals the only falsy-non-null value, or the operand is always truthy.
-src/shared/listings-actions.ts::validateMaxPrice.minPrice~16xqeks  ?? → ||   # validateMaxPrice unitPrice: number|undefined, 0 ?? 0 === 0 || 0
-src/shared/listings-actions.ts::validateListingGroup.groupIds~1juqee2  ?? → ||   # groupIds: number[]|undefined — an array is always truthy
-src/shared/listings-actions.ts::validateListingGroup.incompatibleByType~0d42sm3  ?? → ||   # canPayMore: boolean|undefined, only falsy-non-null is false === fallback
-src/shared/listings-actions.ts::validateListingGroup.checked.customisable_days~0350hpg  ?? → ||   # customisableDays: boolean|undefined, only falsy-non-null is false === fallback
-src/shared/listings-actions.ts::validateListingGroup.checked.id~1o94tt5  ?? → ||   # existingId: number|undefined, 0 ?? 0 === 0 || 0
-src/shared/listings-actions.ts::validateListingGroup.checked.id~1o94tt5  0 → 1   # on an update existingId supplies the row id; on a create this candidate id is not read by the homogeneity check
-src/shared/listings-actions.ts::validateListingGroup.checked.listing_type~1lqe3go  ?? → ||   # listingType is a non-empty picklist value or undefined, so only undefined reaches the fallback
-src/shared/listings-actions.ts::validateListingGroup.checked~1o94tt5  ?? → ||   # existingId: number|undefined, 0 ?? 0 === 0 || 0
-src/shared/listings-actions.ts::validateRenewalConfig~0ruet3x  ?? → ||   # monthsPerUnit: number|undefined, 0 ?? 0 === 0 || 0
-src/shared/listings-actions.ts::validateRenewalConfig~01imco1  ?? → ||   # initialSiteMonths: number|undefined, 0 ?? 0 === 0 || 0
-src/shared/listings-actions.ts::dayPriceFieldsFromInput.customisable_days~0350hpg  ?? → ||   # customisableDays: only falsy-non-null false === fallback
-src/shared/listings-actions.ts::dayPriceFieldsFromInput.day_prices~1h4yd97  ?? → ||   # dayPrices: DayPrices|undefined — an object is always truthy
-src/shared/listings-actions.ts::dayPriceFieldsFromInput.duration_days~1ugulhp  ?? → ||   # durationDays fallback is clamped; 0 and 1 both become 1
-src/shared/listings-actions.ts::dayPriceFieldsFromInput.duration_days~1ugulhp  1 → 0   # clampDurationDays maps either fallback to the minimum duration of 1
-src/shared/listings-actions.ts::listingInputToEdge.listing_type~1lqe3go  ?? → ||   # listingType is a non-empty picklist value or undefined, so only undefined reaches the fallback
-src/shared/listings-actions.ts::listingInputToEdge.months_per_unit~0ruet3x  ?? → ||   # monthsPerUnit: 0 ?? 0 === 0 || 0
-src/shared/listings-actions.ts::validateListingEdges.orphanError~1juqee2  ?? → ||   # groupIds: number[]|undefined — an array is always truthy
-
 # resize.ts writes each output pixel's channels exactly once into a freshly
 # zeroed Uint8ClampedArray, so `out[o] = x` and `out[o] += x` are identical
 # (0 + x === x). No input can revisit an index, so no test can distinguish them.

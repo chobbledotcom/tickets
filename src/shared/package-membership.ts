@@ -23,6 +23,7 @@ import { t } from "#i18n";
 
 /** The listing fields the member rules read; the name is for the message. */
 type MemberListing = { name: string; can_pay_more: boolean };
+type MemberRuleListing = Pick<MemberListing, "can_pay_more">;
 
 /** The parent/child edges touching a listing, as the member rules read them. */
 type MemberEdges = {
@@ -36,7 +37,7 @@ type MemberEdges = {
 type MemberBlockKey = "pay_more" | "is_addon" | "gates_children_hidden";
 
 type MemberBlockPredicate = (
-  listing: MemberListing,
+  listing: MemberRuleListing,
   edges: MemberEdges,
   hidePackageListings: boolean | undefined,
 ) => boolean;
@@ -60,7 +61,7 @@ const PACKAGE_MEMBER_BLOCKS: ReadonlyArray<{
 /** The first rule that blocks a listing from a package, without needing the
  *  listing's name — so the caller can check without decrypting. */
 export const memberBlockKey = (
-  listing: MemberListing,
+  listing: MemberRuleListing,
   edges: MemberEdges,
   hidePackageListings: boolean | undefined,
 ): MemberBlockKey | null => {
