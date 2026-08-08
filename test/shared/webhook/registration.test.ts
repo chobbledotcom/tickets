@@ -161,6 +161,42 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
     expect(logs[0]).toContain("E_WEBHOOK_SEND");
     expect(logs[0]).not.toContain("private");
   });
+
+  test("waits for sibling sends before rejecting an unexpected failure", async () => {
+    const slow = Promise.withResolvers<Response>();
+    const unexpected = new Error("Unexpected send failure");
+    fetchSpy.reply((url) =>
+      url === "https://slow-hook.com"
+        ? slow.promise
+        : Promise.reject(unexpected),
+    );
+    const entries = [
+      makeEntry({ id: 1, webhook_url: "https://failed-hook.com" }),
+      makeEntry({ id: 2, webhook_url: "https://slow-hook.com" }),
+    ];
+
+    await withErrorSpy(async () => {
+      let rejected = false;
+      const outcome = Promise.withResolvers<unknown>();
+      const sending = (async () => {
+        try {
+          await sendRegistrationWebhooks(entries, "GBP");
+          outcome.resolve(null);
+        } catch (error) {
+          rejected = true;
+          outcome.resolve(error);
+        }
+      })();
+      await flushAsync();
+      try {
+        expect(rejected).toBe(false);
+      } finally {
+        slow.resolve(new Response());
+        await sending;
+      }
+      expect(await outcome.promise).toBe(unexpected);
+    });
+  });
 });
 
 describeWithEnv("logAndNotifyRegistration", { db: true }, () => {

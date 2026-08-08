@@ -250,15 +250,17 @@ export const sendRegistrationWebhooks: RegistrationNotification<
 
   const facts = suppliedFacts ?? (await loadRegistrationPackageFacts(entries));
   const payload = buildWebhookPayload(entries, currency, facts.pricingByGroup);
-  let deliveries: WebhookDelivery[];
-  try {
-    deliveries = await Promise.all(
-      webhookUrls.map((url) => sendWebhook(url, payload)),
-    );
-  } catch (error) {
-    logError({ code: ErrorCode.WEBHOOK_SEND, error });
-    throw error;
+  const results = await Promise.allSettled(
+    webhookUrls.map((url) => sendWebhook(url, payload)),
+  );
+  const failed = results.find((result) => result.status === "rejected");
+  if (failed) {
+    logError({ code: ErrorCode.WEBHOOK_SEND, error: failed.reason });
+    throw failed.reason;
   }
+  const deliveries = results
+    .filter((result) => result.status === "fulfilled")
+    .map((result) => result.value);
   if (deliveries.some(({ delivered }) => !delivered)) {
     await logActivities([{ message: REGISTRATION_DELIVERY_FAILED }]);
   }
