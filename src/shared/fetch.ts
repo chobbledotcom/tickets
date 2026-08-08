@@ -8,7 +8,9 @@
  */
 
 import { extendedBy } from "#fp";
+import { concatBytes } from "#shared/crypto/utils.ts";
 import { errorResult, type Result } from "#shared/result.ts";
+import { streamChunks } from "#shared/stream-chunks.ts";
 import { countExternalSubrequest } from "#shared/subrequest-budget.ts";
 
 /** A fetch result whose body has already been read to a string. */
@@ -17,6 +19,37 @@ export type FetchResult = {
   ok: boolean;
   text: string;
   headers: Headers;
+};
+
+export class ResponseBodyTooLargeError extends Error {
+  constructor(maximumBytes: number) {
+    super(`Response body exceeds ${maximumBytes} bytes`);
+  }
+}
+
+const responseText = async (
+  response: Response,
+  maximumBytes?: number,
+): Promise<string> => {
+  if (maximumBytes === undefined) return await response.text();
+  if (!response.body) return "";
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    for await (const chunk of streamChunks(response.body)) {
+      size += chunk.length;
+      if (size > maximumBytes) {
+        throw new ResponseBodyTooLargeError(maximumBytes);
+      }
+      chunks.push(chunk);
+    }
+  } catch (error) {
+    if (error instanceof ResponseBodyTooLargeError) {
+      await response.body.cancel();
+    }
+    throw error;
+  }
+  return new TextDecoder().decode(concatBytes(...chunks));
 };
 
 /**
@@ -58,10 +91,11 @@ export const parseApiError = (
 export const fetchText = async (
   url: string,
   init?: RequestInit,
+  maximumResponseBytes?: number,
 ): Promise<FetchResult> => {
   countExternalSubrequest(`fetch ${new URL(url).origin}`);
   const response = await fetch(url, init);
-  const text = await response.text();
+  const text = await responseText(response, maximumResponseBytes);
   return {
     headers: response.headers,
     ok: response.ok,

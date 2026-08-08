@@ -3,42 +3,23 @@
  * Sends consolidated registration data to configured webhook URLs
  */
 
-import { mapNotNullish, sumOf, unique } from "#fp";
+import { sumOf } from "#fp";
 import {
   effectivePrice,
   NO_CUSTOM_PRICES,
   packageMemberPriceRule,
 } from "#shared/booking/price-tree.ts";
 import { bookedSpanDays } from "#shared/dates.ts";
-import {
-  type ActivityToLog,
-  logActivities,
-  logActivity,
-} from "#shared/db/activity-log.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { getBuiltSiteByRenewalTokenIndex } from "#shared/db/built-sites.ts";
 import { settings } from "#shared/db/settings.ts";
-import {
-  type EmailEntry,
-  registrationEmailDelivery,
-  sendRegistrationEmails,
-} from "#shared/email.ts";
-import { errorMessage } from "#shared/error-message.ts";
-/* jscpd:ignore-start */
+import type { EmailEntry } from "#shared/email.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
-import { addPendingWork } from "#shared/pending-work.ts";
-/* jscpd:ignore-end */
-import {
-  loadRegistrationPackageFacts,
-  type RegistrationNotification,
-  type RegistrationPackageFacts,
-  type RegistrationPackagePricing,
-} from "#shared/registration-package-facts.ts";
-import { fetchTextFollowingSafeRedirects } from "#shared/safe-fetch.ts";
+import type { RegistrationPackagePricing } from "#shared/registration-package-facts.ts";
 import {
   addMonthsToRenewalDeadline,
-  assignAndNotifyBuiltSites,
   isQualifyingTierListing,
   syncReadOnlyFrom,
 } from "#shared/site-assignment.ts";
@@ -48,7 +29,6 @@ import {
   type DayPrices,
   isPaidListing,
 } from "#shared/types.ts";
-import { isSafeServerFetchUrl } from "#shared/url-safety.ts";
 
 /** Single ticket in the webhook payload */
 export type WebhookTicket = {
@@ -204,87 +184,6 @@ export const buildWebhookPayload = (
 };
 
 /**
- * Send a webhook payload to a URL
- * Fires and forgets - errors are logged but don't block registration
- */
-export const sendWebhook = async (
-  webhookUrl: string,
-  payload: WebhookPayload,
-  listingId?: number,
-): Promise<void> => {
-  // Defense-in-depth against SSRF: never fetch an internal/non-https URL, even
-  // if one was stored before write-time validation existed.
-  if (!isSafeServerFetchUrl(webhookUrl)) {
-    logError({
-      code: ErrorCode.WEBHOOK_SEND,
-      detail: "Refused to send webhook to an unsafe URL",
-      listingId,
-    });
-    return;
-  }
-  try {
-    const { ok, status } = await fetchTextFollowingSafeRedirects(webhookUrl, {
-      body: JSON.stringify(payload),
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    });
-    if (!ok) {
-      const listingName = payload.tickets.map((t) => t.listing_name).join(", ");
-      logError({
-        code: ErrorCode.WEBHOOK_SEND,
-        detail: `status=${status} for '${listingName}'`,
-        listingId,
-      });
-    }
-  } catch (error) {
-    logError({
-      code: ErrorCode.WEBHOOK_SEND,
-      detail: errorMessage(error),
-      listingId,
-    });
-  }
-};
-
-/**
- * Send consolidated webhook to all unique webhook URLs for the given entries
- */
-export const sendRegistrationWebhooks: RegistrationNotification<
-  RegistrationEntry
-> = async (entries, currency, suppliedFacts) => {
-  const webhookUrls = registrationWebhookUrls(entries);
-  if (webhookUrls.length === 0) return;
-
-  const facts = suppliedFacts ?? (await loadRegistrationPackageFacts(entries));
-  const payload = buildWebhookPayload(entries, currency, facts.pricingByGroup);
-  const firstListingId = entries[0]?.listing.id;
-  await Promise.allSettled(
-    webhookUrls.map((url) => sendWebhook(url, payload, firstListingId)),
-  );
-};
-
-const registrationWebhookUrls = (entries: RegistrationEntry[]): string[] =>
-  unique(
-    mapNotNullish(
-      (entry: RegistrationEntry) => entry.listing.webhook_url || null,
-    )(entries),
-  );
-
-const queueRegistrationNotifications = async (
-  entries: EmailEntry[],
-  currency: string,
-  suppliedPackageFacts?: RegistrationPackageFacts,
-): Promise<void> => {
-  const needsPackageFacts =
-    registrationWebhookUrls(entries).length > 0 ||
-    registrationEmailDelivery(entries) !== null;
-  const packageFacts = needsPackageFacts
-    ? (suppliedPackageFacts ?? (await loadRegistrationPackageFacts(entries)))
-    : suppliedPackageFacts;
-  addPendingWork(sendRegistrationWebhooks(entries, currency, packageFacts));
-  addPendingWork(sendRegistrationEmails(entries, currency, packageFacts));
-};
-
-/**
  * Apply renewal deadline bumps for a completed payment.
  * If siteTokenIndex is present, look up the built site and bump its READ_ONLY_FROM.
  *
@@ -348,34 +247,4 @@ export const applyRenewalsForEntries = async (
     });
     sendNtfyError("CDN_REQUEST");
   }
-};
-
-/**
- * Log attendee registration and send consolidated webhook
- * Used for single-listing registrations
- *
- * Notification preparation and sends are queued as pending work so they run in
- * the background but complete before the edge runtime tears down the request
- * context.
- */
-export const logAndNotifyRegistration = async (
-  entries: EmailEntry[],
-  siteTokenIndex?: string,
-  priorActivities: readonly ActivityToLog[] = [],
-  suppliedPackageFacts?: RegistrationPackageFacts,
-): Promise<void> => {
-  await logActivities([
-    ...priorActivities,
-    ...entries.map(({ listing, attendee }) => ({
-      attendeeId: attendee.id,
-      listing,
-      message: `Attendee registered for '${listing.name}'`,
-    })),
-  ]);
-  const currency = settings.currency;
-  addPendingWork(
-    queueRegistrationNotifications(entries, currency, suppliedPackageFacts),
-  );
-  addPendingWork(assignAndNotifyBuiltSites(entries));
-  addPendingWork(applyRenewalsForEntries(entries, siteTokenIndex));
 };

@@ -9,7 +9,7 @@ import type { BookingIntent } from "#shared/booking-intent.ts";
 import type { ModifierApplication } from "#shared/checkout-pricing.ts";
 import type { ModifierSpec } from "#shared/payments.ts";
 import type { RegistrationPackageFacts } from "#shared/registration-package-facts.ts";
-import { logAndNotifyRegistration } from "#shared/webhook.ts";
+import { logAndNotifyRegistration } from "#shared/webhook/delivery.ts";
 
 export const completePaidBooking = async (
   createdEntries: CreatedEntry[],

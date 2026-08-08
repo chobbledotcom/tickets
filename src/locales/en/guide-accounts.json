@@ -31,7 +31,7 @@
   "guide.q.what_are_webhooks": "What are webhooks for?",
   "guide.a.what_are_webhooks": "<p>Webhooks send an automatic notification to a URL of your choice whenever someone registers for a listing. You can use them to connect to other services, e.g. sending a Slack message or updating a spreadsheet.</p>",
   "guide.q.setup_webhook": "How do I set up a webhook?",
-  "guide.a.setup_webhook": "<p>Add a webhook URL when creating or editing a listing. Every time someone books that listing, a POST request is sent to your URL with the attendee's details.</p>",
+  "guide.a.setup_webhook": "<p>Add a webhook URL when creating or editing a listing. Every time someone books that listing, a POST request is sent to your URL with the attendee's details.</p><p>If one booking would send to more than 16 different URLs, the system sends none of its webhooks. It records a delivery failure in the activity log.</p>",
   "guide.q.webhook_json_format": "What does the webhook JSON look like?",
   "guide.a.webhook_json_format": "<p> Each webhook is an HTTP POST with <code>Content-Type: application/json</code>. Here is an example payload for a paid listing booking: </p> <pre> <code>{webhookExampleJson}</code> </pre> <p> Prices are in the smallest currency unit (e.g. pence for GBP, cents for USD). The <code>ticket_url</code> links to the attendee's ticket page. For multi-listing bookings the <code>tickets</code> array contains one entry per listing and the URL combines all tokens with <code>+</code>. </p>",
   "guide.q.what_are_sessions": "What are sessions?",
