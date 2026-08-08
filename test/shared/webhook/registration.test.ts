@@ -16,6 +16,7 @@ import {
   listingFromDb,
   spyFirstArgs,
   stubWebhookFetch,
+  withErrorSpy,
 } from "#test/shared/webhook/helpers.ts";
 import {
   activityMessages,
@@ -143,6 +144,22 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
     for (const value of Object.values(sentinels)) {
       expect(messages.join("\n")).not.toContain(value);
     }
+  });
+
+  test("reports an unexpected failure from pending registration work", async () => {
+    fetchSpy.reply(() => Promise.reject(new Error("private failure detail")));
+    const entries = [
+      makeEntry({ webhook_url: "https://private-webhook.example.com" }),
+    ];
+
+    const logs = await withErrorSpy(async (errorSpy) => {
+      await runWithPendingWork(() => logAndNotifyRegistration(entries));
+      return errorSpy.calls.map(({ args }) => String(args[0]));
+    });
+
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toContain("E_WEBHOOK_SEND");
+    expect(logs[0]).not.toContain("private");
   });
 });
 

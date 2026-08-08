@@ -2,6 +2,7 @@
 
 # Registration package facts are objects when supplied, so they are always
 # truthy; undefined selects the loader under either nullish or OR fallback.
+src/shared/webhook.ts::queueRegistrationNotifications.packageFacts~0fhpirc  ?? → ||   # suppliedPackageFacts is a truthy object or undefined, so both operators select the same value
 
 # CRUD configuration values are functions or objects when present, and hydrated
 # map values are records, so none can be falsy-but-non-null.
