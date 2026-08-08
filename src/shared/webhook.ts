@@ -3,45 +3,23 @@
  * Sends consolidated registration data to configured webhook URLs
  */
 
-import { flatMap, mapNotNullish, sumOf, unique } from "#fp";
+import { sumOf } from "#fp";
 import {
   effectivePrice,
   NO_CUSTOM_PRICES,
   packageMemberPriceRule,
 } from "#shared/booking/price-tree.ts";
 import { bookedSpanDays } from "#shared/dates.ts";
-import {
-  type ActivityToLog,
-  logActivities,
-  logActivity,
-} from "#shared/db/activity-log.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { getBuiltSiteByRenewalTokenIndex } from "#shared/db/built-sites.ts";
 import { settings } from "#shared/db/settings.ts";
-import {
-  registrationEmailDelivery,
-  sendRegistrationEmails,
-} from "#shared/email/registration.ts";
 import type { EmailEntry } from "#shared/email.ts";
-import { fetchText, ResponseBodyTooLargeError } from "#shared/fetch.ts";
-/* jscpd:ignore-start */
-import { ErrorCode, logError, logErrorLocal } from "#shared/logger.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
-import { addPendingWork } from "#shared/pending-work.ts";
-/* jscpd:ignore-end */
-import {
-  loadRegistrationPackageFacts,
-  RegistrationDeliveryError,
-  type RegistrationDeliveryResult,
-  type RegistrationNotification,
-  type RegistrationPackageFacts,
-  type RegistrationPackagePricing,
-  waitForRegistrationDeliveries,
-} from "#shared/registration-package-facts.ts";
-import { captureServerError } from "#shared/sentry.ts";
+import type { RegistrationPackagePricing } from "#shared/registration-package-facts.ts";
 import {
   addMonthsToRenewalDeadline,
-  assignAndNotifyBuiltSites,
   isQualifyingTierListing,
   syncReadOnlyFrom,
 } from "#shared/site-assignment.ts";
@@ -51,7 +29,6 @@ import {
   type DayPrices,
   isPaidListing,
 } from "#shared/types.ts";
-import { isSafeServerFetchUrl } from "#shared/url-safety.ts";
 
 /** Single ticket in the webhook payload */
 export type WebhookTicket = {
@@ -206,161 +183,6 @@ export const buildWebhookPayload = (
   };
 };
 
-export type WebhookDelivery =
-  | { delivered: true }
-  | {
-      delivered: false;
-      reason: "oversized_response" | "rejected" | "transport" | "unsafe_url";
-    };
-
-const MAX_REGISTRATION_WEBHOOK_URLS = 16;
-const MAX_REGISTRATION_WEBHOOK_RESPONSE_BYTES = 64 * 1024;
-const REGISTRATION_WEBHOOK_TIMEOUT_MS = 10_000;
-const REGISTRATION_DELIVERY_FAILED =
-  "Registration notification delivery failed";
-
-/** Send one direct webhook request without blocking registration on failure. */
-export const sendWebhook = async (
-  webhookUrl: string,
-  payload: WebhookPayload,
-): Promise<WebhookDelivery> => {
-  if (!isSafeServerFetchUrl(webhookUrl)) {
-    return { delivered: false, reason: "unsafe_url" };
-  }
-  try {
-    const { ok } = await fetchText(
-      webhookUrl,
-      {
-        body: JSON.stringify(payload),
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-        redirect: "manual",
-        signal: AbortSignal.timeout(REGISTRATION_WEBHOOK_TIMEOUT_MS),
-      },
-      MAX_REGISTRATION_WEBHOOK_RESPONSE_BYTES,
-    );
-    return ok ? { delivered: true } : { delivered: false, reason: "rejected" };
-  } catch (error) {
-    if (error instanceof ResponseBodyTooLargeError) {
-      return { delivered: false, reason: "oversized_response" };
-    }
-    if (
-      !(error instanceof TypeError) &&
-      !(error instanceof DOMException && error.name === "TimeoutError")
-    ) {
-      throw error;
-    }
-    return { delivered: false, reason: "transport" };
-  }
-};
-
-/**
- * Send consolidated webhook to all unique webhook URLs for the given entries
- */
-export const sendRegistrationWebhooks: RegistrationNotification<
-  RegistrationEntry
-> = async (entries, currency, suppliedFacts) => {
-  const webhookUrls = registrationWebhookUrls(entries);
-  if (webhookUrls.length === 0) return { failed: false };
-  if (webhookUrls.length > MAX_REGISTRATION_WEBHOOK_URLS) {
-    return { failed: true };
-  }
-
-  const facts = suppliedFacts ?? (await loadRegistrationPackageFacts(entries));
-  const payload = buildWebhookPayload(entries, currency, facts.pricingByGroup);
-  return await waitForRegistrationDeliveries(
-    webhookUrls.map((url) => sendWebhook(url, payload)),
-  );
-};
-
-type CompletedRegistrationDelivery = RegistrationDeliveryResult & {
-  errors: readonly unknown[];
-};
-
-const completedRegistrationDelivery = (
-  result: PromiseSettledResult<RegistrationDeliveryResult>,
-): CompletedRegistrationDelivery => {
-  if (result.status === "fulfilled") {
-    return { ...result.value, errors: [] };
-  }
-  return result.reason instanceof RegistrationDeliveryError
-    ? { errors: result.reason.reasons, failed: result.reason.failed }
-    : { errors: [result.reason], failed: false };
-};
-
-const recordRegistrationDeliveryFailure = async (): Promise<void> => {
-  try {
-    await logActivities([{ message: REGISTRATION_DELIVERY_FAILED }]);
-  } catch (error) {
-    logErrorLocal({
-      code: ErrorCode.DB_QUERY,
-      detail: "Registration delivery failure activity write",
-    });
-    throw error;
-  }
-};
-
-const reportRegistrationDeliveryError = async (): Promise<void> => {
-  const context = { code: ErrorCode.REGISTRATION_DELIVERY };
-  logErrorLocal(context);
-  await recordRegistrationDeliveryFailure();
-  addPendingWork(sendNtfyError(context.code));
-  addPendingWork(captureServerError(context));
-};
-
-const sendRegistrationNotifications = async (
-  entries: EmailEntry[],
-  currency: string,
-  packageFacts?: RegistrationPackageFacts,
-): Promise<void> => {
-  const [webhookResult, emailResult] = await Promise.allSettled([
-    sendRegistrationWebhooks(entries, currency, packageFacts),
-    sendRegistrationEmails(entries, currency, packageFacts),
-  ]);
-  const deliveries = [
-    completedRegistrationDelivery(webhookResult),
-    completedRegistrationDelivery(emailResult),
-  ];
-  const errors = flatMap((delivery: CompletedRegistrationDelivery) => [
-    ...delivery.errors,
-  ])(deliveries);
-  if (errors.length > 0) {
-    await reportRegistrationDeliveryError();
-  } else if (deliveries.some(({ failed }) => failed)) {
-    await recordRegistrationDeliveryFailure();
-  }
-  if (errors.length > 0) throw errors[0];
-};
-
-const registrationWebhookUrls = (entries: RegistrationEntry[]): string[] =>
-  unique(
-    mapNotNullish(
-      (entry: RegistrationEntry) => entry.listing.webhook_url || null,
-    )(entries),
-  );
-
-const queueRegistrationNotifications = async (
-  entries: EmailEntry[],
-  currency: string,
-  suppliedPackageFacts?: RegistrationPackageFacts,
-): Promise<void> => {
-  let packageFacts: RegistrationPackageFacts | undefined;
-  try {
-    const needsPackageFacts =
-      registrationWebhookUrls(entries).length > 0 ||
-      registrationEmailDelivery(entries) !== null;
-    packageFacts = needsPackageFacts
-      ? (suppliedPackageFacts ?? (await loadRegistrationPackageFacts(entries)))
-      : suppliedPackageFacts;
-  } catch (error) {
-    await reportRegistrationDeliveryError();
-    throw error;
-  }
-  addPendingWork(
-    sendRegistrationNotifications(entries, currency, packageFacts),
-  );
-};
-
 /**
  * Apply renewal deadline bumps for a completed payment.
  * If siteTokenIndex is present, look up the built site and bump its READ_ONLY_FROM.
@@ -425,34 +247,4 @@ export const applyRenewalsForEntries = async (
     });
     sendNtfyError("CDN_REQUEST");
   }
-};
-
-/**
- * Log attendee registration and send consolidated webhook
- * Used for single-listing registrations
- *
- * Notification preparation and sends are queued as pending work so they run in
- * the background but complete before the edge runtime tears down the request
- * context.
- */
-export const logAndNotifyRegistration = async (
-  entries: EmailEntry[],
-  siteTokenIndex?: string,
-  priorActivities: readonly ActivityToLog[] = [],
-  suppliedPackageFacts?: RegistrationPackageFacts,
-): Promise<void> => {
-  await logActivities([
-    ...priorActivities,
-    ...entries.map(({ listing, attendee }) => ({
-      attendeeId: attendee.id,
-      listing,
-      message: `Attendee registered for '${listing.name}'`,
-    })),
-  ]);
-  const currency = settings.currency;
-  addPendingWork(
-    queueRegistrationNotifications(entries, currency, suppliedPackageFacts),
-  );
-  addPendingWork(assignAndNotifyBuiltSites(entries));
-  addPendingWork(applyRenewalsForEntries(entries, siteTokenIndex));
 };

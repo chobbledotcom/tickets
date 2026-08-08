@@ -17,7 +17,7 @@ import { nowIso } from "#shared/now.ts";
 import { singleListingAnswerIds } from "#shared/payment-helpers.ts";
 import { checkoutItem, getActivePaymentProvider } from "#shared/payments.ts";
 import type { Attendee, ContactInfo, ListingWithCount } from "#shared/types.ts";
-import { logAndNotifyRegistration } from "#shared/webhook.ts";
+import { logAndNotifyRegistration } from "#shared/webhook/delivery.ts";
 
 /**
  * A {@link LedgerPoster} for a provider-less owed booking: inside the create

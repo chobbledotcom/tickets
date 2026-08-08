@@ -9,8 +9,8 @@ import { runWithPendingWork } from "#shared/pending-work.ts";
 import {
   logAndNotifyRegistration,
   sendRegistrationWebhooks,
-  type WebhookPayload,
-} from "#shared/webhook.ts";
+} from "#shared/webhook/delivery.ts";
+import type { WebhookPayload } from "#shared/webhook.ts";
 import {
   flushAsync,
   listingFromDb,
@@ -140,7 +140,7 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
     const messages = await activityMessages();
     expect(
       messages.filter(
-        (message) => message === "Registration notification delivery failed",
+        (message) => message === "Registration notification delivery failed.",
       ),
     ).toHaveLength(1);
     for (const value of Object.values(sentinels)) {
@@ -162,7 +162,7 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
 
       expect(
         (await activityMessages()).filter(
-          (message) => message === "Registration notification delivery failed",
+          (message) => message === "Registration notification delivery failed.",
         ),
       ).toHaveLength(1);
     });
@@ -191,7 +191,7 @@ describeWithEnv("logAndNotifyRegistration", { db: true }, () => {
     expect(body.name).toBe("Jane Doe");
     expect(
       (await activityMessages()).filter(
-        (message) => message === "Registration notification delivery failed",
+        (message) => message === "Registration notification delivery failed.",
       ),
     ).toHaveLength(0);
   });
@@ -276,7 +276,7 @@ describeWithEnv("logAndNotifyRegistration", { db: true }, () => {
     expect(url).toBe("https://api.resend.com/emails");
     expect(
       (await activityMessages()).filter(
-        (message) => message === "Registration notification delivery failed",
+        (message) => message === "Registration notification delivery failed.",
       ),
     ).toHaveLength(1);
   });

@@ -6,10 +6,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { RegistrationPackagePricing } from "#shared/registration-package-facts.ts";
+import { sendWebhook } from "#shared/webhook/delivery.ts";
 import {
   buildWebhookPayload,
   type RegistrationEntry,
-  sendWebhook,
 } from "#shared/webhook.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {

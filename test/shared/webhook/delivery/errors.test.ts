@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#shared/db/client.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
+import { t, withMessageGroups } from "#shared/i18n.ts";
 import { runWithPendingWork } from "#shared/pending-work.ts";
 import {
   RegistrationDeliveryError,
@@ -14,8 +15,9 @@ import {
 } from "#shared/subrequest-budget.ts";
 import {
   logAndNotifyRegistration,
+  sendRegistrationNotifications,
   sendRegistrationWebhooks,
-} from "#shared/webhook.ts";
+} from "#shared/webhook/delivery.ts";
 import {
   flushAsync,
   stubWebhookFetch,
@@ -50,6 +52,21 @@ const expectOneError = (logs: string[], code: string): string => {
 describeWithEnv("registration delivery errors", { db: true }, () => {
   const fetchSpy = stubWebhookFetch();
 
+  test("records failure activity with catalog copy", async () => {
+    fetchSpy.reply(() => new Response("refused", { status: 503 }));
+
+    await runWithPendingWork(() =>
+      logAndNotifyRegistration([
+        makeEntry({ webhook_url: "https://failed-hook.com" }),
+      ]),
+    );
+
+    const expected = await withMessageGroups(["activity-log"], () =>
+      t("admin.log.registration_delivery_failed"),
+    );
+    expect(await activityMessages()).toContain(expected);
+  });
+
   test("reports an unexpected failure from pending registration work", async () => {
     fetchSpy.reply(() => Promise.reject(new Error("private failure detail")));
     const entries = [
@@ -61,6 +78,18 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     expect(expectOneError(logs, "E_REGISTRATION_DELIVERY")).not.toContain(
       "private",
     );
+  });
+
+  test("rethrows one unexpected delivery error after reporting it", async () => {
+    const unexpected = new Error("unexpected delivery error");
+    fetchSpy.reply(() => Promise.reject(unexpected));
+
+    await expect(
+      sendRegistrationNotifications(
+        [makeEntry({ webhook_url: "https://failed-hook.com" })],
+        "GBP",
+      ),
+    ).rejects.toBe(unexpected);
   });
 
   test("reports one incident for unexpected failures in both delivery channels", async () => {
@@ -98,7 +127,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     expect(fetchSpy.calls).toHaveLength(1);
     expect(
       (await activityMessages()).filter(
-        (message) => message === "Registration notification delivery failed",
+        (message) => message === "Registration notification delivery failed.",
       ),
     ).toHaveLength(1);
   });
@@ -118,7 +147,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     expect(fetchSpy.calls).toEqual([]);
     expect(
       (await activityMessages()).filter(
-        (message) => message === "Registration notification delivery failed",
+        (message) => message === "Registration notification delivery failed.",
       ),
     ).toHaveLength(1);
   });
@@ -141,7 +170,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     );
     expect(
       (await activityMessages()).filter(
-        (message) => message === "Registration notification delivery failed",
+        (message) => message === "Registration notification delivery failed.",
       ),
     ).toHaveLength(1);
   });
@@ -163,7 +192,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     );
 
     expect(await activityMessages()).toContain(
-      "Registration notification delivery failed",
+      "Registration notification delivery failed.",
     );
   });
 
@@ -185,7 +214,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
 
     expect(
       (await activityMessages()).filter(
-        (message) => message === "Registration notification delivery failed",
+        (message) => message === "Registration notification delivery failed.",
       ),
     ).toHaveLength(1);
   });
@@ -291,7 +320,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     expect(logs).toEqual([]);
     expect(
       (await activityMessages()).filter(
-        (message) => message === "Registration notification delivery failed",
+        (message) => message === "Registration notification delivery failed.",
       ),
     ).toHaveLength(1);
   });

@@ -9,11 +9,8 @@ import {
   runWithSubrequestBudget,
   withSubrequestAllowance,
 } from "#shared/subrequest-budget.ts";
-import {
-  buildWebhookPayload,
-  sendWebhook,
-  type WebhookPayload,
-} from "#shared/webhook.ts";
+import { sendWebhook } from "#shared/webhook/delivery.ts";
+import { buildWebhookPayload, type WebhookPayload } from "#shared/webhook.ts";
 import {
   defaultEntries,
   stubWebhookFetch,
