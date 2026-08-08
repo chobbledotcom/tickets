@@ -19,6 +19,7 @@ import {
   type Listing,
   type SortableListing,
 } from "#shared/types.ts";
+import { isRealCalendarDay } from "#shared/validation/date.ts";
 
 /** Month names for display */
 const MONTH_NAMES = [
@@ -206,13 +207,10 @@ export const getBookableStartDates = (
   );
 
 /** Parse a user-supplied YYYY-MM-DD value (a `?date=` query param): the string
- * when well-formed and a real calendar date, else null. The UTC round-trip
- * rejects rolled-over impossibilities like 2025-02-30. */
+ * when well-formed and a real calendar date, else null. */
 export const parseIsoDateParam = (value: string | null): string | null => {
   if (value === null || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-  const parsed = new Date(`${value}T00:00:00Z`);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed.toISOString().slice(0, 10) === value ? value : null;
+  return isRealCalendarDay(value) ? value : null;
 };
 
 /**
