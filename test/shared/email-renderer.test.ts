@@ -1,8 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { spy, stub } from "@std/testing/mock";
+import { stub } from "@std/testing/mock";
 import { Liquid } from "liquidjs";
-import { map } from "#fp";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import type { TemplateData } from "#shared/email-renderer.ts";
 import {
@@ -17,18 +16,6 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
 import { useSetting } from "#test-utils/settings.ts";
-
-/** The first argument of every `console.error` call the spy captured — the
- *  render-error tests read the logged messages this same way. */
-const errorLogMessages = (errorSpy: {
-  calls: { args: unknown[] }[];
-}): string[] =>
-  map((c: { args: unknown[] }) => c.args[0] as string)(errorSpy.calls);
-
-/** Reload settings + build template data from one entry and render the
- *  confirmation email. Collapses the shared `invalidateCache` + `loadKeys` +
- *  `buildTemplateData` + `renderEmailContent` sequence repeated across the
- *  custom-template tests. */
 
 const renderConfirmation = async (): Promise<{
   data: TemplateData;
@@ -579,14 +566,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
 
   describe("renderEmailContent", () => {
     test("uses default templates when no custom templates are set", async () => {
-      const entries = [makeEntry()];
-      const data = await buildTemplateData(
-        entries,
-        "GBP",
-        "https://example.com/t/ABC",
-      );
-
-      const result = await renderEmailContent("confirmation", data);
+      const { result } = await renderConfirmation();
 
       expect(result.subject).toContain("Test Listing");
       expect(result.html).toContain("Test Listing");
@@ -624,33 +604,11 @@ describeWithEnv("email-renderer", { db: true }, () => {
         "subject",
         "{{ invalid | nonexistent_filter }}",
       );
-      settings.invalidateCache();
-      await settings.loadKeys(ALL_SETTINGS_KEYS);
+      const { result } = await renderConfirmation();
 
-      const errorSpy = spy(console, "error");
-      try {
-        const entries = [makeEntry()];
-        const data = await buildTemplateData(
-          entries,
-          "GBP",
-          "https://example.com/t/ABC",
-        );
-        const result = await renderEmailContent("confirmation", data);
-
-        // Should fall back to default subject
-        expect(result.subject).toContain("Test Listing");
-        // Should have logged the error
-        const logs = errorLogMessages(errorSpy);
-        expect(
-          logs.some(
-            (l) =>
-              l.includes("E_EMAIL_TEMPLATE_RENDER") &&
-              l.includes("template render error"),
-          ),
-        ).toBe(true);
-      } finally {
-        errorSpy.restore();
-      }
+      expect(result.subject).toContain("Test Listing");
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]).toBeInstanceOf(Error);
     });
 
     test("renders admin notification defaults correctly", async () => {
@@ -797,7 +755,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
       expect(result.text).toContain("Thanks for registering!");
     });
 
-    test("logs non-Error thrown values as strings", async () => {
+    test("collects non-Error thrown values", async () => {
       await settings.update.email.template(
         "confirmation",
         "subject",
@@ -820,7 +778,6 @@ describeWithEnv("email-renderer", { db: true }, () => {
           return original.apply(this, args);
         },
       );
-      const errorSpy = spy(console, "error");
       try {
         const entries = [makeEntry()];
         const data = await buildTemplateData(
@@ -828,13 +785,11 @@ describeWithEnv("email-renderer", { db: true }, () => {
           "GBP",
           "https://example.com/t/ABC",
         );
-        await renderEmailContent("confirmation", data);
+        const result = await renderEmailContent("confirmation", data);
 
-        const logs = errorLogMessages(errorSpy);
-        expect(logs.some((l) => l.includes("string error value"))).toBe(true);
+        expect(result.errors).toEqual(["string error value"]);
       } finally {
         parseAndRenderStub.restore();
-        errorSpy.restore();
       }
     });
 

@@ -18,10 +18,10 @@ import {
 import { getBuiltSiteByRenewalTokenIndex } from "#shared/db/built-sites.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
-  type EmailEntry,
   registrationEmailDelivery,
   sendRegistrationEmails,
-} from "#shared/email.ts";
+} from "#shared/email/registration.ts";
+import type { EmailEntry } from "#shared/email.ts";
 import { fetchText, ResponseBodyTooLargeError } from "#shared/fetch.ts";
 /* jscpd:ignore-start */
 import { ErrorCode, logError, logErrorLocal } from "#shared/logger.ts";
@@ -344,12 +344,18 @@ const queueRegistrationNotifications = async (
   currency: string,
   suppliedPackageFacts?: RegistrationPackageFacts,
 ): Promise<void> => {
-  const needsPackageFacts =
-    registrationWebhookUrls(entries).length > 0 ||
-    registrationEmailDelivery(entries) !== null;
-  const packageFacts = needsPackageFacts
-    ? (suppliedPackageFacts ?? (await loadRegistrationPackageFacts(entries)))
-    : suppliedPackageFacts;
+  let packageFacts: RegistrationPackageFacts | undefined;
+  try {
+    const needsPackageFacts =
+      registrationWebhookUrls(entries).length > 0 ||
+      registrationEmailDelivery(entries) !== null;
+    packageFacts = needsPackageFacts
+      ? (suppliedPackageFacts ?? (await loadRegistrationPackageFacts(entries)))
+      : suppliedPackageFacts;
+  } catch (error) {
+    await reportRegistrationDeliveryError();
+    throw error;
+  }
   addPendingWork(
     sendRegistrationNotifications(entries, currency, packageFacts),
   );

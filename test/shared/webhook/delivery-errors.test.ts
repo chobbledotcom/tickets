@@ -1,5 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { execute } from "#shared/db/client.ts";
+import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { runWithPendingWork } from "#shared/pending-work.ts";
 import {
   RegistrationDeliveryError,
@@ -72,6 +74,53 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     ]);
 
     expectOneError(logs, "E_REGISTRATION_DELIVERY");
+  });
+
+  test("reports template fallbacks as one registration incident", async () => {
+    await configureTestEmail();
+    await settings.update.email.template(
+      "confirmation",
+      "subject",
+      "{{ subject | missing_subject_filter }}",
+    );
+    await settings.update.email.template(
+      "confirmation",
+      "html",
+      "{{ html | missing_html_filter }}",
+    );
+    settings.invalidateCache();
+    await settings.loadKeys(ALL_SETTINGS_KEYS);
+    fetchSpy.reply(() => new Response("{}"));
+
+    const logs = await registrationLogs([makeEntry()]);
+
+    expectOneError(logs, "E_REGISTRATION_DELIVERY");
+    expect(fetchSpy.calls).toHaveLength(1);
+    expect(
+      (await activityMessages()).filter(
+        (message) => message === "Registration notification delivery failed",
+      ),
+    ).toHaveLength(1);
+  });
+
+  test("rejects an unknown stored email provider before sending", async () => {
+    await configureTestEmail();
+    await execute("UPDATE settings SET value = ? WHERE key = ?", [
+      "unknown-provider",
+      "email_provider",
+    ]);
+    settings.invalidateCache();
+    await settings.loadKeys(ALL_SETTINGS_KEYS);
+
+    const logs = await registrationLogs([makeEntry()]);
+
+    expectOneError(logs, "E_REGISTRATION_DELIVERY");
+    expect(fetchSpy.calls).toEqual([]);
+    expect(
+      (await activityMessages()).filter(
+        (message) => message === "Registration notification delivery failed",
+      ),
+    ).toHaveLength(1);
   });
 
   test("reports an error while a notification channel is prepared", async () => {

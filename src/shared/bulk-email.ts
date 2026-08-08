@@ -32,7 +32,7 @@ import {
   type BulkBatchResponse,
   type BulkEmailPayload,
   type BulkRecipient,
-} from "#shared/email.ts";
+} from "#shared/email/bulk.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 import { isRecord } from "#shared/types.ts";
