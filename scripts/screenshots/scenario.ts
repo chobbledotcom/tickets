@@ -1,5 +1,7 @@
 import { toFileUrl } from "@std/path";
 import type { Page } from "playwright";
+import * as v from "valibot";
+import { optionalStringThat } from "#shared/validation/string.ts";
 
 export interface ScreenshotScenarioContext {
   balancePathFor: (attendeeId: number) => Promise<string>;
@@ -8,44 +10,34 @@ export interface ScreenshotScenarioContext {
   submit: (formSelector: string) => Promise<void>;
 }
 
-export interface ScreenshotScenario {
-  css: string;
-  elementSelector?: string;
-  fullPage?: boolean;
-  name: string;
-  run: (context: ScreenshotScenarioContext) => Promise<void>;
-  setupUsername?: string;
-}
+type RunScreenshotScenario = (
+  context: ScreenshotScenarioContext,
+) => Promise<void>;
 
-const isScenario = (value: unknown): value is ScreenshotScenario => {
-  if (typeof value !== "object" || value === null) return false;
-  const candidate = value as Record<string, unknown>;
-  return (
-    typeof candidate.css === "string" &&
-    typeof candidate.name === "string" &&
-    /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(candidate.name) &&
-    typeof candidate.run === "function" &&
-    (candidate.setupUsername === undefined ||
-      (typeof candidate.setupUsername === "string" &&
-        candidate.setupUsername.trim().length > 0)) &&
-    (candidate.elementSelector === undefined ||
-      typeof candidate.elementSelector === "string") &&
-    (candidate.fullPage === undefined ||
-      typeof candidate.fullPage === "boolean")
-  );
-};
+const ScreenshotScenarioSchema = v.object({
+  adminSetup: v.optional(v.boolean()),
+  css: v.string(),
+  elementSelector: v.optional(v.string()),
+  fullPage: v.optional(v.boolean()),
+  name: v.pipe(v.string(), v.regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)),
+  run: v.custom<RunScreenshotScenario>((value) => typeof value === "function"),
+  setupUsername: optionalStringThat((value) => value.trim().length > 0),
+});
+
+export type ScreenshotScenario = v.InferOutput<typeof ScreenshotScenarioSchema>;
 
 export const loadScreenshotScenario = async (
   path: string,
 ): Promise<ScreenshotScenario> => {
   const loaded = await import(toFileUrl(path).href);
-  if (!isScenario(loaded.default)) {
+  const parsed = v.safeParse(ScreenshotScenarioSchema, loaded.default);
+  if (!parsed.success) {
     throw new Error(`Invalid screenshot scenario: ${path}`);
   }
-  if (loaded.default.elementSelector && loaded.default.fullPage) {
+  if (parsed.output.elementSelector && parsed.output.fullPage) {
     throw new Error(
       "A screenshot scenario cannot use elementSelector and fullPage together.",
     );
   }
-  return loaded.default;
+  return parsed.output;
 };
