@@ -19,11 +19,19 @@ export interface RegistrationPackageFacts {
 
 type PackageRow = { attendee: { package_group_id: number } };
 
+export type RegistrationDeliveryResult = { failed: boolean };
+
+export const registrationDeliveryResult = (
+  deliveries: readonly { delivered: boolean }[],
+): RegistrationDeliveryResult => ({
+  failed: deliveries.some(({ delivered }) => !delivered),
+});
+
 export type RegistrationNotification<Entry extends PackageRow> = (
   entries: Entry[],
   currency: string,
   suppliedFacts?: RegistrationPackageFacts,
-) => Promise<void>;
+) => Promise<RegistrationDeliveryResult>;
 
 export const loadRegistrationPackageFacts = async (
   rows: readonly PackageRow[],

@@ -14,7 +14,7 @@ proven 48-call maximum and two-call headroom. The revised source estimate is
 The first merge slice is intentionally narrow: registration webhooks make one
 direct request per configured URL, never follow redirects, stop before sending
 to more than 16 distinct URLs, and record one value-free failure. This slice
-changes 62 lines in `src/`; the provider-observation implementation was removed
+changes 222 lines in `src/`; the provider-observation implementation was removed
 from the merge diff after it exceeded the agreed roughly 1,000-line source
 limit.
 
@@ -88,7 +88,7 @@ observation into historical account proof.
 | Site proof           | `price_proof` is the only current site proof (`src/features/api/payment-processing/classify.ts:57-113`), but cancel rendering parses metadata and queries listings without checking it (`src/features/api/payment-processing/cancel.ts:57-76`)                                                                                                                                                                                                                                                       | Provider scope alone must not authorize listing-specific cancel content or retry links                                                                                                                                                |
 | Webhook parsing      | Generic JSON is cast to `WebhookEvent` and logs parser detail (`src/shared/payment-helpers.ts:724-734`); the route reads `listing.type` before an exact envelope parse                                                                                                                                                                                                                                                                                                                               | A validly signed primitive or malformed envelope can escape as an unsanitized route error                                                                                                                                             |
 | Diagnostics          | Callback code logs raw payloads and value-bearing states (`src/features/api/webhooks.ts:293-313,341-377,430-463`). `logError` can write activity, ntfy, and Sentry (`src/shared/logger.ts:292-339`)                                                                                                                                                                                                                                                                                                  | Privacy correction cannot be limited to `validatedPaymentSession`; expected forged traffic must not trigger notification amplification                                                                                                |
-| Persistence          | `processed_payments` and ledger replay use a flat session ID, not provider + resource kind + ID                                                                                                                                                                                                                                                                                                                                                                                                      | Existing idempotency is retained but is not provider-qualified ownership persistence                                                                                                                                                  |
+| Persistence          | `processed_payments` and ledger replay use a flat session ID, not provider + resource kind + ID                                                                                                                                                                                                                                                                                                                                                                                                      | Migrate both to a database-enforced provider-qualified identity; a flat ID must never authorize another provider or resource kind                                                                                                     |
 
 ## Evidence-only provider modeling rule
 
@@ -216,20 +216,20 @@ different boundaries and must not be conflated.
 
 ## State and HTTP matrix
 
-| Path/state                                              | Provider/DB work                                                                   | Processing                                                                                               | HTTP behavior                                                                                                                    |
-| ------------------------------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| Stripe callback, malformed/contradictory embedded facts | Zero Stripe reads                                                                  | No booking/refund while relationship or scope is unproven                                                | Exact retry response below                                                                                                       |
-| Stripe callback, pending                                | Zero Stripe reads                                                                  | No booking/refund                                                                                        | Authenticated non-processing `200` pending acknowledgement while card-only creation remains enforced                             |
-| Square callback, non-completed signed notice            | Zero provider reads                                                                | No booking/refund                                                                                        | `200` non-processing acknowledgement; ownership is not claimed because no resource read occurred                                 |
-| Square completed callback                               | One Order + one signed Payment read                                                | Continue only after exact ID/parent/location, charge, site, and price checks                             | Existing handled success/pending response; rejection uses exact retry response when retryable                                    |
-| Known SumUp callback                                    | Two staging DB reads + one checkout read                                           | Continue only after returned-reference binding and the evidence-backed checkout/transaction relationship | Existing handled success/pending response; retryable refusal uses exact retry response                                           |
-| Non-empty unstaged SumUp callback                       | Exactly one indexed DB read; zero SumUp reads; no per-attempt activity/Sentry/ntfy | No booking/refund/persistence                                                                            | Exact retry response. A later retry can pass after `setSumupCheckoutId`; forged traffic remains locally bounded                  |
-| Browser missing/contradictory/malformed                 | One normal provider observation plus staging where applicable                      | No booking/refund                                                                                        | Localized permanent verification page, status `400`: “Payment could not be verified. Check the payment link or contact support.” |
-| Browser unavailable                                     | Same attempted read; no authoritative facts                                        | No booking/refund                                                                                        | Localized temporary page, status `503`: “Payment could not be checked. Try again in a few minutes.”                              |
-| Paid with missing/unusable child                        | No refund can be safely named                                                      | No booking; never classify as settled; upsert one private owner case                                     | Callback uses exact retry response; browser uses the temporary `503` page                                                        |
-| Invalid or foreign site proof                           | Provider resource may be real but is not proven to this site                       | Never book, auto-refund, or create an owner case                                                         | `200` callback acknowledgement; browser uses the permanent `400` page                                                            |
-| Valid site proof, unreadable paid intent                | This site's paid resource is established but booking cannot be reconstructed       | Upsert one private owner case; never silently settle                                                     | Callback uses exact retry response; browser uses the temporary `503` page                                                        |
-| Processed replay                                        | Look up provider + top-level resource kind + resource ID before fresh provider IO  | Existing claim/ledger prevents duplicate booking/refund                                                  | A completed durable record safely acknowledges/renders the existing result; no stale provider/staging read is required           |
+| Path/state                                              | Provider/DB work                                                                   | Processing                                                                                               | HTTP behavior                                                                                                                     |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Stripe callback, malformed/contradictory embedded facts | Zero Stripe reads                                                                  | No booking/refund while relationship or scope is unproven                                                | Exact retry response below                                                                                                        |
+| Stripe callback, pending                                | Zero Stripe reads                                                                  | No booking/refund                                                                                        | Authenticated non-processing `200` pending acknowledgement while card-only creation remains enforced                              |
+| Square callback, non-completed signed notice            | Zero provider reads                                                                | No booking/refund                                                                                        | `200` non-processing acknowledgement; ownership is not claimed because no resource read occurred                                  |
+| Square completed callback                               | One Order + one signed Payment read                                                | Continue only after exact ID/parent/location, charge, site, and price checks                             | Existing handled success/pending response; rejection uses exact retry response when retryable                                     |
+| Known SumUp callback                                    | Two staging DB reads + one checkout read                                           | Continue only after returned-reference binding and the evidence-backed checkout/transaction relationship | Existing handled success/pending response; retryable refusal uses exact retry response                                            |
+| Non-empty unstaged SumUp callback                       | Exactly one indexed DB read; zero SumUp reads; no per-attempt activity/Sentry/ntfy | No booking/refund/persistence                                                                            | Exact retry response. A later retry can pass after `setSumupCheckoutId`; forged traffic remains locally bounded                   |
+| Browser missing/contradictory/malformed                 | One normal provider observation plus staging where applicable                      | No booking/refund                                                                                        | Localized permanent verification page, status `400`: “Payment could not be verified. Check the payment link or contact support.”  |
+| Browser unavailable                                     | Same attempted read; no authoritative facts                                        | No booking/refund                                                                                        | Localized temporary page, status `503`: “Payment could not be checked. Try again in a few minutes.”                               |
+| Paid with missing/unusable child                        | No refund can be safely named                                                      | No booking; never classify as settled; upsert one private owner case                                     | Callback uses exact retry response; browser uses the temporary `503` page                                                         |
+| Invalid or foreign site proof                           | Provider resource may be real but is not proven to this site                       | Never book, auto-refund, or create an owner case                                                         | `200` callback acknowledgement; browser uses the permanent `400` page                                                             |
+| Valid site proof, unreadable paid intent                | This site's paid resource is established but booking cannot be reconstructed       | Upsert one private owner case; never silently settle                                                     | Callback uses exact retry response; browser uses the temporary `503` page                                                         |
+| Processed replay                                        | Look up provider + top-level resource kind + resource ID before fresh provider IO  | Existing claim/ledger prevents duplicate booking/refund                                                  | Callback acknowledges safely. Browser/cancel verifies route-specific site proof before rendering stored result or listing content |
 
 The shared retry response must use existing `plainResponse`: status `503`,
 header `content-type: text/plain; charset=utf-8`, and exact UTF-8 body
@@ -259,28 +259,35 @@ reconciliation.
   authority for unprocessed work.
 - Automatic refund and `isPaymentRefunded` must use the bound attempt that
   accepted the resource. Re-resolving global provider settings is forbidden.
-- Add one provider-qualified durable session mechanism keyed by
-  `(provider,
-  top-level resource kind, resource ID)`. Its exhaustive outcome
-  is `completed` with the existing handled-result reference, or
-  `owner_action_required` with a fixed reason (`paid_child_unusable` or
+- Add one provider-qualified durable session mechanism with a database `UNIQUE`
+  constraint on `(provider, top-level resource kind, resource ID)`. Its
+  exhaustive outcome is `completed` with the existing handled-result reference,
+  or `owner_action_required` with a fixed reason (`paid_child_unusable` or
   `paid_intent_unreadable`), created/updated timestamps, and resolution state.
   It stores no raw response, metadata, payload, credential, mismatch value, or
-  copied PII. Repeated failures upsert the same case rather than create
-  duplicates.
+  copied PII. Use an atomic upsert on that conflict target. Repeated failures
+  update the same case rather than create duplicates. Migrate
+  `processed_payments`, its processing claim, and ledger replay to this tuple;
+  remove flat `payment_session_id` authority in the same slice.
 - Completed replay checks that provider-qualified record before staging or
-  provider IO and returns the existing handled result. An owner case remains
-  retryable and visible only on an authenticated owner page with explicit repair
-  actions; it never authorizes booking or refund by itself.
+  provider IO. Callback replay returns the existing acknowledgement. Browser
+  success and cancel replay must verify this site's `price_proof` before showing
+  any stored result, ticket, retry link, or listing content; absent or foreign
+  proof returns the permanent `400` page. An owner case remains retryable and
+  visible only on an authenticated owner page with explicit repair actions; it
+  never authorizes booking or refund by itself.
 - SumUp staging may be pruned after the checkout/retry period without breaking a
   completed replay because completion has provider-qualified durable authority.
   An unresolved callback still needs staging or its owner case.
 
 ## Privacy, request limits, and diagnostics
 
-- Reject payment webhook bodies over 64 KiB before buffering and provider IDs
-  over 255 UTF-8 bytes before DB/provider use. The current generic request
-  buffering and webhook `arrayBuffer()` are unbounded
+- Read payment webhook bodies incrementally from `request.body.getReader()`
+  before provider work. Preserve the collected raw bytes unchanged for signature
+  verification. Accept exactly 64 KiB and cancel/reject as soon as accumulated
+  bytes exceed that bound, regardless of `Content-Length` or chunking. Reject
+  provider IDs over 255 UTF-8 bytes before DB/provider use. The current generic
+  request buffering and webhook `arrayBuffer()` are unbounded
   (`src/features/request-body.ts:31-38`,
   `src/features/api/webhooks.ts:389-395`).
 - Parse external JSON with strict boundary schemas. Expected malformed payloads
@@ -294,9 +301,13 @@ reconciliation.
 - Do not use `logError` for success, ordinary pending, unknown event types, or
   unstaged forged SumUp IDs. It can add an activity DB write, ntfy request, and
   Sentry request. Every expected outcome or refusal uses a fixed console-only
-  class with provider and outcome, never values. Only unexpected programming or
-  system failures use activity, ntfy, and Sentry, after external error detail is
-  replaced by a fixed safe class and without attaching the raw exception.
+  class with provider and outcome, never values. The one exception is the
+  dedicated value-free registration-delivery activity below. Only unexpected
+  programming or system failures use activity, ntfy, and Sentry, after external
+  error detail is replaced by a fixed safe class and without attaching the raw
+  exception. If writing the dedicated failure activity itself fails, emit the
+  fixed database class to console and rethrow; do not spend three more
+  subrequests trying to report a reporting failure.
 - No raw callback/provider response, ownership decision, forged ID, mode,
   location, merchant observation, credential, or signing secret is newly
   persisted. The only new persistence is the narrow provider-qualified completed
@@ -347,10 +358,17 @@ The old “no call increase” and 545-755-line claims are withdrawn.
   consumes one credit before sleeping; after both credits are spent, a transient
   read rethrows and lock contention becomes `DatabaseBusyError`. Payment paths
   use no retryable interactive transaction.
+- Every write that can be retried after an unknown commit result has a stable
+  operation key and database uniqueness constraint. Activity, booking, answer,
+  ledger, claim, owner-case, and finalization writes use atomic conflict-safe
+  insert/upsert behavior. Replaying a committed batch must change no row twice
+  and create no duplicate.
 - Reject more than 16 final expanded booking lines before provider creation and
   again when parsing signed intent. Reject more than 16 distinct non-empty
-  registration webhook URLs; never truncate. This bounds payload, rendering,
-  attachment, and webhook fan-out work even when several lines share one URL.
+  registration webhook URLs; never truncate. Deduplicate non-empty URLs before
+  counting, and deliver only from that same bounded set. This bounds payload,
+  rendering, attachment, and webhook fan-out work even when several lines share
+  one URL.
 - The tables include the cold ready-schema maximum: one schema probe, one
   script- version read, and one changed-version write. Pending migrations are a
   startup/ unavailable path, not a payment attempt. Cold payment settings add
@@ -408,7 +426,7 @@ attempts. Every row includes cold-ready initialization and cold settings.
 | Early/owner path                               | First attempt | Retry maximum | Headroom |
 | ---------------------------------------------- | ------------: | ------------: | -------: |
 | Body over 64 KiB, rejected before buffering/DB |             0 |             0 |       50 |
-| Malformed envelope or ID over 255 bytes        |             5 |             7 |       43 |
+| Malformed envelope or ID over 255 bytes        |             0 |             0 |       50 |
 | Completed provider-qualified replay            |             6 |             8 |       42 |
 | Square non-completed callback                  |             5 |             7 |       43 |
 | Unstaged SumUp callback                        |             7 |             9 |       41 |
@@ -450,10 +468,13 @@ conservatively includes both:
 | Renewal plus one Bunny assignment                            |            45 |            47 |        3 |
 | Above plus one consolidated follow-up-failure activity batch |            46 |        **48** |    **2** |
 
-The failure activity is one value-free batch for all email/webhook delivery
-results, never one `logError` fan-out per endpoint. Expected delivery refusal
-does not call ntfy or Sentry. Unexpected programming/system failures retain the
-safe diagnostic rules but do not define a successful-completion budget.
+The failure activity is exactly one value-free entry in one batch when any email
+or webhook delivery fails, regardless of endpoint count, and zero entries when
+all succeed. It is never one `logError` fan-out per endpoint. Expected delivery
+refusal does not call ntfy or Sentry. The 47-call path before this batch leaves
+room for all three safe unexpected-error sinks instead; an attempted failure-
+activity write is call 48 and reports its own failure to console only. No
+diagnostic path exceeds 50.
 
 The maximum automatic refund/storage branch includes claim, snapshot, attempted
 create, one recovery read, one refunded-result batch, provider refund/status
@@ -497,11 +518,13 @@ Current registration webhooks follow five redirects and repeat the POST body, so
 120 and the assignment-plus-renewal maximum 127 (128 with the consolidated
 failure activity). No batching can make that fit.
 
-Registration webhooks are **direct-only**: validate the exact configured URL,
-force `redirect: "manual"`, and make exactly one POST to that URL. Every 3xx is
-a typed failed delivery and is never followed. Attendee data is never sent to
-the redirected location. No outbox is required for the approved synchronous
-bound.
+Registration webhooks are **direct-only**: deduplicate non-empty configured
+URLs, validate and count that set, then make exactly one POST per distinct
+validated URL. Force `redirect: "manual"`. Every 3xx is a typed failed delivery
+and is never followed. Attendee data is never sent to the redirected location.
+Each request has a 10-second timeout covering connection and response-body work;
+a timeout is a typed failed delivery so pending work always settles. No outbox
+is required for the approved synchronous bound.
 
 | Required source area                                                     | Honest changed/added estimate |
 | ------------------------------------------------------------------------ | ----------------------------: |
@@ -515,10 +538,9 @@ bound.
 | Bounds, shared retry allowance, site rules, instrumentation, file splits |                       100-180 |
 | **Total before deletions**                                               |               **1,170-1,870** |
 
-The provider-safety scope remains one PR and the former 800-line slice limit is
-relaxed. The estimate includes the batching and hard-bound work; deleting the
-old parallel readers is mandatory and may reduce net growth but not changed
-lines.
+The remaining provider-safety scope ships through the bounded slices listed
+above. The estimate includes the batching and hard-bound work; deleting the old
+parallel readers is mandatory and may reduce net growth but not changed lines.
 
 ## Regression and mutation plan
 
@@ -556,27 +578,35 @@ The full test plan is fixed. It must include direct deterministic tests for:
 - finite SumUp pre-ID retry, zero-row staging update, forged-ID no-provider-read
   and no-notification behavior, staging expiry, duplicate callbacks, browser/
   callback races, and refund recovery;
-- webhook bodies at exactly 64 KiB and one byte over, plus provider IDs at
-  exactly 255 UTF-8 bytes and one byte over, proving rejection happens before
-  DB/provider use;
+- webhook bodies delivered as one and several chunks at exactly 64 KiB and one
+  byte over, including absent or false `Content-Length`; preserve accepted raw
+  bytes exactly. Test provider IDs at exactly 255 UTF-8 bytes and one byte over,
+  proving rejection happens before DB/provider use;
 - privacy sentinels through raw parsing, SDK/transport failures, converter,
   route errors, console, activity, ntfy, and Sentry; exact expected console-only
   behavior; and only the approved narrow durable fields;
 - provider-qualified completion replay before provider/staging IO, owner-case
-  idempotent upsert and authenticated visibility, and no case for foreign proof;
-- 16 expanded lines and 16 webhook URLs accepted, 17 rejected before provider
-  creation and after signed-intent parse; site-assignment quantity one accepted
-  and two rejected, with no site-build call reachable from payment completion;
-- direct registration webhook delivery for every 3xx: one POST to the exact
-  configured URL with `redirect: "manual"`, no redirected-target request or
-  attendee-data disclosure, one consolidated value-free failure activity at
-  most, and no ntfy/Sentry fan-out;
+  idempotent upsert and authenticated visibility, and browser/cancel completed
+  replay with valid, absent, and foreign site proof;
+- 16 expanded lines and 16 distinct webhook URLs accepted. Refuse 17 before
+  provider creation and after signed-intent parse with zero provider creation
+  and zero webhook POSTs, while the confirmation email still succeeds.
+  Site-assignment quantity one is accepted and two rejected, with no site-build
+  call reachable from payment completion;
+- direct registration webhook delivery for every 3xx and a stalled endpoint: one
+  POST per distinct validated configured URL with `redirect: "manual"`, no
+  redirected-target request or attendee-data disclosure, exactly one
+  consolidated value-free failure activity for one, two, and 16 failures, zero
+  for all-success, and no ntfy/Sentry fan-out;
 - one paid-order snapshot DB round trip whose rows drive validation, modifier
   resolution, email, webhook, cancel, and refund rendering; direct query-count
   tests must fail if any removed parallel reader returns;
 - fresh/conflicting/stale claims all use one atomic claim batch; all paid
   choice/ stored-text answer replacements use one batch; any number of promo and
   registration activities use one batch; refunded-result persistence uses one;
+- a committed write batch whose response is lost and retried creates no
+  duplicate activity, booking, answer, ledger, claim, owner-case, or
+  finalization row;
 - request-wide DB retry tables for zero, one, two, and refused third extra
   attempts, including no sleep before a refused retry and no payment-path
   interactive transaction retry;

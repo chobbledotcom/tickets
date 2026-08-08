@@ -24,16 +24,18 @@ import {
 } from "#shared/email.ts";
 import { fetchText } from "#shared/fetch.ts";
 /* jscpd:ignore-start */
-import { ErrorCode, logError } from "#shared/logger.ts";
+import { ErrorCode, logError, logErrorLocal } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 /* jscpd:ignore-end */
 import {
   loadRegistrationPackageFacts,
+  type RegistrationDeliveryResult,
   type RegistrationNotification,
   type RegistrationPackageFacts,
   type RegistrationPackagePricing,
+  registrationDeliveryResult,
 } from "#shared/registration-package-facts.ts";
 import {
   addMonthsToRenewalDeadline,
@@ -210,6 +212,7 @@ export type WebhookDelivery =
     };
 
 const MAX_REGISTRATION_WEBHOOK_URLS = 16;
+const REGISTRATION_WEBHOOK_TIMEOUT_MS = 10_000;
 const REGISTRATION_DELIVERY_FAILED =
   "Registration notification delivery failed";
 
@@ -227,10 +230,16 @@ export const sendWebhook = async (
       headers: { "Content-Type": "application/json" },
       method: "POST",
       redirect: "manual",
+      signal: AbortSignal.timeout(REGISTRATION_WEBHOOK_TIMEOUT_MS),
     });
     return ok ? { delivered: true } : { delivered: false, reason: "rejected" };
   } catch (error) {
-    if (!(error instanceof TypeError)) throw error;
+    if (
+      !(error instanceof TypeError) &&
+      !(error instanceof DOMException && error.name === "TimeoutError")
+    ) {
+      throw error;
+    }
     return { delivered: false, reason: "transport" };
   }
 };
@@ -242,10 +251,9 @@ export const sendRegistrationWebhooks: RegistrationNotification<
   RegistrationEntry
 > = async (entries, currency, suppliedFacts) => {
   const webhookUrls = registrationWebhookUrls(entries);
-  if (webhookUrls.length === 0) return;
+  if (webhookUrls.length === 0) return { failed: false };
   if (webhookUrls.length > MAX_REGISTRATION_WEBHOOK_URLS) {
-    await logActivities([{ message: REGISTRATION_DELIVERY_FAILED }]);
-    throw new Error("Registration webhook URL limit exceeded");
+    return { failed: true };
   }
 
   const facts = suppliedFacts ?? (await loadRegistrationPackageFacts(entries));
@@ -254,15 +262,52 @@ export const sendRegistrationWebhooks: RegistrationNotification<
     webhookUrls.map((url) => sendWebhook(url, payload)),
   );
   const failed = results.find((result) => result.status === "rejected");
-  if (failed) {
-    logError({ code: ErrorCode.WEBHOOK_SEND, error: failed.reason });
-    throw failed.reason;
-  }
+  if (failed) throw failed.reason;
   const deliveries = results
     .filter((result) => result.status === "fulfilled")
     .map((result) => result.value);
-  if (deliveries.some(({ delivered }) => !delivered)) {
+  return registrationDeliveryResult(deliveries);
+};
+
+const completedRegistrationDelivery =
+  (code: (typeof ErrorCode)["EMAIL_SEND" | "WEBHOOK_SEND"]) =>
+  (
+    result: PromiseSettledResult<RegistrationDeliveryResult>,
+  ): RegistrationDeliveryResult => {
+    if (result.status === "rejected") {
+      logError({ code, error: result.reason });
+      throw result.reason;
+    }
+    return result.value;
+  };
+
+const recordRegistrationDeliveryFailure = async (): Promise<void> => {
+  try {
     await logActivities([{ message: REGISTRATION_DELIVERY_FAILED }]);
+  } catch (error) {
+    logErrorLocal({
+      code: ErrorCode.DB_QUERY,
+      detail: "Registration delivery failure activity write",
+    });
+    throw error;
+  }
+};
+
+const sendRegistrationNotifications = async (
+  entries: EmailEntry[],
+  currency: string,
+  packageFacts?: RegistrationPackageFacts,
+): Promise<void> => {
+  const [webhookResult, emailResult] = await Promise.allSettled([
+    sendRegistrationWebhooks(entries, currency, packageFacts),
+    sendRegistrationEmails(entries, currency, packageFacts),
+  ]);
+  const deliveries = [
+    completedRegistrationDelivery(ErrorCode.WEBHOOK_SEND)(webhookResult),
+    completedRegistrationDelivery(ErrorCode.EMAIL_SEND)(emailResult),
+  ];
+  if (deliveries.some(({ failed }) => failed)) {
+    await recordRegistrationDeliveryFailure();
   }
 };
 
@@ -284,8 +329,9 @@ const queueRegistrationNotifications = async (
   const packageFacts = needsPackageFacts
     ? (suppliedPackageFacts ?? (await loadRegistrationPackageFacts(entries)))
     : suppliedPackageFacts;
-  addPendingWork(sendRegistrationWebhooks(entries, currency, packageFacts));
-  addPendingWork(sendRegistrationEmails(entries, currency, packageFacts));
+  addPendingWork(
+    sendRegistrationNotifications(entries, currency, packageFacts),
+  );
 };
 
 /**

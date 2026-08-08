@@ -7,6 +7,10 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { runWithPendingWork } from "#shared/pending-work.ts";
 import {
+  runWithSubrequestBudget,
+  withSubrequestAllowance,
+} from "#shared/subrequest-budget.ts";
+import {
   logAndNotifyRegistration,
   sendRegistrationWebhooks,
   type WebhookPayload,
@@ -46,6 +50,7 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
     const urls = spyFirstArgs(fetchSpy.calls);
     expect(urls).toContain("https://hook-a.com");
     expect(urls).toContain("https://hook-b.com");
+    expect(await activityMessages()).toEqual([]);
   });
 
   test("deduplicates identical webhook URLs", async () => {
@@ -104,18 +109,16 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
     expect(fetchSpy.calls.length).toBe(16);
   });
 
-  test("rejects 17 distinct webhook URLs before fetching", async () => {
+  test("refuses 17 distinct webhook URLs before fetching", async () => {
     const entries = Array.from({ length: 17 }, (_, index) =>
       makeEntry({ id: index + 1, webhook_url: `https://hook-${index}.com` }),
     );
 
-    await expect(sendRegistrationWebhooks(entries, "GBP")).rejects.toThrow(
-      "Registration webhook URL limit exceeded",
-    );
+    const result = await sendRegistrationWebhooks(entries, "GBP");
+
+    expect(result).toEqual({ failed: true });
     expect(fetchSpy.calls.length).toBe(0);
-    expect(await activityMessages()).toEqual([
-      "Registration notification delivery failed",
-    ]);
+    expect(await activityMessages()).toEqual([]);
   });
 
   test("records one value-free activity for all failed deliveries", async () => {
@@ -137,14 +140,38 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
     ];
     fetchSpy.reply(() => new Response("refused", { status: 503 }));
 
-    await sendRegistrationWebhooks(entries, "GBP");
+    await runWithPendingWork(() => logAndNotifyRegistration(entries));
 
     const messages = await activityMessages();
-    expect(messages).toEqual(["Registration notification delivery failed"]);
+    expect(
+      messages.filter(
+        (message) => message === "Registration notification delivery failed",
+      ),
+    ).toHaveLength(1);
     for (const value of Object.values(sentinels)) {
       expect(messages.join("\n")).not.toContain(value);
     }
   });
+
+  for (const count of [1, 2, 16]) {
+    test(`records exactly one failure activity for ${count} refused webhook sends`, async () => {
+      fetchSpy.reply(() => new Response("refused", { status: 503 }));
+      const entries = Array.from({ length: count }, (_, index) =>
+        makeEntry({
+          id: index + 1,
+          webhook_url: `https://failed-hook-${index}.com`,
+        }),
+      );
+
+      await runWithPendingWork(() => logAndNotifyRegistration(entries));
+
+      expect(
+        (await activityMessages()).filter(
+          (message) => message === "Registration notification delivery failed",
+        ),
+      ).toHaveLength(1);
+    });
+  }
 
   test("reports an unexpected failure from pending registration work", async () => {
     fetchSpy.reply(() => Promise.reject(new Error("private failure detail")));
@@ -197,6 +224,43 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
       expect(await outcome.promise).toBe(unexpected);
     });
   });
+
+  test("records one activity when webhook and both emails fail", async () => {
+    await configureTestEmail({ businessEmail: "admin@example.com" });
+    fetchSpy.reply(() => new Response("refused", { status: 503 }));
+    const entries = [makeEntry({ webhook_url: "https://failed-hook.com" })];
+
+    const logs = await withErrorSpy(async (errorSpy) => {
+      await runWithPendingWork(() => logAndNotifyRegistration(entries));
+      return errorSpy.calls;
+    });
+
+    expect(fetchSpy.calls).toHaveLength(3);
+    expect(logs).toEqual([]);
+    expect(
+      (await activityMessages()).filter(
+        (message) => message === "Registration notification delivery failed",
+      ),
+    ).toHaveLength(1);
+  });
+
+  test("reports a failure-activity write error locally", async () => {
+    const entries = [
+      makeEntry({ webhook_url: "http://unsafe-webhook.example.com" }),
+    ];
+
+    const logs = await withErrorSpy(async (errorSpy) => {
+      await runWithSubrequestBudget(() =>
+        withSubrequestAllowance({ database: 1, external: 0, total: 1 }, () =>
+          runWithPendingWork(() => logAndNotifyRegistration(entries)),
+        ),
+      );
+      return errorSpy.calls.map(({ args }) => String(args[0]));
+    });
+
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toContain("E_DB_QUERY");
+  });
 });
 
 describeWithEnv("logAndNotifyRegistration", { db: true }, () => {
@@ -219,6 +283,11 @@ describeWithEnv("logAndNotifyRegistration", { db: true }, () => {
     const body = JSON.parse(options.body as string) as WebhookPayload;
     expect(body.notification_type).toBe("registration.completed");
     expect(body.name).toBe("Jane Doe");
+    expect(
+      (await activityMessages()).filter(
+        (message) => message === "Registration notification delivery failed",
+      ),
+    ).toHaveLength(0);
   });
 
   test("does not send webhook when listing has no webhook_url", async () => {

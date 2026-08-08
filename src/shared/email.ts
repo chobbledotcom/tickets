@@ -22,6 +22,7 @@ import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   loadRegistrationPackageFacts,
   type RegistrationNotification,
+  registrationDeliveryResult,
 } from "#shared/registration-package-facts.ts";
 import { generateSvgTicket, type SvgTicketData } from "#shared/svg-ticket.ts";
 import { buildCheckinUrl, buildTicketUrl } from "#shared/ticket-url.ts";
@@ -329,35 +330,51 @@ const sendRequest = (
   request: [url: string, headers: Headers, body: unknown],
 ): Promise<FetchResult> => postBody(...request);
 
+type EmailDeliveryResult =
+  | { delivered: true; status: number }
+  | { delivered: false; detail: string; status: number | undefined };
+
+/** Deliver one email and return enough safe detail for its caller to report. */
+const deliverEmail = async (
+  config: EmailConfig,
+  msg: EmailMessage,
+): Promise<EmailDeliveryResult> => {
+  const buildRequest = PROVIDERS[config.provider];
+  if (!buildRequest) {
+    return {
+      delivered: false,
+      detail: `unknown provider: ${config.provider}`,
+      status: undefined,
+    };
+  }
+  try {
+    const { ok, status } = await sendRequest(buildRequest(config, msg));
+    return ok
+      ? { delivered: true, status }
+      : {
+          delivered: false,
+          detail: `status=${status} to=${msg.to}`,
+          status,
+        };
+  } catch (error) {
+    return {
+      delivered: false,
+      detail: errorMessage(error),
+      status: undefined,
+    };
+  }
+};
+
 /** Send a single email via the configured provider. Logs errors, never throws. Returns HTTP status or undefined on non-HTTP errors. */
 export const sendEmail = async (
   config: EmailConfig,
   msg: EmailMessage,
 ): Promise<number | undefined> => {
-  const buildRequest = PROVIDERS[config.provider];
-  if (!buildRequest) {
-    logError({
-      code: ErrorCode.EMAIL_SEND,
-      detail: `unknown provider: ${config.provider}`,
-    });
-    return;
+  const delivery = await deliverEmail(config, msg);
+  if (!delivery.delivered) {
+    logError({ code: ErrorCode.EMAIL_SEND, detail: delivery.detail });
   }
-  try {
-    const { ok, status } = await sendRequest(buildRequest(config, msg));
-    if (!ok) {
-      logError({
-        code: ErrorCode.EMAIL_SEND,
-        detail: `status=${status} to=${msg.to}`,
-      });
-    }
-    return status;
-  } catch (error) {
-    logError({
-      code: ErrorCode.EMAIL_SEND,
-      detail: errorMessage(error),
-    });
-    return;
-  }
+  return delivery.status;
 };
 
 /** Build SVG ticket data from an email entry (non-PII only) */
@@ -440,11 +457,11 @@ export const sendRegistrationEmails: RegistrationNotification<
   EmailEntry
 > = async (entries, currency, suppliedFacts) => {
   const delivery = registrationEmailDelivery(entries);
-  if (!delivery) return;
+  if (!delivery) return { failed: false };
   const { attendeeEmail, businessEmail, config } = delivery;
   const facts = suppliedFacts ?? (await loadRegistrationPackageFacts(entries));
   const ticketUrl = buildTicketUrl(entries);
-  const promises: Promise<number | undefined>[] = [];
+  const messages: EmailMessage[] = [];
 
   if (attendeeEmail) {
     const replyTo = businessEmail || undefined;
@@ -460,14 +477,12 @@ export const sendRegistrationEmails: RegistrationNotification<
       renderEmailContent("confirmation", data),
       buildTicketAttachments(groups, currency),
     ]);
-    promises.push(
-      sendEmail(config, {
-        to: attendeeEmail,
-        ...confirmation,
-        attachments,
-        replyTo,
-      }),
-    );
+    messages.push({
+      to: attendeeEmail,
+      ...confirmation,
+      attachments,
+      replyTo,
+    });
   }
 
   if (businessEmail) {
@@ -476,16 +491,17 @@ export const sendRegistrationEmails: RegistrationNotification<
       packageDisplays: facts.displays,
     });
     const notification = await renderEmailContent("admin", data);
-    promises.push(
-      sendEmail(config, {
-        to: businessEmail,
-        ...notification,
-        replyTo: attendeeEmail || undefined,
-      }),
-    );
+    messages.push({
+      to: businessEmail,
+      ...notification,
+      replyTo: attendeeEmail || undefined,
+    });
   }
 
-  await Promise.allSettled(promises);
+  const deliveries = await Promise.all(
+    messages.map((message) => deliverEmail(config, message)),
+  );
+  return registrationDeliveryResult(deliveries);
 };
 
 // ---------------------------------------------------------------------------

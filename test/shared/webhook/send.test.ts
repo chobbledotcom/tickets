@@ -4,6 +4,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { FakeTime } from "@std/testing/time";
 import {
   runWithSubrequestBudget,
   withSubrequestAllowance,
@@ -56,7 +57,7 @@ describeWithEnv("sendWebhook", { db: true }, () => {
           return new Response();
         }
         if (init?.redirect !== "manual") {
-          return fetch(redirectedUrl, init);
+          throw new Error('Webhook request must use redirect: "manual"');
         }
         return new Response("", {
           headers: { location: redirectedUrl },
@@ -98,6 +99,26 @@ describeWithEnv("sendWebhook", { db: true }, () => {
 
     expect(result).toEqual({ delivered: false, reason: "transport" });
     expect(fetchSpy.calls.length).toBe(1);
+  });
+
+  test("returns a failed delivery when the endpoint stalls", async () => {
+    using time = new FakeTime();
+    fetchSpy.reply(
+      (_url, init) =>
+        new Promise((_resolve, reject) =>
+          init?.signal?.addEventListener(
+            "abort",
+            () => reject(init.signal?.reason),
+            { once: true },
+          ),
+        ),
+    );
+    const payload = await buildWebhookPayload(defaultEntries(), "GBP");
+
+    const sending = sendWebhook("https://example.com/webhook", payload);
+    await time.tickAsync(10_000);
+
+    expect(await sending).toEqual({ delivered: false, reason: "transport" });
   });
 
   test("refuses to fetch an unsafe (internal) webhook URL", async () => {

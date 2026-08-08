@@ -2,7 +2,10 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
 import { PRICE_TYPE_GROUP_DAY } from "#shared/db/listing-prices.ts";
-import { loadRegistrationPackageFacts } from "#shared/registration-package-facts.ts";
+import {
+  loadRegistrationPackageFacts,
+  registrationDeliveryResult,
+} from "#shared/registration-package-facts.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -15,6 +18,16 @@ import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 const row = (packageGroupId: number) => ({
   attendee: { package_group_id: packageGroupId },
+});
+
+test("marks a registration failed exactly when any delivery failed", () => {
+  expect(registrationDeliveryResult([])).toEqual({ failed: false });
+  expect(
+    registrationDeliveryResult([{ delivered: true }, { delivered: true }]),
+  ).toEqual({ failed: false });
+  expect(
+    registrationDeliveryResult([{ delivered: true }, { delivered: false }]),
+  ).toEqual({ failed: true });
 });
 
 describeWithEnv("loadRegistrationPackageFacts", { db: true }, () => {
