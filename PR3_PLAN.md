@@ -14,7 +14,7 @@ proven 48-call maximum and two-call headroom. The revised source estimate is
 The first merge slice is intentionally narrow: registration webhooks make one
 direct request per configured URL, never follow redirects, stop before sending
 to more than 16 distinct URLs, and record one value-free failure. This slice
-changes 63 lines in `src/`; the provider-observation implementation was removed
+changes 62 lines in `src/`; the provider-observation implementation was removed
 from the merge diff after it exceeded the agreed roughly 1,000-line source
 limit.
 

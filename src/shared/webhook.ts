@@ -229,7 +229,8 @@ export const sendWebhook = async (
       redirect: "manual",
     });
     return ok ? { delivered: true } : { delivered: false, reason: "rejected" };
-  } catch {
+  } catch (error) {
+    if (!(error instanceof TypeError)) throw error;
     return { delivered: false, reason: "transport" };
   }
 };

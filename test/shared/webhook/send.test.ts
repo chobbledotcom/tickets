@@ -5,6 +5,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
+  runWithSubrequestBudget,
+  withSubrequestAllowance,
+} from "#shared/subrequest-budget.ts";
+import {
   buildWebhookPayload,
   sendWebhook,
   type WebhookPayload,
@@ -86,7 +90,7 @@ describeWithEnv("sendWebhook", { db: true }, () => {
   }
 
   test("returns a failed delivery on a transport error", async () => {
-    fetchSpy.reply(() => Promise.reject(new Error("Network error")));
+    fetchSpy.reply(() => Promise.reject(new TypeError("Network error")));
 
     const payload = await buildWebhookPayload(defaultEntries(), "GBP");
 
@@ -110,7 +114,9 @@ describeWithEnv("sendWebhook", { db: true }, () => {
   });
 
   test("does not report expected delivery failures as incidents", async () => {
-    fetchSpy.reply(() => Promise.reject(new Error("secret transport detail")));
+    fetchSpy.reply(() =>
+      Promise.reject(new TypeError("secret transport detail")),
+    );
     const payload = await buildWebhookPayload(defaultEntries(), "GBP");
 
     const logs = await withErrorSpy(async (errorSpy) => {
@@ -119,5 +125,20 @@ describeWithEnv("sendWebhook", { db: true }, () => {
     });
 
     expect(logs).toEqual([]);
+  });
+
+  test("does not hide a subrequest allowance failure", async () => {
+    const payload = await buildWebhookPayload(defaultEntries(), "GBP");
+
+    await expect(
+      runWithSubrequestBudget(() =>
+        withSubrequestAllowance({ database: 0, external: 0, total: 0 }, () =>
+          sendWebhook("https://example.com/webhook", payload),
+        ),
+      ),
+    ).rejects.toThrow(
+      "Subrequest allowance exceeded: 0 database + 1 external calls",
+    );
+    expect(fetchSpy.calls.length).toBe(0);
   });
 });
