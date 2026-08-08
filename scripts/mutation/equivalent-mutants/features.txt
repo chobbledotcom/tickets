@@ -219,3 +219,13 @@ src/features/public/order.ts::bookingUrlFor.chosen.prefill~1vgmybj  1 → 0   # 
 src/features/admin/listings-parents.ts::loadListingParentsSection.offeredUnder~0sst7oc  ?? → ||   # listingsByKey.get() returns an array or undefined; arrays are always truthy
 src/features/admin/listings-parents.ts::childOnlyAddOnResolver.allListings.active~1hbkt0d  true → false   # childOnlyAddOnNameForListings expands group ids only and never reads ListingGroupMembership.active
 src/features/admin/listings-parents.ts::remapDuplicatedGroupEdges.toEdge.childId~1us6y6n  ?? → ||   # clone ids and listing ids are positive, so both operands are always truthy when present
+
+# requirePackageGuardsTx (membership.ts): the wasHiddenPackage check reads
+# existing package flags inside the transaction. `&&→||` is equivalent because
+# when existing is null both operands are undefined (falsy), and when existing
+# is present, is_package and hide_package_listings are booleans that can only
+# both be true (hidden package) or have is_package false (non-package, in
+# which case hide_package_listings is false — the application never writes
+# hide_package_listings=true on a non-package group), so both && and ||
+# produce the same result for every reachable value.
+src/shared/db/groups/membership.ts::requirePackageGuardsTx.wasHiddenPackage~1g7jz9t &&→||   # existing?.is_package and existing?.hide_package_listings are only both true or both false for reachable rows; null→falsy either way
