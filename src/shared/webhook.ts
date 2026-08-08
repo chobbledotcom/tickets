@@ -22,7 +22,7 @@ import {
   registrationEmailDelivery,
   sendRegistrationEmails,
 } from "#shared/email.ts";
-import { fetchText } from "#shared/fetch.ts";
+import { fetchText, ResponseBodyTooLargeError } from "#shared/fetch.ts";
 /* jscpd:ignore-start */
 import { ErrorCode, logError, logErrorLocal } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
@@ -208,10 +208,11 @@ export type WebhookDelivery =
   | { delivered: true }
   | {
       delivered: false;
-      reason: "rejected" | "transport" | "unsafe_url";
+      reason: "oversized_response" | "rejected" | "transport" | "unsafe_url";
     };
 
 const MAX_REGISTRATION_WEBHOOK_URLS = 16;
+const MAX_REGISTRATION_WEBHOOK_RESPONSE_BYTES = 64 * 1024;
 const REGISTRATION_WEBHOOK_TIMEOUT_MS = 10_000;
 const REGISTRATION_DELIVERY_FAILED =
   "Registration notification delivery failed";
@@ -225,15 +226,22 @@ export const sendWebhook = async (
     return { delivered: false, reason: "unsafe_url" };
   }
   try {
-    const { ok } = await fetchText(webhookUrl, {
-      body: JSON.stringify(payload),
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-      redirect: "manual",
-      signal: AbortSignal.timeout(REGISTRATION_WEBHOOK_TIMEOUT_MS),
-    });
+    const { ok } = await fetchText(
+      webhookUrl,
+      {
+        body: JSON.stringify(payload),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+        redirect: "manual",
+        signal: AbortSignal.timeout(REGISTRATION_WEBHOOK_TIMEOUT_MS),
+      },
+      MAX_REGISTRATION_WEBHOOK_RESPONSE_BYTES,
+    );
     return ok ? { delivered: true } : { delivered: false, reason: "rejected" };
   } catch (error) {
+    if (error instanceof ResponseBodyTooLargeError) {
+      return { delivered: false, reason: "oversized_response" };
+    }
     if (
       !(error instanceof TypeError) &&
       !(error instanceof DOMException && error.name === "TimeoutError")

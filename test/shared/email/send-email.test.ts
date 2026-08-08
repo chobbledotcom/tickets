@@ -46,6 +46,7 @@ const sendEmailExpectingError = async (
       expect(status).toBe(expectedStatus);
     }
     const logs = errorSpy.calls.map((c) => c.args[0] as string);
+    expect(logs.join("\n")).not.toContain(msg.to);
     expect(
       logs.some(
         (l) => l.includes("E_EMAIL_SEND") && l.includes(expectedLogSubstring),
@@ -193,7 +194,12 @@ describe("sendEmail", () => {
       Promise.resolve(new Response("Error", { status: 500 })),
     );
 
-    await sendEmailExpectingError(testConfig, minimalMsg, 500, "status=500");
+    await sendEmailExpectingError(
+      testConfig,
+      minimalMsg,
+      500,
+      "provider=resend status=500",
+    );
   });
 
   test("returns undefined on fetch failure", async () => {

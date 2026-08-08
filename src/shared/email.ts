@@ -361,7 +361,7 @@ const emailDelivery =
         ? { delivered: true, status }
         : {
             delivered: false,
-            detail: `status=${status} to=${msg.to}`,
+            detail: `provider=${config.provider} status=${status}`,
             status,
           };
     } catch (error) {

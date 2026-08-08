@@ -121,6 +121,18 @@ describeWithEnv("sendWebhook", { db: true }, () => {
     expect(await sending).toEqual({ delivered: false, reason: "transport" });
   });
 
+  test("returns a failed delivery for an oversized response", async () => {
+    fetchSpy.reply(() => new Response("x".repeat(64 * 1024 + 1)));
+    const payload = await buildWebhookPayload(defaultEntries(), "GBP");
+
+    const result = await sendWebhook("https://example.com/webhook", payload);
+
+    expect(result).toEqual({
+      delivered: false,
+      reason: "oversized_response",
+    });
+  });
+
   test("refuses to fetch an unsafe (internal) webhook URL", async () => {
     const payload = await buildWebhookPayload(defaultEntries(), "GBP");
 

@@ -259,16 +259,24 @@ reconciliation.
   authority for unprocessed work.
 - Automatic refund and `isPaymentRefunded` must use the bound attempt that
   accepted the resource. Re-resolving global provider settings is forbidden.
+- Define one canonical identity per provider before any durable claim: Stripe is
+  `(stripe, checkout_session, Session.id)`, Square is
+  `(square, order, Order.id)`, and SumUp is `(sumup, checkout, Checkout.id)`.
+  Square Payment/tender IDs must resolve to their parent Order ID. SumUp
+  transaction IDs must resolve to their parent checkout through staging or the
+  verified provider relation. Browser, callback, refund, and ledger-replay paths
+  all use these mappings; an alternate provider identifier is never a second
+  durable identity.
 - Add one provider-qualified durable session mechanism with a database `UNIQUE`
-  constraint on `(provider, top-level resource kind, resource ID)`. Its
+  constraint on `(provider, canonical resource kind, canonical resource ID)`. Its
   exhaustive outcome is `completed` with the existing handled-result reference,
   or `owner_action_required` with a fixed reason (`paid_child_unusable` or
   `paid_intent_unreadable`), created/updated timestamps, and resolution state.
   It stores no raw response, metadata, payload, credential, mismatch value, or
   copied PII. Use an atomic upsert on that conflict target. Repeated failures
   update the same case rather than create duplicates. Migrate
-  `processed_payments`, its processing claim, and ledger replay to this tuple;
-  remove flat `payment_session_id` authority in the same slice.
+  `processed_payments`, its processing claim, refunds, and ledger replay to this
+  canonical tuple; remove flat `payment_session_id` authority in the same slice.
 - Completed replay checks that provider-qualified record before staging or
   provider IO. Callback replay returns the existing acknowledgement. Browser
   success and cancel replay must verify this site's `price_proof` before showing
@@ -405,11 +413,15 @@ package, promo, or answer count within the 16-line bound:
    `processed_payments` row and returns an existing completed row on conflict.
 2. One paid-order snapshot batch includes ledger preflight and every current
    read.
-3. One existing atomic booking/finalization batch writes attendee, bookings,
-   modifier use, ledger, contact activity, and provider-qualified completion.
+3. One existing atomic booking batch writes attendee, bookings, modifier use,
+   ledger, and contact activity with stable operation keys. The durable session
+   remains `processing`.
 4. One optional answer-replacement batch uses `INSERT ... SELECT` for validated
    choice and stored-text IDs; no begin/statement/commit transaction remains.
-5. One activity batch writes every promo and registration entry together.
+5. One final batch writes every promo and registration activity together and
+   marks the canonical provider-qualified session `completed`. A stale claim
+   resumes the idempotent missing batches; replay cannot return `completed`
+   while answers or activities remain unfinished.
 
 Email and webhook rendering add zero DB reads. At most two registration emails
 add two external calls. A prebuilt-site link joins the buyer confirmation
@@ -523,8 +535,10 @@ URLs, validate and count that set, then make exactly one POST per distinct
 validated URL. Force `redirect: "manual"`. Every 3xx is a typed failed delivery
 and is never followed. Attendee data is never sent to the redirected location.
 Each request has a 10-second timeout covering connection and response-body work;
-a timeout is a typed failed delivery so pending work always settles. No outbox
-is required for the approved synchronous bound.
+a timeout is a typed failed delivery so pending work always settles. Read at
+most 64 KiB of response body, cancel the stream on the next byte, and return a
+typed failed delivery on overflow. No outbox is required for the approved
+synchronous bound.
 
 | Required source area                                                     | Honest changed/added estimate |
 | ------------------------------------------------------------------------ | ----------------------------: |
@@ -587,7 +601,9 @@ The full test plan is fixed. It must include direct deterministic tests for:
   behavior; and only the approved narrow durable fields;
 - provider-qualified completion replay before provider/staging IO, owner-case
   idempotent upsert and authenticated visibility, and browser/cancel completed
-  replay with valid, absent, and foreign site proof;
+  replay with valid, absent, and foreign site proof. Process the same Square and
+  SumUp payment through their alternate Payment/transaction identifiers and
+  prove both resolve to the original canonical Order/checkout row;
 - 16 expanded lines and 16 distinct webhook URLs accepted. Refuse 17 before
   provider creation and after signed-intent parse with zero provider creation
   and zero webhook POSTs, while the confirmation email still succeeds.
@@ -597,7 +613,8 @@ The full test plan is fixed. It must include direct deterministic tests for:
   POST per distinct validated configured URL with `redirect: "manual"`, no
   redirected-target request or attendee-data disclosure, exactly one
   consolidated value-free failure activity for one, two, and 16 failures, zero
-  for all-success, and no ntfy/Sentry fan-out;
+  for all-success, and no ntfy/Sentry fan-out. Accept a 64 KiB response body;
+  cancel and return the typed failure for one byte over;
 - one paid-order snapshot DB round trip whose rows drive validation, modifier
   resolution, email, webhook, cancel, and refund rendering; direct query-count
   tests must fail if any removed parallel reader returns;
@@ -606,7 +623,8 @@ The full test plan is fixed. It must include direct deterministic tests for:
   registration activities use one batch; refunded-result persistence uses one;
 - a committed write batch whose response is lost and retried creates no
   duplicate activity, booking, answer, ledger, claim, owner-case, or
-  finalization row;
+  finalization row. Inject failure between every batch and prove completion is
+  invisible until the final activity/completion batch succeeds;
 - request-wide DB retry tables for zero, one, two, and refused third extra
   attempts, including no sleep before a refused retry and no payment-path
   interactive transaction retry;
