@@ -16,7 +16,10 @@ import {
   spyFirstArgs,
   stubWebhookFetch,
 } from "#test/shared/webhook/helpers.ts";
-import { getAllActivityLog } from "#test-utils/activity-log.ts";
+import {
+  activityMessages,
+  getAllActivityLog,
+} from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
@@ -86,6 +89,55 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
 
     expect(fetchSpy.calls.length).toBe(1);
     expect(fetchSpy.firstBody().tickets[0]!.unit_price).toBe(900);
+  });
+
+  test("accepts 16 distinct webhook URLs", async () => {
+    const entries = Array.from({ length: 16 }, (_, index) =>
+      makeEntry({ id: index + 1, webhook_url: `https://hook-${index}.com` }),
+    );
+
+    await sendRegistrationWebhooks(entries, "GBP");
+
+    expect(fetchSpy.calls.length).toBe(16);
+  });
+
+  test("rejects 17 distinct webhook URLs before fetching", async () => {
+    const entries = Array.from({ length: 17 }, (_, index) =>
+      makeEntry({ id: index + 1, webhook_url: `https://hook-${index}.com` }),
+    );
+
+    await expect(sendRegistrationWebhooks(entries, "GBP")).rejects.toThrow(
+      "Registration webhook URL limit exceeded",
+    );
+    expect(fetchSpy.calls.length).toBe(0);
+  });
+
+  test("records one value-free activity for all failed deliveries", async () => {
+    const sentinels = {
+      attendee: "PRIVATE-ATTENDEE-VALUE",
+      body: "PRIVATE-BODY-VALUE",
+      provider: "PRIVATE-PROVIDER-VALUE",
+      url: "private-url-value",
+    };
+    const entries = [
+      makeEntry(
+        { id: 1, webhook_url: `https://${sentinels.url}-a.com` },
+        { name: sentinels.attendee, special_instructions: sentinels.body },
+      ),
+      makeEntry({
+        id: 2,
+        webhook_url: `https://${sentinels.url}-${sentinels.provider}.com`,
+      }),
+    ];
+    fetchSpy.reply(() => new Response("refused", { status: 503 }));
+
+    await sendRegistrationWebhooks(entries, "GBP");
+
+    const messages = await activityMessages();
+    expect(messages).toEqual(["Registration notification delivery failed"]);
+    for (const value of Object.values(sentinels)) {
+      expect(messages.join("\n")).not.toContain(value);
+    }
   });
 });
 

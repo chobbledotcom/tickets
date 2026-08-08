@@ -41,29 +41,49 @@ describeWithEnv("sendWebhook", { db: true }, () => {
     expect(body.tickets).toHaveLength(1);
   });
 
-  test("treats a redirect as failed without following it", async () => {
-    fetchSpy.reply(() =>
-      Promise.resolve(
-        new Response("", {
-          headers: { location: "https://hooks.example.org/final" },
-          status: 307,
-        }),
-      ),
-    );
+  for (const status of [301, 302, 303, 307, 308]) {
+    test(`treats ${status} as failed without disclosing attendee data`, async () => {
+      const redirectedUrl = "https://hooks.example.org/privacy-target";
+      const privacySentinel = `PRIVATE-ATTENDEE-${status}`;
+      let redirectedBody: BodyInit | null = null;
+      fetchSpy.reply((url, init) => {
+        if (url === redirectedUrl) {
+          redirectedBody = init?.body ?? null;
+          return new Response();
+        }
+        if (init?.redirect !== "manual") {
+          return fetch(redirectedUrl, init);
+        }
+        return new Response("", {
+          headers: { location: redirectedUrl },
+          status,
+        });
+      });
+      const payload = await buildWebhookPayload(
+        defaultEntries().map((entry) => ({
+          ...entry,
+          attendee: {
+            ...entry.attendee,
+            special_instructions: privacySentinel,
+          },
+        })),
+        "GBP",
+      );
 
-    const payload = await buildWebhookPayload(defaultEntries(), "GBP");
+      const result = await sendWebhook("https://example.com/webhook", payload);
 
-    const result = await sendWebhook("https://example.com/webhook", payload);
-
-    expect(result).toEqual({ delivered: false, reason: "rejected" });
-    expect(fetchSpy.calls.length).toBe(1);
-    const [firstUrl, firstOptions] = fetchSpy.calls[0]!.args as [
-      string,
-      RequestInit,
-    ];
-    expect(firstUrl).toBe("https://example.com/webhook");
-    expect(firstOptions.redirect).toBe("manual");
-  });
+      expect(result).toEqual({ delivered: false, reason: "rejected" });
+      expect(fetchSpy.calls.length).toBe(1);
+      const [firstUrl, firstOptions] = fetchSpy.calls[0]!.args as [
+        string,
+        RequestInit,
+      ];
+      expect(firstUrl).toBe("https://example.com/webhook");
+      expect(firstOptions.redirect).toBe("manual");
+      expect(firstOptions.body).toContain(privacySentinel);
+      expect(redirectedBody).toBeNull();
+    });
+  }
 
   test("returns a failed delivery on a transport error", async () => {
     fetchSpy.reply(() => Promise.reject(new Error("Network error")));

@@ -209,6 +209,10 @@ export type WebhookDelivery =
       reason: "rejected" | "transport" | "unsafe_url";
     };
 
+const MAX_REGISTRATION_WEBHOOK_URLS = 16;
+const REGISTRATION_DELIVERY_FAILED =
+  "Registration notification delivery failed";
+
 /** Send one direct webhook request without blocking registration on failure. */
 export const sendWebhook = async (
   webhookUrl: string,
@@ -241,15 +245,25 @@ export const sendRegistrationWebhooks: RegistrationNotification<
 
   const facts = suppliedFacts ?? (await loadRegistrationPackageFacts(entries));
   const payload = buildWebhookPayload(entries, currency, facts.pricingByGroup);
-  await Promise.allSettled(webhookUrls.map((url) => sendWebhook(url, payload)));
+  const deliveries = await Promise.all(
+    webhookUrls.map((url) => sendWebhook(url, payload)),
+  );
+  if (deliveries.some(({ delivered }) => !delivered)) {
+    await logActivities([{ message: REGISTRATION_DELIVERY_FAILED }]);
+  }
 };
 
-const registrationWebhookUrls = (entries: RegistrationEntry[]): string[] =>
-  unique(
+const registrationWebhookUrls = (entries: RegistrationEntry[]): string[] => {
+  const urls = unique(
     mapNotNullish(
       (entry: RegistrationEntry) => entry.listing.webhook_url || null,
     )(entries),
   );
+  if (urls.length > MAX_REGISTRATION_WEBHOOK_URLS) {
+    throw new Error("Registration webhook URL limit exceeded");
+  }
+  return urls;
+};
 
 const queueRegistrationNotifications = async (
   entries: EmailEntry[],
