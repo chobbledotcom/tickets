@@ -1,6 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { bodyToCreateInput, bodyToUpdateInput } from "#routes/admin/api.ts";
+import {
+  bodyToCreateInput,
+  bodyToUpdateInput,
+} from "#routes/admin/api-listing-body.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
