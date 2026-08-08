@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { TransactionValidationError } from "#shared/db/client.ts";
 import { col, defineTable, type Table } from "#shared/db/table.ts";
+import { TransactionValidationError } from "#shared/db/transaction.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { defineForm, type FormValues } from "#shared/forms/definition.ts";
 import { defineResource, type Resource } from "#shared/rest/resource.ts";

@@ -17,11 +17,11 @@ import {
   inPlaceholders,
   queryIdColumn,
   resultRows,
-  TransactionValidationError,
   type TxScope,
 } from "#shared/db/client.ts";
 import { type LinkTableSide, linkTableSide } from "#shared/db/link-table.ts";
 import { requireListingsWithCountsByIds } from "#shared/db/listings/records.ts";
+import { TransactionValidationError } from "#shared/db/transaction.ts";
 import {
   type EdgeListing,
   edgeFieldError,

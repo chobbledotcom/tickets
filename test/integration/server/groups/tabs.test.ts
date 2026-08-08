@@ -176,7 +176,7 @@ describeWithEnv(
         ).toBe(true);
       });
 
-      test("assigns existing listings when another selection was deleted", async () => {
+      test("rejects every listing when another selection was deleted", async () => {
         const group = await createTestGroup({
           name: "Stale selection group",
           slug: "stale-selection-group",
@@ -195,9 +195,10 @@ describeWithEnv(
 
         await expectFlashRedirect(
           `/admin/groups/${group.id}`,
-          "Listings added to group",
+          t("error.selected_listing_deleted"),
+          false,
         )(response);
-        expect(await listingGroups.getIds(listing.id)).toEqual([group.id]);
+        expect(await listingGroups.getIds(listing.id)).toEqual([]);
       });
 
       test("handles empty selection gracefully", async () => {

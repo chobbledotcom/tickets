@@ -8,7 +8,6 @@ import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
   inPlaceholders,
   resultRows,
-  TransactionValidationError,
   type TxScope,
   writeRowInTransaction,
 } from "#shared/db/client.ts";
@@ -23,6 +22,7 @@ import {
   isNameTakenAnywhere,
   loadCatalogNameIndex,
 } from "#shared/db/name-registry.ts";
+import { TransactionValidationError } from "#shared/db/transaction.ts";
 import { okResult, type Result } from "#shared/result.ts";
 import type {
   AdminLevel,
@@ -95,7 +95,7 @@ const importedGroupMembersError = async (
  *  back rather than committing an override for a day count it no longer offers.
  *  Reads the member listings through the transaction so the day-count check
  *  sees the current state, not the request-level cache. */
-export const importedGroupDayPriceErrorTx = async (
+const importedGroupDayPriceErrorTx = async (
   tx: TxScope,
   memberIds: readonly number[],
   members: GroupTransfer["members"],

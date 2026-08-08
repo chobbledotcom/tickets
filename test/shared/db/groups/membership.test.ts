@@ -6,11 +6,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
-import {
-  TransactionValidationError,
-  withTransaction,
-  writeRowInTransaction,
-} from "#shared/db/client.ts";
+import { withTransaction, writeRowInTransaction } from "#shared/db/client.ts";
 import { assignListingsToGroup } from "#shared/db/groups/membership.ts";
 import {
   getGroupPackagePrices,
@@ -22,6 +18,7 @@ import {
 } from "#shared/db/groups.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import { listingsTable } from "#shared/db/listings/records.ts";
+import { TransactionValidationError } from "#shared/db/transaction.ts";
 import {
   generateUniqueListingSlug,
   validateListingInput,

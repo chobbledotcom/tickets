@@ -2,10 +2,7 @@
 import { t } from "#i18n";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { isBuilderEnabled } from "#shared/config.ts";
-import {
-  TransactionValidationError,
-  writeRowInTransaction,
-} from "#shared/db/client.ts";
+import { writeRowInTransaction } from "#shared/db/client.ts";
 import {
   type ListingGroupMembershipValidation,
   packageGroupIdsTx,
@@ -34,6 +31,7 @@ import {
   normalizeEntityName,
 } from "#shared/db/name-registry.ts";
 import { settings } from "#shared/db/settings.ts";
+import { TransactionValidationError } from "#shared/db/transaction.ts";
 import {
   childAddOnError,
   type EdgeListing,
@@ -178,7 +176,7 @@ export const memberDayOverrideKey = (
 
 /** The error message for a package member whose day-price override targets a
  *  day count the member does not offer, or null when the override is valid. */
-export const memberDayPriceError = (
+const memberDayPriceError = (
   memberName: string,
   ...args: Parameters<typeof memberDayOverrideKey>
 ): string | null => {

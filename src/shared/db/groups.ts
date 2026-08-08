@@ -29,7 +29,6 @@ import {
   resultRows,
   rowExists,
   type SqlStatement,
-  TransactionValidationError,
   type TxScope,
 } from "#shared/db/client.ts";
 import {
@@ -56,6 +55,7 @@ import {
 } from "#shared/db/listings/select.ts";
 import { envNameSource, rowsByIds } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
+import { TransactionValidationError } from "#shared/db/transaction.ts";
 import { equals, inList } from "#shared/db/where-clauses.ts";
 import { packageMemberError } from "#shared/package-membership.ts";
 import { generateUniqueSlug, type SlugWithIndex } from "#shared/slug.ts";

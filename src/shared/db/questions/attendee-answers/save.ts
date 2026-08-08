@@ -13,7 +13,6 @@ import {
   resultRows,
   type SqlStatement,
   type TxScope,
-  txIdSet,
   withTransaction,
 } from "#shared/db/client.ts";
 import type { TextAnswer, TextAnswerId } from "#shared/db/question-types.ts";
@@ -22,6 +21,7 @@ import {
   prepareStringRows,
 } from "#shared/db/questions/strings.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
+import { txIdSet } from "#shared/db/transaction.ts";
 
 export type AttendeeAnswerSet = {
   answerIds: number[];

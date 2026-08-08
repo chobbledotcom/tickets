@@ -8,9 +8,7 @@ import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
   inPlaceholders,
   resultRows,
-  TransactionValidationError,
   type TxScope,
-  txIdSet,
   withTransaction,
 } from "#shared/db/client.ts";
 import {
@@ -22,6 +20,7 @@ import {
   hasPackageBookingsTx,
   setGroupPackageMembers,
 } from "#shared/db/groups.ts";
+import { TransactionValidationError, txIdSet } from "#shared/db/transaction.ts";
 import {
   memberBlockKey,
   packageMemberMessage,

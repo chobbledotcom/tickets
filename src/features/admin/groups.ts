@@ -375,7 +375,7 @@ const handleAddListingsToGroup = groupFormPost(async (group, form) => {
       return redirect(`/admin/groups/${group.id}`, packageError, false);
     }
     const existingListingIds = listings.map((listing) => listing.id);
-    const typeError = await assignListingsToGroup(existingListingIds, group.id);
+    const typeError = await assignListingsToGroup(listingIds, group.id);
     if (typeError) {
       return redirect(`/admin/groups/${group.id}`, typeError, false);
     }

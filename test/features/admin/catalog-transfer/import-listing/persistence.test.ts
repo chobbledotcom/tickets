@@ -5,7 +5,6 @@ import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import {
   countRows,
   execute,
-  TransactionValidationError,
   writeRowInTransaction,
 } from "#shared/db/client.ts";
 import {
@@ -19,6 +18,7 @@ import {
   getListingWithCount,
   listingsTable,
 } from "#shared/db/listings/records.ts";
+import { TransactionValidationError } from "#shared/db/transaction.ts";
 import {
   generateUniqueListingSlug,
   validateListingInput,

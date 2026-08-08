@@ -245,25 +245,6 @@ export const setDb = (client: Client | null): void => dbSetter(client);
 export const resultRows = <T>(result: ResultSet): T[] =>
   result.rows as unknown as T[];
 
-/** Runs a `SELECT id FROM … WHERE id IN (?)` inside a transaction and returns
- *  the matching ids as a Set. Deduplicates and skips the round-trip when the
- *  input is empty. The caller's `toStatement` builds the SQL and args from the
- *  deduplicated id list, so the `IN (?, ?, …)` placeholders match what the
- *  helper executes. Used wherever we need "which of these ids still exist" or
- *  "which of these are packages" inside a write transaction. */
-export const txIdSet = async (
-  tx: TxScope,
-  ids: readonly number[],
-  toStatement: (uniqueIds: number[]) => SqlStatement,
-): Promise<Set<number>> => {
-  const unique = [...new Set(ids)];
-  if (unique.length === 0) return new Set();
-  const rows = resultRows<{ id: number }>(
-    await tx.execute(toStatement(unique)),
-  );
-  return new Set(rows.map((row) => row.id));
-};
-
 /** Raised when a write can't get through because the database stays locked after
  *  the retries below — too busy. The request layer turns this into a friendly
  *  auto-reloading page rather than a generic error. */
@@ -272,13 +253,6 @@ export class DatabaseBusyError extends namedError("DatabaseBusyError") {
     super("the database is too busy to complete this write");
   }
 }
-
-/** An expected validation failure discovered only after a write transaction has
- * started. The REST layers turn it into their normal validation response after
- * the transaction rolls back. */
-export class TransactionValidationError extends namedError(
-  "TransactionValidationError",
-) {}
 
 /** Backoff before each retry of a transient database failure — a contended
  *  write lock on any statement, or a fleeting upstream gateway error on a read;

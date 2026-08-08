@@ -1,14 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import {
-  importCatalog,
-  importedGroupDayPriceErrorTx,
-} from "#routes/admin/catalog-transfer/import.ts";
+import { t } from "#i18n";
+import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import { missingMemberId } from "#routes/admin/catalog-transfer/import-listing.ts";
-import {
-  TransactionValidationError,
-  withTransaction,
-} from "#shared/db/client.ts";
+import { execute } from "#shared/db/client.ts";
 import {
   getGroupPackagePrices,
   getListingsByGroupId,
@@ -113,7 +108,7 @@ test("missingMemberId finds the first gap", () => {
 });
 
 describeWithEnv("in-tx member validation", { db: true }, () => {
-  test("throws when a resolved member is missing from the tx SELECT", async () => {
+  test("rejects an import when a resolved member vanishes inside its transaction", async () => {
     const member = await createTestListing({
       customisableDays: true,
       dayPrices: { 1: 1000 },
@@ -121,19 +116,19 @@ describeWithEnv("in-tx member validation", { db: true }, () => {
       listingType: "daily",
       name: "Tx missing member",
     });
+    await execute(
+      `CREATE TRIGGER delete_member_after_group_insert
+         AFTER INSERT ON groups
+         BEGIN DELETE FROM listings WHERE id = ${member.id}; END`,
+    );
 
-    let caught: unknown;
-    try {
-      await withTransaction((tx) =>
-        importedGroupDayPriceErrorTx(
-          tx,
-          [member.id + 99999],
-          [{ listing: "Tx missing member" }],
-        ),
-      );
-    } catch (error) {
-      caught = error;
-    }
-    expect(caught).toBeInstanceOf(TransactionValidationError);
+    expect(
+      await importCatalog({
+        group: { isPackage: true, name: "Tx missing member group" },
+        kind: "group",
+        members: [{ listing: member.name }],
+        version: 1,
+      }),
+    ).toEqual({ error: t("catalog_transfer.member_missing"), ok: false });
   });
 });

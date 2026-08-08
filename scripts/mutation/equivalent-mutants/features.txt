@@ -75,10 +75,6 @@ src/features/admin/catalog-transfer/import.ts::importGroup.specs~0u7qcwn  ?? →
 src/features/admin/catalog-transfer/schema.ts::formatTransferIssues.parts~0f9t11y  ?? → ||   # formatTransferIssues flat.root: string[]|undefined — an array is always truthy
 src/features/admin/catalog-transfer/schema.ts::formatTransferIssues.parts~19zbaq1  ?? → ||   # formatTransferIssues flat.nested: object|undefined — an object is always truthy
 
-# Admin group routes (features/admin/groups.ts) — object/Map/0-fallback nullish
-# coalescing where ?? and || always agree.
-src/features/admin/groups.ts::parseMemberDayPrices.dayPrices~0mwoiz0  ?? → ||   # parseMemberDayPrices byListing.get(): DayPrices|undefined — an object is always truthy
-src/features/admin/groups.ts::parsePackageMembers.dayPrices~1s9d862  ?? → ||   # parsePackageMembers dayPricesByListing.get(): DayPrices|undefined — an object is always truthy
 src/shared/listings-actions.ts::strippedPageOrphanedAddOn~05ffdhd  && → ||   # clearing false means mayStripPage never loads a flagged child; clearing true without a flagged child only reruns unchanged reachability, which cannot create an orphan
 
 # attendee merge/refund route: mutants with no observable effect.
@@ -218,4 +214,3 @@ src/features/public/order.ts::bookingUrlFor.chosen.prefill~1vgmybj  1 → 0   # 
 src/features/admin/listings-parents.ts::loadListingParentsSection.offeredUnder~0sst7oc  ?? → ||   # listingsByKey.get() returns an array or undefined; arrays are always truthy
 src/features/admin/listings-parents.ts::childOnlyAddOnResolver.allListings.active~1hbkt0d  true → false   # childOnlyAddOnNameForListings expands group ids only and never reads ListingGroupMembership.active
 src/features/admin/listings-parents.ts::remapDuplicatedGroupEdges.toEdge.childId~1us6y6n  ?? → ||   # clone ids and listing ids are positive, so both operands are always truthy when present
-
