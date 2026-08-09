@@ -531,29 +531,33 @@ only after M8 is authoritative fleet-wide.
   row's complete source content as durable evidence on the owner-review case, so
   M13 can drop the old tables without deleting the only copy of that payment.
   M12 never redacts this evidence — after M13 it is that payment's only record.
-  Delete each M8 deletion snapshot only once every payment and buyer fact it
-  references has been copied and verified — a snapshot is attendee-scoped and
-  can carry several payments, so the last verified payment releases it, under
-  the same gate as any source row and idempotent across interrupted or restored
-  runs; no duplicate buyer facts outlive the migration, and M13 verifies none
-  remain.
+  A source row is **settled** when it is either copied and verified into a
+  canonical payment or terminally preserved as unmigratable — the one completion
+  condition the snapshot release, the adapter drain, and M13's retirement gate
+  all share, so an unmigratable row satisfies every gate it cannot block. Delete
+  each M8 deletion snapshot only once every payment and buyer fact it references
+  is settled — a snapshot is attendee-scoped and can carry several payments, so
+  the last verified payment releases it, under the same gate as any source row
+  and idempotent across interrupted or restored runs; no duplicate buyer facts
+  outlive the migration, and M13 verifies none remain.
 - Each copied payment is immediately served by the current readers, result
   recovery, cases, and refunds; migrated charges join attendee refund targets
   through the M7 engine in this same release. Record verified progress and
   release leases within the call budget; interruption resumes from the same
   cursor.
 - Retire the M7 adapter behind an explicit, revision-fenced drain: once every
-  row is verified, disable new adapter refunds (every target is canonical by
-  then, so refunds already route through the engine), wait for in-flight adapter
-  requests and their queued repair work to reach a terminal outcome, then run
-  the final reconciliation pass, folding in any refund that completed since its
-  row was verified by comparing each row's monotonic version and refund
-  identities against the copy. With the adapter disabled, no write can land
-  after the pass — retirement re-checks the version high-water marks and fails
-  loudly if one moved. In this same milestone, switch every legacy read-through
-  caller — panels, exports, statistics, refund targets — to the current readers
-  and delete the M6 read-through adapter, so no production caller outside the
-  restore path reads an old table (M13's precondition).
+  row is settled, disable new adapter refunds (every copied target is canonical
+  and an unmigratable row's money is owner-case territory, so no refund still
+  needs the adapter), wait for in-flight adapter requests and their queued
+  repair work to reach a terminal outcome, then run the final reconciliation
+  pass, folding in any refund that completed since its row was verified by
+  comparing each row's monotonic version and refund identities against the copy.
+  With the adapter disabled, no write can land after the pass — retirement
+  re-checks the version high-water marks and fails loudly if one moved. In this
+  same milestone, switch every legacy read-through caller — panels, exports,
+  statistics, refund targets — to the current readers and delete the M6
+  read-through adapter, so no production caller outside the restore path reads
+  an old table (M13's precondition).
 
 Standalone value: operators can prove a live database or old backup is safe to
 migrate, and all history becomes usable by the one current engine without
@@ -581,9 +585,9 @@ secrets and ticket credentials they no longer need.
 Src target: 600–1,000, mostly deletions — the atomic-cutover exception where
 this exceeds rule 3's cap: the table drop and every reader, codec, and gate it
 orphans leave together, because splitting them would hold dead readers alive
-across a merge. Release only after every fleet database reports all source rows
-copied and verified and no production caller outside migration reads an old
-table.
+across a merge. Release only after every fleet database reports every source row
+settled — copied and verified, or terminally preserved as unmigratable — and no
+production caller outside migration reads an old table.
 
 - Drop the old tables and delete the migration reader, progress gates, old
   codecs, stale TODO entries, temporary exemptions, and dead exports together —
