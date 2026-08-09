@@ -206,8 +206,9 @@ const parsePackageMembers = (form: FormParams): PackageMemberInput[] => {
     const match = /^package_price_(\d+)$/.exec(key);
     if (!match) continue;
     const listingId = Number(match[1]);
+    const savedDayPrices = dayPricesByListing.get(listingId);
     members.push({
-      dayPrices: dayPricesByListing.get(listingId) ?? {},
+      dayPrices: savedDayPrices === undefined ? {} : savedDayPrices,
       listingId,
       price: parsePackagePrice(form.getString(key)),
       quantity: parsePackageQuantity(
