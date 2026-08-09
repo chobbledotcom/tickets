@@ -191,7 +191,9 @@ commit that predates the aggregate migration onto a forward-migrated database. A
 point-in-time restore that redeploys pre-aggregate code would reintroduce old
 readers and writers against fenced or dropped tables. The guard may be a schema
 version check in the restore path or a deploy-time compatibility gate; document
-it in the operator restore guide alongside the backup's recorded commit.
+it in the operator restore guide alongside the backup's recorded commit. This
+guard must exist before the first payment cutover release — do not start the
+aggregate write cutover until it is in place.
 
 ## Work sequence
 
@@ -323,21 +325,22 @@ Budget: 1,500-2,200 changed lines.
 - Move Stripe, Square, and SumUp checkout creation together. Keep SumUp's local
   payment, checkout, and transaction IDs distinct and use stored currency.
 - Delete every replaced checkout-creation path. Retain the old SumUp checkout
-  writer until PR 7 moves the SumUp readers (`resolveWebhookSession` and
-  `retrieveSession` read booking metadata from `sumup_checkouts`), or move those
-  readers into the aggregate in this PR; deleting the writer while the
-  completion path still reads from it leaves paid SumUp checkouts unable to
-  complete.
-- SumUp compatibility projection: until PR 7 moves those readers, every new
-  aggregate SumUp checkout must also populate `sumup_checkouts` with the
-  encrypted booking `metadata`, the aggregate-created `checkout_reference`, and
-  the SumUp checkout ID — the exact fields `resolveWebhookSession` and
-  `retrieveSession` decrypt and pass to booking validation. The projection must
-  not call SumUp or create another payment identity or idempotency key. If the
-  aggregate write succeeds and the `sumup_checkouts` projection fails, record
-  durable repair work and keep the aggregate claim retryable before reporting
-  checkout success. Remove the projection when PR 7 moves these readers to the
-  aggregate.
+  writer until `resolveWebhookSession` and `retrieveSession` move to the
+  aggregate (in this PR or PR 7), or move those readers in this PR; deleting the
+  writer while the completion path still reads from it leaves paid SumUp
+  checkouts unable to complete.
+- SumUp compatibility projection: until `resolveWebhookSession` and
+  `retrieveSession` move to the aggregate (in this PR or PR 7, whichever moves
+  them first), every new aggregate SumUp checkout must also populate
+  `sumup_checkouts` with the encrypted booking `metadata`, the aggregate-created
+  `checkout_reference`, and the SumUp checkout ID — the exact fields
+  `resolveWebhookSession` and `retrieveSession` decrypt and pass to booking
+  validation. The projection must not call SumUp or create another payment
+  identity or idempotency key. If the aggregate write succeeds and the
+  `sumup_checkouts` projection fails, record durable repair work and keep the
+  aggregate claim retryable before reporting checkout success. Remove the
+  projection and the old SumUp checkout writer in the same PR that moves those
+  readers to the aggregate.
 
 Current-system value: no live checkout can lose its local intent or create a
 second provider checkout after an interrupted request.
@@ -372,8 +375,10 @@ Budget: 1,700-2,400 changed lines.
   the prune task (deletes old `processed_payments`/`sumup_checkouts`). Either
   move these maintenance cutovers before the fence, or keep a bounded
   write-through so merge, delete, and prune succeed for attendees with uncopied
-  payment rows without deleting history PR 14 has not yet copied. Verify that
-  fence before committing an aggregate write.
+  payment rows. Deletion paths (`deleteAttendee`, prune) must verify that each
+  payment row has been copied to the canonical aggregate before deleting it, or
+  defer the deletion until PR 14 has copied it — never delete an uncopied row.
+  Verify that fence before committing an aggregate write.
 
 Current-system value: every live route, worker, page, and export gets the same
 authoritative answer for the same payment.
@@ -491,7 +496,12 @@ to migrate before changing payment history.
 Budget: 1,700-2,500 changed lines.
 
 - Begin only in a later fleet-wide release after aggregate writes are
-  authoritative and old tables have remained unchanged.
+  authoritative and old tables have remained unchanged. Before the first cursor
+  page, fence and drain legacy-table writes: stop the admin refund adapter,
+  `applyAttendeeMerge`, `deleteAttendee`, and the prune task from modifying
+  `processed_payments` or `sumup_checkouts` during the copy, or
+  version/reconcile any old-row changes that arrive mid-copy so the aggregate is
+  not left stale.
 - Copy every old source by stable cursor in bounded, verified pages. Never split
   one provider payment across pages or mistake an empty joined page for the end.
 - Preserve unknown or contradictory facts without inventing values. Create a
@@ -575,7 +585,7 @@ These findings from the branches are mandatory inputs to the assigned PRs:
 | Queued site work retaining a deleted attendee ID after merge                | 12        |
 | Listing attachments deleted before a payment fence succeeds                 | 9         |
 | Old payment-reference readers surviving after migration                     | 7, 16     |
-| Restore-deploy workflow allowing incompatible code onto a migrated database | 16        |
+| Restore-deploy workflow allowing incompatible code onto a migrated database | 1, 7      |
 | Terminal buyer details, completion data, or ticket tokens never redacting   | 15        |
 
 If implementation reveals that one of these findings is incorrect, close it with
