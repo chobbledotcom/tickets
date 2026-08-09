@@ -80,6 +80,12 @@ const requireParentWithoutParent = (hasParent: number): void => {
   }
 };
 
+const requireChildWithoutChildren = (hasChildren: number): void => {
+  if (hasChildren) {
+    throw new TransactionValidationError(t("error.child_listing_nested"));
+  }
+};
+
 /** Replaces child edges only when the transaction's package memberships allow
  *  them and every endpoint still exists. `listing_parents` has no foreign key,
  *  so a deleted parent or child would leave an orphan edge that later
@@ -142,9 +148,7 @@ export const setListingChildrenWithPackageCheckTx = async (
   if (childIds.length > 0) {
     requireParentWithoutParent(state!.parent_has_parent);
   }
-  if (state!.child_has_children) {
-    throw new TransactionValidationError(t("error.child_listing_nested"));
-  }
+  requireChildWithoutChildren(state!.child_has_children);
   const conflict = await edgeConflictFor(childIds, state!);
   if (conflict) return conflict;
   await listingChildren.setIdsTx(tx, parentId, childIds);
@@ -176,10 +180,14 @@ export const addParentEdgesWithPackageCheckTx = async (
 ): Promise<void> => {
   if (parentIds.length === 0) return;
   const [state] = resultRows<
-    PackageEdgeCheckRow & { parent_count: number; parent_has_parent: number }
+    PackageEdgeCheckRow & {
+      child_has_children: number;
+      parent_count: number;
+      parent_has_parent: number;
+    }
   >(
     await tx.execute({
-      args: [childId, ...parentIds, ...parentIds, ...parentIds],
+      args: [childId, ...parentIds, ...parentIds, ...parentIds, childId],
       sql: `SELECT EXISTS(
                       SELECT 1
                         FROM group_listings AS childMembership
@@ -201,12 +209,16 @@ export const addParentEdgesWithPackageCheckTx = async (
                         WHERE id IN (${inPlaceholders(parentIds)})) AS parent_count,
                      EXISTS(SELECT 1 FROM listing_parents
                               WHERE child_listing_id IN (${inPlaceholders(parentIds)}))
-                       AS parent_has_parent`,
+                       AS parent_has_parent,
+                     EXISTS(SELECT 1 FROM listing_parents
+                              WHERE parent_listing_id = ?)
+                       AS child_has_children`,
     }),
   );
   if (state!.parent_count !== new Set(parentIds).size) {
     throw new TransactionValidationError(missingError);
   }
+  requireChildWithoutChildren(state!.child_has_children);
   requireParentWithoutParent(state!.parent_has_parent);
   requireListingChildrenPackageCheck(await edgeConflictFor(parentIds, state!));
   await listingParents.addIdsTx(tx, childId, parentIds);

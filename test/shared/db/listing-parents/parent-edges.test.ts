@@ -75,6 +75,27 @@ describeWithEnv(
       expect(await listingParents.getIds(child.id)).toEqual([]);
     });
 
+    test("rolls back when the child already has its own children", async () => {
+      const parent = await createTestListing({ name: "Import parent" });
+      const child = await createTestListing({ name: "Import child" });
+      const grandchild = await createTestListing({ name: "Import grandchild" });
+      // The imported child is itself a parent, so adding a parent above it
+      // would create the two-level nesting the rule forbids.
+      await listingChildren.setIds(child.id, [grandchild.id]);
+
+      await expect(
+        withTransaction((tx) =>
+          addParentEdgesWithPackageCheckTx(
+            tx,
+            child.id,
+            [parent.id],
+            t("catalog_transfer.parent_missing"),
+          ),
+        ),
+      ).rejects.toThrow(t("error.child_listing_nested"));
+      expect(await listingParents.getIds(child.id)).toEqual([]);
+    });
+
     test("does nothing when parentIds is empty", async () => {
       const child = await createTestListing({ name: "No-edge child" });
 

@@ -362,10 +362,10 @@ export const assignListingsToGroup = async (
   if (listingIds.length === 0) return null;
   return withTransaction(async (tx) => {
     const ids = [...new Set(listingIds)];
-    const [groups, listings] = await Promise.all([
-      groupStatesTx(tx, [groupId]),
-      listingStatesTx(tx, ids),
-    ]);
+    // Serialize the two transaction reads: the connection allows one in-flight
+    // statement, so concurrent tx.execute calls can interleave and reject.
+    const groups = await groupStatesTx(tx, [groupId]);
+    const listings = await listingStatesTx(tx, ids);
     const state = groups.get(groupId);
     if (!state) return t("error.selected_group_deleted");
     if (listings.length !== ids.length) {

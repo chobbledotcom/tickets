@@ -1,5 +1,34 @@
 # TODO — remaining follow-ups
 
+## Listing/groups review follow-ups (from PR #2046)
+
+Three unresolved review threads were judged too niche to chase in that PR once
+the rest of the round was complete; each is a transaction-race hardening on an
+already-rare window. The sibling guards they build on are all present and tested
+in `src/shared/db/listing-parents.ts` (`setListingChildrenWithPackageCheckTx` /
+`addParentEdgesWithPackageCheckTx`), so any of these is a small, well-scoped
+addition when picked up.
+
+- **Xh_QZ — Redirect vanished-group failures to a live page.**
+  `handleAddListingsToGroup` in `src/features/admin/groups.ts` redirects every
+  `assignListingsToGroup` error to `/admin/groups/${group.id}`. When the group is
+  deleted after the handler loads it but before the write, `assignListingsToGroup`
+  returns `t("error.selected_group_deleted")` and that redirect lands on a 404.
+  Route that one result to `/admin/groups` (the live list). Reasoning for defer:
+  the group must vanish between the handler's load and the write — a window not
+  reachable from a single-request test without fragile cache manipulation, so
+  it shipped without coverage.
+
+- **XiL8J / XiL8L — Revalidate edge fields inside the write transaction.**
+  `setListingChildrenWithPackageCheckTx` and `addParentEdgesWithPackageCheckTx`
+  recheck endpoint existence, nesting, and package membership in the tx, but if
+  another admin changes a parent's or a selected child's type, renewal tier,
+  duration, or day prices after `validateChildEdges`/`validateParentEdges` runs,
+  they commit a relationship `edgeFieldError` would now reject. Fix: load both
+  endpoints' current edge fields through `tx` and rerun `edgeFieldError` before
+  `setIdsTx` / `addIdsTx`. Deferred as the deepest and least likely window; all
+  six sibling recheck guards were already implemented.
+
 ## Anchor the booking-page site menu to its listing/group (from PR #2051)
 
 PR #2051 shows the public site menu on booking pages (dropped in iframe mode and

@@ -278,10 +278,18 @@ export const copyDuplicatedChildEdges = async (
 ): Promise<string | null> => {
   const result = await validateChildEdges(newParent, childIds);
   if (!result.ok) return result.error;
-  const packageConflict = await withTransaction((tx: TxScope) =>
-    setListingChildrenWithPackageCheckTx(tx, newParent.id, result.childIds),
-  );
-  return packageChildEdgeErrorOrNull(packageConflict);
+  try {
+    const packageConflict = await withTransaction((tx: TxScope) =>
+      setListingChildrenWithPackageCheckTx(tx, newParent.id, result.childIds),
+    );
+    return packageChildEdgeErrorOrNull(packageConflict);
+  } catch (error) {
+    // A child can vanish or become a parent after validation but before this
+    // transaction. The copy is already committed, so surface the localized
+    // validation message through the caller's existing warning flow rather
+    // than letting a 500 escape.
+    return transactionValidationMessageOrRethrow(error);
+  }
 };
 
 type ChildEdge = { childId: number; parentId: number };
