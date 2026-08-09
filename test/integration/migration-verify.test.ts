@@ -374,4 +374,24 @@ describe("migration-verify production wiring", () => {
     expect(result).toBe(1);
     expect(out).toContain("processed payment without a live attendee");
   });
+
+  test("blocks on a hybrid payment_reference that decrypts to an empty string", async () => {
+    const attendeeId = await seedAttendee();
+    await seedStage("sess-1", attendeeId);
+    await seedProcessed("sess-1", attendeeId);
+    // An encrypted-but-empty charge (hybrid ciphertext of "") is corrupt — it
+    // must fail readiness rather than pass as a verified charge.
+    const encryptedEmpty = await encryptWithOwnerKey("", settings.publicKey);
+    await execute(
+      `UPDATE processed_payments SET payment_reference = ? WHERE payment_session_id = 'sess-1'`,
+      [encryptedEmpty],
+    );
+
+    const { out, result } = await runOwner();
+
+    expect(result).toBe(1);
+    expect(out).toContain(
+      "captured charge reference that did not decrypt: sess-1",
+    );
+  });
 });

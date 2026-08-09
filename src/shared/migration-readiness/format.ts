@@ -13,6 +13,8 @@ import type {
 } from "#shared/migration-readiness/readiness.ts";
 
 const CONTRADICTION_PHRASES: Record<ContradictionKind, string> = {
+  checkout_stage_attendee_mismatch:
+    "checkout stage and processed payment disagree on attendee",
   checkout_stage_without_attendee: "checkout stage without a live attendee",
   checkout_stage_without_processed_payment:
     "checkout stage without a processed payment",

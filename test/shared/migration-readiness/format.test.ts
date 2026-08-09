@@ -74,7 +74,10 @@ describe("formatReadinessReport", () => {
           payment_session_id: "sess-1",
         }),
       ],
-      stages: [stage({ attendee_id: 66, payment_session_id: "orphan" })],
+      stages: [
+        stage({ attendee_id: 66, payment_session_id: "orphan" }),
+        stage({ attendee_id: 7, payment_session_id: "sess-1" }),
+      ],
       sumup: [
         {
           created_at: "2026-01-01T00:00:00.000Z",
@@ -91,6 +94,9 @@ describe("formatReadinessReport", () => {
       "  - checkout stage without a processed payment: orphan",
     );
     expect(out).toContain("  - checkout stage without a live attendee: 66");
+    expect(out).toContain(
+      "  - checkout stage and processed payment disagree on attendee: 7 vs 1",
+    );
     expect(out).toContain("  - processed payment without a live attendee: 88");
     expect(out).toContain("  - sumup checkout without a recorded id: idx");
     expect(out).toContain("  - attendee PII that did not decrypt: attendee 7");

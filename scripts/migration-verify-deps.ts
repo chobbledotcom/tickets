@@ -128,15 +128,19 @@ export const createMigrationVerifyReader = (
  *  empty value is nothing to verify. A non-hybrid value is a legacy plaintext
  *  payment_reference (development builds wrote the column in the clear — see
  *  `payment-references.ts`), so it is treated as decryptable. A hybrid
- *  ciphertext that throws on decrypt is not. Returns no plaintext. */
+ *  ciphertext that throws on decrypt, or decrypts to an empty string (an
+ *  encrypted-but-empty charge is corrupt), is not. Returns no plaintext. */
 const paymentReferenceDecrypts = async (
   value: OwnerKeyEncrypted | "",
   key: CryptoKey,
 ): Promise<boolean> => {
   if (value === "" || !value.startsWith(HYBRID_PREFIX)) return true;
   try {
-    await decryptWithOwnerKey(value as OwnerKeyEncrypted, key);
-    return true;
+    const plaintext = await decryptWithOwnerKey(
+      value as OwnerKeyEncrypted,
+      key,
+    );
+    return plaintext !== "";
   } catch {
     return false;
   }

@@ -156,6 +156,42 @@ describe("diagnoseReadiness", () => {
     });
   });
 
+  test("blocks when a stage and its processed payment disagree on attendee", () => {
+    const report = diagnoseReadiness(
+      goodInput({
+        attendeeIds: new Set([1, 2]),
+        processed: [processed({ attendee_id: 1 })],
+        stages: [stage({ attendee_id: 2 })],
+      }),
+    );
+    expect(report.kind).toBe("blocked");
+    expect(report.contradictions).toContainEqual({
+      detail: "2 vs 1",
+      kind: "checkout_stage_attendee_mismatch",
+    });
+  });
+
+  test("does not block on a legacy plaintext (non-hybrid) payment reference without the owner key", () => {
+    // A plaintext payment_reference is not encrypted, so it does not need the
+    // owner key to verify — readiness must not block when the key is absent
+    // and only plaintext charges exist.
+    const report = diagnoseReadiness(
+      goodInput({
+        attendees: [{ id: 1, pii_blob: "" }],
+        ownerKeyAvailable: false,
+        processed: [
+          processed({
+            attendee_id: 1,
+            payment_reference: "plaintext-charge" as never,
+          }),
+        ],
+      }),
+    );
+    expect(
+      report.contradictions.some((c) => c.kind === "owner_key_unavailable"),
+    ).toBe(false);
+  });
+
   test("a legitimate merge reference (source deleted, target live) does not block", () => {
     // applyAttendeeMerge deletes the source attendee and writes
     // legacy-merge:<sourceId> with attendee_id = target. The source id is

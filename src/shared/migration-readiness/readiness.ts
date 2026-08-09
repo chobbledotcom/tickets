@@ -13,6 +13,7 @@
  */
 
 import { Temporal } from "temporal-polyfill";
+import { HYBRID_PREFIX } from "#shared/crypto/keys.ts";
 import type {
   EnvKeyEncrypted,
   OwnerKeyEncrypted,
@@ -79,6 +80,7 @@ export type PaymentGroup = {
 
 export type ContradictionKind =
   | "checkout_stage_without_processed_payment"
+  | "checkout_stage_attendee_mismatch"
   | "checkout_stage_without_attendee"
   | "processed_payment_without_attendee"
   | "undecryptable_attendee_pii"
@@ -145,14 +147,15 @@ export const convertLegacyTimestamp = (value: string): string | null => {
 
 const isMergeReference = (sessionId: string): boolean =>
   sessionId.startsWith(LEGACY_MERGE_SESSION_PREFIX);
-
 /** A `processed_payments` row that carries an owner-key-encrypted
  *  `payment_reference` — a captured charge (regular or merge-reference) only
- *  the owner key can verify. Used to block the migration when the key is
- *  unavailable, instead of silently skipping the charge. */
+ *  the owner key can verify. Only hybrid ciphertext needs the key: a legacy
+ *  plaintext `payment_reference` (development builds wrote the column in the
+ *  clear) is not encrypted, so it does not block when the key is absent. */
 const hasEncryptedPaymentReference = (
   processed: readonly ProcessedPaymentRow[],
-): boolean => processed.some((row) => row.payment_reference !== "");
+): boolean =>
+  processed.some((row) => row.payment_reference.startsWith(HYBRID_PREFIX));
 
 /** Convert every legacy timestamp column to a canonical instant, returning one
  *  contradiction per value that is neither a real instant nor a representable
@@ -286,12 +289,36 @@ export type DiagnoseInput = {
 const isTerminalFailure = (row: ProcessedPaymentRow): boolean =>
   row.attendee_id === null && row.failure_data !== "";
 
+/** When a session has both a stage and a processed payment whose attendees are
+ *  both live, they must agree; a disagreement is corruption. Returns null when
+ *  either side is absent, either attendee is missing/deleted, or they match. */
+const stageProcessedMismatch = (
+  group: PaymentGroup,
+  attendeeIds: ReadonlySet<number>,
+): Contradiction | null => {
+  const { stage, processed } = group;
+  if (!stage || !processed) return null;
+  const processedAttendee = processed.attendee_id;
+  if (
+    processedAttendee === null ||
+    !attendeeIds.has(processedAttendee) ||
+    stage.attendee_id === processedAttendee
+  ) {
+    return null;
+  }
+  return {
+    detail: `${stage.attendee_id} vs ${processedAttendee}`,
+    kind: "checkout_stage_attendee_mismatch",
+  };
+};
+
 /** Contradictions in one payment group: a checkout stage whose session has no
- *  processed payment, a stage whose own attendee has been deleted, or a
- *  non-terminal processed payment pointing at a missing attendee. A
- *  merge-reference row's `attendee_id` is the merge target (the source is
- *  deleted by `applyAttendeeMerge` in the same batch), so its existence is
- *  covered here — there is no separate "source attendee" expectation. */
+ *  processed payment, a stage whose own attendee has been deleted, a stage and
+ *  processed payment that disagree on attendee, or a non-terminal processed
+ *  payment pointing at a missing attendee. A merge-reference row's
+ *  `attendee_id` is the merge target (the source is deleted by
+ *  `applyAttendeeMerge` in the same batch), so its existence is covered here —
+ *  there is no separate "source attendee" expectation. */
 const groupContradictions = (
   group: PaymentGroup,
   attendeeIds: ReadonlySet<number>,
@@ -320,6 +347,8 @@ const groupContradictions = (
       });
     }
   }
+  const mismatch = stageProcessedMismatch(group, attendeeIds);
+  if (mismatch) contradictions.push(mismatch);
   return contradictions;
 };
 
