@@ -38,9 +38,11 @@ import {
   edgeFieldError,
 } from "#shared/listing-parents-rules.ts";
 import {
+  type PackageChildEdgeBlock,
   packageChildEdgeError,
   packageChildEdgeErrorOrNull,
 } from "#shared/package-membership.ts";
+import { transactionValidationMessageOrRethrow } from "#shared/rest/write-error.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import type { ListingParentsSection } from "#templates/admin/listings/types.ts";
 
@@ -409,9 +411,18 @@ export const handleAdminListingChildren: TypedRouteHandler<"POST /admin/listing/
       return redirect(`/admin/listing/${id}/edit`, result.error, false);
     }
     const { childIds } = result;
-    const packageConflict = await withTransaction((tx: TxScope) =>
-      setListingChildrenWithPackageCheckTx(tx, id, childIds),
-    );
+    let packageConflict: PackageChildEdgeBlock | null;
+    try {
+      packageConflict = await withTransaction((tx: TxScope) =>
+        setListingChildrenWithPackageCheckTx(tx, id, childIds),
+      );
+    } catch (error) {
+      return redirect(
+        "/admin/listings",
+        transactionValidationMessageOrRethrow(error),
+        false,
+      );
+    }
     if (packageConflict) {
       return redirect(
         `/admin/listing/${id}/edit`,

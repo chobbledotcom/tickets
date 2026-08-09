@@ -74,6 +74,12 @@ const edgeConflictFor = (
     () => state.child_is_package_member === 1,
   );
 
+const requireParentWithoutParent = (hasParent: number): void => {
+  if (hasParent) {
+    throw new TransactionValidationError(t("error.parent_listing_nested"));
+  }
+};
+
 /** Replaces child edges only when the transaction's package memberships allow
  *  them and every endpoint still exists. `listing_parents` has no foreign key,
  *  so a deleted parent or child would leave an orphan edge that later
@@ -86,11 +92,20 @@ export const setListingChildrenWithPackageCheckTx = async (
   const [state] = resultRows<
     PackageEdgeCheckRow & {
       child_count: number;
+      child_has_children: number;
+      parent_has_parent: number;
       parent_exists: number;
     }
   >(
     await tx.execute({
-      args: [parentId, ...childIds, ...childIds, parentId],
+      args: [
+        parentId,
+        ...childIds,
+        ...childIds,
+        parentId,
+        parentId,
+        ...childIds,
+      ],
       sql: `SELECT EXISTS(
                       SELECT 1
                         FROM group_listings AS parentMembership
@@ -110,12 +125,25 @@ export const setListingChildrenWithPackageCheckTx = async (
                     ) AS child_is_package_member,
                     (SELECT COUNT(*) FROM listings
                        WHERE id IN (${inPlaceholders(childIds)})) AS child_count,
-                    EXISTS(SELECT 1 FROM listings WHERE id = ?) AS parent_exists`,
+                     EXISTS(SELECT 1 FROM listings WHERE id = ?) AS parent_exists,
+                     EXISTS(SELECT 1 FROM listing_parents
+                              WHERE child_listing_id = ?) AS parent_has_parent,
+                     EXISTS(SELECT 1 FROM listing_parents
+                              WHERE parent_listing_id IN (${inPlaceholders(childIds)}))
+                       AS child_has_children`,
     }),
   );
-  if (!state!.parent_exists) return null;
+  if (!state!.parent_exists) {
+    throw new TransactionValidationError(t("error.listing_deleted"));
+  }
   if (state!.child_count !== new Set(childIds).size) {
     throw new TransactionValidationError(t("error.child_listing_deleted"));
+  }
+  if (childIds.length > 0) {
+    requireParentWithoutParent(state!.parent_has_parent);
+  }
+  if (state!.child_has_children) {
+    throw new TransactionValidationError(t("error.child_listing_nested"));
   }
   const conflict = await edgeConflictFor(childIds, state!);
   if (conflict) return conflict;
@@ -147,9 +175,11 @@ export const addParentEdgesWithPackageCheckTx = async (
   missingError: string,
 ): Promise<void> => {
   if (parentIds.length === 0) return;
-  const [state] = resultRows<PackageEdgeCheckRow & { parent_count: number }>(
+  const [state] = resultRows<
+    PackageEdgeCheckRow & { parent_count: number; parent_has_parent: number }
+  >(
     await tx.execute({
-      args: [childId, ...parentIds, ...parentIds],
+      args: [childId, ...parentIds, ...parentIds, ...parentIds],
       sql: `SELECT EXISTS(
                       SELECT 1
                         FROM group_listings AS childMembership
@@ -167,13 +197,17 @@ export const addParentEdgesWithPackageCheckTx = async (
                          AND parentGroup.is_package = 1
                          AND parentGroup.hide_package_listings = 1
                     ) AS parent_is_hidden_package_member,
-                    (SELECT COUNT(*) FROM listings
-                       WHERE id IN (${inPlaceholders(parentIds)})) AS parent_count`,
+                     (SELECT COUNT(*) FROM listings
+                        WHERE id IN (${inPlaceholders(parentIds)})) AS parent_count,
+                     EXISTS(SELECT 1 FROM listing_parents
+                              WHERE child_listing_id IN (${inPlaceholders(parentIds)}))
+                       AS parent_has_parent`,
     }),
   );
   if (state!.parent_count !== new Set(parentIds).size) {
     throw new TransactionValidationError(missingError);
   }
+  requireParentWithoutParent(state!.parent_has_parent);
   requireListingChildrenPackageCheck(await edgeConflictFor(parentIds, state!));
   await listingParents.addIdsTx(tx, childId, parentIds);
 };

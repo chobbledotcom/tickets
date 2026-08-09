@@ -82,16 +82,42 @@ describeWithEnv("db > listing-parents > package check", { db: true }, () => {
     expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
-  test("returns null when the parent endpoint was deleted before the tx", async () => {
+  test("rejects when the parent endpoint was deleted before the tx", async () => {
     const child = await createTestListing({ name: "Orphaned child" });
     const parent = await createTestListing({ name: "Vanished parent" });
     await listingsTable.deleteById(parent.id);
 
-    expect(
-      await withTransaction((tx) =>
+    await expect(
+      withTransaction((tx) =>
         setListingChildrenWithPackageCheckTx(tx, parent.id, [child.id]),
       ),
-    ).toBeNull();
+    ).rejects.toThrow(t("error.listing_deleted"));
+    expect(await listingChildren.getIds(parent.id)).toEqual([]);
+  });
+
+  test("rejects when the parent became a child after validation", async () => {
+    const { parent, child } = await parentAndChild();
+    const grandparent = await createTestListing({ name: "Outer parent" });
+    await listingChildren.setIds(grandparent.id, [parent.id]);
+
+    await expect(
+      withTransaction((tx) =>
+        setListingChildrenWithPackageCheckTx(tx, parent.id, [child.id]),
+      ),
+    ).rejects.toThrow(t("error.parent_listing_nested"));
+    expect(await listingChildren.getIds(parent.id)).toEqual([]);
+  });
+
+  test("rejects when a child gained children after validation", async () => {
+    const { parent, child } = await parentAndChild();
+    const grandchild = await createTestListing({ name: "Nested child" });
+    await listingChildren.setIds(child.id, [grandchild.id]);
+
+    await expect(
+      withTransaction((tx) =>
+        setListingChildrenWithPackageCheckTx(tx, parent.id, [child.id]),
+      ),
+    ).rejects.toThrow(t("error.child_listing_nested"));
     expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 });

@@ -199,6 +199,3 @@ src/features/public/order.ts::loadOrderPools~15mruqs  1 → 0   # every listing'
 src/features/public/order.ts::bookingUrlFor.chosen.kind~17n3p4g   → "mutated"   # a selection key is always built as kind:id by listingOptionKey/packageOptionKey, so the kind is never missing
 src/features/public/order.ts::bookingUrlFor.chosen.rawId~1xqr8m1   → "mutated"   # the same key always carries its id, so the id half is never missing
 src/features/public/order.ts::bookingUrlFor.chosen.prefill~1vgmybj  1 → 0   # buildTicketListing sets maxPurchasable to 0 for a sold-out or closed listing and to at least 1 otherwise (max_quantity is at least 1), so the two thresholds never disagree once the checks beside them have passed
-
-# Listing parent editor: present link arrays are truthy.
-src/features/admin/listings-parents.ts::loadListingParentsSection.offeredUnder~0sst7oc  ?? → ||   # listingsByKey.get() returns an array or undefined; arrays are always truthy

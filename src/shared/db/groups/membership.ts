@@ -367,7 +367,7 @@ export const assignListingsToGroup = async (
       listingStatesTx(tx, ids),
     ]);
     const state = groups.get(groupId);
-    if (!state) return "Selected group does not exist";
+    if (!state) return t("error.selected_group_deleted");
     if (listings.length !== ids.length) {
       return t("error.selected_listing_deleted");
     }

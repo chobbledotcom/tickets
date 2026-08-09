@@ -9,6 +9,7 @@ import { withTransaction } from "#shared/db/client.ts";
 import { assignListingsToGroup } from "#shared/db/groups/membership.ts";
 import {
   addParentEdgesWithPackageCheckTx,
+  listingChildren,
   listingParents,
 } from "#shared/db/listing-parents.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -51,6 +52,27 @@ describeWithEnv(
           );
         }),
       ).rejects.toThrow(t("catalog_transfer.parent_missing"));
+    });
+
+    test("rolls back when an imported parent became a child", async () => {
+      const grandparent = await createTestListing({
+        name: "Import grandparent",
+      });
+      const parent = await createTestListing({ name: "Nested import parent" });
+      const child = await createTestListing({ name: "Imported child" });
+      await listingChildren.setIds(grandparent.id, [parent.id]);
+
+      await expect(
+        withTransaction((tx) =>
+          addParentEdgesWithPackageCheckTx(
+            tx,
+            child.id,
+            [parent.id],
+            t("catalog_transfer.parent_missing"),
+          ),
+        ),
+      ).rejects.toThrow(t("error.parent_listing_nested"));
+      expect(await listingParents.getIds(child.id)).toEqual([]);
     });
 
     test("does nothing when parentIds is empty", async () => {

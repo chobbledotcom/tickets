@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import { queryAll } from "#shared/db/client.ts";
 import { requireListingWithCount } from "#shared/db/listings/records.ts";
 import { MAX_DURATION_DAYS } from "#shared/types.ts";
@@ -276,7 +277,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.error).toBe("Selected group does not exist");
+          expect(body.error).toBe(t("error.selected_group_deleted"));
         },
       );
     });

@@ -50,7 +50,11 @@ export const checkGroupListingSettings = <Group>(
   excludeListingId?: number,
 ): GroupListingCheck<Group> => {
   if (!group) {
-    return { error: "Selected group does not exist", group: null, ok: false };
+    return {
+      error: t("error.selected_group_deleted"),
+      group: null,
+      ok: false,
+    };
   }
   const error = groupListingSettingsError(
     members(group),

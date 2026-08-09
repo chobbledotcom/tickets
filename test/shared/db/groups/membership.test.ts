@@ -270,7 +270,7 @@ describeWithEnv("db > groups > membership writes", { db: true }, () => {
     const listing = await createTestListing({ name: "Missing Group Member" });
 
     expect(await assignListingsToGroup([listing.id], 999_999)).toBe(
-      "Selected group does not exist",
+      t("error.selected_group_deleted"),
     );
     expect(await groupIdsOf(listing.id)).toEqual([]);
   });
@@ -280,7 +280,7 @@ describeWithEnv("db > groups > membership writes", { db: true }, () => {
 
     await expect(
       withTransaction((tx) => setListingGroupsTx(tx, listing.id, [999_999])),
-    ).rejects.toMatchObject({ message: "Selected group does not exist" });
+    ).rejects.toMatchObject({ message: t("error.selected_group_deleted") });
     expect(await groupIdsOf(listing.id)).toEqual([]);
   });
 

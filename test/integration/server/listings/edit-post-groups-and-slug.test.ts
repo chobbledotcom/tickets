@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import { renderListingEditError } from "#routes/admin/listings-edit.ts";
 import { listingGroups } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
@@ -88,7 +89,7 @@ describeWithEnv(
         await expectHtmlResponse(
           response,
           400,
-          "Selected group does not exist",
+          t("error.selected_group_deleted"),
         );
       });
 
