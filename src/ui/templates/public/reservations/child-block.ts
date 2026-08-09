@@ -22,8 +22,8 @@ import {
   childPriceFieldName,
   childQuantityFieldName,
 } from "#shared/booking/tree.ts";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import type { ListingWithCount } from "#shared/types.ts";
-import { escapeHtml } from "#templates/layout.tsx";
 import { renderListingAttributes } from "#templates/public/listing-attributes.ts";
 import {
   childLimitedMax,

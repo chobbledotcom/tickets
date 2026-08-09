@@ -6,7 +6,7 @@ import {
 import { commandExitCode } from "#scripts/deno-command.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 import { isFeaturePath } from "#scripts/specs/paths.ts";
-import { stripeMockEnv } from "#scripts/stripe-mock.ts";
+import { stripeMockEnv, stripeMockPortFromEnv } from "#scripts/stripe-mock.ts";
 import { TEST_STATE_DIR_ENV } from "#test/test-utils/test-state-env.ts";
 import { batchTestFiles } from "./batch.ts";
 import { denoExitCode, envWith } from "./child-process.ts";
@@ -16,7 +16,7 @@ import type { Status } from "./summary.ts";
 export type Outcome = "failed" | "passed" | "timed-out";
 
 export interface StaticGate {
-  exit(file: string, signal: AbortSignal): Promise<number>;
+  exit(file: string, workspace: string, signal: AbortSignal): Promise<number>;
   label: string;
   phase: "lint" | "type-check";
   remedy: string[];
@@ -34,7 +34,12 @@ export type TestBatchRunner = (
   env: Record<string, string>,
 ) => Promise<number>;
 
-export const testEnv = (): Record<string, string> => envWith(stripeMockEnv());
+/** The environment a mutation run's child test process inherits. The stripe-mock
+ * port is a parameter rather than a read of this process's own environment, so
+ * a caller can say which one without changing it for everyone else. */
+export const testEnv = (
+  port = stripeMockPortFromEnv(),
+): Record<string, string> => envWith(stripeMockEnv(port));
 
 export const mutantTestEnv = (
   baseEnv: Record<string, string>,
@@ -57,8 +62,11 @@ const realGateDeps: StaticGateDeps = {
   resolveBiome: resolveBiomeCommand,
 };
 
-const quietCommandOptions = (signal: AbortSignal): Deno.CommandOptions => ({
-  cwd: projectRoot,
+const quietCommandOptions = (
+  workspace: string,
+  signal: AbortSignal,
+): Deno.CommandOptions => ({
+  cwd: workspace,
   signal,
   stderr: "null",
   stdout: "null",
@@ -67,7 +75,7 @@ const quietCommandOptions = (signal: AbortSignal): Deno.CommandOptions => ({
 const createLinter = async (deps: StaticGateDeps): Promise<StaticGate> => {
   const resolved = await deps.resolveBiome([]);
   return {
-    exit: (file, signal) =>
+    exit: (file, workspace, signal) =>
       deps.commandExit(resolved.command, {
         args: [
           ...resolved.args,
@@ -76,7 +84,7 @@ const createLinter = async (deps: StaticGateDeps): Promise<StaticGate> => {
           "--no-errors-on-unmatched",
           file,
         ],
-        ...quietCommandOptions(signal),
+        ...quietCommandOptions(workspace, signal),
       }),
     label: "lint",
     phase: "lint",
@@ -88,9 +96,9 @@ const createLinter = async (deps: StaticGateDeps): Promise<StaticGate> => {
 };
 
 const createTypeChecker = (deps: StaticGateDeps): StaticGate => ({
-  exit: (file, signal) =>
+  exit: (file, workspace, signal) =>
     deps.denoExit(["check", file], {
-      ...quietCommandOptions(signal),
+      ...quietCommandOptions(workspace, signal),
     }),
   label: "type-check",
   phase: "type-check",

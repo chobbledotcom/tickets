@@ -10,6 +10,8 @@
  * @module
  */
 
+export * from "#shared/email/bulk.ts";
+export * from "#shared/email/registration.ts";
 export * from "#shared/email.ts";
 export * from "#shared/email-renderer.ts";
 export * from "#shared/ntfy.ts";

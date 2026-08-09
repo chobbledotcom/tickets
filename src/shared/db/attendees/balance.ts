@@ -24,7 +24,7 @@ import { guardedInsertStatement } from "#shared/accounting/rows.ts";
 import { decrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { formatCurrency } from "#shared/currency.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { requirePaidDefaultStatus } from "#shared/db/attendee-statuses.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import { remainingBalanceFromLedger } from "#shared/db/attendees/select.ts";

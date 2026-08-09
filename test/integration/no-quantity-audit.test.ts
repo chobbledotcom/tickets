@@ -15,7 +15,10 @@ import {
   hasActiveBookingLine,
 } from "#shared/db/attendees/queries.ts";
 import { getDb } from "#shared/db/client.ts";
-import { getAgentRunSheet, setLegDone } from "#shared/db/logistics.ts";
+import {
+  getAgentRunSheet,
+  setLegDone,
+} from "#shared/db/logistics-run-sheet.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

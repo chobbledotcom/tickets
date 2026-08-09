@@ -29,7 +29,7 @@ import type {
 } from "#routes/api/webhook-types.ts";
 import { bookingDateFields } from "#shared/booking-date-fields.ts";
 import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import { createSystemNote } from "#shared/db/notes/queries.ts";
@@ -157,6 +157,7 @@ export const storeRefundedBooking = async (
   intent: BookingIntent,
   bookings: PlaceholderBookings,
   spec: RefundSpec,
+  publicStatusId: number,
 ): Promise<PaymentFailureResult> => {
   if (spec.notify) addPendingWork(sendNtfyError(spec.notify));
   const listingId = bookings[0]!.listingId;
@@ -164,7 +165,7 @@ export const storeRefundedBooking = async (
   // stock, so it always writes the row — trust it. (If the PII can't encrypt the
   // whole system is broken; we don't defend against that.)
   const stored = await attendeesApi.createAttendeeAtomic({
-    ...(await attendeeBaseFields(session, intent)),
+    ...attendeeBaseFields(session, intent, publicStatusId),
     allowOverbook: true,
     bookings,
   });

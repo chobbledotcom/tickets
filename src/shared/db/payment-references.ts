@@ -22,6 +22,8 @@ import {
 } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import { nowIso } from "#shared/now.ts";
+import type { RefundState } from "#shared/payment/refund-state.ts";
+import { refundStateOf } from "#shared/payment/refund-state.ts";
 /* jscpd:ignore-end */
 
 export type RefundPaymentReferenceSource = {
@@ -30,7 +32,7 @@ export type RefundPaymentReferenceSource = {
 };
 
 export type RefundPaymentReference = {
-  readonly providerRefunded: boolean;
+  readonly refundState: RefundState;
   readonly reference: string;
   /** Non-legacy sessions ordered by processing time, then session ID. */
   readonly sessionIds: readonly string[];
@@ -51,7 +53,7 @@ const LEGACY_MERGE_SESSION_PREFIX = "legacy-merge:";
 
 /** One reference's refund status while it is being built up from rows: whether
  *  the provider has refunded it, and the payment sessions seen so far. */
-type ReferenceProgress = { providerRefunded: boolean; sessionIds: string[] };
+type ReferenceProgress = { refunded: boolean; sessionIds: string[] };
 
 /** In-progress refund references, keyed by the reference string. */
 type ReferenceProgressByKey = Map<string, ReferenceProgress>;
@@ -104,8 +106,10 @@ const attendeeIdsWithProcessedReferences = (
   queryProcessedReferences(attendeeIds, "DISTINCT attendee_id");
 
 const legacyReference = (reference: string): RefundPaymentReference => ({
-  providerRefunded: false,
   reference,
+  // A legacy charge (an old payment_id with no session) starts "unknown": this
+  // system never watched its refund, so it may or may not have been returned.
+  refundState: refundStateOf({ legacy: true, refunded: false }),
   sessionIds: [],
 });
 
@@ -132,10 +136,10 @@ const addReference = (
   const existing = byReference.get(reference);
   if (existing) {
     existing.sessionIds.push(...sessionIds);
-    existing.providerRefunded ||= row.provider_refunded_at !== "";
+    existing.refunded ||= row.provider_refunded_at !== "";
   } else {
     byReference.set(reference, {
-      providerRefunded: row.provider_refunded_at !== "",
+      refunded: row.provider_refunded_at !== "",
       sessionIds,
     });
   }
@@ -145,8 +149,14 @@ const asRefundReferences = (
   byReference: ReferenceProgressByKey,
 ): RefundPaymentReference[] =>
   [...byReference].map(([reference, data]) => ({
-    providerRefunded: data.providerRefunded,
     reference,
+    // A reference with no live sessions is a legacy charge (its rows were all
+    // legacy-merge entries), so an unconfirmed refund reads as "unknown" rather
+    // than a definite "none".
+    refundState: refundStateOf({
+      legacy: data.sessionIds.length === 0,
+      refunded: data.refunded,
+    }),
     sessionIds: data.sessionIds,
   }));
 

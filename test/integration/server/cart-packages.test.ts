@@ -9,6 +9,7 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import {
+  createFreePackage,
   expectPackageBookingAccepted,
   submitPackageBooking,
 } from "#test-utils/packages.ts";
@@ -21,19 +22,9 @@ import {
  * and its own standalone row at once (one booking row per path).
  */
 
-/** A free one-member package (member price 0 inside the bundle). */
-const freePackage = async (name: string, slug: string, memberName: string) => {
-  const group = await createTestGroup({ isPackage: true, name, slug });
-  const member = await createTestListing({
-    groupId: group.id,
-    maxAttendees: 10,
-    maxQuantity: 10,
-    name: memberName,
-    unitPrice: 0,
-  });
-  await setGroupPackageMembers(group.id, [{ listingId: member.id, price: 0 }]);
-  return { group, member };
-};
+/** A free one-member package named by its own slug. */
+const freePackage = (name: string, slug: string, memberName: string) =>
+  createFreePackage(name, memberName, slug);
 
 /** The booking rows for a listing, oldest first. */
 const bookingRows = (

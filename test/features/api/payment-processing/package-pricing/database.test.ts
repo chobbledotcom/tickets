@@ -1,20 +1,21 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
-  hasStaleStandaloneChild,
-  loadPackagePricingByGroup,
-  orderEdgeDrifted,
-  type PackagePricing,
+  hasStaleStandaloneChildFromFacts,
+  orderEdgeDriftedFromFacts,
   type ValidatedItem,
 } from "#routes/api/payment-processing/package-pricing.ts";
+import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
 import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
+import type { RegistrationPackagePricing as PackagePricing } from "#shared/registration-package-facts.ts";
 import { bookingIntent } from "#test/features/api/payment-processing/index/helpers.ts";
 import { listingPair } from "#test/features/api/payment-processing/items/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 const loadedItem = async (item: BookingItem): Promise<ValidatedItem> => {
   const listing = await getListingWithCount(item.e);
@@ -36,12 +37,17 @@ const edgeDrifted = async (
   items: BookingItem[],
   allocations: NonNullable<BookingIntent["allocations"]> = [],
   pricing: ReadonlyMap<number, PackagePricing> = new Map(),
-): Promise<boolean> =>
-  orderEdgeDrifted(
-    bookingIntent(items, allocations.length > 0 ? { allocations } : {}),
-    await loadedItems(items),
-    pricing,
+): Promise<boolean> => {
+  const intent = bookingIntent(
+    items,
+    allocations.length > 0 ? { allocations } : {},
   );
+  const snapshot = await loadPaidOrderSnapshot("edge-drift", intent);
+  return orderEdgeDriftedFromFacts(intent, await loadedItems(items), pricing, {
+    childIdsByParent: snapshot.childrenByParentId,
+    listingsById: snapshot.listingsById,
+  });
+};
 
 const parentChildItems = (
   parentId: number,
@@ -78,6 +84,26 @@ const packagePathDrifted = async (currentMember: boolean): Promise<boolean> => {
 
 type ChildPath = "absent" | "adopted" | "allocated";
 
+const snapshotHasStaleChild = async (
+  intent: BookingIntent,
+): Promise<boolean> => {
+  const snapshot = await loadPaidOrderSnapshot("stale-child", intent);
+  return hasStaleStandaloneChildFromFacts(
+    intent,
+    new Set(
+      intent.items.flatMap((item) => {
+        const listing = snapshot.listingsById.get(item.e);
+        return listing &&
+          !listing.bookable_alone &&
+          (snapshot.parentsByChildId.get(item.e)?.length ?? 0) > 0
+          ? [item.e]
+          : [];
+      }),
+    ),
+    snapshot.parentsByChildId,
+  );
+};
+
 const staleChildFor = async (
   path: ChildPath,
   childQuantity = 1,
@@ -90,12 +116,49 @@ const staleChildFor = async (
     path === "allocated"
       ? [{ childId: child.id, parentId: parent.id, qty: 1 }]
       : undefined;
-  return hasStaleStandaloneChild(
+  return snapshotHasStaleChild(
     bookingIntent(items, allocations ? { allocations } : {}),
   );
 };
 
+/** An order booking `count` one-member packages. */
+const packagedOrderIntent = async (
+  label: string,
+  count: number,
+): Promise<BookingIntent> => {
+  const items: BookingItem[] = [];
+  for (let index = 0; index < count; index++) {
+    const pkg = await createTestGroup({
+      isPackage: true,
+      name: `${label} package ${index}`,
+    });
+    const member = await createTestListing({
+      groupId: pkg.id,
+      name: `${label} member ${index}`,
+      unitPrice: 500,
+    });
+    await setGroupPackageMembers(pkg.id, [
+      { dayPrices: {}, listingId: member.id, price: null, quantity: 1 },
+    ]);
+    items.push({ e: member.id, k: "p", p: 500, q: 1, r: pkg.id });
+  }
+  return bookingIntent(items);
+};
+
 describeWithEnv("package pricing database revalidation", { db: true }, () => {
+  test("prices six packages in the same reads as one", async () => {
+    const one = await packagedOrderIntent("Single", 1);
+    const six = await packagedOrderIntent("Many", 6);
+    // Three fixed reads: the package displays, the membership rows, the day
+    // prices. One read per package instead would blow a real order's budget.
+    const pricingCalls = (intent: BookingIntent): Promise<number> =>
+      countDatabaseCalls(1, () =>
+        loadPaidOrderSnapshot("package-price", intent),
+      );
+
+    expect(await pricingCalls(six)).toBe(await pricingCalls(one));
+  });
+
   test("loads current prices and quantities only for active package groups", async () => {
     const pkg = await createTestGroup({
       isPackage: true,
@@ -130,7 +193,8 @@ describeWithEnv("package pricing database revalidation", { db: true }, () => {
       { e: regularMember.id, k: "p", p: 300, q: 1, r: regular.id },
     ]);
 
-    const pricing = await loadPackagePricingByGroup(intent);
+    const pricing = (await loadPaidOrderSnapshot("package-values", intent))
+      .notificationPackages.pricingByGroup;
     expect([...pricing.keys()]).toEqual([pkg.id]);
     expect(pricing.get(pkg.id)?.memberIds).toEqual(new Set([member.id]));
     expect(pricing.get(pkg.id)?.priceMap).toEqual(new Map([[member.id, 400]]));
@@ -160,6 +224,24 @@ describeWithEnv("package pricing database revalidation", { db: true }, () => {
     expect(await edgeDrifted(items)).toBe(true);
   });
 
+  test("fails loudly when linked listing facts are incomplete", async () => {
+    const parent = await createTestListing({ maxAttendees: 5, unitPrice: 500 });
+    const item = { e: parent.id, p: 500, q: 1 };
+    const validatedItem = await loadedItem(item);
+
+    expect(() =>
+      orderEdgeDriftedFromFacts(
+        bookingIntent([item]),
+        [validatedItem],
+        new Map(),
+        {
+          childIdsByParent: new Map([[parent.id, [999]]]),
+          listingsById: new Map(),
+        },
+      ),
+    ).toThrow("Missing linked listing 999");
+  });
+
   test("accepts a child allocation while its parent edge still exists", async () => {
     expect(await allocatedChildEdgeDrifted(1)).toBe(false);
   });
@@ -186,7 +268,7 @@ describeWithEnv("stale standalone child detection", { db: true }, () => {
     const listing = await createTestListing({ maxAttendees: 5 });
 
     expect(
-      await hasStaleStandaloneChild(
+      await snapshotHasStaleChild(
         bookingIntent([{ e: listing.id, p: 0, q: 1 }]),
       ),
     ).toBe(false);

@@ -7,6 +7,7 @@ import { placeholderBookings } from "#routes/api/payment-processing/store-refund
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
+import { requirePublicStatusId } from "#shared/db/attendee-statuses.ts";
 import { getDb } from "#shared/db/client.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import {
@@ -39,6 +40,7 @@ const checkedLine = (listing: ListingWithCount): ValidatedItem[] =>
 
 const session = (id: string): ValidatedPaymentSession => ({
   amountTotal: 1000,
+  currency: "GBP",
   id,
   metadata: webhookMeta({ name: "Buyer" }),
   paymentReference: `pi_${id}`,
@@ -81,6 +83,7 @@ const runRecovery = async (opts: {
     error: opts.error,
     intent: intent(),
     placeholders: placeholderBookings(opts.validatedItems, intent()),
+    publicStatusId: await requirePublicStatusId(),
     session: session(opts.sessionId),
     ticketToken: opts.ticketToken,
     validatedItems: opts.validatedItems,

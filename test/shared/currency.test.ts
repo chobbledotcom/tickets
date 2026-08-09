@@ -113,6 +113,10 @@ describe("currency", () => {
         expect(formatSignedCurrency(1250)).toBe("+£12.50");
         expect(formatSignedCurrency(-1250)).toBe("−£12.50");
         expect(formatSignedCurrency(0)).toBe("£0");
+        // The sign follows the value's own sign, not whether it reaches a
+        // whole minor unit, so a sliver still reads as added or removed.
+        expect(formatSignedCurrency(0.5)).toBe("+£0.01");
+        expect(formatSignedCurrency(-0.5)).toBe("−£0.01");
         expect(formatSignedCurrency(1250, false)).toBe("£12.50");
         expect(formatSignedCurrency(-1250, false)).toBe("−£12.50");
       },

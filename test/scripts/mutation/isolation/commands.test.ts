@@ -2,14 +2,12 @@ import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { withMutationRunLock } from "#scripts/mutation/isolation-lock.ts";
 import { writeRunRecord } from "#scripts/mutation/isolation-records.ts";
 import {
   markFinished,
   markRunning,
   newRunRecord,
   runRoot,
-  runStartedRecently,
 } from "#scripts/mutation/isolation-state.ts";
 import {
   captureMutationCommand,
@@ -21,6 +19,7 @@ import {
   runQuietMutationCommand,
   withTempDir,
   writeMovedRunRecord,
+  writeRunClaim,
 } from "#test/scripts/mutation/isolation-helpers.ts";
 import { pathExists } from "#test-utils/files.ts";
 
@@ -75,24 +74,18 @@ describe("mutation isolation commands", () => {
     });
   });
 
-  test("skips active runs during cleanup", async () => {
+  test("skips claimed runs during cleanup", async () => {
     await withTempDir(async (root) => {
+      // Claimed by a live supervisor, so kept whatever the record says.
       const copying = newRunRecord(runIdNamed("copying"), [], root);
-      // Old enough that the startup grace no longer covers it.
-      const staleCopying = newRunRecord(
-        runIdNamed("stale-copying"),
-        [],
-        root,
-        LONG_AGO.toISOString(),
-      );
       const running = markRunning(
         newRunRecord(runIdNamed("running"), [], root),
         Deno.pid,
       );
-      const starting = markRunning(
-        newRunRecord(runIdNamed("starting"), [], root),
-        Deno.pid,
-      );
+      // Records with nobody's claim behind them, so all cleanable — even ones
+      // written moments ago, and even when the process id in them is alive.
+      const staleCopying = newRunRecord(runIdNamed("stale-copying"), [], root);
+      const unclaimed = runningRun("unclaimed", root, Deno.pid);
       const stale = runningRun("stale", root, 99_999_999);
       const noPid = runningWithoutPid("nopid", root);
       const passed = finishedRun("passed", root);
@@ -100,46 +93,35 @@ describe("mutation isolation commands", () => {
         copying,
         staleCopying,
         running,
-        starting,
+        unclaimed,
         stale,
         noPid,
         passed,
       ]) {
         await writeRunRecord(record);
       }
+      await writeRunClaim(copying);
+      await writeRunClaim(running);
 
       expect(
-        await runQuietMutationCommand(
-          ["--clean", runIdNamed("starting")],
-          root,
-        ),
+        await runQuietMutationCommand(["--clean", runIdNamed("running")], root),
       ).toBe(1);
-      await withMutationRunLock(copying.root, async () => {
-        await withMutationRunLock(running.root, async () => {
-          expect(
-            await runQuietMutationCommand(
-              ["--clean", runIdNamed("running")],
-              root,
-            ),
-          ).toBe(1);
-          expect(await runQuietMutationCommand(["--clean", "all"], root)).toBe(
-            0,
-          );
-        });
-      });
+      expect(await runQuietMutationCommand(["--clean", "all"], root)).toBe(0);
 
       expect(await pathExists(copying.root)).toBe(true);
-      expect(await pathExists(staleCopying.root)).toBe(false);
       expect(await pathExists(running.root)).toBe(true);
-      expect(await pathExists(starting.root)).toBe(true);
+      expect(await pathExists(staleCopying.root)).toBe(false);
+      expect(await pathExists(unclaimed.root)).toBe(false);
       expect(await pathExists(stale.root)).toBe(false);
       expect(await pathExists(noPid.root)).toBe(false);
       expect(await pathExists(passed.root)).toBe(false);
     });
   });
 
-  test("cleans stale running records whose pid was reused after the grace period", async () => {
+  test("cleans a running record whose claim went stale, whatever its pid says", async () => {
     await withTempDir(async (root) => {
+      // The supervisor died and its process id has since been handed to a
+      // live process; the walked-away claim is what tells the truth.
       const staleReused = markRunning(
         newRunRecord(
           runIdNamed("stale-reused"),
@@ -151,8 +133,7 @@ describe("mutation isolation commands", () => {
         LONG_AGO.toISOString(),
       );
       await writeRunRecord(staleReused);
-
-      expect(runStartedRecently(staleReused)).toBe(false);
+      await writeRunClaim(staleReused, LONG_AGO.getTime());
 
       expect(
         await runQuietMutationCommand(

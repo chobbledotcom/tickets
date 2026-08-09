@@ -7,11 +7,12 @@ import {
 } from "#scripts/process.ts";
 import {
   type StartupCleanup,
+  startOnFirstUse,
   startWithFailureCleanup,
   waitForHealthy,
 } from "#scripts/screenshots/server.ts";
 import {
-  findAvailablePort,
+  reserveAvailablePort,
   startStripeMock,
   stripeMockEnv,
 } from "#scripts/stripe-mock.ts";
@@ -33,25 +34,32 @@ const startAppServer = async ({
   add,
   run,
 }: StartupCleanup): Promise<ScreenshotAppServer> => {
-  const stripeMock = await startStripeMock();
-  add(stripeMock.stop);
+  const stripePort = reserveAvailablePort();
+  add(stripePort.release);
+  const enableStripeMock = startOnFirstUse(async () => {
+    stripePort.release();
+    return await startStripeMock({ port: stripePort.port });
+  }, add);
   const tempDir = await Deno.makeTempDir({ prefix: "tickets-screenshots-" });
   add(() => removeTree(tempDir));
-  const port = findAvailablePort();
-  const baseUrl = `http://127.0.0.1:${port}`;
+  const appPort = reserveAvailablePort();
+  add(appPort.release);
+  const baseUrl = `http://127.0.0.1:${appPort.port}`;
   const dbUrl = `file:${join(tempDir, "screenshots.db")}`;
-  const child = denoCommand(["run", "-A", "src/index.ts"], {
+  const command = denoCommand(["run", "-A", "src/index.ts"], {
     cwd: ROOT,
     env: {
       ...Deno.env.toObject(),
-      ...stripeMockEnv(stripeMock.port),
+      ...stripeMockEnv(stripePort.port),
       DB_ENCRYPTION_KEY: DB_KEY,
       DB_URL: dbUrl,
-      PORT: String(port),
+      PORT: String(appPort.port),
     },
     stderr: "inherit",
     stdout: "null",
-  }).spawn();
+  });
+  appPort.release();
+  const child = command.spawn();
   add(() => stopProcess(child, STOP_TIMEOUT_MS));
 
   const deadline = Date.now() + TIMEOUT_MS;
@@ -66,14 +74,16 @@ const startAppServer = async ({
   return {
     baseUrl,
     enableStripe: async () => {
+      await enableStripeMock();
       Deno.env.set("DB_ENCRYPTION_KEY", DB_KEY);
       Deno.env.set("DB_URL", dbUrl);
       const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.stripe.activate({
+      await settings.update.stripe.configure({
         secretKey: STRIPE_KEY,
         webhookEndpointId: "we_screenshots",
         webhookSecret: "whsec_screenshots",
       });
+      await settings.update.paymentProvider("stripe");
     },
     stop: run,
   };

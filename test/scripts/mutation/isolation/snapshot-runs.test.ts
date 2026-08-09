@@ -2,9 +2,10 @@ import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { runMutationInSnapshot } from "#scripts/mutation/isolation.ts";
+import { runIsolatedMutationCommand } from "#scripts/mutation/isolation.ts";
 import { writeRunRecord } from "#scripts/mutation/isolation-records.ts";
 import {
+  copyBackLockPath,
   createRunId,
   MUTATION_RECORD_FILE,
   MUTATION_SNAPSHOT_CHILD_ENV,
@@ -12,7 +13,6 @@ import {
   newRunRecord,
 } from "#scripts/mutation/isolation-state.ts";
 import {
-  captureConsole,
   captureMutationCommand,
   withTempDir,
   writeFakeMutationScript,
@@ -28,13 +28,10 @@ import {
   failWorkRemoval,
   finishedChild,
   readOnlyRunRecord,
-  recordAroundClean,
   SNAPSHOT_FAILED,
-  sendFirstSignalImmediately,
   stubCommand,
   waitForRecord,
   waitForRunningRecord,
-  withCapturedStopChild,
 } from "./helpers.ts";
 
 describe("running mutation inside a snapshot", () => {
@@ -54,11 +51,17 @@ describe("running mutation inside a snapshot", () => {
         true,
       );
       // The pid is printed so a stray run can be found and stopped by hand.
-      expect(run.logs).toContain(`Mutation child pid ${record.pid}`);
+      expect(
+        run.logs.some((line) => /^Mutation child pid \d+$/.test(line)),
+      ).toBe(true);
       expect(record.status).toBe("failed");
       expect(record.exitCode).toBe(7);
       expect(record.args).toEqual(["src/a.ts", join(root, "test/a.test.ts")]);
-      expect(typeof record.pid).toBe("number");
+      // The child is gone by the time the record settles, and its id with it.
+      expect(record.pid).toBeUndefined();
+      // Nothing to bring back, so the shared copy-back lock is never taken —
+      // a run with no kept files must not queue behind one that has them.
+      expect(await pathExists(copyBackLockPath(root))).toBe(false);
     });
   });
 
@@ -136,18 +139,22 @@ describe("running mutation inside a snapshot", () => {
     });
   });
 
-  test("writes the run record before it queues for the lock", async () => {
+  test("keeps its folder claimed against a clean while the run is going", async () => {
     await withTempDir(async (root) => {
-      // A record on disk this early is what makes a queued run findable.
-      expect((await recordAroundClean(root)).beforeLock).toBe(true);
-    });
-  });
+      const child = controlledChild(42_427, () => {});
+      using _command = stubCommand(child.child);
 
-  test("writes the run record again if a clean removes it while queueing", async () => {
-    await withTempDir(async (root) => {
-      // The clean above dropped the record; the run must put it back, or the
-      // snapshot it is about to make would belong to no run anyone can find.
-      expect((await recordAroundClean(root)).atChildStart).toBe(true);
+      const run = captureSimpleSnapshotMutation(root);
+      const started = await waitForRunningRecord(root);
+
+      // A `--clean` sweeping mid-run finds the folder claimed and leaves it.
+      expect(await runIsolatedMutationCommand(["--clean", "all"], root)).toBe(
+        1,
+      );
+      expect(await pathExists(started.root)).toBe(true);
+
+      child.finish({ code: 0, signal: null, success: true });
+      expect((await run).result).toBe(0);
     });
   });
 
@@ -156,40 +163,6 @@ describe("running mutation inside a snapshot", () => {
       await expect(
         waitForRecord(root, (records) => records[0], "no record", 2),
       ).rejects.toThrow("no record");
-    });
-  });
-
-  test("marks the run interrupted when a signal arrives before the child starts", async () => {
-    await withTempDir(async (root) => {
-      await writeFakeMutationScript(root, "Deno.exit(0);\n");
-
-      using _addSignal = sendFirstSignalImmediately();
-
-      const run = await captureSimpleSnapshotMutation(root);
-      const record = await readOnlyRunRecord(root);
-
-      expect(run.result).toBe(130);
-      expect(record.status).toBe("interrupted");
-      expect(record.exitCode).toBe(130);
-    });
-  });
-
-  test("records an interrupted run when snapshot copying fails after a signal", async () => {
-    await withTempDir(async (root) => {
-      await Deno.mkdir(join(root, "src"));
-      await Deno.symlink("missing.ts", join(root, "src", "missing.ts"));
-
-      using _addSignal = sendFirstSignalImmediately();
-
-      const run = await captureConsole(() =>
-        runMutationInSnapshot(["src/missing.ts", "test/missing.test.ts"], root),
-      );
-      const record = await readOnlyRunRecord(root);
-
-      expect(run.result).toBe(130);
-      expect(run.errors).toHaveLength(1);
-      expect(record.status).toBe("interrupted");
-      expect(record.exitCode).toBe(130);
     });
   });
 
@@ -246,97 +219,33 @@ describe("running mutation inside a snapshot", () => {
     });
   });
 
-  test("gives a stopping child a moment to end before forcing it", async () => {
+  test("publishes the pid-less record the moment the child ends", async () => {
     await withTempDir(async (root) => {
       await writeFakeMutationScript(root, "Deno.exit(0);\n");
-
-      const killCalls: (Deno.Signal | undefined)[] = [];
-      // The child takes a moment to end, well inside the grace period.
-      const process = controlledChild(42_425, (signal, finish) => {
-        killCalls.push(signal);
-        setTimeout(
-          () => finish({ code: 143, signal: "SIGTERM", success: false }),
-          50,
-        );
-      });
-      using _command = stubCommand(process.child);
-      using _writeTextFile = failRunningStatusWrite();
+      const written: { pid?: number; status: string }[] = [];
+      const writeTextFile = Deno.writeTextFile;
+      using _write = stub(Deno, "writeTextFile", ((
+        target: string | URL,
+        data: string | ReadableStream<string>,
+        options?: Deno.WriteFileOptions,
+      ) => {
+        // Records land in a pending file first, so match by name, not tail.
+        if (
+          `${target}`.includes(MUTATION_RECORD_FILE) &&
+          typeof data === "string"
+        ) {
+          written.push(JSON.parse(data));
+        }
+        return writeTextFile(target, data, options);
+      }) as typeof Deno.writeTextFile);
 
       await captureSimpleSnapshotMutation(root);
 
-      // Only the polite signal: it ended on its own, so it was never forced.
-      expect(killCalls).toEqual([undefined]);
-    });
-  });
-
-  test("records interrupted when a running child exits after a signal", async () => {
-    await withTempDir(async (root) => {
-      await writeFakeMutationScript(root, "await new Promise(() => {});\n");
-
-      await withCapturedStopChild(async (getStopChild) => {
-        const run = captureSimpleSnapshotMutation(root);
-        await waitForRunningRecord(root);
-
-        getStopChild()?.();
-        await run;
-
-        const finished = await readOnlyRunRecord(root);
-        expect(finished.status).toBe("interrupted");
-        expect(finished.exitCode).toBe(130);
-      });
-    });
-  });
-
-  test("records interrupted when the signalled child already stopped", async () => {
-    await withTempDir(async (root) => {
-      await writeFakeMutationScript(root, "Deno.exit(0);\n");
-
-      let killCalls = 0;
-      const process = controlledChild(42_425, () => {
-        killCalls += 1;
-        throw new Error("already stopped");
-      });
-      using _command = stubCommand(process.child);
-
-      await withCapturedStopChild(async (getStopChild) => {
-        const run = captureSimpleSnapshotMutation(root);
-        await waitForRunningRecord(root);
-
-        getStopChild()?.();
-        process.finish({ code: 0, signal: null, success: true });
-
-        expect((await run).result).toBe(130);
-        expect(killCalls).toBe(1);
-        const finished = await readOnlyRunRecord(root);
-        expect(finished.status).toBe("interrupted");
-        expect(finished.exitCode).toBe(130);
-      });
-    });
-  });
-
-  test("escalates repeated interrupts", async () => {
-    await withTempDir(async (root) => {
-      await writeFakeMutationScript(root, "await new Promise(() => {});\n");
-
-      const originalKill = Deno.kill;
-      using _exit = stub(Deno, "exit", ((code) => {
-        throw new Error(`exit ${code}`);
-      }) as typeof Deno.exit);
-      await withCapturedStopChild(async (getStopChild) => {
-        const run = captureSimpleSnapshotMutation(root);
-        const record = await waitForRunningRecord(root);
-
-        expect(getStopChild()).toBeDefined();
-        getStopChild()?.();
-        expect(() => getStopChild()?.()).toThrow("exit 130");
-
-        try {
-          originalKill(record.pid!, "SIGKILL");
-        } catch {
-          // The supervisor may already have stopped it.
-        }
-        expect((await run).result).not.toBe(0);
-      });
+      // The pid leaves the written record the moment the child ends — before
+      // the kept files come back — so --kill can never trust it late.
+      const running = written.filter((record) => record.status === "running");
+      expect(running.at(0)?.pid).toBeGreaterThan(0);
+      expect(running.at(-1)?.pid).toBeUndefined();
     });
   });
 

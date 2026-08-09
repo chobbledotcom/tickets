@@ -6,7 +6,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("db > Stripe settings", { db: true }, () => {
   test("keeps all prior credentials when the endpoint ID write fails", async () => {
-    await settings.update.stripe.activate({
+    await settings.update.stripe.configure({
       secretKey: "sk_test_old",
       webhookEndpointId: "we_old",
       webhookSecret: "whsec_old",
@@ -23,7 +23,7 @@ describeWithEnv("db > Stripe settings", { db: true }, () => {
 
     try {
       await expect(
-        settings.update.stripe.activate({
+        settings.update.stripe.configure({
           secretKey: "sk_test_new",
           webhookEndpointId: "we_new",
           webhookSecret: "whsec_new",

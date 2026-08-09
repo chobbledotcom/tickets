@@ -98,6 +98,10 @@ describe("parseNonNegativeMinorUnits (required; blank ⇒ 0)", () => {
     ["0.00", 0],
     ["10.50", 1050],
     ["-1", null], // negative rejected
+    // A signed zero is rejected too, though it is not below the bound: the
+    // parser refuses the minus sign itself, so "-0" never becomes a real 0.
+    ["-0", null],
+    ["-0.00", null],
     ["1.005", null], // extra decimal rejected, not rounded
     ["abc", null],
     ["1,000", null],

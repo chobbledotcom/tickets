@@ -5,12 +5,12 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta } from "#test-utils/factories.ts";
+import { expectSessionFailed } from "#test-utils/processed-payments.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
   expectKeptAsQuantityZeroAndRefunded,
   expectMergedMultiListingAttendee,
-  expectSessionFailed,
   expectWebhookKeptAndRefunded,
   postWebhookAndAssert,
   stubRefundPayment,

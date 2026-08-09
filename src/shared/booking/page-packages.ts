@@ -1,3 +1,4 @@
+import type { PackagePrices } from "#shared/db/groups.ts";
 import type { Group } from "#shared/types.ts";
 
 /**
@@ -39,20 +40,12 @@ export type PagePackage = TreePackage & {
   readonly terms: string;
 };
 
-/** The pricing maps a package's membership rows resolve to (the shape
- * `loadPackageMemberPricing` returns). */
-type MemberPricing = {
-  prices: Map<number, number>;
-  quantities: Map<number, number>;
-  dayPrices: Map<number, Map<number, number>>;
-};
-
 /** Build one {@link PagePackage} from its group row, its page members (in
  * display order), and its loaded member pricing. */
 export const buildPagePackage = (
   group: Group,
   memberListingIds: readonly number[],
-  pricing: MemberPricing,
+  pricing: PackagePrices,
 ): PagePackage => ({
   dayPrices: pricing.dayPrices,
   description: group.description,

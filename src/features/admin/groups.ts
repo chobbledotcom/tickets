@@ -1,5 +1,6 @@
 /* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
+import { entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { defineRoutes } from "#routes/router.ts";
 
 /**
@@ -22,7 +23,7 @@ import type {
   PackageMemberInput,
 } from "#shared/catalog-fields/fields.ts";
 import { groupCatalogFields } from "#shared/catalog-fields/fields.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { executeBatch, type TxScope } from "#shared/db/client.ts";
 import {
   assignListingsToGroup,
@@ -30,13 +31,13 @@ import {
   generateUniqueGroupSlug,
   getGroupById,
   getListingsByGroupId,
+  groupListingTypeError,
   groups,
   hasPackageBookings,
   isGroupSlugTaken,
   packageMembersError,
   resetGroupListings,
   setGroupPackageMembers,
-  validateGroupListingType,
 } from "#shared/db/groups.ts";
 import {
   clearImageUsesForItemStatement,
@@ -357,9 +358,12 @@ const validateListingTypesForGroup = async (
   group: Group,
   listings: ListingWithCount[],
 ): Promise<string | null> => {
+  // Every listing joins the SAME group, so its current members are read once
+  // and each candidate is judged against that one list.
+  const siblings = await getListingsByGroupId(group.id);
   for (const listing of listings) {
-    const typeError = await validateGroupListingType(
-      group.id,
+    const typeError = groupListingTypeError(
+      siblings,
       listing.listing_type,
       listing.customisable_days,
     );
@@ -419,10 +423,7 @@ export const adminHandlers = defineRoutes({
   // their own files) are matched ahead of the `:tab` wildcard. The edit POST is
   // still the generic CRUD route — groupsResource handles package prices + the
   // invariant via validate/afterWrite.
-  "GET /admin/groups/:id": (request, { id }) =>
-    groupPage.renderTab(request, id, ""),
-  "GET /admin/groups/:id/:tab": (request, { id, tab }) =>
-    groupPage.renderTab(request, id, tab),
+  ...entityTabRoutes("/admin/groups", groupPage),
   "GET /admin/groups/:id/delete": staffCrud.deleteGet,
   // Create uses the auto-generated-slug resource.
   "GET /admin/groups/new": contentCreate.newGet,

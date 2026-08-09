@@ -40,7 +40,7 @@ import { defineIdTable } from "#shared/db/define-id-table.ts";
 import { linkTableSide } from "#shared/db/link-table.ts";
 import { listingChildren, listingParents } from "#shared/db/listing-parents.ts";
 import {
-  getGroupDayPrices,
+  getGroupDayPricesByGroupIds,
   groupDayPriceStatements,
   groupFlatPriceStatements,
   PRICE_TYPE_GROUP,
@@ -57,10 +57,9 @@ import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { equals, inList } from "#shared/db/where-clauses.ts";
 import {
   type PackageChildEdgeBlock,
-  type PackageMemberBlock,
-  packageMemberBlock,
-  packageMemberBlockError,
+  packageMemberError,
 } from "#shared/package-membership.ts";
+import { firstReason } from "#shared/reasons.ts";
 import { generateUniqueSlug, type SlugWithIndex } from "#shared/slug.ts";
 import type {
   Group,
@@ -139,11 +138,26 @@ export const getGroupsById = async (): Promise<Map<number, Group>> =>
 export const getAllGroupNames = (): Promise<Map<number, string>> =>
   envNameSource("groups", "groupRecord").all();
 
-/** One group by id, read straight from the table: a group about to be shown,
- * edited or acted on must be the stored row, not a cached copy. Null when no
- * group has that id. */
-export const getGroupById = (id: number): Promise<Group | null> =>
-  rawGroupsTable.read.one({ id });
+/** Groups by id in one query, read straight from the table: a group about to be
+ * shown, edited or acted on must be the stored row, not a cached copy that
+ * another edge may already have changed. An id with no row is simply absent
+ * from the map. */
+export const getGroupsByIds = async (
+  ids: readonly number[],
+): Promise<Map<number, Group>> =>
+  ids.length === 0
+    ? new Map()
+    : mapById(identity<Group>)(
+        await rawGroupsTable.read.many(
+          {},
+          { where: inList("id", [...new Set(ids)]) },
+        ),
+      );
+
+/** One stored group, through the shared many-group read. Null when no group has
+ * that id. */
+export const getGroupById = async (id: number): Promise<Group | null> =>
+  (await getGroupsByIds([id])).get(id) ?? null;
 
 /**
  * Get a single group by slug_index (from cache)
@@ -213,6 +227,26 @@ export const getListingsByGroupIds = async (
   );
 };
 
+/** Read several groups' members together with one more thing about the SAME
+ * groups — their prices, their full membership, whatever the caller needs — in
+ * one round of reads. A page hydrating many packages would otherwise pay a pair
+ * of reads per package and eat the request's subrequest budget. `activeOnly`
+ * has the meaning {@link getListingsByGroupIds} gives it, and is spelled out at
+ * every call site — whether inactive members count is the caller's decision,
+ * never a default. */
+export const readGroupMembersWith = async <Extra>(
+  groupList: readonly Group[],
+  readMore: (groupIds: number[]) => Promise<Extra>,
+  activeOnly: boolean,
+): Promise<{ members: Map<number, ListingWithCount[]>; more: Extra }> => {
+  const groupIds = groupList.map((group) => group.id);
+  const [members, more] = await Promise.all([
+    getListingsByGroupIds(groupIds, activeOnly),
+    readMore(groupIds),
+  ]);
+  return { members, more };
+};
+
 /** One group's entry from the shared one-or-many membership query. */
 type LoadGroupListings = (groupId: number) => Promise<ListingWithCount[]>;
 
@@ -239,58 +273,61 @@ export const groupExists = (id: number): Promise<boolean> =>
 export const getListingsByGroupId: LoadGroupListings = listingsInGroup(false);
 
 /**
- * Validate that a listing is compatible with a group's existing listings.
- * Every listing in a group must share both the same {@link ListingType} and
- * the same `customisable_days` setting, so the shared booking form can show a
- * single day-count selector (or none) for the whole group.
- * Returns an error message if mismatched, null if OK.
- * Pass excludeListingId to skip a specific listing (for edit-self case).
- */
-export const validateGroupListingType = async (
-  groupId: number,
-  listingType: ListingType,
-  customisableDays: boolean,
-  excludeListingId?: number,
-): Promise<string | null> =>
-  groupListingTypeError(
-    await getListingsByGroupId(groupId),
-    listingType,
-    customisableDays,
-    excludeListingId,
-  );
-
-/**
- * The in-memory core of {@link validateGroupListingType}: given a group's
- * already-loaded members, return the homogeneity error (or null). Callers that
- * validate many groups at once batch the member reads (see
- * {@link getListingsByGroupIds}) and drive this directly, so they never issue
- * one sibling query per group and trip the N+1 read guard.
+ * Given a group's already-loaded members, return the homogeneity error (or
+ * null): every listing in a group must share both the same {@link ListingType}
+ * and the same `customisable_days` setting, so the shared booking form can show
+ * a single day-count selector (or none) for the whole group. Pass
+ * `excludeListingId` to skip a specific listing (for the edit-self case).
+ *
+ * Callers load the members themselves — one group's with
+ * {@link getListingsByGroupId}, many groups' with {@link getListingsByGroupIds}
+ * — so validating a batch never issues one sibling query per listing and trips
+ * the N+1 read guard.
  */
 export const groupListingTypeError = (
   allSiblings: readonly ListingWithCount[],
   listingType: ListingType,
   customisableDays: boolean,
   excludeListingId?: number,
-): string | null => {
-  const siblings = allSiblings.filter((e) => e.id !== excludeListingId);
-  const typeMismatch = siblings.find((e) => e.listing_type !== listingType);
-  if (typeMismatch) {
-    return t("error.group_listing_type_mismatch", {
-      type: typeMismatch.listing_type,
-    });
-  }
-  const customisableMismatch = siblings.find(
-    (e) => e.customisable_days !== customisableDays,
+): string | null =>
+  groupHomogeneityError(
+    allSiblings.filter((listing) => listing.id !== excludeListingId),
+    listingType,
+    customisableDays,
   );
-  if (customisableMismatch) {
-    return t(
-      customisableMismatch.customisable_days
-        ? "error.group_customisable_days_expected"
-        : "error.group_customisable_days_unexpected",
+
+/** The group-homogeneity rules as data, in precedence order: every member must
+ * share one listing type, then one customisable-days setting, so the group's
+ * single date/day-count selector can serve them all. Each rule finds the
+ * clashing sibling and builds its message from that evidence. */
+const groupHomogeneityError = firstReason<
+  [
+    siblings: readonly ListingWithCount[],
+    listingType: ListingType,
+    customisableDays: boolean,
+  ]
+>([
+  (siblings, listingType) => {
+    const mismatch = siblings.find(
+      (sibling) => sibling.listing_type !== listingType,
     );
-  }
-  return null;
-};
+    return mismatch
+      ? t("error.group_listing_type_mismatch", { type: mismatch.listing_type })
+      : null;
+  },
+  (siblings, _listingType, customisableDays) => {
+    const mismatch = siblings.find(
+      (sibling) => sibling.customisable_days !== customisableDays,
+    );
+    return mismatch
+      ? t(
+          mismatch.customisable_days
+            ? "error.group_customisable_days_expected"
+            : "error.group_customisable_days_unexpected",
+        )
+      : null;
+  },
+]);
 
 /** Whether any of the given group ids satisfies the extra SQL `condition`.
  * Empty input → false (no query). */
@@ -378,51 +415,42 @@ export const packageChildEdgeConflict = async (
   return null;
 };
 
-/** The first member of `listings` that can't be packaged, paired with the
- * reason it's blocked — or null when every listing is a valid member. Judged
- * against ONE batched edge load (two queries for the whole member list, never
- * one per member). The pricing/add-on/hidden-gate rules themselves live in the
- * shared {@link packageMemberBlock}. Generic over the listing shape so the
- * caller gets its own row back (with the name) to build the error. */
-const firstUnpackageableMember = async <
-  L extends { id: number; can_pay_more: boolean },
->(
-  listings: readonly L[],
+/** The member-naming package error for the first listing in `listings` that
+ * can't be a package member (pay-what-you-want, an add-on of another listing,
+ * or — on a hidden package — a member gating its own children), or null when
+ * every listing is a valid member. Judged against ONE batched edge load (two
+ * queries for the whole member list, never one per member); the rules and
+ * their messages live in the shared {@link packageMemberError}. The one place
+ * every package save (group form, add-listings, listing form/API, catalog
+ * import) turns an unpackageable member into its user-facing message. */
+export const packageMembersError = async (
+  listings: readonly { id: number; can_pay_more: boolean; name: string }[],
   hideListings: boolean | undefined,
-): Promise<{ listing: L; block: PackageMemberBlock } | null> => {
+): Promise<string | null> => {
   const listingIds = listings.map((listing) => listing.id);
   const [childrenByParent, parentsByChild] = await Promise.all([
     listingChildren.getIdsByKeys(listingIds),
     listingParents.getIdsByKeys(listingIds),
   ]);
-  const blocked = mapNotNullish((listing: L) => {
-    const block = packageMemberBlock(
+  const blocked = mapNotNullish((listing: (typeof listings)[number]) =>
+    packageMemberError(
       listing,
       {
-        childIds: childrenByParent.get(listing.id)!,
-        parentIds: parentsByChild.get(listing.id)!,
+        childIds: requiredMapValue(
+          childrenByParent,
+          listing.id,
+          "Missing listing child edges",
+        ),
+        parentIds: requiredMapValue(
+          parentsByChild,
+          listing.id,
+          "Missing listing parent edges",
+        ),
       },
       hideListings,
-    );
-    return block ? { block, listing } : null;
-  })(listings);
+    ),
+  )(listings);
   return blocked[0] ?? null;
-};
-
-/** The member-naming package error for the first listing in `listings` that
- * can't be a package member (pay-what-you-want, an add-on of another listing,
- * or — on a hidden package — a member gating its own children), or null when
- * every listing is a valid member. The one place every package save (group
- * form, add-listings, listing form/API, catalog import) turns an unpackageable
- * member into its user-facing message. */
-export const packageMembersError = async (
-  listings: readonly { id: number; can_pay_more: boolean; name: string }[],
-  hideListings: boolean | undefined,
-): Promise<string | null> => {
-  const offender = await firstUnpackageableMember(listings, hideListings);
-  return offender
-    ? packageMemberBlockError(offender.listing.name, offender.block)
-    : null;
 };
 
 /** Package-group display info for grouping a booking's lines under the package
@@ -676,16 +704,51 @@ export const packageMemberMaps = (
   quantities: new Map(rows.map((row) => [row.listing_id, row.quantity])),
 });
 
-/** A package group's full pricing state in one load: its membership rows, the
- * flat override + quantity maps ({@link packageMemberMaps}), and each
- * customisable member's per-day overrides — the shape the booking flow, the
- * webhook payload, and the payment revalidation all consume. */
-export const loadPackageMemberPricing = async (groupId: number) => {
-  const [rows, dayPrices] = await Promise.all([
-    getGroupPackagePrices(groupId),
-    getGroupDayPrices(groupId),
+/** What a package charges for its members: the flat override + quantity maps
+ * ({@link packageMemberMaps}) and each customisable member's per-day overrides.
+ * The shape the booking page, the webhook payload, and the payment
+ * revalidation all price from. */
+export interface PackagePrices {
+  dayPrices: Map<number, Map<number, number>>;
+  prices: Map<number, number>;
+  quantities: Map<number, number>;
+}
+
+/** A package group's full pricing state: what it charges, plus the membership
+ * rows those charges were read from (which listings are in the bundle). */
+export interface PackageMemberPricing extends PackagePrices {
+  rows: GroupListing[];
+}
+
+/** The full pricing state of SEVERAL package groups, keyed by group id, in two
+ * reads however many groups are asked for — an order that books many packages
+ * would otherwise spend two round-trips per package and eat the request's
+ * subrequest budget. Every requested group is present; one with no membership
+ * rows reads as empty maps. */
+export const loadPackageMemberPricingByGroupIds = async (
+  groupIds: number[],
+): Promise<Map<number, PackageMemberPricing>> => {
+  const [rowsByGroup, dayPricesByGroup] = await Promise.all([
+    getGroupPackagePricesByGroupIds(groupIds),
+    getGroupDayPricesByGroupIds(groupIds),
   ]);
-  return { ...packageMemberMaps(rows), dayPrices, rows };
+  return new Map(
+    groupIds.map((groupId) => {
+      const rows = rowsByGroup.get(groupId) ?? [];
+      return [
+        groupId,
+        {
+          ...packageMemberMaps(rows),
+          dayPrices: requiredMapValue(
+            dayPricesByGroup,
+            groupId,
+            "Missing package day prices",
+          ),
+          rows,
+        },
+      ];
+    }),
+  );
 };
 
 /** The membership rows for several groups in one query, keyed by group id, so a

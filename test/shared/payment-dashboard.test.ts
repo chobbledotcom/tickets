@@ -14,8 +14,23 @@ describe("paymentDashboardUrl", () => {
   });
 
   test("returns null when no provider is configured", () => {
-    settings.setForTest({ payment_provider: null });
+    settings.setForTest({
+      payment_provider: null,
+      payment_provider_setting: null,
+    });
     expect(paymentDashboardUrl("pi_123")).toBe(null);
+  });
+
+  test("uses the remembered Stripe provider when new sales are off", () => {
+    settings.setForTest({
+      last_active_payment_provider: "stripe",
+      payment_provider: null,
+      payment_provider_setting: "none",
+      stripe_secret_key: "sk_live_abc",
+    });
+    expect(paymentDashboardUrl("pi_123")).toBe(
+      "https://dashboard.stripe.com/payments/pi_123",
+    );
   });
 
   test("links to the live Stripe dashboard for a live key", () => {
@@ -41,6 +56,7 @@ describe("paymentDashboardUrl", () => {
   test("links to the production Square dashboard", () => {
     settings.setForTest({
       payment_provider: "square",
+      square_access_token: "square-live-token",
       square_sandbox: false,
     });
     expect(paymentDashboardUrl("pay_1")).toBe(
@@ -51,6 +67,7 @@ describe("paymentDashboardUrl", () => {
   test("links to the sandbox Square dashboard", () => {
     settings.setForTest({
       payment_provider: "square",
+      square_access_token: "square-sandbox-token",
       square_sandbox: true,
     });
     expect(paymentDashboardUrl("pay_1")).toBe(
@@ -59,7 +76,10 @@ describe("paymentDashboardUrl", () => {
   });
 
   test("links to the SumUp dashboard", () => {
-    settings.setForTest({ payment_provider: "sumup" });
+    settings.setForTest({
+      payment_provider: "sumup",
+      sumup_api_key: "sumup-dashboard-key",
+    });
     expect(paymentDashboardUrl("tx_1")).toBe(
       "https://me.sumup.com/sales/transactions/tx_1",
     );

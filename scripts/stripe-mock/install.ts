@@ -1,10 +1,9 @@
 /* jscpd:ignore-start */
 import { join } from "node:path";
-import { withFileLock } from "#scripts/lock-file.ts";
-import { rethrowUnlessNotFound } from "#scripts/not-found.ts";
+import type { LockBody } from "#scripts/lock-file.ts";
 import { removeTree } from "#scripts/process.ts";
 import { projectRoot } from "#scripts/project-root.ts";
-import { delay } from "#shared/now.ts";
+import { type StaleClaimSettings, withClaim } from "#scripts/stale-claim.ts";
 
 /* jscpd:ignore-end */
 
@@ -14,7 +13,6 @@ const INSTALL_LOCK_TIMEOUT_MS = 60_000;
 const INSTALL_LOCK_STALE_MS = 30_000;
 const INSTALL_LOCK_TOUCH_MS = 1_000;
 const INSTALL_TEMP_PREFIX = "stripe-mock-";
-const INSTALL_LOCK_GUARD_SUFFIX = ".guard";
 
 const BIN_DIR = join(projectRoot, ".bin");
 const STRIPE_MOCK_PATH = join(BIN_DIR, "stripe-mock");
@@ -24,12 +22,24 @@ export type StripeMockPaths = {
   binaryPath: string;
 };
 
-/** A task run while a lock is held, giving back its result. */
-export type LockBody<T> = () => Promise<T>;
-
 /** Ensure the bin directory (and any parents) exists. */
-export const ensureBinDir = (paths: StripeMockPaths): Promise<void> =>
+const ensureBinDir = (paths: StripeMockPaths): Promise<void> =>
   Deno.mkdir(paths.binDir, { recursive: true });
+
+/** Holds one of the bin folder's guards around a task, making the folder. */
+export type BinDirGuard = <T>(
+  paths: StripeMockPaths,
+  body: LockBody<T>,
+) => Promise<T>;
+
+export const binDirGuard =
+  (
+    holdAt: (paths: StripeMockPaths) => <T>(body: LockBody<T>) => Promise<T>,
+  ): BinDirGuard =>
+  async <T>(paths: StripeMockPaths, body: LockBody<T>): Promise<T> => {
+    await ensureBinDir(paths);
+    return holdAt(paths)(body);
+  };
 
 export type StripeMockCommands = {
   chmod: string;
@@ -44,23 +54,6 @@ export type StripeMockInstallOptions = {
   installLockTimeoutMs?: number;
   installLockTouchMs?: number;
   paths?: StripeMockPaths;
-};
-
-type InstallLockSettings = {
-  retryMs: number;
-  staleMs: number;
-  timeoutMs: number;
-  touchMs: number;
-};
-
-type InstallLock = {
-  file: Deno.FsFile;
-  owner: string;
-};
-
-type InstallLockRecord = {
-  owner?: string;
-  writtenAt: number;
 };
 
 export const defaultStripeMockPaths: StripeMockPaths = {
@@ -115,9 +108,6 @@ const stripeMockBinaryExists = async (
 export const installLockPath = (paths: StripeMockPaths): string =>
   join(paths.binDir, "stripe-mock.install.lock");
 
-const installLockGuardPath = (lockPath: string): string =>
-  `${lockPath}${INSTALL_LOCK_GUARD_SUFFIX}`;
-
 const installLockSettings = ({
   // Only a missing setting takes the standard value, so an explicit one —
   // including a deliberate zero — is always kept.
@@ -125,173 +115,25 @@ const installLockSettings = ({
   installLockStaleMs: staleMs = INSTALL_LOCK_STALE_MS,
   installLockTimeoutMs: timeoutMs = INSTALL_LOCK_TIMEOUT_MS,
   installLockTouchMs: touchMs = INSTALL_LOCK_TOUCH_MS,
-}: StripeMockInstallOptions): InstallLockSettings => ({
+}: StripeMockInstallOptions): StaleClaimSettings & {
+  retryMs: number;
+  timeoutMs: number;
+} => ({
   retryMs,
   staleMs,
   timeoutMs,
   touchMs,
 });
 
-const formatInstallLockRecord = (owner: string): string =>
-  `${owner}\n${Date.now()}`;
-
-const parseInstallLockRecord = (text: string): InstallLockRecord => {
-  // Splitting always yields at least one part, so first is always a string.
-  const [first, second] = text.split("\n") as [string, string?];
-  const writtenAt = Number(second ?? first);
-  return second === undefined ? { writtenAt } : { owner: first, writtenAt };
-};
-
-const readInstallLockRecord = async (
-  lockPath: string,
-): Promise<InstallLockRecord> => {
-  const record = parseInstallLockRecord(await Deno.readTextFile(lockPath));
-  if (record.writtenAt > 0) return record;
-
-  const stat = await Deno.stat(lockPath);
-  return { ...record, writtenAt: stat.mtime!.getTime() };
-};
-
-const writeInstallLockTime = (lockPath: string, owner: string): Promise<void> =>
-  Deno.writeTextFile(lockPath, formatInstallLockRecord(owner));
-
-const startInstallLockRefresh = (
-  lockPath: string,
-  owner: string,
-  touchMs: number,
-) => {
-  let stopped = false;
-  let timeout = setTimeout(refreshLock, touchMs);
-  let latestRefresh: Promise<void> = Promise.resolve();
-
-  const scheduleNextRefresh = () => {
-    if (stopped) return;
-    timeout = setTimeout(refreshLock, touchMs);
-  };
-
-  function refreshLock() {
-    latestRefresh = writeInstallLockTime(lockPath, owner).then(
-      scheduleNextRefresh,
-      scheduleNextRefresh,
-    );
-  }
-
-  return async (): Promise<void> => {
-    stopped = true;
-    clearTimeout(timeout);
-    // A timer that fired just before the clear has already queued refreshLock,
-    // and it runs before this zero delay does. Waiting one turn means the wait
-    // below catches the write it starts, instead of leaking it past the stop —
-    // a leaked write could re-create the lock file after cleanup removed it.
-    await delay(0);
-    // A refresh already under way finishes without booking another, because
-    // scheduling checks the flag above.
-    await latestRefresh;
-  };
-};
-
-const installLockAgeMs = async (lockPath: string): Promise<number> =>
-  Date.now() - (await readInstallLockRecord(lockPath)).writtenAt;
-
-const removeStaleInstallLock = async (
-  lockPath: string,
-  staleMs: number,
-): Promise<boolean> => {
-  try {
-    if ((await installLockAgeMs(lockPath)) < staleMs) return false;
-    await Deno.remove(lockPath);
-    return true;
-  } catch (error) {
-    // NotFound: another runner already cleared the stale lock — it's gone
-    // either way, which is exactly what this returns true for.
-    rethrowUnlessNotFound(error);
-    return true;
-  }
-};
-
-const removeLockIfOwned = async (
-  lockPath: string,
-  owner: string,
-): Promise<void> => {
-  try {
-    if ((await readInstallLockRecord(lockPath)).owner === owner) {
-      await Deno.remove(lockPath);
-    }
-  } catch (error) {
-    rethrowUnlessNotFound(error);
-  }
-};
-
-const createInstallLock = async (lockPath: string): Promise<InstallLock> => {
-  const owner = crypto.randomUUID();
-  const file = await Deno.open(lockPath, { createNew: true, write: true });
-  try {
-    await writeInstallLockTime(lockPath, owner);
-    return { file, owner };
-  } catch (error) {
-    file.close();
-    throw error;
-  }
-};
-
-const tryAcquireInstallLock = (
-  lockPath: string,
-  settings: InstallLockSettings,
-): Promise<InstallLock | null> =>
-  withFileLock(installLockGuardPath(lockPath), async () => {
-    try {
-      return await createInstallLock(lockPath);
-    } catch (error) {
-      if (!(error instanceof Deno.errors.AlreadyExists)) throw error;
-      if (await removeStaleInstallLock(lockPath, settings.staleMs)) {
-        return await createInstallLock(lockPath);
-      }
-      return null;
-    }
-  });
-
-const acquireInstallLock = async (
-  lockPath: string,
-  settings: InstallLockSettings,
-): Promise<InstallLock> => {
-  const startedAt = Date.now();
-  while (true) {
-    const lock = await tryAcquireInstallLock(lockPath, settings);
-    if (lock) return lock;
-
-    if (Date.now() - startedAt >= settings.timeoutMs) {
-      throw new Error("Timed out waiting for stripe-mock install lock");
-    }
-    await delay(settings.retryMs);
-  }
-};
-
-const withInstallLock = async <T>(
-  paths: StripeMockPaths,
-  options: StripeMockInstallOptions,
-  body: LockBody<T>,
-): Promise<T> => {
-  const lockPath = installLockPath(paths);
-  const settings = installLockSettings(options);
-  await ensureBinDir(paths);
-  const lock = await acquireInstallLock(lockPath, settings);
-  const stopRefreshingLock = startInstallLockRefresh(
-    lockPath,
-    lock.owner,
-    settings.touchMs,
+const installLockHolder = (options: StripeMockInstallOptions) =>
+  binDirGuard(
+    (paths) => (body) =>
+      withClaim(
+        installLockPath(paths),
+        { ...installLockSettings(options), name: "stripe-mock install lock" },
+        body,
+      ),
   );
-
-  try {
-    return await body();
-  } finally {
-    try {
-      await stopRefreshingLock();
-    } finally {
-      lock.file.close();
-      await removeLockIfOwned(lockPath, lock.owner);
-    }
-  }
-};
 
 const commandsWithDefaults = (
   commands: Partial<StripeMockCommands> | undefined,
@@ -363,7 +205,7 @@ export const downloadStripeMock = async (
   const { paths = defaultStripeMockPaths } = options;
   if (await stripeMockBinaryExists(paths)) return;
 
-  await withInstallLock(paths, options, async () => {
+  await installLockHolder(options)(paths, async () => {
     if (await stripeMockBinaryExists(paths)) return;
     await installStripeMock(paths, commandsWithDefaults(options.commands));
   });

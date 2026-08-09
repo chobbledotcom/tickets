@@ -6,15 +6,16 @@
  * mid-checkout.
  */
 
+/* jscpd:ignore-start -- import block */
 import {
   anyPackageBundleMismatch,
   expectedItemPrice,
-  hasStaleStandaloneChild,
-  loadPackagePricingByGroup,
-  orderEdgeDrifted,
+  hasStaleStandaloneChildFromFacts,
+  orderEdgeDriftedFromFacts,
   type ValidatedItem,
 } from "#routes/api/payment-processing/package-pricing.ts";
 import { validationFailure } from "#routes/api/payment-processing/refunds.ts";
+import type { PaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/types.ts";
 import type {
   ListingValidation,
   PaymentFailureResult,
@@ -26,35 +27,20 @@ import {
   standaloneLineListingIds,
 } from "#shared/booking/signed-metadata.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
-import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
-import { resolveNamesConcealed } from "#shared/package-privacy.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
+import type { ListingWithCount } from "#shared/types.ts";
 
-/** Load a listing by ID or return a 404 "Listing not found" error payload. */
-const loadListingOr404 = async (
-  listingId: number,
-): Promise<
-  | {
-      ok: true;
-      listing: NonNullable<Awaited<ReturnType<typeof getListingWithCount>>>;
-    }
-  | { ok: false; error: string; status: 404 }
-> => {
-  const listing = await getListingWithCount(listingId);
+/* jscpd:ignore-end */
+
+/** Judge one already-loaded line against the current listing: gone, closed, or
+ * good to price. */
+const validateListingForPayment = (
+  listing: ListingWithCount | undefined,
+  includeListingName: boolean,
+): ListingValidation => {
   if (!listing) {
     return { error: "Listing not found", ok: false, status: 404 };
   }
-  return { listing, ok: true };
-};
-
-const validateListingForPayment = async (
-  listingId: number,
-  includeListingName = false,
-): Promise<ListingValidation> => {
-  const loaded = await loadListingOr404(listingId);
-  if (!loaded.ok) return loaded;
-  const listing = loaded.listing;
   const name = includeListingName ? listing.name : undefined;
   if (!listing.active) {
     return {
@@ -118,29 +104,34 @@ const bookingPaths = (intent: BookingIntent): BookingPaths => {
 export const validateAllItems = async (
   session: ValidatedPaymentSession,
   intent: BookingIntent,
+  snapshot: PaidOrderSnapshot,
 ): Promise<{ ok: true; items: ValidatedItem[] } | PaymentFailureResult> => {
   const { allocations, foldedChildIds, standaloneLineIds } =
     bookingPaths(intent);
   // For a hidden package, a per-member failure message would reveal a member
   // name on /payment/success, so never include the listing name in those errors
   // (fail-safe resolution — see resolveNamesConcealed).
-  const hiddenPackage = await resolveNamesConcealed(lineGroupIds(intent.items));
+  const groupIds = [...lineGroupIds(intent.items)];
+  const hiddenPackage = groupIds.some(
+    (groupId) =>
+      snapshot.notificationPackages.displays.get(groupId)?.hideListings ?? true,
+  );
   // A standalone session started before its listing joined a HIDDEN package must
   // not book the now-hidden member: its /ticket/<slug> 404s and /t/<token> would
   // render the member name/details. Detected here, failed closed after pricing so
   // the order takes the price_changed refund instead of a leaking standalone
   // ticket. Lines booked through a package are that bundle's own members, so
   // only the order's standalone lines are checked.
-  const staleHiddenMember =
-    standaloneLineIds.length > 0 &&
-    (await getHiddenPackageMemberIds(standaloneLineIds)).size > 0;
+  const staleHiddenMember = standaloneLineIds.some((listingId) =>
+    snapshot.hiddenPackageMemberIds.has(listingId),
+  );
   // Suppress per-member names in failure messages for BOTH hidden cases: a hidden
   // package intent, and a stale standalone session whose listing has since become
   // a hidden member (else a member closed/deactivated mid-checkout surfaces its
   // name on /payment/success before the stale-member refund below runs).
   const includeListingName =
     intent.items.length > 1 && !hiddenPackage && !staleHiddenMember;
-  const pricingByGroup = await loadPackagePricingByGroup(intent);
+  const pricingByGroup = snapshot.notificationPackages.pricingByGroup;
   // A folded child rides an UNTAGGED line that bundledChildIds removes from
   // standaloneLineIds wholesale, yet that one line can hold more units than
   // the package-tagged allocations cover (a bookable-alone child bought beside
@@ -150,10 +141,27 @@ export const validateAllItems = async (
   // member-only order skips its read.
   const staleNonStandaloneChild =
     (standaloneLineIds.length > 0 || allocations.length > 0) &&
-    (await hasStaleStandaloneChild(intent));
+    hasStaleStandaloneChildFromFacts(
+      intent,
+      new Set(
+        intent.items.flatMap((item) => {
+          const listing = snapshot.listingsById.get(item.e);
+          return listing &&
+            !listing.bookable_alone &&
+            (snapshot.parentsByChildId.get(item.e)?.length ?? 0) > 0
+            ? [item.e]
+            : [];
+        }),
+      ),
+      snapshot.parentsByChildId,
+    );
+  const listingsById = snapshot.listingsById;
   const validatedItems: ValidatedItem[] = [];
   for (const item of intent.items) {
-    const vp = await validateListingForPayment(item.e, includeListingName);
+    const vp = validateListingForPayment(
+      listingsById.get(item.e),
+      includeListingName,
+    );
     if (!vp.ok) return validationFailure(session, vp, item.e);
     const itemGroupId = lineGroupId(item);
     // `null` here means "fail closed" (the line is no longer a valid package
@@ -180,7 +188,10 @@ export const validateAllItems = async (
     staleHiddenMember ||
     staleNonStandaloneChild ||
     anyPackageBundleMismatch(pricingByGroup, intent.items) ||
-    (await orderEdgeDrifted(intent, validatedItems, pricingByGroup))
+    orderEdgeDriftedFromFacts(intent, validatedItems, pricingByGroup, {
+      childIdsByParent: snapshot.childrenByParentId,
+      listingsById: snapshot.listingsById,
+    })
   ) {
     return {
       items: validatedItems.map((v) => ({ ...v, expectedPrice: null })),

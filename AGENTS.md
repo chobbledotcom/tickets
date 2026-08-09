@@ -179,25 +179,27 @@ GitHub.
   `agentPage`/`requireAgentOr` were an agent-only page+guard pair with no route
   wiring (agents are gated via `deliveryPage`/`requireDeliveryOr`), so both were
   deleted rather than exempted.
-- **Keep files under ~400 lines**: When refactoring a file, aim to keep it under
-  400 lines — and if hitting that target means splitting one file into several,
-  so be it: a new file is cheaper than an overloaded one. When you end up with a
-  handful of files all about the same thing, group them in a folder and give
-  them shorter names that don't repeat the folder's name (`ledger/project.ts`,
-  not `ledger/ledger-project.ts` — see the `src/shared/ledger/` and
-  `src/shared/db/attendees/` examples in [Modularised](#modularised)). While
-  you're at it, use the split as a chance to separate pure from non-pure code —
-  push the data-in/data-out logic into its own file and keep the IO in a thin
-  shell (see [Pure, functional](#pure-functional)). **The same 400-line limit
-  applies to test files**, and matters just as much: smaller, more specific test
-  files let us run mutation tests far faster, because a source file's mutants
-  only need to run against the narrow test file that covers it, not one giant
-  suite. Biome enforces a hard 1,000-line ceiling as a lint error
-  (`nursery.noExcessiveLinesPerFile` in `biome.json`); it applies to every file,
-  with no exceptions — never add an override to let one file past it. (Expect a
-  known side effect when splitting: jscpd cannot fully scan very large files, so
-  a split routinely _surfaces_ duplication that was silently passing inside the
-  monolith — budget for extracting helpers, not just moving tests.)
+- **Keep code and test files under ~400 lines**: When refactoring a code or test
+  file, aim to keep it under 400 lines — and if hitting that target means
+  splitting one file into several, so be it: a new file is cheaper than an
+  overloaded one. When you end up with a handful of files all about the same
+  thing, group them in a folder and give them shorter names that don't repeat
+  the folder's name (`ledger/project.ts`, not `ledger/ledger-project.ts` — see
+  the `src/shared/ledger/` and `src/shared/db/attendees/` examples in
+  [Modularised](#modularised)). While you're at it, use the split as a chance to
+  separate pure from non-pure code — push the data-in/data-out logic into its
+  own file and keep the IO in a thin shell (see
+  [Pure, functional](#pure-functional)). **The same 400-line limit applies to
+  test files**, and matters just as much: smaller, more specific test files let
+  us run mutation tests far faster, because a source file's mutants only need to
+  run against the narrow test file that covers it, not one giant suite. Biome
+  enforces a hard 1,000-line ceiling for every code and test file; never add an
+  override to let one past it. Root instruction files such as `AGENTS.md` are
+  exempt because their policy must be available as one automatically loaded
+  document, but their sections should still stay concise. (Expect a known side
+  effect when splitting: jscpd cannot fully scan very large files, so a split
+  routinely _surfaces_ duplication that was silently passing inside the monolith
+  — budget for extracting helpers, not just moving tests.)
 - **Good citizen — fix what you spot**: If you notice a bug, a coverage gap, or
   a flaky/fragile test while working — even in code you were not asked to touch
   and did not write — fix it in passing rather than stepping around it. A green
@@ -319,6 +321,18 @@ GitHub.
   correlated subqueries that compare a row against its group), give each
   occurrence a descriptive word alias — `listing` for the row being checked,
   `groupListing` for sibling rows in its group.
+- **Name positional results at the boundary**: When a library returns an ordered
+  array of different results, destructure it into domain names as soon as it
+  enters our code. Keep the unavoidable ordering beside the call that creates
+  it; do not make readers trace `results[2]` or `rows[7]` through later mapping
+  code. If the number of results is not guaranteed, validate it at that boundary
+  before naming the values.
+- **Use types where they remove noise**: Replace repeated inline object shapes
+  with a named type or interface when that makes a boundary contract clearer,
+  removes repeated field declarations, or lets related shapes share a small
+  base. Reuse or extend an existing type when it already describes the facts. Do
+  not create a new name for a one-off shape that is already easier to read
+  inline, and do not add aliases that give the same concept a second vocabulary.
 - **Annotate return types on exported functions, and keep types easy to
   compile**: Give every exported/public function an explicit return type instead
   of leaning on inference. A named annotation is more compact for the checker to
@@ -1455,19 +1469,20 @@ direct tests without the stale state. If the mutant survives, the runner builds
 one fresh state from the mutant and shares it across all integration-test
 batches.
 
-How it works (and why it is bespoke): it mutates the source file **in place**,
-runs the mapped tests in a fresh `deno test` subprocess, then restores the file.
-The normal `deno task mutation` command first copies the current checkout
-(including dirty source/test edits, excluding `.git`, cache/report folders,
-local databases, secrets, and generated assets) to `.mutation-runs/<id>/work`;
-all in-place writes and per-mutant bundle rebuilds happen inside that copy, not
-the live files. A run deletes that copy as soon as it ends — reporting the
-failure if it cannot — so `.mutation-runs/` does not fill up with checkout
-copies. While a run is going — and until the _next_ run starts — it has a small
-`.mutation-runs/<id>/run.json` holding the child PID/status, so a stray run is
-easy to find and stop. Starting a run clears out the folders of every earlier
-run that is no longer going, including any whose `run.json` is unreadable
-because it was killed mid-write:
+How it works (and why it is bespoke): static gates apply mutants in isolated
+sibling copies. Mutants that pass are written over the run's source file, tested
+in a fresh `deno test` subprocess, then restored. The normal
+`deno task mutation` command first copies the current checkout (including dirty
+source/test edits, excluding `.git`, cache/report folders, local databases,
+secrets, and generated assets) to `.mutation-runs/<id>/work`; test-stage writes
+and per-mutant bundle rebuilds happen inside that copy, not the live files.
+Static worker copies are deleted before tests start. A run deletes its main copy
+as soon as it ends — reporting the failure if it cannot — so `.mutation-runs/`
+does not fill up with checkout copies. While a run is going — and until the
+_next_ run starts — it has a small `.mutation-runs/<id>/run.json` holding the
+child PID/status, so a stray run is easy to find and stop. Starting a run clears
+out the folders of every earlier run that is no longer going, including any
+whose `run.json` is unreadable because it was killed mid-write:
 
 ```bash
 deno task mutation --list
@@ -1511,22 +1526,27 @@ one was edited meanwhile, which fails the run instead of overwriting the edit.
 
 Before it runs the mapped tests, the runner puts every mutant through two cheap
 **static gates**, ordered cheapest-first: a per-file Biome **lint** and then a
-`deno check` **type-check**. Keep the Biome calls one-shot unless a new
-benchmark proves otherwise: with pinned Biome 2.4.16, 20 warm one-file runs
-measured a 17.3 ms standalone median and a 51.2 ms `--use-server` median. Either
-gate exiting non-zero kills the mutant without spending a full `deno test` on it
-— both a forbidden lint diagnostic and a type error are build failures, so the
-mutant could never ship, and static checks are far faster than the suite. The
-type-check gate catches the mutants that turn valid code into a type error —
-e.g. a `+ → *` swap on a string concatenation (`"a" * "b"` doesn't type-check),
-or any operator change that violates a parameter/return type. Each gate is only
-trusted after the runner confirms the _unmutated_ target passes it (the baseline
-probe): a standalone `deno task mutation` doesn't run `lint:ci`/`typecheck`
-first, so if the target isn't already clean the run aborts loudly rather than
-scoring a bogus 100%. This means a mutant recorded in `equivalent-mutants/` must
-be one that survives _both_ gates _and_ the tests; a mutation that produces a
-type error never reaches the ignore-list because the type-check gate kills it
-first.
+`deno check` **type-check**. Static gates run concurrently in isolated sibling
+copies, with a CPU-aware limit capped at four (`MUTATION_STATIC_JOBS` can lower
+it). One- and two-mutant files stay serial to avoid copy overhead. Test batches
+keep their separate `--jobs` limit and still run only after static results are
+reported in mutant order. A mutant's timeout starts when its static work leaves
+the queue. Static work and any wait for earlier tests both use that time. Keep
+the Biome calls one-shot unless a new benchmark proves otherwise: with pinned
+Biome 2.4.16, 20 warm one-file runs measured a 17.3 ms standalone median and a
+51.2 ms `--use-server` median. Either gate exiting non-zero kills the mutant
+without spending a full `deno test` on it — both a forbidden lint diagnostic and
+a type error are build failures, so the mutant could never ship, and static
+checks are far faster than the suite. The type-check gate catches the mutants
+that turn valid code into a type error — e.g. a `+ → *` swap on a string
+concatenation (`"a" * "b"` doesn't type-check), or any operator change that
+violates a parameter/return type. Each gate is only trusted after the runner
+confirms the _unmutated_ target passes it (the baseline probe): a standalone
+`deno task mutation` doesn't run `lint:ci`/`typecheck` first, so if the target
+isn't already clean the run aborts loudly rather than scoring a bogus 100%. This
+means a mutant recorded in `equivalent-mutants/` must be one that survives
+_both_ gates _and_ the tests; a mutation that produces a type error never
+reaches the ignore-list because the type-check gate kills it first.
 
 When a manual mutation run (or the precommit gate) surfaces survivors on a file
 you are touching — even on lines you did not change in this PR — they are yours

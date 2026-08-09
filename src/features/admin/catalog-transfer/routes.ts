@@ -17,13 +17,14 @@ import {
 } from "#routes/auth.ts";
 import { requireUploadedFile } from "#routes/csrf.ts";
 import {
+  downloadResponse,
   encodeBody,
   errorRedirect,
   notFoundResponse,
   redirect,
 } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
 import { slugify } from "#shared/slug.ts";
 import { adminCatalogImportPage } from "#templates/admin/catalog-transfer.tsx";
@@ -35,12 +36,11 @@ const IMPORT_PATH = "/admin/catalog/import";
 
 /** Build a JSON file download response. */
 const jsonDownload = (data: unknown, filename: string): Response =>
-  new Response(encodeBody(JSON.stringify(data, null, 2)), {
-    headers: {
-      "content-disposition": `attachment; filename="${filename}"`,
-      "content-type": "application/json; charset=utf-8",
-    },
-  });
+  downloadResponse(
+    encodeBody(JSON.stringify(data, null, 2)),
+    filename,
+    "application/json; charset=utf-8",
+  );
 
 /** A safe, human-readable download filename from an entity name. */
 const catalogFilename = (kind: string, name: string): string =>

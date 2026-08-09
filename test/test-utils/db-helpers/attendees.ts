@@ -23,13 +23,23 @@ export const expectNoAttendeesForListings = async (
 /** Book a test attendee onto the given listing(s) directly via the DB,
  *  bypassing the booking routes. Shared by unit tests that just need an
  *  attendee to hang bookings or answers off. */
+/** One booking to make: a listing id on its own, or a listing with the units
+ * and the day it is booked for. */
+export type TestBooking = {
+  listingId: number;
+  quantity?: number;
+  date?: string;
+};
+
 export const bookTestAttendee = async (
-  listingIds: number[],
+  bookings: (number | TestBooking)[],
   name = "Alice",
   email?: string,
 ): Promise<Attendee> => {
   const result = await attendeesApi.createAttendeeAtomic({
-    bookings: listingIds.map((listingId) => ({ listingId })),
+    bookings: bookings.map((booking) =>
+      typeof booking === "number" ? { listingId: booking } : booking,
+    ),
     email: email ?? `${name.toLowerCase()}@test.com`,
     name,
     source: "public",
@@ -149,7 +159,7 @@ export const createTestAttendeeDirect = async (
   }
 
   const attendee = result.attendees[0]!;
-  const { logActivity } = await import("#shared/db/activityLog.ts");
+  const { logActivity } = await import("#shared/db/activity-log.ts");
   await logActivity(`Attendee '${name}' created`, listingId, attendee.id);
 
   return {
@@ -379,4 +389,13 @@ export const decryptFirstAttendee = async (
   const attendees = await decryptAttendees(raw, privateKey);
   expect(attendees.length).toBe(1);
   return attendees[0]!;
+};
+
+/** Book units of a listing, on a day when one is given. */
+export const bookUnits = async (
+  listingId: number,
+  quantity: number,
+  date?: string,
+): Promise<void> => {
+  await bookTestAttendee([{ listingId, quantity, ...(date ? { date } : {}) }]);
 };

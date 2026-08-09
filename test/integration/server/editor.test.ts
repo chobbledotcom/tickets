@@ -379,7 +379,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
 
   describe("role-aware rendering", () => {
     // The money columns an editor must never see are proved by the story
-    // `@story:servicing.what-an-editor-can-do`; this keeps the link shape and
+    // `@story:access.what-an-editor-can-do`; this keeps the link shape and
     // the absent CSV export, which are not part of that journey.
     test("listings table links to edit and offers no CSV export", async () => {
       const { cookie } = await createTestEditorSession();
@@ -621,7 +621,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
   });
 
   describe("login, invite, activation, status", () => {
-    // The journey is told by `@story:servicing.what-an-editor-can-do`; this
+    // The journey is told by `@story:access.what-an-editor-can-do`; this
     // stays because it is the only cover of the keyless login branch, which a
     // Cucumber run does not count towards.
     test("an editor logs in to a keyless session and lands on listings", async () => {

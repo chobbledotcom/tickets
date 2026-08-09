@@ -79,10 +79,14 @@ export const writeSlowToListenMock = async (
 /**
  * A mock that takes a moment to shut down when asked politely, and leaves a
  * note behind once it has. No note means it was killed before it could finish.
+ * It also notes when it wins its port: no bound note means the mock never got
+ * to run at all (something else took the port), which is a different story
+ * from being killed too early.
  */
 export const writeSlowToStopMock = async (
   paths: TestStripeMockPaths,
   notePath: string,
+  boundNotePath: string,
   shutdownMs = 200,
 ): Promise<void> => {
   await Deno.writeTextFile(
@@ -91,9 +95,9 @@ export const writeSlowToStopMock = async (
       "#!/bin/sh",
       `exec perl -MIO::Socket::INET -e '$SIG{TERM}=sub{ select(undef,undef,undef,${
         shutdownMs / 1000
-      }); open(my $fh, ">", $ARGV[2]); close $fh; exit 0 }; my $socket=IO::Socket::INET->new(LocalAddr=>"127.0.0.1", LocalPort=>$ARGV[1], Proto=>"tcp", Listen=>5, Reuse=>1) or die $!; while (1) { my $client=$socket->accept(); close $client if $client; }' -- "$@" ${shellQuote(
+      }); open(my $fh, ">", $ARGV[2]); close $fh; exit 0 }; my $socket=IO::Socket::INET->new(LocalAddr=>"127.0.0.1", LocalPort=>$ARGV[1], Proto=>"tcp", Listen=>5, Reuse=>1) or die $!; open(my $bound, ">", $ARGV[3]); close $bound; while (1) { my $client=$socket->accept(); close $client if $client; }' -- "$@" ${shellQuote(
         notePath,
-      )}`,
+      )} ${shellQuote(boundNotePath)}`,
     ].join("\n"),
   );
   await makeExecutable(paths.binaryPath);

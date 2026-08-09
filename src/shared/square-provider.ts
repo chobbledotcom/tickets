@@ -14,10 +14,13 @@
 
 import { logDebug } from "#shared/logger.ts";
 import {
+  type SessionRejection,
+  validatedPaymentSession,
+} from "#shared/payment/validated-session.ts";
+import {
   hasRequiredSessionMetadata,
   toCanonicalIso,
   toCheckoutResult,
-  validatedPaymentSession,
   withCheckoutError,
 } from "#shared/payment-helpers.ts";
 import type {
@@ -64,7 +67,7 @@ export const squarePaymentProvider: PaymentProvider = {
 
   async resolveWebhookSession(
     listing: WebhookEvent,
-  ): Promise<ValidatedPaymentSession | "skip" | null> {
+  ): Promise<ValidatedPaymentSession | "skip" | SessionRejection | null> {
     const obj = listing.data.object;
 
     // Square nests payment fields under data.object.payment
@@ -97,7 +100,7 @@ export const squarePaymentProvider: PaymentProvider = {
     // dashboard/POS, not by our system), skip silently instead of treating
     // it as an error — avoids noisy logs and 400 responses that trigger
     // Square webhook retries.
-    const session = await this.retrieveSession(orderId);
+    const session = await this.retrieveSession(orderId, paymentId);
     return session ?? "skip";
   },
 
@@ -107,7 +110,8 @@ export const squarePaymentProvider: PaymentProvider = {
      Square fetches the order and its payment from the API). */
   async retrieveSession(
     sessionId: string,
-  ): Promise<ValidatedPaymentSession | null> {
+    paidPaymentId?: string,
+  ): Promise<ValidatedPaymentSession | SessionRejection | null> {
     /* jscpd:ignore-end */
     // sessionId is the Square order ID
     const order = await retrieveOrder(sessionId);
@@ -122,24 +126,57 @@ export const squarePaymentProvider: PaymentProvider = {
       return null;
     }
 
-    // Determine payment status from the payment itself (most reliable source)
-    const paymentReference = order.tenders?.[0]?.paymentId ?? "";
-
-    let paymentStatus: ValidatedPaymentSession["paymentStatus"] = "unpaid";
-    if (paymentReference) {
-      const payment = await retrievePayment(paymentReference);
-      if (payment?.status === "COMPLETED") {
-        paymentStatus = "paid";
-      }
+    // A webhook names the payment Square just reported COMPLETED, so it wins:
+    // the order's tenders can lag behind it entirely, or still lead with an
+    // earlier payment, and either would call this captured charge unpaid.
+    const paymentReference =
+      paidPaymentId ?? order.tenders?.[0]?.paymentId ?? "";
+    const payment = paymentReference
+      ? await retrievePayment(paymentReference)
+      : null;
+    // The webhook already saw this payment complete, so a read-back that is
+    // missing or still short of COMPLETED is Square lagging its own signed
+    // event, not an unpaid order. Throwing answers the caller retryably; going
+    // quiet would acknowledge a captured charge as pending, and Square would
+    // have no reason to deliver it again.
+    if (paidPaymentId && payment?.status !== "COMPLETED") {
+      throw new Error(
+        `Square payment ${paidPaymentId} did not read back as completed (status=${payment?.status ?? "unreadable"})`,
+      );
     }
 
+    // The payment must be for the order whose signed metadata we are about to
+    // book. Square saying otherwise contradicts the signed event that sent us
+    // here, so neither answer is safe: booking uses the wrong metadata, and
+    // acknowledging is terminal on a charge that has already taken money.
+    // Throwing keeps it retryable until Square answers consistently.
+    if (
+      payment &&
+      payment.orderId !== undefined &&
+      payment.orderId !== order.id
+    ) {
+      throw new Error(
+        `Square payment ${paymentReference} reports order ${payment.orderId}, not ${order.id}`,
+      );
+    }
+
+    // Money we can see was taken. A completed payment names its own amount, and
+    // standing the order total in for it would let a short or unreadable charge
+    // match the signed price and book as paid in full. Until then the order
+    // total is all there is, and nothing has been captured against it.
+    const paid = payment?.status === "COMPLETED";
+    const charged = paid ? payment.amountMoney : order.totalMoney;
     return validatedPaymentSession({
-      amountTotal: Number(order.totalMoney.amount),
+      // A missing amount stays missing: Number(null) is 0, which the
+      // boundary would accept as a real free order.
+      amountTotal:
+        typeof charged?.amount === "bigint" ? Number(charged.amount) : null,
       createdAt: toCanonicalIso(order.createdAt),
+      currency: charged?.currency,
       id: order.id,
       metadata,
       paymentReference,
-      paymentStatus,
+      paymentStatus: paid ? "paid" : "unpaid",
     });
   },
 

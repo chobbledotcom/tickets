@@ -9,12 +9,11 @@ import {
 import { writeWholeOrNotAtAll } from "./write-whole.ts";
 
 interface PhysicalEntry {
+  anchor: string;
   chunk: string;
-  column: number;
   index: number;
   key: string;
   line: string;
-  lineNumber: number;
   newOperator: string;
   operator: string;
   /** Which registry file the entry lives in, as an index into the file list. */
@@ -27,6 +26,24 @@ interface ResolvedEntry extends PhysicalEntry {
   mutant: Mutant;
   original: string;
 }
+
+interface GateContext {
+  gates: StaticGate[];
+  signal: AbortSignal;
+  workspace: string;
+}
+
+const failedGate = async (
+  file: string,
+  context: GateContext,
+): Promise<StaticGate | null> => {
+  for (const gate of context.gates) {
+    if ((await gate.exit(file, context.workspace, context.signal)) !== 0) {
+      return gate;
+    }
+  }
+  return null;
+};
 
 /** One registry file's text, split into prune-able line chunks. */
 interface RegistryFile {
@@ -74,8 +91,7 @@ const physicalEntries = (
       throw new Error(`Duplicate equivalent-mutant entry: ${parsed.key}`);
     }
     seen.add(parsed.key);
-    const { line: lineNumber, ...rest } = parsed;
-    return [{ chunk, index, line, lineNumber, registry, ...rest }];
+    return [{ chunk, index, line, registry, ...parsed }];
   });
 
 const sourceFile = (root: string, sourcePath: string): string => {
@@ -142,20 +158,14 @@ const resolveEntries = async (
 
 const failedGateFor = async (
   entry: ResolvedEntry,
-  gates: StaticGate[],
-  signal: AbortSignal,
+  context: GateContext,
 ): Promise<"lint" | "type-check" | null> => {
   await Deno.writeTextFile(
     entry.file,
     applyMutant(entry.original, entry.mutant),
   );
   try {
-    for (const gate of gates) {
-      if ((await gate.exit(entry.file, signal)) !== 0) {
-        return gate.phase;
-      }
-    }
-    return null;
+    return (await failedGate(entry.file, context))?.phase ?? null;
   } finally {
     await Deno.writeTextFile(entry.file, entry.original);
   }
@@ -168,14 +178,13 @@ interface AuditClassification extends EquivalentAuditResult {
 
 const auditEntries = async (
   entries: ResolvedEntry[],
-  gates: StaticGate[],
-  signal: AbortSignal,
+  context: GateContext,
 ): Promise<AuditClassification> => {
   const files = new Set(entries.map((entry) => entry.file));
   for (const file of files) {
-    for (const gate of gates) {
-      if ((await gate.exit(file, signal)) === 0) continue;
-      throw new Error(`Unmutated ${file} does not pass ${gate.label}.`);
+    const failed = await failedGate(file, context);
+    if (failed) {
+      throw new Error(`Unmutated ${file} does not pass ${failed.label}.`);
     }
   }
 
@@ -183,8 +192,8 @@ const auditEntries = async (
   const killedByTypeCheck: string[] = [];
   const killedChunks = new Set<string>();
   for (const entry of entries) {
-    signal.throwIfAborted();
-    const failed = await failedGateFor(entry, gates, signal);
+    context.signal.throwIfAborted();
+    const failed = await failedGateFor(entry, context);
     if (!failed) continue;
     const target = failed === "lint" ? killedByLint : killedByTypeCheck;
     target.push(entry.line);
@@ -238,7 +247,11 @@ export const auditEquivalentMutants = async (
   );
   const gates = await deps.createGates();
   const signal = options.signal ?? new AbortController().signal;
-  const result = await auditEntries(entries, gates, signal);
+  const result = await auditEntries(entries, {
+    gates,
+    signal,
+    workspace: root,
+  });
   if (options.write && result.killedChunks.size > 0) {
     await pruneKilledEntries(registries, result.killedChunks);
   }

@@ -8,10 +8,10 @@ import type {
 import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { execute } from "#shared/db/client.ts";
-import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { webhookMeta } from "#test-utils/factories.ts";
+import { expectSessionFailed } from "#test-utils/processed-payments.ts";
 
 export const bookingIntent = (
   items: BookingItem[],
@@ -35,6 +35,7 @@ export const paymentSession = (
 ): ValidatedPaymentSession => ({
   amountTotal,
   createdAt: "2026-07-01T12:00:00.000Z",
+  currency: "GBP",
   id,
   metadata: webhookMeta({
     email: intent.email,
@@ -102,7 +103,5 @@ export const expectStoredRefund = async (
   expect(result.refunded).toBe(true);
   expect((await getAttendeesRaw(expected.listingId))[0]?.quantity).toBe(0);
   expect(refund.calls).toHaveLength(1);
-  expect((await isSessionProcessed(expected.sessionId))?.failure_data).not.toBe(
-    "",
-  );
+  await expectSessionFailed(expected.sessionId);
 };

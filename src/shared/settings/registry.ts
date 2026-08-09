@@ -100,6 +100,14 @@ export const STRING_SETTING_DEFINITIONS = [
     key: CONFIG_KEYS.LATEST_SCRIPT_VERSION_NAME,
     storage: "plaintext",
   }),
+  // The provider that was active before the operator switched new sales off
+  // ("none"). Its credentials stay stored, so refunds, replayed callbacks, and
+  // in-flight completions of payments that already exist keep running against
+  // the provider that captured them rather than stranding the money.
+  setting({
+    key: CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER,
+    storage: "plaintext",
+  }),
   setting({ key: CONFIG_KEYS.SUPERUSER_CHOICE, storage: "plaintext" }),
   setting({
     accessor: { name: "supportFormLastSubmitted", readOnly: true },

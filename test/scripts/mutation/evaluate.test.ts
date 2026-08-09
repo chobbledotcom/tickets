@@ -2,13 +2,14 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   type EvaluationDeps,
-  evaluateMutant,
+  evaluateMutantTests,
   type FileMutationPlan,
 } from "#scripts/mutation/evaluate.ts";
 import type { Mutant } from "#scripts/mutation/generate.ts";
 import { TEST_STATE_DIR_ENV } from "#test-utils/test-state-env.ts";
 
 const mutant: Mutant = {
+  anchor: "flag",
   column: 1,
   end: 4,
   line: 1,
@@ -65,27 +66,27 @@ const runConfig = {
 
 const evaluateIntegration = (
   state: ReturnType<typeof setup>,
-): ReturnType<typeof evaluateMutant> =>
-  evaluateMutant(
+): ReturnType<typeof evaluateMutantTests> =>
+  evaluateMutantTests(
     plan(),
     mutant,
     runConfig,
     ["test/integration/example.test.ts"],
-    [],
     new AbortController().signal,
+    [],
     state.deps,
   );
 
 describe("mutant evaluation", () => {
   test("shares one mutant state across the integration test stage", async () => {
     const state = setup();
-    const result = await evaluateMutant(
+    const result = await evaluateMutantTests(
       plan(),
       mutant,
       runConfig,
       ["test/integration/one.test.ts", "test/integration/two.test.ts"],
-      [],
       new AbortController().signal,
+      [],
       state.deps,
     );
     expect(result.status).toBe("survived");
@@ -119,13 +120,13 @@ describe("mutant evaluation", () => {
             status: "ready",
           };
     };
-    const result = await evaluateMutant(
+    const result = await evaluateMutantTests(
       plan(),
       mutant,
       runConfig,
       ["test/integration/example.test.ts"],
-      [],
       new AbortController().signal,
+      [],
       state.deps,
     );
     expect(result).toEqual({
@@ -146,13 +147,13 @@ describe("mutant evaluation", () => {
     state.deps.createState = () =>
       Promise.resolve({ message: "database unavailable", status: "failed" });
     await expect(
-      evaluateMutant(
+      evaluateMutantTests(
         plan(),
         mutant,
         runConfig,
         ["test/integration/example.test.ts"],
-        [],
         new AbortController().signal,
+        [],
         state.deps,
       ),
     ).rejects.toThrow("unmutated retry also failed");
@@ -163,7 +164,7 @@ describe("mutant evaluation", () => {
     const state = setup();
     const restored: string[] = [];
     await expect(
-      evaluateMutant(
+      evaluateMutantTests(
         plan({
           assets: {
             rebuild: () => Promise.resolve(false),
@@ -177,8 +178,8 @@ describe("mutant evaluation", () => {
         mutant,
         runConfig,
         [],
-        [],
         new AbortController().signal,
+        [],
         state.deps,
       ),
     ).rejects.toThrow("Browser bundle rebuild also failed for unmutated");
@@ -189,7 +190,7 @@ describe("mutant evaluation", () => {
   test("counts a browser failure as a kill after an unmutated rebuild passes", async () => {
     const state = setup();
     let builds = 0;
-    const result = await evaluateMutant(
+    const result = await evaluateMutantTests(
       plan({
         assets: {
           rebuild: () => Promise.resolve(++builds > 1),
@@ -200,8 +201,8 @@ describe("mutant evaluation", () => {
       mutant,
       runConfig,
       [],
-      [],
       new AbortController().signal,
+      [],
       state.deps,
     );
     expect(result.status).toBe("killed");
@@ -241,7 +242,7 @@ describe("mutant evaluation", () => {
   test("stops a failed browser build when its deadline has expired", async () => {
     const state = setup();
     const controller = new AbortController();
-    const result = await evaluateMutant(
+    const result = await evaluateMutantTests(
       plan({
         assets: {
           rebuild: () => {
@@ -255,8 +256,8 @@ describe("mutant evaluation", () => {
       mutant,
       runConfig,
       [],
-      [],
       controller.signal,
+      [],
       state.deps,
     );
     expect(result).toMatchObject({ detectedBy: null, status: "timed-out" });
@@ -265,7 +266,7 @@ describe("mutant evaluation", () => {
   test("runs tests after a successful browser rebuild", async () => {
     const state = setup();
     let restored = 0;
-    const result = await evaluateMutant(
+    const result = await evaluateMutantTests(
       plan({
         assets: {
           rebuild: () => Promise.resolve(true),
@@ -279,57 +280,13 @@ describe("mutant evaluation", () => {
       mutant,
       runConfig,
       [],
-      [],
       new AbortController().signal,
+      [],
       state.deps,
     );
     expect(result.status).toBe("survived");
     expect(state.runs).toHaveLength(1);
     expect(restored).toBe(1);
-  });
-
-  test("stops at the first static gate that detects a mutant", async () => {
-    const state = setup();
-    const result = await evaluateMutant(
-      plan({
-        assets: {
-          rebuild: () => Promise.reject(new Error("unexpected asset build")),
-          restore: () => Promise.resolve(),
-        },
-        rebuildTestState: false,
-      }),
-      mutant,
-      runConfig,
-      [],
-      [
-        {
-          exit: () => Promise.resolve(0),
-          label: "lint",
-          phase: "lint",
-          remedy: [],
-        },
-        {
-          exit: () => Promise.resolve(1),
-          label: "type-check",
-          phase: "type-check",
-          remedy: [],
-        },
-        {
-          exit: () => Promise.reject(new Error("unexpected later gate")),
-          label: "lint again",
-          phase: "lint",
-          remedy: [],
-        },
-      ],
-      new AbortController().signal,
-      state.deps,
-    );
-    expect(result.detectedBy).toBe("type-check");
-    expect(result.timings.map(({ phase }) => phase)).toEqual([
-      "lint",
-      "type-check",
-    ]);
-    expect(state.runs).toEqual([]);
   });
 
   test("reports integration detection after a direct-test survivor", async () => {
@@ -340,13 +297,13 @@ describe("mutant evaluation", () => {
         durationMs: 1,
         outcome: runs++ === 0 ? "passed" : "failed",
       });
-    const result = await evaluateMutant(
+    const result = await evaluateMutantTests(
       plan({ rebuildTestState: false }),
       mutant,
       runConfig,
       ["test/integration/example.test.ts"],
-      [],
       new AbortController().signal,
+      [],
       state.deps,
     );
     expect(result).toMatchObject({
@@ -355,50 +312,29 @@ describe("mutant evaluation", () => {
     });
   });
 
-  test("classifies an exception caused by the shared deadline as timed out", async () => {
+  test("classifies a test exception after cancellation as timed out", async () => {
     const state = setup();
     const controller = new AbortController();
-    const result = await evaluateMutant(
+    state.deps.runTests = () => {
+      controller.abort();
+      return Promise.reject(new DOMException("Stopped", "AbortError"));
+    };
+
+    const result = await evaluateMutantTests(
       plan({ rebuildTestState: false }),
       mutant,
       runConfig,
       [],
-      [
-        {
-          exit: () => {
-            controller.abort();
-            return Promise.reject(new DOMException("Stopped", "AbortError"));
-          },
-          label: "lint",
-          phase: "lint",
-          remedy: [],
-        },
-      ],
       controller.signal,
+      [{ durationMs: 3, phase: "lint" }],
       state.deps,
     );
-    expect(result).toMatchObject({ detectedBy: null, status: "timed-out" });
-  });
 
-  test("surfaces a static gate infrastructure error before its deadline", async () => {
-    const state = setup();
-    await expect(
-      evaluateMutant(
-        plan({ rebuildTestState: false }),
-        mutant,
-        runConfig,
-        [],
-        [
-          {
-            exit: () => Promise.reject(new Error("type checker crashed")),
-            label: "type-check",
-            phase: "type-check",
-            remedy: [],
-          },
-        ],
-        new AbortController().signal,
-        state.deps,
-      ),
-    ).rejects.toThrow("type checker crashed");
+    expect(result).toEqual({
+      detectedBy: null,
+      status: "timed-out",
+      timings: [{ durationMs: 3, phase: "lint" }],
+    });
+    expect(state.writes).toEqual([" false ", "true"]);
   });
 });

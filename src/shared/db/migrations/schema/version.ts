@@ -1,6 +1,7 @@
 /** Schema version label and the migrations bookkeeping table name. */
 
-export const LATEST_UPDATE = "Add the tables one payment record lives in.";
+export const LATEST_UPDATE =
+  "Track when each login-attempt row was last touched.";
 
 export const SCHEMA_MIGRATIONS_TABLE = "schema_migrations";
 export const LATEST_DB_UPDATE_KEY = "latest_db_update";

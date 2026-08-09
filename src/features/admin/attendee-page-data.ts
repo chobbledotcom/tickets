@@ -18,7 +18,7 @@ import {
 } from "#routes/admin/attendee-form-model.ts";
 import { buildAttendeeLogisticsData } from "#routes/admin/attendee-logistics.ts";
 import { withDecryptedAttendee } from "#routes/admin/attendees-route-helpers.ts";
-import { getAttendeeActivityLog } from "#shared/db/activityLog.ts";
+import { getAttendeeActivityLog } from "#shared/db/activity-log.ts";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import {
   type ExistingLine,
@@ -35,9 +35,9 @@ import {
 } from "#shared/db/contact-preferences.ts";
 import {
   getGroupPackagePricesByGroupIds,
-  getListingsByGroupIds,
   groups,
   packageMemberMaps,
+  readGroupMembersWith,
 } from "#shared/db/groups.ts";
 import {
   hydrateListingLinks,
@@ -124,11 +124,12 @@ export const loadPackagePaths = async (): Promise<PackagePath[]> => {
   const packages = (await groups.cache.getAll()).filter(
     (group) => group.is_package,
   );
-  const packageIds = packages.map((group) => group.id);
-  const [membersByGroupId, priceRowsByGroupId] = await Promise.all([
-    getListingsByGroupIds(packageIds),
-    getGroupPackagePricesByGroupIds(packageIds),
-  ]);
+  const { members: membersByGroupId, more: priceRowsByGroupId } =
+    await readGroupMembersWith(
+      packages,
+      getGroupPackagePricesByGroupIds,
+      false,
+    );
   return packages.map((group) => ({
     groupId: group.id,
     // The members loader seeds every requested group id, so that lookup

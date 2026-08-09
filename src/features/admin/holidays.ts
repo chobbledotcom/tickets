@@ -5,6 +5,7 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
+import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { type HolidayInput, holidays } from "#shared/db/holidays.ts";
 import {
@@ -65,14 +66,6 @@ export const holidaysCrud = createOwnerCrudHandlers({
 });
 
 export const adminHandlers = defineRoutes({
-  "GET /admin/holidays": holidaysCrud.listGet,
-  "GET /admin/holidays/:id": (request, { id }) =>
-    holidayPage.renderTab(request, id, ""),
-  "GET /admin/holidays/:id/:tab": (request, { id, tab }) =>
-    holidayPage.renderTab(request, id, tab),
-  "GET /admin/holidays/:id/delete": holidaysCrud.deleteGet,
-  "GET /admin/holidays/new": holidaysCrud.newGet,
-  "POST /admin/holidays": holidaysCrud.createPost,
-  "POST /admin/holidays/:id/delete": holidaysCrud.deletePost,
-  "POST /admin/holidays/:id/edit": holidaysCrud.editPost,
+  ...crudRoutes("/admin/holidays", holidaysCrud),
+  ...entityTabRoutes("/admin/holidays", holidayPage),
 });

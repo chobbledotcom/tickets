@@ -70,30 +70,12 @@ describeWithEnv("server bulk email > links", { db: true }, () => {
   });
 
   describe("listing page Email link", () => {
-    test("owners see the email action on the listing Actions tab", async () => {
-      const listing = await seedListingWithAttendees();
-      const html = await (
-        await adminGet(`/admin/listing/${listing.id}/actions`)
-      ).text();
-      expect(html).toContain(`/admin/emails?listing=${listing.id}`);
-      expect(html).toContain("<span>Email</span>");
-    });
-
-    test("hides the email action when no attendee has an email", async () => {
-      // The compose page 404s for a listing target with zero recipients, so the
-      // Actions tab must not render a dead Email link (AGENTS.md: never render a
-      // forbidden link).
-      const listing = await createTestListing({
-        maxAttendees: 5,
-        name: "Solo",
-      });
-      await createTestAttendeeDirect(listing.id, "Nemo", "");
-      const html = await (
-        await adminGet(`/admin/listing/${listing.id}/actions`)
-      ).text();
-      expect(html).not.toContain(`/admin/emails?listing=${listing.id}`);
-    });
-
+    /**
+     * Whether the action is offered at all — to an owner, and only when
+     * somebody left an address — is told by the story
+     * `attendees.writing-to-the-people-who-booked`. What stays here is the
+     * manager's view of the same page, which no story has an actor for.
+     */
     test("managers do not see the email action", async () => {
       const listing = await seedListingWithAttendees();
       const cookie = await createTestManagerSession();

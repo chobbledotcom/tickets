@@ -17,8 +17,8 @@ import type {
   AttributeWithOptions,
   ListingAttributesById,
 } from "#shared/db/attributes.ts";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
-import { escapeHtml } from "#templates/layout.tsx";
 import { renderListingAttributes } from "#templates/public/listing-attributes.ts";
 import { renderListingImage } from "#templates/public/shared.tsx";
 import { renderChildBlock } from "./child-block.ts";

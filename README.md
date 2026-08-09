@@ -407,7 +407,19 @@ External scenario modules own one specific screenshot's data, custom CSS, and
 browser steps while reusing this runner's temporary site and high-resolution
 capture. Pass their path with `--scenario`; the scenario's `name` sets the PNG
 filename directly inside `--output`. A scenario can set its own viewport when a
-wider layout is part of the screenshot.
+wider layout is part of the screenshot. Set `adminSetup: false` when the
+scenario needs to capture the site before setup. The runner skips admin setup,
+Stripe, and the saved theme, then applies the scenario's CSS after its browser
+steps.
+
+Pass `--layers` with an external scenario to also write transparent background,
+controls, and text layers. They are named `<scenario-name>__layer-<layer>.png`
+next to the normal screenshot.
+
+```bash
+deno task screenshot --scenario ../tickets-site/scripts/screenshots/charity-events.js \
+  --layers --output ../tickets-site/images/screenshots
+```
 
 Pass `--social` (one of `facebook`, `instagram-landscape`, `instagram-portrait`,
 `instagram-square`, a comma-separated list, or `all`) to also write a
@@ -439,7 +451,7 @@ and capture IDs. It includes the app commit, image hash and dimensions, browser
 profile, viewport, and presentation type. Raw Cucumber messages and reports are
 not part of this evidence folder. The app workflow verifies the capture on pull
 requests. Main pushes and a monthly refresh upload this folder as the stable
-`tickets-evidence` artifact with GitHub's 90-day retention. The Tickets website
+`tickets-evidence` artifact with GitHub's 35-day retention. The Tickets website
 imports that artifact into a reviewed pull request and keeps its ordinary site
 build offline.
 

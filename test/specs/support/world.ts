@@ -8,12 +8,15 @@ import type { DoorAnswer } from "#test/specs/support/door.ts";
 import type {
   PutsThingsBack,
   RemembersThings,
+  ThingKind,
+  ThingsByKind,
 } from "#test/specs/support/memory.ts";
 import type { BookingAttempt } from "#test/specs/support/public-booking.ts";
 import type {
   CodeOnScreen,
   WhereTheCodeLed,
 } from "#test/specs/support/shown-code.ts";
+import type { RecordedFetchCall } from "#test-utils/mocks.ts";
 import type {
   JourneyCatalogSpec,
   OrderJourneyCtx,
@@ -38,11 +41,13 @@ export type ActOnSomeMoney = (
 ) => Promise<void>;
 
 /** Something a story reads back about one of the things the site sells — a
- * page's words, a downloaded file, what an organiser was told. */
-export type ReadAboutOneThing = (
+ * page's words, a downloaded file, what an organiser was told, the address of
+ * the link that leads into it. Readers that hand back several answers rather
+ * than one say so: `ReadAboutOneThing<string[]>`. */
+export type ReadAboutOneThing<Answer = string> = (
   world: TicketsWorld,
   name: string,
-) => Promise<string>;
+) => Promise<Answer>;
 
 /** The listing a money story is working on, and the booking on it. Both are
  * set up before any step that uses them, so a story that lost one is a story
@@ -132,15 +137,14 @@ export interface TicketsWorld extends World, EvidencePages {
   mergeOutcome?: { applied: boolean; message: string };
   mergePreviewHtml?: string;
   messagesOut?: {
-    calls: Array<{ url: string }>;
-    emailCall: () => { body: unknown } | undefined;
+    calls: RecordedFetchCall[];
+    emailCall: () => RecordedFetchCall | undefined;
   };
   modifierId?: number;
   newStayLength?: number;
   orderCatalogSpec?: JourneyCatalogSpec;
   orderCtx?: OrderJourneyCtx;
   orderDay?: string;
-  ownerTold?: string;
   placeholderId?: number;
   questionId?: number;
   raceListing?: string;
@@ -158,6 +162,7 @@ export interface TicketsWorld extends World, EvidencePages {
   stayStartsOn?: string;
   things: RemembersThings;
   ticketToken?: string;
+  wordsWritten?: string;
   writeoffBefore?: number;
 }
 
@@ -168,6 +173,55 @@ export const addDatabaseCleanup = (
 ): void => {
   world.cleanup.add(clearEncryptionKey, cleanupDb);
 };
+
+/** Something a story does to the site: told the world it works in and
+ * whatever else that journey needs, answering with words — a price summary,
+ * what the site said — or with nothing at all. */
+export type StoryJourney<Args extends unknown[], Answer> = (
+  world: TicketsWorld,
+  ...args: Args
+) => Promise<Answer>;
+
+/** Wrap a journey that answers with words, so the answer is kept under the
+ * name the story reads it back by. The journey itself stays about doing the
+ * thing; remembering what came back is this one step's job. */
+export const keepsAnswerAs =
+  <Args extends unknown[]>(
+    name: string,
+    journey: StoryJourney<Args, string>,
+  ): StoryJourney<Args, void> =>
+  async (world, ...args) => {
+    keepWhatTheyWereTold(world, name, await journey(world, ...args));
+  };
+
+/** Reading back one kind of thing the story kept for somebody. */
+export type ReadsWhatWasKept<Kind extends ThingKind> = (
+  world: TicketsWorld,
+  who: string,
+) => ThingsByKind[Kind];
+
+/** What the story kept for somebody, or a loud failure when it kept none —
+ * their own window, the ticket they hold, what they were last told. Curried on
+ * which kind of thing is being asked for, so every reader is one line and they
+ * all fail the same way. */
+export const whatWasKeptFor =
+  <Kind extends ThingKind>(kind: Kind): ReadsWhatWasKept<Kind> =>
+  (world, who) =>
+    world.things.require(kind, who);
+
+/** Keep what somebody was told the last time they did something, and read it
+ * back. Every "the organiser is told …" step is one of these two halves, so
+ * they live together rather than once per story. */
+export const keepWhatTheyWereTold = (
+  world: TicketsWorld,
+  who: string,
+  told: string,
+): void => {
+  world.things.remember("told", who, told);
+};
+
+export const whatTheyWereTold: ReadsWhatWasKept<"told"> =
+  whatWasKeptFor("told");
 
 export const requiredWorldValue = <Value>(
   value: Value | null | undefined,

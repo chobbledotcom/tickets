@@ -3,29 +3,23 @@
  * Sends consolidated registration data to configured webhook URLs
  */
 
-import { mapNotNullish, sumOf, unique } from "#fp";
+import { sumOf } from "#fp";
 import {
   effectivePrice,
   NO_CUSTOM_PRICES,
   packageMemberPriceRule,
 } from "#shared/booking/price-tree.ts";
 import { bookedSpanDays } from "#shared/dates.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { getBuiltSiteByRenewalTokenIndex } from "#shared/db/built-sites.ts";
-import { loadPackageMemberPricing } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
-import { type EmailEntry, sendRegistrationEmails } from "#shared/email.ts";
-import { errorMessage } from "#shared/error-message.ts";
-/* jscpd:ignore-start */
+import type { EmailEntry } from "#shared/email.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
-import { addPendingWork } from "#shared/pending-work.ts";
-/* jscpd:ignore-end */
-import { fetchTextFollowingSafeRedirects } from "#shared/safe-fetch.ts";
+import type { RegistrationPackagePricing } from "#shared/registration-package-facts.ts";
 import {
   addMonthsToRenewalDeadline,
-  assignAndNotifyBuiltSites,
   isQualifyingTierListing,
   syncReadOnlyFrom,
 } from "#shared/site-assignment.ts";
@@ -35,7 +29,6 @@ import {
   type DayPrices,
   isPaidListing,
 } from "#shared/types.ts";
-import { isSafeServerFetchUrl } from "#shared/url-safety.ts";
 
 /** Single ticket in the webhook payload */
 export type WebhookTicket = {
@@ -111,37 +104,7 @@ export type RegistrationEntry = {
  * positive amount or an explicit free `0`; members with no override are absent)
  * and each customisable member's per-day overrides (day count → minor units) —
  * the loader's shape, minus the fields the payload never reads. */
-type PackageGroupPricing = Pick<
-  Awaited<ReturnType<typeof loadPackageMemberPricing>>,
-  "prices" | "dayPrices"
->;
-
-/** Per-group package pricing, loaded once per payload for the order's package
- * groups. */
-type PackageOverrides = ReadonlyMap<number, PackageGroupPricing>;
-
-/** Load the package price overrides for every package group in `entries`, so a
- * package member's full unit price can be reported from its configured override
- * rather than the amount collected. */
-const loadPackageOverrides = async (
-  entries: RegistrationEntry[],
-): Promise<PackageOverrides> => {
-  const groupIds = unique(
-    mapNotNullish((e: RegistrationEntry) =>
-      e.attendee.package_group_id > 0 ? e.attendee.package_group_id : null,
-    )(entries),
-  );
-  return new Map(
-    await Promise.all(
-      groupIds.map(
-        async (groupId): Promise<[number, PackageGroupPricing]> => [
-          groupId,
-          await loadPackageMemberPricing(groupId),
-        ],
-      ),
-    ),
-  );
-};
+type PackagePricingByGroup = ReadonlyMap<number, RegistrationPackagePricing>;
 
 /** The full per-unit price for a booking line: the shared checkout evaluation
  * ({@link packageMemberPriceRule} + {@link effectivePrice}) over the span
@@ -154,16 +117,16 @@ const loadPackageOverrides = async (
  * price for the booked span; everything else reports the listing's base. */
 const ticketUnitPrice = (
   entry: RegistrationEntry,
-  overrides: PackageOverrides,
+  pricingByGroup: PackagePricingByGroup,
 ): number => {
   const { listing, attendee } = entry;
   const groupPricing =
     attendee.package_group_id > 0
-      ? overrides.get(attendee.package_group_id)
+      ? pricingByGroup.get(attendee.package_group_id)
       : undefined;
   const rule = packageMemberPriceRule(
-    groupPricing?.prices.get(listing.id),
-    groupPricing?.dayPrices.get(listing.id),
+    groupPricing?.priceMap.get(listing.id),
+    groupPricing?.dayPriceMap.get(listing.id),
     listing.customisable_days,
   );
   return effectivePrice(
@@ -180,7 +143,7 @@ const ticketUnitPrice = (
 export const buildWebhookPayload = (
   entries: RegistrationEntry[],
   currency: string,
-  overrides: PackageOverrides = new Map(),
+  pricingByGroup: PackagePricingByGroup = new Map(),
 ): WebhookPayload => {
   const first = entries[0]!;
   const totalPricePaid = sumOf((e: RegistrationEntry) =>
@@ -214,77 +177,10 @@ export const buildWebhookPayload = (
       listing_slug: entry.listing.slug,
       quantity: entry.attendee.quantity,
       ticket_token: entry.attendee.ticket_token,
-      unit_price: ticketUnitPrice(entry, overrides),
+      unit_price: ticketUnitPrice(entry, pricingByGroup),
     })),
     timestamp: nowIso(),
   };
-};
-
-/**
- * Send a webhook payload to a URL
- * Fires and forgets - errors are logged but don't block registration
- */
-export const sendWebhook = async (
-  webhookUrl: string,
-  payload: WebhookPayload,
-  listingId?: number,
-): Promise<void> => {
-  // Defense-in-depth against SSRF: never fetch an internal/non-https URL, even
-  // if one was stored before write-time validation existed.
-  if (!isSafeServerFetchUrl(webhookUrl)) {
-    logError({
-      code: ErrorCode.WEBHOOK_SEND,
-      detail: "Refused to send webhook to an unsafe URL",
-      listingId,
-    });
-    return;
-  }
-  try {
-    const { ok, status } = await fetchTextFollowingSafeRedirects(webhookUrl, {
-      body: JSON.stringify(payload),
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    });
-    if (!ok) {
-      const listingName = payload.tickets.map((t) => t.listing_name).join(", ");
-      logError({
-        code: ErrorCode.WEBHOOK_SEND,
-        detail: `status=${status} for '${listingName}'`,
-        listingId,
-      });
-    }
-  } catch (error) {
-    logError({
-      code: ErrorCode.WEBHOOK_SEND,
-      detail: errorMessage(error),
-      listingId,
-    });
-  }
-};
-
-/**
- * Send consolidated webhook to all unique webhook URLs for the given entries
- */
-export const sendRegistrationWebhooks = async (
-  entries: RegistrationEntry[],
-  currency: string,
-): Promise<void> => {
-  const webhookUrls = unique(
-    mapNotNullish((e: RegistrationEntry) => e.listing.webhook_url || null)(
-      entries,
-    ),
-  );
-  if (webhookUrls.length === 0) return;
-
-  const payload = buildWebhookPayload(
-    entries,
-    currency,
-    await loadPackageOverrides(entries),
-  );
-  const firstListingId = entries[0]?.listing.id;
-  await Promise.allSettled(
-    webhookUrls.map((url) => sendWebhook(url, payload, firstListingId)),
-  );
 };
 
 /**
@@ -351,29 +247,4 @@ export const applyRenewalsForEntries = async (
     });
     sendNtfyError("CDN_REQUEST");
   }
-};
-
-/**
- * Log attendee registration and send consolidated webhook
- * Used for single-listing registrations
- *
- * Webhook sends are queued as pending work so they run in the background
- * but complete before the edge runtime tears down the request context.
- */
-export const logAndNotifyRegistration = async (
-  entries: EmailEntry[],
-  siteTokenIndex?: string,
-): Promise<void> => {
-  for (const { listing, attendee } of entries) {
-    await logActivity(
-      `Attendee registered for '${listing.name}'`,
-      listing,
-      attendee.id,
-    );
-  }
-  const currency = settings.currency;
-  addPendingWork(sendRegistrationWebhooks(entries, currency));
-  addPendingWork(sendRegistrationEmails(entries, currency));
-  addPendingWork(assignAndNotifyBuiltSites(entries));
-  addPendingWork(applyRenewalsForEntries(entries, siteTokenIndex));
 };

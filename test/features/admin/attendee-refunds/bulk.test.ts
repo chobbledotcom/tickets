@@ -23,6 +23,7 @@ import {
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import {
   postRefundAll,
@@ -218,28 +219,41 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
       expect(log?.message).toContain("all 2 attendee(s) refunded");
     });
 
-    test("counts a refund the ledger could not record as errored, not refunded", async () => {
-      const listing = await createPaidListing();
-      await createPaidTestAttendee(
-        listing.id,
-        "Ledgered",
-        "ledgered@example.com",
-        "pi_mixed_ledgered",
-      );
-      await createPaidAttendeeWithoutLedger(
-        listing.id,
-        "Unledgered",
-        "unledgered@example.com",
-        "pi_mixed_unledgered",
-      );
-      await withRefundMock(true, async (mockRefund) => {
-        const response = await postRefundAll(listing);
-        expect(mockRefund.calls.length).toBe(2);
-        await expectFlashRedirect(
-          `/admin/listing/${listing.id}/refund-all`,
-          SINGLE_ERROR_RESULT,
-          false,
-        )(response);
+    describe("a bulk refund the ledger could not record", () => {
+      const errors = setupErrorSpy();
+
+      test("counts it as errored, not refunded, and reports the broken promise", async () => {
+        const listing = await createPaidListing();
+        await createPaidTestAttendee(
+          listing.id,
+          "Ledgered",
+          "ledgered@example.com",
+          "pi_mixed_ledgered",
+        );
+        const unledgered = await createPaidAttendeeWithoutLedger(
+          listing.id,
+          "Unledgered",
+          "unledgered@example.com",
+          "pi_mixed_unledgered",
+        );
+        await withRefundMock(true, async (mockRefund) => {
+          const response = await postRefundAll(listing);
+          expect(mockRefund.calls.length).toBe(2);
+          await expectFlashRedirect(
+            `/admin/listing/${listing.id}/refund-all`,
+            SINGLE_ERROR_RESULT,
+            false,
+          )(response);
+          // Money moved at the provider for this attendee with no ledger
+          // record — the aggregate error count alone must not swallow WHO
+          // needs the manual correction.
+          expect(
+            errors.contains(
+              `[Error] E_INVARIANT_REPORTED listing=${listing.id} ` +
+                `attendee=${unledgered.id} detail="error.refund_not_recorded"`,
+            ),
+          ).toBe(true);
+        });
       });
     });
 

@@ -12,23 +12,23 @@ export const isRemoteDatabase = (): boolean =>
 /**
  * Extract a short database name from DB_URL for use in backup filenames.
  * e.g. "libsql://01KFXB...-tickets-spencer.lite.bunnydb.net/" → "tickets-spencer"
- * For Turso URLs the full first hostname segment is used as-is (it is already
- * the unique database identity: "{db-name}-{org}.turso.io").
- * Falls back to "local" for non-remote or unparseable URLs.
+ * Only Bunny DB hostnames carry a UUID prefix to drop; every other remote host
+ * keeps its full first hostname segment (for Turso that is already the unique
+ * database identity: "{db-name}-{org}.turso.io"). Local and unparseable URLs
+ * are filed under "local", so backups never land in a nameless folder.
  */
 export const dbName = (url: string = requireEnv("DB_URL")): string => {
-  if (!URL.canParse(url)) return "local";
+  if (databaseHostFor(url) === "local") return "local";
 
-  const host = new URL(url).hostname;
-  const first = host.split(".")[0]!;
+  const { hostname } = new URL(url);
+  const first = hostname.split(".")[0]!;
 
-  // Turso hostnames: {db-name}-{org}.turso.io — the full first segment is unique
-  if (host.endsWith(".turso.io")) return first;
-
-  // Bunny DB hostnames: {uuid}-{name}.lite.bunnydb.net — drop the UUID prefix
+  // Only Bunny's lite connection addresses carry a UUID prefix to drop
+  // ({uuid}-{name}.lite.bunnydb.net); every other remote host keeps its
+  // full first hostname segment.
+  if (!hostname.endsWith(".lite.bunnydb.net")) return first;
   const dashIdx = first.indexOf("-");
-  if (dashIdx === -1) return first;
-  return first.slice(dashIdx + 1);
+  return dashIdx === -1 ? first : first.slice(dashIdx + 1);
 };
 
 /**
@@ -60,6 +60,26 @@ export const backupTimestamp = (date = new Date()): string =>
  * database was taken within this window. One hour.
  */
 export const BACKUP_REQUIRED_WITHIN_MS = 60 * 60 * 1000;
+
+/**
+ * How far ahead of our clock a backup's timestamp may sit and still count as
+ * fresh. Out-of-band backups are taken on other machines whose clocks can run
+ * a little ahead of ours; anything further ahead than this is not fresh, so a
+ * wrongly future-dated file cannot satisfy the gate forever. Five minutes.
+ */
+const BACKUP_CLOCK_SKEW_MS = 5 * 60 * 1000;
+
+/** True when a backup taken at `takenAtMs` satisfies the freshness gate at
+ *  `nowMs`: younger than `maxAgeMs`, and no further ahead of the clock than
+ *  the skew allowance. */
+const backupIsFresh = (
+  takenAtMs: number,
+  nowMs: number,
+  maxAgeMs: number,
+): boolean => {
+  const age = nowMs - takenAtMs;
+  return age >= -BACKUP_CLOCK_SKEW_MS && age < maxAgeMs;
+};
 
 /** ISO-8601-ish timestamp as it appears in a backup filename (":"/"." → "-"),
  *  with the date/time pieces captured so parseBackupTime can rebuild the real
@@ -110,7 +130,7 @@ export const hasRecentBackup = async (
     // pruneOldBackups).
     if (!isBackupPath(file)) continue;
     const ms = parseBackupTime(file);
-    if (ms !== null && now - ms < maxAgeMs) return true;
+    if (ms !== null && backupIsFresh(ms, now, maxAgeMs)) return true;
   }
   return false;
 };

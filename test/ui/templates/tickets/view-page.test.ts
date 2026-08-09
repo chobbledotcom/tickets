@@ -3,7 +3,7 @@ import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { ticketViewPage } from "#templates/tickets.tsx";
 import { registerPublicTemplateHooks } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
-import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
+import { testTokenEntry } from "#test-utils/factories.ts";
 
 describe("ticketViewPage listing date and location", () => {
   beforeAll(setupAdminPageTest);
@@ -15,10 +15,9 @@ describe("ticketViewPage listing date and location", () => {
   const purchaseOnlyViewHtml = () =>
     ticketViewPage([
       {
-        entry: {
-          attendee: testAttendee(),
-          listing: testListingWithCount({ purchase_only: true }),
-        },
+        entry: testTokenEntry({
+          listing: { purchase_only: true },
+        }),
         token,
       },
     ]);
@@ -26,10 +25,9 @@ describe("ticketViewPage listing date and location", () => {
   test("shows listing date when entry has non-empty listing date", () => {
     const cards = [
       {
-        entry: {
-          attendee: testAttendee(),
-          listing: testListingWithCount({ date: "2026-06-15T14:00:00.000Z" }),
-        },
+        entry: testTokenEntry({
+          listing: { date: "2026-06-15T14:00:00.000Z" },
+        }),
         token,
       },
     ];
@@ -40,10 +38,7 @@ describe("ticketViewPage listing date and location", () => {
   test("does not show listing date when listing has empty date", () => {
     const cards = [
       {
-        entry: {
-          attendee: testAttendee(),
-          listing: testListingWithCount({ date: "" }),
-        },
+        entry: testTokenEntry({ listing: { date: "" } }),
         token,
       },
     ];
@@ -54,13 +49,13 @@ describe("ticketViewPage listing date and location", () => {
   test("shows a single booking date for a one-day daily booking", () => {
     const cards = [
       {
-        entry: {
-          attendee: testAttendee({ date: "2026-06-15" }),
-          listing: testListingWithCount({
+        entry: testTokenEntry({
+          attendee: { date: "2026-06-15" },
+          listing: {
             duration_days: 1,
             listing_type: "daily",
-          }),
-        },
+          },
+        }),
         token,
       },
     ];
@@ -73,10 +68,7 @@ describe("ticketViewPage listing date and location", () => {
   test("shows location when entry has non-empty location", () => {
     const cards = [
       {
-        entry: {
-          attendee: testAttendee(),
-          listing: testListingWithCount({ location: "Village Hall" }),
-        },
+        entry: testTokenEntry({ listing: { location: "Village Hall" } }),
         token,
       },
     ];
@@ -87,10 +79,7 @@ describe("ticketViewPage listing date and location", () => {
   test("does not show location when listing has empty location", () => {
     const cards = [
       {
-        entry: {
-          attendee: testAttendee(),
-          listing: testListingWithCount({ location: "" }),
-        },
+        entry: testTokenEntry({ listing: { location: "" } }),
         token,
       },
     ];
@@ -101,13 +90,12 @@ describe("ticketViewPage listing date and location", () => {
   test("shows both listing date and location when both are present", () => {
     const cards = [
       {
-        entry: {
-          attendee: testAttendee(),
-          listing: testListingWithCount({
+        entry: testTokenEntry({
+          listing: {
             date: "2026-06-15T14:00:00.000Z",
             location: "Town Centre",
-          }),
-        },
+          },
+        }),
         token,
       },
     ];
@@ -119,20 +107,20 @@ describe("ticketViewPage listing date and location", () => {
   test("shows each ticket as separate card with SVG endpoint reference", () => {
     const cards = [
       {
-        entry: {
-          attendee: testAttendee({ id: 1 }),
-          listing: testListingWithCount({
+        entry: testTokenEntry({
+          attendee: { id: 1 },
+          listing: {
             date: "2026-06-15T14:00:00.000Z",
             id: 1,
-          }),
-        },
+          },
+        }),
         token: "AABB0011CCDDEEF1",
       },
       {
-        entry: {
-          attendee: testAttendee({ id: 2 }),
-          listing: testListingWithCount({ date: "", id: 2 }),
-        },
+        entry: testTokenEntry({
+          attendee: { id: 2 },
+          listing: { date: "", id: 2 },
+        }),
         token: "AABB0011CCDDEEF2",
       },
     ];
@@ -152,10 +140,7 @@ describe("ticketViewPage listing date and location", () => {
   test("hides wallet links for purchase_only listings", () => {
     const cards = [
       {
-        entry: {
-          attendee: testAttendee(),
-          listing: testListingWithCount({ purchase_only: true }),
-        },
+        entry: testTokenEntry({ listing: { purchase_only: true } }),
         token,
       },
     ];
@@ -168,13 +153,12 @@ describe("ticketViewPage listing date and location", () => {
   test("hides non-transferable notice for purchase_only listings", () => {
     const cards = [
       {
-        entry: {
-          attendee: testAttendee(),
-          listing: testListingWithCount({
+        entry: testTokenEntry({
+          listing: {
             non_transferable: true,
             purchase_only: true,
-          }),
-        },
+          },
+        }),
         token,
       },
     ];
@@ -191,17 +175,17 @@ describe("ticketViewPage listing date and location", () => {
   test("shows ticket count heading for mixed listings", () => {
     const cards = [
       {
-        entry: {
-          attendee: testAttendee({ id: 1 }),
-          listing: testListingWithCount({ id: 1, purchase_only: true }),
-        },
+        entry: testTokenEntry({
+          attendee: { id: 1 },
+          listing: { id: 1, purchase_only: true },
+        }),
         token: "AABB0011CCDDEEF1",
       },
       {
-        entry: {
-          attendee: testAttendee({ id: 2 }),
-          listing: testListingWithCount({ id: 2, purchase_only: false }),
-        },
+        entry: testTokenEntry({
+          attendee: { id: 2 },
+          listing: { id: 2, purchase_only: false },
+        }),
         token: "AABB0011CCDDEEF2",
       },
     ];
@@ -213,13 +197,13 @@ describe("ticketViewPage listing date and location", () => {
   test("renders multi-day booking range when daily listing has duration > 1", () => {
     const cards = [
       {
-        entry: {
-          attendee: testAttendee({ date: "2026-06-12" }),
-          listing: testListingWithCount({
+        entry: testTokenEntry({
+          attendee: { date: "2026-06-12" },
+          listing: {
             duration_days: 3,
             listing_type: "daily",
-          }),
-        },
+          },
+        }),
         token,
       },
     ];

@@ -1,0 +1,248 @@
+import { expect } from "@std/expect";
+import { it as test } from "@std/testing/bdd";
+import {
+  decrypt,
+  ENCRYPTION_PREFIX,
+  encrypt,
+} from "#shared/crypto/encryption.ts";
+import { HYBRID_PREFIX } from "#shared/crypto/keys.ts";
+import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
+import {
+  getAllActivityLog,
+  getAttendeeActivityLog,
+  getListingActivityLog,
+  getListingWithActivityLogOrNull,
+  logActivities,
+  logActivity,
+} from "#shared/db/activity-log.ts";
+import { execute, queryOne } from "#shared/db/client.ts";
+import { settings } from "#shared/db/settings.ts";
+import { nowIso } from "#shared/now.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withTestSession } from "#test-utils/session.ts";
+import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
+
+/** Raw (still-encrypted) stored message for an activity-log row. */
+const rawMessage = async (id: number): Promise<string> =>
+  (await queryOne<{ message: string }>(
+    "SELECT message FROM activity_log WHERE id = ?",
+    [id],
+  ))!.message;
+
+describeWithEnv("db > activity log", { db: true }, () => {
+  test("writes nothing, and asks the database for nothing, for an empty list", async () => {
+    const logged: unknown[] = [];
+
+    const calls = await countDatabaseCalls(0, async () => {
+      logged.push(...(await logActivities([])));
+    });
+
+    expect(calls).toBe(0);
+    expect(logged).toEqual([]);
+  });
+
+  test("logActivity creates log entry with message", async () => {
+    const entry = await logActivity("Test action");
+
+    expect(entry.id).toBe(1);
+    expect(entry.message).toBe("Test action");
+    expect(entry.listing_id).toBeNull();
+    expect(entry.created).toBeDefined();
+  });
+
+  test("logActivity creates log entry with listing ID", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 50,
+      thankYouUrl: "https://example.com",
+    });
+    const entry = await logActivity(
+      "Created listing 'Test Listing'",
+      listing.id,
+    );
+
+    expect(entry.listing_id).toBe(listing.id);
+    expect(entry.message).toBe("Created listing 'Test Listing'");
+  });
+
+  test("stores messages encrypted with the owner key, not DB_ENCRYPTION_KEY", async () => {
+    const entry = await logActivity("Sensitive note");
+    const stored = await rawMessage(entry.id);
+
+    // Owner-key (hybrid RSA+AES) format, not the env-key (enc:) format.
+    expect(stored.startsWith(HYBRID_PREFIX)).toBe(true);
+    expect(stored.startsWith(ENCRYPTION_PREFIX)).toBe(false);
+    // A database dump plus DB_ENCRYPTION_KEY cannot read it: the env-key
+    // decrypt rejects an owner-key payload outright.
+    // Deliberately decrypt the owner-key payload with the env-key scheme —
+    // wrong-scheme fixture cast; the runtime rejection is the assertion.
+    await expect(decrypt(stored as EnvKeyEncrypted)).rejects.toThrow();
+  });
+
+  test("reading owner-key entries fails closed without a session", async () => {
+    await logActivity("Owner-key entry");
+
+    await expect(getAllActivityLog()).rejects.toThrow(
+      "Private key unavailable for session",
+    );
+  });
+
+  test("loads the public key on demand when the snapshot was reset", async () => {
+    // A mid-request cache reset (setup, restore, database reset) blanks the
+    // snapshot while the key is still in the DB; logActivity must reload it
+    // rather than fall back to the env key.
+    settings.invalidateCache();
+    const entry = await logActivity("after a cache reset");
+
+    // Stored owner-key (hybrid), not env-key — the reload found the DB key.
+    expect((await rawMessage(entry.id)).startsWith(HYBRID_PREFIX)).toBe(true);
+  });
+
+  test("reads legacy env-key rows without a session", async () => {
+    // A row written before the owner-key switch (env-key format). Such rows
+    // decrypt with the env key, so they still render with no session in scope.
+    await execute(
+      "INSERT INTO activity_log (message, created, listing_id, attendee_id) VALUES (?, ?, NULL, NULL)",
+      [await encrypt("legacy entry"), nowIso()],
+    );
+
+    const entries = await getAllActivityLog();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.message).toBe("legacy entry");
+  });
+
+  test("logActivity records attendee id 0 and getAttendeeActivityLog filters by it", async () => {
+    await logActivity("Unrelated entry");
+    await logActivity("Balance paid", null, 0);
+    await logActivity("Other attendee", null, 99);
+
+    const entries = await withTestSession(() => getAttendeeActivityLog(0));
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.message).toBe("Balance paid");
+    expect(entries[0]!.attendee_id).toBe(0);
+  });
+
+  test("getListingActivityLog returns entries for specific listing", async () => {
+    const listing1 = await createTestListing({
+      maxAttendees: 50,
+      name: "Listing One",
+      thankYouUrl: "https://example.com",
+    });
+    const listing2 = await createTestListing({
+      maxAttendees: 50,
+      name: "Listing Two",
+      thankYouUrl: "https://example.com",
+    });
+
+    await logActivity("Action for listing 1", listing1.id);
+    await logActivity("Another action for listing 1", listing1.id);
+    await logActivity("Action for listing 2", listing2.id);
+
+    const listing1Log = await withTestSession(() =>
+      getListingActivityLog(listing1.id),
+    );
+    // REST API also logs listing creation, so we have 3 entries for listing 1
+    expect(listing1Log.length).toBe(3);
+    expect(listing1Log[0]?.message).toBe("Another action for listing 1");
+    expect(listing1Log[1]?.message).toBe("Action for listing 1");
+  });
+
+  test("getListingActivityLog returns empty array when no entries", async () => {
+    const entries = await getListingActivityLog(999);
+    expect(entries).toEqual([]);
+  });
+
+  // Listing 0 is still a listing filter, not "no filter" — asking for a listing
+  // that cannot exist must return nothing rather than every listing's entries.
+  test("getListingActivityLog for listing 0 returns no entries", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 50,
+      name: "Has entries",
+      thankYouUrl: "https://example.com",
+    });
+    await logActivity("Action for a real listing", listing.id);
+
+    const entries = await withTestSession(() => getListingActivityLog(0));
+
+    expect(entries).toEqual([]);
+  });
+
+  test("getListingActivityLog respects limit", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 50,
+      thankYouUrl: "https://example.com",
+    });
+
+    await logActivity("Action 1", listing.id);
+    await logActivity("Action 2", listing.id);
+    await logActivity("Action 3", listing.id);
+
+    const entries = await withTestSession(() =>
+      getListingActivityLog(listing.id, 2),
+    );
+    expect(entries.length).toBe(2);
+  });
+
+  test("getAllActivityLog returns all entries", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 50,
+      name: "Test Listing",
+      thankYouUrl: "https://example.com",
+    });
+
+    await logActivity("Global action");
+    await logActivity("Listing action", listing.id);
+
+    const entries = await withTestSession(() => getAllActivityLog());
+    // REST API logs listing creation, so we have 3 entries total
+    expect(entries.length).toBe(3);
+  });
+
+  test("getAllActivityLog returns entries in descending order", async () => {
+    await logActivity("First action");
+    await logActivity("Second action");
+    await logActivity("Third action");
+
+    const entries = await withTestSession(() => getAllActivityLog());
+    expect(entries[0]?.message).toBe("Third action");
+    expect(entries[1]?.message).toBe("Second action");
+    expect(entries[2]?.message).toBe("First action");
+  });
+
+  test("getAllActivityLog respects limit", async () => {
+    await logActivity("Action 1");
+    await logActivity("Action 2");
+    await logActivity("Action 3");
+
+    const entries = await withTestSession(() => getAllActivityLog(2));
+    expect(entries.length).toBe(2);
+  });
+
+  test("getListingWithActivityLogOrNull returns listing and activity log together", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 50,
+      name: "Batch Test Listing",
+      thankYouUrl: "https://example.com",
+    });
+
+    await logActivity("First action", listing.id);
+    await logActivity("Second action", listing.id);
+
+    const result = await withTestSession(() =>
+      getListingWithActivityLogOrNull(listing.id),
+    );
+    expect(result).not.toBeNull();
+    expect(result?.listing.id).toBe(listing.id);
+    expect(result?.listing.name).toBe("Batch Test Listing");
+    expect(result?.listing.attendee_count).toBe(0);
+    // REST API logs listing creation + our 2 = 3
+    expect(result?.entries.length).toBe(3);
+    expect(result?.entries[0]?.message).toBe("Second action");
+    expect(result?.entries[1]?.message).toBe("First action");
+  });
+
+  test("getListingWithActivityLogOrNull returns null for non-existent listing", async () => {
+    const result = await getListingWithActivityLogOrNull(999);
+    expect(result).toBeNull();
+  });
+});

@@ -1,4 +1,5 @@
 /* jscpd:ignore-start */
+import { entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { defineRoutes } from "#routes/router.ts";
 /**
  * Admin attendee management routes
@@ -8,7 +9,7 @@ import { t } from "#i18n";
 import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { deleteAttendee } from "#shared/db/attendees/delete.ts";
 import { decryptAttendeeOrNull } from "#shared/db/attendees/pii.ts";
@@ -35,9 +36,9 @@ import {
   isPaidListing,
   type ListingWithCount,
 } from "#shared/types.ts";
-import { logAndNotifyRegistration } from "#shared/webhook.ts";
+import { logAndNotifyRegistration } from "#shared/webhook/delivery.ts";
 import {
-  adminDeleteAttendeePage,
+  adminAttendeeDeletePage,
   adminResendNotificationPage,
 } from "#templates/admin/attendees.tsx";
 import {
@@ -68,7 +69,7 @@ import {
 
 /** Handle GET /admin/attendees/:attendeeId/delete */
 const handleAdminAttendeeDeleteGet = attendeeActionPage(
-  adminDeleteAttendeePage,
+  adminAttendeeDeletePage,
 );
 
 /** Delete an attendee, log the activity, and redirect. */
@@ -360,12 +361,9 @@ const handleResendNotification = verifiedAttendeeAction(
  * Refunds: attendee-refunds.ts
  */
 export const adminHandlers = defineRoutes({
+  ...entityTabRoutes("/admin/attendees", attendeePage, "attendeeId"),
   "DELETE /admin/attendees/:attendeeId/delete": handleAttendeeDelete,
   "GET /admin/attendees": handleAttendeesListGet,
-  "GET /admin/attendees/:attendeeId": (request, { attendeeId }) =>
-    attendeePage.renderTab(request, attendeeId, ""),
-  "GET /admin/attendees/:attendeeId/:tab": (request, { attendeeId, tab }) =>
-    attendeePage.renderTab(request, attendeeId, tab),
   "GET /admin/attendees/:attendeeId/delete": handleAdminAttendeeDeleteGet,
   "GET /admin/attendees/:attendeeId/resend-notification":
     handleAdminResendNotificationGet,

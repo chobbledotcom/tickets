@@ -173,6 +173,11 @@ describeWithEnv("db > sessions", { db: true }, () => {
     );
     expect((await getSession("ttl-requery"))?.csrf_token).toBe("csrf-old");
 
+    // Midway through the window the entry is still served, so the TTL is a
+    // real span of time, not just "the same instant".
+    time.now = start + 5000;
+    expect((await getSession("ttl-requery"))?.csrf_token).toBe("csrf-old");
+
     // Past the 10s TTL: the cache entry expires and the DB is re-read.
     time.now = start + 11000;
     expect((await getSession("ttl-requery"))?.csrf_token).toBe("csrf-new");
@@ -232,6 +237,23 @@ describeWithEnv("db > sessions", { db: true }, () => {
     const kept = await getSession("keep");
     expect(kept).not.toBeNull();
     expect(kept?.csrf_token).toBe("csrf-keep");
+  });
+
+  test("unique invalid tokens cannot grow the session cache without bound", async () => {
+    invalidateCachesForTable("sessions");
+
+    // The bound this test pins is the session cache's documented contract:
+    // at most 1,000 entries (SESSION_CACHE_MAX_ENTRIES in sessions.ts).
+    const cap = 1000;
+    const probes = cap + 100;
+    for (let i = 0; i < probes; i++) {
+      expect(await getSession(`junk-cookie-${i}`)).toBeNull();
+    }
+
+    // Exactly the cap: more would mean unbounded growth, fewer would mean
+    // the cache holds less than its documented contract.
+    const stat = getAllCacheStats().find((s) => s.name === "sessions");
+    expect(stat?.entries).toBe(cap);
   });
 
   test("registers a 'sessions' cache stat reflecting cached entries", async () => {

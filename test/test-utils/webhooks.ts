@@ -1,8 +1,9 @@
 import { expect } from "@std/expect";
-import { stub } from "@std/testing/mock";
+import { type Stub, stub } from "@std/testing/mock";
 import type { SessionMetadata } from "#shared/payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import type { Attendee } from "#shared/types.ts";
+import { expectSessionFailed } from "#test-utils/processed-payments.ts";
 import { assertJson } from "./assertions.ts";
 import { signedMeta } from "./factories.ts";
 import { mockWebhookRequest } from "./mocks.ts";
@@ -21,7 +22,10 @@ export const checkoutSessionEvent = (opts: {
   sessionId: string;
   amountTotal: number;
   metadata: SessionMetadata | Record<string, string>;
-  paymentIntent?: string;
+  /** The charge's provider resource id. Defaults to a non-blank `pi_<sessionId>`
+   *  so an omitted value still yields a processable paid session; pass `null`
+   *  explicitly to exercise the boundary's blank-reference rejection. */
+  paymentIntent?: string | null;
   paymentStatus?: string;
   /** Stripe's `created` (Unix seconds) — the checkout's actual creation time,
    *  for tests asserting a webhook processed late still books against it. */
@@ -35,9 +39,13 @@ export const checkoutSessionEvent = (opts: {
     object: {
       amount_total: opts.amountTotal,
       created: opts.created ?? 1_700_000_000,
+      currency: "gbp",
       id: opts.sessionId,
       metadata: opts.metadata,
-      payment_intent: opts.paymentIntent ?? null,
+      payment_intent:
+        opts.paymentIntent === undefined
+          ? `pi_${opts.sessionId}`
+          : opts.paymentIntent,
       payment_status: opts.paymentStatus ?? "paid",
       url: null,
     },
@@ -190,17 +198,6 @@ export const findKeptPlaceholder = async (
   return placeholders[0]!;
 };
 
-/** A terminal payment failure has no ticket attendee and keeps its details. */
-export const expectSessionFailed = async (sessionId: string): Promise<void> => {
-  const { isSessionProcessed } = await import(
-    "#shared/db/processed-payments.ts"
-  );
-  const record = await isSessionProcessed(sessionId);
-  if (!record) throw new Error(`Processed payment ${sessionId} was not stored`);
-  expect(record.attendee_id).toBeNull();
-  expect(record.failure_data).not.toBe("");
-};
-
 /**
  * Assert the refund fired exactly once and a system note recorded the reason
  * against `attendeeId` — the shared tail of every "kept and refunded"
@@ -315,10 +312,16 @@ export const stubRetrieveCheckoutSession = (
     | { metadata: Record<string, unknown> }
     | { email: string; items: string; name: string }
   ),
-) =>
+): Stub<
+  typeof stripeApi,
+  Parameters<typeof stripeApi.retrieveCheckoutSession>,
+  Promise<Awaited<ReturnType<typeof stripeApi.retrieveCheckoutSession>>>
+> =>
   stub(stripeApi, "retrieveCheckoutSession", () =>
     Promise.resolve({
       amount_total: session.amountTotal,
+      created: 1_700_000_000,
+      currency: "gbp",
       id: session.sessionId,
       metadata:
         "metadata" in session
@@ -333,6 +336,7 @@ export const stubRetrieveCheckoutSession = (
             ),
       payment_intent: session.paymentIntent,
       payment_status: session.paymentStatus ?? "paid",
+      url: null,
     } as unknown as Awaited<
       ReturnType<typeof stripeApi.retrieveCheckoutSession>
     >),

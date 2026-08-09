@@ -60,7 +60,10 @@ describe("the terminal mutation report", () => {
       "  survived:  1",
       "  score:     50.0%  (detected 1/2)",
       "\nSurvivors — these mutations did not fail any test:",
-      "  src/example.ts:4:3  return x → return undefined",
+      "  src/example.ts:4:3\n    src/example.ts::fn4 return x→return undefined",
+      "\n  Proven unkillable by any test? Paste its line above into a file" +
+        " under scripts/mutation/equivalent-mutants/, followed by  # and the" +
+        " reason.",
     ]);
   });
 

@@ -1,5 +1,6 @@
 import { type Stub, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
+import { settings } from "#shared/db/settings.ts";
 import { paymentsApi } from "#shared/payments.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
@@ -102,6 +103,7 @@ type StripeProvider =
 const withStripeProvider = async (
   body: (provider: StripeProvider) => Promise<void>,
 ): Promise<void> => {
+  await settings.update.stripe.secretKey("sk_test_refund_routes");
   await withMocks(
     () =>
       stub(paymentsApi, "getConfiguredProvider", () =>

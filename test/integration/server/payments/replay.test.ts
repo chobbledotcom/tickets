@@ -4,7 +4,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { getNoteRows } from "#shared/db/notes/queries.ts";
-import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -13,6 +12,7 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { singleItem } from "#test-utils/factories.ts";
 import { mockRequest, withMocks } from "#test-utils/mocks.ts";
+import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   stubRefundPayment,
@@ -152,7 +152,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           expect(mockRefund.calls.length).toBe(1);
 
           // The session is recorded as a terminal failure.
-          const record = await isSessionProcessed("cs_replay_price");
+          const record = await getProcessedPayment("cs_replay_price");
           expect(record?.attendee_id).toBeNull();
           expect(record?.failure_data).not.toBe("");
 
@@ -209,7 +209,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           // left held: the row is released (deleted) so the next delivery
           // re-claims and re-attempts the refund immediately, rather than
           // colliding with the lock until the row goes stale.
-          expect(await isSessionProcessed("cs_refund_failed")).toBeNull();
+          expect(await getProcessedPayment("cs_refund_failed")).toBeNull();
 
           // The next retry re-attempts the refund (proof the lock was released).
           await handleRequest(

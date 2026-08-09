@@ -18,6 +18,7 @@ import {
   type AuthSession,
   formGuard,
   requireSessionOr,
+  sessionPage,
   withAuth,
 } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
@@ -98,23 +99,11 @@ const loadEditPage = async (
   });
 };
 
-const renderFlashHtml = (
-  request: Request,
-  render: (session: AuthSession) => Promise<string>,
-): Promise<Response> =>
-  requireSessionOr(request, async (session) => {
-    applyFlash(request);
-    return htmlResponse(await render(session));
-  });
+const handleServicingNewGet: TypedRouteHandler<"GET /admin/servicing/new"> =
+  sessionPage((session, request) => renderCreate(request, session));
 
-const handleServicingNewGet: TypedRouteHandler<"GET /admin/servicing/new"> = (
-  request,
-) => renderFlashHtml(request, (session) => renderCreate(request, session));
-
-const handleServicingListGet: TypedRouteHandler<"GET /admin/servicing"> = (
-  request,
-) =>
-  renderFlashHtml(request, async (session) => {
+const handleServicingListGet: TypedRouteHandler<"GET /admin/servicing"> =
+  sessionPage(async (session) => {
     const [listings, events] = await Promise.all([
       getAllListings(),
       getAllServicingEvents(await requireRequestPrivateKey()),

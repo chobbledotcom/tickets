@@ -3,6 +3,7 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
+import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
 import {
   editorAddsListing,
@@ -26,6 +27,7 @@ import {
   somethingSoldAndPaidFor,
   TAKINGS,
 } from "#test/specs/support/editors.ts";
+import { sessionCookie } from "#test/specs/support/evidence.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -145,7 +147,14 @@ Then(
 When(
   "{word} opens the listings",
   async function (this: TicketsWorld, _who: string): Promise<void> {
-    await editorBrowser(this).visit("/admin/listings");
+    const browser = editorBrowser(this);
+    await browser.visit("/admin/listings");
+    leaveEvidencePage(
+      this,
+      ["editor-listings-without-takings"],
+      "/admin/listings",
+      sessionCookie(browser),
+    );
   },
 );
 

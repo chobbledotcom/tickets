@@ -2,24 +2,30 @@
  * Tests for the admin Privacy page (GET render + the orphan-purge and GDPR
  * erasure POST handlers).
  *
+ * These cover each arm of the two handlers directly, including the refusals no
+ * rendered form could ever send: an age outside the dropdown's own list, and a
+ * "find by" nothing on the page offers. The organiser's journey through the
+ * same page is told in the story "The organiser keeps only the personal details
+ * the site still needs", and a Cucumber run does not count towards coverage, so
+ * the arms below stay covered here.
+ *
  * Note on the background prune: most requests flush the fire-and-forget prune
  * scheduler before responding, but POST /admin/privacy/orphans deliberately
  * skips it (see prepareRequestEnvironment) so a request that changes the
  * retention or switches auto-purge off is never raced by a purge enqueued with
- * the pre-change settings. These tests rely on that: they leave auto-purge on
- * (its default) and assert the *handler* — not a background prune — decides an
- * old orphan's fate.
+ * the pre-change settings. The purge test relies on that: it leaves auto-purge
+ * on (its default) and asserts the *handler* — not a background prune —
+ * decides an old orphan's fate.
  */
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { parseFlashValue } from "#shared/cookies.ts";
 import { queryOne } from "#shared/db/client.ts";
-import { hashEmail, hashPhone } from "#shared/db/contact-preferences.ts";
+import { hashEmail } from "#shared/db/contact-preferences.ts";
 import { settings } from "#shared/db/settings.ts";
 import { nowMs } from "#shared/now.ts";
 import {
-  assertAdminHtml,
   cachedAdminPage,
   expectFlashRedirect,
   expectStatus,
@@ -80,14 +86,6 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
       expectStatus(403)(response);
     });
 
-    test("shows the orphaned-records tool", async () => {
-      await page("Delete matching records now");
-    });
-
-    test("shows the delete-a-contact tool", async () => {
-      await page("Delete this contact's record");
-    });
-
     test("says it is a ticketing system, not a CRM", async () => {
       await page("not a CRM");
     });
@@ -104,14 +102,6 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
     test("says contact details stay in the encrypted booking, not just the code", async () => {
       await page("stay with the booking, kept encrypted");
     });
-
-    test("reports the current orphan count", async () => {
-      await insertOrphan(new Date(nowMs()).toISOString());
-      await assertAdminHtml(
-        "/admin/privacy",
-        "There is 1 orphaned record right now.",
-      );
-    });
   });
 
   describe("POST /admin/privacy/orphans", () => {
@@ -120,10 +110,13 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
       method: "POST",
     });
 
+    // A year-old orphan is the point: auto-purge is on by default and the
+    // orphan prune is due on a fresh database, so a save that let the scheduler
+    // run would reap this record under the previous 182-day retention. The
+    // story beside this ("The organiser keeps only the personal details the
+    // site still needs") cannot set that up — every booking it makes is made
+    // just now — so the sharp version of the claim lives here.
     test("saving with auto-purge switched off does not purge with the old settings", async () => {
-      // Auto-purge is on by default and the orphan prune is due (fresh DB), so
-      // unless this route skips the scheduler, the request that turns auto-purge
-      // off would still reap this old orphan with the previous retention.
       const id = await insertOrphan(oldIso());
 
       const { response } = await adminFormPost("/admin/privacy/orphans", {
@@ -151,6 +144,10 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
       expect(settings.autoPurgeOrphans).toBe(true);
     });
 
+    // The only direct cover of this handler's Purge arm. The story "The
+    // organiser keeps only the personal details the site still needs" tells the
+    // same journey in the organiser's own words, and a Cucumber run does not
+    // count towards coverage.
     test("deletes matching orphans now, on Purge", async () => {
       const id = await insertOrphan(oldIso());
 
@@ -186,6 +183,10 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
       method: "POST",
     });
 
+    // These three are the only direct cover of this handler's three arms. The
+    // story "The organiser keeps only the personal details the site still
+    // needs" tells the same journeys in the organiser's own words, and a
+    // Cucumber run does not count towards coverage.
     test("erases a contact record found by email", async () => {
       const hash = await hashEmail("erase-me@example.com");
       await setContactVisits(hash, 1);
@@ -199,19 +200,6 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
         "/admin/privacy",
         "Deleted that contact's record.",
       )(response);
-      expect(await preferenceExists(hash)).toBe(false);
-    });
-
-    test("erases a contact record found by phone", async () => {
-      const hash = await hashPhone("07700 900222");
-      await setContactVisits(hash, 1);
-
-      const { response } = await adminFormPost("/admin/privacy/erase", {
-        contact_type: "sms",
-        identifier: "07700 900222",
-      });
-
-      expect(response.status).toBe(302);
       expect(await preferenceExists(hash)).toBe(false);
     });
 

@@ -30,6 +30,7 @@ import {
 import { getNewsPostSummaries } from "#shared/db/news-posts.ts";
 import { settings } from "#shared/db/settings.ts";
 import { userAgents } from "#shared/db/user-agents.ts";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import { isPublicListing } from "#shared/listing-visibility.ts";
 import { nowIso } from "#shared/now.ts";
 import { requirePublicSite } from "#shared/public-site.ts";
@@ -39,7 +40,6 @@ import {
   loadSortedListings,
 } from "#shared/sort-listings.ts";
 import type { Attendee, NewsPostSummary } from "#shared/types.ts";
-import { escapeHtml } from "#templates/layout.tsx";
 
 /** Escape text for ICS (RFC 5545): backslash-escape special characters */
 export const escapeIcs = (text: string): string =>

@@ -11,6 +11,7 @@ import {
   toStatus,
 } from "#scripts/mutation/execution.ts";
 import { projectRoot } from "#scripts/project-root.ts";
+import { stripeMockPortFromEnv } from "#scripts/stripe-mock.ts";
 import { captureCommands } from "#test-utils/command-capture.ts";
 import { TEST_STATE_DIR_ENV } from "#test-utils/test-state-env.ts";
 
@@ -67,17 +68,14 @@ const runConcurrentFailure = async (
 
 describe("mutation test execution", () => {
   test("builds the mutation child environment from current Stripe settings", () => {
-    const previousPort = Deno.env.get("STRIPE_MOCK_PORT");
-    Deno.env.set("STRIPE_MOCK_PORT", "1234");
-    try {
-      const env = testEnv();
-      expect(env.STRIPE_MOCK_HOST).toBe("localhost");
-      expect(env.STRIPE_MOCK_PORT).toBe("1234");
-    } finally {
-      if (previousPort !== undefined) {
-        Deno.env.set("STRIPE_MOCK_PORT", previousPort);
-      } else Deno.env.delete("STRIPE_MOCK_PORT");
-    }
+    const env = testEnv(1234);
+
+    expect(env.STRIPE_MOCK_HOST).toBe("localhost");
+    expect(env.STRIPE_MOCK_PORT).toBe("1234");
+  });
+
+  test("falls back to the stripe-mock this run was told about", () => {
+    expect(testEnv().STRIPE_MOCK_PORT).toBe(String(stripeMockPortFromEnv()));
   });
 
   test("removes stale state only when the mutant needs fresh state", () => {
@@ -109,9 +107,11 @@ describe("mutation test execution", () => {
     const signal = new AbortController().signal;
     const gates = await createStaticGates(deps);
     expect(
-      await Promise.all(gates.map((gate) => gate.exit("source.ts", signal))),
+      await Promise.all(
+        gates.map((gate) => gate.exit("source.ts", projectRoot, signal)),
+      ),
     ).toEqual([0, 0]);
-    expect(await gates[0]!.exit("second.ts", signal)).toBe(0);
+    expect(await gates[0]!.exit("second.ts", projectRoot, signal)).toBe(0);
     expect(biomeCalls.map((options) => options.args)).toEqual([
       ["lint", "--error-on-warnings", "--no-errors-on-unmatched", "source.ts"],
       ["lint", "--error-on-warnings", "--no-errors-on-unmatched", "second.ts"],
@@ -154,7 +154,7 @@ describe("mutation test execution", () => {
     const gates = await createStaticGates(deps);
     const lint = gates[0];
     if (!lint) throw new Error("Expected lint gate");
-    await lint.exit("source.ts", new AbortController().signal);
+    await lint.exit("source.ts", projectRoot, new AbortController().signal);
 
     expect(commands).toEqual([
       {

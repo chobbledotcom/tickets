@@ -78,6 +78,15 @@ const canonicalPricePayload = (
 export const signPrice = (metadata: SignedMetadata, total: number): string =>
   hmacHashSync(`price-sig:${canonicalPricePayload(metadata, total)}`);
 
+/** Split the `total.sig` price proof into a non-negative integer total and a
+ * non-empty signature, or null when the field is absent or malformed. */
+export const parsePriceProof = (
+  proof: string,
+): { total: number; sig: string } | null => {
+  const match = /^(\d+)\.(.+)$/.exec(proof);
+  return match ? { sig: match[2]!, total: Number(match[1]) } : null;
+};
+
 /** Whether `signature` is a valid server signature for `metadata` at `total`.
  * False for any tampered field, a wrong total, or a malformed/empty signature. */
 export const verifyPrice = async (

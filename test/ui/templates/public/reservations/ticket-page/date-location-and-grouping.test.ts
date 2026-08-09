@@ -10,7 +10,7 @@ import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
 import { ticketViewPage } from "#templates/tickets.tsx";
 import { registerPublicTemplateHooks } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
-import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
+import { testListingWithCount, testTokenEntry } from "#test-utils/factories.ts";
 
 describe("ticketPage listing date and location", () => {
   beforeAll(setupAdminPageTest);
@@ -128,17 +128,17 @@ describe("ticketViewPage package grouping", () => {
   ]);
   const pkgCards = [
     {
-      entry: {
-        attendee: testAttendee({ package_group_id: 1, quantity: 2 }),
-        listing: testListingWithCount({ name: "Tent" }),
-      },
+      entry: testTokenEntry({
+        attendee: { package_group_id: 1, quantity: 2 },
+        listing: { name: "Tent" },
+      }),
       token,
     },
     {
-      entry: {
-        attendee: testAttendee({ package_group_id: 1, quantity: 6 }),
-        listing: testListingWithCount({ name: "Chair" }),
-      },
+      entry: testTokenEntry({
+        attendee: { package_group_id: 1, quantity: 6 },
+        listing: { name: "Chair" },
+      }),
       token,
     },
   ];
@@ -194,10 +194,10 @@ describe("ticketViewPage package grouping", () => {
     const mixed = [
       pkgCards[0]!,
       {
-        entry: {
-          attendee: testAttendee({ package_group_id: 0, quantity: 1 }),
-          listing: testListingWithCount({ name: "Standalone Add-On" }),
-        },
+        entry: testTokenEntry({
+          attendee: { package_group_id: 0, quantity: 1 },
+          listing: { name: "Standalone Add-On" },
+        }),
         token,
       },
     ];
@@ -216,10 +216,10 @@ describe("ticketViewPage package grouping", () => {
   test("a purchase-only package omits the QR", () => {
     const cards = [
       {
-        entry: {
-          attendee: testAttendee({ package_group_id: 1, quantity: 1 }),
-          listing: testListingWithCount({ name: "Pass", purchase_only: true }),
-        },
+        entry: testTokenEntry({
+          attendee: { package_group_id: 1, quantity: 1 },
+          listing: { name: "Pass", purchase_only: true },
+        }),
         token,
       },
     ];
@@ -233,13 +233,13 @@ describe("ticketViewPage package grouping", () => {
     // ID is required — the scanner enforces it regardless of the card display.
     const cards = [
       {
-        entry: {
-          attendee: testAttendee({ package_group_id: 1, quantity: 1 }),
-          listing: testListingWithCount({
+        entry: testTokenEntry({
+          attendee: { package_group_id: 1, quantity: 1 },
+          listing: {
             name: "Secret Pass",
             non_transferable: true,
-          }),
-        },
+          },
+        }),
         token,
       },
     ];
@@ -259,14 +259,14 @@ describe("ticketViewPage package grouping", () => {
     // raises no "ID required" warning.
     const cards = [
       {
-        entry: {
-          attendee: testAttendee({ package_group_id: 1, quantity: 1 }),
-          listing: testListingWithCount({
+        entry: testTokenEntry({
+          attendee: { package_group_id: 1, quantity: 1 },
+          listing: {
             name: "Pass",
             non_transferable: true,
             purchase_only: true,
-          }),
-        },
+          },
+        }),
         token,
       },
     ];

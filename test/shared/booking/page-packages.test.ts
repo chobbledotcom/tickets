@@ -102,12 +102,29 @@ describe("combinedPackageTerms", () => {
     expect(combined).toBe("No mud\n\nBring wellies");
   });
 
+  test("shows a lone package's terms rather than the fallback", () => {
+    const combined = combinedPackageTerms(
+      [pagePackage(7, [1], { terms: "x" })],
+      "House terms",
+    );
+    expect(combined).toBe("x");
+  });
+
   test("falls back when no package carries terms", () => {
     const combined = combinedPackageTerms(
       [pagePackage(7, [1], { terms: "" })],
       "House terms",
     );
     expect(combined).toBe("House terms");
+  });
+
+  test("a single short terms text still wins over the fallback", () => {
+    // Any non-empty terms count — even one character, from one package.
+    const combined = combinedPackageTerms(
+      [pagePackage(7, [1], { terms: "x" })],
+      "House terms",
+    );
+    expect(combined).toBe("x");
   });
 });
 
@@ -172,9 +189,27 @@ describe("stampChildRowPackages", () => {
 
   test("never overwrites a row's own package tag", () => {
     const rows = stampChildRowPackages(
-      [{ packageGroupId: 8, parentListingId: 1 }],
+      [
+        { packageGroupId: 8, parentListingId: 1 },
+        { packageGroupId: 1, parentListingId: 2 },
+      ],
+      new Map([
+        [1, 7],
+        [2, 7],
+      ]),
+    );
+    expect(rows).toEqual([
+      { packageGroupId: 8, parentListingId: 1 },
+      { packageGroupId: 1, parentListingId: 2 },
+    ]);
+  });
+
+  test("stamps a child row that carries no package tag at all", () => {
+    // An absent packageGroupId reads exactly like an explicit 0: unstamped.
+    const rows = stampChildRowPackages(
+      [{ parentListingId: 1 }],
       new Map([[1, 7]]),
     );
-    expect(rows).toEqual([{ packageGroupId: 8, parentListingId: 1 }]);
+    expect(rows).toEqual([{ packageGroupId: 7, parentListingId: 1 }]);
   });
 });

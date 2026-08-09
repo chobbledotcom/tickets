@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { waitForScreenshotPage } from "#scripts/screenshots/readiness.ts";
 
 describe("screenshot page readiness", () => {
-  test("waits for resources, fonts, and two browser paints in order", async () => {
+  test("waits for resources, requests, fonts, and two browser paints in order", async () => {
     const calls: string[] = [];
     await waitForScreenshotPage({
       evaluate: (expression) => {
@@ -22,6 +22,7 @@ describe("screenshot page readiness", () => {
 
     expect(calls).toEqual([
       "load",
+      "networkidle",
       'document.fonts.status === "loaded"',
       `new Promise((resolve) =>
   requestAnimationFrame(() => requestAnimationFrame(resolve)))`,

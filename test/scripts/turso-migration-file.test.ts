@@ -1,6 +1,9 @@
 // test-groups: run-alone
 
+import { EventEmitter } from "node:events";
+import type { ClientRequest, IncomingMessage } from "node:http";
 import { request as httpRequest } from "node:http";
+import { Writable } from "node:stream";
 import { createClient } from "@libsql/client";
 import { expect } from "@std/expect";
 import { join, toFileUrl } from "@std/path";
@@ -43,20 +46,59 @@ const withUploadServer = async (
   );
   const address = server.addr;
   if (!("port" in address)) throw new Error("Expected a network address");
+  // A server that answers before reading the body leaves the client still
+  // streaming after the upload has already settled. Ending those requests here
+  // keeps every socket's failure inside the test that made it.
+  const sent: ClientRequest[] = [];
   const transport: DatabaseUploadTransport = {
     request: (url, options, receive) => {
       expect(url.protocol).toBe("https:");
       const localUrl = new URL(url);
       localUrl.protocol = "http:";
-      return httpRequest(localUrl, options, receive);
+      const request = httpRequest(localUrl, options, receive);
+      sent.push(request);
+      return request;
     },
   };
   try {
     await run(`https://127.0.0.1:${address.port}`, transport);
   } finally {
+    for (const request of sent) request.destroy();
     await server.shutdown();
     await server.finished;
   }
+};
+
+/** A request stub that swallows the piped file bytes. */
+const fakeRequest = (): Writable =>
+  new Writable({ write: (_chunk, _encoding, done) => done() });
+
+/** A transport that plays a scripted sequence of events once the upload
+ * starts, instead of talking to a real server. */
+const scriptedTransport = (
+  request: Writable,
+  play: (receive: (response: IncomingMessage) => void) => void,
+): DatabaseUploadTransport => ({
+  request: (_url, _options, receive) => {
+    queueMicrotask(() => play(receive));
+    return request as unknown as ClientRequest;
+  },
+});
+
+/** Upload a small file through a scripted transport and return the result. */
+const uploadThroughScript = async (
+  dir: string,
+  request: Writable,
+  play: (receive: (response: IncomingMessage) => void) => void,
+): Promise<void> => {
+  const path = join(dir, "database.sqlite");
+  await Deno.writeTextFile(path, "sqlite bytes");
+  await uploadTursoDatabaseFile(
+    path,
+    TEST_TURSO_CREDENTIALS,
+    undefined,
+    scriptedTransport(request, play),
+  );
 };
 
 describe("Turso migration file", () => {
@@ -148,7 +190,11 @@ describe("Turso migration file", () => {
       await Deno.writeTextFile(path, "sqlite bytes");
 
       await withUploadServer(
-        () => new Response("invalid", { status: 400 }),
+        async (request) => {
+          // Read the whole upload first so the reply never races the body.
+          await request.arrayBuffer();
+          return new Response("invalid", { status: 400 });
+        },
         async (dbUrl, transport) => {
           await expect(
             uploadTursoDatabaseFile(
@@ -160,6 +206,90 @@ describe("Turso migration file", () => {
           ).rejects.toThrow("Upload database failed (400): invalid");
         },
       );
+    }));
+
+  /** A server can answer before the whole body is sent, which breaks the write.
+   * Both the answer and the write error are correct outcomes, so each is
+   * scripted rather than raced. */
+  test("prefers the server's answer over a later write error", () =>
+    withTempDir(async (dir) => {
+      const request = fakeRequest();
+      const reply = Object.assign(new EventEmitter(), { statusCode: 400 });
+      await expect(
+        uploadThroughScript(dir, request, (receive) => {
+          receive(reply as unknown as IncomingMessage);
+          reply.emit("data", new TextEncoder().encode("invalid"));
+          request.destroy(new Error("error writing a body to connection"));
+          reply.emit("end");
+        }),
+      ).rejects.toThrow("Upload database failed (400): invalid");
+    }));
+
+  /** One upload can raise two errors — the write breaking, then the file
+   * stopping because of it — and node throws an "error" nothing is listening
+   * for, from a place no caller can catch. */
+  test("survives a second error on the same request", () =>
+    withTempDir(async (dir) => {
+      const request = fakeRequest();
+      await expect(
+        uploadThroughScript(dir, request, () => {
+          request.emit("error", new Error("write broke"));
+        }),
+      ).rejects.toThrow("write broke");
+
+      expect(() =>
+        request.emit("error", new Error("and the file stopped too")),
+      ).not.toThrow();
+    }));
+
+  test("rejects a write error when no reply has arrived", () =>
+    withTempDir(async (dir) => {
+      const request = fakeRequest();
+      await expect(
+        uploadThroughScript(dir, request, () => {
+          request.destroy(new Error("connection reset mid-upload"));
+        }),
+      ).rejects.toThrow("connection reset mid-upload");
+    }));
+
+  // The rejection surfaces whenever the polyfill's own internal task ends, so
+  // the watch cannot be timed to the upload — it stays up once an upload has
+  // run, and earns that by only ever ignoring this one message.
+  test("ignores the duplicate body-stream rejection and nothing else", () =>
+    withTempDir(async (dir) => {
+      const prevented = (reason: unknown): boolean => {
+        const event = new PromiseRejectionEvent("unhandledrejection", {
+          cancelable: true,
+          promise: Promise.resolve(),
+          reason,
+        });
+        globalThis.dispatchEvent(event);
+        return event.defaultPrevented;
+      };
+      const defect = () =>
+        new TypeError("Failed to fetch: request body stream errored");
+
+      // Hold the upload open: the scripted transport never answers. The
+      // watch is up by the time the transport runs, so wait for that.
+      const started = Promise.withResolvers<void>();
+      const request = fakeRequest();
+      const upload = uploadThroughScript(dir, request, () => {
+        started.resolve();
+      });
+      await started.promise;
+
+      expect(prevented(defect())).toBe(true);
+      expect(
+        prevented(new Error("Failed to fetch: request body stream errored")),
+      ).toBe(false);
+      expect(prevented(new TypeError("some other failure"))).toBe(false);
+
+      request.destroy(new Error("cut mid-upload"));
+      await expect(upload).rejects.toThrow("cut mid-upload");
+      // Still ignored after the upload settles: a late rejection is exactly
+      // the one this watch exists for.
+      expect(prevented(defect())).toBe(true);
+      expect(prevented(new TypeError("some other failure"))).toBe(false);
     }));
 
   test("rejects an interrupted upload before opening the snapshot", () =>

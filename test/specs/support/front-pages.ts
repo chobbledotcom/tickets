@@ -8,15 +8,17 @@
 import { expect } from "@std/expect";
 import {
   newcomerReading,
+  ORGANISER,
   openAdminPage,
   type PageRead,
   submitRenderedAdminForm,
 } from "#test/specs/support/browser.ts";
+import { requireCheckboxOffered } from "#test/specs/support/form-controls/reading.ts";
+import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
-  fillInAndSend,
-  requireCheckboxOffered,
-} from "#test/specs/support/form-controls.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+  keepWhatTheyWereTold,
+  type TicketsWorld,
+} from "#test/specs/support/world.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
@@ -31,7 +33,7 @@ const writesFrontPage = async (
 ): Promise<void> => {
   await enablePublicSite();
   const browser = await submitRenderedAdminForm(world, path, "Save", values);
-  world.ownerTold = browser.pageText;
+  keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
 };
 
 export const ownerWritesHomepage = (

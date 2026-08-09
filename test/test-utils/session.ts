@@ -83,7 +83,7 @@ export const testCsrfToken = async (): Promise<string> =>
   (await getTestSession()).csrfToken;
 
 /** Build an owner AuthSession from the live test admin session row. */
-const getTestAuthSession = async (): Promise<AuthSession> => {
+export const getTestAuthSession = async (): Promise<AuthSession> => {
   const cookie = await testCookie();
   const token = cookie.match(
     new RegExp(`${getSessionCookieName()}=([^;]+)`),
@@ -403,11 +403,21 @@ export const adminFormPost = async (
   path: string,
   data: Record<string, string> = {},
 ): Promise<{ response: Response; cookie: string; csrfToken: string }> => {
+  const { settings } = await import("#shared/db/settings.ts");
+  await settings.loadKeys([]);
   const { cookie, csrfToken } = await getTestSession();
   const { handleRequest } = await import("#routes");
   const { mockFormRequest } = await import("#test-utils/mocks.ts");
   const response = await handleRequest(
-    mockFormRequest(path, { csrf_token: csrfToken, ...data }, cookie),
+    mockFormRequest(
+      path,
+      {
+        csrf_token: csrfToken,
+        settings_version: String(settings.version),
+        ...data,
+      },
+      cookie,
+    ),
   );
   return { cookie, csrfToken, response };
 };

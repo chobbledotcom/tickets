@@ -28,7 +28,7 @@ import {
   rowExists,
   rowExistsForIdList,
 } from "#shared/db/client.ts";
-import { columnMapByIds, nameSource } from "#shared/db/query.ts";
+import { columnFrom, columnMapByIds, nameSource } from "#shared/db/query.ts";
 import type { Attendee } from "#shared/types.ts";
 import { guardFor } from "#shared/validation/guard.ts";
 /* jscpd:ignore-end */
@@ -40,7 +40,7 @@ import { guardFor } from "#shared/validation/guard.ts";
  * shadowing bare column names.
  */
 export const listingAttendeeRowColumnsFrom = (sourceName: string): string => {
-  const column = (name: string): string => `${sourceName}.${name}`;
+  const column = columnFrom(sourceName);
   return `${column("listing_id")}, ${column("start_at")}, ${column("end_at")}, ${column("quantity")}, ${column("checked_in")}, ${refundedFromLedger(
     column("attendee_id"),
   )}, ${pricePaidFromLedger(
@@ -366,16 +366,6 @@ export const hasPaidLine = rowExistsForIdList(
  * whose legs already exist would be mistaken for a capacity failure and refund a
  * live ticket.
  */
-export const attendeeIdByLedgerEventGroup = async (
-  eventGroup: string,
-): Promise<number | null> => {
-  const row = await queryOne<{ attendee_id: number }>(
-    "SELECT attendee_id FROM listing_attendees WHERE ledger_event_group = ? LIMIT 1",
-    [eventGroup],
-  );
-  return row?.attendee_id ?? null;
-};
-
 /**
  * Get an attendee by ID without decrypting PII
  * Used for payment callbacks and webhooks where decryption is not needed

@@ -1,12 +1,22 @@
 // jscpd:ignore-start
 import { t } from "#i18n";
 import {
+  type RowOnList,
+  rowsOnList,
+} from "#test/specs/support/form-controls/reading.ts";
+import {
   fillInAndSend,
   takeDownFromActions,
 } from "#test/specs/support/form-controls.ts";
 import { logInAsTestAdmin } from "#test-utils/e2e.ts";
 import { TestBrowser } from "#test-utils/test-browser.ts";
-import type { TicketsWorld } from "./world.ts";
+import {
+  keepWhatTheyWereTold,
+  type ReadAboutOneThing,
+  type ReadsWhatWasKept,
+  type TicketsWorld,
+  whatWasKeptFor,
+} from "./world.ts";
 // jscpd:ignore-end
 
 /** Whose browser each story keeps. The organiser's is the story's own, so a
@@ -27,8 +37,8 @@ export const rememberBrowser = (
 /** The window somebody is already looking at. A story that never gave them one
  * has nothing to read, so it says so rather than opening a fresh window and
  * reporting on a page nobody was ever shown. */
-export const browserSeenBy = (world: TicketsWorld, who: string): TestBrowser =>
-  world.things.require("browser", who);
+export const browserSeenBy: ReadsWhatWasKept<"browser"> =
+  whatWasKeptFor("browser");
 
 export const browserOf = (world: TicketsWorld, who: string): TestBrowser =>
   world.things.orMake("browser", who, () => new TestBrowser());
@@ -48,7 +58,7 @@ export const takesDownFromOwnPage =
     const browser = await openPage(world);
     await browser.clickLink(deleteLabel);
     await fillInAndSend(browser, { confirm_identifier: typed }, deleteLabel);
-    world.ownerTold = browser.pageText;
+    keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
   };
 
 /** Forget the Scenario's browser, so the next ask starts a fresh one. Use this
@@ -169,24 +179,55 @@ export const makesRecordThroughForm =
   async (world, name, fields) => {
     const browser = await openAdminPage(world, labelled.formPath);
     await fillInAndSend(browser, fields, labelled.button);
-    world.ownerTold = browser.pageText;
+    keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
     const id = browser.currentUrl.match(labelled.filedAt)?.[1];
     if (!id) throw new Error(`No page address for the new "${name}"`);
     world.things.remember("record", name, Number(id));
   };
 
+/** A list open at one named row: the page somebody is looking at, and
+ * everything that row says about the thing — its number, its own markup, and
+ * the address of the link that names it. */
+export type OpensAtOneRow = (
+  world: TicketsWorld,
+  name: string,
+) => Promise<RowOnList & { browser: TestBrowser }>;
+
+/** A list of the organiser's things, opened at one named row — or a loud
+ * failure, because a story that carried on would act on the wrong row, or on
+ * none. Each kind of thing says where its list lives and what the link into
+ * one of its rows looks like; everything a story then reads or presses is
+ * that row's own, never a neighbour's. */
+export const opensListAtRow =
+  (listPath: string, wayIn: RegExp): OpensAtOneRow =>
+  async (world, name) => {
+    const browser = await openAdminPage(world, listPath);
+    const found = rowsOnList(browser.currentHtml, wayIn).find(
+      (row) => row.name === name,
+    );
+    if (!found) throw new Error(`The list offers no row named "${name}"`);
+    return { ...found, browser };
+  };
+
+/** The address of the link into one named row. The row is known by the link
+ * that names it, so the way in is read off the row itself — a row whose way in
+ * moved to a neighbour is a row the person cannot reach, and the open fails
+ * with them. */
+export const findsTheWayInFrom =
+  (openAt: OpensAtOneRow): ReadAboutOneThing =>
+  async (world, name) =>
+    (await openAt(world, name)).wayIn;
+
 export const takesDownFromList =
   (
-    wayInto: (world: TicketsWorld, name: string) => Promise<string | null>,
+    wayInto: ReadAboutOneThing,
     labelled: {
       deleteLinkKey: string;
-      missing: (name: string) => string;
       submitKey: string;
     },
   ): TakesOneThingDown =>
   async (world, name, typed) => {
     const wayIn = await wayInto(world, name);
-    if (!wayIn) throw new Error(labelled.missing(name));
     return takeDownFromActions(await openAdminPage(world, wayIn), typed, {
       deleteLink: t(labelled.deleteLinkKey),
       submit: t(labelled.submitKey),

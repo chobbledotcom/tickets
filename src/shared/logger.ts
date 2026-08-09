@@ -97,12 +97,12 @@ const ERROR_DEFS = {
 
   // Email errors
   EMAIL_SEND: ["E_EMAIL_SEND", "Email send failed"],
-  EMAIL_TEMPLATE_RENDER: [
-    "E_EMAIL_TEMPLATE_RENDER",
-    "Email template render failed",
-  ],
   // Broken image records/files (fallback red pixel served instead)
   IMAGE_BROKEN: ["E_IMAGE_BROKEN", "Broken image"],
+
+  // A promise our own system makes was broken and an operator was told to
+  // repair the data by hand (see #shared/invariant-errors.ts)
+  INVARIANT_REPORTED: ["E_INVARIANT_REPORTED", "System invariant broken"],
   KEY_DERIVATION: ["E_KEY_DERIVATION", "Key derivation failed"],
   // Ledger errors
   LEDGER_POST: ["E_LEDGER_POST", "Ledger post failed"],
@@ -122,6 +122,10 @@ const ERROR_DEFS = {
   PAYMENT_WEBHOOK_SETUP: [
     "E_PAYMENT_WEBHOOK_SETUP",
     "Payment webhook setup failed",
+  ],
+  REGISTRATION_DELIVERY: [
+    "E_REGISTRATION_DELIVERY",
+    "Registration notification delivery failed",
   ],
   SQUARE_CHECKOUT: ["E_SQUARE_CHECKOUT", "Square checkout failed"],
   SQUARE_ORDER: ["E_SQUARE_ORDER", "Square order validation failed"],
@@ -163,7 +167,6 @@ const ERROR_DEFS = {
     "E_WEBHOOK_PRICE_SIGNATURE",
     "Webhook price signature invalid, missing, or charge differs from it",
   ],
-  WEBHOOK_SEND: ["E_WEBHOOK_SEND", "Webhook send failed"],
 } as const;
 
 type ErrorDefs = typeof ERROR_DEFS;
@@ -296,7 +299,7 @@ const persistErrorToActivityLog = async (
     // every module's import graph (via env.ts), and a static import here would
     // drag the activity-log table — and the listing helpers it queries with —
     // into every page's graph.
-    const { logActivity } = await import("#shared/db/activityLog.ts");
+    const { logActivity } = await import("#shared/db/activity-log.ts");
     await logActivity(formatErrorMessage(context), context.listingId ?? null);
   } catch {
     // Swallow DB errors to avoid cascading failures

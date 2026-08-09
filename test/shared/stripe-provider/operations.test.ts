@@ -15,6 +15,7 @@ import { describeStripe } from "#test/test-utils/stripe/harness.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withMocks } from "#test-utils/mocks.ts";
+import { asSession } from "#test-utils/payment-session.ts";
 import { activateStripe } from "#test-utils/settings.ts";
 import { checkoutSessionEvent } from "#test-utils/webhooks.ts";
 
@@ -335,10 +336,10 @@ describeStripe("stripe-provider", () => {
       expect(result).not.toBe("skip");
       expect(result).not.toBeNull();
       if (result && result !== "skip") {
-        expect(result.id).toBe("cs_resolve_1");
-        expect(result.paymentStatus).toBe("paid");
-        expect(result.paymentReference).toBe("pi_resolve_1");
-        expect(result.amountTotal).toBe(2000);
+        expect(asSession(result).id).toBe("cs_resolve_1");
+        expect(asSession(result).paymentStatus).toBe("paid");
+        expect(asSession(result).paymentReference).toBe("pi_resolve_1");
+        expect(asSession(result).amountTotal).toBe(2000);
       }
     });
 

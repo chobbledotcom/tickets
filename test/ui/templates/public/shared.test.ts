@@ -12,7 +12,7 @@ import {
 } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
+import { testListingWithCount, testTokenEntry } from "#test-utils/factories.ts";
 
 describeWithEnv(
   "listing images",
@@ -172,10 +172,10 @@ describeWithEnv(
       test("shows '1 Ticket' for single ticket", () => {
         const cards = [
           {
-            entry: {
-              attendee: testAttendee({ id: 1 }),
-              listing: testListingWithCount({ id: 1 }),
-            },
+            entry: testTokenEntry({
+              attendee: { id: 1 },
+              listing: { id: 1 },
+            }),
             token,
           },
         ];
@@ -186,17 +186,17 @@ describeWithEnv(
       test("shows '2 Tickets' for multiple tickets", () => {
         const cards = [
           {
-            entry: {
-              attendee: testAttendee({ id: 1 }),
-              listing: testListingWithCount({ id: 1 }),
-            },
+            entry: testTokenEntry({
+              attendee: { id: 1 },
+              listing: { id: 1 },
+            }),
             token: "AABB0011CCDDEEF1",
           },
           {
-            entry: {
-              attendee: testAttendee({ id: 2 }),
-              listing: testListingWithCount({ id: 2 }),
-            },
+            entry: testTokenEntry({
+              attendee: { id: 2 },
+              listing: { id: 2 },
+            }),
             token: "AABB0011CCDDEEF2",
           },
         ];
@@ -211,10 +211,9 @@ describeWithEnv(
       test("shows image when listing has image_url", () => {
         const cards = [
           {
-            entry: {
-              attendee: testAttendee(),
-              listing: testListingWithCount({ image_url: "ticket-img.jpg" }),
-            },
+            entry: testTokenEntry({
+              listing: { image_url: "ticket-img.jpg" },
+            }),
             token,
           },
         ];
@@ -226,10 +225,7 @@ describeWithEnv(
       test("does not show image when image_url is empty", () => {
         const cards = [
           {
-            entry: {
-              attendee: testAttendee(),
-              listing: testListingWithCount({ image_url: "" }),
-            },
+            entry: testTokenEntry({ listing: { image_url: "" } }),
             token,
           },
         ];

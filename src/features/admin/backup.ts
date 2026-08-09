@@ -1,9 +1,8 @@
 /** Admin backup routes. Restores run out of band through `deno task restore`. */
 
 import { createActionHandler } from "#routes/admin/actions.ts";
-import { requireOwnerOr } from "#routes/auth.ts";
-import { applyFlash } from "#routes/csrf.ts";
-import { htmlResponse } from "#routes/response.ts";
+import { ownerPage, requireOwnerOr } from "#routes/auth.ts";
+import { downloadResponse, htmlResponse } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { getEncryptionKeyString } from "#shared/crypto/encryption.ts";
 import { formatDatetimeLabel } from "#shared/dates.ts";
@@ -69,18 +68,15 @@ const getBackupPageState = async (): Promise<BackupPageState> => {
   }
 };
 
-const handleBackupGet: TypedRouteHandler<"GET /admin/backup"> = (request) =>
-  requireOwnerOr(request, async (session) => {
-    const flash = applyFlash(request);
-    return htmlResponse(
-      adminBackupPage(
-        session,
-        await getBackupPageState(),
-        flash.error,
-        flash.success,
-      ),
-    );
-  });
+const handleBackupGet: TypedRouteHandler<"GET /admin/backup"> = ownerPage(
+  async (session, _request, flash) =>
+    adminBackupPage(
+      session,
+      await getBackupPageState(),
+      flash.error,
+      flash.success,
+    ),
+);
 
 const handleBackupCreate: TypedRouteHandler<"POST /admin/backup/create"> =
   createActionHandler({
@@ -107,12 +103,7 @@ const handleBackupDownload: TypedRouteHandler<
       data.byteOffset,
       data.byteOffset + data.byteLength,
     ) as ArrayBuffer;
-    return new Response(body, {
-      headers: {
-        "content-disposition": `attachment; filename="${filename}"`,
-        "content-type": "application/zip",
-      },
-    });
+    return downloadResponse(body, filename, "application/zip");
   });
 
 export const adminHandlers = defineRoutes({

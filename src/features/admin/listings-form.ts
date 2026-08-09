@@ -37,6 +37,7 @@ import {
 } from "#shared/listings-actions.ts";
 import { defineResource } from "#shared/rest/resource.ts";
 import { normalizeSlug } from "#shared/slug.ts";
+import { commaParts } from "#shared/split.ts";
 import {
   type DayPrices,
   type ListingType,
@@ -49,7 +50,6 @@ import {
   type ListingEditFormValues,
   type ListingFormValues,
 } from "#templates/fields/listing.ts";
-import { splitCsv } from "#templates/fields/validators.ts";
 
 /* jscpd:ignore-end */
 
@@ -82,7 +82,7 @@ const parseBookableDays = (
   listingType: ListingType,
   mode: ListingWriteMode,
 ): string[] | undefined => {
-  const days = splitCsv(value);
+  const days = commaParts(value);
   if (days.length > 0) return days;
   return EMPTY_BOOKABLE_DAYS_POLICY[mode][listingType] === "preserveEmpty"
     ? days

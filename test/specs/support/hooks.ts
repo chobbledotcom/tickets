@@ -15,6 +15,7 @@ import { addDatabaseCleanup, type TicketsWorld } from "./world.ts";
 
 Before(async function (this: TicketsWorld): Promise<void> {
   this.cleanup = putsThingsBack();
+  this.evidenceCookies = new Map();
   this.evidencePages = new Map();
   this.things = namedThings();
   const cleanupDb = await setupTestDbEnvironment(true).catch((error) => {

@@ -5,13 +5,13 @@ import { twoListingsAttendees } from "#test/integration/server/attendee-read-hel
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
+import { expectSessionFailed } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
   expectKeptAsQuantityZeroAndRefunded,
   expectMergedMultiListingAttendee,
   expectRefundedWithNote,
-  expectSessionFailed,
   expectWebhookKeptAndRefunded,
   expectWebhookProcessed,
 } from "#test-utils/webhooks.ts";

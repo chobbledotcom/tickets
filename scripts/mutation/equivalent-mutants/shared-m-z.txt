@@ -2,24 +2,51 @@
 
 # CRUD configuration values are functions or objects when present, and hydrated
 # map values are records, so none can be falsy-but-non-null.
-src/shared/rest/crud-api.ts:343:31  ?? → ||   # policy is an AuthPolicy object or undefined
-src/shared/rest/crud-api.ts:347:18  ?? → ||   # lookup is a function or undefined
-src/shared/rest/crud-api.ts:357:28  ?? → ||   # lookupAfterWrite is a function or undefined
-src/shared/rest/crud-api.ts:367:31  ?? → ||   # hydrated map values are records or undefined; records are truthy
-src/shared/rest/crud-api.ts:577:27  ?? → ||   # extraRoutes is a route object or undefined
-src/shared/rest/resource.ts:158:25  ?? → ||   # validationError is an ErrorResult object or null; an object is truthy
+src/shared/rest/crud-api.ts::defineCrudApi.policy~11y0iup  ?? → ||   # policy is an AuthPolicy object or undefined
+src/shared/rest/crud-api.ts::defineCrudApi.lookup~0xu424x  ?? → ||   # lookup is a function or undefined
+src/shared/rest/crud-api.ts::defineCrudApi.lookupAfterWrite~0azj8bq  ?? → ||   # lookupAfterWrite is a function or undefined
+src/shared/rest/crud-api.ts::defineCrudApi.responseRow~1sbh3s0  ?? → ||   # hydrated map values are records or undefined; records are truthy
+src/shared/rest/crud-api.ts::defineCrudApi~0a3r2wz  ?? → ||   # extraRoutes is a route object or undefined
+src/shared/rest/resource.ts::parseAndValidate~0ypp34v  ?? → ||   # validationError is an ErrorResult object or null; an object is truthy
+
+# settings-bundles.ts: bundle is ALL_SNAPSHOT_SETTINGS when undefined (a readonly
+# array, always truthy), so ?? and || agree.
+
+# webhooks.ts: listing?.thank_you_url.trim() ?? "" — trim() returns
+# string|undefined; for "" both ?? "" and || "" yield "".
+src/features/api/webhooks.ts::singleListingThankYou~0cl1whb  ?? → ||   # string|"" fallback; "" ?? "" = "" || "" = ""
+
+# webhooks.ts: intent.thankYouUrl ?? "" — string|undefined; for ""
+# both ?? "" and || "" yield "".
+src/features/api/webhooks.ts::processSessionAndRedirect.explicitThankYou~14utous  ?? → ||   # string|"" fallback; "" ?? "" = "" || "" = ""
+
+# webhooks.ts: .find(Boolean) returns undefined|truthy (Boolean("") is
+# false, so "" never returned). ?? null and || null agree.
+src/features/api/webhooks.ts::getWebhookSignatureHeader~09vhuo6  ?? → ||   # find(Boolean) → undefined|truthy; never ""
+src/features/api/webhooks.ts::authenticateWebhook.signature~0pl7bfz  ?? → ||   # getWebhookSignatureHeader → null|truthy; never ""
+
+# require-provider.ts: getPaymentProviderForExistingPayments() returns
+# Promise<ExistingPaymentProvider>; its awaited PaymentProvider|null value is
+# always truthy when present.
+src/features/admin/require-provider.ts::requirePaymentProvider~0y5apey  ?? → ||   # PaymentProvider|null; never falsy-but-non-null
 
 # request-scoped ambient fallback: scope.current() is T|undefined where T is
 # always a truthy container object (never a falsy-non-null value), so
 # `?? fallback` and `|| fallback` always agree. (createScopedValue's ?? is NOT
 # equivalent — a falsy scoped value must win over the fallback — and the
 # "falsy value still wins" test kills it.)
-src/shared/request-scoped.ts:130:35  ?? → ||   # scope.current(): T|undefined — a container object is always truthy
+src/shared/request-scoped.ts::createRequestScoped.current~1izbdej  ?? → ||   # scope.current(): T|undefined — a container object is always truthy
+
+# Registration delivery is always queued through pending-work. After its fixed
+# incident has been recorded, flushPendingWork intentionally consumes either
+# fulfilment or rejection with Promise.allSettled, so changing the one-error
+# rethrow threshold has no further observable result.
+src/shared/webhook/delivery.ts::sendRegistrationNotifications~166dat4  0 → 1   # one error is already reported; pending-work consumes the later rejection
 
 # v2 signed metadata (Phase 2d).
-src/shared/payment-helpers.ts:198:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
-src/shared/payment-helpers.ts:569:16  || → &&    # parsed JSON null/falsy primitives return {} in both forms; truthy primitives expose none of PACKED_KEYS and also produce {}
-src/shared/payment-helpers.ts:628:40  ?? → ||    # metadata field length is undefined or a non-negative integer; 0 and undefined both use 0
+src/shared/payment-helpers.ts::toBookingItems.foldedChildIds~1sr8ybw  ?? → ||   # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
+src/shared/payment-helpers.ts::parsePackedFields~0lfi795  || → &&   # parsed JSON null/falsy primitives return {} in both forms; truthy primitives expose none of PACKED_KEYS and also produce {}
+src/shared/payment-helpers.ts::enforceMetadataLimits.oversizedOptionRef~1ye3wov  ?? → ||   # metadata field length is undefined or a non-negative integer; 0 and undefined both use 0
 
 # sort-listings.ts's tier constants (0/1/2 for no-date-standard/dated-
 # standard/daily) and the "date === ''" empty-date sentinel: Array.sort only
@@ -39,18 +66,18 @@ src/shared/payment-helpers.ts:628:40  ?? → ||    # metadata field length is un
 # ignore-list checker cross-checks staleness against the full --exhaustive
 # mutant set regardless of which mode a given run used, so they stay valid
 # (not "stale") even under the default-mode precommit gate.
-src/shared/sort-listings.ts:22:48  2 → 3    # daily tier constant; only used via tierA-tierB's sign, never compared for equality
-src/shared/sort-listings.ts:23:10  ?: → alternate only   # listingTier always-1: masked by compareDatedStandard's ""-sorts-first + same-tier name fallback, see block comment above
-src/shared/sort-listings.ts:23:27   → "mutated"   # same effect as "always 1" above, for any date value that isn't literally the string "mutated"
-src/shared/sort-listings.ts:23:32  0 → 1    # same effect as "always 1" above
-src/shared/sort-listings.ts:23:32  0 → -1   # tier -1 preserves sign vs 1/2, and same-tier dispatch falls through to compareDaily's non-daily name fallback — same result
-src/shared/sort-listings.ts:63:19  0 → -1   # tierA===-1 never matches a real tier; tier-0 same-tier compares fall through to compareDaily's non-daily fallback, which returns the same name comparison
+src/shared/sort-listings.ts::listingTier~17udsrm  2 → 3   # daily tier constant; only used via tierA-tierB's sign, never compared for equality
+src/shared/sort-listings.ts::listingTier~1jn5qyj  ?: → alternate only   # listingTier always-1: masked by compareDatedStandard's ""-sorts-first + same-tier name fallback, see block comment above
+src/shared/sort-listings.ts::listingTier~0xaqhme   → "mutated"   # same effect as "always 1" above, for any date value that isn't literally the string "mutated"
+src/shared/sort-listings.ts::listingTier~08h9oa2  0 → 1   # same effect as "always 1" above
+src/shared/sort-listings.ts::listingTier~08h9oa2  0 → -1   # tier -1 preserves sign vs 1/2, and same-tier dispatch falls through to compareDaily's non-daily name fallback — same result
+src/shared/sort-listings.ts::compareListings~05ktsrt  0 → -1   # tierA===-1 never matches a real tier; tier-0 same-tier compares fall through to compareDaily's non-daily fallback, which returns the same name comparison
 
 # sort-listings.ts's compareDaily: nextDates.get() is typed string|null, never
 # undefined in practice because every daily listing gets an explicit entry, and
 # getNextBookableDate never returns "". Therefore `?? null` and `|| null` agree.
-src/shared/sort-listings.ts:46:36  ?? → ||   # nextDates.get(a.id): string|null, never a falsy-non-null string
-src/shared/sort-listings.ts:47:36  ?? → ||   # nextDates.get(b.id): string|null, never a falsy-non-null string
+src/shared/sort-listings.ts::compareDaily.dateA~0elhh75  ?? → ||   # nextDates.get(a.id): string|null, never a falsy-non-null string
+src/shared/sort-listings.ts::compareDaily.dateB~17fwox0  ?? → ||   # nextDates.get(b.id): string|null, never a falsy-non-null string
 
 # sort-listings.ts's compareDaily return values on the dateA===null branch:
 # confirmed by direct experiment that Array.sort's swap decision only checks
@@ -60,9 +87,9 @@ src/shared/sort-listings.ts:47:36  ?? → ||   # nextDates.get(b.id): string|nul
 # returns -1 for the reverse pairing, no input can ever make this branch's
 # non-negative return value observably differ from the intended `1` (the
 # magnitude-only `1 → 2` entries below are --exhaustive-only; see note above).
-src/shared/sort-listings.ts:49:30  1 → 0   # non-negative result; see block comment above
-src/shared/sort-listings.ts:49:30  1 → 2   # sign-preserving magnitude change; see block comment above
-src/shared/sort-listings.ts:50:31  1 → 2   # sign-preserving magnitude change on `return -1`; only the sign is ever observed
+src/shared/sort-listings.ts::compareDaily~08bj7h9  1 → 0   # non-negative result; see block comment above
+src/shared/sort-listings.ts::compareDaily~08bj7h9  1 → 2   # sign-preserving magnitude change; see block comment above
+src/shared/sort-listings.ts::compareDaily~05rrw2z  1 → 2   # sign-preserving magnitude change on `return -1`; only the sign is ever observed
 
 # orphan-retention.ts's Number.parseInt(safeValue, 10) radix: safeValue is
 # gated by isOrphanRetentionValue to always be one of ORPHAN_RETENTION_OPTIONS'
@@ -70,7 +97,7 @@ src/shared/sort-listings.ts:50:31  1 → 2   # sign-preserving magnitude change 
 # decimal digit strings ("0","182","365",...) that never start with "0x"/"0o"/
 # "0b". Radix 0 (auto-detect) and radix 10 agree on every value in that set
 # (confirmed directly), so no input safeValue can ever take distinguishes them.
-src/shared/orphan-retention.ts:61:43  10 → 0   # safeValue is a closed set of plain decimal strings; radix 0 and 10 agree on all of them
+src/shared/orphan-retention.ts::orphanRetentionCutoffIso.days~0npvuhc  10 → 0   # safeValue is a closed set of plain decimal strings; radix 0 and 10 agree on all of them
 
 # renewal-helpers.ts's formatDeadlineLabel: `diffMs < 0` is only reached when
 # diffDays !== 0 (the line above already returns "today" otherwise), and
@@ -80,9 +107,9 @@ src/shared/orphan-retention.ts:61:43  10 → 0   # safeValue is a closed set of 
 # reaches this line is already <= -43_200_000 or >= 43_200_000, nowhere near
 # 0, 1, or -1 — comparing it with `<` vs `<=`, or against 0 vs ±1, always
 # picks the same branch.
-src/shared/renewal-helpers.ts:20:13  < → <=   # diffMs here is always <= -43_200_000 or >= 43_200_000 (see block comment above); < and <= agree everywhere in that range
-src/shared/renewal-helpers.ts:20:16  0 → 1   # same reachability guarantee; diffMs is never in [0, 1)
-src/shared/renewal-helpers.ts:20:16  0 → -1   # same reachability guarantee; diffMs is never in [-1, 0)
+src/shared/renewal-helpers.ts::formatDeadlineLabel~0giqb8e  < → <=   # diffMs here is always <= -43_200_000 or >= 43_200_000 (see block comment above); < and <= agree everywhere in that range
+src/shared/renewal-helpers.ts::formatDeadlineLabel~0giqb8e  0 → 1   # same reachability guarantee; diffMs is never in [0, 1)
+src/shared/renewal-helpers.ts::formatDeadlineLabel~0giqb8e  0 → -1   # same reachability guarantee; diffMs is never in [-1, 0)
 
 # slug.ts's firstIssueMessage: `abortPipeEarly` only changes whether valibot
 # keeps validating later pipe steps after an earlier one fails — it never
@@ -93,7 +120,7 @@ src/shared/renewal-helpers.ts:20:16  0 → -1   # same reachability guarantee; d
 # non-string, empty, uppercase, spaces, symbols, leading/trailing separator,
 # consecutive separators — produces the identical issues[0].message under
 # both true and false.
-src/shared/slug.ts:73:63  true → false   # abortPipeEarly: SlugSchema's issues[0] message is identical either way for every input category the pipe can fail on
+src/shared/slug.ts::firstIssueMessage.result.abortPipeEarly~0d98clm  true → false   # abortPipeEarly: SlugSchema's issues[0] message is identical either way for every input category the pipe can fail on
 
 # url-safety.ts: isInternalHostname and isIpLiteral are private helpers only
 # ever called (via isSafeServerFetchUrl) with `url.hostname` from an already
@@ -109,10 +136,10 @@ src/shared/slug.ts:73:63  true → false   # abortPipeEarly: SlugSchema's issues
 #    is *already* rejected by the separate, independent isDomainHostname
 #    dot-check. Mutating the literal (even to "" or a nonsense string) cannot
 #    change isSafeServerFetchUrl's output for any reachable host.
-src/shared/url-safety.ts:13:9  localhost → ""   # bare "localhost" has no dot; isDomainHostname's dot-check rejects it independently either way
-src/shared/url-safety.ts:13:9  localhost → "localhost mutated"   # same as above
-src/shared/url-safety.ts:15:9  local → ""   # bare "local" has no dot; isDomainHostname's dot-check rejects it independently either way
-src/shared/url-safety.ts:15:9  local → "local mutated"   # same as above
+src/shared/url-safety.ts::isInternalHostname~0wxtvdh  localhost → ""   # bare "localhost" has no dot; isDomainHostname's dot-check rejects it independently either way
+src/shared/url-safety.ts::isInternalHostname~0wxtvdh  localhost → "localhost mutated"   # same as above
+src/shared/url-safety.ts::isInternalHostname~0q2hr6z  local → ""   # bare "local" has no dot; isDomainHostname's dot-check rejects it independently either way
+src/shared/url-safety.ts::isInternalHostname~0q2hr6z  local → "local mutated"   # same as above
 #
 # 2. isIpLiteral's bracket-stripping ternary and its `h.includes(":")` check:
 #    the WHATWG URL spec only accepts a bracketed host if it's a syntactically
@@ -130,28 +157,26 @@ src/shared/url-safety.ts:15:9  local → "local mutated"   # same as above
 #    against isSafeServerFetchUrl (not just isIpLiteral in isolation) across
 #    every bracketed test case already in this suite plus IPv4-mapped and
 #    malformed-bracket variants — all agree with the unmutated function.
-src/shared/url-safety.ts:22:5  ?: → alternate only   # bracket-stripping is unobservable; see block comment above
-src/shared/url-safety.ts:22:25  && → ||   # host can never start with "[" without also ending with "]" (URL.canParse rejects the asymmetric case), so && and || agree
-src/shared/url-safety.ts:22:25  && → ??   # startsWith("["): plain boolean, never nullish, so ?? reduces to the left operand alone — which agrees with && given the bracket-symmetry invariant above
-src/shared/url-safety.ts:22:21  [ → ""   # startsWith("") is always true; combined with the bracket-symmetry invariant this doesn't change which hosts get stripped
-src/shared/url-safety.ts:22:21  [ → "[ mutated"   # no reachable host starts with this literal, so stripping never happens — but unobservable either way, see block comment above
-src/shared/url-safety.ts:22:43  ] → ""   # endsWith("") is always true; see block comment above
-src/shared/url-safety.ts:22:43  ] → "] mutated"   # no reachable host ends with this literal, so stripping never happens — but unobservable either way, see block comment above
-src/shared/url-safety.ts:22:61  1 → 0   # slice(0,-1) vs slice(1,-1): still leaves a colon in every reachable bracketed (IPv6) host
-src/shared/url-safety.ts:22:61  1 → 2   # slice(2,-1) vs slice(1,-1): still leaves a colon in every reachable bracketed (IPv6) host
-src/shared/url-safety.ts:22:61  1 → -1   # slice(-1,-1) empties h, but the resulting dotless "" is caught by isDomainHostname's dot-check regardless
-src/shared/url-safety.ts:22:64  - → +   # slice(1,+1) empties h; same isDomainHostname fallback as above
-src/shared/url-safety.ts:22:65  1 → 0   # slice(1,-0)=slice(1,0) empties h; same isDomainHostname fallback as above
-src/shared/url-safety.ts:22:65  1 → 2   # slice(1,-2) vs slice(1,-1): still leaves a colon in every reachable bracketed (IPv6) host
-src/shared/url-safety.ts:22:65  1 → -1   # slice(1,1) empties h; same isDomainHostname fallback as above
-src/shared/url-safety.ts:23:18  : → ": mutated"   # h never contains this literal, so the colon-detection branch is skipped — falls to the regex, but the dotless-host isDomainHostname fallback still catches it
-src/shared/url-safety.ts:23:31  true → false   # isIpLiteral wrongly says "not an IP literal", but the dotless-host isDomainHostname fallback still rejects it
-src/ui/templates/admin/images.tsx:85:28  ?? → ||   # alt_text ?? "" vs || "": identical for every string — "" falls through to "" either way
-src/ui/templates/admin/images.tsx:86:20  ?? → ||   # name ?? "" vs || "": identical for every string — "" falls through to "" either way
-src/features/admin/images.ts:170:25   → "mutated"   # itemType destructure default: split(":") always yields ≥1 part, so the default is unreachable
-src/features/admin/images.ts:170:38   → "mutated"   # itemId destructure default: Number("") is 0 and Number("mutated") is NaN — both rejected by the id guard
-src/features/admin/images.ts:78:5  applyFlash(request); → (removed)   # only records ?form= targeting; no form on the images pages has an id, so the flash renders at the Layout backstop either way
-src/features/admin/images.ts:87:5  applyFlash(request); → (removed)   # same as images.ts:56 — no id'd form on the page
+src/shared/url-safety.ts::isIpLiteral.h~1isez7q  ?: → alternate only   # bracket-stripping is unobservable; see block comment above
+src/shared/url-safety.ts::isIpLiteral.h~142r3by  && → ||   # host can never start with "[" without also ending with "]" (URL.canParse rejects the asymmetric case), so && and || agree
+src/shared/url-safety.ts::isIpLiteral.h~142r3by  && → ??   # startsWith("["): plain boolean, never nullish, so ?? reduces to the left operand alone — which agrees with && given the bracket-symmetry invariant above
+src/shared/url-safety.ts::isIpLiteral.h~0ctvt8c  [ → ""   # startsWith("") is always true; combined with the bracket-symmetry invariant this doesn't change which hosts get stripped
+src/shared/url-safety.ts::isIpLiteral.h~0ctvt8c  [ → "[ mutated"   # no reachable host starts with this literal, so stripping never happens — but unobservable either way, see block comment above
+src/shared/url-safety.ts::isIpLiteral.h~06vei2v  ] → ""   # endsWith("") is always true; see block comment above
+src/shared/url-safety.ts::isIpLiteral.h~06vei2v  ] → "] mutated"   # no reachable host ends with this literal, so stripping never happens — but unobservable either way, see block comment above
+src/shared/url-safety.ts::isIpLiteral.h~1ciqwpx  1 → 0   # slice(0,-1) vs slice(1,-1): still leaves a colon in every reachable bracketed (IPv6) host
+src/shared/url-safety.ts::isIpLiteral.h~1ciqwpx  1 → 2   # slice(2,-1) vs slice(1,-1): still leaves a colon in every reachable bracketed (IPv6) host
+src/shared/url-safety.ts::isIpLiteral.h~1ciqwpx  1 → -1   # slice(-1,-1) empties h, but the resulting dotless "" is caught by isDomainHostname's dot-check regardless
+src/shared/url-safety.ts::isIpLiteral.h~05rrw2z  - → +   # slice(1,+1) empties h; same isDomainHostname fallback as above
+src/shared/url-safety.ts::isIpLiteral.h~05rrw2z  1 → 0   # slice(1,-0)=slice(1,0) empties h; same isDomainHostname fallback as above
+src/shared/url-safety.ts::isIpLiteral.h~05rrw2z  1 → 2   # slice(1,-2) vs slice(1,-1): still leaves a colon in every reachable bracketed (IPv6) host
+src/shared/url-safety.ts::isIpLiteral.h~05rrw2z  1 → -1   # slice(1,1) empties h; same isDomainHostname fallback as above
+src/shared/url-safety.ts::isIpLiteral~1l2lep3  : → ": mutated"   # h never contains this literal, so the colon-detection branch is skipped — falls to the regex, but the dotless-host isDomainHostname fallback still catches it
+src/shared/url-safety.ts::isIpLiteral~1d8tf9e  true → false   # isIpLiteral wrongly says "not an IP literal", but the dotless-host isDomainHostname fallback still rejects it
+src/ui/templates/admin/images.tsx::imageValue.alt_text~17v2zve  ?? → ||   # alt_text ?? "" vs || "": identical for every string — "" falls through to "" either way
+src/ui/templates/admin/images.tsx::imageValue.name~0pg0nzi  ?? → ||   # name ?? "" vs || "": identical for every string — "" falls through to "" either way
+src/features/admin/images.ts::parseImageTargets.itemType~01dj453   → "mutated"   # itemType destructure default: split(":") always yields ≥1 part, so the default is unreachable
+src/features/admin/images.ts::parseImageTargets.itemId~1gk0kbs   → "mutated"   # itemId destructure default: Number("") is 0 and Number("mutated") is NaN — both rejected by the id guard
 
 # Attendee merge service (attendee-merge.ts) — `?? → ||` between
 # `targetAnswers.get(qid)` (a `{answerId, answerText}` object or undefined) and
@@ -159,18 +184,18 @@ src/features/admin/images.ts:87:5  applyFlash(request); → (removed)   # same a
 # value type here is "object" or undefined — an object is always truthy, and
 # undefined falls through to the RHS for both. (Source-side mirror at :245
 # holds the same type.)
-src/shared/merge/attendee-merge.ts:245:38  ?? → ||   # Map<number,object>.get returns undefined or a truthy object — ?? and || agree for both
-src/shared/merge/attendee-merge.ts:246:38  ?? → ||   # same as :245 — Map<number,object>.get returns undefined or a truthy object
-src/shared/merge/attendee-merge.ts:251:45  ?? → ||   # questionTextMap.get returns undefined or a truthy validated question string
-src/shared/merge/attendee-merge.ts:252:35  ?? → ||   # sa?.answerId is undefined or a positive id, never 0
-src/shared/merge/attendee-merge.ts:253:39  ?? → ||   # sa?.answerText is undefined or a non-empty validated answer string
-src/shared/merge/attendee-merge.ts:254:35  ?? → ||   # ta?.answerId is undefined or a positive id, never 0
-src/shared/merge/attendee-merge.ts:255:39  ?? → ||   # ta?.answerText is undefined or a non-empty validated answer string
+src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.ta~09unqn1  ?? → ||   # Map<number,object>.get returns undefined or a truthy object — ?? and || agree for both
+src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.sa~1ys4u6l  ?? → ||   # same as :245 — Map<number,object>.get returns undefined or a truthy object
+src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.questionText~0mw46ge  ?? → ||   # questionTextMap.get returns undefined or a truthy validated question string
+src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.sourceAnswerId~1uekb3w  ?? → ||   # sa?.answerId is undefined or a positive id, never 0
+src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.sourceAnswerText~1vp707e  ?? → ||   # sa?.answerText is undefined or a non-empty validated answer string
+src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.targetAnswerId~0z8l3en  ?? → ||   # ta?.answerId is undefined or a positive id, never 0
+src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.targetAnswerText~0jv7oux  ?? → ||   # ta?.answerText is undefined or a non-empty validated answer string
 
 # Attendee merge service (attendee-merge.ts) — targetByKey lookup
 # `targetByKey.get(bookingKey(...)) ?? null`. Map.get returns undefined or a
 # ListingAttendeeRow object (always truthy); ?? and || agree on both.
-src/shared/merge/attendee-merge.ts:340:10  ?? → ||   # Map<string, ListingAttendeeRow>.get: undefined or a truthy object
+src/shared/merge/attendee-merge.ts::buildBookingDiffItems.tb~0xvtq6y  ?? → ||   # Map<string, ListingAttendeeRow>.get: undefined or a truthy object
 
 # Attendee merge service (attendee-merge.ts) — `applyPiiDecisions` writes the
 # merged PII into `mergedPii` and returns it; `applyAttendeeMerge` is the sole
@@ -181,7 +206,7 @@ src/shared/merge/attendee-merge.ts:340:10  ?? → ||   # Map<string, ListingAtte
 # is unobservable: the field is computed but never read. (PII itself is
 # re-blobbed by the feature layer from `decision.pii` and `targetPii` raw —
 # not from `mergedPii` — so nothing downstream reads it either.)
-src/shared/merge/attendee-merge.ts:507:57  = → +=   # mergedPii is computed then discarded by applyAttendeeMerge; only piiFieldsFromSource is observed
+src/shared/merge/attendee-merge.ts::applyPiiDecisions.%28mergedPii%20as%20Record%3cstring%2c%20string%3e%29%5bfield%2efield%5d~0ce4on8  = → +=   # mergedPii is computed then discarded by applyAttendeeMerge; only piiFieldsFromSource is observed
 
 # Attendee merge service (attendee-merge.ts) — `moneyReversalLegs`'s keyParts
 # prefix strings ("merge-unbill", "merge-credit") are the FIRST element of an
@@ -195,8 +220,8 @@ src/shared/merge/attendee-merge.ts:507:57  = → +=   # mergedPii is computed th
 # hash change can't surface via an idempotent-replay either; and no test or
 # production code queries the merged attendee's reversal legs by their
 # `event_group` value.
-src/shared/merge/attendee-merge.ts:725:18  merge-unbill → ""   # keyParts prefix feeds only the non-reversible event_group/reference hashes; never observed
-src/shared/merge/attendee-merge.ts:732:20  merge-credit → ""   # same as :725 — keyParts prefix feeds only the non-reversible hashes; never observed
+src/shared/merge/attendee-merge.ts::moneyReversalLegs.keyParts~0ut5xv3  merge-unbill → ""   # keyParts prefix feeds only the non-reversible event_group/reference hashes; never observed
+src/shared/merge/attendee-merge.ts::moneyReversalLegs.keyParts~05pepwi  merge-credit → ""   # same as :725 — keyParts prefix feeds only the non-reversible hashes; never observed
 
 # i18n copy handling (shared/rebrand.ts + shared/i18n.ts) — four provably-equivalent survivors.
 # needsIcu decides only whether a message takes the plain-string fast path or is
@@ -204,32 +229,40 @@ src/shared/merge/attendee-merge.ts:732:20  merge-credit → ""   # same as :725 
 # placeholder-free message (locked by the "fast path renders every
 # placeholder-free message exactly as full ICU would" test), so a mutant that
 # makes needsIcu always-true is a pure performance change with no observable effect.
-src/shared/rebrand.ts:26:16  { → ""   # needsIcu `msg.includes("{")` → `includes("")`: `includes("")` is always true, so needsIcu returns true for every message and all copy is routed through ICU. ICU output equals the fast-path string for plain copy, so no input changes t()'s output — only whether a formatter is built
-src/shared/rebrand.ts:26:37  ' → ""   # needsIcu `msg.includes("'")` → `includes("")`: same as above — always-true makes every message use ICU, which is output-identical to the fast path; unobservable
-src/shared/rebrand.ts:251:19   → "mutated"   # buildReplacer `const [from = ""` default: `pair.split("|")` always returns at least one element, so element 0 (`from`) is always present and the default is never used — dead code, unobservable
-src/shared/i18n.ts:230:21   → "mutated"   # parseAcceptLanguage `const [lang = ""` default: `part.trim().split(";")` always returns at least one element, so `lang` (element 0) is always present and the default is never used — dead code, unobservable
+src/shared/rebrand.ts::needsIcu~04jw1a5  { → ""   # needsIcu `msg.includes("{")` → `includes("")`: `includes("")` is always true, so needsIcu returns true for every message and all copy is routed through ICU. ICU output equals the fast-path string for plain copy, so no input changes t()'s output — only whether a formatter is built
+src/shared/rebrand.ts::needsIcu~1bj7zw1  ' → ""   # needsIcu `msg.includes("'")` → `includes("")`: same as above — always-true makes every message use ICU, which is output-identical to the fast path; unobservable
+src/shared/rebrand.ts::buildReplacer.from~0hbvux2   → "mutated"   # buildReplacer `const [from = ""` default: `pair.split("|")` always returns at least one element, so element 0 (`from`) is always present and the default is never used — dead code, unobservable
+src/shared/i18n.ts::parseAcceptLanguage.entries.lang~1poz3xi   → "mutated"   # parseAcceptLanguage `const [lang = ""` default: `part.trim().split(";")` always returns at least one element, so `lang` (element 0) is always present and the default is never used — dead code, unobservable
 
 # A header part without "=" has no value. Its key cannot affect timestamp or
 # signature state: a timestamp assignment remains undefined and a v1 signature
 # is added only when its value is truthy. These alternate key expressions differ
 # only for that value-less case, so every parsed result is identical.
-src/shared/stripe/webhook.ts:28:15  ?: → alternate only   # with "=", both arms slice the same key; without it, no value can be consumed
-src/shared/stripe/webhook.ts:28:30  1 → 2   # this changes only the no-separator key arm; value-less recognized and unknown keys are all ignored
+src/shared/stripe/webhook.ts::readHeaderPart.key~0pq15rq  ?: → alternate only   # with "=", both arms slice the same key; without it, no value can be consumed
+src/shared/stripe/webhook.ts::readHeaderPart.key~05rrw2z  1 → 2   # this changes only the no-separator key arm; value-less recognized and unknown keys are all ignored
 
 # SumUp client: values that are never falsy apart from null.
-src/shared/sumup.ts:215:18  ?? → ||   # withClient resolves to the callback's `true` or to null on failure, so the only non-null value is truthy and ?? false and || false agree
-src/shared/sumup.ts:254:37  ?? → ||   # settings.sumup.keyMode is typed "test" | "live" | null, so it has no falsy non-null value and ?? "unknown" and || "unknown" agree
+src/shared/sumup.ts::sumupApi.refundTransaction~0ahuvgt  ?? → ||   # withClient resolves to the callback's `true` or to null on failure, so the only non-null value is truthy and ?? false and || false agree
+src/shared/sumup.ts::sumupApi.testSumupConnection.result%2eapiKey.mode~109o082  ?? → ||   # settings.sumup.keyMode is typed "test" | "live" | null, so it has no falsy non-null value and ?? "unknown" and || "unknown" agree
 
 # rebrand scanner — four provably-equivalent survivors.
 # tagIsCode is read in exactly one place: stepTag's close, reachable only while
 # inTag is true — and every assignment of inTag=true (stepProse's unfinished
 # tag) also assigns tagIsCode. So a stale tagIsCode value can never be read.
-src/shared/rebrand.ts:66:14  false → true   # freshScan's tagIsCode: inTag starts false, so stepTag cannot run before stepProse has overwritten tagIsCode — the initial value is never read
-src/shared/rebrand.ts:138:26  false → true   # stepTag's tagIsCode reset after closing: inTag is false from here, and the next inTag=true assignment rewrites tagIsCode first — the residual value is never read
+src/shared/rebrand.ts::freshScan.tagIsCode~0lmqhnz  false → true   # freshScan's tagIsCode: inTag starts false, so stepTag cannot run before stepProse has overwritten tagIsCode — the initial value is never read
+src/shared/rebrand.ts::stepTag.closed%2etagIsCode~0zhp0n6  false → true   # stepTag's tagIsCode reset after closing: inTag is false from here, and the next inTag=true assignment rewrites tagIsCode first — the residual value is never read
 # scanTagEnd treats "<" as an inert character (it is neither a quote nor ">"),
 # so starting the scan at the "<" itself instead of one past it visits one
 # extra no-op character and returns the same index with the same quote state.
-src/shared/rebrand.ts:152:36  + → *   # `open + 1` → `open * 1` = open: the scan starts on the inert "<" and behaves identically
-src/shared/rebrand.ts:152:39  1 → 0   # `open + 0` = open: same inert-"<" start, identical result
-src/features/admin/attributes.ts:215:46  0 → 1   # option insert's sortOrder is a placeholder: the same transaction's append overwrites it before commit, and a failed append rolls the row back — no committed state can carry the inserted value
+src/shared/rebrand.ts::stepProse.end~17odbj7  + → *   # `open + 1` → `open * 1` = open: the scan starts on the inert "<" and behaves identically
+src/shared/rebrand.ts::stepProse.end~17odbj7  1 → 0   # `open + 0` = open: same inert-"<" start, identical result
+src/features/admin/attributes.ts::handleAddOption.onValid.sortOrder~1g336tf  0 → 1   # option insert's sortOrder is a placeholder: the same transaction's append overwrites it before commit, and a failed append rolls the row back — no committed state can carry the inserted value
 
+# Payment plumbing (main #2020): an ignored success flag, non-empty provider
+# strings, a sort tie-break, and validation messages nothing reads.
+src/shared/payment-helpers.ts::safeAsync~0wej7k3  true → false   # safeAsync getValue returns true; guardedWithValue only null-checks it, and the inner fn () => fn() ignores the value, so true/false are indistinguishable
+src/shared/stripe-provider.ts::toValidatedSession.paymentReference~17zvm8m  ?? → ||   # payment_intent is null | nonEmptyString; the only non-null values are truthy, so ?? and || agree
+src/shared/validation/money.ts::PositiveMoneySchema~0jfm1h7  false → true   # a leading "-" only admits values <= 0, which v.minValue(1) rejects either way
+src/shared/payment-signature.ts::canonicalPricePayload.entries~0kqbt3q  1 → 0   # sort() only checks for a strictly negative result; -1/0 and -1/1 order identically
+src/shared/payment/money.ts::CurrencySchema~1qa2mi1  Currency must be three uppercase letters → ""   # message text of the currency regex; validation outcome is identical
+src/shared/payment/resource-id.ts::ResourceIdSchema~1pmki6u  Resource id must be text with no whitespace → ""   # message text of the resource-id regex; validation outcome is identical

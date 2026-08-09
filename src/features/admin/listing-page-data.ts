@@ -21,7 +21,7 @@ import {
   type ActivityLogEntry,
   getListingActivityLog,
   getListingWithActivityLogOrNull,
-} from "#shared/db/activityLog.ts";
+} from "#shared/db/activity-log.ts";
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import { getAttendeeNamesByIds } from "#shared/db/attendees/queries.ts";
 import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";

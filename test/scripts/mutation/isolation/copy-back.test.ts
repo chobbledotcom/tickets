@@ -3,27 +3,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { runInSnapshot } from "#scripts/mutation/isolation.ts";
 import {
-  withCopyBackLock,
-  withMutationRunLock,
-} from "#scripts/mutation/isolation-lock.ts";
-import {
   captureConsole,
   withTempDir,
   writeFakeScript,
 } from "#test/scripts/mutation/isolation-helpers.ts";
-import {
-  controlledChild,
-  readOnlyRunRecord,
-  stubCommand,
-  waitForRunningRecord,
-  withCapturedStopChild,
-} from "./helpers.ts";
-
-/** Long enough for a waiting run to actually reach the lock it waits on. */
-const LONG_ENOUGH_TO_BE_WAITING_MS = 30;
-
-const pause = (milliseconds: number): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, milliseconds));
+import { readOnlyRunRecord } from "./helpers.ts";
 
 const ENTRY = "keeper.ts";
 const KEPT = "scripts/kept.txt";
@@ -99,76 +83,4 @@ ${REWRITE_KEPT}`;
       expect(await Deno.readTextFile(join(root, KEPT))).toBe("first\nsecond\n");
     });
   });
-});
-
-/** Each lock a finishing run waits for, and how a test can hold it first. */
-const FINISHING_LOCKS: {
-  hold: (
-    root: string,
-    runRoot: string,
-    body: () => Promise<void>,
-  ) => Promise<void>;
-  name: string;
-}[] = [
-  {
-    hold: (_root, runRoot, body) => withMutationRunLock(runRoot, body),
-    name: "the run's own lock",
-  },
-  {
-    hold: (root, _runRoot, body) => withCopyBackLock(root, body),
-    name: "the copy-back lock",
-  },
-];
-
-describe("interrupting a run as it finishes", () => {
-  for (const lock of FINISHING_LOCKS) {
-    test(`keeps nothing when the signal arrives while waiting for ${lock.name}`, async () => {
-      await withTempDir(async (root) => {
-        await writeFakeScript(root, ENTRY, "Deno.exit(0);\n");
-        await Deno.writeTextFile(join(root, KEPT), "first\nsecond\n");
-        const child = controlledChild(42_431, () => {});
-        using _command = stubCommand(child.child);
-
-        await withCapturedStopChild(async (getStopChild) => {
-          const run = captureConsole(() =>
-            runInSnapshot(
-              { args: [], copyBack: [KEPT], entryScript: `scripts/${ENTRY}` },
-              root,
-            ),
-          );
-          const started = await waitForRunningRecord(root);
-
-          // Held here, so the run waits for it and the signal lands in that
-          // wait. The copy is given something worth keeping, so a run that
-          // carried on regardless would be caught writing it out.
-          const released = Promise.withResolvers<void>();
-          const taken = Promise.withResolvers<void>();
-          const holding = lock.hold(root, started.root, async () => {
-            await Deno.writeTextFile(
-              join(started.workRoot, KEPT),
-              "kept from the copy\n",
-            );
-            taken.resolve();
-            await released.promise;
-          });
-          // Only once it is really held does the run have to wait for it.
-          await taken.promise;
-          child.finish({ code: 0, signal: null, success: true });
-          // The signal has to land while the run is inside that wait, not
-          // before it gets there.
-          await pause(LONG_ENOUGH_TO_BE_WAITING_MS);
-          getStopChild()?.();
-          released.resolve();
-          await holding;
-
-          expect((await run).result).toBe(130);
-          const finished = await readOnlyRunRecord(root);
-          expect(finished.status).toBe("interrupted");
-          expect(await Deno.readTextFile(join(root, KEPT))).toBe(
-            "first\nsecond\n",
-          );
-        });
-      });
-    });
-  }
 });

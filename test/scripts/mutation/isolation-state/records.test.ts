@@ -3,11 +3,11 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   createRunId,
   isRunId,
+  markChildEnded,
   markFinished,
   markInterrupted,
   markRunning,
   newRunRecord,
-  runStartedRecently,
   statusForExitCode,
   workRoot,
 } from "#scripts/mutation/isolation-state.ts";
@@ -37,61 +37,26 @@ describe("mutation isolation run records", () => {
     });
   });
 
+  test("drops the pid once the child has ended", () => {
+    const running = markRunning(
+      newRunRecord("ended", [], "/repo"),
+      42,
+      "2026-07-09T12:35:00.000Z",
+    );
+
+    const ended = markChildEnded(running, "2026-07-09T12:36:00.000Z");
+
+    // The id may be somebody else's at any moment now, so nothing —
+    // --kill above all — may keep treating it as this run's child.
+    expect(ended.pid).toBeUndefined();
+    expect(ended.status).toBe("running");
+    expect(ended.updatedAt).toBe("2026-07-09T12:36:00.000Z");
+  });
+
   test("maps exit codes to run status", () => {
     expect(statusForExitCode(0)).toBe("passed");
     expect(statusForExitCode(130)).toBe("interrupted");
     expect(statusForExitCode(2)).toBe("failed");
-  });
-
-  test("treats a run as recently started only within the grace period", () => {
-    const now = new Date("2026-07-10T12:00:00.000Z");
-    const fresh = markRunning(
-      newRunRecord("fresh", [], "/repo", "2026-07-10T11:59:45.000Z"),
-      1,
-      "2026-07-10T11:59:45.000Z",
-    );
-    const stale = markRunning(
-      newRunRecord("stale", [], "/repo", "2026-07-10T11:00:00.000Z"),
-      2,
-      "2026-07-10T11:00:00.000Z",
-    );
-    expect(runStartedRecently(fresh, now)).toBe(true);
-    expect(runStartedRecently(stale, now)).toBe(false);
-  });
-
-  test("treats a record whose time makes no sense as not started recently", () => {
-    const broken = markRunning(
-      newRunRecord("broken", [], "/repo", "not a time"),
-      3,
-      "not a time",
-    );
-
-    expect(
-      runStartedRecently(broken, new Date("2026-07-10T12:00:00.000Z")),
-    ).toBe(false);
-  });
-
-  test("treats a run stamped in the future as not recent", () => {
-    // A clock put back must not leave a dead run looking busy for ever.
-    const future = markRunning(
-      newRunRecord("future", [], "/repo", "2027-01-01T00:00:00.000Z"),
-      5,
-      "2027-01-01T00:00:00.000Z",
-    );
-
-    expect(
-      runStartedRecently(future, new Date("2026-07-10T12:00:00.000Z")),
-    ).toBe(false);
-  });
-
-  test("counts a run stamped a moment after the epoch", () => {
-    const justAfterEpoch = markRunning(
-      newRunRecord("epoch", [], "/repo", "1970-01-01T00:00:00.001Z"),
-      4,
-      "1970-01-01T00:00:00.001Z",
-    );
-
-    expect(runStartedRecently(justAfterEpoch, new Date(1), 1000)).toBe(true);
   });
 
   test("gives each run a plain id with an eight-letter tail", () => {

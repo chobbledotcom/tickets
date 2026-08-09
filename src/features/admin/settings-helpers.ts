@@ -18,7 +18,7 @@ import {
   withAuth,
 } from "#routes/auth.ts";
 import { errorRedirect, jsonResponse, redirect } from "#routes/response.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { isMaskSentinel } from "#shared/db/settings/mask.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -117,29 +117,58 @@ type SettingsMessage<T> =
   | { label: string; log?: undefined }
   | { label?: never; log: (value: T) => string };
 
+/** Where the handler's value comes from: a custom `extract` function (with the
+ * form field name as optional metadata), or — for a plain string setting —
+ * just the field name, which doubles as the extract. */
+type SettingsValueSource<T> =
+  | {
+      /** Extract the value from form data */
+      extract: (form: FormParams) => T;
+      /** Form field name (metadata only when `extract` is custom) */
+      field?: string | undefined;
+    }
+  | {
+      extract?: undefined;
+      /** Form field name — also the default extract (`form.getString`) */
+      field: [T] extends [string] ? string : never;
+    };
+
 type SettingsHandlerConfig<T> = RedirectOpts &
-  SettingsMessage<T> & {
+  SettingsMessage<T> &
+  SettingsValueSource<T> & {
     /** Form ID for flash message targeting (omit for non-settings pages) */
     formId?: string | undefined;
-    /** Extract the value from form data */
-    extract: (form: FormParams) => T;
     /** Validate the value. Return error string or null if valid. */
     validate?: ValidateFn<T> | undefined;
     /** Persist the value */
     save: (value: T) => Promise<void> | void;
+    taskName?: string | undefined;
   };
 
 const createSettingsHandler =
-  <T>(cfg: SettingsHandlerConfig<T>): SettingsFormHandler =>
+  <T = string>(cfg: SettingsHandlerConfig<T>): SettingsFormHandler =>
   async (form, errorPage) => {
-    const value = cfg.extract(form);
+    const value =
+      cfg.extract !== undefined
+        ? cfg.extract(form)
+        : // `extract` may only be omitted for a plain string setting that
+          // names its `field` (see SettingsValueSource), so the named
+          // field's string is the value.
+          (form.getString(cfg.field) as T);
     return afterValidation(
       cfg.validate,
       value,
       errorPage,
       cfg.formId,
       async () => {
-        await cfg.save(value);
+        if (cfg.taskName) {
+          const task = await settings.withCurrentTask(
+            cfg.taskName,
+            () => Promise.resolve(cfg.save(value)),
+            form.getOptionalInt("settings_version"),
+          );
+          if (!task.ok) return errorPage(task.error, cfg.formId);
+        } else await cfg.save(value);
         const msg = cfg.log ? cfg.log(value) : `${cfg.label} updated`;
         await logActivity(msg);
         return redirect(
@@ -153,8 +182,9 @@ const createSettingsHandler =
   };
 
 /** Convenience: createSettingsHandler + route wrapping */
-const settingsHandler = <T>(cfg: SettingsHandlerConfig<T>): RequestRoute =>
-  routedSettings(createSettingsHandler<T>)(cfg);
+const settingsHandler = <T = string>(
+  cfg: SettingsHandlerConfig<T>,
+): RequestRoute => routedSettings(createSettingsHandler<T>)(cfg);
 
 // ── Specialization: toggleHandler ───────────────────────────────────
 
@@ -335,25 +365,32 @@ type ProviderCredentialsConfig<T> = {
   /** Persist a newly provided secret and run any provider setup it needs.
    * Return an error string when an expected setup failure should be shown on
    * the form. Thrown failures propagate. */
-  saveSecret: (value: string) => Promise<string | null> | Promise<void>;
+  saveSecret: (
+    value: string,
+    activateFromMissing: boolean,
+  ) => Promise<string | null> | Promise<void>;
   /** Persist the non-secret fields (called on every successful save). */
   saveFields?: (fields: T) => Promise<void> | void;
   /** Connection-test function behind the sibling `/test` route. */
   testFn: () => Promise<unknown>;
 };
 
-/** Persist a validated submission, then select the provider. */
+/** Persist a validated submission without switching sales back on. */
 const persistProviderCredentials = async <T>(
   cfg: ProviderCredentialsConfig<T>,
   fields: T,
   secret: SecretFieldResult,
+  activateFromMissing: boolean,
 ): Promise<string | null> => {
   if (secret.action === "provided") {
-    const error = await cfg.saveSecret(secret.value);
+    const error = await cfg.saveSecret(secret.value, activateFromMissing);
     if (error) return error;
   }
   if (cfg.saveFields) await cfg.saveFields(fields);
-  await settings.update.paymentProvider(cfg.provider);
+  await settings.update.paymentProviderAfterCredentialSave(
+    cfg.provider,
+    activateFromMissing,
+  );
   return null;
 };
 
@@ -369,6 +406,7 @@ const defineProviderCredentialsRoute = <T>(
   test: (request: Request) => Promise<Response>;
 } => {
   const save = settingsRoute(async (form, errorPage) => {
+    const activateFromMissing = !cfg.hasSecret();
     const secret = processSecretField(form, cfg.secretField);
     const fields = cfg.extraFields
       ? cfg.extraFields(form)
@@ -389,11 +427,22 @@ const defineProviderCredentialsRoute = <T>(
       return settingsFlash(cfg.unchangedMessage);
     }
 
-    const saveError = await persistProviderCredentials(cfg, fields, secret);
-    if (saveError) return errorPage(saveError, cfg.formId);
-
-    await logActivity(cfg.logMessage);
-    return settingsFlash(cfg.successMessage);
+    const task = await settings.withCurrentTask(
+      `payment-provider-${cfg.provider}`,
+      async () => {
+        const saveError = await persistProviderCredentials(
+          cfg,
+          fields,
+          secret,
+          activateFromMissing,
+        );
+        if (saveError) return errorPage(saveError, cfg.formId);
+        await logActivity(cfg.logMessage);
+        return settingsFlash(cfg.successMessage);
+      },
+      form.getOptionalInt("settings_version"),
+    );
+    return task.ok ? task.value : errorPage(task.error, cfg.formId);
   });
 
   return { save, test: testRoute(cfg.testFn) };

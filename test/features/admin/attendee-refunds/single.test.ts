@@ -18,6 +18,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidAttendeeWithoutLedger } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import {
   expectSingleRefundIssued,
@@ -273,31 +274,43 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       });
     });
 
-    test("surfaces a provider refund the ledger could not record", async () => {
-      // The booking predates the ledger, so the provider refund succeeds but the
-      // reversal finds no clean order to post — refund status is ledger-only now,
-      // so this must surface for a manual adjustment, not read as refunded.
-      const listing = await createPaidListing();
-      const attendee = await createPaidAttendeeWithoutLedger(
-        listing.id,
-        "John Doe",
-        "john@example.com",
-        "pi_unrecorded",
-      );
-      const ctx: RefundCtx = {
-        attendee,
-        cookie: await testCookie(),
-        csrfToken: await testCsrfToken(),
-        listing,
-      };
-      await withRefundMock(true, async (mockRefund) => {
-        const response = await submitRefund(ctx);
-        await expectFlashRedirect(
-          `/admin/attendees/${attendee.id}/refund`,
-          "The payment provider sent the refund. It could not be recorded in Money. Add a correction. Do not send the refund again.",
-          false,
-        )(response);
-        expect(mockRefund.calls.length).toBeGreaterThan(0);
+    describe("a provider refund the ledger could not record", () => {
+      const errors = setupErrorSpy();
+
+      test("surfaces it for a manual adjustment and reports the broken promise", async () => {
+        // The booking predates the ledger, so the provider refund succeeds but the
+        // reversal finds no clean order to post — refund status is ledger-only now,
+        // so this must surface for a manual adjustment, not read as refunded.
+        const listing = await createPaidListing();
+        const attendee = await createPaidAttendeeWithoutLedger(
+          listing.id,
+          "John Doe",
+          "john@example.com",
+          "pi_unrecorded",
+        );
+        const ctx: RefundCtx = {
+          attendee,
+          cookie: await testCookie(),
+          csrfToken: await testCsrfToken(),
+          listing,
+        };
+        await withRefundMock(true, async (mockRefund) => {
+          const response = await submitRefund(ctx);
+          await expectFlashRedirect(
+            `/admin/attendees/${attendee.id}/refund`,
+            "The payment provider sent the refund. It could not be recorded in Money. Add a correction. Do not send the refund again.",
+            false,
+          )(response);
+          expect(mockRefund.calls.length).toBeGreaterThan(0);
+          // Money moved without a ledger record: the flash alone is not enough,
+          // the incident must reach the classified error fan-out too.
+          expect(
+            errors.contains(
+              `[Error] E_INVARIANT_REPORTED listing=${listing.id} ` +
+                `attendee=${attendee.id} detail="error.refund_not_recorded"`,
+            ),
+          ).toBe(true);
+        });
       });
     });
 

@@ -8,22 +8,16 @@
  * labels, and how an age maps to a cut-off timestamp.
  */
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-/** One selectable retention age: its stored value (whole days) and label key. */
-export type OrphanRetentionOption = {
-  /** Stored value — the age in whole days, as a string ("0" = immediately). */
-  value: string;
-  /** Locale key for the human label shown in the dropdown. */
-  labelKey: string;
-};
+import type { ChoiceOption } from "#shared/choice.ts";
+import { DAY_MS } from "#shared/now.ts";
 
 /**
  * The ages offered in the "purge orphaned attendees older than…" dropdown,
- * in display order. Stored as day counts so the cut-off is plain subtraction;
- * "0" means "any age" (delete every orphan immediately).
+ * in display order. Each value is the age in whole days, as a string, so the
+ * cut-off is plain subtraction; "0" means "any age" (delete every orphan
+ * immediately).
  */
-export const ORPHAN_RETENTION_OPTIONS: readonly OrphanRetentionOption[] = [
+export const ORPHAN_RETENTION_OPTIONS: readonly ChoiceOption[] = [
   { labelKey: "privacy.retention.immediately", value: "0" },
   { labelKey: "privacy.retention.6_months", value: "182" },
   { labelKey: "privacy.retention.1_year", value: "365" },

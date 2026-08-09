@@ -5,7 +5,7 @@ import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import { mapBooking } from "#shared/accounting/mappers.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
-import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
+import type { ActivityLogEntry } from "#shared/db/activity-log.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import { execute } from "#shared/db/client.ts";
@@ -18,6 +18,7 @@ import { createPaidAttendeeWithoutLedger } from "#test-utils/db-helpers/attendee
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postPaymentLeg } from "#test-utils/db-helpers/payment-leg.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
 import { withRefreshPaymentProbe } from "#test-utils/refund-routes.ts";
 import { adminFormPost } from "#test-utils/session.ts";
@@ -251,25 +252,37 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
       expect(queried).toEqual(["pi_not_refunded"]);
     });
 
-    test("records a refund-not-recorded error when the ledger has no clean order to reverse", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        unitPrice: 800,
-      });
-      const attendee = await createPaidAttendeeWithoutLedger(
-        listing.id,
-        "Refunded No Ledger",
-        "refunded-no-ledger@example.com",
-        "pi_refunded_no_ledger",
-        500,
-      );
+    describe("a provider refund the ledger has no clean order to reverse", () => {
+      const errors = setupErrorSpy();
 
-      await submitRefreshPayment(
-        attendee,
-        () => Promise.resolve(true),
-        "The payment provider sent the refund. It could not be recorded in Money. Add a correction. Do not send the refund again.",
-        false,
-      );
+      test("records a refund-not-recorded error and reports the broken promise", async () => {
+        const listing = await createTestListing({
+          maxAttendees: 50,
+          unitPrice: 800,
+        });
+        const attendee = await createPaidAttendeeWithoutLedger(
+          listing.id,
+          "Refunded No Ledger",
+          "refunded-no-ledger@example.com",
+          "pi_refunded_no_ledger",
+          500,
+        );
+
+        await submitRefreshPayment(
+          attendee,
+          () => Promise.resolve(true),
+          "The payment provider sent the refund. It could not be recorded in Money. Add a correction. Do not send the refund again.",
+          false,
+        );
+        // Money moved without a ledger record: the flash alone is not enough,
+        // the incident must reach the classified error fan-out too.
+        expect(
+          errors.contains(
+            `[Error] E_INVARIANT_REPORTED listing=${listing.id} ` +
+              `attendee=${attendee.id} detail="error.refund_not_recorded"`,
+          ),
+        ).toBe(true);
+      });
     });
   });
 });

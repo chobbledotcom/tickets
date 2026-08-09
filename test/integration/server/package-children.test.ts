@@ -73,6 +73,7 @@ const packageChildSession = (
 ) =>
   ({
     amount_total: 1800,
+    currency: "gbp",
     id: sessionId,
     metadata: signMeta(
       {
@@ -378,6 +379,7 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
     const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
       Promise.resolve({
         amount_total: 1000,
+        currency: "gbp",
         id: "cs_pkg_grown",
         metadata: signMeta(
           {

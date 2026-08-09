@@ -11,7 +11,8 @@
 import { t } from "#i18n";
 import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
 import { entityToFieldValues } from "#shared/forms/values.ts";
-import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import type { AdminSession, Holiday } from "#shared/types.ts";
@@ -118,7 +119,6 @@ export const getHolidayPages = (): ReturnType<
       addSubmit: t("holidays.add.submit"),
       addTitle: t("holidays.add.title"),
       deleteButton: t("holidays.delete.submit"),
-      deleteLabel: t("holidays.delete.confirm_label"),
       deleteTitle: t("holidays.delete.heading"),
       listTitle: t("terms.holidays"),
     },

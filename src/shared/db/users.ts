@@ -365,8 +365,8 @@ export const acceptInvite = async (
     passwordHash,
   );
   return executeChangedRow(
-    "UPDATE users SET password_hash = ?, wrapped_data_key = ?, kek_version = 2, invite_wrapped_data_key = NULL, invite_code_hash = ?, invite_expiry = ? WHERE id = ? AND invite_wrapped_data_key IS NOT NULL",
-    [encryptedHash, wrappedDataKey, encryptedEmpty, encryptedEmpty, userId],
+    "UPDATE users SET password_hash = ?1, wrapped_data_key = ?2, kek_version = 2, invite_wrapped_data_key = NULL, invite_code_hash = ?3, invite_expiry = ?3 WHERE id = ?4 AND invite_wrapped_data_key IS NOT NULL",
+    [encryptedHash, wrappedDataKey, encryptedEmpty, userId],
   );
 };
 
@@ -390,8 +390,8 @@ export const activateKeylessUser = async (
   const { encryptedHash, encryptedEmpty } =
     await buildActivationSecrets(password);
   return executeChangedRow(
-    "UPDATE users SET password_hash = ?, kek_version = 2, invite_code_hash = ?, invite_expiry = ? WHERE id = ? AND password_hash = ''",
-    [encryptedHash, encryptedEmpty, encryptedEmpty, userId],
+    "UPDATE users SET password_hash = ?1, kek_version = 2, invite_code_hash = ?2, invite_expiry = ?2 WHERE id = ?3 AND password_hash = ''",
+    [encryptedHash, encryptedEmpty, userId],
   );
 };
 

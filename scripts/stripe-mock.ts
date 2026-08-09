@@ -13,10 +13,9 @@ import { stripeMock } from "#src/shared/stripe/mock.ts";
 import { withFileLock } from "./lock-file.ts";
 import { stopProcess, stopProcessNow } from "./process.ts";
 import {
+  binDirGuard,
   defaultStripeMockPaths,
   downloadStripeMock,
-  ensureBinDir,
-  type LockBody,
   type StripeMockCommands,
   type StripeMockInstallOptions,
   type StripeMockPaths,
@@ -63,12 +62,30 @@ export const stripeMockEnv = (
   STRIPE_MOCK_PORT: String(port),
 });
 
-/** Ask the OS for a currently free localhost port. */
-export const findAvailablePort = (): number => {
+export interface PortReservation {
+  port: number;
+  release: () => void;
+}
+
+/** Hold a free localhost port until its future owner is ready to bind it. */
+export const reserveAvailablePort = (): PortReservation => {
   const listener = Deno.listen({ hostname: "127.0.0.1", port: 0 });
   const { port } = listener.addr as Deno.NetAddr;
-  listener.close();
-  return port;
+  let held = true;
+  return {
+    port,
+    release: () => {
+      if (held) listener.close();
+      held = false;
+    },
+  };
+};
+
+/** Ask the OS for a currently free localhost port. */
+export const findAvailablePort = (): number => {
+  const reservation = reserveAvailablePort();
+  reservation.release();
+  return reservation.port;
 };
 
 const chooseStripeMockPort = (env: StripeMockEnvSource): number =>
@@ -224,13 +241,9 @@ const captureStreamText = (
 const stripeMockStartLockPath = (paths: StripeMockPaths): string =>
   join(paths.binDir, START_LOCK_NAME);
 
-const withStripeMockStartLock = async <T>(
-  paths: StripeMockPaths,
-  body: LockBody<T>,
-): Promise<T> => {
-  await ensureBinDir(paths);
-  return withFileLock(stripeMockStartLockPath(paths), body);
-};
+const withStripeMockStartLock = binDirGuard(
+  (paths) => (body) => withFileLock(stripeMockStartLockPath(paths), body),
+);
 
 const resolveStripeMockPort = (
   options: StartStripeMockOptions,

@@ -82,6 +82,7 @@ describeWithEnv(
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           amount_total: 800,
+          currency: "gbp",
           id: "cs_redirect_mismatch",
           metadata: signMeta(
             webhookMeta({

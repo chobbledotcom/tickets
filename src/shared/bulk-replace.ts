@@ -3,8 +3,10 @@
  *
  * Used by both the server (to apply replacements when duplicating listings)
  * and the client (to render a live preview of the same replacements).
- * Shared module must be browser-compatible: no runtime imports.
+ * Shared module must be browser-compatible: no runtime-specific imports.
  */
+
+import { DAY_MS } from "#shared/now.ts";
 
 /** Inputs describing a single find/replace pass over a group's listings */
 export interface DuplicateReplacements {
@@ -36,8 +38,6 @@ export interface PreviewableListing {
   name: string;
 }
 
-const MS_PER_DAY = 86_400_000;
-
 /**
  * Apply a literal find/replace substitution to a name.
  * Uses split/join so every occurrence is replaced without regex escaping.
@@ -56,7 +56,7 @@ export const applyNameReplacement = (
  */
 export const computeDayOffset = (find: string, replace: string): number => {
   if (!find || !replace) return 0;
-  return Math.round((Date.parse(replace) - Date.parse(find)) / MS_PER_DAY);
+  return Math.round((Date.parse(replace) - Date.parse(find)) / DAY_MS);
 };
 
 /**
@@ -65,7 +65,7 @@ export const computeDayOffset = (find: string, replace: string): number => {
  */
 export const shiftUtcIsoByDays = (iso: string, days: number): string => {
   if (!iso || days === 0) return iso;
-  return new Date(Date.parse(iso) + days * MS_PER_DAY).toISOString();
+  return new Date(Date.parse(iso) + days * DAY_MS).toISOString();
 };
 
 /** Build preview rows for a list of listings using the shared replacement rules */

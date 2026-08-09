@@ -9,9 +9,9 @@ import {
   publicMessageGroups,
 } from "#locales/groups.ts";
 import type { MessageGroup } from "#locales/manifest.ts";
+import { apiErrorResponse } from "#routes/api/cors.ts";
 import {
   htmlResponse,
-  jsonResponse,
   notFoundResponse,
   redirectResponse,
 } from "#routes/response.ts";
@@ -87,7 +87,7 @@ const requirePublicSiteGet =
 const READ_ONLY_MESSAGE = "This site is in read-only mode";
 
 const readOnlyResponses = {
-  api: (): Response => jsonResponse({ error: READ_ONLY_MESSAGE }, 403),
+  api: (): Response => apiErrorResponse(READ_ONLY_MESSAGE, 403),
   page: (): Response => redirectResponse("/read-only"),
 } as const;
 

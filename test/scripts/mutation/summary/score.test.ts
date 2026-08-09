@@ -3,7 +3,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   formatProgressLine,
   formatSummaryLines,
-  rel,
   summarize,
 } from "#scripts/mutation/summary.ts";
 import { fakeResult } from "./fixtures.ts";
@@ -62,10 +61,6 @@ describe("scoring a mutation run", () => {
       timedOut: 0,
       total: 0,
     });
-  });
-
-  test("keeps relative paths unchanged", () => {
-    expect(rel("src/example.ts")).toBe("src/example.ts");
   });
 
   test("formats survivor locations with project-relative paths", () => {

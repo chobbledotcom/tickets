@@ -5,7 +5,7 @@
 /* jscpd:ignore-start */
 import { joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
-import { apiKeyForm } from "#routes/admin/api-keys.ts";
+import { apiKeyForm } from "#routes/admin/api-keys-form.ts";
 import type { EndpointDoc } from "#shared/admin-api-example/endpoint-doc.ts";
 import { formatDateLabel } from "#shared/dates.ts";
 import { Flash } from "#shared/forms/flash.tsx";
@@ -15,7 +15,7 @@ import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { renderAdminPage } from "#templates/admin/admin-page.tsx";
-import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
+import { entityDeletePage } from "#templates/admin/confirm-page.tsx";
 import type { SummaryRow } from "#templates/admin/entity-pages.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
@@ -150,11 +150,8 @@ export const adminApiKeysPage = (
 /**
  * Admin API key delete confirmation page
  */
-export const adminDeleteApiKeyPage = (
-  apiKey: { id: number; name: string },
-  session: AdminSession,
-): string =>
-  ConfirmPage({
+export const adminApiKeyDeletePage = entityDeletePage(
+  (apiKey: { id: number; name: string }) => ({
     action: `/admin/api-keys/${apiKey.id}/delete`,
     active: "/admin/api-keys",
     buttonText: t("api_keys.delete_submit"),
@@ -166,9 +163,9 @@ export const adminDeleteApiKeyPage = (
     ),
     label: t("api_keys.delete_label"),
     name: apiKey.name,
-    session,
     title: `Delete: ${apiKey.name}`,
-  });
+  }),
+);
 
 /** A `<pre><code>…</code></pre>` block — the request/response payload
  *  container shared by every endpoint entry. */

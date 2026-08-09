@@ -1,13 +1,10 @@
 /**
  * Entity pages — the impure shell of the tabbed admin "edit X" framework
  * `defineEntityPage` turns one declarative page definition
- * (tabs of typed sections) into handlers the feature file binds under its
- * literal route keys:
+ * (tabs of typed sections) into handlers the feature file binds with
+ * `entityTabRoutes` (#routes/admin/route-tables.ts):
  *
- *   "GET /admin/attendees/:attendeeId": (request, { attendeeId }) =>
- *     attendeePage.renderTab(request, attendeeId, ""),
- *   "GET /admin/attendees/:attendeeId/:tab": (request, { attendeeId, tab }) =>
- *     attendeePage.renderTab(request, attendeeId, tab),
+ *   ...entityTabRoutes("/admin/attendees", attendeePage, "attendeeId"),
  *
  * The GET flow: auth guard → load the entity (null → 404) → resolve the
  * requested tab against the viewer's visible set (unknown/hidden → 404) →
@@ -28,7 +25,7 @@ import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import type { AdminRouteIntent } from "#shared/admin-surface/definitions.ts";
-import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
+import type { ActivityLogEntry } from "#shared/db/activity-log.ts";
 import {
   resolveTabSlug,
   splitActions,

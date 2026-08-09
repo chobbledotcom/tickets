@@ -576,6 +576,7 @@ export const MIN_CALL_SITES = 3;
  * share names with no application function, so ignoring them is safe.
  */
 export const IGNORED_CALLEES = new Set([
+  "at",
   "padStart",
   "padEnd",
   "toFixed",

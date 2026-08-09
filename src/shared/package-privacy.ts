@@ -104,16 +104,19 @@ export type PackageStandIns = {
   byListingId: ReadonlyMap<number, string>;
 };
 
+/** The package facts the stand-in builders read. */
+type StandInPackage = {
+  groupId: number;
+  name: string;
+  hideListings: boolean;
+  memberListingIds: readonly number[];
+};
+
 /** Build the page's stand-ins: every hidden package's name keyed by its group
  * id, plus each of its members and those members' required children by listing
  * id (a child booked as part of a hidden bundle must not be named either). */
 export const packageStandIns = (
-  packages: readonly {
-    groupId: number;
-    name: string;
-    hideListings: boolean;
-    memberListingIds: readonly number[];
-  }[],
+  packages: readonly StandInPackage[],
   childIdsOfMember: (memberListingId: number) => readonly number[],
 ): PackageStandIns => {
   const byGroupId = new Map<number, string>();
@@ -130,6 +133,24 @@ export const packageStandIns = (
   }
   return { byGroupId, byListingId };
 };
+
+/** This page's hidden-package stand-ins: every HIDDEN package's name by group
+ * id (for its tagged lines) and by member/child listing id (for folded-child
+ * lines, error text, and conflict notes). Buyer-facing line names and error
+ * text resolve through these maps so a concealed member is never named. Empty
+ * when nothing on the page is concealed. */
+export const ctxStandInNames = (ctx: {
+  packages: readonly StandInPackage[];
+  childrenByParentId: ReadonlyMap<
+    number,
+    readonly { listing: { id: number } }[]
+  >;
+}): PackageStandIns =>
+  packageStandIns(ctx.packages, (memberId) =>
+    (ctx.childrenByParentId.get(memberId) ?? []).map(
+      (child) => child.listing.id,
+    ),
+  );
 
 /** Replace each concealed line's buyer-facing name with its package's name: a
  * line TAGGED with a hidden package takes that package's name; an untagged

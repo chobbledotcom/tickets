@@ -1,9 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import {
+  startOnFirstUse,
   startWithFailureCleanup,
   waitForHealthy,
 } from "#scripts/screenshots/server.ts";
+import { requireValue } from "#shared/required-value.ts";
 
 const expectOneRetry = async (
   request: () => Promise<Response>,
@@ -22,6 +24,31 @@ const expectOneRetry = async (
 };
 
 describe("screenshot server", () => {
+  it("starts an optional resource only on first use", async () => {
+    let starts = 0;
+    let stops = 0;
+    const cleanups: (() => void)[] = [];
+    const start = startOnFirstUse(
+      () => {
+        starts += 1;
+        return Promise.resolve({
+          stop: () => {
+            stops += 1;
+          },
+        });
+      },
+      (cleanup) => cleanups.push(cleanup),
+    );
+
+    expect(starts).toBe(0);
+    await start();
+    await start();
+    expect(starts).toBe(1);
+    expect(cleanups).toHaveLength(1);
+    await requireValue(cleanups[0], "Missing optional resource cleanup.")();
+    expect(stops).toBe(1);
+  });
+
   it("stops an acquired resource when startup fails", async () => {
     const startupError = new Error("startup failed");
     const stops: string[] = [];

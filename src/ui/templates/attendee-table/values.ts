@@ -1,6 +1,6 @@
 import { sort } from "#fp";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
-import { nonBlankLines } from "#shared/lines.ts";
+import { nonBlankLines } from "#shared/split.ts";
 import type { AttendeeColumnKey } from "#shared/tables/configurable.ts";
 import type { AttendeeTableRow } from "#shared/types.ts";
 import type {

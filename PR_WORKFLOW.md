@@ -325,6 +325,13 @@ nix develop -c deno task precommit
 nix develop -c deno task precommit:mutation
 ```
 
+Commit any final source changes before running `precommit:mutation`. The
+mutation gate scopes to the branch's committed diff (`origin/main...HEAD`) and
+deliberately ignores the worktree and index, so uncommitted edits are not
+mutated and would only be covered by a later commit's ordinary pre-commit gate,
+which does not re-run mutation testing. After any later commit, rerun
+`precommit:mutation` to restore that coverage.
+
 Do not use mutation testing to invent the behavior contract. It can show that an
 existing assertion is weak; it cannot show that a missing state, race, or
 external failure was never designed.

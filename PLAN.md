@@ -31,10 +31,17 @@ a giant cleanup PR.
 - The basic payment table schema is already on `main`. Both branches build on
   that shared result.
 - `main` already has a dormant six-table payment schema without runtime callers.
-  Because that migration has shipped, do not add drop-and-recreate churn. The
-  first aggregate stack must give each table a complete production role or drop
-  it at the end of that stack. Existing tables are not permission to add unused
-  repositories, codecs, indexes, or exports.
+  The aggregate schema tables are `payment_sessions`,
+  `payment_completion_effects`, `payment_completion_deliveries`,
+  `payment_charges`, `payment_cases`, and `payment_case_decisions` (defined in
+  `src/shared/db/migrations/schema/payments/`). Because that migration has
+  shipped, do not add drop-and-recreate churn against these dormant aggregate
+  tables. The first aggregate stack must give each of these tables a complete
+  production role or drop it at the end of that stack. Existing tables are not
+  permission to add unused repositories, codecs, indexes, or exports. These
+  dormant aggregate tables are distinct from the legacy reader tables
+  (`processed_payments`, `checkout_stages`, `sumup_checkouts` and related PII
+  sources) that PR 13 reads as historical input and PR 16 drops.
 
 ### Architectural result
 
@@ -319,12 +326,17 @@ Budget: 1,700-2,400 changed lines.
 - Store every charge identity once, reject cross-payment reuse, and open a case
   for multiple captures. Persist evidence, charges, state, due time, revision,
   and case changes in one transaction.
-- Move attendee payment panels, exports, overview statistics, and every other
-  production reader to the aggregate in this cutover. Delete displaced readers
-  and classifiers; only migration code may still read old payment tables.
-- After the last live writer moves, install the migration write fence that makes
-  every old payment table immutable. Verify that fence before committing an
-  aggregate write.
+- Cut live writers and readers over to the aggregate, but keep old payment
+  tables readable as historical source until PR 14 has copied each row. Delete
+  only the displaced production readers; keep migration readers reachable so
+  payments not yet copied remain visible on panels, exports, and statistics and
+  refund targets can still be derived from old records.
+- After the last live writer moves, install the migration write fence that
+  forbids new production writes to old payment tables. The fence must not block
+  the refund-completion write path (`processed_payments.provider_refunded_at`
+  via `markPaymentReferencesProviderRefunded`), so schedule it only after the PR
+  8 refund cutover, or scope it in this PR to exclude refund-completion columns.
+  Verify that fence before committing an aggregate write.
 
 Current-system value: every live route, worker, page, and export gets the same
 authoritative answer for the same payment.

@@ -1,3 +1,4 @@
+import type { TokenEntry } from "#routes/tickets/token-utils.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import type { PricedLine, PricedOrder } from "#shared/checkout-pricing.ts";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
@@ -115,6 +116,23 @@ export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
   // Hand-crafted fixture stand-in for the stored blind index — test cast.
   ticket_token_index: "test-token-index-1" as BlindIndex,
   ...overrides,
+});
+
+/** A {@link TokenEntry} fixture: pairs {@link testAttendee} with
+ * {@link testListingWithCount} and a standalone-row `parentListingId: 0`. Each
+ * nested field accepts a partial that is merged onto the default attendee or
+ * listing, so callers can write `testTokenEntry({ attendee: { id: 1 },
+ * listing: { date: "..." } })` without rebuilding either record. */
+export const testTokenEntry = (
+  overrides: {
+    attendee?: Partial<Attendee>;
+    listing?: Partial<ListingWithCount>;
+    parentListingId?: number;
+  } = {},
+): TokenEntry => ({
+  attendee: testAttendee(overrides.attendee),
+  listing: testListingWithCount(overrides.listing),
+  parentListingId: overrides.parentListingId ?? 0,
 });
 
 /** In-memory price-modifier fixture: a 10%-off automatic discount applied to

@@ -4,7 +4,6 @@ import { stub } from "@std/testing/mock";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -12,6 +11,7 @@ import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRefundPayment } from "#test-utils/webhooks.ts";
 import {
@@ -53,7 +53,7 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
       status: 410,
       success: false,
     });
-    expect(await isSessionProcessed(id)).toBeNull();
+    expect(await getProcessedPayment(id)).toBeNull();
     expect(await processPaymentSession(id, data)).toMatchObject({
       refunded: false,
       success: false,

@@ -1,6 +1,7 @@
 /** Shared types for the reservations (ticket page) rendering pipeline. */
 
 /* jscpd:ignore-start */
+import type { CartDateItem } from "#shared/booking/cart-conflicts.ts";
 import type {
   ChildDatesByDayCount,
   TicketListing,
@@ -15,6 +16,7 @@ import type {
   Image,
   ItemImageColumns,
 } from "#shared/types.ts";
+import type { PublicNavProps } from "#templates/public/shared.tsx";
 /* jscpd:ignore-end */
 
 /** Quantity values parsed from ticket form */
@@ -87,6 +89,9 @@ export type TicketPageOptions = GroupAvailability & {
   slugs: string[];
   error?: string;
   dates?: string[];
+  /** Each daily listing's own bookable dates — the facts the render-time cart
+   * conflict rules read (see `#shared/booking/cart-conflicts.ts`). */
+  cartDateItems?: readonly CartDateItem[];
   terms?: string | null;
   questions?: QuestionWithAnswers[];
   questionListingMap?: QuestionListingMap;
@@ -118,4 +123,7 @@ export type TicketPageOptions = GroupAvailability & {
   /** Remaining spots for package member groups. */
   packageGroupRemainingByGroupId?: ReadonlyMap<number, number>;
   packageMemberGroupIds?: ReadonlyMap<number, number[]>;
+  /** The public site menu, shown above the form on a normal page and dropped
+   * in iframe mode. Set only on the render path; absent ⇒ no menu. */
+  nav?: PublicNavProps;
 };

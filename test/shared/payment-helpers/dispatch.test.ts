@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { ErrorCode } from "#shared/logger.ts";
+import { validatedPaymentSession } from "#shared/payment/validated-session.ts";
 import {
   cachedClientFactory,
   createWithClient,
@@ -10,7 +11,6 @@ import {
   parseWebhookPayload,
   safeAsync,
   toCheckoutResult,
-  validatedPaymentSession,
 } from "#shared/payment-helpers.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
 import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
@@ -245,16 +245,17 @@ describe("payment-helpers", () => {
 
   test("validatedPaymentSession includes a supplied creation time", () => {
     const createdAt = "2026-07-19T12:00:00.000Z";
-    const session = validatedPaymentSession({
+    const build = validatedPaymentSession({
       amountTotal: 1000,
       createdAt,
+      currency: "GBP",
       id: "session-1",
       metadata: { items: "[]", name: "Alice" } as SessionMetadata,
       paymentReference: "payment-1",
       paymentStatus: "paid",
     });
 
-    expect(session.createdAt).toBe(createdAt);
+    expect(build).toEqual(expect.objectContaining({ createdAt }));
   });
 
   test("parseWebhookPayload returns the invalid JSON error", () => {

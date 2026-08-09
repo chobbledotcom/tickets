@@ -1,3 +1,5 @@
+import { intersect } from "@std/collections";
+import type { CartLengthItem } from "#shared/booking/cart-conflicts.ts";
 import { hasDateLessCap } from "#shared/capacity-rules.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
 import {
@@ -230,19 +232,23 @@ export const buildTicketListing = (
   return { isClosed: closed, isSoldOut, listing, maxPurchasable };
 };
 
+/** Each customisable listing on the page with the day counts it supports on
+ * its own — the booking-length facts the cart conflict rules read. */
+export const customisableLengthItems = (
+  listings: TicketListing[],
+): CartLengthItem[] =>
+  listings
+    .filter((listing) => listing.listing.customisable_days)
+    .map((listing) => ({
+      dayCounts: availableDayCounts(listing.listing),
+      name: listing.listing.name,
+    }));
+
 /** Day counts every customisable listing on the page supports. */
 const dayCountsEveryListingSupports = (listings: TicketListing[]): number[] => {
-  const customisable = listings.filter(
-    (listing) => listing.listing.customisable_days,
-  );
-  if (customisable.length === 0) return [];
-  const sets = customisable.map(
-    (listing) => new Set(availableDayCounts(listing.listing)),
-  );
-  const [first, ...rest] = sets;
-  return [...first!]
-    .filter((n) => rest.every((set) => set.has(n)))
-    .sort(ascending);
+  const items = customisableLengthItems(listings);
+  if (items.length === 0) return [];
+  return intersect(...items.map((item) => item.dayCounts)).sort(ascending);
 };
 
 /** Day counts a required child supports, or null when any count is fine. */

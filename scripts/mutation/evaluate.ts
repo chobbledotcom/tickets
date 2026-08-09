@@ -1,12 +1,13 @@
+/* jscpd:ignore-start */
 import { resolve } from "@std/path";
 import { withCleanup } from "#scripts/cleanup.ts";
 import { dim, yellow } from "#scripts/precommit/colors.ts";
-import { projectRoot } from "#scripts/project-root.ts";
+import { projectRoot, rel } from "#scripts/project-root.ts";
 import type { StaticAssetBuild } from "#scripts/static-assets/session.ts";
+/* jscpd:ignore-end */
 import {
   mutantTestEnv,
   runTests,
-  type StaticGate,
   type TestRunConfig,
   toStatus,
 } from "./execution.ts";
@@ -18,7 +19,7 @@ import {
   runTestStages,
   type TestStageResult,
 } from "./phases.ts";
-import { rel, type Status } from "./summary.ts";
+import type { Status } from "./summary.ts";
 import {
   createMutantTestState,
   type MutantTestStateResult,
@@ -114,23 +115,6 @@ const confirmAssetMutation = async (
   return "killed";
 };
 
-const runStaticGates = async (
-  { plan, signal }: MutantRunContext,
-  gates: StaticGate[],
-  timings: PhaseTiming[],
-): Promise<MutantEvaluation | null> => {
-  for (const gate of gates) {
-    const measured = await measurePhase(gate.phase, () =>
-      gate.exit(plan.file, signal),
-    );
-    timings.push(measured.timing);
-    if (measured.value !== 0) {
-      return { detectedBy: gate.phase, status: "killed", timings };
-    }
-  }
-  return null;
-};
-
 const runTestFiles = async (
   { deps, run, signal }: MutantRunContext,
   phase: "direct-tests" | "integration-tests",
@@ -197,22 +181,20 @@ const runTestStage =
     return runIntegrationTestStage(context, testFiles);
   };
 
-export const evaluateMutant = async (
+export const evaluateMutantTests = async (
   plan: FileMutationPlan,
   mutant: Mutant,
   run: TestRunConfig,
   integrationTestFiles: string[],
-  gates: StaticGate[],
   signal: AbortSignal,
+  staticTimings: PhaseTiming[],
   deps: EvaluationDeps = realDeps,
 ): Promise<MutantEvaluation> => {
   await deps.write(plan.file, applyMutant(plan.original, mutant));
   const context = { deps, plan, run, signal };
-  const timings: PhaseTiming[] = [];
+  const timings: PhaseTiming[] = [...staticTimings];
   return withCleanup(async () => {
     try {
-      const gateResult = await runStaticGates(context, gates, timings);
-      if (gateResult) return gateResult;
       if (plan.assets) {
         const measured = await measurePhase("asset-build", plan.assets.rebuild);
         timings.push(measured.timing);
@@ -231,11 +213,7 @@ export const evaluateMutant = async (
         runTestStage(context),
       );
       timings.push(...stages.timings);
-      return {
-        detectedBy: stages.detectedBy,
-        status: stages.status,
-        timings,
-      };
+      return { ...stages, timings };
     } catch (error) {
       if (signal.aborted) {
         return { detectedBy: null, status: "timed-out", timings };

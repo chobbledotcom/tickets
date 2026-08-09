@@ -31,7 +31,7 @@ import {
   PRUNE_SESSIONS_RETENTION_DAYS,
   PRUNE_SUMUP_RETENTION_HOURS,
   PRUNE_UNUSED_STRINGS_RETENTION_DAYS,
-  parsePositiveInt,
+  positiveIntOrDefault,
   readLimit,
   SCANNER_CSRF_MAX_AGE_S,
   SESSION_MAX_AGE_S,
@@ -41,31 +41,31 @@ import {
 import { withEnv } from "#test-utils/env.ts";
 
 describe("limits", () => {
-  describe("parsePositiveInt", () => {
+  describe("positiveIntOrDefault", () => {
     test("parses a positive integer string", () => {
-      expect(parsePositiveInt("42", 1)).toBe(42);
+      expect(positiveIntOrDefault("42", 1)).toBe(42);
     });
 
     test("falls back for empty string", () => {
-      expect(parsePositiveInt("", 99)).toBe(99);
+      expect(positiveIntOrDefault("", 99)).toBe(99);
     });
 
     test("falls back for zero (rejects non-positive)", () => {
-      expect(parsePositiveInt("0", 99)).toBe(99);
+      expect(positiveIntOrDefault("0", 99)).toBe(99);
     });
 
     test("falls back for negative numbers", () => {
-      expect(parsePositiveInt("-5", 99)).toBe(99);
+      expect(positiveIntOrDefault("-5", 99)).toBe(99);
     });
 
     test("falls back for non-numeric input", () => {
-      expect(parsePositiveInt("abc", 99)).toBe(99);
+      expect(positiveIntOrDefault("abc", 99)).toBe(99);
     });
 
     test("truncates fractional part (parseInt behaviour)", () => {
       // parseInt("3.9") === 3. This documents observed behaviour — callers
       // passing a float string get the floor, not a rounded value.
-      expect(parsePositiveInt("3.9", 99)).toBe(3);
+      expect(positiveIntOrDefault("3.9", 99)).toBe(3);
     });
   });
 

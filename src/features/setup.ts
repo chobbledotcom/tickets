@@ -13,7 +13,7 @@ import {
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { isValidCountry } from "#shared/countries.ts";
 import { signCsrfToken, verifySignedCsrfToken } from "#shared/csrf.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { SetupAlreadyCompleteError, settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { ErrorCode, logDbError, logDebug, logError } from "#shared/logger.ts";

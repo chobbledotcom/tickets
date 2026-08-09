@@ -8,7 +8,8 @@
  * columns (typed via {@link TableColumn}), form fields (a `renderFields`
  * callback so non-`Field[]` forms like the attendee-status checkboxes still
  * fit), and the delete confirmation copy.
- * `AdminPage`, typed tables, and `ConfirmPage` are its rendering primitives.
+ * `AdminPage`, typed tables, and `entityDeletePage` are its rendering
+ * primitives.
  */
 
 /* jscpd:ignore-start */
@@ -23,7 +24,11 @@ import {
   type FlashPageRenderer,
   flashAdminPage,
 } from "#templates/admin/admin-page.tsx";
-import { ConfirmPage, type TCall } from "#templates/admin/confirm-page.tsx";
+import {
+  entityDeletePage,
+  type TCall,
+} from "#templates/admin/confirm-page.tsx";
+import type { NavActive } from "#templates/admin/nav.tsx";
 import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
@@ -56,7 +61,6 @@ export type ResourceLabels = {
   addSubmit: string;
   deleteTitle: string;
   deleteButton: string;
-  deleteLabel: string;
 };
 
 /** The list-page facet of a resource: its table columns, empty-state markup,
@@ -78,7 +82,7 @@ export type ResourceList<TEntity> = {
 
 export type AdminResourcePagesConfig<TEntity extends { id: number }> = {
   /** The nav `active` key (e.g. "/admin/settings"). */
-  active: string;
+  active: NavActive;
   /** Base collection path (e.g. "/admin/holidays"). */
   basePath: string;
   labels: ResourceLabels;
@@ -165,16 +169,12 @@ export const defineAdminResourcePages = <TEntity extends { id: number }>(
       </SaveForm>,
     );
 
-  const deletePage = (
-    entity: TEntity,
-    session: AdminSession,
-    error?: string,
-  ): string => {
-    const del = config.delete;
+  const del = config.delete;
+  const deletePage = entityDeletePage((entity: TEntity) => {
     const confirm = del.confirm?.(entity);
     const prompt = del.prompt?.(entity);
     const children = del.children?.(entity);
-    return ConfirmPage({
+    return {
       action: `${config.basePath}/${entity.id}/delete`,
       active: config.active,
       buttonText: config.labels.deleteButton,
@@ -182,14 +182,12 @@ export const defineAdminResourcePages = <TEntity extends { id: number }>(
       heading: del.heading,
       label: del.label,
       name: del.name(entity),
-      session,
       title: config.labels.deleteTitle,
       ...(confirm !== undefined ? { confirm } : {}),
       ...(prompt !== undefined ? { prompt } : {}),
       ...(children !== undefined ? { children } : {}),
-      ...(error !== undefined ? { error } : {}),
-    });
-  };
+    };
+  });
 
   return { deletePage, listPage, newPage };
 };

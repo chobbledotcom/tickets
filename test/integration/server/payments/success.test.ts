@@ -11,10 +11,10 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { singleItem } from "#test-utils/factories.ts";
 import { mockRequest, withMocks } from "#test-utils/mocks.ts";
+import { expectSessionFailed } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   expectRefundedWithNote,
-  expectSessionFailed,
   findKeptPlaceholder,
   stubRefundPayment,
   stubRetrieveCheckoutSession,
@@ -46,7 +46,11 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       const response = await handleRequest(
         mockRequest("/payment/success?session_id=cs_invalid"),
       );
-      await expectHtmlResponse(response, 400, "Payment session not found");
+      await expectHtmlResponse(
+        response,
+        400,
+        "We could not find this payment session.",
+      );
     });
 
     test("returns error when payment not verified", async () => {
@@ -100,7 +104,11 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             mockRequest("/payment/success?session_id=cs_test"),
           );
           // Provider returns null for invalid metadata, so routes report "not found"
-          await expectHtmlResponse(response, 400, "Payment session not found");
+          await expectHtmlResponse(
+            response,
+            400,
+            "We could not find this payment session.",
+          );
         },
       );
     });

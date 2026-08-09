@@ -14,7 +14,7 @@ import {
   StripeExpandedPaymentIntentSchema,
   type StripeRefund,
   StripeRefundSchema,
-  type StripeWebhookEndpoint,
+  type StripeWebhookEndpointList,
   StripeWebhookEndpointListSchema,
 } from "./schemas.ts";
 
@@ -98,7 +98,7 @@ export interface StripeClient {
     del: (
       id: Stripe.WebhookEndpoint["id"],
     ) => Promise<StripeDeletedWebhookEndpoint>;
-    list: () => Promise<{ data: StripeWebhookEndpoint[] }>;
+    list: (startingAfter?: string) => Promise<StripeWebhookEndpointList>;
   };
 }
 
@@ -163,11 +163,11 @@ export const createStripeClient = (
           {},
           StripeDeletedWebhookEndpointSchema,
         ),
-      list: () =>
+      list: (startingAfter) =>
         call(
           "GET",
           "/v1/webhook_endpoints",
-          { limit: 100 },
+          { limit: 100, starting_after: startingAfter },
           StripeWebhookEndpointListSchema,
         ),
     },

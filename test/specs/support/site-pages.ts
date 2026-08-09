@@ -8,21 +8,25 @@ import { t } from "#i18n";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { sitePages } from "#shared/db/site-pages.ts";
 import {
+  findsTheWayInFrom,
   newcomerReading,
   openAdminPage,
+  opensListAtRow,
   type TakesOneThingDown,
   takesDownFromList,
 } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
+import { movingRowsOn } from "#test/specs/support/reordering.ts";
 import {
   type ActOnOneThing,
   type AsksAboutOneThing,
-  asksIfThereIs,
+  keepsAnswerAs,
+  keepWhatTheyWereTold,
+  type StoryJourney,
   type TicketsWorld,
+  whatTheyWereTold,
 } from "#test/specs/support/world.ts";
-import { adminFormPost } from "#test-utils/session.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
-import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
 
@@ -63,7 +67,7 @@ export const ownerWritesPage = async (
     { content: wordsOnlyOn(name), name, slug: address },
     t("site.pages.create_submit"),
   );
-  world.things.remember("told", OWNER, browser.pageText);
+  keepWhatTheyWereTold(world, OWNER, browser.pageText);
   // The address the owner chose, so a capture can open the page the way a
   // visitor would rather than being told the address a second time.
   leaveEvidencePage(world, ["page-anybody-can-read"], `/page/${address}`);
@@ -77,55 +81,21 @@ export const visitorReading = (
 ): Promise<{ answered: number; said: string }> =>
   newcomerReading(`/page/${address}`);
 
-/** The page the site has under this name, or a loud failure when it has none —
- * a story that carried on would move the wrong page, or none. */
-const pageNamed = async (name: string) => {
-  const rows = await sitePages.getAll();
-  const found = rows.find((row) => row.name === name);
-  if (!found) throw new Error(`The site has no page called ${name}`);
-  return found;
-};
+/** The owner's own list, open at one page's row — the row whose name links
+ * into that page. A story that names a page the list does not show fails here
+ * rather than moving the wrong page, or none. */
+const openList = opensListAtRow(
+  PAGES_LIST,
+  new RegExp(`^${PAGES_LIST}/(\\d+)/edit$`),
+);
 
-/** The owner's own list, open, with one page's id to hand. Looking the page up
- * first means a story can never act on one the site does not have. */
-const openList = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<{ browser: TestBrowser; id: number }> => {
-  const { id } = await pageNamed(name);
-  return { browser: await openAdminPage(world, PAGES_LIST), id };
-};
+/** The link into one page, read off that page's own row. A link, not any
+ * mention of the path: a page whose row still has its reorder form but has
+ * lost its way in is a page the owner cannot reach. */
+const linkIntoPage = findsTheWayInFrom(openList);
 
-/** What the owner's own list offers for one page, or nothing when it offers
- * none. Everything they do to a page is found here first, so a page missing
- * from their list cannot be acted on by the story either. */
-const offeredForPage =
-  <Extra extends unknown[]>(
-    look: (browser: TestBrowser, id: number, ...extra: Extra) => string | null,
-  ) =>
-  async (
-    world: TicketsWorld,
-    name: string,
-    ...extra: Extra
-  ): Promise<string | null> => {
-    const { browser, id } = await openList(world, name);
-    return look(browser, id, ...extra);
-  };
-
-/** The link into one page from the owner's own list. A link, not any mention of
- * the path: a page whose row still has its reorder form but has lost its way in
- * is a page the owner cannot reach. */
-const linkIntoPage = offeredForPage((browser, id) => {
-  const into = new RegExp(`^${PAGES_LIST}/${id}(/edit)?$`);
-  return browser.links.find(({ href }) => into.test(href))?.href ?? null;
-});
-
-/** One page's own move arrow on the owner's list. Its absence is how the site
- * says a page is already at the end, rather than failing. */
-const moveArrowFor = offeredForPage((browser, id, direction: string) => {
-  const arrow = `${PAGES_LIST}/${id}/move-${direction}`;
-  return browser.currentHtml.includes(arrow) ? arrow : null;
-});
+/** The arrows the owner's own list offers for moving one page. */
+const pageArrows = movingRowsOn(PAGES_LIST, openList);
 
 /** The names of the site's pages in the order the owner is offered them, read
  * off their own list. Reading the stored rows instead would pass even if the
@@ -146,17 +116,14 @@ export const pagesInOrder = async (world: TicketsWorld): Promise<string[]> => {
  * than words, and every row has its own, so the story checks the list really
  * offers this page's arrow before pressing it. A page already at the top has no
  * up arrow at all, which is how the site says "no further". */
-export const ownerMovesPageUp: ActOnOneThing = async (world, name) => {
-  const arrow = await moveArrowFor(world, name, "up");
-  if (arrow) await adminFormPost(arrow, {});
-};
+export const ownerMovesPageUp: ActOnOneThing = (world, name) =>
+  pageArrows.move(world, name, "up");
 
 /** Whether the owner's list offers to move one page up at all. A page already
  * at the top has no up arrow, which is how the site says "no further" — so
  * there is no request to send rather than one that quietly does nothing. */
-export const pageIsOfferedAMoveUp: AsksAboutOneThing = asksIfThereIs(
-  (world, name) => moveArrowFor(world, name, "up"),
-);
+export const pageIsOfferedAMoveUp: AsksAboutOneThing = (world, name) =>
+  pageArrows.canMove(world, name, "up");
 
 /** The owner takes a page down, typing a name to confirm. Keeps what they were
  * told, because typing it wrongly is meant to change nothing. */
@@ -164,25 +131,17 @@ export const ownerTakesPageDown: TakesOneThingDown = takesDownFromList(
   linkIntoPage,
   {
     deleteLinkKey: "site.pages.delete_title",
-    missing: (name) => `The list offers no way into ${name}`,
     submitKey: "site.pages.delete_submit",
   },
 );
 
 /** The owner tries to take a page down, and what they were told is kept for
  * the step that reads it back. */
-export const ownerTriesToTakePageDown = async (
-  world: TicketsWorld,
-  name: string,
-  typed: string,
-): Promise<void> => {
-  world.things.remember(
-    "told",
-    OWNER,
-    await ownerTakesPageDown(world, name, typed),
-  );
-};
+export const ownerTriesToTakePageDown: StoryJourney<
+  [name: string, typed: string],
+  void
+> = keepsAnswerAs(OWNER, ownerTakesPageDown);
 
 /** What the owner was told the last time they wrote a page. */
 export const whatOwnerWasTold = (world: TicketsWorld): string =>
-  world.things.require("told", OWNER);
+  whatTheyWereTold(world, OWNER);

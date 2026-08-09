@@ -2,7 +2,8 @@
  * Payment flow, availability checks, and free registration
  */
 
-import { compact, unique } from "#fp";
+import { intersect } from "@std/collections";
+import { compact, requiredMapValue, unique } from "#fp";
 import { checkoutResponse } from "#routes/payment-response.ts";
 import { errorRedirect, notFoundResponse } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
@@ -10,6 +11,7 @@ import {
   type BuildTreeInput,
   buildBookingTree,
 } from "#shared/booking/build-tree.ts";
+import type { CartDateItem } from "#shared/booking/cart-conflicts.ts";
 import {
   childSelectableForSpan,
   type FoldBase,
@@ -54,7 +56,7 @@ import {
   getHiddenPackageMemberIds,
   isHiddenPackageMember,
   listingGroups,
-  loadPackageMemberPricing,
+  loadPackageMemberPricingByGroupIds,
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getImageFilenamesForItem } from "#shared/db/images.ts";
@@ -77,14 +79,11 @@ import type { FormParams } from "#shared/form-data.ts";
 import { logDebug } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import {
-  type PackageStandIns,
-  packageStandIns,
-} from "#shared/package-privacy.ts";
-import {
   type CheckoutIntent,
   type CheckoutItem,
   getActivePaymentProvider,
 } from "#shared/payments.ts";
+import { requireValue } from "#shared/required-value.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import {
   availableDayCounts,
@@ -196,31 +195,44 @@ export const checkAvailability = (
     date,
   );
 
-/** Load one group's package pricing and shape it into the {@link PagePackage}
- * the booking flow carries — the group's display fields plus its member
- * quantity/price maps, scoped to the members actually on the page. */
+/** One package on a booking page: the group, and the members that survived the
+ * page's own drops. */
+export type PagePackageEntry = {
+  group: Group;
+  memberListingIds: readonly number[];
+};
+
+/** Load every listed package's pricing in one batch and shape each into the
+ * {@link PagePackage} the booking flow carries — the group's display fields
+ * plus its member quantity/price maps, scoped to the members actually on the
+ * page. A cart naming many packages costs the same two reads as one. */
+export const loadPagePackages = async (
+  entries: readonly PagePackageEntry[],
+): Promise<PagePackage[]> => {
+  const pricingByGroup = await loadPackageMemberPricingByGroupIds(
+    entries.map((entry) => entry.group.id),
+  );
+  return entries.map((entry) =>
+    buildPagePackage(
+      entry.group,
+      entry.memberListingIds,
+      requiredMapValue(
+        pricingByGroup,
+        entry.group.id,
+        "Missing package pricing",
+      ),
+    ),
+  );
+};
+
+/** One group's page package, through the shared many-package path. */
 export const loadPagePackage = async (
   group: Group,
   memberListingIds: readonly number[],
 ): Promise<PagePackage> =>
-  buildPagePackage(
-    group,
-    memberListingIds,
-    await loadPackageMemberPricing(group.id),
-  );
-
-/** This page's hidden-package stand-ins: every HIDDEN package's name by group
- * id (for its tagged lines) and by member/child listing id (for folded-child
- * lines and error text). Buyer-facing line names and error text resolve
- * through these maps so a concealed member is never named. Empty when nothing
- * on the page is concealed. */
-export const ctxStandInNames = (
-  ctx: Pick<TicketCtx, "packages" | "childrenByParentId">,
-): PackageStandIns =>
-  packageStandIns(ctx.packages, (memberId) =>
-    (ctx.childrenByParentId.get(memberId) ?? []).map(
-      (child) => child.listing.id,
-    ),
+  requireValue(
+    (await loadPagePackages([{ group, memberListingIds }]))[0],
+    `Missing page package for group ${group.id}`,
   );
 
 export const handlePaymentFlow = (
@@ -380,7 +392,7 @@ type FreeReservationResult =
 /** User-facing message when a chosen add-on or discount sold out during a
  * zero-total completion (no provider, so the webhook path's "while completing
  * payment" wording doesn't apply). */
-export const MODIFIER_SOLD_OUT_MESSAGE =
+const MODIFIER_SOLD_OUT_MESSAGE =
   "An extra you selected sold out while you were checking out. Please try again.";
 
 /** A zero priced order: a free booking that consumes modifier stock but posts no
@@ -534,22 +546,25 @@ export const withActiveListings = async (
   return handler(activeListings);
 };
 
-/** Shared available dates across all daily listings (intersection). */
-export const computeSharedDates = async (
+/** Each daily listing on the page with its own bookable start dates — the
+ * date facts the cart conflict rules read, and what the page's shared date
+ * list intersects. Customisable-days listings store duration_days as the
+ * *maximum*; their date list is computed for a single day (every
+ * individually-bookable start), and the chosen span is validated separately
+ * at submit. */
+export const dailyDateItems = async (
   listings: TicketListing[],
-): Promise<string[]> => {
+): Promise<CartDateItem[]> => {
   const dailyListings = listings.filter(
     (e) => e.listing.listing_type === "daily",
   );
   if (dailyListings.length === 0) return [];
   const holidays = await getActiveHolidays();
-  // Customisable-days listings store duration_days as the *maximum*; their date
-  // list is computed for a single day (every individually-bookable start), and the
-  // chosen span is validated separately at submit.
-  const dateSets = dailyListings.map(
-    (e) => new Set(getBookableStartDates(e.listing, holidays)),
-  );
-  return [...dateSets[0]!].filter((d) => dateSets.every((s) => s.has(d)));
+  return dailyListings.map((e) => ({
+    dates: getBookableStartDates(e.listing, holidays),
+    id: e.listing.id,
+    name: e.listing.name,
+  }));
 };
 
 /** A daily listing's span rules: the fixed day count to book (null = the buyer
@@ -759,14 +774,14 @@ export const getTicketContext = async (
     ...childListingIdsOf(childrenByParentId),
   ];
   const [
-    sharedDates,
+    cartDateItems,
     globalTerms,
     questionsResult,
     promoCodesEnabled,
     addOns,
     groupImage,
   ] = await Promise.all([
-    computeSharedDates(activeListings),
+    dailyDateItems(activeListings),
     Promise.resolve(settings.terms),
     getQuestionsWithListingIds(questionListingIds),
     hasPromoCodeModifiers(),
@@ -792,6 +807,8 @@ export const getTicketContext = async (
     (group?.is_package === true
       ? [await loadPagePackage(group, listingIds)]
       : []);
+  // The dates the page can offer start from what EVERY daily listing supports.
+  const sharedDates = intersect(...cartDateItems.map((item) => item.dates));
   const dailyParent = singleDailyParent(activeListings, childrenByParentId);
   const dates = dailyParent
     ? keepDatesSomeChildCanServe(sharedDates, dailyParent.children, {
@@ -824,6 +841,7 @@ export const getTicketContext = async (
         };
   return {
     addOns,
+    cartDateItems,
     childDatesById,
     childrenByParentId,
     dates,

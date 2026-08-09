@@ -7,7 +7,7 @@
 import { t } from "#i18n";
 import { settingsRoute } from "#routes/admin/settings-helpers.ts";
 import { clearSessionCookie } from "#shared/cookies.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getUserById, verifyUserPassword } from "#shared/db/users.ts";
 import type { FormParams } from "#shared/form-data.ts";

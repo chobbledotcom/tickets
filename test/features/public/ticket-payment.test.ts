@@ -2,11 +2,10 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { parseQuantityValue } from "#routes/public/ticket-form.ts";
 import {
-  computeSharedDates,
   createFreeReservation,
+  dailyDateItems,
   foldSelectedChildren,
   loadChildrenByParentId,
-  MODIFIER_SOLD_OUT_MESSAGE,
   resolveDayCount,
 } from "#routes/public/ticket-payment.ts";
 import {
@@ -451,7 +450,9 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
 
       expect(result.success).toBe(false);
       if (result.success) return;
-      expect(result.error).toBe(MODIFIER_SOLD_OUT_MESSAGE);
+      expect(result.error).toBe(
+        "An extra you selected sold out while you were checking out. Please try again.",
+      );
       // Nothing persisted — no attendee, and no orphaned ledger legs.
       expect((await getAttendeesRaw(listing.id)).length).toBe(0);
       expect((await allTransfers()).length).toBe(0);
@@ -558,7 +559,7 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
     });
   });
 
-  describe("computeSharedDates", () => {
+  describe("dailyDateItems", () => {
     test("offers individually-bookable starts for customisable daily listings", async () => {
       // duration_days is the max (5); a non-customisable listing would only
       // offer starts whose 5-day span fits, but a customisable one offers
@@ -571,13 +572,26 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         listing_type: "daily",
         maximum_days_after: 3,
         minimum_days_before: 0,
+        name: "Windowed",
       });
-      const dates = await computeSharedDates([
+      const items = await dailyDateItems([
         buildTicketListing(listing, false, undefined),
       ]);
+      expect(items).toHaveLength(1);
       // The last day in the 3-day window can't fit a 5-day span, yet it's still
       // offered as a start because availability is computed for a single day.
-      expect(dates).toContain(addDays(todayInTz("UTC"), 3));
+      expect(items[0]).toMatchObject({
+        dates: expect.arrayContaining([addDays(todayInTz("UTC"), 3)]),
+        id: listing.id,
+        name: "Windowed",
+      });
+    });
+
+    test("skips non-daily listings entirely", async () => {
+      const listing = testListingWithCount({ listing_type: "standard" });
+      expect(
+        await dailyDateItems([buildTicketListing(listing, false, undefined)]),
+      ).toEqual([]);
     });
   });
 
@@ -588,6 +602,7 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       childrenByParentId: import("#routes/public/types.ts").ChildrenByParentId,
     ): import("#routes/public/types.ts").TicketCtx => ({
       addOns: [],
+      cartDateItems: [],
       childDatesById: new Map(),
       childrenByParentId,
       dates: [],

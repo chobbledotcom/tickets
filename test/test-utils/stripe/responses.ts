@@ -1,6 +1,7 @@
 const checkout = {
   amount_total: 1000,
   created: 123,
+  currency: "gbp",
   id: "cs_1",
   metadata: {},
   payment_intent: "pi_1",
@@ -36,6 +37,7 @@ export const stripeResponseFor = (path: string, method: string): Response => {
           url: "https://example.com/payment/webhook",
         },
       ],
+      has_more: false,
     });
   }
   if (path.startsWith("/v1/webhook_endpoints") && method === "DELETE") {

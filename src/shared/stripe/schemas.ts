@@ -11,28 +11,31 @@ const StripePaymentStatuses = [
 ] as const satisfies readonly Stripe.Checkout.Session["payment_status"][];
 const StripePaymentStatusSchema = v.picklist(StripePaymentStatuses);
 
-type StripeCheckoutSessionFields = Pick<
-  Stripe.Checkout.Session,
-  "amount_total" | "created" | "id" | "metadata" | "payment_status" | "url"
-> & {
-  payment_intent: Extract<
-    Stripe.Checkout.Session["payment_intent"],
-    string | null
-  >;
+type StripeCheckoutSessionFields = {
+  amount_total: number | null;
+  created: number;
+  /** Stripe always sends a currency on a real session; the schema leaves it
+   *  optional so a test payload (or a future session shape) without one still
+   *  parses here — `validatedPaymentSession` then refuses the session, because
+   *  a missing currency is never defaulted to the site's. */
+  currency?: string | null;
+  id: string;
+  metadata: Stripe.Checkout.Session["metadata"];
+  payment_intent: string | null;
+  payment_status: (typeof StripePaymentStatuses)[number];
+  url: string | null;
 };
 
-export const StripeCheckoutSessionSchema: v.GenericSchema<
-  unknown,
-  StripeCheckoutSessionFields
-> = v.object({
+export const StripeCheckoutSessionSchema = v.object({
   amount_total: v.nullable(v.number()),
   created: v.number(),
+  currency: v.optional(v.nullable(v.string())),
   id: NonEmptyTextSchema,
   metadata: MetadataSchema,
   payment_intent: NonEmptyNullableStringSchema,
   payment_status: StripePaymentStatusSchema,
   url: NonEmptyNullableStringSchema,
-});
+}) as v.GenericSchema<unknown, StripeCheckoutSessionFields>;
 
 export type StripeCheckoutSession = StripeCheckoutSessionFields;
 
@@ -131,7 +134,12 @@ export type StripeDeletedWebhookEndpoint = StripeDeletedWebhookEndpointFields;
 
 export const StripeWebhookEndpointListSchema = v.object({
   data: v.array(StripeWebhookEndpointSchema),
+  has_more: v.boolean(),
 });
+
+export type StripeWebhookEndpointList = v.InferOutput<
+  typeof StripeWebhookEndpointListSchema
+>;
 
 type StripeErrorFields = {
   error: {
