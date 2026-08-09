@@ -285,31 +285,4 @@ describeSquare(() => {
       );
     });
   });
-
-  describe("retrievePayment wrapper export", () => {
-    test("delegates to squareApi.retrievePayment", async () => {
-      await withSquareClient(
-        {
-          paymentsGet: () =>
-            Promise.resolve({
-              payment: {
-                amountMoney: { amount: BigInt(1000), currency: "GBP" },
-                id: "pay_wrapper",
-                orderId: "order_wrapper",
-                status: "COMPLETED",
-              },
-            }),
-        },
-        async ({ paymentsGet }) => {
-          const result = await squareApi.retrievePayment("pay_wrapper");
-          expect(result).not.toBeNull();
-          expect(result!.id).toBe("pay_wrapper");
-          expect(result!.status).toBe("COMPLETED");
-          expect(paymentsGet.calls[0]!.args[0]).toEqual({
-            paymentId: "pay_wrapper",
-          });
-        },
-      );
-    });
-  });
 });

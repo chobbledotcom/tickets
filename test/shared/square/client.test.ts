@@ -26,7 +26,9 @@ describeSquare(() => {
 
     /** Drive one request through the client and return the host it called. */
     const hostFor = async (
-      client: NonNullable<Awaited<ReturnType<typeof getSquareClient>>>,
+      client: NonNullable<
+        Awaited<ReturnType<typeof squareApi.getSquareClient>>
+      >,
     ): Promise<string> => {
       await client.locations.list();
       return new URL(calledUrl).host;
@@ -104,7 +106,9 @@ describeSquare(() => {
   });
 
   describe("testSquareConnection", () => {
-    type ConnectionResult = Awaited<ReturnType<typeof testSquareConnection>>;
+    type ConnectionResult = Awaited<
+      ReturnType<typeof squareApi.testSquareConnection>
+    >;
 
     /** Run an assertion only when the test named a value for it. */
     const when = <T>(value: T | undefined, assert: (value: T) => void) => {
