@@ -366,7 +366,13 @@ second provider checkout after an interrupted request.
 Budget: 1,700-2,400 changed lines.
 
 - Move all provider reads behind one strict observation contract. Cover missing,
-  invalid, unavailable, pending, paid, free, and failed results.
+  invalid, unavailable, pending, paid, free, and failed results. Before the
+  cutover, drain or expire in-flight hosted checkouts (Stripe/Square sessions
+  opened before the cutover that may still be paid afterward) — a checkout
+  opened before PR 7 has only provider metadata and no aggregate payment row, so
+  explicitly adopt its signed metadata into a canonical aggregate record before
+  cutting readers over, or expire/deny those sessions so no paid checkout is
+  stranded without an aggregate row.
 - Retrieve Square payment IDs named by the order instead of scanning a short
   list. Validate every resource's account, currency, amount, and parent.
 - Route signed callbacks, buyer returns, manual refresh, owner-case refresh, and
@@ -442,16 +448,26 @@ Budget: 1,500-2,200 changed lines.
 - Keep refunds available while new sales are disabled, and make callback and
   admin replay idempotent.
 - Delete every replaced refund path and prove no production caller uses it,
-  except the legacy-table refund adapter for uncopied `processed_payments` rows.
-  Until PR 14 copies those rows, admin refund targets may still resolve to old
-  tables via `src/shared/db/payment-references.ts`; route those refunds through
-  the new engine with a thin legacy adapter so the old write path is not the
-  production path. The adapter must atomically update the old row's completion
-  marker (`provider_refunded_at`) within the same refund transaction, or teach
-  the `payment-references.ts` read-through to consult the new refund record
-  before deciding refundability — so a completed refund does not resurface as
-  refundable on uncopied rows. Remove the adapter when PR 14 canonicalizes the
-  last copied row.
+  except the legacy-table refund adapter for uncopied `processed_payments` rows
+  and attendee-only legacy references. `payment-references.ts` also emits an
+  attendee's legacy `payment_id` even when no `processed_payments` row carries
+  that charge — those older bookings stay visible as refund targets but have no
+  PR 8 route after the old refund path is deleted. Extend the
+  adapter/read-through to attendee-only references, or move their copy/refund
+  cutover into PR 8. Until PR 14 copies those rows, admin refund targets may
+  still resolve to old tables via `src/shared/db/payment-references.ts`; route
+  those refunds through the new engine with a thin legacy adapter so the old
+  write path is not the production path. The adapter must atomically update the
+  old row's completion marker (`provider_refunded_at`) within the same refund
+  transaction, or teach the `payment-references.ts` read-through to consult the
+  new refund record before deciding refundability — so a completed refund does
+  not resurface as refundable on uncopied rows. The legacy adapter must
+  fail-closed on duplicate provider references spanning multiple attendees:
+  `payment-references.ts` currently groups references per attendee rather than
+  enforcing global uniqueness, so if the same provider reference exists on two
+  attendees, the adapter must open an owner-review case instead of passing both
+  into the bulk refund engine — an ambiguous old charge must not be refunded
+  twice. Remove the adapter when PR 14 canonicalizes the last copied row.
 
 Current-system value: every refund has the same retry, evidence, and Money
 guarantees and cannot move money twice.
@@ -530,6 +546,12 @@ Budget: 1,200-1,800 changed lines.
 
 - Read `processed_payments`, `checkout_stages`, `sumup_checkouts`, attendee PII,
   and merge references into one lossless migration model without writing cases.
+  Attendee PII (including attendee-only legacy payment references) is
+  owner-key-encrypted; the migration must run behind an owner-authenticated step
+  that supplies the request private key, or find another decryptable source.
+  Without that key, PR 14 cannot copy those charges and old-backup restores
+  either skip them or block — specify where the private key comes from before
+  relying on this source.
 - Group one provider payment before pagination, convert old timestamps, and
   report contradictions through operator diagnostics or backup verification.
 - Back up databases before migration. Restore an old schema only into the
@@ -549,22 +571,22 @@ Budget: 1,700-2,500 changed lines.
   refund-completion writes from the PR 8 legacy adapter. The "unchanged" gate
   permits only those defined refund writes; the cursor must detect and replay
   them before marking a row verified, so the aggregate does not contain stale
-  refund state. Before the first cursor page, fence and drain all other
-  `deleteAttendee`, the prune task, and `deleteAllStaleReservations` from
-  modifying `processed_payments`, `sumup_checkouts`, or `checkout_stages` during
-  the copy, or version/reconcile any old-row changes that arrive mid-copy so the
-  aggregate is not left stale. Include `checkout_stages` because
-  `applyAttendeeMerge` and `deleteAttendee` delete from it — an admin
-  merge/delete during the copy can remove or change a source row after it was
-  copied or before it is reached. Include `deleteAllStaleReservations` because
-  it runs on every listing overview load and deletes unresolved
-  `processed_payments` rows — if it runs mid-copy, old rows disappear despite
-  the unchanged precondition. Do not stop the legacy refund adapter (PR 8) until
-  every uncopied row is canonicalized and verified; either keep the adapter
-  running with version/reconciliation handling for rows still being copied, or
-  durably enqueue in-flight refund requests and replay them after
-  canonicalization. Define the drain boundary for in-flight refunds before the
-  first cursor page.
+  refund state. Before the first cursor page, fence and drain
+  `applyAttendeeMerge`, `deleteAttendee`, the prune task, and
+  `deleteAllStaleReservations` from modifying `processed_payments`,
+  `sumup_checkouts`, or `checkout_stages` during the copy, or version/reconcile
+  any old-row changes that arrive mid-copy so the aggregate is not left stale.
+  Include `checkout_stages` because `applyAttendeeMerge` and `deleteAttendee`
+  delete from it — an admin merge/delete during the copy can remove or change a
+  source row after it was copied or before it is reached. Include
+  `deleteAllStaleReservations` because it runs on every listing overview load
+  and deletes unresolved `processed_payments` rows — if it runs mid-copy, old
+  rows disappear despite the unchanged precondition. Do not stop the legacy
+  refund adapter (PR 8) until every uncopied row is canonicalized and verified;
+  either keep the adapter running with version/reconciliation handling for rows
+  still being copied, or durably enqueue in-flight refund requests and replay
+  them after canonicalization. Define the drain boundary for in-flight refunds
+  before the first cursor page.
 - Copy every old source by stable cursor in bounded, verified pages. Never split
   one provider payment across pages or mistake an empty joined page for the end.
 - Preserve unknown or contradictory facts without inventing values. Create a
