@@ -372,11 +372,15 @@ Budget: 1,700-2,400 changed lines.
   opened before PR 7 has only provider metadata and no aggregate payment row, so
   explicitly adopt its signed metadata into a canonical aggregate record before
   cutting readers over, or expire/deny those sessions so no paid checkout is
-  stranded without an aggregate row. Adoption must be atomic and idempotent:
-  apply the provider-qualified identity and atomic upsert rules, bind concurrent
-  callbacks and migration runs to the same claim, require current provider
-  scope, state, amount, and intent checks before creating authoritative records,
-  and define outcomes for paid, pending, expired, and unavailable sessions.
+  stranded without an aggregate row. Extend this adoption to pre-cutover SumUp
+  checkouts too — PR 6 moves SumUp checkout creation and keeps `sumup_checkouts`
+  as a compatibility source, so define adoption or explicit expiry for pre-
+  cutover SumUp checkouts with the same claim, identity, observation, and
+  outcome rules. Adoption must be atomic and idempotent: apply the
+  provider-qualified identity and atomic upsert rules, bind concurrent callbacks
+  and migration runs to the same claim, require current provider scope, state,
+  amount, and intent checks before creating authoritative records, and define
+  outcomes for paid, pending, expired, and unavailable sessions.
 - Retrieve Square payment IDs named by the order instead of scanning a short
   list. Validate every resource's account, currency, amount, and parent.
 - Route signed callbacks, buyer returns, manual refresh, owner-case refresh, and
@@ -566,10 +570,13 @@ Budget: 1,200-1,800 changed lines.
   Attendee PII (including attendee-only legacy payment references) is
   owner-key-encrypted; the migration must run behind an owner-authenticated step
   that supplies the request private key, or find another decryptable source.
-  Define the owner, storage, retrieval path, audit trail, and restore procedure
-  for that private key before PR 14 depends on this data. If the private key is
-  unavailable, block the migration and preserve the source rows — do not
-  silently skip charges.
+  Every decryptable source must meet the same controls: owner authorization,
+  access auditing, key provenance, and restore procedure. If no controlled
+  source exists, block the migration and preserve all source rows — do not
+  silently skip charges. Define the owner, storage, retrieval path, audit trail,
+  and restore procedure for that private key before PR 14 depends on this data.
+  If the private key is unavailable, block the migration and preserve the source
+  rows — do not silently skip charges.
 - Group one provider payment before pagination, convert old timestamps, and
   report contradictions through operator diagnostics or backup verification.
 - Back up databases before migration. Restore an old schema only into the
@@ -605,7 +612,11 @@ Budget: 1,700-2,500 changed lines.
   running with version/reconciliation handling for rows still being copied, or
   durably enqueue in-flight refund requests and replay them after
   canonicalization. Define the drain boundary for in-flight refunds before the
-  first cursor page.
+  first cursor page. After every row is verified and the adapter is drained, run
+  a final version check or reconciliation pass to catch any refund that
+  completed after verification but before drain. Retire the adapter only after
+  that final pass completes — otherwise a late refund leaves the aggregate
+  stale.
 - Copy every old source by stable cursor in bounded, verified pages. Never split
   one provider payment across pages or mistake an empty joined page for the end.
 - Preserve unknown or contradictory facts without inventing values. Create a
