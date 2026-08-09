@@ -369,24 +369,27 @@ over).
   to one listing. The bulk arm runs to explicit provider, database, and total
   subrequest budgets. The whole job — every payment identity it will refund,
   plus a cursor — commits as durable due work before the first provider call;
-  each request then refunds a bounded page and advances the cursor in the same
-  transaction as that page's results, and the scheduled runner continues the
-  remainder. A crash mid-run therefore leaves a job that still names every
-  untouched payment — a large refund-all can never end with an initial subset
-  refunded and nothing recorded. Today's `processRefundBatch` loops every group
-  unbounded, and that shape does not survive the move. Each queued page is
-  self-contained: it carries the provider-qualified payment identities, amounts,
-  and allocation facts it acts on — never a live attendee lookup. On a
-  reservation payment a page draws two amounts from those stored facts: the
-  provider refund returns only money actually charged, while the Money
-  cancellation consumes the full obligation each line and extra represents, so
-  the buyer gets back exactly what they paid and a cancelled booking leaves no
-  debt behind. While an attendee has unfinished refund pages, merging or
-  deleting that attendee fails closed naming the pending work — a merge posts
-  its own Money adjustments, and replaying a pre-merge allocation after them
-  could reverse income twice; M8's general repointing for queued work then
-  replaces this fence. The migrated-payment caller arrives in M11, when migrated
-  payments first exist.
+  each request then refunds a bounded page, records each payment's result in the
+  same transaction, and advances the cursor only past payments with a terminal
+  result — a transient provider failure stays due, so the scheduled runner
+  retries it rather than finishing the job around it. A crash mid-run therefore
+  leaves a job that still names every untouched payment — a large refund-all can
+  never end with an initial subset refunded and nothing recorded. Today's
+  `processRefundBatch` loops every group unbounded, and that shape does not
+  survive the move. Each queued page is self-contained: it carries the
+  provider-qualified payment identities, amounts, and allocation facts it acts
+  on — never a live attendee lookup. Refunding a reservation separates two kinds
+  of reversal: each payment page returns and reverses only the cash that payment
+  actually moved (the deposit's charge, the balance's charge), while the
+  booking-level obligation — sale, modifier, and fee facts shared by all of that
+  reservation's payments — is cancelled exactly once, idempotently, however many
+  payments the refund touches. The buyer gets back what they paid, nothing is
+  reversed twice, and a cancelled booking leaves no debt behind. While an
+  attendee has unfinished refund pages, merging or deleting that attendee fails
+  closed naming the pending work — a merge posts its own Money adjustments, and
+  replaying a pre-merge allocation after them could reverse income twice; M8's
+  general repointing for queued work then replaces this fence. The
+  migrated-payment caller arrives in M11, when migrated payments first exist.
 - Persist provider refund identity before local completion; queue and schedule
   repair when provider success is followed by a local failure; keep callback and
   admin replay idempotent; keep refunds available while new sales are disabled.
@@ -435,17 +438,23 @@ one machine and merge together.
   owner case) rather than half-booking the order. Before the effect runner
   claims its first payment, an idempotent cutover pass adopts the M6-window
   history: an aggregate payment the legacy path already completed has its folded
-  result marked done, never re-booked or re-posted to Money, and a paid
-  aggregate payment with no completion result becomes due work — so pre-M8
-  unfinished completions gain durable recovery instead of being stranded. The
-  pass runs only after the write fence has risen and in-flight legacy commits
-  have drained or failed, and the runner revision-rechecks the folded state when
-  claiming each payment, so a legacy commit that landed between scan and claim
-  is honoured, never redone. Adoption also gates on a completion-safe
-  `outcomeOf` state with no open blocking case: a paid payment stopped for owner
-  review — captured money on a failed checkout, multiple captured charges —
-  stays in its case workflow, because due work must never bypass a required
-  owner choice.
+  result marked done, never re-booked or re-posted to Money; a paid aggregate
+  payment with no completion result becomes due work; and a paid payment whose
+  folded result records a completion failure becomes the matching durable
+  failure effect — its chosen refund path or an owner case — never marked done
+  and never re-run as a fresh booking. So pre-M8 unfinished completions gain
+  durable recovery instead of being stranded. The pass runs only after the write
+  fence has risen and in-flight legacy commits have drained or failed, and the
+  runner revision-rechecks the folded state when claiming each payment, so a
+  legacy commit that landed between scan and claim is honoured, never redone.
+  Adoption also gates on a completion-safe `outcomeOf` state with no open
+  blocking case: a paid payment stopped for owner review — captured money on a
+  failed checkout, multiple captured charges — stays in its case workflow,
+  because due work must never bypass a required owner choice. Refund and
+  completion claims are mutually exclusive: the adoption pass and the runner
+  verify in the claiming transaction that no unfinished refund job or effect
+  owns the payment, so a booking can never complete while its irreversible
+  refund is in flight.
 - From this cutover on, completion stops storing payment references in attendee
   PII — the aggregate owns the attendee-to-payment link — so the attendee-PII
   reference source M11 reads is closed at M8 and cannot grow while the copy
@@ -740,6 +749,10 @@ mechanism and a regression test, or — if implementation proves the finding wro
 | F60 | A refund-all crash after its first page losing the unrecorded remainder                | M7              |
 | F61 | An attendee merge rewriting Money while refund pages are still queued                  | M7              |
 | F62 | A reservation refund confusing money charged now with the full obligation              | M7              |
+| F63 | A deposit-plus-balance refund reversing the booking obligation twice or not at all     | M7              |
+| F64 | Adoption stranding payments whose folded result records a completion failure           | M8              |
+| F65 | A cursor advancing past a transiently failed refund, finishing the job around it       | M7              |
+| F66 | A booking completing while its payment's irreversible refund is in flight              | M8              |
 
 ## Done means
 
