@@ -394,4 +394,22 @@ describe("migration-verify production wiring", () => {
       "captured charge reference that did not decrypt: sess-1",
     );
   });
+
+  test("verifies a legacy plaintext (non-hybrid) payment reference with the owner key", async () => {
+    const attendeeId = await seedAttendee();
+    await seedStage("sess-1", attendeeId);
+    await seedProcessed("sess-1", attendeeId);
+    // A legacy plaintext payment_reference (development builds wrote the column
+    // in the clear) is not hybrid ciphertext — it is treated as decryptable and
+    // must not be flagged undecryptable, and must not block without the owner
+    // key (only hybrid refs need the key).
+    await execute(
+      `UPDATE processed_payments SET payment_reference = 'plaintext-charge'
+        WHERE payment_session_id = 'sess-1'`,
+    );
+
+    const { result } = await runOwner();
+
+    expect(result).toBe(0);
+  });
 });

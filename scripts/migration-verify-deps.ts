@@ -175,12 +175,13 @@ export const createMigrationVerifyOwnerKey = (): MigrationVerifyOwnerKey => ({
     const undecryptablePii = new Set<number>();
     const undecryptablePaymentReferences = new Set<string>();
     for (const { id, pii_blob } of inputs.attendees) {
-      if (pii_blob === "") continue;
+      // readAttendeePii filters pii_blob != '', so every blob here is
+      // non-empty hybrid ciphertext (or corrupt). Decrypt AND parse: a blob
+      // that decrypts to malformed JSON or one missing required PII fields
+      // would fail the real attendee readers, so it must fail readiness too.
+      // Non-hybrid blobs throw here (PII has no legacy plaintext fallback),
+      // catching corrupt plaintext PII.
       try {
-        // Decrypt AND parse: a blob that decrypts to malformed JSON or one
-        // missing required PII fields would fail the real attendee readers, so
-        // it must fail readiness too. Non-hybrid blobs throw here (PII has no
-        // legacy plaintext fallback), catching corrupt plaintext PII.
         await decryptPiiBlob(pii_blob as OwnerKeyEncrypted, key, true);
       } catch {
         undecryptablePii.add(id);

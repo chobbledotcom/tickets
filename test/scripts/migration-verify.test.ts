@@ -123,6 +123,16 @@ const deps = (
   ...over,
 });
 
+/** Run a usage-error args case and assert exit 2 + the usage banner. Shared by
+ *  the unknown-flag and non-numeric-page-size cases. */
+const expectUsageExit = async (clip: Clipio): Promise<void> => {
+  const result = await runMigrationVerifyCli(
+    deps(clip, { createReader: () => fakeReader() }),
+  );
+  expect(result).toBe(2);
+  expect(clip.errors.join("\n")).toContain(MIGRATION_VERIFY_USAGE);
+};
+
 describe("runMigrationVerifyCli", () => {
   test("prints usage and exits 0 for --help", async () => {
     const result = await runMigrationVerifyCli(
@@ -300,11 +310,25 @@ describe("runMigrationVerifyCli", () => {
   });
 
   test("exits 2 and prints usage for an unknown flag", async () => {
-    const clip = io(["--bogus"]);
+    await expectUsageExit(io(["--bogus"]));
+  });
+
+  test("honours a numeric --page-size when constructing the reader", async () => {
+    const clip = io(["--owner", "owner", "--page-size", "40"]);
+    let seenPageSize = 0;
     const result = await runMigrationVerifyCli(
-      deps(clip, { createReader: () => fakeReader() }),
+      deps(clip, {
+        createReader: (pageSize) => {
+          seenPageSize = pageSize;
+          return fakeReader();
+        },
+      }),
     );
-    expect(result).toBe(2);
-    expect(clip.errors.join("\n")).toContain(MIGRATION_VERIFY_USAGE);
+    expect(result).toBe(0);
+    expect(seenPageSize).toBe(40);
+  });
+
+  test("exits 2 for a non-numeric --page-size", async () => {
+    await expectUsageExit(io(["--page-size", "abc"]));
   });
 });
