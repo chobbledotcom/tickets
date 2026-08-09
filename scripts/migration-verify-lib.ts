@@ -21,7 +21,6 @@ import {
   type CheckoutStageRow,
   diagnoseReadiness,
   formatReadinessReport,
-  LEGACY_MERGE_SESSION_PREFIX,
   type ProcessedPaymentRow,
   type SumupCheckoutRow,
 } from "#shared/migration-readiness/readiness.ts";
@@ -42,25 +41,28 @@ export interface MigrationVerifyReader {
 }
 
 /** The encrypted sources the owner key verifies: every attendee PII blob and
- *  every merge-reference charge reference. Bundled so the verify contract and
- *  the assessor that forwards to it share one parameter shape. */
+ *  every `processed_payments` row carrying a `payment_reference` (a captured
+ *  charge — regular or merge-reference). Bundled so the verify contract and the
+ *  assessor that forwards to it share one parameter shape. */
 export interface MigrationVerifyOwnerKeyInputs {
   attendees: readonly AttendeePiiSource[];
-  mergeReferences: readonly ProcessedPaymentRow[];
+  paymentReferences: readonly ProcessedPaymentRow[];
 }
 
 export interface MigrationVerifyOwnerKey {
   /** Derive the owner private key from an owner-authenticated password, or null
-   *  when the password is wrong or the key cannot be unwrapped. */
+   *  when the password is wrong, the account is not an owner, or the key cannot
+   *  be unwrapped. */
   derive(username: string, password: string): Promise<CryptoKey | null>;
-  /** Decrypt every attendee PII blob and every merge-reference charge reference
-   *  under the owner key, returning the ids/keys that failed (never plaintext). */
+  /** Decrypt (and for PII, parse) every attendee PII blob and every payment
+   *  reference under the owner key, returning the ids/keys that failed (never
+   *  plaintext). */
   verify(
     key: CryptoKey,
     inputs: MigrationVerifyOwnerKeyInputs,
   ): Promise<{
     undecryptablePii: Set<number>;
-    undecryptableMergeReferences: Set<string>;
+    undecryptablePaymentReferences: Set<string>;
   }>;
 }
 
@@ -73,9 +75,6 @@ export interface MigrationVerifyDeps extends ScriptIo {
   pageSize: number;
   prompt: (message: string) => string | null;
 }
-
-const isMergeReference = (sessionId: string): boolean =>
-  sessionId.startsWith(LEGACY_MERGE_SESSION_PREFIX);
 
 interface ParsedArgs {
   help: boolean;
@@ -125,8 +124,7 @@ const readAllSources = async (
   attendees: AttendeePiiSource[];
   attendeeIds: Set<number>;
   checkoutStages: CheckoutStageRow[];
-  mergeReferences: ProcessedPaymentRow[];
-  orderedProcessedSessionIds: string[];
+  paymentReferences: ProcessedPaymentRow[];
   processed: ProcessedPaymentRow[];
   sumup: SumupCheckoutRow[];
 }> => {
@@ -138,15 +136,18 @@ const readAllSources = async (
       reader.readAttendeePii(),
       reader.readAttendeeIds(),
     ]);
-  const mergeReferences = processed.filter((row) =>
-    isMergeReference(row.payment_session_id),
+  // Every row carrying a payment_reference (a captured charge) is verified by
+  // the owner key — not only merge-reference handoffs. A corrupt regular
+  // charge reference would break the refund-target migration, so it must fail
+  // readiness now.
+  const paymentReferences = processed.filter(
+    (row) => row.payment_reference !== "",
   );
   return {
     attendeeIds,
     attendees,
     checkoutStages,
-    mergeReferences,
-    orderedProcessedSessionIds: processed.map((row) => row.payment_session_id),
+    paymentReferences,
     processed,
     sumup,
   };
@@ -159,11 +160,11 @@ const assessOwnerKey = async (
 ): Promise<{
   ownerKeyAvailable: boolean;
   undecryptablePii: Set<number>;
-  undecryptableMergeReferences: Set<string>;
+  undecryptablePaymentReferences: Set<string>;
 }> => {
   const empty = {
     ownerKeyAvailable: false,
-    undecryptableMergeReferences: new Set<string>(),
+    undecryptablePaymentReferences: new Set<string>(),
     undecryptablePii: new Set<number>(),
   };
   if (!owner) return empty;
@@ -172,7 +173,7 @@ const assessOwnerKey = async (
   const key = await deps.ownerKey.derive(owner, password);
   if (key === null) {
     deps.stderr(
-      "The owner private key could not be derived from that password. Attendee PII cannot be verified.",
+      "The owner private key could not be derived from that password (wrong password, or not an owner account). Attendee PII cannot be verified.",
     );
     return empty;
   }
@@ -209,19 +210,17 @@ export const runMigrationVerifyCli = async (
 
   const ownerKey = await assessOwnerKey(deps, parsed.value.owner, {
     attendees: sources.attendees,
-    mergeReferences: sources.mergeReferences,
+    paymentReferences: sources.paymentReferences,
   });
 
   const report = diagnoseReadiness({
     attendeeIds: sources.attendeeIds,
     attendees: sources.attendees,
-    orderedProcessedSessionIds: sources.orderedProcessedSessionIds,
     ownerKeyAvailable: ownerKey.ownerKeyAvailable,
-    pageSize: parsed.value.pageSize,
     processed: sources.processed,
     stages: sources.checkoutStages,
     sumup: sources.sumup,
-    undecryptableMergeReferences: ownerKey.undecryptableMergeReferences,
+    undecryptablePaymentReferences: ownerKey.undecryptablePaymentReferences,
     undecryptablePii: ownerKey.undecryptablePii,
   });
 

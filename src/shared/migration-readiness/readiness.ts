@@ -81,8 +81,8 @@ export type ContradictionKind =
   | "checkout_stage_without_processed_payment"
   | "checkout_stage_without_attendee"
   | "processed_payment_without_attendee"
-  | "payment_split_across_page"
   | "undecryptable_attendee_pii"
+  | "undecryptable_payment_reference"
   | "undecryptable_merge_reference"
   | "owner_key_unavailable"
   | "unconvertible_timestamp"
@@ -116,15 +116,22 @@ export type ReadinessReport = {
 /** Normalise a legacy stored timestamp to the canonical `…sssZ` ISO instant.
  *  Accepts ISO-8601 instants (any offset or sub-second precision) and the
  *  whole-epoch-millis strings older rows stored. Returns `""` for an empty
- *  column (a genuinely absent time is not a contradiction) and `null` when a
- *  value is neither a real instant nor epoch-millis, so the caller can surface
- *  it instead of inventing a moment. */
+ *  column (a genuinely absent time is handled by the caller, which knows
+ *  whether the column is required) and `null` when a value is neither a real
+ *  instant nor a representable epoch-millis, so the caller can surface it
+ *  instead of inventing a moment. */
 export const convertLegacyTimestamp = (value: string): string | null => {
   if (value === "") return "";
   if (/^\d+$/.test(value)) {
     const epoch = Number(value);
-    if (Number.isInteger(epoch) && epoch > 0) return epochMsToIso(epoch);
-    return null;
+    if (!Number.isInteger(epoch) || epoch <= 0) return null;
+    try {
+      return epochMsToIso(epoch);
+    } catch {
+      // Values outside Date's representable range (e.g. an overflowed epoch)
+      // are not real instants — surface them rather than throwing.
+      return null;
+    }
   }
   try {
     // Temporal rejects impossible dates (month 13, Feb 30) where Date would
@@ -139,20 +146,20 @@ export const convertLegacyTimestamp = (value: string): string | null => {
 const isMergeReference = (sessionId: string): boolean =>
   sessionId.startsWith(LEGACY_MERGE_SESSION_PREFIX);
 
-/** A merge-reference charge that carries an encrypted `payment_reference` — one
- *  only the owner key can verify. Used to block the migration when the key is
+/** A `processed_payments` row that carries an owner-key-encrypted
+ *  `payment_reference` — a captured charge (regular or merge-reference) only
+ *  the owner key can verify. Used to block the migration when the key is
  *  unavailable, instead of silently skipping the charge. */
-const hasEncryptedMergeReferenceCharge = (
+const hasEncryptedPaymentReference = (
   processed: readonly ProcessedPaymentRow[],
-): boolean =>
-  processed.some(
-    (row) =>
-      isMergeReference(row.payment_session_id) && row.payment_reference !== "",
-  );
+): boolean => processed.some((row) => row.payment_reference !== "");
 
 /** Convert every legacy timestamp column to a canonical instant, returning one
- *  contradiction per value that is neither a real instant nor epoch-millis.
- *  Empty columns are left as empty (an absent time is not a contradiction). */
+ *  contradiction per value that is neither a real instant nor a representable
+ *  epoch-millis. `processed_at`, `checkout_stages.created_at`, and
+ *  `sumup_checkouts.created_at` are NOT NULL in the schema, so an empty value
+ *  is corruption; `provider_refunded_at` is optional (empty means "no refund
+ *  yet") so an empty value is not a contradiction. */
 const convertAllTimestamps = (
   processed: readonly ProcessedPaymentRow[],
   stages: readonly CheckoutStageRow[],
@@ -160,14 +167,20 @@ const convertAllTimestamps = (
 ): { contradictions: Contradiction[]; converted: number } => {
   const contradictions: Contradiction[] = [];
   let converted = 0;
-  const check = (value: string, label: string): void => {
+  const check = (value: string, label: string, required: boolean): void => {
+    if (value === "") {
+      if (required) {
+        contradictions.push({ detail: label, kind: "unconvertible_timestamp" });
+      }
+      return;
+    }
+    // value is non-empty here, so convertLegacyTimestamp returns either a
+    // canonical ISO instant or null — never "" — so a non-null result is a
+    // successful conversion (no "" literal to distinguish against).
     const result = convertLegacyTimestamp(value);
     if (result === null) {
-      contradictions.push({
-        detail: label,
-        kind: "unconvertible_timestamp",
-      });
-    } else if (result !== "") {
+      contradictions.push({ detail: label, kind: "unconvertible_timestamp" });
+    } else {
       converted += 1;
     }
   };
@@ -175,17 +188,27 @@ const convertAllTimestamps = (
     check(
       row.processed_at,
       `processed_payments.processed_at = ${row.processed_at}`,
+      true,
     );
     check(
       row.provider_refunded_at,
       `processed_payments.provider_refunded_at = ${row.provider_refunded_at}`,
+      false,
     );
   }
   for (const row of stages) {
-    check(row.created_at, `checkout_stages.created_at = ${row.created_at}`);
+    check(
+      row.created_at,
+      `checkout_stages.created_at = ${row.created_at}`,
+      true,
+    );
   }
   for (const row of sumup) {
-    check(row.created_at, `sumup_checkouts.created_at = ${row.created_at}`);
+    check(
+      row.created_at,
+      `sumup_checkouts.created_at = ${row.created_at}`,
+      true,
+    );
   }
   return { contradictions, converted };
 };
@@ -232,23 +255,6 @@ export const buildPaymentGroups = (
   return order.map((sessionId) => bySession.get(sessionId)!);
 };
 
-/** Provider payments whose rows would not fit on one keyset page, so a cursor
- *  that pages by row count would split one payment across a boundary. Each
- *  session id is returned once. With the legacy tables each payment is one row
- *  per table, so this only fires once a single payment grows past the page. */
-export const paymentsExceedingPage = (
-  orderedSessionIds: readonly string[],
-  pageSize: number,
-): readonly string[] => {
-  const counts = new Map<string, number>();
-  for (const id of orderedSessionIds) {
-    counts.set(id, (counts.get(id) ?? 0) + 1);
-  }
-  return [...counts.entries()]
-    .filter(([, count]) => count > pageSize)
-    .map(([id]) => id);
-};
-
 /** Inputs to the readiness verdict. The caller fetches every row and reports
  *  any owner-key decryption failures; these rules never perform IO. */
 export type DiagnoseInput = {
@@ -256,21 +262,20 @@ export type DiagnoseInput = {
   stages: readonly CheckoutStageRow[];
   sumup: readonly SumupCheckoutRow[];
   attendees: readonly AttendeePiiSource[];
-  /** Live attendee ids, used to prove processed-payment and merge-reference rows
+  /** Live attendee ids, used to prove processed-payment and checkout-stage rows
    *  still point at real attendees rather than deleted bookings. */
   attendeeIds: ReadonlySet<number>;
-  /** `payment_session_id` rows of `processed_payments` in read order, used to
-   *  prove a cursor never splits one provider payment across a keyset page. */
-  orderedProcessedSessionIds: readonly string[];
-  pageSize: number;
   /** Whether the caller supplied the owner private key and decrypted PII. When
-   *  false and encrypted PII exists, the verdict blocks rather than skipping. */
+   *  false and encrypted PII or payment references exist, the verdict blocks
+   *  rather than skipping. */
   ownerKeyAvailable: boolean;
-  /** Attendee ids whose `pii_blob` failed to decrypt under the owner key. */
+  /** Attendee ids whose `pii_blob` failed to decrypt (or parse) under the
+   *  owner key. */
   undecryptablePii: ReadonlySet<number>;
-  /** `payment_session_id`s of merge-reference rows whose `payment_reference`
-   *  failed to decrypt under the owner key. */
-  undecryptableMergeReferences: ReadonlySet<string>;
+  /** `payment_session_id`s of `processed_payments` rows whose
+   *  `payment_reference` failed to decrypt under the owner key (regular
+   *  captured charges and merge-reference charges alike). */
+  undecryptablePaymentReferences: ReadonlySet<string>;
 };
 
 /** A `processed_payments` row is a handled terminal failure when its attendee
@@ -335,42 +340,40 @@ const sumupContradictions = (
       kind: "sumup_checkout_without_id" as const,
     }));
 
-const splitContradictions = (
-  orderedSessionIds: readonly string[],
-  pageSize: number,
-): Contradiction[] =>
-  paymentsExceedingPage(orderedSessionIds, pageSize).map((id) => ({
-    detail: id,
-    kind: "payment_split_across_page" as const,
-  }));
-
-/** Owner-key controls. When the key is supplied, every PII blob and
- *  merge-reference charge that fails to decrypt is a contradiction. When it is
- *  not supplied and encrypted PII or encrypted merge-reference charges exist,
- *  the migration blocks instead of skipping the charges it cannot yet verify. */
+/** Owner-key controls. When the key is supplied, every PII blob and every
+ *  payment reference that fails to decrypt is a contradiction (classified as a
+ *  merge-reference charge or a regular captured charge by the session id). When
+ *  the key is not supplied and encrypted PII or encrypted payment references
+ *  exist, the migration blocks instead of skipping the charges it cannot yet
+ *  verify. */
 const ownerKeyContradictions = (input: DiagnoseInput): Contradiction[] => {
   if (input.ownerKeyAvailable) {
+    const paymentRefFailures = [...input.undecryptablePaymentReferences].map(
+      (sessionId) => ({
+        detail: sessionId,
+        kind: (isMergeReference(sessionId)
+          ? "undecryptable_merge_reference"
+          : "undecryptable_payment_reference") as ContradictionKind,
+      }),
+    );
     return [
       ...[...input.undecryptablePii].map((attendeeId) => ({
         detail: `attendee ${attendeeId}`,
         kind: "undecryptable_attendee_pii" as const,
       })),
-      ...[...input.undecryptableMergeReferences].map((sessionId) => ({
-        detail: sessionId,
-        kind: "undecryptable_merge_reference" as const,
-      })),
+      ...paymentRefFailures,
     ];
   }
   const piiCount = input.attendees.filter(
     (attendee) => attendee.pii_blob !== "",
   ).length;
-  const mergeCharges = hasEncryptedMergeReferenceCharge(input.processed);
-  if (piiCount > 0 || mergeCharges) {
+  const hasCharges = hasEncryptedPaymentReference(input.processed);
+  if (piiCount > 0 || hasCharges) {
     return [
       {
         detail:
           `${piiCount} encrypted attendee PII blob(s)` +
-          ` and ${mergeCharges ? "encrypted merge-reference charge(s)" : "no merge-reference charges"}` +
+          ` and ${hasCharges ? "encrypted payment reference(s)" : "no payment references"}` +
           " cannot be verified without the owner key",
         kind: "owner_key_unavailable" as const,
       },
@@ -381,10 +384,10 @@ const ownerKeyContradictions = (input: DiagnoseInput): Contradiction[] => {
 
 /** Turn one lossless read of the legacy payment sources into a readiness
  *  verdict. The data is `ready` only when every row is accounted for, every
- *  timestamp normalises, every payment stays inside one page, every reference
- *  points at a live attendee, and the owner key could decrypt every PII blob
- *  and merge-reference charge. Any single finding blocks the migration so the
- *  operator fixes it before a later release changes payment history. */
+ *  timestamp normalises, every reference points at a live attendee, and the
+ *  owner key could decrypt every PII blob and payment reference. Any single
+ *  finding blocks the migration so the operator fixes it before a later release
+ *  changes payment history. */
 export const diagnoseReadiness = (input: DiagnoseInput): ReadinessReport => {
   const groups = buildPaymentGroups(input.processed, input.stages);
   const timestamp = convertAllTimestamps(
@@ -395,7 +398,6 @@ export const diagnoseReadiness = (input: DiagnoseInput): ReadinessReport => {
   const contradictions: Contradiction[] = [
     ...referenceContradictions(groups, input.attendeeIds),
     ...sumupContradictions(input.sumup),
-    ...splitContradictions(input.orderedProcessedSessionIds, input.pageSize),
     ...timestamp.contradictions,
     ...ownerKeyContradictions(input),
   ];
@@ -417,19 +419,19 @@ export const diagnoseReadiness = (input: DiagnoseInput): ReadinessReport => {
     kind: contradictions.length === 0 ? "ready" : "blocked",
   };
 };
-
 const CONTRADICTION_PHRASES: Record<ContradictionKind, string> = {
   checkout_stage_without_attendee: "checkout stage without a live attendee",
   checkout_stage_without_processed_payment:
     "checkout stage without a processed payment",
   owner_key_unavailable: "owner key not supplied",
-  payment_split_across_page: "provider payment split across a page",
   processed_payment_without_attendee:
     "processed payment without a live attendee",
   sumup_checkout_without_id: "sumup checkout without a recorded id",
   unconvertible_timestamp: "timestamp that cannot be converted",
   undecryptable_attendee_pii: "attendee PII that did not decrypt",
   undecryptable_merge_reference: "merge-reference charge that did not decrypt",
+  undecryptable_payment_reference:
+    "captured charge reference that did not decrypt",
 };
 
 /** Render a readiness verdict as plain operator lines. The owner-key line says

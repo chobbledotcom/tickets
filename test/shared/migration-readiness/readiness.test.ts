@@ -38,9 +38,7 @@ const processed = (
 const goodInput = (over: Partial<DiagnoseInput> = {}): DiagnoseInput => ({
   attendeeIds: new Set([1]),
   attendees: [{ id: 1, pii_blob: enc("hyb:1:x") }],
-  orderedProcessedSessionIds: ["sess-1"],
   ownerKeyAvailable: true,
-  pageSize: 500,
   processed: [processed({ provider_refunded_at: "2026-01-02T00:00:00.000Z" })],
   stages: [stage({})],
   sumup: [
@@ -50,7 +48,7 @@ const goodInput = (over: Partial<DiagnoseInput> = {}): DiagnoseInput => ({
       sumup_id: "su-1",
     },
   ],
-  undecryptableMergeReferences: new Set(),
+  undecryptablePaymentReferences: new Set(),
   undecryptablePii: new Set(),
   ...over,
 });
@@ -66,7 +64,6 @@ const mergeRefNoOwnerInput = (
   goodInput({
     attendeeIds: new Set([1]),
     attendees: [{ id: 1, pii_blob: "" }],
-    orderedProcessedSessionIds: [ref],
     ownerKeyAvailable: false,
     processed: [
       processed({
@@ -232,7 +229,6 @@ describe("diagnoseReadiness", () => {
           { id: 1, pii_blob: enc("hyb:1:x") },
           { id: 2, pii_blob: enc("hyb:1:y") },
         ],
-        orderedProcessedSessionIds: [ref, "sess-1"],
         processed: [
           processed({ attendee_id: 1, payment_session_id: ref }),
           processed({ payment_session_id: "sess-1" }),
@@ -249,7 +245,6 @@ describe("diagnoseReadiness", () => {
     const report = diagnoseReadiness(
       goodInput({
         attendeeIds: new Set([1, 2]),
-        orderedProcessedSessionIds: [ref],
         processed: [processed({ attendee_id: 9, payment_session_id: ref })],
       }),
     );
@@ -265,7 +260,7 @@ describe("diagnoseReadiness", () => {
     expect(report.kind).toBe("blocked");
     expect(report.contradictions).toContainEqual({
       detail:
-        "1 encrypted attendee PII blob(s) and no merge-reference charges cannot be verified without the owner key",
+        "1 encrypted attendee PII blob(s) and no payment references cannot be verified without the owner key",
       kind: "owner_key_unavailable",
     });
   });
@@ -282,7 +277,7 @@ describe("diagnoseReadiness", () => {
     expect(
       report.contradictions.find((c) => c.kind === "owner_key_unavailable")
         ?.detail,
-    ).toContain("encrypted merge-reference charge(s)");
+    ).toContain("encrypted payment reference(s)");
   });
 
   test("does not block on a merge reference when the charge is empty and no owner key is supplied", () => {
@@ -324,7 +319,6 @@ describe("diagnoseReadiness", () => {
     const ref = `${LEGACY_MERGE_SESSION_PREFIX}1`;
     const report = diagnoseReadiness(
       goodInput({
-        orderedProcessedSessionIds: [ref, "sess-1"],
         processed: [
           processed({
             attendee_id: 1,
@@ -333,7 +327,7 @@ describe("diagnoseReadiness", () => {
           }),
           processed({ payment_session_id: "sess-1" }),
         ],
-        undecryptableMergeReferences: new Set([ref]),
+        undecryptablePaymentReferences: new Set([ref]),
       }),
     );
     expect(report.kind).toBe("blocked");
@@ -378,18 +372,67 @@ describe("diagnoseReadiness", () => {
     });
   });
 
-  test("reports a provider payment split across a keyset page", () => {
+  test("blocks on an empty required timestamp (processed_at is NOT NULL)", () => {
     const report = diagnoseReadiness(
       goodInput({
-        orderedProcessedSessionIds: ["sess-1", "sess-1"],
-        pageSize: 1,
+        processed: [processed({ processed_at: "" })],
       }),
     );
     expect(report.kind).toBe("blocked");
     expect(report.contradictions).toContainEqual({
-      detail: "sess-1",
-      kind: "payment_split_across_page",
+      detail: "processed_payments.processed_at = ",
+      kind: "unconvertible_timestamp",
     });
+  });
+
+  test("does not block on an empty optional timestamp (provider_refunded_at)", () => {
+    const report = diagnoseReadiness(
+      goodInput({
+        processed: [processed({ provider_refunded_at: "" })],
+      }),
+    );
+    expect(
+      report.contradictions.some((c) => c.kind === "unconvertible_timestamp"),
+    ).toBe(false);
+  });
+
+  test("blocks on an empty required checkout_stages.created_at", () => {
+    const ref = `${LEGACY_MERGE_SESSION_PREFIX}2`;
+    const report = diagnoseReadiness(
+      goodInput({
+        attendeeIds: new Set([1]),
+        attendees: [{ id: 1, pii_blob: "" }],
+        ownerKeyAvailable: false,
+        processed: [processed({ attendee_id: 1, payment_session_id: ref })],
+        stages: [stage({ created_at: "" })],
+      }),
+    );
+    expect(
+      report.contradictions.some(
+        (c) =>
+          c.kind === "unconvertible_timestamp" &&
+          c.detail.includes("checkout_stages.created_at"),
+      ),
+    ).toBe(true);
+  });
+
+  test("blocks on an empty required sumup_checkouts.created_at", () => {
+    const report = diagnoseReadiness(
+      goodInput({
+        sumup: [{ created_at: "", reference_index: "idx", sumup_id: "su" }],
+      }),
+    );
+    expect(
+      report.contradictions.some(
+        (c) =>
+          c.kind === "unconvertible_timestamp" &&
+          c.detail.includes("sumup_checkouts.created_at"),
+      ),
+    ).toBe(true);
+  });
+
+  test("rejects an epoch-millis value outside Date's representable range", () => {
+    expect(convertLegacyTimestamp("99999999999999999999")).toBeNull();
   });
 
   test("counts timestamp conversions actually performed", () => {
@@ -437,7 +480,7 @@ describe("formatReadinessReport", () => {
       "  not supplied — 1 attendee PII blob(s) cannot be verified",
       "",
       "Contradictions",
-      "  - owner key not supplied: 1 encrypted attendee PII blob(s) and no merge-reference charges cannot be verified without the owner key",
+      "  - owner key not supplied: 1 encrypted attendee PII blob(s) and no payment references cannot be verified without the owner key",
     ]);
   });
 
@@ -452,8 +495,12 @@ describe("formatReadinessReport", () => {
     expect(report.contradictions).toEqual([]);
   });
 
-  test("is ready when each payment appears once even at a page size of one", () => {
-    const report = diagnoseReadiness(goodInput({ pageSize: 1 }));
+  test("is ready when a single consistent payment is read with a small page size", () => {
+    // The page-split check is gone: payment_session_id is a primary key, so a
+    // single payment can never appear more than once per table, and a keyset
+    // page over one table can't split it. (Split detection is a PR 14 copy-
+    // cursor concern, not this read-only verifier.)
+    const report = diagnoseReadiness(goodInput());
     expect(report.kind).toBe("ready");
   });
 
@@ -462,9 +509,7 @@ describe("formatReadinessReport", () => {
     const report = diagnoseReadiness({
       attendeeIds: new Set([1, 7]),
       attendees: [{ id: 7, pii_blob: enc("hyb:1:p") }],
-      orderedProcessedSessionIds: ["x", "x", "x", ref, "sess-1"],
       ownerKeyAvailable: true,
-      pageSize: 1,
       processed: [
         processed({
           attendee_id: 88,
@@ -472,7 +517,11 @@ describe("formatReadinessReport", () => {
           payment_session_id: ref,
           processed_at: "not-a-time",
         }),
-        processed({ payment_session_id: "sess-1" }),
+        processed({
+          attendee_id: 1,
+          payment_reference: enc("hyb:1:regular"),
+          payment_session_id: "sess-1",
+        }),
       ],
       stages: [stage({ attendee_id: 66, payment_session_id: "orphan" })],
       sumup: [
@@ -482,7 +531,7 @@ describe("formatReadinessReport", () => {
           sumup_id: "",
         },
       ],
-      undecryptableMergeReferences: new Set([ref]),
+      undecryptablePaymentReferences: new Set([ref, "sess-1"]),
       undecryptablePii: new Set([7]),
     });
     const out = formatReadinessReport(report).join("\n");
@@ -492,11 +541,13 @@ describe("formatReadinessReport", () => {
     );
     expect(out).toContain("  - checkout stage without a live attendee: 66");
     expect(out).toContain("  - processed payment without a live attendee: 88");
-    expect(out).toContain("  - provider payment split across a page: x");
     expect(out).toContain("  - sumup checkout without a recorded id: idx");
     expect(out).toContain("  - attendee PII that did not decrypt: attendee 7");
     expect(out).toContain(
       "  - merge-reference charge that did not decrypt: legacy-merge:99",
+    );
+    expect(out).toContain(
+      "  - captured charge reference that did not decrypt: sess-1",
     );
     expect(out).toContain("  - timestamp that cannot be converted:");
   });

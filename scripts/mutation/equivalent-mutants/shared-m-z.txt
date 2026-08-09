@@ -260,7 +260,3 @@ src/shared/payment-signature.ts::canonicalPricePayload.entries~0kqbt3q  1 → 0 
 src/shared/payment/money.ts::CurrencySchema~1qa2mi1  Currency must be three uppercase letters → ""   # message text of the currency regex; validation outcome is identical
 src/shared/payment/resource-id.ts::ResourceIdSchema~1pmki6u  Resource id must be text with no whitespace → ""   # message text of the resource-id regex; validation outcome is identical
 
-# paymentsExceedingPage: counts.get(id) is undefined | number; for 0, undefined,
-# or any number, `?? 0` and `|| 0` yield the same value, so the two operators
-# cannot be distinguished.
-src/shared/migration-readiness/readiness.ts::paymentsExceedingPage~0643qpn  ?? → ||   # counts.get(id) is undefined | number; 0 ?? 0 == 0 || 0 == 0

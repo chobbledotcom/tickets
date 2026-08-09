@@ -5,10 +5,13 @@ import {
   createMigrationVerifyReader,
 } from "#scripts/migration-verify-deps.ts";
 import { runMigrationVerifyCli } from "#scripts/migration-verify-lib.ts";
+import { encrypt as envEncrypt } from "#shared/crypto/encryption.ts";
+import { hmacHash } from "#shared/crypto/hashing.ts";
 import { encryptWithOwnerKey } from "#shared/crypto/keys.ts";
 import { buildPiiBlob, encryptPiiBlob } from "#shared/db/attendees/pii.ts";
-import { execute } from "#shared/db/client.ts";
+import { execute, queryOne } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
+import { invalidateUsersCache } from "#shared/db/users.ts";
 import { nowIso } from "#shared/now.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 import { createTestDbWithSetup, resetDb } from "#test-utils/db.ts";
@@ -113,6 +116,16 @@ const seedConsistentPayment = async (
   await seedStage(sessionId, attendeeId);
 };
 
+/** Assert the run refused to derive the owner key: exit 1, a "could not be
+ *  derived" stderr message, and an "owner key not supplied" report line. Shared
+ *  by the wrong-password, unknown-username, absent-private-key, and non-owner
+ *  cases so their assertion blocks differ only in setup. */
+const expectOwnerKeyBlocked = (c: Clip, result: number): void => {
+  expect(result).toBe(1);
+  expect(c.errors.join("\n")).toContain("could not be derived");
+  expect(c.output.join("\n")).toContain("owner key not supplied");
+};
+
 describe("migration-verify production wiring", () => {
   beforeEach(async () => {
     await createTestDbWithSetup();
@@ -157,11 +170,7 @@ describe("migration-verify production wiring", () => {
     await seedConsistentPayment("sess-1", attendeeId);
 
     const c = clip(["--owner", TEST_ADMIN_USERNAME], "the-wrong-password");
-    const result = await run(c);
-
-    expect(result).toBe(1);
-    expect(c.errors.join("\n")).toContain("could not be derived");
-    expect(c.output.join("\n")).toContain("owner key not supplied");
+    expectOwnerKeyBlocked(c, await run(c));
   });
 
   test("blocks when the owner username is unknown", async () => {
@@ -291,5 +300,78 @@ describe("migration-verify production wiring", () => {
     expect(result).toBe(0);
     expect(seenPageSize).toBe(2);
     expect(c.output.join("\n")).toContain("processed_payments rows: 6");
+  });
+
+  test("blocks when --owner is a non-owner account carrying the site data key", async () => {
+    // Seed an attendee with PII so a refused owner key actually blocks (a null
+    // derive with nothing encrypted would otherwise read as ready).
+    await seedAttendee();
+    // Seed a manager-level user that reuses the owner's password hash and
+    // wrapped data key (as invite acceptance would), so the owner password
+    // verifies but the admin level is not "owner" — derive must refuse.
+    const owner = await queryOne<{
+      password_hash: string;
+      wrapped_data_key: string;
+      kek_version: number;
+    }>(
+      "SELECT password_hash, wrapped_data_key, kek_version FROM users WHERE username_index = ?",
+      [await hmacHash(TEST_ADMIN_USERNAME)],
+    );
+    await execute(
+      `INSERT INTO users
+         (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry, kek_version)
+       VALUES (?, ?, ?, ?, ?, '', '', ?)`,
+      [
+        await envEncrypt("manager"),
+        await hmacHash("manager"),
+        owner!.password_hash,
+        owner!.wrapped_data_key,
+        await envEncrypt("manager"),
+        owner!.kek_version,
+      ],
+    );
+    invalidateUsersCache();
+
+    const c = clip(["--owner", "manager"], TEST_ADMIN_PASSWORD);
+    expectOwnerKeyBlocked(c, await run(c));
+  });
+
+  test("blocks on a corrupt regular (non-merge) captured charge reference", async () => {
+    const attendeeId = await seedAttendee();
+    await seedStage("sess-1", attendeeId);
+    await seedProcessed("sess-1", attendeeId);
+    // A regular processed_payments row whose payment_reference is corrupt
+    // hybrid ciphertext — would break the refund-target migration, so it must
+    // fail readiness now (not only merge-reference handoffs are verified).
+    await execute(
+      `UPDATE processed_payments SET payment_reference = 'hyb:1:corrupt'
+        WHERE payment_session_id = 'sess-1'`,
+    );
+
+    const { out, result } = await runOwner();
+
+    expect(result).toBe(1);
+    expect(out).toContain(
+      "captured charge reference that did not decrypt: sess-1",
+    );
+  });
+
+  test("does not treat a servicing row as a valid payment attendee", async () => {
+    // Seed a servicing (van/crew) attendee and point a processed payment at it.
+    // Servicing rows are not real payment targets, so readiness must block.
+    await execute(
+      "INSERT INTO attendees (created, kind, pii_blob) VALUES (?, 'servicing', '')",
+      [nowIso()],
+    );
+    const servicing = await queryOne<{ id: number }>(
+      "SELECT id FROM attendees WHERE kind = 'servicing' LIMIT 1",
+    );
+    await seedStage("sess-1", servicing!.id);
+    await seedProcessed("sess-1", servicing!.id);
+
+    const { out, result } = await runOwner(["--owner", TEST_ADMIN_USERNAME]);
+
+    expect(result).toBe(1);
+    expect(out).toContain("processed payment without a live attendee");
   });
 });

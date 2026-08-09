@@ -83,7 +83,7 @@ const alwaysVerifyingKey = (
   derive: () => Promise.resolve(key),
   verify: () =>
     Promise.resolve({
-      undecryptableMergeReferences: new Set<string>(),
+      undecryptablePaymentReferences: new Set<string>(),
       undecryptablePii: new Set<number>(),
     }),
 });
@@ -96,7 +96,7 @@ const recordingOwnerKey = (
   onVerify: (
     key: CryptoKey,
     inputs: {
-      mergeReferences: readonly ProcessedPaymentRow[];
+      paymentReferences: readonly ProcessedPaymentRow[];
       attendees: readonly AttendeePiiSource[];
     },
   ) => void,
@@ -105,7 +105,7 @@ const recordingOwnerKey = (
   verify: (key, inputs) => {
     onVerify(key, inputs);
     return Promise.resolve({
-      undecryptableMergeReferences: new Set<string>(),
+      undecryptablePaymentReferences: new Set<string>(),
       undecryptablePii: new Set<number>(),
     });
   },
@@ -205,7 +205,7 @@ describe("runMigrationVerifyCli", () => {
           derive: () => Promise.resolve({} as CryptoKey),
           verify: () =>
             Promise.resolve({
-              undecryptableMergeReferences: new Set<string>(),
+              undecryptablePaymentReferences: new Set<string>(),
               undecryptablePii: new Set([1]),
             }),
         },
@@ -289,7 +289,7 @@ describe("runMigrationVerifyCli", () => {
         ownerKey: recordingOwnerKey(
           () => Promise.resolve({} as CryptoKey),
           (_key, inputs) => {
-            verifiedRefs = inputs.mergeReferences;
+            verifiedRefs = inputs.paymentReferences;
           },
         ),
       }),
