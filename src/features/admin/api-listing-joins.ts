@@ -13,7 +13,6 @@ import {
 } from "#shared/db/groups.ts";
 import {
   requireListingChildrenPackageCheck,
-  requireTouchingRelationshipsTx,
   setListingChildrenWithPackageCheckTx,
 } from "#shared/db/listing-parents.ts";
 import { writeListingDayCounts } from "#shared/db/listing-prices.ts";
@@ -164,15 +163,20 @@ export const persistListingJoins = async (
       value.childEdges === null ? undefined : hasChildEdges(value.childEdges),
     );
   }
-  await writeListingDayCounts(tx, listingId, value.dayPrices);
-  if (value.childEdges !== null) {
-    requireListingChildrenPackageCheck(
-      await setListingChildrenWithPackageCheckTx(
-        tx,
-        listingId,
-        value.childEdges,
-      ),
-    );
-  }
-  await requireTouchingRelationshipsTx(tx, listingId);
+  const childEdges = value.childEdges;
+  await writeListingDayCounts(
+    tx,
+    listingId,
+    value.dayPrices,
+    childEdges === null
+      ? undefined
+      : async () =>
+          requireListingChildrenPackageCheck(
+            await setListingChildrenWithPackageCheckTx(
+              tx,
+              listingId,
+              childEdges,
+            ),
+          ),
+  );
 };

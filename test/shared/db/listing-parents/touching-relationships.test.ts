@@ -9,6 +9,7 @@ import {
 import { listingsTable } from "#shared/db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { standardParentWithDailyChildEdge } from "#test-utils/listing-parents/helpers.ts";
 
 const check = (listingId: number): Promise<void> =>
   withTransaction((tx) => requireTouchingRelationshipsTx(tx, listingId));
@@ -18,12 +19,7 @@ describeWithEnv(
   { db: true },
   () => {
     test("checks incoming parent edges", async () => {
-      const parent = await createTestListing({ name: "Standard parent" });
-      const child = await createTestListing({
-        listingType: "daily",
-        name: "Daily child",
-      });
-      await listingChildren.setIds(parent.id, [child.id]);
+      const { child } = await standardParentWithDailyChildEdge();
 
       await expect(check(child.id)).rejects.toThrow(
         t("listings_table.children_err_child_daily", { name: child.name }),

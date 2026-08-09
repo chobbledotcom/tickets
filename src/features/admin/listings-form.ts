@@ -17,8 +17,14 @@ import { toMinorUnits } from "#shared/currency.ts";
 import { normalizeDatetime } from "#shared/dates.ts";
 import { listingAttributeOptions } from "#shared/db/attributes.ts";
 import type { TxScope } from "#shared/db/client.ts";
-import { copyPackageMemberOverridesTx } from "#shared/db/groups.ts";
-import { syncListingPrices } from "#shared/db/listing-prices.ts";
+import {
+  copyPackageMemberOverridesTx,
+  setListingGroupsTx,
+} from "#shared/db/groups.ts";
+import {
+  syncListingPrices,
+  writeListingDayCounts,
+} from "#shared/db/listing-prices.ts";
 import type { ListingAggregateValues } from "#shared/db/listings/aggregates.ts";
 import { listingsTable } from "#shared/db/listings/records.ts";
 import { computeSlugIndex } from "#shared/db/listings/table.ts";
@@ -44,7 +50,6 @@ import {
   type ListingEditFormValues,
   type ListingFormValues,
 } from "#templates/fields/listing.ts";
-import { persistListingJoins } from "./api-listing-joins.ts";
 
 /* jscpd:ignore-end */
 
@@ -227,12 +232,10 @@ const writeListingGroups = async (
   tx: TxScope,
   id: number,
   input: ListingInput,
-): Promise<void> =>
-  persistListingJoins(tx, id, {
-    childEdges: null,
-    dayPrices: input.dayPrices,
-    groupIds: input.groupIds!,
-  });
+) => {
+  await setListingGroupsTx(tx, id, input.groupIds!);
+  await writeListingDayCounts(tx, id, input.dayPrices);
+};
 
 /** Create-only afterWrite: persist the memberships, then — for a duplicate —
  * copy the source's package overrides and attribute selections onto the new

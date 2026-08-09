@@ -39,6 +39,7 @@ import {
   queryIdColumn,
   type TxScope,
 } from "#shared/db/client.ts";
+import { requireTouchingRelationshipsTx } from "#shared/db/listing-parents.ts";
 import { type DayPrices, parseDayPrices } from "#shared/types.ts";
 
 export const PRICE_TYPE_BASE = "base";
@@ -320,18 +321,19 @@ export const getListingDayPrices = async (
   return parseDayPrices(dayPrices);
 };
 
-/** Replace a listing's `day_count` rows from the submitted `dayPrices`, inside a
- * caller's write transaction — the form/API `afterWrite` hook, so the day prices
- * commit atomically with the listing row (the transactional insertStatement/
- * updateStatement path bypasses the {@link listingsTable} wrapper). */
+/** Replace day prices, finish any relationship change that depends on them, then
+ * check every edge against the saved listing's final state. */
 export const writeListingDayCounts = async (
   tx: TxScope,
   listingId: number,
   dayPrices: DayPrices | undefined,
+  finishRelationships?: () => Promise<void>,
 ): Promise<void> => {
   for (const stmt of dayCountPriceStatements(listingId, dayPrices)) {
     await tx.execute(stmt);
   }
+  if (finishRelationships) await finishRelationships();
+  await requireTouchingRelationshipsTx(tx, listingId);
 };
 
 /** A `listings` row projected to the one column the `base` mirror derives from.

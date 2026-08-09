@@ -1,3 +1,4 @@
+import { listingChildren } from "#shared/db/listing-parents.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -27,6 +28,18 @@ export const linkedParentChild = async (): Promise<ParentChild> => {
   await postChildren(parent.id, [child.id]);
   return { child, parent };
 };
+
+/** An intentionally invalid stored edge for transaction recheck tests. */
+export const standardParentWithDailyChildEdge =
+  async (): Promise<ParentChild> => {
+    const parent = await createTestListing({ name: "Standard parent" });
+    const child = await createTestListing({
+      listingType: "daily",
+      name: "Daily child",
+    });
+    await listingChildren.setIds(parent.id, [child.id]);
+    return { child, parent };
+  };
 
 /** Create a listing through the admin JSON API, returning the created id. */
 export const apiCreateListing = async (
