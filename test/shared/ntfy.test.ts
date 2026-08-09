@@ -62,7 +62,7 @@ describeWithEnv("ntfy", { env: { NTFY_URL: undefined } }, () => {
       using failedFetch = stubFetch(new Error("Network error"));
       const errorSpy = spy(console, "error");
 
-      sendNtfyError(ErrorCode.WEBHOOK_SEND);
+      sendNtfyError(ErrorCode.STRIPE_SIGNATURE);
 
       // Wait for the rejected promise's .catch handler to run
       await new Promise((resolve) => setTimeout(resolve, 0));

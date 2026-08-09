@@ -14,7 +14,7 @@ import type { RegistrationPackageFacts } from "#shared/registration-package-fact
 import {
   logAndNotifyRegistration,
   sendRegistrationWebhooks,
-} from "#shared/webhook.ts";
+} from "#shared/webhook/delivery.ts";
 import { stubWebhookFetch } from "#test/shared/webhook/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";

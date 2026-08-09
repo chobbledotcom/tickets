@@ -10,11 +10,13 @@
 
 export * from "#shared/api-example.ts";
 export {
-  buildWebhookPayload,
   logAndNotifyRegistration,
-  type RegistrationEntry,
   sendRegistrationWebhooks,
   sendWebhook,
+} from "#shared/webhook/delivery.ts";
+export {
+  buildWebhookPayload,
+  type RegistrationEntry,
   type WebhookAttendee,
   type WebhookListing as WebhookPayloadListing,
   type WebhookPayload,

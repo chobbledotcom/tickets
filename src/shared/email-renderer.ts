@@ -7,7 +7,7 @@
  */
 
 import type { Liquid } from "liquidjs";
-import { lazyRef, map, sumOf } from "#fp";
+import { lazyRef, map, mapNotNullish, sumOf } from "#fp";
 import { bookedRangeLabel, widestDatedEntry } from "#shared/dates.ts";
 import {
   type PackageDisplay,
@@ -17,12 +17,10 @@ import { settings } from "#shared/db/settings.ts";
 import type { EmailEntry } from "#shared/email.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { createBaseLiquidEngine } from "#shared/liquid-engine.ts";
-import { ErrorCode, logError } from "#shared/logger.ts";
 import { nameList } from "#shared/name-list.ts";
 import {
   type ContactInfo,
   clampDurationDays,
-  type EmailTemplateFormat,
   type EmailTemplateType,
   isPaidListing,
 } from "#shared/types.ts";
@@ -294,26 +292,38 @@ export const renderTemplate = async (
 };
 
 /** Render all 3 parts (subject, html, text) using custom templates with fallback to defaults */
+export interface RenderedEmailContent extends EmailContent {
+  errors: readonly unknown[];
+}
+
+interface RenderedTemplate {
+  error?: unknown;
+  value: string;
+}
+
 export const renderEmailContent = async (
   type: EmailTemplateType,
   data: TemplateData,
-): Promise<EmailContent> => {
+): Promise<RenderedEmailContent> => {
   const defaults = DEFAULT_TEMPLATES[type];
   const custom = settings.email.templateSet(type);
 
   const [subject, html, text] = await Promise.all([
-    safeRender(
-      custom.subject || defaults.subject,
-      data,
-      defaults.subject,
-      type,
-      "subject",
-    ),
-    safeRender(custom.html || defaults.html, data, defaults.html, type, "html"),
-    safeRender(custom.text || defaults.text, data, defaults.text, type, "text"),
+    safeRender(custom.subject || defaults.subject, data, defaults.subject),
+    safeRender(custom.html || defaults.html, data, defaults.html),
+    safeRender(custom.text || defaults.text, data, defaults.text),
   ]);
 
-  return { html, subject, text };
+  return {
+    errors: mapNotNullish(({ error }: RenderedTemplate) => error)([
+      subject,
+      html,
+      text,
+    ]),
+    html: html.value,
+    subject: subject.value,
+    text: text.value,
+  };
 };
 
 /** Render a template, falling back to default on error */
@@ -321,19 +331,14 @@ const safeRender = async (
   template: string,
   data: TemplateData,
   fallbackTemplate: string,
-  type: EmailTemplateType,
-  format: EmailTemplateFormat,
-): Promise<string> => {
+): Promise<RenderedTemplate> => {
   try {
-    return await renderTemplate(template, data);
+    return { value: await renderTemplate(template, data) };
   } catch (error) {
-    logError({
-      code: ErrorCode.EMAIL_TEMPLATE_RENDER,
-      detail: `template render error (${type}/${format}): ${errorMessage(
-        error,
-      )}`,
-    });
-    return await renderTemplate(fallbackTemplate, data);
+    return {
+      error,
+      value: await renderTemplate(fallbackTemplate, data),
+    };
   }
 };
 

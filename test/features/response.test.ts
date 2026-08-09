@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   databaseBusyResponse,
+  downloadResponse,
   migrationInProgressResponse,
   redirect,
   redirectResponse,
@@ -145,6 +146,33 @@ describeWithEnv("route responses", { db: true }, () => {
         const response = redirectResponse("/ticket/test");
         expect(response.headers.get("location")).toBe("/ticket/test");
       }));
+  });
+
+  describe("downloadResponse", () => {
+    test("sets the attachment disposition with the quoted filename", async () => {
+      const response = downloadResponse("csv,here", "report.csv", "text/csv");
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-disposition")).toBe(
+        'attachment; filename="report.csv"',
+      );
+      expect(response.headers.get("content-type")).toBe("text/csv");
+      expect(await response.text()).toBe("csv,here");
+    });
+
+    test("returns the body bytes unchanged for a binary download", async () => {
+      const bytes = new Uint8Array([0, 1, 2, 128, 255]);
+      const response = downloadResponse(
+        bytes,
+        "backup-2024-01-15T12-00-00-000Z.zip",
+        "application/zip",
+      );
+      expect(response.headers.get("content-type")).toBe("application/zip");
+      expect(response.headers.get("content-disposition")).toContain(
+        'filename="backup-2024-01-15T12-00-00-000Z.zip"',
+      );
+      const body = new Uint8Array(await response.arrayBuffer());
+      expect(body).toEqual(bytes);
+    });
   });
 
   describe("system responses", () => {

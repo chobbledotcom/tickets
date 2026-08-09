@@ -229,6 +229,25 @@ export const rssResponse = (xml: string): Response =>
   });
 
 /**
+ * Build a file-download response: the body, a fixed content-type, and a
+ * `Content-Disposition: attachment` header that names the download. The
+ * `filename` is already validated by the caller (it is operator-chosen and
+ * constrained — a backup leaf name, a slug-based catalog name, or a CSV
+ * name), so it is quoted directly without RFC 5987 encoding.
+ */
+export const downloadResponse = (
+  body: BodyInit,
+  filename: string,
+  contentType: string,
+): Response =>
+  new Response(body, {
+    headers: {
+      "content-disposition": `attachment; filename="${filename}"`,
+      "content-type": contentType,
+    },
+  });
+
+/**
  * Add cookie header to response.
  * Mutates headers in-place to avoid re-reading the response body.
  */
