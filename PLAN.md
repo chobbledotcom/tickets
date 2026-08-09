@@ -274,9 +274,15 @@ happen in production.
   the original provider resource after an uncertain response; return the same
   buyer URL on replay; release or schedule every failed claim. All three
   providers at once. SumUp keeps its local payment, checkout, and transaction
-  IDs distinct and uses stored currency. Store the provider on each charge: M6's
-  own reconciliation reads it to validate and deduplicate charge identity, and
-  the M7 engine routes refunds by it, closing the multi-provider gap.
+  IDs distinct and uses stored currency. A checkout spanning several listings
+  stays one payment with one shared order: the stored intent allocates the
+  expected total across its listing lines exactly — the existing
+  largest-remainder rules make the parts sum to the whole — and reconciliation
+  validates money against that allocation, so no listing is ever credited the
+  full payment and the shared order is never collapsed. Store the provider on
+  each charge: M6's own reconciliation reads it to validate and deduplicate
+  charge identity, and the M7 engine routes refunds by it, closing the
+  multi-provider gap.
 - Reads: every provider read goes behind one strict observation contract
   covering missing, invalid, unavailable, pending, paid, free, and failed.
   Square payment IDs are named by the order, not scanned from a short list.
@@ -349,8 +355,10 @@ over).
 
 - Move Stripe, Square, and SumUp refund request/read behavior together.
   Individual, bulk, balance, automatic, and case-decision refunds run through
-  one one-or-many engine. The migrated-payment caller arrives in M11, when
-  migrated payments first exist.
+  one one-or-many engine. On a multi-listing payment, refund Money is recorded
+  against the payment's stored per-listing allocation — never the whole payment
+  to one listing. The migrated-payment caller arrives in M11, when migrated
+  payments first exist.
 - Persist provider refund identity before local completion; queue and schedule
   repair when provider success is followed by a local failure; keep callback and
   admin replay idempotent; keep refunds available while new sales are disabled.
@@ -391,7 +399,10 @@ one machine and merge together.
 - Persist the exact capacity, attendee, answer, modifier, package, balance, and
   Money effects before running them; snapshot paid facts so listing edits cannot
   change delivery. Complete each effect idempotently, schedule unfinished work,
-  and stop one permanent failure from starving later payments.
+  and stop one permanent failure from starving later payments. A multi-listing
+  payment completes per listing line from M6's stored allocation — each line's
+  capacity, tickets, and Money draw only that line's amount, and the shared
+  order survives completion.
 - From this cutover on, completion stops storing payment references in attendee
   PII — the aggregate owns the attendee-to-payment link — so the attendee-PII
   reference source M11 reads is closed at M8 and cannot grow while the copy
@@ -521,25 +532,35 @@ only after M8 is authoritative fleet-wide.
   completed after M6, and any reference a paid booking wrote into attendee PII
   before M8 closed that path — is verified against its aggregate payment and
   recorded as already canonical, never copied as new legacy input: no duplicate
-  payment, no false identity conflict. Preserve unknown or contradictory facts
-  without inventing values — create a complete M5 case and continue. Ambiguous
-  account assignment gets its own required migration decision: the owner assigns
-  the provider account or marks the row unmigratable with a reason, recorded in
-  the decision union, and a revision-fenced copy retry consumes the decision so
-  verification resumes — no row can block M13 forever. Marking a row
-  unmigratable is a terminal, verified disposition: the decision preserves the
-  row's complete source content as durable evidence on the owner-review case, so
-  M13 can drop the old tables without deleting the only copy of that payment.
-  M12 never redacts this evidence — after M13 it is that payment's only record.
-  A source row is **settled** when it is either copied and verified into a
-  canonical payment or terminally preserved as unmigratable — the one completion
-  condition the snapshot release, the adapter drain, and M13's retirement gate
-  all share, so an unmigratable row satisfies every gate it cannot block. Delete
-  each M8 deletion snapshot only once every payment and buyer fact it references
-  is settled — a snapshot is attendee-scoped and can carry several payments, so
-  the last verified payment releases it, under the same gate as any source row
-  and idempotent across interrupted or restored runs; no duplicate buyer facts
-  outlive the migration, and M13 verifies none remain.
+  payment, no false identity conflict. Before such a row is marked settled, any
+  legacy-only local completion facts it still owns (M6's folded facts: the
+  attendee it booked, the ticket result, a recorded local failure) are folded
+  idempotently onto the canonical completion records — deduplicating the payment
+  identity never discards the booking outcome. Preserve unknown or contradictory
+  facts without inventing values — create a complete M5 case and continue.
+  Ambiguous account assignment gets its own required migration decision: the
+  owner assigns the provider account or marks the row unmigratable with a
+  reason, recorded in the decision union, and a revision-fenced copy retry
+  consumes the decision so verification resumes — no row can block M13 forever.
+  Marking a row unmigratable is a terminal, verified disposition: the decision
+  preserves a bounded accounting record as durable evidence on the owner-review
+  case — an allowlisted set only (provider, provider identities and references,
+  amounts, currency, timestamps, state, failure data, and the recorded reason),
+  encrypted in the case's evidence and readable only through the owner-only case
+  page — never buyer PII, ticket tokens, or credentials. M13 can then drop the
+  old tables without deleting the payment's money story, while the row's secrets
+  die with the tables, exactly what M12's redaction would have left had the row
+  migrated. M12 never redacts this record — it contains nothing to redact, and
+  after M13 it is that payment's only copy. A source row is **settled** when it
+  is either copied and verified into a canonical payment or terminally preserved
+  as unmigratable — the one completion condition the snapshot release, the
+  adapter drain, and M13's retirement gate all share, so an unmigratable row
+  satisfies every gate it cannot block. Delete each M8 deletion snapshot only
+  once every payment and buyer fact it references is settled — a snapshot is
+  attendee-scoped and can carry several payments, so the last verified payment
+  releases it, under the same gate as any source row and idempotent across
+  interrupted or restored runs; no duplicate buyer facts outlive the migration,
+  and M13 verifies none remain.
 - Each copied payment is immediately served by the current readers, result
   recovery, cases, and refunds; migrated charges join attendee refund targets
   through the M7 engine in this same release. Record verified progress and
@@ -568,14 +589,14 @@ stopping on malformed rows.
 Src target: 400–700. Redact intent, evidence, ticket tokens, completion
 payloads, and the stored delivery records from M9 — prepared message and webhook
 bodies plus their buyer facts — only after all work that needs them is terminal,
-including deliveries that permanently failed. The source content M11 preserves
-on an unmigratable-row case is permanently excluded: once M13 drops the old
-tables it is that payment's only record, retained as documented accounting
-history. Eligibility is defined for every terminal outcome — completed, fully
-refunded, failed, cancelled, expired, and free — each either redacts once its
-work is terminal or documents why its data is retained, with a cleanup test per
-state; page cleanup so one bad or ineligible record cannot block later eligible
-rows.
+including deliveries that permanently failed. The bounded accounting record M11
+preserves on an unmigratable-row case is permanently retained: it carries no
+buyer secrets by construction, and once M13 drops the old tables it is that
+payment's only copy, kept as documented accounting history. Eligibility is
+defined for every terminal outcome — completed, fully refunded, failed,
+cancelled, expired, and free — each either redacts once its work is terminal or
+documents why its data is retained, with a cleanup test per state; page cleanup
+so one bad or ineligible record cannot block later eligible rows.
 
 Standalone value: deployed sites keep accounting history while shedding buyer
 secrets and ticket credentials they no longer need.
@@ -661,6 +682,9 @@ mechanism and a regression test, or — if implementation proves the finding wro
 | F45 | Two concurrent paid completions claiming the same built site                           | M10             |
 | F46 | A site build replayed after a lost response, provisioning a second site                | M10             |
 | F47 | An adapter refund completing after the final reconciliation pass, lost at retirement   | M11             |
+| F48 | A multi-listing payment credited in full to each listing, or its shared order lost     | M6, M7, M8      |
+| F49 | Legacy-only booking facts dropped when a dual-store row is marked settled              | M11             |
+| F50 | Unmigratable evidence keeping buyer PII or ticket tokens forever                       | M11, M12        |
 
 ## Done means
 
