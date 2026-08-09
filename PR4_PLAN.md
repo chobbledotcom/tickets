@@ -314,12 +314,17 @@ merged modules, cutovers net small after deletions).
   the same refund — asserted by key equality, one payout); pending + completed
   exceeding captured is refused; completed counts immediately while cumulative
   lags.
-- Budgets: per reference, 1 provider evidence read + at most 1 refund call — the
-  read's result IS the judgment input, never a separate call. Callback refunds
-  add zero reads (the judge reuses the session evidence already fetched). Admin
-  bulk worst case: `BULK_REFUND_LIMIT` (5) × 2 = 10 provider calls plus the
-  existing fixed database work — far inside the ≤40 database / 50 total
-  subrequest rule. Database calls: unchanged from today.
+- Budgets: per reference, exactly 2 provider calls — 1 evidence read (its result
+  IS the judgment input, never a separate call) plus at most 1 refund call.
+  Today the same reference costs 1–2 (the refund, plus the fallback read on
+  failure), so M4 moves the read up front without raising the per-reference
+  ceiling. Callback refunds add zero reads (the judge reuses the session
+  evidence already fetched). The admin bulk cap is `BULK_REFUND_LIMIT` (5)
+  **attendees**, and one attendee can carry several references (deposit plus
+  balance; merges): R total references cost 2R provider calls — the same ceiling
+  today's failure path already has, typically R ≤ 10 for a full batch. The
+  unbounded-R shape itself is F53, fixed by M7's paged engine, not here.
+  Database calls: unchanged from today.
 - Standalone value: the live system stops repeat and over-refunds.
 
 **PR B — "One judge for callback money, and alerts for what it finds" (≈ 250–350
