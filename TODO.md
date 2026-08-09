@@ -29,6 +29,18 @@ addition when picked up.
   `setIdsTx` / `addIdsTx`. Deferred as the deepest and least likely window; all
   six sibling recheck guards were already implemented.
 
+- **Xig83 / XiqKh — Recheck add-on reachability inside the write transaction.**
+  This is the same race-revalidation family as the edge-field threads above,
+  extended to optional add-ons. If another request activates or rescopes a
+  child-only optional add-on (or a group link) after `validateChildEdges` /
+  `persistListingJoins` runs, the tx can persist an edge that lets the add-on
+  become reachable only through a child, losing it from the parent's booking
+  page. Fix: re-run the `childOnlyAddOn` / `edgeFieldError` checks against
+  transaction-local modifier and group links before `setIdsTx`. CodeRabbit's
+  `XiqKh` is the combined view of this and the edge-field threads, scoped to
+  `api-listing-joins.ts:persistListingJoins`; `Xig83` is Codex's form/API view.
+  Both deferred as heavy lifts on already-rare windows.
+
 ## Anchor the booking-page site menu to its listing/group (from PR #2051)
 
 PR #2051 shows the public site menu on booking pages (dropped in iframe mode and
