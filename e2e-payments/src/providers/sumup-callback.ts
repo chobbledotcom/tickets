@@ -3,6 +3,7 @@ import type { BrowserSession } from "#e2e/browser.ts";
 import { config } from "#e2e/config.ts";
 import { assertBookedInAdmin } from "#e2e/flow.ts";
 import { log, step } from "#e2e/log.ts";
+import { pollUntil } from "#e2e/util.ts";
 import { readLoggedId } from "./shared.ts";
 import type { HostedCheckoutContext } from "./types.ts";
 
@@ -151,11 +152,21 @@ export const assertSumupCallbackContract = async (
 
   // Refusals must be free: three new refusal lines prove the probes took the
   // fixed retryable path, and zero new read lines prove none of them made the
-  // app reach out to SumUp (the staged-row pre-filter's whole point).
+  // app reach out to SumUp (the staged-row pre-filter's whole point). The
+  // lines travel stdout → pipe → log file after the HTTP answer, so poll for
+  // the flush rather than reading back immediately; the probes were answered
+  // one at a time, so once the third refusal is visible, any read line they
+  // caused is visible too.
+  const flushed = await pollUntil(10_000, () => {
+    const seen =
+      countLogMatches(ctx.serverLogPath, REFUSAL_LINES) - refusalsBefore;
+    return Promise.resolve(seen >= 3 ? seen : null);
+  });
+  const newRefusals =
+    flushed ??
+    countLogMatches(ctx.serverLogPath, REFUSAL_LINES) - refusalsBefore;
   const newReads =
     countLogMatches(ctx.serverLogPath, CHECKOUT_READ_LINES) - readsBefore;
-  const newRefusals =
-    countLogMatches(ctx.serverLogPath, REFUSAL_LINES) - refusalsBefore;
   if (newReads !== 0 || newRefusals !== 3) {
     throw new Error(
       "SumUp refusal probes: expected 3 new refusal log lines and 0 new " +
