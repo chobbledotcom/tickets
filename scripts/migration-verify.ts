@@ -18,6 +18,12 @@
  *
  * Reads DB_URL / DB_TOKEN / DB_ENCRYPTION_KEY from the environment; load them
  * with `--env-file=.env` or export them first.
+ *
+ * The owner password is read from stdin when it is not a terminal (so piping
+ * or redirecting never echoes it). On an interactive terminal `prompt()` is
+ * used, which echoes — pass the password via stdin (`printf 'pw\n' | deno task
+ * migration-verify --owner …`) or the `MIGRATION_VERIFY_PASSWORD` env var when
+ * echo must be avoided.
  */
 
 import { load } from "@std/dotenv";
@@ -38,6 +44,33 @@ for (const [key, value] of Object.entries(fileEnv)) {
 const DEFAULT_VERIFY_PAGE_SIZE = 500;
 const EXIT_USAGE = 2;
 
+/** Read one line from a non-terminal stdin (piped input never echoes). Returns
+ *  null on EOF before any input, else the text up to the first newline. */
+const readPasswordLineFromStdin = (): string | null => {
+  const buf = new Uint8Array(1024);
+  const decoder = new TextDecoder();
+  let text = "";
+  for (;;) {
+    const n = Deno.stdin.readSync(buf);
+    if (n === null) return text === "" ? null : text;
+    text += decoder.decode(buf.subarray(0, n));
+    if (text.includes("\n")) return text.slice(0, text.indexOf("\n"));
+    if (n === 0) return text === "" ? null : text;
+  }
+};
+
+/** Read the owner password without echoing. On a non-terminal stdin the line
+ *  is read directly (no echo). On an interactive terminal it falls back to
+ *  Deno's `prompt()`, which echoes — operators who need no echo pipe stdin or
+ *  set `MIGRATION_VERIFY_PASSWORD`. Returns null on EOF so the caller blocks. */
+const readOwnerPassword = (message: string): string | null => {
+  const fromEnv = Deno.env.get("MIGRATION_VERIFY_PASSWORD");
+  if (fromEnv !== undefined) return fromEnv;
+  return Deno.stdin.isTerminal()
+    ? prompt(message)
+    : readPasswordLineFromStdin();
+};
+
 await runDenoScript(async (io: ScriptIo) => {
   const config = readDatabaseConfigOrError(io.getEnv, "verify");
   if (!config.ok) {
@@ -46,9 +79,9 @@ await runDenoScript(async (io: ScriptIo) => {
   }
   return runMigrationVerifyCli({
     ...io,
+    createReader: (pageSize) => createMigrationVerifyReader(pageSize),
     ownerKey: createMigrationVerifyOwnerKey(),
     pageSize: DEFAULT_VERIFY_PAGE_SIZE,
-    prompt: (message: string) => prompt(message),
-    reader: createMigrationVerifyReader(DEFAULT_VERIFY_PAGE_SIZE),
+    prompt: readOwnerPassword,
   });
 });

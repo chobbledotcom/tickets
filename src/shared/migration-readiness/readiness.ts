@@ -13,7 +13,10 @@
  */
 
 import { Temporal } from "temporal-polyfill";
-import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
+import type {
+  EnvKeyEncrypted,
+  OwnerKeyEncrypted,
+} from "#shared/crypto/sealed.ts";
 import { epochMsToIso } from "#shared/validation/timestamp.ts";
 
 /** The session-id prefix marking a `processed_payments` row as an
@@ -29,6 +32,10 @@ export type ProcessedPaymentRow = {
   processed_at: string;
   payment_reference: OwnerKeyEncrypted | "";
   provider_refunded_at: string;
+  /** Encrypted terminal-failure payload. Non-empty means a handled terminal
+   *  outcome (refund/sold-out/price-change), distinct from an unresolved
+   *  stuck reservation (attendee_id NULL + failure_data ''). Never decoded. */
+  failure_data: EnvKeyEncrypted | "";
 };
 
 /** One row of the legacy `checkout_stages` table. */
@@ -72,9 +79,8 @@ export type PaymentGroup = {
 
 export type ContradictionKind =
   | "checkout_stage_without_processed_payment"
+  | "checkout_stage_without_attendee"
   | "processed_payment_without_attendee"
-  | "merge_reference_without_source_attendee"
-  | "merge_reference_without_target_attendee"
   | "payment_split_across_page"
   | "undecryptable_attendee_pii"
   | "undecryptable_merge_reference"
@@ -133,8 +139,16 @@ export const convertLegacyTimestamp = (value: string): string | null => {
 const isMergeReference = (sessionId: string): boolean =>
   sessionId.startsWith(LEGACY_MERGE_SESSION_PREFIX);
 
-const sourceAttendeeIdOf = (sessionId: string): number =>
-  Number(sessionId.slice(LEGACY_MERGE_SESSION_PREFIX.length));
+/** A merge-reference charge that carries an encrypted `payment_reference` — one
+ *  only the owner key can verify. Used to block the migration when the key is
+ *  unavailable, instead of silently skipping the charge. */
+const hasEncryptedMergeReferenceCharge = (
+  processed: readonly ProcessedPaymentRow[],
+): boolean =>
+  processed.some(
+    (row) =>
+      isMergeReference(row.payment_session_id) && row.payment_reference !== "",
+  );
 
 /** Convert every legacy timestamp column to a canonical instant, returning one
  *  contradiction per value that is neither a real instant nor epoch-millis.
@@ -259,59 +273,57 @@ export type DiagnoseInput = {
   undecryptableMergeReferences: ReadonlySet<string>;
 };
 
-/** Contradictions where a checkout stage, processed payment, or merge
- *  reference points at a row that should also exist. */
-const referenceContradictions = (
-  groups: readonly PaymentGroup[],
+/** A `processed_payments` row is a handled terminal failure when its attendee
+ *  is null but `failure_data` is set (refund/sold-out/price-change recorded for
+ *  idempotent replay). Unlike an unresolved stuck reservation
+ *  (attendee null + failure_data ''), a terminal failure is a normal stored
+ *  outcome and must not block migration. */
+const isTerminalFailure = (row: ProcessedPaymentRow): boolean =>
+  row.attendee_id === null && row.failure_data !== "";
+
+/** Contradictions in one payment group: a checkout stage whose session has no
+ *  processed payment, a stage whose own attendee has been deleted, or a
+ *  non-terminal processed payment pointing at a missing attendee. A
+ *  merge-reference row's `attendee_id` is the merge target (the source is
+ *  deleted by `applyAttendeeMerge` in the same batch), so its existence is
+ *  covered here — there is no separate "source attendee" expectation. */
+const groupContradictions = (
+  group: PaymentGroup,
   attendeeIds: ReadonlySet<number>,
 ): Contradiction[] => {
   const contradictions: Contradiction[] = [];
-  for (const group of groups) {
-    if (group.stage && !group.processed) {
+  if (group.stage) {
+    if (!group.processed) {
       contradictions.push({
         detail: group.paymentSessionId,
         kind: "checkout_stage_without_processed_payment",
       });
     }
-    if (group.processed) {
-      contradictions.push(
-        ...processedPaymentContradictions(group, attendeeIds),
-      );
+    if (!attendeeIds.has(group.stage.attendee_id)) {
+      contradictions.push({
+        detail: String(group.stage.attendee_id),
+        kind: "checkout_stage_without_attendee",
+      });
+    }
+  }
+  if (group.processed && !isTerminalFailure(group.processed)) {
+    const { attendee_id: attendeeId } = group.processed;
+    if (attendeeId === null || !attendeeIds.has(attendeeId)) {
+      contradictions.push({
+        detail: String(attendeeId),
+        kind: "processed_payment_without_attendee",
+      });
     }
   }
   return contradictions;
 };
 
-const processedPaymentContradictions = (
-  group: PaymentGroup,
+/** Fold each payment group's reference contradictions into one list. */
+const referenceContradictions = (
+  groups: readonly PaymentGroup[],
   attendeeIds: ReadonlySet<number>,
-): Contradiction[] => {
-  if (!group.processed) return [];
-  const { attendee_id: attendeeId, payment_session_id: sessionId } =
-    group.processed;
-  const contradictions: Contradiction[] = [];
-  if (attendeeId === null || !attendeeIds.has(attendeeId)) {
-    contradictions.push({
-      detail: String(attendeeId),
-      kind: "processed_payment_without_attendee",
-    });
-  }
-  if (!isMergeReference(sessionId)) return contradictions;
-  const sourceId = sourceAttendeeIdOf(sessionId);
-  if (!attendeeIds.has(sourceId)) {
-    contradictions.push({
-      detail: sessionId,
-      kind: "merge_reference_without_source_attendee",
-    });
-  }
-  if (attendeeId !== null && !attendeeIds.has(attendeeId)) {
-    contradictions.push({
-      detail: sessionId,
-      kind: "merge_reference_without_target_attendee",
-    });
-  }
-  return contradictions;
-};
+): Contradiction[] =>
+  groups.flatMap((group) => groupContradictions(group, attendeeIds));
 
 const sumupContradictions = (
   sumup: readonly SumupCheckoutRow[],
@@ -334,8 +346,8 @@ const splitContradictions = (
 
 /** Owner-key controls. When the key is supplied, every PII blob and
  *  merge-reference charge that fails to decrypt is a contradiction. When it is
- *  not supplied and encrypted PII exists, the migration blocks instead of
- *  skipping the charges it cannot yet verify. */
+ *  not supplied and encrypted PII or encrypted merge-reference charges exist,
+ *  the migration blocks instead of skipping the charges it cannot yet verify. */
 const ownerKeyContradictions = (input: DiagnoseInput): Contradiction[] => {
   if (input.ownerKeyAvailable) {
     return [
@@ -349,10 +361,17 @@ const ownerKeyContradictions = (input: DiagnoseInput): Contradiction[] => {
       })),
     ];
   }
-  if (input.attendees.some((attendee) => attendee.pii_blob !== "")) {
+  const piiCount = input.attendees.filter(
+    (attendee) => attendee.pii_blob !== "",
+  ).length;
+  const mergeCharges = hasEncryptedMergeReferenceCharge(input.processed);
+  if (piiCount > 0 || mergeCharges) {
     return [
       {
-        detail: `${input.attendees.length} encrypted attendee PII blob(s) cannot be verified without the owner key`,
+        detail:
+          `${piiCount} encrypted attendee PII blob(s)` +
+          ` and ${mergeCharges ? "encrypted merge-reference charge(s)" : "no merge-reference charges"}` +
+          " cannot be verified without the owner key",
         kind: "owner_key_unavailable" as const,
       },
     ];
@@ -400,12 +419,9 @@ export const diagnoseReadiness = (input: DiagnoseInput): ReadinessReport => {
 };
 
 const CONTRADICTION_PHRASES: Record<ContradictionKind, string> = {
+  checkout_stage_without_attendee: "checkout stage without a live attendee",
   checkout_stage_without_processed_payment:
     "checkout stage without a processed payment",
-  merge_reference_without_source_attendee:
-    "merge reference without its source attendee",
-  merge_reference_without_target_attendee:
-    "merge reference without its target attendee",
   owner_key_unavailable: "owner key not supplied",
   payment_split_across_page: "provider payment split across a page",
   processed_payment_without_attendee:

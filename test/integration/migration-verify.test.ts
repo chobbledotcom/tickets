@@ -36,14 +36,25 @@ const clip = (args: string[], promptResponse: string | null = null): Clip => ({
 const run = (clip: Clip, pageSize = DEFAULT_PAGE_SIZE) =>
   runMigrationVerifyCli({
     args: clip.args,
+    createReader: () => createMigrationVerifyReader(pageSize),
     getEnv: () => undefined,
     ownerKey: createMigrationVerifyOwnerKey(),
     pageSize,
     prompt: () => clip.promptResponse,
-    reader: createMigrationVerifyReader(pageSize),
     stderr: (line) => clip.errors.push(line),
     stdout: (line) => clip.output.push(line),
   });
+
+/** Run with the test owner credentials and return the clip + result so each
+ *  test asserts on the same possessor without restating the run boilerplate. */
+const runOwner = async (
+  args: string[] = ["--owner", TEST_ADMIN_USERNAME],
+  password: string | null = TEST_ADMIN_PASSWORD,
+): Promise<{ result: number; out: string; errors: string }> => {
+  const c = clip(args, password);
+  const result = await run(c);
+  return { errors: c.errors.join("\n"), out: c.output.join("\n"), result };
+};
 
 const seedAttendee = async (pii = true): Promise<number> => {
   const blob = pii
@@ -216,10 +227,69 @@ describe("migration-verify production wiring", () => {
       ],
     );
 
-    const c = clip(["--owner", TEST_ADMIN_USERNAME], TEST_ADMIN_PASSWORD);
-    const result = await run(c);
+    const { out, result } = await runOwner();
 
     expect(result).toBe(0);
-    expect(c.output.join("\n")).toContain("merge references: 1");
+    expect(out).toContain("merge references: 1");
+  });
+
+  test("does not block a terminal failure row (null attendee + failure_data set)", async () => {
+    await seedAttendee();
+    await execute(
+      `INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at, payment_reference, provider_refunded_at, failure_data)
+       VALUES (?, NULL, ?, '', '', ?)`,
+      ["failed-session", "2026-01-01T00:00:00.000Z", "enc:1:failure"],
+    );
+
+    const { out, result } = await runOwner();
+
+    expect(result).toBe(0);
+    expect(out).not.toContain("processed payment without a live attendee");
+  });
+
+  test("blocks on an encrypted merge-reference charge when no owner key is supplied", async () => {
+    const target = await seedAttendee(false);
+    const encryptedRef = await encryptWithOwnerKey(
+      "pi_charge",
+      settings.publicKey,
+    );
+    await execute(
+      `INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at, payment_reference, provider_refunded_at)
+       VALUES (?, ?, ?, ?, '')`,
+      ["legacy-merge:99", target, "2026-01-01T00:00:00.000Z", encryptedRef],
+    );
+
+    const c = clip([]); // no --owner, no password
+    const result = await run(c);
+
+    expect(result).toBe(1);
+    expect(c.output.join("\n")).toContain("owner key not supplied");
+  });
+
+  test("passes the parsed --page-size to the database reader", async () => {
+    const attendeeId = await seedAttendee();
+    await seedStage("p-0", attendeeId);
+    // Six processed rows, read at --page-size 2 → at least three keyset pages.
+    for (let i = 0; i < 6; i++) await seedProcessed(`p-${i}`, attendeeId);
+
+    let seenPageSize = 0;
+    const c = clip(["--owner", TEST_ADMIN_USERNAME], TEST_ADMIN_PASSWORD);
+    const result = await runMigrationVerifyCli({
+      args: c.args,
+      createReader: (pageSize) => {
+        seenPageSize = pageSize;
+        return createMigrationVerifyReader(pageSize);
+      },
+      getEnv: () => undefined,
+      ownerKey: createMigrationVerifyOwnerKey(),
+      pageSize: DEFAULT_PAGE_SIZE,
+      prompt: () => c.promptResponse,
+      stderr: (line) => c.errors.push(line),
+      stdout: (line) => c.output.push(line),
+    });
+
+    expect(result).toBe(0);
+    expect(seenPageSize).toBe(2);
+    expect(c.output.join("\n")).toContain("processed_payments rows: 6");
   });
 });

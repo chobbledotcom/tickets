@@ -102,7 +102,7 @@ export const createMigrationVerifyReader = (
     ),
   readProcessedPayments: () =>
     keysetRows<ProcessedPaymentRow>(
-      "SELECT payment_session_id, attendee_id, processed_at, payment_reference, provider_refunded_at FROM processed_payments",
+      "SELECT payment_session_id, attendee_id, processed_at, payment_reference, provider_refunded_at, failure_data FROM processed_payments",
       null,
       "payment_session_id",
       pageSize,

@@ -27,6 +27,7 @@ const processed = (
   over: Partial<ProcessedPaymentRow>,
 ): ProcessedPaymentRow => ({
   attendee_id: 1,
+  failure_data: "",
   payment_reference: "",
   payment_session_id: "sess-1",
   processed_at: "2026-01-01T00:00:00.000Z",
@@ -53,6 +54,29 @@ const goodInput = (over: Partial<DiagnoseInput> = {}): DiagnoseInput => ({
   undecryptablePii: new Set(),
   ...over,
 });
+
+/** A no-owner-key input with one `legacy-merge:*` row on attendee 1 (no PII),
+ *  varying only in whether the charge reference is encrypted or empty. Shared by
+ *  the "blocks on encrypted merge charge" and "does not block on empty charge"
+ *  cases so they differ in exactly the one fact under test. */
+const mergeRefNoOwnerInput = (
+  ref: string,
+  charge: OwnerKeyEncrypted | "",
+): DiagnoseInput =>
+  goodInput({
+    attendeeIds: new Set([1]),
+    attendees: [{ id: 1, pii_blob: "" }],
+    orderedProcessedSessionIds: [ref],
+    ownerKeyAvailable: false,
+    processed: [
+      processed({
+        attendee_id: 1,
+        payment_reference: charge,
+        payment_session_id: ref,
+      }),
+    ],
+    stages: [],
+  });
 
 describe("convertLegacyTimestamp", () => {
   test("canonicalises an ISO instant with an offset to …sssZ", () => {
@@ -152,7 +176,7 @@ describe("diagnoseReadiness", () => {
     });
   });
 
-  test("blocks when a processed payment has a null attendee id", () => {
+  test("blocks when a processed payment has a null attendee id (unresolved reservation)", () => {
     const report = diagnoseReadiness(
       goodInput({ processed: [processed({ attendee_id: null })] }),
     );
@@ -164,7 +188,42 @@ describe("diagnoseReadiness", () => {
     ).toBe(true);
   });
 
-  test("blocks when a merged migration page is mistaken for end of input", () => {
+  test("does not block a terminal failure (null attendee + failure_data set)", () => {
+    const report = diagnoseReadiness(
+      goodInput({
+        processed: [
+          processed({
+            attendee_id: null,
+            failure_data: "enc:1:failure" as never,
+          }),
+        ],
+      }),
+    );
+    expect(
+      report.contradictions.some(
+        (c) => c.kind === "processed_payment_without_attendee",
+      ),
+    ).toBe(false);
+  });
+
+  test("blocks when a checkout stage points at a deleted attendee", () => {
+    const report = diagnoseReadiness(
+      goodInput({
+        attendeeIds: new Set([1]),
+        stages: [stage({ attendee_id: 99 })],
+      }),
+    );
+    expect(report.kind).toBe("blocked");
+    expect(report.contradictions).toContainEqual({
+      detail: "99",
+      kind: "checkout_stage_without_attendee",
+    });
+  });
+
+  test("a legitimate merge reference (source deleted, target live) does not block", () => {
+    // applyAttendeeMerge deletes the source attendee and writes
+    // legacy-merge:<sourceId> with attendee_id = target. The source id is
+    // historical, so its absence must NOT be a contradiction.
     const ref = `${LEGACY_MERGE_SESSION_PREFIX}5`;
     const report = diagnoseReadiness(
       goodInput({
@@ -180,15 +239,12 @@ describe("diagnoseReadiness", () => {
         ],
       }),
     );
-    expect(report.kind).toBe("blocked");
     expect(report.counts.mergeReferences).toBe(1);
-    expect(report.contradictions).toContainEqual({
-      detail: ref,
-      kind: "merge_reference_without_source_attendee",
-    });
+    expect(report.kind).toBe("ready");
+    expect(report.contradictions).toEqual([]);
   });
 
-  test("blocks when a merge reference target attendee is missing", () => {
+  test("blocks when a merge reference's target attendee is missing", () => {
     const ref = `${LEGACY_MERGE_SESSION_PREFIX}2`;
     const report = diagnoseReadiness(
       goodInput({
@@ -199,8 +255,8 @@ describe("diagnoseReadiness", () => {
     );
     expect(report.kind).toBe("blocked");
     expect(report.contradictions).toContainEqual({
-      detail: ref,
-      kind: "merge_reference_without_target_attendee",
+      detail: "9",
+      kind: "processed_payment_without_attendee",
     });
   });
 
@@ -209,9 +265,32 @@ describe("diagnoseReadiness", () => {
     expect(report.kind).toBe("blocked");
     expect(report.contradictions).toContainEqual({
       detail:
-        "1 encrypted attendee PII blob(s) cannot be verified without the owner key",
+        "1 encrypted attendee PII blob(s) and no merge-reference charges cannot be verified without the owner key",
       kind: "owner_key_unavailable",
     });
+  });
+
+  test("blocks on encrypted merge-reference charges when no owner key is available, even with no PII", () => {
+    const ref = `${LEGACY_MERGE_SESSION_PREFIX}2`;
+    const report = diagnoseReadiness(
+      mergeRefNoOwnerInput(ref, enc("hyb:1:charge")),
+    );
+    expect(report.kind).toBe("blocked");
+    expect(
+      report.contradictions.some((c) => c.kind === "owner_key_unavailable"),
+    ).toBe(true);
+    expect(
+      report.contradictions.find((c) => c.kind === "owner_key_unavailable")
+        ?.detail,
+    ).toContain("encrypted merge-reference charge(s)");
+  });
+
+  test("does not block on a merge reference when the charge is empty and no owner key is supplied", () => {
+    const ref = `${LEGACY_MERGE_SESSION_PREFIX}2`;
+    const report = diagnoseReadiness(mergeRefNoOwnerInput(ref, ""));
+    expect(
+      report.contradictions.some((c) => c.kind === "owner_key_unavailable"),
+    ).toBe(false);
   });
 
   test("does not report a missing owner key when there is no PII to check", () => {
@@ -358,7 +437,7 @@ describe("formatReadinessReport", () => {
       "  not supplied — 1 attendee PII blob(s) cannot be verified",
       "",
       "Contradictions",
-      "  - owner key not supplied: 1 encrypted attendee PII blob(s) cannot be verified without the owner key",
+      "  - owner key not supplied: 1 encrypted attendee PII blob(s) and no merge-reference charges cannot be verified without the owner key",
     ]);
   });
 
@@ -395,7 +474,7 @@ describe("formatReadinessReport", () => {
         }),
         processed({ payment_session_id: "sess-1" }),
       ],
-      stages: [stage({ payment_session_id: "orphan" })],
+      stages: [stage({ attendee_id: 66, payment_session_id: "orphan" })],
       sumup: [
         {
           created_at: "2026-01-01T00:00:00.000Z",
@@ -411,13 +490,8 @@ describe("formatReadinessReport", () => {
     expect(out).toContain(
       "  - checkout stage without a processed payment: orphan",
     );
+    expect(out).toContain("  - checkout stage without a live attendee: 66");
     expect(out).toContain("  - processed payment without a live attendee: 88");
-    expect(out).toContain(
-      "  - merge reference without its source attendee: legacy-merge:99",
-    );
-    expect(out).toContain(
-      "  - merge reference without its target attendee: legacy-merge:99",
-    );
     expect(out).toContain("  - provider payment split across a page: x");
     expect(out).toContain("  - sumup checkout without a recorded id: idx");
     expect(out).toContain("  - attendee PII that did not decrypt: attendee 7");

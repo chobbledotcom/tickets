@@ -59,6 +59,7 @@ const fakeReader = (
     Promise.resolve<ProcessedPaymentRow[]>([
       {
         attendee_id: 1,
+        failure_data: "",
         payment_reference: "",
         payment_session_id: "sess-1",
         processed_at: "2026-01-01T00:00:00.000Z",
@@ -87,14 +88,37 @@ const alwaysVerifyingKey = (
     }),
 });
 
+/** An owner key that derives from `derive` and records the verify call through
+ *  `onVerify` (returning no failures). Shared by the tests that assert what the
+ *  owner key was derived/verified with, so they differ only in that recording. */
+const recordingOwnerKey = (
+  derive: (username: string, password: string) => Promise<CryptoKey | null>,
+  onVerify: (
+    key: CryptoKey,
+    inputs: {
+      mergeReferences: readonly ProcessedPaymentRow[];
+      attendees: readonly AttendeePiiSource[];
+    },
+  ) => void,
+): MigrationVerifyOwnerKey => ({
+  derive,
+  verify: (key, inputs) => {
+    onVerify(key, inputs);
+    return Promise.resolve({
+      undecryptableMergeReferences: new Set<string>(),
+      undecryptablePii: new Set<number>(),
+    });
+  },
+});
+
 const deps = (
   clip: Clipio,
   over: Partial<MigrationVerifyDeps>,
 ): MigrationVerifyDeps => ({
+  createReader: () => fakeReader(),
   ownerKey: alwaysVerifyingKey({} as CryptoKey),
   pageSize: 500,
   prompt: () => "owner-password",
-  reader: fakeReader(),
   ...clip,
   ...over,
 });
@@ -102,7 +126,7 @@ const deps = (
 describe("runMigrationVerifyCli", () => {
   test("prints usage and exits 0 for --help", async () => {
     const result = await runMigrationVerifyCli(
-      deps(io(["--help"]), { reader: fakeReader() }),
+      deps(io(["--help"]), { createReader: () => fakeReader() }),
     );
     expect(result).toBe(0);
   });
@@ -123,8 +147,9 @@ describe("runMigrationVerifyCli", () => {
     const clip = io([]);
     const result = await runMigrationVerifyCli(
       deps(clip, {
+        createReader: () =>
+          fakeReader({ readAttendeePii: () => Promise.resolve([]) }),
         prompt: () => null,
-        reader: fakeReader({ readAttendeePii: () => Promise.resolve([]) }),
       }),
     );
     expect(result).toBe(0);
@@ -140,19 +165,15 @@ describe("runMigrationVerifyCli", () => {
     let verifiedWith: CryptoKey | null = null;
     const result = await runMigrationVerifyCli(
       deps(clip, {
-        ownerKey: {
-          derive: (_username, password) => {
-            derivedWith = { password, username: _username };
+        ownerKey: recordingOwnerKey(
+          (username, password) => {
+            derivedWith = { password, username };
             return Promise.resolve(derived);
           },
-          verify: (key) => {
+          (key) => {
             verifiedWith = key;
-            return Promise.resolve({
-              undecryptableMergeReferences: new Set<string>(),
-              undecryptablePii: new Set<number>(),
-            });
           },
-        },
+        ),
       }),
     );
     expect(result).toBe(0);
@@ -200,19 +221,20 @@ describe("runMigrationVerifyCli", () => {
     const clip = io([]);
     const result = await runMigrationVerifyCli(
       deps(clip, {
+        createReader: () =>
+          fakeReader({
+            readCheckoutStages: () =>
+              Promise.resolve<CheckoutStageRow[]>([
+                {
+                  attendee_id: 1,
+                  created_at: "2026-01-01T00:00:00.000Z",
+                  payment_session_id: "orphan",
+                  provider: "stripe",
+                  state: "completed",
+                },
+              ]),
+          }),
         prompt: () => null,
-        reader: fakeReader({
-          readCheckoutStages: () =>
-            Promise.resolve<CheckoutStageRow[]>([
-              {
-                attendee_id: 1,
-                created_at: "2026-01-01T00:00:00.000Z",
-                payment_session_id: "orphan",
-                provider: "stripe",
-                state: "completed",
-              },
-            ]),
-        }),
       }),
     );
     expect(result).toBe(1);
@@ -225,10 +247,11 @@ describe("runMigrationVerifyCli", () => {
     const clip = io([]);
     const result = await runMigrationVerifyCli(
       deps(clip, {
+        createReader: () =>
+          fakeReader({
+            readProcessedPayments: () => Promise.reject(new Error("DB down")),
+          }),
         prompt: () => null,
-        reader: fakeReader({
-          readProcessedPayments: () => Promise.reject(new Error("DB down")),
-        }),
       }),
     );
     expect(result).toBe(2);
@@ -241,35 +264,34 @@ describe("runMigrationVerifyCli", () => {
     let verifiedRefs: readonly ProcessedPaymentRow[] = [];
     const result = await runMigrationVerifyCli(
       deps(clip, {
-        ownerKey: {
-          derive: () => Promise.resolve({} as CryptoKey),
-          verify: (_key, inputs) => {
+        createReader: () =>
+          fakeReader({
+            readProcessedPayments: () =>
+              Promise.resolve<ProcessedPaymentRow[]>([
+                {
+                  attendee_id: 1,
+                  failure_data: "",
+                  payment_reference: enc("hyb:1:charge"),
+                  payment_session_id: ref,
+                  processed_at: "2026-01-01T00:00:00.000Z",
+                  provider_refunded_at: "",
+                },
+                {
+                  attendee_id: 1,
+                  failure_data: "",
+                  payment_reference: "",
+                  payment_session_id: "sess-1",
+                  processed_at: "2026-01-01T00:00:00.000Z",
+                  provider_refunded_at: "",
+                },
+              ]),
+          }),
+        ownerKey: recordingOwnerKey(
+          () => Promise.resolve({} as CryptoKey),
+          (_key, inputs) => {
             verifiedRefs = inputs.mergeReferences;
-            return Promise.resolve({
-              undecryptableMergeReferences: new Set<string>(),
-              undecryptablePii: new Set<number>(),
-            });
           },
-        },
-        reader: fakeReader({
-          readProcessedPayments: () =>
-            Promise.resolve<ProcessedPaymentRow[]>([
-              {
-                attendee_id: 1,
-                payment_reference: enc("hyb:1:charge"),
-                payment_session_id: ref,
-                processed_at: "2026-01-01T00:00:00.000Z",
-                provider_refunded_at: "",
-              },
-              {
-                attendee_id: 1,
-                payment_reference: "",
-                payment_session_id: "sess-1",
-                processed_at: "2026-01-01T00:00:00.000Z",
-                provider_refunded_at: "",
-              },
-            ]),
-        }),
+        ),
       }),
     );
     expect(result).toBe(0);
@@ -280,7 +302,7 @@ describe("runMigrationVerifyCli", () => {
   test("exits 2 and prints usage for an unknown flag", async () => {
     const clip = io(["--bogus"]);
     const result = await runMigrationVerifyCli(
-      deps(clip, { reader: fakeReader() }),
+      deps(clip, { createReader: () => fakeReader() }),
     );
     expect(result).toBe(2);
     expect(clip.errors.join("\n")).toContain(MIGRATION_VERIFY_USAGE);

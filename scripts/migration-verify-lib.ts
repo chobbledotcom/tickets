@@ -65,10 +65,13 @@ export interface MigrationVerifyOwnerKey {
 }
 
 export interface MigrationVerifyDeps extends ScriptIo {
+  /** Builds the database reader for the parsed `--page-size`, so the keyset
+   *  page size that bounds each read and the page size the diagnostics use are
+   *  the same value the operator asked for. */
+  createReader: (pageSize: number) => MigrationVerifyReader;
   ownerKey: MigrationVerifyOwnerKey;
   pageSize: number;
   prompt: (message: string) => string | null;
-  reader: MigrationVerifyReader;
 }
 
 const isMergeReference = (sessionId: string): boolean =>
@@ -198,7 +201,7 @@ export const runMigrationVerifyCli = async (
 
   let sources: Awaited<ReturnType<typeof readAllSources>>;
   try {
-    sources = await readAllSources(deps.reader);
+    sources = await readAllSources(deps.createReader(parsed.value.pageSize));
   } catch (error) {
     deps.stderr(`Could not read the legacy payment sources: ${String(error)}`);
     return EXIT_USAGE;
