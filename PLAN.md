@@ -435,8 +435,11 @@ itself; and no admin action can orphan payment work.
 These two are not a literal stack: each is an independent single PR on top of
 merged M8 (M10 does not depend on M9), merging directly to main or riding as a
 top layer of Stack B — AGENTS.md's three-to-seven rule applies to real stacks.
-Both are new effect kinds on M8's machinery — bounded due-work query and
-scheduled runner included, request paths as first attempt only.
+Their merge order is free, but neither is deferrable: both land directly after
+Stack B, so rule 7's deadline for `payment_completion_deliveries` holds
+whichever merges first. Both are new effect kinds on M8's machinery — bounded
+due-work query and scheduled runner included, request paths as first attempt
+only.
 
 #### M9: Durable messages and outgoing webhooks (was PR 11)
 
@@ -539,11 +542,17 @@ only after M8 is authoritative fleet-wide.
   through the M7 engine in this same release. Record verified progress and
   release leases within the call budget; interruption resumes from the same
   cursor.
-- Retire the M7 adapter only after every row is verified and a final
-  reconciliation pass has caught any refund that completed between verification
-  and drain. In this same milestone, switch every legacy read-through caller —
-  panels, exports, statistics, refund targets — to the current readers and
-  delete the M6 read-through adapter, so no production caller outside the
+- Retire the M7 adapter behind an explicit, revision-fenced drain: once every
+  row is verified, disable new adapter refunds (every target is canonical by
+  then, so refunds already route through the engine), wait for in-flight adapter
+  requests and their queued repair work to reach a terminal outcome, then run
+  the final reconciliation pass, folding in any refund that completed since its
+  row was verified by comparing each row's monotonic version and refund
+  identities against the copy. With the adapter disabled, no write can land
+  after the pass — retirement re-checks the version high-water marks and fails
+  loudly if one moved. In this same milestone, switch every legacy read-through
+  caller — panels, exports, statistics, refund targets — to the current readers
+  and delete the M6 read-through adapter, so no production caller outside the
   restore path reads an old table (M13's precondition).
 
 Standalone value: operators can prove a live database or old backup is safe to
@@ -569,9 +578,12 @@ secrets and ticket credentials they no longer need.
 
 #### M13: Retire old payment storage (was PR 16)
 
-Src target: 600–1,000, mostly deletions. Release only after every fleet database
-reports all source rows copied and verified and no production caller outside
-migration reads an old table.
+Src target: 600–1,000, mostly deletions — the atomic-cutover exception where
+this exceeds rule 3's cap: the table drop and every reader, codec, and gate it
+orphans leave together, because splitting them would hold dead readers alive
+across a merge. Release only after every fleet database reports all source rows
+copied and verified and no production caller outside migration reads an old
+table.
 
 - Drop the old tables and delete the migration reader, progress gates, old
   codecs, stale TODO entries, temporary exemptions, and dead exports together —
@@ -644,6 +656,7 @@ mechanism and a regression test, or — if implementation proves the finding wro
 | F44 | A legacy deletion stripping folded local facts from a sale the aggregate represents    | M6              |
 | F45 | Two concurrent paid completions claiming the same built site                           | M10             |
 | F46 | A site build replayed after a lost response, provisioning a second site                | M10             |
+| F47 | An adapter refund completing after the final reconciliation pass, lost at retirement   | M11             |
 
 ## Done means
 
