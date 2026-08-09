@@ -17,6 +17,7 @@ import {
 } from "#routes/auth.ts";
 import { requireUploadedFile } from "#routes/csrf.ts";
 import {
+  downloadResponse,
   encodeBody,
   errorRedirect,
   notFoundResponse,
@@ -35,12 +36,11 @@ const IMPORT_PATH = "/admin/catalog/import";
 
 /** Build a JSON file download response. */
 const jsonDownload = (data: unknown, filename: string): Response =>
-  new Response(encodeBody(JSON.stringify(data, null, 2)), {
-    headers: {
-      "content-disposition": `attachment; filename="${filename}"`,
-      "content-type": "application/json; charset=utf-8",
-    },
-  });
+  downloadResponse(
+    encodeBody(JSON.stringify(data, null, 2)),
+    filename,
+    "application/json; charset=utf-8",
+  );
 
 /** A safe, human-readable download filename from an entity name. */
 const catalogFilename = (kind: string, name: string): string =>
