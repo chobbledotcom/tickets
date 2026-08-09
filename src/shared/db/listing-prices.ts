@@ -107,7 +107,7 @@ export const groupDayPriceStatements = (
   const rows: PriceRow[] = [];
   for (const member of members) {
     for (const [days, price] of Object.entries(
-      parseDayPrices(member.dayPrices ?? {}),
+      parseDayPrices(member.dayPrices || {}),
     )) {
       rows.push([
         member.listingId,
