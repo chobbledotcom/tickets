@@ -315,7 +315,12 @@ happen in production.
 - Keep uncopied old-table rows visible through the legacy read-through — the
   second sanctioned staged-migration adapter (delivery rule 2), one bounded
   contract serving panels, exports, statistics, and refund targets, removed in
-  M11 — and delete only the displaced production readers.
+  M11 — and delete only the displaced production readers. The read-through
+  deduplicates at its read boundary: it suppresses any legacy row whose
+  provider-qualified payment identity an aggregate payment already carries,
+  because every post-cutover sale is written to both stores until M7 and M8
+  retire the legacy writers, and without this rule the same sale is counted
+  twice and offered for refund twice.
 
 Standalone value: no live checkout can lose its intent or create a second
 provider checkout after an interrupted request, and every route, worker, page,
@@ -469,7 +474,9 @@ only after M8 is authoritative fleet-wide.
   forward migration consumes it.
 - Copy precondition: old tables unchanged since M8's fence except the adapter's
   versioned refund-completion writes. The copy-consistency protocol is
-  fence-and-drain: pause `applyAttendeeMerge`, `deleteAttendee`, the prune task,
+  fence-and-drain: pause `applyAttendeeMerge`, `deleteAttendee`, attendee PII
+  edits (`applyAttendeeAtomicEdit` — its `pii_blob` write can change the
+  attendee-only legacy payment references the copy resolves), the prune task,
   and `deleteAllStaleReservations` for the duration of the copy. The M7 adapter
   is the only permitted concurrent writer, and the cursor detects and replays
   its versioned writes before marking a row verified. Lease ownership, renewal,
@@ -487,7 +494,8 @@ only after M8 is authoritative fleet-wide.
   forever. Marking a row unmigratable is a terminal, verified disposition: the
   decision preserves the row's complete source content as durable evidence on
   the owner-review case, so M13 can drop the old tables without deleting the
-  only copy of that payment. Delete each M8 deletion snapshot only once every
+  only copy of that payment. M12 never redacts this evidence — after M13 it is
+  that payment's only record. Delete each M8 deletion snapshot only once every
   payment and buyer fact it references has been copied and verified — a snapshot
   is attendee-scoped and can carry several payments, so the last verified
   payment releases it, under the same gate as any source row and idempotent
@@ -514,11 +522,14 @@ stopping on malformed rows.
 Src target: 400–700. Redact intent, evidence, ticket tokens, completion
 payloads, and the stored delivery records from M9 — prepared message and webhook
 bodies plus their buyer facts — only after all work that needs them is terminal,
-including deliveries that permanently failed. Eligibility is defined for every
-terminal outcome — completed, fully refunded, failed, cancelled, expired, and
-free — each either redacts once its work is terminal or documents why its data
-is retained, with a cleanup test per state; page cleanup so one bad or
-ineligible record cannot block later eligible rows.
+including deliveries that permanently failed. The source content M11 preserves
+on an unmigratable-row case is permanently excluded: once M13 drops the old
+tables it is that payment's only record, retained as documented accounting
+history. Eligibility is defined for every terminal outcome — completed, fully
+refunded, failed, cancelled, expired, and free — each either redacts once its
+work is terminal or documents why its data is retained, with a cleanup test per
+state; page cleanup so one bad or ineligible record cannot block later eligible
+rows.
 
 Standalone value: deployed sites keep accounting history while shedding buyer
 secrets and ticket credentials they no longer need.
@@ -592,6 +603,9 @@ mechanism and a regression test, or — if implementation proves the finding wro
 | F36 | Terminal buyer details, completion data, or ticket tokens never redacting              | M12             |
 | F37 | An unconditional table drop destroying a restored old backup before it migrates        | M13             |
 | F38 | Attendee merge or delete destroying attendee-held payment facts before the copy        | M8, M11         |
+| F39 | A post-cutover sale counted or refunded twice through the legacy read-through          | M6              |
+| F40 | An attendee PII edit changing legacy payment references mid-copy                       | M11             |
+| F41 | Redacting the preserved evidence that is an unmigratable payment's only record         | M11, M12        |
 
 ## Done means
 
