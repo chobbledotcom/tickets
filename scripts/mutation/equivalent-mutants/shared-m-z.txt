@@ -1,12 +1,5 @@
 # Known-equivalent mutants — see README.txt in this directory.
 
-# CRUD configuration values are functions or objects when present, and hydrated
-# map values are records, so none can be falsy-but-non-null.
-src/shared/rest/crud-api.ts::defineCrudApi.policy~11y0iup  ?? → ||   # policy is an AuthPolicy object or undefined
-src/shared/rest/crud-api.ts::defineCrudApi.lookup~0xu424x  ?? → ||   # lookup is a function or undefined
-src/shared/rest/crud-api.ts::defineCrudApi.lookupAfterWrite~0azj8bq  ?? → ||   # lookupAfterWrite is a function or undefined
-src/shared/rest/crud-api.ts::defineCrudApi.responseRow~1sbh3s0  ?? → ||   # hydrated map values are records or undefined; records are truthy
-src/shared/rest/crud-api.ts::defineCrudApi~0a3r2wz  ?? → ||   # extraRoutes is a route object or undefined
 src/shared/rest/resource.ts::parseAndValidate~0ypp34v  ?? → ||   # validationError is an ErrorResult object or null; an object is truthy
 
 # settings-bundles.ts: bundle is ALL_SNAPSHOT_SETTINGS when undefined (a readonly

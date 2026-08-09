@@ -12,11 +12,13 @@ import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 /* jscpd:ignore-end */
 import { logActivity } from "#shared/db/activity-log.ts";
-import { listingGroups, packageChildEdgeConflict } from "#shared/db/groups.ts";
+import { type TxScope, withTransaction } from "#shared/db/client.ts";
+import { listingGroups } from "#shared/db/groups.ts";
 import {
   hydrateListingLinks,
   listingChildren,
   listingParents,
+  setListingChildrenWithPackageCheckTx,
 } from "#shared/db/listing-parents.ts";
 import {
   getAllListings,
@@ -35,7 +37,12 @@ import {
   type EdgeListing,
   edgeFieldError,
 } from "#shared/listing-parents-rules.ts";
-import { packageChildEdgeError } from "#shared/package-membership.ts";
+import {
+  type PackageChildEdgeBlock,
+  packageChildEdgeError,
+  packageChildEdgeErrorOrNull,
+} from "#shared/package-membership.ts";
+import { transactionValidationMessageOrRethrow } from "#shared/rest/write-error.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import type { ListingParentsSection } from "#templates/admin/listings/types.ts";
 
@@ -73,7 +80,8 @@ export const loadListingParentsSection = async (
     listingChildren.getIds(listing.id),
     hydrateListingLinks(listingParents, [listing.id]),
   ]);
-  const offeredUnder = offeredUnderLinks.listingsByKey.get(listing.id) ?? [];
+  const linkedParents = offeredUnderLinks.listingsByKey.get(listing.id);
+  const offeredUnder = linkedParents === undefined ? [] : linkedParents;
   const others = allListings.filter((other) => other.id !== listing.id);
   // Single-level nesting: a listing already offered as a child can't also be a
   // parent, so every candidate is ineligible in that case.
@@ -187,13 +195,10 @@ const childOnlyAddOnResolver = async (
       : withGroups;
   });
   // On create the parent row doesn't exist in `live` yet, so append a
-  // placeholder carrying its would-be group set (active — it serves a page).
+  // placeholder carrying its would-be group set.
   const allListings: ListingGroupMembership[] = hasParent
     ? base
-    : [
-        ...base,
-        { active: true, groupIds: options.wouldBeGroupIds, id: parent.id },
-      ];
+    : [...base, { groupIds: options.wouldBeGroupIds, id: parent.id }];
   return (childId, pageIds) =>
     childOnlyAddOnNameForListings(childId, pageIds, allListings);
 };
@@ -273,8 +278,18 @@ export const copyDuplicatedChildEdges = async (
 ): Promise<string | null> => {
   const result = await validateChildEdges(newParent, childIds);
   if (!result.ok) return result.error;
-  await listingChildren.setIds(newParent.id, result.childIds);
-  return null;
+  try {
+    const packageConflict = await withTransaction((tx: TxScope) =>
+      setListingChildrenWithPackageCheckTx(tx, newParent.id, result.childIds),
+    );
+    return packageChildEdgeErrorOrNull(packageConflict);
+  } catch (error) {
+    // A child can vanish or become a parent after validation but before this
+    // transaction. The copy is already committed, so surface the localized
+    // validation message through the caller's existing warning flow rather
+    // than letting a 500 escape.
+    return transactionValidationMessageOrRethrow(error);
+  }
 };
 
 type ChildEdge = { childId: number; parentId: number };
@@ -373,10 +388,13 @@ export const remapDuplicatedGroupEdges = async (
     {
       existingMode: "replace",
       relatedIdsBySource: childrenByParent,
-      toEdge: (cloneId, childId) => ({
-        childId: idMap.get(childId) ?? childId,
-        parentId: cloneId,
-      }),
+      toEdge: (cloneId, childId) => {
+        const clonedChildId = idMap.get(childId);
+        return {
+          childId: clonedChildId === undefined ? childId : clonedChildId,
+          parentId: cloneId,
+        };
+      },
     },
     {
       existingMode: "keep",
@@ -402,14 +420,18 @@ export const handleAdminListingChildren: TypedRouteHandler<"POST /admin/listing/
       return redirect(`/admin/listing/${id}/edit`, result.error, false);
     }
     const { childIds } = result;
-    // A HIDDEN package's member can't gain children (its child selector would
-    // name the collapsed members), nor can a package member be chosen AS a
-    // child. A visible package member may gate children — the package page
-    // renders its selector. Block the conflicts before persisting the edges.
-    const packageConflict = await packageChildEdgeConflict(
-      await listingGroups.getIds(id),
-      childIds,
-    );
+    let packageConflict: PackageChildEdgeBlock | null;
+    try {
+      packageConflict = await withTransaction((tx: TxScope) =>
+        setListingChildrenWithPackageCheckTx(tx, id, childIds),
+      );
+    } catch (error) {
+      return redirect(
+        "/admin/listings",
+        transactionValidationMessageOrRethrow(error),
+        false,
+      );
+    }
     if (packageConflict) {
       return redirect(
         `/admin/listing/${id}/edit`,
@@ -417,7 +439,6 @@ export const handleAdminListingChildren: TypedRouteHandler<"POST /admin/listing/
         false,
       );
     }
-    await listingChildren.setIds(id, childIds);
     await logActivity(
       `Listing '${listing.name}' required children set to ${childIds.length} listing${
         childIds.length === 1 ? "" : "s"

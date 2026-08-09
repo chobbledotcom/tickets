@@ -11,14 +11,25 @@
  * uses them, to keep the module free of unused exports.
  */
 
-import { firstProblem, mapNotNullish, unique } from "#fp";
-import { inPlaceholders, queryIdColumn } from "#shared/db/client.ts";
+import { firstProblem, identity, mapById, mapNotNullish, unique } from "#fp";
+import { t } from "#i18n";
+import {
+  inPlaceholders,
+  queryIdColumn,
+  type TxScope,
+} from "#shared/db/client.ts";
 import { type LinkTableSide, linkTableSide } from "#shared/db/link-table.ts";
+import { guardEdgeWriteTx } from "#shared/db/listing-edge-write.ts";
 import { requireListingsWithCountsByIds } from "#shared/db/listings/records.ts";
+import { TransactionValidationError } from "#shared/db/transaction.ts";
 import {
   type EdgeListing,
   edgeFieldError,
 } from "#shared/listing-parents-rules.ts";
+import {
+  type PackageChildEdgeBlock,
+  packageChildEdgeError,
+} from "#shared/package-membership.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 
 /** A parent's chooseable children, keyed by parent id (relationship only):
@@ -41,6 +52,63 @@ export const listingParents = linkTableSide(
   "child_listing_id",
   "parent_listing_id",
 );
+
+/** Replaces child edges only when the transaction's package memberships allow
+ *  them and every endpoint still exists. `listing_parents` has no foreign key,
+ *  so a deleted parent or child would leave an orphan edge that later
+ *  relationship hydration can't resolve. */
+export const setListingChildrenWithPackageCheckTx = async (
+  tx: TxScope,
+  parentId: number,
+  childIds: readonly number[],
+): Promise<PackageChildEdgeBlock | null> => {
+  const conflict = await guardEdgeWriteTx({
+    childIds,
+    contract: "children",
+    missingParentError: t("error.listing_deleted"),
+    parentIds: [parentId],
+    tx,
+  });
+  if (conflict) return conflict;
+  await listingChildren.setIdsTx(tx, parentId, childIds);
+  return null;
+};
+
+/** Stops the containing write when its package edge check reports a conflict. */
+export const requireListingChildrenPackageCheck = (
+  conflict: PackageChildEdgeBlock | null,
+): void => {
+  if (conflict) {
+    throw new TransactionValidationError(packageChildEdgeError(conflict));
+  }
+};
+
+/** Adds parent edges for a freshly-created child only when the transaction's
+ *  package memberships allow them, and only when every parent still exists.
+ *  Mirrors {@link setListingChildrenWithPackageCheckTx} from the child side: the
+ *  child is `childId`, the parents are `parentIds`. A vanished parent rolls the
+ *  write back rather than leaving an orphan edge to a deleted listing.
+ *  `missingError` is the message thrown when a named parent no longer exists,
+ *  supplied by the caller so this shared DB helper does not hardcode a
+ *  catalog-import-specific message. */
+export const addParentEdgesWithPackageCheckTx = async (
+  tx: TxScope,
+  childId: number,
+  parentIds: readonly number[],
+  missingError: string,
+): Promise<void> => {
+  if (parentIds.length === 0) return;
+  requireListingChildrenPackageCheck(
+    await guardEdgeWriteTx({
+      childIds: [childId],
+      contract: "parents",
+      missingParentError: missingError,
+      parentIds,
+      tx,
+    }),
+  );
+  await listingParents.addIdsTx(tx, childId, parentIds);
+};
 
 /** The requested listing ids that have at least one link on a relationship
  * side. The side's batched map includes empty keys; structural child checks need
@@ -119,7 +187,7 @@ const listingsByIdFor = async (
     sides.flatMap((links) => [...links.values()].flat()),
   );
   const listings = await requireListingsWithCountsByIds(linkedIds);
-  return new Map(listings.map((listing) => [listing.id, listing]));
+  return mapById(identity<ListingWithCount>)(listings);
 };
 
 /** Batch and hydrate one listing relationship side. Only linked listings are

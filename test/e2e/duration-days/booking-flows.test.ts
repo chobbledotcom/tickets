@@ -24,33 +24,6 @@ describeWithEnv("e2e: multi-day bookings — booking flows", { db: true }, () =>
       ).toBeNull();
     });
 
-    test("checkGroupCapAfterDurationChange counts rows of a type-flipped listing on every day", async () => {
-      // A sibling listing flipped to standard after booking: its rows count
-      // toward the group cap on every day, so day 1 of the daily listing's
-      // booking (5 + 6 = 11 > 10) overflows even with no range overlap.
-      const group = await createTestGroup({ maxAttendees: 10 });
-      const daily = await createDailyTestListing({
-        groupId: group.id,
-        maxAttendees: 100,
-        maximumDaysAfter: 60,
-      });
-      const sibling = await createDailyTestListing({
-        groupId: group.id,
-        maxAttendees: 100,
-        maximumDaysAfter: 60,
-      });
-      await bookAttendee(daily, { date: "2026-10-01", quantity: 5 });
-      await bookAttendee(sibling, { date: "2026-10-20", quantity: 6 });
-      const { getDb } = await import("#shared/db/client.ts");
-      await getDb().execute({
-        args: [sibling.id],
-        sql: "UPDATE listings SET listing_type = 'standard' WHERE id = ?",
-      });
-      expect(await checkGroupCapAfterDurationChange(daily.id, group.id)).toBe(
-        "2026-10-01",
-      );
-    });
-
     test("checkGroupCapAfterDurationChange returns null when the listing has no bookings", async () => {
       const group = await createTestGroup({ maxAttendees: 10 });
       const listing = await createDailyTestListing({
@@ -97,10 +70,17 @@ describeWithEnv("e2e: multi-day bookings — booking flows", { db: true }, () =>
       ).toBeNull();
     });
 
+    /**
+     * The direct partner of the story
+     * `@case:stay-length.shared-limit-warning`: the story proves what the
+     * organiser is shown; this owns the function-level contract — the exact
+     * over-limit day the check reports — which a Cucumber journey may never
+     * be the only cover of.
+     */
     test("checkGroupCapAfterDurationChange detects overflow", async () => {
-      // Two listings in a group with cap 10. Each has 5 attendees on
-      // separate days. Extending listing A's duration to span listing B's
-      // day pushes the group total to 10 — at the limit but not over.
+      // Two listings in a group with cap 10, each booked for 6 places on its
+      // own day. Extending listing A's stay to span listing B's day pushes
+      // that day to 12 — over the limit.
       const { group, listingA } = await twoGroupedListingsBookedOnAdjacentDays({
         cap: 10,
         dateA: "2026-10-01",
@@ -121,25 +101,6 @@ describeWithEnv("e2e: multi-day bookings — booking flows", { db: true }, () =>
         group.id,
       );
       expect(overDay).toBe("2026-10-02");
-    });
-
-    test("duration change that causes group overflow is detectable", async () => {
-      // Use updateTestListing (full admin form) to change duration, then
-      // verify checkGroupCapAfterDurationChange flags the overflow day.
-      const { group, listingA } = await twoGroupedListingsBookedOnAdjacentDays({
-        cap: 5,
-        dateA: "2026-11-01",
-        dateB: "2026-11-02",
-        quantity: 3,
-      });
-
-      // Extend listingA to 2 days → day 2 has A(3) + B(3) = 6 > cap 5.
-      await updateTestListing(listingA.id, { durationDays: 2 });
-      const overDay = await checkGroupCapAfterDurationChange(
-        listingA.id,
-        group.id,
-      );
-      expect(overDay).toBe("2026-11-02");
     });
   });
 });

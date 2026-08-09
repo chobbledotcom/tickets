@@ -6,7 +6,6 @@ import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { requireSuccess } from "#shared/result.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 // Package day-price override validation lives in its own file: importing a
 // customisable member exercises the read-heavy create helpers, and folding
@@ -70,39 +69,6 @@ describeWithEnv("catalog-transfer package day overrides", { db: true }, () => {
       name: "Default Duration",
     });
     expect(stored.day_prices[1]).toBe(1000);
-  });
-
-  test("rejects a package member day-override for an unoffered span", async () => {
-    // The member offers 1- and 2-day bookings; a 5-day override is a span it
-    // doesn't have, so the package editor would never render that input.
-    await createTestListing({ ...customisable, name: "Custom Member" });
-    const result = await importCatalog({
-      group: { isPackage: true, name: "Pkg Custom" },
-      kind: "group",
-      members: [{ dayPrices: { 5: 500 }, listing: "Custom Member" }],
-      version: 1,
-    });
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("unreachable");
-    expect(result.error).toContain("5-day");
-  });
-
-  test("accepts a package member day-override for an offered span", async () => {
-    const member = await createTestListing({
-      ...customisable,
-      name: "Custom Member 2",
-    });
-    const result = await importCatalog({
-      group: { isPackage: true, name: "Pkg Custom 2" },
-      kind: "group",
-      members: [{ dayPrices: { 2: 500 }, listing: "Custom Member 2" }],
-      version: 1,
-    });
-    const imported = requireSuccess(result);
-    expect(imported).toMatchObject({ kind: "group", name: "Pkg Custom 2" });
-    expect((await getGroupDayPrices(imported.id)).get(member.id)).toEqual(
-      new Map([[2, 500]]),
-    );
   });
 
   test("rejects a listing-import package day-override for an unoffered span", async () => {

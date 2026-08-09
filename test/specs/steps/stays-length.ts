@@ -6,6 +6,11 @@ import { t } from "#i18n";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { openAdminPage, scenarioBrowser } from "#test/specs/support/browser.ts";
 import {
+  attribute,
+  boxFor,
+} from "#test/specs/support/form-controls/reading.ts";
+import { expectCanReallySend } from "#test/specs/support/form-controls/rules.ts";
+import {
   listingIdNamed,
   listingNamed,
   organiserSavesListing,
@@ -240,5 +245,86 @@ Then(
       listing.id,
       `Duration change caused group capacity overflow on ${this.sharedDayOver}`,
     );
+  },
+);
+
+Given(
+  "a {word} that is not booked by the day, with room for {int} places",
+  async function (
+    this: TicketsWorld,
+    name: string,
+    places: number,
+  ): Promise<void> {
+    rememberListing(
+      this,
+      name,
+      // The site's own thank-you page (`""`), so the bookings that follow land
+      // on a page the story can read.
+      await createTestListing({ maxAttendees: places, name, thankYouUrl: "" }),
+    );
+  },
+);
+
+Given(
+  "two customers have each booked a {word} place",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    const listing = listingNamed(this, name);
+    for (const customer of [guest(1), guest(2)]) {
+      await visitorBooks(this, listing, customer);
+    }
+  },
+);
+
+When(
+  "the organiser puts the {word} on the day calendar",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    await organiserSavesListing(this, name, (served) => {
+      expectCanReallySend(served, { listing_type: "daily" });
+      return { listing_type: "daily" };
+    });
+  },
+);
+
+When(
+  "the organiser saves the {word} with a length of {int}",
+  async function (
+    this: TicketsWorld,
+    name: string,
+    days: number,
+  ): Promise<void> {
+    await changeStayLength(this, name, days);
+  },
+);
+
+Then(
+  "the {word} attendee list still shows both customers",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    const browser = await openAdminPage(
+      this,
+      `/admin/listing/${listingIdNamed(this, name)}/attendees`,
+    );
+    for (const { email, who } of [guest(1), guest(2)]) {
+      expect(browser.pageText).toContain(who);
+      expect(browser.pageText).toContain(email);
+    }
+  },
+);
+
+Then(
+  "the {word}'s length box still says {int}",
+  async function (
+    this: TicketsWorld,
+    name: string,
+    days: number,
+  ): Promise<void> {
+    const browser = await openAdminPage(
+      this,
+      `/admin/listing/${listingIdNamed(this, name)}/edit`,
+    );
+    const box = boxFor(browser.currentHtml, "duration_days");
+    if (!box) {
+      throw new Error(`The ${name} edit form offers no length box at all`);
+    }
+    expect(attribute(box, "value")).toBe(String(days));
   },
 );

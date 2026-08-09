@@ -12,7 +12,6 @@ import {
   mapParallel,
   requiredMapValue,
 } from "#fp";
-import { t } from "#i18n";
 import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
 import {
   type GroupInput,
@@ -27,6 +26,7 @@ import {
   executeBatch,
   inPlaceholders,
   queryAll,
+  resultRows,
   rowExists,
   type SqlStatement,
   type TxScope,
@@ -37,6 +37,7 @@ import {
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
 import { defineIdTable } from "#shared/db/define-id-table.ts";
+import { validateListingGroupMembershipTx } from "#shared/db/groups/membership.ts";
 import { linkTableSide } from "#shared/db/link-table.ts";
 import { listingChildren, listingParents } from "#shared/db/listing-parents.ts";
 import {
@@ -54,19 +55,11 @@ import {
 } from "#shared/db/listings/select.ts";
 import { envNameSource, rowsByIds } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
+import { TransactionValidationError } from "#shared/db/transaction.ts";
 import { equals, inList } from "#shared/db/where-clauses.ts";
-import {
-  type PackageChildEdgeBlock,
-  packageMemberError,
-} from "#shared/package-membership.ts";
-import { firstReason } from "#shared/reasons.ts";
+import { packageMemberError } from "#shared/package-membership.ts";
 import { generateUniqueSlug, type SlugWithIndex } from "#shared/slug.ts";
-import type {
-  Group,
-  GroupListing,
-  ListingType,
-  ListingWithCount,
-} from "#shared/types.ts";
+import type { Group, GroupListing, ListingWithCount } from "#shared/types.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
 /* jscpd:ignore-end */
@@ -272,63 +265,6 @@ export const groupExists = (id: number): Promise<boolean> =>
  */
 export const getListingsByGroupId: LoadGroupListings = listingsInGroup(false);
 
-/**
- * Given a group's already-loaded members, return the homogeneity error (or
- * null): every listing in a group must share both the same {@link ListingType}
- * and the same `customisable_days` setting, so the shared booking form can show
- * a single day-count selector (or none) for the whole group. Pass
- * `excludeListingId` to skip a specific listing (for the edit-self case).
- *
- * Callers load the members themselves — one group's with
- * {@link getListingsByGroupId}, many groups' with {@link getListingsByGroupIds}
- * — so validating a batch never issues one sibling query per listing and trips
- * the N+1 read guard.
- */
-export const groupListingTypeError = (
-  allSiblings: readonly ListingWithCount[],
-  listingType: ListingType,
-  customisableDays: boolean,
-  excludeListingId?: number,
-): string | null =>
-  groupHomogeneityError(
-    allSiblings.filter((listing) => listing.id !== excludeListingId),
-    listingType,
-    customisableDays,
-  );
-
-/** The group-homogeneity rules as data, in precedence order: every member must
- * share one listing type, then one customisable-days setting, so the group's
- * single date/day-count selector can serve them all. Each rule finds the
- * clashing sibling and builds its message from that evidence. */
-const groupHomogeneityError = firstReason<
-  [
-    siblings: readonly ListingWithCount[],
-    listingType: ListingType,
-    customisableDays: boolean,
-  ]
->([
-  (siblings, listingType) => {
-    const mismatch = siblings.find(
-      (sibling) => sibling.listing_type !== listingType,
-    );
-    return mismatch
-      ? t("error.group_listing_type_mismatch", { type: mismatch.listing_type })
-      : null;
-  },
-  (siblings, _listingType, customisableDays) => {
-    const mismatch = siblings.find(
-      (sibling) => sibling.customisable_days !== customisableDays,
-    );
-    return mismatch
-      ? t(
-          mismatch.customisable_days
-            ? "error.group_customisable_days_expected"
-            : "error.group_customisable_days_unexpected",
-        )
-      : null;
-  },
-]);
-
 /** Whether any of the given group ids satisfies the extra SQL `condition`.
  * Empty input → false (no query). */
 const anyGroupMatching = async (
@@ -398,23 +334,6 @@ export const isHiddenPackageMember = async (
   listingId: number,
 ): Promise<boolean> => (await getHiddenPackageMemberIds([listingId])).size > 0;
 
-/** Which package invariant adding child edges would violate, or null when the
- * edges are fine: `gate_in_hidden` when the parent is joining/in a HIDDEN
- * package group (a visible package renders the member's child selector, so a
- * member gating children is fine there), or `child_is_member` when any chosen
- * child is itself a package member (a package member is only ever sold as part
- * of its bundle, never folded under another parent). An empty `childIds`
- * (clearing children) is never a conflict. */
-export const packageChildEdgeConflict = async (
-  parentGroupIds: readonly number[],
-  childIds: readonly number[],
-): Promise<PackageChildEdgeBlock | null> => {
-  if (childIds.length === 0) return null;
-  if (await anyHiddenPackageGroup(parentGroupIds)) return "gate_in_hidden";
-  if (await anyListingInPackageGroup(childIds)) return "child_is_member";
-  return null;
-};
-
 /** The member-naming package error for the first listing in `listings` that
  * can't be a package member (pay-what-you-want, an add-on of another listing,
  * or — on a hidden package — a member gating its own children), or null when
@@ -467,6 +386,24 @@ export const hasPackageBookings = (groupId: number): Promise<boolean> =>
     [groupId],
   );
 
+/** Transaction-local recheck: whether any sold booking still holds this
+ *  group's package id. Used inside the group write transaction so a checkout
+ *  that commits between a request-level sold-hidden check and the write rolls
+ *  the un-packaging back rather than revealing concealed member names. */
+export const hasPackageBookingsTx = async (
+  tx: TxScope,
+  groupId: number,
+): Promise<boolean> => {
+  const rows = resultRows<{ id: number }>(
+    await tx.execute({
+      args: [groupId],
+      sql: `SELECT 1 AS id FROM listing_attendees
+             WHERE package_group_id = ? AND quantity > 0 LIMIT 1`,
+    }),
+  );
+  return rows.length > 0;
+};
+
 /** The package displays for a set of (possibly repeated or zero)
  * `package_group_id`s — only ids naming a live package appear in the map. Lets
  * the ticket view collapse each token's package rows into one card per package,
@@ -508,28 +445,6 @@ export const packageDisplaysForRows = (
   rows: ReadonlyArray<{ attendee: { package_group_id: number } }>,
 ): Promise<Map<number, PackageDisplay>> =>
   getPackageDisplaysByIds(rows.map((row) => row.attendee.package_group_id));
-
-/**
- * Add listings to a group (membership rows), ignoring any already present.
- *
- * All rows insert in a single batch transaction, so the change is atomic and
- * costs one round-trip rather than one per listing.
- */
-export const assignListingsToGroup = (
-  listingIds: number[],
-  groupId: number,
-): Promise<void> => {
-  if (listingIds.length === 0) return Promise.resolve();
-  // INSERT ... SELECT gated on the listing existing, so an unknown id is a no-op
-  // (the join table has no FK, so a stale/crafted id would otherwise leave an
-  // orphan membership row that the old `UPDATE listings WHERE id` never created).
-  return executeBatch(
-    listingIds.map((listingId) => ({
-      args: [groupId, listingId, listingId],
-      sql: "INSERT OR IGNORE INTO group_listings (group_id, listing_id) SELECT ?, ? WHERE EXISTS (SELECT 1 FROM listings WHERE id = ?)",
-    })),
-  );
-};
 
 /** One group_listings row for a DUPLICATED group, resolving both the new group
  * and the cloned listing by the slug_index each was just inserted with, so the
@@ -630,12 +545,20 @@ export const setListingGroups: SetListingGroups = (listingId, groupIds) =>
  * so the change commits atomically with the listing row write (the admin API
  * create/update path). Mirrors {@link setListingGroups} but reads the current
  * set and runs each statement on the caller's `tx`. */
-export const setListingGroupsTx = (
+export const setListingGroupsTx = async (
   tx: TxScope,
   listingId: number,
   groupIds: number[],
-): Promise<void> =>
-  applyListingGroupDiff(
+  hasChildren?: boolean,
+): Promise<void> => {
+  const validation = await validateListingGroupMembershipTx(tx)(
+    listingId,
+    groupIds,
+    hasChildren,
+  );
+  if (validation.listingMissing) return;
+  if (validation.error) throw new TransactionValidationError(validation.error);
+  await applyListingGroupDiff(
     listingId,
     groupIds,
     async () => new Set(await listingGroups.getIdsTx(tx, listingId)),
@@ -643,6 +566,7 @@ export const setListingGroupsTx = (
       for (const stmt of statements) await tx.execute(stmt);
     },
   );
+};
 
 /**
  * Remove every listing from a group (used when the group is deleted), along with

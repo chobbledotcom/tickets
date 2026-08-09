@@ -1,5 +1,8 @@
+import type { Client } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
+import { getDb, setDb } from "#shared/db/client.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import { linkedParentChild } from "#test/test-utils/listing-parents/helpers.ts";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
@@ -43,6 +46,43 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
     );
   });
 
+  test("shows a validation error when a child vanishes before the write", async () => {
+    const parent = await createTestListing({ name: "Race parent" });
+    const child = await createTestListing({ name: "Race child" });
+    const real = getDb();
+    let deleted = false;
+    const raceClient = new Proxy(real, {
+      get(target, property) {
+        if (property === "transaction") {
+          return async (...args: Parameters<Client["transaction"]>) => {
+            if (!deleted) {
+              deleted = true;
+              await target.execute({
+                args: [child.id],
+                sql: "DELETE FROM listings WHERE id = ?",
+              });
+            }
+            return target.transaction(...args);
+          };
+        }
+        const value = Reflect.get(target, property, target);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    setDb(raceClient);
+
+    let response: Response;
+    try {
+      response = await postChildren(parent.id, [child.id]);
+    } finally {
+      setDb(real);
+    }
+
+    expect(response.headers.get("location")).toContain("/admin/listings");
+    expectFlash(response, t("error.child_listing_deleted"), false);
+    expect(await listingChildren.getIds(parent.id)).toEqual([]);
+  });
+
   test("drops self-edges and unknown ids", async () => {
     const parent = await createTestListing({ name: "Base unit" });
     const child = await createTestListing({ name: "Add-on" });
@@ -63,10 +103,17 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
     const parent = await createTestListing({ name: "Base unit" });
     const childA = await createTestListing({ name: "Add-on A" });
     const childB = await createTestListing({ name: "Add-on B" });
-    await postChildren(parent.id, [childA.id, childB.id]);
+    const response = await postChildren(parent.id, [childA.id, childB.id]);
+    expectFlash(response, "Required children updated");
     expect(await listingChildren.getIds(parent.id)).toEqual(
       [childA.id, childB.id].sort((a, b) => a - b),
     );
+    const logs = await getListingActivityLog(parent.id);
+    expect(
+      logs
+        .filter((entry) => entry.message.includes("required children set to"))
+        .map((entry) => entry.message),
+    ).toEqual(["Listing 'Base unit' required children set to 2 listings"]);
   });
 
   test("renders unticked siblings without the checked attribute", async () => {

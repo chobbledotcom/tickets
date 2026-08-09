@@ -58,7 +58,7 @@ describeWithEnv("validateListingInput boundaries", { db: true }, () => {
       validateListingInput(
         inputFor({ groupIds: [999_999], name: "Missing Group" }),
       ),
-    ).resolves.toBe("Selected group does not exist");
+    ).resolves.toBe(t("error.selected_group_deleted"));
   });
 
   test("checks every existing group member when creating a listing", async () => {

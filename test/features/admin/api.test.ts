@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import { getDb } from "#shared/db/client.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import {
@@ -81,20 +82,6 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
     test("returns 400 when name is empty string", async () => {
       const listing = await createTestListing({ name: "Will Empty" });
       await expectRejectsEmptyName(`/api/admin/listings/${listing.id}`);
-    });
-
-    test("returns 400 for a fractional duration", async () => {
-      const listing = await createTestListing({ name: "Whole Days" });
-      await assertJson(
-        apiRequest(`/api/admin/listings/${listing.id}`, {
-          body: { duration_days: 2.5 },
-          method: "PUT",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("duration_days must be a safe integer");
-        },
-      );
     });
 
     test("returns 400 when a bookable day is not text", async () => {
@@ -380,7 +367,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.error).toBe("Selected group does not exist");
+          expect(body.error).toBe(t("error.selected_group_deleted"));
         },
       );
     });

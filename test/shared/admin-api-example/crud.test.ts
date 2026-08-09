@@ -49,6 +49,14 @@ describe("documented admin CRUD endpoints", () => {
     expect(() => v.parse(AdminListingSchema, parsed.listings[0])).not.toThrow();
   });
 
+  test("the listing create example shows pay-more pricing", () => {
+    const request = JSON.parse(
+      documented(ADMIN_API_ENDPOINTS, "POST", "/api/admin/listings").request!,
+    );
+
+    expect(request.can_pay_more).toBe(true);
+  });
+
   /** The example a resource's endpoints show, paired with the delete body a
    * caller would have to send for it. */
   const documentedResources = (): {

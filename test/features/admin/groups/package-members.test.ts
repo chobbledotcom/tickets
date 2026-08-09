@@ -99,16 +99,25 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
     expect(row.quantity).toBe(1);
   });
 
-  test("stores a per-day override for a customisable member", async () => {
+  test("stores per-day overrides for a customisable member", async () => {
     const { group, member } = await dayPricedPackage("Day");
 
     await savePackage(group, {
+      [`package_day_price_${member.id}_1`]: "5.50",
       [`package_day_price_${member.id}_2`]: "7.00",
       [`package_price_${member.id}`]: "",
       [`package_qty_${member.id}`]: "1",
     });
     expect(await getGroupDayPrices(group.id)).toEqual(
-      new Map([[member.id, new Map([[2, 700]])]]),
+      new Map([
+        [
+          member.id,
+          new Map([
+            [1, 550],
+            [2, 700],
+          ]),
+        ],
+      ]),
     );
   });
 

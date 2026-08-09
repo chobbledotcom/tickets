@@ -36,10 +36,13 @@ describeWithEnv("e2e: multi-day bookings — edge cases", { db: true }, () => {
       expect(results.filter(({ success }) => success).length).toBe(1);
     });
 
-    test("9: listing type switch from standard to daily preserves existing attendees", async () => {
-      // Standard listing gets attendees, then admin switches to daily.
-      // Existing attendees have null start_at/end_at (no date).
-      // They should still count toward total capacity.
+    /**
+     * The story `@case:stay-length.turning-day-bookings-on-keeps-everyone-booked`
+     * proves the organiser still sees the people who booked. This keeps the
+     * direct capacity contract: the date-less bookings made before the change
+     * still fill the listing's date-less capacity read.
+     */
+    test("a listing flipped to daily counts bookings made before it had dates", async () => {
       const listing = await createDailyTestListing({
         listingType: "standard",
         maxAttendees: 2,
@@ -47,14 +50,11 @@ describeWithEnv("e2e: multi-day bookings — edge cases", { db: true }, () => {
       });
       await bookAttendee(listing, { quantity: 2 });
 
-      // Switch to daily + duration 2.
       await updateTestListing(listing.id, {
         durationDays: 2,
         listingType: "daily",
       });
 
-      // The 2 existing attendees (no date) should still block capacity.
-      // hasAvailableSpots with no date checks total.
       expect(await attendeesApi.hasAvailableSpots(listing.id, 1)).toBe(false);
     });
 

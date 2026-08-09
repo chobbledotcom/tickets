@@ -1,6 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { bodyToCreateInput, bodyToUpdateInput } from "#routes/admin/api.ts";
+import {
+  bodyToCreateInput,
+  bodyToUpdateInput,
+} from "#routes/admin/api-listing-body.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -38,6 +41,32 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       if (!result.ok) {
         expect(result.error).toBe("max_attendees is required and must be >= 1");
       }
+    });
+
+    test("rejects non-text bookable days", async () => {
+      const result = await bodyToCreateInput({
+        bookable_days: ["Monday", 2],
+        max_attendees: 10,
+        name: "Test",
+      });
+
+      expect(result).toEqual({
+        error: "bookable_days must contain only text",
+        ok: false,
+      });
+    });
+
+    test("rejects a text duration", async () => {
+      const result = await bodyToCreateInput({
+        duration_days: "3",
+        max_attendees: 10,
+        name: "Test",
+      });
+
+      expect(result).toEqual({
+        error: "duration_days must be a safe integer",
+        ok: false,
+      });
     });
 
     test("handles all field types correctly", async () => {
@@ -201,6 +230,40 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
   });
 
   describe("bodyToUpdateInput", () => {
+    test("rejects a maximum attendee count below one", async () => {
+      const result = await bodyToUpdateInput(
+        { max_attendees: 0 },
+        testListingWithCount({ max_attendees: 10 }),
+      );
+
+      expect(result).toEqual({
+        error: "max_attendees must be >= 1",
+        ok: false,
+      });
+    });
+
+    test("uses supplied prices and groups", async () => {
+      const result = await bodyToUpdateInput(
+        {
+          day_prices: { 2: 2_000 },
+          group_ids: [7],
+          max_price: 3_000,
+        },
+        testListingWithCount({
+          day_prices: { 1: 1_000 },
+          max_attendees: 10,
+          max_price: 4_000,
+        }),
+      );
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.dayPrices).toEqual({ 2: 2_000 });
+        expect(result.value.groupIds).toEqual([7]);
+        expect(result.value.maxPrice).toBe(3_000);
+      }
+    });
+
     test("rejects malformed group_ids instead of silently clearing membership", async () => {
       const existing = testListingWithCount({
         max_attendees: 10,

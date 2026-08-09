@@ -7,8 +7,8 @@ import {
 } from "#routes/admin/catalog-transfer/export.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import { execute } from "#shared/db/client.ts";
+import { assignListingsToGroup } from "#shared/db/groups/membership.ts";
 import {
-  assignListingsToGroup,
   getGroupPackagePrices,
   listingGroups,
   setGroupPackageMembers,

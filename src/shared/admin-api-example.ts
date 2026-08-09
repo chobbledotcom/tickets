@@ -6,12 +6,7 @@
  * output, so a shape change will break the test and force an update.
  */
 
-import {
-  type CreateListingBody,
-  type DeleteListingBody,
-  toAdminListing,
-  type UpdateListingBody,
-} from "#routes/admin/api.ts";
+import { type DeleteListingBody, toAdminListing } from "#routes/admin/api.ts";
 import type {
   CreateGroupBody,
   DeleteGroupBody,
@@ -22,6 +17,10 @@ import type {
   DeleteHolidayBody,
   UpdateHolidayBody,
 } from "#routes/admin/api-holidays.ts";
+import type {
+  CreateListingBody,
+  UpdateListingBody,
+} from "#routes/admin/api-listing-body.ts";
 import { API_EXAMPLE_LISTING } from "#shared/api-example.ts";
 import { listingCatalogFields } from "#shared/catalog-fields/fields.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";

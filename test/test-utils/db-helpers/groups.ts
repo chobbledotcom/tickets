@@ -109,3 +109,40 @@ export const getTestPackagePrices = async (
   );
   return packageMemberMaps(await getGroupPackagePrices(groupId)).prices;
 };
+
+export type SoldPackageMember = {
+  attendeeId: number;
+  group: Group;
+  member: { id: number; max_attendees: number; name: string; slug: string };
+};
+
+/** Creates a package group with one member listing and one attendee booked onto
+ *  that member, then links the attendee to the package group. The `hidden`
+ *  flag picks between a hidden package (members concealed from public listing)
+ *  and a visible package (members shown normally). */
+export const createSoldPackageMember = async (
+  name: string,
+  hidden: boolean,
+): Promise<SoldPackageMember> => {
+  const group = hidden
+    ? await createHiddenPackageGroup(name)
+    : await createTestGroup({ isPackage: true, name });
+  const { createTestListing } = await import("./listings.ts");
+  const member = await createTestListing({
+    groupId: group.id,
+    maxAttendees: 10,
+    name: `${name} member`,
+  });
+  const { createTestAttendeeDirect } = await import("./attendees.ts");
+  const { attendee } = await createTestAttendeeDirect(
+    member.id,
+    `${name} buyer`,
+    `${name.toLowerCase().replace(/\s+/g, "-")}@example.com`,
+    1,
+    "",
+    "",
+    "",
+    group.id,
+  );
+  return { attendeeId: attendee.id, group, member };
+};

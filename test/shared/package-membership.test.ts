@@ -2,7 +2,10 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import {
+  packageChildEdgeConflict,
   packageChildEdgeError,
+  packageChildEdgeErrorOrNull,
+  packageGroups,
   packageMemberError,
 } from "#shared/package-membership.ts";
 
@@ -97,6 +100,17 @@ describe("packageMemberError", () => {
   });
 });
 
+describe("packageGroups", () => {
+  test("keeps only package groups", () => {
+    expect(
+      packageGroups([
+        { id: 1, is_package: false },
+        { id: 2, is_package: true },
+      ]),
+    ).toEqual([{ id: 2, is_package: true }]);
+  });
+});
+
 describe("packageChildEdgeError", () => {
   test("explains a hidden-package parent gaining children", () => {
     expect(packageChildEdgeError("gate_in_hidden")).toBe(
@@ -108,5 +122,45 @@ describe("packageChildEdgeError", () => {
     expect(packageChildEdgeError("child_is_member")).toBe(
       t("error.package_child_is_member"),
     );
+  });
+
+  test("keeps no conflict as null", () => {
+    expect(packageChildEdgeErrorOrNull(null)).toBeNull();
+  });
+
+  test("turns an edge conflict into its message", () => {
+    expect(packageChildEdgeErrorOrNull("child_is_member")).toBe(
+      t("error.package_child_is_member"),
+    );
+  });
+});
+
+describe("packageChildEdgeConflict", () => {
+  test("checks edge presence, hidden parents, and packaged children in order", async () => {
+    const conflict = (
+      childIds: number[],
+      parentIsHiddenPackageMember: boolean,
+      childIsPackageMember: boolean,
+    ) =>
+      packageChildEdgeConflict(
+        childIds,
+        () => parentIsHiddenPackageMember,
+        () => childIsPackageMember,
+      );
+
+    await expect(conflict([], true, true)).resolves.toBeNull();
+    await expect(conflict([1], true, true)).resolves.toBe("gate_in_hidden");
+    await expect(conflict([1], false, true)).resolves.toBe("child_is_member");
+    await expect(conflict([1], false, false)).resolves.toBeNull();
+  });
+
+  test("awaits asynchronous package checks", async () => {
+    await expect(
+      packageChildEdgeConflict(
+        [1],
+        async () => false,
+        async () => false,
+      ),
+    ).resolves.toBeNull();
   });
 });

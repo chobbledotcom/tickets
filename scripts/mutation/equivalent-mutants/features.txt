@@ -54,32 +54,14 @@ src/features/public/ticket-form.ts::collectValuesByListing.listingIds~0go5ifo  ?
 src/features/public/ticket-form.ts::ticketFormErrorResponse.url~0i79mbu  ?? → ||   # ctx.actionUrl: string|undefined, only ever a real URL or undefined (never ""), so ?? and || agree
 src/features/public/ticket-form.ts::listingsWithQuantity.withQty.qty~0q3jgeq  ?? → ||   # quantities.get(): number|undefined; the only falsy number is 0, 0??0===0||0
 
-# Admin listing API fallbacks receive only objects, arrays, positive ids, or
-# nullish values, so no valid request can distinguish these operators.
-src/features/admin/api.ts::bodyToUpdateInput.existing~0xlflfs  ?? → ||   # stored listing lookup returns a ListingWithCount object or null; listing objects are truthy
-src/features/admin/api.ts::bodyToUpdateInput.groupIds~0nj5jla  ?? → ||   # parsed group ids are an array or undefined; every array, including [], is truthy
-src/features/admin/api.ts::UNCREATED_PARENT_ID~05rrw2z  1 → 0   # the mutation changes sentinel -1 to -0; positive listing ids match neither value
-src/features/admin/api.ts::prepareListingJoins.packageConflict~1juqee2  ?? → ||   # groupIds is an array or undefined; every array, including [], is truthy
-src/features/admin/api.ts::prepareListingJoins.result~0i1al4o  ?? → ||   # an existing listing id is positive and truthy, otherwise optional access yields undefined
-src/features/admin/api.ts::prepareListingJoins.result.wouldBeGroupIds~1juqee2  ?? → ||   # groupIds is an array or undefined; every array, including [], is truthy
-
 # attendee entity page: `?? → ||` where the operand's only falsy-non-null
 # value equals the "" fallback.
 src/features/admin/attendee-page.ts::attendeePage.tabs.sections.load~1e06wxq  ?? → ||   # ctx.query.get("token"): string|null; the only falsy-non-null value "" equals the "" fallback
 src/shared/db/name-registry.ts::matchName.ids~140086l  ?? → ||   # matchName index.get(): number[]|undefined — an array is always truthy
 src/shared/db/name-registry.ts::isNameTakenAnywhere.ownedByOther~1x88e07  ?? → ||   # isNameTakenAnywhere index.get(): number[]|undefined — an array is always truthy
-src/features/admin/catalog-transfer/import.ts::membershipSpec.quantity~0yrngiz  ?? → ||   # membershipSpec quantity comes from the PositiveInt schema (at least 1) or is undefined, so it is never 0
-src/features/admin/catalog-transfer/import.ts::loadChildAddOnChecker.wouldBe.active~1hbkt0d  true → false   # childOnlyAddOnCheckerForListings resolves only ids and groupIds; it never reads ListingGroupMembership.active
-src/features/admin/catalog-transfer/import.ts::loadParentEdgeContext.childEdge~08stb2y  0 → 1   # edgeFieldError never reads EdgeListing.id, and child reachability uses the separate placeholder id declared above
-src/features/admin/catalog-transfer/import.ts::importGroup.isPackage~0u7qcwn  ?? → ||   # isPackage is boolean|undefined, and false equals the false fallback
+src/features/admin/catalog-transfer/import.ts::importGroup.specs~0u7qcwn  ?? → ||   # isPackage is boolean|undefined, and false equals the false fallback
 src/features/admin/catalog-transfer/schema.ts::formatTransferIssues.parts~0f9t11y  ?? → ||   # formatTransferIssues flat.root: string[]|undefined — an array is always truthy
 src/features/admin/catalog-transfer/schema.ts::formatTransferIssues.parts~19zbaq1  ?? → ||   # formatTransferIssues flat.nested: object|undefined — an object is always truthy
-
-# Admin group routes (features/admin/groups.ts) — object/Map/0-fallback nullish
-# coalescing where ?? and || always agree.
-src/features/admin/groups.ts::parseMemberDayPrices.dayPrices~0mwoiz0  ?? → ||   # parseMemberDayPrices byListing.get(): DayPrices|undefined — an object is always truthy
-src/features/admin/groups.ts::parsePackageMembers.dayPrices~1s9d862  ?? → ||   # parsePackageMembers dayPricesByListing.get(): DayPrices|undefined — an object is always truthy
-src/shared/listings-actions.ts::strippedPageOrphanedAddOn~05ffdhd  && → ||   # clearing false means mayStripPage never loads a flagged child; clearing true without a flagged child only reruns unchanged reachability, which cannot create an orphan
 
 # attendee merge/refund route: mutants with no observable effect.
 src/features/admin/attendee-refunds.ts::handleAdminRefundAllGet~0mgteeu  ?? → ||   # flash.error: string|undefined from applyFlash; a refund error flash is always a non-empty message, so the only falsy-non-null value "" never occurs and ?? / || agree

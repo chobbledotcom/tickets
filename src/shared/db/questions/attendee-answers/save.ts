@@ -21,6 +21,7 @@ import {
   prepareStringRows,
 } from "#shared/db/questions/strings.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
+import { txIdSet } from "#shared/db/transaction.ts";
 
 export type AttendeeAnswerSet = {
   answerIds: number[];
@@ -34,6 +35,9 @@ const normalizeAnswerSet = (
   Array.isArray(answerIdsOrSet)
     ? { answerIds: answerIdsOrSet }
     : answerIdsOrSet;
+
+const arrayOrEmpty = <T>(value: T[] | undefined): T[] =>
+  value === undefined ? [] : value;
 
 /** answer_id → question_id for the chosen ids, read on the open transaction so
  *  a deleted-between-checkout-and-finalize answer shows up as missing without
@@ -157,17 +161,13 @@ const storedIdAnswerStatements = (
  *  be dropped (mirrors the deleted-answer skip on the choice path) rather than
  *  inserting an orphan row whose plaintext the admin UI can never surface.
  *  Read on the open transaction so it shares the save's snapshot. */
-const existingQuestionIdsTx = async (
+const existingQuestionIdsTx = (
   tx: TxScope,
   questionIds: number[],
-): Promise<Set<number>> => {
-  const rows = resultRows<{ id: number }>(
-    await tx.execute(
-      questionsTable.read.pick(["id"]).statement({ id: questionIds }),
-    ),
+): Promise<Set<number>> =>
+  txIdSet(tx, questionIds, (unique) =>
+    questionsTable.read.pick(["id"]).statement({ id: unique }),
   );
-  return new Set(rows.map((row) => row.id));
-};
 
 /**
  * Replace every listed attendee's answers in one atomic transaction: each
@@ -223,8 +223,10 @@ export const saveAttendeeAnswers = async (
         id,
         {
           ...answerSet,
-          textAnswerIds: dedupeByQuestion(answerSet.textAnswerIds ?? []),
-          textAnswers: dedupeByQuestion(answerSet.textAnswers ?? []),
+          textAnswerIds: dedupeByQuestion(
+            arrayOrEmpty(answerSet.textAnswerIds),
+          ),
+          textAnswers: dedupeByQuestion(arrayOrEmpty(answerSet.textAnswers)),
         },
       ];
     }),
@@ -367,14 +369,15 @@ export const groupListingAnswerSets = (
   const answersByAttendee = new Map<number, AttendeeAnswerSet>();
   for (const { attendee, listing } of entries) {
     const key = String(listing.id);
-    const answerIds = listingAnswerIds[key] ?? [];
-    const textAnswers = listingTextAnswers[key] ?? [];
+    const answerIds = arrayOrEmpty(listingAnswerIds[key]);
+    const textAnswers = arrayOrEmpty(listingTextAnswers[key]);
     if (answerIds.length === 0 && textAnswers.length === 0) continue;
-    const existing = answersByAttendee.get(attendee.id) ?? { answerIds: [] };
+    const saved = answersByAttendee.get(attendee.id);
+    const existing = saved === undefined ? { answerIds: [] } : saved;
     existing.answerIds.push(...answerIds);
     if (textAnswers.length > 0) {
       existing.textAnswers = dedupeByQuestion([
-        ...(existing.textAnswers ?? []),
+        ...arrayOrEmpty(existing.textAnswers),
         ...textAnswers,
       ]);
     }

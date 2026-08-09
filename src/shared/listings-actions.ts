@@ -5,15 +5,15 @@
  * so that the route handlers remain thin response formatters.
  */
 
-import { firstProblem } from "#fp";
+import { firstProblem, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activity-log.ts";
+import { checkGroupListingSettings } from "#shared/db/groups/homogeneity.ts";
 import {
   getGroupsById,
   getListingsByGroupIds,
-  groupListingTypeError,
   listingGroups,
 } from "#shared/db/groups.ts";
 import {
@@ -41,7 +41,7 @@ import {
 import { isNameTakenAnywhere } from "#shared/db/name-registry.ts";
 import type { EdgeListing } from "#shared/listing-parents-rules.ts";
 import { packageMemberError } from "#shared/package-membership.ts";
-import { parseUpdateSlug } from "#shared/rest/crud-api.ts";
+import { parseUpdateSlug } from "#shared/rest/crud-parsers.ts";
 import { generateUniqueSlug, normalizeSlug } from "#shared/slug.ts";
 import { deleteListingAttachmentFile } from "#shared/storage.ts";
 import {
@@ -139,25 +139,29 @@ const validateListingGroup: ListingUpdateCheck = async (input, existingId) => {
   const groupsById = await getGroupsById();
   const siblingsByGroup = await getListingsByGroupIds(groupIds);
   return firstProblem(async (groupId: number): Promise<string | null> => {
-    const group = groupsById.get(groupId);
-    if (!group) return "Selected group does not exist";
-
-    const typeError = groupListingTypeError(
-      // getListingsByGroupIds seeds an entry (possibly empty) for every id it is
-      // asked about, and we iterate those same ids, so the lookup always resolves.
-      siblingsByGroup.get(groupId)!,
+    const checked = checkGroupListingSettings(
+      groupsById.get(groupId),
+      () =>
+        requiredMapValue(
+          siblingsByGroup,
+          groupId,
+          "Missing group listing membership",
+        ),
       // The DB column defaults to "standard" when omitted (e.g. a JSON API
       // create that sends group_ids but no listing_type), so validate against
       // that default rather than passing undefined and reading every standard
       // group as a type mismatch.
-      input.listingType ?? "standard",
-      input.customisableDays ?? false,
+      {
+        customisable_days: input.customisableDays ?? false,
+        id: existingId ?? 0,
+        listing_type: input.listingType ?? "standard",
+      },
       existingId ?? 0,
     );
-    if (typeError) return typeError;
+    if (!checked.ok) return checked.error;
 
     return packageMembershipError(
-      group,
+      checked.group,
       input.name,
       incompatibleByType,
       existingId,

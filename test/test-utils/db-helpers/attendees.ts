@@ -144,10 +144,11 @@ export const createTestAttendeeDirect = async (
   phone = "",
   address = "",
   special_instructions = "",
+  packageGroupId = 0,
 ): Promise<{ attendee: Attendee; token: string }> => {
   const result = await attendeesApi.createAttendeeAtomic({
     address,
-    bookings: [{ listingId, quantity }],
+    bookings: [{ listingId, packageGroupId, quantity }],
     email,
     name,
     phone,

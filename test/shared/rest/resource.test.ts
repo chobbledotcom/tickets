@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { col, defineTable, type Table } from "#shared/db/table.ts";
+import { TransactionValidationError } from "#shared/db/transaction.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { defineForm, type FormValues } from "#shared/forms/definition.ts";
 import { defineResource, type Resource } from "#shared/rest/resource.ts";
@@ -207,6 +208,36 @@ describe("rest/resource", () => {
         new FormParams({ name: "Ok", value: "1" }),
       );
       expect(result.ok).toBe(true);
+    });
+
+    test("returns a transaction validation error as a normal create error", async () => {
+      const resource = defineResource({
+        afterWrite: () =>
+          Promise.reject(
+            new TransactionValidationError("Group is no longer valid"),
+          ),
+        form: testForm,
+        table: createTestTable(),
+        toInput,
+      });
+
+      expectResultError("Group is no longer valid")(
+        await resource.create(new FormParams({ name: "Blocked", value: "1" })),
+      );
+    });
+
+    test("rethrows an unexpected after-write error on create", async () => {
+      const writeError = new Error("Unexpected write failure");
+      const resource = defineResource({
+        afterWrite: () => Promise.reject(writeError),
+        form: testForm,
+        table: createTestTable(),
+        toInput,
+      });
+
+      await expect(
+        resource.create(new FormParams({ name: "Broken", value: "1" })),
+      ).rejects.toBe(writeError);
     });
 
     // The row commits but the read-back finds nothing, so create used to report

@@ -11,37 +11,9 @@ import {
   createDailyTestListing,
   updateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
-import { awaitTestRequest } from "#test-utils/mocks.ts";
-import { adminFormPost, setupListingAndLogin } from "#test-utils/session.ts";
+import { adminFormPost } from "#test-utils/session.ts";
 
 describeWithEnv("e2e: multi-day bookings — admin pages", { db: true }, () => {
-  describe("admin listing edit page", () => {
-    test("edit form pre-fills duration_days and includes warning UI", async () => {
-      const { listing, cookie } = await setupListingAndLogin({
-        durationDays: 5,
-        listingType: "daily",
-        maximumDaysAfter: 30,
-        minimumDaysBefore: 0,
-      });
-      const response = await awaitTestRequest(
-        `/admin/listing/${listing.id}/edit`,
-        {
-          cookie,
-        },
-      );
-      const html = await response.text();
-      // The duration input is pre-filled with the stored value.
-      expect(html).toMatch(/name="duration_days"[^>]*value="5"/);
-      // Every element initDurationWarning() hooks into must be present —
-      // if any of these IDs change, the client-side gate silently no-ops.
-      expect(html).toContain('id="listing-edit-form"');
-      expect(html).toContain('id="duration-warning"');
-      expect(html).toContain('data-duration-original="5"');
-      expect(html).toContain('id="duration-warning-confirm"');
-      expect(html).toContain('id="listing-edit-submit"');
-    });
-  });
-
   describe("admin listing edit POST", () => {
     /** Minimal valid edit form for a daily listing (urlencoded POST). */
     const dailyEditForm = (
@@ -115,31 +87,6 @@ describeWithEnv("e2e: multi-day bookings — admin pages", { db: true }, () => {
       expect((await getListingWithCount(listing.id))?.duration_days).toBe(4);
       // The maximum changed; the booked span did not.
       expect((await rawListingRange(listing.id))!.end_at).toBe(before!.end_at);
-      await expectListingActivityLogLacks(listing.id, "duration changed");
-    });
-
-    test("changing duration on a standard listing does not reconcile or log a duration change", async () => {
-      const { listing } = await setupListingAndLogin({ maxAttendees: 100 });
-
-      const { response } = await adminFormPost(
-        `/admin/listing/${listing.id}/edit`,
-        {
-          duration_days: "7",
-          max_attendees: "100",
-          max_quantity: "1",
-          name: listing.name,
-          slug: listing.slug,
-          thank_you_url: "https://example.com",
-        },
-      );
-      await expectFlashRedirect(
-        `/admin/listing/${listing.id}`,
-        "Listing updated",
-      )(response);
-
-      // The value persists (inert until the listing becomes daily)…
-      expect((await getListingWithCount(listing.id))?.duration_days).toBe(7);
-      // …but no reconciliation activity is logged for a standard listing.
       await expectListingActivityLogLacks(listing.id, "duration changed");
     });
   });

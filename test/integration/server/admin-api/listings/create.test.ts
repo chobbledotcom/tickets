@@ -1,6 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import { queryAll } from "#shared/db/client.ts";
+import { requireListingWithCount } from "#shared/db/listings/records.ts";
+import { MAX_DURATION_DAYS } from "#shared/types.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { apiRequest } from "#test-utils/session.ts";
@@ -41,6 +44,46 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         (body) => {
           expect(body.listing.duration_days).toBe(3);
           expect(body.listing.listing_type).toBe("daily");
+        },
+      );
+    });
+
+    test("clamps out-of-range duration_days to the supported bounds", async () => {
+      // The JSON API has no form layer, so the column-level clamp is all that
+      // bounds duration_days (each day adds a clause to the atomic capacity
+      // SQL, so an unbounded value is a perf hazard). The response echoes the
+      // clamped value, and the clamp is what is stored.
+      const high = await assertJson<{
+        listing: { id: number; duration_days: number };
+      }>(
+        apiRequest("/api/admin/listings", {
+          body: {
+            duration_days: 5000,
+            listing_type: "daily",
+            max_attendees: 50,
+            name: "API Clamped High",
+          },
+          method: "POST",
+        }),
+        201,
+      );
+      expect(high.listing.duration_days).toBe(MAX_DURATION_DAYS);
+      expect(
+        (await requireListingWithCount(high.listing.id)).duration_days,
+      ).toBe(MAX_DURATION_DAYS);
+      await assertJson(
+        apiRequest("/api/admin/listings", {
+          body: {
+            duration_days: -2,
+            listing_type: "daily",
+            max_attendees: 50,
+            name: "API Clamped Low",
+          },
+          method: "POST",
+        }),
+        201,
+        (body: { listing: { duration_days: number } }) => {
+          expect(body.listing.duration_days).toBe(1);
         },
       );
     });
@@ -234,7 +277,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.error).toBe("Selected group does not exist");
+          expect(body.error).toBe(t("error.selected_group_deleted"));
         },
       );
     });

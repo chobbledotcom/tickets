@@ -2,14 +2,9 @@ import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
 import { isNotNullish } from "#fp";
 import type { Table } from "#shared/db/table.ts";
-import {
-  type CrudApiConfig,
-  defineCrudApi,
-  parseOptionalArray,
-  parseUpdateName,
-  parseUpdateSlug,
-  requireStrings,
-} from "#shared/rest/crud-api.ts";
+import { TransactionValidationError } from "#shared/db/transaction.ts";
+import { defineCrudApi } from "#shared/rest/crud-api.ts";
+import type { CrudApiConfig } from "#shared/rest/crud-api-types.ts";
 import { okResult } from "#shared/result.ts";
 import {
   getAllActivityLog,
@@ -77,42 +72,14 @@ const callRoute = async (
 describeWithEnv("defineCrudApi", { db: true }, () => {
   beforeEach(() => createIdNameTable("widgets"));
 
-  test("parses shared scalar and array inputs", async () => {
-    expect(requireStrings({ name: " mutated " }, ["name"])).toEqual({
-      ok: true,
-      value: { name: "mutated" },
+  test("includes configured extra routes", () => {
+    const extraRoute = () => Promise.resolve(new Response("archived"));
+    const route = "POST /api/admin/widgets/:widgetId/archive";
+    const routes = makeRoutes(makeTable(), {
+      extraRoutes: { [route]: extraRoute },
     });
-    expect(
-      parseOptionalArray([1, 2], "items", (item) => okResult(Number(item))),
-    ).toEqual({ ok: true, value: [1, 2] });
-    expect(
-      await parseUpdateSlug(
-        { slug: " New Slug " },
-        "old-slug",
-        (slug) => slug.trim().toLowerCase().replaceAll(" ", "-"),
-        (slug) => Promise.resolve(`index:${slug}`),
-      ),
-    ).toEqual({ slug: "new-slug", slugIndex: "index:new-slug" });
-    expect(
-      await parseUpdateSlug(
-        {},
-        "old-slug",
-        (slug) => slug,
-        (slug) => Promise.resolve(`index:${slug}`),
-      ),
-    ).toEqual({ slug: "old-slug", slugIndex: "index:old-slug" });
-    expect(parseUpdateName({ name: " Updated " }, "Original")).toEqual({
-      ok: true,
-      value: "Updated",
-    });
-    expect(parseUpdateName({}, "Original")).toEqual({
-      ok: true,
-      value: "Original",
-    });
-    expect(parseUpdateName({ name: "" }, "Original")).toEqual({
-      error: "name cannot be empty",
-      ok: false,
-    });
+
+    expect(routes[route]).toBe(extraRoute);
   });
 
   test("creates, strips, hydrates, and logs a row", async () => {
@@ -145,6 +112,38 @@ describeWithEnv("defineCrudApi", { db: true }, () => {
       (item) => item.message === "Widget 'Created' created",
     );
     expect(entry?.listing_id).toBeNull();
+  });
+
+  test("returns a transaction validation error as JSON", async () => {
+    const response = await callRoute(
+      makeRoutes(makeTable(), {
+        afterWrite: () =>
+          Promise.reject(
+            new TransactionValidationError("Group is no longer valid"),
+          ),
+      }),
+      "POST /api/admin/widgets",
+      "POST",
+      { name: "Blocked" },
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "Group is no longer valid",
+    });
+  });
+
+  test("rethrows an unexpected transaction failure", async () => {
+    await expect(
+      callRoute(
+        makeRoutes(makeTable(), {
+          afterWrite: () => Promise.reject(new Error("write failed")),
+        }),
+        "POST /api/admin/widgets",
+        "POST",
+        { name: "Broken" },
+      ),
+    ).rejects.toThrow("write failed");
   });
 
   test("lists rows through one hydration batch", async () => {
