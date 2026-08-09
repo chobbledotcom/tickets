@@ -60,7 +60,6 @@ src/features/admin/attendee-page.ts::attendeePage.tabs.sections.load~1e06wxq  ??
 src/shared/db/name-registry.ts::matchName.ids~140086l  ?? → ||   # matchName index.get(): number[]|undefined — an array is always truthy
 src/shared/db/name-registry.ts::isNameTakenAnywhere.ownedByOther~1x88e07  ?? → ||   # isNameTakenAnywhere index.get(): number[]|undefined — an array is always truthy
 src/features/admin/catalog-transfer/import.ts::importGroup.specs~0u7qcwn  ?? → ||   # isPackage is boolean|undefined, and false equals the false fallback
-src/features/admin/catalog-transfer/import-listing.ts::firstPackageGroup~14gkvgf  ?? → ||   # find returns a Group object (always truthy) or undefined, so both operators return the group or null
 src/features/admin/catalog-transfer/schema.ts::formatTransferIssues.parts~0f9t11y  ?? → ||   # formatTransferIssues flat.root: string[]|undefined — an array is always truthy
 src/features/admin/catalog-transfer/schema.ts::formatTransferIssues.parts~19zbaq1  ?? → ||   # formatTransferIssues flat.nested: object|undefined — an object is always truthy
 
