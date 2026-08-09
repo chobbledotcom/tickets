@@ -89,9 +89,11 @@ consistently wrong and governed nothing.
    test-only-export exemptions.
 9. **PR descriptions state**: the immediate current-system value and the exact
    production route, worker, page, or write path that receives it; the summed
-   `src/` line count; the fault-ledger rows closed; the tests and mutation
-   commands run; and the old path deleted (or the named staged-migration adapter
-   that remains). The full field list is in steps 2 and 6 of `PR_WORKFLOW.md`.
+   `src/` line count; the database and provider call budget whenever the slice
+   touches providers or adds queries (Bunny's hard limit is 50 subrequests per
+   request); the fault-ledger rows closed; the tests and mutation commands run;
+   and the old path deleted (or the named staged-migration adapter that
+   remains). The full field list is in steps 2, 5, and 6 of `PR_WORKFLOW.md`.
    Review pure schemas, transactions, provider parsing, and orchestration as
    distinct commits where that helps.
 
@@ -432,7 +434,10 @@ only after M8 is authoritative fleet-wide.
   deleted booking rows do not block; ticket-use state is not resurrected;
   attendee-only references are copied, not skipped. Preserve unknown or
   contradictory facts without inventing values — create a complete M5 case and
-  continue. Require owner evidence for ambiguous account assignment.
+  continue. Require owner evidence for ambiguous account assignment. Delete each
+  M8 deletion snapshot the moment its payment is copied and verified — the same
+  gate as any source row, idempotent across interrupted or restored runs — so no
+  duplicate buyer facts outlive the migration; M13 verifies none remain.
 - Each copied payment is immediately served by the current readers, result
   recovery, cases, and refunds; migrated charges join attendee refund targets
   through the M7 engine in this same release. Record verified progress and
@@ -530,8 +535,9 @@ mechanism and a regression test, or — if implementation proves the finding wro
 
 ## Done means
 
-- Every milestone is merged in dependency order through stacks of three to seven
-  PRs, each merge standing alone under the delivery rules.
+- Every milestone is merged in dependency order — through stacks of three to
+  seven PRs where the work is stacked, or as the independent single PRs Group C
+  names — each merge standing alone under the delivery rules.
 - One production payment path remains; all three providers share one canonical
   create/read/refund contract; every provider action and local Money action is
   independently durable and resumable; genuine ambiguity requires an explicit
