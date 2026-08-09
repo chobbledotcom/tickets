@@ -3,109 +3,103 @@
 ## Goal
 
 Replace the current payment callback records with one durable payment system,
-while taking the strongest parts of both branches:
+built from the strongest parts of two branches, delivered to `main` as pull
+requests that each leave a complete, smoke-testable system. This file is the
+working plan: status, binding rules, decided behavior, milestones, and the fault
+ledger.
 
-- `origin/base/payment-aggregate` supplies the working end-to-end system:
-  storage, claims, provider reads, reconciliation, booking completion, refunds,
-  maintenance, migration, redaction, and owner pages.
-- `origin/claude/great-fermi-l2n29f` supplies the stronger pure rules for money,
-  provider observations, conflicts, stored records, and owner decisions.
+## Sources
 
-The work will land on `main` as small, independently green PRs. We will not
-merge either branch into `main`, and we will not use one branch as the base for
-a giant cleanup PR.
+- `origin/base/payment-aggregate` (#1962) is the operational reference: storage,
+  claims, provider reads, reconciliation, booking completion, refunds,
+  maintenance, migration, redaction, and owner pages. It is never merged or
+  copied as-is — its own TODO records unresolved faults and its coverage gate is
+  incomplete.
+- `origin/claude/great-fermi-l2n29f` (#1973) is the reference for pure payment
+  rules: money, provider observations, conflicts, stored records, and owner
+  decisions. Its best idea is one `outcomeOf` diagnosis shared by live
+  resolution and validation of stored evidence. It has no production callers and
+  never merges as a standalone layer.
+- Neither branch contains the other (merge base `15e48fac7`), and neither merges
+  into `main`. Work lands as fresh milestone pull requests.
 
-## What the branch comparison established
+## Where we are
 
-### History
+| Milestone                               | Status                                                                                                                                            |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M1 safety behavior (was PR 1)           | Merged as #2020. Also landed the M2 pure modules: `src/shared/payment/money.ts`, `resource-id.ts`, `refund-state.ts`, and `validated-session.ts`. |
+| M2 money/resource vocabulary (was PR 2) | Core modules merged inside #2020. Any provider parsing still off those schemas rides with M3 or M4.                                               |
+| M3 provider ownership (was PR 3)        | In flight. Merged slices so far: #2048 (payment processing core), #2050 (bounded registration delivery).                                          |
+| M11 verifier slice (was PR 13)          | Started early in #2056 — the verifier is read-only and parallelizable.                                                                            |
+| M4–M13                                  | Not started.                                                                                                                                      |
 
-- `payment-aggregate` is 196 commits ahead of current `main` and changes 556
-  files: 50,627 insertions and 15,675 deletions.
-- `great-fermi` branched earlier, is seven commits behind current `main`, and
-  changes 44 files: 6,905 insertions and 9 deletions.
-- Their merge base with each other is `15e48fac7`.
-- Neither branch contains the other. Git finds no patch-equivalent unique
-  commits between them.
-- A payment-aggregate commit whose message mentions merging great-fermi only
-  merged `main`; it did not merge the great-fermi work.
-- The basic payment table schema is already on `main`. Both branches build on
-  that shared result.
-- `main` already has a dormant six-table payment schema without runtime callers.
-  The aggregate schema tables are `payment_sessions`,
-  `payment_completion_effects`, `payment_completion_deliveries`,
-  `payment_charges`, `payment_cases`, and `payment_case_decisions` (defined in
-  `src/shared/db/migrations/schema/payments/`). Because that migration has
-  shipped, do not add drop-and-recreate churn against these dormant aggregate
-  tables. The first aggregate stack must give each of these tables a complete
-  production role or drop it at the end of that stack. Existing tables are not
-  permission to add unused repositories, codecs, indexes, or exports. These
-  dormant aggregate tables are distinct from the legacy reader tables
-  (`processed_payments`, `checkout_stages`, `sumup_checkouts` and related PII
-  sources) that PR 13 reads as historical input and PR 16 drops.
+Budgets below count `src/` lines only. Observed totals run 4–15x the `src/`
+figure once tests, stories, and catalog copy are included (#2020: 714 src lines,
+10,519 total), so this plan no longer publishes total-diff estimates — they were
+consistently wrong and governed nothing.
 
-### Architectural result
+## Delivery rules
 
-`payment-aggregate` is the operational base, but it must not be copied as-is.
-Its own TODO records unresolved migration, ledger, refund, retention, provider,
-and concurrency faults. Its coverage gate is also still incomplete.
+1. **Every merged PR stands alone indefinitely.** Each merge leaves one complete
+   production system the owner can smoke test, with no dormant foundations, no
+   release trains, and no code activated only by a later PR. Every new
+   production export has a production caller in the same PR. A durable case or
+   due-work kind ships with every owner action and scheduled recovery path it
+   needs — or links to a still-live admin tool that resolves it. Each PR must
+   improve the system that is live when it merges; a test, schema, repository,
+   or helper needed only by a later PR does not qualify.
+2. **One production path per behavior.** Migrate every caller and delete the
+   displaced implementation in the same PR. No aliases or compatibility wrappers
+   between the branches' names. The only sanctioned bridge is a named
+   staged-migration adapter with a recorded removal milestone (currently one:
+   the M7 legacy-refund adapter, removed in M11).
+3. **Size.** Keep each PR under 800 changed `src/` lines (insertions plus
+   deletions, recounted after formatting). One exception: an atomic cutover that
+   would otherwise need a throwaway compatibility layer may exceed the cap — a
+   bigger honest PR beats building a bridge in one PR and demolishing it in the
+   next. Say so in the description. Tests, fixtures, and documentation do not
+   count against the cap; never weaken them to shrink a diff.
+4. **Gates.** `nix develop -c deno task precommit` passes before review. Run
+   targeted mutation on the payment modules the PR changed and list the runs in
+   the description. The branch-level `deno task precommit:mutation` gate runs
+   before merge as AGENTS.md requires; if the owner explicitly waives the full
+   run for a large PR, the description records the waiver and the targeted runs
+   that stand in for it.
+5. **Every bug fix ships a regression test** reproducing the bug.
+6. **Deployments are forward-only and fleet-wide**, on the `release` tier only.
+   No old-version support, no code rollback, no mixed-version reads or writes.
+   Bunny's roughly two-second script handoff is operational overlap, not a
+   compatibility window — it must not cause a runtime branch, schema adapter, or
+   legacy replay path. Data migration starts only in a later release, after the
+   write cutover is authoritative.
+7. **The dormant aggregate tables are already shipped** (`payment_sessions`,
+   `payment_completion_effects`, `payment_completion_deliveries`,
+   `payment_charges`, `payment_cases`, `payment_case_decisions`, defined in
+   `src/shared/db/migrations/schema/payments/`). Do not add drop-and-recreate
+   churn against them. Each must hold a complete production role by the end of
+   Stack B or be dropped there. Their existence is not permission to land unused
+   repositories, codecs, indexes, or exports.
+8. **Port the source branch's tests** when adapting one of its modules; adapt
+   existing tests rather than authoring from scratch. Never copy great-fermi's
+   test-only-export exemptions.
+9. **PR descriptions state**: the immediate current-system value and the exact
+   production route, worker, page, or write path that receives it; the summed
+   `src/` line count; the fault-ledger rows closed; the tests and mutation
+   commands run; and the old path deleted (or the named staged-migration adapter
+   that remains). The full field list is in steps 2 and 6 of `PR_WORKFLOW.md`.
+   Review pure schemas, transactions, provider parsing, and orchestration as
+   distinct commits where that helps.
 
-`great-fermi` is the preferred model for overlapping pure payment rules. Its
-best idea is one `outcomeOf` diagnosis shared by live resolution and validation
-of stored evidence. However, its new payment-state modules have no production
-callers. It is not a deployable feature and must not be merged as a standalone
-layer of dead code.
-
-## Non-negotiable delivery rules
-
-1. Every PR must change fewer than 800 lines under `src/` in its final diff
-   against its parent. Count production-code insertions plus deletions.
-2. Tests, fixtures, and documentation may take the total diff above 2,000
-   changed lines when that is needed for complete coverage and mutation testing.
-   Keep them focused and remove duplication, but do not weaken tests to meet an
-   overall line count.
-3. Every PR must pass `nix develop -c deno task precommit` before review.
-4. Every changed source file must pass targeted mutation testing before its PR
-   is merged. Run the branch-level mutation gate after committing the PR.
-5. Every new production export must have a production caller in the same PR. Do
-   not copy great-fermi's test-only-export exemptions.
-6. Every bug fix must include a regression test reproducing the bug.
-7. Each PR must leave one production path for the behavior it changes. Do not
-   add a second payment implementation for later cleanup.
-8. Do not add aliases or compatibility wrappers between the two branches' names.
-   Move every caller to the selected API and delete the displaced API.
-9. Deployments are forward-only and fleet-wide. Do not support old application
-   versions, code rollback, or mixed-version reads and writes. The roughly
-   two-second edge handoff is not a compatibility window; migration work starts
-   only after the new release is authoritative.
-10. Recalculate the `src/` line count after formatting. If it reaches 800
-    changed lines, split the production behavior before review.
-11. Every PR must improve the system that is live when that PR merges. A test,
-    schema, repository, or helper needed only by a later PR is not enough.
-12. Every PR description must name its immediate current-system value and the
-    production route, worker, admin page, or write path that receives it.
-13. If a planned slice cannot be wired into the current system below the line
-    limit, split it vertically by behavior. Do not land dormant foundations.
-14. A new durable case or due-work kind must ship with every owner action and
-    scheduled recovery path it requires. Do not persist work that no live route
-    or worker can finish.
-15. A behavior-wide cutover may be preceded by small refactors that improve the
-    current production path and replace its old mechanism immediately. It may
-    not be preceded by an unused aggregate adapter or a second implementation.
-
-Suggested size check:
+Size check:
 
 ```bash
 git diff --numstat <parent>...HEAD -- src/
 ```
 
-The PR description must state the summed `src/` insertions and deletions, plus
-the total diff size for review context.
-
 ## Decided behavior
 
-The following binding product decisions (previously recorded in a separate
-`QUESTIONS.md`, now inlined here so an implementer can verify completeness
-without a missing file) are requirements:
+These binding product decisions are requirements. Each attaches to the milestone
+that ships the behavior:
 
 - A failed checkout that shows captured money stops automatic work and creates
   an owner case. The owner must complete the booking or refund it.
@@ -122,637 +116,381 @@ without a missing file) are requirements:
   the booking needs review, and that they must not pay again. Reloading shows
   the same stable result.
 - No aggregate checkout path becomes authoritative until the owner can view its
-  evidence and perform every supported required action.
+  evidence and perform every supported required action. Until a case kind's own
+  page action ships (M7/M8), a supported action may be a link to a still-live
+  admin tool that genuinely resolves that case kind.
 - Retry and replay rules apply only to duplicate callbacks or interrupted work
   handled by the current version. The system never emulates an older version's
   payment behavior.
 
 ## Target architecture
 
-### Pure payment domain
+### Pure rules (adapt from great-fermi)
 
-Use one schema-first domain under `src/shared/payment-state/`:
+All pure payment rules live in `src/shared/payment/`, beside the modules that
+already landed — do not open a second directory. Landed: `money.ts` (integer
+minor-unit money), `resource-id.ts`, `refund-state.ts`, `validated-session.ts`.
+Still to adapt, named by job (final filenames may differ): provider observation
+(ownership proof and normalized readings), conflict kinds (exhaustive),
+`outcomeOf` diagnosis (the only judge of settled money), refund accounting,
+resolution of provider-read outcomes into payment outcomes, lifecycle validation
+of durable outcomes, owner decisions with immutable reviewed evidence, and
+record rules checked at repository write boundaries. Do not retain
+payment-aggregate's duplicate vocabularies or duplicate diagnosis.
 
-- `words.ts`: canonical state and resource vocabularies.
-- `resources.ts`: provider resources and integer minor-unit money.
-- `observation.ts`: ownership proof and normalized provider readings.
-- `conflict.ts`: exhaustive conflict kinds.
-- `diagnose.ts`: the only function that judges settled money.
-- `refund.ts`: pure refund accounting and resolution.
-- `resolve.ts`: converts provider-read outcomes into payment outcomes.
-- `lifecycle.ts`: validates durable payment outcomes.
-- `decision.ts`: owner choices and immutable reviewed evidence.
-- `record/`: rules checked at repository write boundaries.
+### Persistence and runtime (keep and harden from payment-aggregate)
 
-Prefer the great-fermi versions, adapted to the aggregate's actual legacy
-sources and runtime types. Do not retain payment-aggregate's duplicate
-vocabularies or duplicate diagnosis.
-
-### Persistence and runtime
-
-Keep and harden payment-aggregate's:
-
-- payment, charge, case, decision, effect, and delivery repositories;
-- revision and lease guards;
-- persist-before-provider checkout creation;
-- provider-neutral create/read/refund contract;
-- one claimed reconciliation path;
-- durable booking and refund completion;
-- scheduled recovery and owner alerts;
-- owner payment-case pages;
-- bounded legacy migration, backup, restore, and redaction.
+Payment, charge, case, decision, effect, and delivery repositories; revision and
+lease guards; persist-before-provider checkout creation; the provider-neutral
+create/read/refund contract; one claimed reconciliation path; durable booking
+and refund completion; scheduled recovery and owner alerts; owner payment-case
+pages; bounded legacy migration, backup, restore, and redaction.
 
 Do not copy `payment-runtime/legacy-replay.ts`, `legacy-sumup.ts`,
-`operator-legacy-read.ts`, or an equivalent runtime branch selected by record
+`operator-legacy-read.ts`, or any equivalent runtime branch selected by record
 age or origin. Migration code may decode an old stored format only to write a
-canonical current payment or owner-review case. After that write, the current
-payment engine is the only code allowed to read, reconcile, refund, complete, or
-display it. Provenance and unknown facts may preserve evidence; they must not
-dispatch to different runtime behavior.
+canonical current payment or owner-review case; after that write, only the
+current engine reads, reconciles, refunds, completes, or displays it. Provenance
+and unknown facts may preserve evidence; they must not dispatch to different
+runtime behavior. Every write validates the complete prospective record with the
+pure rules, writes with revision or lease fencing, and validates the returned
+row. There must not be parallel raw-row and decoded-domain implementations of
+the same rule.
 
-Each write must validate the complete prospective record with the pure rules,
-write with revision or lease fencing, and validate the returned row. There must
-not be parallel raw-row and decoded-domain implementations of the same rule.
+## Milestones
 
-### Deployment model
+Milestones are behavior units, not a PR count: one milestone may land as several
+standalone PRs (M3 already has), and each PR still satisfies every delivery rule
+on its own. Stacks follow the AGENTS.md stacked-PR rules (three to seven PRs,
+merged bottom-up). Provider cutovers move Stripe, Square, and SumUp together
+behind exhaustive records keyed by provider, so adding or omitting a provider is
+a compile error.
 
-Every payment-system release uses the fleet-wide `release` deployment. Do not
-ship these commits through `alpha` or `beta`, and do not roll back to an older
-application build. Bunny's roughly two-second script handoff is operational
-overlap, not a supported mixed-version state; it must not cause a runtime
-branch, schema adapter, or legacy replay path.
+### Stack A — finish the current path (M3–M5)
 
-Deploy the aggregate write cutover first. Start forward data migration only in a
-later fleet-wide release after that cutover has completed.
+#### M3: Check provider ownership on the current path (was PR 3, in flight)
 
-Before the first payment cutover release, guard or update the
-`.github/workflows/restore-deploy.yml` workflow so it refuses to deploy any
-commit that predates the aggregate migration onto a forward-migrated database. A
-point-in-time restore that redeploys pre-aggregate code would reintroduce old
-readers and writers against fenced or dropped tables. The guard may be a schema
-version check in the restore path or a deploy-time compatibility gate; document
-it in the operator restore guide alongside the backup's recorded commit. This
-guard must exist before the first payment cutover release — do not start the
-aggregate write cutover until it is in place.
+Src target: remainder of ~800.
 
-## Work sequence
-
-The estimates below are total-diff review targets, not hard limits. Complete
-tests may exceed them; every file under `src/` counts toward the 800-line source
-limit, including locales and checked-in assets. Deliver the work as several
-completed stacks of three to seven independently useful PRs. Merge and rebase a
-stack before opening the next dependency layer.
-
-The numbered items are behavior requirements, not a required PR count. Combine
-or remove them whenever that eliminates dormant foundations, compatibility
-paths, or deferred cleanup.
-
-The expected stack boundaries are PRs 1-4, PRs 5-11, and PRs 12-16. Change a
-boundary when a dependency demands it, but keep each stack within three to seven
-green PRs and finish activating or removing its schema before merging it.
-
-For every stage, ask: "If all later PRs were cancelled, what became better for
-the people or operators using this version?" The `Current-system value` answer
-must be observable in a production route, worker, page, stored invariant, or
-security boundary. Future reuse, tests alone, documentation alone, and an unused
-database abstraction do not qualify.
-
-### Phase 0: improve and specify the current payment path
-
-#### PR 1: Lock the chosen safety behavior
-
-Budget: 800-1,300 changed lines.
-
-- Turn every binding decision from the Decided behavior section into a named
-  acceptance rule.
-- Fix the current path so disabling new sales does not disable refunds or
-  reconciliation for money already taken.
-- Add focused regression tests for callback replay, provider outages, booking
-  completion, and refunds.
-- Reconcile the branches' TODO findings and assign each live finding to a PR.
-
-Current-system value: existing payments remain refundable when sales are off
-(qualified: a charge captured on a provider that was later switched away from
-and replaced with `none` cannot be refunded through the last-active fallback;
-per-charge provider tracking is assigned to a later aggregate PR — see the known
-gap in `docs/payment-aggregate-acceptance.md`), and the current behavior is
-protected before it is rewritten.
-
-#### PR 2: Use one money and resource vocabulary now
-
-Budget: 1,200-1,600 changed lines.
-
-- Adapt great-fermi's `words.ts`, `resources.ts`, and `validation/kind.ts`.
-- Replace current provider money/resource parsing with these schemas.
-- Bring only exports used by the current provider code in this PR.
-
-Current-system value: current callbacks reject malformed amounts, currencies,
-and blank provider IDs consistently across providers.
-
-#### PR 3: Check provider ownership on the current path
-
-Budget: 1,200-1,700 changed lines.
-
-- Adapt great-fermi's strict provider observation boundary.
-- Allow an unrecorded child only when it is a charge under the same pending
-  checkout.
-- Wire SumUp's current callback path first and block unknown unsigned callbacks
+- Adapt the strict provider observation boundary. Allow an unrecorded child only
+  when it is a charge under the same pending checkout.
+- Wire SumUp's current callback path first; block unknown unsigned callbacks
   from causing unbounded provider reads.
 
-Current-system value: current SumUp callbacks cannot attach unrelated resources
-or be used to amplify outbound requests.
+Standalone value: current SumUp callbacks cannot attach unrelated resources or
+be used to amplify outbound requests.
 
-#### PR 4: Use one diagnosis for current settled money
+#### M4: One diagnosis for settled money — fail-closed cutovers only (was PR 4)
 
-Budget: 1,300-1,800 changed lines.
+Src target: 400–700.
 
-- Adapt `conflict.ts`, `diagnose.ts`, and `refund.ts`.
-- Count a completed refund immediately while blocking overlap until the
-  provider's cumulative total catches up.
-- Treat multiple captures as a conflict and reject duplicate resources, wrong
+- Adapt the conflict, `outcomeOf`, and refund-accounting pure modules.
+  `outcomeOf` replaces the current callback and refund classification as the
+  only judge of settled money on the current path.
+- Cut live only the outcomes whose remedy is refuse-and-record: block new
+  overlapping refunds until the provider's cumulative total catches up while
+  counting a completed refund immediately; reject duplicate resources, wrong
   currencies, wrong parents, over-refunds, and money on a free checkout.
-- Replace the current callback and refund classification with `outcomeOf`. Do
-  not cut the multi-capture conflict detection live in this PR unless the full
-  owner-review workflow for that case ships with it; if multi-capture is
-  detected here but not actionable until PR 5, defer the live cutover of the
-  multi-capture conflict to PR 5, or include PR 5's owner-review case workflow
-  for that case in this PR.
+- Conflicts that need an owner decision (multiple captures and kin): detect,
+  record, and alert through the existing error classes, but keep today's
+  behavior. Their workflow arrives in M5 and their page actions with M7/M8.
+  Build no owner tooling on the legacy engines.
 
-Current-system value: the live system stops repeat refunds and detects captured
-money combinations it currently misses.
+Standalone value: the live system stops repeat refunds and detects captured
+money combinations it currently misses, with one classifier where there were
+two.
 
-#### PR 5: Resolve current payment cases end to end
+#### M5: Payment cases — visible, stable, acknowledgeable (was PR 5, slimmed)
 
-Budget: 1,700-2,500 changed lines.
+Src target: 500–800.
 
-- Adapt great-fermi's `resolve.ts` and `lifecycle.ts`, and rerun `outcomeOf`
-  whenever stored evidence is validated.
-- Adapt aggregate case storage, great-fermi's case and decision rules, and only
-  the repository operations used by this workflow.
-- Turn each current durable payment issue into a revisioned case. Show affected
-  buyers that payment was received, review is needed, and they must not pay
-  again; make reload return the same result.
-- Alert only the current unsent revision, retry unattended alert work on
-  schedule, and let one permanent failure leave later work runnable.
-- Add owner-only list and detail routes showing money, evidence, attempts, and
-  affected records. Gate every link with its target's permission and existence
-  rules.
-- Ship all valid actions with the first case: keep unchanged, complete a proven
-  booking, refund remaining money, and confirm an existing full refund. Re-read
-  the provider, require the current revision and evidence, and complete both
-  payment state and Money before closing a refund decision.
-- Model the required choice and reviewed evidence as one discriminated union;
-  persist the reason, evidence snapshot, claim, attempt, and result.
-- If the source limit requires more than one PR, split by complete case kind.
-  Each slice must include detection, stable buyer result, alert, owner page,
-  every action for that kind, and scheduled recovery before it merges.
-- Remove the displaced classifier and every superseded case path.
+- Adapt the resolve, lifecycle, and decision pure rules, rerunning `outcomeOf`
+  whenever stored evidence is validated, plus the case and decision repositories
+  (only the operations used here).
+- Every durable payment problem `outcomeOf` reports becomes a revisioned case.
+  Affected buyers see the stable result decided above; reload returns the same
+  answer.
+- Owner-only list and detail routes show money, evidence, attempts, and affected
+  records, with every link gated by its target's permission and existence rules.
+  Alert only the current unsent revision; retry unattended alert work on
+  schedule; one permanent failure leaves later work runnable.
+- The recorded decision here is acknowledge/keep-unchanged, persisted with
+  reason and evidence snapshot as the start of the decision union. Do not build
+  money-moving case actions on the legacy engines: the case page links to the
+  still-live admin tools (refunds, booking management) that genuinely resolve
+  each case kind today. The case-page refund and completion actions ship with
+  the engines that perform them (M7, M8).
+- Guard attendee merge and delete against records with an open case: repoint or
+  settle before the destructive step.
 
-Current-system value: every current payment problem the app can create is
-visible, actionable, recoverable, and cannot invite the buyer to pay twice.
+Standalone value: every payment problem the current app can create is visible,
+alerted, buyer-safe, and resolvable through live tools.
 
-### Phase 1: cut each live operation over for all providers and callers
+### Stack B — the aggregate cutover (M6–M8)
 
-Do not migrate Stripe, Square, and SumUp in separate PRs. A behavior cutover
-updates all three provider adapters and every entry point, then deletes the old
-implementation for that behavior. Shared provider contracts are exhaustive
-records keyed by provider, so adding or omitting a provider is a compile error.
+This stack ends with every dormant aggregate table holding its production role
+or dropped. Old payment tables stay readable through a bounded read-through
+until M11 copies them; they are historical input, never a second runtime.
 
-#### PR 6: Make aggregate checkout creation authoritative
+#### M6: Aggregate checkout creation and reads become authoritative (was PRs 6+7)
 
-Budget: 1,500-2,200 changed lines.
+Src target: 1,200–1,800 — the sanctioned atomic-cutover exception. Creation and
+reads move in one merge precisely so no `sumup_checkouts` projection, no legacy
+checkout-metadata preservation, and no projection-repair machinery ever exist.
 
-- Save immutable expected money and booking intent before every provider call.
-- Claim creation, use one payment identity and idempotency key, and adopt the
-  original provider resource after an uncertain response.
-- Return the same buyer URL on replay and release or schedule every failed
-  claim.
-- Move Stripe, Square, and SumUp checkout creation together. Keep SumUp's local
-  payment, checkout, and transaction IDs distinct and use stored currency.
-- Delete every replaced checkout-creation path. Retain the old SumUp checkout
-  writer until `resolveWebhookSession` and `retrieveSession` move to the
-  aggregate (in this PR or PR 7), or move those readers in this PR; deleting the
-  writer while the completion path still reads from it leaves paid SumUp
-  checkouts unable to complete. Apply the same projection principle to Stripe
-  and Square: `stripePaymentProvider.retrieveSession` returns `null` without
-  session metadata, and `squarePaymentProvider.retrieveSession` does the same
-  for order metadata. Until those readers move to the aggregate, the aggregate
-  path must preserve `assembleCheckoutMetadata`: write logical metadata to the
-  Stripe Checkout Session and the Square Order (using Square's packed `b`
-  representation where required). Keep the Stripe session ID and Square order ID
-  as session identities, and store the payment identity and idempotency key
-  once. Define retryable repair behavior for any missing metadata before
-  reporting checkout success. Move the readers in this PR, or keep the old
-  checkout/session metadata projection until the readers move — paid
-  callbacks/returns cannot validate or complete without that metadata.
-- SumUp compatibility projection: until `resolveWebhookSession` and
-  `retrieveSession` move to the aggregate (in this PR or PR 7, whichever moves
-  them first), every new aggregate SumUp checkout must also populate
-  `sumup_checkouts` with the encrypted booking `metadata`, the aggregate-created
-  `checkout_reference`, and the SumUp checkout ID — the exact fields
-  `resolveWebhookSession` and `retrieveSession` decrypt and pass to booking
-  validation. The projection must not call SumUp or create another payment
-  identity or idempotency key. If the aggregate write succeeds and the
-  `sumup_checkouts` projection fails, record durable repair work and keep the
-  aggregate claim retryable before reporting checkout success. Remove the
-  projection and the old SumUp checkout writer in the same PR that moves those
-  readers to the aggregate.
+Prerequisite (own small PR, any time before this): the restore-deploy guard —
+`.github/workflows/restore-deploy.yml` refuses to deploy a commit that predates
+the aggregate migration onto a forward-migrated database, documented in the
+operator restore guide beside the backup's recorded commit.
 
-Current-system value: no live checkout can lose its local intent or create a
-second provider checkout after an interrupted request.
+- Creation: save immutable expected money and booking intent before every
+  provider call; claim creation; one payment identity and idempotency key; adopt
+  the original provider resource after an uncertain response; return the same
+  buyer URL on replay; release or schedule every failed claim. All three
+  providers at once. SumUp keeps its local payment, checkout, and transaction
+  IDs distinct and uses stored currency. Store the provider on each charge so
+  multi-provider history stays refundable.
+- Reads: every provider read goes behind one strict observation contract
+  covering missing, invalid, unavailable, pending, paid, free, and failed.
+  Square payment IDs are named by the order, not scanned from a short list.
+  Validate each resource's account, currency, amount, and parent; an account
+  lookup failure releases its claim.
+- One claimed reconciliation function serves signed callbacks, buyer returns,
+  manual refresh, case refresh, and scheduled retries: it reads, resolves via
+  `outcomeOf`, and persists once — evidence, charges, state, due time, revision,
+  and case changes in a single transaction. Store every charge identity once and
+  reject cross-payment reuse. Multiple captures open an M5 case.
+- The aggregate readers replace `resolveWebhookSession`/`retrieveSession` and
+  feed the existing completion contract
+  (`src/shared/payment/validated-session.ts`), so the legacy completion, refund,
+  finalize, and maintenance writers keep working unchanged — and keep writing
+  their own rows — until M7 and M8. No write fence lands here.
+- Adopt or expire every in-flight pre-cutover checkout (all three providers)
+  atomically and idempotently: same claim, identity, and validation rules;
+  concurrent callbacks and migration runs bind to one claim; defined outcomes
+  for paid, pending, expired, and unavailable sessions. No paid checkout is
+  stranded without an aggregate row.
+- Keep uncopied old-table rows visible through the bounded read-through for
+  panels, exports, statistics, and refund targets; delete only the displaced
+  production readers.
 
-#### PR 7: Make aggregate payment reads authoritative
+Standalone value: no live checkout can lose its intent or create a second
+provider checkout after an interrupted request, and every route, worker, page,
+and export gets the same authoritative answer for the same payment.
 
-Budget: 1,700-2,400 changed lines.
+#### M7: Aggregate refunds become authoritative (was PR 8)
 
-- Move all provider reads behind one strict observation contract. Cover missing,
-  invalid, unavailable, pending, paid, free, and failed results. Before the
-  cutover, drain or expire in-flight hosted checkouts (Stripe/Square sessions
-  opened before the cutover that may still be paid afterward) — a checkout
-  opened before PR 7 has only provider metadata and no aggregate payment row, so
-  explicitly adopt its signed metadata into a canonical aggregate record before
-  cutting readers over, or expire/deny those sessions so no paid checkout is
-  stranded without an aggregate row. Extend this adoption to pre-cutover SumUp
-  checkouts too — PR 6 moves SumUp checkout creation and keeps `sumup_checkouts`
-  as a compatibility source, so define adoption or explicit expiry for pre-
-  cutover SumUp checkouts with the same claim, identity, observation, and
-  outcome rules. Adoption must be atomic and idempotent: apply the
-  provider-qualified identity and atomic upsert rules, bind concurrent callbacks
-  and migration runs to the same claim, require current provider scope, state,
-  amount, and intent checks before creating authoritative records, and define
-  outcomes for paid, pending, expired, and unavailable sessions.
-- Retrieve Square payment IDs named by the order instead of scanning a short
-  list. Validate every resource's account, currency, amount, and parent.
-- Route signed callbacks, buyer returns, manual refresh, owner-case refresh, and
-  scheduled retries through one claimed reconciliation function that reads,
-  resolves, and persists once.
-- Store every charge identity once, reject cross-payment reuse, and open a case
-  for multiple captures. Persist evidence, charges, state, due time, revision,
-  and case changes in one transaction. Because aggregate payment records and
-  cases become live here, prevent `applyAttendeeMerge` and `deleteAttendee` from
-  deleting an attendee with an open aggregate payment case or completion work
-  until PR 9 ships the merge repoint, or fence the attendee-deletion step in
-  both merge and delete so those open records are repointed or settled before
-  deletion.
-- Cut live writers and readers over to the aggregate, but keep old payment
-  tables readable as historical source until PR 14 has copied each row. Delete
-  only the displaced production readers; keep migration readers reachable so
-  payments not yet copied remain visible on panels, exports, and statistics and
-  refund targets can still be derived from old records.
-- After the last live writer moves, install the migration write fence that
-  forbids new production writes to old payment tables. The fence must not block
-  the refund-completion write path (`processed_payments.provider_refunded_at`
-  via `markPaymentReferencesProviderRefunded`), so schedule it only after the PR
-  8 refund cutover, or scope it in this PR to exclude refund-completion columns.
-  The fence must also not block booking-finalize writes until PR 9 replaces the
-  completion cutover: `processPaymentSession` reserves and records failures in
-  `processed_payments`, and `create-batch.ts` finalizes successful bookings
-  through `batchFinalizeStatements`. Scope the fence to exclude those write
-  paths, or defer installing it until PR 9 ships the completion cutover — a paid
-  provider result must not fail to reserve or finalize the local booking. The
-  fence must also not block `clearSessionTokens` (updates
-  `processed_payments.ticket_tokens` after a successful paid return) until the
-  PR 9 completion cutover — a non-custom-thank-you return must not fail on the
-  token-clear after creating/finalizing the booking. The fence must also not
-  block self-service balance finalization (`balanceFinalizeStatements` inside
-  `settleBalanceSession` updates `processed_payments`) until the PR 9 completion
-  cutover covers balance payments — a paid `/pay/:token` return must not settle
-  the ledger and then fail to stamp the old idempotency row, leaving retries
-  without the durable completion marker. The fence must also not block
-  `releaseReservation` (`processPaymentSession` calls it to delete an unresolved
-  `processed_payments` row when an automatic refund fails so the next provider
-  redelivery can retry immediately) until the PR 9 completion cutover — a paid
-  but unbooked checkout must not be stuck behind the stale reservation until the
-  timeout. The `releaseReservation` exemption must remain lossless: require a
-  verified canonical record before deleting the `processed_payments` row, or
-  replace deletion with a durable release marker until PR 14 copies and verifies
-  it — the row can contain payment and refund state needed for migration. Before
-  installing the fence, also exempt or move the maintenance write paths that
-  still touch old tables: `applyAttendeeMerge` (inserts/updates
-  `processed_payments`), `deleteAttendee` (deletes `processed_payments`), and
-  the prune task (deletes old `processed_payments`/`sumup_checkouts`). Either
-  move these maintenance cutovers before the fence, or keep a bounded
-  write-through so merge, delete, and prune succeed for attendees with uncopied
-  payment rows. Deletion paths (`deleteAttendee`, prune) must verify that each
-  payment row — in `processed_payments`, `sumup_checkouts`, and
-  `checkout_stages` — has been copied to the canonical aggregate before deleting
-  it, or defer the deletion until PR 14 has copied it — never delete an uncopied
-  row. Also move or exempt `deleteAllStaleReservations` (run on every listing
-  overview load, deletes unresolved `processed_payments` rows) before installing
-  the fence; if it is still running when the fence is active, listing overview
-  pages fail, and if it is still running during PR 14's cursor copy, old rows
-  can disappear despite the "old tables have remained unchanged" precondition.
-  Verify that fence atomically within the same transaction that commits the
-  aggregate write: use a shared transaction, advisory lock, or migration epoch
-  token that makes the fence check and the write commit atomic so a separate
-  check cannot race with a legacy write. Fail the write (reject and retry) if
-  the fence is absent or the epoch token changes during the transaction.
-
-Current-system value: every live route, worker, page, and export gets the same
-authoritative answer for the same payment.
-
-#### PR 8: Make aggregate refunds authoritative
-
-Budget: 1,500-2,200 changed lines.
+Src target: 700–1,000 (may use the cutover exception if the adapter pushes it
+over).
 
 - Move Stripe, Square, and SumUp refund request/read behavior together.
-- Put individual, bulk, balance, automatic, and case-decision refunds through
-  one one-or-many engine. A migrated-payment refund path is added in PR 14, when
-  migrated aggregate payments first exist, so this engine has a live caller in
-  the same PR.
-- Persist provider refund identity before local completion. Queue and schedule
-  repair when provider success is followed by a local failure.
-- Keep refunds available while new sales are disabled, and make callback and
-  admin replay idempotent.
-- Delete every replaced refund path and prove no production caller uses it,
-  except the legacy-table refund adapter for uncopied `processed_payments` rows
-  and attendee-only legacy references. `payment-references.ts` also emits an
-  attendee's legacy `payment_id` even when no `processed_payments` row carries
-  that charge — those older bookings stay visible as refund targets but have no
-  PR 8 route after the old refund path is deleted. Extend the
-  adapter/read-through to attendee-only references, or move their copy/refund
-  cutover into PR 8. Define deterministic sources for the provider, provider
-  account, captured amount, currency, and completion state before passing an
-  attendee-only reference to the PR 8 engine: `payment-references.ts` returns
-  only `{ reference, refundState: "unknown", sessionIds: [] }` when an attendee
-  has no `processed_payments` row. If any fact is unavailable, fail closed and
-  create an owner-review case — the duplicate-reference fail-closed rule does
-  not cover missing payment facts. Until PR 14 copies those rows, admin refund
-  targets may still resolve to old tables via
-  `src/shared/db/payment-references.ts`; route those refunds through the new
-  engine with a thin legacy adapter so the old write path is not the production
-  path. The adapter must atomically update the old row's completion marker
-  (`provider_refunded_at`) within the same refund transaction, or teach the
-  `payment-references.ts` read-through to consult the new refund record before
-  deciding refundability — so a completed refund does not resurface as
-  refundable on uncopied rows. The legacy adapter must fail-closed on duplicate
-  provider references spanning multiple attendees: `payment-references.ts`
-  currently groups references per attendee rather than enforcing global
-  uniqueness, so if the same provider reference exists on two attendees, the
-  adapter must open an owner-review case instead of passing both into the bulk
-  refund engine — an ambiguous old charge must not be refunded twice. Remove the
-  adapter when PR 14 canonicalizes the last copied row.
+  Individual, bulk, balance, automatic, and case-decision refunds run through
+  one one-or-many engine. The migrated-payment caller arrives in M11, when
+  migrated payments first exist.
+- Persist provider refund identity before local completion; queue and schedule
+  repair when provider success is followed by a local failure; keep callback and
+  admin replay idempotent; keep refunds available while new sales are disabled.
+- The M5 case actions that move money land here: refund remaining money, and
+  confirm an existing full refund. Re-read the provider, require the current
+  revision and evidence, and complete both payment state and Money before
+  closing the decision.
+- Legacy adapter (the one sanctioned staged-migration adapter; removed in M11):
+  uncopied `processed_payments` rows and attendee-only legacy references
+  resolved by `src/shared/db/payment-references.ts` route through the new
+  engine. The adapter updates the old row's `provider_refunded_at` atomically
+  inside the refund transaction — or the read-through consults the new refund
+  record — so a completed refund never resurfaces as refundable. It fails closed
+  into an owner case when the same provider reference spans multiple attendees,
+  and when an attendee-only reference lacks a deterministic provider, account,
+  captured amount, currency, or completion state.
+- Delete every replaced refund path and prove no production caller remains.
 
-Current-system value: every refund has the same retry, evidence, and Money
+Standalone value: every refund has the same retry, evidence, and Money
 guarantees and cannot move money twice.
 
-### Phase 2: make each completion effect durable when introduced
+#### M8: Durable paid completion, including its failure path (was PRs 9+10)
 
-Every durable effect below includes its bounded due-work query and scheduled
-runner in the same PR. Request paths may try work immediately, but they are not
-the only recovery mechanism.
-
-#### PR 9: Resume paid booking completion
-
-Budget: 1,500-2,200 changed lines.
+Src target: 1,000–1,500 — cutover exception; the success and failure paths are
+one machine and merge together.
 
 - Persist the exact capacity, attendee, answer, modifier, package, balance, and
   Money effects before running them; snapshot paid facts so listing edits cannot
-  change delivery.
-- Complete each effect idempotently, schedule unfinished work, and prevent one
-  permanent failure from starving later payments.
-- Fence listing deletion and repoint affected payment work during attendee
-  merges in this same cutover.
+  change delivery. Complete each effect idempotently, schedule unfinished work,
+  and stop one permanent failure from starving later payments.
+- When completion cannot be honoured, persist the chosen refund path and record
+  the provider refund and local Money completion as separate durable effects
+  driven by the M7 engine, with explicit provider, database, and total
+  subrequest budgets.
+- The M5 complete-a-proven-booking case action lands here.
+- Fence listing deletion against pending payment work; repoint payment work and
+  open cases during attendee merges. Move the maintenance writers off the old
+  tables: `applyAttendeeMerge`, `deleteAttendee`, and the prune task verify a
+  row is copied (or defer to M11) before deleting it, and
+  `deleteAllStaleReservations` is gated so it can never delete an uncopied
+  legacy row.
+- Install the legacy write fence, now that the last routine legacy writer has
+  moved, with exactly one exemption until M11: the M7 adapter's
+  refund-completion marker. Verify the fence atomically inside the committing
+  transaction (shared transaction, advisory lock, or epoch token); fail and
+  retry the write if the epoch moves.
 
-Current-system value: interrupted paid bookings resume without charging,
-booking, or recording Money twice and cannot be orphaned by an admin action.
+Standalone value: interrupted paid bookings resume without charging, booking, or
+recording Money twice; a provider refund that outruns a local failure repairs
+itself; and no admin action can orphan payment work.
 
-#### PR 10: Resume automatic refund completion
+### Stack C — remaining durable effects (M9–M10)
 
-Budget: 1,300-1,900 changed lines.
+Both are new effect kinds on M8's machinery — bounded due-work query and
+scheduled runner included, request paths as first attempt only. Fold either into
+Stack B if it stays small.
 
-- Persist the refund path used when paid booking completion cannot be honoured.
-- Record provider refund and local Money completion as separate durable effects
-  handled by the refund engine from PR 8.
-- Schedule unfinished provider and Money work with explicit provider, database,
-  and total subrequest budgets.
+#### M9: Durable messages and outgoing webhooks (was PR 11)
 
-Current-system value: a provider refund that succeeds before a local failure is
-repaired without waiting for a buyer or owner request.
+Src target: 300–600. Store prepared message and webhook bodies plus buyer facts
+before delivery; resolve the owner recipient from the current business address
+at send time; attempt and schedule each delivery independently; mark permanent
+failures without blocking later work.
 
-#### PR 11: Resume messages and outgoing webhooks
+#### M10: Durable site assignment and renewal (was PR 12)
 
-Budget: 1,300-1,900 changed lines.
+Src target: 300–600. Persist site assignment and renewal effects before remote
+work; serialize concurrent paid renewals; keep remote calls outside
+transactions; repoint queued site work during attendee merges.
 
-- Store prepared message and webhook bodies plus buyer facts before delivery.
-- Resolve the owner recipient from the current business address at send time.
-- Attempt and schedule each delivery independently; mark permanent failures
-  without blocking later work.
+### Stack D — history and retirement (M11–M13)
 
-Current-system value: delayed messages use the right owner address and recover
-without one failed destination blocking the queue.
+#### M11: Verify, then copy all payment history forward (was PRs 13+14)
 
-#### PR 12: Resume paid site assignment and renewal
+Src target: verifier 400–600; copy 800–1,200 (cutover exception). The verifier
+is read-only and parallelizable — #2056 already started it; the copy releases
+only after M8 is authoritative fleet-wide.
 
-Budget: 1,400-2,000 changed lines.
+- Verifier: read `processed_payments`, `checkout_stages`, `sumup_checkouts`,
+  attendee PII, and merge references into one lossless model without writing
+  cases. Group one provider payment before pagination; convert old timestamps;
+  report contradictions through operator diagnostics and backup verification.
+  Attendee PII is owner-key-encrypted: the run sits behind an
+  owner-authenticated step that supplies the request private key, with owner
+  authorization, access auditing, key provenance, and a restore procedure
+  defined; if the key is unavailable, block the migration and preserve the
+  source rows — never silently skip charges. Back up databases before migrating.
+  Restore an old schema only into the current application, where this same
+  forward migration consumes it.
+- Copy precondition: old tables unchanged since M8's fence except the adapter's
+  versioned refund-completion writes, which the cursor detects and replays
+  before marking a row verified. Fence and drain `applyAttendeeMerge`,
+  `deleteAttendee`, the prune task, and `deleteAllStaleReservations` for the
+  duration of the copy, or version and reconcile mid-copy changes.
+- Copy every source by stable cursor in bounded, verified pages. Never split one
+  provider payment across pages; never mistake an empty joined page for the end;
+  deleted booking rows do not block; ticket-use state is not resurrected;
+  attendee-only references are copied, not skipped. Preserve unknown or
+  contradictory facts without inventing values — create a complete M5 case and
+  continue. Require owner evidence for ambiguous account assignment.
+- Each copied payment is immediately served by the current readers, result
+  recovery, cases, and refunds; migrated charges join attendee refund targets
+  through the M7 engine in this same release. Record verified progress and
+  release leases within the call budget; interruption resumes from the same
+  cursor.
+- Retire the M7 adapter only after every row is verified and a final
+  reconciliation pass has caught any refund that completed between verification
+  and drain.
 
-- Persist site assignment and renewal effects before remote work.
-- Serialize concurrent paid renewals, keep remote calls outside transactions,
-  and schedule unfinished work within the subrequest budget.
-- Repoint queued site work during attendee merges in this same cutover.
+Standalone value: operators can prove a live database or old backup is safe to
+migrate, and all history becomes usable by the one current engine without
+stopping on malformed rows.
 
-Current-system value: paid site delivery and renewal recover safely after an
-interruption, concurrent payment, or attendee merge.
+#### M12: Redact terminal payment secrets (was PR 15)
 
-### Phase 3: migrate history forward after the write cutover
+Src target: 400–700. Redact intent, evidence, ticket tokens, and completion
+payloads only after all work that needs them is terminal; cover completed
+balances, fully refunded payments, and delivered tickets; page cleanup so one
+bad record cannot block later eligible rows.
 
-Old tables are read-only migration input in this phase. Until PR 14 has verified
-every row is copied, production panels, exports, statistics, and refund-target
-readers may still read uncopied old-table rows through the bounded migration
-read-through established in PR 7; once a row is canonicalized, only the current
-payment engine may read it. After PR 14 verifies a full copy, no production
-payment route, page, refund, reconciliation, or completion path may read the old
-tables.
+Standalone value: deployed sites keep accounting history while shedding buyer
+secrets and ticket credentials they no longer need.
 
-#### PR 13: Verify migration and old-backup readiness
+#### M13: Retire old payment storage (was PR 16)
 
-Budget: 1,200-1,800 changed lines.
+Src target: 600–1,000, mostly deletions. Release only after every fleet database
+reports all source rows copied and verified and no production caller outside
+migration reads an old table.
 
-- Read `processed_payments`, `checkout_stages`, `sumup_checkouts`, attendee PII,
-  and merge references into one lossless migration model without writing cases.
-  Attendee PII (including attendee-only legacy payment references) is
-  owner-key-encrypted; the migration must run behind an owner-authenticated step
-  that supplies the request private key, or find another decryptable source.
-  Every decryptable source must meet the same controls: owner authorization,
-  access auditing, key provenance, and restore procedure. If no controlled
-  source exists, block the migration and preserve all source rows — do not
-  silently skip charges. Define the owner, storage, retrieval path, audit trail,
-  and restore procedure for that private key before PR 14 depends on this data.
-  If the private key is unavailable, block the migration and preserve the source
-  rows — do not silently skip charges.
-- Group one provider payment before pagination, convert old timestamps, and
-  report contradictions through operator diagnostics or backup verification.
-- Back up databases before migration. Restore an old schema only into the
-  current application, where the same forward migration consumes it.
-- Never deploy old code, recreate an old runtime, or interpret a payment using
-  old behavior.
+- Drop the old tables and delete the migration reader, progress gates, old
+  codecs, stale TODO entries, temporary exemptions, and dead exports together —
+  except a restore-only reader and codec path (or a restore-time conversion
+  step, documented in the operator restore guide) so a pre-aggregate backup
+  still migrates forward.
+- The table-drop migration must not be an unconditional `DROP TABLE` in
+  `initDb`: a restore of an old backup would drop `processed_payments`,
+  `checkout_stages`, and `sumup_checkouts` before the retained reader has
+  anything to read. Make the drop conditional on verified copy progress, or
+  convert at restore time before schema migrations run.
+- Run full coverage, the quality audit, Cucumber specs, exhaustive targeted
+  mutation, and the final branch mutation gate. Update operator and database
+  documentation.
 
-Current-system value: operators can prove a live database or old backup is safe
-to migrate before changing payment history.
+Standalone value: one smaller payment implementation, faster cold starts, and no
+ambiguity about which path is authoritative.
 
-#### PR 14: Copy all old payment sources into current records
+## Fault ledger
 
-Budget: 1,700-2,500 changed lines.
+Every row is a mandatory input to its owning milestone: close it with a
+mechanism and a regression test, or — if implementation proves the finding wrong
+— with a short proof in the PR. Never silently drop one.
 
-- Begin only in a later fleet-wide release after aggregate writes are
-  authoritative and old tables have no changes other than defined, versioned
-  refund-completion writes from the PR 8 legacy adapter. The "unchanged" gate
-  permits only those defined refund writes; the cursor must detect and replay
-  them before marking a row verified, so the aggregate does not contain stale
-  refund state. Before the first cursor page, fence and drain every PR 13
-  source: `applyAttendeeMerge`, `deleteAttendee`, the prune task, and
-  `deleteAllStaleReservations` from modifying `processed_payments`,
-  `sumup_checkouts`, `checkout_stages`, attendee PII, or merge references during
-  the copy, or version/reconcile any old-row changes that arrive mid-copy so the
-  aggregate is not left stale. Include `checkout_stages` because
-  `applyAttendeeMerge` and `deleteAttendee` delete from it — an admin
-  merge/delete during the copy can remove or change a source row after it was
-  copied or before it is reached. Include `deleteAllStaleReservations` because
-  it runs on every listing overview load and deletes unresolved
-  `processed_payments` rows — if it runs mid-copy, old rows disappear despite
-  the unchanged precondition. Do not stop the legacy refund adapter (PR 8) until
-  every uncopied row is canonicalized and verified; either keep the adapter
-  running with version/reconciliation handling for rows still being copied, or
-  durably enqueue in-flight refund requests and replay them after
-  canonicalization. Define the drain boundary for in-flight refunds before the
-  first cursor page. After every row is verified and the adapter is drained, run
-  a final version check or reconciliation pass to catch any refund that
-  completed after verification but before drain. Retire the adapter only after
-  that final pass completes — otherwise a late refund leaves the aggregate
-  stale.
-- Copy every old source by stable cursor in bounded, verified pages. Never split
-  one provider payment across pages or mistake an empty joined page for the end.
-- Preserve unknown or contradictory facts without inventing values. Create a
-  complete owner-review case using the PR 5 workflow and continue later rows.
-- Expose each copied payment immediately through the existing current reader,
-  result recovery, case, and refund paths. Include migrated charges in attendee
-  refund targets and wire the migrated-payment refund path through the PR 8
-  engine in this PR, so the engine gains its migrated caller when the first
-  migrated payments exist. Require owner evidence for ambiguous account
-  assignment.
-- Record verified progress and release leases within the call budget. Make the
-  operation idempotent so interruption resumes from the same source cursor.
+| #   | Finding                                                                                | Owner           |
+| --- | -------------------------------------------------------------------------------------- | --------------- |
+| F1  | Disabling new payments also disabled existing-payment refunds                          | Closed by #2020 |
+| F2  | Unknown unsigned SumUp callbacks triggering outbound reads                             | M3              |
+| F3  | Pending and completed refunds together exceeding captured money                        | M4, M7          |
+| F4  | One failed decision blocking all reconciliation                                        | M5, M6          |
+| F5  | Permanent provider or delivery errors retrying forever or blocking a queue             | M5, M6, M9      |
+| F6  | Attendee merge or delete removing records with an open case or unfinished work         | M5, M8          |
+| F7  | Restore-deploy workflow allowing incompatible code onto a migrated database            | Before M6       |
+| F8  | Cross-payment duplicate provider charges                                               | M6              |
+| F9  | Account lookup failure retaining a claim                                               | M6              |
+| F10 | SumUp return IDs interpreted differently by different routes                           | M6              |
+| F11 | Square fallback reads scanning too short a list                                        | M6              |
+| F12 | Delayed work using live currency rather than stored currency                           | M6              |
+| F13 | Charges without a stored provider unrefundable after a provider switch (#2020 gap)     | M6              |
+| F14 | In-flight pre-cutover checkouts paid after the cutover, stranded without a row         | M6              |
+| F15 | Old rows changing after the aggregate write cutover                                    | M6, M8, M11     |
+| F16 | Old payment-reference readers surviving after migration                                | M6, M13         |
+| F17 | Owner refund decisions closing a case without closing Money                            | M7              |
+| F18 | Completed provider refunds missing from Money                                          | M7, M8          |
+| F19 | Bulk provider success followed by local failure having no repair path                  | M7, M8          |
+| F20 | Refund-all conflicting forever with unfinished completion                              | M7, M8          |
+| F21 | The same provider reference on two attendees refunded twice through bulk refunds       | M7              |
+| F22 | An adapter-completed refund resurfacing as refundable on an uncopied row               | M7              |
+| F23 | Attendee-only payment references skipped, or refunded without verified facts           | M7, M11         |
+| F24 | Delayed completion rebuilding facts from edited live data                              | M8              |
+| F25 | Listing attachments deleted before a payment fence succeeds                            | M8              |
+| F26 | `deleteAllStaleReservations` deleting uncopied legacy rows under the fence or mid-copy | M8, M11         |
+| F27 | Concurrent renewals racing                                                             | M10             |
+| F28 | Queued site work retaining a deleted attendee ID after merge                           | M10             |
+| F29 | SumUp identities split across migration pages                                          | M11             |
+| F30 | A merged migration page mistaken for end-of-input                                      | M11             |
+| F31 | Deleted booking rows blocking migration forever                                        | M11             |
+| F32 | Ticket-use state resurrected during migration                                          | M11             |
+| F33 | Migrated charges omitted from refund targets                                           | M11             |
+| F34 | Late refund-completion writes landing after a row was copied and verified              | M11             |
+| F35 | Migration silently skipping charges whose PII key or source is unavailable             | M11             |
+| F36 | Terminal buyer details, completion data, or ticket tokens never redacting              | M12             |
+| F37 | An unconditional table drop destroying a restored old backup before it migrates        | M13             |
 
-Current-system value: all historical payments become usable by the one current
-payment engine without stopping on malformed history.
+## Done means
 
-### Phase 4: retention and removal
-
-#### PR 15: Redact terminal payment secrets
-
-Budget: 1,200-1,800 changed lines.
-
-- Redact intent, evidence, ticket tokens, and completion payloads only after all
-  work that needs them is terminal.
-- Cover completed balances, fully refunded payments, and delivered tickets.
-- Page cleanup so one bad record cannot block later eligible rows.
-
-Current-system value: deployed sites retain accounting history while removing
-buyer secrets and ticket credentials they no longer need.
-
-#### PR 16: Retire old payment storage
-
-Budget: 1,000-1,600 changed lines, mostly deletions.
-
-- Release only after every fleet database reports all source rows copied and
-  verified, and no production caller outside migration reads an old table.
-- Drop old tables and delete the migration reader, progress gates, old codecs,
-  stale TODO entries, temporary exemptions, and dead exports together.
-  Exception: retain a restore-only migration reader and old codecs path so an
-  operator restoring a pre-aggregate backup (required by PR 13's restore
-  contract) can still interpret old payment tables and migrate forward. If
-  retaining that path is infeasible, add a restore-time conversion step that
-  transforms old backups before the current application loads them, documented
-  in the operator restore guide. The table-drop migration must not be a
-  destructive `DROP TABLE` that runs unconditionally in `initDb` — because
-  `initDb` runs pending migrations on first request, a restore of an old backup
-  would drop `processed_payments`, `checkout_stages`, and `sumup_checkouts`
-  before the retained reader/codecs have anything to read. Make the drop
-  conditional on verified copied progress, or run a restore-time conversion step
-  before schema migrations can drop those tables.
-- Run full coverage, quality audit, Cucumber specs, exhaustive targeted
-  mutations, and the final branch mutation gate.
-- Update operator and database documentation.
-
-Current-system value: the deployed app has one smaller payment implementation,
-faster cold starts, and no ambiguity about which path is authoritative.
-
-## Known faults that must be assigned, not lost
-
-These findings from the branches are mandatory inputs to the assigned PRs:
-
-| Finding                                                                     | Owning PR |
-| --------------------------------------------------------------------------- | --------- |
-| SumUp identities split across migration pages                               | 14        |
-| A merged migration page mistaken for end-of-input                           | 14        |
-| Old rows changing after the aggregate write cutover                         | 7, 14     |
-| Deleted booking rows blocking migration forever                             | 14        |
-| Attendee-only payment references skipped after an empty aggregate exists    | 14        |
-| Ticket-use state resurrected during migration                               | 14        |
-| Cross-payment duplicate provider charges                                    | 7         |
-| Pending and completed refunds together exceeding captured money             | 4, 8      |
-| Completed provider refunds missing from Money                               | 8, 10     |
-| Owner refund decisions closing a case without closing Money                 | 5, 8      |
-| Bulk provider success followed by local failure having no repair path       | 8, 10     |
-| Refund-all conflicting forever with unfinished completion                   | 8, 10     |
-| One failed decision blocking all reconciliation                             | 5, 7      |
-| Account lookup failure retaining a claim                                    | 7         |
-| Migrated charges omitted from refund targets                                | 14        |
-| Disabling new payments also disabling existing-payment refunds              | 1         |
-| Concurrent renewals racing                                                  | 12        |
-| Delayed completion rebuilding facts from edited live data                   | 9         |
-| SumUp return IDs interpreted differently by different routes                | 6, 7      |
-| Unknown unsigned SumUp callbacks triggering outbound reads                  | 3         |
-| Square fallback reads scanning too short a list                             | 7         |
-| Delayed work using live currency rather than stored currency                | 6         |
-| Permanent provider or delivery errors retrying forever or blocking a queue  | 5, 7, 11  |
-| Queued site work retaining a deleted attendee ID after merge                | 12        |
-| Listing attachments deleted before a payment fence succeeds                 | 9         |
-| Old payment-reference readers surviving after migration                     | 7, 16     |
-| Restore-deploy workflow allowing incompatible code onto a migrated database | 1, 7      |
-| Terminal buyer details, completion data, or ticket tokens never redacting   | 15        |
-
-If implementation reveals that one of these findings is incorrect, close it with
-a short proof in the relevant PR. Do not silently omit it.
-
-## Review strategy
-
-Each PR description should contain at least these review aids (the full required
-field list is in step 2 and step 6 of `PR_WORKFLOW.md`):
-
-- behavior added or replaced;
-- source branch and paths used as reference;
-- old path deleted, or the named fleet migration whose inert source table still
-  requires it;
-- changed-line count;
-- database and provider call count where relevant;
-- tests and mutation commands run;
-- which known faults the PR closes;
-- its immediate current-system value and exact production caller.
-
-Within each vertical PR, review pure schemas, transactions, provider parsing,
-and orchestration as distinct commits where that helps. Do not turn those code
-layers into independently merged dormant foundations. Migration reads remain a
-separate boundary because they consume an inert stored format, not because they
-provide a second payment runtime.
-
-## Definition of done
-
-- Every behavior requirement is merged in dependency order through completed
-  stacks of three to seven PRs.
-- Every PR changes fewer than 800 lines under `src/`.
-- One production payment path remains.
-- All three providers use one canonical read/refund contract.
-- Every provider action and local ledger action is independently durable and
-  resumable.
-- Genuine ambiguity requires an explicit owner choice.
-- Old backups migrate forward into the current version; old code is never
-  redeployed and mixed application versions are never supported. The
-  restore-deploy workflow refuses to deploy pre-aggregate code onto a
-  forward-migrated database.
-- Payment secrets and buyer details redact after all required work is terminal.
-- `nix develop -c deno task precommit` passes.
-- Full coverage is 100% and deterministic.
-- Changed-source mutation score is 100%.
-- Cucumber payment stories pass.
-- No payment review finding or question remains open.
+- Every milestone is merged in dependency order through stacks of three to seven
+  PRs, each merge standing alone under the delivery rules.
+- One production payment path remains; all three providers share one canonical
+  create/read/refund contract; every provider action and local Money action is
+  independently durable and resumable; genuine ambiguity requires an explicit
+  owner choice.
+- Old backups migrate forward into the current version; the restore-deploy guard
+  refuses pre-aggregate code on a forward-migrated database; old code is never
+  redeployed and mixed application versions are never supported.
+- Payment secrets and buyer details redact once all required work is terminal.
+- `nix develop -c deno task precommit` passes; coverage is 100% and
+  deterministic; changed-source mutation score is 100%; Cucumber payment stories
+  pass; every fault-ledger row and open question is closed.
