@@ -51,8 +51,9 @@ consistently wrong and governed nothing.
 2. **One production path per behavior.** Migrate every caller and delete the
    displaced implementation in the same PR. No aliases or compatibility wrappers
    between the branches' names. The only sanctioned bridge is a named
-   staged-migration adapter with a recorded removal milestone (currently one:
-   the M7 legacy-refund adapter, removed in M11).
+   staged-migration adapter with a recorded removal milestone (currently two,
+   both removed in M11: the M6 legacy read-through and the M7 legacy-refund
+   adapter).
 3. **Size.** Keep each PR under 800 changed `src/` lines (insertions plus
    deletions, recounted after formatting). One exception: an atomic cutover that
    would otherwise need a throwaway compatibility layer may exceed the cap — a
@@ -61,10 +62,11 @@ consistently wrong and governed nothing.
    count against the cap; never weaken them to shrink a diff.
 4. **Gates.** `nix develop -c deno task precommit` passes before review. Run
    targeted mutation on the payment modules the PR changed and list the runs in
-   the description. The branch-level `deno task precommit:mutation` gate runs
-   before merge as AGENTS.md requires; if the owner explicitly waives the full
-   run for a large PR, the description records the waiver and the targeted runs
-   that stand in for it.
+   the description. The branch-level
+   `nix develop -c deno task precommit:mutation` gate runs before merge as
+   AGENTS.md requires; if the owner explicitly waives the full run for a large
+   PR, the description records the waiver and the targeted runs that stand in
+   for it.
 5. **Every bug fix ships a regression test** reproducing the bug.
 6. **Deployments are forward-only and fleet-wide**, on the `release` tier only.
    No old-version support, no code rollback, no mixed-version reads or writes.
@@ -193,8 +195,9 @@ Src target: 400–700.
   currencies, wrong parents, over-refunds, and money on a free checkout.
 - Conflicts that need an owner decision (multiple captures and kin): detect,
   record, and alert through the existing error classes, but keep today's
-  behavior. Their workflow arrives in M5 and their page actions with M7/M8.
-  Build no owner tooling on the legacy engines.
+  behavior — never stop or strand automatic work that no owner can yet act on.
+  The case workflow arrives one merge later (M5) and the page actions with
+  M7/M8. Build no owner tooling on the legacy engines.
 
 Standalone value: the live system stops repeat refunds and detects captured
 money combinations it currently misses, with one classifier where there were
@@ -229,8 +232,9 @@ alerted, buyer-safe, and resolvable through live tools.
 ### Stack B — the aggregate cutover (M6–M8)
 
 This stack ends with every dormant aggregate table holding its production role
-or dropped. Old payment tables stay readable through a bounded read-through
-until M11 copies them; they are historical input, never a second runtime.
+or dropped. Old payment tables stay readable through the legacy read-through
+adapter until M11 copies them; they are historical input, never a second
+runtime.
 
 #### M6: Aggregate checkout creation and reads become authoritative (was PRs 6+7)
 
@@ -260,8 +264,11 @@ operator restore guide beside the backup's recorded commit.
   `outcomeOf`, and persists once — evidence, charges, state, due time, revision,
   and case changes in a single transaction. Store every charge identity once and
   reject cross-payment reuse. Multiple captures open an M5 case.
-- The aggregate readers replace `resolveWebhookSession`/`retrieveSession` and
-  feed the existing completion contract
+- The aggregate readers replace `resolveWebhookSession` and `retrieveSession`
+  for every caller — signed webhook callbacks, buyer return and cancel pages,
+  and paid-session validation — and the displaced methods leave the
+  `PaymentProvider` interface and all three provider implementations in this
+  same cutover. The readers feed the existing completion contract
   (`src/shared/payment/validated-session.ts`), so the legacy completion, refund,
   finalize, and maintenance writers keep working unchanged — and keep writing
   their own rows — until M7 and M8. No write fence lands here.
@@ -270,9 +277,10 @@ operator restore guide beside the backup's recorded commit.
   concurrent callbacks and migration runs bind to one claim; defined outcomes
   for paid, pending, expired, and unavailable sessions. No paid checkout is
   stranded without an aggregate row.
-- Keep uncopied old-table rows visible through the bounded read-through for
-  panels, exports, statistics, and refund targets; delete only the displaced
-  production readers.
+- Keep uncopied old-table rows visible through the legacy read-through — the
+  second sanctioned staged-migration adapter (delivery rule 2), one bounded
+  contract serving panels, exports, statistics, and refund targets, removed in
+  M11 — and delete only the displaced production readers.
 
 Standalone value: no live checkout can lose its intent or create a second
 provider checkout after an interrupted request, and every route, worker, page,
@@ -370,17 +378,23 @@ only after M8 is authoritative fleet-wide.
   cases. Group one provider payment before pagination; convert old timestamps;
   report contradictions through operator diagnostics and backup verification.
   Attendee PII is owner-key-encrypted: the run sits behind an
-  owner-authenticated step that supplies the request private key, with owner
-  authorization, access auditing, key provenance, and a restore procedure
-  defined; if the key is unavailable, block the migration and preserve the
-  source rows — never silently skip charges. Back up databases before migrating.
-  Restore an old schema only into the current application, where this same
-  forward migration consumes it.
+  owner-authenticated step and reaches the key only through the existing
+  request-scoped private-key path (`src/shared/session-private-key.ts`) — never
+  a pasted or persisted key string. Unwrapped key material stays out of
+  migration state, progress records, logs, audits, and backups; decrypted PII
+  lives only in run-bounded caches cleared when the run ends; record key
+  provenance and access audits, not the key. If the key is unavailable, block
+  the migration and preserve the source rows — never silently skip charges. Back
+  up databases before migrating. Restore an old schema only into the current
+  application, where this same forward migration consumes it.
 - Copy precondition: old tables unchanged since M8's fence except the adapter's
-  versioned refund-completion writes, which the cursor detects and replays
-  before marking a row verified. Fence and drain `applyAttendeeMerge`,
-  `deleteAttendee`, the prune task, and `deleteAllStaleReservations` for the
-  duration of the copy, or version and reconcile mid-copy changes.
+  versioned refund-completion writes. The copy-consistency protocol is
+  fence-and-drain: pause `applyAttendeeMerge`, `deleteAttendee`, the prune task,
+  and `deleteAllStaleReservations` for the duration of the copy. The M7 adapter
+  is the only permitted concurrent writer, and the cursor detects and replays
+  its versioned writes before marking a row verified. Lease ownership, renewal,
+  and timeout details are fixed in the M11 behavior contract (`PR_WORKFLOW.md`)
+  before the first cursor page.
 - Copy every source by stable cursor in bounded, verified pages. Never split one
   provider payment across pages; never mistake an empty joined page for the end;
   deleted booking rows do not block; ticket-use state is not resurrected;
@@ -402,10 +416,12 @@ stopping on malformed rows.
 
 #### M12: Redact terminal payment secrets (was PR 15)
 
-Src target: 400–700. Redact intent, evidence, ticket tokens, and completion
-payloads only after all work that needs them is terminal; cover completed
-balances, fully refunded payments, and delivered tickets; page cleanup so one
-bad record cannot block later eligible rows.
+Src target: 400–700. Redact intent, evidence, ticket tokens, completion
+payloads, and the stored delivery records from M9 — prepared message and webhook
+bodies plus their buyer facts — only after all work that needs them is terminal,
+including deliveries that permanently failed; cover completed balances, fully
+refunded payments, and delivered tickets; page cleanup so one bad record cannot
+block later eligible rows.
 
 Standalone value: deployed sites keep accounting history while shedding buyer
 secrets and ticket credentials they no longer need.
