@@ -291,11 +291,10 @@ export const assertPaidBookingConfirmed = async (
 
 /**
  * Cross-check the paid booking in admin: the listing's Overview tab shows the
- * captured income, and its Attendees tab shows the booker — the listing detail
- * page was split into tabs (Overview / Attendees / …), so the roster no longer
- * renders inline on the tab reached by clicking the listing name. Returns the
- * Attendees tab's text so a caller can add stricter checks (e.g. that a
- * replayed callback did not book the same order twice).
+ * captured income, and its Attendees tab shows the booker. The roster renders
+ * only on the Attendees tab, not on the tab reached by clicking the listing
+ * name. Returns the Attendees tab's text so a caller can add stricter checks
+ * (e.g. that a replayed callback did not book the same order twice).
  */
 export const assertBookedInAdmin = async (
   session: BrowserSession,

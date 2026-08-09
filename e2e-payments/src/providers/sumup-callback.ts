@@ -18,9 +18,10 @@ import type { HostedCheckoutContext } from "./types.ts";
  * pre-filter, the live re-fetch from SumUp, the classifier, and the sealed-row
  * open, resolving the already-booked checkout without double-booking it.
  *
- * Forged, oversized, and blank ids must all take the one fixed refusal —
- * identical status, header, and body — so an unsigned forger learns nothing
- * from the answer's shape, and must do so without costing a SumUp read.
+ * Forged, oversized, empty, and missing ids must all take the one fixed
+ * refusal — identical status, header, and body — so an unsigned forger learns
+ * nothing from the answer's shape, and must do so without costing a SumUp
+ * read.
  */
 
 /** The one answer every locally refused callback gets, byte for byte. */
@@ -48,8 +49,9 @@ const REFUSAL_LINES = /\[Webhook\] SumUp callback refused retryably/g;
 const countLogMatches = (logPath: string, pattern: RegExp): number =>
   readFileSync(logPath, "utf8").match(pattern)?.length ?? 0;
 
-/** Deliver a SumUp-shaped callback to the app; `id` omitted sends a blank.
- * Bounded so a wedged tunnel fails the leg promptly instead of hanging it. */
+/** Deliver a SumUp-shaped callback to the app; `id` omitted sends a body
+ * with no id field at all. Bounded so a wedged tunnel fails the leg promptly
+ * instead of hanging it. */
 const postCallback = (baseUrl: string, id?: string): Promise<Response> =>
   fetch(`${baseUrl}/payment/webhook`, {
     body: JSON.stringify({
@@ -148,33 +150,34 @@ export const assertSumupCallbackContract = async (
     await postCallback(ctx.baseUrl, "x".repeat(256)),
     "oversized id",
   );
-  await expectFixedRefusal(await postCallback(ctx.baseUrl), "blank id");
+  await expectFixedRefusal(await postCallback(ctx.baseUrl, ""), "empty id");
+  await expectFixedRefusal(await postCallback(ctx.baseUrl), "missing id");
 
-  // Refusals must be free: three new refusal lines prove the probes took the
+  // Refusals must be free: four new refusal lines prove the probes took the
   // fixed retryable path, and zero new read lines prove none of them made the
   // app reach out to SumUp (the staged-row pre-filter's whole point). The
   // lines travel stdout → pipe → log file after the HTTP answer, so poll for
   // the flush rather than reading back immediately; the probes were answered
-  // one at a time, so once the third refusal is visible, any read line they
+  // one at a time, so once the fourth refusal is visible, any read line they
   // caused is visible too.
   const flushed = await pollUntil(10_000, () => {
     const seen =
       countLogMatches(ctx.serverLogPath, REFUSAL_LINES) - refusalsBefore;
-    return Promise.resolve(seen >= 3 ? seen : null);
+    return Promise.resolve(seen >= 4 ? seen : null);
   });
   const newRefusals =
     flushed ??
     countLogMatches(ctx.serverLogPath, REFUSAL_LINES) - refusalsBefore;
   const newReads =
     countLogMatches(ctx.serverLogPath, CHECKOUT_READ_LINES) - readsBefore;
-  if (newReads !== 0 || newRefusals !== 3) {
+  if (newReads !== 0 || newRefusals !== 4) {
     throw new Error(
-      "SumUp refusal probes: expected 3 new refusal log lines and 0 new " +
+      "SumUp refusal probes: expected 4 new refusal log lines and 0 new " +
         `checkout-read lines, got ${newRefusals} refusal(s) and ` +
         `${newReads} read(s)`,
     );
   }
   log(
-    "  ✔ forged, oversized, and blank ids all took the one fixed refusal without a SumUp read",
+    "  ✔ forged, oversized, empty, and missing ids all took the one fixed refusal without a SumUp read",
   );
 };
