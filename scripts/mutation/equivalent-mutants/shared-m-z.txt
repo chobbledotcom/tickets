@@ -235,8 +235,6 @@ src/shared/stripe/webhook.ts::readHeaderPart.key~0pq15rq  ?: → alternate only 
 src/shared/stripe/webhook.ts::readHeaderPart.key~05rrw2z  1 → 2   # this changes only the no-separator key arm; value-less recognized and unknown keys are all ignored
 
 # SumUp client: values that are never falsy apart from null.
-src/shared/sumup.ts::sumupApi.refundTransaction~0ahuvgt  ?? → ||   # withClient resolves to the callback's `true` or to null on failure, so the only non-null value is truthy and ?? false and || false agree
-src/shared/sumup.ts::sumupApi.testSumupConnection.result%2eapiKey.mode~109o082  ?? → ||   # settings.sumup.keyMode is typed "test" | "live" | null, so it has no falsy non-null value and ?? "unknown" and || "unknown" agree
 
 # rebrand scanner — four provably-equivalent survivors.
 # tagIsCode is read in exactly one place: stepTag's close, reachable only while
