@@ -265,7 +265,6 @@ export const sumupApi: {
 // Wrapper exports for production code (delegate to sumupApi for test mocking)
 export const createCheckout = (i: CheckoutIntent, b: string) =>
   sumupApi.createCheckout(i, b);
-export const readCheckoutById = (id: string) => sumupApi.readCheckoutById(id);
 export const refundTransaction = (id: string) => sumupApi.refundTransaction(id);
 export const getTransactionStatus = (id: string) =>
   sumupApi.getTransactionStatus(id);

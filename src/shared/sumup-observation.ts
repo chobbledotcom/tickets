@@ -97,50 +97,70 @@ const invalidRead = (reason: ProviderInvalidReason): ProviderRead<never> => ({
   status: "invalid",
 });
 
-/** Two wire money fields disagree only when both are present and differ —
- *  an absent side has nothing to disagree with, and unreadable money must
- *  reach the session boundary's refund path rather than refuse the read. */
-const moneyDisagrees = (
-  left: number | string | undefined,
-  right: number | string | undefined,
-): boolean => left !== undefined && right !== undefined && left !== right;
+/** What checking a checkout's charges concluded: a refusal reason, or an
+ *  acceptance saying whether the named charge vouched for the money. Money a
+ *  charge did not vouch for is carried as unreadable — the session boundary's
+ *  refusal is what sends a captured charge to the refund path, while refusing
+ *  the whole read would strand it once SumUp's retries run out. */
+type ChildVerdict =
+  | { failure: ProviderInvalidReason }
+  | { failure: null; moneyVouchedFor: boolean };
 
-/** The one unrecorded child the boundary accepts is a charge under its own
- *  still-open checkout, so everything here applies to the other statuses:
- *  a paid checkout must carry exactly the successful charge its own record
- *  names, and a dead one must carry none. */
-const childFailure = (c: WireCheckout): ProviderInvalidReason | null => {
-  const successful = (c.transactions ?? []).filter(
-    (txn) => txn.status === "SUCCESSFUL",
-  );
-  if (c.status === "PENDING") return null;
-  if (c.status !== "PAID") {
-    return successful.length > 0 ? "unrecorded_child" : null;
-  }
-  if (!isResourceId(c.transaction_id ?? "")) {
-    return "missing_documented_resource";
-  }
-  const [charge, ...extras] = successful;
-  if (charge === undefined) return "missing_documented_resource";
-  if (extras.length > 0) return "unrecorded_child";
-  return namedChargeFailure(c, charge);
-};
-
-/** Whether the paid checkout's single successful charge is the one its own
- *  record names, captured under our merchant, for the money it states. */
-const namedChargeFailure = (
+/** The named charge vouches for the checkout's money only when it states
+ *  both fields itself and neither disputes the checkout's own record. */
+const chargeVouchesForMoney = (
   c: WireCheckout,
   charge: WireTransaction,
-): ProviderInvalidReason | null => {
-  if (charge.id !== c.transaction_id) return "unrecorded_child";
-  if (charge.merchant_code !== c.merchant_code) return "unrecorded_child";
-  if (moneyDisagrees(charge.amount, c.amount)) return "unrecorded_child";
-  if (
-    moneyDisagrees(charge.currency?.toUpperCase(), c.currency?.toUpperCase())
-  ) {
-    return "unrecorded_child";
+): boolean =>
+  charge.amount !== undefined &&
+  charge.currency !== undefined &&
+  (c.amount === undefined || charge.amount === c.amount) &&
+  (c.currency === undefined ||
+    charge.currency.toUpperCase() === c.currency.toUpperCase());
+
+const UNRECORDED_CHILD: ChildVerdict = { failure: "unrecorded_child" };
+
+/** One lifecycle status's rule for the charges a checkout may carry. */
+type ChildRule = (
+  c: WireCheckout,
+  charge: WireTransaction | undefined,
+  extras: readonly WireTransaction[],
+) => ChildVerdict;
+
+/** A still-open checkout may carry one charge of its own — alone, and under
+ *  our merchant. Nothing here vouches for money: pending charges are never
+ *  booked from. */
+const pendingChildVerdict: ChildRule = (c, charge, extras) => {
+  if (extras.length > 0) return UNRECORDED_CHILD;
+  if (charge !== undefined && charge.merchant_code !== c.merchant_code) {
+    return UNRECORDED_CHILD;
   }
-  return null;
+  return { failure: null, moneyVouchedFor: true };
+};
+
+/** A paid checkout must carry exactly the successful charge its own record
+ *  names, captured under our merchant. */
+const paidChildVerdict: ChildRule = (c, charge, extras) => {
+  if (!isResourceId(c.transaction_id ?? "") || charge === undefined) {
+    return { failure: "missing_documented_resource" };
+  }
+  if (extras.length > 0) return UNRECORDED_CHILD;
+  if (charge.id !== c.transaction_id) return UNRECORDED_CHILD;
+  if (charge.merchant_code !== c.merchant_code) return UNRECORDED_CHILD;
+  return { failure: null, moneyVouchedFor: chargeVouchesForMoney(c, charge) };
+};
+
+/** The one unrecorded child the boundary accepts is a charge under its own
+ *  still-open checkout; a dead checkout must carry none. */
+const checkChildren = (c: WireCheckout): ChildVerdict => {
+  const [charge, ...extras] = (c.transactions ?? []).filter(
+    (txn) => txn.status === "SUCCESSFUL",
+  );
+  if (c.status === "PENDING") return pendingChildVerdict(c, charge, extras);
+  if (c.status === "PAID") return paidChildVerdict(c, charge, extras);
+  return charge === undefined
+    ? { failure: null, moneyVouchedFor: true }
+    : UNRECORDED_CHILD;
 };
 
 /** Normalize the accepted wire checkout, reading its amount in the currency
@@ -149,7 +169,8 @@ const toSumupCheckout = (
   c: WireCheckout,
   status: SumupCheckoutStatus,
   reference: string,
-  siteCurrency: string,
+  facts: SumupReadFacts,
+  moneyVouchedFor: boolean,
 ): SumupCheckout => {
   const amount = typeof c.amount === "number" ? c.amount : null;
   const currency =
@@ -158,11 +179,17 @@ const toSumupCheckout = (
       : null;
   // Only a well-formed code may reach the currency helpers: Intl throws on
   // anything else, and an unusable code falls back to the site's.
-  const conversionCurrency = isCurrency(currency) ? currency : siteCurrency;
+  const conversionCurrency = isCurrency(currency)
+    ? currency
+    : facts.siteCurrency;
   // An amount finer than the currency can hold would round to something SumUp
-  // never charged, so it is as unreadable as an absent one.
+  // never charged — as unreadable as an absent one. Money the named charge
+  // did not vouch for is unreadable too: a booking must never be priced by a
+  // record the captured charge itself does not confirm.
   const readable =
-    amount !== null && !exceedsCurrencyPrecision(amount, conversionCurrency);
+    moneyVouchedFor &&
+    amount !== null &&
+    !exceedsCurrencyPrecision(amount, conversionCurrency);
   return {
     amountMinor: readable ? toMinorUnits(amount, conversionCurrency) : null,
     createdAt: c.date,
@@ -197,10 +224,16 @@ export const classifySumupCheckout = (
   }
   const status = v.safeParse(SumupCheckoutStatusSchema, c.status);
   if (!status.success) return invalidRead("unsupported_status");
-  const failure = childFailure(c);
-  if (failure !== null) return invalidRead(failure);
+  const verdict = checkChildren(c);
+  if (verdict.failure !== null) return invalidRead(verdict.failure);
   return {
-    resource: toSumupCheckout(c, status.output, reference, facts.siteCurrency),
+    resource: toSumupCheckout(
+      c,
+      status.output,
+      reference,
+      facts,
+      verdict.moneyVouchedFor,
+    ),
     status: "found",
   };
 };

@@ -50,6 +50,20 @@ describe("sumup-provider", () => {
       });
     });
 
+    test("throws when SumUp cannot answer for a staged checkout", async () => {
+      // A passing outage must not read as a missing payment: throwing gives
+      // the browser the temporary failure page instead of "not found".
+      await stageSumupCheckout();
+      await withSumupCheckoutRead(
+        { reason: "network_error", status: "unavailable" },
+        async () => {
+          await expect(
+            sumupPaymentProvider.retrieveSession("ref"),
+          ).rejects.toThrow("could not answer");
+        },
+      );
+    });
+
     test("returns null when the checkout echoes another reference", async () => {
       // The redirect's reference opened the staging row, so a checkout
       // answering with a different reference is not this booking.

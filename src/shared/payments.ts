@@ -223,6 +223,23 @@ export type WebhookVerifyResult =
   | { valid: true; listing: WebhookEvent }
   | { valid: false; error: string };
 
+/** Everything resolving a webhook's session can come back as: the session;
+ *  "skip" to acknowledge without processing; "retry" to answer with the fixed
+ *  retryable refusal; a rejection carrying a paid charge the boundary could
+ *  not read; or null for an event that is provably not ours. */
+export type WebhookSessionResult =
+  | ValidatedPaymentSession
+  | "skip"
+  | "retry"
+  | SessionRejection
+  | null;
+
+/** Everything retrieving a checkout session by id can come back as. */
+export type RetrieveSessionResult =
+  | ValidatedPaymentSession
+  | SessionRejection
+  | null;
+
 /** Provider-agnostic webhook event */
 export type WebhookEvent = {
   id: string;
@@ -300,11 +317,7 @@ export interface PaymentProvider {
    *          a paid charge the boundary could not read; or null for an event
    *          that is provably not ours.
    */
-  resolveWebhookSession(
-    listing: WebhookEvent,
-  ): Promise<
-    ValidatedPaymentSession | "skip" | "retry" | SessionRejection | null
-  >;
+  resolveWebhookSession(listing: WebhookEvent): Promise<WebhookSessionResult>;
 
   /**
    * Retrieve and validate a completed checkout session by ID.
@@ -318,7 +331,7 @@ export interface PaymentProvider {
   retrieveSession(
     sessionId: string,
     paidPaymentId?: string,
-  ): Promise<ValidatedPaymentSession | SessionRejection | null>;
+  ): Promise<RetrieveSessionResult>;
 
   /**
    * Set up a webhook endpoint for this provider.

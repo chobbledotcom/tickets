@@ -1,8 +1,8 @@
-import {
-  isSessionRejection,
-  type SessionRejection,
-} from "#shared/payment/validated-session.ts";
-import type { ValidatedPaymentSession } from "#shared/payments.ts";
+import { isSessionRejection } from "#shared/payment/validated-session.ts";
+import type {
+  ValidatedPaymentSession,
+  WebhookSessionResult,
+} from "#shared/payments.ts";
 
 /**
  * Every metadata field the price signature covers, blank. The boundary hands
@@ -34,7 +34,7 @@ export const BLANK_SESSION_METADATA: ValidatedPaymentSession["metadata"] = {
 /** Narrow any provider session result to the session; fail the test on a
  *  rejection, a skip, a retry refusal, or null. */
 export const asSession = (
-  result: ValidatedPaymentSession | SessionRejection | "skip" | "retry" | null,
+  result: WebhookSessionResult,
 ): ValidatedPaymentSession => {
   if (
     result === null ||

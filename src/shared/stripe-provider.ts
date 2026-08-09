@@ -7,18 +7,16 @@
 
 import type Stripe from "stripe";
 import * as v from "valibot";
-import {
-  type SessionRejection,
-  validatedPaymentSession,
-} from "#shared/payment/validated-session.ts";
+import { validatedPaymentSession } from "#shared/payment/validated-session.ts";
 import {
   hasRequiredSessionMetadata,
   makeCreateCheckoutSession,
 } from "#shared/payment-helpers.ts";
 import type {
   PaymentProvider,
-  ValidatedPaymentSession,
+  RetrieveSessionResult,
   WebhookEvent,
+  WebhookSessionResult,
   WebhookVerifyResult,
 } from "#shared/payments.ts";
 import {
@@ -39,7 +37,7 @@ type StripeCheckoutCompletedEvent = Pick<
 
 const toValidatedSession = (
   session: StripeCheckoutSession,
-): ValidatedPaymentSession | SessionRejection | null => {
+): RetrieveSessionResult => {
   const {
     amount_total,
     currency,
@@ -86,9 +84,7 @@ export const stripePaymentProvider: PaymentProvider = {
 
   async resolveWebhookSession({
     data: { object: obj },
-  }: WebhookEvent): Promise<
-    ValidatedPaymentSession | "skip" | SessionRejection | null
-  > {
+  }: WebhookEvent): Promise<WebhookSessionResult> {
     const id = obj.id;
     if (typeof id !== "string" || id.length === 0) return null;
 
@@ -97,9 +93,7 @@ export const stripePaymentProvider: PaymentProvider = {
     return validated === null ? await this.retrieveSession(id) : validated;
   },
 
-  async retrieveSession(
-    sessionId: string,
-  ): Promise<ValidatedPaymentSession | SessionRejection | null> {
+  async retrieveSession(sessionId: string): Promise<RetrieveSessionResult> {
     const session = await stripeApi.retrieveCheckoutSession(sessionId);
     if (!session) return null;
     return toValidatedSession(session);

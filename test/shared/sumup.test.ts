@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { APIError } from "@sumup/sdk";
 import { settings } from "#shared/db/settings.ts";
-import { readCheckoutById, sumupApi } from "#shared/sumup.ts";
+import { sumupApi } from "#shared/sumup.ts";
 import {
   makeSumupClient,
   setupSumupSuite,
@@ -54,7 +54,7 @@ describe("sumup", () => {
         get: () => Promise.resolve(paidWire("co_a")),
       });
       await withSumupClient(client, async () => {
-        expect(await readCheckoutById("co_a")).toEqual({
+        expect(await sumupApi.readCheckoutById("co_a")).toEqual({
           resource: {
             amountMinor: 1250,
             currency: "GBP",
@@ -76,13 +76,19 @@ describe("sumup", () => {
             paidWire("co_cur", {
               currency: undefined,
               transactions: [
-                { id: "txn_a", merchant_code: "MC123", status: "SUCCESSFUL" },
+                {
+                  amount: 12.5,
+                  currency: "GBP",
+                  id: "txn_a",
+                  merchant_code: "MC123",
+                  status: "SUCCESSFUL",
+                },
               ],
             }),
           ),
       });
       await withSumupClient(client, async () => {
-        expect(await readCheckoutById("co_cur")).toEqual({
+        expect(await sumupApi.readCheckoutById("co_cur")).toEqual({
           resource: expect.objectContaining({
             amountMinor: 1250,
             currency: null,
@@ -98,7 +104,7 @@ describe("sumup", () => {
         get: () => Promise.resolve(paidWire("co_other")),
       });
       await withSumupClient(client, async () => {
-        expect(await readCheckoutById("co_b")).toEqual({
+        expect(await sumupApi.readCheckoutById("co_b")).toEqual({
           reason: "mismatched_id",
           status: "invalid",
         });
@@ -111,7 +117,7 @@ describe("sumup", () => {
           Promise.resolve(paidWire("co_c", { transaction_id: undefined })),
       });
       await withSumupClient(client, async () => {
-        expect(await readCheckoutById("co_c")).toEqual({
+        expect(await sumupApi.readCheckoutById("co_c")).toEqual({
           reason: "missing_documented_resource",
           status: "invalid",
         });
@@ -131,7 +137,7 @@ describe("sumup", () => {
           }),
       });
       await withSumupClient(client, async () => {
-        expect(await readCheckoutById("co_exp")).toEqual({
+        expect(await sumupApi.readCheckoutById("co_exp")).toEqual({
           resource: expect.objectContaining({
             status: "EXPIRED",
             transactionId: "",
@@ -147,7 +153,7 @@ describe("sumup", () => {
           Promise.reject(new APIError(404, "not found", new Response())),
       });
       await withSumupClient(client, async () => {
-        expect(await readCheckoutById("co_gone")).toEqual({
+        expect(await sumupApi.readCheckoutById("co_gone")).toEqual({
           status: "missing",
         });
         expect(loggedDebug("Checkout read answered 404")).toBe(true);
@@ -160,7 +166,7 @@ describe("sumup", () => {
           Promise.reject(new APIError(500, "server error", new Response())),
       });
       await withSumupClient(client, async () => {
-        expect(await readCheckoutById("co_down")).toEqual({
+        expect(await sumupApi.readCheckoutById("co_down")).toEqual({
           reason: "provider_error",
           status: "unavailable",
         });
@@ -173,7 +179,7 @@ describe("sumup", () => {
         get: () => Promise.reject(new TypeError("connection reset")),
       });
       await withSumupClient(client, async () => {
-        expect(await readCheckoutById("co_net")).toEqual({
+        expect(await sumupApi.readCheckoutById("co_net")).toEqual({
           reason: "network_error",
           status: "unavailable",
         });
@@ -185,7 +191,7 @@ describe("sumup", () => {
 
     test("answers unavailable when no API key is configured", async () => {
       settings.setForTest({ sumup_api_key: "" });
-      expect(await readCheckoutById("co_x")).toEqual({
+      expect(await sumupApi.readCheckoutById("co_x")).toEqual({
         reason: "not_configured",
         status: "unavailable",
       });
@@ -193,7 +199,7 @@ describe("sumup", () => {
 
     test("answers unavailable when no merchant code is configured", async () => {
       settings.setForTest({ sumup_merchant_code: "" });
-      expect(await readCheckoutById("co_x")).toEqual({
+      expect(await sumupApi.readCheckoutById("co_x")).toEqual({
         reason: "not_configured",
         status: "unavailable",
       });

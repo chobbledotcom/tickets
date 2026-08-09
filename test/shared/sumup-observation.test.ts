@@ -142,25 +142,17 @@ describe("classifySumupCheckout", () => {
     });
   });
 
-  // A currency the conversion helpers cannot format — absent or blank — never
-  // reaches them: the amount converts with the site's currency instead and
-  // the boundary decides what to do with the carried null.
-  for (const [name, given] of [
-    ["no currency", undefined],
-    ["a blank currency", "   "],
-  ] as const) {
-    test(`reads amounts with the site currency given ${name}`, () => {
-      const txn = { ...WIRE_TXN, currency: given };
-      const read = classify(wirePaid({ currency: given, transactions: [txn] }));
-      expect(read).toEqual({
-        resource: expect.objectContaining({
-          amountMinor: 1000,
-          currency: null,
-        }),
-        status: "found",
-      });
+  test("reads amounts with the site currency given a blank currency", () => {
+    // A blank code never reaches the conversion helpers (Intl throws on
+    // one): the amount converts with the site's currency, and the carried
+    // null code is for the boundary to refuse.
+    const txn = { ...WIRE_TXN, currency: "   " };
+    const read = classify(wirePaid({ currency: "   ", transactions: [txn] }));
+    expect(read).toEqual({
+      resource: expect.objectContaining({ amountMinor: 1000, currency: null }),
+      status: "found",
     });
-  }
+  });
 
   test("reads a paid checkout that carries no amount", () => {
     // Nothing to convert or precision-check; the null reaches the session
@@ -239,15 +231,38 @@ describe("classifySumupCheckout", () => {
     );
   });
 
-  test("refuses a charge whose money disagrees with the checkout", () => {
-    const differentAmount = { ...WIRE_TXN, amount: 12 };
-    expect(classify(wirePaid({ transactions: [differentAmount] }))).toEqual(
-      invalid("unrecorded_child"),
-    );
-    const differentCurrency = { ...WIRE_TXN, currency: "EUR" };
-    expect(classify(wirePaid({ transactions: [differentCurrency] }))).toEqual(
-      invalid("unrecorded_child"),
-    );
+  // The named charge must vouch for the money a booking would be priced by:
+  // when it disputes the checkout's record, or omits the fields the paid
+  // shape documents, the money is carried as unreadable — ownership stands
+  // (id and merchant agree), so the refund path returns it rather than a
+  // refusal stranding it.
+  for (const [name, txnOverrides] of [
+    ["disputes the checkout's amount", { amount: 12 }],
+    ["disputes the checkout's currency", { currency: "EUR" }],
+    ["states no amount", { amount: undefined }],
+    ["states no currency", { currency: undefined }],
+  ] as const) {
+    test(`carries money to the refund path when the charge ${name}`, () => {
+      const txn = { ...WIRE_TXN, ...txnOverrides };
+      expect(classify(wirePaid({ transactions: [txn] }))).toEqual({
+        resource: expect.objectContaining({ amountMinor: null }),
+        status: "found",
+      });
+    });
+  }
+
+  test("refuses a second successful charge on a pending checkout", () => {
+    const second = { ...WIRE_TXN, id: "txn_2" };
+    const read = classify(wirePending({ transactions: [WIRE_TXN, second] }));
+    expect(read).toEqual(invalid("unrecorded_child"));
+  });
+
+  test("refuses a pending charge captured under another merchant", () => {
+    // The pending allowance covers a charge under this checkout — a charge
+    // under someone else's merchant is not that.
+    const foreign = { ...WIRE_TXN, merchant_code: "MC999" };
+    const read = classify(wirePending({ transactions: [foreign] }));
+    expect(read).toEqual(invalid("unrecorded_child"));
   });
 
   test("refuses captured money on a failed checkout", () => {

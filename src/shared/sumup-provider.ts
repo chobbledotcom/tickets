@@ -29,17 +29,19 @@ import {
 import type {
   PaymentProvider,
   PaymentStatus,
+  RetrieveSessionResult,
   SessionMetadata,
   ValidatedPaymentSession,
   WebhookEvent,
+  WebhookSessionResult,
   WebhookSetupResult,
   WebhookVerifyResult,
 } from "#shared/payments.ts";
 import {
   createCheckout,
   getTransactionStatus,
-  readCheckoutById,
   refundTransaction,
+  sumupApi,
 } from "#shared/sumup.ts";
 import type {
   SumupCheckout,
@@ -109,9 +111,7 @@ export const sumupPaymentProvider: PaymentProvider = {
 
   async resolveWebhookSession(
     webhookEvent: WebhookEvent,
-  ): Promise<
-    ValidatedPaymentSession | "skip" | "retry" | SessionRejection | null
-  > {
+  ): Promise<WebhookSessionResult> {
     if (!isUsableSumupId(webhookEvent.id)) return null;
     // Unsigned webhooks: only fetch checkouts we created. Spam and other
     // integrations' listings never cost an API call — but they are refused
@@ -124,7 +124,7 @@ export const sumupPaymentProvider: PaymentProvider = {
     // The staging row already proved this checkout is ours, so anything but a
     // clean read is refused retryably: acknowledging is terminal, and a paid
     // checkout would be left with the money taken and no booking.
-    const read = await readCheckoutById(webhookEvent.id);
+    const read = await sumupApi.readCheckoutById(webhookEvent.id);
     if (read.status !== "found") {
       return refuseRetryably(
         "reason" in read
@@ -154,16 +154,22 @@ export const sumupPaymentProvider: PaymentProvider = {
      duplication: every provider must write this exact member signature, but
      the bodies share no logic (SumUp reads its locally staged checkout;
      Square fetches the order and its payment from the API). */
-  async retrieveSession(
-    sessionId: string,
-  ): Promise<ValidatedPaymentSession | SessionRejection | null> {
+  async retrieveSession(sessionId: string): Promise<RetrieveSessionResult> {
     /* jscpd:ignore-end */
     // sessionId is our checkout_reference (set on the redirect URL); the
     // staged row carries the SumUp id for a direct fetch. An empty sumupId
     // means checkout creation failed after staging — nothing to retrieve.
     const stored = await getSumupCheckout(sessionId);
     if (!stored?.sumupId) return null;
-    const read = await readCheckoutById(stored.sumupId);
+    const read = await sumupApi.readCheckoutById(stored.sumupId);
+    // SumUp being unreachable is temporary: throwing keeps the browser's
+    // answer honest — a "not found" page for a passing outage would read as
+    // a missing payment.
+    if (read.status === "unavailable") {
+      throw new Error(
+        `SumUp could not answer for a staged checkout (${read.reason})`,
+      );
+    }
     // The redirect's reference opened this staging row, so the checkout it
     // names must echo that same reference back; anything else is not this
     // booking.

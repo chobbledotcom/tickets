@@ -5,13 +5,12 @@
  * "the answer contradicts our own facts" — three situations that need three
  * different responses (give up, retry, refuse).
  *
- * Adapted from the observation boundary on `origin/claude/great-fermi-l2n29f`
- * (`payment-state/observation.ts`), cut down to the reads the current path
- * performs. M6 moves Stripe and Square behind the same vocabulary.
+ * SumUp's reads use this today; M6 moves Stripe and Square behind the same
+ * vocabulary.
  */
 
 /** Why the provider could not answer at all. Retrying can help. */
-export type ProviderUnavailableReason =
+type ProviderUnavailableReason =
   | "network_error"
   | "not_configured"
   | "provider_error";
