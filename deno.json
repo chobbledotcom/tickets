@@ -38,6 +38,7 @@
     "backup": "deno run --env-file --allow-env --allow-read --allow-write --allow-net --allow-sys --allow-ffi scripts/backup.ts",
     "restore": "deno run --allow-env --allow-read --allow-write --allow-net --allow-sys --allow-ffi scripts/restore.ts",
     "snapshot": "deno run --allow-env --allow-read --allow-write --allow-net --allow-sys --allow-ffi scripts/database-snapshot.ts",
+    "migration-verify": "deno run --allow-env --allow-read --allow-write --allow-net --allow-sys --allow-ffi scripts/migration-verify.ts",
     "migrate:turso": "deno run --allow-env --allow-read --allow-write --allow-net --allow-sys --allow-ffi scripts/turso-migration.ts",
     "migrate:sites": "deno run --allow-env --allow-read --allow-write --allow-net --allow-sys --allow-ffi scripts/site-migration.ts",
     "cli:tui": "deno run --allow-env --allow-read --allow-run cli/tui.ts",
