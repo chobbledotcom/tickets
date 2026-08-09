@@ -521,13 +521,7 @@ Optional:
 | `TURSO_API_TOKEN`              | Turso platform API key used to create databases. `deno task migrate:turso` asks for it when it is not set.                                                                                                                                                                                    |
 | `TURSO_ORGANIZATION`           | Turso organization used for new databases. The migration task discovers or asks for it when it is not set.                                                                                                                                                                                    |
 | `TURSO_GROUP`                  | Turso group used for new databases. The migration task discovers or asks for it when it is not set.                                                                                                                                                                                           |
-
-Optional:
-
-| Variable              | Description                                                                                                                                                                                                                                     |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ADMIN_EMAIL_ADDRESS` | Enables a superuser recovery account. The email local-part (before `@`) must be a valid username: 2–32 characters, letters, numbers, hyphens, and underscores only. Email delivery must be configured before the superuser can be enabled.      |
-| `DEBUG_KEY`           | Optional diagnostic key. `GET /health` returns a plain `Up :)` by default; a request carrying a matching `X-Debug-Key` header gets a small JSON payload (build commit, build timestamp, server time). Unset ⇒ the verbose response is disabled. |
+| `DEBUG_KEY`                    | Optional diagnostic key. `GET /health` returns a plain `Up :)` by default; a request carrying a matching `X-Debug-Key` header gets a small JSON payload (build commit, build timestamp, server time). Unset ⇒ the verbose response is disabled.                                               |
 
 **Database maintenance:** pruning of expired sessions, rate-limit rows, payment
 records, and optional orphan attendees runs automatically while serving

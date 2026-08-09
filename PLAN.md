@@ -221,8 +221,12 @@ Budget: 800-1,300 changed lines.
   completion, and refunds.
 - Reconcile the branches' TODO findings and assign each live finding to a PR.
 
-Current-system value: existing payments remain refundable when sales are off,
-and the current behavior is protected before it is rewritten.
+Current-system value: existing payments remain refundable when sales are off
+(qualified: a charge captured on a provider that was later switched away from
+and replaced with `none` cannot be refunded through the last-active fallback;
+per-charge provider tracking is assigned to a later aggregate PR — see the known
+gap in `docs/payment-aggregate-acceptance.md`), and the current behavior is
+protected before it is rewritten.
 
 #### PR 2: Use one money and resource vocabulary now
 
@@ -316,6 +320,14 @@ Budget: 1,500-2,200 changed lines.
   readers into the aggregate in this PR; deleting the writer while the
   completion path still reads from it leaves paid SumUp checkouts unable to
   complete.
+- SumUp compatibility projection: until PR 7 moves those readers, every new
+  aggregate SumUp checkout must also populate `sumup_checkouts` using the
+  aggregate-created `checkout_reference` and SumUp checkout ID. The projection
+  must not call SumUp or create another payment identity or idempotency key. If
+  the aggregate write succeeds and the `sumup_checkouts` projection fails,
+  record durable repair work and keep the aggregate claim retryable before
+  reporting checkout success. Remove the projection when PR 7 moves these
+  readers to the aggregate.
 
 Current-system value: no live checkout can lose its local intent or create a
 second provider checkout after an interrupted request.
@@ -354,8 +366,10 @@ authoritative answer for the same payment.
 Budget: 1,500-2,200 changed lines.
 
 - Move Stripe, Square, and SumUp refund request/read behavior together.
-- Put individual, bulk, balance, automatic, case-decision, and migrated-payment
-  refunds through one one-or-many engine.
+- Put individual, bulk, balance, automatic, and case-decision refunds through
+  one one-or-many engine. A migrated-payment refund path is added in PR 14, when
+  migrated aggregate payments first exist, so this engine has a live caller in
+  the same PR.
 - Persist provider refund identity before local completion. Queue and schedule
   repair when provider success is followed by a local failure.
 - Keep refunds available while new sales are disabled, and make callback and
@@ -425,8 +439,13 @@ interruption, concurrent payment, or attendee merge.
 
 ### Phase 3: migrate history forward after the write cutover
 
-Old tables are read-only migration input in this phase. No production payment
-route, page, refund, reconciliation, or completion path may read them.
+Old tables are read-only migration input in this phase. Until PR 14 has verified
+every row is copied, production panels, exports, statistics, and refund-target
+readers may still read uncopied old-table rows through the bounded migration
+read-through established in PR 7; once a row is canonicalized, only the current
+payment engine may read it. After PR 14 verifies a full copy, no production
+payment route, page, refund, reconciliation, or completion path may read the old
+tables.
 
 #### PR 13: Verify migration and old-backup readiness
 
@@ -456,7 +475,10 @@ Budget: 1,700-2,500 changed lines.
   complete owner-review case using the PR 5 workflow and continue later rows.
 - Expose each copied payment immediately through the existing current reader,
   result recovery, case, and refund paths. Include migrated charges in attendee
-  refund targets and require owner evidence for ambiguous account assignment.
+  refund targets and wire the migrated-payment refund path through the PR 8
+  engine in this PR, so the engine gains its migrated caller when the first
+  migrated payments exist. Require owner evidence for ambiguous account
+  assignment.
 - Record verified progress and release leases within the call budget. Make the
   operation idempotent so interruption resumes from the same source cursor.
 
@@ -531,7 +553,8 @@ a short proof in the relevant PR. Do not silently omit it.
 
 ## Review strategy
 
-Each PR description should contain exactly these review aids:
+Each PR description should contain at least these review aids (the full required
+field list is in step 2 and step 6 of `PR_WORKFLOW.md`):
 
 - behavior added or replaced;
 - source branch and paths used as reference;

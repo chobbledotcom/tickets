@@ -610,8 +610,9 @@ Server tests:
   listing, and is **not** set for a plain fixed-price standard listing.
 - The served module body contains module-only syntax (e.g. `export {}`) so it
   throws if loaded as a classic script.
-- Rendering `/order.js` loads only the `[EMBED_HOSTS, COUNTRY]` settings bundle,
-  not payment/email/wallet/SMS secrets.
+- Rendering `/order.js` loads only the
+  `[EXTERNAL_ORDER_ENABLED, EMBED_HOSTS, COUNTRY]` settings bundle, not
+  payment/email/wallet/SMS secrets.
 - Listing names with quotes/markup/`</script>` are safely escaped in the
   embedded catalog serialization.
 

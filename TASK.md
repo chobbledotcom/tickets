@@ -38,9 +38,8 @@ inside one `withTransaction`, committing (or rolling back) as one. This means:
 
 1. `getOrCreateStringIds` must accept an optional `TxScope` (or be callable as
    `getOrCreateStringIdsTx(tx, texts)`) so its INSERT OR IGNORE + UPDATE
-   `created`
-   - SELECT all run on the open transaction's `tx.execute` instead of a separate
-     `executeBatchWithResults` batch.
+   `created` + SELECT all run on the open transaction's `tx.execute` instead of
+   a separate `executeBatchWithResults` batch.
 2. `saveAttendeeAnswers` wraps its whole body in
    `withTransaction(async (tx) => {
    ... })`, using `tx.execute` for the
@@ -112,8 +111,7 @@ git rebase origin/main
 
 ## Verification
 
-Run these from the worktree root
-(`/home/user/git/tickets-4-save-attendee-answers-tx`):
+Run these from the repository root:
 
 ```bash
 # Typecheck (incl. test files — mirrors CI)
