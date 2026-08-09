@@ -253,10 +253,15 @@ reads move in one merge precisely so no `sumup_checkouts` projection, no legacy
 checkout-metadata preservation, and no projection-repair machinery ever exist.
 
 The M6 release itself carries the restore-deploy guard (as its own commit is
-fine): `.github/workflows/restore-deploy.yml` refuses to deploy a commit that
-predates the aggregate cutover onto a database aggregate releases have written,
-documented in the operator restore guide beside the backup's recorded commit.
-The guard is live before the first aggregate write can happen in production.
+fine): once the cutover release has shipped,
+`.github/workflows/restore-deploy.yml` refuses to deploy any commit that
+predates the aggregate cutover — regardless of what the restored database
+contains, because a pre-cutover backup carries no aggregate marker and its
+recorded commit would restart the legacy writers. Restoring an old backup means
+loading it into the current application, which migrates it forward (M11's
+restore contract). Document this in the operator restore guide beside the
+backup's recorded commit; the guard is live before the first aggregate write can
+happen in production.
 
 - Creation: save immutable expected money and booking intent before every
   provider call; claim creation; one payment identity and idempotency key; adopt
@@ -324,11 +329,13 @@ over).
   multiple attendees, and when an attendee-only reference lacks a deterministic
   provider, account, captured amount, currency, or completion state. Those
   fail-closed cases carry their own required decision, shipped here: the owner
-  supplies verified provider, account, and amount evidence — and, when one
-  reference spans several attendees, assigns the charge to exactly one attendee
-  — after which the refund proceeds through the engine; or the owner rejects the
-  refund. This is the same owner-evidence rule M11 applies to ambiguous account
-  assignment.
+  supplies verified evidence for every missing fact the condition names —
+  provider, account, captured amount, currency, and completion state, any of
+  which the engine's provider re-read may confirm or supply deterministically —
+  and, when one reference spans several attendees, assigns the charge to exactly
+  one attendee — after which the refund proceeds through the engine; or the
+  owner rejects the refund. This is the same owner-evidence rule M11 applies to
+  ambiguous account assignment.
 - Delete every replaced refund path and prove no production caller remains.
 
 Standalone value: every refund has the same retry, evidence, and Money
@@ -388,7 +395,11 @@ Src target: 300–600. Store prepared message and webhook bodies plus buyer fact
 before delivery; resolve the owner recipient from the current business address
 at send time; attempt and schedule each delivery independently, keeping each run
 within explicit provider, database, and total subrequest budgets; mark permanent
-failures without blocking later work.
+failures without blocking later work. Every delivery carries a stable identity:
+webhooks send it in a header consumers can deduplicate, and the attempt record
+stores the provider's acceptance evidence before the delivery is marked
+complete, so a retry after an uncertain success re-sends the same identity
+instead of minting a new message.
 
 Standalone value: the M8 completion runner's messages and webhooks use the
 current owner address, recover on schedule after an interruption, and one
@@ -400,7 +411,9 @@ Src target: 300–600. Persist site assignment and renewal effects before remote
 work; serialize concurrent paid renewals; keep remote calls outside
 transactions; repoint queued site work during attendee merges; schedule
 unfinished work within explicit provider, database, and total subrequest
-budgets.
+budgets. Each persisted renewal effect carries a stable provider idempotency
+key, or the runner reads the remote state before re-attempting — an uncertain
+success is never blindly replayed, so a site cannot be extended twice.
 
 Standalone value: paid site delivery and renewal recover safely after an
 interruption, a concurrent payment, or an attendee merge.
