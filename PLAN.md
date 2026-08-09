@@ -297,8 +297,15 @@ happen in production.
   the prune task — removes a legacy row that carries local completion facts for
   a sale the aggregate represents, it records those facts on the aggregate
   record, so no deletion strips the combined answer. A pre-cutover sale with no
-  aggregate row keeps today's deletion behavior until M8's snapshot machinery
-  arrives.
+  aggregate row keeps today's deletion and retention lifecycle until M8's fence
+  freezes the old tables as the migration source. That boundary is deliberate,
+  not a gap: in this window the old tables are still the live store, so an
+  operator delete or a retention prune removes data exactly as the live system
+  does today, and holding those rows longer would keep buyer data past today's
+  privacy rules. Today's prune never touches the accounting backbone — it
+  deletes only failed, reference-less, orphaned, or cash-refunded rows past
+  retention — and M11, like a backup, copies what exists when the fence rises,
+  never what was deliberately removed before it.
 - The aggregate readers replace `resolveWebhookSession` and `retrieveSession`
   for every caller — signed webhook callbacks, buyer return and cancel pages,
   and paid-session validation — and the displaced methods leave the
