@@ -1,4 +1,3 @@
-import jpegEncode from "@jsquash/jpeg/encode.js";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -9,6 +8,7 @@ import {
 import {
   expectWebpContainer,
   makeTestPng,
+  testJpeg,
 } from "#test/test-utils/test-image.ts";
 
 describe("pickEncoderBytes", () => {
@@ -46,14 +46,9 @@ describe("decodeImage", () => {
   });
 
   test("decodes JPEG bytes via the image/jpeg codec", async () => {
-    const png = await makeTestPng(20, 12);
-    const rgba = await decodeImage(png, "image/png");
-    const jpeg = new Uint8Array(
-      await jpegEncode(rgba as unknown as ImageData, { quality: 90 }),
-    );
-    const decoded = await decodeImage(jpeg, "image/jpeg");
-    expect(decoded.width).toBe(20);
-    expect(decoded.height).toBe(12);
+    const decoded = await decodeImage(testJpeg(), "image/jpeg");
+    expect(decoded.width).toBe(120);
+    expect(decoded.height).toBe(90);
   });
 
   test("round-trips through WebP decode", async () => {
