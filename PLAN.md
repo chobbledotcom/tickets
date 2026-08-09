@@ -336,9 +336,15 @@ Budget: 1,500-2,200 changed lines.
   checkouts unable to complete. Apply the same projection principle to Stripe
   and Square: `stripePaymentProvider.retrieveSession` returns `null` without
   session metadata, and `squarePaymentProvider.retrieveSession` does the same
-  for order metadata. Until those readers move to the aggregate, populate the
-  old checkout/session metadata in the same PR, or move the readers in this PR —
-  paid callbacks/returns cannot validate or complete without that metadata.
+  for order metadata. Until those readers move to the aggregate, the aggregate
+  path must preserve `assembleCheckoutMetadata`: write logical metadata to the
+  Stripe Checkout Session and the Square Order (using Square's packed `b`
+  representation where required). Keep the Stripe session ID and Square order ID
+  as session identities, and store the payment identity and idempotency key
+  once. Define retryable repair behavior for any missing metadata before
+  reporting checkout success. Move the readers in this PR, or keep the old
+  checkout/session metadata projection until the readers move — paid
+  callbacks/returns cannot validate or complete without that metadata.
 - SumUp compatibility projection: until `resolveWebhookSession` and
   `retrieveSession` move to the aggregate (in this PR or PR 7, whichever moves
   them first), every new aggregate SumUp checkout must also populate
