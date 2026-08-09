@@ -228,7 +228,13 @@ Src target: 500–800.
   money-moving case actions on the legacy engines: the case page links to the
   still-live admin tools (refunds, booking management) that genuinely resolve
   each case kind today. The case-page refund and completion actions ship with
-  the engines that perform them (M7, M8).
+  the engines that perform them (M7, M8). A case kind ships here only when a
+  live tool genuinely resolves it. For captured money on a failed booking, the
+  in-app refund route cannot act on the stored quantity-0 placeholder, so that
+  case links to the provider's own dashboard refund and closes once the refund
+  reaches the payment's records (provider callback or the scheduled re-check); a
+  kind with no genuine live resolution keeps M4's detect-and-alert behavior
+  until its engine action ships.
 - A case re-checks its evidence on schedule and whenever its payment's records
   change: when a refund or completion done through a linked tool removes the
   problem, rerunning `outcomeOf` closes the case and updates the buyer's result.
@@ -281,6 +287,12 @@ happen in production.
   `outcomeOf`, and persists once — evidence, charges, state, due time, revision,
   and case changes in a single transaction. Store every charge identity once and
   reject cross-payment reuse. Multiple captures open an M5 case.
+- From this merge on, the aggregate never references a deleted attendee:
+  `applyAttendeeMerge` repoints aggregate payment sessions, charges, and cases
+  to the surviving attendee inside its transaction, and `deleteAttendee` settles
+  or repoints aggregate rows before the attendee row goes — today both touch
+  only the legacy tables. M8 extends the same guarantee to durable effects and
+  queued work.
 - The aggregate readers replace `resolveWebhookSession` and `retrieveSession`
   for every caller — signed webhook callbacks, buyer return and cancel pages,
   and paid-session validation — and the displaced methods leave the
@@ -355,16 +367,19 @@ one machine and merge together.
   driven by the M7 engine, with explicit provider, database, and total
   subrequest budgets.
 - The M5 complete-a-proven-booking case action lands here.
-- Fence listing deletion against pending payment work. Fence attendee deletion
-  the same way: an attendee with unfinished completion work or durable effects
-  cannot be deleted until that work settles or is repointed, checked inside the
-  deleting transaction. Repoint payment work and open cases during attendee
-  merges. Move the maintenance writers off the old tables — and the admin action
-  itself always completes: merge, delete, and prune succeed for attendees with
-  uncopied historical rows, and only the legacy row's own removal waits. Each
-  writer verifies a row is copied before deleting it and otherwise leaves the
-  row for M11 to copy and prune; `deleteAllStaleReservations` is gated the same
-  way, so no path ever deletes an uncopied legacy row. Before a merge or delete
+- Fence listing deletion against pending payment work, establishing the claim
+  before any irreversible step: today `performListingDelete` removes the stored
+  attachment before the database delete, so the fence must precede storage
+  cleanup, not only the row delete. Fence attendee deletion the same way: an
+  attendee with unfinished completion work or durable effects cannot be deleted
+  until that work settles or is repointed, checked inside the deleting
+  transaction. Repoint payment work and open cases during attendee merges. Move
+  the maintenance writers off the old tables — and the admin action itself
+  always completes: merge, delete, and prune succeed for attendees with uncopied
+  historical rows, and only the legacy row's own removal waits. Each writer
+  verifies a row is copied before deleting it and otherwise leaves the row for
+  M11 to copy and prune; `deleteAllStaleReservations` is gated the same way, so
+  no path ever deletes an uncopied legacy row. Before a merge or delete
   completes for an attendee whose payment history is not yet copied, the
   attendee-held migration facts — legacy payment references and the
   payment-identifying facts M11 reads, still encrypted — are preserved in a
@@ -396,10 +411,12 @@ before delivery; resolve the owner recipient from the current business address
 at send time; attempt and schedule each delivery independently, keeping each run
 within explicit provider, database, and total subrequest budgets; mark permanent
 failures without blocking later work. Every delivery carries a stable identity:
-webhooks send it in a header consumers can deduplicate, and the attempt record
-stores the provider's acceptance evidence before the delivery is marked
-complete, so a retry after an uncertain success re-sends the same identity
-instead of minting a new message.
+webhooks send it in a header consumers deduplicate, and email uses the
+provider's idempotency key where the provider offers one. Where it does not, the
+attempt record persists the provider's acceptance evidence before the delivery
+is marked complete; if that evidence write itself is lost, the retry may
+duplicate an email — an accepted, documented outcome for messages only, never
+for webhooks or money.
 
 Standalone value: the M8 completion runner's messages and webhooks use the
 current owner address, recover on schedule after an interruption, and one
@@ -454,10 +471,14 @@ only after M8 is authoritative fleet-wide.
   deleted booking rows do not block; ticket-use state is not resurrected;
   attendee-only references are copied, not skipped. Preserve unknown or
   contradictory facts without inventing values — create a complete M5 case and
-  continue. Require owner evidence for ambiguous account assignment. Delete each
-  M8 deletion snapshot the moment its payment is copied and verified — the same
-  gate as any source row, idempotent across interrupted or restored runs — so no
-  duplicate buyer facts outlive the migration; M13 verifies none remain.
+  continue. Ambiguous account assignment gets its own required migration
+  decision: the owner assigns the provider account or marks the row unmigratable
+  with a reason, recorded in the decision union, and a revision-fenced copy
+  retry consumes the decision so verification resumes — no row can block M13
+  forever. Delete each M8 deletion snapshot the moment its payment is copied and
+  verified — the same gate as any source row, idempotent across interrupted or
+  restored runs — so no duplicate buyer facts outlive the migration; M13
+  verifies none remain.
 - Each copied payment is immediately served by the current readers, result
   recovery, cases, and refunds; migrated charges join attendee refund targets
   through the M7 engine in this same release. Record verified progress and
@@ -522,7 +543,7 @@ mechanism and a regression test, or — if implementation proves the finding wro
 | F3  | Pending and completed refunds together exceeding captured money                        | M4, M7          |
 | F4  | One failed decision blocking all reconciliation                                        | M5, M6          |
 | F5  | Permanent provider or delivery errors retrying forever or blocking a queue             | M5, M6, M9      |
-| F6  | Attendee merge or delete removing records with an open case or unfinished work         | M5, M8          |
+| F6  | Attendee merge or delete removing records with an open case or unfinished work         | M5, M6, M8      |
 | F7  | Restore-deploy workflow allowing incompatible code onto a migrated database            | M6              |
 | F8  | Cross-payment duplicate provider charges                                               | M6              |
 | F9  | Account lookup failure retaining a claim                                               | M6              |
