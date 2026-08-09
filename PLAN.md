@@ -423,27 +423,30 @@ Budget: 1,700-2,400 changed lines.
   `processed_payments` row when an automatic refund fails so the next provider
   redelivery can retry immediately) until the PR 9 completion cutover — a paid
   but unbooked checkout must not be stuck behind the stale reservation until the
-  timeout. Before installing the fence, also exempt or move the maintenance
-  exempt or move the maintenance write paths that still touch old tables:
-  `applyAttendeeMerge` (inserts/updates `processed_payments`), `deleteAttendee`
-  (deletes `processed_payments`), and the prune task (deletes old
-  `processed_payments`/`sumup_checkouts`). Either move these maintenance
-  cutovers before the fence, or keep a bounded write-through so merge, delete,
-  and prune succeed for attendees with uncopied payment rows. Deletion paths
-  (`deleteAttendee`, prune) must verify that each payment row — in
-  `processed_payments`, `sumup_checkouts`, and `checkout_stages` — has been
-  copied to the canonical aggregate before deleting it, or defer the deletion
-  until PR 14 has copied it — never delete an uncopied row. Also move or exempt
-  `deleteAllStaleReservations` (run on every listing overview load, deletes
-  unresolved `processed_payments` rows) before installing the fence; if it is
-  still running when the fence is active, listing overview pages fail, and if it
-  is still running during PR 14's cursor copy, old rows can disappear despite
-  the "old tables have remained unchanged" precondition. Verify that fence
-  atomically within the same transaction that commits the aggregate write: use a
-  shared transaction, advisory lock, or migration epoch token that makes the
-  fence check and the write commit atomic so a separate check cannot race with a
-  legacy write. Fail the write (reject and retry) if the fence is absent or the
-  epoch token changes during the transaction.
+  timeout. The `releaseReservation` exemption must remain lossless: require a
+  verified canonical record before deleting the `processed_payments` row, or
+  replace deletion with a durable release marker until PR 14 copies and verifies
+  it — the row can contain payment and refund state needed for migration. Before
+  installing the fence, also exempt or move the maintenance write paths that
+  still touch old tables: `applyAttendeeMerge` (inserts/updates
+  `processed_payments`), `deleteAttendee` (deletes `processed_payments`), and
+  the prune task (deletes old `processed_payments`/`sumup_checkouts`). Either
+  move these maintenance cutovers before the fence, or keep a bounded
+  write-through so merge, delete, and prune succeed for attendees with uncopied
+  payment rows. Deletion paths (`deleteAttendee`, prune) must verify that each
+  payment row — in `processed_payments`, `sumup_checkouts`, and
+  `checkout_stages` — has been copied to the canonical aggregate before deleting
+  it, or defer the deletion until PR 14 has copied it — never delete an uncopied
+  row. Also move or exempt `deleteAllStaleReservations` (run on every listing
+  overview load, deletes unresolved `processed_payments` rows) before installing
+  the fence; if it is still running when the fence is active, listing overview
+  pages fail, and if it is still running during PR 14's cursor copy, old rows
+  can disappear despite the "old tables have remained unchanged" precondition.
+  Verify that fence atomically within the same transaction that commits the
+  aggregate write: use a shared transaction, advisory lock, or migration epoch
+  token that makes the fence check and the write commit atomic so a separate
+  check cannot race with a legacy write. Fail the write (reject and retry) if
+  the fence is absent or the epoch token changes during the transaction.
 
 Current-system value: every live route, worker, page, and export gets the same
 authoritative answer for the same payment.
