@@ -31,7 +31,7 @@ ledger.
 | M2 money/resource vocabulary (was PR 2) | Core modules merged inside #2020. Any provider parsing still off those schemas rides with M3 or M4.                                               |
 | M3 provider ownership (was PR 3)        | In flight. Merged slices so far: #2048 (payment processing core), #2050 (bounded registration delivery).                                          |
 | M11 verifier slice (was PR 13)          | Started early in #2056 — the verifier is read-only and parallelizable.                                                                            |
-| M4–M13                                  | Not started.                                                                                                                                      |
+| M4–M10 and M12–M13                      | Not started.                                                                                                                                      |
 
 Budgets below count `src/` lines only. Observed totals run 4–15x the `src/`
 figure once tests, stories, and catalog copy are included (#2020: 714 src lines,
@@ -58,15 +58,16 @@ consistently wrong and governed nothing.
    deletions, recounted after formatting). One exception: an atomic cutover that
    would otherwise need a throwaway compatibility layer may exceed the cap — a
    bigger honest PR beats building a bridge in one PR and demolishing it in the
-   next. Say so in the description. Tests, fixtures, and documentation do not
-   count against the cap; never weaken them to shrink a diff.
+   next. Say so in the description. PR_WORKFLOW.md's "repository source-line
+   limit" is this rule, exception included. Tests, fixtures, and documentation
+   do not count against the cap; never weaken them to shrink a diff.
 4. **Gates.** `nix develop -c deno task precommit` passes before review. Run
    targeted mutation on the payment modules the PR changed and list the runs in
    the description. The branch-level
    `nix develop -c deno task precommit:mutation` gate runs before merge as
-   AGENTS.md requires; if the owner explicitly waives the full run for a large
-   PR, the description records the waiver and the targeted runs that stand in
-   for it.
+   AGENTS.md requires. The gate is mandatory; a waiver is the owner's call
+   alone, made case by case — never the implementer's — and the description
+   records it plus the targeted runs that stand in for it.
 5. **Every bug fix ships a regression test** reproducing the bug.
 6. **Deployments are forward-only and fleet-wide**, on the `release` tier only.
    No old-version support, no code rollback, no mixed-version reads or writes.
@@ -223,6 +224,10 @@ Src target: 500–800.
   still-live admin tools (refunds, booking management) that genuinely resolve
   each case kind today. The case-page refund and completion actions ship with
   the engines that perform them (M7, M8).
+- A case re-checks its evidence on schedule and whenever its payment's records
+  change: when a refund or completion done through a linked tool removes the
+  problem, rerunning `outcomeOf` closes the case and updates the buyer's result.
+  The links genuinely resolve the case, not only the money.
 - Guard attendee merge and delete against records with an open case: repoint or
   settle before the destructive step.
 
@@ -332,10 +337,12 @@ one machine and merge together.
 - The M5 complete-a-proven-booking case action lands here.
 - Fence listing deletion against pending payment work; repoint payment work and
   open cases during attendee merges. Move the maintenance writers off the old
-  tables: `applyAttendeeMerge`, `deleteAttendee`, and the prune task verify a
-  row is copied (or defer to M11) before deleting it, and
-  `deleteAllStaleReservations` is gated so it can never delete an uncopied
-  legacy row.
+  tables — and the admin action itself always completes: merge, delete, and
+  prune succeed for attendees with uncopied historical rows, and only the legacy
+  row's own removal waits. Each writer verifies a row is copied before deleting
+  it and otherwise leaves the row for M11 to copy and prune;
+  `deleteAllStaleReservations` is gated the same way, so no path ever deletes an
+  uncopied legacy row.
 - Install the legacy write fence, now that the last routine legacy writer has
   moved, with exactly one exemption until M11: the M7 adapter's
   refund-completion marker. Verify the fence atomically inside the committing
@@ -346,11 +353,13 @@ Standalone value: interrupted paid bookings resume without charging, booking, or
 recording Money twice; a provider refund that outruns a local failure repairs
 itself; and no admin action can orphan payment work.
 
-### Stack C — remaining durable effects (M9–M10)
+### Group C — follow-on durable effects (M9–M10)
 
+These two are not a literal stack: each is an independent single PR on top of
+merged M8 (M10 does not depend on M9), merging directly to main or riding as a
+top layer of Stack B — AGENTS.md's three-to-seven rule applies to real stacks.
 Both are new effect kinds on M8's machinery — bounded due-work query and
-scheduled runner included, request paths as first attempt only. Fold either into
-Stack B if it stays small.
+scheduled runner included, request paths as first attempt only.
 
 #### M9: Durable messages and outgoing webhooks (was PR 11)
 
@@ -359,11 +368,20 @@ before delivery; resolve the owner recipient from the current business address
 at send time; attempt and schedule each delivery independently; mark permanent
 failures without blocking later work.
 
+Standalone value: the M8 completion runner's messages and webhooks use the
+current owner address, recover on schedule after an interruption, and one
+permanently failing destination no longer blocks the rest of the queue.
+
 #### M10: Durable site assignment and renewal (was PR 12)
 
 Src target: 300–600. Persist site assignment and renewal effects before remote
 work; serialize concurrent paid renewals; keep remote calls outside
-transactions; repoint queued site work during attendee merges.
+transactions; repoint queued site work during attendee merges; schedule
+unfinished work within explicit provider, database, and total subrequest
+budgets.
+
+Standalone value: paid site delivery and renewal recover safely after an
+interruption, a concurrent payment, or an attendee merge.
 
 ### Stack D — history and retirement (M11–M13)
 
