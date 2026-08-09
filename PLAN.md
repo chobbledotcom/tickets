@@ -25,13 +25,13 @@ ledger.
 
 ## Where we are
 
-| Milestone                               | Status                                                                                                                                            |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| M1 safety behavior (was PR 1)           | Merged as #2020. Also landed the M2 pure modules: `src/shared/payment/money.ts`, `resource-id.ts`, `refund-state.ts`, and `validated-session.ts`. |
-| M2 money/resource vocabulary (was PR 2) | Core modules merged inside #2020. Any provider parsing still off those schemas rides with M3 or M4.                                               |
-| M3 provider ownership (was PR 3)        | In flight. Merged slices so far: #2048 (payment processing core), #2050 (bounded registration delivery).                                          |
-| M11 verifier slice (was PR 13)          | Started early in #2056 — the verifier is read-only and parallelizable.                                                                            |
-| M4–M10 and M12–M13                      | Not started.                                                                                                                                      |
+| Milestone                               | Status                                                                                                                                                                        |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M1 safety behavior (was PR 1)           | Merged as #2020. Also landed the M2 pure modules: `src/shared/payment/money.ts`, `resource-id.ts`, `refund-state.ts`, and `validated-session.ts`.                             |
+| M2 money/resource vocabulary (was PR 2) | Core modules merged inside #2020. Any provider parsing still off those schemas rides with M3 or M4.                                                                           |
+| M3 provider ownership (was PR 3)        | In flight. Merged slices so far: #2048 (payment processing core), #2050 (bounded registration delivery). The observation boundary + SumUp callback wiring slice is in review. |
+| M11 verifier slice (was PR 13)          | Started early in #2056 — the verifier is read-only and parallelizable.                                                                                                        |
+| M4–M10 and M12–M13                      | Not started.                                                                                                                                                                  |
 
 Budgets below count `src/` lines only. Observed totals run 4–15x the `src/`
 figure once tests, stories, and catalog copy are included (#2020: 714 src lines,
@@ -290,14 +290,22 @@ happen in production.
   modifier fact is never lost to the deposit fraction — today's pricing folds
   the deposit share into ticket lines while Money records the whole modifier,
   and both facts must survive as themselves. One canonical allocator produces
-  this record for the whole payment — every listing line and every extra in one
-  pass, each part with a stable identity — and the record is stored with the
-  payment: reconciliation, refund routing, and balance completion read the
-  stored allocation and never re-derive it, so no two consumers can disagree
-  about a part. Today's ticket-only `allocateReservationDeposit` does not
-  survive the move. Store the provider on each charge: M6's own reconciliation
-  reads it to validate and deduplicate charge identity, and the M7 engine routes
-  refunds by it, closing the multi-provider gap.
+  this record for the whole payment — every listing line, every extra, and every
+  price-modifier application as its own signed fact, discount or surcharge, even
+  where today's pricing folds it into line prices — in one pass, each part with
+  a stable identity. A reservation's deposit and balance payments share one
+  booking-level obligation identity: the line, extra, and modifier identities
+  are created once, under that obligation, when the deposit's allocation is
+  stored, and the balance payment's allocation references those same identities
+  — the full obligation is stored once and referenced, never duplicated, which
+  is what lets M7 cancel it exactly once and M8 lease every payment that shares
+  it. The record is stored with the payment: reconciliation, refund routing, and
+  balance completion read the stored allocation and never re-derive it, so no
+  two consumers can disagree about a part. Today's ticket-only
+  `allocateReservationDeposit` does not survive the move. Store the provider on
+  each charge: M6's own reconciliation reads it to validate and deduplicate
+  charge identity, and the M7 engine routes refunds by it, closing the
+  multi-provider gap.
 - Reads: every provider read goes behind one strict observation contract
   covering missing, invalid, unavailable, pending, paid, free, and failed.
   Square payment IDs are named by the order, not scanned from a short list.
@@ -401,12 +409,20 @@ over).
   claimed atomically with the refund result, so recovery retries it when the
   provider reversal succeeded but the local write failed — and can never run it
   twice. The buyer gets back what they paid, nothing is reversed twice, and a
-  cancelled booking leaves no debt behind. While an attendee has unfinished
-  refund pages, merging or deleting that attendee fails closed naming the
-  pending work — a merge posts its own Money adjustments, and replaying a
-  pre-merge allocation after them could reverse income twice; M8's general
-  repointing for queued work then replaces this fence. The migrated-payment
-  caller arrives in M11, when migrated payments first exist.
+  cancelled booking leaves no debt behind. Each queued item also stores the
+  payment-evidence revision it was built from, and the claiming transaction
+  re-runs the outcome and blocking-case checks before every provider call: a
+  payment whose evidence moved on — a second captured charge, an external
+  refund, a newly opened case — parks as owner-review work instead of being
+  refunded from a stale snapshot. While an attendee has unfinished refund pages,
+  merging or deleting that attendee fails closed naming the pending work — a
+  merge posts its own Money adjustments, and replaying a pre-merge allocation
+  after them could reverse income twice. This fence outlives M8 for refund
+  pages: repointing cannot make a frozen pre-merge allocation safe to replay
+  after the merge's own adjustments, so merges stay refused until the refund
+  work settles or the owner cancels it — M8's general repointing covers only
+  queued work whose facts a merge leaves unchanged. The migrated-payment caller
+  arrives in M11, when migrated payments first exist.
 - Persist provider refund identity before local completion; queue and schedule
   repair when provider success is followed by a local failure; keep callback and
   admin replay idempotent; keep refunds available while new sales are disabled.
@@ -452,28 +468,36 @@ one machine and merge together.
   allocation, but the commit is all lines or none in one transaction — as
   `createBookingAtomic` commits the shared order today — so one line selling out
   after payment sends the whole completion down the failure path (refund or
-  owner case) rather than half-booking the order. Before the effect runner
-  claims its first payment, an idempotent cutover pass adopts the M6-window
-  history: an aggregate payment the legacy path already completed has its folded
-  result marked done, never re-booked or re-posted to Money; a paid aggregate
-  payment with no completion result becomes due work; and a paid payment whose
-  folded result records a completion failure becomes the matching durable
-  failure effect — its chosen refund path or an owner case — never marked done
-  and never re-run as a fresh booking. So pre-M8 unfinished completions gain
-  durable recovery instead of being stranded. The pass runs only after the write
-  fence has risen and in-flight legacy commits have drained or failed, and the
-  runner revision-rechecks the folded state when claiming each payment, so a
-  legacy commit that landed between scan and claim is honoured, never redone.
-  Adoption also gates on a completion-safe `outcomeOf` state with no open
-  blocking case: a paid payment stopped for owner review — captured money on a
-  failed checkout, multiple captured charges — stays in its case workflow,
-  because due work must never bypass a required owner choice. Refund and
-  completion claims are mutually exclusive through one payment-wide claim: the
-  payment session row's shipped lease (`lease_token`, `lease_expires_at`).
-  Refund jobs, the adoption pass, and the effect runner each acquire that lease
-  atomically before acting and verify no unfinished refund job or effect owns
-  the payment, so two runners can never both read "nothing done yet" and act,
-  and a booking can never complete while its irreversible refund is in flight.
+  owner case) rather than half-booking the order. That refund is an
+  unhonoured-payment refund: it returns cash only and posts no booking-level
+  obligation cancellation, because the all-or-none commit never posted the
+  obligation — a cancellation runs only with proof the booking obligation effect
+  completed. Before the effect runner claims its first payment, an idempotent
+  cutover pass adopts the M6-window history: an aggregate payment the legacy
+  path already completed has its folded result marked done, never re-booked or
+  re-posted to Money; a paid aggregate payment with no completion result becomes
+  due work; and a paid payment whose folded result records a completion failure
+  becomes the matching durable failure effect — its chosen refund path or an
+  owner case — never marked done and never re-run as a fresh booking. So pre-M8
+  unfinished completions gain durable recovery instead of being stranded. The
+  pass runs only after the write fence has risen and in-flight legacy commits
+  have drained or failed, and the runner revision-rechecks the folded state when
+  claiming each payment, so a legacy commit that landed between scan and claim
+  is honoured, never redone. Adoption also gates on a completion-safe
+  `outcomeOf` state with no open blocking case: a paid payment stopped for owner
+  review — captured money on a failed checkout, multiple captured charges —
+  stays in its case workflow, because due work must never bypass a required
+  owner choice. Refund and completion claims are mutually exclusive through one
+  payment-wide claim: the payment session row's shipped lease (`lease_token`,
+  `lease_expires_at`). Refund jobs, the adoption pass, and the effect runner
+  each acquire that lease atomically before acting and verify no unfinished
+  refund job or effect owns the payment, so two runners can never both read
+  "nothing done yet" and act, and a booking can never complete while its
+  irreversible refund is in flight. For a reservation whose deposit and balance
+  are separate payments, the claim spans them: a runner acquires the lease of
+  every payment sharing the booking-level obligation, always in one fixed order,
+  before acting — so refund and completion can never split one booking between
+  two sessions.
 - From this cutover on, completion stops storing payment references in attendee
   PII — the aggregate owns the attendee-to-payment link — so the attendee-PII
   reference source M11 reads is closed at M8 and cannot grow while the copy
@@ -777,6 +801,12 @@ mechanism and a regression test, or — if implementation proves the finding wro
 | F69 | An obligation cancellation without a stable identity re-running or never retrying      | M7              |
 | F70 | Two runners both reading "nothing done yet" and acting on one payment                  | M8              |
 | F71 | A consumer re-deriving the allocation and disagreeing with the stored record           | M6              |
+| F72 | A booking split across two payment leases, refunding one while completing the other    | M8              |
+| F73 | Repointing replacing the merge fence and replaying a pre-merge allocation              | M7, M8          |
+| F74 | A queued refund acting on stale evidence after the payment's outcome moved on          | M7              |
+| F75 | Cancelling a booking obligation that the failed completion never posted                | M8              |
+| F76 | A discount folded into line prices losing its signed modifier fact                     | M6              |
+| F77 | Deposit and balance allocations minting separate identities for one obligation         | M6              |
 
 ## Done means
 

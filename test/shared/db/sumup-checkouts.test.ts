@@ -14,8 +14,9 @@ import { unwrapKeyWithToken } from "#shared/crypto/keys.ts";
 import type { WrappedKey } from "#shared/crypto/sealed.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
+  getSealedSumupCheckout,
   getSumupCheckout,
-  hasSumupCheckoutId,
+  openSumupCheckout,
   setSumupCheckoutId,
   storeSumupCheckout,
 } from "#shared/db/sumup-checkouts.ts";
@@ -108,7 +109,7 @@ describeWithEnv("db > sumup-checkouts", { db: true }, () => {
       await setSumupCheckoutId(REFERENCE, "co_abc123");
 
       expect((await getSumupCheckout(REFERENCE))!.sumupId).toBe("co_abc123");
-      expect(await hasSumupCheckoutId("co_abc123")).toBe(true);
+      expect(await getSealedSumupCheckout("co_abc123")).not.toBeNull();
     });
 
     test("setSumupCheckoutId updates only the matching reference", async () => {
@@ -126,11 +127,39 @@ describeWithEnv("db > sumup-checkouts", { db: true }, () => {
       expect((await getSumupCheckout(otherReference))!.sumupId).toBe("");
     });
 
-    test("hasSumupCheckoutId rejects ids we never created", async () => {
+    test("getSealedSumupCheckout rejects ids we never created", async () => {
       await storeSumupCheckout(REFERENCE, METADATA);
       await setSumupCheckoutId(REFERENCE, "co_abc123");
 
-      expect(await hasSumupCheckoutId("co_spam")).toBe(false);
+      expect(await getSealedSumupCheckout("co_spam")).toBeNull();
+    });
+
+    test("openSumupCheckout opens a sealed row with its own reference", async () => {
+      await storeSumupCheckout(REFERENCE, METADATA);
+      await setSumupCheckoutId(REFERENCE, "co_abc123");
+
+      const sealed = await getSealedSumupCheckout("co_abc123");
+      expect(await openSumupCheckout(sealed!, REFERENCE)).toEqual(METADATA);
+    });
+
+    test("openSumupCheckout refuses a reference that names another row", async () => {
+      // The row's own index is the proof: a different booking's reference
+      // must not decrypt this row's metadata.
+      await storeSumupCheckout(REFERENCE, METADATA);
+      await setSumupCheckoutId(REFERENCE, "co_abc123");
+
+      const sealed = await getSealedSumupCheckout("co_abc123");
+      expect(
+        await openSumupCheckout(sealed!, "some-other-reference"),
+      ).toBeNull();
+    });
+
+    test("setSumupCheckoutId throws when no staged row matches", async () => {
+      // Creation must fail before the hosted URL is exposed: with no staged
+      // id, every callback for this checkout would be refused as unknown.
+      await expect(setSumupCheckoutId(REFERENCE, "co_lost")).rejects.toThrow(
+        "expected exactly 1",
+      );
     });
   });
 

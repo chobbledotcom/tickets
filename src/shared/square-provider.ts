@@ -13,10 +13,7 @@
  */
 
 import { logDebug } from "#shared/logger.ts";
-import {
-  type SessionRejection,
-  validatedPaymentSession,
-} from "#shared/payment/validated-session.ts";
+import { validatedPaymentSession } from "#shared/payment/validated-session.ts";
 import {
   hasRequiredSessionMetadata,
   toCanonicalIso,
@@ -26,8 +23,9 @@ import {
 import type {
   CheckoutIntent,
   PaymentProvider,
-  ValidatedPaymentSession,
+  RetrieveSessionResult,
   WebhookEvent,
+  WebhookSessionResult,
   WebhookSetupResult,
 } from "#shared/payments.ts";
 import {
@@ -67,7 +65,7 @@ export const squarePaymentProvider: PaymentProvider = {
 
   async resolveWebhookSession(
     listing: WebhookEvent,
-  ): Promise<ValidatedPaymentSession | "skip" | SessionRejection | null> {
+  ): Promise<WebhookSessionResult> {
     const obj = listing.data.object;
 
     // Square nests payment fields under data.object.payment
@@ -111,7 +109,7 @@ export const squarePaymentProvider: PaymentProvider = {
   async retrieveSession(
     sessionId: string,
     paidPaymentId?: string,
-  ): Promise<ValidatedPaymentSession | SessionRejection | null> {
+  ): Promise<RetrieveSessionResult> {
     /* jscpd:ignore-end */
     // sessionId is the Square order ID
     const order = await retrieveOrder(sessionId);

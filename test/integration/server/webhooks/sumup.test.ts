@@ -75,13 +75,16 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
     status: "FAILED" | "PAID",
     transactionId: string,
   ) =>
-    stub(sumupApi, "retrieveCheckoutById", () =>
+    stub(sumupApi, "readCheckoutById", () =>
       Promise.resolve({
-        amountMinor: 1000,
-        currency: "GBP",
-        reference,
-        status,
-        transactionId,
+        resource: {
+          amountMinor: 1000,
+          currency: "GBP",
+          reference,
+          status,
+          transactionId,
+        },
+        status: "found" as const,
       }),
     );
 
@@ -104,26 +107,37 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
     }
   });
 
-  test("acknowledges unknown SumUp checkout ids without fetching from the API", async () => {
+  /** POST an unsigned callback for `id` and expect the fixed refusal with no
+   * SumUp fetch — the shared contract for every id refused locally. Its body
+   * never says why verification failed, and the payload is never echoed into
+   * a log or acknowledged. */
+  const expectRefusedLocally = async (id: string) => {
     const listing = await createTestListing({ unitPrice: 1000 });
     await stageSumupCheckout(listing);
-    const fetchStub = stub(sumupApi, "retrieveCheckoutById", () =>
-      Promise.resolve(null),
+    const fetchStub = stub(sumupApi, "readCheckoutById", () =>
+      Promise.resolve({ status: "missing" as const }),
     );
     try {
       const response = await handleRequest(
-        mockWebhookRequest({
-          event_type: "CHECKOUT_STATUS_CHANGED",
-          id: "co_spam",
-        }),
+        mockWebhookRequest({ event_type: "CHECKOUT_STATUS_CHANGED", id }),
       );
-      expect(response.status).toBe(200);
-      expect((await response.json()).received).toBe(true);
+      expect(response.status).toBe(503);
+      expect(response.headers.get("content-type")).toBe(
+        "text/plain; charset=utf-8",
+      );
+      expect(await response.text()).toBe("Payment verification failed");
       expect(fetchStub.calls.length).toBe(0);
     } finally {
       fetchStub.restore();
     }
-  });
+  };
+
+  test("refuses an oversized SumUp checkout id with the fixed response", () =>
+    expectRefusedLocally("x".repeat(256)));
+
+  test("refuses unknown SumUp checkout ids retryably without fetching from the API", () =>
+    // The same refusal covers a real callback racing our staging write.
+    expectRefusedLocally("co_spam"));
 
   test("shows the cancel page when a SumUp payment fails", async () => {
     const listing = await createTestListing({ unitPrice: 1000 });

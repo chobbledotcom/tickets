@@ -7,7 +7,9 @@ import {
   setSumupCheckoutId,
   storeSumupCheckout,
 } from "#shared/db/sumup-checkouts.ts";
-import { type SumupCheckout, sumupApi } from "#shared/sumup.ts";
+import type { ProviderRead } from "#shared/payment/provider-read.ts";
+import { sumupApi } from "#shared/sumup.ts";
+import type { SumupCheckout } from "#shared/sumup-observation.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
@@ -63,16 +65,23 @@ export const stageSumupCheckout = async (): Promise<void> => {
   await setSumupCheckoutId("ref", "co_1");
 };
 
-/** Run `body` with retrieveCheckoutById stubbed to resolve `value`, handing it
+/** Run `body` with readCheckoutById stubbed to resolve `read`, handing it
  *  a reader for the arguments the adapter was called with. */
-export const withFetchedSumupCheckout = (
-  value: SumupCheckout | null,
+export const withSumupCheckoutRead = (
+  read: ProviderRead<SumupCheckout>,
   body: (calls: () => unknown[][]) => Promise<void>,
 ): Promise<void> =>
   withMocks(
-    () => stub(sumupApi, "retrieveCheckoutById", () => Promise.resolve(value)),
+    () => stub(sumupApi, "readCheckoutById", () => Promise.resolve(read)),
     (mock) => body(() => mock.calls.map((c) => c.args)),
   );
+
+/** {@link withSumupCheckoutRead} for the common case: the fetch found `value`. */
+export const withFetchedSumupCheckout = (
+  value: SumupCheckout,
+  body: (calls: () => unknown[][]) => Promise<void>,
+): Promise<void> =>
+  withSumupCheckoutRead({ resource: value, status: "found" }, body);
 
 /**
  * Give a SumUp suite a database, a site domain, and a configured SumUp account,
