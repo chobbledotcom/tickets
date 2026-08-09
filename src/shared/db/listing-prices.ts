@@ -202,7 +202,7 @@ const foldGroupDayRows = (
   const result = new Map<number, Map<number, number>>();
   for (const row of rows) {
     const dayCount = Number(row.price_id.split("/")[1]);
-    const byDay = result.get(row.listing_id) ?? new Map<number, number>();
+    const byDay = result.get(row.listing_id) || new Map<number, number>();
     byDay.set(dayCount, row.unit_price);
     result.set(row.listing_id, byDay);
   }
@@ -287,7 +287,7 @@ export const dayCountPriceStatements = (
   listingId: number,
   dayPrices: DayPrices | undefined,
 ): PriceStatement[] => {
-  const rows = Object.entries(parseDayPrices(dayPrices ?? {})).map(
+  const rows = Object.entries(parseDayPrices(dayPrices || {})).map(
     ([days, price]): PriceRow => [listingId, PRICE_TYPE_DAY_COUNT, days, price],
   );
   return compact([
