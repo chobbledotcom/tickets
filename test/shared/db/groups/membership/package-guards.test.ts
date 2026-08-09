@@ -8,6 +8,8 @@ import { t } from "#i18n";
 import { withTransaction } from "#shared/db/client.ts";
 import {
   assignListingsToGroup,
+  type PackageFlags,
+  readPackageFlagsTxOrNull,
   writePackageMembersTx,
 } from "#shared/db/groups/membership.ts";
 import {
@@ -22,8 +24,6 @@ import {
   createTestGroup,
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-
-type PackageFlags = { hide_package_listings: boolean; is_package: boolean };
 
 /** Runs writePackageMembersTx inside a transaction and returns the resulting
  *  package price for the group's first member, so each allow-path test shares
@@ -44,6 +44,23 @@ describeWithEnv(
   "db > groups > writePackageMembersTx guards",
   { db: true },
   () => {
+    test("reads only package flags from the transaction view", async () => {
+      const ordinary = await createTestGroup({ name: "Flag reader ordinary" });
+      const hidden = await createHiddenPackageGroup("Flag reader hidden");
+
+      const flags = await withTransaction(async (tx) => [
+        await readPackageFlagsTxOrNull(tx, ordinary.id),
+        await readPackageFlagsTxOrNull(tx, hidden.id),
+        await readPackageFlagsTxOrNull(tx, 999_999),
+      ]);
+
+      expect(flags).toEqual([
+        { hide_package_listings: false, is_package: false },
+        { hide_package_listings: true, is_package: true },
+        null,
+      ]);
+    });
+
     test("writePackageMembersTx rolls back un-packaging a sold hidden package", async () => {
       const { group } = await createSoldPackageMember(
         "Tx block unpackage",

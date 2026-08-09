@@ -1,8 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { execute } from "#shared/db/client.ts";
 import { listingGroups } from "#shared/db/groups.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
+import { getAllModifiers, modifierListings } from "#shared/db/modifiers.ts";
 import {
   apiCreateListing,
   groupScopedAddOn,
@@ -18,8 +20,10 @@ import {
   updateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import {
+  insertModifier,
   linkModifierGroup,
   optInAddOnForListings,
+  patchModifier,
 } from "#test-utils/modifiers.ts";
 import { postChildren } from "#test-utils/parents.ts";
 import { apiRequest } from "#test-utils/session.ts";
@@ -40,6 +44,41 @@ describeWithEnv(
         400,
       );
       expect(await listingChildren.getIds(parent.id)).toEqual([]);
+    });
+
+    test("admin API rolls back when an add-on activates during the write", async () => {
+      const parent = await createTestListing({ name: "Race base" });
+      const child = await createTestListing({ name: "Race child" });
+      const modifier = await insertModifier({
+        active: false,
+        name: "Race extra",
+      });
+      await patchModifier(modifier.id, {
+        scope: "listings",
+        trigger: "optional",
+      });
+      await modifierListings.setIds(modifier.id, [child.id]);
+      await execute(
+        `CREATE TRIGGER activate_child_add_on
+           AFTER UPDATE ON listings
+           WHEN NEW.id = ${parent.id}
+           BEGIN UPDATE modifiers SET active = 1 WHERE id = ${modifier.id}; END`,
+      );
+
+      await assertJson(
+        apiRequest(`/api/admin/listings/${parent.id}`, {
+          body: { child_listing_ids: [child.id], name: "Race base changed" },
+          method: "PUT",
+        }),
+        400,
+        (json) => expect(json.error).toContain("Race extra"),
+      );
+
+      expect(await listingChildren.getIds(parent.id)).toEqual([]);
+      expect((await getListingWithCount(parent.id))?.name).toBe("Race base");
+      expect(
+        (await getAllModifiers()).find(({ id }) => id === modifier.id)?.active,
+      ).toBe(false);
     });
 
     test("blocks a child whose opt-in add-on only it can reach", async () => {

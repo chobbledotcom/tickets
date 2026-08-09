@@ -12,17 +12,22 @@
 
 import {
   type SqlStatement,
+  type TransactionStateReader,
   type TxScope,
   writeRowInTransaction,
 } from "#shared/db/client.ts";
 
 /** One join-table write that must commit atomically with the row it belongs to,
- *  given the open transaction scope and the written row's id. */
-export type JoinWrite = (tx: TxScope, id: number) => Promise<void>;
+ *  given the open transaction, row id, and narrow pre-update state. */
+export type JoinWrite<State = never> = (
+  tx: TxScope,
+  id: number,
+  state: State | null,
+) => Promise<void>;
 
 /** How to write one row and read it back. `existingId` is null on create (the id
  *  comes from the INSERT) and the row id on update. */
-export interface EntityWrite<Row extends { id: number }> {
+export interface EntityWrite<Row extends { id: number }, State = never> {
   /** Post-commit hook keyed on the written row's id — for reconciling a derived
    *  table the transactional statement path would otherwise bypass. Runs after
    *  the read-back. */
@@ -36,7 +41,7 @@ export interface EntityWrite<Row extends { id: number }> {
    *  the plain single-statement path. Run in order, inside that transaction. The
    *  caller no longer decides "am I transactional?" separately from which hooks
    *  run — the two can't drift. */
-  joinWrites: readonly JoinWrite[];
+  joinWrites: readonly JoinWrite<State>[];
   /** The plain insert/update, used when there are no join writes. */
   plainWrite: () => Promise<Row | null>;
   /** Read the just-committed row back — this MUST be pinned to the primary. A
@@ -44,6 +49,9 @@ export interface EntityWrite<Row extends { id: number }> {
    *  null for the row just written. Use `table.findByIdPrimary` or a
    *  primary-pinned join lookup. */
   readBack: (id: number) => Promise<Row | null>;
+  /** Read narrow pre-update state through the open transaction. Creates and
+   *  writes without a reader skip this read and pass null to every join write. */
+  readState?: TransactionStateReader<State> | undefined;
   /** The table being written, for the error raised when a create's own row can't
    *  be read back. */
   tableName: string;
@@ -55,8 +63,8 @@ export interface EntityWrite<Row extends { id: number }> {
  * just inserted, so not finding it is a broken database rather than an outcome
  * to hand back.
  */
-const readBackWrittenOrNull = async <Row extends { id: number }>(
-  { existingId, readBack, tableName }: EntityWrite<Row>,
+const readBackWrittenOrNull = async <Row extends { id: number }, State>(
+  { existingId, readBack, tableName }: EntityWrite<Row, State>,
   id: number,
 ): Promise<Row | null> => {
   const row = await readBack(id);
@@ -74,8 +82,8 @@ const readBackWrittenOrNull = async <Row extends { id: number }>(
  * the commit); a create that can't read its own row back throws
  * ({@link readBackWrittenOrNull}).
  */
-export const writeEntity = async <Row extends { id: number }>(
-  write: EntityWrite<Row>,
+export const writeEntity = async <Row extends { id: number }, State = never>(
+  write: EntityWrite<Row, State>,
 ): Promise<Row | null> => {
   const row =
     write.joinWrites.length > 0
@@ -84,9 +92,12 @@ export const writeEntity = async <Row extends { id: number }>(
           await writeRowInTransaction(
             await write.buildStatement(),
             write.existingId,
-            async (tx, id) => {
-              for (const joinWrite of write.joinWrites) await joinWrite(tx, id);
+            async (tx, id, state) => {
+              for (const joinWrite of write.joinWrites) {
+                await joinWrite(tx, id, state);
+              }
             },
+            write.readState,
           ),
         )
       : await write.plainWrite();

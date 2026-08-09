@@ -27,6 +27,7 @@ import { logActivity } from "#shared/db/activity-log.ts";
 import { executeBatch } from "#shared/db/client.ts";
 import {
   assignListingsToGroup,
+  readPackageFlagsTxOrNull,
   writePackageMembersTx,
 } from "#shared/db/groups/membership.ts";
 import {
@@ -305,15 +306,16 @@ const groupsCreateResource = defineNamedResource({
  *  request-level check and this write rolls the change back. */
 const groupsResource = defineNamedResource({
   ...groupResourceBase,
-  afterWrite: (tx, id, input, form, existing) =>
+  afterWrite: (tx, id, input, form, flags) =>
     writePackageMembersTx(
       tx,
       id,
-      existing,
+      flags,
       input,
       input.isPackage ? parsePackageMembers(form) : [],
     ),
   form: getGroupForm(),
+  readState: readPackageFlagsTxOrNull,
   toInput: extractGroupEditInput,
 });
 
@@ -379,7 +381,11 @@ const handleAddListingsToGroup = groupFormPost(async (group, form) => {
     const existingListingIds = listings.map((listing) => listing.id);
     const typeError = await assignListingsToGroup(listingIds, group.id);
     if (typeError) {
-      return redirect(`/admin/groups/${group.id}`, typeError, false);
+      const target =
+        typeError === t("error.selected_group_deleted")
+          ? "/admin/groups"
+          : `/admin/groups/${group.id}`;
+      return redirect(target, typeError, false);
     }
     await logActivity(
       `${existingListingIds.length} listing(s) added to group '${group.name}'`,

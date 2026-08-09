@@ -14,6 +14,7 @@ import type { BlindIndex } from "#shared/crypto/sealed.ts";
 import { withTransaction } from "#shared/db/client.ts";
 import { listingGroups } from "#shared/db/groups.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
+import { getListingDayPrices } from "#shared/db/listing-prices.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createHiddenPackageGroup,
@@ -42,7 +43,7 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
     const result = await prepareListingJoins(baseInput(), {}, null);
 
     expect(result).toEqual({
-      value: { childEdges: null, groupIds: undefined },
+      value: { childEdges: null, dayPrices: undefined, groupIds: undefined },
     });
   });
 
@@ -117,7 +118,11 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
     );
 
     expect(result).toEqual({
-      value: { childEdges: null, groupIds: [group.id] },
+      value: {
+        childEdges: null,
+        dayPrices: undefined,
+        groupIds: [group.id],
+      },
     });
   });
 
@@ -129,6 +134,7 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
     await withTransaction(async (tx) => {
       await persistListingJoins(tx, parent.id, {
         childEdges: [child.id],
+        dayPrices: undefined,
         groupIds: [group.id],
       });
     });
@@ -145,6 +151,7 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
     await withTransaction(async (tx) => {
       await persistListingJoins(tx, parent.id, {
         childEdges: null,
+        dayPrices: undefined,
         groupIds: undefined,
       });
     });
@@ -160,10 +167,37 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
     await withTransaction(async (tx) => {
       await persistListingJoins(tx, parent.id, {
         childEdges: [],
+        dayPrices: undefined,
         groupIds: undefined,
       });
     });
 
     expect(await listingChildren.getIds(parent.id)).toEqual([]);
+  });
+
+  test("persistListingJoins writes day prices before edge validation", async () => {
+    const parent = await createTestListing({
+      customisableDays: true,
+      dayPrices: { 1: 1000 },
+      durationDays: 2,
+      listingType: "daily",
+      name: "Changing daily parent",
+    });
+    const child = await createTestListing({
+      durationDays: 2,
+      listingType: "daily",
+      name: "Two-day child",
+    });
+
+    await withTransaction((tx) =>
+      persistListingJoins(tx, parent.id, {
+        childEdges: [child.id],
+        dayPrices: { 2: 1800 },
+        groupIds: undefined,
+      }),
+    );
+
+    expect(await getListingDayPrices(parent.id)).toEqual({ 2: 1800 });
+    expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
   });
 });
