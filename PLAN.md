@@ -263,8 +263,9 @@ The guard is live before the first aggregate write can happen in production.
   the original provider resource after an uncertain response; return the same
   buyer URL on replay; release or schedule every failed claim. All three
   providers at once. SumUp keeps its local payment, checkout, and transaction
-  IDs distinct and uses stored currency. Store the provider on each charge so
-  multi-provider history stays refundable.
+  IDs distinct and uses stored currency. Store the provider on each charge: M6's
+  own reconciliation reads it to validate and deduplicate charge identity, and
+  the M7 engine routes refunds by it, closing the multi-provider gap.
 - Reads: every provider read goes behind one strict observation contract
   covering missing, invalid, unavailable, pending, paid, free, and failed.
   Square payment IDs are named by the order, not scanned from a short list.
@@ -323,9 +324,11 @@ over).
   multiple attendees, and when an attendee-only reference lacks a deterministic
   provider, account, captured amount, currency, or completion state. Those
   fail-closed cases carry their own required decision, shipped here: the owner
-  supplies verified provider, account, and amount evidence — after which the
-  refund proceeds through the engine — or rejects the refund. This is the same
-  owner-evidence rule M11 applies to ambiguous account assignment.
+  supplies verified provider, account, and amount evidence — and, when one
+  reference spans several attendees, assigns the charge to exactly one attendee
+  — after which the refund proceeds through the engine; or the owner rejects the
+  refund. This is the same owner-evidence rule M11 applies to ambiguous account
+  assignment.
 - Delete every replaced refund path and prove no production caller remains.
 
 Standalone value: every refund has the same retry, evidence, and Money
@@ -345,19 +348,22 @@ one machine and merge together.
   driven by the M7 engine, with explicit provider, database, and total
   subrequest budgets.
 - The M5 complete-a-proven-booking case action lands here.
-- Fence listing deletion against pending payment work; repoint payment work and
-  open cases during attendee merges. Move the maintenance writers off the old
-  tables — and the admin action itself always completes: merge, delete, and
-  prune succeed for attendees with uncopied historical rows, and only the legacy
-  row's own removal waits. Each writer verifies a row is copied before deleting
-  it and otherwise leaves the row for M11 to copy and prune;
-  `deleteAllStaleReservations` is gated the same way, so no path ever deletes an
-  uncopied legacy row. Before a merge or delete completes for an attendee whose
-  payment history is not yet copied, the attendee-held migration facts — legacy
-  payment references and the payment-identifying facts M11 reads, still
-  encrypted — are preserved in a durable migration snapshot that M11 consumes
-  (or that attendee's payments are canonicalized on the spot), so completing the
-  deletion loses nothing the copy needs.
+- Fence listing deletion against pending payment work. Fence attendee deletion
+  the same way: an attendee with unfinished completion work or durable effects
+  cannot be deleted until that work settles or is repointed, checked inside the
+  deleting transaction. Repoint payment work and open cases during attendee
+  merges. Move the maintenance writers off the old tables — and the admin action
+  itself always completes: merge, delete, and prune succeed for attendees with
+  uncopied historical rows, and only the legacy row's own removal waits. Each
+  writer verifies a row is copied before deleting it and otherwise leaves the
+  row for M11 to copy and prune; `deleteAllStaleReservations` is gated the same
+  way, so no path ever deletes an uncopied legacy row. Before a merge or delete
+  completes for an attendee whose payment history is not yet copied, the
+  attendee-held migration facts — legacy payment references and the
+  payment-identifying facts M11 reads, still encrypted — are preserved in a
+  durable migration snapshot that M11 consumes (or that attendee's payments are
+  canonicalized on the spot), so completing the deletion loses nothing the copy
+  needs.
 - Install the legacy write fence, now that the last routine legacy writer has
   moved, with exactly one exemption until M11: the M7 adapter's
   refund-completion marker. Verify the fence atomically inside the committing
@@ -380,7 +386,8 @@ scheduled runner included, request paths as first attempt only.
 
 Src target: 300–600. Store prepared message and webhook bodies plus buyer facts
 before delivery; resolve the owner recipient from the current business address
-at send time; attempt and schedule each delivery independently; mark permanent
+at send time; attempt and schedule each delivery independently, keeping each run
+within explicit provider, database, and total subrequest budgets; mark permanent
 failures without blocking later work.
 
 Standalone value: the M8 completion runner's messages and webhooks use the
@@ -445,7 +452,10 @@ only after M8 is authoritative fleet-wide.
   cursor.
 - Retire the M7 adapter only after every row is verified and a final
   reconciliation pass has caught any refund that completed between verification
-  and drain.
+  and drain. In this same milestone, switch every legacy read-through caller —
+  panels, exports, statistics, refund targets — to the current readers and
+  delete the M6 read-through adapter, so no production caller outside the
+  restore path reads an old table (M13's precondition).
 
 Standalone value: operators can prove a live database or old backup is safe to
 migrate, and all history becomes usable by the one current engine without
@@ -506,7 +516,7 @@ mechanism and a regression test, or — if implementation proves the finding wro
 | F10 | SumUp return IDs interpreted differently by different routes                           | M6              |
 | F11 | Square fallback reads scanning too short a list                                        | M6              |
 | F12 | Delayed work using live currency rather than stored currency                           | M6              |
-| F13 | Charges without a stored provider unrefundable after a provider switch (#2020 gap)     | M6              |
+| F13 | Charges without a stored provider unrefundable after a provider switch (#2020 gap)     | M6, M7          |
 | F14 | In-flight pre-cutover checkouts paid after the cutover, stranded without a row         | M6              |
 | F15 | Old rows changing after the aggregate write cutover                                    | M6, M8, M11     |
 | F16 | Old payment-reference readers surviving after migration                                | M6, M13         |
