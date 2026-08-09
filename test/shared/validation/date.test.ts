@@ -1,6 +1,29 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { isIsoDate, isIsoMonth } from "#shared/validation/date.ts";
+import {
+  isIsoDate,
+  isIsoMonth,
+  isRealCalendarDay,
+} from "#shared/validation/date.ts";
+
+describe("isRealCalendarDay", () => {
+  test("accepts a real calendar date including the leap day", () => {
+    expect(isRealCalendarDay("2026-12-25")).toBe(true);
+    expect(isRealCalendarDay("2028-02-29")).toBe(true);
+  });
+
+  test("rejects a rollover impossibility Date would normalise", () => {
+    expect(isRealCalendarDay("2026-02-30")).toBe(false);
+    expect(isRealCalendarDay("2027-02-29")).toBe(false);
+  });
+
+  test("returns false rather than throwing for an unparseable value", () => {
+    // Month 99 / day 99 are shape-valid but make Date NaN; the guard must
+    // answer false here instead of calling toISOString() on an Invalid Date.
+    expect(isRealCalendarDay("2026-99-99")).toBe(false);
+    expect(isRealCalendarDay("not-a-date")).toBe(false);
+  });
+});
 
 describe("isIsoDate", () => {
   test("accepts real calendar dates including the leap day", () => {

@@ -2,7 +2,11 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
 import { PRICE_TYPE_GROUP_DAY } from "#shared/db/listing-prices.ts";
-import { loadRegistrationPackageFacts } from "#shared/registration-package-facts.ts";
+import {
+  loadRegistrationPackageFacts,
+  RegistrationDeliveryError,
+  waitForRegistrationDeliveries,
+} from "#shared/registration-package-facts.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -15,6 +19,67 @@ import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 const row = (packageGroupId: number) => ({
   attendee: { package_group_id: packageGroupId },
+});
+
+const registrationDeliveryError = async (
+  outcome: Promise<unknown>,
+): Promise<RegistrationDeliveryError> => {
+  const error = await outcome.catch((reason) => reason);
+  expect(error).toBeInstanceOf(RegistrationDeliveryError);
+  if (!(error instanceof RegistrationDeliveryError)) throw error;
+  expect(error.message).toBe("Unexpected registration delivery failure");
+  return error;
+};
+
+test("marks a registration failed exactly when any delivery failed", async () => {
+  expect(await waitForRegistrationDeliveries([])).toEqual({ failed: false });
+  expect(
+    await waitForRegistrationDeliveries<{ delivered: boolean }>([
+      Promise.resolve({ delivered: true }),
+      Promise.resolve({ delivered: true }),
+    ]),
+  ).toEqual({ failed: false });
+  expect(
+    await waitForRegistrationDeliveries<{ delivered: boolean }>([
+      Promise.resolve({ delivered: true }),
+      Promise.resolve({ delivered: false }),
+    ]),
+  ).toEqual({ failed: true });
+});
+
+test("waits for every registration delivery before rejecting", async () => {
+  const pending = Promise.withResolvers<{ delivered: true }>();
+  const failure = new Error("unexpected delivery failure");
+  const outcome = waitForRegistrationDeliveries([
+    Promise.reject(failure),
+    pending.promise,
+  ]);
+  let rejected = false;
+  outcome.catch(() => {
+    rejected = true;
+  });
+
+  await Promise.resolve();
+  expect(rejected).toBe(false);
+  pending.resolve({ delivered: true });
+  const error = await registrationDeliveryError(outcome);
+  expect(error.failed).toBe(false);
+  expect(error.reasons).toEqual([failure]);
+});
+
+test("keeps every registration delivery rejection", async () => {
+  const failure = new Error("unexpected delivery failure");
+  const secondFailure = new Error("another delivery failure");
+  const error = await registrationDeliveryError(
+    waitForRegistrationDeliveries([
+      Promise.resolve({ delivered: false }),
+      Promise.reject(failure),
+      Promise.reject(secondFailure),
+    ]),
+  );
+
+  expect(error.failed).toBe(true);
+  expect(error.reasons).toEqual([failure, secondFailure]);
 });
 
 describeWithEnv("loadRegistrationPackageFacts", { db: true }, () => {

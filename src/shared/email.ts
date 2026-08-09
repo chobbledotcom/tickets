@@ -1,30 +1,15 @@
 /**
- * Email sending module
- * Sends registration emails via HTTP email APIs (Resend, Postmark, SendGrid, Mailgun)
+ * Email provider configuration and single-message delivery.
  */
 
 import * as v from "valibot";
-import { chunk, lazyRef } from "#fp";
+import { lazyRef } from "#fp";
 import { t } from "#i18n";
-import { toBase64 } from "#shared/crypto/utils.ts";
 import { settings } from "#shared/db/settings.ts";
-import {
-  type BuyerEntryGroup,
-  buildTemplateData,
-  buyerEntryGroups,
-  collapsedPackageSummary,
-  renderEmailContent,
-} from "#shared/email-renderer.ts";
 import { getEnv } from "#shared/env.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { type FetchResult, fetchText } from "#shared/fetch.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import {
-  loadRegistrationPackageFacts,
-  type RegistrationNotification,
-} from "#shared/registration-package-facts.ts";
-import { generateSvgTicket, type SvgTicketData } from "#shared/svg-ticket.ts";
-import { buildCheckinUrl, buildTicketUrl } from "#shared/ticket-url.ts";
 import {
   emailHost,
   parseEmail,
@@ -33,7 +18,6 @@ import {
 import { guardFor } from "#shared/validation/guard.ts";
 import type { WebhookAttendee, WebhookListing } from "#shared/webhook.ts";
 
-/** Listing data needed for registration pipeline (extends webhook listing with display + assignment fields) */
 export type EmailListing = WebhookListing & {
   active: boolean;
   date: string;
@@ -45,54 +29,46 @@ export type EmailListing = WebhookListing & {
   listing_type: "standard" | "daily";
 };
 
-/** Attendee + listing pair for email rendering */
-export type EmailEntry = {
-  listing: EmailListing;
+export interface EmailEntry {
   attendee: WebhookAttendee;
-};
+  listing: EmailListing;
+}
 
-/** A base64-encoded email attachment */
-export type EmailAttachment = {
-  filename: string;
+export interface EmailAttachment {
   content: string;
   contentType: string;
-};
+  filename: string;
+}
 
-export type EmailMessage = {
-  to: ValidEmail;
-  subject: string;
-  html: string;
-  text: string;
-  replyTo?: ValidEmail | undefined;
+export interface EmailMessage {
   attachments?: EmailAttachment[] | undefined;
-};
+  html: string;
+  replyTo?: ValidEmail | undefined;
+  subject: string;
+  text: string;
+  to: ValidEmail;
+}
 
-export type EmailConfig = {
-  provider: EmailProvider;
+export interface EmailConfig {
   apiKey: string;
   fromAddress: ValidEmail;
-};
+  provider: EmailProvider;
+}
 
-export type RegistrationEmailDelivery = {
-  attendeeEmail: ValidEmail | null;
-  businessEmail: ValidEmail | null;
-  config: EmailConfig;
-};
-
-/** Read email config from DB settings. Falls back to business email for
- * fromAddress. Returns null if not configured or the from address is invalid. */
 export const getEmailConfig = (): EmailConfig | null => {
   const provider = settings.email.provider;
   const apiKey = settings.email.apiKey;
   const fromAddress = parseEmail(
     settings.email.fromAddress || settings.businessEmail || "",
   );
-  if (!provider || !apiKey || !fromAddress) return null;
-  return { apiKey, fromAddress, provider: provider as EmailProvider };
+  if (!provider) return null;
+  if (!isEmailProvider(provider)) {
+    throw new Error(`Unknown stored email provider: ${provider}`);
+  }
+  if (!apiKey || !fromAddress) return null;
+  return { apiKey, fromAddress, provider };
 };
 
-/** Read host-level email config from environment variables. Returns null if not
- * fully configured, the provider is unknown, or the from address is invalid. */
 const getHostEmailConfigFromEnv = (): EmailConfig | null => {
   const provider = getEnv("HOST_EMAIL_PROVIDER");
   const apiKey = getEnv("HOST_EMAIL_API_KEY");
@@ -112,51 +88,28 @@ const [getHostEmailOverride, setHostEmailOverride] = lazyRef<
   EmailConfig | null | undefined
 >(() => undefined);
 
-/** Get host-level email config. Uses test override if set, otherwise reads env vars. */
 export const getHostEmailConfig = (): EmailConfig | null => {
   const override = getHostEmailOverride();
   return override !== undefined ? override : getHostEmailConfigFromEnv();
 };
 
-/** For testing: set host email config directly. Bypasses env vars to avoid races. */
 export const setHostEmailConfigForTest = (config: EmailConfig | null): void =>
   setHostEmailOverride(config);
 
-/** For testing: reset host email config to read from env vars. */
 export const resetHostEmailConfig = (): void => setHostEmailOverride(undefined);
 
-/** The email config sending should use: the site's own settings when complete,
- * otherwise the host-level config. Null when neither is configured — callers
- * treat that as "email is off". */
 export const getActiveEmailConfig = (): EmailConfig | null => {
   const siteConfig = getEmailConfig();
   return siteConfig !== null ? siteConfig : getHostEmailConfig();
 };
 
-/** Resolve whether a registration has configured email and somebody to notify. */
-export const registrationEmailDelivery = (
-  entries: EmailEntry[],
-): RegistrationEmailDelivery | null => {
-  const config = getActiveEmailConfig();
-  if (!config) return null;
-  const attendeeRaw = entries[0]?.attendee.email;
-  const attendeeEmail = attendeeRaw ? parseEmail(attendeeRaw) : null;
-  const businessEmail = parseEmail(settings.businessEmail);
-  return attendeeEmail || businessEmail
-    ? { attendeeEmail, businessEmail, config }
-    : null;
-};
-
 type Headers = Record<string, string>;
-/** A function that turns the email config and a message into a provider-specific
- *  value — the request tuple for a whole provider, or just its request body. */
+export type EmailRequest = [url: string, headers: Headers, body: unknown];
 type EmailProviderFn<Result> = (
   config: EmailConfig,
   msg: EmailMessage,
 ) => Result;
-type ProviderRequest = EmailProviderFn<
-  [url: string, headers: Headers, body: unknown]
->;
+type ProviderRequest = EmailProviderFn<EmailRequest>;
 
 const provider =
   (
@@ -170,36 +123,33 @@ const provider =
     body(config, msg),
   ];
 
-const bearerAuth = (apiKey: string): Headers => ({
+export const bearerAuth = (apiKey: string): Headers => ({
   Authorization: `Bearer ${apiKey}`,
 });
 
-/** Provider using bearer-token auth (Resend, SendGrid, etc). */
 const bearerProvider = (
   url: string,
   body: EmailProviderFn<unknown>,
 ): ProviderRequest => provider(url, bearerAuth, body);
 
-/** Map EmailMessage attachments into a provider-specific shape, or undefined. */
 const mapAttachments = <T>(
   msg: EmailMessage,
-  fn: (a: EmailAttachment) => T,
+  fn: (attachment: EmailAttachment) => T,
 ): T[] | undefined => msg.attachments?.map(fn);
 
-const resendAttachment = (a: EmailAttachment) => ({
-  content: a.content,
-  filename: a.filename,
+const resendAttachment = (attachment: EmailAttachment) => ({
+  content: attachment.content,
+  filename: attachment.filename,
 });
 
-const sendgridAttachment = (a: EmailAttachment) => ({
-  content: a.content,
+const sendgridAttachment = (attachment: EmailAttachment) => ({
+  content: attachment.content,
   disposition: "attachment",
-  filename: a.filename,
-  type: a.contentType,
+  filename: attachment.filename,
+  type: attachment.contentType,
 });
 
-/** A fresh Mailgun form seeded with the shared sender field. */
-const mailgunForm = (config: EmailConfig): FormData => {
+export const mailgunForm = (config: EmailConfig): FormData => {
   const form = new FormData();
   form.append("from", config.fromAddress);
   return form;
@@ -212,18 +162,18 @@ const mailgunBody = (config: EmailConfig, msg: EmailMessage): FormData => {
   form.append("html", msg.html);
   form.append("text", msg.text);
   if (msg.replyTo) form.append("h:Reply-To", msg.replyTo);
-  for (const a of msg.attachments ?? []) {
-    const bytes = Uint8Array.fromBase64(a.content);
+  for (const attachment of msg.attachments ?? []) {
+    const bytes = Uint8Array.fromBase64(attachment.content);
     form.append(
       "attachment",
-      new Blob([bytes], { type: a.contentType }),
-      a.filename,
+      new Blob([bytes], { type: attachment.contentType }),
+      attachment.filename,
     );
   }
   return form;
 };
 
-const mailgun = (host: string) =>
+const mailgun = (host: string): ProviderRequest =>
   provider(
     (config) => `https://${host}/v3/${emailHost(config.fromAddress)}/messages`,
     (apiKey) => ({ Authorization: `Basic ${btoa(`api:${apiKey}`)}` }),
@@ -240,10 +190,10 @@ const PROVIDERS = {
       "X-Postmark-Server-Token": apiKey,
     }),
     (config, msg) => ({
-      Attachments: msg.attachments?.map((a) => ({
-        Content: a.content,
-        ContentType: a.contentType,
-        Name: a.filename,
+      Attachments: msg.attachments?.map((attachment) => ({
+        Content: attachment.content,
+        ContentType: attachment.contentType,
+        Name: attachment.filename,
       })),
       From: config.fromAddress,
       HtmlBody: msg.html,
@@ -278,27 +228,16 @@ const PROVIDERS = {
   ),
 } as const satisfies Record<string, ProviderRequest>;
 
-/** Union of all supported email provider keys, derived from the PROVIDERS map */
 export type EmailProvider = keyof typeof PROVIDERS;
 
-/**
- * Picklist schema for the supported email providers. Its options are derived
- * from the PROVIDERS map so the two can never drift, and it mirrors the
- * string-union picklists in types.ts (ContactFieldSchema, PaymentProviderSchema
- * …) — `EmailProviderSchema.options` + `v.is` replace the previous hand-rolled
- * Set + `.has()` guard.
- */
-export const EmailProviderSchema = v.picklist(
+const EmailProviderSchema = v.picklist(
   Object.keys(PROVIDERS) as [EmailProvider, ...EmailProvider[]],
 );
 
-/** Valid provider names (the picklist options), derived from the PROVIDERS map */
 export const VALID_EMAIL_PROVIDERS = EmailProviderSchema.options;
 
-/** Type guard: checks if a string is a valid EmailProvider */
 export const isEmailProvider = guardFor(EmailProviderSchema);
 
-/** Display labels for email providers — keys must match EmailProvider */
 export const EMAIL_PROVIDER_LABELS: Record<EmailProvider, string> = {
   "mailgun-eu": "Mailgun (EU)",
   "mailgun-us": "Mailgun (US)",
@@ -307,8 +246,6 @@ export const EMAIL_PROVIDER_LABELS: Record<EmailProvider, string> = {
   sendgrid: "SendGrid",
 };
 
-/** POST a body with provider headers, eagerly reading the response. FormData
- * (Mailgun) is sent as-is; everything else is JSON-encoded. */
 const postBody = (
   url: string,
   headers: Headers,
@@ -324,366 +261,61 @@ const postBody = (
   });
 };
 
-/** POST a built provider request tuple `[url, headers, body]` and read the response. */
-const sendRequest = (
-  request: [url: string, headers: Headers, body: unknown],
-): Promise<FetchResult> => postBody(...request);
+export const sendEmailRequest = (request: EmailRequest): Promise<FetchResult> =>
+  postBody(...request);
 
-/** Send a single email via the configured provider. Logs errors, never throws. Returns HTTP status or undefined on non-HTTP errors. */
+type EmailDeliveryResult =
+  | { delivered: true; status: number }
+  | { delivered: false; detail: string; status: number | undefined };
+
+const failedEmailDelivery = (error: unknown): EmailDeliveryResult => ({
+  delivered: false,
+  detail: errorMessage(error),
+  status: undefined,
+});
+
+const emailDelivery =
+  (recover: (error: unknown) => EmailDeliveryResult) =>
+  async (
+    config: EmailConfig,
+    msg: EmailMessage,
+  ): Promise<EmailDeliveryResult> => {
+    const buildRequest = PROVIDERS[config.provider];
+    try {
+      const { ok, status } = await sendEmailRequest(buildRequest(config, msg));
+      return ok
+        ? { delivered: true, status }
+        : {
+            delivered: false,
+            detail: `provider=${config.provider} status=${status}`,
+            status,
+          };
+    } catch (error) {
+      return recover(error);
+    }
+  };
+
+const reportedEmailDelivery = emailDelivery(failedEmailDelivery);
+
+export const deliverRegistrationEmail: (
+  config: EmailConfig,
+  msg: EmailMessage,
+) => Promise<EmailDeliveryResult> = emailDelivery((error) => {
+  if (!(error instanceof TypeError)) throw error;
+  return failedEmailDelivery(error);
+});
+
 export const sendEmail = async (
   config: EmailConfig,
   msg: EmailMessage,
 ): Promise<number | undefined> => {
-  const buildRequest = PROVIDERS[config.provider];
-  if (!buildRequest) {
-    logError({
-      code: ErrorCode.EMAIL_SEND,
-      detail: `unknown provider: ${config.provider}`,
-    });
-    return;
+  const delivery = await reportedEmailDelivery(config, msg);
+  if (!delivery.delivered) {
+    logError({ code: ErrorCode.EMAIL_SEND, detail: delivery.detail });
   }
-  try {
-    const { ok, status } = await sendRequest(buildRequest(config, msg));
-    if (!ok) {
-      logError({
-        code: ErrorCode.EMAIL_SEND,
-        detail: `status=${status} to=${msg.to}`,
-      });
-    }
-    return status;
-  } catch (error) {
-    logError({
-      code: ErrorCode.EMAIL_SEND,
-      detail: errorMessage(error),
-    });
-    return;
-  }
+  return delivery.status;
 };
 
-/** Build SVG ticket data from an email entry (non-PII only) */
-export const buildSvgTicketData = (
-  entry: EmailEntry,
-  currency: string,
-): SvgTicketData => ({
-  attendeeDate: entry.attendee.date,
-  checkinUrl: buildCheckinUrl(entry.attendee.ticket_token),
-  currency,
-  listingDate: entry.listing.date,
-  listingLocation: entry.listing.location,
-  listingName: entry.listing.name,
-  pricePaid: entry.attendee.price_paid,
-  purchaseOnly: entry.listing.purchase_only,
-  quantity: entry.attendee.quantity,
-});
-
-/** Build one SVG ticket standing in for a hidden package: the package name and
- * the bundle's summed quantity/price, on the shared check-in token, so the
- * attachment never reveals the member listings (mirrors {@link
- * collapsedPackageEntry} in the email body). */
-const collapsedSvgTicketData = (
-  entries: EmailEntry[],
-  currency: string,
-  packageName: string,
-): SvgTicketData => {
-  // The same summed price/quantity and widest dated stay the email body's
-  // collapsed row shows — one summary, so the SVG and the email can't disagree.
-  const summary = collapsedPackageSummary(entries);
-  return {
-    attendeeDate: summary.widestDated?.attendee.date ?? null,
-    checkinUrl: buildCheckinUrl(entries[0]!.attendee.ticket_token),
-    currency,
-    listingDate: "",
-    listingLocation: "",
-    listingName: packageName,
-    pricePaid: summary.pricePaid,
-    purchaseOnly: entries.every((e) => e.listing.purchase_only),
-    quantity: summary.quantity,
-  };
-};
-
-/** Generate SVG ticket attachments for the buyer's row groups: each HIDDEN
- * package collapses to a single package-level SVG so the attachments don't
- * reveal the member listings the email body hides — whatever else the order
- * carries beside the bundle. Callers without package rows pass one group per
- * entry ({@link buyerEntryGroups} builds the real thing). */
-export const buildTicketAttachments = async (
-  groups: readonly BuyerEntryGroup[],
-  currency: string,
-): Promise<EmailAttachment[]> => {
-  const ticketDataList = groups.map((group) =>
-    group.hiddenPackageName === undefined
-      ? buildSvgTicketData(group.entries[0]!, currency)
-      : collapsedSvgTicketData(
-          group.entries,
-          currency,
-          group.hiddenPackageName,
-        ),
-  );
-  const svgs = await Promise.all(
-    ticketDataList.map((data) => generateSvgTicket(data)),
-  );
-  return svgs.map((svg, i) => ({
-    content: toBase64(new TextEncoder().encode(svg)),
-    contentType: "image/svg+xml",
-    filename:
-      ticketDataList.length === 1 ? "ticket.svg" : `ticket-${i + 1}.svg`,
-  }));
-};
-
-/**
- * Send registration confirmation + admin notification emails.
- * Entries is an array because one registration can cover multiple listings.
- * Silently skips if email is not configured.
- * Attaches one SVG ticket per entry to the confirmation email.
- */
-export const sendRegistrationEmails: RegistrationNotification<
-  EmailEntry
-> = async (entries, currency, suppliedFacts) => {
-  const delivery = registrationEmailDelivery(entries);
-  if (!delivery) return;
-  const { attendeeEmail, businessEmail, config } = delivery;
-  const facts = suppliedFacts ?? (await loadRegistrationPackageFacts(entries));
-  const ticketUrl = buildTicketUrl(entries);
-  const promises: Promise<number | undefined>[] = [];
-
-  if (attendeeEmail) {
-    const replyTo = businessEmail || undefined;
-    // The buyer's confirmation hides every hidden package's member listings —
-    // both in the email body and in the attached ticket SVGs — via the one
-    // buyer-grouping chokepoint (a mixed order conceals each bundle it holds).
-    const groups = buyerEntryGroups(entries, facts.displays);
-    const data = await buildTemplateData(entries, currency, ticketUrl, {
-      hidePackageMembers: true,
-      packageDisplays: facts.displays,
-    });
-    const [confirmation, attachments] = await Promise.all([
-      renderEmailContent("confirmation", data),
-      buildTicketAttachments(groups, currency),
-    ]);
-    promises.push(
-      sendEmail(config, {
-        to: attendeeEmail,
-        ...confirmation,
-        attachments,
-        replyTo,
-      }),
-    );
-  }
-
-  if (businessEmail) {
-    // The admin notification always shows package members, even when hidden.
-    const data = await buildTemplateData(entries, currency, ticketUrl, {
-      packageDisplays: facts.displays,
-    });
-    const notification = await renderEmailContent("admin", data);
-    promises.push(
-      sendEmail(config, {
-        to: businessEmail,
-        ...notification,
-        replyTo: attendeeEmail || undefined,
-      }),
-    );
-  }
-
-  await Promise.allSettled(promises);
-};
-
-// ---------------------------------------------------------------------------
-// Bulk sending
-//
-// Bulk email only supports providers with a true batch endpoint — one HTTP
-// request reaches many recipients. Sending one request per recipient would blow
-// the edge runtime's per-invocation sub-request budget, so providers without a
-// batch API are unsupported for bulk (the admin UI falls back to a mailto:
-// link). The only per-recipient variation is the unsubscribe link, so a bulk
-// send is a shared subject/html/text template (with BULK_UNSUBSCRIBE_PLACEHOLDER
-// where each recipient's link goes) plus the recipient list. Array-batch
-// providers (Resend, Postmark) substitute the link per message; Mailgun uses its
-// recipient-variables. New batch providers slot into the registry below.
-// ---------------------------------------------------------------------------
-
-/** Placeholder in a bulk template marking where each recipient's unsubscribe URL goes. */
-export const BULK_UNSUBSCRIBE_PLACEHOLDER = "%%bulk_unsubscribe_url%%";
-
-/** One bulk recipient: address plus its unsubscribe URL (marketing sends only). */
-export type BulkRecipient = { to: ValidEmail; unsubscribeUrl?: string };
-
-/** A bulk send: shared template (html/text may contain the placeholder) + recipients. */
-export type BulkEmailPayload = {
-  subject: string;
-  html: string;
-  text: string;
-  recipients: BulkRecipient[];
-};
-
-type BulkTemplate = Pick<BulkEmailPayload, "subject" | "html" | "text">;
-
-/** Substitute the unsubscribe placeholder (absent for transactional templates). */
-const fillUnsubscribe = (template: string, value: string): string =>
-  template.replaceAll(BULK_UNSUBSCRIBE_PLACEHOLDER, value);
-
-/** Builds the HTTP request for one batch of recipients. */
-type BulkBatchBuilder = (
-  config: EmailConfig,
-  template: BulkTemplate,
-  batch: BulkRecipient[],
-) => [url: string, headers: Headers, body: unknown];
-
-type BulkProviderSpec = {
-  /** Maximum recipients the provider accepts in a single batch request. */
-  maxBatchSize: number;
-  build: BulkBatchBuilder;
-};
-
-/** Mailgun batch send: one message to many recipients, personalized via
- * recipient-variables (required, else every address leaks into the To header). */
-const mailgunBulk =
-  (host: string): BulkBatchBuilder =>
-  (config, template, batch) => {
-    const form = mailgunForm(config);
-    for (const r of batch) form.append("to", r.to);
-    form.append("subject", template.subject);
-    form.append("html", fillUnsubscribe(template.html, "%recipient.unsub%"));
-    form.append("text", fillUnsubscribe(template.text, "%recipient.unsub%"));
-    form.append(
-      "recipient-variables",
-      JSON.stringify(
-        Object.fromEntries(
-          batch.map((r) => [
-            r.to,
-            r.unsubscribeUrl ? { unsub: r.unsubscribeUrl } : {},
-          ]),
-        ),
-      ),
-    );
-    return [
-      `https://${host}/v3/${emailHost(config.fromAddress)}/messages`,
-      { Authorization: `Basic ${btoa(`api:${config.apiKey}`)}` },
-      form,
-    ];
-  };
-
-const BULK_PROVIDERS = {
-  "mailgun-eu": {
-    build: mailgunBulk("api.eu.mailgun.net"),
-    maxBatchSize: 1000,
-  },
-  "mailgun-us": { build: mailgunBulk("api.mailgun.net"), maxBatchSize: 1000 },
-  postmark: {
-    build: (config, template, batch) => [
-      "https://api.postmarkapp.com/email/batch",
-      { Accept: "application/json", "X-Postmark-Server-Token": config.apiKey },
-      batch.map((r) => ({
-        From: config.fromAddress,
-        HtmlBody: fillUnsubscribe(template.html, r.unsubscribeUrl ?? ""),
-        Subject: template.subject,
-        TextBody: fillUnsubscribe(template.text, r.unsubscribeUrl ?? ""),
-        To: r.to,
-      })),
-    ],
-    maxBatchSize: 500,
-  },
-  resend: {
-    build: (config, template, batch) => [
-      "https://api.resend.com/emails/batch",
-      bearerAuth(config.apiKey),
-      batch.map((r) => ({
-        from: config.fromAddress,
-        html: fillUnsubscribe(template.html, r.unsubscribeUrl ?? ""),
-        subject: template.subject,
-        text: fillUnsubscribe(template.text, r.unsubscribeUrl ?? ""),
-        to: [r.to],
-      })),
-    ],
-    maxBatchSize: 100,
-  },
-  // SendGrid batches via one request with up to 1000 personalizations; each
-  // recipient's unsubscribe URL is a legacy substitution into shared content.
-  sendgrid: {
-    build: (config, template, batch) => [
-      "https://api.sendgrid.com/v3/mail/send",
-      bearerAuth(config.apiKey),
-      {
-        content: [
-          {
-            type: "text/plain",
-            value: fillUnsubscribe(template.text, "-unsub-"),
-          },
-          {
-            type: "text/html",
-            value: fillUnsubscribe(template.html, "-unsub-"),
-          },
-        ],
-        from: { email: config.fromAddress },
-        personalizations: batch.map((r) => ({
-          to: [{ email: r.to }],
-          ...(r.unsubscribeUrl
-            ? { substitutions: { "-unsub-": r.unsubscribeUrl } }
-            : {}),
-        })),
-        subject: template.subject,
-      },
-    ],
-    maxBatchSize: 1000,
-  },
-} as const satisfies Record<EmailProvider, BulkProviderSpec>;
-
-/** What the provider returned for one batch: HTTP status, ok flag, and the raw
- * response body. Providers reply with queued message IDs (or rejection
- * reasons), so the body is kept to surface back to the sender and the log. */
-export type BulkBatchResponse = {
-  status: number;
-  ok: boolean;
-  body: string;
-};
-
-/** Outcome of a bulk send: recipients attempted, batches sent, recipients in
- * failed batches, and the raw per-batch provider responses. */
-export type BulkSendResult = {
-  attempted: number;
-  batches: number;
-  failed: number;
-  responses: BulkBatchResponse[];
-};
-
-/**
- * Send a bulk email via the configured provider. Every supported provider has a
- * batch endpoint, so this works for any `EmailConfig`. Chunks recipients to the
- * provider's batch limit and POSTs each chunk; logs (never throws) on a non-OK
- * batch, whose recipients then count as failed. Each batch's provider response
- * is captured so the caller can relay it to the sender.
- */
-export const sendBulkEmails = async (
-  config: EmailConfig,
-  payload: BulkEmailPayload,
-): Promise<BulkSendResult> => {
-  const spec = BULK_PROVIDERS[config.provider];
-  const { recipients, ...template } = payload;
-  const batches = chunk(spec.maxBatchSize)(recipients);
-  const responses: BulkBatchResponse[] = [];
-  let failed = 0;
-  for (const batch of batches) {
-    const { ok, status, text } = await sendRequest(
-      spec.build(config, template, batch),
-    );
-    responses.push({ body: text, ok, status });
-    if (!ok) {
-      failed += batch.length;
-      logError({
-        code: ErrorCode.EMAIL_SEND,
-        detail: `bulk status=${status} provider=${config.provider} count=${batch.length}`,
-      });
-    }
-  }
-  return {
-    attempted: recipients.length,
-    batches: batches.length,
-    failed,
-    responses,
-  };
-};
-
-/** Send a test email to the business email address. Returns HTTP status or undefined on non-HTTP errors. */
 export const sendTestEmail = async (
   config: EmailConfig,
   to: ValidEmail,

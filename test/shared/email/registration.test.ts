@@ -1,28 +1,29 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
+import { execute } from "#shared/db/client.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
-import type { EmailConfig } from "#shared/email.ts";
-import { sendRegistrationEmails, sendTestEmail } from "#shared/email.ts";
-import type { RegistrationPackageFacts } from "#shared/registration-package-facts.ts";
+import { sendRegistrationEmails } from "#shared/email/registration.ts";
+import {
+  RegistrationDeliveryError,
+  type RegistrationPackageFacts,
+} from "#shared/registration-package-facts.ts";
+import {
+  runWithSubrequestBudget,
+  withSubrequestAllowance,
+} from "#shared/subrequest-budget.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { configureTestEmail, validEmail } from "#test-utils/email.ts";
+import { configureTestEmail } from "#test-utils/email.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
 import { useFetchStub } from "#test-utils/mocks.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
-
-const testConfig: EmailConfig = {
-  apiKey: "re_test_key",
-  fromAddress: validEmail("tickets@example.com"),
-  provider: "resend",
-};
 
 const setupAndSendRegistration = async (
   opts: { businessEmail?: string } = {},
   entries?: ReturnType<typeof makeEntry>[],
 ) => {
   await configureTestEmail(opts);
-  await sendRegistrationEmails(entries ?? [makeEntry()], "GBP");
+  return await sendRegistrationEmails(entries ?? [makeEntry()], "GBP");
 };
 
 /** Decode a base64 SVG attachment back to its UTF-8 source. */
@@ -42,6 +43,14 @@ const expectSingleTicketSvg = (body: {
   return decodeSvgAttachment(body.attachments[0]!.content);
 };
 
+const createHiddenPackage = async (name: string): Promise<number> => {
+  const group = await createTestGroup({ isPackage: true, name });
+  await execute("UPDATE groups SET hide_package_listings = 1 WHERE id = ?", [
+    group.id,
+  ]);
+  return group.id;
+};
+
 describeWithEnv(
   "sendRegistrationEmails",
   {
@@ -56,7 +65,9 @@ describeWithEnv(
     const fetch = useFetchStub();
 
     test("skips all emails when attendee has no email and no business email set", async () => {
-      await setupAndSendRegistration({}, [makeEntry({}, { email: "" })]);
+      expect(
+        await setupAndSendRegistration({}, [makeEntry({}, { email: "" })]),
+      ).toEqual({ failed: false });
       expect(fetch.callCount()).toBe(0);
     });
 
@@ -147,23 +158,15 @@ describeWithEnv(
     });
 
     test("collapses a hidden package's tickets into one package-level SVG", async () => {
-      const group = await createTestGroup({
-        isPackage: true,
-        name: "VIP Bundle",
-      });
-      const { execute } = await import("#shared/db/client.ts");
-      await execute(
-        "UPDATE groups SET hide_package_listings = 1 WHERE id = ?",
-        [group.id],
-      );
+      const groupId = await createHiddenPackage("VIP Bundle");
       const entries = [
         makeEntry(
           { name: "Secret Seat" },
-          { package_group_id: group.id, ticket_token: "pkgtok" },
+          { date: null, package_group_id: groupId, ticket_token: "pkgtok" },
         ),
         makeEntry(
           { name: "Secret Meal" },
-          { package_group_id: group.id, ticket_token: "pkgtok" },
+          { date: null, package_group_id: groupId, ticket_token: "pkgtok" },
         ),
       ];
       await setupAndSendRegistration({}, entries);
@@ -172,6 +175,24 @@ describeWithEnv(
       expect(decoded).toContain("VIP Bundle");
       expect(decoded).not.toContain("Secret Seat");
       expect(decoded).not.toContain("Secret Meal");
+    });
+
+    test("keeps a hidden package's booked date in its ticket", async () => {
+      const groupId = await createHiddenPackage("Dated Bundle");
+      await setupAndSendRegistration({}, [
+        makeEntry(
+          { name: "Secret Stay" },
+          {
+            date: "2026-08-01",
+            end_date: "2026-08-03",
+            package_group_id: groupId,
+          },
+        ),
+      ]);
+
+      const decoded = expectSingleTicketSvg(fetch.getFetchJsonBody());
+      expect(decoded).toContain("1 August 2026");
+      expect(decoded).not.toContain("Secret Stay");
     });
 
     test("uses supplied package displays without reading the database", async () => {
@@ -227,22 +248,60 @@ describeWithEnv(
       // Both calls were attempted (Promise.allSettled)
       expect(fetch.callCount()).toBe(2);
     });
+
+    test("returns a template failure after sending the fallback", async () => {
+      await configureTestEmail();
+      await settings.update.email.template(
+        "confirmation",
+        "subject",
+        "{{ subject | missing_filter }}",
+      );
+      settings.invalidateCache();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
+
+      const error = await sendRegistrationEmails([makeEntry()], "GBP").catch(
+        (reason) => reason,
+      );
+
+      expect(error).toBeInstanceOf(RegistrationDeliveryError);
+      if (!(error instanceof RegistrationDeliveryError)) throw error;
+      expect(error.reasons).toHaveLength(1);
+      expect(fetch.callCount()).toBe(1);
+      expect(fetch.getFetchJsonBody().subject).toContain("Test Listing");
+    });
+
+    test("throws when the email subrequest allowance is exhausted", async () => {
+      await configureTestEmail();
+      const facts: RegistrationPackageFacts = {
+        displays: new Map(),
+        pricingByGroup: new Map(),
+      };
+
+      const sending = runWithSubrequestBudget(() =>
+        withSubrequestAllowance({ database: 50, external: 0, total: 50 }, () =>
+          sendRegistrationEmails([makeEntry()], "GBP", facts),
+        ),
+      );
+
+      const error = await sending.catch((reason) => reason);
+      expect(error).toBeInstanceOf(RegistrationDeliveryError);
+      if (!(error instanceof RegistrationDeliveryError)) throw error;
+      expect(error.reasons).toHaveLength(1);
+      expect(error.reasons[0]).toBeInstanceOf(Error);
+      if (!(error.reasons[0] instanceof Error)) throw error.reasons[0];
+      expect(error.reasons[0].message).toContain(
+        "Subrequest allowance exceeded",
+      );
+      expect(fetch.callCount()).toBe(0);
+    });
+
+    test("returns a failed delivery for a network error", async () => {
+      await configureTestEmail();
+      fetch.restubFetch(() => Promise.reject(new TypeError("Network error")));
+
+      expect(await sendRegistrationEmails([makeEntry()], "GBP")).toEqual({
+        failed: true,
+      });
+    });
   },
 );
-
-describe("sendTestEmail", () => {
-  const fetch = useFetchStub();
-
-  test("sends test email and returns status code", async () => {
-    const status = await sendTestEmail(
-      testConfig,
-      validEmail("admin@test.com"),
-    );
-
-    expect(status).toBe(200);
-    expect(fetch.callCount()).toBe(1);
-    const body = fetch.getFetchJsonBody();
-    expect(body.to).toEqual(["admin@test.com"]);
-    expect(body.subject).toContain("Test email");
-  });
-});

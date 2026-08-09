@@ -58,8 +58,8 @@ describe("log-error", () => {
     });
 
     test("logs error with attendee ID", () => {
-      logError({ attendeeId: 99, code: ErrorCode.WEBHOOK_SEND });
-      expect(spyRef.lastMessage()).toBe("[Error] E_WEBHOOK_SEND attendee=99");
+      logError({ attendeeId: 99, code: ErrorCode.DB_QUERY });
+      expect(spyRef.lastMessage()).toBe("[Error] E_DB_QUERY attendee=99");
     });
 
     test("logs error with detail", () => {
