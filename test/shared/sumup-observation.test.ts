@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { ProviderInvalidReason } from "#shared/payment/provider-read.ts";
 import {
   classifySumupCheckout,
   type SumupReadFacts,
@@ -165,7 +166,10 @@ describe("classifySumupCheckout", () => {
     });
   });
 
-  const invalid = (reason: string) => ({ reason, status: "invalid" });
+  const invalid = (reason: ProviderInvalidReason) => ({
+    reason,
+    status: "invalid",
+  });
 
   test("refuses a body that is not a checkout at all", () => {
     expect(classify("nonsense")).toEqual(invalid("malformed_response"));

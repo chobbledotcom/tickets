@@ -13,8 +13,9 @@
  */
 
 import {
+  getSealedSumupCheckout,
   getSumupCheckout,
-  hasSumupCheckoutId,
+  openSumupCheckout,
 } from "#shared/db/sumup-checkouts.ts";
 import { logDebug } from "#shared/logger.ts";
 import {
@@ -54,8 +55,10 @@ import type {
 const toPaymentStatus = (status: SumupCheckoutStatus): PaymentStatus =>
   status === "PAID" ? "paid" : status === "PENDING" ? "unpaid" : "failed";
 
-/** No real SumUp checkout id is anywhere near this long, so a longer one is
- * provably not ours and is refused before it costs a database lookup. */
+/** No real SumUp checkout id is blank or anywhere near this long, so an id
+ * outside the bound is refused before it costs even a database lookup — and
+ * on the same fixed path as every other refusal, so the payload is never
+ * echoed into a log and a forger learns nothing from the answer's shape. */
 const MAX_SUMUP_ID_BYTES = 255;
 
 const isUsableSumupId = (id: string): boolean =>
@@ -112,16 +115,20 @@ export const sumupPaymentProvider: PaymentProvider = {
   async resolveWebhookSession(
     webhookEvent: WebhookEvent,
   ): Promise<WebhookSessionResult> {
-    if (!isUsableSumupId(webhookEvent.id)) return null;
+    if (!isUsableSumupId(webhookEvent.id)) {
+      return refuseRetryably("id is not one we could have staged");
+    }
     // Unsigned webhooks: only fetch checkouts we created. Spam and other
-    // integrations' listings never cost an API call — but they are refused
-    // retryably rather than acknowledged, because the same answer covers a
-    // real callback racing our own staging write, and one fixed refusal
-    // tells a forger nothing about whether an id exists.
-    if (!(await hasSumupCheckoutId(webhookEvent.id))) {
+    // integrations' listings never cost an API call — one indexed read
+    // answers the pre-filter and carries the sealed row for later. They are
+    // refused retryably rather than acknowledged, because the same answer
+    // covers a real callback racing our own staging write, and one fixed
+    // refusal tells a forger nothing about whether an id exists.
+    const sealed = await getSealedSumupCheckout(webhookEvent.id);
+    if (sealed === null) {
       return refuseRetryably("checkout is not one we staged");
     }
-    // The staging row already proved this checkout is ours, so anything but a
+    // The staged row already proved this checkout is ours, so anything but a
     // clean read is refused retryably: acknowledging is terminal, and a paid
     // checkout would be left with the money taken and no booking.
     const read = await sumupApi.readCheckoutById(webhookEvent.id);
@@ -134,15 +141,16 @@ export const sumupPaymentProvider: PaymentProvider = {
     }
     const checkout = read.resource;
     // The reference SumUp echoes back must be the one we generated for this
-    // checkout and staged under this webhook id. If it is unknown or another
-    // booking's, SumUp has contradicted itself about a checkout we created.
-    // The booking is encrypted under that reference, so without a match we
-    // can neither read it nor prove the charge is ours to refund.
-    const stored = await getSumupCheckout(checkout.reference);
-    if (!stored || stored.sumupId !== webhookEvent.id) {
+    // checkout and staged under this webhook id — the sealed row only opens
+    // with it. If it is unknown or another booking's, SumUp has contradicted
+    // itself about a checkout we created: the booking is encrypted under
+    // that reference, so without a match we can neither read it nor prove
+    // the charge is ours to refund.
+    const metadata = await openSumupCheckout(sealed, checkout.reference);
+    if (metadata === null) {
       return refuseRetryably("reference does not open the staged row");
     }
-    const session = buildValidatedSession(checkout, stored.metadata);
+    const session = buildValidatedSession(checkout, metadata);
     // A charge the boundary could not read: surface the rejection so a paid
     // one still reaches the refund path.
     if (isSessionRejection(session)) return session;

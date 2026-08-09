@@ -128,8 +128,8 @@ type ChildRule = (
 ) => ChildVerdict;
 
 /** A still-open checkout may carry one charge of its own — alone, and under
- *  our merchant. Nothing here vouches for money: pending charges are never
- *  booked from. */
+ *  our merchant. The checkout's own amount stays readable; a pending session
+ *  is marked unpaid downstream, so nothing books from it. */
 const pendingChildVerdict: ChildRule = (c, charge, extras) => {
   if (extras.length > 0) return UNRECORDED_CHILD;
   if (charge !== undefined && charge.merchant_code !== c.merchant_code) {

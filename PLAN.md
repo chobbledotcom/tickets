@@ -293,13 +293,19 @@ happen in production.
   this record for the whole payment — every listing line, every extra, and every
   price-modifier application as its own signed fact, discount or surcharge, even
   where today's pricing folds it into line prices — in one pass, each part with
-  a stable identity. The record is stored with the payment: reconciliation,
-  refund routing, and balance completion read the stored allocation and never
-  re-derive it, so no two consumers can disagree about a part. Today's
-  ticket-only `allocateReservationDeposit` does not survive the move. Store the
-  provider on each charge: M6's own reconciliation reads it to validate and
-  deduplicate charge identity, and the M7 engine routes refunds by it, closing
-  the multi-provider gap.
+  a stable identity. A reservation's deposit and balance payments share one
+  booking-level obligation identity: the line, extra, and modifier identities
+  are created once, under that obligation, when the deposit's allocation is
+  stored, and the balance payment's allocation references those same identities
+  — the full obligation is stored once and referenced, never duplicated, which
+  is what lets M7 cancel it exactly once and M8 lease every payment that shares
+  it. The record is stored with the payment: reconciliation, refund routing, and
+  balance completion read the stored allocation and never re-derive it, so no
+  two consumers can disagree about a part. Today's ticket-only
+  `allocateReservationDeposit` does not survive the move. Store the provider on
+  each charge: M6's own reconciliation reads it to validate and deduplicate
+  charge identity, and the M7 engine routes refunds by it, closing the
+  multi-provider gap.
 - Reads: every provider read goes behind one strict observation contract
   covering missing, invalid, unavailable, pending, paid, free, and failed.
   Square payment IDs are named by the order, not scanned from a short list.
@@ -800,6 +806,7 @@ mechanism and a regression test, or — if implementation proves the finding wro
 | F74 | A queued refund acting on stale evidence after the payment's outcome moved on          | M7              |
 | F75 | Cancelling a booking obligation that the failed completion never posted                | M8              |
 | F76 | A discount folded into line prices losing its signed modifier fact                     | M6              |
+| F77 | Deposit and balance allocations minting separate identities for one obligation         | M6              |
 
 ## Done means
 

@@ -54,6 +54,15 @@ export type SumupCheckoutEntry = {
   sumupId: string;
 };
 
+/** A staged row found by its SumUp id, still sealed: the booking metadata
+ *  stays encrypted until the reference that names the row arrives (from the
+ *  fetched checkout — the plaintext reference never rests in this database). */
+export type SealedSumupCheckout = {
+  metadata: KeyEncrypted;
+  referenceIndex: string;
+  wrappedKey: WrappedKey;
+};
+
 const metadataJson = defineStoredJson(v.record(v.string(), v.string()));
 
 /** Persist booking metadata for a checkout, encrypted under its reference. */
@@ -100,14 +109,57 @@ export const setSumupCheckoutId = async (
   }
 };
 
-/** Whether a webhook's checkout id belongs to a checkout we created.
- * Cheap local pre-filter so unsigned webhook spam never costs an API call. */
-export const hasSumupCheckoutId = async (sumupId: string): Promise<boolean> => {
-  const row = await queryOne<{ sumup_id: string }>(
-    "SELECT sumup_id FROM sumup_checkouts WHERE sumup_id = ?",
+/** Fetch the staged row for a webhook's checkout id, still sealed. One cheap
+ * indexed read serves as the pre-filter (unsigned webhook spam never costs an
+ * API call) and carries everything {@link openSumupCheckout} needs later. */
+export const getSealedSumupCheckout = async (
+  sumupId: string,
+): Promise<SealedSumupCheckout | null> => {
+  const row = await queryOne<{
+    metadata: KeyEncrypted;
+    reference_index: string;
+    wrapped_key: WrappedKey;
+  }>(
+    "SELECT metadata, reference_index, wrapped_key FROM sumup_checkouts WHERE sumup_id = ?",
     [sumupId],
   );
-  return row !== null;
+  if (!row) return null;
+  return {
+    metadata: row.metadata,
+    referenceIndex: row.reference_index,
+    wrappedKey: row.wrapped_key,
+  };
+};
+
+/** Open a sealed row with the reference the fetched checkout echoed back.
+ * Returns null when the reference does not name this row — the row's own
+ * index is the proof the reference must match before anything decrypts. */
+export const openSumupCheckout = async (
+  sealed: SealedSumupCheckout,
+  reference: string,
+): Promise<Record<string, string> | null> => {
+  if ((await hmacHash(reference)) !== sealed.referenceIndex) return null;
+  return decryptMetadata(
+    sealed.wrappedKey,
+    sealed.metadata,
+    reference,
+    sealed.referenceIndex,
+  );
+};
+
+/** Decrypt a row's metadata blob with the reference that keys its data key. */
+const decryptMetadata = async (
+  wrappedKey: WrappedKey,
+  ciphertext: KeyEncrypted,
+  reference: string,
+  referenceIndex: string,
+): Promise<Record<string, string>> => {
+  const dataKey = await unwrapKeyWithToken(wrappedKey, reference);
+  const json = await decryptWithKey(ciphertext, dataKey);
+  return metadataJson.read(
+    json,
+    `sumup_checkouts.metadata for reference_index ${referenceIndex}`,
+  );
 };
 
 /**
@@ -124,12 +176,12 @@ export const getSumupCheckout = async (
     [referenceIndex],
   );
   if (!row) return null;
-  const dataKey = await unwrapKeyWithToken(row.wrapped_key, reference);
-  const json = await decryptWithKey(row.metadata, dataKey);
   return {
-    metadata: metadataJson.read(
-      json,
-      `sumup_checkouts.metadata for reference_index ${referenceIndex}`,
+    metadata: await decryptMetadata(
+      row.wrapped_key,
+      row.metadata,
+      reference,
+      referenceIndex,
     ),
     sumupId: row.sumup_id,
   };

@@ -54,21 +54,33 @@ describe("sumup-provider resolveWebhookSession", () => {
     refundable: true,
   };
 
-  test("returns null when the listing carries no id", async () => {
-    expect(await resolve("")).toBeNull();
-  });
-
-  test("returns null for an id too long to be a real checkout", async () => {
-    // 256 bytes is longer than any id SumUp mints, so the callback is
-    // provably not ours: acknowledged with zero reads of any kind.
-    await withSumupCheckoutRead({ status: "missing" }, async (calls) => {
-      expect(await resolve("x".repeat(256))).toBeNull();
-      expect(calls()).toEqual([]);
+  // Blank, or longer than any id SumUp mints: the same fixed refusal as
+  // every other unstaged callback, before even a database lookup — so the
+  // payload is never echoed into a log and the answer's shape leaks nothing.
+  for (const [name, id] of [
+    ["a blank id", ""],
+    ["an id too long to be real", "x".repeat(256)],
+  ] as const) {
+    test(`refuses ${name} without any lookup`, async () => {
+      await withSumupCheckoutRead({ status: "missing" }, async (calls) => {
+        expect(await resolve(id)).toBe("retry");
+        expect(calls()).toEqual([]);
+      });
     });
-  });
+  }
 
-  test("checks a 255-byte id against staging like any other", async () => {
-    expect(await resolve("x".repeat(255))).toBe("retry");
+  test("treats a 255-byte id like any other staged checkout", async () => {
+    const longId = "x".repeat(255);
+    await storeSumupCheckout("ref255", SUMUP_META);
+    await setSumupCheckoutId("ref255", longId);
+    await withFetchedSumupCheckout(
+      sumupCheckout({ reference: "ref255" }),
+      async () => {
+        expect(await resolve(longId)).toEqual(
+          expect.objectContaining({ id: "ref255" }),
+        );
+      },
+    );
   });
 
   test("asks ids we never created to be retried without calling SumUp", async () => {

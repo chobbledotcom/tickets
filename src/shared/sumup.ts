@@ -199,15 +199,20 @@ export const sumupApi: {
     if (!client || !merchantCode) {
       return { reason: "not_configured", status: "unavailable" };
     }
+    // Only the fetch is guarded: the classifier is pure, so anything it
+    // throws (Intl refusing a misconfigured site currency) is our own fault
+    // and must surface loudly, never dress up as SumUp being unreachable.
+    let body: unknown;
     try {
-      return classifySumupCheckout(await client.checkouts.get(id), {
-        merchantCode,
-        requestedId: id,
-        siteCurrency: settings.currency,
-      });
+      body = await client.checkouts.get(id);
     } catch (err) {
       return sumupReadFailure(err);
     }
+    return classifySumupCheckout(body, {
+      merchantCode,
+      requestedId: id,
+      siteCurrency: settings.currency,
+    });
   },
 
   /** Refund a transaction in full. */
