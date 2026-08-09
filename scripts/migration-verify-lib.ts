@@ -16,11 +16,11 @@
 
 import { parseArgs } from "@std/cli/parse-args";
 import type { ScriptIo } from "#scripts/script-runner.ts";
+import { formatReadinessReport } from "#shared/migration-readiness/format.ts";
 import {
   type AttendeePiiSource,
   type CheckoutStageRow,
   diagnoseReadiness,
-  formatReadinessReport,
   type ProcessedPaymentRow,
   type SumupCheckoutRow,
 } from "#shared/migration-readiness/readiness.ts";

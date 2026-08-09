@@ -1,79 +1,18 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
   buildPaymentGroups,
-  type CheckoutStageRow,
   convertLegacyTimestamp,
-  type DiagnoseInput,
   diagnoseReadiness,
-  formatReadinessReport,
   LEGACY_MERGE_SESSION_PREFIX,
-  type ProcessedPaymentRow,
 } from "#shared/migration-readiness/readiness.ts";
-
-const enc = (s: string): OwnerKeyEncrypted => s as OwnerKeyEncrypted;
-
-const stage = (over: Partial<CheckoutStageRow>): CheckoutStageRow => ({
-  attendee_id: 1,
-  created_at: "2026-01-01T00:00:00.000Z",
-  payment_session_id: "sess-1",
-  provider: "stripe",
-  state: "completed",
-  ...over,
-});
-
-const processed = (
-  over: Partial<ProcessedPaymentRow>,
-): ProcessedPaymentRow => ({
-  attendee_id: 1,
-  failure_data: "",
-  payment_reference: "",
-  payment_session_id: "sess-1",
-  processed_at: "2026-01-01T00:00:00.000Z",
-  provider_refunded_at: "",
-  ...over,
-});
-
-const goodInput = (over: Partial<DiagnoseInput> = {}): DiagnoseInput => ({
-  attendeeIds: new Set([1]),
-  attendees: [{ id: 1, pii_blob: enc("hyb:1:x") }],
-  ownerKeyAvailable: true,
-  processed: [processed({ provider_refunded_at: "2026-01-02T00:00:00.000Z" })],
-  stages: [stage({})],
-  sumup: [
-    {
-      created_at: "2026-01-01T00:00:00.000Z",
-      reference_index: "idx-1",
-      sumup_id: "su-1",
-    },
-  ],
-  undecryptablePaymentReferences: new Set(),
-  undecryptablePii: new Set(),
-  ...over,
-});
-
-/** A no-owner-key input with one `legacy-merge:*` row on attendee 1 (no PII),
- *  varying only in whether the charge reference is encrypted or empty. Shared by
- *  the "blocks on encrypted merge charge" and "does not block on empty charge"
- *  cases so they differ in exactly the one fact under test. */
-const mergeRefNoOwnerInput = (
-  ref: string,
-  charge: OwnerKeyEncrypted | "",
-): DiagnoseInput =>
-  goodInput({
-    attendeeIds: new Set([1]),
-    attendees: [{ id: 1, pii_blob: "" }],
-    ownerKeyAvailable: false,
-    processed: [
-      processed({
-        attendee_id: 1,
-        payment_reference: charge,
-        payment_session_id: ref,
-      }),
-    ],
-    stages: [],
-  });
+import {
+  enc,
+  goodInput,
+  mergeRefNoOwnerInput,
+  processed,
+  stage,
+} from "#test/shared/migration-readiness/fixtures.ts";
 
 describe("convertLegacyTimestamp", () => {
   test("canonicalises an ISO instant with an offset to …sssZ", () => {
@@ -337,6 +276,29 @@ describe("diagnoseReadiness", () => {
     });
   });
 
+  test("reports a regular captured charge reference that fails to decrypt", () => {
+    // A non-merge payment_session_id whose payment_reference failed to decrypt
+    // is classified as undecryptable_payment_reference (distinct from a merge-
+    // reference charge).
+    const report = diagnoseReadiness(
+      goodInput({
+        processed: [
+          processed({
+            attendee_id: 1,
+            payment_reference: enc("hyb:1:charge"),
+            payment_session_id: "sess-1",
+          }),
+        ],
+        undecryptablePaymentReferences: new Set(["sess-1"]),
+      }),
+    );
+    expect(report.kind).toBe("blocked");
+    expect(report.contradictions).toContainEqual({
+      detail: "sess-1",
+      kind: "undecryptable_payment_reference",
+    });
+  });
+
   test("reports an unconvertible timestamp", () => {
     const report = diagnoseReadiness(
       goodInput({
@@ -437,53 +399,10 @@ describe("diagnoseReadiness", () => {
 
   test("counts timestamp conversions actually performed", () => {
     const report = diagnoseReadiness(goodInput());
-    expect(report.counts.timestampConversions).toBeGreaterThan(0);
+    // processed_at + provider_refunded_at + checkout_stages.created_at +
+    // sumup_checkouts.created_at — the goodInput rows all carry real instants.
+    expect(report.counts.timestampConversions).toBe(4);
   });
-});
-
-describe("formatReadinessReport", () => {
-  test("states ready with exact source counts and the owner-key verdict", () => {
-    const report = diagnoseReadiness(goodInput());
-    expect(formatReadinessReport(report)).toEqual([
-      "Payment migration readiness: ready",
-      "",
-      "Source counts",
-      "  processed_payments rows: 1",
-      "  checkout_stages rows: 1",
-      "  sumup_checkouts rows: 1",
-      "  attendee PII blobs: 1",
-      "  merge references: 0",
-      "  payment groups: 1",
-      "  timestamps converted: 4",
-      "",
-      "Owner key",
-      "  verified 1 of 1 attendee PII blob(s)",
-      "",
-    ]);
-  });
-
-  test("states blocked and lists the owner-key contradiction in plain language", () => {
-    const report = diagnoseReadiness(goodInput({ ownerKeyAvailable: false }));
-    expect(formatReadinessReport(report)).toEqual([
-      "Payment migration readiness: BLOCKED — 1 contradiction(s)",
-      "",
-      "Source counts",
-      "  processed_payments rows: 1",
-      "  checkout_stages rows: 1",
-      "  sumup_checkouts rows: 1",
-      "  attendee PII blobs: 1",
-      "  merge references: 0",
-      "  payment groups: 1",
-      "  timestamps converted: 4",
-      "",
-      "Owner key",
-      "  not supplied — 1 attendee PII blob(s) cannot be verified",
-      "",
-      "Contradictions",
-      "  - owner key not supplied: 1 encrypted attendee PII blob(s) and no payment references cannot be verified without the owner key",
-    ]);
-  });
-
   test("is ready with an empty-blob attendee and no owner key (nothing encrypted to skip)", () => {
     const report = diagnoseReadiness(
       goodInput({
@@ -502,66 +421,5 @@ describe("formatReadinessReport", () => {
     // cursor concern, not this read-only verifier.)
     const report = diagnoseReadiness(goodInput());
     expect(report.kind).toBe("ready");
-  });
-
-  test("lists every contradiction phrase when each kind fires", () => {
-    const ref = `${LEGACY_MERGE_SESSION_PREFIX}99`;
-    const report = diagnoseReadiness({
-      attendeeIds: new Set([1, 7]),
-      attendees: [{ id: 7, pii_blob: enc("hyb:1:p") }],
-      ownerKeyAvailable: true,
-      processed: [
-        processed({
-          attendee_id: 88,
-          payment_reference: enc("hyb:1:charge"),
-          payment_session_id: ref,
-          processed_at: "not-a-time",
-        }),
-        processed({
-          attendee_id: 1,
-          payment_reference: enc("hyb:1:regular"),
-          payment_session_id: "sess-1",
-        }),
-      ],
-      stages: [stage({ attendee_id: 66, payment_session_id: "orphan" })],
-      sumup: [
-        {
-          created_at: "2026-01-01T00:00:00.000Z",
-          reference_index: "idx",
-          sumup_id: "",
-        },
-      ],
-      undecryptablePaymentReferences: new Set([ref, "sess-1"]),
-      undecryptablePii: new Set([7]),
-    });
-    const out = formatReadinessReport(report).join("\n");
-    expect(out).toContain("Contradictions");
-    expect(out).toContain(
-      "  - checkout stage without a processed payment: orphan",
-    );
-    expect(out).toContain("  - checkout stage without a live attendee: 66");
-    expect(out).toContain("  - processed payment without a live attendee: 88");
-    expect(out).toContain("  - sumup checkout without a recorded id: idx");
-    expect(out).toContain("  - attendee PII that did not decrypt: attendee 7");
-    expect(out).toContain(
-      "  - merge-reference charge that did not decrypt: legacy-merge:99",
-    );
-    expect(out).toContain(
-      "  - captured charge reference that did not decrypt: sess-1",
-    );
-    expect(out).toContain("  - timestamp that cannot be converted:");
-  });
-
-  test("does not leak attendee PII plaintext into the detail", () => {
-    const report = diagnoseReadiness(
-      goodInput({
-        attendeeIds: new Set([1, 7]),
-        attendees: [{ id: 7, pii_blob: enc("hyb:1:super-secret") }],
-        undecryptablePii: new Set([7]),
-      }),
-    );
-    const lines = formatReadinessReport(report).join("\n");
-    expect(lines).toContain("attendee 7");
-    expect(lines).not.toContain("super-secret");
   });
 });
