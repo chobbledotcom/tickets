@@ -28,13 +28,7 @@ import type {
   WebhookSessionResult,
   WebhookSetupResult,
 } from "#shared/payments.ts";
-import {
-  createPaymentLink,
-  refundPayment,
-  retrieveOrder,
-  retrievePayment,
-  verifyWebhookSignature,
-} from "#shared/square.ts";
+import { squareApi, verifyWebhookSignature } from "#shared/square.ts";
 
 /** Square payment provider implementation */
 export const squarePaymentProvider: PaymentProvider = {
@@ -42,13 +36,13 @@ export const squarePaymentProvider: PaymentProvider = {
 
   createCheckoutSession(intent: CheckoutIntent, baseUrl: string) {
     return withCheckoutError(async () => {
-      const link = await createPaymentLink(intent, baseUrl);
+      const link = await squareApi.createPaymentLink(intent, baseUrl);
       return toCheckoutResult(link?.orderId, link?.url, "Square");
     });
   },
 
   async isPaymentRefunded(paymentReference: string): Promise<boolean> {
-    const payment = await retrievePayment(paymentReference);
+    const payment = await squareApi.retrievePayment(paymentReference);
     if (!payment) return false;
     // Fully refunded only: a partial refund leaves the customer still charged,
     // so it must not count as refunded (matches Stripe's charge.refunded and
@@ -59,7 +53,7 @@ export const squarePaymentProvider: PaymentProvider = {
   },
 
   refundPayment(paymentReference: string): Promise<boolean> {
-    return refundPayment(paymentReference);
+    return squareApi.refundPayment(paymentReference);
   },
   requiresWebhookSignature: true,
 
@@ -112,7 +106,7 @@ export const squarePaymentProvider: PaymentProvider = {
   ): Promise<RetrieveSessionResult> {
     /* jscpd:ignore-end */
     // sessionId is the Square order ID
-    const order = await retrieveOrder(sessionId);
+    const order = await squareApi.retrieveOrder(sessionId);
     if (!order?.id) {
       logDebug("Square", `Order ${sessionId} not found`);
       return null;
@@ -130,7 +124,7 @@ export const squarePaymentProvider: PaymentProvider = {
     const paymentReference =
       paidPaymentId ?? order.tenders?.[0]?.paymentId ?? "";
     const payment = paymentReference
-      ? await retrievePayment(paymentReference)
+      ? await squareApi.retrievePayment(paymentReference)
       : null;
     // The webhook already saw this payment complete, so a read-back that is
     // missing or still short of COMPLETED is Square lagging its own signed

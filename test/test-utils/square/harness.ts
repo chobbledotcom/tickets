@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeEach, describe } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
-import { resetSquareClient, type SquareClient } from "#shared/square.ts";
+import { type SquareClient, squareApi } from "#shared/square.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { reclaimLeakedFdsNow } from "#test-utils/reclaim-fds.ts";
 
@@ -48,12 +48,12 @@ export const createMockClient = (
 export const describeSquare = (body: () => void): void => {
   describe("square", () => {
     beforeEach(async () => {
-      resetSquareClient();
+      squareApi.resetSquareClient();
       await createTestDb();
     });
 
     afterEach(() => {
-      resetSquareClient();
+      squareApi.resetSquareClient();
       resetDb();
     });
 

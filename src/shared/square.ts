@@ -846,16 +846,6 @@ export const squareApi: {
   },
 };
 
-// Wrapper exports for production code (delegate to squareApi for test mocking)
-export const getSquareClient = () => squareApi.getSquareClient();
-export const resetSquareClient = () => squareApi.resetSquareClient();
-export const testSquareConnection = () => squareApi.testSquareConnection();
-export const createPaymentLink = (i: CheckoutIntent, b: string) =>
-  squareApi.createPaymentLink(i, b);
-export const retrieveOrder = (id: string) => squareApi.retrieveOrder(id);
-export const retrievePayment = (id: string) => squareApi.retrievePayment(id);
-export const refundPayment = (id: string) => squareApi.refundPayment(id);
-
 /** Result of testing the Square connection */
 export type SquareConnectionTestResult = {
   ok: boolean;

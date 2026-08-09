@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
 import { getSumupCheckout } from "#shared/db/sumup-checkouts.ts";
-import { createCheckout } from "#shared/sumup.ts";
+import { sumupApi } from "#shared/sumup.ts";
 import {
   makeSumupClient,
   setupSumupSuite,
@@ -28,7 +28,9 @@ describe("sumup createCheckout", () => {
     settings.setForTest({ sumup_merchant_code: "" });
     const client = makeSumupClient({ create: () => Promise.resolve({}) });
     await withSumupClient(client, async () => {
-      expect(await createCheckout(intent, "http://localhost")).toBeNull();
+      expect(
+        await sumupApi.createCheckout(intent, "http://localhost"),
+      ).toBeNull();
     });
   });
 
@@ -46,7 +48,7 @@ describe("sumup createCheckout", () => {
       },
     });
     await withSumupClient(client, async () => {
-      const result = await createCheckout(intent, "http://localhost");
+      const result = await sumupApi.createCheckout(intent, "http://localhost");
       expect(result).not.toBeNull();
       expect(result!.url).toBe("https://pay.sumup.com/x");
       // 2 tickets * 1000 minor units = 2000 minor => 20 major units
@@ -80,7 +82,7 @@ describe("sumup createCheckout", () => {
       },
     });
     await withSumupClient(client, async () => {
-      await createCheckout(intent, "http://localhost");
+      await sumupApi.createCheckout(intent, "http://localhost");
       expect(sentBody.amount).toBe(2000);
       expect(sentBody.currency).toBe("CLP");
     });
@@ -92,7 +94,9 @@ describe("sumup createCheckout", () => {
         Promise.resolve({ hosted_checkout_url: "https://pay.sumup.com/z" }),
     });
     await withSumupClient(client, async () => {
-      expect(await createCheckout(intent, "http://localhost")).toBeNull();
+      expect(
+        await sumupApi.createCheckout(intent, "http://localhost"),
+      ).toBeNull();
     });
     expect(
       loggedDebug("Checkout response missing id or hosted_checkout_url"),
@@ -104,13 +108,17 @@ describe("sumup createCheckout", () => {
       create: () => Promise.resolve({ id: "co_no_url" }),
     });
     await withSumupClient(client, async () => {
-      expect(await createCheckout(intent, "http://localhost")).toBeNull();
+      expect(
+        await sumupApi.createCheckout(intent, "http://localhost"),
+      ).toBeNull();
     });
   });
 
   test("returns null when the client is unavailable", async () => {
     await withSumupClient(null, async () => {
-      expect(await createCheckout(intent, "http://localhost")).toBeNull();
+      expect(
+        await sumupApi.createCheckout(intent, "http://localhost"),
+      ).toBeNull();
     });
   });
 });

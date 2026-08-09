@@ -25,13 +25,13 @@ ledger.
 
 ## Where we are
 
-| Milestone                               | Status                                                                                                                                                                        |
-| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| M1 safety behavior (was PR 1)           | Merged as #2020. Also landed the M2 pure modules: `src/shared/payment/money.ts`, `resource-id.ts`, `refund-state.ts`, and `validated-session.ts`.                             |
-| M2 money/resource vocabulary (was PR 2) | Core modules merged inside #2020. Any provider parsing still off those schemas rides with M3 or M4.                                                                           |
-| M3 provider ownership (was PR 3)        | In flight. Merged slices so far: #2048 (payment processing core), #2050 (bounded registration delivery). The observation boundary + SumUp callback wiring slice is in review. |
-| M11 verifier slice (was PR 13)          | Started early in #2056 — the verifier is read-only and parallelizable.                                                                                                        |
-| M4–M10 and M12–M13                      | Not started.                                                                                                                                                                  |
+| Milestone                               | Status                                                                                                                                             |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M1 safety behavior (was PR 1)           | Merged as #2020. Also landed the M2 pure modules: `src/shared/payment/money.ts`, `resource-id.ts`, `refund-state.ts`, and `validated-session.ts`.  |
+| M2 money/resource vocabulary (was PR 2) | Core modules merged inside #2020. Any provider parsing still off those schemas rides with M3 or M4.                                                |
+| M3 provider ownership (was PR 3)        | Complete: #2048 (payment processing core), #2050 (bounded registration delivery), #2060 (observation boundary + SumUp callback wiring; F2 closed). |
+| M11 verifier slice (was PR 13)          | Started early in #2056 — the verifier is read-only and parallelizable.                                                                             |
+| M4–M10 and M12–M13                      | Not started.                                                                                                                                       |
 
 Budgets below count `src/` lines only. Observed totals run 4–15x the `src/`
 figure once tests, stories, and catalog copy are included (#2020: 714 src lines,

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
-import { getSquareClient, resetSquareClient } from "#shared/square.ts";
+import { squareApi } from "#shared/square.ts";
 import {
   type FetchCall,
   installMockFetch,
@@ -37,7 +37,7 @@ describeSquare(() => {
         ),
       );
 
-      const client = await getSquareClient();
+      const client = await squareApi.getSquareClient();
       const result = await client!.checkout.paymentLinks.create({
         checkoutOptions: { redirectUrl: "https://example.com/success" },
         idempotencyKey: "idem-rest",
@@ -98,7 +98,7 @@ describeSquare(() => {
         ),
       );
 
-      const client = await getSquareClient();
+      const client = await squareApi.getSquareClient();
       const result = await client!.checkout.paymentLinks.create({
         checkoutOptions: { redirectUrl: "https://example.com" },
         idempotencyKey: "idem-short",
@@ -130,7 +130,7 @@ describeSquare(() => {
         ),
       );
 
-      const client = await getSquareClient();
+      const client = await squareApi.getSquareClient();
       await client!.checkout.paymentLinks.create({
         checkoutOptions: { redirectUrl: "https://example.com" },
         idempotencyKey: "idem-2",
@@ -156,7 +156,7 @@ describeSquare(() => {
     test("returns undefined paymentLink when API returns no payment_link", async () => {
       mockFetch = installMockFetch(() => Promise.resolve(jsonResponse({})));
 
-      const client = await getSquareClient();
+      const client = await squareApi.getSquareClient();
       const result = await client!.checkout.paymentLinks.create({
         checkoutOptions: { redirectUrl: "https://example.com" },
         idempotencyKey: "idem-3",
@@ -185,7 +185,7 @@ describeSquare(() => {
         ),
       );
 
-      const client = await getSquareClient();
+      const client = await squareApi.getSquareClient();
       const result = await client!.orders.get({ orderId: "ord_100" });
 
       expect(mockFetch.calls[0]!.args[0]).toBe(
@@ -209,7 +209,7 @@ describeSquare(() => {
         ),
       );
 
-      const client = await getSquareClient();
+      const client = await squareApi.getSquareClient();
       const result = await client!.orders.get({ orderId: "ord_no_total" });
       expect(result.order!.id).toBe("ord_no_total");
       expect(result.order!.totalMoney).toBeUndefined();
@@ -218,7 +218,7 @@ describeSquare(() => {
     test("orders.get returns null order when API returns none", async () => {
       mockFetch = installMockFetch(() => Promise.resolve(jsonResponse({})));
 
-      const client = await getSquareClient();
+      const client = await squareApi.getSquareClient();
       const result = await client!.orders.get({ orderId: "missing" });
       expect(result.order).toBeNull();
     });
@@ -238,7 +238,7 @@ describeSquare(() => {
         ),
       );
 
-      const client = await getSquareClient();
+      const client = await squareApi.getSquareClient();
       const result = await client!.payments.get({ paymentId: "pay_1" });
 
       expect(mockFetch.calls[0]!.args[0]).toBe(
@@ -263,7 +263,7 @@ describeSquare(() => {
         ),
       );
 
-      const client = await getSquareClient();
+      const client = await squareApi.getSquareClient();
       const result = await client!.payments.get({ paymentId: "pay_no_amount" });
       expect(result.payment!.id).toBe("pay_no_amount");
       expect(result.payment!.amountMoney).toBeUndefined();
@@ -283,7 +283,7 @@ describeSquare(() => {
         ),
       );
 
-      const client = await getSquareClient();
+      const client = await squareApi.getSquareClient();
       const result = await client!.payments.get({ paymentId: "pay_2" });
       expect(result.payment!.amountMoney!.amount).toBe(BigInt(2000));
       expect(result.payment!.refundedMoney).toBeUndefined();
@@ -292,7 +292,7 @@ describeSquare(() => {
     test("payments.get returns null payment when API returns none", async () => {
       mockFetch = installMockFetch(() => Promise.resolve(jsonResponse({})));
 
-      const client = await getSquareClient();
+      const client = await squareApi.getSquareClient();
       const result = await client!.payments.get({ paymentId: "missing" });
       expect(result.payment).toBeNull();
     });
@@ -306,7 +306,7 @@ describeSquare(() => {
         }),
       );
 
-      const client = await getSquareClient();
+      const client = await squareApi.getSquareClient();
       let err: Error | undefined;
       try {
         await client!.orders.get({ orderId: "bad" });
@@ -331,7 +331,7 @@ describeSquare(() => {
         ),
       );
 
-      const client = await getSquareClient();
+      const client = await squareApi.getSquareClient();
       const result = await client!.locations.list();
 
       expect(mockFetch.calls[0]!.args[0]).toBe(
@@ -344,11 +344,11 @@ describeSquare(() => {
     });
 
     test("uses production URL when sandbox is disabled", async () => {
-      resetSquareClient();
+      squareApi.resetSquareClient();
       await settings.update.square.sandbox(false);
       mockFetch = installMockFetch(() => Promise.resolve(jsonResponse({})));
 
-      const client = await getSquareClient();
+      const client = await squareApi.getSquareClient();
       await client!.orders.get({ orderId: "test" });
 
       expect(mockFetch.calls[0]!.args[0]).toContain("connect.squareup.com");
