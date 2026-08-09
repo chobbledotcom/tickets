@@ -80,7 +80,8 @@ export const loadListingParentsSection = async (
     listingChildren.getIds(listing.id),
     hydrateListingLinks(listingParents, [listing.id]),
   ]);
-  const offeredUnder = offeredUnderLinks.listingsByKey.get(listing.id) ?? [];
+  const linkedParents = offeredUnderLinks.listingsByKey.get(listing.id);
+  const offeredUnder = linkedParents === undefined ? [] : linkedParents;
   const others = allListings.filter((other) => other.id !== listing.id);
   // Single-level nesting: a listing already offered as a child can't also be a
   // parent, so every candidate is ineligible in that case.

@@ -56,6 +56,19 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       });
     });
 
+    test("rejects a text duration", async () => {
+      const result = await bodyToCreateInput({
+        duration_days: "3",
+        max_attendees: 10,
+        name: "Test",
+      });
+
+      expect(result).toEqual({
+        error: "duration_days must be a safe integer",
+        ok: false,
+      });
+    });
+
     test("handles all field types correctly", async () => {
       const result = await bodyToCreateInput({
         active: false,
