@@ -2,7 +2,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
-import { getSquareClient, resetSquareClient } from "#shared/square.ts";
+import { squareApi } from "#shared/square.ts";
 import {
   type FetchCall,
   installMockFetch,
@@ -34,7 +34,7 @@ describeSquare(() => {
         ),
       );
 
-      const client = await getSquareClient();
+      const client = await squareApi.getSquareClient();
       await client!.refunds.refundPayment({
         amountMoney: { amount: BigInt(3000), currency: "GBP" },
         idempotencyKey: "idem-ref",
@@ -61,7 +61,7 @@ describeSquare(() => {
         ),
       );
 
-      const client = await getSquareClient();
+      const client = await squareApi.getSquareClient();
       // The client returns raw JSON — squareApi.refundPayment validates it
       // with a Valibot schema at the boundary.
       const result = (await client!.refunds.refundPayment({
@@ -77,7 +77,7 @@ describeSquare(() => {
     test("returns the raw response even when no refund is present", async () => {
       mockFetch = installMockFetch(() => Promise.resolve(jsonResponse({})));
 
-      const client = await getSquareClient();
+      const client = await squareApi.getSquareClient();
       // The client returns the raw response — it does NOT normalize it.
       // The squareApi layer's Valibot parse would throw on this (refund is
       // required), but the transport client itself just passes it through.
@@ -91,7 +91,7 @@ describeSquare(() => {
     });
 
     test("uses production URL when sandbox is disabled", async () => {
-      resetSquareClient();
+      squareApi.resetSquareClient();
       await settings.update.square.sandbox(false);
       mockFetch = installMockFetch(() =>
         Promise.resolve(
@@ -99,7 +99,7 @@ describeSquare(() => {
         ),
       );
 
-      const client = await getSquareClient();
+      const client = await squareApi.getSquareClient();
       await client!.refunds.refundPayment({
         amountMoney: { amount: BigInt(500), currency: "GBP" },
         idempotencyKey: "idem-prod",

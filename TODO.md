@@ -2150,23 +2150,3 @@ promising shape is to give `mutation:audit-equivalents` a way to attempt a
 distinguishing input for each entry — or, failing that, an explicit re-audit
 stamp so an entry has to be re-confirmed after the file it lives in changes
 shape, instead of resting on a proof nobody has re-read since it was written.
-
-## Delete the sumupApi and squareApi alias wrapper exports (from PR #2060)
-
-`src/shared/sumup.ts` still exports `createCheckout`, `refundTransaction`,
-`getTransactionStatus`, and `testSumupConnection` as one-line wrappers over the
-same names on `sumupApi`, and `src/shared/square.ts` has the same pattern
-(`getSquareClient`, `resetSquareClient`, `testSquareConnection`,
-`createPaymentLink` and siblings around `square.ts:850`). AGENTS.md's "No alias
-exports" rule says to expose the shared mechanism itself: callers should import
-the api object and call `sumupApi.createCheckout(...)` directly, which
-late-binds through test stubs exactly like the wrappers do. PR #2060 deleted the
-one wrapper it had added (`readCheckoutById`) and migrated its callers to
-`sumupApi.readCheckoutById(...)`; the pre-existing wrappers were left alone
-because the sweep spans Square too and belongs in one dedicated pass. Starting
-point: `grep -n "^export const" src/shared/sumup.ts src/shared/square.ts`, then
-migrate `src/shared/sumup-provider.ts`, `src/shared/square-provider.ts`,
-`src/features/admin/settings-sumup.ts`, and the direct test importers
-(`test/shared/sumup/*.test.ts`). The only subtlety: a function handed away at
-module load (like `makeCreateCheckoutSession("SumUp", createCheckout, ...)`)
-must become a lambda over the api member so test stubbing keeps working.

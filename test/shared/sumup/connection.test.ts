@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
-import { testSumupConnection } from "#shared/sumup.ts";
+import { sumupApi } from "#shared/sumup.ts";
 import {
   makeSumupClient,
   setupSumupSuite,
@@ -19,7 +19,7 @@ describe("sumup testSumupConnection", () => {
       merchantGet: () => Promise.reject(new Error(errorMessage)),
     });
     await withSumupClient(client, async () => {
-      const result = await testSumupConnection();
+      const result = await sumupApi.testSumupConnection();
       expect(result.ok).toBe(false);
       expect(result.apiKey.valid).toBe(false);
       assertError(result.apiKey.error);
@@ -28,7 +28,7 @@ describe("sumup testSumupConnection", () => {
 
   test("reports a missing API key", async () => {
     settings.setForTest({ sumup_api_key: "" });
-    const result = await testSumupConnection();
+    const result = await sumupApi.testSumupConnection();
     expect(result.ok).toBe(false);
     expect(result.apiKey).toEqual({
       error: "No SumUp API key configured",
@@ -39,7 +39,7 @@ describe("sumup testSumupConnection", () => {
 
   test("reports a missing merchant code", async () => {
     settings.setForTest({ sumup_merchant_code: "" });
-    const result = await testSumupConnection();
+    const result = await sumupApi.testSumupConnection();
     expect(result.ok).toBe(false);
     expect(result.apiKey).toEqual({
       error: "Merchant code is required to verify the key",
@@ -60,7 +60,7 @@ describe("sumup testSumupConnection", () => {
 
   test("reports success with key mode, merchant, and currency", () =>
     withMerchantClient(async () => {
-      const result = await testSumupConnection();
+      const result = await sumupApi.testSumupConnection();
       expect(result.ok).toBe(true);
       expect(result.apiKey).toEqual({ mode: "test", valid: true });
       expect(result.merchant).toEqual({
@@ -73,7 +73,7 @@ describe("sumup testSumupConnection", () => {
   test("fails overall when the site currency is unsupported", async () => {
     settings.setForTest({ currency: "AUD" });
     await withMerchantClient(async () => {
-      const result = await testSumupConnection();
+      const result = await sumupApi.testSumupConnection();
       expect(result.ok).toBe(false);
       expect(result.apiKey.valid).toBe(true);
       expect(result.currency).toEqual({ code: "AUD", supported: false });
@@ -83,7 +83,7 @@ describe("sumup testSumupConnection", () => {
   test("reports the key mode as unknown for an unrecognized key prefix", async () => {
     settings.setForTest({ sumup_api_key: "plainkey" });
     await withMerchantClient(async () => {
-      const result = await testSumupConnection();
+      const result = await sumupApi.testSumupConnection();
       expect(result.apiKey.mode).toBe("unknown");
     });
   });

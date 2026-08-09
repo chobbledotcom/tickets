@@ -38,12 +38,7 @@ import type {
   WebhookSetupResult,
   WebhookVerifyResult,
 } from "#shared/payments.ts";
-import {
-  createCheckout,
-  getTransactionStatus,
-  refundTransaction,
-  sumupApi,
-} from "#shared/sumup.ts";
+import { sumupApi } from "#shared/sumup.ts";
 import type {
   SumupCheckout,
   SumupCheckoutStatus,
@@ -94,7 +89,9 @@ const buildValidatedSession = (
 /** SumUp's checkout-session builder (see {@link makeCreateCheckoutSession}). */
 const createSumupCheckoutSession = makeCreateCheckoutSession(
   "SumUp",
-  createCheckout,
+  // A lambda, not the member itself: the checkout builder is captured once
+  // at module load, and resolving the member per call keeps test stubs live.
+  (intent, baseUrl) => sumupApi.createCheckout(intent, baseUrl),
   (result) => ({ id: result?.reference, url: result?.url }),
 );
 
@@ -104,11 +101,13 @@ export const sumupPaymentProvider: PaymentProvider = {
   createCheckoutSession: createSumupCheckoutSession,
 
   async isPaymentRefunded(paymentReference: string): Promise<boolean> {
-    return (await getTransactionStatus(paymentReference)) === "REFUNDED";
+    return (
+      (await sumupApi.getTransactionStatus(paymentReference)) === "REFUNDED"
+    );
   },
 
   refundPayment(paymentReference: string): Promise<boolean> {
-    return refundTransaction(paymentReference);
+    return sumupApi.refundTransaction(paymentReference);
   },
   requiresWebhookSignature: false,
 

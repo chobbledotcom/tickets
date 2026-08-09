@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { retrievePayment, squareApi } from "#shared/square.ts";
+import { squareApi } from "#shared/square.ts";
 import { withSquareClient } from "#test/test-utils/square/fixtures.ts";
 import { describeSquare } from "#test/test-utils/square/harness.ts";
 
@@ -301,7 +301,7 @@ describeSquare(() => {
             }),
         },
         async ({ paymentsGet }) => {
-          const result = await retrievePayment("pay_wrapper");
+          const result = await squareApi.retrievePayment("pay_wrapper");
           expect(result).not.toBeNull();
           expect(result!.id).toBe("pay_wrapper");
           expect(result!.status).toBe("COMPLETED");
