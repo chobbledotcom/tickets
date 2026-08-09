@@ -2,7 +2,7 @@
 
 import { createActionHandler } from "#routes/admin/actions.ts";
 import { ownerPage, requireOwnerOr } from "#routes/auth.ts";
-import { htmlResponse } from "#routes/response.ts";
+import { downloadResponse, htmlResponse } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { getEncryptionKeyString } from "#shared/crypto/encryption.ts";
 import { formatDatetimeLabel } from "#shared/dates.ts";
@@ -103,12 +103,7 @@ const handleBackupDownload: TypedRouteHandler<
       data.byteOffset,
       data.byteOffset + data.byteLength,
     ) as ArrayBuffer;
-    return new Response(body, {
-      headers: {
-        "content-disposition": `attachment; filename="${filename}"`,
-        "content-type": "application/zip",
-      },
-    });
+    return downloadResponse(body, filename, "application/zip");
   });
 
 export const adminHandlers = defineRoutes({

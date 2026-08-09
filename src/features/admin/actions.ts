@@ -13,6 +13,7 @@ import {
   withAuth,
 } from "#routes/auth.ts";
 import {
+  downloadResponse,
   encodeBody,
   errorRedirect,
   notFoundResponse,
@@ -47,12 +48,7 @@ export const getMonthFilter = (request: Request): string | null => {
 
 /** Build a CSV file download response */
 export const csvResponse = (csv: string, filename: string): Response =>
-  new Response(encodeBody(csv), {
-    headers: {
-      "content-disposition": `attachment; filename="${filename}"`,
-      "content-type": "text/csv; charset=utf-8",
-    },
-  });
+  downloadResponse(encodeBody(csv), filename, "text/csv; charset=utf-8");
 
 /**
  * Bounded attendee id → name lookup for link labels (activity log, ledger). The
