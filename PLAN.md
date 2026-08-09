@@ -271,7 +271,12 @@ Budget: 1,300-1,800 changed lines.
   provider's cumulative total catches up.
 - Treat multiple captures as a conflict and reject duplicate resources, wrong
   currencies, wrong parents, over-refunds, and money on a free checkout.
-- Replace the current callback and refund classification with `outcomeOf`.
+- Replace the current callback and refund classification with `outcomeOf`. Do
+  not cut the multi-capture conflict detection live in this PR unless the full
+  owner-review workflow for that case ships with it; if multi-capture is
+  detected here but not actionable until PR 5, defer the live cutover of the
+  multi-capture conflict to PR 5, or include PR 5's owner-review case workflow
+  for that case in this PR.
 
 Current-system value: the live system stops repeat refunds and detects captured
 money combinations it currently misses.
@@ -378,22 +383,27 @@ Budget: 1,700-2,400 changed lines.
   `processed_payments`, and `create-batch.ts` finalizes successful bookings
   through `batchFinalizeStatements`. Scope the fence to exclude those write
   paths, or defer installing it until PR 9 ships the completion cutover — a paid
-  provider result must not fail to reserve or finalize the local booking. Before
-  installing the fence, also exempt or move the maintenance write paths that
-  still touch old tables: `applyAttendeeMerge` (inserts/updates
-  `processed_payments`), `deleteAttendee` (deletes `processed_payments`), and
-  the prune task (deletes old `processed_payments`/`sumup_checkouts`). Either
-  move these maintenance cutovers before the fence, or keep a bounded
-  write-through so merge, delete, and prune succeed for attendees with uncopied
-  payment rows. Deletion paths (`deleteAttendee`, prune) must verify that each
-  payment row has been copied to the canonical aggregate before deleting it, or
-  defer the deletion until PR 14 has copied it — never delete an uncopied row.
-  Also move or exempt `deleteAllStaleReservations` (run on every listing
-  overview load, deletes unresolved `processed_payments` rows) before installing
-  the fence; if it is still running when the fence is active, listing overview
-  pages fail, and if it is still running during PR 14's cursor copy, old rows
-  can disappear despite the "old tables have remained unchanged" precondition.
-  Verify that fence before committing an aggregate write.
+  provider result must not fail to reserve or finalize the local booking. The
+  fence must also not block `clearSessionTokens` (updates
+  `processed_payments.ticket_tokens` after a successful paid return) until the
+  PR 9 completion cutover — a non-custom-thank-you return must not fail on the
+  token-clear after creating/finalizing the booking. Before installing the
+  fence, also exempt or move the maintenance write paths that still touch old
+  tables: `applyAttendeeMerge` (inserts/updates `processed_payments`),
+  `deleteAttendee` (deletes `processed_payments`), and the prune task (deletes
+  old `processed_payments`/`sumup_checkouts`). Either move these maintenance
+  cutovers before the fence, or keep a bounded write-through so merge, delete,
+  and prune succeed for attendees with uncopied payment rows. Deletion paths
+  (`deleteAttendee`, prune) must verify that each payment row — in
+  `processed_payments`, `sumup_checkouts`, and `checkout_stages` — has been
+  copied to the canonical aggregate before deleting it, or defer the deletion
+  until PR 14 has copied it — never delete an uncopied row. Also move or exempt
+  `deleteAllStaleReservations` (run on every listing overview load, deletes
+  unresolved `processed_payments` rows) before installing the fence; if it is
+  still running when the fence is active, listing overview pages fail, and if it
+  is still running during PR 14's cursor copy, old rows can disappear despite
+  the "old tables have remained unchanged" precondition. Verify that fence
+  before committing an aggregate write.
 
 Current-system value: every live route, worker, page, and export gets the same
 authoritative answer for the same payment.
@@ -513,17 +523,21 @@ Budget: 1,700-2,500 changed lines.
 - Begin only in a later fleet-wide release after aggregate writes are
   authoritative and old tables have remained unchanged. Before the first cursor
   page, fence and drain legacy-table writes: stop `applyAttendeeMerge`,
-  `deleteAttendee`, and the prune task from modifying `processed_payments`,
-  `sumup_checkouts`, or `checkout_stages` during the copy, or version/reconcile
-  any old-row changes that arrive mid-copy so the aggregate is not left stale.
-  Include `checkout_stages` because `applyAttendeeMerge` and `deleteAttendee`
-  delete from it — an admin merge/delete during the copy can remove or change a
-  source row after it was copied or before it is reached. Do not stop the legacy
-  refund adapter (PR 8) until every uncopied row is canonicalized and verified;
-  either keep the adapter running with version/reconciliation handling for rows
-  still being copied, or durably enqueue in-flight refund requests and replay
-  them after canonicalization. Define the drain boundary for in-flight refunds
-  before the first cursor page.
+  `deleteAttendee`, the prune task, and `deleteAllStaleReservations` from
+  modifying `processed_payments`, `sumup_checkouts`, or `checkout_stages` during
+  the copy, or version/reconcile any old-row changes that arrive mid-copy so the
+  aggregate is not left stale. Include `checkout_stages` because
+  `applyAttendeeMerge` and `deleteAttendee` delete from it — an admin
+  merge/delete during the copy can remove or change a source row after it was
+  copied or before it is reached. Include `deleteAllStaleReservations` because
+  it runs on every listing overview load and deletes unresolved
+  `processed_payments` rows — if it runs mid-copy, old rows disappear despite
+  the unchanged precondition. Do not stop the legacy refund adapter (PR 8) until
+  every uncopied row is canonicalized and verified; either keep the adapter
+  running with version/reconciliation handling for rows still being copied, or
+  durably enqueue in-flight refund requests and replay them after
+  canonicalization. Define the drain boundary for in-flight refunds before the
+  first cursor page.
 - Copy every old source by stable cursor in bounded, verified pages. Never split
   one provider payment across pages or mistake an empty joined page for the end.
 - Preserve unknown or contradictory facts without inventing values. Create a
@@ -567,7 +581,13 @@ Budget: 1,000-1,600 changed lines, mostly deletions.
   contract) can still interpret old payment tables and migrate forward. If
   retaining that path is infeasible, add a restore-time conversion step that
   transforms old backups before the current application loads them, documented
-  in the operator restore guide.
+  in the operator restore guide. The table-drop migration must not be a
+  destructive `DROP TABLE` that runs unconditionally in `initDb` — because
+  `initDb` runs pending migrations on first request, a restore of an old backup
+  would drop `processed_payments`, `checkout_stages`, and `sumup_checkouts`
+  before the retained reader/codecs have anything to read. Make the drop
+  conditional on verified copied progress, or run a restore-time conversion step
+  before schema migrations can drop those tables.
 - Run full coverage, quality audit, Cucumber specs, exhaustive targeted
   mutations, and the final branch mutation gate.
 - Update operator and database documentation.
