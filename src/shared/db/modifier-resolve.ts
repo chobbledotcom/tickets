@@ -205,7 +205,7 @@ const scopeReachesPage = (
  *   active non-child listing as `reachable` (each has its own bookable page; an
  *   inactive listing serves no public page, so it can't rescue the add-on).
  */
-const scopeIsChildDeadEnd = (
+export const scopeIsChildDeadEnd = (
   scope: number[] | null,
   suppressed: Set<number>,
   reachable: Set<number>,

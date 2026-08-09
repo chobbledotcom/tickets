@@ -18,6 +18,8 @@ import {
   createTestGroup,
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { allAddOnWithStaleChildLink } from "#test-utils/listing-parents/helpers.ts";
+import { optInAddOnForListings } from "#test-utils/modifiers.ts";
 
 describeWithEnv(
   "db > listing-parents > addParentEdgesWithPackageCheckTx",
@@ -133,6 +135,60 @@ describeWithEnv(
         }),
       ).rejects.toThrow(t("error.package_gate_in_hidden"));
       expect(await listingParents.getIds(child.id)).toEqual([]);
+    });
+
+    test("rolls back when current edge fields are incompatible", async () => {
+      const parent = await createTestListing({ name: "Standard parent" });
+      const child = await createTestListing({
+        listingType: "daily",
+        name: "Daily imported child",
+      });
+
+      await expect(
+        withTransaction((tx) =>
+          addParentEdgesWithPackageCheckTx(
+            tx,
+            child.id,
+            [parent.id],
+            t("catalog_transfer.parent_missing"),
+          ),
+        ),
+      ).rejects.toThrow(
+        t("listings_table.children_err_child_daily", { name: child.name }),
+      );
+      expect(await listingParents.getIds(child.id)).toEqual([]);
+    });
+
+    test("rolls back when the child has an active child-only add-on", async () => {
+      const parent = await createTestListing({ name: "Add-on parent" });
+      const child = await createTestListing({ name: "Add-on import child" });
+      await optInAddOnForListings("Imported child extra", [child.id]);
+
+      await expect(
+        withTransaction((tx) =>
+          addParentEdgesWithPackageCheckTx(
+            tx,
+            child.id,
+            [parent.id],
+            t("catalog_transfer.parent_missing"),
+          ),
+        ),
+      ).rejects.toThrow("Imported child extra");
+      expect(await listingParents.getIds(child.id)).toEqual([]);
+    });
+
+    test("ignores stale listing links for an order-wide add-on", async () => {
+      const { parent, child } = await allAddOnWithStaleChildLink();
+
+      await withTransaction((tx) =>
+        addParentEdgesWithPackageCheckTx(
+          tx,
+          child.id,
+          [parent.id],
+          t("catalog_transfer.parent_missing"),
+        ),
+      );
+      expect(await listingParents.getIds(child.id)).toEqual([parent.id]);
     });
   },
 );

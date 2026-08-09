@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { execute } from "#shared/db/client.ts";
 import { listingGroups } from "#shared/db/groups.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import {
@@ -18,6 +19,7 @@ import {
   mockFormRequest,
   mockRequest,
 } from "#test-utils/mocks.ts";
+import { beforeNextTransaction } from "#test-utils/record-queries.ts";
 import {
   adminFormPost,
   adminGet,
@@ -196,6 +198,34 @@ describeWithEnv(
         await expectFlashRedirect(
           `/admin/groups/${group.id}`,
           t("error.selected_listing_deleted"),
+          false,
+        )(response);
+        expect(await listingGroups.getIds(listing.id)).toEqual([]);
+      });
+
+      test("redirects to the group list when the group vanishes before the write", async () => {
+        const group = await createTestGroup({
+          name: "Vanishing group",
+          slug: "vanishing-group",
+        });
+        const listing = await createTestListing({ name: "Waiting listing" });
+        const restore = beforeNextTransaction(async () => {
+          await execute("DELETE FROM groups WHERE id = ?", [group.id]);
+        });
+
+        let response: Response;
+        try {
+          ({ response } = await adminFormPost(
+            `/admin/groups/${group.id}/add-listings`,
+            { listing_ids: String(listing.id) },
+          ));
+        } finally {
+          restore();
+        }
+
+        await expectFlashRedirect(
+          "/admin/groups",
+          t("error.selected_group_deleted"),
           false,
         )(response);
         expect(await listingGroups.getIds(listing.id)).toEqual([]);

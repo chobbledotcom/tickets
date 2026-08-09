@@ -1,59 +1,5 @@
 # TODO — remaining follow-ups
 
-## Listing/groups review follow-ups (from PR #2046)
-
-Three unresolved review threads were judged too niche to chase in that PR once
-the rest of the round was complete; each is a transaction-race hardening on an
-already-rare window. The sibling guards they build on are all present and tested
-in `src/shared/db/listing-parents.ts` (`setListingChildrenWithPackageCheckTx` /
-`addParentEdgesWithPackageCheckTx`), so any of these is a small, well-scoped
-addition when picked up.
-
-- **Xh_QZ — Redirect vanished-group failures to a live page.**
-  `handleAddListingsToGroup` in `src/features/admin/groups.ts` redirects every
-  `assignListingsToGroup` error to `/admin/groups/${group.id}`. When the group is
-  deleted after the handler loads it but before the write, `assignListingsToGroup`
-  returns `t("error.selected_group_deleted")` and that redirect lands on a 404.
-  Route that one result to `/admin/groups` (the live list). Reasoning for defer:
-  the group must vanish between the handler's load and the write — a window not
-  reachable from a single-request test without fragile cache manipulation, so
-  it shipped without coverage.
-
-- **XiL8J / XiL8L — Revalidate edge fields inside the write transaction.**
-  `setListingChildrenWithPackageCheckTx` and `addParentEdgesWithPackageCheckTx`
-  recheck endpoint existence, nesting, and package membership in the tx, but if
-  another admin changes a parent's or a selected child's type, renewal tier,
-  duration, or day prices after `validateChildEdges`/`validateParentEdges` runs,
-  they commit a relationship `edgeFieldError` would now reject. Fix: load both
-  endpoints' current edge fields through `tx` and rerun `edgeFieldError` before
-  `setIdsTx` / `addIdsTx`. Deferred as the deepest and least likely window; all
-  six sibling recheck guards were already implemented.
-
-- **Xig83 / XiqKh — Recheck add-on reachability inside the write transaction.**
-  This is the same race-revalidation family as the edge-field threads above,
-  extended to optional add-ons. If another request activates or rescopes a
-  child-only optional add-on (or a group link) after `validateChildEdges` /
-  `persistListingJoins` runs, the tx can persist an edge that lets the add-on
-  become reachable only through a child, losing it from the parent's booking
-  page. Fix: re-run the `childOnlyAddOn` / `edgeFieldError` checks against
-  transaction-local modifier and group links before `setIdsTx`. CodeRabbit's
-  `XiqKh` is the combined view of this and the edge-field threads, scoped to
-  `api-listing-joins.ts:persistListingJoins`; `Xig83` is Codex's form/API view.
-  Both deferred as heavy lifts on already-rare windows.
-
-- **XjDI9 — Read prior package flags on the transaction connection.**
-  `requirePackageGuardsTx` in `src/shared/db/groups/membership.ts` computes
-  `wasHiddenPackage` from the caller-supplied `existing` snapshot, which predates
-  the write transaction. If another request makes a visible group hidden and a
-  checkout sells it after the snapshot but before this transaction, a stale edit
-  can clear `is_package` without running `hasPackageBookingsTx`, exposing sold
-  hidden member names. The blocker: `writeRowInTransaction` runs the
-  `afterWrite` hooks after the UPDATE, so the hook can't read the pre-update
-  flags from the DB (documented at the `PackageRow` definition). A correct fix
-  reads the current `is_package`/`hide_package_listings` on the transaction
-  connection _before_ the UPDATE and validates under the same lock — an
-  architecture change to the group write path, not a one-line guard.
-
 ## Anchor the booking-page site menu to its listing/group (from PR #2051)
 
 PR #2051 shows the public site menu on booking pages (dropped in iframe mode and

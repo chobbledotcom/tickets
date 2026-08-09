@@ -187,13 +187,17 @@ export const removeListingGroupPricesStatement = (
   };
 };
 
-/** A raw `group_day` row as SELECTed for the readers below. */
-type GroupDayRow = { listing_id: number; price_id: string; unit_price: number };
+/** A raw day-price row as selected from `listing_prices`. */
+export type DayPriceRow = {
+  listing_id: number;
+  price_id: string;
+  unit_price: number;
+};
 
 /** Fold `group_day` rows into the {@link GroupDayPrices} map, deriving each
  * row's day count from its `"<groupId>/<n>"` price_id. */
 const foldGroupDayRows = (
-  rows: readonly GroupDayRow[],
+  rows: readonly DayPriceRow[],
 ): Map<number, Map<number, number>> => {
   const result = new Map<number, Map<number, number>>();
   for (const row of rows) {
@@ -232,7 +236,7 @@ export const getGroupDayPricesByGroupIds = async (
   );
   if (groups.size === 0) return groups;
   const ids = [...groups.keys()];
-  const rows = await queryAll<GroupDayRow>(
+  const rows = await queryAll<DayPriceRow>(
     `SELECT listingPrice.listing_id, listingPrice.price_id, listingPrice.unit_price
        FROM listing_prices AS listingPrice
        JOIN group_listings AS groupListing
@@ -242,7 +246,7 @@ export const getGroupDayPricesByGroupIds = async (
         AND groupListing.group_id IN (${inPlaceholders(ids)})`,
     [PRICE_TYPE_GROUP_DAY, ...ids],
   );
-  const groupIdOf = (row: GroupDayRow): number =>
+  const groupIdOf = (row: DayPriceRow): number =>
     Number(row.price_id.split("/")[0]);
   for (const [groupId, groupRows] of Map.groupBy(rows, groupIdOf)) {
     groups.set(groupId, foldGroupDayRows(groupRows));

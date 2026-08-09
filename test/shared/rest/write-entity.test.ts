@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import type { TxScope } from "#shared/db/client.ts";
+import { resultRows, type TxScope } from "#shared/db/client.ts";
 import type { Table } from "#shared/db/table.ts";
 import { type EntityWrite, writeEntity } from "#shared/rest/write-entity.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
@@ -19,11 +19,11 @@ const reject = (what: string) => () =>
 
 /** Call writeEntity with safe defaults, overriding only what a case exercises.
  *  Defaults to the plain path (no join writes). */
-const writeWith = (
+const writeWith = <State = never>(
   table: Table<Row, Input>,
-  overrides: Partial<EntityWrite<Row>>,
+  overrides: Partial<EntityWrite<Row, State>>,
 ): Promise<Row | null> =>
-  writeEntity<Row>({
+  writeEntity<Row, State>({
     buildStatement: () => table.insertStatement!({ name: "row" }),
     existingId: null,
     joinWrites: [],
@@ -45,18 +45,20 @@ describe("writeEntity", () => {
     const joinIds: number[] = [];
     const afterCommitIds: number[] = [];
 
-    const row = await writeWith(table, {
+    const row = await writeWith<string>(table, {
       afterCommit: (id) => {
         afterCommitIds.push(id);
         return Promise.resolve();
       },
       joinWrites: [
-        (_tx, id) => {
+        (_tx, id, state) => {
           joinIds.push(id);
+          expect(state).toBeNull();
           return Promise.resolve();
         },
       ],
       plainWrite: reject("plainWrite"),
+      readState: reject("readState"),
     });
 
     expect(row).toEqual({ id: 1, name: "row" });
@@ -94,6 +96,64 @@ describe("writeEntity", () => {
     expect(scopes[0]).toBe(scopes[1]);
   });
 
+  test("reads update state before the row write and passes it to every join write", async () => {
+    const table = makeTable();
+    await table.insert({ name: "before" });
+    const events: string[] = [];
+    const states: string[] = [];
+
+    const row = await writeWith<string>(table, {
+      buildStatement: () => table.updateStatement!(1, { name: "after" }),
+      existingId: 1,
+      joinWrites: [
+        async (tx, _id, state) => {
+          states.push(String(state));
+          const current = resultRows<Row>(
+            await tx.execute("SELECT id, name FROM we_items WHERE id = 1"),
+          )[0];
+          events.push(`write:${current?.name}`);
+        },
+        (_tx, _id, state) => {
+          states.push(String(state));
+          events.push("second");
+          return Promise.resolve();
+        },
+      ],
+      plainWrite: reject("plainWrite"),
+      readState: async (tx) => {
+        const current = resultRows<Row>(
+          await tx.execute("SELECT id, name FROM we_items WHERE id = 1"),
+        )[0];
+        events.push(`read:${current?.name}`);
+        return current?.name ?? null;
+      },
+    });
+
+    expect(events).toEqual(["read:before", "write:after", "second"]);
+    expect(states).toEqual(["before", "before"]);
+    expect(row).toEqual({ id: 1, name: "after" });
+  });
+
+  test("passes null state without running a reader when none is configured", async () => {
+    const table = makeTable();
+    await table.insert({ name: "before" });
+    const states: null[] = [];
+
+    await writeWith(table, {
+      buildStatement: () => table.updateStatement!(1, { name: "after" }),
+      existingId: 1,
+      joinWrites: [
+        (_tx, _id, state) => {
+          states.push(state);
+          return Promise.resolve();
+        },
+      ],
+      plainWrite: reject("plainWrite"),
+    });
+
+    expect(states).toEqual([null]);
+  });
+
   test("transactional path rolls the row back when a join write throws", async () => {
     const table = makeTable();
     let afterCommitRan = false;
@@ -113,6 +173,35 @@ describe("writeEntity", () => {
     // and the post-commit hook never ran.
     expect(await table.read.one({ id: 1 })).toBeNull();
     expect(afterCommitRan).toBe(false);
+  });
+
+  test("rolls an update back when a state-aware join write throws", async () => {
+    const table = makeTable();
+    await table.insert({ name: "before" });
+    const seen: string[] = [];
+
+    await expect(
+      writeWith<string>(table, {
+        buildStatement: () => table.updateStatement!(1, { name: "after" }),
+        existingId: 1,
+        joinWrites: [
+          (_tx, _id, state) => {
+            seen.push(String(state));
+            return Promise.reject(new Error("state rejected"));
+          },
+        ],
+        plainWrite: reject("plainWrite"),
+        readState: async (tx) => {
+          const row = resultRows<Row>(
+            await tx.execute("SELECT id, name FROM we_items WHERE id = 1"),
+          )[0];
+          return row?.name ?? null;
+        },
+      }),
+    ).rejects.toThrow("state rejected");
+
+    expect(seen).toEqual(["before"]);
+    expect(await table.read.one({ id: 1 })).toEqual({ id: 1, name: "before" });
   });
 
   test("plain path (no join writes): uses plainWrite, skips the statement, still runs afterCommit", async () => {

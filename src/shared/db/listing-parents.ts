@@ -20,6 +20,7 @@ import {
   type TxScope,
 } from "#shared/db/client.ts";
 import { type LinkTableSide, linkTableSide } from "#shared/db/link-table.ts";
+import { relationshipErrorTx } from "#shared/db/listing-relationship-validation.ts";
 import { requireListingsWithCountsByIds } from "#shared/db/listings/records.ts";
 import { TransactionValidationError } from "#shared/db/transaction.ts";
 import {
@@ -84,6 +85,14 @@ const requireChildWithoutChildren = (hasChildren: number): void => {
   if (hasChildren) {
     throw new TransactionValidationError(t("error.child_listing_nested"));
   }
+};
+
+const requireCurrentRelationshipRules = async (
+  tx: TxScope,
+  edges: readonly { childId: number; parentId: number }[],
+): Promise<void> => {
+  const error = await relationshipErrorTx(tx, edges);
+  if (error) throw new TransactionValidationError(error);
 };
 
 /** Replaces child edges only when the transaction's package memberships allow
@@ -151,6 +160,10 @@ export const setListingChildrenWithPackageCheckTx = async (
   requireChildWithoutChildren(state!.child_has_children);
   const conflict = await edgeConflictFor(childIds, state!);
   if (conflict) return conflict;
+  await requireCurrentRelationshipRules(
+    tx,
+    childIds.map((childId) => ({ childId, parentId })),
+  );
   await listingChildren.setIdsTx(tx, parentId, childIds);
   return null;
 };
@@ -221,6 +234,10 @@ export const addParentEdgesWithPackageCheckTx = async (
   requireChildWithoutChildren(state!.child_has_children);
   requireParentWithoutParent(state!.parent_has_parent);
   requireListingChildrenPackageCheck(await edgeConflictFor(parentIds, state!));
+  await requireCurrentRelationshipRules(
+    tx,
+    parentIds.map((parentId) => ({ childId, parentId })),
+  );
   await listingParents.addIdsTx(tx, childId, parentIds);
 };
 

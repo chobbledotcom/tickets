@@ -60,8 +60,9 @@ export const defineCrudApi = <
   Input,
   FullRow extends Row = Row,
   Prepared = void,
+  State = never,
 >(
-  config: CrudApiConfig<Row, Input, FullRow, Prepared>,
+  config: CrudApiConfig<Row, Input, FullRow, Prepared, State>,
 ): Record<string, RouteHandlerFn> => {
   const { name, singular, table, getAll, nameField, stripKeys = [] } = config;
   const policy = config.policy === undefined ? ADMIN_API : config.policy;
@@ -176,25 +177,26 @@ export const defineCrudApi = <
     const prepared = await prepareSideEffect(inputs);
     if ("error" in prepared) return apiErrorResponse(prepared.error);
     const preparedValue = prepared.value;
-    const joinWrites: JoinWrite[] = [];
+    const joinWrites: JoinWrite<State>[] = [];
     if (config.sideEffect) {
-      joinWrites.push((tx, rowId) =>
-        config.sideEffect!.persist(tx, rowId, preparedValue),
+      joinWrites.push((tx, rowId, state) =>
+        config.sideEffect!.persist(tx, rowId, preparedValue, state),
       );
     }
     if (config.afterWrite) {
-      joinWrites.push((tx, rowId) =>
-        config.afterWrite!(tx, rowId, input, inputs.existing),
+      joinWrites.push((tx, rowId, state) =>
+        config.afterWrite!(tx, rowId, input, state),
       );
     }
     const written = await writeEntityOrValidationResponse(() =>
-      writeEntity<FullRow>({
+      writeEntity<FullRow, State>({
         afterCommit: config.afterCommit,
         buildStatement: getStatement,
         existingId,
         joinWrites,
         plainWrite: () => plainWrite() as unknown as Promise<FullRow | null>,
         readBack: lookupAfterWrite,
+        readState: config.readState,
         tableName: config.table.name,
       }),
     );

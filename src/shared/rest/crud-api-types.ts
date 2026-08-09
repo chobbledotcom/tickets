@@ -4,7 +4,7 @@
 import type { InValue } from "@libsql/client";
 import type { AuthPolicy } from "#routes/auth.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
-import type { TxScope } from "#shared/db/client.ts";
+import type { TransactionStateReader, TxScope } from "#shared/db/client.ts";
 import type { Table } from "#shared/db/table.ts";
 import type { Result } from "#shared/result.ts";
 import type { AdminSession } from "#shared/types.ts";
@@ -16,10 +16,16 @@ import type { AdminSession } from "#shared/types.ts";
  *  row write, so a failure rolls the row write back too — never an orphan row
  *  without its side effect. A resource with no side effects omits it and takes
  *  the plain (untransacted) single-statement path. */
-export interface CrudSideEffect<Input, FullRow, Prepared> {
+export interface CrudSideEffect<Input, FullRow, Prepared, State = never> {
   /** Persist the prepared value on the open write transaction `tx`, given the
-   *  written row's `id`. A throw rolls back the row write with it. */
-  persist: (tx: TxScope, id: number, value: Prepared) => Promise<void>;
+   *  written row's `id` and narrow pre-update state. A throw rolls back the row
+   *  write with it. */
+  persist: (
+    tx: TxScope,
+    id: number,
+    value: Prepared,
+    state: State | null,
+  ) => Promise<void>;
   /** Validate the side effect against the would-be `input` (the post-save row
    *  fields), the raw `body`, and the `existing` full row on update (null on
    *  create). Returns `{ error }` to reject the whole write, or `{ value }` with
@@ -42,13 +48,13 @@ export interface AfterCommitConfig {
 }
 
 /** A join-table write run inside the row's write transaction, given the open
- *  transaction scope, the written row's id, the parsed input, and the existing
- *  row (the pre-update state, null on create). */
-export type AfterWriteHook<Input, FullRow> = (
+ *  transaction scope, the written row's id, parsed input, and narrow pre-update
+ *  state (null on create or when no reader is configured). */
+export type AfterWriteHook<Input, State = never> = (
   tx: TxScope,
   id: number,
   input: Input,
-  existing: FullRow | null,
+  state: State | null,
 ) => Promise<void>;
 
 /** Configuration for defineCrudApi */
@@ -57,13 +63,14 @@ export interface CrudApiConfig<
   Input,
   FullRow extends Row = Row,
   Prepared = void,
+  State = never,
 > extends AfterCommitConfig {
   /** Side-effect run with the written row's id and the parsed input to persist
    *  join-table rows (a listing's groups, a group's package members) that live
    *  outside the main table. Runs inside the SAME transaction as the row write
    *  (it receives the transaction scope), so a failure rolls the row write back
    *  rather than leaving partial state. */
-  afterWrite?: AfterWriteHook<Input, FullRow>;
+  afterWrite?: AfterWriteHook<Input, State>;
   /** Extra route entries to merge in (can also override generated routes) */
   extraRoutes?: Record<string, RouteHandlerFn>;
   /** Fetch all rows (from cache) — may return a richer row type than the table (e.g. joined counts) */
@@ -96,10 +103,12 @@ export interface CrudApiConfig<
   /** Auth policy for all generated routes. Defaults to ADMIN_API (any admin);
    *  pass OWNER_API for resources whose web management is owner-only. */
   policy?: AuthPolicy<"json">;
+  /** Read only the pre-update fields needed by transactional hooks. */
+  readState?: TransactionStateReader<State> | undefined;
   /** An atomic body-only side effect run around the row write. `Prepared` is
    *  the value its `validate` carries forward to its `persist`, inferred per
    *  resource. */
-  sideEffect?: CrudSideEffect<Input, FullRow, Prepared>;
+  sideEffect?: CrudSideEffect<Input, FullRow, Prepared, State>;
   /** Singular display name for activity log (e.g. "Holiday") */
   singular: string;
   /** Keys to strip from response (e.g. "slug_index") */

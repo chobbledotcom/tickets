@@ -17,10 +17,7 @@ import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { listingGroups } from "#shared/db/groups.ts";
-import {
-  syncListingPrices,
-  writeListingDayCounts,
-} from "#shared/db/listing-prices.ts";
+import { syncListingPrices } from "#shared/db/listing-prices.ts";
 import {
   getAllListings,
   getListingWithCount,
@@ -137,8 +134,6 @@ const listingApiRoutes = defineCrudApi<
   PreparedListingJoins
 >({
   afterCommit: syncListingPrices,
-  afterWrite: (tx, id, input, _existing) =>
-    writeListingDayCounts(tx, id, input.dayPrices),
   extraRoutes: {
     "DELETE /api/admin/listings/:listingId": handleDeleteListing,
     "POST /api/admin/listings/:listingId/deactivate": (
