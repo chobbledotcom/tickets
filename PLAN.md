@@ -185,6 +185,14 @@ branch, schema adapter, or legacy replay path.
 Deploy the aggregate write cutover first. Start forward data migration only in a
 later fleet-wide release after that cutover has completed.
 
+Before the first payment cutover release, guard or update the
+`.github/workflows/restore-deploy.yml` workflow so it refuses to deploy any
+commit that predates the aggregate migration onto a forward-migrated database. A
+point-in-time restore that redeploys pre-aggregate code would reintroduce old
+readers and writers against fenced or dropped tables. The guard may be a schema
+version check in the restore path or a deploy-time compatibility gate; document
+it in the operator restore guide alongside the backup's recorded commit.
+
 ## Work sequence
 
 The estimates below are total-diff review targets, not hard limits. Complete
@@ -321,13 +329,15 @@ Budget: 1,500-2,200 changed lines.
   completion path still reads from it leaves paid SumUp checkouts unable to
   complete.
 - SumUp compatibility projection: until PR 7 moves those readers, every new
-  aggregate SumUp checkout must also populate `sumup_checkouts` using the
-  aggregate-created `checkout_reference` and SumUp checkout ID. The projection
-  must not call SumUp or create another payment identity or idempotency key. If
-  the aggregate write succeeds and the `sumup_checkouts` projection fails,
-  record durable repair work and keep the aggregate claim retryable before
-  reporting checkout success. Remove the projection when PR 7 moves these
-  readers to the aggregate.
+  aggregate SumUp checkout must also populate `sumup_checkouts` with the
+  encrypted booking `metadata`, the aggregate-created `checkout_reference`, and
+  the SumUp checkout ID — the exact fields `resolveWebhookSession` and
+  `retrieveSession` decrypt and pass to booking validation. The projection must
+  not call SumUp or create another payment identity or idempotency key. If the
+  aggregate write succeeds and the `sumup_checkouts` projection fails, record
+  durable repair work and keep the aggregate claim retryable before reporting
+  checkout success. Remove the projection when PR 7 moves these readers to the
+  aggregate.
 
 Current-system value: no live checkout can lose its local intent or create a
 second provider checkout after an interrupted request.
@@ -356,7 +366,14 @@ Budget: 1,700-2,400 changed lines.
   the refund-completion write path (`processed_payments.provider_refunded_at`
   via `markPaymentReferencesProviderRefunded`), so schedule it only after the PR
   8 refund cutover, or scope it in this PR to exclude refund-completion columns.
-  Verify that fence before committing an aggregate write.
+  Before installing the fence, also exempt or move the maintenance write paths
+  that still touch old tables: `applyAttendeeMerge` (inserts/updates
+  `processed_payments`), `deleteAttendee` (deletes `processed_payments`), and
+  the prune task (deletes old `processed_payments`/`sumup_checkouts`). Either
+  move these maintenance cutovers before the fence, or keep a bounded
+  write-through so merge, delete, and prune succeed for attendees with uncopied
+  payment rows without deleting history PR 14 has not yet copied. Verify that
+  fence before committing an aggregate write.
 
 Current-system value: every live route, worker, page, and export gets the same
 authoritative answer for the same payment.
@@ -374,7 +391,13 @@ Budget: 1,500-2,200 changed lines.
   repair when provider success is followed by a local failure.
 - Keep refunds available while new sales are disabled, and make callback and
   admin replay idempotent.
-- Delete every replaced refund path and prove no production caller uses it.
+- Delete every replaced refund path and prove no production caller uses it,
+  except the legacy-table refund adapter for uncopied `processed_payments` rows.
+  Until PR 14 copies those rows, admin refund targets may still resolve to old
+  tables via `src/shared/db/payment-references.ts`; route those refunds through
+  the new engine with a thin legacy adapter so the old write path (including
+  `markPaymentReferencesProviderRefunded`) is not the production path. Remove
+  the adapter when PR 14 canonicalizes the last copied row.
 
 Current-system value: every refund has the same retry, evidence, and Money
 guarantees and cannot move money twice.
@@ -507,6 +530,12 @@ Budget: 1,000-1,600 changed lines, mostly deletions.
   verified, and no production caller outside migration reads an old table.
 - Drop old tables and delete the migration reader, progress gates, old codecs,
   stale TODO entries, temporary exemptions, and dead exports together.
+  Exception: retain a restore-only migration reader and old codecs path so an
+  operator restoring a pre-aggregate backup (required by PR 13's restore
+  contract) can still interpret old payment tables and migrate forward. If
+  retaining that path is infeasible, add a restore-time conversion step that
+  transforms old backups before the current application loads them, documented
+  in the operator restore guide.
 - Run full coverage, quality audit, Cucumber specs, exhaustive targeted
   mutations, and the final branch mutation gate.
 - Update operator and database documentation.
@@ -518,35 +547,36 @@ faster cold starts, and no ambiguity about which path is authoritative.
 
 These findings from the branches are mandatory inputs to the assigned PRs:
 
-| Finding                                                                    | Owning PR |
-| -------------------------------------------------------------------------- | --------- |
-| SumUp identities split across migration pages                              | 14        |
-| A merged migration page mistaken for end-of-input                          | 14        |
-| Old rows changing after the aggregate write cutover                        | 7, 14     |
-| Deleted booking rows blocking migration forever                            | 14        |
-| Attendee-only payment references skipped after an empty aggregate exists   | 14        |
-| Ticket-use state resurrected during migration                              | 14        |
-| Cross-payment duplicate provider charges                                   | 7         |
-| Pending and completed refunds together exceeding captured money            | 4, 8      |
-| Completed provider refunds missing from Money                              | 8, 10     |
-| Owner refund decisions closing a case without closing Money                | 5, 8      |
-| Bulk provider success followed by local failure having no repair path      | 8, 10     |
-| Refund-all conflicting forever with unfinished completion                  | 8, 10     |
-| One failed decision blocking all reconciliation                            | 5, 7      |
-| Account lookup failure retaining a claim                                   | 7         |
-| Migrated charges omitted from refund targets                               | 14        |
-| Disabling new payments also disabling existing-payment refunds             | 1         |
-| Concurrent renewals racing                                                 | 12        |
-| Delayed completion rebuilding facts from edited live data                  | 9         |
-| SumUp return IDs interpreted differently by different routes               | 6, 7      |
-| Unknown unsigned SumUp callbacks triggering outbound reads                 | 3         |
-| Square fallback reads scanning too short a list                            | 7         |
-| Delayed work using live currency rather than stored currency               | 6         |
-| Permanent provider or delivery errors retrying forever or blocking a queue | 5, 7, 11  |
-| Queued site work retaining a deleted attendee ID after merge               | 12        |
-| Listing attachments deleted before a payment fence succeeds                | 9         |
-| Old payment-reference readers surviving after migration                    | 7, 16     |
-| Terminal buyer details, completion data, or ticket tokens never redacting  | 15        |
+| Finding                                                                     | Owning PR |
+| --------------------------------------------------------------------------- | --------- |
+| SumUp identities split across migration pages                               | 14        |
+| A merged migration page mistaken for end-of-input                           | 14        |
+| Old rows changing after the aggregate write cutover                         | 7, 14     |
+| Deleted booking rows blocking migration forever                             | 14        |
+| Attendee-only payment references skipped after an empty aggregate exists    | 14        |
+| Ticket-use state resurrected during migration                               | 14        |
+| Cross-payment duplicate provider charges                                    | 7         |
+| Pending and completed refunds together exceeding captured money             | 4, 8      |
+| Completed provider refunds missing from Money                               | 8, 10     |
+| Owner refund decisions closing a case without closing Money                 | 5, 8      |
+| Bulk provider success followed by local failure having no repair path       | 8, 10     |
+| Refund-all conflicting forever with unfinished completion                   | 8, 10     |
+| One failed decision blocking all reconciliation                             | 5, 7      |
+| Account lookup failure retaining a claim                                    | 7         |
+| Migrated charges omitted from refund targets                                | 14        |
+| Disabling new payments also disabling existing-payment refunds              | 1         |
+| Concurrent renewals racing                                                  | 12        |
+| Delayed completion rebuilding facts from edited live data                   | 9         |
+| SumUp return IDs interpreted differently by different routes                | 6, 7      |
+| Unknown unsigned SumUp callbacks triggering outbound reads                  | 3         |
+| Square fallback reads scanning too short a list                             | 7         |
+| Delayed work using live currency rather than stored currency                | 6         |
+| Permanent provider or delivery errors retrying forever or blocking a queue  | 5, 7, 11  |
+| Queued site work retaining a deleted attendee ID after merge                | 12        |
+| Listing attachments deleted before a payment fence succeeds                 | 9         |
+| Old payment-reference readers surviving after migration                     | 7, 16     |
+| Restore-deploy workflow allowing incompatible code onto a migrated database | 16        |
+| Terminal buyer details, completion data, or ticket tokens never redacting   | 15        |
 
 If implementation reveals that one of these findings is incorrect, close it with
 a short proof in the relevant PR. Do not silently omit it.
@@ -583,7 +613,9 @@ provide a second payment runtime.
   resumable.
 - Genuine ambiguity requires an explicit owner choice.
 - Old backups migrate forward into the current version; old code is never
-  redeployed and mixed application versions are never supported.
+  redeployed and mixed application versions are never supported. The
+  restore-deploy workflow refuses to deploy pre-aggregate code onto a
+  forward-migrated database.
 - Payment secrets and buyer details redact after all required work is terminal.
 - `nix develop -c deno task precommit` passes.
 - Full coverage is 100% and deterministic.
