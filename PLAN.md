@@ -367,16 +367,26 @@ over).
   one one-or-many engine. On a multi-listing payment, refund Money is recorded
   against the payment's stored per-listing allocation — never the whole payment
   to one listing. The bulk arm runs to explicit provider, database, and total
-  subrequest budgets: each request refunds a bounded page and records the
-  remainder as durable due work the scheduled runner continues, so a large
-  refund-all can never abort mid-way with only an initial subset refunded —
-  today's `processRefundBatch` loops every group unbounded, and that shape does
-  not survive the move. Each queued page is self-contained: it carries the
-  provider-qualified payment identities, amounts, and allocation facts it acts
-  on — never a live attendee lookup — so an attendee merge or delete between
-  pages cannot strand a job whose provider refund already happened; M8 adds the
-  general repointing for other queued work kinds. The migrated-payment caller
-  arrives in M11, when migrated payments first exist.
+  subrequest budgets. The whole job — every payment identity it will refund,
+  plus a cursor — commits as durable due work before the first provider call;
+  each request then refunds a bounded page and advances the cursor in the same
+  transaction as that page's results, and the scheduled runner continues the
+  remainder. A crash mid-run therefore leaves a job that still names every
+  untouched payment — a large refund-all can never end with an initial subset
+  refunded and nothing recorded. Today's `processRefundBatch` loops every group
+  unbounded, and that shape does not survive the move. Each queued page is
+  self-contained: it carries the provider-qualified payment identities, amounts,
+  and allocation facts it acts on — never a live attendee lookup. On a
+  reservation payment a page draws two amounts from those stored facts: the
+  provider refund returns only money actually charged, while the Money
+  cancellation consumes the full obligation each line and extra represents, so
+  the buyer gets back exactly what they paid and a cancelled booking leaves no
+  debt behind. While an attendee has unfinished refund pages, merging or
+  deleting that attendee fails closed naming the pending work — a merge posts
+  its own Money adjustments, and replaying a pre-merge allocation after them
+  could reverse income twice; M8's general repointing for queued work then
+  replaces this fence. The migrated-payment caller arrives in M11, when migrated
+  payments first exist.
 - Persist provider refund identity before local completion; queue and schedule
   repair when provider success is followed by a local failure; keep callback and
   admin replay idempotent; keep refunds available while new sales are disabled.
@@ -727,6 +737,9 @@ mechanism and a regression test, or — if implementation proves the finding wro
 | F57 | The adoption pass racing an in-flight legacy commit and re-running its completion      | M8              |
 | F58 | Adoption turning an owner-review payment into due work, bypassing the required choice  | M8              |
 | F59 | A queued refund page stranded by an attendee merge or delete in the M7 window          | M7              |
+| F60 | A refund-all crash after its first page losing the unrecorded remainder                | M7              |
+| F61 | An attendee merge rewriting Money while refund pages are still queued                  | M7              |
+| F62 | A reservation refund confusing money charged now with the full obligation              | M7              |
 
 ## Done means
 
