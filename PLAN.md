@@ -333,7 +333,12 @@ Budget: 1,500-2,200 changed lines.
   writer until `resolveWebhookSession` and `retrieveSession` move to the
   aggregate (in this PR or PR 7), or move those readers in this PR; deleting the
   writer while the completion path still reads from it leaves paid SumUp
-  checkouts unable to complete.
+  checkouts unable to complete. Apply the same projection principle to Stripe
+  and Square: `stripePaymentProvider.retrieveSession` returns `null` without
+  session metadata, and `squarePaymentProvider.retrieveSession` does the same
+  for order metadata. Until those readers move to the aggregate, populate the
+  old checkout/session metadata in the same PR, or move the readers in this PR —
+  paid callbacks/returns cannot validate or complete without that metadata.
 - SumUp compatibility projection: until `resolveWebhookSession` and
   `retrieveSession` move to the aggregate (in this PR or PR 7, whichever moves
   them first), every new aggregate SumUp checkout must also populate
@@ -387,11 +392,16 @@ Budget: 1,700-2,400 changed lines.
   fence must also not block `clearSessionTokens` (updates
   `processed_payments.ticket_tokens` after a successful paid return) until the
   PR 9 completion cutover — a non-custom-thank-you return must not fail on the
-  token-clear after creating/finalizing the booking. Before installing the
-  fence, also exempt or move the maintenance write paths that still touch old
-  tables: `applyAttendeeMerge` (inserts/updates `processed_payments`),
-  `deleteAttendee` (deletes `processed_payments`), and the prune task (deletes
-  old `processed_payments`/`sumup_checkouts`). Either move these maintenance
+  token-clear after creating/finalizing the booking. The fence must also not
+  block self-service balance finalization (`balanceFinalizeStatements` inside
+  `settleBalanceSession` updates `processed_payments`) until the PR 9 completion
+  cutover covers balance payments — a paid `/pay/:token` return must not settle
+  the ledger and then fail to stamp the old idempotency row, leaving retries
+  without the durable completion marker. Before installing the fence, also
+  exempt or move the maintenance write paths that still touch old tables:
+  `applyAttendeeMerge` (inserts/updates `processed_payments`), `deleteAttendee`
+  (deletes `processed_payments`), and the prune task (deletes old
+  `processed_payments`/`sumup_checkouts`). Either move these maintenance
   cutovers before the fence, or keep a bounded write-through so merge, delete,
   and prune succeed for attendees with uncopied payment rows. Deletion paths
   (`deleteAttendee`, prune) must verify that each payment row — in
@@ -403,7 +413,11 @@ Budget: 1,700-2,400 changed lines.
   still running when the fence is active, listing overview pages fail, and if it
   is still running during PR 14's cursor copy, old rows can disappear despite
   the "old tables have remained unchanged" precondition. Verify that fence
-  before committing an aggregate write.
+  atomically within the same transaction that commits the aggregate write: use a
+  shared transaction, advisory lock, or migration epoch token that makes the
+  fence check and the write commit atomic so a separate check cannot race with a
+  legacy write. Fail the write (reject and retry) if the fence is absent or the
+  epoch token changes during the transaction.
 
 Current-system value: every live route, worker, page, and export gets the same
 authoritative answer for the same payment.
@@ -425,9 +439,13 @@ Budget: 1,500-2,200 changed lines.
   except the legacy-table refund adapter for uncopied `processed_payments` rows.
   Until PR 14 copies those rows, admin refund targets may still resolve to old
   tables via `src/shared/db/payment-references.ts`; route those refunds through
-  the new engine with a thin legacy adapter so the old write path (including
-  `markPaymentReferencesProviderRefunded`) is not the production path. Remove
-  the adapter when PR 14 canonicalizes the last copied row.
+  the new engine with a thin legacy adapter so the old write path is not the
+  production path. The adapter must atomically update the old row's completion
+  marker (`provider_refunded_at`) within the same refund transaction, or teach
+  the `payment-references.ts` read-through to consult the new refund record
+  before deciding refundability — so a completed refund does not resurface as
+  refundable on uncopied rows. Remove the adapter when PR 14 canonicalizes the
+  last copied row.
 
 Current-system value: every refund has the same retry, evidence, and Money
 guarantees and cannot move money twice.
@@ -521,8 +539,11 @@ to migrate before changing payment history.
 Budget: 1,700-2,500 changed lines.
 
 - Begin only in a later fleet-wide release after aggregate writes are
-  authoritative and old tables have remained unchanged. Before the first cursor
-  page, fence and drain legacy-table writes: stop `applyAttendeeMerge`,
+  authoritative and old tables have no changes other than defined, versioned
+  refund-completion writes from the PR 8 legacy adapter. The "unchanged" gate
+  permits only those defined refund writes; the cursor must detect and replay
+  them before marking a row verified, so the aggregate does not contain stale
+  refund state. Before the first cursor page, fence and drain all other
   `deleteAttendee`, the prune task, and `deleteAllStaleReservations` from
   modifying `processed_payments`, `sumup_checkouts`, or `checkout_stages` during
   the copy, or version/reconcile any old-row changes that arrive mid-copy so the
