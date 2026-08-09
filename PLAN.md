@@ -358,7 +358,11 @@ Budget: 1,700-2,400 changed lines.
   resolves, and persists once.
 - Store every charge identity once, reject cross-payment reuse, and open a case
   for multiple captures. Persist evidence, charges, state, due time, revision,
-  and case changes in one transaction.
+  and case changes in one transaction. Because aggregate payment records and
+  cases become live here, prevent `applyAttendeeMerge` from deleting an attendee
+  with an open aggregate payment case or completion work until PR 9 ships the
+  merge repoint, or fence the attendee-deletion step in merge so those open
+  records are repointed before deletion.
 - Cut live writers and readers over to the aggregate, but keep old payment
   tables readable as historical source until PR 14 has copied each row. Delete
   only the displaced production readers; keep migration readers reachable so
@@ -369,8 +373,14 @@ Budget: 1,700-2,400 changed lines.
   the refund-completion write path (`processed_payments.provider_refunded_at`
   via `markPaymentReferencesProviderRefunded`), so schedule it only after the PR
   8 refund cutover, or scope it in this PR to exclude refund-completion columns.
-  Before installing the fence, also exempt or move the maintenance write paths
-  that still touch old tables: `applyAttendeeMerge` (inserts/updates
+  The fence must also not block booking-finalize writes until PR 9 replaces the
+  completion cutover: `processPaymentSession` reserves and records failures in
+  `processed_payments`, and `create-batch.ts` finalizes successful bookings
+  through `batchFinalizeStatements`. Scope the fence to exclude those write
+  paths, or defer installing it until PR 9 ships the completion cutover — a paid
+  provider result must not fail to reserve or finalize the local booking. Before
+  installing the fence, also exempt or move the maintenance write paths that
+  still touch old tables: `applyAttendeeMerge` (inserts/updates
   `processed_payments`), `deleteAttendee` (deletes `processed_payments`), and
   the prune task (deletes old `processed_payments`/`sumup_checkouts`). Either
   move these maintenance cutovers before the fence, or keep a bounded
@@ -378,6 +388,11 @@ Budget: 1,700-2,400 changed lines.
   payment rows. Deletion paths (`deleteAttendee`, prune) must verify that each
   payment row has been copied to the canonical aggregate before deleting it, or
   defer the deletion until PR 14 has copied it — never delete an uncopied row.
+  Also move or exempt `deleteAllStaleReservations` (run on every listing
+  overview load, deletes unresolved `processed_payments` rows) before installing
+  the fence; if it is still running when the fence is active, listing overview
+  pages fail, and if it is still running during PR 14's cursor copy, old rows
+  can disappear despite the "old tables have remained unchanged" precondition.
   Verify that fence before committing an aggregate write.
 
 Current-system value: every live route, worker, page, and export gets the same
@@ -497,11 +512,18 @@ Budget: 1,700-2,500 changed lines.
 
 - Begin only in a later fleet-wide release after aggregate writes are
   authoritative and old tables have remained unchanged. Before the first cursor
-  page, fence and drain legacy-table writes: stop the admin refund adapter,
-  `applyAttendeeMerge`, `deleteAttendee`, and the prune task from modifying
-  `processed_payments` or `sumup_checkouts` during the copy, or
-  version/reconcile any old-row changes that arrive mid-copy so the aggregate is
-  not left stale.
+  page, fence and drain legacy-table writes: stop `applyAttendeeMerge`,
+  `deleteAttendee`, and the prune task from modifying `processed_payments`,
+  `sumup_checkouts`, or `checkout_stages` during the copy, or version/reconcile
+  any old-row changes that arrive mid-copy so the aggregate is not left stale.
+  Include `checkout_stages` because `applyAttendeeMerge` and `deleteAttendee`
+  delete from it — an admin merge/delete during the copy can remove or change a
+  source row after it was copied or before it is reached. Do not stop the legacy
+  refund adapter (PR 8) until every uncopied row is canonicalized and verified;
+  either keep the adapter running with version/reconciliation handling for rows
+  still being copied, or durably enqueue in-flight refund requests and replay
+  them after canonicalization. Define the drain boundary for in-flight refunds
+  before the first cursor page.
 - Copy every old source by stable cursor in bounded, verified pages. Never split
   one provider payment across pages or mistake an empty joined page for the end.
 - Preserve unknown or contradictory facts without inventing values. Create a
