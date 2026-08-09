@@ -283,10 +283,15 @@ happen in production.
   listing's share, because Money credits those to their own accounts. Listing
   lines plus extras sum to the payment total, reconciliation validates money
   against that allocation, and no listing is ever credited the full payment or
-  another line's fee; the shared order is never collapsed. Store the provider on
-  each charge: M6's own reconciliation reads it to validate and deduplicate
-  charge identity, and the M7 engine routes refunds by it, closing the
-  multi-provider gap.
+  another line's fee; the shared order is never collapsed. A deposit
+  (reservation) checkout stores two levels for every line and extra: the amount
+  charged now, whose parts sum to this payment's total, and the full obligation
+  it represents, so the later balance payment knows what remains and the full
+  modifier fact is never lost to the deposit fraction — today's pricing folds
+  the deposit share into ticket lines while Money records the whole modifier,
+  and both facts must survive as themselves. Store the provider on each charge:
+  M6's own reconciliation reads it to validate and deduplicate charge identity,
+  and the M7 engine routes refunds by it, closing the multi-provider gap.
 - Reads: every provider read goes behind one strict observation contract
   covering missing, invalid, unavailable, pending, paid, free, and failed.
   Square payment IDs are named by the order, not scanned from a short list.
@@ -366,8 +371,12 @@ over).
   remainder as durable due work the scheduled runner continues, so a large
   refund-all can never abort mid-way with only an initial subset refunded —
   today's `processRefundBatch` loops every group unbounded, and that shape does
-  not survive the move. The migrated-payment caller arrives in M11, when
-  migrated payments first exist.
+  not survive the move. Each queued page is self-contained: it carries the
+  provider-qualified payment identities, amounts, and allocation facts it acts
+  on — never a live attendee lookup — so an attendee merge or delete between
+  pages cannot strand a job whose provider refund already happened; M8 adds the
+  general repointing for other queued work kinds. The migrated-payment caller
+  arrives in M11, when migrated payments first exist.
 - Persist provider refund identity before local completion; queue and schedule
   repair when provider success is followed by a local failure; keep callback and
   admin replay idempotent; keep refunds available while new sales are disabled.
@@ -418,7 +427,15 @@ one machine and merge together.
   history: an aggregate payment the legacy path already completed has its folded
   result marked done, never re-booked or re-posted to Money, and a paid
   aggregate payment with no completion result becomes due work — so pre-M8
-  unfinished completions gain durable recovery instead of being stranded.
+  unfinished completions gain durable recovery instead of being stranded. The
+  pass runs only after the write fence has risen and in-flight legacy commits
+  have drained or failed, and the runner revision-rechecks the folded state when
+  claiming each payment, so a legacy commit that landed between scan and claim
+  is honoured, never redone. Adoption also gates on a completion-safe
+  `outcomeOf` state with no open blocking case: a paid payment stopped for owner
+  review — captured money on a failed checkout, multiple captured charges —
+  stays in its case workflow, because due work must never bypass a required
+  owner choice.
 - From this cutover on, completion stops storing payment references in attendee
   PII — the aggregate owns the attendee-to-payment link — so the attendee-PII
   reference source M11 reads is closed at M8 and cannot grow while the copy
@@ -706,6 +723,10 @@ mechanism and a regression test, or — if implementation proves the finding wro
 | F53 | A bulk refund run exceeding the request budget, refunding only an initial subset       | M7              |
 | F54 | One sold-out line half-booking a multi-listing order after payment                     | M8              |
 | F55 | The M8 runner re-completing sales the legacy path already finished                     | M8              |
+| F56 | A deposit checkout losing the full modifier fact to the charged fraction               | M6, M8          |
+| F57 | The adoption pass racing an in-flight legacy commit and re-running its completion      | M8              |
+| F58 | Adoption turning an owner-review payment into due work, bypassing the required choice  | M8              |
+| F59 | A queued refund page stranded by an attendee merge or delete in the M7 window          | M7              |
 
 ## Done means
 
