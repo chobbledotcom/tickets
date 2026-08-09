@@ -103,7 +103,9 @@ the total diff size for review context.
 
 ## Decided behavior
 
-The answers in `QUESTIONS.md` are binding requirements:
+The following binding product decisions (previously recorded in a separate
+`QUESTIONS.md`, now inlined here so an implementer can verify completeness
+without a missing file) are requirements:
 
 - A failed checkout that shows captured money stops automatic work and creates
   an owner case. The owner must complete the booking or refund it.
@@ -211,7 +213,8 @@ database abstraction do not qualify.
 
 Budget: 800-1,300 changed lines.
 
-- Turn every answer from `QUESTIONS.md` into a named acceptance rule.
+- Turn every binding decision from the Decided behavior section into a named
+  acceptance rule.
 - Fix the current path so disabling new sales does not disable refunds or
   reconciliation for money already taken.
 - Add focused regression tests for callback replay, provider outages, booking
@@ -307,7 +310,12 @@ Budget: 1,500-2,200 changed lines.
   claim.
 - Move Stripe, Square, and SumUp checkout creation together. Keep SumUp's local
   payment, checkout, and transaction IDs distinct and use stored currency.
-- Delete every replaced checkout-creation path and old SumUp checkout writer.
+- Delete every replaced checkout-creation path. Retain the old SumUp checkout
+  writer until PR 7 moves the SumUp readers (`resolveWebhookSession` and
+  `retrieveSession` read booking metadata from `sumup_checkouts`), or move those
+  readers into the aggregate in this PR; deleting the writer while the
+  completion path still reads from it leaves paid SumUp checkouts unable to
+  complete.
 
 Current-system value: no live checkout can lose its local intent or create a
 second provider checkout after an interrupted request.

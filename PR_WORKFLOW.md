@@ -338,7 +338,11 @@ external failure was never designed.
 
 ### 13. Finish the pull request
 
-- Rebase or synchronize the branch with its current parent.
+- Rebase or synchronize the branch with its current parent before running the
+  final gates in step 12. If a lower stacked layer changed or merged since step
+  12 ran, the rebase changes the final diff, so rerun both `precommit` and
+  `precommit:mutation` afterward; CI does not run mutation testing, so watching
+  it does not replace the post-rebase gate.
 - Recalculate source and total changed lines against that parent.
 - Push and watch CI.
 - Read every review comment before resolving it.
