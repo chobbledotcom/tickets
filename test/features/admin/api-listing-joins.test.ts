@@ -11,10 +11,11 @@ import {
   prepareListingJoins,
 } from "#routes/admin/api-listing-joins.ts";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
-import { withTransaction } from "#shared/db/client.ts";
+import { type SqlStatement, withTransaction } from "#shared/db/client.ts";
 import { listingGroups } from "#shared/db/groups.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import { getListingDayPrices } from "#shared/db/listing-prices.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createHiddenPackageGroup,
@@ -37,6 +38,19 @@ const baseInput = (
     slugIndex: "test-listing-index" as BlindIndex,
   };
 };
+
+const persistAfterRowChange = (
+  listingId: number,
+  statement: SqlStatement,
+): Promise<void> =>
+  withTransaction(async (tx) => {
+    await tx.execute(statement);
+    await persistListingJoins(tx, listingId, {
+      childEdges: null,
+      dayPrices: undefined,
+      groupIds: undefined,
+    });
+  });
 
 describeWithEnv("api-listing-joins", { db: true }, () => {
   test("returns null child edges when child_listing_ids is omitted", async () => {
@@ -157,6 +171,40 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
     });
 
     expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
+  });
+
+  test("rejects a stale incoming edge after the child becomes daily", async () => {
+    const parent = await createTestListing({ name: "Standard parent" });
+    const child = await createTestListing({ name: "Changing child" });
+    await listingChildren.setIds(parent.id, [child.id]);
+
+    await expect(
+      persistAfterRowChange(child.id, {
+        args: [child.id],
+        sql: "UPDATE listings SET listing_type = 'daily' WHERE id = ?",
+      }),
+    ).rejects.toThrow(
+      t("listings_table.children_err_child_daily", { name: child.name }),
+    );
+    expect((await getListingWithCount(child.id))?.listing_type).toBe(
+      "standard",
+    );
+  });
+
+  test("rejects a stale outgoing edge after the parent becomes a renewal", async () => {
+    const parent = await createTestListing({ name: "Changing parent" });
+    const child = await createTestListing({ name: "Standard child" });
+    await listingChildren.setIds(parent.id, [child.id]);
+
+    await expect(
+      persistAfterRowChange(parent.id, {
+        args: [parent.id],
+        sql: "UPDATE listings SET months_per_unit = 1 WHERE id = ?",
+      }),
+    ).rejects.toThrow(
+      t("listings_table.children_err_parent_renewal", { name: parent.name }),
+    );
+    expect((await getListingWithCount(parent.id))?.months_per_unit).toBe(0);
   });
 
   test("persistListingJoins clears child edges when given an empty array", async () => {

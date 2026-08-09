@@ -13,6 +13,7 @@ import {
 } from "#shared/db/groups.ts";
 import {
   requireListingChildrenPackageCheck,
+  requireTouchingRelationshipsTx,
   setListingChildrenWithPackageCheckTx,
 } from "#shared/db/listing-parents.ts";
 import { writeListingDayCounts } from "#shared/db/listing-prices.ts";
@@ -173,4 +174,5 @@ export const persistListingJoins = async (
       ),
     );
   }
+  await requireTouchingRelationshipsTx(tx, listingId);
 };
