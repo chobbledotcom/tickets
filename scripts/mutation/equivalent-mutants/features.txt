@@ -54,11 +54,6 @@ src/features/public/ticket-form.ts::collectValuesByListing.listingIds~0go5ifo  ?
 src/features/public/ticket-form.ts::ticketFormErrorResponse.url~0i79mbu  ?? → ||   # ctx.actionUrl: string|undefined, only ever a real URL or undefined (never ""), so ?? and || agree
 src/features/public/ticket-form.ts::listingsWithQuantity.withQty.qty~0q3jgeq  ?? → ||   # quantities.get(): number|undefined; the only falsy number is 0, 0??0===0||0
 
-# Admin listing API fallbacks receive only objects, arrays, positive ids, or
-# nullish values, so no valid request can distinguish these operators.
-src/features/admin/api-listing-joins.ts::UNCREATED_PARENT_ID~05rrw2z  1 → 0   # the mutation changes sentinel -1 to -0; positive listing ids match neither value
-src/features/admin/api-listing-joins.ts::prepareListingJoins.packageConflict~1juqee2  ?? → ||   # groupIds is an array or undefined; every array, including [], is truthy
-
 # attendee entity page: `?? → ||` where the operand's only falsy-non-null
 # value equals the "" fallback.
 src/features/admin/attendee-page.ts::attendeePage.tabs.sections.load~1e06wxq  ?? → ||   # ctx.query.get("token"): string|null; the only falsy-non-null value "" equals the "" fallback

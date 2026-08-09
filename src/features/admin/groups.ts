@@ -187,7 +187,8 @@ const parseMemberDayPrices = (
     const price = parsePackagePrice(form.getString(key));
     if (price === null) continue;
     const listingId = Number(match[1]);
-    const dayPrices = byListing.get(listingId) ?? {};
+    const savedDayPrices = byListing.get(listingId);
+    const dayPrices = savedDayPrices === undefined ? {} : savedDayPrices;
     dayPrices[Number(match[2])] = price;
     byListing.set(listingId, dayPrices);
   }

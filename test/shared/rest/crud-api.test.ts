@@ -72,6 +72,16 @@ const callRoute = async (
 describeWithEnv("defineCrudApi", { db: true }, () => {
   beforeEach(() => createIdNameTable("widgets"));
 
+  test("includes configured extra routes", () => {
+    const extraRoute = () => Promise.resolve(new Response("archived"));
+    const route = "POST /api/admin/widgets/:widgetId/archive";
+    const routes = makeRoutes(makeTable(), {
+      extraRoutes: { [route]: extraRoute },
+    });
+
+    expect(routes[route]).toBe(extraRoute);
+  });
+
   test("creates, strips, hydrates, and logs a row", async () => {
     const table = makeTable();
     const hydrationCalls: number[][] = [];

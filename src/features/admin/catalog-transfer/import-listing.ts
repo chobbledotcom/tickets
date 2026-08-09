@@ -141,7 +141,7 @@ export const membershipSpec = (
     ? {
         dayPrices: entry.dayPrices ? parseDayPrices(entry.dayPrices) : {},
         packagePrice: entry.packagePrice ?? null,
-        quantity: entry.quantity ?? 1,
+        quantity: entry.quantity === undefined ? 1 : entry.quantity,
       }
     : { dayPrices: {}, packagePrice: null, quantity: 1 };
 

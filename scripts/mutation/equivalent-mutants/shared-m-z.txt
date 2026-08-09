@@ -5,10 +5,6 @@
 src/shared/webhook.ts::sendRegistrationWebhooks.facts~007uooi  ?? → ||   # suppliedFacts is RegistrationPackageFacts|undefined
 src/shared/webhook.ts::queueRegistrationNotifications.packageFacts~0fhpirc  ?? → ||   # suppliedPackageFacts is RegistrationPackageFacts|undefined
 
-# CRUD configuration values are functions or objects when present, and hydrated
-# map values are records, so none can be falsy-but-non-null.
-src/shared/rest/crud-api.ts::defineCrudApi.policy~11y0iup  ?? → ||   # policy is an AuthPolicy object or undefined
-src/shared/rest/crud-api.ts::defineCrudApi.lookup~0xu424x  ?? → ||   # lookup is a function or undefined
 src/shared/rest/resource.ts::parseAndValidate~0ypp34v  ?? → ||   # validationError is an ErrorResult object or null; an object is truthy
 
 # settings-bundles.ts: bundle is ALL_SNAPSHOT_SETTINGS when undefined (a readonly

@@ -92,10 +92,6 @@ src/shared/db/attendees/select.ts::attendees.join~02qy6z7  ?? → ||   # query.j
 # error message carries the label.
 src/shared/db/processed-payments.ts::parseSessionFailure~1rv3mep  processed_payments.failure_data → ""   # read-path label: read errors are caught and replaced with CORRUPT_FAILURE before the message can be observed
 
-# Attendee answer collection fallbacks: all present values are arrays or answer
-# objects, so they are truthy; only undefined reaches each empty fallback.
-src/shared/db/questions/attendee-answers/save.ts::saveAttendeeAnswers.normalized.textAnswerIds~1h5o1g4  ?? → ||   # textAnswerIds is TextAnswerId[]|undefined — arrays are always truthy
-
 # The news card query names a single table, so its columns need no alias to
 # resolve.
 src/shared/db/news-posts.ts::getNewsPostCards.rows.columns~0dqqett  news_post → ""   # dropping the alias leaves the column names unqualified, and the read selects from one table (news_posts AS news_post) plus scalar subqueries that carry their own qualified id, so every name still resolves to the same column

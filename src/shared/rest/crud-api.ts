@@ -64,32 +64,37 @@ export const defineCrudApi = <
   config: CrudApiConfig<Row, Input, FullRow, Prepared>,
 ): Record<string, RouteHandlerFn> => {
   const { name, singular, table, getAll, nameField, stripKeys = [] } = config;
-  const policy = config.policy ?? ADMIN_API;
+  const policy = config.policy === undefined ? ADMIN_API : config.policy;
   const responseKey = singular.toLowerCase();
   const listKey = name;
   const lookup: (id: number) => Promise<FullRow | null> =
-    config.lookup ??
-    ((id) =>
-      table.read.one(
-        byPrimaryKey(table, id),
-      ) as unknown as Promise<FullRow | null>);
+    config.lookup === undefined
+      ? (id) =>
+          table.read.one(
+            byPrimaryKey(table, id),
+          ) as unknown as Promise<FullRow | null>
+      : config.lookup;
   // Reading a row back right after committing its write must hit the primary, or
   // a lagging replica can return null and the create/update path crashes on
   // `.id`. Defaults to the primary-pinned base-row read; a resource whose
   // `lookup` joins extra columns passes its own primary equivalent.
   const lookupAfterWrite: (id: number) => Promise<FullRow | null> =
-    config.lookupAfterWrite ??
-    // Present on every table that reaches the transactional write path (set
-    // alongside insertStatement/updateStatement).
-    ((id) => table.findByIdPrimary!(id) as unknown as Promise<FullRow | null>);
+    config.lookupAfterWrite === undefined
+      ? // Present on every table that reaches the transactional write path (set
+        // alongside insertStatement/updateStatement).
+        (id) => table.findByIdPrimary!(id) as unknown as Promise<FullRow | null>
+      : config.lookupAfterWrite;
 
   const responseRow = (
     row: FullRow,
     extraById?: ReadonlyMap<number, Record<string, unknown>>,
-  ): Record<string, unknown> => ({
-    ...stripRow(row, stripKeys),
-    ...(extraById?.get(row.id) ?? {}),
-  });
+  ): Record<string, unknown> => {
+    const extra = extraById?.get(row.id);
+    return {
+      ...stripRow(row, stripKeys),
+      ...(extra === undefined ? {} : extra),
+    };
+  };
 
   /** Clean one row for a JSON response, hydrating its join-table fields. */
   const toResponse = async (row: FullRow): Promise<Record<string, unknown>> => {
@@ -298,12 +303,13 @@ export const defineCrudApi = <
     return jsonResponse({ status: "ok" });
   });
 
+  const extraRoutes = config.extraRoutes;
   return {
     [`GET /api/admin/${name}`]: handleList,
     [`GET /api/admin/${name}/:${paramName}`]: handleGet,
     [`POST /api/admin/${name}`]: handleCreate,
     [`PUT /api/admin/${name}/:${paramName}`]: handleUpdate,
     [`DELETE /api/admin/${name}/:${paramName}`]: handleDelete,
-    ...(config.extraRoutes ?? {}),
+    ...(extraRoutes === undefined ? {} : extraRoutes),
   };
 };

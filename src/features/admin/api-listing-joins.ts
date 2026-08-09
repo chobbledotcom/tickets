@@ -111,9 +111,10 @@ export const prepareListingJoins = async (
   // and a package member can't become a child. The group/listing validators
   // only see edges that already exist, so reject the brand-new edges here,
   // before the row + edges commit together.
+  const inputGroupIds = input.groupIds === undefined ? [] : input.groupIds;
   const packageConflict = await packageChildEdgeConflict(
     submitted.childIds,
-    () => anyHiddenPackageGroup(input.groupIds ?? []),
+    () => anyHiddenPackageGroup(inputGroupIds),
     () => anyListingInPackageGroup(submitted.childIds),
   );
   if (packageConflict) {
@@ -125,10 +126,11 @@ export const prepareListingJoins = async (
   // by its would-be group, not the live table that ignores `group_id`.
   // On create the row doesn't exist yet, so the would-be group still applies to
   // the placeholder id (no live group membership to mislead the check).
+  const parentId = existing === null ? UNCREATED_PARENT_ID : existing.id;
   const result = await validateChildEdges(
-    listingInputToEdge(input, existing?.id ?? UNCREATED_PARENT_ID),
+    listingInputToEdge(input, parentId),
     submitted.childIds,
-    { wouldBeGroupIds: input.groupIds ?? [] },
+    { wouldBeGroupIds: inputGroupIds },
   );
   return result.ok
     ? { value: { childEdges: result.childIds, groupIds } }

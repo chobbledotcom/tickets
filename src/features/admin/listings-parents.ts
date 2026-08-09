@@ -195,13 +195,10 @@ const childOnlyAddOnResolver = async (
       : withGroups;
   });
   // On create the parent row doesn't exist in `live` yet, so append a
-  // placeholder carrying its would-be group set (active — it serves a page).
+  // placeholder carrying its would-be group set.
   const allListings: ListingGroupMembership[] = hasParent
     ? base
-    : [
-        ...base,
-        { active: true, groupIds: options.wouldBeGroupIds, id: parent.id },
-      ];
+    : [...base, { groupIds: options.wouldBeGroupIds, id: parent.id }];
   return (childId, pageIds) =>
     childOnlyAddOnNameForListings(childId, pageIds, allListings);
 };
@@ -383,10 +380,13 @@ export const remapDuplicatedGroupEdges = async (
     {
       existingMode: "replace",
       relatedIdsBySource: childrenByParent,
-      toEdge: (cloneId, childId) => ({
-        childId: idMap.get(childId) ?? childId,
-        parentId: cloneId,
-      }),
+      toEdge: (cloneId, childId) => {
+        const clonedChildId = idMap.get(childId);
+        return {
+          childId: clonedChildId === undefined ? childId : clonedChildId,
+          parentId: cloneId,
+        };
+      },
     },
     {
       existingMode: "keep",
