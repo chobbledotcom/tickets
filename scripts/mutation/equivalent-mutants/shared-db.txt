@@ -30,6 +30,7 @@ src/shared/db/attendees/capacity/remaining.ts::getListingRemainingForRange.durat
 # are truthy, while a missing Map entry is undefined, so `?? {}` and `|| {}` agree.
 src/shared/db/listing-relationship-validation.ts::listingById.listingPrices~0p5a2j2  ?? → ||   # Map values are DayPrices objects (always truthy); a missing entry is undefined
 src/shared/db/listing-relationship-validation.ts::listingById.day_prices~1ag3qoh  ?? → ||   # Map values are DayPrices objects (always truthy); a missing entry is undefined
+src/shared/db/listing-prices.ts::groupDayPriceStatements~0gt4zrn  ?? → ||   # member.dayPrices is a DayPrices object (always truthy) or undefined, so both operators pass it or {}
 
 # Group-cap sweep (attendees/update.ts): the boundary-delta accumulator is a
 # Map<string, number>; the only falsy-but-non-null number is 0 and the fallback
