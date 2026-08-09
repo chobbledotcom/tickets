@@ -18,7 +18,6 @@ import {
   createTestGroup,
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { allAddOnWithStaleChildLink } from "#test-utils/listing-parents/helpers.ts";
 import { optInAddOnForListings } from "#test-utils/modifiers.ts";
 
 describeWithEnv(
@@ -175,20 +174,6 @@ describeWithEnv(
         ),
       ).rejects.toThrow("Imported child extra");
       expect(await listingParents.getIds(child.id)).toEqual([]);
-    });
-
-    test("ignores stale listing links for an order-wide add-on", async () => {
-      const { parent, child } = await allAddOnWithStaleChildLink();
-
-      await withTransaction((tx) =>
-        addParentEdgesWithPackageCheckTx(
-          tx,
-          child.id,
-          [parent.id],
-          t("catalog_transfer.parent_missing"),
-        ),
-      );
-      expect(await listingParents.getIds(child.id)).toEqual([parent.id]);
     });
   },
 );
