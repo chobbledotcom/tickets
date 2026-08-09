@@ -3,6 +3,7 @@ import type { Page } from "playwright";
 import { log, warn } from "#e2e/log.ts";
 import { clickFirst, fillCard, fillFirst, fillFrameInput } from "./card.ts";
 import { configureProvider, hostedCheckout } from "./shared.ts";
+import { assertSumupCallbackContract } from "./sumup-callback.ts";
 import type { PaymentProvider } from "./types.ts";
 
 /* jscpd:ignore-end */
@@ -10,7 +11,9 @@ import type { PaymentProvider } from "./types.ts";
 /**
  * SumUp. Sandbox vs live is inferred from the API key itself, and no webhook
  * signature is required (the app re-fetches the checkout to confirm). Payment
- * confirmation flows through the browser return URL.
+ * confirmation flows through the browser return URL; the callback path is
+ * then exercised deterministically by self-delivering the staged checkout's
+ * own callback (see sumup-callback.ts).
  *
  * SumUp's hosted checkout (checkout.sumup.com) renders its card inputs with
  * Braintree hosted fields: each field is a separate cross-origin iframe titled
@@ -32,6 +35,9 @@ const CARD = {
 } as const;
 
 export const sumup: PaymentProvider = {
+  // The observation boundary's callback contract, driven with the real
+  // checkout id after the return-URL journey confirms the booking.
+  afterPaidBooking: assertSumupCallbackContract,
   configure: configureProvider("sumup", async (session, secrets) => {
     await session.fill("sumup_api_key", secrets.apiKey);
     await session.fill("sumup_merchant_code", secrets.merchantCode);

@@ -1,12 +1,11 @@
-import { readFileSync } from "node:fs";
 import type { Page } from "playwright";
 import { log } from "#e2e/log.ts";
-import { sleep } from "#e2e/util.ts";
 import { squareRequestInit } from "#shared/square.ts";
 import {
   configureProvider,
   exerciseAdminRefund,
   hostedCheckout,
+  readLoggedId,
 } from "./shared.ts";
 import type { HostedCheckoutContext, PaymentProvider } from "./types.ts";
 
@@ -58,29 +57,13 @@ type SquareMoney = { amount: number; currency: string };
 /** Options for a single Square REST call. */
 type SquareRequest = { method?: string; body?: unknown };
 
-/** Recover the Square order id the app created for this booking from its server
- * log (it is logged as `[Square] Payment link created orderId=…`). Polled
- * briefly because the log write and our read race the redirect. */
-const readOrderId = async (logPath: string): Promise<string> => {
-  const deadline = Date.now() + 10_000;
-  const pattern = /\[Square\] Payment link created orderId=(\S+)/g;
-  let last: string | null = null;
-  while (Date.now() < deadline) {
-    let text = "";
-    try {
-      text = readFileSync(logPath, "utf8");
-    } catch {
-      // log not flushed yet
-    }
-    for (const m of text.matchAll(pattern)) last = m[1] ?? last;
-    if (last) return last;
-    await sleep(300);
-  }
-  throw new Error(
-    `Square: could not find the created orderId in the app server log (${logPath}). ` +
-      "Expected a '[Square] Payment link created orderId=…' line.",
+/** The Square order id the app logs when it creates a payment link. */
+const readOrderId = (logPath: string): Promise<string> =>
+  readLoggedId(
+    logPath,
+    /\[Square\] Payment link created orderId=(\S+)/g,
+    "[Square] Payment link created orderId=…",
   );
-};
 
 /** Authenticated Square REST call; throws with the API body on a non-2xx. */
 const squareFetch = async (

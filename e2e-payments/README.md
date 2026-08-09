@@ -54,11 +54,11 @@ booking as paid — the harness then asserts the captured amount shows in the
 listing's income ledger, not merely that an attendee row exists). Webhook
 involvement differs by provider:
 
-| Provider | Confirmation asserted                                                              | Webhook involvement                                                                                                            |
-| -------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Stripe   | Signed webhook + captured amount + real refund; later complex order via return URL | Endpoint registration, rotation/deletion, connection status, and successful signed processing are asserted.                    |
-| SumUp    | Return URL + captured amount                                                       | Needs no signature; a delivered webhook would be processed, but delivery is not asserted.                                      |
-| Square   | Return URL + captured amount                                                       | None — Square requires a manually-signed subscription against a fixed URL, which can't be provisioned for an ephemeral tunnel. |
+| Provider | Confirmation asserted                                                              | Webhook involvement                                                                                                                                                                                                                            |
+| -------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stripe   | Signed webhook + captured amount + real refund; later complex order via return URL | Endpoint registration, rotation/deletion, connection status, and successful signed processing are asserted.                                                                                                                                    |
+| SumUp    | Return URL + captured amount + self-delivered callback                             | Needs no signature. The harness posts the staged checkout's own callback and asserts it is processed and replays idempotently; forged, oversized, and blank ids must all get the one fixed refusal. SumUp's own delivery is still not awaited. |
+| Square   | Return URL + captured amount                                                       | None — Square requires a manually-signed subscription against a fixed URL, which can't be provisioned for an ephemeral tunnel.                                                                                                                 |
 
 For Stripe, each run leaves a webhook endpoint pointing at that run's tunnel;
 the harness deletes all `*.trycloudflare.com` webhook endpoints on teardown

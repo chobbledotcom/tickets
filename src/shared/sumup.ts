@@ -172,6 +172,9 @@ export const sumupApi: {
       // and the redirect can fetch it directly. Runs before the customer ever
       // sees the payment URL, so no webhook can race it.
       await setSumupCheckoutId(reference, checkout.id);
+      // Logged so the payment-sandbox e2e can deliver this checkout's own
+      // callback; Square logs its created orderId the same way.
+      logDebug("SumUp", `Checkout created id=${checkout.id}`);
       return { reference, url };
     }, ErrorCode.PAYMENT_CHECKOUT);
   },
