@@ -292,7 +292,13 @@ happen in production.
   to the surviving attendee inside its transaction, and `deleteAttendee` settles
   or repoints aggregate rows before the attendee row goes — today both touch
   only the legacy tables. M8 extends the same guarantee to durable effects and
-  queued work.
+  queued work. Settling is also how folded facts survive deletion in this
+  window: before any legacy deletion path — `deleteAttendee`, merge's row moves,
+  the prune task — removes a legacy row that carries local completion facts for
+  a sale the aggregate represents, it records those facts on the aggregate
+  record, so no deletion strips the combined answer. A pre-cutover sale with no
+  aggregate row keeps today's deletion behavior until M8's snapshot machinery
+  arrives.
 - The aggregate readers replace `resolveWebhookSession` and `retrieveSession`
   for every caller — signed webhook callbacks, buyer return and cancel pages,
   and paid-session validation — and the displaced methods leave the
@@ -452,6 +458,14 @@ unfinished work within explicit provider, database, and total subrequest
 budgets. Each persisted renewal effect carries a stable provider idempotency
 key, or the runner reads the remote state before re-attempting — an uncertain
 success is never blindly replayed, so a site cannot be extended twice.
+Assignment claims a site atomically: the claim requires the site to still be
+assignable inside the mutating statement itself (today `assignBuiltSite`
+overwrites without that check, so two concurrent paid completions can take the
+same site), and the loser moves to the next site or builds one. A site build
+gets the same no-blind-replay rule as renewals: the persisted effect carries a
+stable creation identity, and a retry after a lost response reads the provider
+and adopts the site that identity already created instead of provisioning a
+second one or failing on the duplicate name.
 
 Standalone value: paid site delivery and renewal recover safely after an
 interruption, a concurrent payment, or an attendee merge.
@@ -620,6 +634,9 @@ mechanism and a regression test, or — if implementation proves the finding wro
 | F41 | Redacting the preserved evidence that is an unmigratable payment's only record         | M11, M12        |
 | F42 | A folded legacy row's local booking facts hidden by read-through deduplication         | M6              |
 | F43 | An already-canonical payment reference migrated again as new legacy input              | M8, M11         |
+| F44 | A legacy deletion stripping folded local facts from a sale the aggregate represents    | M6              |
+| F45 | Two concurrent paid completions claiming the same built site                           | M10             |
+| F46 | A site build replayed after a lost response, provisioning a second site                | M10             |
 
 ## Done means
 
