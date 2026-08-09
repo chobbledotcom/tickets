@@ -300,7 +300,13 @@ happen in production.
   same cutover. The readers feed the existing completion contract
   (`src/shared/payment/validated-session.ts`), so the legacy completion, refund,
   finalize, and maintenance writers keep working unchanged — and keep writing
-  their own rows — until M7 and M8. No write fence lands here.
+  their own rows — until M7 and M8. Those legacy writers never touch aggregate
+  rows; the aggregate learns of their effects the way it learns everything, by
+  reading the provider: every legacy completion or refund is followed by the
+  provider's own callback or the scheduled re-read, which the claimed
+  reconciliation folds into the aggregate. Aggregate state is derived from
+  provider truth, so a legacy write can lag one reconciliation but never leave
+  it permanently stale. No write fence lands here.
 - Adopt or expire every in-flight pre-cutover checkout (all three providers)
   atomically and idempotently: same claim, identity, and validation rules;
   concurrent callbacks and migration runs bind to one claim; defined outcomes
@@ -335,9 +341,12 @@ over).
   in M11): uncopied `processed_payments` rows and attendee-only legacy
   references resolved by `src/shared/db/payment-references.ts` route through the
   new engine. The adapter updates the old row's `provider_refunded_at`
-  atomically inside the refund transaction — or the read-through consults the
-  new refund record — so a completed refund never resurfaces as refundable. It
-  fails closed into an owner case when the same provider reference spans
+  atomically inside the refund transaction, stamping a monotonic version in the
+  same write — or the read-through consults the new refund record, keyed by the
+  provider's refund identity — so a completed refund never resurfaces as
+  refundable, and M11's cursor can compare the version and refund identities
+  against what it copied and replay any completion that landed after the copy.
+  It fails closed into an owner case when the same provider reference spans
   multiple attendees, and when an attendee-only reference lacks a deterministic
   provider, account, captured amount, currency, or completion state. Those
   fail-closed cases carry their own required decision, shipped here: the owner
@@ -475,10 +484,15 @@ only after M8 is authoritative fleet-wide.
   decision: the owner assigns the provider account or marks the row unmigratable
   with a reason, recorded in the decision union, and a revision-fenced copy
   retry consumes the decision so verification resumes — no row can block M13
-  forever. Delete each M8 deletion snapshot the moment its payment is copied and
-  verified — the same gate as any source row, idempotent across interrupted or
-  restored runs — so no duplicate buyer facts outlive the migration; M13
-  verifies none remain.
+  forever. Marking a row unmigratable is a terminal, verified disposition: the
+  decision preserves the row's complete source content as durable evidence on
+  the owner-review case, so M13 can drop the old tables without deleting the
+  only copy of that payment. Delete each M8 deletion snapshot only once every
+  payment and buyer fact it references has been copied and verified — a snapshot
+  is attendee-scoped and can carry several payments, so the last verified
+  payment releases it, under the same gate as any source row and idempotent
+  across interrupted or restored runs; no duplicate buyer facts outlive the
+  migration, and M13 verifies none remain.
 - Each copied payment is immediately served by the current readers, result
   recovery, cases, and refunds; migrated charges join attendee refund targets
   through the M7 engine in this same release. Record verified progress and
@@ -500,9 +514,11 @@ stopping on malformed rows.
 Src target: 400–700. Redact intent, evidence, ticket tokens, completion
 payloads, and the stored delivery records from M9 — prepared message and webhook
 bodies plus their buyer facts — only after all work that needs them is terminal,
-including deliveries that permanently failed; cover completed balances, fully
-refunded payments, and delivered tickets; page cleanup so one bad record cannot
-block later eligible rows.
+including deliveries that permanently failed. Eligibility is defined for every
+terminal outcome — completed, fully refunded, failed, cancelled, expired, and
+free — each either redacts once its work is terminal or documents why its data
+is retained, with a cleanup test per state; page cleanup so one bad or
+ineligible record cannot block later eligible rows.
 
 Standalone value: deployed sites keep accounting history while shedding buyer
 secrets and ticket credentials they no longer need.

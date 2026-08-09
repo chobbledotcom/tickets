@@ -27,7 +27,7 @@ windows, so they were deferred from the PR rather than implemented there.
   tx, but if another admin changes a parent's or a selected child's type,
   renewal tier, duration, or day prices after
   `validateChildEdges`/`validateParentEdges` runs, it commits a relationship
-  `edgeFieldError` would now reject. Fix: load both endpoints' current edge
+  that `edgeFieldError` would now reject. Fix: load both endpoints' current edge
   columns (and day prices) through `tx` and rerun `edgeFieldError` as the next
   entry in `guardEdgeWriteTx`'s check list. Note `name` and some fields are
   encrypted (PII), so the read must select only the plain edge columns
