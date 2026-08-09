@@ -385,10 +385,11 @@ Budget: 1,700-2,400 changed lines.
 - Store every charge identity once, reject cross-payment reuse, and open a case
   for multiple captures. Persist evidence, charges, state, due time, revision,
   and case changes in one transaction. Because aggregate payment records and
-  cases become live here, prevent `applyAttendeeMerge` from deleting an attendee
-  with an open aggregate payment case or completion work until PR 9 ships the
-  merge repoint, or fence the attendee-deletion step in merge so those open
-  records are repointed before deletion.
+  cases become live here, prevent `applyAttendeeMerge` and `deleteAttendee` from
+  deleting an attendee with an open aggregate payment case or completion work
+  until PR 9 ships the merge repoint, or fence the attendee-deletion step in
+  both merge and delete so those open records are repointed or settled before
+  deletion.
 - Cut live writers and readers over to the aggregate, but keep old payment
   tables readable as historical source until PR 14 has copied each row. Delete
   only the displaced production readers; keep migration readers reachable so
@@ -413,7 +414,12 @@ Budget: 1,700-2,400 changed lines.
   `settleBalanceSession` updates `processed_payments`) until the PR 9 completion
   cutover covers balance payments — a paid `/pay/:token` return must not settle
   the ledger and then fail to stamp the old idempotency row, leaving retries
-  without the durable completion marker. Before installing the fence, also
+  without the durable completion marker. The fence must also not block
+  `releaseReservation` (`processPaymentSession` calls it to delete an unresolved
+  `processed_payments` row when an automatic refund fails so the next provider
+  redelivery can retry immediately) until the PR 9 completion cutover — a paid
+  but unbooked checkout must not be stuck behind the stale reservation until the
+  timeout. Before installing the fence, also exempt or move the maintenance
   exempt or move the maintenance write paths that still touch old tables:
   `applyAttendeeMerge` (inserts/updates `processed_payments`), `deleteAttendee`
   (deletes `processed_payments`), and the prune task (deletes old
