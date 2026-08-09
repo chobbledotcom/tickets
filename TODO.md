@@ -41,6 +41,19 @@ addition when picked up.
   `api-listing-joins.ts:persistListingJoins`; `Xig83` is Codex's form/API view.
   Both deferred as heavy lifts on already-rare windows.
 
+- **XjDI9 — Read prior package flags on the transaction connection.**
+  `requirePackageGuardsTx` in `src/shared/db/groups/membership.ts` computes
+  `wasHiddenPackage` from the caller-supplied `existing` snapshot, which predates
+  the write transaction. If another request makes a visible group hidden and a
+  checkout sells it after the snapshot but before this transaction, a stale edit
+  can clear `is_package` without running `hasPackageBookingsTx`, exposing sold
+  hidden member names. The blocker: `writeRowInTransaction` runs the
+  `afterWrite` hooks after the UPDATE, so the hook can't read the pre-update
+  flags from the DB (documented at the `PackageRow` definition). A correct fix
+  reads the current `is_package`/`hide_package_listings` on the transaction
+  connection _before_ the UPDATE and validates under the same lock — an
+  architecture change to the group write path, not a one-line guard.
+
 ## Anchor the booking-page site menu to its listing/group (from PR #2051)
 
 PR #2051 shows the public site menu on booking pages (dropped in iframe mode and
