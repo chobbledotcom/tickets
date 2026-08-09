@@ -198,12 +198,13 @@ Src target: 400–700.
   overlapping refunds until the provider's cumulative total catches up while
   counting a completed refund immediately; reject duplicate resources, wrong
   currencies, wrong parents, over-refunds, and money on a free checkout.
-- Conflicts that need an owner decision (multiple captures and kin): detect,
-  record, and alert through the existing error classes, but keep today's
-  behavior — these outcomes are not cut over, today's classifier keeps governing
-  them, and no automatic work is stopped or stranded before an owner can act.
-  The case workflow arrives one merge later (M5) and the page actions with
-  M7/M8. Build no owner tooling on the legacy engines.
+- Conflicts that need an owner decision (multiple captures and kin): `outcomeOf`
+  is the only classifier here too — the displaced classifier is deleted in this
+  same merge, so two judges can never disagree about the same money. One handler
+  maps these outcomes onto today's behavior: detect, record, and alert through
+  the existing error classes, and no automatic work is stopped or stranded
+  before an owner can act. The case workflow arrives one merge later (M5) and
+  the page actions with M7/M8. Build no owner tooling on the legacy engines.
 
 Standalone value: the live system stops repeat refunds and detects captured
 money combinations it currently misses, with one classifier where there were
@@ -276,13 +277,27 @@ happen in production.
   providers at once. SumUp keeps its local payment, checkout, and transaction
   IDs distinct and uses stored currency. A checkout spanning several listings
   stays one payment with one shared order: the stored intent allocates the
-  expected total across its listing lines exactly — the existing
-  largest-remainder rules make the parts sum to the whole — and reconciliation
-  validates money against that allocation, so no listing is ever credited the
-  full payment and the shared order is never collapsed. Store the provider on
-  each charge: M6's own reconciliation reads it to validate and deduplicate
-  charge identity, and the M7 engine routes refunds by it, closing the
-  multi-provider gap.
+  ticket-line money across its listing lines exactly — the existing
+  largest-remainder rules make the parts sum to the whole — and keeps every
+  booking fee or price-modifier extra as its own fact, never folded into a
+  listing's share, because Money credits those to their own accounts. Listing
+  lines plus extras sum to the payment total, reconciliation validates money
+  against that allocation, and no listing is ever credited the full payment or
+  another line's fee; the shared order is never collapsed. A deposit
+  (reservation) checkout stores two levels for every line and extra: the amount
+  charged now, whose parts sum to this payment's total, and the full obligation
+  it represents, so the later balance payment knows what remains and the full
+  modifier fact is never lost to the deposit fraction — today's pricing folds
+  the deposit share into ticket lines while Money records the whole modifier,
+  and both facts must survive as themselves. One canonical allocator produces
+  this record for the whole payment — every listing line and every extra in one
+  pass, each part with a stable identity — and the record is stored with the
+  payment: reconciliation, refund routing, and balance completion read the
+  stored allocation and never re-derive it, so no two consumers can disagree
+  about a part. Today's ticket-only `allocateReservationDeposit` does not
+  survive the move. Store the provider on each charge: M6's own reconciliation
+  reads it to validate and deduplicate charge identity, and the M7 engine routes
+  refunds by it, closing the multi-provider gap.
 - Reads: every provider read goes behind one strict observation contract
   covering missing, invalid, unavailable, pending, paid, free, and failed.
   Square payment IDs are named by the order, not scanned from a short list.
@@ -357,8 +372,41 @@ over).
   Individual, bulk, balance, automatic, and case-decision refunds run through
   one one-or-many engine. On a multi-listing payment, refund Money is recorded
   against the payment's stored per-listing allocation — never the whole payment
-  to one listing. The migrated-payment caller arrives in M11, when migrated
-  payments first exist.
+  to one listing. The bulk arm runs to explicit provider, database, and total
+  subrequest budgets. The whole job — every payment identity it will refund,
+  plus a cursor — commits as durable due work before the first provider call;
+  each request then refunds a bounded page, records each payment's result in the
+  same transaction, and advances the cursor only past payments with a terminal
+  result. Terminal means the provider confirmed the refund or permanently
+  refused it — a permanent refusal becomes owner-review work, never silently
+  done. A transient failure (provider unreachable, rate limited) is not
+  terminal: it stays due for bounded retries and escalates to owner review when
+  they run out, so one stuck payment can neither spin forever nor be finished
+  around. Every refund item persists its provider idempotency key with the job
+  before the first call and reuses it on every retry — the shipped
+  `pending_refund_idempotency_key` column — so a provider call that succeeded
+  just before a lost local commit can never refund the same money twice. A crash
+  mid-run therefore leaves a job that still names every untouched payment — a
+  large refund-all can never end with an initial subset refunded and nothing
+  recorded. Today's `processRefundBatch` loops every group unbounded, and that
+  shape does not survive the move. Each queued page is self-contained: it
+  carries the provider-qualified payment identities, amounts, and allocation
+  facts it acts on — never a live attendee lookup. Refunding a reservation
+  separates two kinds of reversal: each payment page returns and reverses only
+  the cash that payment actually moved (the deposit's charge, the balance's
+  charge), while the booking-level obligation — sale, modifier, and fee facts
+  shared by all of that reservation's payments — is cancelled exactly once,
+  idempotently, however many payments the refund touches. That cancellation is
+  recorded as a completion effect under one stable booking-level identity,
+  claimed atomically with the refund result, so recovery retries it when the
+  provider reversal succeeded but the local write failed — and can never run it
+  twice. The buyer gets back what they paid, nothing is reversed twice, and a
+  cancelled booking leaves no debt behind. While an attendee has unfinished
+  refund pages, merging or deleting that attendee fails closed naming the
+  pending work — a merge posts its own Money adjustments, and replaying a
+  pre-merge allocation after them could reverse income twice; M8's general
+  repointing for queued work then replaces this fence. The migrated-payment
+  caller arrives in M11, when migrated payments first exist.
 - Persist provider refund identity before local completion; queue and schedule
   repair when provider success is followed by a local failure; keep callback and
   admin replay idempotent; keep refunds available while new sales are disabled.
@@ -400,9 +448,32 @@ one machine and merge together.
   Money effects before running them; snapshot paid facts so listing edits cannot
   change delivery. Complete each effect idempotently, schedule unfinished work,
   and stop one permanent failure from starving later payments. A multi-listing
-  payment completes per listing line from M6's stored allocation — each line's
-  capacity, tickets, and Money draw only that line's amount, and the shared
-  order survives completion.
+  payment draws each line's capacity, tickets, and Money from M6's stored
+  allocation, but the commit is all lines or none in one transaction — as
+  `createBookingAtomic` commits the shared order today — so one line selling out
+  after payment sends the whole completion down the failure path (refund or
+  owner case) rather than half-booking the order. Before the effect runner
+  claims its first payment, an idempotent cutover pass adopts the M6-window
+  history: an aggregate payment the legacy path already completed has its folded
+  result marked done, never re-booked or re-posted to Money; a paid aggregate
+  payment with no completion result becomes due work; and a paid payment whose
+  folded result records a completion failure becomes the matching durable
+  failure effect — its chosen refund path or an owner case — never marked done
+  and never re-run as a fresh booking. So pre-M8 unfinished completions gain
+  durable recovery instead of being stranded. The pass runs only after the write
+  fence has risen and in-flight legacy commits have drained or failed, and the
+  runner revision-rechecks the folded state when claiming each payment, so a
+  legacy commit that landed between scan and claim is honoured, never redone.
+  Adoption also gates on a completion-safe `outcomeOf` state with no open
+  blocking case: a paid payment stopped for owner review — captured money on a
+  failed checkout, multiple captured charges — stays in its case workflow,
+  because due work must never bypass a required owner choice. Refund and
+  completion claims are mutually exclusive through one payment-wide claim: the
+  payment session row's shipped lease (`lease_token`, `lease_expires_at`).
+  Refund jobs, the adoption pass, and the effect runner each acquire that lease
+  atomically before acting and verify no unfinished refund job or effect owns
+  the payment, so two runners can never both read "nothing done yet" and act,
+  and a booking can never complete while its irreversible refund is in flight.
 - From this cutover on, completion stops storing payment references in attendee
   PII — the aggregate owns the attendee-to-payment link — so the attendee-PII
   reference source M11 reads is closed at M8 and cannot grow while the copy
@@ -685,6 +756,27 @@ mechanism and a regression test, or — if implementation proves the finding wro
 | F48 | A multi-listing payment credited in full to each listing, or its shared order lost     | M6, M7, M8      |
 | F49 | Legacy-only booking facts dropped when a dual-store row is marked settled              | M11             |
 | F50 | Unmigratable evidence keeping buyer PII or ticket tokens forever                       | M11, M12        |
+| F51 | Two classifiers disagreeing about the same settled money between M4 and M5             | M4              |
+| F52 | Checkout fees or price modifiers misallocated into a listing's income                  | M6, M8          |
+| F53 | A bulk refund run exceeding the request budget, refunding only an initial subset       | M7              |
+| F54 | One sold-out line half-booking a multi-listing order after payment                     | M8              |
+| F55 | The M8 runner re-completing sales the legacy path already finished                     | M8              |
+| F56 | A deposit checkout losing the full modifier fact to the charged fraction               | M6, M8          |
+| F57 | The adoption pass racing an in-flight legacy commit and re-running its completion      | M8              |
+| F58 | Adoption turning an owner-review payment into due work, bypassing the required choice  | M8              |
+| F59 | A queued refund page stranded by an attendee merge or delete in the M7 window          | M7              |
+| F60 | A refund-all crash after its first page losing the unrecorded remainder                | M7              |
+| F61 | An attendee merge rewriting Money while refund pages are still queued                  | M7              |
+| F62 | A reservation refund confusing money charged now with the full obligation              | M7              |
+| F63 | A deposit-plus-balance refund reversing the booking obligation twice or not at all     | M7              |
+| F64 | Adoption stranding payments whose folded result records a completion failure           | M8              |
+| F65 | A cursor advancing past a transiently failed refund, finishing the job around it       | M7              |
+| F66 | A booking completing while its payment's irreversible refund is in flight              | M8              |
+| F67 | A retried refund minting a fresh provider idempotency key and refunding twice          | M7              |
+| F68 | Transient and permanent refund failures collapsing into one boolean                    | M7              |
+| F69 | An obligation cancellation without a stable identity re-running or never retrying      | M7              |
+| F70 | Two runners both reading "nothing done yet" and acting on one payment                  | M8              |
+| F71 | A consumer re-deriving the allocation and disagreeing with the stored record           | M6              |
 
 ## Done means
 
