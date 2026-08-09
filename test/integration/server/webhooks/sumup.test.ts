@@ -75,13 +75,16 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
     status: "FAILED" | "PAID",
     transactionId: string,
   ) =>
-    stub(sumupApi, "retrieveCheckoutById", () =>
+    stub(sumupApi, "readCheckoutById", () =>
       Promise.resolve({
-        amountMinor: 1000,
-        currency: "GBP",
-        reference,
-        status,
-        transactionId,
+        resource: {
+          amountMinor: 1000,
+          currency: "GBP",
+          reference,
+          status,
+          transactionId,
+        },
+        status: "found" as const,
       }),
     );
 
@@ -104,11 +107,13 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
     }
   });
 
-  test("acknowledges unknown SumUp checkout ids without fetching from the API", async () => {
+  test("refuses unknown SumUp checkout ids retryably without fetching from the API", async () => {
+    // The fixed refusal covers a real callback racing our staging write, and
+    // its body never says why verification failed.
     const listing = await createTestListing({ unitPrice: 1000 });
     await stageSumupCheckout(listing);
-    const fetchStub = stub(sumupApi, "retrieveCheckoutById", () =>
-      Promise.resolve(null),
+    const fetchStub = stub(sumupApi, "readCheckoutById", () =>
+      Promise.resolve({ status: "missing" as const }),
     );
     try {
       const response = await handleRequest(
@@ -117,8 +122,11 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
           id: "co_spam",
         }),
       );
-      expect(response.status).toBe(200);
-      expect((await response.json()).received).toBe(true);
+      expect(response.status).toBe(503);
+      expect(response.headers.get("content-type")).toBe(
+        "text/plain; charset=utf-8",
+      );
+      expect(await response.text()).toBe("Payment verification failed");
       expect(fetchStub.calls.length).toBe(0);
     } finally {
       fetchStub.restore();

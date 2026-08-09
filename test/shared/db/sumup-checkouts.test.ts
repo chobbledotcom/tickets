@@ -132,6 +132,14 @@ describeWithEnv("db > sumup-checkouts", { db: true }, () => {
 
       expect(await hasSumupCheckoutId("co_spam")).toBe(false);
     });
+
+    test("setSumupCheckoutId throws when no staged row matches", async () => {
+      // Creation must fail before the hosted URL is exposed: with no staged
+      // id, every callback for this checkout would be refused as unknown.
+      await expect(setSumupCheckoutId(REFERENCE, "co_lost")).rejects.toThrow(
+        "expected exactly 1",
+      );
+    });
   });
 
   describe("at-rest properties", () => {

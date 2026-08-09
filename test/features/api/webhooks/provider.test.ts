@@ -59,6 +59,35 @@ describeWithEnv("server (payment webhook edge cases)", { db: true }, () => {
     expect(j.status).toBe("pending");
   });
 
+  test("retry session answers the fixed retryable refusal", async () => {
+    await setupStripe();
+    const { stripePaymentProvider } = await import(
+      "#shared/stripe-provider.ts"
+    );
+    using _rs = stub(stripePaymentProvider, "resolveWebhookSession", () =>
+      Promise.resolve("retry" as const),
+    );
+    using _v = await stubWebhookVerify(
+      webhookEvent({
+        amountTotal: 100,
+        eventId: "evt_retry1",
+        metadata: {},
+        paymentIntent: "pi_retry1",
+        sessionId: "cs_retry1",
+      }),
+    );
+    const res = await handleRequest(
+      mockWebhookRequest({}, { "stripe-signature": "sig" }),
+    );
+    // The exact contract: fixed status, header, and value-free body — and a
+    // console-only refusal, never an alert sink.
+    expect(res.status).toBe(503);
+    expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+    expect(await res.text()).toBe("Payment verification failed");
+    expect(E().calls.length).toBe(0);
+    expect(debugLogged(D, "Refused a payment callback retryably")).toBe(true);
+  });
+
   test("unpaid session acks as pending and logs", async () => {
     await setupStripe();
     await withWebhookVerify(

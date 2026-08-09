@@ -85,11 +85,19 @@ export const setSumupCheckoutId = async (
   reference: string,
   sumupId: string,
 ): Promise<void> => {
-  await executeUpdate(
+  const result = await executeUpdate(
     "sumup_checkouts",
     { sumup_id: sumupId },
     { reference_index: await hmacHash(reference) },
   );
+  // The hosted URL must never reach a customer while this checkout's
+  // callbacks would still be refused as unknown, so creation fails here —
+  // before the URL is exposed — when the id did not land on exactly one row.
+  if (result.rowsAffected !== 1) {
+    throw new Error(
+      `Staging the SumUp checkout id updated ${result.rowsAffected} rows, expected exactly 1`,
+    );
+  }
 };
 
 /** Whether a webhook's checkout id belongs to a checkout we created.

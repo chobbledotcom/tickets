@@ -10,17 +10,16 @@
  *   then authenticity comes from re-fetching the checkout
  * - Refunds operate on the transaction id (paymentReference), not the checkout
  *
- * Amounts: the app models money in minor units (e.g. pence); SumUp's API uses
- * major units. A retrieved checkout converts using the currency SumUp returned
- * with it, so a charge taken in another currency is read at its own decimal
- * places rather than the site's; an unusable code falls back to the site's.
+ * A fetched checkout is checked against our independent facts and normalized
+ * by the pure sumup-observation module; this module only owns the client and
+ * tells an authoritative not-found apart from SumUp being unreachable.
  */
 
 /* jscpd:ignore-start */
-import type { CheckoutSuccess, Currency } from "@sumup/sdk";
-import { SumUp } from "@sumup/sdk";
+import type { Currency } from "@sumup/sdk";
+import { APIError, SumUp } from "@sumup/sdk";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
-import { toMajorUnits, toMinorUnits } from "#shared/currency.ts";
+import { toMajorUnits } from "#shared/currency.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   setSumupCheckoutId,
@@ -28,7 +27,7 @@ import {
 } from "#shared/db/sumup-checkouts.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
-import { isCurrency } from "#shared/payment/money.ts";
+import type { ProviderRead } from "#shared/payment/provider-read.ts";
 import {
   assembleCheckoutMetadata,
   type CredentialCheck,
@@ -37,29 +36,12 @@ import {
 import { providerCurrencyBlock } from "#shared/payment-providers.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
-import { exceedsCurrencyPrecision } from "#shared/validation/money.ts";
+import {
+  classifySumupCheckout,
+  type SumupCheckout,
+} from "#shared/sumup-observation.ts";
 
 /* jscpd:ignore-end */
-
-/** Normalized checkout shape consumed by the provider adapter. */
-export type SumupCheckout = {
-  /** Our generated checkout_reference — used as the session id throughout. */
-  reference: string;
-  /** SumUp checkout lifecycle status. */
-  status: CheckoutSuccess["status"];
-  /** Total amount in the app's minor units, or null when the response carried
-   *  no amount, or one finer than the currency can hold — rounding that would
-   *  book an amount SumUp never took. The boundary refuses a null either way. */
-  amountMinor: number | null;
-  /** The currency the checkout was taken in, exactly as SumUp gave it (upper-
-   *  cased), or null when the response carried none. A code that is not three
-   *  letters is carried through unchanged so the boundary refuses it. */
-  currency: string | null;
-  /** Transaction id of the completing payment (refund/payment reference). */
-  transactionId: string;
-  /** Checkout creation time (ISO 8601), from SumUp's `date` field. */
-  createdAt?: string | undefined;
-};
 
 /** Result of creating a hosted checkout. */
 export type SumupCheckoutResult = { reference: string; url: string } | null;
@@ -114,42 +96,18 @@ const sumupKeyError = (err: unknown): string => {
     : message;
 };
 
-/**
- * Normalize a SumUp checkout into our internal shape. Nothing here may throw:
- * it runs inside `withClient`, which turns any error into "no session", and the
- * webhook then acknowledges a paid charge as one it never heard of. So bad
- * money is carried through for the boundary to refuse, never asserted away.
- *
- * transaction_id only exists once a payment attempt succeeds; older attempts
- * in `transactions` may have FAILED, so the fallback picks the successful one.
- */
-const toSumupCheckout = (c: CheckoutSuccess): SumupCheckout => {
-  const amount = typeof c.amount === "number" ? c.amount : null;
-  const currency =
-    typeof c.currency === "string" && c.currency.trim() !== ""
-      ? c.currency.toUpperCase()
-      : null;
-  // Only a well-formed code may reach the currency helpers: Intl throws on
-  // anything else, and that throw would be swallowed here as "no session",
-  // stranding a paid charge the boundary would otherwise refuse and refund.
-  const conversionCurrency = isCurrency(currency)
-    ? currency
-    : settings.currency;
-  // An amount finer than the currency can hold would round to something SumUp
-  // never charged, so it is as unreadable as an absent one.
-  const readable =
-    amount !== null && !exceedsCurrencyPrecision(amount, conversionCurrency);
-  return {
-    amountMinor: readable ? toMinorUnits(amount, conversionCurrency) : null,
-    createdAt: c.date,
-    currency,
-    reference: c.checkout_reference!,
-    status: c.status,
-    transactionId:
-      c.transaction_id ??
-      c.transactions?.find((t) => t.status === "SUCCESSFUL")?.id ??
-      "",
-  };
+/** Turn a failed checkout fetch into the read it proves. The SDK's APIError
+ *  carries the HTTP status, so an authoritative not-found is told apart from
+ *  SumUp being unreachable; the status code is safe to log, the body is not. */
+const sumupReadFailure = (err: unknown): ProviderRead<SumupCheckout> => {
+  if (err instanceof APIError) {
+    logDebug("SumUp", `Checkout read answered ${err.status}`);
+    return err.status === 404
+      ? { status: "missing" }
+      : { reason: "provider_error", status: "unavailable" };
+  }
+  logDebug("SumUp", "Checkout read failed before SumUp answered");
+  return { reason: "network_error", status: "unavailable" };
 };
 
 /**
@@ -162,7 +120,7 @@ export const sumupApi: {
     intent: CheckoutIntent,
     baseUrl: string,
   ) => Promise<SumupCheckoutResult>;
-  retrieveCheckoutById: (id: string) => Promise<SumupCheckout | null>;
+  readCheckoutById: (id: string) => Promise<ProviderRead<SumupCheckout>>;
   refundTransaction: (transactionId: string) => Promise<boolean>;
   getTransactionStatus: (transactionId: string) => Promise<string | null>;
   testSumupConnection: () => Promise<SumupConnectionTestResult>;
@@ -232,6 +190,26 @@ export const sumupApi: {
     }, ErrorCode.PAYMENT_SESSION);
   },
 
+  /** Read a checkout by its SumUp id and check it against our facts. */
+  readCheckoutById: async (
+    id: string,
+  ): Promise<ProviderRead<SumupCheckout>> => {
+    const client = sumupApi.getSumupClient();
+    const merchantCode = getMerchantCode();
+    if (!client || !merchantCode) {
+      return { reason: "not_configured", status: "unavailable" };
+    }
+    try {
+      return classifySumupCheckout(await client.checkouts.get(id), {
+        merchantCode,
+        requestedId: id,
+        siteCurrency: settings.currency,
+      });
+    } catch (err) {
+      return sumupReadFailure(err);
+    }
+  },
+
   /** Refund a transaction in full. */
   refundTransaction: async (transactionId: string): Promise<boolean> => {
     const merchantCode = getMerchantCode();
@@ -242,13 +220,6 @@ export const sumupApi: {
     }, ErrorCode.PAYMENT_REFUND);
     return result ?? false;
   },
-
-  /** Retrieve a checkout by its SumUp id. */
-  retrieveCheckoutById: (id: string): Promise<SumupCheckout | null> =>
-    withClient(
-      async (client) => toSumupCheckout(await client.checkouts.get(id)),
-      ErrorCode.PAYMENT_SESSION,
-    ),
 
   /** Test connection: verify API key + merchant code + currency support. */
   testSumupConnection: async (): Promise<SumupConnectionTestResult> => {
@@ -294,8 +265,7 @@ export const sumupApi: {
 // Wrapper exports for production code (delegate to sumupApi for test mocking)
 export const createCheckout = (i: CheckoutIntent, b: string) =>
   sumupApi.createCheckout(i, b);
-export const retrieveCheckoutById = (id: string) =>
-  sumupApi.retrieveCheckoutById(id);
+export const readCheckoutById = (id: string) => sumupApi.readCheckoutById(id);
 export const refundTransaction = (id: string) => sumupApi.refundTransaction(id);
 export const getTransactionStatus = (id: string) =>
   sumupApi.getTransactionStatus(id);

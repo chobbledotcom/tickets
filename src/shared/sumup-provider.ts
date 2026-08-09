@@ -16,7 +16,7 @@ import {
   getSumupCheckout,
   hasSumupCheckoutId,
 } from "#shared/db/sumup-checkouts.ts";
-import { isResourceId } from "#shared/payment/resource-id.ts";
+import { logDebug } from "#shared/logger.ts";
 import {
   isSessionRejection,
   type SessionRejection,
@@ -38,16 +38,34 @@ import type {
 import {
   createCheckout,
   getTransactionStatus,
+  readCheckoutById,
   refundTransaction,
-  retrieveCheckoutById,
-  type SumupCheckout,
 } from "#shared/sumup.ts";
+import type {
+  SumupCheckout,
+  SumupCheckoutStatus,
+} from "#shared/sumup-observation.ts";
 
 /** Map SumUp's checkout lifecycle to the provider-agnostic payment status.
  * FAILED (declined) and EXPIRED are terminal — the redirect handler shows the
  * cancel page for those instead of a "contact support" error. */
-const toPaymentStatus = (status: SumupCheckout["status"]): PaymentStatus =>
+const toPaymentStatus = (status: SumupCheckoutStatus): PaymentStatus =>
   status === "PAID" ? "paid" : status === "PENDING" ? "unpaid" : "failed";
+
+/** No real SumUp checkout id is anywhere near this long, so a longer one is
+ * provably not ours and is refused before it costs a database lookup. */
+const MAX_SUMUP_ID_BYTES = 255;
+
+const isUsableSumupId = (id: string): boolean =>
+  id !== "" && new TextEncoder().encode(id).byteLength <= MAX_SUMUP_ID_BYTES;
+
+/** Refuse a callback retryably with a value-free console line. Forged and
+ * unreadable callbacks must not spend alert subrequests, and the fixed words
+ * carry the outcome without carrying any value from the payload. */
+const refuseRetryably = (why: string): "retry" => {
+  logDebug("Webhook", `SumUp callback refused retryably: ${why}`);
+  return "retry";
+};
 
 /** Build a validated session from a fetched checkout and its staged metadata.
  * The metadata was written by our own buildItemsMetadata, so it always carries
@@ -91,32 +109,38 @@ export const sumupPaymentProvider: PaymentProvider = {
 
   async resolveWebhookSession(
     webhookEvent: WebhookEvent,
-  ): Promise<ValidatedPaymentSession | "skip" | SessionRejection | null> {
-    if (!webhookEvent.id) return null;
-    // Unsigned webhooks: only fetch checkouts we created. Spam or another
-    // integration's listings are acknowledged without an API call.
-    if (!(await hasSumupCheckoutId(webhookEvent.id))) return "skip";
-    // The staging row already proved this checkout is ours, so a failed fetch
-    // is SumUp being unreachable rather than a checkout we never made.
-    // Throwing answers retryably; acknowledging is terminal, and a paid
-    // checkout would be left with the money taken and no booking.
-    const checkout = await retrieveCheckoutById(webhookEvent.id);
-    if (!checkout) {
-      throw new Error(`SumUp checkout ${webhookEvent.id} could not be read`);
+  ): Promise<
+    ValidatedPaymentSession | "skip" | "retry" | SessionRejection | null
+  > {
+    if (!isUsableSumupId(webhookEvent.id)) return null;
+    // Unsigned webhooks: only fetch checkouts we created. Spam and other
+    // integrations' listings never cost an API call — but they are refused
+    // retryably rather than acknowledged, because the same answer covers a
+    // real callback racing our own staging write, and one fixed refusal
+    // tells a forger nothing about whether an id exists.
+    if (!(await hasSumupCheckoutId(webhookEvent.id))) {
+      return refuseRetryably("checkout is not one we staged");
     }
-    // The reference SumUp echoes back must be the one we generated for this
-    // checkout and staged under this webhook id. If it is blank, unknown, or
-    // another booking's, SumUp has contradicted itself about a checkout we
-    // created. Raise it: the booking is encrypted under that reference, so
-    // without a match we can neither read it nor prove the charge is ours to
-    // refund — and a paid charge is then sitting with SumUp unbooked.
-    const stored = isResourceId(checkout.reference)
-      ? await getSumupCheckout(checkout.reference)
-      : null;
-    if (!stored || stored.sumupId !== webhookEvent.id) {
-      throw new Error(
-        `SumUp checkout ${webhookEvent.id} came back under reference "${checkout.reference}", which is not the one staged for it (status=${checkout.status}, transaction=${checkout.transactionId})`,
+    // The staging row already proved this checkout is ours, so anything but a
+    // clean read is refused retryably: acknowledging is terminal, and a paid
+    // checkout would be left with the money taken and no booking.
+    const read = await readCheckoutById(webhookEvent.id);
+    if (read.status !== "found") {
+      return refuseRetryably(
+        "reason" in read
+          ? `read ${read.status} (${read.reason})`
+          : "read missing",
       );
+    }
+    const checkout = read.resource;
+    // The reference SumUp echoes back must be the one we generated for this
+    // checkout and staged under this webhook id. If it is unknown or another
+    // booking's, SumUp has contradicted itself about a checkout we created.
+    // The booking is encrypted under that reference, so without a match we
+    // can neither read it nor prove the charge is ours to refund.
+    const stored = await getSumupCheckout(checkout.reference);
+    if (!stored || stored.sumupId !== webhookEvent.id) {
+      return refuseRetryably("reference does not open the staged row");
     }
     const session = buildValidatedSession(checkout, stored.metadata);
     // A charge the boundary could not read: surface the rejection so a paid
@@ -139,8 +163,14 @@ export const sumupPaymentProvider: PaymentProvider = {
     // means checkout creation failed after staging — nothing to retrieve.
     const stored = await getSumupCheckout(sessionId);
     if (!stored?.sumupId) return null;
-    const checkout = await retrieveCheckoutById(stored.sumupId);
-    return checkout && buildValidatedSession(checkout, stored.metadata);
+    const read = await readCheckoutById(stored.sumupId);
+    // The redirect's reference opened this staging row, so the checkout it
+    // names must echo that same reference back; anything else is not this
+    // booking.
+    if (read.status !== "found" || read.resource.reference !== sessionId) {
+      return null;
+    }
+    return buildValidatedSession(read.resource, stored.metadata);
   },
 
   // SumUp sets return_url per checkout — there is no global endpoint to register.

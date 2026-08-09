@@ -408,6 +408,14 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   // resolve a session from its own webhook listing structure.
   const sessionResult = await provider.resolveWebhookSession(listing);
 
+  if (sessionResult === "retry") {
+    // Fixed, value-free refusal: a forged or unreadable callback must not
+    // learn why verification failed or spend alert subrequests, and the
+    // provider redelivers on a 503 where an acknowledgement is terminal.
+    logDebug("Webhook", "Refused a payment callback retryably");
+    return plainResponse("Payment verification failed", 503);
+  }
+
   if (sessionResult === "skip") {
     return webhookAckResponse({ status: "pending" });
   }
