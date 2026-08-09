@@ -16,10 +16,10 @@ import { t } from "#i18n";
 import {
   inPlaceholders,
   queryIdColumn,
-  resultRows,
   type TxScope,
 } from "#shared/db/client.ts";
 import { type LinkTableSide, linkTableSide } from "#shared/db/link-table.ts";
+import { guardEdgeWriteTx } from "#shared/db/listing-edge-write.ts";
 import { requireListingsWithCountsByIds } from "#shared/db/listings/records.ts";
 import { TransactionValidationError } from "#shared/db/transaction.ts";
 import {
@@ -28,7 +28,6 @@ import {
 } from "#shared/listing-parents-rules.ts";
 import {
   type PackageChildEdgeBlock,
-  packageChildEdgeConflict,
   packageChildEdgeError,
 } from "#shared/package-membership.ts";
 import type { ListingWithCount } from "#shared/types.ts";
@@ -54,38 +53,6 @@ export const listingParents = linkTableSide(
   "parent_listing_id",
 );
 
-type PackageEdgeCheckRow = {
-  child_is_package_member: number;
-  parent_is_hidden_package_member: number;
-};
-
-/** Reports whether the parent-side hidden-package flag and the child-side
- *  package-member flag together form a forbidden child edge, given the ids
- *  whose membership triggered one of the flags. Both edge-writers call this
- *  with the ids they are about to link, then convert the result into a
- *  returned error (children writer) or a thrown one (parent-edge writer). */
-const edgeConflictFor = (
-  ids: readonly number[],
-  state: PackageEdgeCheckRow,
-): Promise<PackageChildEdgeBlock | null> =>
-  packageChildEdgeConflict(
-    ids,
-    () => state.parent_is_hidden_package_member === 1,
-    () => state.child_is_package_member === 1,
-  );
-
-const requireParentWithoutParent = (hasParent: number): void => {
-  if (hasParent) {
-    throw new TransactionValidationError(t("error.parent_listing_nested"));
-  }
-};
-
-const requireChildWithoutChildren = (hasChildren: number): void => {
-  if (hasChildren) {
-    throw new TransactionValidationError(t("error.child_listing_nested"));
-  }
-};
-
 /** Replaces child edges only when the transaction's package memberships allow
  *  them and every endpoint still exists. `listing_parents` has no foreign key,
  *  so a deleted parent or child would leave an orphan edge that later
@@ -95,61 +62,13 @@ export const setListingChildrenWithPackageCheckTx = async (
   parentId: number,
   childIds: readonly number[],
 ): Promise<PackageChildEdgeBlock | null> => {
-  const [state] = resultRows<
-    PackageEdgeCheckRow & {
-      child_count: number;
-      child_has_children: number;
-      parent_has_parent: number;
-      parent_exists: number;
-    }
-  >(
-    await tx.execute({
-      args: [
-        parentId,
-        ...childIds,
-        ...childIds,
-        parentId,
-        parentId,
-        ...childIds,
-      ],
-      sql: `SELECT EXISTS(
-                      SELECT 1
-                        FROM group_listings AS parentMembership
-                        JOIN groups AS parentGroup
-                          ON parentGroup.id = parentMembership.group_id
-                       WHERE parentMembership.listing_id = ?
-                         AND parentGroup.is_package = 1
-                         AND parentGroup.hide_package_listings = 1
-                    ) AS parent_is_hidden_package_member,
-                    EXISTS(
-                      SELECT 1
-                        FROM group_listings AS childMembership
-                        JOIN groups AS childGroup
-                          ON childGroup.id = childMembership.group_id
-                       WHERE childMembership.listing_id IN (${inPlaceholders(childIds)})
-                         AND childGroup.is_package = 1
-                    ) AS child_is_package_member,
-                    (SELECT COUNT(*) FROM listings
-                       WHERE id IN (${inPlaceholders(childIds)})) AS child_count,
-                     EXISTS(SELECT 1 FROM listings WHERE id = ?) AS parent_exists,
-                     EXISTS(SELECT 1 FROM listing_parents
-                              WHERE child_listing_id = ?) AS parent_has_parent,
-                     EXISTS(SELECT 1 FROM listing_parents
-                              WHERE parent_listing_id IN (${inPlaceholders(childIds)}))
-                       AS child_has_children`,
-    }),
-  );
-  if (!state!.parent_exists) {
-    throw new TransactionValidationError(t("error.listing_deleted"));
-  }
-  if (state!.child_count !== new Set(childIds).size) {
-    throw new TransactionValidationError(t("error.child_listing_deleted"));
-  }
-  if (childIds.length > 0) {
-    requireParentWithoutParent(state!.parent_has_parent);
-  }
-  requireChildWithoutChildren(state!.child_has_children);
-  const conflict = await edgeConflictFor(childIds, state!);
+  const conflict = await guardEdgeWriteTx({
+    childIds,
+    contract: "children",
+    missingParentError: t("error.listing_deleted"),
+    parentIds: [parentId],
+    tx,
+  });
   if (conflict) return conflict;
   await listingChildren.setIdsTx(tx, parentId, childIds);
   return null;
@@ -179,48 +98,15 @@ export const addParentEdgesWithPackageCheckTx = async (
   missingError: string,
 ): Promise<void> => {
   if (parentIds.length === 0) return;
-  const [state] = resultRows<
-    PackageEdgeCheckRow & {
-      child_has_children: number;
-      parent_count: number;
-      parent_has_parent: number;
-    }
-  >(
-    await tx.execute({
-      args: [childId, ...parentIds, ...parentIds, ...parentIds, childId],
-      sql: `SELECT EXISTS(
-                      SELECT 1
-                        FROM group_listings AS childMembership
-                        JOIN groups AS childGroup
-                          ON childGroup.id = childMembership.group_id
-                       WHERE childMembership.listing_id = ?
-                         AND childGroup.is_package = 1
-                    ) AS child_is_package_member,
-                    EXISTS(
-                      SELECT 1
-                        FROM group_listings AS parentMembership
-                        JOIN groups AS parentGroup
-                          ON parentGroup.id = parentMembership.group_id
-                       WHERE parentMembership.listing_id IN (${inPlaceholders(parentIds)})
-                         AND parentGroup.is_package = 1
-                         AND parentGroup.hide_package_listings = 1
-                    ) AS parent_is_hidden_package_member,
-                     (SELECT COUNT(*) FROM listings
-                        WHERE id IN (${inPlaceholders(parentIds)})) AS parent_count,
-                     EXISTS(SELECT 1 FROM listing_parents
-                              WHERE child_listing_id IN (${inPlaceholders(parentIds)}))
-                       AS parent_has_parent,
-                     EXISTS(SELECT 1 FROM listing_parents
-                              WHERE parent_listing_id = ?)
-                       AS child_has_children`,
+  requireListingChildrenPackageCheck(
+    await guardEdgeWriteTx({
+      childIds: [childId],
+      contract: "parents",
+      missingParentError: missingError,
+      parentIds,
+      tx,
     }),
   );
-  if (state!.parent_count !== new Set(parentIds).size) {
-    throw new TransactionValidationError(missingError);
-  }
-  requireChildWithoutChildren(state!.child_has_children);
-  requireParentWithoutParent(state!.parent_has_parent);
-  requireListingChildrenPackageCheck(await edgeConflictFor(parentIds, state!));
   await listingParents.addIdsTx(tx, childId, parentIds);
 };
 

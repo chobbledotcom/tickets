@@ -2,12 +2,15 @@
 
 ## Listing/groups review follow-ups (from PR #2046)
 
-Three unresolved review threads were judged too niche to chase in that PR once
-the rest of the round was complete; each is a transaction-race hardening on an
-already-rare window. The sibling guards they build on are all present and tested
-in `src/shared/db/listing-parents.ts` (`setListingChildrenWithPackageCheckTx` /
-`addParentEdgesWithPackageCheckTx`), so any of these is a small, well-scoped
-addition when picked up.
+The shared driver this PR landed now gives these a single seam: the two edge
+writers (`setListingChildrenWithPackageCheckTx` / `addParentEdgesWithPackageCheckTx`)
+both delegate their transaction-local recheck to
+`guardEdgeWriteTx` in `src/shared/db/listing-edge-write.ts` — one declared check
+list (existence, nesting, package) running against current tx state. The items
+below are the natural **next entries** in that declarative check list, not
+separate hand-rolled guards; each still needs the tx-scoped read it mentions.
+The remaining ones are transaction-race hardening on already-rare windows, so
+they were deferred from the PR rather than implemented there.
 
 - **Xh_QZ — Redirect vanished-group failures to a live page.**
   `handleAddListingsToGroup` in `src/features/admin/groups.ts` redirects every
@@ -20,26 +23,27 @@ addition when picked up.
   it shipped without coverage.
 
 - **XiL8J / XiL8L — Revalidate edge fields inside the write transaction.**
-  `setListingChildrenWithPackageCheckTx` and `addParentEdgesWithPackageCheckTx`
-  recheck endpoint existence, nesting, and package membership in the tx, but if
-  another admin changes a parent's or a selected child's type, renewal tier,
-  duration, or day prices after `validateChildEdges`/`validateParentEdges` runs,
-  they commit a relationship `edgeFieldError` would now reject. Fix: load both
-  endpoints' current edge fields through `tx` and rerun `edgeFieldError` before
-  `setIdsTx` / `addIdsTx`. Deferred as the deepest and least likely window; all
-  six sibling recheck guards were already implemented.
+  `guardEdgeWriteTx` rechecks existence, nesting, and package membership in the
+  tx, but if another admin changes a parent's or a selected child's type, renewal
+  tier, duration, or day prices after `validateChildEdges`/`validateParentEdges`
+  runs, it commits a relationship `edgeFieldError` would now reject. Fix: load
+  both endpoints' current edge columns (and day prices) through `tx` and rerun
+  `edgeFieldError` as the next entry in `guardEdgeWriteTx`'s check list. Note
+  `name` and some fields are encrypted (PII), so the read must select only the
+  plain edge columns `edgeFieldError` reasons over rather than decrypt under the
+  write lock. All sibling recheck guards were already implemented.
 
 - **Xig83 / XiqKh — Recheck add-on reachability inside the write transaction.**
-  This is the same race-revalidation family as the edge-field threads above,
-  extended to optional add-ons. If another request activates or rescopes a
-  child-only optional add-on (or a group link) after `validateChildEdges` /
-  `persistListingJoins` runs, the tx can persist an edge that lets the add-on
-  become reachable only through a child, losing it from the parent's booking
-  page. Fix: re-run the `childOnlyAddOn` / `edgeFieldError` checks against
-  transaction-local modifier and group links before `setIdsTx`. CodeRabbit's
-  `XiqKh` is the combined view of this and the edge-field threads, scoped to
-  `api-listing-joins.ts:persistListingJoins`; `Xig83` is Codex's form/API view.
-  Both deferred as heavy lifts on already-rare windows.
+  Same race-revalidation family as the edge-field entry, extended to optional
+  add-ons. If another request activates or rescopes a child-only optional add-on
+  (or a group link) after `validateChildEdges` / `persistListingJoins` runs, the
+  tx can persist an edge that lets the add-on become reachable only through a
+  child, losing it from the parent's booking page. Fix: add a `childOnlyAddOn`
+  entry to `guardEdgeWriteTx`'s check list, resolving scope against
+  transaction-local modifier + `group_listings` state (a tx-scoped variant of
+  `modifier-resolve`'s live resolver). CodeRabbit's `XiqKh` is the combined view
+  of this and the edge-field entry, scoped to `api-listing-joins.ts:
+  persistListingJoins`; `Xig83` is Codex's form/API view.
 
 - **XjDI9 — Read prior package flags on the transaction connection.**
   `requirePackageGuardsTx` in `src/shared/db/groups/membership.ts` computes
