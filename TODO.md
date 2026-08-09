@@ -3,35 +3,36 @@
 ## Listing/groups review follow-ups (from PR #2046)
 
 The shared driver this PR landed now gives these a single seam: the two edge
-writers (`setListingChildrenWithPackageCheckTx` / `addParentEdgesWithPackageCheckTx`)
-both delegate their transaction-local recheck to
-`guardEdgeWriteTx` in `src/shared/db/listing-edge-write.ts` — one declared check
-list (existence, nesting, package) running against current tx state. The items
-below are the natural **next entries** in that declarative check list, not
-separate hand-rolled guards; each still needs the tx-scoped read it mentions.
-The remaining ones are transaction-race hardening on already-rare windows, so
-they were deferred from the PR rather than implemented there.
+writers (`setListingChildrenWithPackageCheckTx` /
+`addParentEdgesWithPackageCheckTx`) both delegate their transaction-local
+recheck to `guardEdgeWriteTx` in `src/shared/db/listing-edge-write.ts` — one
+declared check list (existence, nesting, package) running against current tx
+state. The items below are the natural **next entries** in that declarative
+check list, not separate hand-rolled guards; each still needs the tx-scoped read
+it mentions. The remaining ones are transaction-race hardening on already-rare
+windows, so they were deferred from the PR rather than implemented there.
 
 - **Xh_QZ — Redirect vanished-group failures to a live page.**
   `handleAddListingsToGroup` in `src/features/admin/groups.ts` redirects every
-  `assignListingsToGroup` error to `/admin/groups/${group.id}`. When the group is
-  deleted after the handler loads it but before the write, `assignListingsToGroup`
-  returns `t("error.selected_group_deleted")` and that redirect lands on a 404.
-  Route that one result to `/admin/groups` (the live list). Reasoning for defer:
-  the group must vanish between the handler's load and the write — a window not
-  reachable from a single-request test without fragile cache manipulation, so
-  it shipped without coverage.
+  `assignListingsToGroup` error to `/admin/groups/${group.id}`. When the group
+  is deleted after the handler loads it but before the write,
+  `assignListingsToGroup` returns `t("error.selected_group_deleted")` and that
+  redirect lands on a 404. Route that one result to `/admin/groups` (the live
+  list). Reasoning for defer: the group must vanish between the handler's load
+  and the write — a window not reachable from a single-request test without
+  fragile cache manipulation, so it shipped without coverage.
 
 - **XiL8J / XiL8L — Revalidate edge fields inside the write transaction.**
   `guardEdgeWriteTx` rechecks existence, nesting, and package membership in the
-  tx, but if another admin changes a parent's or a selected child's type, renewal
-  tier, duration, or day prices after `validateChildEdges`/`validateParentEdges`
-  runs, it commits a relationship `edgeFieldError` would now reject. Fix: load
-  both endpoints' current edge columns (and day prices) through `tx` and rerun
-  `edgeFieldError` as the next entry in `guardEdgeWriteTx`'s check list. Note
-  `name` and some fields are encrypted (PII), so the read must select only the
-  plain edge columns `edgeFieldError` reasons over rather than decrypt under the
-  write lock. All sibling recheck guards were already implemented.
+  tx, but if another admin changes a parent's or a selected child's type,
+  renewal tier, duration, or day prices after
+  `validateChildEdges`/`validateParentEdges` runs, it commits a relationship
+  `edgeFieldError` would now reject. Fix: load both endpoints' current edge
+  columns (and day prices) through `tx` and rerun `edgeFieldError` as the next
+  entry in `guardEdgeWriteTx`'s check list. Note `name` and some fields are
+  encrypted (PII), so the read must select only the plain edge columns
+  `edgeFieldError` reasons over rather than decrypt under the write lock. All
+  sibling recheck guards were already implemented.
 
 - **Xig83 / XiqKh — Recheck add-on reachability inside the write transaction.**
   Same race-revalidation family as the edge-field entry, extended to optional
@@ -42,17 +43,19 @@ they were deferred from the PR rather than implemented there.
   entry to `guardEdgeWriteTx`'s check list, resolving scope against
   transaction-local modifier + `group_listings` state (a tx-scoped variant of
   `modifier-resolve`'s live resolver). CodeRabbit's `XiqKh` is the combined view
-  of this and the edge-field entry, scoped to `api-listing-joins.ts:
-  persistListingJoins`; `Xig83` is Codex's form/API view.
+  of this and the edge-field entry, scoped to
+  `api-listing-joins.ts:
+  persistListingJoins`; `Xig83` is Codex's form/API
+  view.
 
 - **XjDI9 — Read prior package flags on the transaction connection.**
   `requirePackageGuardsTx` in `src/shared/db/groups/membership.ts` computes
-  `wasHiddenPackage` from the caller-supplied `existing` snapshot, which predates
-  the write transaction. If another request makes a visible group hidden and a
-  checkout sells it after the snapshot but before this transaction, a stale edit
-  can clear `is_package` without running `hasPackageBookingsTx`, exposing sold
-  hidden member names. The blocker: `writeRowInTransaction` runs the
-  `afterWrite` hooks after the UPDATE, so the hook can't read the pre-update
+  `wasHiddenPackage` from the caller-supplied `existing` snapshot, which
+  predates the write transaction. If another request makes a visible group
+  hidden and a checkout sells it after the snapshot but before this transaction,
+  a stale edit can clear `is_package` without running `hasPackageBookingsTx`,
+  exposing sold hidden member names. The blocker: `writeRowInTransaction` runs
+  the `afterWrite` hooks after the UPDATE, so the hook can't read the pre-update
   flags from the DB (documented at the `PackageRow` definition). A correct fix
   reads the current `is_package`/`hide_package_listings` on the transaction
   connection _before_ the UPDATE and validates under the same lock — an
