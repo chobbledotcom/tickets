@@ -198,12 +198,13 @@ Src target: 400–700.
   overlapping refunds until the provider's cumulative total catches up while
   counting a completed refund immediately; reject duplicate resources, wrong
   currencies, wrong parents, over-refunds, and money on a free checkout.
-- Conflicts that need an owner decision (multiple captures and kin): detect,
-  record, and alert through the existing error classes, but keep today's
-  behavior — these outcomes are not cut over, today's classifier keeps governing
-  them, and no automatic work is stopped or stranded before an owner can act.
-  The case workflow arrives one merge later (M5) and the page actions with
-  M7/M8. Build no owner tooling on the legacy engines.
+- Conflicts that need an owner decision (multiple captures and kin): `outcomeOf`
+  is the only classifier here too — the displaced classifier is deleted in this
+  same merge, so two judges can never disagree about the same money. One handler
+  maps these outcomes onto today's behavior: detect, record, and alert through
+  the existing error classes, and no automatic work is stopped or stranded
+  before an owner can act. The case workflow arrives one merge later (M5) and
+  the page actions with M7/M8. Build no owner tooling on the legacy engines.
 
 Standalone value: the live system stops repeat refunds and detects captured
 money combinations it currently misses, with one classifier where there were
@@ -276,10 +277,13 @@ happen in production.
   providers at once. SumUp keeps its local payment, checkout, and transaction
   IDs distinct and uses stored currency. A checkout spanning several listings
   stays one payment with one shared order: the stored intent allocates the
-  expected total across its listing lines exactly — the existing
-  largest-remainder rules make the parts sum to the whole — and reconciliation
-  validates money against that allocation, so no listing is ever credited the
-  full payment and the shared order is never collapsed. Store the provider on
+  ticket-line money across its listing lines exactly — the existing
+  largest-remainder rules make the parts sum to the whole — and keeps every
+  booking fee or price-modifier extra as its own fact, never folded into a
+  listing's share, because Money credits those to their own accounts. Listing
+  lines plus extras sum to the payment total, reconciliation validates money
+  against that allocation, and no listing is ever credited the full payment or
+  another line's fee; the shared order is never collapsed. Store the provider on
   each charge: M6's own reconciliation reads it to validate and deduplicate
   charge identity, and the M7 engine routes refunds by it, closing the
   multi-provider gap.
@@ -357,8 +361,13 @@ over).
   Individual, bulk, balance, automatic, and case-decision refunds run through
   one one-or-many engine. On a multi-listing payment, refund Money is recorded
   against the payment's stored per-listing allocation — never the whole payment
-  to one listing. The migrated-payment caller arrives in M11, when migrated
-  payments first exist.
+  to one listing. The bulk arm runs to explicit provider, database, and total
+  subrequest budgets: each request refunds a bounded page and records the
+  remainder as durable due work the scheduled runner continues, so a large
+  refund-all can never abort mid-way with only an initial subset refunded —
+  today's `processRefundBatch` loops every group unbounded, and that shape does
+  not survive the move. The migrated-payment caller arrives in M11, when
+  migrated payments first exist.
 - Persist provider refund identity before local completion; queue and schedule
   repair when provider success is followed by a local failure; keep callback and
   admin replay idempotent; keep refunds available while new sales are disabled.
@@ -400,9 +409,16 @@ one machine and merge together.
   Money effects before running them; snapshot paid facts so listing edits cannot
   change delivery. Complete each effect idempotently, schedule unfinished work,
   and stop one permanent failure from starving later payments. A multi-listing
-  payment completes per listing line from M6's stored allocation — each line's
-  capacity, tickets, and Money draw only that line's amount, and the shared
-  order survives completion.
+  payment draws each line's capacity, tickets, and Money from M6's stored
+  allocation, but the commit is all lines or none in one transaction — as
+  `createBookingAtomic` commits the shared order today — so one line selling out
+  after payment sends the whole completion down the failure path (refund or
+  owner case) rather than half-booking the order. Before the effect runner
+  claims its first payment, an idempotent cutover pass adopts the M6-window
+  history: an aggregate payment the legacy path already completed has its folded
+  result marked done, never re-booked or re-posted to Money, and a paid
+  aggregate payment with no completion result becomes due work — so pre-M8
+  unfinished completions gain durable recovery instead of being stranded.
 - From this cutover on, completion stops storing payment references in attendee
   PII — the aggregate owns the attendee-to-payment link — so the attendee-PII
   reference source M11 reads is closed at M8 and cannot grow while the copy
@@ -685,6 +701,11 @@ mechanism and a regression test, or — if implementation proves the finding wro
 | F48 | A multi-listing payment credited in full to each listing, or its shared order lost     | M6, M7, M8      |
 | F49 | Legacy-only booking facts dropped when a dual-store row is marked settled              | M11             |
 | F50 | Unmigratable evidence keeping buyer PII or ticket tokens forever                       | M11, M12        |
+| F51 | Two classifiers disagreeing about the same settled money between M4 and M5             | M4              |
+| F52 | Checkout fees or price modifiers misallocated into a listing's income                  | M6, M8          |
+| F53 | A bulk refund run exceeding the request budget, refunding only an initial subset       | M7              |
+| F54 | One sold-out line half-booking a multi-listing order after payment                     | M8              |
+| F55 | The M8 runner re-completing sales the legacy path already finished                     | M8              |
 
 ## Done means
 
