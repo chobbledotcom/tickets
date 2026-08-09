@@ -3,9 +3,9 @@
 Deno-only, `curl`-powered tools for the Tickets admin API.
 
 Rezi was evaluated from `https://github.com/RtlZeroMemory/Rezi/`. Its public
-packages currently target Node/Bun and its terminal backend depends on the
-Node package plus native bindings, so this directory keeps the app Deno-native
-while following Rezi's screen/state/action style. If Rezi ships a Deno backend,
+packages currently target Node/Bun and its terminal backend depends on the Node
+package plus native bindings, so this directory keeps the app Deno-native while
+following Rezi's screen/state/action style. If Rezi ships a Deno backend,
 `cli/tui.ts` is the migration seam.
 
 ## Configuration
@@ -44,8 +44,8 @@ mise exec -- deno task cli:api create holidays '{"name":"Christmas","start_date"
 ## Resources
 
 The resource names — `listings`, `groups`, and `holidays` — mirror the admin
-JSON API exactly. `cli/resources.ts` is the single source of truth: both the
-TUI and the agent script read from it, and
-`test/integration/tooling/cli.test.ts` derives the expected set from the
-server's `adminApiRoutes` and fails if the two ever diverge. Exposing a new `/api/admin/:resource` family is therefore a one-line
-addition here.
+JSON API exactly. `cli/resources.ts` is the single source of truth: both the TUI
+and the agent script read from it, and `test/integration/tooling/cli.test.ts`
+derives the expected set from the server's `adminApiRoutes` and fails if the two
+ever diverge. Exposing a new `/api/admin/:resource` family is therefore a
+one-line addition here.

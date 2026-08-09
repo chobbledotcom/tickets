@@ -268,15 +268,16 @@ reconciliation.
   all use these mappings; an alternate provider identifier is never a second
   durable identity.
 - Add one provider-qualified durable session mechanism with a database `UNIQUE`
-  constraint on `(provider, canonical resource kind, canonical resource ID)`. Its
-  exhaustive outcome is `completed` with the existing handled-result reference,
-  or `owner_action_required` with a fixed reason (`paid_child_unusable` or
-  `paid_intent_unreadable`), created/updated timestamps, and resolution state.
-  It stores no raw response, metadata, payload, credential, mismatch value, or
-  copied PII. Use an atomic upsert on that conflict target. Repeated failures
-  update the same case rather than create duplicates. Migrate
-  `processed_payments`, its processing claim, refunds, and ledger replay to this
-  canonical tuple; remove flat `payment_session_id` authority in the same slice.
+  constraint on `(provider, canonical resource kind, canonical resource ID)`.
+  Its exhaustive outcome is `completed` with the existing handled-result
+  reference, or `owner_action_required` with a fixed reason
+  (`paid_child_unusable` or `paid_intent_unreadable`), created/updated
+  timestamps, and resolution state. It stores no raw response, metadata,
+  payload, credential, mismatch value, or copied PII. Use an atomic upsert on
+  that conflict target. Repeated failures update the same case rather than
+  create duplicates. Migrate `processed_payments`, its processing claim,
+  refunds, and ledger replay to this canonical tuple; remove flat
+  `payment_session_id` authority in the same slice.
 - Completed replay checks that provider-qualified record before staging or
   provider IO. Callback replay returns the existing acknowledgement. Browser
   success and cancel replay must verify this site's `price_proof` before showing
@@ -621,8 +622,8 @@ The full test plan is fixed. It must include direct deterministic tests for:
   cancel and return the typed failure for one byte over;
 - mixed registration delivery outcomes preserve a refused sibling beside every
   unexpected reason, wait for both channels, create one failure activity, make
-  exactly one ntfy/Sentry fan-out, attach no raw exception, and only then rethrow
-  the first original reason locally;
+  exactly one ntfy/Sentry fan-out, attach no raw exception, and only then
+  rethrow the first original reason locally;
 - one paid-order snapshot DB round trip whose rows drive validation, modifier
   resolution, email, webhook, cancel, and refund rendering; direct query-count
   tests must fail if any removed parallel reader returns;

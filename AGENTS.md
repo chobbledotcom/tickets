@@ -70,6 +70,17 @@ GitHub.
 
 ## Preferences
 
+- **Plan behavior before code**: Follow [PR_WORKFLOW.md](PR_WORKFLOW.md) for
+  every non-trivial change. The assigned agent must fill in the behavior
+  contract, challenge it, and ask a human to approve it before implementation.
+  The contract covers trusted facts, valid states, commands, failures, retries,
+  races, and owner choices. Schemas describe facts, state transitions describe
+  changes, and transactions or revision checks protect concurrent changes. Do
+  not start coding while any part is implicit or awaiting human approval.
+- **Format Markdown with Deno**: Let `deno fmt` apply its standard 80-column
+  wrapping to Markdown files. Do not hand-wrap prose to a different width or
+  unwrap paragraphs onto single long lines. Formatter exceptions such as tables,
+  code blocks, and long links may exceed 80 columns.
 - **Use FP methods**: Prefer curried functional utilities from `#fp` over
   imperative loops
 - **Plain language for functional code**: Keep the functional style, but name
@@ -375,6 +386,33 @@ GitHub.
   exactly — it typechecks the **test** files too, so `deno check <src>` plus
   `test:files` is not a substitute (a test-only type error will pass locally and
   still break CI).
+
+## Stacked Pull Requests
+
+Use GitHub stacked pull requests for large, dependency-ordered work when the
+repository has access to the feature. Manage them with the official `gh stack`
+extension. A stack is a short linear chain in this repository: its bottom branch
+targets `main`, and every higher branch targets the branch directly below it.
+
+- Keep a stack small, normally three to seven pull requests. Split a larger job
+  into several completed stacks so a low-layer change does not rebase and rerun
+  CI across dozens of branches.
+- Every layer must be independently green, reviewable, and useful to the system
+  that will exist when that layer merges. Future reuse, tests alone, or an
+  unused foundation do not justify a layer. Delete the implementation a layer
+  replaces in that same layer unless it is a named mixed-version deployment
+  adapter.
+- Review and merge from the bottom up. Higher layers may be reviewed in
+  parallel, but do not merge an upper layer while a required lower layer is
+  unapproved. After a lower layer changes or merges, use `gh stack rebase` or
+  `gh stack sync` rather than manually retargeting every branch.
+- While a layer is above another open layer, run targeted mutation tests for the
+  source changed by that layer. `precommit:mutation` compares the whole branch
+  with `origin/main`, so run that branch-level gate after the lower layers merge
+  and the layer has been rebased into the bottom position.
+- CI runs for every branch and pull request in a stack. Avoid needless full
+  stack pushes, and do not create one giant stack merely because the tool can
+  display it.
 
 ## Offensive Programming — Never Suppress Errors
 
@@ -1030,11 +1068,12 @@ query logging and table-scoped cache invalidation stay automatic.
   profile and stable catalog
 - `deno task specs:files <feature>... [--tags <expression>]` - Run selected
   Features through the shared harness
-- `deno task lint` - Format and lint all code with Biome (`check --write`;
-  auto-fixes in place). Biome is the sole formatter and linter.
-- `deno task lint:ci` - Strict, read-only lint (`check --error-on-warnings`, no
-  `--write`). Fails on lint warnings (e.g. cognitive complexity) and on any code
-  that _would_ be reformatted, without touching the checkout. This is the lint
+- `deno task lint` - Format Markdown with Deno, then format and lint code with
+  Biome (`check --write`; auto-fixes in place).
+- `deno task lint:ci` - Strict, read-only formatting and lint. Runs
+  `deno fmt --check` for Markdown and Biome `check --error-on-warnings` for
+  code. Fails on lint warnings (e.g. cognitive complexity) and on any file that
+  would be reformatted, without touching the checkout. This is the lint
   `deno task precommit` runs in **every** environment, so a clean `precommit`
   locally means the lint step will pass in CI too. Run `deno task lint` to
   auto-fix before re-running.
@@ -1433,18 +1472,17 @@ batches.
 How it works (and why it is bespoke): static gates apply mutants in isolated
 sibling copies. Mutants that pass are written over the run's source file, tested
 in a fresh `deno test` subprocess, then restored. The normal
-`deno task mutation` command first copies the current checkout
-(including dirty source/test edits, excluding `.git`, cache/report folders,
-local databases, secrets, and generated assets) to `.mutation-runs/<id>/work`;
-test-stage writes and per-mutant bundle rebuilds happen inside that copy, not
-the live files. Static worker copies are deleted before tests start. A run
-deletes its main copy as soon as it ends — reporting the
-failure if it cannot — so `.mutation-runs/` does not fill up with checkout
-copies. While a run is going — and until the _next_ run starts — it has a small
-`.mutation-runs/<id>/run.json` holding the child PID/status, so a stray run is
-easy to find and stop. Starting a run clears out the folders of every earlier
-run that is no longer going, including any whose `run.json` is unreadable
-because it was killed mid-write:
+`deno task mutation` command first copies the current checkout (including dirty
+source/test edits, excluding `.git`, cache/report folders, local databases,
+secrets, and generated assets) to `.mutation-runs/<id>/work`; test-stage writes
+and per-mutant bundle rebuilds happen inside that copy, not the live files.
+Static worker copies are deleted before tests start. A run deletes its main copy
+as soon as it ends — reporting the failure if it cannot — so `.mutation-runs/`
+does not fill up with checkout copies. While a run is going — and until the
+_next_ run starts — it has a small `.mutation-runs/<id>/run.json` holding the
+child PID/status, so a stray run is easy to find and stop. Starting a run clears
+out the folders of every earlier run that is no longer going, including any
+whose `run.json` is unreadable because it was killed mid-write:
 
 ```bash
 deno task mutation --list
@@ -1494,22 +1532,21 @@ it). One- and two-mutant files stay serial to avoid copy overhead. Test batches
 keep their separate `--jobs` limit and still run only after static results are
 reported in mutant order. A mutant's timeout starts when its static work leaves
 the queue. Static work and any wait for earlier tests both use that time. Keep
-the Biome calls one-shot unless a new
-benchmark proves otherwise: with pinned Biome 2.4.16, 20 warm one-file runs
-measured a 17.3 ms standalone median and a 51.2 ms `--use-server` median. Either
-gate exiting non-zero kills the mutant without spending a full `deno test` on it
-— both a forbidden lint diagnostic and a type error are build failures, so the
-mutant could never ship, and static checks are far faster than the suite. The
-type-check gate catches the mutants that turn valid code into a type error —
-e.g. a `+ → *` swap on a string concatenation (`"a" * "b"` doesn't type-check),
-or any operator change that violates a parameter/return type. Each gate is only
-trusted after the runner confirms the _unmutated_ target passes it (the baseline
-probe): a standalone `deno task mutation` doesn't run `lint:ci`/`typecheck`
-first, so if the target isn't already clean the run aborts loudly rather than
-scoring a bogus 100%. This means a mutant recorded in `equivalent-mutants/` must
-be one that survives _both_ gates _and_ the tests; a mutation that produces a
-type error never reaches the ignore-list because the type-check gate kills it
-first.
+the Biome calls one-shot unless a new benchmark proves otherwise: with pinned
+Biome 2.4.16, 20 warm one-file runs measured a 17.3 ms standalone median and a
+51.2 ms `--use-server` median. Either gate exiting non-zero kills the mutant
+without spending a full `deno test` on it — both a forbidden lint diagnostic and
+a type error are build failures, so the mutant could never ship, and static
+checks are far faster than the suite. The type-check gate catches the mutants
+that turn valid code into a type error — e.g. a `+ → *` swap on a string
+concatenation (`"a" * "b"` doesn't type-check), or any operator change that
+violates a parameter/return type. Each gate is only trusted after the runner
+confirms the _unmutated_ target passes it (the baseline probe): a standalone
+`deno task mutation` doesn't run `lint:ci`/`typecheck` first, so if the target
+isn't already clean the run aborts loudly rather than scoring a bogus 100%. This
+means a mutant recorded in `equivalent-mutants/` must be one that survives
+_both_ gates _and_ the tests; a mutation that produces a type error never
+reaches the ignore-list because the type-check gate kills it first.
 
 When a manual mutation run (or the precommit gate) surfaces survivors on a file
 you are touching — even on lines you did not change in this PR — they are yours

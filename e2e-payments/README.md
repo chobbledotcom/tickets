@@ -13,9 +13,9 @@ paid. It catches the one class of bug mocks cannot: our API calls, checkout
 redirect, return URL, refund, and webhook drifting from what the providers
 actually do.
 
-It is intentionally **not** a PR gate (see `.github/workflows/payment-sandbox-e2e.yml`
-— nightly + manual). It needs third-party network access and is slower and
-flakier than mocked tests.
+It is intentionally **not** a PR gate (see
+`.github/workflows/payment-sandbox-e2e.yml` — nightly + manual). It needs
+third-party network access and is slower and flakier than mocked tests.
 
 ## What it does
 
@@ -41,10 +41,10 @@ the app's own cleanup path, runs the connection test, holds the first browser
 return so the signed webhook must create the booking, refreshes the paid booking
 from its PaymentIntent, and issues a full refund through the admin UI. The later
 complex order uses the normal browser return, so both confirmation paths are
-exercised. Together these journeys exercise every Stripe HTTP
-operation the app uses against Stripe's real test API: balance retrieval,
-Checkout Session creation and retrieval, expanded PaymentIntent retrieval,
-refund creation, and webhook endpoint creation, listing, and deletion.
+exercised. Together these journeys exercise every Stripe HTTP operation the app
+uses against Stripe's real test API: balance retrieval, Checkout Session
+creation and retrieval, expanded PaymentIntent retrieval, refund creation, and
+webhook endpoint creation, listing, and deletion.
 
 ### What is (and isn't) exercised per provider
 
@@ -54,18 +54,18 @@ booking as paid — the harness then asserts the captured amount shows in the
 listing's income ledger, not merely that an attendee row exists). Webhook
 involvement differs by provider:
 
-| Provider | Confirmation asserted | Webhook involvement |
-| --- | --- | --- |
-| Stripe | Signed webhook + captured amount + real refund; later complex order via return URL | Endpoint registration, rotation/deletion, connection status, and successful signed processing are asserted. |
-| SumUp | Return URL + captured amount | Needs no signature; a delivered webhook would be processed, but delivery is not asserted. |
-| Square | Return URL + captured amount | None — Square requires a manually-signed subscription against a fixed URL, which can't be provisioned for an ephemeral tunnel. |
+| Provider | Confirmation asserted                                                              | Webhook involvement                                                                                                            |
+| -------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Stripe   | Signed webhook + captured amount + real refund; later complex order via return URL | Endpoint registration, rotation/deletion, connection status, and successful signed processing are asserted.                    |
+| SumUp    | Return URL + captured amount                                                       | Needs no signature; a delivered webhook would be processed, but delivery is not asserted.                                      |
+| Square   | Return URL + captured amount                                                       | None — Square requires a manually-signed subscription against a fixed URL, which can't be provisioned for an ephemeral tunnel. |
 
 For Stripe, each run leaves a webhook endpoint pointing at that run's tunnel;
 the harness deletes all `*.trycloudflare.com` webhook endpoints on teardown
 (sweeping up any orphans too) so they don't accumulate in the sandbox account.
 
-`free` runs the same journey with a £0 listing and no provider — a
-secrets-free self-test of the harness and the app booking flow.
+`free` runs the same journey with a £0 listing and no provider — a secrets-free
+self-test of the harness and the app booking flow.
 
 ## Running locally
 
@@ -82,29 +82,28 @@ Watch it happen in a real window with `HEADLESS=false`.
 
 ### Secrets / env
 
-| Env var | Provider | Notes |
-| --- | --- | --- |
-| `STRIPE_SECRET_KEY` | Stripe | `sk_test_…` (test mode). |
-| `SQUARE_ACCESS_TOKEN`, `SQUARE_LOCATION_ID` | Square | Sandbox token + location. `SQUARE_SANDBOX=true` (default). |
-| `SUMUP_API_KEY`, `SUMUP_MERCHANT_CODE` | SumUp | Sandbox secret key + matching merchant code. |
+| Env var                                     | Provider | Notes                                                      |
+| ------------------------------------------- | -------- | ---------------------------------------------------------- |
+| `STRIPE_SECRET_KEY`                         | Stripe   | `sk_test_…` (test mode).                                   |
+| `SQUARE_ACCESS_TOKEN`, `SQUARE_LOCATION_ID` | Square   | Sandbox token + location. `SQUARE_SANDBOX=true` (default). |
+| `SUMUP_API_KEY`, `SUMUP_MERCHANT_CODE`      | SumUp    | Sandbox secret key + matching merchant code.               |
 
 A target with missing secrets **skips** (exits 0) rather than failing.
 
 `NTFY_URL` (optional) — an ntfy topic URL (e.g. `https://ntfy.sh/your-topic`)
 pinged when a leg fails. Only the failed target is reported (no error detail,
-which can include booker emails or scraped page text) — full diagnostics stay
-in the CI job log/artifacts. Unset ⇒ no notification.
+which can include booker emails or scraped page text) — full diagnostics stay in
+the CI job log/artifacts. Unset ⇒ no notification.
 
-Other knobs (all optional): `DENO_BIN`, `CLOUDFLARED_BIN`,
-`CHROMIUM_EXECUTABLE` (unset in CI so Playwright uses its own build),
-`HEADLESS`, `SETUP_COUNTRY` (site currency; defaults per provider — GB/GBP for
-Stripe & SumUp, US/USD for Square; must be a 2-decimal currency such as
-GBP/USD/EUR — zero-decimal currencies like JPY are unsupported),
-`E2E_UNIT_PRICE` (minor units, default 137 — a non-round amount so the ledger
-shows decimals),
-`E2E_TUNNEL` (`1`/`0` to force), and the `E2E_*_TIMEOUT_MS` values in
-`src/config.ts`. On failure (and always, in CI) a screenshot **and** the page
-HTML plus the server log land in `artifacts/` and are uploaded by the workflow.
+Other knobs (all optional): `DENO_BIN`, `CLOUDFLARED_BIN`, `CHROMIUM_EXECUTABLE`
+(unset in CI so Playwright uses its own build), `HEADLESS`, `SETUP_COUNTRY`
+(site currency; defaults per provider — GB/GBP for Stripe & SumUp, US/USD for
+Square; must be a 2-decimal currency such as GBP/USD/EUR — zero-decimal
+currencies like JPY are unsupported), `E2E_UNIT_PRICE` (minor units, default 137
+— a non-round amount so the ledger shows decimals), `E2E_TUNNEL` (`1`/`0` to
+force), and the `E2E_*_TIMEOUT_MS` values in `src/config.ts`. On failure (and
+always, in CI) a screenshot **and** the page HTML plus the server log land in
+`artifacts/` and are uploaded by the workflow.
 
 Every action is logged with the resulting URL/title, so the CI log reads as a
 breadcrumb trail of the journey. Form controls are driven with Playwright's
@@ -116,8 +115,8 @@ Chromium build.
 ## Two things to confirm on the first live run
 
 Everything except the provider-owned pages and the tunnel is validated; these
-two depend on live third-party behaviour and cannot be verified without
-sandbox credentials + unrestricted egress:
+two depend on live third-party behaviour and cannot be verified without sandbox
+credentials + unrestricted egress:
 
 1. **Hosted-checkout selectors.** `src/providers/*.ts` fill each provider's
    hosted checkout using the documented sandbox test cards and best-known field

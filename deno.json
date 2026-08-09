@@ -23,8 +23,8 @@
     "specs:check": "deno run --allow-read scripts/check-specs.ts",
     "specs:files": "deno run --v8-flags=--expose-gc -A scripts/run-specs.ts",
     "test:raw": "deno task build:static && deno test --no-check --allow-net --allow-env --allow-read --allow-write --allow-run --allow-sys --allow-ffi test/",
-    "lint": "deno run -A scripts/biome.ts check --write --error-on-warnings src test scripts cli e2e-payments",
-    "lint:ci": "deno run -A scripts/biome.ts check --error-on-warnings src test scripts cli e2e-payments",
+    "lint": "deno fmt && deno run -A scripts/biome.ts check --write --error-on-warnings src test scripts cli e2e-payments",
+    "lint:ci": "deno fmt --check && deno run -A scripts/biome.ts check --error-on-warnings src test scripts cli e2e-payments",
     "typecheck": "deno check src test cli scripts && deno check --config=e2e-payments/deno.json e2e-payments/src",
     "cpd": "deno run -A scripts/cpd.ts --config .jscpd.json && deno run -A scripts/cpd.ts --config .jscpd.test.json && deno run -A scripts/cpd.ts --config .jscpd.specs.json && deno run -A scripts/cpd.ts --config .jscpd.css.json src/ui/static/style.scss",
     "check:copy": "deno run --allow-read=src/locales scripts/check-copy.ts",
@@ -53,6 +53,12 @@
     "screenshot:listing": "deno task screenshot listing",
     "screenshot:listing-attendees": "deno task screenshot listing-attendees",
     "e2e": "deno run -A --config=e2e-payments/deno.json e2e-payments/src/main.ts"
+  },
+  "fmt": {
+    "include": [
+      "**/*.md"
+    ],
+    "lineWidth": 80
   },
   "imports": {
     "@jridgewell/sourcemap-codec": "npm:@jridgewell/sourcemap-codec@^1.5.5",

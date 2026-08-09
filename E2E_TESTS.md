@@ -27,72 +27,71 @@ either a Cucumber story or a narrowly scoped direct technical contract test.
 2. **Direct technical contract tests** — exercise the smallest real boundary
    necessary: SQLite, Request/Response, provider transport, DOM, WebCrypto,
    build artifact, module graph, filesystem, subprocess, or concurrency. These
-   own SQL constraints, migrations, triggers, transactions, wire protocols,
-   HTTP security, cryptographic interoperability, query/resource budgets, and
-   tooling contracts. They cannot be replaced by Cucumber or pure tests.
+   own SQL constraints, migrations, triggers, transactions, wire protocols, HTTP
+   security, cryptographic interoperability, query/resource budgets, and tooling
+   contracts. They cannot be replaced by Cucumber or pure tests.
 3. **Cucumber acceptance specifications** — one user story or observable
    business rule per Feature, in domain language only. No SQL, route names,
    field names, selectors, mocks, or provider payloads.
 
-**Migrate e2e tests toward Cucumber or direct contracts.** When touching an
-e2e test, ask: can the claim be stated as an actor-facing rule without
-technical nouns? If yes, move the narrative to Cucumber and delete the old
-test. Is the production behavior fully determined by explicit values? If yes,
-keep or extract a pure function and test it directly. Would replacing the real
-boundary make the assertion stop proving its subject? If yes, keep a direct
-technical contract test. Split tests that mix all three concerns by claim
-rather than duplicating.
+**Migrate e2e tests toward Cucumber or direct contracts.** When touching an e2e
+test, ask: can the claim be stated as an actor-facing rule without technical
+nouns? If yes, move the narrative to Cucumber and delete the old test. Is the
+production behavior fully determined by explicit values? If yes, keep or extract
+a pure function and test it directly. Would replacing the real boundary make the
+assertion stop proving its subject? If yes, keep a direct technical contract
+test. Split tests that mix all three concerns by claim rather than duplicating.
 
 **New features need Cucumber coverage when applicable.** A new feature that
 introduces an observable user journey or business rule ships with a Cucumber
 Feature alongside its direct tests. A feature that is purely technical (a
-migration, a protocol change, a performance fix, a refactor) does not need
-one. The Cucumber Feature must not be the only coverage of a production line
-or branch — keep 100% direct Deno coverage.
+migration, a protocol change, a performance fix, a refactor) does not need one.
+The Cucumber Feature must not be the only coverage of a production line or
+branch — keep 100% direct Deno coverage.
 
 The authored hierarchy is strict:
 
 - A `Feature` is one user story or capability and has exactly one globally
   unique `@story:<id>` tag.
-- A `Rule` is one canonical observable product rule and has exactly one
-  globally unique `@rule:<id>` tag. Every Scenario belongs to a Rule.
-- A plain `Scenario` is one concrete example and has exactly one globally
-  unique `@case:<id>` tag.
+- A `Rule` is one canonical observable product rule and has exactly one globally
+  unique `@rule:<id>` tag. Every Scenario belongs to a Rule.
+- A plain `Scenario` is one concrete example and has exactly one globally unique
+  `@case:<id>` tag.
 - A `Scenario Outline` is one coherent family of examples. Its Examples table
   has a unique `case_id` column because individual rows cannot carry tags.
 - Every Feature has one known `@owner:`, `@risk:`, at least one `@actor:`, and
   at least one `@edition:` tag. Other tag kinds come from the checked registry;
   ad-hoc metadata tags are forbidden.
-- Feature and Rule descriptions explain their purpose in plain language. Do
-  not hide JSON, YAML, evidence paths, or another schema in comments.
+- Feature and Rule descriptions explain their purpose in plain language. Do not
+  hide JSON, YAML, evidence paths, or another schema in comments.
 
 Write the smallest scenario that proves the rule:
 
 - Use 3-5 Given/When/Then steps and one action per Scenario where possible.
 - Describe the domain and observable result, not routes, SQL, selectors, form
   field names, provider payloads, mocks, or implementation details.
-- Keep exact mutation-resistant assertions in the TypeScript step definition.
-  A plain-language `Then the payment is refunded once` may assert the exact
+- Keep exact mutation-resistant assertions in the TypeScript step definition. A
+  plain-language `Then the payment is refunded once` may assert the exact
   provider call count, stored note, terminal result, and lack of a duplicate.
 - Use `Scenario Outline` only for the same rule over a real input family, never
   to combine unrelated facts or reduce line count.
 - Validate DataTable rows, DocStrings, custom parameters, and Examples cells at
-  the boundary with a typed schema. All table cells begin as strings; never
-  cast and hope.
+  the boundary with a typed schema. All table cells begin as strings; never cast
+  and hope.
 - Business setup belongs in Given steps. Hooks contain only technical fixture
   setup and cleanup that a reader does not need to understand the rule.
 - Every step must match exactly one definition. Undefined, ambiguous, pending,
   skipped, and retried steps fail. The full suite also fails on unused step
   definitions; focused runs may leave unrelated shared definitions unused.
 - **Drive through the real rendered form.** A Cucumber `When`/`Then` that
-  submits an admin edit must read the production HTML form, parse its fields
-  and CSRF token, and POST exactly what a browser would. Do not reconstruct
-  the form state from database rows — that bypasses the rendering layer the
-  scenario exists to prove and would silently keep passing if the editor
-  stopped rendering a field or emitted one the POST parser cannot consume.
-  Exception: pure data-in/data-out rules with no user-facing form action may
-  read state directly. When a form is involved, use
-  `extractFormEntries`/`extractCsrfToken` against the real served page.
+  submits an admin edit must read the production HTML form, parse its fields and
+  CSRF token, and POST exactly what a browser would. Do not reconstruct the form
+  state from database rows — that bypasses the rendering layer the scenario
+  exists to prove and would silently keep passing if the editor stopped
+  rendering a field or emitted one the POST parser cannot consume. Exception:
+  pure data-in/data-out rules with no user-facing form action may read state
+  directly. When a form is involved, use `extractFormEntries`/`extractCsrfToken`
+  against the real served page.
 
 Execution is equally strict:
 
@@ -130,7 +129,6 @@ Execution is equally strict:
 - New shared steps must be reused by the current story or an immediately
   included second story. Do not create a speculative vocabulary.
 
-
 ## Running the specs
 
 - `deno task specs` — every Feature through the shared harness
@@ -150,8 +148,8 @@ happened repeatedly, so it is a required step, not advice.
 
 **Before you delete the old test, list every claim it made, and tick each one
 off against the new story.** Write the list somewhere you can check — the pull
-request description is a good place, because a reviewer can then check it too.
-A claim is anything the old test asserted: a status code, a count, a rendered
+request description is a good place, because a reviewer can then check it too. A
+claim is anything the old test asserted: a status code, a count, a rendered
 figure, a stored row, a ledger balance, a log entry, an absence.
 
 Each claim ends up in exactly one of three places, and you should be able to say
@@ -171,7 +169,7 @@ problem:
 
 - the double-entry conservation check (`sumOfAllBalances()`) after each money
   action,
-- the premise itself — that three £50 sales counted £150 *before* the refund
+- the premise itself — that three £50 sales counted £150 _before_ the refund
   ran, without which the closing figure proves nothing,
 - that the customer actually got their money back, as opposed to the charge
   merely being undone in the books,
@@ -185,7 +183,8 @@ Then finish the job:
 
 - Delete the old test in the same change. Two paths for one behaviour must not
   merge.
-- Run the whole gate **after** the last edit, including `deno task
+- Run the whole gate **after** the last edit, including
+  `deno task
   test:coverage`. Deleting a test often orphans a helper (see
   [Coverage traps](#coverage-traps-when-deleting-tests)).
 - Add the story's id to the catalog test and check `deno task specs:check`.
@@ -207,32 +206,33 @@ own. Before submitting, check that:
   different value.
 
 `test/specs/support/form-controls.ts` does all of this; use it rather than
-writing a new check. Two traps it exists because of: matching `<select
-name="…">` misses markup that writes `id` first, and looking for `disabled`
-anywhere inside a `<select>` wrongly rejects a perfectly normal disabled
-placeholder option.
+writing a new check. Two traps it exists because of: matching
+`<select
+name="…">` misses markup that writes `id` first, and looking for
+`disabled` anywhere inside a `<select>` wrongly rejects a perfectly normal
+disabled placeholder option.
 
 Do not reconstruct form state from database rows. That bypasses the rendering
 layer the scenario exists to prove.
 
 ### Refusals must prove why they were refused
 
-"No thank-you page" is not "the listing was full". A validation error, a
-missing form, a 500, or a redirect to login all produce the same absence. Assert
-the **specific reason** the site gives — ideally by importing the production
-message builder rather than copying its wording. The same applies to an admin
-action: assert the flash the operator is shown, not merely that a redirect
-happened, and to an unchanged row count, which any failure produces.
+"No thank-you page" is not "the listing was full". A validation error, a missing
+form, a 500, or a redirect to login all produce the same absence. Assert the
+**specific reason** the site gives — ideally by importing the production message
+builder rather than copying its wording. The same applies to an admin action:
+assert the flash the operator is shown, not merely that a redirect happened, and
+to an unchanged row count, which any failure produces.
 
 Two sharper versions of the same trap:
 
 - **A refusal must leave nothing behind.** Prove the row is absent, not just
   that a later booking still fits. A scenario with a limit of 3 refused a
   2-place booking and then probed with 1 place: had the refused booking leaked a
-  row, the probe would *still* have passed on the one place left over. Assert
+  row, the probe would _still_ have passed on the one place left over. Assert
   the refused thing does not exist.
 - **Both halves of a race need proving.** When two requests run at once, assert
-  the loser was turned away *for want of room*. Counting one winner and one row
+  the loser was turned away _for want of room_. Counting one winner and one row
   passes just as well when the loser died on a validation error.
 
 ### Never build the expectation from the code under test
@@ -243,7 +243,7 @@ column was checked with `csvDateRange`, the very function that writes it, so
 changing its exclusive-end arithmetic would have kept the story green. Write the
 expected value out in the step from the story's own numbers.
 
-This is not the same as importing a production *constant* or *message*, which
+This is not the same as importing a production _constant_ or _message_, which
 you should do — a wording or a day-name list is a shared fact, not the
 calculation under test.
 
@@ -265,19 +265,19 @@ These cost hours each, and none of them fail in a way that names the cause.
   generic `{word}` step will collide with the literal ones already registered.
   Before adding a generic step, grep for the literals it would swallow. Merge
   them only when their assertions are genuinely the same; if a literal asserts
-  *more* (a conservation check, an extra surface), keep it and word the new step
+  _more_ (a conservation check, an extra surface), keep it and word the new step
   differently.
 
 ### The clock and the calendar
 
-A scenario that computes days from "today" on each call can straddle midnight and
-set up against one day while asserting against the next. Fix the scenario's first
-day **once** per World and derive every other day from it.
+A scenario that computes days from "today" on each call can straddle midnight
+and set up against one day while asserting against the next. Fix the scenario's
+first day **once** per World and derive every other day from it.
 
 ### Don't trust a position in a list
 
 `getAttendeesRaw` returns rows newest-first. Taking "the newest" with `.at(-1)`
-quietly picked the *oldest* booking and passed for weeks, because the scenario
+quietly picked the _oldest_ booking and passed for weeks, because the scenario
 that read it happened to have one booking at that point. Identify a row by
 something meaningful — the highest id, a name, a token — not by where it sits.
 
@@ -293,8 +293,8 @@ green. Use `requiredWorldValue`.
 
 ### Coverage traps when deleting tests
 
-Coverage measures everything the direct suite loads, and Cucumber runs do **not**
-count towards it. Two consequences bite regularly:
+Coverage measures everything the direct suite loads, and Cucumber runs do
+**not** count towards it. Two consequences bite regularly:
 
 - **Deleting a test can orphan a helper.** If the only remaining caller of a
   shared test-util is a story, its lines are now uncovered. Either move the
@@ -309,12 +309,12 @@ And the rule that catches both: a story may never be the only cover of a
 production line or branch.
 
 **A green coverage number does not mean the contract survived.** Coverage counts
-lines, and a technical contract is usually about *conditions*, not lines. A
+lines, and a technical contract is usually about _conditions_, not lines. A
 direct test of two simultaneous multi-day bookings was replaced by a story, and
 coverage stayed at 100% because other tests walked the same lines — but nothing
 directly exercised the dated range-capacity check under a race any more. When
 the test you are deleting is about concurrency, a query budget, an exact stored
-shape, or an ordering guarantee, keep a direct test for it *and* write the
+shape, or an ordering guarantee, keep a direct test for it _and_ write the
 story. Say in a comment which story it sits beside, so nobody deletes it again
 as a duplicate.
 
@@ -328,7 +328,7 @@ before you name it.
 
 **The Feature's own prose is a claim.** The narrative under `Feature:` and the
 paragraph under each `Rule:` are published in the story catalog as statements
-about the product, and *nothing executes them*. A Feature description promising
+about the product, and _nothing executes them_. A Feature description promising
 that "the room they take up is still counted" survived after the scenario that
 would have tested it was removed — so the catalog would have published a
 guarantee the product does not give, with every scenario passing. Describe only
