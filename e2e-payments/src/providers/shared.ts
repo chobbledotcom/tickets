@@ -1,12 +1,45 @@
 /* jscpd:ignore-start */
+import { readFileSync } from "node:fs";
 import { type BrowserSession, requirePageText } from "#e2e/browser.ts";
 import type { ProviderName } from "#e2e/config.ts";
 import { config } from "#e2e/config.ts";
 import { BOOKER_NAME } from "#e2e/flow.ts";
 import { log } from "#e2e/log.ts";
+import { pollUntil } from "#e2e/util.ts";
 import type { ConfigureProvider, PayHostedCheckout } from "./types.ts";
 
 /* jscpd:ignore-end */
+
+/**
+ * Recover a provider-side id the app logged while creating a checkout (e.g.
+ * `[Square] Payment link created orderId=…`, `[SumUp] Checkout created id=…`).
+ * Polled briefly because the log write and our read race the redirect; the
+ * last match wins so a retried creation reads the id that actually went live.
+ */
+export const readLoggedId = async (
+  logPath: string,
+  pattern: RegExp,
+  expectedLine: string,
+): Promise<string> => {
+  const found = await pollUntil(10_000, () => {
+    let text = "";
+    try {
+      text = readFileSync(logPath, "utf8");
+    } catch (err) {
+      // Only "not created yet" is the wait state; any other read failure is
+      // a real fault the run must surface, not poll past.
+      if ((err as { code?: string }).code !== "ENOENT") throw err;
+    }
+    let last: string | null = null;
+    for (const m of text.matchAll(pattern)) last = m[1] ?? last;
+    return Promise.resolve(last);
+  });
+  if (found) return found;
+  throw new Error(
+    `could not find the provider id in the app server log (${logPath}). ` +
+      `Expected a '${expectedLine}' line.`,
+  );
+};
 
 /** A step that acts on the settings page for one named payment provider. */
 type ProviderStep = (

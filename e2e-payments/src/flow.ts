@@ -286,11 +286,19 @@ export const assertPaidBookingConfirmed = async (
     );
   }
   log(`  ✔ browser reached the app return (${page.url()})`);
+  await assertBookedInAdmin(session);
+};
 
-  // 2. Cross-check in admin: the listing's Overview tab shows the captured
-  // income, and its Attendees tab shows the booker — the listing detail page
-  // was split into tabs (Overview / Attendees / …), so the roster no longer
-  // renders inline on the tab reached by clicking the listing name.
+/**
+ * Cross-check the paid booking in admin: the listing's Overview tab shows the
+ * captured income, and its Attendees tab shows the booker. The roster renders
+ * only on the Attendees tab, not on the tab reached by clicking the listing
+ * name. Returns the Attendees tab's text so a caller can add stricter checks
+ * (e.g. that a replayed callback did not book the same order twice).
+ */
+export const assertBookedInAdmin = async (
+  session: BrowserSession,
+): Promise<string> => {
   await session.goto("/admin/");
   await login(session);
   await session.clickLink(LISTING_NAME);
@@ -306,7 +314,7 @@ export const assertPaidBookingConfirmed = async (
     async () => {
       const text = await incomeLedgerText(session);
       if (text !== null) return text;
-      await page.reload({ waitUntil: "domcontentloaded" });
+      await session.page.reload({ waitUntil: "domcontentloaded" });
       return null;
     },
   );
@@ -364,4 +372,5 @@ export const assertPaidBookingConfirmed = async (
   log(
     `  ✔ admin listing shows the paid booker (${BOOKER_EMAIL}) and captured amount (${withDecimals})`,
   );
+  return attendeesBody;
 };
