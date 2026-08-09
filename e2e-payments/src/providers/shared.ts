@@ -25,8 +25,10 @@ export const readLoggedId = async (
     let text = "";
     try {
       text = readFileSync(logPath, "utf8");
-    } catch {
-      // log not flushed yet
+    } catch (err) {
+      // Only "not created yet" is the wait state; any other read failure is
+      // a real fault the run must surface, not poll past.
+      if ((err as { code?: string }).code !== "ENOENT") throw err;
     }
     let last: string | null = null;
     for (const m of text.matchAll(pattern)) last = m[1] ?? last;
