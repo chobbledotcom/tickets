@@ -28,7 +28,7 @@ import { validateChildEdges } from "./listings-parents.ts";
  * autoincrement, so no real listing (and so no real edge) can reference this,
  * making the pre-create child-edge validation behave exactly as for a parent
  * that doesn't exist yet. */
-const UNCREATED_PARENT_ID = -1;
+const UNCREATED_PARENT_ID = Number.MIN_SAFE_INTEGER;
 
 /** The prepared child-edge write: `null` = leave existing edges untouched
  * (field omitted / feature off); an array = replace the parent's edges with
