@@ -32,11 +32,16 @@ export const BLANK_SESSION_METADATA: ValidatedPaymentSession["metadata"] = {
 };
 
 /** Narrow any provider session result to the session; fail the test on a
- *  rejection, a skip, or null. */
+ *  rejection, a skip, a retry refusal, or null. */
 export const asSession = (
-  result: ValidatedPaymentSession | SessionRejection | "skip" | null,
+  result: ValidatedPaymentSession | SessionRejection | "skip" | "retry" | null,
 ): ValidatedPaymentSession => {
-  if (result === null || result === "skip" || isSessionRejection(result)) {
+  if (
+    result === null ||
+    result === "skip" ||
+    result === "retry" ||
+    isSessionRejection(result)
+  ) {
     throw new Error(`expected a session, got ${JSON.stringify(result)}`);
   }
   return result;
