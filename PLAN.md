@@ -65,9 +65,9 @@ consistently wrong and governed nothing.
    targeted mutation on the payment modules the PR changed and list the runs in
    the description. The branch-level
    `nix develop -c deno task precommit:mutation` gate runs before merge as
-   AGENTS.md requires. The gate is mandatory; a waiver is the owner's call
-   alone, made case by case — never the implementer's — and the description
-   records it plus the targeted runs that stand in for it.
+   AGENTS.md requires — no per-PR waivers. If an exceptional cutover genuinely
+   cannot run the branch gate, the owner first changes the policy in AGENTS.md;
+   this plan cannot loosen a repository rule.
 5. **Every bug fix ships a regression test** reproducing the bug.
 6. **Deployments are forward-only and fleet-wide**, on the `release` tier only.
    No old-version support, no code rollback, no mixed-version reads or writes.
@@ -316,11 +316,14 @@ happen in production.
   second sanctioned staged-migration adapter (delivery rule 2), one bounded
   contract serving panels, exports, statistics, and refund targets, removed in
   M11 — and delete only the displaced production readers. The read-through
-  deduplicates at its read boundary: it suppresses any legacy row whose
-  provider-qualified payment identity an aggregate payment already carries,
-  because every post-cutover sale is written to both stores until M7 and M8
-  retire the legacy writers, and without this rule the same sale is counted
-  twice and offered for refund twice.
+  returns one answer per provider-qualified payment identity: every post-cutover
+  sale is written to both stores until M7 and M8 retire the legacy writers, so a
+  legacy row the aggregate already represents folds into the aggregate answer
+  instead of appearing as a second sale — never counted or offered for refund
+  twice. Folding is not dropping: until M8 moves completion, that legacy row
+  still owns the sale's local completion facts — the attendee it booked, the
+  ticket result, a recorded local failure — which no provider read can supply,
+  so the combined answer keeps them visible.
 
 Standalone value: no live checkout can lose its intent or create a second
 provider checkout after an interrupted request, and every route, worker, page,
@@ -376,6 +379,10 @@ one machine and merge together.
   Money effects before running them; snapshot paid facts so listing edits cannot
   change delivery. Complete each effect idempotently, schedule unfinished work,
   and stop one permanent failure from starving later payments.
+- From this cutover on, completion stops storing payment references in attendee
+  PII — the aggregate owns the attendee-to-payment link — so the attendee-PII
+  reference source M11 reads is closed at M8 and cannot grow while the copy
+  runs.
 - When completion cannot be honoured, persist the chosen refund path and record
   the provider refund and local Money completion as separate durable effects
   driven by the M7 engine, with explicit provider, database, and total
@@ -485,22 +492,27 @@ only after M8 is authoritative fleet-wide.
 - Copy every source by stable cursor in bounded, verified pages. Never split one
   provider payment across pages; never mistake an empty joined page for the end;
   deleted booking rows do not block; ticket-use state is not resurrected;
-  attendee-only references are copied, not skipped. Preserve unknown or
-  contradictory facts without inventing values — create a complete M5 case and
-  continue. Ambiguous account assignment gets its own required migration
-  decision: the owner assigns the provider account or marks the row unmigratable
-  with a reason, recorded in the decision union, and a revision-fenced copy
-  retry consumes the decision so verification resumes — no row can block M13
-  forever. Marking a row unmigratable is a terminal, verified disposition: the
-  decision preserves the row's complete source content as durable evidence on
-  the owner-review case, so M13 can drop the old tables without deleting the
-  only copy of that payment. M12 never redacts this evidence — after M13 it is
-  that payment's only record. Delete each M8 deletion snapshot only once every
-  payment and buyer fact it references has been copied and verified — a snapshot
-  is attendee-scoped and can carry several payments, so the last verified
-  payment releases it, under the same gate as any source row and idempotent
-  across interrupted or restored runs; no duplicate buyer facts outlive the
-  migration, and M13 verifies none remain.
+  attendee-only references are copied, not skipped. A row or reference whose
+  provider-qualified payment identity the aggregate already carries — every sale
+  completed after M6, and any reference a paid booking wrote into attendee PII
+  before M8 closed that path — is verified against its aggregate payment and
+  recorded as already canonical, never copied as new legacy input: no duplicate
+  payment, no false identity conflict. Preserve unknown or contradictory facts
+  without inventing values — create a complete M5 case and continue. Ambiguous
+  account assignment gets its own required migration decision: the owner assigns
+  the provider account or marks the row unmigratable with a reason, recorded in
+  the decision union, and a revision-fenced copy retry consumes the decision so
+  verification resumes — no row can block M13 forever. Marking a row
+  unmigratable is a terminal, verified disposition: the decision preserves the
+  row's complete source content as durable evidence on the owner-review case, so
+  M13 can drop the old tables without deleting the only copy of that payment.
+  M12 never redacts this evidence — after M13 it is that payment's only record.
+  Delete each M8 deletion snapshot only once every payment and buyer fact it
+  references has been copied and verified — a snapshot is attendee-scoped and
+  can carry several payments, so the last verified payment releases it, under
+  the same gate as any source row and idempotent across interrupted or restored
+  runs; no duplicate buyer facts outlive the migration, and M13 verifies none
+  remain.
 - Each copied payment is immediately served by the current readers, result
   recovery, cases, and refunds; migrated charges join attendee refund targets
   through the M7 engine in this same release. Record verified progress and
@@ -606,6 +618,8 @@ mechanism and a regression test, or — if implementation proves the finding wro
 | F39 | A post-cutover sale counted or refunded twice through the legacy read-through          | M6              |
 | F40 | An attendee PII edit changing legacy payment references mid-copy                       | M11             |
 | F41 | Redacting the preserved evidence that is an unmigratable payment's only record         | M11, M12        |
+| F42 | A folded legacy row's local booking facts hidden by read-through deduplication         | M6              |
+| F43 | An already-canonical payment reference migrated again as new legacy input              | M8, M11         |
 
 ## Done means
 
