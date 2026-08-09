@@ -1,10 +1,5 @@
 # Known-equivalent mutants — see README.txt in this directory.
 
-# Registration package facts are objects when supplied, so they are always
-# truthy; undefined selects the loader under either nullish or OR fallback.
-src/shared/webhook/delivery.ts::sendRegistrationWebhooks.facts~007uooi  ?? → ||   # suppliedFacts is RegistrationPackageFacts|undefined
-src/shared/webhook/delivery.ts::queueRegistrationNotifications.packageFacts~0fhpirc  ?? → ||   # suppliedPackageFacts is RegistrationPackageFacts|undefined
-
 src/shared/rest/resource.ts::parseAndValidate~0ypp34v  ?? → ||   # validationError is an ErrorResult object or null; an object is truthy
 
 # settings-bundles.ts: bundle is ALL_SNAPSHOT_SETTINGS when undefined (a readonly

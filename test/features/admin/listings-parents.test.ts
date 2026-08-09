@@ -7,6 +7,7 @@ import {
   remapDuplicatedGroupEdges,
   validateChildEdges,
 } from "#routes/admin/listings-parents.ts";
+import { executeWithoutCacheInvalidation } from "#shared/db/client.ts";
 import { assignListingsToGroup } from "#shared/db/groups/membership.ts";
 import { listingChildren, listingParents } from "#shared/db/listing-parents.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -42,6 +43,23 @@ describeWithEnv("duplicated listing child edges", { db: true }, () => {
 
     expect(await copyDuplicatedChildEdges(parent, [child.id])).toBe(
       t("error.package_child_is_member"),
+    );
+    expect(await listingChildren.getIds(parent.id)).toEqual([]);
+  });
+
+  test("returns a warning when a child vanishes before the edge write", async () => {
+    // validateChildEdges reads from the request cache, so a child deleted by
+    // raw SQL (no cache invalidation) still passes validation; the tx's own
+    // existence re-check then throws. The duplicate catch must surface the
+    // message through the caller's warning flow rather than letting a 500 out.
+    const parent = await createTestListing({ name: "Copied Parent" });
+    const child = await createTestListing({ name: "Vanishing Child" });
+    await executeWithoutCacheInvalidation("DELETE FROM listings WHERE id = ?", [
+      child.id,
+    ]);
+
+    expect(await copyDuplicatedChildEdges(parent, [child.id])).toBe(
+      t("error.child_listing_deleted"),
     );
     expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
