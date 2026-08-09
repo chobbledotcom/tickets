@@ -80,8 +80,10 @@ consistently wrong and governed nothing.
    `payment_charges`, `payment_cases`, `payment_case_decisions`, defined in
    `src/shared/db/migrations/schema/payments/`). Do not add drop-and-recreate
    churn against them. Each must hold a complete production role by the end of
-   Stack B or be dropped there. Their existence is not permission to land unused
-   repositories, codecs, indexes, or exports.
+   Stack B or be dropped there — except `payment_completion_deliveries`, whose
+   role arrives with M9 immediately after the stack; if M9 ends up not using it,
+   M9 drops it. Their existence is not permission to land unused repositories,
+   codecs, indexes, or exports.
 8. **Port the source branch's tests** when adapting one of its modules; adapt
    existing tests rather than authoring from scratch. Never copy great-fermi's
    test-only-export exemptions.
@@ -196,7 +198,8 @@ Src target: 400–700.
   currencies, wrong parents, over-refunds, and money on a free checkout.
 - Conflicts that need an owner decision (multiple captures and kin): detect,
   record, and alert through the existing error classes, but keep today's
-  behavior — never stop or strand automatic work that no owner can yet act on.
+  behavior — these outcomes are not cut over, today's classifier keeps governing
+  them, and no automatic work is stopped or stranded before an owner can act.
   The case workflow arrives one merge later (M5) and the page actions with
   M7/M8. Build no owner tooling on the legacy engines.
 
@@ -247,10 +250,11 @@ Src target: 1,200–1,800 — the sanctioned atomic-cutover exception. Creation 
 reads move in one merge precisely so no `sumup_checkouts` projection, no legacy
 checkout-metadata preservation, and no projection-repair machinery ever exist.
 
-Prerequisite (own small PR, any time before this): the restore-deploy guard —
-`.github/workflows/restore-deploy.yml` refuses to deploy a commit that predates
-the aggregate migration onto a forward-migrated database, documented in the
-operator restore guide beside the backup's recorded commit.
+The M6 release itself carries the restore-deploy guard (as its own commit is
+fine): `.github/workflows/restore-deploy.yml` refuses to deploy a commit that
+predates the aggregate cutover onto a database aggregate releases have written,
+documented in the operator restore guide beside the backup's recorded commit.
+The guard is live before the first aggregate write can happen in production.
 
 - Creation: save immutable expected money and booking intent before every
   provider call; claim creation; one payment identity and idempotency key; adopt
@@ -307,15 +311,19 @@ over).
   confirm an existing full refund. Re-read the provider, require the current
   revision and evidence, and complete both payment state and Money before
   closing the decision.
-- Legacy adapter (the one sanctioned staged-migration adapter; removed in M11):
-  uncopied `processed_payments` rows and attendee-only legacy references
-  resolved by `src/shared/db/payment-references.ts` route through the new
-  engine. The adapter updates the old row's `provider_refunded_at` atomically
-  inside the refund transaction — or the read-through consults the new refund
-  record — so a completed refund never resurfaces as refundable. It fails closed
-  into an owner case when the same provider reference spans multiple attendees,
-  and when an attendee-only reference lacks a deterministic provider, account,
-  captured amount, currency, or completion state.
+- Legacy adapter (one of the two sanctioned staged-migration adapters; removed
+  in M11): uncopied `processed_payments` rows and attendee-only legacy
+  references resolved by `src/shared/db/payment-references.ts` route through the
+  new engine. The adapter updates the old row's `provider_refunded_at`
+  atomically inside the refund transaction — or the read-through consults the
+  new refund record — so a completed refund never resurfaces as refundable. It
+  fails closed into an owner case when the same provider reference spans
+  multiple attendees, and when an attendee-only reference lacks a deterministic
+  provider, account, captured amount, currency, or completion state. Those
+  fail-closed cases carry their own required decision, shipped here: the owner
+  supplies verified provider, account, and amount evidence — after which the
+  refund proceeds through the engine — or rejects the refund. This is the same
+  owner-evidence rule M11 applies to ambiguous account assignment.
 - Delete every replaced refund path and prove no production caller remains.
 
 Standalone value: every refund has the same retry, evidence, and Money
@@ -342,7 +350,12 @@ one machine and merge together.
   row's own removal waits. Each writer verifies a row is copied before deleting
   it and otherwise leaves the row for M11 to copy and prune;
   `deleteAllStaleReservations` is gated the same way, so no path ever deletes an
-  uncopied legacy row.
+  uncopied legacy row. Before a merge or delete completes for an attendee whose
+  payment history is not yet copied, the attendee-held migration facts — legacy
+  payment references and the payment-identifying facts M11 reads, still
+  encrypted — are preserved in a durable migration snapshot that M11 consumes
+  (or that attendee's payments are canonicalized on the spot), so completing the
+  deletion loses nothing the copy needs.
 - Install the legacy write fence, now that the last routine legacy writer has
   moved, with exactly one exemption until M11: the M7 adapter's
   refund-completion marker. Verify the fence atomically inside the committing
@@ -392,19 +405,20 @@ is read-only and parallelizable — #2056 already started it; the copy releases
 only after M8 is authoritative fleet-wide.
 
 - Verifier: read `processed_payments`, `checkout_stages`, `sumup_checkouts`,
-  attendee PII, and merge references into one lossless model without writing
-  cases. Group one provider payment before pagination; convert old timestamps;
-  report contradictions through operator diagnostics and backup verification.
-  Attendee PII is owner-key-encrypted: the run sits behind an
-  owner-authenticated step and reaches the key only through the existing
-  request-scoped private-key path (`src/shared/session-private-key.ts`) — never
-  a pasted or persisted key string. Unwrapped key material stays out of
-  migration state, progress records, logs, audits, and backups; decrypted PII
-  lives only in run-bounded caches cleared when the run ends; record key
-  provenance and access audits, not the key. If the key is unavailable, block
-  the migration and preserve the source rows — never silently skip charges. Back
-  up databases before migrating. Restore an old schema only into the current
-  application, where this same forward migration consumes it.
+  attendee PII, merge references, and the M8 deletion snapshots into one
+  lossless model without writing cases. Group one provider payment before
+  pagination; convert old timestamps; report contradictions through operator
+  diagnostics and backup verification. Attendee PII is owner-key-encrypted: the
+  run sits behind an owner-authenticated step and reaches the key only through
+  the existing request-scoped private-key path
+  (`src/shared/session-private-key.ts`) — never a pasted or persisted key
+  string. Unwrapped key material stays out of migration state, progress records,
+  logs, audits, and backups; decrypted PII lives only in run-bounded caches
+  cleared when the run ends; record key provenance and access audits, not the
+  key. If the key is unavailable, block the migration and preserve the source
+  rows — never silently skip charges. Back up databases before migrating.
+  Restore an old schema only into the current application, where this same
+  forward migration consumes it.
 - Copy precondition: old tables unchanged since M8's fence except the adapter's
   versioned refund-completion writes. The copy-consistency protocol is
   fence-and-drain: pause `applyAttendeeMerge`, `deleteAttendee`, the prune task,
@@ -481,7 +495,7 @@ mechanism and a regression test, or — if implementation proves the finding wro
 | F4  | One failed decision blocking all reconciliation                                        | M5, M6          |
 | F5  | Permanent provider or delivery errors retrying forever or blocking a queue             | M5, M6, M9      |
 | F6  | Attendee merge or delete removing records with an open case or unfinished work         | M5, M8          |
-| F7  | Restore-deploy workflow allowing incompatible code onto a migrated database            | Before M6       |
+| F7  | Restore-deploy workflow allowing incompatible code onto a migrated database            | M6              |
 | F8  | Cross-payment duplicate provider charges                                               | M6              |
 | F9  | Account lookup failure retaining a claim                                               | M6              |
 | F10 | SumUp return IDs interpreted differently by different routes                           | M6              |
@@ -512,6 +526,7 @@ mechanism and a regression test, or — if implementation proves the finding wro
 | F35 | Migration silently skipping charges whose PII key or source is unavailable             | M11             |
 | F36 | Terminal buyer details, completion data, or ticket tokens never redacting              | M12             |
 | F37 | An unconditional table drop destroying a restored old backup before it migrates        | M13             |
+| F38 | Attendee merge or delete destroying attendee-held payment facts before the copy        | M8, M11         |
 
 ## Done means
 
