@@ -28,7 +28,6 @@ src/shared/db/attendees/capacity/remaining.ts::getListingRemainingForRange.durat
 
 # Listing relationship day prices are stored as plain objects. Existing objects
 # are truthy, while a missing Map entry is undefined, so `?? {}` and `|| {}` agree.
-src/shared/db/listing-relationship-validation.ts::listingById.listingPrices~0p5a2j2  ?? → ||   # Map values are DayPrices objects (always truthy); a missing entry is undefined
 src/shared/db/listing-relationship-validation.ts::listingById.day_prices~1ag3qoh  ?? → ||   # Map values are DayPrices objects (always truthy); a missing entry is undefined
 
 # Group-cap sweep (attendees/update.ts): the boundary-delta accumulator is a
