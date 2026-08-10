@@ -1,6 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { moveRefusalOrNull, type RowMove } from "#shared/payment/admit-move.ts";
+import {
+  mirrorFor,
+  moveRefusalOrNull,
+  type RowMove,
+} from "#shared/payment/admit-move.ts";
 import type { PaymentRowState } from "#shared/payment/row-state.ts";
 
 /** What the operator is told, word for word. Pinned here because these
@@ -80,5 +84,29 @@ describe("payment > admit move", () => {
     expect(moveRefusalOrNull([SETTLED, UNDER_REVIEW], "delete")).toBe(
       REVIEW_REFUSAL,
     );
+  });
+
+  describe("the word the consumers that cannot decrypt see", () => {
+    test("a claimed row shows its claim", () => {
+      expect(mirrorFor(CLAIMED)).toBe("claim");
+    });
+
+    test("a row waiting on the owner shows its review", () => {
+      // The prune and the orphan purge read only this word, so a review that
+      // does not show here is a row they will happily destroy.
+      expect(mirrorFor(UNDER_REVIEW)).toBe("review");
+    });
+
+    test("a claim outranks a review while both are on the row", () => {
+      expect(mirrorFor({ ...CLAIMED, ...UNDER_REVIEW })).toBe("claim");
+    });
+
+    test("a payment that already ended shows nothing", () => {
+      expect(mirrorFor(SETTLED)).toBe("");
+    });
+
+    test("a row in the middle of nothing shows nothing", () => {
+      expect(mirrorFor(FREE)).toBe("");
+    });
   });
 });

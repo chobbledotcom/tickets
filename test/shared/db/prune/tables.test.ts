@@ -19,6 +19,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import {
   attendeeExists,
   contactPreferenceExists,
+  insertClaimedPayment,
   insertContactPreference,
   insertLoginAttempt,
   insertOrphanAttendee,
@@ -28,6 +29,7 @@ import {
   insertTokenAttempt,
   loginAttemptExists,
   oldOrphanIso,
+  paymentExists,
   stringExists,
   sumupCheckoutExists,
   tokenAttemptExists,
@@ -315,6 +317,20 @@ describeWithEnv("db > table pruning", { db: true }, () => {
       await runDatabasePruning();
 
       expect(await attendeeExists(id)).toBe(true);
+    });
+
+    test("keeps an orphan whose payment is still being worked on", async () => {
+      await settings.update.orphanPurgeRetention("182");
+      const id = await insertOrphanAttendee(oldOrphanIso());
+      await insertClaimedPayment("ps-orphan-held", oldOrphanIso(), id);
+
+      await runDatabasePruning();
+
+      // This purge runs unattended, so an orphan going while a refund is
+      // mid-flight destroys the only record that money is moving with nobody
+      // watching. The operator's own purge page reads the same rule.
+      expect(await attendeeExists(id)).toBe(true);
+      expect(await paymentExists("ps-orphan-held")).toBe(true);
     });
   });
 });

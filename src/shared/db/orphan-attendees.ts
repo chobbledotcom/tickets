@@ -32,7 +32,7 @@ import { executeBatchWithResults, requireOne } from "#shared/db/client.ts";
  * — and the count and the delete share this one clause, so the page can never
  * promise to remove an orphan the delete then keeps.
  */
-const ORPHAN_IDS = `SELECT attendee.id
+export const ORPHAN_IDS = `SELECT attendee.id
      FROM attendees AS attendee
     WHERE attendee.created < ?
       AND NOT EXISTS (
@@ -44,6 +44,17 @@ const ORPHAN_IDS = `SELECT attendee.id
          WHERE payment.attendee_id = attendee.id
            AND payment.protected_state != ''
       )`;
+
+/**
+ * The same orphans, bounded for one scheduled maintenance batch.
+ *
+ * Maintenance takes them a page at a time where the operator's page takes them
+ * all, and that bound is the ONLY difference — so it is added here rather than
+ * by writing the rule out a second time. A second copy is how the automatic
+ * purge came to be missing the protected-row check the manual one had.
+ */
+export const orphanIdsBatch = (): string =>
+  `${ORPHAN_IDS}\n ORDER BY attendee.id LIMIT ?`;
 
 /** Count orphaned attendees whose `created` is before `cutoffIso`. */
 export const countOrphanedAttendees = async (

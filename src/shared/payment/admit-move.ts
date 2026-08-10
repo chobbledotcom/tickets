@@ -31,6 +31,8 @@ type LiveWorkField = Exclude<keyof PaymentRowState, SettledField>;
 type LiveWork = {
   /** Whether this row is in the middle of this work. */
   found: (state: PaymentRowState) => boolean;
+  /** The plain word for it, for the consumers that cannot decrypt. */
+  mirror: string;
   /** What to tell the operator, naming what to do next. */
   refusal: string;
   /** Which operations this work stops. */
@@ -56,12 +58,14 @@ type LiveWork = {
 const LIVE_WORK = {
   claim: {
     found: (state: PaymentRowState) => state.claim !== undefined,
+    mirror: "claim",
     refusal:
       "A refund for this person is still in progress. Finish or re-run the refund, then try again.",
     stops: { delete: true, merge: true },
   },
   review: {
     found: (state: PaymentRowState) => state.review !== undefined,
+    mirror: "review",
     refusal:
       "The owner still has to check a payment for this person. Mark it reviewed, then try again.",
     stops: { delete: true, merge: false },
@@ -82,4 +86,18 @@ export const moveRefusalOrNull = (
     (work) => work.stops[move] && states.some(work.found),
   );
   return blocking === undefined ? null : blocking.refusal;
+};
+
+/**
+ * The plain word a row shows the consumers that cannot decrypt it — the prune
+ * and the orphan purge, both fixed-cost SQL that never reads the record itself.
+ * Empty when the row is in the middle of nothing.
+ *
+ * Every writer derives the mirror from the record it is storing, so the two can
+ * never disagree: a row whose claim is let go but whose review remains still
+ * reads as protected, which is what stops a purge taking it.
+ */
+export const mirrorFor = (state: PaymentRowState): string => {
+  const work = Object.values(LIVE_WORK).find((entry) => entry.found(state));
+  return work === undefined ? "" : work.mirror;
 };
