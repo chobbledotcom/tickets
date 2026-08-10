@@ -587,7 +587,7 @@ switches to another — the judgment never reads the live currency setting.
 | Paid session observed, refuse-and-record conflict                                                                                                                                                                                               | Callback/redirect processing                             | Single captured charge WITH COHERENT PARENTAGE: today's mismatch/rejection refund path runs unchanged — at most one refund call (the judged attempt runs only when it fits; the refusal rows below make zero), buyer answer unchanged, outcome recorded with the existing `REFUND_REASONS` vocabulary. Coherent parentage is a PREREQUISITE of this row, never overridden by whichever kind won the evaluation order: a single charge whose parent facts disagree with the signed session takes the action-level gate's retryable zero-call refusal even when `currency_mismatch` or another kind won. More than one captured charge: zero refund calls — the session parks to owner review with the manual-check copy (decision 5)                                                                                                                                                                 |
 | Paid session observed, PROCEED-shaped owner-review conflict (`multiple_charges`, `capture_total_mismatch` — `partial_refund` is park-shaped and takes its conflict-table park: no ticket, buyer retained, manual-check copy, never this row)    | Callback/redirect processing                             | Booking proceeds on the signed total as today; the durable activity-log record carries the conflict kind, every resource id, and the amounts; the best-effort alert is the existing code-only ntfy ping (`sendNtfyError` sends an error code and nothing else) pointing the owner at the log; no payload echo                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Owner-review conflict flagged, booking then fails (sold out, capacity, price)                                                                                                                                                                   | Callback/redirect processing                             | No automatic refund on the conflicted payment; terminal owner-review outcome recorded; buyer sees the manual-check copy; replays return the same answer                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| Owner resolves a marker or a stale unresolvable claim ("mark reviewed")                                                                                                                                                                         | Admin attendee payment action (owner level, PR A)        | Typed confirmation retires the marker — or converts a STALE claim whose provider can no longer be validated into a terminal owner-resolved outcome — and its `protected_state` mirror in one batch; the decision is recorded in the owner-key activity log; deletion, merge, and normal retention resume; a fresh claim is never resolvable this way                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Owner resolves a marker or a stale unresolvable claim ("mark reviewed")                                                                                                                                                                         | Admin attendee payment action (owner level, PR A)        | Typed confirmation retires the marker — or converts a STALE claim whose provider can no longer be validated into a terminal owner-resolved outcome — and its `protected_state` mirror in one batch; the decision is recorded in the owner-key activity log; deletion, merge, and normal retention resume — but the legacy Refund action stays refused (and unrendered) for a payment with more than one captured charge until M6 lands per-leg refund accounting; a fresh claim is never resolvable this way                                                                                                                                                                                                                                                                                                                                                                                        |
 | Charge with no completed/pending refund facts, judge says attempt fits                                                                                                                                                                          | Refund attempt (`tryRefund` / admin single / admin bulk) | Provider refund attempted with the provider's idempotency key (Stripe/Square); success records completion as today                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | Charge where returned + returning would exceed captured (> captured)                                                                                                                                                                            | Refund attempt                                           | Attempt refused before any provider call; recorded/answered through the caller's existing failure shape (callback: retryable; admin: failed row with reason). One boundary everywhere: accounted-for ≤ captured passes; exact equality means nothing is left and routes to the `fully_refunded`/`refund_pending` rows, never to refusal                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | Charge already fully refunded (provider cumulative or our records)                                                                                                                                                                              | Refund attempt                                           | `fully_refunded`: success without a provider refund call, as `tryRefund`'s fallback does today                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
@@ -736,7 +736,12 @@ never duplicated.
   the caught-up second tender — so the loser retries the compare-and-detect
   cycle against the committed index instead of suppressing real money that may
   never be redelivered; the retry is bounded by the transaction retry budget and
-  convergent because each round compares against a strictly newer index. The
+  convergent because each round compares against a strictly newer index — and a
+  loser that EXHAUSTS the budget answers RETRYABLY, never the stored terminal
+  answer: the delivery stays unacknowledged for the provider to redeliver and
+  the reference keeps its scheduled re-read, so unmerged evidence is deferred,
+  never acknowledged away (regression: CAS exhaustion under racing distinct
+  observations returns retryable, and the evidence lands on a later round). The
   retry writes only what the loser's own observation justifies, and "beyond the
   committed evidence" is DECIDABLE FROM THE ROW ALONE: every write that sets or
   advances `evidence_index` — a detection, a legacy seed, a confirmation —
@@ -790,30 +795,32 @@ never duplicated.
   maximum; capture state advances only forward through its lifecycle (a
   COMPLETED capture never regresses to PENDING via a lagged read — the stale
   reading merges to no change); and the facts with no intrinsic order — parent
-  linkage and its validity verdict — record a CONTRADICTION on the leg when a
-  reading disagrees with the committed one: both readings' settled-facts codes
-  are kept (set-monotone, so replaying either reading adds nothing and the
-  fingerprint never flaps), the contradiction is itself a recorded fact, and a
-  leg whose identity-adjacent facts are contradicted judges as an owner-review
-  conflict wherever it gates money — the same principle as the action-level
-  parentage gate: no automatic money moves on evidence that contradicts itself —
-  with WHICH reading is the provider's current truth the named residual M7's
-  provider-timestamped per-attempt records resolve (regressions: a stale
-  wrong-parent reading delivered after a corrected one records the contradiction
-  once and cannot overwrite the correction — a third delivery of either reading
-  writes nothing and hashes equal; a named payment whose parent readings
-  contradict refuses its refresh completion and admin refund as owner-review,
-  never completes on last-arrival) — a leg never minting a phantom sibling
-  either way — and the stored fingerprint is the hash of that MERGED coded
-  summary. Committed evidence can therefore only grow, even when the advancing
-  observation is a lagging SUBSET carrying one genuinely new fact: a committed
-  two-tender summary receiving a one-tender observation with newer refund
-  progress advances to a summary still naming BOTH tenders plus the progress, so
-  the gates below never un-learn a capture, and the caught-up two-tender
-  redelivery after it hashes equal to the merged summary and replays silently.
-  An observation whose merge ADDS NOTHING — every leg already present with the
-  same settled facts, no refund progress past the summary's — is a STALE
-  snapshot (Square serving one delivery a lagging tender list) and writes
+  linkage, its validity verdict, and the OBSERVED PROVIDER SESSION TOTAL (a
+  session-level fact stored once beside the legs, pinned by the first validated
+  observation) — record a CONTRADICTION (on the leg, or on the summary for the
+  session total) when a reading disagrees with the committed one: both readings'
+  settled-facts codes are kept (set-monotone, so replaying either reading adds
+  nothing and the fingerprint never flaps), the contradiction is itself a
+  recorded fact, and a leg whose identity-adjacent facts are contradicted judges
+  as an owner-review conflict wherever it gates money — the same principle as
+  the action-level parentage gate: no automatic money moves on evidence that
+  contradicts itself — with WHICH reading is the provider's current truth the
+  named residual M7's provider-timestamped per-attempt records resolve
+  (regressions: a stale wrong-parent reading delivered after a corrected one
+  records the contradiction once and cannot overwrite the correction — a third
+  delivery of either reading writes nothing and hashes equal; a named payment
+  whose parent readings contradict refuses its refresh completion and admin
+  refund as owner-review, never completes on last-arrival) — a leg never minting
+  a phantom sibling either way — and the stored fingerprint is the hash of that
+  MERGED coded summary. Committed evidence can therefore only grow, even when
+  the advancing observation is a lagging SUBSET carrying one genuinely new fact:
+  a committed two-tender summary receiving a one-tender observation with newer
+  refund progress advances to a summary still naming BOTH tenders plus the
+  progress, so the gates below never un-learn a capture, and the caught-up
+  two-tender redelivery after it hashes equal to the merged summary and replays
+  silently. An observation whose merge ADDS NOTHING — every leg already present
+  with the same settled facts, no refund progress past the summary's — is a
+  STALE snapshot (Square serving one delivery a lagging tender list) and writes
   NOTHING, never regressing the index to an older observation that would make
   already-recorded money look new and alert again; only a merge that adds a fact
   — a leg the summary lacks, a changed settled fact, refund progress past it —
@@ -1021,13 +1028,14 @@ consumer or state must say which law admits it:
    on a narrower read than the declared observation; a path that cannot afford
    the reads does not move the money.
 
-| Operation A                                 | Operation B                                       | Required result                                                                                | Protection                                                                                                                                                                                                                                                                       |
-| ------------------------------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Callback refund attempt                     | Redelivered callback refund attempt               | One payout                                                                                     | Reservation lock (`processed_payments`) — PR B extends it to the rejection arm, which today refunds before reserving — plus provider idempotency key (Stripe/Square), judge's fresh-read `fully_refunded`/`refund_pending` verdicts, SumUp provider-side second-refund rejection |
-| Admin refund                                | Callback refund of the same charge                | One payout                                                                                     | Same as above — both paths front the same judge; Stripe/Square then land on the same idempotency key, and SumUp on the provider's own rejection of a second refund (its generic 409 state conflict, classified by the evidence re-read) plus the fresh amount read               |
-| Two admin bulk waves touching one reference | —                                                 | One payout per reference                                                                       | The all-or-none claim (laws 1 and 3) serializes the waves; `refundState === "completed"` short-circuit, judge verdict, and idempotency key back it up                                                                                                                            |
-| Refund run holding a live claim             | Attendee merge or delete of a claimed attendee    | Rows never move or vanish under live refund work; the merge/delete answers the settling reason | Law 1's writer admission: the merge/delete transaction reads every affected row's record and fails closed on any live claim or staged marker                                                                                                                                     |
-| Judgment read                               | Provider state changes after read, before attempt | Provider-side rejection or idempotent landing; never a silent double payout                    | Provider guarantees (documented full-refund rejection) + next read converges                                                                                                                                                                                                     |
+| Operation A                                 | Operation B                                                                     | Required result                                                                                             | Protection                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Callback refund attempt                     | Redelivered callback refund attempt                                             | One payout                                                                                                  | Reservation lock (`processed_payments`) — PR B extends it to the rejection arm, which today refunds before reserving — plus provider idempotency key (Stripe/Square), judge's fresh-read `fully_refunded`/`refund_pending` verdicts, SumUp provider-side second-refund rejection                                                                                                                                                                                      |
+| Admin refund                                | Callback refund of the same charge                                              | One payout                                                                                                  | Same as above — both paths front the same judge; Stripe/Square then land on the same idempotency key, and SumUp on the provider's own rejection of a second refund (its generic 409 state conflict, classified by the evidence re-read) plus the fresh amount read                                                                                                                                                                                                    |
+| Two admin bulk waves touching one reference | —                                                                               | One payout per reference                                                                                    | The all-or-none claim (laws 1 and 3) serializes the waves; `refundState === "completed"` short-circuit, judge verdict, and idempotency key back it up                                                                                                                                                                                                                                                                                                                 |
+| Refund run holding a live claim             | Attendee merge or delete of a claimed attendee                                  | Rows never move or vanish under live refund work; the merge/delete answers the settling reason              | Law 1's writer admission: the merge/delete transaction reads every affected row's record and fails closed on any live claim or staged marker                                                                                                                                                                                                                                                                                                                          |
+| Judgment read                               | Provider state changes after read, before attempt                               | Provider-side rejection or idempotent landing; never a silent double payout                                 | Provider guarantees (documented full-refund rejection) + next read converges                                                                                                                                                                                                                                                                                                                                                                                          |
+| Refund call succeeds                        | Sibling capture lands at the provider after the judged sweep, before completion | Completion never closes the payment while unjudged captured money sits at the provider; partial-payout park | The refund path's terminal batch is preceded by one complete-observation re-read (counted in admission): a capture beyond the judged set writes the park and detection with the sent refund's facts recorded in the same batch, never the clean completion — local fences cannot see this window because no local writer runs in it (regression: a sibling captured between sweep and completion parks the payment with the sent refund recorded, never closes clean) |
 
 M4 adds no new tables and exactly THREE new columns, all on `processed_payments`
 with ONE schema migration shipped by PR A (law 5 — PR A writes the first fenced
@@ -1339,11 +1347,15 @@ No money-moving automation is added for any owner-review kind.
   and is rendered only where a marker or stale claim exists (the dead-link
   rule). One existing action disappears where its handler now refuses: the
   Refund action is not rendered for an owner-review-gated attendee (the
-  dead-link rule — the owner-review indicator shows in its place). The encrypted
-  activity log carries conflict kinds, resource ids, and amounts; the ntfy alert
-  carries the fixed error code only, per the commands table's alert boundary.
-  Neither carries buyer PII or raw provider payloads (M3's fixed-refusal
-  discipline is unchanged).
+  dead-link rule — the owner-review indicator shows in its place), and for a
+  payment with more than one captured charge it STAYS refused and unrendered
+  after review — pre-M6 refund accounting reverses the payment's whole ledger
+  order while refunding one leg, so per-leg refunds wait for M6 and the owner
+  refunds at the provider dashboard until then. The encrypted activity log
+  carries conflict kinds, resource ids, and amounts; the ntfy alert carries the
+  fixed error code only, per the commands table's alert boundary. Neither
+  carries buyer PII or raw provider payloads (M3's fixed-refusal discipline is
+  unchanged).
 - The judge runs on evidence already fetched by the current path; the only new
   provider data crossing a boundary is Stripe's documented `amount_refunded` and
   refund `status` fields (decision 2) Square's documented tender `amount_money`
@@ -1451,22 +1463,28 @@ In the same merges that wire `outcomeOf` in:
   marker and its mirror atomically and records the decision in the owner-key
   activity log, the operator-decides rule as a first-class repair — so an
   attendee's deletion (a buyer's privacy request included) is never hostage to a
-  marker whose money the owner already settled at the provider dashboard
-  (regressions: the owner retire action on a `multiple_charges` marker restores
-  deletion and normal retention and records the decision; a park marker whose
-  winning kind is a validation conflict retires by the clean-re-judgment rule
-  above). The action is a complete contract item, not a stray promise: PR A —
-  the first marker writer — ships its route, authorization, typed-confirmation
-  form, commands-table behavior, and regressions (law 4: a state ships with
-  every consumer it needs, an owner resolution included), and the security
-  section names it as the slice's one new route. The same recorded owner
-  resolution is the exit for the one genuinely undecidable CLAIM state: a STALE
-  claim whose provider can no longer be validated at all — credentials removed,
-  account gone, discovery exhausted — may be resolved by the owner the same way,
-  converting it to a terminal owner-resolved outcome that unblocks merge and
-  delete with the decision logged (regressions: a stale SumUp claim whose
-  credentials were removed is resolvable by the recorded owner action and the
-  attendee becomes deletable; a FRESH claim is never resolvable this way).
+  marker whose money the owner already settled at the provider dashboard Review
+  restores deletion, merge, and retention — NOT the legacy Refund action: for a
+  payment with more than one captured charge that action stays refused until M6,
+  because pre-M6 refund accounting reverses the payment's WHOLE ledger order
+  while refunding a single leg, the exact inconsistency the marker exists to
+  prevent (regressions: the owner retire action on a `multiple_charges` marker
+  restores deletion and normal retention and records the decision; a reviewed
+  two-capture payment keeps the Refund action refused and unrendered while
+  deletion works; a park marker whose winning kind is a validation conflict
+  retires by the clean-re-judgment rule above). The action is a complete
+  contract item, not a stray promise: PR A — the first marker writer — ships its
+  route, authorization, typed-confirmation form, commands-table behavior, and
+  regressions (law 4: a state ships with every consumer it needs, an owner
+  resolution included), and the security section names it as the slice's one new
+  route. The same recorded owner resolution is the exit for the one genuinely
+  undecidable CLAIM state: a STALE claim whose provider can no longer be
+  validated at all — credentials removed, account gone, discovery exhausted —
+  may be resolved by the owner the same way, converting it to a terminal
+  owner-resolved outcome that unblocks merge and delete with the decision logged
+  (regressions: a stale SumUp claim whose credentials were removed is resolvable
+  by the recorded owner action and the attendee becomes deletable; a FRESH claim
+  is never resolvable this way).
 - No alias, wrapper, or re-export bridges the old names.
 
 `validatedPaymentSession` (M3 boundary), `refund-state.ts` (a record-derived
