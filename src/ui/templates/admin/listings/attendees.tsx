@@ -2,6 +2,7 @@
 
 import { filter, joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
+import { targetQuery } from "#shared/bulk-email.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { renderFields, renderSelectOptions } from "#shared/forms/rendering.tsx";
@@ -30,6 +31,34 @@ import { getAddAttendeeFields } from "#templates/fields/add-attendee.ts";
 import type { AttendeeFilter, DateOption } from "./types.ts";
 
 /* jscpd:ignore-end */
+
+/** Whether the day's recipient query would find this booking: a ticket, an
+ * email, and a stored `[date, end_date)` range that covers the day. The stored
+ * range is what the query reads, and a booking without one is not counted for
+ * any day anywhere, capacity included. */
+const wouldBeEmailed = (attendee: Attendee, day: string): boolean =>
+  hasTicketQuantity(attendee) &&
+  attendee.email.trim() !== "" &&
+  attendee.date !== null &&
+  attendee.end_date !== null &&
+  attendee.date <= day &&
+  day < attendee.end_date;
+
+/** Where the roster's "Email this date's attendees" action goes, or `undefined`
+ * when the compose page would not open: no day chosen, a viewer who is not an
+ * owner (`/admin/emails` is owner-only), or a day whose recipient set is empty
+ * (the compose page 404s on one). */
+export const emailDayHrefFor = (
+  listingId: number,
+  dateFilter: string | null,
+  isOwner: boolean,
+  dayAttendees: Attendee[],
+): string | undefined => {
+  if (!dateFilter || !isOwner) return;
+  return dayAttendees.some((a) => wouldBeEmailed(a, dateFilter))
+    ? `/admin/emails${targetQuery({ day: dateFilter, kind: "listing-day", listingId })}`
+    : undefined;
+};
 
 const keepByRosterFilter: Record<AttendeeFilter, (a: Attendee) => boolean> = {
   all: () => true,
@@ -198,6 +227,7 @@ export const AttendeesSection = ({
   availableDates,
   activeFilter,
   dateFilter,
+  emailDayHref,
   basePath,
   returnUrl,
   tableRows,
@@ -210,6 +240,8 @@ export const AttendeesSection = ({
   availableDates: DateOption[];
   activeFilter: AttendeeFilter;
   dateFilter: string | null;
+  /** Where "Email this date's attendees" goes; undefined withholds the action. */
+  emailDayHref: string | undefined;
   basePath: string;
   returnUrl: string;
   tableRows: AttendeeTableRow[];
@@ -241,7 +273,14 @@ export const AttendeesSection = ({
         listingId={listingId}
       />
       <AttendeeTableBlock
-        actions={<a href={exportHref}>{t("listings_table.export_csv")}</a>}
+        actions={
+          <>
+            <a href={exportHref}>{t("listings_table.export_csv")}</a>
+            {emailDayHref && (
+              <a href={emailDayHref}>{t("listings_table.email_this_date")}</a>
+            )}
+          </>
+        }
         options={attendeeTableOptions({
           activeFilter,
           allowedDomain,

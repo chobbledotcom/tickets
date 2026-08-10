@@ -12,6 +12,7 @@ import {
   AddAttendeeSection,
   AttendeesSection,
   attendeeStatsForListing,
+  emailDayHrefFor,
   FailedPaymentsSection,
   filterAttendees,
   rosterHref,
@@ -114,6 +115,12 @@ export const ListingRosterPanel = (opts: ListingPanelOptions): JSX.Element => {
         availableDates={availableDates}
         basePath={v.basePath}
         dateFilter={v.dateFilter}
+        emailDayHref={emailDayHrefFor(
+          listing.id,
+          v.dateFilter,
+          opts.isOwner ?? false,
+          attendees,
+        )}
         isDaily={v.isDaily}
         listingId={listing.id}
         phonePrefix={phonePrefix}

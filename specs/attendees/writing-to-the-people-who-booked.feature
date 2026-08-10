@@ -107,3 +107,42 @@ Feature: An owner writes to the people who booked
       Given the owner has an email provider of their own
       And 1 person has booked onto "the Gig"
       Then "the Gig" offers a way to write to the people who booked
+
+  @rule:attendees.a-message-can-be-aimed-at-one-day
+  Rule: A message can be aimed at one day of a listing booked by the day
+    A listing booked by the day holds several days' worth of people, and news
+    about one of those days is not news for the rest. The owner can aim a
+    message at a single day, and everyone the site writes to is somebody that
+    day belongs to. Aiming at the listing itself still reaches all of them, so
+    the day is an extra way to choose rather than the only one.
+
+    @case:writing.one-day-hears-and-the-others-do-not
+    Scenario: The owner writes to one day
+      Given the owner has an email provider of their own
+      And "Rachel" has booked onto "the Course" for day 1
+      And "Marco" has booked onto "the Course" for day 8
+      When the owner writes to "the Course" on day 1 saying "We are in the small hall tonight."
+      Then the owner is shown that it would reach 1 person
+      When the owner sends it
+      Then it was written to "Rachel"
+      And nothing was written to "Marco"
+
+    @case:writing.the-whole-listing-still-reaches-every-day
+    Scenario: The owner writes to the listing rather than to a day
+      Given the owner has an email provider of their own
+      And "Rachel" has booked onto "the Course" for day 1
+      And "Marco" has booked onto "the Course" for day 8
+      When the owner writes to "the Course" saying "The term ends a week early."
+      Then the owner is shown that it would reach 2 people
+      When the owner sends it
+      Then it was written to "Rachel"
+      And it was written to "Marco"
+
+    @case:writing.a-stay-hears-about-every-day-it-covers
+    Scenario: A booking covering several days hears about each of them
+      Given the owner has an email provider of their own
+      And "Priya" has booked onto "the Hall" from day 1 for 3 days
+      When the owner writes to "the Hall" on day 3 saying "The car park is closed."
+      Then the owner is shown that it would reach 1 person
+      When the owner sends it
+      Then it was written to "Priya"

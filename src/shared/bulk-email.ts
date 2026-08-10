@@ -3,7 +3,7 @@
  * unsubscribe footer.
  *
  * *Who* a message goes to (the audience/listing/attendee target registry)
- * lives in `#shared/bulk-email-targets.ts`; the target API is re-exported here
+ * lives in `#shared/bulk-email-targets/`; the target API is re-exported here
  * so callers have a single import. Sending itself lives in `#shared/email.ts`
  * (`sendBulkEmails`). This module turns a target into a de-duplicated address
  * list, validates drafts, and builds the send payload + unsubscribe footer.
@@ -19,11 +19,11 @@ import {
   unique,
   uniqueBy,
 } from "#fp";
+import { loadTargetPiiBlobs } from "#shared/bulk-email-targets/registry.ts";
 import {
   type BulkEmailTarget,
   isBulkEmailTarget,
-  loadTargetPiiBlobs,
-} from "#shared/bulk-email-targets.ts";
+} from "#shared/bulk-email-targets/types.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { decryptPiiBlob } from "#shared/db/attendees/pii.ts";
 import { hashEmail } from "#shared/db/contact-preferences.ts";
@@ -41,6 +41,17 @@ import { parseEmail } from "#shared/validation/email.ts";
 // Re-export the target registry's public API so `#shared/bulk-email.ts` stays
 // the single entry point for callers (routes, templates, tests).
 export {
+  describeTarget,
+  targetAllowsEmpty,
+  targetComposeControl,
+  targetComposeCopy,
+  targetFromForm,
+  targetFromQuery,
+  targetIsSingleRecipient,
+  targetLogListingId,
+  targetQuery,
+} from "#shared/bulk-email-targets/registry.ts";
+export {
   AUDIENCES,
   type Audience,
   type AudienceId,
@@ -51,19 +62,10 @@ export {
   type ComposeControl,
   type ComposeCopy,
   DEFAULT_AUDIENCE_ID,
-  describeTarget,
   isAudienceId,
   isBulkEmailTarget,
   type TargetDescription,
-  targetAllowsEmpty,
-  targetComposeControl,
-  targetComposeCopy,
-  targetFromForm,
-  targetFromQuery,
-  targetIsSingleRecipient,
-  targetLogListingId,
-  targetQuery,
-} from "#shared/bulk-email-targets.ts";
+} from "#shared/bulk-email-targets/types.ts";
 
 // ── Recipient resolution ────────────────────────────────────────────
 
