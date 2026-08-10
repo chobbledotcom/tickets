@@ -37,14 +37,14 @@ import type { Migration } from "./types.ts";
  * the same over-budget batch. Reserving the headroom lets each reload record
  * what it finished and hand the lock back, so the next reload continues.
  */
-export const MIGRATION_BOOKKEEPING_RESERVE = 5;
+const MIGRATION_BOOKKEEPING_RESERVE = 5;
 
-/** A request that has spent its edge subrequest budget throws one of these; it
- *  is the signal to stop the batch here rather than a migration defect. */
-export const isSubrequestBudgetError = (error: unknown): boolean =>
-  error instanceof Error &&
-  (error.message.startsWith("Subrequest allowance exceeded") ||
-    error.message.startsWith("Database round-trip limit exceeded"));
+/** True when `error` is the "subrequest budget spent" signal countSubrequest
+ *  raises at the reserve cap — the cue to stop the batch here rather than a
+ *  migration defect. The cap always trips this budget guard before the wider
+ *  round-trip limit, so that is the only message to match. */
+const isSubrequestBudgetError = (error: unknown): boolean =>
+  errorMessage(error).startsWith("Subrequest allowance exceeded");
 
 /** The migrations whose ids are not yet recorded as applied, in run order.
  *  Checks the ids first so the implementations only load when at least one
