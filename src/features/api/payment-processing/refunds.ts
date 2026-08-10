@@ -22,12 +22,10 @@ import {
   logError,
 } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
-import {
-  admissionReason,
-  sendRefundIfAdmitted,
-} from "#shared/payment/admit-refund.ts";
+import { sendRefundIfAdmitted } from "#shared/payment/admit-refund.ts";
 import { isResourceId } from "#shared/payment/resource-id.ts";
 import type { SessionRejection } from "#shared/payment/validated-session.ts";
+import { reportWithheldRefund } from "#shared/payment-review.ts";
 import { parsePriceProof, verifyPrice } from "#shared/payment-signature.ts";
 import {
   type ExistingPaymentProvider,
@@ -155,10 +153,7 @@ export const tryRefund = async (
       return true;
     },
     withhold: (admission) => {
-      logDebug(
-        "Payment",
-        `Refund not sent for ${paymentReference}: ${admissionReason(admission)}`,
-      );
+      reportWithheldRefund(admission, { listingId, paymentReference });
       return admission.kind === "already_returned";
     },
   });

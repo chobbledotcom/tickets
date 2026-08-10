@@ -10,6 +10,7 @@ import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import { execute } from "#shared/db/client.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
+import { t } from "#shared/i18n.ts";
 import type { Attendee } from "#shared/types.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import { expectErrorFlash, expectFlash } from "#test-utils/assertions.ts";
@@ -19,8 +20,12 @@ import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postPaymentLeg } from "#test-utils/db-helpers/payment-leg.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { chargeMoney } from "#test-utils/payment-state.ts";
 import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
-import { withRefreshPaymentProbe } from "#test-utils/refund-routes.ts";
+import {
+  withRefreshPaymentMoney,
+  withRefreshPaymentProbe,
+} from "#test-utils/refund-routes.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
 const OCCURRED_AT = "2026-07-01T00:00:00.000Z";
@@ -286,3 +291,39 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
     });
   });
 });
+
+describeWithEnv(
+  "server (admin attendee refresh payment) > a charge only partly returned",
+  { db: true },
+  () => {
+    const errors = setupErrorSpy();
+
+    test("is reported to the owner rather than read as nothing returned", async () => {
+      const attendee = await setupBalanceRefresh(
+        "refresh-partial-session",
+        "pi_refresh_partial",
+      );
+
+      await withRefreshPaymentMoney(
+        // Some of the money went back, but not all of it. The provider's
+        // records and this booking disagree, and no retry settles that.
+        () => Promise.resolve(chargeMoney(1000, 400)),
+        async () => {
+          const { response } = await adminFormPost(
+            `/admin/attendees/${attendee.id}/refresh-payment`,
+          );
+          // The route still says "nothing changed" — the charge is not
+          // refunded, which stays true. What must not happen is the
+          // disagreement disappearing.
+          expectFlash(response, t("success.payment_status_current"), true);
+        },
+      );
+
+      // Before this, every answer but "fully refunded" was written down as a
+      // definite "none" and the disagreement went to a debug line nobody
+      // reads.
+      expect(errors.contains("partial_refund")).toBe(true);
+      expect(errors.contains("an owner needs to look at it")).toBe(true);
+    });
+  },
+);

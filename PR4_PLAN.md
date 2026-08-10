@@ -126,11 +126,11 @@ it is built, the code is the authority").
 | The all-or-none claim                                                         | `src/shared/db/payment-claim.ts` (`test/shared/db/payment-claim.test.ts`)                        | `attendee_set` scope only — the `callback` scope's claims are PR B's. A release names the claim it took and clears only that one, so a stalled run cannot strip its successor's hold. Every stored charge now carries its index — the finalize and the merge anchor both write it, and an older row is repaired on first authenticated read — so two rows sharing one reference exclude each other. A charge held only in the attendee's `payment_id` column is given an anchor row by `payment-anchor/mint.ts` before the claim, so a run can no longer be told it holds an attendee whose money is on no row at all |
 | The `protected_state` mirror and its prune gate                               | written by `payment-claim.ts`; read by `paymentStatement` in `src/shared/db/prune.ts`            | The claim writes the mirror in the same statement as the record; the prune keeps every arm byte-identical for rows whose mirror is empty and never deletes a row carrying work, however long ago the claim was taken — a retained keyless claim IS the record that money may be going back, and staleness releases it to a resuming run, never to the prune                                                                                                                                                                                                                                                           |
 | Each provider's refund capability                                             | `refundCapability` on `PaymentProvider` and its three adapters                                   | New: law 3 says a claim records the capability its provider proves, so each adapter declares it (Stripe/Square `keyed`, SumUp `keyless`) rather than a per-provider arm deciding at release time                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| The owner-review recorder                                                     | `reportWithheldRefund` in `src/shared/payment-review.ts` (`test/shared/payment-review.test.ts`)  | Both refund paths report a withheld refund through it. A refusal — the provider's records and the booking disagreeing — goes through the classified fan-out (console, ntfy, activity log, Sentry); the ordinary withholdings stay at debug. The DURABLE half, the `review` marker on the row and its retirement by the owner action, is still a promise                                                                                                                                                                                                                                                               |
 | The per-provider refund evidence                                              | `readChargeMoneyOrNull` on each of `{stripe,square,sumup}-provider.ts`                           | Replaces `isPaymentRefunded` outright — that method is gone from the interface. Stripe expands the charge's amount/currency/`amount_refunded`; Square reads its captured and refunded totals; SumUp sums the REFUND events on the transaction                                                                                                                                                                                                                                                                                                                                                                         |
 
 Still promises: provider discovery and tagging, the declared-observation sweeps,
-the owner-review recorder, the owner "mark reviewed" action, and the
-merge/delete admissions.
+the owner "mark reviewed" action, and the merge/delete admissions.
 
 Two consequences of that ordering are live in the code right now, and are FAULTS
 to close rather than settled design:
@@ -141,11 +141,6 @@ to close rather than settled design:
   refresh-payment route still read and send without one, so the keyless
   double-send window stays open on those two paths. They claim when the
   `callback` scope lands.
-- **A legacy row's reference index is empty.** New writes populate it in the
-  same statement as the reference, but nothing backfills a pre-M4 row, and
-  `readClaimableRows` skips empty indexes. Two legacy rows sharing one reference
-  can therefore still each take their own claim — the F21 residual, narrowed to
-  "never touched since upgrade" but not yet closed.
 - **`outcomeOf` has no production caller.** The refund routes reach the judge
   through `refundOutcomeOf`, because a bare reference cannot supply a whole
   observation. `outcomeOf` — and the observation, ownership-proof, and conflict
