@@ -385,7 +385,12 @@ describe("admin refund provider > the claim", () => {
       blockedRowClaim(),
     );
 
-    expect(counts).toEqual({ errorCount: 0, failedCount: 1, refundedCount: 0 });
+    expect(counts).toEqual({
+      errorCount: 0,
+      failedCount: 1,
+      notRecordedCount: 0,
+      refundedCount: 0,
+    });
     expect(calls.count).toBe(0);
   });
 
@@ -708,10 +713,13 @@ describe("admin refund provider > one charge two attendees carry", () => {
     // Neither attendee was refused: both took the answer from that one call.
     // They then both fail to post, because these two exist only in the
     // candidates above and have no account to reverse — so the money moving
-    // shows up as an error apiece rather than as a refund apiece.
+    // shows up as a missing ledger record apiece rather than as a refund
+    // apiece. It is counted apart from an uncertain provider, since this one
+    // answered and the money really did go back.
     expect(counts).toEqual({
-      errorCount: 2,
+      errorCount: 0,
       failedCount: 0,
+      notRecordedCount: 2,
       refundedCount: 0,
     });
   });
