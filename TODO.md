@@ -2129,3 +2129,26 @@ words — then the story steps and the direct pins in
 `test/integration/routes/unsubscribe.test.ts` can assert them through `t()`
 instead of pinning copied wording. Out of scope for the migration, which does
 not touch `src/`.
+## Cap the whole run's provider calls, not just how many run at once
+
+`refundCandidateAtProvider` (`src/features/admin/refunds/provider.ts`) chunks a
+candidate's references by `PROVIDER_REFUND_CONCURRENCY`, which bounds how many
+provider calls are in flight at once but not how many the request makes in
+total. Bunny stops a request at 50 subrequests, and each reference can now cost
+two calls — the evidence read plus the refund — before HTTP retries multiply
+either one. A merged attendee carrying many references can therefore be cut off
+mid-run, having already refunded the earlier references and silently skipped the
+later ones.
+
+Raised by Codex on PR #2065 against `admit-refund.ts`. It is real but sits
+outside the overlap guard: the fix is to work out the worst-case cost of the
+whole run up front and refuse it whole when it cannot fit, which is the
+admission reserve the M4 contract describes under "Budgets" (`PR4_PLAN.md`,
+`SIBLING_READ_CAP` and the per-reference call counts). Note the guard did not
+add the worst case — a reference cost two calls before this change too (refund,
+then the already-refunded check) — but it did add a second call to the NORMAL
+path, so the typical run is now nearer the cap than it was.
+
+Starting point: `PROVIDER_REFUND_CONCURRENCY` in
+`src/features/admin/refunds/provider.ts`, the budget rules in `PR4_PLAN.md`, and
+the subrequest guard in `src/shared/db/client.ts`.
