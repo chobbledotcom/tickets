@@ -2,6 +2,7 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import {
   attendeeAccount,
   BOOKING_FEE_INCOME,
@@ -63,6 +64,13 @@ When(
   async function (this: TicketsWorld): Promise<void> {
     const listing = await sellPlacesAt(this, FREE_MEETUP, "0.00");
     await bookFreePlace(this, listing, "Free Guest", "free@example.com");
+    // The listing's own page, where the place taken and the money taken sit
+    // side by side: a headcount with nothing charged for it.
+    leaveEvidencePage(
+      this,
+      ["free-headcount-no-money"],
+      `/admin/listing/${listing.id}`,
+    );
   },
 );
 
