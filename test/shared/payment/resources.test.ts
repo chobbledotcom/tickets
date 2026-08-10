@@ -4,9 +4,9 @@ import * as v from "valibot";
 import {
   providerRefundResources,
   RefundFailureReasonSchema,
-  refundMoneyMatchesCapture,
   RefundObservationSchema,
   RefundResolutionSchema,
+  refundMoneyMatchesCapture,
 } from "#shared/payment/resources.ts";
 import {
   chargeLeg,
@@ -39,13 +39,11 @@ describe("what a refund says about the money going back", () => {
   // A refund of nothing reads as "no refund seen", so the provider saying one
   // finished would be thrown away and the money could go back twice. A failed
   // refund moved no money, so nothing is the right amount there.
-  for (
-    const [status, allowed] of [
-      ["completed", false],
-      ["partial", false],
-      ["failed", true],
-    ] as const
-  ) {
+  for (const [status, allowed] of [
+    ["completed", false],
+    ["partial", false],
+    ["failed", true],
+  ] as const) {
     test(`${allowed ? "allows" : "refuses"} a ${status} refund for no money`, () => {
       expect(
         v.safeParse(RefundResolutionSchema, {
@@ -221,14 +219,12 @@ describe("what a refund says about the money going back", () => {
   });
 
   test("defines every refund failure and resolution", () => {
-    for (
-      const reason of [
-        "provider_failed",
-        "invalid_amount",
-        "multiple_pending_refunds",
-        "not_observed",
-      ] as const
-    ) {
+    for (const reason of [
+      "provider_failed",
+      "invalid_amount",
+      "multiple_pending_refunds",
+      "not_observed",
+    ] as const) {
       expect(v.parse(RefundFailureReasonSchema, reason)).toBe(reason);
     }
     expect(v.safeParse(RefundFailureReasonSchema, "declined").success).toBe(

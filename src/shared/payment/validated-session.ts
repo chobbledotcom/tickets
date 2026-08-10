@@ -16,11 +16,11 @@ import { isRecord } from "#shared/types.ts";
  */
 export type SessionRejection =
   | {
-    reason: "malformed_charge";
-    paymentReference: string;
-    refundable: boolean;
-    metadata: SessionMetadata;
-  }
+      reason: "malformed_charge";
+      paymentReference: string;
+      refundable: boolean;
+      metadata: SessionMetadata;
+    }
   | { reason: "blank_reference" };
 
 /** Whether a value is a {@link SessionRejection}. Only the exact variants with
@@ -79,8 +79,7 @@ export const validatedPaymentSession = (fields: {
   if (charge === null) {
     logError({
       code: ErrorCode.PAYMENT_SESSION,
-      detail:
-        `Session ${fields.id} carries a malformed charge (amount=${fields.amountTotal}, currency=${fields.currency})`,
+      detail: `Session ${fields.id} carries a malformed charge (amount=${fields.amountTotal}, currency=${fields.currency})`,
     });
     return malformedChargeRejection(
       fields.paymentReference,
