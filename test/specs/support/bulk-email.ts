@@ -254,9 +254,6 @@ export const opensEmailForListing = async (
     throw new Error(`"${listingName}" offers no way to write to its attendees`);
   }
   await browser.visit(wayIn);
-  // The compose page names the one day it is aimed at, which is the whole
-  // claim: a term booked date by date can be addressed a date at a time.
-  leaveEvidencePage(world, ["one-days-audience"], wayIn);
   return browser;
 };
 
