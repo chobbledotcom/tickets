@@ -1,7 +1,11 @@
 import { expect } from "@std/expect";
-import { it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { deleteAttendee } from "#shared/db/attendees/delete.ts";
 import { queryOne } from "#shared/db/client.ts";
+import {
+  orRefusal,
+  PaymentRowsBusyError,
+} from "#shared/db/payment-admit-move.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   CLAIM_MIRROR,
@@ -110,3 +114,26 @@ describeWithEnv(
     });
   },
 );
+
+describe("answering a writer that could not go ahead", () => {
+  test("a busy-rows refusal becomes the operator's message", async () => {
+    expect(
+      await orRefusal(
+        () => Promise.reject(new PaymentRowsBusyError("still refunding")),
+        (message) => message,
+      ),
+    ).toBe("still refunding");
+  });
+
+  // Only the busy-rows refusal is an answer. Anything else going wrong in the
+  // transaction is a real failure, and turning it into an operator message
+  // would report a broken write as a polite "try again later".
+  test("any other failure is raised, not turned into a message", async () => {
+    await expect(
+      orRefusal(
+        () => Promise.reject(new Error("the database fell over")),
+        () => "refused",
+      ),
+    ).rejects.toThrow("the database fell over");
+  });
+});

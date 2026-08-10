@@ -23,6 +23,7 @@ import {
   inPlaceholders,
   queryBatchPrimary,
   resultRows,
+  type SqlStatement,
   type TxScope,
   withTransaction,
 } from "#shared/db/client.ts";
@@ -158,24 +159,40 @@ export const readAttendeeRowStates = async (
   );
 
 /**
- * Write a row's record back, but only while it still holds exactly what we
- * read. A row that changed under us fails its condition, which rolls the whole
- * claim back rather than letting a run hold half a set.
+ * The one statement that puts a record on a row, with the plain word beside it
+ * derived from that same record so the two can never disagree. A row holding
+ * nothing is stored as the empty slot rather than as an empty JSON object.
+ *
+ * Conditioned on the row still holding exactly what we read, so a row that
+ * changed under us matches nothing. Both writers build their write here: the
+ * claim runs it inside its transaction, the release sends it in a batch.
+ */
+const rowStateStatement = async (
+  row: PaymentRowRecord,
+  state: PaymentRowState,
+): Promise<SqlStatement> => ({
+  args: [
+    isEmptyRowState(state) ? "" : await encrypt(writeRowState(state, SLOT)),
+    mirrorFor(state),
+    row.sessionId,
+    row.slot,
+  ],
+  sql: `UPDATE processed_payments
+           SET failure_data = ?, protected_state = ?
+         WHERE payment_session_id = ? AND failure_data = ?`,
+});
+
+/**
+ * Write a row's record back, failing if it changed under us. A row that no
+ * longer holds what we read matches nothing, which rolls the whole claim back
+ * rather than letting a run hold half a set.
  */
 const writeState = async (
   tx: TxScope,
   row: PaymentRowRecord,
   state: PaymentRowState,
 ): Promise<void> => {
-  const slot = isEmptyRowState(state)
-    ? ""
-    : await encrypt(writeRowState(state, SLOT));
-  const result = await tx.execute({
-    args: [slot, mirrorFor(state), row.sessionId, row.slot],
-    sql: `UPDATE processed_payments
-             SET failure_data = ?, protected_state = ?
-           WHERE payment_session_id = ? AND failure_data = ?`,
-  });
+  const result = await tx.execute(await rowStateStatement(row, state));
   if (result.rowsAffected !== 1) {
     throw new Error(
       `Payment row changed while being claimed: ${row.sessionId}`,
@@ -303,23 +320,11 @@ export const releaseAttendeeRows = async (
     rows
       .filter((row) => row.state.claim?.writtenAt === heldSince)
       .map(async (row) => {
+        // Letting the claim go does not clear the row: an owner review it
+        // still carries has to keep showing, or a purge takes a row whose
+        // money nobody has looked at yet.
         const { claim: _released, ...kept } = row.state;
-        return {
-          args: [
-            isEmptyRowState(kept)
-              ? ""
-              : await encrypt(writeRowState(kept, SLOT)),
-            // Letting the claim go does not clear the row: an owner review it
-            // still carries has to keep showing, or a purge takes a row whose
-            // money nobody has looked at yet.
-            mirrorFor(kept),
-            row.sessionId,
-            row.slot,
-          ],
-          sql: `UPDATE processed_payments
-                   SET failure_data = ?, protected_state = ?
-                 WHERE payment_session_id = ? AND failure_data = ?`,
-        };
+        return await rowStateStatement(row, kept);
       }),
   );
   if (writes.length > 0) await executeBatch(writes);
