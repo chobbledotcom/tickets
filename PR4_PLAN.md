@@ -53,24 +53,24 @@ classification half (refusing the overlap); M7 owns its persistence half.
 
 Verified against the working tree at `4879ae0d` (post-#2062 main).
 
-| Area                           | Evidence                                                                                                                                                                                                                                                                                                                                                                                                          | Consequence                                                                                                                                                                                       |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Callback judge                 | `classifySession` returns `trusted`/`mismatch`/`ignore` from price-proof, currency, and amount equality (`src/features/api/payment-processing/classify.ts:97-113`); no free-checkout predicate exists — a paid charge against a signed total of 0 falls out of amount inequality                                                                                                                                  | This verdict logic is the displaced callback classifier; `outcomeOf` replaces it and names `paid_without_charge` explicitly                                                                       |
-| Boundary constructor           | `validatedPaymentSession` rejects unvouched money as `malformed_charge` with `refundable`, and a paid session without a resource id as `blank_reference` (`src/shared/payment/validated-session.ts:17-113`)                                                                                                                                                                                                       | Stays. It is M3's observation boundary, not a settled-money judge; its rejections feed the same refund path the judge uses                                                                        |
-| Mismatch refunds               | `refuseMismatch` (balance path) and `chargeMismatchSpec` (booking path) refund on verdict `mismatch` (`src/features/api/payment-processing/refunds.ts:239-250,308-312`; consumed at `index.ts:238-250`)                                                                                                                                                                                                           | These actions stay; their trigger becomes a judge outcome instead of the inline verdict                                                                                                           |
-| Refund re-attempt surface (F3) | On `refunded === false` the reservation is released so the next redelivery re-attempts the refund; the comment asserts this "CANNOT double-pay" on the strength of provider-side rejection (`src/features/api/payment-processing/index.ts:350-366`)                                                                                                                                                               | True for Stripe/Square only because of idempotency keys; unguarded for SumUp. The judge fronts every attempt with the overlap refusal                                                             |
-| Refund state today             | `RefundState` is `none \| completed \| unknown` — no pending state exists on the live path (`src/shared/payment/refund-state.ts:10-23`); derived from `processed_payments.provider_refunded_at` (`src/shared/db/payment-references.ts:130-161`)                                                                                                                                                                   | A pending provider refund reads as `none` everywhere today; nothing compares refunded-so-far against captured money                                                                               |
-| Single-charge refund judge     | `tryRefund`: blank-id guard, attempt, then `isPaymentRefunded` fallback treating already-refunded as success (`src/features/api/payment-processing/refunds.ts:120-160`)                                                                                                                                                                                                                                           | The ordering is ad-hoc judgment; it becomes: observe → `outcomeOf`/`resolveRefund` → act                                                                                                          |
-| Bulk refund judge              | `refundReferenceAtProvider`: `completed` short-circuit, attempt, `isPaymentRefunded` fallback (`src/features/admin/refunds/provider.ts:40-68`); waves of 5, wave count unbounded (`:167-211`), caller caps batch at `BULK_REFUND_LIMIT` (`src/features/admin/attendee-refunds.ts:303`)                                                                                                                            | Same cutover as `tryRefund`. The unbounded wave shape itself is M7 (F53), not M4                                                                                                                  |
-| Idempotency                    | Deterministic `refundIdempotencyKey` used by Stripe (`src/shared/stripe.ts:109`) and Square (`src/shared/square.ts:688`); SumUp passes none (`src/shared/sumup.ts:222-229`), and the SumUp refund API supports none                                                                                                                                                                                               | SumUp replay defence must come from the judge plus full-refund semantics; the contract records this as a per-provider fact                                                                        |
-| Square refund facts            | `retrievePayment` already selects `refundedMoney` — a genuine provider cumulative (`src/shared/square.ts` retrievePayment; `square-provider.ts:44-53` uses `refunded >= charged`); `refundPayment` returns false for PENDING (`CONFIRMED_REFUND_STATUSES = ["COMPLETED"]`, `square.ts:587`) and throws on wrong `payment_id` or partial amounts (`:712,721-728`)                                                  | Square legs get a real `confirmedRefunded`. A PENDING answer is a real in-flight refund the current code treats as failure — the F3 trigger                                                       |
-| Stripe refund facts            | Current schema picks only `latest_charge.refunded` (boolean) (`src/shared/stripe/schemas.ts:43,51`); the locked Stripe types document `amount_refunded` on the charge                                                                                                                                                                                                                                             | Widening the pick to `amount_refunded` gives Stripe a documented cumulative. Approved as decision 2                                                                                               |
-| SumUp refund facts             | `isPaymentRefunded` is `getTransactionStatus === "REFUNDED"` (`src/shared/sumup-provider.ts:103-107`) — full-refund only, no partial, no pending                                                                                                                                                                                                                                                                  | SumUp legs derive `confirmedRefunded` as all-or-nothing from status; pending is unobservable                                                                                                      |
-| Multiple captures              | Square: `paymentReference = paidPaymentId ?? order.tenders?.[0]?.paymentId ?? ""` silently takes the first tender (`src/shared/square-provider.ts:124-125`); nothing counts captures per order. SumUp: `paidChildVerdict` already rejects extra children as `unrecorded_child` (`src/shared/sumup-observation.ts:143-151`). Stripe: a session names one `payment_intent`; no list read exists on the current path | Square `tenders[]` is present evidence: two paid tenders become a detectable `multiple_charges` conflict. Stripe multiple-capture detection has no current-path evidence and is out of scope (M6) |
-| Wrong parent                   | Square throws on `payment.orderId !== order.id` (`square-provider.ts:145-153`) and on refund `payment_id` mismatch (`square.ts:712`); SumUp reference/id/merchant checks are classifier verdicts (`sumup-observation.ts:208-239`); Stripe has none                                                                                                                                                                | Existing checks keep their behavior but report through the one conflict vocabulary; no new Stripe check is invented                                                                               |
-| Error and alert classes        | `logError` fans out to ntfy (`src/shared/logger.ts:335`); the mismatch pager is `WEBHOOK_PRICE_SIGNATURE` (`refunds.ts:244,275`); the "money moved but records did not" incident class is `reportRefundNotRecorded` (`src/shared/invariant-errors.ts:37-39`)                                                                                                                                                      | Owner-review conflicts alert through these existing classes; no new alert channel                                                                                                                 |
-| Money of record                | Ledger `transfers` (capture via `checkout-complete.ts:42-56`; refunds via `refund-ledger.ts:197,228,305`); `processed_payments.provider_refunded_at` marks completed provider refunds (`payment-references.ts:260-273`)                                                                                                                                                                                           | These are the durable "our completed records" input to the judge. M4 writes no new tables                                                                                                         |
-| Dormant aggregate schema       | `payment_charges` already declares `captured_amount`, `refunded_amount`, `refund_state`, `pending_refund_id`, `pending_refund_idempotency_key` — schema-only, no readers or writers (`src/shared/db/migrations/schema/payments/charges.ts:29-53`)                                                                                                                                                                 | Stays dormant. M4 must not write it (delivery rule 1; M6/M7 activate it)                                                                                                                          |
+| Area                           | Evidence                                                                                                                                                                                                                                                                                                                                                                                                          | Consequence                                                                                                                                                                                                                       |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Callback judge                 | `classifySession` returns `trusted`/`mismatch`/`ignore` from price-proof, currency, and amount equality (`src/features/api/payment-processing/classify.ts:97-113`); no free-checkout predicate exists — a paid charge against a signed total of 0 falls out of amount inequality                                                                                                                                  | This verdict logic is the displaced callback classifier; `outcomeOf` replaces it and names `paid_without_charge` explicitly                                                                                                       |
+| Boundary constructor           | `validatedPaymentSession` rejects unvouched money as `malformed_charge` with `refundable`, and a paid session without a resource id as `blank_reference` (`src/shared/payment/validated-session.ts:17-113`)                                                                                                                                                                                                       | Stays. It is M3's observation boundary, not a settled-money judge; its rejections feed the same refund path the judge uses                                                                                                        |
+| Mismatch refunds               | `refuseMismatch` (balance path) and `chargeMismatchSpec` (booking path) refund on verdict `mismatch` (`src/features/api/payment-processing/refunds.ts:239-250,308-312`; consumed at `index.ts:238-250`)                                                                                                                                                                                                           | These actions stay; their trigger becomes a judge outcome instead of the inline verdict                                                                                                                                           |
+| Refund re-attempt surface (F3) | On `refunded === false` the reservation is released so the next redelivery re-attempts the refund; the comment asserts this "CANNOT double-pay" on the strength of provider-side rejection (`src/features/api/payment-processing/index.ts:350-366`)                                                                                                                                                               | True for Stripe/Square only because of idempotency keys; unguarded for SumUp. The judge fronts every attempt with the overlap refusal                                                                                             |
+| Refund state today             | `RefundState` is `none \| completed \| unknown` — no pending state exists on the live path (`src/shared/payment/refund-state.ts:10-23`); derived from `processed_payments.provider_refunded_at` (`src/shared/db/payment-references.ts:130-161`)                                                                                                                                                                   | A pending provider refund reads as `none` everywhere today; nothing compares refunded-so-far against captured money                                                                                                               |
+| Single-charge refund judge     | `tryRefund`: blank-id guard, attempt, then `isPaymentRefunded` fallback treating already-refunded as success (`src/features/api/payment-processing/refunds.ts:120-160`)                                                                                                                                                                                                                                           | The ordering is ad-hoc judgment; it becomes: observe → `outcomeOf`/`resolveRefund` → act                                                                                                                                          |
+| Bulk refund judge              | `refundReferenceAtProvider`: `completed` short-circuit, attempt, `isPaymentRefunded` fallback (`src/features/admin/refunds/provider.ts:40-68`); waves of 5, wave count unbounded (`:167-211`), caller caps batch at `BULK_REFUND_LIMIT` (`src/features/admin/attendee-refunds.ts:303`)                                                                                                                            | Same cutover as `tryRefund`. The unbounded wave shape itself is M7 (F53), not M4                                                                                                                                                  |
+| Idempotency                    | Deterministic `refundIdempotencyKey` used by Stripe (`src/shared/stripe.ts:109`) and Square (`src/shared/square.ts:688`); SumUp passes none (`src/shared/sumup.ts:222-229`), and the SumUp refund API supports none                                                                                                                                                                                               | SumUp replay defence must come from the judge plus full-refund semantics; the contract records this as a per-provider fact                                                                                                        |
+| Square refund facts            | `retrievePayment` already selects `refundedMoney` — a genuine provider cumulative (`src/shared/square.ts` retrievePayment; `square-provider.ts:44-53` uses `refunded >= charged`); `refundPayment` returns false for PENDING (`CONFIRMED_REFUND_STATUSES = ["COMPLETED"]`, `square.ts:587`) and throws on wrong `payment_id` or partial amounts (`:712,721-728`)                                                  | Square legs get a real `confirmedRefunded`. A PENDING answer is a real in-flight refund the current code treats as failure — the F3 trigger                                                                                       |
+| Stripe refund facts            | Current schema picks only `latest_charge.refunded` (boolean) (`src/shared/stripe/schemas.ts:43,51`); the locked Stripe types document `amount_refunded` on the charge                                                                                                                                                                                                                                             | Widening the pick to `amount_refunded` gives Stripe a documented cumulative. Approved as decision 2                                                                                                                               |
+| SumUp refund facts             | `isPaymentRefunded` is `getTransactionStatus === "REFUNDED"` (`src/shared/sumup-provider.ts:103-107`) — full-refund only, no partial, no pending                                                                                                                                                                                                                                                                  | Refund authority moves to the same read's `transaction_events[]` (PR3's verified sandbox contract — status stayed `SUCCESSFUL` after a full refund, so the status check can miss even full refunds); pending remains unobservable |
+| Multiple captures              | Square: `paymentReference = paidPaymentId ?? order.tenders?.[0]?.paymentId ?? ""` silently takes the first tender (`src/shared/square-provider.ts:124-125`); nothing counts captures per order. SumUp: `paidChildVerdict` already rejects extra children as `unrecorded_child` (`src/shared/sumup-observation.ts:143-151`). Stripe: a session names one `payment_intent`; no list read exists on the current path | Square `tenders[]` is present evidence: two paid tenders become a detectable `multiple_charges` conflict. Stripe multiple-capture detection has no current-path evidence and is out of scope (M6)                                 |
+| Wrong parent                   | Square throws on `payment.orderId !== order.id` (`square-provider.ts:145-153`) and on refund `payment_id` mismatch (`square.ts:712`); SumUp reference/id/merchant checks are classifier verdicts (`sumup-observation.ts:208-239`); Stripe has none                                                                                                                                                                | Existing checks keep their behavior but report through the one conflict vocabulary; no new Stripe check is invented                                                                                                               |
+| Error and alert classes        | `logError` fans out to ntfy (`src/shared/logger.ts:335`); the mismatch pager is `WEBHOOK_PRICE_SIGNATURE` (`refunds.ts:244,275`); the "money moved but records did not" incident class is `reportRefundNotRecorded` (`src/shared/invariant-errors.ts:37-39`)                                                                                                                                                      | Owner-review conflicts alert through these existing classes; no new alert channel                                                                                                                                                 |
+| Money of record                | Ledger `transfers` (capture via `checkout-complete.ts:42-56`; refunds via `refund-ledger.ts:197,228,305`); `processed_payments.provider_refunded_at` marks completed provider refunds (`payment-references.ts:260-273`)                                                                                                                                                                                           | These are the durable "our completed records" input to the judge. M4 writes no new tables                                                                                                                                         |
+| Dormant aggregate schema       | `payment_charges` already declares `captured_amount`, `refunded_amount`, `refund_state`, `pending_refund_id`, `pending_refund_idempotency_key` — schema-only, no readers or writers (`src/shared/db/migrations/schema/payments/charges.ts:29-53`)                                                                                                                                                                 | Stays dormant. M4 must not write it (delivery rule 1; M6/M7 activate it)                                                                                                                                                          |
 
 ## Reference modules and the adaptation rule
 
@@ -118,8 +118,10 @@ Observed facts — from the provider at judgment time:
   Stripe session totals and `payment_intent`.
 - The provider's cumulative refunded total: Square `refundedMoney`; Stripe
   `latest_charge.amount_refunded` (after the schema widening, decision 2); SumUp
-  the documented `amount`/`refunded_amount` fields from the transaction read —
-  status `REFUNDED` alone is never sufficient (it also covers partial refunds).
+  the sum of successful `REFUND` events in the transaction read's
+  `transaction_events[]` — PR3's verified sandbox contract (PR3_PLAN.md) shows
+  the events are the refund authority on that response, and no top-level status
+  or field is (status stayed `SUCCESSFUL` after a full refund).
 - A provider's direct answer to a refund attempt (succeeded / PENDING /
   rejected).
 
@@ -222,25 +224,32 @@ currencies), so the durable record and the operator always see every charge no
 matter which kind won the order.
 
 How a refuse-and-record remedy then acts depends on how many captured charges
-the observation carries (decision 5). With exactly one — structurally every
-Stripe and SumUp observation, and virtually every Square one — the remedy is
-today's refund path, unchanged: one charge, one refund call. With more than one,
-no automatic refund runs at all: the session parks to owner review — no booking,
-no provider refund calls, a terminal outcome, the activity record naming the
-winning conflict kind and every charge, the code-only alert, and the decision-3
-manual-check copy for the buyer. The owner returns the money from the provider
-dashboard. This is the boundary decision 1 already draws: the in-app path cannot
-safely move money on charges it has no record slot for — per-charge refund
-evidence, ledger legs, and retry state are exactly M7's durable engine, and
-imitating it inside one callback would mean invented facts (an unread tender's
-refund state) and an unbounded provider fan-out. Regression cases: two captured
-tenders in a wrong currency yield `currency_mismatch` whose remedy makes zero
-refund calls, books nothing, records both resource ids under the winning kind,
-and answers the manual-check copy; two captured tenders whose sum is below the
-signed total yield `partial_charge` (never `multiple_charges` — the adapted
-order above) and, being multi-charge, park the same way with no booking; one
-captured charge in a wrong currency refunds exactly as today; a free checkout
-with captured money yields `paid_without_charge` and reaches the refund path.
+the observation carries (decision 5), and the rule below is the CALLBACK side's
+— what to do about invalid money that arrived. A refuse-and-record kind emitted
+on the refund-attempt side is the opposite action: it refuses the attempt itself
+(`refund_exceeds_capture`, an attempt's `resource_mismatch`, a provider-answered
+`failed_refund`) and makes zero provider calls beyond its evidence read, per the
+commands and failure tables — a verdict that exists to prevent a payout can
+never route back into one. On the callback side, with exactly one captured
+charge — structurally every Stripe and SumUp observation, and virtually every
+Square one — the remedy is today's refund path, unchanged: one charge, one
+refund call. With more than one, no automatic refund runs at all: the session
+parks to owner review — no booking, no provider refund calls, a terminal
+outcome, the activity record naming the winning conflict kind and every charge,
+the code-only alert, and the decision-3 manual-check copy for the buyer. The
+owner returns the money from the provider dashboard. This is the boundary
+decision 1 already draws: the in-app path cannot safely move money on charges it
+has no record slot for — per-charge refund evidence, ledger legs, and retry
+state are exactly M7's durable engine, and imitating it inside one callback
+would mean invented facts (an unread tender's refund state) and an unbounded
+provider fan-out. Regression cases: two captured tenders in a wrong currency
+yield `currency_mismatch` whose remedy makes zero refund calls, books nothing,
+records both resource ids under the winning kind, and answers the manual-check
+copy; two captured tenders whose sum is below the signed total yield
+`partial_charge` (never `multiple_charges` — the adapted order above) and, being
+multi-charge, park the same way with no booking; one captured charge in a wrong
+currency refunds exactly as today; a free checkout with captured money yields
+`paid_without_charge` and reaches the refund path.
 
 ### Owner-review conflicts survive downstream booking failures
 
@@ -254,11 +263,11 @@ both the conflict and the failed booking (the alert is the code-only pointer
 described under Owner choices), and replays return the same stable answer. The
 buyer sees new plain-language copy: "We received your payment. Your booking
 needs a manual check. Do not pay again — we will contact you." The owner
-resolves it with the provider dashboard (both legs visible in the alert),
-matching the decided behavior "a failed checkout that shows captured money stops
-automatic work". Regression case: a sold-out booking on an order with two
-captured tenders makes zero provider refund calls and records the owner-review
-outcome.
+resolves it with the provider dashboard (every leg named in the activity record
+— the alert stays the code-only pointer), matching the decided behavior "a
+failed checkout that shows captured money stops automatic work". Regression
+case: a sold-out booking on an order with two captured tenders makes zero
+provider refund calls and records the owner-review outcome.
 
 ### Evidence tiers — no invented facts
 
@@ -289,23 +298,27 @@ reference, and never more:
   rejection arm) does not, so it buys the same read before its refund call — one
   added provider call on that rare arm, budgeted in PR A; the full arithmetic
   then applies everywhere charge-tier evidence exists.
-- **SumUp** (including every legacy reference): the locked SDK documents that
-  `REFUNDED` means refunded "in full or in part", and the transaction types
-  document `amount` (captured) and `refunded_amount` (cumulative). Status alone
-  therefore NEVER answers `fully_refunded`: the SumUp adapter widens today's
-  status-only read to those documented amount fields, and the full arithmetic
-  applies — a dashboard partial refund becomes `partial_refund` (owner review),
-  not a silently skipped remainder. A transaction response missing the
-  documented `amount`/`refunded_amount` fields is a malformed read at M3's
-  provider-read boundary (retryable callback / failed admin row) — the same rule
-  as any missing documented field, never treated as already refunded and never
-  judged on invented facts. Our own refund calls remain full-amount (no amount
+- **SumUp** (including every legacy reference): refund authority is the
+  transaction read's `transaction_events[]`, per PR3's verified sandbox contract
+  (PR3_PLAN.md) — the cumulative refunded is the sum of that response's
+  successful `REFUND` events, compared against the documented `amount`
+  (captured). The sandbox proof: after a full refund the transaction's top-level
+  `status` and `simple_status` both stayed `SUCCESSFUL`, and `refunded_amount`
+  appeared only on separate transaction-history items — so no top-level status
+  or field is refund authority, and the locked SDK's `REFUNDED` note (refunded
+  "in full or in part") makes status insufficient in the other direction too.
+  The full arithmetic applies over the event sum — a dashboard partial refund
+  becomes `partial_refund` (owner review), not a silently skipped remainder. A
+  transaction response missing the documented `amount` is a malformed read at
+  M3's provider-read boundary (retryable callback / failed admin row); an absent
+  or empty event list is zero refunded — the genuinely expected shape of a
+  never-refunded transaction, not a malformed read. Same single read as today;
+  no call count increases. Our own refund calls remain full-amount (no amount
   body), and legacy references keep working — the same read answers them. A
   SumUp CALLBACK refund attempt (the rejection arm) starts from the checkout
-  observation, which carries `amountMinor` and `transactionId` but no
-  `refunded_amount` — so, exactly like Stripe's rejection arm, it buys the one
-  transaction read before its refund call; the arithmetic never runs on an
-  invented zero.
+  observation, which carries `amountMinor` and `transactionId` but no refund
+  events — so, exactly like Stripe's rejection arm, it buys the one transaction
+  read before its refund call; the arithmetic never runs on an invented zero.
 
 Legacy admin references (`legacyReference`, no session id) are judged the same
 way: by whatever their provider's read genuinely answers for the stored payment
@@ -356,7 +369,7 @@ never duplicated.
   only, a second refund of a refunded transaction is provider-rejected (its
   generic 409 state conflict, classified by the bounded evidence re-read, never
   assumed), and the judge short-circuits from a fresh read of the documented
-  `amount`/`refunded_amount` evidence.
+  transaction evidence (`amount` against the summed refund events).
 - Exact replay of a callback returns the same terminal outcome (existing
   `processed_payments` replay), and a replay that reaches the refund path gets
   the judge's verdict from fresh evidence — an already-completed refund answers
@@ -365,27 +378,32 @@ never duplicated.
   the comparison sweeps the whole observation (Square: the named payment plus
   every captured order tender; Stripe/SumUp: the single resource), so a
   redelivery naming the original resource but carrying a caught-up tender list
-  with a second capture is new evidence, not a replay. All post-terminal new
-  money takes one total rule, whichever resource the callback named and
-  whichever conflict kind the fresh observation would match: the owner-review
+  with a second capture is new evidence, not a replay. All post-terminal
+  deliveries take one total rule, whether they carry new money (that caught-up
+  second capture) or changed settled facts on the same resources (a Square
+  redelivery of the same payment now showing a higher cumulative `refundedMoney`
+  after an external partial refund): the fresh observation — already validated
+  and in hand, zero extra provider calls — runs through the pure judge for
+  detection only, any owner-review kind it emits is recorded as the owner-review
   activity record (the stored reference plus every observed charge) with the
-  code-only alert, and the recorded terminal outcome returned unchanged. The
-  terminal outcome stands because no automatic remedy — booking or refund — can
-  safely re-run after settlement: re-judging stored terminal evidence is M5's
-  `resolve.ts`, and moving the new money is the owner's dashboard call per
-  decisions 1 and 5. No provider re-read is needed: the observation was
-  validated before the reservation check. Once-ness is carried by the
-  acknowledgement, not by a durable per-resource key, because no M4 surface can
-  hold one (`payment_charges` stays dormant; the activity log has no unique
-  key): the record is written before the terminal answer is returned, and that
-  answer acks the callback, so the provider stops redelivering it. Concurrent
-  duplicate deliveries can therefore each write the record — the failure
-  direction is a duplicate operator-visible record, never a lost one — and the
-  durable per-resource slot that makes this exactly-once is M6's aggregate row.
-  PR B also makes the reference comparison total for new terminal rows:
-  `markSessionFailed` stores the observed payment reference beside
-  `failure_data` — the `processed_payments.payment_reference` column already
-  exists, but today only success finalization writes it
+  code-only alert, and the recorded terminal outcome is returned unchanged. A
+  redelivery whose observation matches the stored facts detects nothing and
+  simply replays the stored answer. The terminal outcome stands because no
+  automatic remedy — booking or refund — can safely re-run after settlement:
+  re-judging stored terminal evidence is M5's `resolve.ts`, and moving the new
+  money is the owner's dashboard call per decisions 1 and 5. No provider re-read
+  is needed: the observation was validated before the reservation check.
+  Once-ness is carried by the acknowledgement, not by a durable per-resource
+  key, because no M4 surface can hold one (`payment_charges` stays dormant; the
+  activity log has no unique key): the record is written before the terminal
+  answer is returned, and that answer acks the callback, so the provider stops
+  redelivering it. Concurrent duplicate deliveries can therefore each write the
+  record — the failure direction is a duplicate operator-visible record, never a
+  lost one — and the durable per-resource slot that makes this exactly-once is
+  M6's aggregate row. PR B also makes the reference comparison total for new
+  terminal rows: `markSessionFailed` stores the observed payment reference
+  beside `failure_data` — the `processed_payments.payment_reference` column
+  already exists, but today only success finalization writes it
   (`processed-payments.ts:190-203`), never the failure write (`:213-226`) — so a
   second capture after a terminal failure is detected exactly like one after a
   success. Only legacy failure rows from before PR B carry no reference; for
@@ -401,12 +419,12 @@ never duplicated.
 
 ## Concurrency
 
-| Operation A                                 | Operation B                                       | Required result                                                             | Protection                                                                                                                                                                                                                                                         |
-| ------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Callback refund attempt                     | Redelivered callback refund attempt               | One payout                                                                  | Existing reservation lock (`processed_payments`), provider idempotency key (Stripe/Square), judge's fresh-read `fully_refunded`/`refund_pending` verdicts, SumUp provider-side second-refund rejection                                                             |
-| Admin refund                                | Callback refund of the same charge                | One payout                                                                  | Same as above — both paths front the same judge; Stripe/Square then land on the same idempotency key, and SumUp on the provider's own rejection of a second refund (its generic 409 state conflict, classified by the evidence re-read) plus the fresh amount read |
-| Two admin bulk waves touching one reference | —                                                 | One payout per reference                                                    | `refundState === "completed"` short-circuit, judge verdict, idempotency key                                                                                                                                                                                        |
-| Judgment read                               | Provider state changes after read, before attempt | Provider-side rejection or idempotent landing; never a silent double payout | Provider guarantees (documented full-refund rejection) + next read converges                                                                                                                                                                                       |
+| Operation A                                 | Operation B                                       | Required result                                                             | Protection                                                                                                                                                                                                                                                                       |
+| ------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Callback refund attempt                     | Redelivered callback refund attempt               | One payout                                                                  | Reservation lock (`processed_payments`) — PR B extends it to the rejection arm, which today refunds before reserving — plus provider idempotency key (Stripe/Square), judge's fresh-read `fully_refunded`/`refund_pending` verdicts, SumUp provider-side second-refund rejection |
+| Admin refund                                | Callback refund of the same charge                | One payout                                                                  | Same as above — both paths front the same judge; Stripe/Square then land on the same idempotency key, and SumUp on the provider's own rejection of a second refund (its generic 409 state conflict, classified by the evidence re-read) plus the fresh amount read               |
+| Two admin bulk waves touching one reference | —                                                 | One payout per reference                                                    | `refundState === "completed"` short-circuit, judge verdict, idempotency key                                                                                                                                                                                                      |
+| Judgment read                               | Provider state changes after read, before attempt | Provider-side rejection or idempotent landing; never a silent double payout | Provider guarantees (documented full-refund rejection) + next read converges                                                                                                                                                                                                     |
 
 M4 adds no new locks and no revision columns; it narrows what the existing
 protections must carry by refusing attempts that today would be fired blindly.
@@ -463,8 +481,8 @@ No money-moving automation is added for any owner-review kind.
 - The judge runs on evidence already fetched by the current path; the only new
   provider data crossing a boundary is Stripe's documented `amount_refunded` and
   refund `status` fields (decision 2) Square's documented tender `amount_money`
-  and capture-status fields, and SumUp's documented transaction
-  `amount`/`refunded_amount` fields — money figures and money states, none
+  and capture-status fields, and SumUp's documented transaction `amount` and
+  `transaction_events[]` refund events — money figures and money states, none
   personal.
 - Untrusted inputs cannot reach the judge without passing M3's ownership
   boundary first. Forged SumUp callbacks with unknown, oversized, empty, or
@@ -536,9 +554,9 @@ correctness, not scope creep.
   verdict at all, so it takes the failure table's lost-answer arm: the one
   bounded evidence re-read decides, nothing is recorded from the null itself —
   instead of today's collapse of everything non-succeeded to failure; SumUp
-  widened to the documented `amount`/`refunded_amount`) and fronts `tryRefund`,
-  `refundReferenceAtProvider`, and the admin refresh-payment route's provider
-  poll with the judge.
+  widened to the documented `amount` plus `transaction_events[]`) and fronts
+  `tryRefund`, `refundReferenceAtProvider`, and the admin refresh-payment
+  route's provider poll with the judge.
 - Carries the observed charge evidence through the callback rejection flow: the
   rejection handed to `refundRejectedCharge` keeps the observation's charge
   facts (per its tier), so Square callback refunds are judged with zero extra
@@ -547,6 +565,19 @@ correctness, not scope creep.
   (payment-intent for Stripe, transaction for SumUp) — one added provider call
   on those rare arms, and the trusted booking path stays zero-read. The refund
   rules are enforced everywhere; no arm is left vacuous.
+- Moves the rejection arm behind the same reservation the booking path holds.
+  Today `refundRejectedCharge` runs before `processPaymentSession` ever reaches
+  `reserveSession` (`webhooks.ts:423-435`), so two concurrent deliveries of one
+  rejected session are serialized by nothing — and with no SumUp idempotency
+  key, both can issue the refund. In PR B the rejection arm claims the
+  `processed_payments` reservation keyed by the observed payment reference
+  BEFORE any provider call, writes the terminal rejected outcome once the refund
+  settles, and answers a concurrent duplicate with the in-flight retry (503) or
+  the stored terminal answer — never a second payout. This is what makes the
+  security section's amplification exception and the concurrency table's first
+  row true for rejections, not just bookings. Regression: two concurrent
+  deliveries of one rejected SumUp session make at most one provider refund
+  call; a delivery after the terminal write makes zero.
 - Lands the shared owner-review recorder — the activity-log write and the
   code-only alert helper — because PR A's own judge already makes an
   owner-review outcome reachable (`partial_refund` on the refresh-payment route)
@@ -569,15 +600,16 @@ correctness, not scope creep.
   (application-side behavior; provider serialization of truly simultaneous calls
   is the concurrency section's stated assumption); a Stripe refund answering a
   `null` status records nothing until the bounded evidence re-read answers; a
-  SumUp transaction whose `refunded_amount` is above zero and below `amount`
-  reads as `partial_refund`, never `fully_refunded` — and a zero
-  `refunded_amount` stays `ready`, never `partial_refund`; a Stripe refund
-  answering `pending` writes no completion, reports the pending answer (not
-  failure), and a re-run lands on the same idempotency key; a refund whose
-  transport answer is lost but which committed at the provider records
-  completion after the reconcile read — one payout; a partially-refunded
-  reference on the refresh-payment route records owner review instead of
-  silently reading as unrefunded.
+  SumUp transaction whose successful refund events sum above zero and below
+  `amount` reads as `partial_refund`, never `fully_refunded` — an empty or
+  absent event list stays `ready`, and events summing to `amount` read
+  `fully_refunded` even while top-level status still says `SUCCESSFUL` (the
+  sandbox-observed shape); a Stripe refund answering `pending` writes no
+  completion, reports the pending answer (not failure), and a re-run lands on
+  the same idempotency key; a refund whose transport answer is lost but which
+  committed at the provider records completion after the reconcile read — one
+  payout; a partially-refunded reference on the refresh-payment route records
+  owner review instead of silently reading as unrefunded.
 - Budgets: at most 2 provider calls per admin reference on the normal arms — 1
   evidence read (its result IS the judgment input, never a separate call) plus
   at most 1 refund call — and at most 3 when a sent refund's answer is lost (the
@@ -592,18 +624,20 @@ correctness, not scope creep.
   where today's blind fallback also spent one. The admin bulk cap is
   `BULK_REFUND_LIMIT` (5) **attendees**, and one attendee can carry several
   references (deposit plus balance; merges): R total references cost 2R provider
-  calls, typically R ≤ 10 for a full batch. Because 2R plus the batch's database
-  writes must fit Bunny's 50-subrequest allowance, PR A adds a batch pre-flight:
-  before ANY provider call, the run counts its still-unrefunded references, and
-  a batch whose worst-case calls cannot fit is refused whole — zero provider
-  calls, every row failed with the plain reason "This run has too many payments
-  to refund at once. Refund fewer attendees at a time." A batch can no longer
-  abort mid-flight with some refunds committed and unrecorded; the arithmetic is
-  static, so the refusal is exact, not a guess. Regression: an oversized batch
-  makes zero provider calls and fails every row with that reason. The paged
-  engine that processes arbitrarily large batches is still F53 / M7 — this slice
-  only refuses what one request cannot safely hold. Database calls: unchanged
-  from today.
+  calls on the normal arms and 3 per reference when a sent refund's answer is
+  lost (the reconciling re-read above), typically R ≤ 10 for a full batch.
+  Because the worst case must fit Bunny's 50-subrequest allowance even if every
+  answer is lost, PR A adds a batch pre-flight: before ANY provider call, the
+  run counts its still-unrefunded references, and a batch whose recovery worst
+  case — 3R plus the batch's database writes — cannot fit is refused whole —
+  zero provider calls, every row failed with the plain reason "This run has too
+  many payments to refund at once. Refund fewer attendees at a time." A batch
+  can no longer abort mid-flight with some refunds committed and unrecorded; the
+  arithmetic is static, so the refusal is exact, not a guess. Regression: an
+  oversized batch makes zero provider calls and fails every row with that
+  reason. The paged engine that processes arbitrarily large batches is still F53
+  / M7 — this slice only refuses what one request cannot safely hold. Database
+  calls: unchanged from today.
 - Standalone value: the live system stops repeat and over-refunds.
 
 **PR B — "One judge for callback money, and alerts for what it finds" (≈ 300–400
@@ -669,9 +703,9 @@ before merge, per delivery rule 4.
 ## Adversarial review
 
 - _External refund succeeds, local write fails?_ The next judgment's fresh read
-  sees the provider cumulative (Square/Stripe) or the `amount`/`refunded_amount`
-  evidence (SumUp) → `fully_refunded` → success without a second payout.
-  Unchanged from today, now named.
+  sees the provider cumulative (Square/Stripe) or the summed refund events
+  (SumUp) → `fully_refunded` → success without a second payout. Unchanged from
+  today, now named.
 - _Callback replayed?_ Terminal outcomes replay from `processed_payments`;
   pre-terminal replays re-judge fresh evidence; refunds land on idempotency keys
   (Stripe/Square) or provider full-refund rejection (SumUp).
