@@ -9,6 +9,29 @@ const checkout = {
   url: "https://checkout.stripe.com/c/pay/cs_1",
 };
 
+/** A Stripe payment intent whose charge states its money, as the refund guard
+ *  reads it. `returned` says how much has already gone back. */
+export const stripeIntentWithCharge = (
+  returned = 0,
+  captured = 1000,
+): {
+  id: string;
+  latest_charge: {
+    amount: number;
+    amount_refunded: number;
+    currency: string;
+    refunded: boolean;
+  };
+} => ({
+  id: "pi_1",
+  latest_charge: {
+    amount: captured,
+    amount_refunded: returned,
+    currency: "gbp",
+    refunded: returned >= captured,
+  },
+});
+
 /** Return valid Stripe fixtures for every operation used by the application. */
 export const stripeResponseFor = (path: string, method: string): Response => {
   if (path === "/v1/balance") return Response.json({ livemode: false });
@@ -16,15 +39,7 @@ export const stripeResponseFor = (path: string, method: string): Response => {
     return Response.json({ id: "re_1", status: "succeeded" });
   }
   if (path.startsWith("/v1/payment_intents/")) {
-    return Response.json({
-      id: "pi_1",
-      latest_charge: {
-        amount: 1000,
-        amount_refunded: 0,
-        currency: "gbp",
-        refunded: false,
-      },
-    });
+    return Response.json(stripeIntentWithCharge());
   }
   if (
     path === "/v1/checkout/sessions" ||
