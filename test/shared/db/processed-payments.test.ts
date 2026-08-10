@@ -4,6 +4,8 @@ import { stub } from "@std/testing/mock";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { getDb, insert } from "#shared/db/client.ts";
+import { SCHEMA } from "#shared/db/migrations/schema/index.ts";
+import { createTableSql } from "#shared/db/migrations/schema-sync.ts";
 import { paymentReferenceIndex } from "#shared/db/payment-references.ts";
 import {
   clearSessionTokens,
@@ -223,19 +225,12 @@ describeWithEnv("db > processed payments", { db: true }, () => {
         expect(String(e)).not.toContain("UNIQUE constraint");
       }
 
-      // Recreate the table for subsequent tests
-      await getDb().execute(`
-        CREATE TABLE IF NOT EXISTS processed_payments (
-          payment_session_id TEXT PRIMARY KEY,
-          attendee_id INTEGER,
-          processed_at TEXT NOT NULL,
-          ticket_tokens TEXT NOT NULL DEFAULT '',
-          failure_data TEXT NOT NULL DEFAULT '',
-          payment_reference TEXT NOT NULL DEFAULT '',
-          provider_refunded_at TEXT NOT NULL DEFAULT '',
-          FOREIGN KEY (attendee_id) REFERENCES attendees(id)
-        )
-      `);
+      // Rebuild it from the real schema rather than a copy of it. A
+      // hand-written CREATE TABLE here silently falls behind every column the
+      // app adds, and the next test to use one fails on a missing column.
+      await getDb().execute(
+        createTableSql(SCHEMA.find(([name]) => name === "processed_payments")!),
+      );
     });
   });
 

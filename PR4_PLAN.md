@@ -135,10 +135,11 @@ the owner "mark reviewed" action, and the merge/delete admissions.
 Two consequences of that ordering are live in the code right now, and are FAULTS
 to close rather than settled design:
 
-- **Only the admin bulk route claims.** `refundCandidateAtProvider` takes the
-  hold before it reads a provider, but the callback arm (`tryRefund` /
-  `refundReferenceAtProvider` in `payment-processing/refunds.ts`) and the
-  refresh-payment route still read and send without one, so the keyless
+- **Only the admin routes claim.** Both take the hold before they read a
+  provider — the bulk wave through `processRefundBatch` and the single refund
+  through `attendee-refunds.ts`, each via `underAttendeeClaim`. The callback arm
+  (`tryRefund` / `refundReferenceAtProvider` in `payment-processing/refunds.ts`)
+  and the refresh-payment route still read and send without one, so the keyless
   double-send window stays open on those two paths. They claim when the
   `callback` scope lands.
 - **`outcomeOf` has no production caller.** The refund routes reach the judge
