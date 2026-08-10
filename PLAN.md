@@ -268,12 +268,18 @@ Src target: 400–700.
   never goes stale mid-run; and sibling-leg evidence reads are capped everywhere
   — admission reserves the cap as each reference's worst case, and beyond it the
   observation parks for owner review on the sweep alone instead of letting a
-  provider-controlled leg list chase the request budget. SumUp has no
-  idempotency key, and a keyless refund whose answer is lost stays claimed IN
-  DOUBT — answering "still settling" — until provider evidence resolves it; a
-  stale claim is re-claimable only behind a fresh evidence read, and the
-  residual (an accepted refund still invisible past the staleness bound) is a
-  named provider-data fault M7's per-attempt records close.
+  provider-controlled leg list chase the request budget. The claim transaction
+  re-checks admission against the exact rows it claims (a set that moved
+  re-admits or refuses whole); a claim on an untagged reference holds no release
+  rule until discovery's validated read binds the provider and its capability;
+  and a blind index of each reference's stable identity serializes claims per
+  provider reference ACROSS attendees, so two rows carrying one reference cannot
+  race two refunds. SumUp has no idempotency key, and a keyless refund whose
+  answer is lost stays claimed IN DOUBT — answering "still settling" — until
+  provider evidence resolves it; a stale claim is re-claimable only behind a
+  fresh evidence read, and the residual (an accepted refund still invisible past
+  the staleness bound) is a named provider-data fault M7's per-attempt records
+  close.
 - The stored payment row is one declared state machine — claims with owner
   scope, owner-review markers, committed evidence, terminal outcomes — bound by
   six laws every consumer follows (the contract's concurrency section).
@@ -293,7 +299,11 @@ Src target: 400–700.
   is live on any affected row, an owner-review marker rides a merge onto the
   target — gating the merged person whole — and a delete is refused while a
   marker is unresolved, because a parked payment's marker guards the retained
-  buyer contact the manual-check promise relies on (the M4 slice of F6). The
+  buyer contact the manual-check promise relies on (the M4 slice of F6). Every
+  marker carries a retirement rule — automatic where a write can prove its
+  condition dissolved, plus always the explicit recorded owner action — and
+  scheduled cleanup routes on the same mirror, so the orphan purge never
+  destroys a protected row an admin delete would have been refused over. The
   row's live work state (claim, staged refund, or owner-review marker) is
   mirrored in a plain column written by the same statement, so even the SQL-only
   pruning routes on the real state machine — refund evidence alone never exempts
@@ -460,12 +470,17 @@ happen in production.
   (`src/shared/payment/validated-session.ts`), so the legacy completion, refund,
   finalize, and maintenance writers keep working unchanged — and keep writing
   their own rows — until M7 and M8. Those legacy writers never touch aggregate
-  rows; the aggregate learns of their effects the way it learns everything, by
-  reading the provider: every legacy completion or refund is followed by the
-  provider's own callback or the scheduled re-read, which the claimed
-  reconciliation folds into the aggregate. Aggregate state is derived from
-  provider truth, so a legacy write can lag one reconciliation but never leave
-  it permanently stale. No write fence lands here.
+  rows directly; the aggregate learns of their effects the way it learns
+  everything, by reading the provider — every legacy completion or refund is
+  followed by the provider's own callback or the scheduled re-read, which the
+  claimed reconciliation folds into the aggregate — except where the provider
+  declares no push for the fact (data law 7): SumUp fires no refund callback and
+  a settled row has no scheduled re-read, so the legacy refund writer ENQUEUES
+  the reconciliation of the reference it just refunded in the same write (a
+  writer-through trigger for pull-only facts, not a second author — the
+  aggregate still records only what the provider read proves). A legacy write
+  can therefore lag one reconciliation but never leave the aggregate permanently
+  stale, for push and pull-only providers alike. No write fence lands here.
 - Adopt or expire every in-flight pre-cutover checkout (all three providers)
   atomically and idempotently: same claim, identity, and validation rules;
   concurrent callbacks and migration runs bind to one claim; defined outcomes
