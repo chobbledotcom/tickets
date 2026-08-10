@@ -136,12 +136,13 @@ const handleAttendeeRefund = verifiedAttendeeAction(
     );
     if (counts.refundedCount !== 1) {
       // The run already reported whichever way it went; all that is left is
-      // telling the operator which one it was. A refund the provider sent but
-      // our ledger could not record must not be retried, so it says so
-      // separately rather than reading as an ordinary failure.
+      // telling the operator which one it was. Only a refund the provider
+      // confirmed and the ledger could not record says "do not send this
+      // again" — a provider that never gave a clear answer has not told us
+      // the money moved, and must not be dressed up as though it had.
       return refundError(
         attendeeId,
-        counts.errorCount === 1
+        counts.notRecordedCount === 1
           ? t("error.refund_not_recorded")
           : t("error.refund_failed"),
         returnUrl,
@@ -200,7 +201,10 @@ const buildRefundProblemResponse = async (
   ctx: RefundResponseCtx,
 ): Promise<Response> => {
   const { listing, refundAllUrl, counts, remaining } = ctx;
-  const { refundedCount, failedCount, errorCount } = counts;
+  const { refundedCount, failedCount, notRecordedCount } = counts;
+  // A refund the ledger never recorded is a problem the operator has to act
+  // on, so it is counted with the errors rather than passing as a success.
+  const errorCount = counts.errorCount + notRecordedCount;
   const problemCount = failedCount + errorCount;
   const msg = compact([
     t("admin.attendees.refund_all_result_refunds", {
@@ -232,7 +236,8 @@ const buildRefundAllResponse = async (
 ): Promise<Response> => {
   const { counts, listing, refundAllUrl, totalRefundable, remaining } = ctx;
   const refundedCount = counts.refundedCount;
-  const hasProblems = counts.failedCount + counts.errorCount > 0;
+  const hasProblems =
+    counts.failedCount + counts.errorCount + counts.notRecordedCount > 0;
 
   if (hasProblems) {
     return buildRefundProblemResponse({

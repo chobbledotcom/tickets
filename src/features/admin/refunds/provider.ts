@@ -57,7 +57,12 @@ export const durableRowClaim: RowClaim = {
 export type RefundCounts = {
   refundedCount: number;
   failedCount: number;
+  /** The provider was asked and did not give a clear answer, so nobody knows
+   *  whether the money moved. Never say it did. */
   errorCount: number;
+  /** The money definitely went back and the ledger could not record it. This
+   *  needs a correction, and must never be retried. */
+  notRecordedCount: number;
 };
 
 /** Max provider refund subrequests in flight at once. Bounds concurrency by
@@ -395,12 +400,16 @@ export const processRefundBatch = async (
           counts: {
             errorCount: 0,
             failedCount: batch.length,
+            notRecordedCount: 0,
             refundedCount: 0,
           },
           unsettled: false,
         };
       },
-      lost: (result) => result.counts.errorCount > 0 || result.unsettled,
+      lost: (result) =>
+        result.counts.errorCount > 0 ||
+        result.counts.notRecordedCount > 0 ||
+        result.unsettled,
       work: (alreadyReturned) =>
         refundClaimedBatch(
           provider,
@@ -428,6 +437,7 @@ const refundClaimedBatch = async (
   const counts: RefundCounts = {
     errorCount: 0,
     failedCount: 0,
+    notRecordedCount: 0,
     refundedCount: 0,
   };
   for (const group of packByReferenceCount(PROVIDER_REFUND_CONCURRENCY)(
@@ -466,7 +476,7 @@ const refundClaimedBatch = async (
       } else {
         // The provider sent this refund but our ledger could not record it —
         // report the broken promise per attendee, not just the aggregate count.
-        counts.errorCount++;
+        counts.notRecordedCount++;
         reportRefundNotRecorded({ attendeeId, listingId });
       }
     }

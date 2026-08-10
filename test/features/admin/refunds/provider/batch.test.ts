@@ -75,6 +75,7 @@ describeWithEnv(
       expect(counts).toEqual({
         errorCount: 1,
         failedCount: 1,
+        notRecordedCount: 0,
         refundedCount: 1,
       });
       expect(errors.contains("Admin bulk refund failed for attendee 12")).toBe(
@@ -103,7 +104,10 @@ describeWithEnv(
         claim,
       );
 
-      expect(counts.errorCount).toBe(1);
+      expect(counts.notRecordedCount).toBe(1);
+      // A provider that answered clearly is not an uncertain provider: the two
+      // are counted apart so only one of them can say the money moved.
+      expect(counts.errorCount).toBe(0);
       expect(claim.released).toEqual([]);
     });
 
@@ -131,13 +135,17 @@ describeWithEnv(
       expect(counts).toEqual({
         errorCount: 0,
         failedCount: 0,
+        notRecordedCount: 0,
         refundedCount: 0,
       });
     });
 
-    test("counts a provider-refunded attendee the ledger cannot post as an error", async () => {
+    test("counts a refund the ledger cannot post apart from an uncertain one", async () => {
       // No booking exists for attendee 21, so the reversal posts nothing and the
       // ledger reports it unposted even though the provider refund succeeded.
+      // This is the one case that may say the money moved, so it is counted on
+      // its own: an operator told to correct the books and never resend must
+      // not be hearing about a provider call that may have done nothing.
       const counts = await processRefundBatch(
         failingProvider(new Set()),
         [refundedCandidate(21, "sess-missing")],
@@ -146,8 +154,9 @@ describeWithEnv(
       );
 
       expect(counts).toEqual({
-        errorCount: 1,
+        errorCount: 0,
         failedCount: 0,
+        notRecordedCount: 1,
         refundedCount: 0,
       });
     });
