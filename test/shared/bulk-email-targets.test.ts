@@ -8,6 +8,13 @@ describe("bulk email targets", () => {
       true,
     );
     expect(isBulkEmailTarget({ kind: "listing", listingId: 3 })).toBe(true);
+    expect(
+      isBulkEmailTarget({
+        day: "2026-03-02",
+        kind: "listing-day",
+        listingId: 3,
+      }),
+    ).toBe(true);
     expect(isBulkEmailTarget({ kind: "attendee", token: "tok123" })).toBe(true);
   });
 
@@ -17,6 +24,12 @@ describe("bulk email targets", () => {
       { kind: "audience" },
       { kind: "listing", listingId: 1.5 },
       { kind: "listing" },
+      { day: "2026-02-30", kind: "listing-day", listingId: 3 },
+      { day: "2026-3-2", kind: "listing-day", listingId: 3 },
+      { day: "", kind: "listing-day", listingId: 3 },
+      { kind: "listing-day", listingId: 3 },
+      { day: "2026-03-02", kind: "listing-day" },
+      { day: "2026-03-02", kind: "listing-day", listingId: 1.5 },
       { kind: "attendee", token: "" },
       { kind: "attendee" },
       { kind: "other" },

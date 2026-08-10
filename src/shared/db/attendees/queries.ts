@@ -300,9 +300,10 @@ export const getAttendeePiiBlobsForListingDay = (
 ): Promise<OwnerKeyEncrypted[]> =>
   selectAudiencePiiBlobs(
     `id IN (
-       SELECT DISTINCT attendee_id FROM listing_attendees
-       WHERE listing_id = ? AND quantity > 0
-         AND start_at < ? AND end_at > ?
+       SELECT DISTINCT listingAttendee.attendee_id
+       FROM listing_attendees AS listingAttendee
+       WHERE listingAttendee.listing_id = ? AND listingAttendee.quantity > 0
+         AND listingAttendee.start_at < ? AND listingAttendee.end_at > ?
      )`,
     [listingId, day.endAt, day.startAt],
   );

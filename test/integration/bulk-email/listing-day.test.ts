@@ -6,7 +6,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
+  describeTarget,
   resolveRecipientEmails,
+  targetComposeControl,
   targetFromForm,
   targetFromQuery,
   targetQuery,
@@ -19,6 +21,8 @@ import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
 
 const MONDAY = "2026-03-02";
 const TUESDAY = "2026-03-03";
+const WEDNESDAY = "2026-03-04";
+const THURSDAY = "2026-03-05";
 const NEXT_MONDAY = "2026-03-09";
 
 /** A booking on a daily listing that starts on `date` and lasts `days`. The
@@ -135,6 +139,48 @@ describeWithEnv("bulk-email listing-day target", { db: true }, () => {
     ).resolves.toBeNull();
   });
 
+  test("carries the listing and the day through the compose form", async () => {
+    const listing = await createDailyTestListing({ name: "Term" });
+
+    expect(
+      targetComposeControl({
+        day: MONDAY,
+        kind: "listing-day",
+        listingId: listing.id,
+      }),
+    ).toEqual({
+      fields: [
+        ["listing_id", String(listing.id)],
+        ["day", MONDAY],
+      ],
+      mode: "fixed",
+    });
+  });
+
+  test("names the listing and the day it is aimed at", async () => {
+    const listing = await createDailyTestListing({ name: "Term" });
+
+    await expect(
+      describeTarget(
+        { day: MONDAY, kind: "listing-day", listingId: listing.id },
+        [],
+      ),
+    ).resolves.toEqual({
+      targetLabel: "Attendees of Term on Monday 2 March 2026",
+    });
+  });
+
+  test("names a day whose listing has since gone", async () => {
+    await expect(
+      describeTarget(
+        { day: MONDAY, kind: "listing-day", listingId: 999999 },
+        [],
+      ),
+    ).resolves.toEqual({
+      targetLabel: "Listing attendees on Monday 2 March 2026",
+    });
+  });
+
   test("reaches the people booked on that day and nobody else", async () => {
     const listing = await bookedOnTwoDays();
 
@@ -151,18 +197,18 @@ describeWithEnv("bulk-email listing-day target", { db: true }, () => {
     const listing = await createDailyTestListing({ name: "Hall" });
     await bookDays(listing.id, "Priya", "priya@example.com", MONDAY, 3);
 
-    for (const day of [MONDAY, TUESDAY]) {
+    // Both ends of the half-open range: the first and last days it covers, and
+    // the day after, which it does not.
+    for (const day of [MONDAY, TUESDAY, WEDNESDAY]) {
       expect(
         await reaches({ day, kind: "listing-day", listingId: listing.id }),
       ).toEqual(["priya@example.com"]);
     }
-    expect(
-      await reaches({
-        day: NEXT_MONDAY,
-        kind: "listing-day",
-        listingId: listing.id,
-      }),
-    ).toEqual([]);
+    for (const day of [THURSDAY, NEXT_MONDAY]) {
+      expect(
+        await reaches({ day, kind: "listing-day", listingId: listing.id }),
+      ).toEqual([]);
+    }
   });
 
   test("the whole listing still reaches every day", async () => {

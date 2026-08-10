@@ -89,9 +89,10 @@ const listingDayTargetFrom = async (
   params: URLSearchParams,
   listingKey: string,
 ): Promise<ListingDayTarget | null | undefined> => {
-  if (!params.has("day")) return;
-  const day = params.get("day")?.trim() ?? "";
-  const id = parsePositiveIntId(params.get(listingKey)?.trim() ?? "");
+  const rawDay = params.get("day");
+  if (rawDay === null) return;
+  const day = rawDay.trim();
+  const id = parsePositiveIntId((params.get(listingKey) ?? "").trim());
   if (id === null || !isIsoDate(day)) return null;
   const listing = await getListingWithCount(id);
   return listing ? { day, kind: "listing-day", listingId: id } : null;

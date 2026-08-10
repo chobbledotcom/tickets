@@ -9,8 +9,10 @@ import { emailDayHrefFor } from "#templates/admin/listings/attendees.tsx";
 import { testAttendee } from "#test-utils/factories.ts";
 
 const DAY = "2026-03-02";
+
+/** A booking on DAY: one ticket, an email, and a stored one-day range. */
 const bookedBy = (email: string, quantity = 1) =>
-  testAttendee({ email, quantity });
+  testAttendee({ date: DAY, email, end_date: "2026-03-03", quantity });
 
 describe("emailDayHrefFor", () => {
   test("links an owner to the day's compose page", () => {
@@ -45,6 +47,36 @@ describe("emailDayHrefFor", () => {
     // row on its own is nobody to write to.
     expect(
       emailDayHrefFor(7, DAY, true, [bookedBy("rachel@example.com", 0)]),
+    ).toBeUndefined();
+  });
+
+  test("offers the link on every day a stay covers, and not the day it ends", () => {
+    const stay = testAttendee({
+      date: "2026-03-02",
+      email: "priya@example.com",
+      end_date: "2026-03-05",
+    });
+
+    for (const day of ["2026-03-02", "2026-03-03", "2026-03-04"]) {
+      expect(emailDayHrefFor(7, day, true, [stay])).toBe(
+        `/admin/emails?listing=7&day=${day}`,
+      );
+    }
+    expect(emailDayHrefFor(7, "2026-03-05", true, [stay])).toBeUndefined();
+  });
+
+  test("ignores a booking with no stored range", () => {
+    // The recipient query reads the stored [date, end_date) range, and a row
+    // without one is counted for no day anywhere, capacity included. Offering
+    // the link for it would promise a compose page that 404s.
+    expect(
+      emailDayHrefFor(7, DAY, true, [
+        testAttendee({
+          date: DAY,
+          email: "rachel@example.com",
+          end_date: null,
+        }),
+      ]),
     ).toBeUndefined();
   });
 });

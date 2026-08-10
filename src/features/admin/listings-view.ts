@@ -34,8 +34,7 @@ import type {
 } from "#templates/admin/listings/types.ts";
 
 /** Keep the attendees a chosen day belongs to. A booking counts for every day
- * it covers rather than only the day it starts, so day 2 of a three-day stay
- * lists that stay — the same days capacity charges it for. */
+ * it covers, so day 2 of a three-day stay lists that stay. */
 export const filterByDate = (
   attendees: Attendee[],
   date: string | null,
@@ -46,7 +45,6 @@ export const filterByDate = (
       )
     : attendees;
 
-/** Collect the unique days the bookings cover, sorted ascending */
 const getUniqueDates: (attendees: Attendee[]) => DateOption[] = pipe(
   (attendees: Attendee[]) =>
     attendees.flatMap((a: Attendee) => coveredDays(a.date, a.end_date)),
@@ -56,8 +54,7 @@ const getUniqueDates: (attendees: Attendee[]) => DateOption[] = pipe(
   map((d: string) => ({ label: formatDateLabel(d), value: d })),
 );
 
-/** The date-picker options for a roster: every day the listing's bookings
- * cover, ascending; empty for a listing that is not booked by the day. */
+/** The roster's date-picker options; empty for a listing not booked by the day. */
 export const dateOptionsFor = (
   listing: ListingWithCount,
   attendees: Attendee[],

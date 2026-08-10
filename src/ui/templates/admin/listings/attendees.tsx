@@ -32,18 +32,22 @@ import type { AttendeeFilter, DateOption } from "./types.ts";
 
 /* jscpd:ignore-end */
 
-/**
- * Where the roster's "Email this date's attendees" action goes, or `undefined`
- * when it must not be rendered at all.
- *
- * Three things have to hold, and each of them is a page the link would
- * otherwise break on. A date has to be chosen, because without one the
- * listing's own Email action already covers every date. The viewer has to be an
- * owner, because `/admin/emails` is owner-only and a manager can open this
- * roster. And the day has to have someone with an email on it, because the
- * compose page 404s on an empty recipient set. The day's attendees are already
- * decrypted for the table, so the last check costs nothing beyond the scan.
- */
+/** Whether the day's recipient query would find this booking: a ticket, an
+ * email, and a stored `[date, end_date)` range that covers the day. The stored
+ * range is what the query reads, and a booking without one is not counted for
+ * any day anywhere, capacity included. */
+const wouldBeEmailed = (attendee: Attendee, day: string): boolean =>
+  hasTicketQuantity(attendee) &&
+  attendee.email.trim() !== "" &&
+  attendee.date !== null &&
+  attendee.end_date !== null &&
+  attendee.date <= day &&
+  day < attendee.end_date;
+
+/** Where the roster's "Email this date's attendees" action goes, or `undefined`
+ * when the compose page would not open: no day chosen, a viewer who is not an
+ * owner (`/admin/emails` is owner-only), or a day whose recipient set is empty
+ * (the compose page 404s on one). */
 export const emailDayHrefFor = (
   listingId: number,
   dateFilter: string | null,
@@ -51,10 +55,7 @@ export const emailDayHrefFor = (
   dayAttendees: Attendee[],
 ): string | undefined => {
   if (!dateFilter || !isOwner) return;
-  const reachable = dayAttendees.some(
-    (a) => hasTicketQuantity(a) && a.email.trim() !== "",
-  );
-  return reachable
+  return dayAttendees.some((a) => wouldBeEmailed(a, dateFilter))
     ? `/admin/emails${targetQuery({ day: dateFilter, kind: "listing-day", listingId })}`
     : undefined;
 };
@@ -239,8 +240,7 @@ export const AttendeesSection = ({
   availableDates: DateOption[];
   activeFilter: AttendeeFilter;
   dateFilter: string | null;
-  /** Where "Email this date's attendees" goes, or undefined when the action is
-   * not on offer — see {@link emailDayHrefFor} for what settles that. */
+  /** Where "Email this date's attendees" goes; undefined withholds the action. */
   emailDayHref: string | undefined;
   basePath: string;
   returnUrl: string;

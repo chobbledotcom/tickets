@@ -19,7 +19,6 @@ const booking = (
 const daily = (): ListingWithCount =>
   testListingWithCount({ listing_type: "daily" });
 
-// A three-night stay, a single day inside it, and a day outside it.
 const stay = booking("Priya", "2026-03-02", "2026-03-05");
 const oneDay = booking("Rachel", "2026-03-03", "2026-03-04");
 const later = booking("Marco", "2026-03-09", "2026-03-10");

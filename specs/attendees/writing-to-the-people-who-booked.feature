@@ -142,7 +142,7 @@ Feature: An owner writes to the people who booked
     Scenario: A booking covering several days hears about each of them
       Given the owner has an email provider of their own
       And "Priya" has booked onto "the Hall" from day 1 for 3 days
-      When the owner writes to "the Hall" on day 2 saying "The car park is closed."
+      When the owner writes to "the Hall" on day 3 saying "The car park is closed."
       Then the owner is shown that it would reach 1 person
       When the owner sends it
       Then it was written to "Priya"

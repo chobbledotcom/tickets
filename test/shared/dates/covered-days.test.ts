@@ -1,8 +1,3 @@
-/**
- * The days a stored `[date, endDate)` booking is present for — what the roster's
- * day picker, its day filter and the per-day email recipients all read.
- */
-
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { coveredDays } from "#shared/dates.ts";
