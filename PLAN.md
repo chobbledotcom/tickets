@@ -205,20 +205,37 @@ Src target: 400–700.
   claimed until evidence or a safe timeout resolves it.
 - The stored payment row is one declared state machine — claims with owner
   scope, owner-review markers, committed evidence, terminal outcomes — bound by
-  five laws every consumer follows (the contract's concurrency section):
-  committed evidence only grows by merge, and every stored reference carries its
-  provider identity, each judged and refunded at its own provider — the M4 slice
-  of F13, which the aggregate (M6/M7) closes for every row.
-- Conflicts that need an owner decision (multiple captures and kin): `outcomeOf`
-  is the only classifier here too — the displaced classifier is deleted in this
-  same merge, so two judges can never disagree about the same money. One handler
-  maps these outcomes onto the decided behaviors: multiple captures summing to
-  the signed total proceed-and-alert through the existing error classes, while
+  six laws every consumer follows (the contract's concurrency section).
+  Committed evidence only grows by merge. Judgments use only signed, stored, or
+  provider-proven facts, never today's settings: a stored reference's provider
+  is carried, or discovered by a validated read and tagged on the terminal
+  write, and a reference no credentialed provider validates fails honestly —
+  refundable from the provider dashboard — until M6's backfill tags it (the M4
+  slice of F13); a stored reference's judgment reads no live site currency (the
+  M4 slice of F12). M6's stored provider and currency close both for every row.
+  Each provider has one declared evidence shape that every money-moving path
+  supplies whole — for Square, the payment plus its order's captured-tender
+  sweep, so an admin refund or refresh sees a sibling capture even when no
+  callback redelivery ever revealed it. Writers follow the same routing: an
+  attendee merge or delete fails closed while a refund claim or staged refund is
+  live on any affected row (the M4 slice of F6).
+- Every refund run — bulk or single attendee — is admitted against the request's
+  remaining subrequest budget before any provider call, priced at each adapter's
+  physical worst case; an oversized run refuses whole with zero provider calls
+  and a plain reason on every row. This is the M4 slice of F53; the paged engine
+  that processes arbitrarily large runs is M7's.
+- Conflicts the system must not resolve on its own (multiple captures and kin):
+  `outcomeOf` is the only classifier here too — the displaced classifier is
+  deleted in this same merge, so two judges can never disagree about the same
+  money. One handler maps these outcomes onto the decided behaviors: every
+  multi-charge observation is an owner-review case — when the captures sum to
+  the signed total and nothing else is wrong, the booking proceeds and the owner
+  is alerted through the existing error classes (the decided automatic
+  exception; automatic refunds act on single-charge observations only) — while
   partial-refund evidence on a booking, or a multi-charge observation that also
-  fails validation, parks with the buyer retained and the manual-check answer
-  (owner decisions, 2026-08-09/10). The case workflow arrives one merge later
-  (M5) and the page actions with M7/M8. Build no owner tooling on the legacy
-  engines.
+  fails validation, parks with the buyer retained and the manual-check answer.
+  The case workflow arrives one merge later (M5) and the page actions with
+  M7/M8. Build no owner tooling on the legacy engines.
 
 Standalone value: the live system stops repeat refunds and detects captured
 money combinations it currently misses, with one classifier where there were
@@ -317,10 +334,14 @@ happen in production.
   balance completion read the stored allocation and never re-derive it, so no
   two consumers can disagree about a part. Today's ticket-only
   `allocateReservationDeposit` does not survive the move. Store the provider on
-  each charge: M6's own reconciliation reads it to validate and deduplicate
-  charge identity, and the M7 engine routes refunds by it, closing the
-  multi-provider gap for every stored charge (M4 already tags new legacy-path
-  references with their provider and dispatches each reference at its own).
+  each aggregate charge: M6's own reconciliation reads it to validate and
+  deduplicate charge identity, and the M7 engine routes refunds by it, closing
+  the multi-provider gap for every stored charge. M4's slice covers the live
+  path: new references are tagged at write time, an untagged reference's
+  provider is discovered by a validated read and tagged on its terminal write,
+  and a reference no credentialed provider validates stays an honest unresolved
+  row — dashboard-refundable — until this backfill tags it from aggregate
+  evidence.
 - Reads: every provider read goes behind one strict observation contract
   covering missing, invalid, unavailable, pending, paid, free, and failed.
   Square payment IDs are named by the order, not scanned from a short list.
@@ -750,13 +771,13 @@ mechanism and a regression test, or — if implementation proves the finding wro
 | F3  | Pending and completed refunds together exceeding captured money                        | M4, M7          |
 | F4  | One failed decision blocking all reconciliation                                        | M5, M6          |
 | F5  | Permanent provider or delivery errors retrying forever or blocking a queue             | M5, M6, M9      |
-| F6  | Attendee merge or delete removing records with an open case or unfinished work         | M5, M6, M8      |
+| F6  | Attendee merge or delete removing records with an open case or unfinished work         | M4, M5, M6, M8  |
 | F7  | Restore-deploy workflow allowing incompatible code onto a migrated database            | M6              |
 | F8  | Cross-payment duplicate provider charges                                               | M6              |
 | F9  | Account lookup failure retaining a claim                                               | M6              |
 | F10 | SumUp return IDs interpreted differently by different routes                           | M6              |
 | F11 | Square fallback reads scanning too short a list                                        | M6              |
-| F12 | Delayed work using live currency rather than stored currency                           | M6              |
+| F12 | Delayed work using live currency rather than stored currency                           | M4, M6          |
 | F13 | Charges without a stored provider unrefundable after a provider switch (#2020 gap)     | M4, M6, M7      |
 | F14 | In-flight pre-cutover checkouts paid after the cutover, stranded without a row         | M6              |
 | F15 | Old rows changing after the aggregate write cutover                                    | M6, M8, M11     |
