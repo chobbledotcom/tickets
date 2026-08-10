@@ -562,32 +562,58 @@ Genuine conflicts the system must not decide:
   the per-tender amounts; the alert is the existing best-effort ntfy ping, which
   by its privacy contract carries only an error code (`sendNtfyError(code)` — no
   ids, no amounts), so a conflict-specific code points the owner at the activity
-  log rather than carrying the evidence itself. The owner refunds the extra
-  charge in the provider dashboard (the in-app path cannot act on a charge it
-  has no record slot for until M6). One legacy door is closed to keep that true:
-  the proceed-and-alert finalize stores the owner-review conflict in the session
-  row's `failure_data` slot (a discriminated owner-review kind beside the
-  existing failure kinds — the row stays a booked success, `attendee_id` set),
-  and the legacy single and bulk admin refund actions — which already read the
-  session row for `payment_reference` — REFUSE a reference whose row carries it,
-  pointing the operator at the provider dashboard. Without that guard the admin
-  route could refund the webhook-named tender while `recordAttendeeRefund`
-  reverses the booking's FULL ledger amount — a £50 provider payout the ledger
-  books as a £100 return, with £50 still captured at Square. The guard reads in
-  PR A's refund cutover and is written by PR B's callback finalize (vacuously
-  true between them); multi-tender bookings that predate the judge carry no
-  record for it to read — today's code never saw the sibling tenders — and
-  remain M6 backfill territory, stated. Regression: an admin single refund
-  against a proceed-and-alert multi-tender booking is refused with the
-  owner-review reason and makes zero provider calls. Automatic work is not
+  log rather than carrying the evidence itself. The record PRESENTS the observed
+  tenders; it never prescribes a refund. By the binding evaluation order this
+  kind fires only when the captured sum EQUALS the signed total (a larger sum
+  wins `capture_total_mismatch`, a smaller one `partial_charge`), so the usual
+  reading is a valid split payment where NO money is owed back — instructing the
+  owner to "refund the extra charge" would return £50 of a correctly-paid £100
+  booking and leave it underpaid while the ledger still says paid in full.
+  Whether anything needs returning is the owner's judgment from the presented
+  tenders, made in the provider dashboard (the in-app path cannot act on sibling
+  charges it has no record slot for until M6). Several in-app doors are closed
+  to keep that true. The proceed-and-alert finalize stores the owner-review
+  conflict in the session row's `failure_data` slot (a discriminated
+  owner-review kind beside the existing failure kinds — the row stays a booked
+  success, `attendee_id` set), and every legacy money action on such a session
+  fails closed until M6's per-charge reconciliation: the single and bulk admin
+  refund actions check per ATTENDEE, before any provider call — if ANY of the
+  attendee's references carries the marker the whole attendee is rejected up
+  front, because `refundCandidateAtProvider` runs a merged attendee's references
+  concurrently and a per-reference refusal would land only after a sibling
+  reference's money had already moved, leaving `recordAttendeeRefund` skipped
+  and the states inconsistent; the refresh-payment route likewise refuses the
+  `fully_refunded` → completed ledger write for a marked session — the named
+  tender's dashboard refund does not mean the BOOKING's money came back, and
+  `recordConfirmedRefund` would reverse the whole ledger order while a sibling
+  tender stays captured — recording the observed provider fact in the activity
+  log instead; and the Refund action is not RENDERED for a gated attendee
+  (`canRefundAttendee` in `attendee-page-data.ts:74-80` and the bulk-action
+  candidate set gain the same owner-review condition — the house rule that a
+  link the target refuses must not be shown), the attendee page showing the
+  owner-review indicator with the dashboard pointer in its place. Without these
+  guards the admin route could refund the webhook-named tender while
+  `recordAttendeeRefund` reverses the booking's FULL ledger amount — a £50
+  provider payout the ledger books as a £100 return, with £50 still captured at
+  Square. The guard reads in PR A's refund cutover and is written by PR B's
+  callback finalize (vacuously true between them); multi-tender bookings that
+  predate the judge carry no record for it to read — today's code never saw the
+  sibling tenders — and remain M6 backfill territory, stated. Regressions: an
+  admin single refund against a proceed-and-alert multi-tender booking is
+  refused with the owner-review reason and makes zero provider calls; a merged
+  attendee holding one marked and one normal reference is rejected whole, before
+  either reference's provider call; a refresh-payment run against a marked
+  session whose named tender was dashboard-refunded records the observation and
+  leaves the ledger untouched; the attendee page for a gated attendee renders
+  the owner-review indicator and no Refund action. Automatic work is not
   stopped: the booking stands on the signed total. This is PLAN.md's approved M4
   text applied ("one handler maps these outcomes onto today's behavior: detect,
   record, and alert … no automatic work is stopped or stranded before an owner
   can act") — failing the callback closed instead would 503 until provider
   redelivery exhausts, leaving taken money with no booking, no buyer answer, and
   no case tooling until M5, which is precisely the stranding the plan forbids.
-  No money moves automatically either way; the extra charge sits untouched for
-  the owner. Decision 1 records the owner's explicit choice of this remedy.
+  No money moves automatically either way; the tenders sit untouched for the
+  owner. Decision 1 records the owner's explicit choice of this remedy.
 - **`capture_total_mismatch` / `partial_refund`**: same detect-record-alert
   handling; the evidence names expected vs observed amounts. Resolution today is
   the provider dashboard plus existing admin tools; case pages arrive in M5.
@@ -601,10 +627,13 @@ No money-moving automation is added for any owner-review kind.
 
 ## Security and privacy
 
-- No new routes, roles, or links. The encrypted activity log carries conflict
-  kinds, resource ids, and amounts; the ntfy alert carries the fixed error code
-  only, per the commands table's alert boundary. Neither carries buyer PII or
-  raw provider payloads (M3's fixed-refusal discipline is unchanged).
+- No new routes or roles, and no new links. One existing action disappears where
+  its handler now refuses: the Refund action is not rendered for an
+  owner-review-gated attendee (the dead-link rule — the owner-review indicator
+  shows in its place). The encrypted activity log carries conflict kinds,
+  resource ids, and amounts; the ntfy alert carries the fixed error code only,
+  per the commands table's alert boundary. Neither carries buyer PII or raw
+  provider payloads (M3's fixed-refusal discipline is unchanged).
 - The judge runs on evidence already fetched by the current path; the only new
   provider data crossing a boundary is Stripe's documented `amount_refunded` and
   refund `status` fields (decision 2) Square's documented tender `amount_money`
@@ -643,9 +672,11 @@ In the same merges that wire `outcomeOf` in:
 - The refresh-payment route's `refunded ? "completed" : "none"` boolean mapping
   (`attendees-edit.ts:98-102`) — a third judge. Its provider poll becomes the
   same charge-tier evidence read, judged by `outcomeOf`: `fully_refunded` →
-  completed as today; `refund_pending` → stays unrefunded with the pending
-  answer surfaced; `partial_refund` → an owner-review record, never a silent
-  "none".
+  completed as today — EXCEPT on a session carrying the owner-review marker,
+  where the ledger write is refused and the observation recorded instead (the
+  named tender's refund is not the booking's; see the `multiple_charges` owner
+  choice); `refund_pending` → stays unrefunded with the pending answer surfaced;
+  `partial_refund` → an owner-review record, never a silent "none".
 - No alias, wrapper, or re-export bridges the old names.
 
 `validatedPaymentSession` (M3 boundary), `refund-state.ts` (a record-derived
@@ -655,7 +686,7 @@ display fact, not a judge), and the ledger stay.
 
 Two PRs, each standing alone, hardest invariant first (decision 4). PLAN.md's
 400–700 src figure is the milestone target; the hard rule is delivery rule 3's
-800 changed src lines PER PR. Six review rounds added real closures
+800 changed src lines PER PR. Fifteen review rounds added real closures
 (owner-review carry-through, the ledger-swallow fix, the SumUp amount widening,
 the terminal-replay sweep), and decision 5 removed the multi-charge refund
 machinery a middle revision had grown. The estimates are PR A ≈ 350–500 and PR B
