@@ -8,9 +8,11 @@ strings, the two-PR slicing (2026-08-09), and owner review for every
 multi-charge observation — automatic refunds act on single-charge observations
 only (2026-08-10). No implementation has started. Per PR_WORKFLOW.md the final
 sign-off is explicit approval of this latest version (merging PR #2063 or saying
-"approved"); tests and code start only after that. Milestone source: PLAN.md M4
-(lines 190–211), fault rows F3 and F51, and the binding decided behaviors on
-refunds and multiple captures.
+"approved"); tests and code start only after that. Milestone source: PLAN.md's
+M4 section, fault rows F3 and F51 (with M4 slices of F13 and F53), and the
+binding decided behaviors on refunds and multiple captures; this PR carries the
+matching PLAN.md sync (the M4 section, the M6 provider note, and those two fault
+rows).
 
 ## Current-system value
 
