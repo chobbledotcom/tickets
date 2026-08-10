@@ -35,12 +35,14 @@ export type Money = v.InferOutput<typeof MoneySchema>;
 /**
  * Build a {@link Money}, or `null` if the amount or currency is malformed.
  * Upper-cases first, so a provider's "gbp" is the canonical "GBP" rather than a
- * rejection. The only producer of a `Money`, so malformed charges are refused
- * once, here, instead of leaking into the callbacks half-parsed.
+ * rejection, and takes the whole numbers some providers send as `bigint` — one
+ * too large to hold exactly is refused by the safe-integer rule rather than
+ * silently rounded. The only producer of a `Money`, so malformed charges are
+ * refused once, here, instead of leaking into the callbacks half-parsed.
  */
 export const money = (amount: unknown, currency: unknown): Money | null => {
   const result = v.safeParse(MoneySchema, {
-    amount,
+    amount: typeof amount === "bigint" ? Number(amount) : amount,
     currency: typeof currency === "string" ? currency.toUpperCase() : currency,
   });
   return result.success ? result.output : null;

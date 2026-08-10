@@ -1,6 +1,6 @@
 import * as v from "valibot";
 import { sumOf } from "#fp";
-import { MoneySchema } from "#shared/payment/money.ts";
+import { MoneySchema, money } from "#shared/payment/money.ts";
 import { ResourceIdSchema } from "#shared/payment/resource-id.ts";
 import { RESOURCE_KIND_BY_PROVIDER } from "#shared/payment/words.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
@@ -149,10 +149,47 @@ export const RefundResolutionSchema = v.variant("status", [
 ]);
 export type RefundResolution = v.InferOutput<typeof RefundResolutionSchema>;
 
-export const ChargeLegSchema = v.strictObject({
+/**
+ * What a provider says about the money on one charge: what it took, what it
+ * says has gone back in total, and each refund it names.
+ *
+ * This is everything the money rules read. A refund asked for against a bare
+ * provider reference knows this much and no more — it has no checkout to hang
+ * the charge off — so the rules take these facts rather than a whole leg, and
+ * the leg below is these facts plus the record they came from.
+ */
+export const ChargeMoneySchema = v.strictObject({
   captured: PositiveMoneySchema,
   confirmedRefunded: MoneySchema,
   refunds: v.array(RefundObservationSchema),
+});
+export type ChargeMoney = v.InferOutput<typeof ChargeMoneySchema>;
+
+/**
+ * The money a provider states about one charge, or nothing when what it states
+ * cannot be money: an amount that will not parse, a missing currency, or a
+ * charge that took nothing at all. The one door provider numbers come through,
+ * so no adapter invents a currency or reads a missing amount as zero.
+ */
+export const chargeMoneyOrNull = (
+  capturedAmount: unknown,
+  currency: unknown,
+  refundedAmount: unknown,
+  refunds: RefundObservation[] = [],
+): ChargeMoney | null => {
+  const captured = money(capturedAmount, currency);
+  const confirmedRefunded = money(refundedAmount, currency);
+  if (captured === null || confirmedRefunded === null) return null;
+  const parsed = v.safeParse(ChargeMoneySchema, {
+    captured,
+    confirmedRefunded,
+    refunds,
+  });
+  return parsed.success ? parsed.output : null;
+};
+
+export const ChargeLegSchema = v.strictObject({
+  ...ChargeMoneySchema.entries,
   resource: ProviderChargeResourceSchema,
 });
 export type ChargeLeg = v.InferOutput<typeof ChargeLegSchema>;
@@ -176,7 +213,7 @@ export const providerRefundResources = (
  *  every one finished. */
 const refundMoneyThatIs =
   (status: RefundObservation["status"]) =>
-  (charge: ChargeLeg): number =>
+  (charge: ChargeMoney): number =>
     sumOf((refund: RefundObservation) => refund.amount.amount)(
       charge.refunds.filter((refund) => refund.status === status),
     );
@@ -191,10 +228,10 @@ const refundMoneyGivenBack = refundMoneyThatIs("completed");
  */
 const comparedWithMoneyTaken =
   (
-    moneyBack: (charge: ChargeLeg) => number,
+    moneyBack: (charge: ChargeMoney) => number,
     holds: (back: number, taken: number) => boolean,
   ) =>
-  (charge: ChargeLeg): boolean =>
+  (charge: ChargeMoney): boolean =>
     charge.confirmedRefunded.currency === charge.captured.currency &&
     holds(moneyBack(charge), charge.captured.amount);
 
@@ -206,12 +243,12 @@ const comparedWithMoneyTaken =
  * much came back": no caller can reach a different one and read a finished
  * refund as no refund at all.
  */
-export const refundMoneyReturned = (charge: ChargeLeg): number =>
+export const refundMoneyReturned = (charge: ChargeMoney): number =>
   Math.max(charge.confirmedRefunded.amount, refundMoneyGivenBack(charge));
 
 /** Everything back or on its way, counted once — money still going is
  *  genuinely on top of the money already returned. */
-const refundMoneyAccountedFor = (charge: ChargeLeg): number =>
+const refundMoneyAccountedFor = (charge: ChargeMoney): number =>
   refundMoneyReturned(charge) + refundMoneyStillGoing(charge);
 
 /** Nothing given back, or still on its way, comes to more than was taken. */
@@ -220,7 +257,7 @@ const refundFitsWithinCapture = comparedWithMoneyTaken(
   (back, taken) => back <= taken,
 );
 
-export const refundMoneyMatchesCapture = (charge: ChargeLeg): boolean =>
+export const refundMoneyMatchesCapture = (charge: ChargeMoney): boolean =>
   refundFitsWithinCapture(charge) &&
   charge.refunds.every(
     (refund) =>

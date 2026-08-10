@@ -1,6 +1,6 @@
 import type { Money } from "#shared/payment/money.ts";
 import type {
-  ChargeLeg,
+  ChargeMoney,
   ProviderRefundResource,
   RefundObservation,
   RefundResolution,
@@ -24,14 +24,14 @@ const observedRefund = (
   refunds.find((refund) => refund.status === status);
 
 /** Money back on this charge, in the currency its own returned total uses. */
-const moneyReturned = (charge: ChargeLeg, returned: number): Money => ({
+const moneyReturned = (charge: ChargeMoney, returned: number): Money => ({
   amount: returned,
   currency: charge.confirmedRefunded.currency,
 });
 
 const confirmedRefund = (
   status: "completed" | "partial",
-  charge: ChargeLeg,
+  charge: ChargeMoney,
   observation: RefundObservation | undefined,
   returned: number,
 ): RefundResolution => ({
@@ -40,7 +40,7 @@ const confirmedRefund = (
   status,
 });
 
-export const resolveRefund = (charge: ChargeLeg): RefundResolution => {
+export const resolveRefund = (charge: ChargeMoney): RefundResolution => {
   if (!refundMoneyMatchesCapture(charge)) {
     return {
       amount: charge.confirmedRefunded,

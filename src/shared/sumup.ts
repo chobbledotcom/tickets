@@ -46,6 +46,21 @@ import {
 /** Result of creating a hosted checkout. */
 export type SumupCheckoutResult = { reference: string; url: string } | null;
 
+/**
+ * What one transaction says about its money, straight from SumUp: amounts are
+ * in major units here, as SumUp states them, and are converted where they are
+ * turned into money. A missing amount, currency, or event status stays missing
+ * rather than becoming a zero.
+ */
+export type SumupTransactionMoney = {
+  amount: number | undefined;
+  currency: string | undefined;
+  refundEvents: {
+    amount: number | undefined;
+    status: string | undefined;
+  }[];
+};
+
 /** Result of testing the SumUp connection. */
 export type SumupConnectionTestResult = {
   ok: boolean;
@@ -122,7 +137,9 @@ export const sumupApi: {
   ) => Promise<SumupCheckoutResult>;
   readCheckoutById: (id: string) => Promise<ProviderRead<SumupCheckout>>;
   refundTransaction: (transactionId: string) => Promise<boolean>;
-  getTransactionStatus: (transactionId: string) => Promise<string | null>;
+  readTransactionMoney: (
+    transactionId: string,
+  ) => Promise<SumupTransactionMoney | null>;
   testSumupConnection: () => Promise<SumupConnectionTestResult>;
 } = {
   /** Create a hosted checkout and persist booking metadata under its reference. */
@@ -181,18 +198,6 @@ export const sumupApi: {
 
   getSumupClient: getClientImpl,
 
-  /** Read a transaction's high-level status (e.g. for refund checks). */
-  getTransactionStatus: (transactionId: string): Promise<string | null> => {
-    const merchantCode = getMerchantCode();
-    if (!merchantCode) return Promise.resolve(null);
-    return withClient(async (client) => {
-      const txn = await client.transactions.get(merchantCode, {
-        id: transactionId,
-      });
-      return txn.status ?? null;
-    }, ErrorCode.PAYMENT_SESSION);
-  },
-
   /** Read a checkout by its SumUp id and check it against our facts. */
   readCheckoutById: async (
     id: string,
@@ -216,6 +221,35 @@ export const sumupApi: {
       requestedId: id,
       siteCurrency: settings.currency,
     });
+  },
+
+  /**
+   * Read what a transaction says about its money: the total it took, and every
+   * refund SumUp has recorded against it. SumUp keeps no refund records of its
+   * own — a refund is an event on the transaction that took the money — so the
+   * events are the only account of what has gone back.
+   */
+  readTransactionMoney: (
+    transactionId: string,
+  ): Promise<SumupTransactionMoney | null> => {
+    const merchantCode = getMerchantCode();
+    if (!merchantCode) return Promise.resolve(null);
+    return withClient(async (client) => {
+      const txn = await client.transactions.get(merchantCode, {
+        id: transactionId,
+      });
+      const refundEvents = (txn.transaction_events ?? []).filter(
+        (event) => event.event_type === "REFUND",
+      );
+      return {
+        amount: txn.amount,
+        currency: txn.currency,
+        refundEvents: refundEvents.map((event) => ({
+          amount: event.amount,
+          status: event.status,
+        })),
+      };
+    }, ErrorCode.PAYMENT_SESSION);
   },
 
   /** Refund a transaction in full. */

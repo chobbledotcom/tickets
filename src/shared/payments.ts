@@ -14,6 +14,7 @@ import { settings } from "#shared/db/settings.ts";
 import { existingPaymentProviderState } from "#shared/existing-payment-provider.ts";
 import { logDebug } from "#shared/logger.ts";
 import type { Currency } from "#shared/payment/money.ts";
+import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { SessionRejection } from "#shared/payment/validated-session.ts";
 import type { CalcKind, ModifierTrigger } from "#shared/price-modifier.ts";
 import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
@@ -284,12 +285,14 @@ export interface PaymentProvider {
   ): Promise<CheckoutSessionResult>;
 
   /**
-   * Check if a payment has been refunded via the provider API.
-   * Used to refresh refund status from the edit attendee page.
+   * Read what the provider says about the money on one charge: what it took,
+   * and what has gone back. Every refund route asks this before it sends money,
+   * and the edit-attendee page asks it to refresh a booking's refund state.
+   *
    * @param paymentReference - provider-specific payment reference
-   * @returns true if the payment has been refunded
+   * @returns the money facts, or null when the charge cannot be read
    */
-  isPaymentRefunded(paymentReference: string): Promise<boolean>;
+  readChargeMoneyOrNull(paymentReference: string): Promise<ChargeMoney | null>;
 
   /**
    * Refund a completed payment.

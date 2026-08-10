@@ -36,6 +36,7 @@ import {
 import type { FormParams } from "#shared/form-data.ts";
 import { reportRefundNotRecorded } from "#shared/invariant-errors.ts";
 import { legMatches } from "#shared/ledger/legs.ts";
+import { admitProviderRefund } from "#shared/payment/admit-refund.ts";
 import type { RefundState } from "#shared/payment/refund-state.ts";
 import type { PaymentProvider } from "#shared/payments.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
@@ -80,7 +81,7 @@ const loadRefreshContext = async (
 };
 
 const refreshProviderRefunds = async (
-  provider: Pick<PaymentProvider, "isPaymentRefunded">,
+  provider: Pick<PaymentProvider, "readChargeMoneyOrNull">,
   references: readonly RefundPaymentReference[],
 ): Promise<RefundPaymentReference[]> => {
   const refreshed: RefundPaymentReference[] = [];
@@ -94,11 +95,15 @@ const refreshProviderRefunds = async (
         group.map(async (reference) => {
           if (reference.refundState === "completed") return reference;
           // A legacy charge ("unknown") is queried like any other: the provider
-          // answer turns it into a known "completed" or "none".
-          const refunded = await provider.isPaymentRefunded(
+          // answer turns it into a known "completed" or "none". The money is
+          // judged rather than trusted to a flag, so a charge only reads as
+          // refunded when everything it took has actually gone back.
+          const admission = await admitProviderRefund(
+            provider,
             reference.reference,
           );
-          const refundState: RefundState = refunded ? "completed" : "none";
+          const refundState: RefundState =
+            admission.kind === "already_returned" ? "completed" : "none";
           return { ...reference, refundState };
         }),
       )),

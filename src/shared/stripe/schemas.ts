@@ -40,15 +40,28 @@ export const StripeCheckoutSessionSchema = v.object({
 export type StripeCheckoutSession = StripeCheckoutSessionFields;
 
 type StripeExpandedPaymentIntentFields = Pick<Stripe.PaymentIntent, "id"> & {
-  latest_charge: null | Pick<Stripe.Charge, "refunded">;
+  latest_charge: null | Pick<
+    Stripe.Charge,
+    "amount" | "amount_refunded" | "currency" | "refunded"
+  >;
 };
 
+/** The charge is expanded so a refund can be judged from the money itself —
+ *  what was taken, in what currency, and how much has gone back — rather than
+ *  from the `refunded` flag alone, which says nothing about a partial refund. */
 export const StripeExpandedPaymentIntentSchema: v.GenericSchema<
   unknown,
   StripeExpandedPaymentIntentFields
 > = v.object({
   id: NonEmptyTextSchema,
-  latest_charge: v.nullable(v.object({ refunded: v.boolean() })),
+  latest_charge: v.nullable(
+    v.object({
+      amount: v.number(),
+      amount_refunded: v.number(),
+      currency: NonEmptyTextSchema,
+      refunded: v.boolean(),
+    }),
+  ),
 });
 
 export type StripeExpandedPaymentIntent = StripeExpandedPaymentIntentFields;
