@@ -1,7 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { SettledReading } from "#shared/payment/diagnose.ts";
-import { hasSettled, outcomeOf } from "#shared/payment/diagnose.ts";
+import {
+  hasSettled,
+  outcomeOf,
+  refundOutcomeOf,
+} from "#shared/payment/diagnose.ts";
 import type { PaymentObservation } from "#shared/payment/observation.ts";
 import type { ChargeLeg } from "#shared/payment/resources.ts";
 import {
@@ -255,8 +259,10 @@ describe("what one reading of a payment comes to", () => {
 // The evaluation order is part of the contract: a reading can match several
 // kinds at once and exactly one is reported. These pin the order itself, not
 // merely that each kind exists.
+/** A second charge on the same checkout, so a reading can carry two legs. */
+const secondLeg = { ...chargeResource, id: "pi_2" };
+
 describe("which problem a reading is named by when several fit", () => {
-  const secondLeg = { ...chargeResource, id: "pi_2" };
   const leg = (amount: number, resource = chargeResource) =>
     chargeLeg({ captured: { amount, currency: "GBP" }, resource });
 
@@ -347,4 +353,72 @@ describe("which problem a reading is named by when several fit", () => {
       ).kind,
     ).toBe("fully_refunded");
   });
+});
+
+describe("what charges alone come to, with no agreed total", () => {
+  for (const [name, charges, expected] of [
+    ["money taken and kept", [chargeLeg()], "ready"],
+    ["part of the money given back", [partlyRefundedCharge()], "conflict"],
+    [
+      "more money back than was ever taken",
+      [chargeLeg({ confirmedRefunded: { amount: 150, currency: "GBP" } })],
+      "conflict",
+    ],
+    [
+      "money on its way back",
+      [chargeLeg({ refunds: [refundObservation({ status: "pending" })] })],
+      "refund_pending",
+    ],
+  ] as const satisfies readonly (readonly [
+    string,
+    readonly ChargeLeg[],
+    string,
+  ])[]) {
+    test(`calls ${name} ${expected}`, () => {
+      expect(refundOutcomeOf([...charges]).kind).toBe(expected);
+    });
+  }
+
+  test("names a refund in a different currency from its charge", () => {
+    const outcome = refundOutcomeOf([
+      chargeLeg({
+        refunds: [
+          refundObservation({ amount: { amount: 100, currency: "USD" } }),
+        ],
+      }),
+    ]);
+
+    expect(outcome.kind === "conflict" ? outcome.issue.kind : undefined).toBe(
+      "refund_exceeds_capture",
+    );
+  });
+
+  // The rules that compare what was owed against what was observed cannot run
+  // without an agreed total, so a reference carrying none is judged on the
+  // provider's own numbers instead of against a stand-in that was never agreed.
+  for (const [name, charges] of [
+    [
+      "two legs adding up to less than any total",
+      [
+        chargeLeg({ captured: { amount: 1, currency: "GBP" } }),
+        chargeLeg({
+          captured: { amount: 1, currency: "GBP" },
+          resource: secondLeg,
+        }),
+      ],
+    ],
+    [
+      "a charge taken in a currency the site no longer sells in",
+      [
+        chargeLeg({
+          captured: { amount: 100, currency: "USD" },
+          confirmedRefunded: { amount: 0, currency: "USD" },
+        }),
+      ],
+    ],
+  ] as const satisfies readonly (readonly [string, readonly ChargeLeg[]])[]) {
+    test(`sends money back for ${name}`, () => {
+      expect(refundOutcomeOf([...charges]).kind).toBe("ready");
+    });
+  }
 });
