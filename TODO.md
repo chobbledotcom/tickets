@@ -2272,3 +2272,36 @@ first is a read of `computeAttendeeRefund` against a real shared-charge row to
 establish which of the two shapes actually occurs in stored data.
 
 Found by Codex on #2065.
+
+## The whole-reading cluster returns with the sweeps
+
+M4 PR A built a set of pure modules that only a whole reading of a checkout
+could ever feed, and nothing in that slice builds one. Rather than ship them
+exported with no caller — which the repo's own no-test-only-exports check
+correctly failed on — they were deleted, to come back in the slice that reads
+them.
+
+Deleted in `claude/plan-md-review-jarsho`, recoverable from git history at that
+branch's tip:
+
+- `src/shared/payment/observation.ts` and its test — the payment observation,
+  ownership proofs (`signedPaymentOwnership`, `stagedPaymentOwnership`), the
+  provider-read variant, and `paymentObservationResources`.
+- `outcomeOf`, `hasSettled` and `SettledReading` from
+  `src/shared/payment/diagnose.ts`, plus the whole-reading checks they fronted:
+  `validatePaymentObservation`, `resourcesMatch`, `moneyCurrencies`,
+  `capturedTotal`, `firstDuplicate`, and the free/paid arms.
+- Charge legs and the resource schemas from `src/shared/payment/resources.ts`:
+  `ChargeLegSchema`, `ChargeLegsSchema`, the session/charge/whole-resource
+  schemas, `sameProviderResource`, `providerRefundResources`.
+- `src/shared/payment/words.ts` entirely — `PAYMENT_MODES` and
+  `RESOURCE_KIND_BY_PROVIDER` had no reader left once the observation went.
+- Eight of the eleven `PaymentConflict` kinds — every one that compares money
+  against what was owed. The three a charge's own money can show remain.
+
+Do not restore this wholesale. The point of deleting it was that a mechanism
+with no caller drifts from what its eventual caller needs; write each piece
+against the sweep that actually reads it, and let the old code be a reference
+rather than a starting point. The conflict kinds in particular are a stored
+schema (`row-state.ts` keeps the owner-review marker as a `PaymentConflict`), so
+widening the union is backward compatible but narrowing it later would not be.
