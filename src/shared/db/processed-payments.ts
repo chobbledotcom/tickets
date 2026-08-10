@@ -21,7 +21,10 @@ import {
   executeBatchWithResults,
   resultRows,
 } from "#shared/db/client.ts";
-import { encryptPaymentReference } from "#shared/db/payment-references.ts";
+import {
+  encryptPaymentReference,
+  paymentReferenceIndex,
+} from "#shared/db/payment-references.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { isoBefore, nowIso } from "#shared/now.ts";
 import {
@@ -133,6 +136,7 @@ export const reserveSession = async (
               ticket_tokens = '',
               failure_data = '',
               payment_reference = '',
+              payment_reference_index = '',
               provider_refunded_at = ''
             WHERE ${UNRESOLVED_RESERVATION}
               AND processed_payments.processed_at < ?
@@ -176,9 +180,17 @@ export const finalizeSessionIfUnresolved = async (
   attendeeId: number,
   paymentReference = "",
 ): Promise<void> => {
-  const refClause = paymentReference ? ", payment_reference = ?" : "";
+  // The index goes in with the reference it indexes, never separately: a
+  // refund claim finds another row holding the same money by that column, so a
+  // reference stored without one is money no claim can see.
+  const refClause = paymentReference
+    ? ", payment_reference = ?, payment_reference_index = ?"
+    : "";
   const refParams = paymentReference
-    ? [await encryptPaymentReference(paymentReference)]
+    ? [
+        await encryptPaymentReference(paymentReference),
+        await paymentReferenceIndex(paymentReference),
+      ]
     : [];
   await execute(
     `UPDATE processed_payments SET attendee_id = ?${refClause} WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,

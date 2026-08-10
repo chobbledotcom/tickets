@@ -90,3 +90,14 @@ export const expectProcessedPaymentReference = async (
     },
   ]);
 };
+
+/** The blind index stored beside one row's payment reference. */
+export const referenceIndexOf = async (
+  sessionId: string,
+): Promise<string | undefined> =>
+  (
+    await queryOne<{ payment_reference_index: string }>(
+      "SELECT payment_reference_index FROM processed_payments WHERE payment_session_id = ?",
+      [sessionId],
+    )
+  )?.payment_reference_index;
