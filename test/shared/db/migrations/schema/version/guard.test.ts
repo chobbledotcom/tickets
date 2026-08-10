@@ -105,7 +105,7 @@ describe("db > migrations > schema change guard", () => {
         "2026-08-04_login_attempt_stamp",
         "2026-08-10_payment_state_columns",
       ],
-      schemaHash: "1nngexq",
+      schemaHash: "uiclvs",
     });
   });
 
