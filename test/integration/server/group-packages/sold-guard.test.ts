@@ -10,6 +10,8 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
+import { execute } from "#shared/db/client.ts";
 import { groups } from "#shared/db/groups.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -44,6 +46,65 @@ describeWithEnv(
       const kept = (await groups.table.read.one({ id: group.id }))!;
       expect(kept.is_package).toBe(true);
       expect(kept.hide_package_listings).toBe(true);
+    });
+
+    test("form and API updates catch a hide and sale after request validation", async () => {
+      const saves = [
+        {
+          label: "Race Form",
+          save: async (id: number): Promise<Response> =>
+            (
+              await adminFormPost(`/admin/groups/${id}/edit`, {
+                ...editFields("Race Form", "race-form"),
+              })
+            ).response,
+          status: 302,
+        },
+        {
+          label: "Race API",
+          save: (id: number): Promise<Response> =>
+            apiRequest(`/api/admin/groups/${id}`, {
+              body: { is_package: false },
+              method: "PUT",
+            }),
+          status: 400,
+        },
+      ];
+
+      for (const { label, save, status } of saves) {
+        const slug = label.toLowerCase().replace(" ", "-");
+        const group = await createTestGroup({
+          isPackage: true,
+          name: label,
+          slug,
+        });
+        const memberListing = await member(group, `${label} Member`);
+        const original = groups.table.updateStatement!;
+        groups.table.updateStatement = async (...args) => {
+          await execute(
+            "UPDATE groups SET hide_package_listings = 1 WHERE id = ?",
+            [group.id],
+          );
+          await sellPackageTicket(memberListing.id, group.id);
+          return original(...args);
+        };
+        let response: Response;
+        try {
+          response = await save(group.id);
+        } finally {
+          groups.table.updateStatement = original;
+        }
+
+        expect(response.status).toBe(status);
+        if (status === 400) {
+          expect(await response.json()).toEqual({
+            error: t("error.sold_hidden_package"),
+          });
+        }
+        const kept = await groups.table.read.one({ id: group.id });
+        expect(kept?.is_package).toBe(true);
+        expect(kept?.hide_package_listings).toBe(true);
+      }
     });
 
     test("allows deleting a hidden package with no sold tickets", async () => {

@@ -26,38 +26,15 @@ src/shared/db/attendees/capacity/snapshot.ts::loadsByListing~0wzfdt0  ?? → || 
 src/shared/db/attendees/capacity/snapshot.ts::loadCapacitySnapshot.membership~0tc0opa  ?? → ||   # knownMembership is a Map or undefined; every Map, including an empty one, is truthy
 src/shared/db/attendees/capacity/remaining.ts::getListingRemainingForRange.durationDays~18guaiu  1 → 0   # daysOfSpan clamps the span back to one day, so a default of 0 reads the same single day
 
-# listing_prices sync (listing-prices.ts): `?? → ||` where the operand's only
-# falsy-non-null value equals the fallback.
-src/shared/db/listing-prices.ts::sourceRowStatements~0fyy4cr  ?? → ||   # sourceRowStatements row.unit_price: number|null; the only falsy-non-null value is 0 and 0 ?? 0 === 0 || 0
-src/shared/db/listing-prices.ts::groupDayPriceStatements~0gt4zrn  ?? → ||   # groupDayPriceStatements member.dayPrices: DayPrices|undefined — an object is always truthy, undefined→{} either way
-src/shared/db/listing-prices.ts::foldGroupDayRows.byDay~1di0xpm  ?? → ||   # foldGroupDayRows result.get(): Map|undefined — a Map is always truthy
+# Listing relationship day prices are stored as plain objects. Existing objects
+# are truthy, while a missing Map entry is undefined, so `?? {}` and `|| {}` agree.
+src/shared/db/listing-relationship-validation.ts::listingById.day_prices~1ag3qoh  ?? → ||   # Map values are DayPrices objects (always truthy); a missing entry is undefined
 
 # Group-cap sweep (attendees/update.ts): the boundary-delta accumulator is a
 # Map<string, number>; the only falsy-but-non-null number is 0 and the fallback
 # is 0, so `?? 0` and `|| 0` always agree.
 src/shared/db/attendees/update.ts::loadsAtBoundaries.deltas~0b895vw  ?? → ||   # Map<string,number>.get delta; 0 ?? 0 === 0 || 0
 src/shared/db/attendees/update.ts::loadsAtBoundaries.deltas~1kwldm9  ?? → ||   # Map<string,number>.get delta; 0 ?? 0 === 0 || 0
-
-# DB client (client.ts) — extractUpdateColumns assignment guard.
-src/shared/db/client.ts::extractUpdateColumns.addAssignment~17cdcum  0 → 1   # eqIdx===0 means the fragment starts with "="; slice(0,0) is always "" so the column is dropped by the `if (col)` guard either way — early return and fall-through agree on every input
-
-# DB client (client.ts) — write-verb classification. The WriteVerb produced by
-# invalidateForSql is consumed ONLY by invalidateCachesForWrite, whose single
-# branch tests `info.verb === "update"` (cache-registry.ts); client.ts's own
-# `verb === "update"` check happens before these sites take effect. Any two
-# non-"update" verb values are therefore indistinguishable by every possible
-# test, so mutants that only reclassify/rename a non-update verb are equivalent.
-src/shared/db/client.ts::invalidateForSql.verb~1jsrro1  delete → ""   # DELETEs classify as "insert" instead of "delete": both are non-"update", so every invalidator (gated or not) still fires identically
-src/shared/db/client.ts::invalidateForSql.verb~1tuqlso  replace → ""   # REPLACEs classify as "insert" instead of "replace": both non-"update", identical invalidation
-
-# DB client (client.ts) — nullish-coalescing fallbacks whose left side can never
-# be a falsy non-null value, so `??` and `||` pick the same branch on every input.
-src/shared/db/client.ts::writeSqlOf~1begzdu  ?? → ||   # writeSqlOf's CTE capture is anchored on the literal "UPDATE" (6+ chars), never ""; a missing capture is undefined either way
-src/shared/db/client.ts::executeRead.args~0hs5u5i  ?? → ||   # `args` is `InValue[] | undefined`; every array (including []) is truthy, so only undefined reaches the fallback under both operators
-src/shared/db/client.ts::queryOne~1hu7rck  ?? → ||   # queryOne's row comes from resultRows — libsql rows are always objects (truthy); a miss yields undefined, where ?? and || both produce null
-
-# DB client (client.ts) — sentinel symbol descriptions.
-src/shared/db/client.ts::GUARDED_CLIENT~1cajdnv  guarded-db-client → ""   # Symbol descriptions do not affect symbol identity; this private symbol is used only as the proxy property key
 
 # attendees/tokens.ts — `?? → ||` sites where the operand is a Map#get() whose
 # value is always a truthy object or array (never a falsy-but-non-null value),

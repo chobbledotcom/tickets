@@ -221,7 +221,7 @@ const firstPackageGroup = async (
   if (groupIds.length === 0) return null;
   const byId = await getGroupsById();
   return (
-    groupIds.map((id) => byId.get(id)).find((group) => group?.is_package) ??
+    groupIds.map((id) => byId.get(id)).find((group) => group?.is_package) ||
     null
   );
 };

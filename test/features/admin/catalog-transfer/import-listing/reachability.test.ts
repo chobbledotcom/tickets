@@ -1,9 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
+import { countRows, execute } from "#shared/db/client.ts";
 import { assignListingsToGroup } from "#shared/db/groups/membership.ts";
 import { listingParents } from "#shared/db/listing-parents.ts";
 import { requireListingWithCount } from "#shared/db/listings/records.ts";
+import { getAllModifiers, modifierListings } from "#shared/db/modifiers.ts";
 import { requireSuccess } from "#shared/result.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -99,6 +101,44 @@ describeWithEnv(
       const imported = requireSuccess(result);
       expect(imported).toMatchObject({ kind: "listing", name: "Fine Kid" });
       expect(await listingParents.getIds(imported.id)).toEqual([parent.id]);
+    });
+
+    test("rolls back when an add-on activates during import", async () => {
+      await createTestListing({ name: "Race import parent" });
+      const modifier = await insertModifier({
+        active: false,
+        name: "Imported race extra",
+      });
+      await patchModifier(modifier.id, {
+        scope: "listings",
+        trigger: "optional",
+      });
+      await execute(
+        `CREATE TRIGGER activate_imported_child_add_on
+           AFTER INSERT ON listings
+           BEGIN
+             UPDATE modifiers SET active = 1 WHERE id = ${modifier.id};
+             INSERT INTO modifier_listings (modifier_id, listing_id)
+             VALUES (${modifier.id}, NEW.id);
+           END`,
+      );
+      const before = await countRows("listings");
+
+      const result = await importCatalog({
+        kind: "listing",
+        listing: { maxAttendees: 1, name: "Race import child" },
+        parents: ["Race import parent"],
+        version: 1,
+      });
+
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("The import should be rejected");
+      expect(result.error).toContain("Imported race extra");
+      expect(await countRows("listings")).toBe(before);
+      expect(await modifierListings.getIds(modifier.id)).toEqual([]);
+      expect(
+        (await getAllModifiers()).find(({ id }) => id === modifier.id)?.active,
+      ).toBe(false);
     });
   },
 );

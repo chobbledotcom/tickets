@@ -293,16 +293,35 @@ const requireNotSoldHiddenPackageTx = async (
   }
 };
 
-/** The pre-update package flags, supplied by the caller from the row loaded
- *  *before* the write transaction's UPDATE executes. The row write runs before
- *  this hook (`writeRowInTransaction` executes the statement, then the
- *  `afterWrite` callbacks), so reading the flags here from the DB would return
- *  the post-update state — the old flags would be gone. The caller's snapshot
- *  is the only source of the pre-update `is_package` / `hide_package_listings`
- *  values. */
-type PackageRow = {
+export type PackageFlags = {
   hide_package_listings: boolean;
   is_package: boolean;
+};
+
+type PackageFlagsRow = {
+  hide_package_listings: number;
+  is_package: number;
+};
+
+/** Reads only the flags that package write guards need. */
+export const readPackageFlagsTxOrNull = async (
+  tx: TxScope,
+  id: number,
+): Promise<PackageFlags | null> => {
+  const row = resultRows<PackageFlagsRow>(
+    await tx.execute({
+      args: [id],
+      sql: `SELECT groupRow.is_package, groupRow.hide_package_listings
+              FROM groups AS groupRow
+             WHERE groupRow.id = ?`,
+    }),
+  )[0];
+  return row
+    ? {
+        hide_package_listings: row.hide_package_listings === 1,
+        is_package: row.is_package === 1,
+      }
+    : null;
 };
 
 /** Runs both package guards in one call so every group write path applies the
@@ -311,12 +330,12 @@ type PackageRow = {
 const requirePackageGuardsTx = async (
   tx: TxScope,
   groupId: number,
-  existing: PackageRow | null,
+  flags: PackageFlags | null,
   isPackaging: boolean,
 ): Promise<void> => {
   await requirePackageGroupMembersTx(tx, groupId);
   const wasHiddenPackage =
-    existing?.is_package === true && existing?.hide_package_listings === true;
+    flags?.is_package === true && flags.hide_package_listings === true;
   await requireNotSoldHiddenPackageTx(
     tx,
     groupId,
@@ -327,19 +346,18 @@ const requirePackageGuardsTx = async (
 
 /** Guards a group write and replaces its package members in one call: every
  *  group write path applies the same sold-hidden check and the same "empty
- *  when un-packaging" rule. `existing` is the pre-update row (null on create),
- *  supplied by the caller from before the write transaction's row UPDATE.
+ *  when un-packaging" rule. `flags` is the pre-update transaction snapshot.
  *  `members` is already resolved by the caller (parsed from a form or taken
  *  from the API input); pass `undefined` to leave existing overrides untouched. */
 export const writePackageMembersTx = async (
   tx: TxScope,
   id: number,
-  existing: PackageRow | null,
+  flags: PackageFlags | null,
   input: { isPackage?: boolean | undefined },
   members: PackageMemberInput[] | undefined,
 ): Promise<void> => {
   const isPackaging = input.isPackage !== false;
-  await requirePackageGuardsTx(tx, id, existing, isPackaging);
+  await requirePackageGuardsTx(tx, id, flags, isPackaging);
   if (members !== undefined) {
     await setGroupPackageMembers(id, isPackaging ? members : [], tx);
   }

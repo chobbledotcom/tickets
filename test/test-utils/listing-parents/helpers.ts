@@ -1,9 +1,11 @@
+import { listingChildren } from "#shared/db/listing-parents.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   insertModifier,
   linkModifierGroup,
+  linkModifierListing,
   optInAddOnForListings,
   patchModifier,
 } from "#test-utils/modifiers.ts";
@@ -26,6 +28,18 @@ export const linkedParentChild = async (): Promise<ParentChild> => {
   await postChildren(parent.id, [child.id]);
   return { child, parent };
 };
+
+/** An intentionally invalid stored edge for transaction recheck tests. */
+export const standardParentWithDailyChildEdge =
+  async (): Promise<ParentChild> => {
+    const parent = await createTestListing({ name: "Standard parent" });
+    const child = await createTestListing({
+      listingType: "daily",
+      name: "Daily child",
+    });
+    await listingChildren.setIds(parent.id, [child.id]);
+    return { child, parent };
+  };
 
 /** Create a listing through the admin JSON API, returning the created id. */
 export const apiCreateListing = async (
@@ -66,6 +80,28 @@ export const groupScopedAddOn = async (): Promise<
   const child = await createTestListing({ groupId: group.id, name: "Add-on" });
   await linkGroupAddOn(group.id);
   return { child, group, parent };
+};
+
+/** A child-only group add-on plus a stale direct link to the parent. */
+export const groupAddOnWithStaleParentLink = async (): Promise<ParentChild> => {
+  const group = await createTestGroup({ name: "Child group" });
+  const parent = await createTestListing({ name: "Base unit" });
+  const child = await createTestListing({
+    groupId: group.id,
+    name: "Add-on",
+  });
+  const modifierId = await linkGroupAddOn(group.id, "Group child extra");
+  await linkModifierListing(modifierId, parent.id);
+  return { child, parent };
+};
+
+/** An order-wide add-on plus a stale direct link to the child. */
+export const allAddOnWithStaleChildLink = async (): Promise<ParentChild> => {
+  const { parent, child } = await parentAndChild();
+  const modifier = await insertModifier({ name: "Order extra" });
+  await patchModifier(modifier.id, { scope: "all", trigger: "optional" });
+  await linkModifierListing(modifier.id, child.id);
+  return { child, parent };
 };
 
 /** A parent, its child, and a third "rescuing" page that shares a {child,

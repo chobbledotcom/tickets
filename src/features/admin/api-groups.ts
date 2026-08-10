@@ -18,7 +18,11 @@ import {
   groupCatalogFields,
   type PackageMemberInput,
 } from "#shared/catalog-fields/fields.ts";
-import { writePackageMembersTx } from "#shared/db/groups/membership.ts";
+import {
+  type PackageFlags,
+  readPackageFlagsTxOrNull,
+  writePackageMembersTx,
+} from "#shared/db/groups/membership.ts";
 import {
   computeGroupSlugIndex,
   generateUniqueGroupSlug,
@@ -222,12 +226,18 @@ const toGroupInput = async (
   });
 };
 
-export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
-  afterWrite: (tx, id, input, existing) =>
+export const groupApiRoutes = defineCrudApi<
+  Group,
+  GroupInput,
+  Group,
+  void,
+  PackageFlags
+>({
+  afterWrite: (tx, id, input, flags) =>
     writePackageMembersTx(
       tx,
       id,
-      existing,
+      flags,
       input,
       input.isPackage === false ? [] : input.packageMembers,
     ),
@@ -260,6 +270,7 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
   name: "groups",
   nameField: "name",
   onDelete: deleteGroup,
+  readState: readPackageFlagsTxOrNull,
   singular: "Group",
   stripKeys: ["slug_index"],
   table: groups.table,

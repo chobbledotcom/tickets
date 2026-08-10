@@ -1,4 +1,4 @@
-import type { InStatement, ResultSet } from "@libsql/client";
+import type { Client, InStatement, ResultSet } from "@libsql/client";
 import { getDb, setDb } from "#shared/db/client.ts";
 import { wrapExecute } from "#shared/db/libsql-call.ts";
 import { proxyMembers } from "#shared/proxy-members.ts";
@@ -37,6 +37,26 @@ export const wrapDbClient = (hooks: DbCallHooks): (() => void) => {
         real,
         (statement, execute) => hooks.execute(statement) ?? execute(),
       ),
+    }),
+  );
+  return () => setDb(real);
+};
+
+/** Run one callback immediately before the next database transaction starts. */
+export const beforeNextTransaction = (
+  before: () => Promise<void>,
+): (() => void) => {
+  const real = getDb();
+  let pending = true;
+  setDb(
+    proxyMembers(real, {
+      transaction: async (...args: Parameters<Client["transaction"]>) => {
+        if (pending) {
+          pending = false;
+          await before();
+        }
+        return real.transaction(...args);
+      },
     }),
   );
   return () => setDb(real);
