@@ -198,11 +198,15 @@ const freeOutcome = (observation: PaymentObservation): ObservationOutcome => {
     : { issue: { kind: "paid_without_charge" }, kind: "conflict" };
 };
 
-/** What this reading amounts to. */
+/** What this reading amounts to. A checkout that owed nothing takes the free
+ *  arm whatever the provider calls it: a provider that took money on one
+ *  reports the session as paid, and routing by that word would name the money
+ *  a total mismatch instead of money nobody asked for. */
 export const outcomeOf = (observation: SettledReading): ObservationOutcome =>
-  observation.status === "paid"
-    ? paidOutcome(observation)
-    : freeOutcome(observation);
+  observation.expected.amount === 0 ||
+  observation.status === "no_payment_required"
+    ? freeOutcome(observation)
+    : paidOutcome(observation);
 
 /** Whether this reading has finished saying what happened to the money. A
  *  stored answer about one that has not is asking about nothing yet. */

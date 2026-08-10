@@ -240,8 +240,8 @@ describe("what one reading of a payment comes to", () => {
         paymentObservation({
           charges: [chargeLeg()],
           expected: { amount: 0, currency: "GBP" },
-          providerTotal: { amount: 0, currency: "GBP" },
-          status: "no_payment_required",
+          providerTotal: { amount: 100, currency: "GBP" },
+          status: "paid",
         }),
       ),
     );
