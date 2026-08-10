@@ -40,6 +40,7 @@ export const refundReference = (
   index: `index_of_${reference}`,
   reference,
   refundState: "completed",
+  rowSessionIds: sessionIds,
   sessionIds,
 });
 

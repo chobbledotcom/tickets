@@ -1,11 +1,15 @@
 import { chunk } from "#fp";
 import {
+  type AnchoredAttendee,
+  anchorLegacyCharges,
+} from "#shared/db/payment-anchor/mint.ts";
+import { isAnchorSession } from "#shared/db/payment-anchor/session.ts";
+import {
   type ClaimResult,
   claimAttendeeRows,
   releaseAttendeeRows,
 } from "#shared/db/payment-claim.ts";
 import {
-  isLegacyMergeSession,
   markPaymentReferencesProviderRefunded,
   type RefundPaymentReference,
 } from "#shared/db/payment-references.ts";
@@ -185,19 +189,29 @@ const releaseHold = async (
 
 export const underAttendeeClaim = async <TResult>(
   rowClaim: RowClaim,
-  attendeeIds: readonly number[],
+  held: readonly AnchoredAttendee[],
   capability: RefundCapability,
   listingId: number,
   run: {
     blocked: (reason: string) => TResult;
-    /** The payment sessions this run loaded. A hold covering anything else
-     *  means the attendee's money grew while the run was queued. */
-    knownSessionIds: ReadonlySet<string>;
     lost: (result: TResult) => boolean;
     work: (alreadyReturned: ReadonlySet<string>) => Promise<TResult>;
   },
 ): Promise<TResult> => {
-  const claim = await rowClaim.claim(attendeeIds, capability);
+  // A charge with no row of its own cannot be held, and a claim that holds
+  // nothing lets two runs both believe they have the money. Give it one first.
+  await anchorLegacyCharges(held);
+  // The payment sessions this run loaded. A hold covering anything else means
+  // the attendee's money grew while the run was queued.
+  const knownSessionIds = new Set(
+    held.flatMap((attendee) =>
+      attendee.references.flatMap((reference) => [...reference.sessionIds]),
+    ),
+  );
+  const claim = await rowClaim.claim(
+    held.map((attendee) => attendee.attendeeId),
+    capability,
+  );
   if (claim.kind === "blocked") {
     return run.blocked(claimRefusal(claim.blockedBy));
   }
@@ -206,12 +220,13 @@ export const underAttendeeClaim = async <TResult>(
   // refunding what we did load would return part of someone's money and leave
   // the rest, so the whole run stands down and the operator tries again
   // against the complete set.
-  // A merge anchor is not a new charge: the reference list leaves its id out
-  // on purpose, so it would otherwise look like money that appeared while we
-  // waited and stand every merged attendee's refund down for ever.
+  // An anchor is not a new charge: it stands in for one this run already
+  // knows about — either minted just now, or left by an earlier merge — and
+  // the reference list leaves its id out on purpose. Counting one would look
+  // like money that appeared while we waited, and stand the refund down.
   const unknown = claim.sessionIds.filter(
     (sessionId) =>
-      !run.knownSessionIds.has(sessionId) && !isLegacyMergeSession(sessionId),
+      !knownSessionIds.has(sessionId) && !isAnchorSession(sessionId),
   );
   if (unknown.length > 0) {
     await releaseHold(rowClaim, claim, listingId);
@@ -362,7 +377,10 @@ export const processRefundBatch = async (
 ): Promise<RefundCounts> => {
   const result = await underAttendeeClaim(
     rowClaim,
-    batch.map((candidate) => candidate.attendee.id),
+    batch.map((candidate) => ({
+      attendeeId: candidate.attendee.id,
+      references: candidate.references,
+    })),
     provider.refundCapability,
     listingId,
     {
@@ -382,13 +400,6 @@ export const processRefundBatch = async (
           unsettled: false,
         };
       },
-      knownSessionIds: new Set(
-        batch.flatMap((candidate) =>
-          candidate.references.flatMap((reference) => [
-            ...reference.sessionIds,
-          ]),
-        ),
-      ),
       lost: (result) => result.counts.errorCount > 0 || result.unsettled,
       work: (alreadyReturned) =>
         refundClaimedBatch(

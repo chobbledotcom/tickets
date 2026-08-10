@@ -139,7 +139,7 @@ const handleAttendeeRefund = verifiedAttendeeAction(
     // instead of both sending.
     const refunded = await underAttendeeClaim<CandidateRefund>(
       durableRowClaim,
-      [attendeeId],
+      [{ attendeeId, references }],
       provider.refundCapability,
       listingId,
       {
@@ -152,9 +152,6 @@ const handleAttendeeRefund = verifiedAttendeeAction(
 
           return { candidate, outcome: "failed" as const };
         },
-        knownSessionIds: new Set(
-          references.flatMap((reference) => [...reference.sessionIds]),
-        ),
         lost: (result) =>
           result.outcome === "errored" || result.unsettled === true,
         work: (alreadyReturned) =>

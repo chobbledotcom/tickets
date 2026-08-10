@@ -2175,45 +2175,6 @@ Two steps, in order:
    fix. `PaymentConflict` would gain the kind, and `admit-refund.ts` maps every
    conflict to `refused` already.
 
-## The bulk refund wave needs one claim, not one per attendee
-
-`refundCandidateAtProvider` takes and releases the claim per attendee, and each
-of those is its own interactive transaction. A bulk wave refunds several
-attendees in one request, so the run now spends roughly two extra transactions
-per attendee against the hard subrequest allowance in
-`src/shared/subrequest-budget.ts` — the allowance `BULK_REFUND_LIMIT = 5` is
-derived from. `reports failures with one/multiple refunds remaining` in
-`test/features/admin/attendee-refunds/bulk.test.ts` fails on this: it passes
-alone and fails in a full grouped run, and which of the two rows fails varies,
-because the budget is exhausted at a different point each time.
-
-The fix is to claim per WAVE rather than per attendee: `claimAttendeeRows` takes
-a list of attendee ids and claims them all in one transaction (which the
-contract's all-or-none rule already wants — a wave that cannot claim every
-attendee should refuse whole), with one matching release. That is one
-transaction per wave instead of two per attendee, and it also makes the
-all-or-none guarantee true across the wave rather than only within one attendee.
-
-Do this before wiring the callback arm and the refresh route, since both will
-otherwise inherit the same per-call cost.
-
-## A legacy-only reference is refunded under a claim that holds nothing
-
-`claimAttendeeRows` claims `processed_payments` rows. `getRefundCandidates` also
-admits an attendee whose only reference is the legacy `payment_id` on the
-attendee row itself, which has no `processed_payments` row — so the run gets a
-successful claim holding zero sessions, and two overlapping requests can both
-pass and both send the same keyless refund.
-
-The contract's answer is the admin-minted anchor row: mint a row for the legacy
-reference keyed by its `payment_reference_index`, claim that, and let the
-terminal write tag it. Until that exists, the alternative is to refuse a run
-whose references are not all durably held — safer, but it makes legacy-only
-attendees unrefundable, so it is a worse answer than minting.
-
-Whichever way it goes, `claimAttendeeRows` should not report a hold it does not
-have.
-
 ## Balance settlement can grow a reference set that is already claimed
 
 Law 1's writer exclusivity is not built. `balanceFinalizeStatements` checks only
