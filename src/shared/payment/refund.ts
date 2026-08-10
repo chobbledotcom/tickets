@@ -4,7 +4,10 @@ import type {
   RefundObservation,
   RefundResolution,
 } from "#shared/payment/resources.ts";
-import { refundMoneyMatchesCapture } from "#shared/payment/resources.ts";
+import {
+  refundMoneyMatchesCapture,
+  refundMoneyReturned,
+} from "#shared/payment/resources.ts";
 
 /** The provider's own refund, when it has named one. Left out entirely when it
  *  has not, rather than carried as nothing. */
@@ -23,8 +26,9 @@ const confirmedRefund = (
   status: "completed" | "partial",
   charge: ChargeLeg,
   observation: RefundObservation | undefined,
+  returned: number,
 ): RefundResolution => ({
-  amount: charge.confirmedRefunded,
+  amount: { amount: returned, currency: charge.confirmedRefunded.currency },
   ...named(observation?.refund),
   status,
 });
@@ -56,17 +60,28 @@ export const resolveRefund = (charge: ChargeLeg): RefundResolution => {
     };
   }
   const completed = observedRefund(charge.refunds, "completed");
-  if (charge.confirmedRefunded.amount === charge.captured.amount) {
-    return confirmedRefund("completed", charge, completed);
+  const returned = refundMoneyReturned(charge);
+  if (returned === charge.captured.amount) {
+    return confirmedRefund("completed", charge, completed, returned);
   }
-  if (charge.confirmedRefunded.amount > 0) {
-    return confirmedRefund("partial", charge, completed);
-  }
+  // A refund the provider tried and could not finish is answered before money
+  // already back is called a partial refund: the two need different handling,
+  // and a failure hidden behind "partly refunded" is a failure nobody retries.
   const failed = observedRefund(charge.refunds, "failed");
+  if (failed !== undefined) {
+    return {
+      amount: { amount: returned, currency: charge.confirmedRefunded.currency },
+      ...named(failed.refund),
+      reason: "provider_failed",
+      status: "failed",
+    };
+  }
+  if (returned > 0) {
+    return confirmedRefund("partial", charge, completed, returned);
+  }
   return {
     amount: charge.confirmedRefunded,
-    ...named(failed?.refund),
-    reason: failed === undefined ? "not_observed" : "provider_failed",
+    reason: "not_observed",
     status: "failed",
   };
 };
