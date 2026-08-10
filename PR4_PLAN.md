@@ -1035,14 +1035,14 @@ consumer or state must say which law admits it:
    on a narrower read than the declared observation; a path that cannot afford
    the reads does not move the money.
 
-| Operation A                                 | Operation B                                                                     | Required result                                                                                             | Protection                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| ------------------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Callback refund attempt                     | Redelivered callback refund attempt                                             | One payout                                                                                                  | Reservation lock (`processed_payments`) — PR B extends it to the rejection arm, which today refunds before reserving — plus provider idempotency key (Stripe/Square), judge's fresh-read `fully_refunded`/`refund_pending` verdicts, SumUp provider-side second-refund rejection                                                                                                                                                                                      |
-| Admin refund                                | Callback refund of the same charge                                              | One payout                                                                                                  | Same as above — both paths front the same judge; Stripe/Square then land on the same idempotency key, and SumUp on the provider's own rejection of a second refund (its generic 409 state conflict, classified by the evidence re-read) plus the fresh amount read                                                                                                                                                                                                    |
-| Two admin bulk waves touching one reference | —                                                                               | One payout per reference                                                                                    | The all-or-none claim (laws 1 and 3) serializes the waves; `refundState === "completed"` short-circuit, judge verdict, and idempotency key back it up                                                                                                                                                                                                                                                                                                                 |
-| Refund run holding a live claim             | Attendee merge or delete of a claimed attendee                                  | Rows never move or vanish under live refund work; the merge/delete answers the settling reason              | Law 1's writer admission: the merge/delete transaction reads every affected row's record and fails closed on any live claim or staged marker                                                                                                                                                                                                                                                                                                                          |
-| Judgment read                               | Provider state changes after read, before attempt                               | Provider-side rejection or idempotent landing; never a silent double payout                                 | Provider guarantees (documented full-refund rejection) + next read converges                                                                                                                                                                                                                                                                                                                                                                                          |
-| Refund call succeeds                        | Sibling capture lands at the provider after the judged sweep, before completion | Completion never closes the payment while unjudged captured money sits at the provider; partial-payout park | The refund path's terminal batch is preceded by one complete-observation re-read (counted in admission): a capture beyond the judged set writes the park and detection with the sent refund's facts recorded in the same batch, never the clean completion — local fences cannot see this window because no local writer runs in it (regression: a sibling captured between sweep and completion parks the payment with the sent refund recorded, never closes clean) |
+| Operation A                                 | Operation B                                                                     | Required result                                                                                                         | Protection                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Callback refund attempt                     | Redelivered callback refund attempt                                             | One payout                                                                                                              | Reservation lock (`processed_payments`) — PR B extends it to the rejection arm, which today refunds before reserving — plus provider idempotency key (Stripe/Square), judge's fresh-read `fully_refunded`/`refund_pending` verdicts, SumUp provider-side second-refund rejection                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Admin refund                                | Callback refund of the same charge                                              | One payout                                                                                                              | Same as above — both paths front the same judge; Stripe/Square then land on the same idempotency key, and SumUp on the provider's own rejection of a second refund (its generic 409 state conflict, classified by the evidence re-read) plus the fresh amount read                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Two admin bulk waves touching one reference | —                                                                               | One payout per reference                                                                                                | The all-or-none claim (laws 1 and 3) serializes the waves; `refundState === "completed"` short-circuit, judge verdict, and idempotency key back it up                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Refund run holding a live claim             | Attendee merge or delete of a claimed attendee                                  | Rows never move or vanish under live refund work; the merge/delete answers the settling reason                          | Law 1's writer admission: the merge/delete transaction reads every affected row's record and fails closed on any live claim or staged marker                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Judgment read                               | Provider state changes after read, before attempt                               | Provider-side rejection or idempotent landing; never a silent double payout                                             | Provider guarantees (documented full-refund rejection) + next read converges                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Refund call succeeds                        | Sibling capture lands at the provider after the judged sweep, before completion | A sibling the re-read can see parks before completion; one narrower residual is RETAINED and named, never promised away | The refund path's terminal batch is preceded by one complete-observation re-read (counted in admission): a capture beyond the judged set writes the park and detection with the sent refund's facts recorded in the same batch, never the clean completion — local fences cannot see this window because no local writer runs in it. The read-to-commit gap that remains is irreducible against a provider with no revision tokens (any further read just moves it) and is a NAMED RETAINED RESIDUAL, cured by the post-terminal evidence path: the late sibling's own callback or the next complete read merges it into committed evidence, the merged re-judgment produces the multi-charge park, and the completed payment converts to the owner-review marker (regressions: a sibling captured between sweep and re-read parks the payment with the sent refund recorded, never closes clean; a sibling merged after completion converts the payment to the owner-review marker, never stays silently clean) |
 
 M4 adds no new tables and exactly THREE new columns, all on `processed_payments`
 with ONE schema migration shipped by PR A (law 5 — PR A writes the first fenced
@@ -1252,31 +1252,36 @@ Genuine conflicts the system must not decide:
   tender stays captured — recording the observed provider fact in the activity
   log instead; and the Refund action is not RENDERED for a gated attendee
   (`canRefundAttendee` in `attendee-page-data.ts:74-80` and the bulk-action
-  candidate set gain the same owner-review condition PLUS the committed
-  summary's more-than-one-captured-charge fact — the second condition is summary
-  content, so it survives marker retirement and keeps a REVIEWED multi-capture
-  payment's action unrendered until M6 — the house rule that a link the target
-  refuses must not be shown), the attendee page showing the owner-review
-  indicator with the dashboard pointer in its place while the marker lives, and
-  a plain second-charge note with the same dashboard pointer after review
-  retires it (regression: a reviewed two-capture attendee renders the note,
-  never the Refund action). Without these guards the admin route could refund
-  the webhook-named tender while `recordAttendeeRefund` reverses the booking's
-  FULL ledger amount — a £50 provider payout the ledger books as a £100 return,
-  with £50 still captured at Square. The guard reads in PR A's refund cutover
-  and is written by PR B's callback finalize (vacuously true between them); and
-  because the admin preflight and the refresh route judge the DECLARED Square
-  observation (law 6 — the payment plus its order's captured-tender sweep), a
-  multi-tender booking that predates the judge, or one booked clean before
-  Square's tender list caught up with no redelivery since, is caught by the
-  fresh sweep at the first attempt to move its money — marker or no marker
-  (regression: an admin refund against a Square booking whose order carries a
-  second captured tender, booked clean with no redelivery and no marker, is
-  refused whole with zero refund calls and the detection recorded). M6's
-  backfill remains for surfacing (aggregates, display), not for the money gate.
-  The marker also outlives payment pruning: today's prune deletes ANY aged row
-  with non-empty `failure_data` (`prune.ts:50-77`, retention configurable as low
-  as days), which would silently drop the guard while the attendee and
+  candidate set gain THE CONDITION THE HANDLER ENFORCES — the committed
+  summary's own re-judgment, the same one judge the refund preflight fronts — so
+  ANY park-shaped summary judgment keeps the action unrendered, marker or no
+  marker: more than one captured charge (until M6), an unresolved
+  `partial_refund`, a recorded contradiction. Summary content survives marker
+  retirement, so review never re-renders an action the preflight would refuse
+  with zero calls — the house rule that a link the target refuses must not be
+  shown), the attendee page showing the owner-review indicator with the
+  dashboard pointer in its place while the marker lives, and a plain
+  blocked-refund note naming the reason (second charge, partial refund at the
+  provider) with the same dashboard pointer after review retires it
+  (regressions: a reviewed single-charge payment whose provider still reports a
+  partial refund renders the note and no action; a reviewed two-capture attendee
+  renders the note, never the Refund action). Without these guards the admin
+  route could refund the webhook-named tender while `recordAttendeeRefund`
+  reverses the booking's FULL ledger amount — a £50 provider payout the ledger
+  books as a £100 return, with £50 still captured at Square. The guard reads in
+  PR A's refund cutover and is written by PR B's callback finalize (vacuously
+  true between them); and because the admin preflight and the refresh route
+  judge the DECLARED Square observation (law 6 — the payment plus its order's
+  captured-tender sweep), a multi-tender booking that predates the judge, or one
+  booked clean before Square's tender list caught up with no redelivery since,
+  is caught by the fresh sweep at the first attempt to move its money — marker
+  or no marker (regression: an admin refund against a Square booking whose order
+  carries a second captured tender, booked clean with no redelivery and no
+  marker, is refused whole with zero refund calls and the detection recorded).
+  M6's backfill remains for surfacing (aggregates, display), not for the money
+  gate. The marker also outlives payment pruning: today's prune deletes ANY aged
+  row with non-empty `failure_data` (`prune.ts:50-77`, retention configurable as
+  low as days), which would silently drop the guard while the attendee and
   refundable reference live on (`getRefundPaymentReferences` falls back to the
   attendee's legacy `payment_id`, re-opening the dangerous refund). But
   non-empty `failure_data` cannot be the protection predicate either, in the
@@ -1309,25 +1314,32 @@ Genuine conflicts the system must not decide:
   mirror is SQL-visible for exactly this consumer class — so a parked quantity-0
   placeholder whose listing was later deleted does not become purge-fodder that
   silently destroys the marker, the staged state, and the retained buyer an
-  explicit admin delete would have been refused over (regressions: deleting a
-  parked placeholder's listing leaves the placeholder standing through the next
-  orphan purge while its marker stands; retiring the marker lets the following
-  purge remove it normally). Regressions: an admin single refund against a
-  proceed-and-alert multi-tender booking is refused with the owner-review reason
-  and makes zero provider calls; a merged attendee holding one marked and one
-  normal reference is rejected whole, before either reference's provider call; a
-  refresh-payment run against a marked session whose named tender was
-  dashboard-refunded records the observation and leaves the ledger untouched;
-  the attendee page for a gated attendee renders the owner-review indicator and
-  no Refund action. Automatic work is not stopped: the booking stands on the
-  signed total. This is PLAN.md's approved M4 text applied ("one handler maps
-  these outcomes onto today's behavior: detect, record, and alert … no automatic
-  work is stopped or stranded before an owner can act") — failing the callback
-  closed instead would 503 until provider redelivery exhausts, leaving taken
-  money with no booking, no buyer answer, and no case tooling until M5, which is
-  precisely the stranding the plan forbids. No money moves automatically either
-  way; the tenders sit untouched for the owner. Decision 1 records the owner's
-  explicit choice of this remedy.
+  explicit admin delete would have been refused over. BOTH orphan selectors take
+  the exclusion, the scheduled one and the manual owner privacy purge alike
+  (`purgeOrphanedAttendees`'s own candidate query in
+  `src/shared/db/orphan-attendees.ts:31-37`, reached from
+  `POST /admin/privacy/orphans`, deletes attendees and their payment rows
+  without passing the admin delete's admission — the same
+  `protected_state IS NULL OR ''` predicate lands in that query) (regressions:
+  deleting a parked placeholder's listing leaves the placeholder standing
+  through the next orphan purge while its marker stands; retiring the marker
+  lets the following purge remove it normally; a marked orphan never appears in
+  the manual privacy purge's candidate set either). Regressions: an admin single
+  refund against a proceed-and-alert multi-tender booking is refused with the
+  owner-review reason and makes zero provider calls; a merged attendee holding
+  one marked and one normal reference is rejected whole, before either
+  reference's provider call; a refresh-payment run against a marked session
+  whose named tender was dashboard-refunded records the observation and leaves
+  the ledger untouched; the attendee page for a gated attendee renders the
+  owner-review indicator and no Refund action. Automatic work is not stopped:
+  the booking stands on the signed total. This is PLAN.md's approved M4 text
+  applied ("one handler maps these outcomes onto today's behavior: detect,
+  record, and alert … no automatic work is stopped or stranded before an owner
+  can act") — failing the callback closed instead would 503 until provider
+  redelivery exhausts, leaving taken money with no booking, no buyer answer, and
+  no case tooling until M5, which is precisely the stranding the plan forbids.
+  No money moves automatically either way; the tenders sit untouched for the
+  owner. Decision 1 records the owner's explicit choice of this remedy.
 - **`capture_total_mismatch`**: same detect-record-alert handling — the buyer
   over-paid, so their claim to the booking is valid and the surplus is named for
   the owner; the evidence names expected vs observed amounts. Resolution today
