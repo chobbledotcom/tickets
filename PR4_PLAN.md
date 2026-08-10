@@ -237,23 +237,29 @@ commands and failure tables — a verdict that exists to prevent a payout can
 never route back into one. On the callback side, with exactly one captured
 charge — structurally every Stripe and SumUp observation, and virtually every
 Square one — the remedy is today's refund path, unchanged: one charge, one
-refund call. With more than one, no automatic refund runs at all: the session
-parks to owner review — no booking, no provider refund calls, a terminal
-outcome, the activity record naming the winning conflict kind and every charge,
-the code-only alert, and the decision-3 manual-check copy for the buyer. The
-owner returns the money from the provider dashboard. This is the boundary
-decision 1 already draws: the in-app path cannot safely move money on charges it
-has no record slot for — per-charge refund evidence, ledger legs, and retry
-state are exactly M7's durable engine, and imitating it inside one callback
-would mean invented facts (an unread tender's refund state) and an unbounded
-provider fan-out. Regression cases: two captured tenders in a wrong currency
-yield `currency_mismatch` whose remedy makes zero refund calls, books nothing,
-records both resource ids under the winning kind, and answers the manual-check
-copy; two captured tenders whose sum is below the signed total yield
-`partial_charge` (never `multiple_charges` — the adapted order above) and, being
-multi-charge, park the same way with no booking; one captured charge in a wrong
-currency refunds exactly as today; a free checkout with captured money yields
-`paid_without_charge` and reaches the refund path.
+refund call. One callback kind is carved out of that arm: `resource_mismatch`
+keeps the conflict table's retryable refusal with zero provider calls, because
+its evidence says the captured payment and the signed session's order do not
+belong together — most plausibly provider consistency lag — and refunding a
+payment whose parent disagrees could return money for a DIFFERENT order.
+Provider redelivery with coherent evidence, or the operator, resolves it; no
+automatic money moves on evidence that contradicts itself. With more than one,
+no automatic refund runs at all: the session parks to owner review — no booking,
+no provider refund calls, a terminal outcome, the activity record naming the
+winning conflict kind and every charge, the code-only alert, and the decision-3
+manual-check copy for the buyer. The owner returns the money from the provider
+dashboard. This is the boundary decision 1 already draws: the in-app path cannot
+safely move money on charges it has no record slot for — per-charge refund
+evidence, ledger legs, and retry state are exactly M7's durable engine, and
+imitating it inside one callback would mean invented facts (an unread tender's
+refund state) and an unbounded provider fan-out. Regression cases: two captured
+tenders in a wrong currency yield `currency_mismatch` whose remedy makes zero
+refund calls, books nothing, records both resource ids under the winning kind,
+and answers the manual-check copy; two captured tenders whose sum is below the
+signed total yield `partial_charge` (never `multiple_charges` — the adapted
+order above) and, being multi-charge, park the same way with no booking; one
+captured charge in a wrong currency refunds exactly as today; a free checkout
+with captured money yields `paid_without_charge` and reaches the refund path.
 
 ### Owner-review conflicts survive downstream booking failures
 
@@ -280,31 +286,39 @@ reference, and never more:
 
 - **Square** (session and legacy references alike): `retrievePayment` states
   captured `amountMoney` and cumulative `refundedMoney` — the full arithmetic
-  applies. Order tenders are captured money only when they SAY so: today's
-  tender pick carries only ids (`square.ts:55-59`), and Square documents that an
-  order's tender list can lag and can hold non-captured states, so the widened
-  pick reads each tender's `amount_money` AND its capture state by the tender's
-  documented TYPE. A card tender counts per `card_details.status` — captured
-  only when the status says so; authorized/voided/failed card tenders are named
-  in the evidence but never counted as money; a CARD tender carrying money with
-  a missing or unrecognized `card_details.status` is a malformed read — it
-  refuses at M3's provider-read boundary (retryable callback / failed admin
-  row), the same rule as any missing documented field, because no ported
-  conflict kind represents an unreadable reading and `outcomeOf` must not invent
-  one. A non-card tender (Square documents cash, wallet, gift-card, and other
-  types, none of which carry `card_details`) that states `amount_money` counts
-  as observed captured money in the sweep, its type named in the evidence —
-  these types document no order-level pending state, and counting them errs
-  toward detection (an owner-review record), never toward validity: the
-  webhook-named payment keeps its independent COMPLETED check from the payments
-  read, which alone gates booking — the tender sweep only detects EXTRA captured
-  money. A valid order carrying a cash tender must never wedge as an eternally
-  retrying malformed read. Before any duplicate or multiple-charge check, the
-  observation coalesces the named payment with its own tender: the tender whose
-  payment id IS the webhook-named payment is excluded from the sweep (its facts
-  come from the richer payments read), so a caught-up tender list on an ordinary
-  one-payment order can never read as `duplicate_charge` against the payment
-  itself; `duplicate_charge` remains for two genuinely distinct legs sharing one
+  applies. `refunded_money` is a DOCUMENTED-OPTIONAL field: Square omits it on a
+  never-refunded payment, so its absence means a cumulative refund of zero in
+  the captured money's currency — the genuinely-expected-absence case the house
+  rules name, already modelled optional at the boundary (`square.ts:463-476`)
+  and pinned by the existing missing-means-not-refunded test. The
+  malformed-field refusal is for money that is present but incoherent (an amount
+  without a currency), never for this documented absence — an ordinary
+  never-refunded payment judges `ready`, it does not retry forever. Order
+  tenders are captured money only when they SAY so: today's tender pick carries
+  only ids (`square.ts:55-59`), and Square documents that an order's tender list
+  can lag and can hold non-captured states, so the widened pick reads each
+  tender's `amount_money` AND its capture state by the tender's documented TYPE.
+  A card tender counts per `card_details.status` — captured only when the status
+  says so; authorized/voided/failed card tenders are named in the evidence but
+  never counted as money; a CARD tender carrying money with a missing or
+  unrecognized `card_details.status` is a malformed read — it refuses at M3's
+  provider-read boundary (retryable callback / failed admin row), the same rule
+  as any missing documented field, because no ported conflict kind represents an
+  unreadable reading and `outcomeOf` must not invent one. A non-card tender
+  (Square documents cash, wallet, gift-card, and other types, none of which
+  carry `card_details`) that states `amount_money` counts as observed captured
+  money in the sweep, its type named in the evidence — these types document no
+  order-level pending state, and counting them errs toward detection (an
+  owner-review record), never toward validity: the webhook-named payment keeps
+  its independent COMPLETED check from the payments read, which alone gates
+  booking — the tender sweep only detects EXTRA captured money. A valid order
+  carrying a cash tender must never wedge as an eternally retrying malformed
+  read. Before any duplicate or multiple-charge check, the observation coalesces
+  the named payment with its own tender: the tender whose payment id IS the
+  webhook-named payment is excluded from the sweep (its facts come from the
+  richer payments read), so a caught-up tender list on an ordinary one-payment
+  order can never read as `duplicate_charge` against the payment itself;
+  `duplicate_charge` remains for two genuinely distinct legs sharing one
   resource id. The observation also carries `order.totalMoney` as the provider
   SESSION total, a separate observed fact from the per-tender charges — today
   `retrieveSession` stands the named payment's own amount in as `amountTotal`
@@ -394,14 +408,14 @@ never duplicated.
 
 ## Failure table
 
-| Work completed                 | Failure                                                                                                                                                                                                                                    | Required result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Retry owner                                                                |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| Nothing                        | Provider read unavailable before judgment                                                                                                                                                                                                  | No verdict; caller's existing unavailable handling (callback 503 retryable; admin row fails with reason)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Provider redelivery / operator                                             |
-| Judge refused refund           | — (refusal is the outcome)                                                                                                                                                                                                                 | No provider call, no local mutation beyond the recorded answer                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Provider redelivery / operator re-runs later; cumulative catch-up unblocks |
-| Provider refund succeeded      | Local completion write fails                                                                                                                                                                                                               | A next attempt's fresh read sees the provider cumulative (Square/Stripe) or the amount evidence (SumUp) → `fully_refunded`, success without a second payout. On the callback placeholder-refund path the outcome stays TERMINAL even when `recordPlaceholderRefund` reports `posted: false`: the attendee insert precedes the ledger write and has no replay identity, so a retryable answer would re-enter booking and insert a second placeholder — the current docstring's "a retry must NOT re-create it" is kept. PR B fixes the silent half instead: `posted: false` stops being ignored — it writes an activity-log entry and a system note on the attendee naming the unrecorded money (session id and amount), so the miss is operator-visible and repairable with existing tools (the refresh-payment route re-posts what provider state supports; otherwise the manual ledger correction `reportRefundNotRecorded` already words). Both evidence writes are non-throwing best-effort — the same discipline as the ledger write they report on: their own failure logs a classified error and never prevents the terminal finalize, so the replay identity always lands and redelivery cannot re-book the placeholder. Durable automated re-posting is M7's persistence half                                                            | Next redelivery / operator                                                 |
-| Refund call sent               | No validated provider verdict (transport error, timeout, or a response body that fails its schema — `StripeRefundSchema` / the Square refund response shape; a 2xx with an unreadable body moves money just as invisibly as a lost packet) | Not recorded as failed blindly: the malformed body is surfaced loudly (a classified error naming the provider and reference — never parsed leniently), and one post-call evidence re-read re-judges. A cumulative that now covers the charge records completion — the money moved, and the idempotency key or the provider's second-refund rejection keeps it one payout. Anything else records the honest failure — including when the re-read itself is stale (cumulative totals lag): that recorded failure is the row above wearing a different cause, repaired the same way — a later judged read (the refresh-payment route or an operator re-run) observes the caught-up cumulative, answers `fully_refunded`, and records completion, while the idempotency key (Stripe/Square) or full-refund rejection (SumUp) keeps any interim re-attempt at one payout. A definitive rejection that names its reason (Stripe's explicit failure statuses, Square's typed errors) skips the re-read: the verdict is the answer. SumUp's generic 409 state-conflict is NOT definitive — it does not say which state conflicted, so it is never assumed to mean already-refunded: it takes the same one bounded re-read, and the evidence answers (a cumulative covering the charge records `fully_refunded`; anything else records the honest failure) | Same caller; operator re-runs                                              |
-| Provider refund PENDING        | Request ends                                                                                                                                                                                                                               | No completion write; Stripe/Square replay lands on the same idempotency key; SumUp: a re-attempt's fresh amount read answers `fully_refunded` before any call when the cumulative covers the charge, and a provider 409 on the call itself is classified by the bounded re-read, never assumed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Provider redelivery                                                        |
-| Owner-review conflict detected | Alert delivery fails                                                                                                                                                                                                                       | The durable record survives: the conflict is written to the activity log in the same transaction as the processing outcome, so it is admin-visible regardless of alert delivery. The ntfy/log alert itself is best-effort, stated as such — terminal replays do not re-observe, so a lost alert is not retried on this path. Retryable owner alerting is M5's unsent-revision machinery                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Operator (activity log today; M5 cases)                                    |
+| Work completed                 | Failure                                                                                                                                                                                                                                    | Required result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Retry owner                                                                |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Nothing                        | Provider read unavailable before judgment                                                                                                                                                                                                  | No verdict; caller's existing unavailable handling (callback 503 retryable; admin row fails with reason)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Provider redelivery / operator                                             |
+| Judge refused refund           | — (refusal is the outcome)                                                                                                                                                                                                                 | No provider call, no local mutation beyond the recorded answer                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Provider redelivery / operator re-runs later; cumulative catch-up unblocks |
+| Provider refund succeeded      | Local completion write fails                                                                                                                                                                                                               | A next attempt's fresh read sees the provider cumulative (Square/Stripe) or the amount evidence (SumUp) → `fully_refunded`, success without a second payout. On the callback placeholder-refund path the outcome stays TERMINAL even when `recordPlaceholderRefund` reports `posted: false`: the attendee insert precedes the ledger write and has no replay identity, so a retryable answer would re-enter booking and insert a second placeholder — the current docstring's "a retry must NOT re-create it" is kept. PR B fixes the silent half instead: `posted: false` stops being ignored — the unposted-money fact rides the terminal write itself, stored in the terminal record's outcome data (`failure_data`, the same env-key-encrypted slot `markSessionFailed` writes, naming the session and amount) in the SAME batch as the finalize, so the durable marker and the replay identity land atomically: even if every other write fails, the terminal row itself names the money the ledger is missing. The activity-log entry and the attendee system note are layered on top as operator surfacing, non-throwing best-effort — their failure logs a classified error and never prevents the finalize, so redelivery cannot re-book the placeholder. Repair stays with existing tools (the refresh-payment route re-posts what provider state supports; the manual ledger correction `reportRefundNotRecorded` covers the rest); durable automated re-posting is M7's persistence half | Next redelivery / operator                                                 |
+| Refund call sent               | No validated provider verdict (transport error, timeout, or a response body that fails its schema — `StripeRefundSchema` / the Square refund response shape; a 2xx with an unreadable body moves money just as invisibly as a lost packet) | Not recorded as failed blindly: the malformed body is surfaced loudly (a classified error naming the provider and reference — never parsed leniently), and one post-call evidence re-read re-judges. A cumulative that now covers the charge records completion — the money moved, and the idempotency key or the provider's second-refund rejection keeps it one payout. Anything else records the honest failure — including when the re-read itself is stale (cumulative totals lag): that recorded failure is the row above wearing a different cause, repaired the same way — a later judged read (the refresh-payment route or an operator re-run) observes the caught-up cumulative, answers `fully_refunded`, and records completion, while the idempotency key (Stripe/Square) or full-refund rejection (SumUp) keeps any interim re-attempt at one payout. A definitive rejection that names its reason (Stripe's explicit failure statuses, Square's typed errors) skips the re-read: the verdict is the answer. SumUp's generic 409 state-conflict is NOT definitive — it does not say which state conflicted, so it is never assumed to mean already-refunded: it takes the same one bounded re-read, and the evidence answers (a cumulative covering the charge records `fully_refunded`; anything else records the honest failure)                                                                                                                                                    | Same caller; operator re-runs                                              |
+| Provider refund PENDING        | Request ends                                                                                                                                                                                                                               | No completion write; Stripe/Square replay lands on the same idempotency key; SumUp: a re-attempt's fresh amount read answers `fully_refunded` before any call when the cumulative covers the charge, and a provider 409 on the call itself is classified by the bounded re-read, never assumed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Provider redelivery                                                        |
+| Owner-review conflict detected | Alert delivery fails                                                                                                                                                                                                                       | The durable record survives: the conflict is written to the activity log in the same transaction as the processing outcome, so it is admin-visible regardless of alert delivery. The ntfy/log alert itself is best-effort, stated as such — terminal replays do not re-observe, so a lost alert is not retried on this path. Retryable owner alerting is M5's unsent-revision machinery                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Operator (activity log today; M5 cases)                                    |
 
 ## Retry and replay
 
@@ -458,25 +472,30 @@ never duplicated.
   back or compare. PR B therefore adds an `evidence_index` column to
   `processed_payments`: a deterministic one-way code (the existing `hmacHash`
   pattern behind `ticket_token_index` and friends) over the terminal outcome
-  kind plus the sorted observed captured resource ids and amounts — comparable
-  in plaintext, revealing nothing (provider resource ids, no PII). A column on
-  an existing table, not a new table; `payment_charges` stays dormant. Every
-  terminal write stores it — success finalization and `markSessionFailed` alike
-  (`markSessionFailed` also gains the owner-readable `payment_reference` write
-  it lacks today: `processed-payments.ts:190-203` writes it on success,
-  `:213-226` never on failure). A redelivery hashes its fresh observation and
-  compares: an equal fingerprint is an exact replay — nothing written, the
-  stored answer returned; a different fingerprint is new evidence — the total
-  detection rule above records it (a third tender on a payment whose first two
-  were already recorded changes the fingerprint, so later money is never
-  suppressed by an earlier record) and the fingerprint updates to the new
-  observation. Identical redeliveries therefore write nothing more even after a
-  lost acknowledgement; only truly concurrent duplicates — two deliveries in
-  flight before either fingerprint lands — can each record, the failure
-  direction being a duplicate operator-visible record, never a lost one, with
-  M6's aggregate row making it exactly-once. Legacy rows from before PR B carry
-  no fingerprint; for those the comparison is vacuous and the replay stands —
-  stated.
+  kind plus the sorted per-resource settled facts the judgment reads — each
+  observed captured resource's id, captured amount, and cumulative refunded
+  amount — comparable in plaintext, revealing nothing (provider resource ids and
+  money figures, no PII). The refunded term is what keeps the
+  changed-settled-facts guarantee above real: a redelivery whose only change is
+  a grown cumulative refund (still `partial_refund`, same resources, same
+  captures) changes the fingerprint and records, rather than masquerading as an
+  exact replay. A column on an existing table, not a new table;
+  `payment_charges` stays dormant. Every terminal write stores it — success
+  finalization and `markSessionFailed` alike (`markSessionFailed` also gains the
+  owner-readable `payment_reference` write it lacks today:
+  `processed-payments.ts:190-203` writes it on success, `:213-226` never on
+  failure). A redelivery hashes its fresh observation and compares: an equal
+  fingerprint is an exact replay — nothing written, the stored answer returned;
+  a different fingerprint is new evidence — the total detection rule above
+  records it (a third tender on a payment whose first two were already recorded
+  changes the fingerprint, so later money is never suppressed by an earlier
+  record) and the fingerprint updates to the new observation. Identical
+  redeliveries therefore write nothing more even after a lost acknowledgement;
+  only truly concurrent duplicates — two deliveries in flight before either
+  fingerprint lands — can each record, the failure direction being a duplicate
+  operator-visible record, never a lost one, with M6's aggregate row making it
+  exactly-once. Legacy rows from before PR B carry no fingerprint; for those the
+  comparison is vacuous and the replay stands — stated.
 - Retries stay owned by provider redelivery and the operator, as today. M4 adds
   no scheduler.
 - Permanent failures: a provider's explicit refund rejection records the failed
@@ -544,9 +563,10 @@ No money-moving automation is added for any owner-review kind.
 
 ## Security and privacy
 
-- No new routes, roles, or links. Alerts and logs carry conflict kinds, resource
-  ids, and amounts — never buyer PII, never raw provider payloads (M3's
-  fixed-refusal discipline is unchanged).
+- No new routes, roles, or links. The encrypted activity log carries conflict
+  kinds, resource ids, and amounts; the ntfy alert carries the fixed error code
+  only, per the commands table's alert boundary. Neither carries buyer PII or
+  raw provider payloads (M3's fixed-refusal discipline is unchanged).
 - The judge runs on evidence already fetched by the current path; the only new
   provider data crossing a boundary is Stripe's documented `amount_refunded` and
   refund `status` fields (decision 2) Square's documented tender `amount_money`
@@ -681,10 +701,18 @@ correctness, not scope creep.
   whose recovery worst case cannot fit the request's REMAINING subrequest budget
   is refused whole — zero provider calls, every row failed with the plain reason
   "This run has too many payments to refund at once. Refund fewer attendees at a
-  time." The admission compares 3R provider calls plus the batch's own database
-  calls at the client's retry worst case — every post-provider write costed at
-  the bounded maximum of four attempts (`TRANSIENT_ERROR_BACKOFF_MS` in
-  `db/client.ts` allows three retries, and the round-trip guard counts each
+  time." The admission counts provider calls at each adapter's PHYSICAL fetch
+  worst case, not its logical call count: Stripe's transport makes up to three
+  fetches per logical call (`STRIPE_MAX_NETWORK_RETRIES = 2` in
+  `stripe/request.ts`, each attempt counted by the guard via
+  `countExternalSubrequest`), so a Stripe batch's three logical calls per
+  reference admit as 9R; the Square and SumUp adapters make exactly one fetch
+  per call today, so their factor is 1 — each factor read from the adapter's own
+  retry constant, so a future retry change moves the admission with it. The
+  admission compares that physical provider worst case plus the batch's own
+  database calls at the client's retry worst case — every post-provider write
+  costed at the bounded maximum of four attempts (`TRANSIENT_ERROR_BACKOFF_MS`
+  in `db/client.ts` allows three retries, and the round-trip guard counts each
   attempt separately), so a `SQLITE_BUSY` streak after money has moved cannot
   push the request over the limit — plus a fixed reserve for failure fan-out
   (per-row activity records, the code-only alert, error reporting) against the
