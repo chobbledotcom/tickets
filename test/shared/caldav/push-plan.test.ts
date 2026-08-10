@@ -57,34 +57,36 @@ const manyDeletes = (n: number) =>
 const manyPending = (n: number, base = 0) =>
   Array.from({ length: n }, (_, i) => pending({ id: base + i }));
 
+const dateless = (id: number): PendingListing =>
+  pending({ dated: false, everPushed: false, id });
+
+// Plan these rows and return the single clearLocal batch's rows — the local
+// clears always collapse into one batch action, so exactly one is expected.
+const clearBatchRows = (rows: readonly PendingListing[]) => {
+  const clears = ofKind(plan({ pending: rows }).actions, "clearLocal");
+  expect(clears).toHaveLength(1);
+  return clears[0]!.rows;
+};
+
 describe("planPush — local (no calendar call) rules", () => {
-  test("clears dateless, never-pushed rows locally in a single batch", () => {
-    const { actions } = plan({
-      pending: [
-        pending({ dated: false, everPushed: false, id: 1 }),
-        pending({ dated: false, everPushed: false, id: 2 }),
-      ],
-    });
-    const clears = ofKind(actions, "clearLocal");
-    expect(clears).toHaveLength(1);
-    // Each carries its revision so the executor can guard the clear against a
-    // late edit that lands between planning and applying.
-    expect(clears[0]!.rows).toEqual([
+  test("collapses dateless, never-pushed rows into one revision-guarded batch", () => {
+    // Each row carries its revision so a late edit that lands between planning
+    // and applying is guarded against.
+    expect(clearBatchRows([dateless(1), dateless(2)])).toEqual([
       { id: 1, pending: 1 },
       { id: 2, pending: 1 },
     ]);
-    // A local clear costs no calendar call — these rows are never queued as
-    // deletes, because nothing remote exists to delete.
-    expect(ofKind(actions, "queueDelete")).toHaveLength(0);
   });
 
   test("clears even a single dateless never-pushed row", () => {
-    const { actions } = plan({
-      pending: [pending({ dated: false, everPushed: false, id: 1 })],
-    });
-    const clears = ofKind(actions, "clearLocal");
-    expect(clears).toHaveLength(1);
-    expect(clears[0]!.rows).toEqual([{ id: 1, pending: 1 }]);
+    expect(clearBatchRows([dateless(1)])).toEqual([{ id: 1, pending: 1 }]);
+  });
+
+  test("never queues a remote delete for a row it only clears locally", () => {
+    // Nothing remote exists for a never-pushed row, so a local clear must not
+    // also queue a delete.
+    const { actions } = plan({ pending: [dateless(1)] });
+    expect(ofKind(actions, "queueDelete")).toHaveLength(0);
   });
 
   test("emits no clearLocal action when there is nothing to clear", () => {
