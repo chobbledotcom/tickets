@@ -16,7 +16,6 @@ import { listingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
 import { emptyRange } from "#shared/accounting/range.ts";
 import { resolveRecipientEmails } from "#shared/bulk-email.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import { formatDateLabel } from "#shared/dates.ts";
 import {
   type ActivityLogEntry,
   getListingActivityLog,
@@ -60,6 +59,7 @@ import { ListingRosterPanel } from "#templates/admin/listings/roster.tsx";
 import type { AttendeeFilter } from "#templates/admin/listings/types.ts";
 import type { TableQuestionData } from "#templates/attendee-table/types.ts";
 import {
+  dateOptionsFor,
   filterByDate,
   loadGroupContext,
   loadListingQuestionData,
@@ -152,19 +152,6 @@ const loadDecryptedListingAttendees = async (
 ): Promise<Attendee[]> => {
   const attendeesRaw = await getAttendeesByListingIds([listingId]);
   return decryptAttendees(attendeesRaw, privateKey);
-};
-
-/** The distinct booking dates present on a daily listing, ascending, as the
- *  roster's date-picker options; empty for a non-daily listing. */
-const availableDatesFor = (
-  listing: ListingWithCount,
-  attendees: Attendee[],
-): { value: string; label: string }[] => {
-  if (listing.listing_type !== "daily") return [];
-  const dates = [
-    ...new Set(attendees.map((a) => a.date).filter((d): d is string => !!d)),
-  ].sort((a, b) => a.localeCompare(b));
-  return dates.map((value) => ({ label: formatDateLabel(value), value }));
 };
 
 /** The Overview's answer summary needs only the questions and each attendee's
@@ -278,7 +265,7 @@ export const loadListingRosterPanel = async (
     activeFilter,
     allowedDomain: getEffectiveDomain(),
     attendees: filteredByDate,
-    availableDates: availableDatesFor(listing, attendees),
+    availableDates: dateOptionsFor(listing, attendees),
     childNames: (childrenLinks.listingsByKey.get(listing.id) ?? []).map(
       (child) => child.name,
     ),

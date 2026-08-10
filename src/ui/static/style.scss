@@ -2895,8 +2895,13 @@ a.cal-day-selected:active {
 }
 
 /* Action rows attached to a table: filters above or below.
-   No margin of their own; the surrounding flex container supplies the gap. */
+   No margin of their own; the surrounding flex container supplies the gap
+   around the row. The gap here is between the actions within the row: two
+   adjacent links otherwise render as one unbroken run of text. */
 .table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
   margin: 0;
 }
 

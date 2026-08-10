@@ -17,7 +17,7 @@ import {
 } from "#fp";
 import { getDateFilter } from "#routes/admin/actions.ts";
 import type { AuthSession } from "#routes/auth.ts";
-import { formatDateLabel } from "#shared/dates.ts";
+import { coveredDays, formatDateLabel } from "#shared/dates.ts";
 import { getGroupRemainingByGroupId } from "#shared/db/attendees/capacity/groups.ts";
 import { getGroupsByIds, listingGroups } from "#shared/db/groups.ts";
 import {
@@ -28,25 +28,38 @@ import { getQuestionsForListing } from "#shared/db/questions/queries.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
-import type { GroupContext } from "#templates/admin/listings/types.ts";
+import type {
+  DateOption,
+  GroupContext,
+} from "#templates/admin/listings/types.ts";
 
-/** Filter attendees by date for daily listings */
+/** Keep the attendees a chosen day belongs to. A booking counts for every day
+ * it covers, so day 2 of a three-day stay lists that stay. */
 export const filterByDate = (
   attendees: Attendee[],
   date: string | null,
 ): Attendee[] =>
-  date ? filter((a: Attendee) => a.date === date)(attendees) : attendees;
+  date
+    ? filter((a: Attendee) => coveredDays(a.date, a.end_date).includes(date))(
+        attendees,
+      )
+    : attendees;
 
-/** Collect unique dates from attendees, sorted ascending */
-const getUniqueDates: (
-  attendees: Attendee[],
-) => { value: string; label: string }[] = pipe(
-  map((a: Attendee) => a.date),
-  (dates) => compact(dates),
+const getUniqueDates: (attendees: Attendee[]) => DateOption[] = pipe(
+  (attendees: Attendee[]) =>
+    attendees.flatMap((a: Attendee) => coveredDays(a.date, a.end_date)),
+  (dates: string[]) => compact(dates),
   (dates) => unique(dates),
   sort((a, b) => a.localeCompare(b)),
-  map((d) => ({ label: formatDateLabel(d), value: d })),
+  map((d: string) => ({ label: formatDateLabel(d), value: d })),
 );
+
+/** The roster's date-picker options; empty for a listing not booked by the day. */
+export const dateOptionsFor = (
+  listing: ListingWithCount,
+  attendees: Attendee[],
+): DateOption[] =>
+  listing.listing_type === "daily" ? getUniqueDates(attendees) : [];
 
 /** Get date filter and filtered attendees for daily listings */
 const applyDateFilter = (
@@ -56,10 +69,8 @@ const applyDateFilter = (
 ) => {
   const dateFilter =
     listing.listing_type === "daily" ? getDateFilter(request) : null;
-  const availableDates =
-    listing.listing_type === "daily" ? getUniqueDates(attendees) : [];
   return {
-    availableDates,
+    availableDates: dateOptionsFor(listing, attendees),
     dateFilter,
     filteredByDate: filterByDate(attendees, dateFilter),
   };

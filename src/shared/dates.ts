@@ -399,6 +399,17 @@ export const formatDateRangeLabel = (
   return formatDateRangeLabelCompactEn(startDate, lastDay);
 };
 
+/** Every YYYY-MM-DD day a stored `[date, endDate)` booking covers. The end is
+ * exclusive, and a booking with no end recorded covers only the day it starts. */
+export const coveredDays = (
+  date: string | null,
+  endDate: string | null,
+): string[] => {
+  if (!date) return [];
+  const lastDay = endDate ? addDays(endDate, -1) : date;
+  return lastDay > date ? dateRange(date, lastDay) : [date];
+};
+
 /** The whole day count of a stored `[start_at, end_at)` booking range — the
  * customisable day count the buyer chose. A missing or degenerate range is 1. */
 export const bookedSpanDays = (

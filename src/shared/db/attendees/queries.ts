@@ -21,6 +21,7 @@ import {
   pricePaidFromLedger,
   refundedFromLedger,
 } from "#shared/db/attendees/select.ts";
+import type { DayRange } from "#shared/db/capacity.ts";
 import {
   inPlaceholders,
   queryAll,
@@ -285,6 +286,27 @@ export const getAttendeePiiBlobsForListings = (
      )`,
         listingIds,
       );
+
+/**
+ * Get the encrypted PII blobs for attendees whose booking on one listing covers
+ * a given day. A booking spanning several days covers each of them, so a stay
+ * from Friday to Sunday answers to Saturday as well as to its own first day.
+ * Uses the same half-open overlap predicate as the capacity checks, so the
+ * people a day's message reaches are the people that day counts.
+ */
+export const getAttendeePiiBlobsForListingDay = (
+  listingId: number,
+  day: DayRange,
+): Promise<OwnerKeyEncrypted[]> =>
+  selectAudiencePiiBlobs(
+    `id IN (
+       SELECT DISTINCT listingAttendee.attendee_id
+       FROM listing_attendees AS listingAttendee
+       WHERE listingAttendee.listing_id = ? AND listingAttendee.quantity > 0
+         AND listingAttendee.start_at < ? AND listingAttendee.end_at > ?
+     )`,
+    [listingId, day.endAt, day.startAt],
+  );
 
 /**
  * Get the encrypted PII blob for the attendee identified by a plaintext ticket

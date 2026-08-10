@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  seedDailyListingBookedOnOneDay,
   seedListingWithAttendees,
   seedSingleAttendeeListing,
   useResend,
@@ -89,6 +90,33 @@ describeWithEnv("server bulk email > compose", { db: true }, () => {
       expect(html).toContain("checked");
       expect(html).toContain("recipient. That's everyone");
       expect(html).not.toContain("recipients");
+    });
+
+    test("targets one day of a listing via ?listing&day", async () => {
+      const listing = await seedDailyListingBookedOnOneDay();
+      const html = await (
+        await adminGet(`/admin/emails?listing=${listing.id}&day=2026-03-02`)
+      ).text();
+      expect(html).toContain(
+        "Recipients:</strong> Attendees of Term on Monday 2 March 2026",
+      );
+    });
+
+    test("404s for a day it cannot honour", async () => {
+      const listing = await seedDailyListingBookedOnOneDay();
+      for (const query of [
+        `listing=${listing.id}&day=not-a-day`,
+        `listing=${listing.id}&day=2026-02-30`,
+        `listing=${listing.id}&day=`,
+        "day=2026-03-02",
+        "listing=9999&day=2026-03-02",
+        // A real day of a real listing that nobody booked: the target resolves,
+        // then the empty recipient set is refused.
+        `listing=${listing.id}&day=2026-03-09`,
+      ]) {
+        const response = await adminGet(`/admin/emails?${query}`);
+        expect(response.status).toBe(404);
+      }
     });
 
     test("forbids non-owner admins", async () => {

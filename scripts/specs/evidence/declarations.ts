@@ -42,6 +42,11 @@ const brandedMobileCapture = <Id extends string>(
 
 export const EVIDENCE_CAPTURES = [
   brandedMobileCapture(
+    "writing.one-day-hears-and-the-others-do-not",
+    "one-days-audience",
+    ".page-regions.admin-page",
+  ),
+  brandedMobileCapture(
     "servicing.hold-on-dashboard",
     "servicing-studio-floor-hold",
     "#servicing-form",

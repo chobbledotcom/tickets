@@ -27,7 +27,7 @@ import {
 import { panelTab, writeFormTab } from "#routes/admin/entity-write-tab.ts";
 import { type AuthSession, requireContentOr } from "#routes/auth.ts";
 import type { AdminFeatureKey } from "#shared/admin-features.ts";
-import { targetQuery } from "#shared/bulk-email-targets.ts";
+import { targetQuery } from "#shared/bulk-email-targets/registry.ts";
 import { settings } from "#shared/db/settings.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import {

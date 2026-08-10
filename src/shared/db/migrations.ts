@@ -20,7 +20,6 @@ import type { Client } from "@libsql/client";
 import { lazyRef } from "#fp";
 import { resetAllCaches } from "#shared/cache-registry.ts";
 import { executeBatch, getDb, inPlaceholders } from "#shared/db/client.ts";
-import { isDatabaseRoundTripLimited } from "#shared/db/query-log.ts";
 import { logDebug } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import { addPendingWork, hasPendingWorkScope } from "#shared/pending-work.ts";
@@ -69,6 +68,7 @@ import {
   syncIndexes,
   syncTriggers,
 } from "./migrations/schema-sync.ts";
+import type { Migration } from "./migrations/types.ts";
 
 export { SCHEMA_HASH, SCHEMA_TABLE_NAMES } from "./migrations/schema/index.ts";
 export { LATEST_UPDATE } from "./migrations/schema/version.ts";
@@ -220,9 +220,15 @@ export const rebuildWipedSchema = async (): Promise<void> => {
 
 // ─── Main migration ─────────────────────────────────────────────
 
-// A batch of four leaves room for the lock, probes, schema checks, and the
-// largest migrations while staying below Bunny's 50-subrequest request cap.
-const MIGRATIONS_PER_REQUEST = 4;
+/** A single migration that cannot finish within one request's subrequest
+ *  budget would stall forever — every reload re-runs it and hits the same wall.
+ *  Fail loudly instead, naming the migration to split. */
+const migrationTooLargeError = (migration: Migration): Error =>
+  new Error(
+    `Migration ${migration.id} needs more database round-trips than a single ` +
+      "request allows, so it cannot finish on the edge. Split it into smaller " +
+      "migrations.",
+  );
 
 type InitDbOptions = {
   /** Only setup/restore/bootstrap callers should create a missing settings table. */
@@ -309,21 +315,22 @@ const runAcquiredMigrations = async (
     return "release";
   }
 
-  // Backups run out-of-band because the edge request budget cannot fit a full
-  // dump alongside migrations. Update routes require a recent backup instead.
-  const batch = isDatabaseRoundTripLimited()
-    ? pending.slice(0, MIGRATIONS_PER_REQUEST)
-    : pending;
-  const finished = batch.length === pending.length;
-  await runPendingMigrations(batch, lockToken);
+  // How many migrations run this request is set by the subrequest budget, not a
+  // fixed count: runPendingMigrations applies as many as fit and holds back the
+  // headroom that recording progress and releasing the lock need, so a stale
+  // database advances on every reload instead of stalling on a full batch.
+  // (Back-ups run out-of-band because the edge budget cannot fit a full dump.)
+  const completed = await runPendingMigrations(pending, lockToken);
+  if (completed.length === 0) throw migrationTooLargeError(pending[0]!);
 
+  const finished = completed.length === pending.length;
   logDebug(
     "Migration",
     finished
       ? "Updating version marker..."
-      : `Recorded ${batch.length} migrations; continuing on the next request...`,
+      : `Recorded ${completed.length} migrations; continuing on the next request...`,
   );
-  await recordMigrationBatch(batch, finished, lockToken);
+  await recordMigrationBatch(completed, finished, lockToken);
   return finished ? "released" : "continue";
 };
 

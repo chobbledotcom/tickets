@@ -8,12 +8,14 @@ import { t } from "#i18n";
 import { ORGANISER, scenarioBrowser } from "#test/specs/support/browser.ts";
 import {
   addressesWrittenTo,
+  addressOf,
   asksNotToHearAboutPromotions,
   bookedOnto,
   listingOffersEmailAction,
   type MessageWritten,
   ownerHasAnEmailProvider,
   peopleBookOnto,
+  personBooksDays,
   previewOffersADraftToSendThemselves,
   sendsWhatWasPreviewed,
   siteOffersToSend,
@@ -21,6 +23,7 @@ import {
   watchWhatIsSent,
   wordsTheyWrote,
   writesToListing,
+  writesToListingDay,
 } from "#test/specs/support/bulk-email.ts";
 import {
   type TicketsWorld,
@@ -93,6 +96,57 @@ const theOneWhoAsked = (): string => BOOKERS[0]!;
 const asksNotToHear = (): Promise<void> =>
   asksNotToHearAboutPromotions(theOneWhoAsked());
 
+Given(
+  "{string} has booked onto {string} for day {int}",
+  function (
+    this: TicketsWorld,
+    who: string,
+    listingName: string,
+    day: number,
+  ): Promise<void> {
+    return personBooksDays(this, who, listingName, day, 1);
+  },
+);
+
+Given(
+  "{string} has booked onto {string} from day {int} for {int} days",
+  function (
+    this: TicketsWorld,
+    who: string,
+    listingName: string,
+    firstDay: number,
+    days: number,
+  ): Promise<void> {
+    return personBooksDays(this, who, listingName, firstDay, days);
+  },
+);
+
+When(
+  "the owner writes to {string} on day {int} saying {string}",
+  function (
+    this: TicketsWorld,
+    listingName: string,
+    day: number,
+    words: string,
+  ): Promise<void> {
+    return writesToListingDay(this, listingName, day, message(words, false));
+  },
+);
+
+Then(
+  "it was written to {string}",
+  function (this: TicketsWorld, who: string): void {
+    expect(addressesWrittenTo(this)).toContain(addressOf(who));
+  },
+);
+
+Then(
+  "nothing was written to {string}",
+  function (this: TicketsWorld, who: string): void {
+    expect(addressesWrittenTo(this)).not.toContain(addressOf(who));
+  },
+);
+
 Given("one of them has asked not to hear about promotions", asksNotToHear);
 
 Given("they have asked not to hear about promotions", asksNotToHear);
@@ -163,7 +217,7 @@ Then(
 );
 
 Then(
-  "the owner is shown that it would reach {int} people",
+  "the owner is shown that it would reach {int} person/people",
   function (this: TicketsWorld, howMany: number): void {
     expect(scenarioBrowser(this).pageText).toContain(`(${howMany} recipient`);
   },

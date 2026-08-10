@@ -10,6 +10,7 @@
 
 // jscpd:ignore-start
 import { t } from "#i18n";
+import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { hashEmail, unsubscribeHash } from "#shared/db/contact-preferences.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -27,6 +28,7 @@ import {
   type PutsAWatchInPlace,
   watchesOutgoing,
 } from "#test/specs/support/outgoing.ts";
+import { dayFromToday, openStayListing } from "#test/specs/support/stays.ts";
 import {
   keepWhatTheyWereTold,
   type ReadsWhatWasKept,
@@ -124,6 +126,91 @@ export const peopleBookOnto = async (
   );
 };
 
+/** The address the story gives somebody it names, so a later step can check who
+ * the site really wrote to without the story repeating an address. */
+export const addressOf = (who: string): string =>
+  `${who.toLowerCase()}@example.com`;
+
+/** A listing booked by the day, made once per story and remembered by name, so
+ * two people can book different days of the same thing. Room for a stay of up
+ * to a week covers both a single day and a booking spanning several. */
+const dailyListingNamed = async (
+  world: TicketsWorld,
+  listingName: string,
+): Promise<void> => {
+  if (world.things.recall("listing", listingName)) return;
+  await openStayListing(world, listingName, 7, 50, { customerPicksDays: true });
+};
+
+/** Somebody books one listing from a day, for however many days they stay. The
+ * organiser adds it through the roster form, so a story never books past a way
+ * in the site does not offer. */
+export const personBooksDays = async (
+  world: TicketsWorld,
+  who: string,
+  listingName: string,
+  firstDay: number,
+  dayCount: number,
+): Promise<void> => {
+  if (!world.messagesOut) watchWhatIsSent(world);
+  await dailyListingNamed(world, listingName);
+  await organiserAddsBooking(world, listingName, {
+    day: dayFromToday(world, firstDay),
+    dayCount,
+    email: addressOf(who),
+    who,
+  });
+};
+
+/** The owner opens the page for writing to one day of a listing, following the
+ * way in on that day's own attendee list. A day offering no way in is one
+ * nobody could write from, so the story fails with it. */
+export const opensEmailForListingDay = async (
+  world: TicketsWorld,
+  listingName: string,
+  day: number,
+): Promise<TestBrowser> => {
+  const listingId = listingIdNamed(world, listingName);
+  const date = dayFromToday(world, day);
+  const browser = await openAdminPage(
+    world,
+    `/admin/listing/${listingId}/attendees?date=${date}`,
+  );
+  const wayIn = `${COMPOSE_PATH}?listing=${listingId}&day=${date}`;
+  if (!browser.links.some(({ href }) => href === wayIn)) {
+    throw new Error(`${listingName} offers no way to write to ${date}`);
+  }
+  await browser.visit(wayIn);
+  // The compose page names the one day it is aimed at, which is the whole
+  // claim: a term booked date by date can be addressed a date at a time.
+  leaveEvidencePage(world, ["one-days-audience"], wayIn);
+  return browser;
+};
+
+/** The owner writes on whichever compose page they reached, and asks to see it
+ * before it goes. Every way in differs only in the page it opens, so the
+ * writing itself is described once. */
+const writesOnPageFrom = async (
+  world: TicketsWorld,
+  opening: Promise<TestBrowser>,
+  message: MessageWritten,
+): Promise<void> => {
+  await writesAndAsksToSee(world, await opening, message);
+};
+
+/** The owner writes to one day of a listing and asks to see it before it goes. */
+export const writesToListingDay = (
+  world: TicketsWorld,
+  listingName: string,
+  day: number,
+  message: MessageWritten,
+): Promise<void> =>
+  writesOnPageFrom(
+    world,
+    opensEmailForListingDay(world, listingName, day),
+    message,
+  );
+
 /** The addresses of everyone the story booked onto one listing. */
 export const bookedOnto: ReadsWhatWasKept<"booked"> = whatWasKeptFor("booked");
 
@@ -202,17 +289,12 @@ export const wordsTheyWrote = (world: TicketsWorld): string =>
 
 /** The owner writes to one listing's attendees, all the way from that listing's
  * own page to the preview they end up on. */
-export const writesToListing = async (
+export const writesToListing = (
   world: TicketsWorld,
   listingName: string,
   message: MessageWritten,
-): Promise<void> => {
-  await writesAndAsksToSee(
-    world,
-    await opensEmailForListing(world, listingName),
-    message,
-  );
-};
+): Promise<void> =>
+  writesOnPageFrom(world, opensEmailForListing(world, listingName), message);
 
 /** Whether the preview the owner is looking at offers to have the site send
  * the message for them. A page whose only Send button is switched off offers

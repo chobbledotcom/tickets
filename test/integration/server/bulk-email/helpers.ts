@@ -2,7 +2,10 @@ import { type BulkEmailDraft, serializeDraft } from "#shared/bulk-email.ts";
 import { encryptWithOwnerKey } from "#shared/crypto/keys.ts";
 import { hashEmail, unsubscribeHash } from "#shared/db/contact-preferences.ts";
 import { settings } from "#shared/db/settings.ts";
-import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import {
+  createDailyTestAttendee,
+  createTestAttendeeDirect,
+} from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
@@ -17,6 +20,18 @@ export const useResend = () =>
 export const seedSingleAttendeeListing = async () => {
   const listing = await createTestListing({ maxAttendees: 50, name: "Solo" });
   await createTestAttendeeDirect(listing.id, "Alice", "alice@example.com");
+  return listing;
+};
+
+/** A daily listing with one booking on 2 March 2026 and nothing on any other
+ * day, for the listing-day target's reachable and 404 cases. */
+export const seedDailyListingBookedOnOneDay = async () => {
+  const { listing } = await createDailyTestAttendee(
+    "Rachel",
+    "rachel@example.com",
+    "2026-03-02",
+    { maxAttendees: 50, name: "Term" },
+  );
   return listing;
 };
 
