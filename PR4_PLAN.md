@@ -362,14 +362,21 @@ reference, and never more:
   preflights and the refresh route buy the one order read their path lacks — the
   order id rides the payment read — so no path judges Square money on
   payment-only evidence, and a sibling tender captured before booking is seen at
-  the first attempt to move money even when no redelivery ever revealed it. What
-  no read can see is a tender Square has not yet propagated into the order at
-  that instant — that lag residual is the same provider-data-fault class as the
-  stale cumulative (closed by M7's per-attempt records), a bounded propagation
-  window where the pre-sweep blind spot was unbounded. `refunded_money` is a
-  DOCUMENTED-OPTIONAL field: Square omits it on a never-refunded payment, so its
-  absence means a cumulative refund of zero in the captured money's currency —
-  the genuinely-expected-absence case the house rules name, already modelled
+  the first attempt to move money even when no redelivery ever revealed it. A
+  sibling tender the sweep reveals carries its amount and capture state but not
+  its refund totals, and the binding evaluation order needs those to park a
+  part-refunded split rather than book it — so a multi-tender observation buys
+  one payment read per additional captured tender before judging, under the same
+  bounded sibling fan-out as SumUp's children below (regression: a two-tender
+  order whose sibling was part-refunded before the callback parks as
+  `partial_refund`, never books as `multiple_charges`). What no read can see is
+  a tender Square has not yet propagated into the order at that instant — that
+  lag residual is the same provider-data-fault class as the stale cumulative
+  (closed by M7's per-attempt records), a bounded propagation window where the
+  pre-sweep blind spot was unbounded. `refunded_money` is a DOCUMENTED-OPTIONAL
+  field: Square omits it on a never-refunded payment, so its absence means a
+  cumulative refund of zero in the captured money's currency — the
+  genuinely-expected-absence case the house rules name, already modelled
   optional at the boundary (`square.ts:463-476`) and pinned by the existing
   missing-means-not-refunded test. The malformed-field refusal is for money that
   is present but incoherent (an amount without a currency), never for this
@@ -468,7 +475,19 @@ reference, and never more:
   before judging (the single-child common case pays nothing extra; the rare
   multi-child cost is one read per sibling, counted in admission; regression: a
   two-child checkout whose sibling was part-refunded before the callback parks
-  as `partial_refund`, never books). A checkout read that fails is M3's
+  as `partial_refund`, never books). The sibling fan-out — Square tenders and
+  SumUp children alike — is BOUNDED on the callback path by `SIBLING_READ_CAP`,
+  a named constant derived from the callback ceiling in the budget section,
+  because the provider controls the leg list and an unbounded list must never
+  chase the request budget: an observation with more additional legs than the
+  cap buys nothing and PARKS as the split owner-review outcome on the sweep
+  evidence alone — a TERMINAL write naming the unbought evidence, so the session
+  retains its buyer, books nothing, refunds nothing, and every redelivery
+  replays the park instead of repeating the fan-out (regressions: a checkout
+  whose SUCCESSFUL-child count exceeds the cap parks terminally after one sweep
+  and zero sibling reads; its redelivery replays the park without re-reading).
+  Admin runs need no cap — admission prices the per-leg reads and refuses an
+  oversized run whole with zero calls. A checkout read that fails is M3's
   no-verdict boundary — money never moves on the narrower read. A legacy
   reference that names no checkout has the transaction read as its whole
   declared shape — stated, the same M6/M7 residual as its other unknowns
@@ -852,19 +871,29 @@ consumer or state must say which law admits it:
    same precedence — a claim in the reader's OWN scope first, then the
    resolution, then open — and leaves untouched any state it does not own (a
    callback never consumes an `attendee_set` claim; an admin run never resumes a
-   `callback` staged row). Every consumer routes on a DISCRIMINANT, never a
-   proxy: a reader that can decrypt the record routes on the record's own
-   discriminant, and the one reader that cannot — the prune's SQL — routes on
-   the plaintext `protected_state` mirror above. Non-emptiness of the encrypted
-   slot is NOT a state: committed evidence and terminal outcome data ride the
-   same slot without protecting the row, so refund evidence alone never exempts
-   a row from its normal retention (the prune design under Owner choices).
-   Routing is total over WRITERS too: an operation that relocates or removes
-   rows — the attendee merge's reference move, the attendee delete's cascade —
-   is a consumer of every state on them, so its admission reads each affected
-   row's record inside the same interactive transaction that would move or
-   remove it and FAILS CLOSED against any live claim or staged marker, fresh or
-   stale (the answer names the fix: finish or re-run the refund, then retry).
+   `callback` staged row). A writer that would CREATE state on an attendee is
+   routed the same way: the balance-settlement finalize — the transaction that
+   inserts a new reference row and posts its ledger group — reads, inside
+   itself, whether any of that attendee's rows carries a live fresh
+   `attendee_set` claim, and answers RETRYABLY without writing while one stands,
+   so a claimed reference set can never gain a charge mid-run; the provider
+   redelivers after the claim resolves, and a stale claim (a crashed worker)
+   does not block it (regressions: a balance callback finalizing while an admin
+   refund's fresh attendee claim is live answers retryably and writes nothing,
+   and its redelivery after release lands the reference and its ledger group; a
+   stale claim does not block the finalize). Every consumer routes on a
+   DISCRIMINANT, never a proxy: a reader that can decrypt the record routes on
+   the record's own discriminant, and the one reader that cannot — the prune's
+   SQL — routes on the plaintext `protected_state` mirror above. Non-emptiness
+   of the encrypted slot is NOT a state: committed evidence and terminal outcome
+   data ride the same slot without protecting the row, so refund evidence alone
+   never exempts a row from its normal retention (the prune design under Owner
+   choices). Routing is total over WRITERS too: an operation that relocates or
+   removes rows — the attendee merge's reference move, the attendee delete's
+   cascade — is a consumer of every state on them, so its admission reads each
+   affected row's record inside the same interactive transaction that would move
+   or remove it and FAILS CLOSED against any live claim or staged marker, fresh
+   or stale (the answer names the fix: finish or re-run the refund, then retry).
    The two writers differ on OWNER-REVIEW markers, by what each destroys: a
    MERGE relocates — the marker and terminal outcomes ride the moved row
    unchanged, and the per-attendee marker check then gates the merged person
@@ -1412,81 +1441,83 @@ overage buys review-found correctness, not scope creep.
   refund's answer is lost, the recovery re-read is the COMPLETE declared
   observation again (law 6 — it authorizes a completion write), so the
   lost-answer arm adds 1 read for Stripe and checkout-less SumUp and 2 for
-  Square and checkout-linked SumUp, and a multi-child SumUp observation adds one
-  transaction read per additional SUCCESSFUL child wherever it is judged.
-  Discovery adds reads only for an UNTAGGED reference whose earlier candidate
-  fails to validate: worst case one evidence read per credentialed provider (at
-  most three exist), the validating read doubling as the judgment input. Per
-  outcome: refusal and `fully_refunded` cost the evidence reads alone (1; 2 for
-  Square and checkout-linked SumUp; 0 when our own records already refuse); a
-  normal attempt adds the refund call. A callback refund costs its refund call
-  plus evidence: 0 extra reads for a Square rejection carrying valid money (the
-  carried payment evidence judges; one whose money fields were the malformed
-  part buys the one re-read, like the other arms), 1 read on the Stripe and
-  SumUp rejection arms (the payment-intent / transaction read each buys). Today
-  the same reference costs 1–2 (the refund, plus the fallback read on failure),
-  so M4 moves the read up front, the lost-answer arm spends its extra read
-  exactly where today's blind fallback also spent one, and Square's second
-  normal-arm read buys the sibling-capture check no path makes today. The admin
-  bulk cap is `BULK_REFUND_LIMIT` (5) **attendees**, and one attendee can carry
-  several references (deposit plus balance; merges): R total references cost 2R
-  (Stripe; checkout-less SumUp) to 3R (Square; checkout-linked SumUp) provider
-  calls on the normal arms, plus 1 per reference whose sent refund's answer is
-  lost (the reconciling re-read above) and the discovery reads of any untagged
-  reference, typically R ≤ 10 for a full batch. Because the worst case must fit
-  Bunny's 50-subrequest allowance even if every answer is lost, PR A adds a
-  batch pre-flight: before ANY provider call, the run counts its
-  still-unrefunded references, and a batch whose recovery worst case cannot fit
-  the request's REMAINING subrequest budget is refused whole — zero provider
-  calls, every row failed with the plain reason "This run has too many payments
-  to refund at once. Refund fewer attendees at a time." The admission counts
-  provider calls at each adapter's PHYSICAL fetch worst case, not its logical
-  call count: Stripe's transport makes up to three fetches per logical call
-  (`STRIPE_MAX_NETWORK_RETRIES = 2` in `stripe/request.ts`, each attempt counted
-  by the guard via `countExternalSubrequest`), so a Stripe batch's three logical
-  calls per tagged reference admit as 9R; the Square and SumUp adapters make
-  exactly one fetch per call today, so their factor is 1 (a tagged Square or
-  checkout-linked SumUp reference admits as 5 — two evidence reads, the refund,
-  and the two-read lost-answer recovery; a checkout-less SumUp as 3; a
-  multi-child SumUp checkout adds one read per additional SUCCESSFUL child) —
-  each factor read from the adapter's own retry constant, so a future retry
-  change moves the admission with it. An untagged reference admits with its
-  discovery worst case on top: one evidence read per credentialed provider, each
-  priced at that provider's own factor. The admission compares that physical
-  provider worst case plus the batch's own database calls at the client's retry
-  worst case — every post-provider write costed at the bounded maximum of four
-  attempts (`TRANSIENT_ERROR_BACKOFF_MS` in `db/client.ts` allows three retries,
-  and the round-trip guard counts each attempt separately), so a `SQLITE_BUSY`
-  streak after money has moved cannot push the request over the limit — plus a
-  failure reserve PROPORTIONAL to R, not a constant: the worst case is every
-  admitted reference failing, and each failed reference spends its own error
-  fan-out (`logError`'s ntfy and Sentry subrequests plus the per-row activity
-  record, database writes at the retry multiplier), on top of one batch-level
-  error report — R × the per-failure fan-out cost plus the batch constant, every
-  term still static at admission — against the allowance MINUS the subrequests
-  the request has already spent before the pre-flight (the db client's call
-  counter is the source — the route's auth and attendee loads are not free). A
-  batch can no longer abort mid-flight with some refunds committed and
-  unrecorded; every term is known at pre-flight time, so the refusal is exact,
-  not a guess. Regression: an oversized batch makes zero provider calls and
-  fails every row with that reason. The same admission fronts EVERY route that
-  attempts provider refunds in one request — not just the bulk route: the
-  single-attendee refund (`POST /admin/attendees/:attendeeId/refund` calls
-  `refundCandidateAtProvider` directly, `attendee-refunds.ts:120-140`, bypassing
-  the bulk batch) runs the identical pre-flight over the one attendee's
-  reference count, because a merged attendee can carry many references — six
-  Stripe references admit as 54 physical fetches on the lost-answer path, over
-  the allowance on their own. Its refusal is the single-attendee shape of the
-  same plain reason ("This attendee has too many payments to refund in one go.
-  Refund them from the provider dashboard.") — refused whole before any provider
-  call, never a partial pass through the references (regression: a merged
-  attendee whose reference count cannot fit the remaining budget gets that error
-  and zero provider calls). The paged engine that processes arbitrarily large
-  batches is still F53 / M7 — this slice only refuses what one request cannot
-  safely hold. Database calls: one NEW cost beside today's — the all-or-none
-  claim transaction per refund run (claim before any provider call, minting
-  anchor rows for row-less legacy references; finalize/release after), counted
-  in the admission's own arithmetic; everything else unchanged.
+  Square and checkout-linked SumUp, and a multi-leg observation — Square sibling
+  tenders, SumUp sibling children — adds one read per additional leg wherever it
+  is judged, capped on the callback path by `SIBLING_READ_CAP` (admin runs price
+  the legs in admission instead). Discovery adds reads only for an UNTAGGED
+  reference whose earlier candidate fails to validate: worst case one evidence
+  read per credentialed provider (at most three exist), the validating read
+  doubling as the judgment input. Per outcome: refusal and `fully_refunded` cost
+  the evidence reads alone (1; 2 for Square and checkout-linked SumUp; 0 when
+  our own records already refuse); a normal attempt adds the refund call. A
+  callback refund costs its refund call plus evidence: 0 extra reads for a
+  Square rejection carrying valid money (the carried payment evidence judges;
+  one whose money fields were the malformed part buys the one re-read, like the
+  other arms), 1 read on the Stripe and SumUp rejection arms (the payment-intent
+  / transaction read each buys). Today the same reference costs 1–2 (the refund,
+  plus the fallback read on failure), so M4 moves the read up front, the
+  lost-answer arm spends its extra read exactly where today's blind fallback
+  also spent one, and Square's second normal-arm read buys the sibling-capture
+  check no path makes today. The admin bulk cap is `BULK_REFUND_LIMIT` (5)
+  **attendees**, and one attendee can carry several references (deposit plus
+  balance; merges): R total references cost 2R (Stripe; checkout-less SumUp) to
+  3R (Square; checkout-linked SumUp) provider calls on the normal arms, plus 1
+  per reference whose sent refund's answer is lost (the reconciling re-read
+  above) and the discovery reads of any untagged reference, typically R ≤ 10 for
+  a full batch. Because the worst case must fit Bunny's 50-subrequest allowance
+  even if every answer is lost, PR A adds a batch pre-flight: before ANY
+  provider call, the run counts its still-unrefunded references, and a batch
+  whose recovery worst case cannot fit the request's REMAINING subrequest budget
+  is refused whole — zero provider calls, every row failed with the plain reason
+  "This run has too many payments to refund at once. Refund fewer attendees at a
+  time." The admission counts provider calls at each adapter's PHYSICAL fetch
+  worst case, not its logical call count: Stripe's transport makes up to three
+  fetches per logical call (`STRIPE_MAX_NETWORK_RETRIES = 2` in
+  `stripe/request.ts`, each attempt counted by the guard via
+  `countExternalSubrequest`), so a Stripe batch's three logical calls per tagged
+  reference admit as 9R; the Square and SumUp adapters make exactly one fetch
+  per call today, so their factor is 1 (a tagged Square or checkout-linked SumUp
+  reference admits as 5 — two evidence reads, the refund, and the two-read
+  lost-answer recovery; a checkout-less SumUp as 3; a multi-leg observation adds
+  one read per additional captured tender or SUCCESSFUL child) — each factor
+  read from the adapter's own retry constant, so a future retry change moves the
+  admission with it. An untagged reference admits with its discovery worst case
+  on top: one evidence read per credentialed provider, each priced at that
+  provider's own factor. The admission compares that physical provider worst
+  case plus the batch's own database calls at the client's retry worst case —
+  every post-provider write costed at the bounded maximum of four attempts
+  (`TRANSIENT_ERROR_BACKOFF_MS` in `db/client.ts` allows three retries, and the
+  round-trip guard counts each attempt separately), so a `SQLITE_BUSY` streak
+  after money has moved cannot push the request over the limit — plus a failure
+  reserve PROPORTIONAL to R, not a constant: the worst case is every admitted
+  reference failing, and each failed reference spends its own error fan-out
+  (`logError`'s ntfy and Sentry subrequests plus the per-row activity record,
+  database writes at the retry multiplier), on top of one batch-level error
+  report — R × the per-failure fan-out cost plus the batch constant, every term
+  still static at admission — against the allowance MINUS the subrequests the
+  request has already spent before the pre-flight (the db client's call counter
+  is the source — the route's auth and attendee loads are not free). A batch can
+  no longer abort mid-flight with some refunds committed and unrecorded; every
+  term is known at pre-flight time, so the refusal is exact, not a guess.
+  Regression: an oversized batch makes zero provider calls and fails every row
+  with that reason. The same admission fronts EVERY route that attempts provider
+  refunds in one request — not just the bulk route: the single-attendee refund
+  (`POST /admin/attendees/:attendeeId/refund` calls `refundCandidateAtProvider`
+  directly, `attendee-refunds.ts:120-140`, bypassing the bulk batch) runs the
+  identical pre-flight over the one attendee's reference count, because a merged
+  attendee can carry many references — six Stripe references admit as 54
+  physical fetches on the lost-answer path, over the allowance on their own. Its
+  refusal is the single-attendee shape of the same plain reason ("This attendee
+  has too many payments to refund in one go. Refund them from the provider
+  dashboard.") — refused whole before any provider call, never a partial pass
+  through the references (regression: a merged attendee whose reference count
+  cannot fit the remaining budget gets that error and zero provider calls). The
+  paged engine that processes arbitrarily large batches is still F53 / M7 — this
+  slice only refuses what one request cannot safely hold. Database calls: one
+  NEW cost beside today's — the all-or-none claim transaction per refund run
+  (claim before any provider call, minting anchor rows for row-less legacy
+  references; finalize/release after), counted in the admission's own
+  arithmetic; everything else unchanged.
 - Standalone value: the live system stops repeat and over-refunds on the admin
   and attempt side. The callback rejection arm keeps today's behavior until PR B
   cuts it over with its reservation — PR A claims nothing about that arm.
@@ -1594,9 +1625,12 @@ src)**
   path on the trusted arm, plus the one activity-log statement inside the
   existing processing transaction; the refuse arm makes at most one provider
   refund call (single-charge observations; a multi-charge observation makes zero
-  and parks to owner review), so the callback's provider-call ceiling is fixed
-  and can never be chased upward by a provider-controlled tender list; the
-  new-evidence replay arm adds one durable write, no provider calls.
+  and parks to owner review), and the sibling fan-out is bounded by
+  `SIBLING_READ_CAP` (beyond it the observation parks on the sweep alone), so
+  the callback's provider-call ceiling is fixed — sweep + cap + at most one
+  refund — and can never be chased upward by a provider-controlled tender or
+  child list; the new-evidence replay arm adds one durable write, no provider
+  calls.
 - Completes: F51. Regression tests: every conflict kind maps to exactly one
   remedy (exhaustiveness compile test + table-driven behavior tests); money on a
   free checkout refunds; two paid tenders alert without stopping the booking;

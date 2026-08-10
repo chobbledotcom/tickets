@@ -261,7 +261,12 @@ Src target: 400–700.
   the stored references is detected and parked for the owner, never refunded or
   claimable by a concurrent run — then judge the whole set, then move money,
   with every money write fenced on the evidence the run judged (fresh evidence
-  landing mid-run forces a re-judge before any provider call). SumUp has no
+  landing mid-run forces a re-judge before any provider call). A balance
+  settlement that would add a new charge to a claimed attendee answers retryably
+  until the claim resolves, so a claimed set never gains a charge mid-run; and
+  sibling-leg evidence reads are capped on callbacks — beyond the cap the
+  observation parks for owner review on the sweep alone instead of letting a
+  provider-controlled leg list chase the request budget. SumUp has no
   idempotency key, and a keyless refund whose answer is lost stays claimed IN
   DOUBT — answering "still settling" — until provider evidence resolves it; a
   stale claim is re-claimable only behind a fresh evidence read, and the
