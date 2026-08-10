@@ -143,19 +143,19 @@ type ObservationOutcome =
 Every conflict kind is mapped exhaustively (a `Record<kind, Remedy>` in code, so
 a new kind is a compile error) onto exactly one of two remedies:
 
-| Conflict kind             | Meaning                                                                                                                                                                           | Remedy in M4                                                                                                                |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `currency_mismatch`       | Any observed currency differs from the expected currency                                                                                                                          | Refuse-and-record: today's mismatch refund path                                                                             |
-| `provider_total_mismatch` | Provider session total ≠ signed expected total                                                                                                                                    | Refuse-and-record: mismatch refund path                                                                                     |
-| `partial_charge`          | Captured sum < expected                                                                                                                                                           | Refuse-and-record: mismatch refund path                                                                                     |
-| `capture_total_mismatch`  | Captured sum ≠ expected (over-capture)                                                                                                                                            | Owner review: detect, record, alert                                                                                         |
-| `paid_without_charge`     | Money on a free checkout: expected total is 0 and a charge is present                                                                                                             | Refuse-and-record: mismatch refund path (the charge has a resource to refund)                                               |
-| `resource_mismatch`       | Charge/refund parent or provider disagrees with its session/charge                                                                                                                | Refuse-and-record: refuse retryably (callback) / refuse attempt (refund path); keeps Square's current throw-behavior, named |
-| `duplicate_charge`        | Two charge legs share one resource id                                                                                                                                             | Refuse-and-record                                                                                                           |
-| `multiple_charges`        | More than one captured charge on one payment (Square: >1 paid tender)                                                                                                             | Owner review: detect, record, alert; automatic work proceeds on the signed total as today                                   |
-| `refund_exceeds_capture`  | Returned + returning money would exceed captured (`Math.max(providerCumulative, ourCompleted) + pending > captured`, or any single refund > captured, or refund currency differs) | Refuse-and-record: the refund attempt is refused                                                                            |
-| `failed_refund`           | Provider answered a refund attempt with failure                                                                                                                                   | Refuse-and-record: today's failed-refund handling (release/retry or recorded failure)                                       |
-| `partial_refund`          | Cumulative shows part of the money returned                                                                                                                                       | Owner review: detect, record, alert (no current-path action can safely finish it; the balance-refund engine is M7)          |
+| Conflict kind             | Meaning                                                                                                                                                                           | Remedy in M4                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `currency_mismatch`       | Any observed currency differs from the expected currency                                                                                                                          | Refuse-and-record: today's mismatch refund path                                                                                                                                                                                                                                                                                                                                                 |
+| `provider_total_mismatch` | Provider session total ≠ signed expected total                                                                                                                                    | Refuse-and-record: mismatch refund path                                                                                                                                                                                                                                                                                                                                                         |
+| `partial_charge`          | Captured sum < expected                                                                                                                                                           | Refuse-and-record: mismatch refund path                                                                                                                                                                                                                                                                                                                                                         |
+| `capture_total_mismatch`  | Captured sum ≠ expected (over-capture)                                                                                                                                            | Owner review: detect, record, alert                                                                                                                                                                                                                                                                                                                                                             |
+| `paid_without_charge`     | Money on a free checkout: expected total is 0 and a charge is present                                                                                                             | Refuse-and-record: mismatch refund path (the charge has a resource to refund)                                                                                                                                                                                                                                                                                                                   |
+| `resource_mismatch`       | Charge/refund parent or provider disagrees with its session/charge                                                                                                                | Refuse-and-record: refuse retryably (callback) / refuse attempt (refund path); keeps Square's current throw-behavior, named                                                                                                                                                                                                                                                                     |
+| `duplicate_charge`        | Two charge legs share one resource id                                                                                                                                             | Refuse-and-record                                                                                                                                                                                                                                                                                                                                                                               |
+| `multiple_charges`        | More than one captured charge on one payment (Square: >1 paid tender)                                                                                                             | Owner review: detect, record, alert; automatic work proceeds on the signed total as today                                                                                                                                                                                                                                                                                                       |
+| `refund_exceeds_capture`  | Returned + returning money would exceed captured (`Math.max(providerCumulative, ourCompleted) + pending > captured`, or any single refund > captured, or refund currency differs) | Refuse-and-record: the refund attempt is refused                                                                                                                                                                                                                                                                                                                                                |
+| `failed_refund`           | Provider answered a refund attempt with failure                                                                                                                                   | Refuse-and-record: today's failed-refund handling (release/retry or recorded failure)                                                                                                                                                                                                                                                                                                           |
+| `partial_refund`          | Cumulative shows part of the money returned                                                                                                                                       | Owner review. On the BOOKING path it PARKS — no ticket, buyer retained, alert — because the provider retaining less than the signed total is an operator choice (a dashboard discount? a cancellation underway?), never an automatic booking. On a refund attempt or the refresh route it is detect-record-alert (no current-path action can safely finish it; the balance-refund engine is M7) |
 
 Four of the branch's fifteen kinds are NOT ported in M4, because no M4
 observation can produce them and unreachable union arms are dead code. The two
@@ -556,31 +556,35 @@ never duplicated.
   records it (a third tender on a payment whose first two were already recorded
   changes the fingerprint, so later money is never suppressed by an earlier
   record) and the fingerprint updates to the new observation. Identical
-  redeliveries therefore write nothing more even after a lost acknowledgement;
-  only truly concurrent duplicates — two deliveries in flight before either
-  fingerprint lands — can each record, the failure direction being a duplicate
-  operator-visible record, never a lost one, with M6's aggregate row making it
-  exactly-once. The detection write itself is atomic: the owner-review record
-  and the `evidence_index` update commit in ONE batch, so an interruption
-  between them can neither make the next identical delivery record twice
-  (fingerprint already advanced with the record) nor suppress a record that
-  never landed (neither write happened). When the new evidence lands on a BOOKED
-  session — a first callback finalized `ready` before Square's tender list
-  caught up, a later delivery revealing the second capture — that same batch
-  also writes the owner-review marker into the session row's `failure_data`, so
-  the legacy-refund, refresh, and UI gates engage from that moment: without it,
-  the attendee would keep a live Refund action whose use reverses the full
-  ledger order while the newly detected sibling stays captured (regression: a
-  session booked clean whose redelivery reveals a second tender loses its Refund
-  action and refuses legacy refunds immediately). Legacy rows from before PR B
-  carry no fingerprint; their first post-upgrade redelivery takes the detection
-  path, not a blind replay: the fresh observation — validated and in hand — is
-  judged, any conflict records per the total rule (a legacy multi-tender session
-  whose sibling tenders today's code never saw is a REAL first detection), and
-  `evidence_index` is seeded from that observation in the same batch either way;
-  a clean observation seeds silently and writes nothing else. From then on the
-  row compares like any other — only unchanged legacy evidence replays silently,
-  so the total post-terminal rule holds for existing production rows too.
+  redeliveries therefore write nothing more even after a lost acknowledgement —
+  and truly concurrent duplicates are serialized too: the detection write is a
+  COMPARE-AND-SET in one interactive transaction, the `evidence_index` update
+  conditioned on the index still holding the value this delivery compared
+  against, and the owner-review record committing only when that condition held.
+  Two deliveries in flight with the same new evidence yield exactly one record
+  and one alert — the loser's condition fails, it writes nothing, alerts
+  nothing, and answers the stored outcome. An interruption between the two
+  writes can neither make the next identical delivery record twice (fingerprint
+  advanced with the record) nor suppress a record that never landed (neither
+  write happened). Regression: two simultaneous identical post-terminal
+  deliveries produce one record, one alert. When the new evidence lands on a
+  BOOKED session — a first callback finalized `ready` before Square's tender
+  list caught up, a later delivery revealing the second capture — that same
+  batch also writes the owner-review marker into the session row's
+  `failure_data`, so the legacy-refund, refresh, and UI gates engage from that
+  moment: without it, the attendee would keep a live Refund action whose use
+  reverses the full ledger order while the newly detected sibling stays captured
+  (regression: a session booked clean whose redelivery reveals a second tender
+  loses its Refund action and refuses legacy refunds immediately). Legacy rows
+  from before PR B carry no fingerprint; their first post-upgrade redelivery
+  takes the detection path, not a blind replay: the fresh observation —
+  validated and in hand — is judged, any conflict records per the total rule (a
+  legacy multi-tender session whose sibling tenders today's code never saw is a
+  REAL first detection), and `evidence_index` is seeded from that observation in
+  the same batch either way; a clean observation seeds silently and writes
+  nothing else. From then on the row compares like any other — only unchanged
+  legacy evidence replays silently, so the total post-terminal rule holds for
+  existing production rows too.
 - Retries stay owned by provider redelivery and the operator, as today. M4 adds
   no scheduler.
 - Permanent failures: a provider's explicit refund rejection records the failed
@@ -599,14 +603,25 @@ never duplicated.
 | Two admin bulk waves touching one reference | —                                                 | One payout per reference                                                    | `refundState === "completed"` short-circuit, judge verdict, idempotency key                                                                                                                                                                                                      |
 | Judgment read                               | Provider state changes after read, before attempt | Provider-side rejection or idempotent landing; never a silent double payout | Provider guarantees (documented full-refund rejection) + next read converges                                                                                                                                                                                                     |
 
-M4 adds no new locks and no revision columns; it narrows what the existing
-protections must carry by refusing attempts that today would be fired blindly.
-The SumUp cells are a narrowing, not a proof: with no idempotency parameter, two
-truly simultaneous refund calls are serialized only by the provider, and SumUp
-documents 409 as a state conflict, not a concurrency guarantee. The pre-attempt
-read and the 409-classifying re-read shrink the window today's blind attempts
-leave open; the residual simultaneous window is unchanged from today, stated
-here, and closes with M7's durable pending-attempt gate. PR A's concurrency
+M4 adds no new columns; the durable serialization it needs reuses the staged
+refund-in-flight marker. Before ANY provider refund call, every entry point —
+the callback arm, the admin single route, a bulk wave — claims the reference's
+`processed_payments` row by compare-and-set: the staged kind written into empty
+`failure_data` with the batch's written-at time, affected-rows deciding the
+winner. The loser answers "a refund for this payment is already in progress"
+without touching the provider; a stale claim (older than the edge request
+lifetime bound) is a crashed worker and may be re-claimed, per the staged
+lifecycle. This claim is what makes the SumUp cells above real: with no
+idempotency parameter, two truly simultaneous refund calls are serialized only
+by the provider, and SumUp documents 409 as a state conflict, not a concurrency
+guarantee — so the local claim is the serialization, for every provider one
+mechanism (regression: two concurrent admin refunds of one SumUp reference make
+exactly one provider call; the loser answers in-progress). A legacy reference
+with NO `processed_payments` row cannot be claimed: that residual simultaneous
+window is unchanged from today, stated here, and closes with M7's durable
+pending-attempt gate — Stripe/Square legacy attempts still dedupe on the
+provider idempotency key, and SumUp legacy attempts keep the provider's
+second-refund rejection plus the fresh evidence read. PR A's concurrency
 regression exercises our side of this (the second attempt answers provider
 rejection or a fresh `fully_refunded` read) — provider-side serialization is the
 stated assumption, not something a mocked test can prove. The table's "one
@@ -666,31 +681,46 @@ Genuine conflicts the system must not decide:
   which would silently drop the guard while the attendee and refundable
   reference live on (`getRefundPaymentReferences` falls back to the attendee's
   legacy `payment_id`, re-opening the dangerous refund). PR B narrows that prune
-  arm to `failure_data != '' AND attendee_id IS NULL` — byte-identical for every
-  state that exists today, because booked-with-`failure_data` rows are new — so
-  a booked row carrying the owner-review marker (or a staged refund-in-flight
-  row, whose batch stores the payment reference precisely so the empty-reference
-  prune arm cannot match it either) lives as long as its attendee, and the
-  existing attendee-gone arm still prunes it after the attendee is deleted.
-  Regressions: an admin single refund against a proceed-and-alert multi-tender
-  booking is refused with the owner-review reason and makes zero provider calls;
-  a merged attendee holding one marked and one normal reference is rejected
-  whole, before either reference's provider call; a refresh-payment run against
-  a marked session whose named tender was dashboard-refunded records the
-  observation and leaves the ledger untouched; the attendee page for a gated
-  attendee renders the owner-review indicator and no Refund action. Automatic
-  work is not stopped: the booking stands on the signed total. This is PLAN.md's
-  approved M4 text applied ("one handler maps these outcomes onto today's
-  behavior: detect, record, and alert … no automatic work is stopped or stranded
-  before an owner can act") — failing the callback closed instead would 503
-  until provider redelivery exhausts, leaving taken money with no booking, no
-  buyer answer, and no case tooling until M5, which is precisely the stranding
-  the plan forbids. No money moves automatically either way; the tenders sit
-  untouched for the owner. Decision 1 records the owner's explicit choice of
-  this remedy.
-- **`capture_total_mismatch` / `partial_refund`**: same detect-record-alert
-  handling; the evidence names expected vs observed amounts. Resolution today is
-  the provider dashboard plus existing admin tools; case pages arrive in M5.
+  arm to `failure_data != '' AND attendee_id IS NULL`, and the attendee branch's
+  OTHER arms — reference-empty and refund-history (`prune.ts:60-72`) — gain
+  `AND failure_data = ''`, because each independently reaches marked rows: the
+  staged batch stores the payment reference so the empty-reference arm cannot
+  match a staged row, and the refund-history arm would otherwise sweep out the
+  marked row of any attendee carrying an earlier `refund_cash` transfer (a prior
+  refund; a merge) once the retention age passed. Every arm is byte-identical
+  for rows without `failure_data` — the states that exist today — so a marked or
+  staged row prunes ONLY via the attendee-gone arm, living exactly as long as
+  its attendee (a marked booked row whose attendee carries an earlier refund
+  transfer survives pruning). Regressions: an admin single refund against a
+  proceed-and-alert multi-tender booking is refused with the owner-review reason
+  and makes zero provider calls; a merged attendee holding one marked and one
+  normal reference is rejected whole, before either reference's provider call; a
+  refresh-payment run against a marked session whose named tender was
+  dashboard-refunded records the observation and leaves the ledger untouched;
+  the attendee page for a gated attendee renders the owner-review indicator and
+  no Refund action. Automatic work is not stopped: the booking stands on the
+  signed total. This is PLAN.md's approved M4 text applied ("one handler maps
+  these outcomes onto today's behavior: detect, record, and alert … no automatic
+  work is stopped or stranded before an owner can act") — failing the callback
+  closed instead would 503 until provider redelivery exhausts, leaving taken
+  money with no booking, no buyer answer, and no case tooling until M5, which is
+  precisely the stranding the plan forbids. No money moves automatically either
+  way; the tenders sit untouched for the owner. Decision 1 records the owner's
+  explicit choice of this remedy.
+- **`capture_total_mismatch`**: same detect-record-alert handling — the buyer
+  over-paid, so their claim to the booking is valid and the surplus is named for
+  the owner; the evidence names expected vs observed amounts. Resolution today
+  is the provider dashboard plus existing admin tools; case pages arrive in M5.
+- **`partial_refund` on the booking path**: PARKS, exactly as decision 5's park
+  (buyer retained via placeholder or balance note, no ticket, no refund call,
+  terminal outcome, alert). The provider retains LESS than the signed total, and
+  an alert cannot choose among the intents that could explain it — a dashboard
+  discount, a cancellation underway, a correction — so booking automatically
+  would hide a real decision behind a guess; the operator's required choice
+  decides. On the refund and refresh paths it stays detect-record-alert (the
+  booking already exists there). Regression: a callback whose charge was
+  externally part-refunded before delivery parks — no ticket, both amounts
+  recorded.
 - **A multi-charge observation that also fails validation** (decision 5): parks
   to owner review instead of any automatic refund — no booking, no provider
   calls, the record names the winning conflict kind and every charge, and the
