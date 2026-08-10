@@ -197,14 +197,28 @@ Src target: 400–700.
 - Cut live only the outcomes whose remedy is refuse-and-record: block new
   overlapping refunds until the provider's cumulative total catches up while
   counting a completed refund immediately; reject duplicate resources, wrong
-  currencies, wrong parents, over-refunds, and money on a free checkout.
+  currencies, wrong parents, over-refunds, and money on a free checkout. Every
+  refund entry point claims the payment's complete reference set all-or-none
+  before any provider call (a row-less legacy reference gets its row minted by
+  the claim), so concurrent refund runs serialize locally for every provider —
+  SumUp has no idempotency key, and a keyless refund whose answer is lost stays
+  claimed until evidence or a safe timeout resolves it.
+- The stored payment row is one declared state machine — claims with owner
+  scope, owner-review markers, committed evidence, terminal outcomes — bound by
+  five laws every consumer follows (the contract's concurrency section):
+  committed evidence only grows by merge, and every stored reference carries its
+  provider identity, each judged and refunded at its own provider — the M4 slice
+  of F13, which the aggregate (M6/M7) closes for every row.
 - Conflicts that need an owner decision (multiple captures and kin): `outcomeOf`
   is the only classifier here too — the displaced classifier is deleted in this
   same merge, so two judges can never disagree about the same money. One handler
-  maps these outcomes onto today's behavior: detect, record, and alert through
-  the existing error classes, and no automatic work is stopped or stranded
-  before an owner can act. The case workflow arrives one merge later (M5) and
-  the page actions with M7/M8. Build no owner tooling on the legacy engines.
+  maps these outcomes onto the decided behaviors: multiple captures summing to
+  the signed total proceed-and-alert through the existing error classes, while
+  partial-refund evidence on a booking, or a multi-charge observation that also
+  fails validation, parks with the buyer retained and the manual-check answer
+  (owner decisions, 2026-08-09/10). The case workflow arrives one merge later
+  (M5) and the page actions with M7/M8. Build no owner tooling on the legacy
+  engines.
 
 Standalone value: the live system stops repeat refunds and detects captured
 money combinations it currently misses, with one classifier where there were
@@ -305,7 +319,8 @@ happen in production.
   `allocateReservationDeposit` does not survive the move. Store the provider on
   each charge: M6's own reconciliation reads it to validate and deduplicate
   charge identity, and the M7 engine routes refunds by it, closing the
-  multi-provider gap.
+  multi-provider gap for every stored charge (M4 already tags new legacy-path
+  references with their provider and dispatches each reference at its own).
 - Reads: every provider read goes behind one strict observation contract
   covering missing, invalid, unavailable, pending, paid, free, and failed.
   Square payment IDs are named by the order, not scanned from a short list.
@@ -742,7 +757,7 @@ mechanism and a regression test, or — if implementation proves the finding wro
 | F10 | SumUp return IDs interpreted differently by different routes                           | M6              |
 | F11 | Square fallback reads scanning too short a list                                        | M6              |
 | F12 | Delayed work using live currency rather than stored currency                           | M6              |
-| F13 | Charges without a stored provider unrefundable after a provider switch (#2020 gap)     | M6, M7          |
+| F13 | Charges without a stored provider unrefundable after a provider switch (#2020 gap)     | M4, M6, M7      |
 | F14 | In-flight pre-cutover checkouts paid after the cutover, stranded without a row         | M6              |
 | F15 | Old rows changing after the aggregate write cutover                                    | M6, M8, M11     |
 | F16 | Old payment-reference readers surviving after migration                                | M6, M13         |
@@ -782,7 +797,7 @@ mechanism and a regression test, or — if implementation proves the finding wro
 | F50 | Unmigratable evidence keeping buyer PII or ticket tokens forever                       | M11, M12        |
 | F51 | Two classifiers disagreeing about the same settled money between M4 and M5             | M4              |
 | F52 | Checkout fees or price modifiers misallocated into a listing's income                  | M6, M8          |
-| F53 | A bulk refund run exceeding the request budget, refunding only an initial subset       | M7              |
+| F53 | A bulk refund run exceeding the request budget, refunding only an initial subset       | M4, M7          |
 | F54 | One sold-out line half-booking a multi-listing order after payment                     | M8              |
 | F55 | The M8 runner re-completing sales the legacy path already finished                     | M8              |
 | F56 | A deposit checkout losing the full modifier fact to the charged fraction               | M6, M8          |
