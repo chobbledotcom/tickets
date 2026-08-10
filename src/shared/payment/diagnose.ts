@@ -119,6 +119,15 @@ export type SettledReading = PaymentObservation & {
   status: "no_payment_required" | "paid";
 };
 
+/** The problem the shared check finds in this reading, or nothing when it
+ *  holds together. Both arms ask it the same way. */
+const readingProblemOrNull = (
+  observation: PaymentObservation,
+): ObservationOutcome | null => {
+  const checked = validatePaymentObservation(observation);
+  return checked.valid ? null : { issue: checked.issue, kind: "conflict" };
+};
+
 /** A refund the provider tried and could not finish. */
 const providerCouldNotRefund = (refund: RefundResolution): boolean =>
   refund.status === "failed" && refund.reason === "provider_failed";
@@ -160,19 +169,21 @@ const refundOutcome = (charges: ChargeLegs): ObservationOutcome => {
     : { kind: "ready" };
 };
 
-/** A checkout that took money: it must name the money it took, and the reading
- *  must hold together, before what became of any refund can matter. */
-const paidOutcome = (observation: PaymentObservation): ObservationOutcome => {
-  const charges = observation.charges;
-  if (charges === undefined) {
-    return { issue: { kind: "paid_without_charge" }, kind: "conflict" };
-  }
-  const checked = validatePaymentObservation(observation);
-  if (!checked.valid) return { issue: checked.issue, kind: "conflict" };
-  // Refund verdicts come before the owner-review money kinds, so a leg that
-  // was part-refunded parks as `partial_refund` rather than being named by
-  // its leg count. Only a reading whose money is all still with the provider
-  // reaches the two below.
+/** Money where this reading cannot account for it: nobody asked for it, and
+ *  nothing can match it to what was bought. */
+const moneyNobodyAskedFor: ObservationOutcome = {
+  issue: { kind: "paid_without_charge" },
+  kind: "conflict",
+};
+
+/** What a checked paid reading comes to: what became of its refunds first,
+ *  then the owner-review money kinds. A leg that was part-refunded parks as
+ *  `partial_refund` rather than being named by its leg count, so only a
+ *  reading whose money is all still with the provider reaches the last two. */
+const paidSettled = (
+  observation: PaymentObservation,
+  charges: ChargeLegs,
+): ObservationOutcome => {
   const refunds = refundOutcome(charges);
   if (refunds.kind !== "ready") return refunds;
   if (capturedTotal(charges) !== BigInt(observation.expected.amount)) {
@@ -183,20 +194,25 @@ const paidOutcome = (observation: PaymentObservation): ObservationOutcome => {
     : { kind: "ready" };
 };
 
+/** A checkout that took money: it must name the money it took, and the reading
+ *  must hold together, before what became of any refund can matter. */
+const paidOutcome = (observation: PaymentObservation): ObservationOutcome => {
+  const charges = observation.charges;
+  if (charges === undefined) return moneyNobodyAskedFor;
+  return readingProblemOrNull(observation) ?? paidSettled(observation, charges);
+};
+
 /** A checkout that asked for nothing. Money against it is the one diagnosis
  *  and is answered FIRST: a charge on a free checkout also mismatches every
  *  expected-vs-observed amount, and naming it a total mismatch would hide the
  *  money nobody asked for behind an arithmetic complaint. */
-const freeOutcome = (observation: PaymentObservation): ObservationOutcome => {
-  if (observation.charges !== undefined) {
-    return { issue: { kind: "paid_without_charge" }, kind: "conflict" };
-  }
-  const checked = validatePaymentObservation(observation);
-  if (!checked.valid) return { issue: checked.issue, kind: "conflict" };
-  return observation.expected.amount === 0
-    ? { kind: "ready" }
-    : { issue: { kind: "paid_without_charge" }, kind: "conflict" };
-};
+const freeOutcome = (observation: PaymentObservation): ObservationOutcome =>
+  observation.charges !== undefined
+    ? moneyNobodyAskedFor
+    : (readingProblemOrNull(observation) ??
+      (observation.expected.amount === 0
+        ? { kind: "ready" }
+        : moneyNobodyAskedFor));
 
 /** What this reading amounts to. A checkout that owed nothing takes the free
  *  arm whatever the provider calls it: a provider that took money on one

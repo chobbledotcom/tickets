@@ -1,3 +1,4 @@
+import type { Money } from "#shared/payment/money.ts";
 import type {
   ChargeLeg,
   ProviderRefundResource,
@@ -22,13 +23,19 @@ const observedRefund = (
 ): RefundObservation | undefined =>
   refunds.find((refund) => refund.status === status);
 
+/** Money back on this charge, in the currency its own returned total uses. */
+const moneyReturned = (charge: ChargeLeg, returned: number): Money => ({
+  amount: returned,
+  currency: charge.confirmedRefunded.currency,
+});
+
 const confirmedRefund = (
   status: "completed" | "partial",
   charge: ChargeLeg,
   observation: RefundObservation | undefined,
   returned: number,
 ): RefundResolution => ({
-  amount: { amount: returned, currency: charge.confirmedRefunded.currency },
+  amount: moneyReturned(charge, returned),
   ...named(observation?.refund),
   status,
 });
@@ -70,7 +77,7 @@ export const resolveRefund = (charge: ChargeLeg): RefundResolution => {
   const failed = observedRefund(charge.refunds, "failed");
   if (failed !== undefined) {
     return {
-      amount: { amount: returned, currency: charge.confirmedRefunded.currency },
+      amount: moneyReturned(charge, returned),
       ...named(failed.refund),
       reason: "provider_failed",
       status: "failed",
