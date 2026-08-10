@@ -33,6 +33,10 @@ import { buildServicingFieldSchema } from "./form-model.ts";
 
 const SERVICING_FORM_ID = "servicing-form";
 
+/** The costs already recorded against this hold. Named so a screenshot can be
+ * pointed at the costs alone, without the form that records them. */
+const SERVICING_COSTS_ID = "servicing-costs";
+
 export type ServicingPrefill = {
   quantities: Map<number, number>;
   startDate: string;
@@ -321,7 +325,7 @@ export const renderServicingPage = ({
             </CsrfForm>
           )}
           {costs.length > 0 && (
-            <>
+            <section id={SERVICING_COSTS_ID}>
               <h2>{t("servicing.recorded_costs")}</h2>
               {renderTable(servicingCostsTable, costs, {
                 context: {
@@ -330,7 +334,7 @@ export const renderServicingPage = ({
                   session,
                 },
               })}
-            </>
+            </section>
           )}
         </>
       )}
