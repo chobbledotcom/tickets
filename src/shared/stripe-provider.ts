@@ -87,6 +87,7 @@ export const stripePaymentProvider: PaymentProvider = {
       charge.amount_refunded,
     );
   },
+  refundCapability: "keyed",
 
   async refundPayment(paymentReference: string): Promise<boolean> {
     const result = await stripeApi.refundPayment(paymentReference);

@@ -1,7 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
-import { refundCandidateAtProvider } from "#routes/admin/refunds/provider.ts";
+import {
+  type RowClaim,
+  refundCandidateAtProvider,
+} from "#routes/admin/refunds/provider.ts";
 import {
   combineRefundOutcomes,
   packByReferenceCount,
@@ -10,6 +13,7 @@ import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import type { RefundState } from "#shared/payment/refund-state.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { chargeMoney, fullyRefundedMoney } from "#test-utils/payment-state.ts";
+import { grantingRowClaim } from "#test-utils/refund-routes.ts";
 
 type Ref = { reference: string; refundState?: RefundState };
 
@@ -41,6 +45,7 @@ const provider = ({
     Promise.resolve(
       alreadyRefunded.has(reference) ? fullyRefundedMoney() : chargeMoney(),
     ),
+  refundCapability: "keyed" as const,
   refundPayment: (reference: string) => {
     if (throws.has(reference)) throw new Error(`boom ${reference}`);
     return Promise.resolve(refunded.has(reference));
@@ -152,6 +157,7 @@ describe("admin refund provider", () => {
     const result = await refundCandidateAtProvider(
       {
         readChargeMoneyOrNull: () => Promise.resolve(chargeMoney()),
+        refundCapability: "keyed" as const,
         refundPayment: () => {
           refundCalls++;
           return Promise.resolve(false);
@@ -160,6 +166,7 @@ describe("admin refund provider", () => {
       candidate([{ reference: "pi_pre", refundState: "completed" }]),
       7,
       marker.mark,
+      grantingRowClaim(),
     );
 
     expect(result.outcome).toBe("refunded");
@@ -174,6 +181,7 @@ describe("admin refund provider", () => {
       candidateWithReferences(["pi_now"]),
       7,
       marker.mark,
+      grantingRowClaim(),
     );
 
     expect(result.outcome).toBe("refunded");
@@ -187,6 +195,7 @@ describe("admin refund provider", () => {
       candidateWithReferences(["pi_seen"]),
       7,
       marker.mark,
+      grantingRowClaim(),
     );
 
     expect(result.outcome).toBe("refunded");
@@ -200,6 +209,7 @@ describe("admin refund provider", () => {
       candidateWithReferences(["pi_no"]),
       7,
       marker.mark,
+      grantingRowClaim(),
     );
 
     expect(result.outcome).toBe("failed");
@@ -216,6 +226,7 @@ describe("admin refund provider", () => {
       candidateWithReferences(["pi_boom"]),
       7,
       marker.mark,
+      grantingRowClaim(),
     );
 
     expect(result.outcome).toBe("errored");
@@ -232,6 +243,7 @@ describe("admin refund provider", () => {
       candidateWithReferences(["pi_ok", "pi_bad"]),
       7,
       marker.mark,
+      grantingRowClaim(),
     );
 
     expect(result.outcome).toBe("failed");
@@ -250,6 +262,7 @@ describe("admin refund provider", () => {
       candidateWithReferences(["pi_solo"]),
       7,
       collectingMarker().mark,
+      grantingRowClaim(),
     );
 
     expect(result.outcome).toBe("failed");
@@ -268,6 +281,7 @@ describe("admin refund provider", () => {
       candidateWithReferences(references),
       7,
       marker.mark,
+      grantingRowClaim(),
     );
 
     expect(result.outcome).toBe("refunded");
@@ -280,6 +294,7 @@ describe("admin refund provider", () => {
       candidateWithReferences(["pi_a", "pi_b"]),
       7,
       collectingMarker().mark,
+      grantingRowClaim(),
     );
 
     expect(result.outcome).toBe("refunded");
@@ -296,6 +311,7 @@ describe("admin refund provider", () => {
       candidateWithReferences(["pi_done"]),
       7,
       throwMarker,
+      grantingRowClaim(),
     );
 
     expect(result.outcome).toBe("refunded");
@@ -310,11 +326,80 @@ describe("admin refund provider", () => {
       candidateWithReferences(["pi_done", "pi_failed"]),
       7,
       throwMarker,
+      grantingRowClaim(),
     );
 
     expect(result.outcome).toBe("errored");
     expect(errors.lastMessage()).toContain(
       "could not record returned payments for attendee 42",
     );
+  });
+});
+
+describe("admin refund provider > the claim", () => {
+  /** A claim that refuses, as if another run already held this attendee. */
+  const blockedRowClaim = (): RowClaim => ({
+    claim: () =>
+      Promise.resolve({ blockedBy: { kind: "held" }, kind: "blocked" }),
+    release: () => Promise.resolve(),
+  });
+
+  test("a blocked run never asks the provider anything", async () => {
+    let providerCalls = 0;
+    const counting = {
+      readChargeMoneyOrNull: () => {
+        providerCalls++;
+        return Promise.resolve(chargeMoney());
+      },
+      refundCapability: "keyless" as const,
+      refundPayment: () => {
+        providerCalls++;
+        return Promise.resolve(true);
+      },
+    };
+
+    const result = await refundCandidateAtProvider(
+      counting,
+      candidateWithReferences(["pi_held"]),
+      7,
+      collectingMarker().mark,
+      blockedRowClaim(),
+    );
+
+    expect(result.outcome).toBe("failed");
+    expect(providerCalls).toBe(0);
+  });
+
+  test("a granted run releases the rows it claimed", async () => {
+    const rowClaim = grantingRowClaim();
+    await refundCandidateAtProvider(
+      provider({ refunded: new Set(["pi_ok"]) }),
+      candidateWithReferences(["pi_ok"]),
+      7,
+      collectingMarker().mark,
+      rowClaim,
+    );
+    expect(rowClaim.released).toHaveLength(1);
+  });
+
+  test("a keyless run whose call errored keeps its claim standing", async () => {
+    const rowClaim = grantingRowClaim();
+    const keylessThatDies = {
+      readChargeMoneyOrNull: () => Promise.resolve(chargeMoney()),
+      refundCapability: "keyless" as const,
+      refundPayment: (): Promise<boolean> => {
+        throw new Error("the answer never came back");
+      },
+    };
+    await refundCandidateAtProvider(
+      keylessThatDies,
+      candidateWithReferences(["pi_lost"]),
+      7,
+      collectingMarker().mark,
+      rowClaim,
+    );
+    // The money may already have gone; without an idempotency key nothing may
+    // try again until fresh evidence says what happened.
+    expect(rowClaim.released).toHaveLength(0);
   });
 });

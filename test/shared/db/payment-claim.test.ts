@@ -43,7 +43,8 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
     test("an unclaimed attendee's rows are claimed", async () => {
       const attendeeId = await bookedWith("sess-a", "pi_a");
       const result = await claimAttendeeRows(attendeeId, "keyless");
-      expect(result).toEqual({ kind: "claimed", sessionIds: ["sess-a"] });
+      expect(result.kind).toBe("claimed");
+      expect(result).toMatchObject({ sessionIds: ["sess-a"] });
     });
 
     test("the claim shows in the plaintext mirror the prune reads", async () => {
@@ -75,7 +76,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
       const first = await bookedWith("sess-e1", "pi_shared");
       const second = await bookedWith("sess-e2", "pi_shared");
 
-      expect(await claimAttendeeRows(first, "keyless")).toEqual({
+      expect(await claimAttendeeRows(first, "keyless")).toMatchObject({
         kind: "claimed",
         sessionIds: ["sess-e1"],
       });
@@ -101,7 +102,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
       const first = await bookedWith("sess-g1", "pi_g1");
       const second = await bookedWith("sess-g2", "pi_g2");
       await claimAttendeeRows(first, "keyless");
-      expect(await claimAttendeeRows(second, "keyless")).toEqual({
+      expect(await claimAttendeeRows(second, "keyless")).toMatchObject({
         kind: "claimed",
         sessionIds: ["sess-g2"],
       });
@@ -141,9 +142,9 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
     test("a released row can be claimed again", async () => {
       const attendeeId = await bookedWith("sess-l", "pi_l");
       const claimed = await claimAttendeeRows(attendeeId, "keyless");
-      expect(claimed.kind).toBe("claimed");
-      await releaseAttendeeRows(["sess-l"]);
-      expect(await claimAttendeeRows(attendeeId, "keyless")).toEqual({
+      if (claimed.kind !== "claimed") throw new Error("the claim was refused");
+      await releaseAttendeeRows(["sess-l"], claimed.heldSince);
+      expect(await claimAttendeeRows(attendeeId, "keyless")).toMatchObject({
         kind: "claimed",
         sessionIds: ["sess-l"],
       });
@@ -151,19 +152,42 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
 
     test("releasing clears the mirror the prune reads", async () => {
       const attendeeId = await bookedWith("sess-m", "pi_m");
-      await claimAttendeeRows(attendeeId, "keyless");
-      await releaseAttendeeRows(["sess-m"]);
+      const held = await claimAttendeeRows(attendeeId, "keyless");
+      if (held.kind !== "claimed") throw new Error("the claim was refused");
+      await releaseAttendeeRows(["sess-m"], held.heldSince);
       expect(await protectedStateOf("sess-m")).toEqual({ v: "" });
     });
 
     test("releasing nothing touches nothing", async () => {
-      await releaseAttendeeRows([]);
+      await releaseAttendeeRows([], "2026-08-10T12:00:00.000Z");
     });
 
     test("releasing an unclaimed row leaves it alone", async () => {
       await bookedWith("sess-n", "pi_n");
-      await releaseAttendeeRows(["sess-n"]);
+      await releaseAttendeeRows(["sess-n"], "2026-08-10T12:00:00.000Z");
       expect(await protectedStateOf("sess-n")).toEqual({ v: "" });
+    });
+  });
+
+  describe("a stalled run waking up", () => {
+    test("does not strip the claim a later run now holds", async () => {
+      const attendeeId = await bookedWith("sess-stall", "pi_stall");
+      const stalled = await claimAttendeeRows(attendeeId, "keyless");
+      if (stalled.kind !== "claimed") throw new Error("the claim was refused");
+
+      // A later run resumed these rows and holds them now. The stalled run
+      // waking up must not hand its successor's work to a third run.
+      await releaseAttendeeRows(stalled.sessionIds, stalled.heldSince);
+      const resumed = await claimAttendeeRows(attendeeId, "keyless");
+      if (resumed.kind !== "claimed") throw new Error("the resume was refused");
+
+      await releaseAttendeeRows(stalled.sessionIds, stalled.heldSince);
+
+      expect(await protectedStateOf("sess-stall")).toEqual({ v: "claim" });
+      expect(await claimAttendeeRows(attendeeId, "keyless")).toEqual({
+        blockedBy: { kind: "held" },
+        kind: "blocked",
+      });
     });
   });
 });
