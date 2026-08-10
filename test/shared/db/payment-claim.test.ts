@@ -1,16 +1,39 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { queryOne } from "#shared/db/client.ts";
+import { encrypt } from "#shared/crypto/encryption.ts";
+import { execute, queryOne } from "#shared/db/client.ts";
 import {
   claimAttendeeRows,
   releaseAttendeeRows,
 } from "#shared/db/payment-claim.ts";
 import { paymentReferenceIndex } from "#shared/db/payment-references.ts";
+import { STALE_RESERVATION_MS } from "#shared/limits.ts";
+import { nowMs } from "#shared/now.ts";
+import { writeRowState } from "#shared/payment/row-state.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
+
+/** The stored record for a claim written long enough ago to be a crashed
+ *  worker's. */
+const staleClaimSlot = async (attendeeId: number): Promise<string> =>
+  await encrypt(
+    writeRowState(
+      {
+        claim: {
+          attendeeId,
+          capability: "keyless",
+          scope: "attendee_set",
+          writtenAt: new Date(
+            nowMs() - STALE_RESERVATION_MS - 1000,
+          ).toISOString(),
+        },
+      },
+      "processed_payments.failure_data",
+    ),
+  );
 
 const protectedStateOf = (sessionId: string): Promise<{ v: string } | null> =>
   queryOne<{ v: string }>(
@@ -88,9 +111,10 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
         sessionIds: ["sess-e1"],
       });
       // The second attendee's own row is untouched, but the money behind it is
-      // already claimed, so this run must not reach the provider.
+      // already claimed by someone we cannot take over, so this run must not
+      // reach the provider.
       expect(await claimAttendeeRows([second], "keyless")).toEqual({
-        blockedBy: { kind: "held" },
+        blockedBy: { kind: "foreign" },
         kind: "blocked",
       });
     });
@@ -209,6 +233,26 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
       });
       expect(await claimAttendeeRows([attendeeId], "keyless")).toEqual({
         blockedBy: { kind: "held" },
+        kind: "blocked",
+      });
+    });
+  });
+  describe("a shared reference someone else is holding", () => {
+    test("blocks us even when their claim has gone stale", async () => {
+      const other = await bookedWith("sess-p1", "pi_shared_stale");
+      const ours = await bookedWith("sess-p2", "pi_shared_stale");
+      const theirs = await claimAttendeeRows([other], "keyless");
+      if (theirs.kind !== "claimed") throw new Error("the claim was refused");
+
+      // Their claim is old enough to be a crashed worker, but it is on the
+      // same money and we cannot take their row over — so we send nothing.
+      await execute(
+        "UPDATE processed_payments SET failure_data = ?, protected_state = '' WHERE payment_session_id = ?",
+        [await staleClaimSlot(other), "sess-p1"],
+      );
+
+      expect(await claimAttendeeRows([ours], "keyless")).toEqual({
+        blockedBy: { kind: "foreign" },
         kind: "blocked",
       });
     });

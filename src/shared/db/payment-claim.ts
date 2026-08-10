@@ -194,10 +194,9 @@ export const claimAttendeeRows = async (
     // so a competing run has either committed its claim before we look or
     // cannot start until we are done.
     const sharing = await Promise.all(stored.sharing.map(asClaimRow));
-    // Every row is judged as its own attendee's: that is what lets a crashed
-    // run's rows be picked up one attendee at a time, and what makes a live
-    // claim on a shared reference read as "someone is working on this".
-    const refused = [...rows, ...sharing]
+    // Our own rows are judged as their attendee's, which is what lets a
+    // crashed run be picked up one attendee at a time.
+    const refused = rows
       .map((row) =>
         decideClaim(
           row.state.claim,
@@ -207,6 +206,13 @@ export const claimAttendeeRows = async (
       )
       .find((decision) => !holdsTheRow(decision));
     if (refused !== undefined) return { blockedBy: refused, kind: "blocked" };
+    // A row belonging to someone else that carries ANY claim stops us, stale
+    // or not. We never write to it, so we could not take it over even if it
+    // were abandoned — and leaving a claim standing on the same money while we
+    // send against it is how one charge gets refunded twice.
+    if (sharing.some((row) => row.state.claim !== undefined)) {
+      return { blockedBy: { kind: "foreign" }, kind: "blocked" };
+    }
     for (const row of rows) {
       await writeState(
         tx,

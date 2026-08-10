@@ -152,7 +152,7 @@ const handleAttendeeRefund = verifiedAttendeeAction(
           return { candidate, outcome: "failed" as const };
         },
         lost: (result) =>
-          result.outcome === "errored" || result.unrecorded === true,
+          result.outcome === "errored" || result.unsettled === true,
         work: () => refundCandidateAtProvider(provider, candidate, listingId),
       },
     );

@@ -74,32 +74,48 @@ const refusedRefund = (detail: string, listingId: number): RefundOutcome => {
   return "failed";
 };
 
+/** One reference's result. `unanswered` means the provider was asked and did
+ *  not confirm — which is not the same as "it did not happen": a lost response
+ *  looks exactly like a refusal from here, so a keyless run must keep its hold
+ *  either way. A refund we never asked for does not set it. */
+type ReferenceRefund = { outcome: RefundOutcome; unanswered: boolean };
+
 const refundReferenceAtProvider = async (
   provider: RefundProvider,
   candidate: RefundCandidate,
   listingId: number,
   reference: RefundPaymentReference,
-): Promise<RefundOutcome> => {
+): Promise<ReferenceRefund> => {
   const attendeeId = candidate.attendee.id;
   const paymentReference = reference.reference;
+  const settled = (outcome: RefundOutcome): ReferenceRefund => ({
+    outcome,
+    unanswered: false,
+  });
   try {
-    if (reference.refundState === "completed") return "refunded";
+    if (reference.refundState === "completed") return settled("refunded");
     // What the money has already done decides whether more is sent — see
     // `sendRefundIfAdmitted`. SumUp has no idempotency key to fall back on.
     return await sendRefundIfAdmitted(provider, paymentReference, {
-      failed: () =>
-        refusedRefund(
+      failed: () => ({
+        outcome: refusedRefund(
           `Admin refund failed for attendee ${attendeeId}, payment ${paymentReference}`,
           listingId,
         ),
-      sent: () => "refunded",
+        // The provider was asked and did not confirm. It may never have
+        // happened, or the answer may simply have been lost.
+        unanswered: true,
+      }),
+      sent: () => settled("refunded"),
       withhold: (admission) =>
-        admission.kind === "already_returned"
-          ? "refunded"
-          : refusedRefund(
-              `Admin refund not sent for attendee ${attendeeId}, payment ${paymentReference}: ${admissionReason(admission)}`,
-              listingId,
-            ),
+        settled(
+          admission.kind === "already_returned"
+            ? "refunded"
+            : refusedRefund(
+                `Admin refund not sent for attendee ${attendeeId}, payment ${paymentReference}: ${admissionReason(admission)}`,
+                listingId,
+              ),
+        ),
     });
   } catch (err) {
     logError({
@@ -109,7 +125,9 @@ const refundReferenceAtProvider = async (
       )}`,
       listingId,
     });
-    return "errored";
+    // A throw is the same doubt as an unconfirmed answer: the call may have
+    // landed before it failed.
+    return { outcome: "errored", unanswered: true };
   }
 };
 
@@ -165,13 +183,14 @@ export const underAttendeeClaim = async <TResult>(
   }
 };
 
-/** What one attendee's refund came to. `unrecorded` means the money went back
- *  but saying so durably failed — the refund still counts, and the run must
- *  keep its hold, because nothing yet proves the money moved. */
+/** What one attendee's refund came to. `unsettled` means nothing durable
+ *  proves what the money did — the provider was asked and did not confirm, or
+ *  it confirmed and saying so failed. Either way the run keeps its hold, since
+ *  a keyless retry against evidence that has not caught up sends twice. */
 export type CandidateRefund = {
   candidate: RefundCandidate;
   outcome: RefundOutcome;
-  unrecorded?: boolean;
+  unsettled?: boolean;
 };
 
 export const refundCandidateAtProvider = async (
@@ -183,6 +202,7 @@ export const refundCandidateAtProvider = async (
   const results: {
     outcome: RefundOutcome;
     reference: RefundPaymentReference;
+    unanswered: boolean;
   }[] = [];
   // Chunk this attendee's own references so a merged attendee carrying many
   // charges never fans out past the concurrency budget on its own.
@@ -191,12 +211,12 @@ export const refundCandidateAtProvider = async (
   )) {
     const groupResults = await Promise.all(
       group.map(async (reference) => ({
-        outcome: await refundReferenceAtProvider(
+        ...(await refundReferenceAtProvider(
           provider,
           candidate,
           listingId,
           reference,
-        ),
+        )),
         reference,
       })),
     );
@@ -205,6 +225,7 @@ export const refundCandidateAtProvider = async (
   const outcome = combineRefundOutcomes(
     results.map((result) => result.outcome),
   );
+  const unanswered = results.some((result) => result.unanswered);
   const returnedReferences = results
     .filter((result) => result.outcome === "refunded")
     .map((result) => result.reference);
@@ -217,9 +238,8 @@ export const refundCandidateAtProvider = async (
     );
     if (outcome !== "refunded") return { candidate, outcome: "errored" };
     // The money went back but nothing records it. The refund still counts, so
-    // the ledger still posts — but the run must not let go of its hold, or a
-    // retry reading a provider that has not caught up sends it again.
-    return { candidate, outcome, unrecorded: true };
+    // the ledger still posts — but the run must not let go of its hold.
+    return { candidate, outcome, unsettled: true };
   }
   if (outcome !== "refunded" && candidate.references.length > 1) {
     logError({
@@ -228,7 +248,9 @@ export const refundCandidateAtProvider = async (
       listingId,
     });
   }
-  return { candidate, outcome };
+  return unanswered
+    ? { candidate, outcome, unsettled: true }
+    : { candidate, outcome };
 };
 
 const logBulkRefundProblem = (
@@ -298,10 +320,10 @@ export const processRefundBatch = async (
             failedCount: batch.length,
             refundedCount: 0,
           },
-          unrecorded: false,
+          unsettled: false,
         };
       },
-      lost: (result) => result.counts.errorCount > 0 || result.unrecorded,
+      lost: (result) => result.counts.errorCount > 0 || result.unsettled,
       work: () =>
         refundClaimedBatch(provider, batch, listingId, markReturnedReferences),
     },
@@ -314,8 +336,8 @@ const refundClaimedBatch = async (
   batch: RefundCandidate[],
   listingId: number,
   markReturnedReferences: MarkReturnedReferences,
-): Promise<{ counts: RefundCounts; unrecorded: boolean }> => {
-  let unrecorded = false;
+): Promise<{ counts: RefundCounts; unsettled: boolean }> => {
+  let unsettled = false;
   const counts: RefundCounts = {
     errorCount: 0,
     failedCount: 0,
@@ -338,8 +360,8 @@ const refundClaimedBatch = async (
       attendeeId: number;
       references: readonly RefundPaymentReference[];
     }[] = [];
-    for (const { candidate, outcome, unrecorded: missed } of results) {
-      if (missed === true) unrecorded = true;
+    for (const { candidate, outcome, unsettled: doubt } of results) {
+      if (doubt === true) unsettled = true;
       tallyProviderRefund(
         counts,
         candidate,
@@ -360,5 +382,5 @@ const refundClaimedBatch = async (
       }
     }
   }
-  return { counts, unrecorded };
+  return { counts, unsettled };
 };
