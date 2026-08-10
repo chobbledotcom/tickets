@@ -130,12 +130,18 @@ export const runFailedRefund = async (
   body: (refund: ReturnType<typeof stubRefundOk>) => Promise<void>,
 ): Promise<void> => {
   const refund = stub(stripeApi, "refundPayment", () => Promise.resolve(null));
+  // The refund asks what the money has already done first, so the charge must
+  // state it: a refunded one has every penny back, an unrefunded one none.
   const intent = stub(stripeApi, "retrievePaymentIntent", () =>
     Promise.resolve({
-      latest_charge: { refunded: intentRefunded },
-    } as unknown as Awaited<
-      ReturnType<typeof stripeApi.retrievePaymentIntent>
-    >),
+      id: "pi_1",
+      latest_charge: {
+        amount: 1200,
+        amount_refunded: intentRefunded ? 1200 : 0,
+        currency: "gbp",
+        refunded: intentRefunded,
+      },
+    }),
   );
   const mockVerify = await stubCompletedSession({
     amount_total: 1200,

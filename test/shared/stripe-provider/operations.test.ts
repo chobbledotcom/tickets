@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { settings } from "#shared/db/settings.ts";
+import type { ChargeMoney } from "#shared/payment/resources.ts";
 import { sanitizeStripeError } from "#shared/stripe/runtime.ts";
 import type { StripeWebhookEvent } from "#shared/stripe/webhook.ts";
 import { stripeApi } from "#shared/stripe.ts";
@@ -204,57 +205,106 @@ describeStripe("stripe-provider", () => {
     });
   });
 
-  describe("isPaymentRefunded", () => {
-    /** isPaymentRefunded should return `expected` for the given intent lookup. */
-    const expectRefunded = (
+  describe("readChargeMoneyOrNull", () => {
+    /** The charge money Stripe's expanded intent comes out as. */
+    const expectMoney = (
       client: Awaited<ReturnType<typeof stripeClient>>,
       retrieveImpl: Awaited<
         ReturnType<typeof stripeClient>
       >["paymentIntents"]["retrieveWithLatestCharge"],
-      expected: boolean,
+      expected: ChargeMoney | null,
     ) =>
       withMocks(
         () =>
           stub(client.paymentIntents, "retrieveWithLatestCharge", retrieveImpl),
         async () => {
           const result =
-            await stripePaymentProvider.isPaymentRefunded("pi_check");
-          expect(result).toBe(expected);
+            await stripePaymentProvider.readChargeMoneyOrNull("pi_check");
+          expect(result).toEqual(expected);
         },
       );
 
-    test("returns true when latest_charge is refunded", async () => {
+    const intent =
+      (charge: {
+        amount: number;
+        amount_refunded: number;
+        currency: string;
+        refunded: boolean;
+      }) =>
+      () =>
+        Promise.resolve({ id: "pi_1", latest_charge: charge });
+
+    test("reports every penny back on a fully refunded charge", async () => {
       const client = await stripeClient();
-      await expectRefunded(
+      await expectMoney(
         client,
-        () =>
-          Promise.resolve({
-            id: "pi_refunded",
-            latest_charge: { refunded: true },
-          }),
-        true,
+        intent({
+          amount: 1000,
+          amount_refunded: 1000,
+          currency: "gbp",
+          refunded: true,
+        }),
+        {
+          captured: { amount: 1000, currency: "GBP" },
+          confirmedRefunded: { amount: 1000, currency: "GBP" },
+          refunds: [],
+        },
       );
     });
 
-    test("returns false when latest_charge is not refunded", async () => {
+    // The `refunded` flag is false for a PART refund, so reading it alone would
+    // say nothing has gone back and let a full refund go out on top.
+    test("reports the part that went back while refunded is still false", async () => {
       const client = await stripeClient();
-      await expectRefunded(
+      await expectMoney(
         client,
-        () =>
-          Promise.resolve({
-            id: "pi_not_refunded",
-            latest_charge: { refunded: false },
-          }),
-        false,
+        intent({
+          amount: 1000,
+          amount_refunded: 400,
+          currency: "gbp",
+          refunded: false,
+        }),
+        {
+          captured: { amount: 1000, currency: "GBP" },
+          confirmedRefunded: { amount: 400, currency: "GBP" },
+          refunds: [],
+        },
       );
     });
 
-    test("returns false when payment intent not found", async () => {
+    test("reports nothing back on an untouched charge", async () => {
       const client = await stripeClient();
-      await expectRefunded(
+      await expectMoney(
+        client,
+        intent({
+          amount: 1000,
+          amount_refunded: 0,
+          currency: "gbp",
+          refunded: false,
+        }),
+        {
+          captured: { amount: 1000, currency: "GBP" },
+          confirmedRefunded: { amount: 0, currency: "GBP" },
+          refunds: [],
+        },
+      );
+    });
+
+    test("refuses an intent carrying no charge", async () => {
+      const client = await stripeClient();
+      await expectMoney(
+        client,
+        () => Promise.resolve({ id: "pi_1", latest_charge: null }),
+        null,
+      );
+    });
+
+    test("refuses a payment intent that cannot be found", async () => {
+      const client = await stripeClient();
+      await expectMoney(
         client,
         () => Promise.reject(new Error("Not found")),
-        false,
+        null,
       );
     });
   });

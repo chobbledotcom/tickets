@@ -18,7 +18,12 @@ export const stripeResponseFor = (path: string, method: string): Response => {
   if (path.startsWith("/v1/payment_intents/")) {
     return Response.json({
       id: "pi_1",
-      latest_charge: { refunded: false },
+      latest_charge: {
+        amount: 1000,
+        amount_refunded: 0,
+        currency: "gbp",
+        refunded: false,
+      },
     });
   }
   if (

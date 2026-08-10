@@ -12,6 +12,7 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { singleItem } from "#test-utils/factories.ts";
 import { mockRequest, withMocks } from "#test-utils/mocks.ts";
+import { chargeMoney } from "#test-utils/payment-state.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
@@ -187,8 +188,10 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           mockRefund: stub(stripePaymentProvider, "refundPayment", () =>
             Promise.resolve(false),
           ),
-          mockRefunded: stub(stripePaymentProvider, "isPaymentRefunded", () =>
-            Promise.resolve(false),
+          mockRefunded: stub(
+            stripePaymentProvider,
+            "readChargeMoneyOrNull",
+            () => Promise.resolve(chargeMoney()),
           ),
           mockRetrieve: stubRetrieveCheckoutSession({
             amountTotal: 1000,

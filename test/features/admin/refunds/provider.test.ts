@@ -9,6 +9,7 @@ import {
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import type { RefundState } from "#shared/payment/refund-state.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { chargeMoney, fullyRefundedMoney } from "#test-utils/payment-state.ts";
 
 type Ref = { reference: string; refundState?: RefundState };
 
@@ -36,8 +37,10 @@ const provider = ({
   alreadyRefunded?: Set<string>;
   throws?: Set<string>;
 } = {}) => ({
-  isPaymentRefunded: (reference: string) =>
-    Promise.resolve(alreadyRefunded.has(reference)),
+  readChargeMoneyOrNull: (reference: string) =>
+    Promise.resolve(
+      alreadyRefunded.has(reference) ? fullyRefundedMoney() : chargeMoney(),
+    ),
   refundPayment: (reference: string) => {
     if (throws.has(reference)) throw new Error(`boom ${reference}`);
     return Promise.resolve(refunded.has(reference));
@@ -148,7 +151,7 @@ describe("admin refund provider", () => {
     const marker = collectingMarker();
     const result = await refundCandidateAtProvider(
       {
-        isPaymentRefunded: () => Promise.resolve(false),
+        readChargeMoneyOrNull: () => Promise.resolve(chargeMoney()),
         refundPayment: () => {
           refundCalls++;
           return Promise.resolve(false);

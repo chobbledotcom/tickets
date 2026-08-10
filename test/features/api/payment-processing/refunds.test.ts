@@ -24,6 +24,7 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { chargeMoney, fullyRefundedMoney } from "#test-utils/payment-state.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   stubRefundPayment,
@@ -71,8 +72,8 @@ const withRefundRedirect = async (
   using _refund = stub(stripePaymentProvider, "refundPayment", () =>
     Promise.resolve(refundSucceeds),
   );
-  using _refunded = stub(stripePaymentProvider, "isPaymentRefunded", () =>
-    Promise.resolve(alreadyRefunded),
+  using _refunded = stub(stripePaymentProvider, "readChargeMoneyOrNull", () =>
+    Promise.resolve(alreadyRefunded ? fullyRefundedMoney() : chargeMoney()),
   );
   const mockRetrieve = stubRetrieveCheckoutSession({
     amountTotal: 1000,
@@ -109,8 +110,8 @@ const stubStripeRefund = async (
   const refund = stub(stripePaymentProvider, "refundPayment", () =>
     Promise.resolve(refundSucceeds),
   );
-  const refunded = stub(stripePaymentProvider, "isPaymentRefunded", () =>
-    Promise.resolve(alreadyRefunded),
+  const refunded = stub(stripePaymentProvider, "readChargeMoneyOrNull", () =>
+    Promise.resolve(alreadyRefunded ? fullyRefundedMoney() : chargeMoney()),
   );
   return () => {
     refund.restore();
@@ -146,7 +147,7 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
     }
   });
 
-  test("refund logs already-refunded when isPaymentRefunded returns true", async () => {
+  test("refund reports success when the money is already back", async () => {
     await withRefundRedirect(
       false,
       true,
@@ -155,7 +156,7 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
       "r2@e.com",
       "R2",
       async () =>
-        expect(debugLogged(debugSpy, "already fully refunded")).toBe(true),
+        expect(debugLogged(debugSpy, "the money is already back")).toBe(true),
     );
   });
 

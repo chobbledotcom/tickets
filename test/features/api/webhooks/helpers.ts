@@ -3,6 +3,7 @@ import { handleRequest } from "#routes";
 import type { ListingWithCount } from "#shared/types.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
+import { chargeMoney } from "#test-utils/payment-state.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 
 type VerifyEvent = Parameters<typeof stubWebhookVerify>[0];
@@ -33,8 +34,10 @@ export const setupMismatchWithFailingRefund = async (
   const refundStub = stub(stripePaymentProvider, "refundPayment", () =>
     Promise.resolve(false),
   );
-  const refundedStub = stub(stripePaymentProvider, "isPaymentRefunded", () =>
-    Promise.resolve(false),
+  const refundedStub = stub(
+    stripePaymentProvider,
+    "readChargeMoneyOrNull",
+    () => Promise.resolve(chargeMoney()),
   );
   return { l, refundedStub, refundStub };
 };

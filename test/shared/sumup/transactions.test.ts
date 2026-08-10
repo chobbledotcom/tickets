@@ -11,36 +11,59 @@ import {
 describe("sumup transactions", () => {
   const { errorSpy } = setupSumupSuite();
 
-  describe("getTransactionStatus", () => {
+  describe("readTransactionMoney", () => {
     test("returns null when merchant code is absent", async () => {
       settings.setForTest({ sumup_merchant_code: "" });
       await withSumupClient(makeSumupClient({}), async () => {
-        expect(await sumupApi.getTransactionStatus("txn")).toBeNull();
+        expect(await sumupApi.readTransactionMoney("txn")).toBeNull();
       });
     });
 
-    test("returns the transaction status", async () => {
+    test("reports the money taken and keeps only the refund events", async () => {
       const client = makeSumupClient({
-        txnGet: () => Promise.resolve({ status: "SUCCESSFUL" }),
+        txnGet: () =>
+          Promise.resolve({
+            amount: 10,
+            currency: "GBP",
+            status: "SUCCESSFUL",
+            transaction_events: [
+              { amount: 10, event_type: "PAYOUT", status: "PAID_OUT" },
+              { amount: 4, event_type: "REFUND", status: "REFUNDED" },
+            ],
+          }),
       });
       await withSumupClient(client, async () => {
-        expect(await sumupApi.getTransactionStatus("txn")).toBe("SUCCESSFUL");
+        expect(await sumupApi.readTransactionMoney("txn")).toEqual({
+          amount: 10,
+          currency: "GBP",
+          refundEvents: [{ amount: 4, status: "REFUNDED" }],
+        });
       });
     });
 
-    test("reports SumUp's status verbatim, even when it is empty", async () => {
+    test("reports no refund events when the transaction lists none", async () => {
       const client = makeSumupClient({
-        txnGet: () => Promise.resolve({ status: "" }),
+        txnGet: () => Promise.resolve({ amount: 10, currency: "GBP" }),
       });
       await withSumupClient(client, async () => {
-        expect(await sumupApi.getTransactionStatus("txn")).toBe("");
+        expect(await sumupApi.readTransactionMoney("txn")).toEqual({
+          amount: 10,
+          currency: "GBP",
+          refundEvents: [],
+        });
       });
     });
 
-    test("returns null when the status field is absent", async () => {
+    // A missing amount or currency stays missing: the provider adapter refuses
+    // the reading rather than letting a zero stand in for money it never saw.
+    test("passes a missing amount and currency through untouched", async () => {
       const client = makeSumupClient({ txnGet: () => Promise.resolve({}) });
       await withSumupClient(client, async () => {
-        expect(await sumupApi.getTransactionStatus("txn")).toBeNull();
+        expect(await sumupApi.readTransactionMoney("txn")).toEqual({
+          amount: undefined,
+          currency: undefined,
+          refundEvents: [],
+        });
       });
     });
   });

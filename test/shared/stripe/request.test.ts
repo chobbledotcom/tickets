@@ -682,7 +682,12 @@ describe("Stripe request transport", () => {
         return Promise.resolve(
           Response.json({
             id: "pi_1",
-            latest_charge: { refunded: false },
+            latest_charge: {
+              amount: 1000,
+              amount_refunded: 0,
+              currency: "gbp",
+              refunded: false,
+            },
           }),
         );
       },

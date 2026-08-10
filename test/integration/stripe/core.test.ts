@@ -87,14 +87,24 @@ describeStripe("stripe", () => {
           stub(client.paymentIntents, "retrieveWithLatestCharge", () =>
             Promise.resolve({
               id: "pi_refunded",
-              latest_charge: { refunded: true },
+              latest_charge: {
+                amount: 1000,
+                amount_refunded: 1000,
+                currency: "gbp",
+                refunded: true,
+              },
             }),
           ),
         async (retrieveSpy) => {
           const result = await stripeApi.retrievePaymentIntent("pi_refunded");
           expect(result).toEqual({
             id: "pi_refunded",
-            latest_charge: { refunded: true },
+            latest_charge: {
+              amount: 1000,
+              amount_refunded: 1000,
+              currency: "gbp",
+              refunded: true,
+            },
           });
           expect(retrieveSpy.calls[0]?.args).toEqual(["pi_refunded"]);
         },
