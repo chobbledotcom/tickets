@@ -22,6 +22,10 @@ import {
   logError,
 } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
+import {
+  admissionReason,
+  sendRefundIfAdmitted,
+} from "#shared/payment/admit-refund.ts";
 import { isResourceId } from "#shared/payment/resource-id.ts";
 import type { SessionRejection } from "#shared/payment/validated-session.ts";
 import { parsePriceProof, verifyPrice } from "#shared/payment-signature.ts";
@@ -134,29 +138,30 @@ export const tryRefund = async (
   );
   if (!provider) return false;
 
-  if (await provider.refundPayment(paymentReference)) {
-    logDebug("Payment", "Refund issued");
-    return true;
-  }
-
-  // A false return can simply mean the payment was ALREADY fully refunded: each
-  // provider rejects a second full refund (Stripe errors on an already-refunded
-  // intent; Square and SumUp reject a re-refund), and that rejection surfaces
-  // here as false. That is success, not failure — the money is back with the
-  // customer — so confirm via the provider's refund-status query before
-  // reporting failure. Without this, a redelivery after a recovered refund would
-  // loop on a 503 retry for money already returned.
-  if (await provider.isPaymentRefunded(paymentReference)) {
-    logDebug("Payment", "Payment already fully refunded");
-    return true;
-  }
-
-  logError({
-    code: ErrorCode.PAYMENT_REFUND,
-    detail: `Failed to refund payment ${paymentReference}`,
-    listingId,
+  // Ask what the money has already done before sending any more. Stripe and
+  // Square reject a second full refund themselves, but SumUp has no idempotency
+  // key, so there an unguarded re-attempt pays the buyer twice.
+  return sendRefundIfAdmitted(provider, paymentReference, {
+    failed: () => {
+      logError({
+        code: ErrorCode.PAYMENT_REFUND,
+        detail: `Failed to refund payment ${paymentReference}`,
+        listingId,
+      });
+      return false;
+    },
+    sent: () => {
+      logDebug("Payment", "Refund issued");
+      return true;
+    },
+    withhold: (admission) => {
+      logDebug(
+        "Payment",
+        `Refund not sent for ${paymentReference}: ${admissionReason(admission)}`,
+      );
+      return admission.kind === "already_returned";
+    },
   });
-  return false;
 };
 
 /** Attempt refund and log activity if successful */

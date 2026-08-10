@@ -5,9 +5,13 @@
  * provider-agnostic PaymentProvider contract.
  */
 
+/* jscpd:ignore-start -- imports */
 import type Stripe from "stripe";
 import * as v from "valibot";
+import type { ChargeMoney } from "#shared/payment/resources.ts";
+import { chargeMoneyOrNull } from "#shared/payment/resources.ts";
 import { validatedPaymentSession } from "#shared/payment/validated-session.ts";
+/* jscpd:ignore-end */
 import {
   hasRequiredSessionMetadata,
   makeCreateCheckoutSession,
@@ -71,9 +75,17 @@ export const stripePaymentProvider: PaymentProvider = {
     "checkout.session.completed" satisfies StripeCheckoutCompletedEvent["type"],
   createCheckoutSession: createStripeCheckoutSession,
 
-  async isPaymentRefunded(paymentReference: string): Promise<boolean> {
-    const intent = await stripeApi.retrievePaymentIntent(paymentReference);
-    return intent?.latest_charge?.refunded === true;
+  async readChargeMoneyOrNull(
+    paymentReference: string,
+  ): Promise<ChargeMoney | null> {
+    const charge = (await stripeApi.retrievePaymentIntent(paymentReference))
+      ?.latest_charge;
+    if (!charge) return null;
+    return chargeMoneyOrNull(
+      charge.amount,
+      charge.currency,
+      charge.amount_refunded,
+    );
   },
 
   async refundPayment(paymentReference: string): Promise<boolean> {

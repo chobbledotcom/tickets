@@ -5,6 +5,10 @@ import {
 } from "#shared/db/payment-references.ts";
 import { reportRefundNotRecorded } from "#shared/invariant-errors.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import {
+  admissionReason,
+  sendRefundIfAdmitted,
+} from "#shared/payment/admit-refund.ts";
 import type { getActivePaymentProvider } from "#shared/payments.ts";
 import { recordAttendeeRefundsBatch } from "#shared/refund-ledger.ts";
 import type { RefundCandidate } from "./candidates.ts";
@@ -16,7 +20,7 @@ import {
 
 type RefundProvider = Pick<
   NonNullable<Awaited<ReturnType<typeof getActivePaymentProvider>>>,
-  "isPaymentRefunded" | "refundPayment"
+  "readChargeMoneyOrNull" | "refundPayment"
 >;
 type MarkReturnedReferences = (
   references: readonly RefundPaymentReference[],
@@ -37,6 +41,12 @@ export type RefundCounts = {
  * The refresh-payment status check reuses it to bound its own fan-out. */
 export const PROVIDER_REFUND_CONCURRENCY = 5;
 
+/** Log why one reference's money did not move, and report it as failed. */
+const refusedRefund = (detail: string, listingId: number): RefundOutcome => {
+  logError({ code: ErrorCode.PAYMENT_REFUND, detail, listingId });
+  return "failed";
+};
+
 const refundReferenceAtProvider = async (
   provider: RefundProvider,
   candidate: RefundCandidate,
@@ -47,14 +57,23 @@ const refundReferenceAtProvider = async (
   const paymentReference = reference.reference;
   try {
     if (reference.refundState === "completed") return "refunded";
-    if (await provider.refundPayment(paymentReference)) return "refunded";
-    if (await provider.isPaymentRefunded(paymentReference)) return "refunded";
-    logError({
-      code: ErrorCode.PAYMENT_REFUND,
-      detail: `Admin refund failed for attendee ${attendeeId}, payment ${paymentReference}`,
-      listingId,
+    // What the money has already done decides whether more is sent — see
+    // `sendRefundIfAdmitted`. SumUp has no idempotency key to fall back on.
+    return await sendRefundIfAdmitted(provider, paymentReference, {
+      failed: () =>
+        refusedRefund(
+          `Admin refund failed for attendee ${attendeeId}, payment ${paymentReference}`,
+          listingId,
+        ),
+      sent: () => "refunded",
+      withhold: (admission) =>
+        admission.kind === "already_returned"
+          ? "refunded"
+          : refusedRefund(
+              `Admin refund not sent for attendee ${attendeeId}, payment ${paymentReference}: ${admissionReason(admission)}`,
+              listingId,
+            ),
     });
-    return "failed";
   } catch (err) {
     logError({
       code: ErrorCode.PAYMENT_REFUND,

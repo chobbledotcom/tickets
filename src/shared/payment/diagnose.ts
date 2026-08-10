@@ -13,6 +13,7 @@ import type { PaymentObservation } from "#shared/payment/observation.ts";
 import { resolveRefund } from "#shared/payment/refund.ts";
 import type {
   ChargeLegs,
+  ChargeMoney,
   RefundResolution,
 } from "#shared/payment/resources.ts";
 import { refundMoneyMatchesCapture } from "#shared/payment/resources.ts";
@@ -62,7 +63,7 @@ const resourcesMatch = (
 
 /** Any leg where the money back — or on its way — outruns the money taken, or
  *  where the two are not even in the same currency to compare. */
-const refundOverspendsCapture = (charges: ChargeLegs): boolean =>
+const refundOverspendsCapture = (charges: readonly ChargeMoney[]): boolean =>
   charges.some((charge) => !refundMoneyMatchesCapture(charge));
 
 const firstDuplicate = (values: string[]): string | undefined => {
@@ -139,7 +140,7 @@ const providerCouldNotRefund = (refund: RefundResolution): boolean =>
 
 /** Money was taken and the reading has been checked, so all that is left is
  *  what became of any refunds on it. */
-const refundOutcome = (charges: ChargeLegs): ObservationOutcome => {
+const refundOutcome = (charges: readonly ChargeMoney[]): ObservationOutcome => {
   const refunds = charges.map(resolveRefund);
   // No M4 reading can carry two refunds in flight: the only pending refund an
   // observation holds is the direct answer to its own single attempt. Seeing
@@ -231,7 +232,9 @@ const freeOutcome = (observation: PaymentObservation): ObservationOutcome =>
  * before sending money back needs no agreed total anyway: money returned is
  * measured against money TAKEN, both of which the provider states.
  */
-export const refundOutcomeOf = (charges: ChargeLegs): ObservationOutcome =>
+export const refundOutcomeOf = (
+  charges: readonly ChargeMoney[],
+): ObservationOutcome =>
   refundOverspendsCapture(charges)
     ? { issue: { kind: "refund_exceeds_capture" }, kind: "conflict" }
     : refundOutcome(charges);

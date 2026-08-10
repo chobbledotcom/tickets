@@ -12,8 +12,12 @@
  * - Webhook setup is manual (user provides signature key from dashboard)
  */
 
+/* jscpd:ignore-start -- imports */
 import { logDebug } from "#shared/logger.ts";
+import type { ChargeMoney } from "#shared/payment/resources.ts";
+import { chargeMoneyOrNull } from "#shared/payment/resources.ts";
 import { validatedPaymentSession } from "#shared/payment/validated-session.ts";
+/* jscpd:ignore-end */
 import {
   hasRequiredSessionMetadata,
   toCanonicalIso,
@@ -41,15 +45,20 @@ export const squarePaymentProvider: PaymentProvider = {
     });
   },
 
-  async isPaymentRefunded(paymentReference: string): Promise<boolean> {
+  async readChargeMoneyOrNull(
+    paymentReference: string,
+  ): Promise<ChargeMoney | null> {
     const payment = await squareApi.retrievePayment(paymentReference);
-    if (!payment) return false;
-    // Fully refunded only: a partial refund leaves the customer still charged,
-    // so it must not count as refunded (matches Stripe's charge.refunded and
-    // SumUp's REFUNDED status, and keeps the refund-idempotency fallback honest).
-    const charged = payment.amountMoney?.amount ?? BigInt(0);
-    const refunded = payment.refundedMoney?.amount ?? BigInt(0);
-    return charged > BigInt(0) && refunded >= charged;
+    const captured = payment?.amountMoney;
+    if (!captured) return null;
+    // Square omits the refunded total on a payment nothing has gone back on,
+    // which is a stated zero rather than a missing fact — its currency is the
+    // captured currency, because Square refunds a payment in what it took.
+    return chargeMoneyOrNull(
+      captured.amount,
+      captured.currency,
+      payment.refundedMoney?.amount ?? 0,
+    );
   },
 
   refundPayment(paymentReference: string): Promise<boolean> {
