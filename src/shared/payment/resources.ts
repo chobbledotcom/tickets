@@ -170,8 +170,8 @@ export const providerRefundResources = (
 ): ProviderRefundResource[] =>
   charges.flatMap((charge) =>
     charge.refunds.flatMap((refund) =>
-      refund.refund === undefined ? [] : [refund.refund]
-    )
+      refund.refund === undefined ? [] : [refund.refund],
+    ),
   );
 
 /** Money on its way back that the provider has not finished sending. A refund
@@ -179,7 +179,8 @@ export const providerRefundResources = (
  *  still going are added on top. */
 /** The money named by every refund at one point in its life, added up. */
 const refundMoneyThatIs =
-  (status: RefundObservation["status"]) => (charge: ChargeLeg): number =>
+  (status: RefundObservation["status"]) =>
+  (charge: ChargeLeg): number =>
     sumOf((refund: RefundObservation) => refund.amount.amount)(
       charge.refunds.filter((refund) => refund.status === status),
     );
@@ -192,13 +193,14 @@ const refundMoneyGivenBack = refundMoneyThatIs("completed");
  * compared at all, so that is checked here once; which refunds count, and how
  * the two totals must compare, is the caller's to say.
  */
-const comparedWithMoneyTaken = (
-  moneyBack: (charge: ChargeLeg) => number,
-  holds: (back: number, taken: number) => boolean,
-) =>
-(charge: ChargeLeg): boolean =>
-  charge.confirmedRefunded.currency === charge.captured.currency &&
-  holds(moneyBack(charge), charge.captured.amount);
+const comparedWithMoneyTaken =
+  (
+    moneyBack: (charge: ChargeLeg) => number,
+    holds: (back: number, taken: number) => boolean,
+  ) =>
+  (charge: ChargeLeg): boolean =>
+    charge.confirmedRefunded.currency === charge.captured.currency &&
+    holds(moneyBack(charge), charge.captured.amount);
 
 /**
  * Everything that has gone back or is going back, counted once. The returned
