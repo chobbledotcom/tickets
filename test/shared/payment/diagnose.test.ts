@@ -5,6 +5,7 @@ import { hasSettled, outcomeOf } from "#shared/payment/diagnose.ts";
 import type { PaymentObservation } from "#shared/payment/observation.ts";
 import {
   chargeLeg,
+  chargeResource,
   noPaymentRequiredObservation,
   partlyRefundedCharge,
   paymentObservation,
@@ -236,7 +237,7 @@ describe("what one reading of a payment comes to", () => {
     const outcome = outcomeOf(
       finished(
         paymentObservation({
-          charges: [chargeLeg({ captured: { amount: 0, currency: "GBP" } })],
+          charges: [chargeLeg()],
           expected: { amount: 0, currency: "GBP" },
           providerTotal: { amount: 0, currency: "GBP" },
           status: "no_payment_required",
@@ -247,5 +248,100 @@ describe("what one reading of a payment comes to", () => {
     expect(outcome.kind === "conflict" ? outcome.issue.kind : undefined).toBe(
       "paid_without_charge",
     );
+  });
+});
+
+// The evaluation order is part of the contract: a reading can match several
+// kinds at once and exactly one is reported. These pin the order itself, not
+// merely that each kind exists.
+describe("which problem a reading is named by when several fit", () => {
+  const secondLeg = { ...chargeResource, id: "pi_2" };
+  const leg = (amount: number, resource = chargeResource) =>
+    chargeLeg({ captured: { amount, currency: "GBP" }, resource });
+
+  for (const [name, charges, expected] of [
+    [
+      "two legs summing over the signed total",
+      [leg(60), leg(60, secondLeg)],
+      "capture_total_mismatch",
+    ],
+    [
+      "two legs summing under the signed total",
+      [leg(40), leg(40, secondLeg)],
+      "partial_charge",
+    ],
+    [
+      "two legs summing to the signed total",
+      [leg(50), leg(50, secondLeg)],
+      "multiple_charges",
+    ],
+    [
+      "two legs summing to the signed total with money already back",
+      [
+        chargeLeg({
+          captured: { amount: 50, currency: "GBP" },
+          confirmedRefunded: { amount: 20, currency: "GBP" },
+        }),
+        leg(50, secondLeg),
+      ],
+      "partial_refund",
+    ],
+    [
+      "two legs where only one gave its money back",
+      [
+        chargeLeg({
+          captured: { amount: 50, currency: "GBP" },
+          confirmedRefunded: { amount: 50, currency: "GBP" },
+        }),
+        leg(50, secondLeg),
+      ],
+      "partial_refund",
+    ],
+    [
+      "more money back than was ever taken",
+      [
+        chargeLeg({
+          confirmedRefunded: { amount: 150, currency: "GBP" },
+        }),
+      ],
+      "refund_exceeds_capture",
+    ],
+    [
+      "a leg taken in another currency",
+      [
+        chargeLeg({
+          captured: { amount: 100, currency: "USD" },
+          confirmedRefunded: { amount: 0, currency: "USD" },
+        }),
+      ],
+      "currency_mismatch",
+    ],
+  ] as const) {
+    test(`names ${name} ${expected}`, () => {
+      const outcome = outcomeOf(finished(paymentObservation({ charges })));
+
+      expect(outcome.kind === "conflict" ? outcome.issue.kind : undefined).toBe(
+        expected,
+      );
+    });
+  }
+
+  // Two legs of one checkout, both given back: the money is gone, so this is
+  // the refunded reading and not a leg-count problem.
+  test("names two legs both given back fully refunded", () => {
+    const given = (amount: number, resource = chargeResource) =>
+      chargeLeg({
+        captured: { amount, currency: "GBP" },
+        confirmedRefunded: { amount, currency: "GBP" },
+        resource,
+      });
+
+    expect(
+      outcomeOf(
+        finished(
+          paymentObservation({ charges: [given(50), given(50, secondLeg)] }),
+        ),
+      ).kind,
+    ).toBe("fully_refunded");
   });
 });

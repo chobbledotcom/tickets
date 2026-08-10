@@ -148,3 +148,47 @@ describe("refund resolver", () => {
     });
   });
 });
+
+describe("money back that the cumulative total has not caught up with", () => {
+  // The provider says the refund finished; its running total still reads
+  // zero. Reading that as "no refund seen" would call the charge refundable
+  // and let a second refund go out — with no idempotency key on SumUp, that
+  // is the buyer's money sent back twice.
+  test("counts a finished refund the cumulative total has not caught up with", () => {
+    expect(
+      resolved(
+        chargeLeg({
+          confirmedRefunded: { amount: 0, currency: "GBP" },
+          refunds: [refundObservation()],
+        }),
+      ).status,
+    ).toBe("completed");
+  });
+
+  // A failure hidden behind "partly refunded" is a failure nobody retries.
+  test("reports a refund the provider could not finish over money already back", () => {
+    expect(
+      resolved(
+        chargeLeg({
+          confirmedRefunded: { amount: 40, currency: "GBP" },
+          refunds: [
+            refundObservation({
+              amount: { amount: 40, currency: "GBP" },
+            }),
+            refundObservation({
+              amount: { amount: 30, currency: "GBP" },
+              reason: "provider_failed",
+              refund: { ...refundResource, id: "re_2" },
+              status: "failed",
+            }),
+          ],
+        }),
+      ),
+    ).toStrictEqual({
+      amount: { amount: 40, currency: "GBP" },
+      reason: "provider_failed",
+      refund: { ...refundResource, id: "re_2" },
+      status: "failed",
+    });
+  });
+});

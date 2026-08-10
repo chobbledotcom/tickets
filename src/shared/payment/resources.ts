@@ -203,15 +203,20 @@ const comparedWithMoneyTaken =
     holds(moneyBack(charge), charge.captured.amount);
 
 /**
- * Everything that has gone back or is going back, counted once. The returned
- * total is meant to already hold the refunds the provider says it finished,
- * so adding both would count those twice — but the total can also lag behind
- * a refund it has not caught up with. Taking whichever of the two is larger
- * covers both, and money still on its way is genuinely on top of it.
+ * Money already back with the buyer. The cumulative total is meant to hold
+ * every refund the provider says it finished, so adding both would count those
+ * twice — but the total can also lag behind one it has not caught up with, so
+ * whichever is larger is what actually went back. The single answer to "how
+ * much came back": no caller can reach a different one and read a finished
+ * refund as no refund at all.
  */
+export const refundMoneyReturned = (charge: ChargeLeg): number =>
+  Math.max(charge.confirmedRefunded.amount, refundMoneyGivenBack(charge));
+
+/** Everything back or on its way, counted once — money still going is
+ *  genuinely on top of the money already returned. */
 const refundMoneyAccountedFor = (charge: ChargeLeg): number =>
-  Math.max(charge.confirmedRefunded.amount, refundMoneyGivenBack(charge)) +
-  refundMoneyStillGoing(charge);
+  refundMoneyReturned(charge) + refundMoneyStillGoing(charge);
 
 /** Nothing given back, or still on its way, comes to more than was taken. */
 const refundFitsWithinCapture = comparedWithMoneyTaken(

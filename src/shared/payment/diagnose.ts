@@ -25,7 +25,7 @@ const conflict = (issue: PaymentConflict): PaymentObservationCheck => ({
   valid: false,
 });
 
-const moneyTotal = (charges: ChargeLegs): bigint =>
+const capturedTotal = (charges: ChargeLegs): bigint =>
   charges.reduce((total, charge) => total + BigInt(charge.captured.amount), 0n);
 
 const moneyCurrencies = (
@@ -96,15 +96,9 @@ const validatePaymentObservation = (
   ) {
     return conflict({ kind: "duplicate_charge" });
   }
-  if (charges.length > 1) return conflict({ kind: "multiple_charges" });
-
-  const captured = moneyTotal(charges);
-  const expected = BigInt(observation.expected.amount);
-  if (captured < expected) return conflict({ kind: "partial_charge" });
-  if (captured !== expected) {
-    return conflict({ kind: "capture_total_mismatch" });
-  }
-  return { valid: true };
+  return capturedTotal(charges) < BigInt(observation.expected.amount)
+    ? conflict({ kind: "partial_charge" })
+    : { valid: true };
 };
 
 /** What a reading comes to once it has been looked at. Only "conflict" is a
@@ -144,7 +138,7 @@ const refundOutcome = (charges: ChargeLegs): ObservationOutcome => {
   ) {
     throw new Error("An M4 reading cannot hold more than one refund in flight");
   }
-  if (refunds.some((refund) => refund.status === "completed")) {
+  if (refunds.every((refund) => refund.status === "completed")) {
     return { kind: "fully_refunded" };
   }
   if (refunds.some((refund) => refund.status === "pending")) {
@@ -153,7 +147,12 @@ const refundOutcome = (charges: ChargeLegs): ObservationOutcome => {
   if (refunds.some(providerCouldNotRefund)) {
     return { issue: { kind: "failed_refund" }, kind: "conflict" };
   }
-  return refunds.some((refund) => refund.status === "partial")
+  // Money back on SOME legs but not all is a partial refund of the booking
+  // even when each leg's own refund finished: the provider is keeping less
+  // than the signed total, so the booking parks for the owner.
+  return refunds.some(
+    (refund) => refund.status === "partial" || refund.status === "completed",
+  )
     ? { issue: { kind: "partial_refund" }, kind: "conflict" }
     : { kind: "ready" };
 };
@@ -166,18 +165,32 @@ const paidOutcome = (observation: PaymentObservation): ObservationOutcome => {
     return { issue: { kind: "paid_without_charge" }, kind: "conflict" };
   }
   const checked = validatePaymentObservation(observation);
-  return checked.valid
-    ? refundOutcome(charges)
-    : { issue: checked.issue, kind: "conflict" };
+  if (!checked.valid) return { issue: checked.issue, kind: "conflict" };
+  // Refund verdicts come before the owner-review money kinds, so a leg that
+  // was part-refunded parks as `partial_refund` rather than being named by
+  // its leg count. Only a reading whose money is all still with the provider
+  // reaches the two below.
+  const refunds = refundOutcome(charges);
+  if (refunds.kind !== "ready") return refunds;
+  if (capturedTotal(charges) !== BigInt(observation.expected.amount)) {
+    return { issue: { kind: "capture_total_mismatch" }, kind: "conflict" };
+  }
+  return charges.length > 1
+    ? { issue: { kind: "multiple_charges" }, kind: "conflict" }
+    : { kind: "ready" };
 };
 
-/** A checkout that asked for nothing. The check above already refused any
- *  reading whose provider total differs from what was asked for, so nothing
- *  asked for means nothing taken. */
+/** A checkout that asked for nothing. Money against it is the one diagnosis
+ *  and is answered FIRST: a charge on a free checkout also mismatches every
+ *  expected-vs-observed amount, and naming it a total mismatch would hide the
+ *  money nobody asked for behind an arithmetic complaint. */
 const freeOutcome = (observation: PaymentObservation): ObservationOutcome => {
+  if (observation.charges !== undefined) {
+    return { issue: { kind: "paid_without_charge" }, kind: "conflict" };
+  }
   const checked = validatePaymentObservation(observation);
   if (!checked.valid) return { issue: checked.issue, kind: "conflict" };
-  return observation.expected.amount === 0 && observation.charges === undefined
+  return observation.expected.amount === 0
     ? { kind: "ready" }
     : { issue: { kind: "paid_without_charge" }, kind: "conflict" };
 };
