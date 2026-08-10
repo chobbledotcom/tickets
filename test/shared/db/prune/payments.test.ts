@@ -1,7 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { runDatabasePruning } from "#shared/db/prune.ts";
-import { PRUNE_PAYMENTS_RETENTION_MS } from "#shared/limits.ts";
+import {
+  PRUNE_PAYMENTS_RETENTION_MS,
+  STALE_RESERVATION_MS,
+} from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -96,5 +99,19 @@ describeWithEnv("db > prunePayments", { db: true }, () => {
     // Deleting it mid-run would throw away the claim, and a later run could
     // then pay the same money a second time.
     expect(await paymentExists("sess_claimed_old")).toBe(true);
+  });
+
+  test("prunes an old row whose claim is old enough to be a crashed worker", async () => {
+    // Nothing releases a keyless claim whose answer was lost, so without the
+    // staleness cutoff this row would be kept for ever.
+    await insertClaimedPayment(
+      "sess_claim_stale",
+      oldEnoughToPrune(),
+      new Date(nowMs() - STALE_RESERVATION_MS - 1000).toISOString(),
+    );
+
+    await runDatabasePruning();
+
+    expect(await paymentExists("sess_claim_stale")).toBe(false);
   });
 });

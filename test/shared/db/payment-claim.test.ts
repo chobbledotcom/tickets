@@ -5,10 +5,12 @@ import {
   claimAttendeeRows,
   releaseAttendeeRows,
 } from "#shared/db/payment-claim.ts";
+import { paymentReferenceIndex } from "#shared/db/payment-references.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
+import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 const protectedStateOf = (sessionId: string): Promise<{ v: string } | null> =>
   queryOne<{ v: string }>(
@@ -49,8 +51,13 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
 
     test("the claim shows in the plaintext mirror the prune reads", async () => {
       const attendeeId = await bookedWith("sess-b", "pi_b");
-      await claimAttendeeRows([attendeeId], "keyless");
-      expect(await protectedStateOf("sess-b")).toEqual({ v: "claim" });
+      const held = await claimAttendeeRows([attendeeId], "keyless");
+      if (held.kind !== "claimed") throw new Error("the claim was refused");
+      // The mirror carries the claim's own time, so the prune — which cannot
+      // decrypt — can tell a live claim from a crashed worker's.
+      expect(await protectedStateOf("sess-b")).toEqual({
+        v: `claim:${held.heldSince}`,
+      });
     });
 
     test("a second run on the same attendee is told the work is in progress", async () => {
@@ -112,8 +119,9 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
   describe("the reference index", () => {
     test("is written by the same statement as the reference", async () => {
       await bookedWith("sess-h", "pi_h");
-      const stored = await referenceIndexOf("sess-h");
-      expect(stored?.v).toMatch(/^.+$/);
+      expect(await referenceIndexOf("sess-h")).toEqual({
+        v: await paymentReferenceIndex("pi_h"),
+      });
     });
 
     test("is the same for the same reference on two rows", async () => {
@@ -158,8 +166,21 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
       expect(await protectedStateOf("sess-m")).toEqual({ v: "" });
     });
 
-    test("releasing nothing touches nothing", async () => {
-      await releaseAttendeeRows([], "2026-08-10T12:00:00.000Z");
+    test("releasing nothing reaches no database at all", async () => {
+      const calls = await countDatabaseCalls(0, async () => {
+        await releaseAttendeeRows([], "2026-08-10T12:00:00.000Z");
+      });
+      expect(calls).toBe(0);
+    });
+
+    test("claiming nobody holds nothing and reaches no database", async () => {
+      const calls = await countDatabaseCalls(0, async () => {
+        expect(await claimAttendeeRows([], "keyless")).toMatchObject({
+          kind: "claimed",
+          sessionIds: [],
+        });
+      });
+      expect(calls).toBe(0);
     });
 
     test("releasing an unclaimed row leaves it alone", async () => {
@@ -183,7 +204,9 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
 
       await releaseAttendeeRows(stalled.sessionIds, stalled.heldSince);
 
-      expect(await protectedStateOf("sess-stall")).toEqual({ v: "claim" });
+      expect(await protectedStateOf("sess-stall")).toEqual({
+        v: `claim:${resumed.heldSince}`,
+      });
       expect(await claimAttendeeRows([attendeeId], "keyless")).toEqual({
         blockedBy: { kind: "held" },
         kind: "blocked",

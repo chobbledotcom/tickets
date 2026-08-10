@@ -21,7 +21,7 @@ import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
   executeBatch,
   inPlaceholders,
-  queryBatch,
+  queryBatchPrimary,
   resultRows,
   type TxScope,
   withTransaction,
@@ -46,9 +46,16 @@ import {
 
 const SLOT = "processed_payments.failure_data";
 
-/** The plaintext word the one consumer that cannot decrypt routes on. Live
- *  refund work keeps a row from being pruned out from under it. */
-const CLAIMED_STATE = "claim";
+/** What the one consumer that cannot decrypt sees. It carries the claim's
+ *  written-at time as well as the word, because that reader also has to tell a
+ *  live claim from a crashed worker's — a claim that is never released (a
+ *  keyless run whose answer was lost) would otherwise keep its row from ever
+ *  being pruned. */
+export const claimMirror = (writtenAt: string): string => `claim:${writtenAt}`;
+
+/** Where the written-at time starts inside the mirror, 1-indexed for SQL's
+ *  `substr`. Exported so the prune reads the same offset this writes. */
+export const CLAIM_MIRROR_TIME_AT = "claim:".length + 1;
 
 /** One row as the claim transaction found it. The stored slot is kept exactly
  *  as read, because every write back is conditioned on it being unchanged. */
@@ -83,7 +90,7 @@ const readRows = async (
       args,
       sql: `SELECT payment_session_id, attendee_id, failure_data,
                    payment_reference_index
-              FROM processed_payments
+              FROM processed_payments AS payment
              WHERE ${where}`,
     }),
   );
@@ -213,7 +220,7 @@ export const claimAttendeeRows = async (
             writtenAt,
           },
         },
-        CLAIMED_STATE,
+        claimMirror(writtenAt),
       );
     }
     return {
@@ -243,12 +250,17 @@ export const releaseAttendeeRows = async (
   // between depends on the write, and each write is conditioned on the exact
   // record it read. A batch is one round trip where a transaction is several,
   // and a refund request has few to spare.
-  const [read] = await queryBatch([
+  //
+  // The read is pinned to the primary because it is reading this run's own
+  // claim: a lagging replica would hand back the record from before the claim
+  // landed, no write would match, and the claim would sit there until it went
+  // stale — blocking a retry that should have been free.
+  const [read] = await queryBatchPrimary([
     {
       args: [...sessionIds],
       sql: `SELECT payment_session_id, attendee_id, failure_data,
                    payment_reference_index
-              FROM processed_payments
+              FROM processed_payments AS payment
              WHERE payment_session_id IN (${inPlaceholders(sessionIds)})`,
     },
   ]);

@@ -64,9 +64,13 @@ export type RefundCounts = {
  * The refresh-payment status check reuses it to bound its own fan-out. */
 export const PROVIDER_REFUND_CONCURRENCY = 5;
 
+/** Say that something went wrong with a refund on this listing. */
+const reportRefundProblem = (detail: string, listingId: number): void =>
+  logError({ code: ErrorCode.PAYMENT_REFUND, detail, listingId });
+
 /** Log why one reference's money did not move, and report it as failed. */
 const refusedRefund = (detail: string, listingId: number): RefundOutcome => {
-  logError({ code: ErrorCode.PAYMENT_REFUND, detail, listingId });
+  reportRefundProblem(detail, listingId);
   return "failed";
 };
 
@@ -125,6 +129,7 @@ export const underAttendeeClaim = async <TResult>(
   rowClaim: RowClaim,
   attendeeIds: readonly number[],
   capability: RefundCapability,
+  listingId: number,
   run: {
     blocked: (reason: string) => TResult;
     lost: (result: TResult) => boolean;
@@ -135,9 +140,19 @@ export const underAttendeeClaim = async <TResult>(
   if (claim.kind === "blocked") {
     return run.blocked(claimRefusal(claim.blockedBy));
   }
+  // A release that fails leaves the claim standing until it goes stale, which
+  // is recoverable. Losing the answer the run just produced is not, so a
+  // release failure is reported and never allowed to replace the result or the
+  // original error.
   const release = async (lost: boolean): Promise<void> => {
-    if (mayReleaseClaim(capability, lost ? "lost" : "validated")) {
+    if (!mayReleaseClaim(capability, lost ? "lost" : "validated")) return;
+    try {
       await rowClaim.release(claim.sessionIds, claim.heldSince);
+    } catch (error) {
+      reportRefundProblem(
+        `Refund claim could not be released: ${String(error)}`,
+        listingId,
+      );
     }
   };
   try {
@@ -150,12 +165,21 @@ export const underAttendeeClaim = async <TResult>(
   }
 };
 
+/** What one attendee's refund came to. `unrecorded` means the money went back
+ *  but saying so durably failed — the refund still counts, and the run must
+ *  keep its hold, because nothing yet proves the money moved. */
+export type CandidateRefund = {
+  candidate: RefundCandidate;
+  outcome: RefundOutcome;
+  unrecorded?: boolean;
+};
+
 export const refundCandidateAtProvider = async (
   provider: RefundProvider,
   candidate: RefundCandidate,
   listingId: number,
   markReturnedReferences: MarkReturnedReferences = markPaymentReferencesProviderRefunded,
-): Promise<{ candidate: RefundCandidate; outcome: RefundOutcome }> => {
+): Promise<CandidateRefund> => {
   const results: {
     outcome: RefundOutcome;
     reference: RefundPaymentReference;
@@ -187,14 +211,15 @@ export const refundCandidateAtProvider = async (
   try {
     await markReturnedReferences(returnedReferences);
   } catch (error) {
-    logError({
-      code: ErrorCode.PAYMENT_REFUND,
-      detail: `Admin refund could not record returned payments for attendee ${candidate.attendee.id}: ${String(
-        error,
-      )}`,
+    reportRefundProblem(
+      `Admin refund could not record returned payments for attendee ${candidate.attendee.id}: ${String(error)}`,
       listingId,
-    });
+    );
     if (outcome !== "refunded") return { candidate, outcome: "errored" };
+    // The money went back but nothing records it. The refund still counts, so
+    // the ledger still posts — but the run must not let go of its hold, or a
+    // retry reading a provider that has not caught up sends it again.
+    return { candidate, outcome, unrecorded: true };
   }
   if (outcome !== "refunded" && candidate.references.length > 1) {
     logError({
@@ -252,32 +277,45 @@ export const processRefundBatch = async (
   batch: RefundCandidate[],
   listingId: number,
   rowClaim: RowClaim = durableRowClaim,
-): Promise<RefundCounts> =>
-  underAttendeeClaim(
+  markReturnedReferences: MarkReturnedReferences = markPaymentReferencesProviderRefunded,
+): Promise<RefundCounts> => {
+  const result = await underAttendeeClaim(
     rowClaim,
     batch.map((candidate) => candidate.attendee.id),
     provider.refundCapability,
+    listingId,
     {
       blocked: (reason) => {
         for (const candidate of batch) {
-          logError({
-            code: ErrorCode.PAYMENT_REFUND,
-            detail: `Admin bulk refund not started for attendee ${candidate.attendee.id}: ${reason}`,
+          reportRefundProblem(
+            `Admin bulk refund not started for attendee ${candidate.attendee.id}: ${reason}`,
             listingId,
-          });
+          );
         }
-        return { errorCount: 0, failedCount: batch.length, refundedCount: 0 };
+        return {
+          counts: {
+            errorCount: 0,
+            failedCount: batch.length,
+            refundedCount: 0,
+          },
+          unrecorded: false,
+        };
       },
-      lost: (counts) => counts.errorCount > 0,
-      work: () => refundClaimedBatch(provider, batch, listingId),
+      lost: (result) => result.counts.errorCount > 0 || result.unrecorded,
+      work: () =>
+        refundClaimedBatch(provider, batch, listingId, markReturnedReferences),
     },
   );
+  return result.counts;
+};
 
 const refundClaimedBatch = async (
   provider: RefundProvider,
   batch: RefundCandidate[],
   listingId: number,
-): Promise<RefundCounts> => {
+  markReturnedReferences: MarkReturnedReferences,
+): Promise<{ counts: RefundCounts; unrecorded: boolean }> => {
+  let unrecorded = false;
   const counts: RefundCounts = {
     errorCount: 0,
     failedCount: 0,
@@ -288,14 +326,20 @@ const refundClaimedBatch = async (
   )) {
     const results = await Promise.all(
       group.map((candidate) =>
-        refundCandidateAtProvider(provider, candidate, listingId),
+        refundCandidateAtProvider(
+          provider,
+          candidate,
+          listingId,
+          markReturnedReferences,
+        ),
       ),
     );
     const chunkRefundedAttendees: {
       attendeeId: number;
       references: readonly RefundPaymentReference[];
     }[] = [];
-    for (const { candidate, outcome } of results) {
+    for (const { candidate, outcome, unrecorded: missed } of results) {
+      if (missed === true) unrecorded = true;
       tallyProviderRefund(
         counts,
         candidate,
@@ -316,5 +360,5 @@ const refundClaimedBatch = async (
       }
     }
   }
-  return counts;
+  return { counts, unrecorded };
 };

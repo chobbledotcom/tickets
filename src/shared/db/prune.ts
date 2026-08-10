@@ -8,6 +8,7 @@ import {
   queryAll,
   type SqlStatement,
 } from "#shared/db/client.ts";
+import { CLAIM_MIRROR_TIME_AT } from "#shared/db/payment-claim.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   MAINTENANCE_PRUNE_BATCH,
@@ -18,9 +19,10 @@ import {
   PRUNE_SUMUP_RETENTION_MS,
   PRUNE_TOKENS_RETENTION_MS,
   PRUNE_UNUSED_STRINGS_RETENTION_MS,
+  STALE_RESERVATION_MS,
 } from "#shared/limits.ts";
 import { logDebug } from "#shared/logger.ts";
-import { now, nowMs } from "#shared/now.ts";
+import { isoBefore, now, nowMs } from "#shared/now.ts";
 import { orphanRetentionCutoffIso } from "#shared/orphan-retention.ts";
 import type { User } from "#shared/types.ts";
 
@@ -48,7 +50,11 @@ const isoCutoff = (retentionMs: number): string =>
   new Date(nowMs() - retentionMs).toISOString();
 
 const paymentStatement = (): PruneStatement => ({
-  args: [isoCutoff(PRUNE_PAYMENTS_RETENTION_MS), MAINTENANCE_PRUNE_BATCH],
+  args: [
+    isoCutoff(PRUNE_PAYMENTS_RETENTION_MS),
+    isoBefore(STALE_RESERVATION_MS),
+    MAINTENANCE_PRUNE_BATCH,
+  ],
   sql: `DELETE FROM processed_payments
          WHERE rowid IN (
            SELECT payment.rowid
@@ -58,7 +64,18 @@ const paymentStatement = (): PruneStatement => ({
               -- old it is: deleting it mid-run would throw away the claim and
               -- let a later run pay the same money again. This is the one
               -- reader that cannot decrypt, so it routes on the mirror.
-              AND payment.protected_state = ''
+              --
+              -- A claim old enough to be a crashed worker is not live, and is
+              -- pruned normally — otherwise a keyless run whose answer went
+              -- missing would keep its row for ever, since nothing releases
+              -- that claim.
+              AND (
+                payment.protected_state = ''
+                OR (
+                  payment.protected_state LIKE 'claim:%'
+                  AND substr(payment.protected_state, ${CLAIM_MIRROR_TIME_AT}) < ?
+                )
+              )
               AND (
                 payment.failure_data != ''
                 OR (

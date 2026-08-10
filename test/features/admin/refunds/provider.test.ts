@@ -5,6 +5,7 @@ import {
   processRefundBatch,
   type RowClaim,
   refundCandidateAtProvider,
+  underAttendeeClaim,
 } from "#routes/admin/refunds/provider.ts";
 import {
   combineRefundOutcomes,
@@ -407,5 +408,61 @@ describe("admin refund provider > the claim", () => {
     // The money may already have gone; without an idempotency key nothing may
     // try again until fresh evidence says what happened.
     expect(rowClaim.released).toHaveLength(0);
+  });
+});
+
+describe("admin refund provider > an unrecorded refund", () => {
+  const keyless = {
+    readChargeMoneyOrNull: () => Promise.resolve(chargeMoney()),
+    refundCapability: "keyless" as const,
+    refundPayment: () => Promise.resolve(true),
+  };
+
+  test("a refund whose returned-marker write fails is reported unrecorded", async () => {
+    const result = await refundCandidateAtProvider(
+      keyless,
+      candidateWithReferences(["pi_unrecorded"]),
+      7,
+      () => Promise.reject(new Error("the marker could not be written")),
+    );
+
+    // The money went back, so it still counts as refunded...
+    expect(result.outcome).toBe("refunded");
+    // ...but nothing durable says so.
+    expect(result.unrecorded).toBe(true);
+  });
+
+  test("a refund whose marker write succeeds is not unrecorded", async () => {
+    const result = await refundCandidateAtProvider(
+      keyless,
+      candidateWithReferences(["pi_recorded"]),
+      7,
+      () => Promise.resolve(),
+    );
+
+    expect(result.outcome).toBe("refunded");
+    expect(result.unrecorded).toBeUndefined();
+  });
+
+  /** Run a keyless hold whose work ends recorded or not, and say how many
+   *  times it let go. */
+  const releasesAfter = async (unrecorded: boolean): Promise<number> => {
+    const rowClaim = grantingRowClaim();
+    await underAttendeeClaim(rowClaim, [11], "keyless", 7, {
+      blocked: () => ({ unrecorded: false }),
+      lost: (result) => result.unrecorded,
+      work: () => Promise.resolve({ unrecorded }),
+    });
+    return rowClaim.released.length;
+  };
+
+  test("a keyless run keeps its hold when the answer is unrecorded", async () => {
+    // Releasing here is how a retry, reading a provider that has not caught
+    // up, sends the money a second time.
+    expect(await releasesAfter(true)).toBe(0);
+  });
+
+  test("a keyless run lets go when the answer is recorded", async () => {
+    expect(await releasesAfter(false)).toBe(1);
   });
 });
