@@ -1,9 +1,13 @@
 import { type BulkEmailDraft, serializeDraft } from "#shared/bulk-email.ts";
 import { encryptWithOwnerKey } from "#shared/crypto/keys.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { hashEmail, unsubscribeHash } from "#shared/db/contact-preferences.ts";
 import { settings } from "#shared/db/settings.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  createDailyTestListing,
+  createTestListing,
+} from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
 /** Configure the owner's own (bulk-capable) email provider. */
@@ -17,6 +21,33 @@ export const useResend = () =>
 export const seedSingleAttendeeListing = async () => {
   const listing = await createTestListing({ maxAttendees: 50, name: "Solo" });
   await createTestAttendeeDirect(listing.id, "Alice", "alice@example.com");
+  return listing;
+};
+
+/** A daily listing with one booking on 2 March 2026 and nothing on any other
+ * day, for the listing-day target's reachable and 404 cases. */
+export const seedDailyListingBookedOnOneDay = async () => {
+  const listing = await createDailyTestListing({
+    maxAttendees: 50,
+    name: "Term",
+  });
+  const result = await attendeesApi.createAttendeeAtomic({
+    address: "",
+    bookings: [
+      {
+        date: "2026-03-02",
+        durationDays: 1,
+        listingId: listing.id,
+        packageGroupId: 0,
+        quantity: 1,
+      },
+    ],
+    email: "rachel@example.com",
+    name: "Rachel",
+    phone: "",
+    special_instructions: "",
+  });
+  if (!result.success) throw new Error(`Failed to book: ${result.reason}`);
   return listing;
 };
 

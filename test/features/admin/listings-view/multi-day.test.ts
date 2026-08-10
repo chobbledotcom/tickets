@@ -1,9 +1,3 @@
-/**
- * A multi-day booking is present on every day it covers, not only the day it
- * starts. The roster's day picker and its day filter both read it that way, so
- * day 2 of a stay can be selected and lists the stay.
- */
-
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { dateOptionsFor, filterByDate } from "#routes/admin/listings-view.ts";
