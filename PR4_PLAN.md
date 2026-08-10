@@ -205,33 +205,39 @@ part of this contract: expected-vs-observed currency, provider total vs
 expected, resource parentage, per-leg currency, over-refund, duplicate charge,
 partial charge, money on a free checkout, failed refund — every
 refuse-and-record kind — and only then the owner-review kinds, in this order:
-capture total BEFORE multiple charges, then partial refund. Within the
-owner-review group the order matters for the same reason it does globally: a
-multi-leg observation whose captured sum exceeds the signed total matches both
-kinds, and `capture_total_mismatch` must win so the durable record names the
-money discrepancy, not merely the leg count — `multiple_charges` fires only when
-the captured sum equals the signed total, as the owner-choice section states
-(regression: two £60 tenders on a £100 signed order emit
-`capture_total_mismatch`, never `multiple_charges`). The port makes two
-adaptations explicit. First: a zero-expected observation with captured money is
-judged by the free-checkout arm FIRST — before every expected-vs-observed amount
-check, `provider_total_mismatch` included, which the enumerated order would
-otherwise reach first (a free checkout with a positive provider session total
-matches it) — so `paid_without_charge` (refund path) is the one diagnosis for
-money on a free checkout (equivalently: `provider_total_mismatch`,
-`partial_charge`, and `capture_total_mismatch` all exclude expected 0). Second:
-the ported order placed `multiple_charges` mid-list, ahead of `partial_charge` —
-kept, two under-paying tenders would emit `multiple_charges` and
-proceed-and-alert an underpaid booking; the adaptation moves every owner-review
-kind after every refuse-and-record validation kind, so that observation emits
-`partial_charge` and (being multi-charge) parks with no booking per decision 5.
-The principle the adapted order encodes: every refuse-and-record validation kind
-is evaluated before the owner-review kinds, so an observation matching both
-always takes the safer refuse path — condition ordering can never quietly
-upgrade a refusable observation into a proceed-with-alert one. Decision 5 does
-not weaken this: a multi-charge observation matching a refuse kind still refuses
-the booking — the rule below only changes whether the refusal's refund is
-automatic.
+partial refund FIRST, then capture total, then multiple charges. Within the
+owner-review group the ordering principle is the global one applied again:
+park-shaped kinds evaluate before proceed-shaped kinds, so condition ordering
+can never quietly upgrade an observation into a booking. `partial_refund` leads
+because it is the only owner-review kind that parks the booking path: a split
+payment whose two legs sum to the signed total but whose first leg was already
+part-refunded must park as `partial_refund` — the provider retains less than the
+signed total — never book as `multiple_charges`. Then `capture_total_mismatch`
+before `multiple_charges`: a multi-leg sum exceeding the signed total names the
+money discrepancy, not merely the leg count. `multiple_charges` therefore fires
+only when the captured sum equals the signed total AND no refund evidence
+reduces what the provider retains (regressions: two £60 tenders on a £100 signed
+order emit `capture_total_mismatch`, never `multiple_charges`; two £50 tenders
+on a £100 order with £20 already refunded emit `partial_refund` and park). The
+port makes two adaptations explicit. First: a zero-expected observation with
+captured money is judged by the free-checkout arm FIRST — before every
+expected-vs-observed amount check, `provider_total_mismatch` included, which the
+enumerated order would otherwise reach first (a free checkout with a positive
+provider session total matches it) — so `paid_without_charge` (refund path) is
+the one diagnosis for money on a free checkout (equivalently:
+`provider_total_mismatch`, `partial_charge`, and `capture_total_mismatch` all
+exclude expected 0). Second: the ported order placed `multiple_charges`
+mid-list, ahead of `partial_charge` — kept, two under-paying tenders would emit
+`multiple_charges` and proceed-and-alert an underpaid booking; the adaptation
+moves every owner-review kind after every refuse-and-record validation kind, so
+that observation emits `partial_charge` and (being multi-charge) parks with no
+booking per decision 5. The principle the adapted order encodes: every
+refuse-and-record validation kind is evaluated before the owner-review kinds, so
+an observation matching both always takes the safer refuse path — condition
+ordering can never quietly upgrade a refusable observation into a
+proceed-with-alert one. Decision 5 does not weaken this: a multi-charge
+observation matching a refuse kind still refuses the booking — the rule below
+only changes whether the refusal's refund is automatic.
 
 Picking one kind never discards the rest of the evidence. The emitted conflict
 carries the observation's full captured-charge list (resource ids, amounts,
@@ -562,29 +568,50 @@ never duplicated.
   conditioned on the index still holding the value this delivery compared
   against, and the owner-review record committing only when that condition held.
   Two deliveries in flight with the same new evidence yield exactly one record
-  and one alert — the loser's condition fails, it writes nothing, alerts
-  nothing, and answers the stored outcome. An interruption between the two
-  writes can neither make the next identical delivery record twice (fingerprint
-  advanced with the record) nor suppress a record that never landed (neither
-  write happened). Regression: two simultaneous identical post-terminal
-  deliveries produce one record, one alert. When the new evidence lands on a
-  BOOKED session — a first callback finalized `ready` before Square's tender
-  list caught up, a later delivery revealing the second capture — that same
-  batch also writes the owner-review marker into the session row's
-  `failure_data`, so the legacy-refund, refresh, and UI gates engage from that
-  moment: without it, the attendee would keep a live Refund action whose use
-  reverses the full ledger order while the newly detected sibling stays captured
-  (regression: a session booked clean whose redelivery reveals a second tender
-  loses its Refund action and refuses legacy refunds immediately). Legacy rows
-  from before PR B carry no fingerprint; their first post-upgrade redelivery
-  takes the detection path, not a blind replay: the fresh observation —
-  validated and in hand — is judged, any conflict records per the total rule (a
-  legacy multi-tender session whose sibling tenders today's code never saw is a
-  REAL first detection), and `evidence_index` is seeded from that observation in
-  the same batch either way; a clean observation seeds silently and writes
-  nothing else. From then on the row compares like any other — only unchanged
-  legacy evidence replays silently, so the total post-terminal rule holds for
-  existing production rows too.
+  and one alert — the loser's condition fails, it writes nothing and alerts
+  nothing. A losing delivery is not discarded blind: it reloads the committed
+  index, and only an index EQUAL to its own fingerprint is a true duplicate
+  (answer the stored outcome). A differing index means the contenders carried
+  DIFFERENT evidence — a clean observation seeding a legacy row's index while a
+  simultaneous delivery carries the caught-up second tender — so the loser
+  retries the compare-and-detect cycle against the committed index instead of
+  suppressing real money that may never be redelivered; the retry is bounded by
+  the transaction retry budget and convergent because each round compares
+  against a strictly newer index. An interruption between the two writes can
+  neither make the next identical delivery record twice (fingerprint advanced
+  with the record) nor suppress a record that never landed (neither write
+  happened). Regressions: two simultaneous identical post-terminal deliveries
+  produce one record, one alert; a legacy row's clean seed racing a
+  second-capture delivery ends with the conflict recorded exactly once. When the
+  fresh judge's outcome on a BOOKED session is an owner-review CONFLICT — a
+  first callback finalized `ready` before Square's tender list caught up, a
+  later delivery revealing the second capture — that same batch also writes the
+  owner-review marker into the session row's `failure_data`, STORING THE
+  CONFLICT KIND, and the gates read the kind: every owner-review kind hides the
+  Refund action (its handler could only refuse — the dead-link rule), while only
+  extra-captured-money kinds (`multiple_charges`, `capture_total_mismatch`,
+  `duplicate_charge`) refuse the refresh route's ledger-completion writes.
+  Refund-progress evidence is deliberately NOT gate-closing beyond that: a
+  dashboard FULL refund of the named single charge judges `fully_refunded` —
+  recorded, fingerprint advanced, NO marker — so the refresh route's unambiguous
+  `fully_refunded → completed` ledger write stays open and the provider refund
+  reaches the ledger; a dashboard PARTIAL refund judges `partial_refund`, whose
+  marker hides the Refund action but leaves the refresh route free to observe
+  later settlement and complete what provider state supports. Without the
+  marker, the attendee would keep a live Refund action whose use reverses the
+  full ledger order while the newly detected sibling stays captured
+  (regressions: a session booked clean whose redelivery reveals a second tender
+  loses its Refund action and refuses legacy refunds immediately; one whose
+  charge was dashboard-refunded in full completes its ledger through the refresh
+  route with no marker written). Legacy rows from before PR B carry no
+  fingerprint; their first post-upgrade redelivery takes the detection path, not
+  a blind replay: the fresh observation — validated and in hand — is judged, any
+  conflict records per the total rule (a legacy multi-tender session whose
+  sibling tenders today's code never saw is a REAL first detection), and
+  `evidence_index` is seeded from that observation in the same batch either way;
+  a clean observation seeds silently and writes nothing else. From then on the
+  row compares like any other — only unchanged legacy evidence replays silently,
+  so the total post-terminal rule holds for existing production rows too.
 - Retries stay owned by provider redelivery and the operator, as today. M4 adds
   no scheduler.
 - Permanent failures: a provider's explicit refund rejection records the failed
@@ -603,32 +630,46 @@ never duplicated.
 | Two admin bulk waves touching one reference | —                                                 | One payout per reference                                                    | `refundState === "completed"` short-circuit, judge verdict, idempotency key                                                                                                                                                                                                      |
 | Judgment read                               | Provider state changes after read, before attempt | Provider-side rejection or idempotent landing; never a silent double payout | Provider guarantees (documented full-refund rejection) + next read converges                                                                                                                                                                                                     |
 
-M4 adds no new columns; the durable serialization it needs reuses the staged
-refund-in-flight marker. Before ANY provider refund call, every entry point —
-the callback arm, the admin single route, a bulk wave — claims the reference's
-`processed_payments` row by compare-and-set: the staged kind written into empty
-`failure_data` with the batch's written-at time, affected-rows deciding the
-winner. The loser answers "a refund for this payment is already in progress"
+M4 adds no new tables and exactly ONE new column —
+`processed_payments.
+evidence_index`, the replay fingerprint above, with its
+schema migration; the durable refund serialization needs no second one, reusing
+the staged refund-in-flight marker in `failure_data`. Before ANY provider refund
+call, every entry point — the callback arm, the admin single route, a bulk wave
+— claims the reference's `processed_payments` row by compare-and-set: the staged
+kind written into empty `failure_data` with the batch's written-at time,
+affected-rows deciding the winner. The claim is per ATTENDEE REQUEST and
+all-or-none: a route refunding an attendee claims the attendee's complete
+reference set in one interactive transaction — every row claimed or the
+transaction rolls back whole — so two concurrent requests can never split a
+merged attendee's references between them, each winning some rows and moving
+only part of the money; admission (the subrequest pre-flight) runs BEFORE the
+claim, since it is pure arithmetic with no writes, so a refused request never
+leaves claims behind, and a request that dies after claiming recovers via the
+stale rule. The loser answers "a refund for this payment is already in progress"
 without touching the provider; a stale claim (older than the edge request
 lifetime bound) is a crashed worker and may be re-claimed, per the staged
-lifecycle. This claim is what makes the SumUp cells above real: with no
-idempotency parameter, two truly simultaneous refund calls are serialized only
-by the provider, and SumUp documents 409 as a state conflict, not a concurrency
-guarantee — so the local claim is the serialization, for every provider one
-mechanism (regression: two concurrent admin refunds of one SumUp reference make
-exactly one provider call; the loser answers in-progress). A legacy reference
-with NO `processed_payments` row cannot be claimed: that residual simultaneous
-window is unchanged from today, stated here, and closes with M7's durable
-pending-attempt gate — Stripe/Square legacy attempts still dedupe on the
-provider idempotency key, and SumUp legacy attempts keep the provider's
-second-refund rejection plus the fresh evidence read. PR A's concurrency
-regression exercises our side of this (the second attempt answers provider
-rejection or a fresh `fully_refunded` read) — provider-side serialization is the
-stated assumption, not something a mocked test can prove. The table's "one
-payout" answers carry the same conditions: for SumUp they hold on that
-serialization assumption, and for Stripe/Square they hold unconditionally within
-the key-retention window and past it on the fresh-read guard, whose
-stale-cumulative residual is the M7 boundary named under Retry and replay.
+lifecycle. Regression: two concurrent single-attendee refunds of one merged
+attendee — one claims every reference and refunds, the other claims nothing and
+answers in-progress. This claim is what makes the SumUp cells above real: with
+no idempotency parameter, two truly simultaneous refund calls are serialized
+only by the provider, and SumUp documents 409 as a state conflict, not a
+concurrency guarantee — so the local claim is the serialization, for every
+provider one mechanism (regression: two concurrent admin refunds of one SumUp
+reference make exactly one provider call; the loser answers in-progress). A
+legacy reference with NO `processed_payments` row cannot be claimed: that
+residual simultaneous window is unchanged from today, stated here, and closes
+with M7's durable pending-attempt gate — Stripe/Square legacy attempts still
+dedupe on the provider idempotency key, and SumUp legacy attempts keep the
+provider's second-refund rejection plus the fresh evidence read. PR A's
+concurrency regression exercises our side of this (the second attempt answers
+provider rejection or a fresh `fully_refunded` read) — provider-side
+serialization is the stated assumption, not something a mocked test can prove.
+The table's "one payout" answers carry the same conditions: for SumUp they hold
+on that serialization assumption, and for Stripe/Square they hold
+unconditionally within the key-retention window and past it on the fresh-read
+guard, whose stale-cumulative residual is the M7 boundary named under Retry and
+replay.
 
 ## Owner choices
 
@@ -785,11 +826,17 @@ In the same merges that wire `outcomeOf` in:
 - The refresh-payment route's `refunded ? "completed" : "none"` boolean mapping
   (`attendees-edit.ts:98-102`) — a third judge. Its provider poll becomes the
   same charge-tier evidence read, judged by `outcomeOf`: `fully_refunded` →
-  completed as today — EXCEPT on a session carrying the owner-review marker,
-  where the ledger write is refused and the observation recorded instead (the
-  named tender's refund is not the booking's; see the `multiple_charges` owner
-  choice); `refund_pending` → stays unrefunded with the pending answer surfaced;
-  `partial_refund` → an owner-review record, never a silent "none".
+  completed as today — EXCEPT on a session carrying an extra-captured-money
+  marker kind, where the ledger write is refused and the observation recorded
+  instead (the named tender's refund is not the booking's; see the
+  `multiple_charges` owner choice); `refund_pending` → stays unrefunded with the
+  pending answer surfaced; `partial_refund` → a PERSISTED owner-review record
+  (the marker with its kind), never a silent "none" or a bare activity entry:
+  the marker durably hides the attendee's Refund action from that moment — a
+  rendered action whose handler could only re-read the same partial state and
+  refuse would be a dead link — while the refresh action itself remains
+  available to observe later settlement (a marker whose kind is `partial_refund`
+  does not refuse refresh completion writes).
 - No alias, wrapper, or re-export bridges the old names.
 
 `validatedPaymentSession` (M3 boundary), `refund-state.ts` (a record-derived
