@@ -7,7 +7,6 @@ import {
 import {
   isLegacyMergeSession,
   markPaymentReferencesProviderRefunded,
-  paymentReferenceIndex,
   type RefundPaymentReference,
 } from "#shared/db/payment-references.ts";
 import { reportRefundNotRecorded } from "#shared/invariant-errors.ts";
@@ -117,14 +116,8 @@ const refundReferenceOnce = async (
   try {
     if (reference.refundState === "completed") return settled("refunded");
     // What the claimed row says now beats the reference list this run loaded
-    // before it had the hold: another run may have refunded this since. Only
-    // worth hashing the reference when the claim actually saw money go back.
-    if (
-      alreadyReturned.size > 0 &&
-      alreadyReturned.has(await paymentReferenceIndex(paymentReference))
-    ) {
-      return settled("refunded");
-    }
+    // before it had the hold: another run may have refunded this since.
+    if (alreadyReturned.has(reference.index)) return settled("refunded");
     // What the money has already done decides whether more is sent — see
     // `sendRefundIfAdmitted`. SumUp has no idempotency key to fall back on.
     return await sendRefundIfAdmitted(provider, paymentReference, {

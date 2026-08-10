@@ -37,6 +37,7 @@ export const refundReference = (
   reference: string,
   sessionIds: readonly string[],
 ): RefundPaymentReference => ({
+  index: `index_of_${reference}`,
   reference,
   refundState: "completed",
   sessionIds,

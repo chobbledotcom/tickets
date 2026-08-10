@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
-import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import {
   postBooking,
   sessionReference,
@@ -30,10 +29,11 @@ const pendingCandidate = (
 ): RefundCandidate => ({
   attendee: { id: attendeeId } as RefundCandidate["attendee"],
   references: references.map((reference) => ({
+    index: `index_of_${reference}`,
     reference,
     refundState: "none" as const,
     sessionIds: [] as string[],
-  })) as RefundPaymentReference[],
+  })),
 });
 
 /** Provider that fails every live refund and throws for references in

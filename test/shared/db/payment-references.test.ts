@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute } from "#shared/db/client.ts";
+import { execute, queryOne } from "#shared/db/client.ts";
 import {
   encryptPaymentReference,
   getAttendeeIdsWithPaymentReference,
@@ -9,6 +9,7 @@ import {
   hasRefundPaymentReference,
   legacyMergePaymentReferenceStatement,
   markPaymentReferencesProviderRefunded,
+  paymentReferenceIndex,
 } from "#shared/db/payment-references.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
@@ -16,6 +17,12 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
+
+const indexOf = (sessionId: string): Promise<{ v: string } | null> =>
+  queryOne<{ v: string }>(
+    "SELECT payment_reference_index AS v FROM processed_payments WHERE payment_session_id = ?",
+    [sessionId],
+  );
 
 describeWithEnv("db > payment references", { db: true }, () => {
   test("encrypts non-empty references and leaves empty references empty", async () => {
@@ -65,6 +72,7 @@ describeWithEnv("db > payment references", { db: true }, () => {
     // The legacy payment_id falls through `legacyReference`, which marks an
     // unobserved refund "unknown" — distinguish that from "completed".
     expect(firstRefs.at(-1)).toEqual({
+      index: await paymentReferenceIndex("pi_legacy_ignored"),
       reference: "pi_legacy_ignored",
       refundState: "unknown",
       sessionIds: [],
@@ -124,11 +132,36 @@ describeWithEnv("db > payment references", { db: true }, () => {
 
     expect(references.get(attendeeId)).toEqual([
       {
+        index: await paymentReferenceIndex("pi_merged_legacy"),
         reference: "pi_merged_legacy",
         refundState: "unknown",
         sessionIds: [],
       },
     ]);
+  });
+
+  test("indexes a merged legacy payment so a claim can see the money", async () => {
+    const listing = await createTestListing({ maxAttendees: 50 });
+    const created = await bookAttendee(listing, {
+      email: "merged-legacy-index@example.com",
+      name: "Merged Legacy Index",
+    });
+    if (!created.success) throw new Error("setup failed");
+    const attendeeId = created.attendees[0]!.id;
+    const statement = await legacyMergePaymentReferenceStatement(
+      attendeeId,
+      54321,
+      "pi_merged_indexed",
+    );
+    if (!statement) throw new Error("setup failed");
+    await execute(statement.sql, statement.args);
+
+    // A refund claim asks "is another row already working on this same money?"
+    // by this column alone. Without it the inherited charge is invisible, and
+    // two attendees carrying it could each send a payout against it.
+    expect(await indexOf("legacy-merge:54321")).toEqual({
+      v: await paymentReferenceIndex("pi_merged_indexed"),
+    });
   });
 
   test("keeps legacy plaintext processed-payment references refundable", async () => {
@@ -161,6 +194,42 @@ describeWithEnv("db > payment references", { db: true }, () => {
     expect(references.get(attendeeId)?.map((entry) => entry.reference)).toEqual(
       ["pi_plain_legacy"],
     );
+  });
+
+  test("fills in the index a row predating the column never got", async () => {
+    const listing = await createTestListing({ maxAttendees: 50 });
+    const created = await bookAttendee(listing, {
+      email: "unindexed@example.com",
+      name: "Unindexed",
+    });
+    if (!created.success) throw new Error("setup failed");
+    const attendeeId = created.attendees[0]!.id;
+    await finalizeProcessedPayment(
+      "sess_unindexed",
+      attendeeId,
+      "",
+      "pi_unindexed",
+    );
+    // As the row stood before the index column existed. Nothing without the
+    // owner's key could ever fill it in — the reference it is derived from is
+    // encrypted — so the first authenticated read has to.
+    await execute(
+      "UPDATE processed_payments SET payment_reference_index = '' WHERE payment_session_id = ?",
+      ["sess_unindexed"],
+    );
+
+    const references = await getRefundPaymentReferences(
+      [{ id: attendeeId, payment_id: "" }],
+      await getTestPrivateKey(),
+    );
+
+    const expected = await paymentReferenceIndex("pi_unindexed");
+    // Handed to this caller, so its own claim can see the money...
+    expect(references.get(attendeeId)?.map((entry) => entry.index)).toEqual([
+      expected,
+    ]);
+    // ...and written back, so every later claim can too.
+    expect(await indexOf("sess_unindexed")).toEqual({ v: expected });
   });
 
   test("checks whether a single attendee has any refund reference", async () => {
@@ -284,6 +353,7 @@ describeWithEnv("db > payment references", { db: true }, () => {
 
     expect(references.get(attendeeId)).toEqual([
       {
+        index: await paymentReferenceIndex("pi_shared"),
         reference: "pi_shared",
         refundState: "none",
         sessionIds: [
@@ -318,6 +388,7 @@ describeWithEnv("db > payment references", { db: true }, () => {
     );
     await markPaymentReferencesProviderRefunded([
       {
+        index: await paymentReferenceIndex("pi_shared_refunded"),
         reference: "pi_shared_refunded",
         refundState: "none",
         sessionIds: ["sess_refunded_a"],
@@ -331,6 +402,7 @@ describeWithEnv("db > payment references", { db: true }, () => {
 
     expect(references.get(attendeeId)).toEqual([
       {
+        index: await paymentReferenceIndex("pi_shared_refunded"),
         reference: "pi_shared_refunded",
         // Ordered by processed_at; both sessions carried this reference, so
         // both session ids remain attached after the merge.

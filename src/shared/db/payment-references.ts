@@ -17,6 +17,7 @@ import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
 /* jscpd:ignore-start */
 import {
   execute,
+  executeBatch,
   inPlaceholders,
   queryAll,
   type SqlStatement,
@@ -33,6 +34,9 @@ export type RefundPaymentReferenceSource = {
 };
 
 export type RefundPaymentReference = {
+  /** The blind one-way index of this reference, carried from the read so no
+   *  later step has to hash it again. */
+  readonly index: string;
   readonly refundState: RefundState;
   readonly reference: string;
   /** Non-legacy sessions ordered by processing time, then session ID. */
@@ -42,6 +46,7 @@ export type RefundPaymentReference = {
 type PaymentReferenceRow = {
   attendee_id: number;
   payment_reference: string;
+  payment_reference_index: string;
   payment_session_id: string;
   provider_refunded_at: string;
 };
@@ -62,9 +67,14 @@ const LEGACY_MERGE_SESSION_PREFIX = "legacy-merge:";
 export const isLegacyMergeSession = (sessionId: string): boolean =>
   sessionId.startsWith(LEGACY_MERGE_SESSION_PREFIX);
 
-/** One reference's refund status while it is being built up from rows: whether
- *  the provider has refunded it, and the payment sessions seen so far. */
-type ReferenceProgress = { refunded: boolean; sessionIds: string[] };
+/** One reference's refund status while it is being built up from rows: its
+ *  blind index, whether the provider has refunded it, and the payment sessions
+ *  seen so far. */
+type ReferenceProgress = {
+  index: string;
+  refunded: boolean;
+  sessionIds: string[];
+};
 
 /** In-progress refund references, keyed by the reference string. */
 type ReferenceProgressByKey = Map<string, ReferenceProgress>;
@@ -120,7 +130,8 @@ const paymentReferencesForIds = (
 ): Promise<PaymentReferenceRow[]> =>
   queryProcessedReferences(
     attendeeIds,
-    "attendee_id, payment_session_id, payment_reference, provider_refunded_at",
+    `attendee_id, payment_session_id, payment_reference,
+     payment_reference_index, provider_refunded_at`,
     "ORDER BY attendee_id, processed_at, payment_session_id",
   );
 
@@ -129,7 +140,10 @@ const attendeeIdsWithProcessedReferences = (
 ): Promise<PaymentReferenceAttendeeRow[]> =>
   queryProcessedReferences(attendeeIds, "DISTINCT attendee_id");
 
-const legacyReference = (reference: string): RefundPaymentReference => ({
+const legacyReference = async (
+  reference: string,
+): Promise<RefundPaymentReference> => ({
+  index: await paymentReferenceIndex(reference),
   reference,
   // A legacy charge (an old payment_id with no session) starts "unknown": this
   // system never watched its refund, so it may or may not have been returned.
@@ -137,13 +151,13 @@ const legacyReference = (reference: string): RefundPaymentReference => ({
   sessionIds: [],
 });
 
-const withLegacyReference = (
+const withLegacyReference = async (
   references: RefundPaymentReference[],
   legacyPaymentId: string,
-): RefundPaymentReference[] =>
+): Promise<RefundPaymentReference[]> =>
   legacyPaymentId !== "" &&
   !references.some((entry) => entry.reference === legacyPaymentId)
-    ? [...references, legacyReference(legacyPaymentId)]
+    ? [...references, await legacyReference(legacyPaymentId)]
     : references;
 
 const realSessionIds = (row: PaymentReferenceRow): string[] =>
@@ -153,6 +167,7 @@ const addReference = (
   byReference: ReferenceProgressByKey,
   row: PaymentReferenceRow,
   reference: string,
+  index: string,
 ): void => {
   const sessionIds = realSessionIds(row);
   const existing = byReference.get(reference);
@@ -161,6 +176,7 @@ const addReference = (
     existing.refunded ||= row.provider_refunded_at !== "";
   } else {
     byReference.set(reference, {
+      index,
       refunded: row.provider_refunded_at !== "",
       sessionIds,
     });
@@ -171,6 +187,7 @@ const asRefundReferences = (
   byReference: ReferenceProgressByKey,
 ): RefundPaymentReference[] =>
   [...byReference].map(([reference, data]) => ({
+    index: data.index,
     reference,
     // A reference with no live sessions is a legacy charge (its rows were all
     // legacy-merge entries), so an unconfirmed refund reads as "unknown" rather
@@ -197,6 +214,7 @@ export const getRefundPaymentReferences = async (
       new Map<string, ReferenceProgress>(),
     ]),
   );
+  const missingIndexes: SqlStatement[] = [];
   for (const row of await paymentReferencesForIds(
     attendees.map((attendee) => attendee.id),
   )) {
@@ -204,20 +222,54 @@ export const getRefundPaymentReferences = async (
       row.payment_reference,
       privateKey,
     );
-    if (reference) {
-      addReference(byAttendee.get(Number(row.attendee_id))!, row, reference);
-    }
+    if (!reference) continue;
+    const stored = row.payment_reference_index;
+    const index =
+      stored === "" ? await paymentReferenceIndex(reference) : stored;
+    if (stored === "") missingIndexes.push(indexRepair(row, index));
+    addReference(
+      byAttendee.get(Number(row.attendee_id))!,
+      row,
+      reference,
+      index,
+    );
   }
+  if (missingIndexes.length > 0) await executeBatch(missingIndexes);
   return new Map(
-    attendees.map((attendee) => {
-      const references = withLegacyReference(
-        asRefundReferences(byAttendee.get(attendee.id)!),
-        attendee.payment_id,
-      );
-      return [attendee.id, references];
-    }),
+    await Promise.all(
+      attendees.map(
+        async (attendee): Promise<[number, RefundPaymentReference[]]> => [
+          attendee.id,
+          await withLegacyReference(
+            asRefundReferences(byAttendee.get(attendee.id)!),
+            attendee.payment_id,
+          ),
+        ],
+      ),
+    ),
   );
 };
+
+/**
+ * Write the blind index onto a row that predates the column.
+ *
+ * Only an authenticated request can do this: the index is derived from the
+ * reference, and the reference is owner-key encrypted, so nothing running
+ * without the owner's key — a migration, the prune — could ever fill it in.
+ * The refund path already decrypts the reference, so the first admin to look
+ * at the attendee repairs the row for every later claim. Writing only into an
+ * empty column keeps this idempotent and keeps it from ever overwriting an
+ * index a live write just put there.
+ */
+const indexRepair = (
+  row: PaymentReferenceRow,
+  index: string,
+): SqlStatement => ({
+  args: [index, row.payment_session_id],
+  sql: `UPDATE processed_payments
+           SET payment_reference_index = ?
+         WHERE payment_session_id = ? AND payment_reference_index = ''`,
+});
 
 /** The refund payment references for one attendee (never null). */
 export const getRefundPaymentReferencesForAttendee = async (
@@ -267,10 +319,15 @@ export const legacyMergePaymentReferenceStatement = async (
           targetId,
           nowIso(),
           await encryptPaymentReference(sourcePaymentId),
+          await paymentReferenceIndex(sourcePaymentId),
         ],
+        // The index goes in with the reference, as everywhere else: a refund
+        // claim finds another row holding the same money by this column alone,
+        // so an anchor written without one is money no claim can see.
         sql: `INSERT OR IGNORE INTO processed_payments
-              (payment_session_id, attendee_id, processed_at, payment_reference)
-              VALUES (?, ?, ?, ?)`,
+              (payment_session_id, attendee_id, processed_at, payment_reference,
+               payment_reference_index)
+              VALUES (?, ?, ?, ?, ?)`,
       };
 
 /**
@@ -290,11 +347,9 @@ export const markPaymentReferencesProviderRefunded = async (
   // against it is returned for both. Marking only our own rows would leave the
   // other row looking untouched, and a run arriving before the provider's own
   // evidence caught up would send the same money again.
-  const indexes = unique(
-    await Promise.all(
-      references.map((reference) => paymentReferenceIndex(reference.reference)),
-    ),
-  ).filter((index) => index !== "");
+  const indexes = unique(references.map((reference) => reference.index)).filter(
+    (index) => index !== "",
+  );
   if (sessionIds.length === 0 && indexes.length === 0) return;
   await execute(
     `UPDATE processed_payments

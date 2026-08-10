@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import {
   processRefundBatch,
@@ -11,22 +11,24 @@ import {
   combineRefundOutcomes,
   packByReferenceCount,
 } from "#routes/admin/refunds/waves.ts";
-import {
-  paymentReferenceIndex,
-  type RefundPaymentReference,
-} from "#shared/db/payment-references.ts";
+import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import type { RefundState } from "#shared/payment/refund-state.ts";
 import type { RefundCapability } from "#shared/payment/row-state.ts";
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { chargeMoney, fullyRefundedMoney } from "#test-utils/payment-state.ts";
 import { grantingRowClaim } from "#test-utils/refund-routes.ts";
 
 type Ref = { reference: string; refundState?: RefundState };
 
+/** Stands in for the blind index a real read carries. Both the claim and the
+ *  reference take theirs from the same stored column, so what matters here is
+ *  only that one reference maps to one index. */
+const indexOf = (reference: string): string => `index_of_${reference}`;
+
 const candidate = (references: Ref[], id = 42): RefundCandidate => ({
   attendee: { id } as RefundCandidate["attendee"],
   references: references.map(({ reference, refundState = "none" }) => ({
+    index: indexOf(reference),
     reference,
     refundState,
     sessionIds: [`sess_${reference}`],
@@ -527,11 +529,6 @@ describe("admin refund provider > an unrecorded refund", () => {
 });
 
 describe("admin refund provider > a reference already sent back", () => {
-  // The claim reports references by their blind index, which needs the key.
-  beforeEach(() => {
-    setupTestEncryptionKey();
-  });
-
   test("is not refunded again, whatever the loaded snapshot said", async () => {
     let providerCalls = 0;
     const counting = {
@@ -552,7 +549,7 @@ describe("admin refund provider > a reference already sent back", () => {
       candidateWithReferences(["pi_raced"]),
       7,
       () => Promise.resolve(),
-      new Set([await paymentReferenceIndex("pi_raced")]),
+      new Set([indexOf("pi_raced")]),
     );
 
     expect(result.outcome).toBe("refunded");
