@@ -271,15 +271,18 @@ Src target: 400–700.
   provider-controlled leg list chase the request budget. The claim transaction
   re-checks admission against the exact rows it claims (a set that moved
   re-admits or refuses whole); a claim on an untagged reference holds no release
-  rule until discovery's validated read binds the provider and its capability;
-  and a blind index of each reference's stable identity serializes claims per
-  provider reference ACROSS attendees, so two rows carrying one reference cannot
-  race two refunds. SumUp has no idempotency key, and a keyless refund whose
-  answer is lost stays claimed IN DOUBT — answering "still settling" — until
-  provider evidence resolves it; a stale claim is re-claimable only behind a
-  fresh evidence read, and the residual (an accepted refund still invisible past
-  the staleness bound) is a named provider-data fault M7's per-attempt records
-  close.
+  rule until discovery's validated read binds the provider and its capability —
+  and a discovery that fails outright (every credentialed read erroring or
+  refusing) is itself a bounded outcome: the claim releases with the recorded
+  unresolved answer and zero refund calls, since nothing was sent under it, and
+  a later retry re-claims behind fresh validated reads; and a blind index of
+  each reference's stable identity serializes claims per provider reference
+  ACROSS attendees, so two rows carrying one reference cannot race two refunds.
+  SumUp has no idempotency key, and a keyless refund whose answer is lost stays
+  claimed IN DOUBT — answering "still settling" — until provider evidence
+  resolves it; a stale claim is re-claimable only behind a fresh evidence read,
+  and the residual (an accepted refund still invisible past the staleness bound)
+  is a named provider-data fault M7's per-attempt records close.
 - The stored payment row is one declared state machine — claims with owner
   scope, owner-review markers, committed evidence, terminal outcomes — bound by
   six laws every consumer follows (the contract's concurrency section).
@@ -475,9 +478,11 @@ happen in production.
   followed by the provider's own callback or the scheduled re-read, which the
   claimed reconciliation folds into the aggregate — except where the provider
   declares no push for the fact (data law 7): SumUp fires no refund callback and
-  a settled row has no scheduled re-read, so the legacy refund writer ENQUEUES
-  the reconciliation of the reference it just refunded in the same write (a
-  writer-through trigger for pull-only facts, not a second author — the
+  a settled row has no scheduled re-read, so the legacy refund writer records a
+  DURABLE due-reconciliation row for the reference it just refunded, in the same
+  transaction as its refund result — the aggregate's own due-work kind, never
+  the request-scoped pending-work list — on the API and admin refund paths alike
+  (a writer-through trigger for pull-only facts, not a second author: the
   aggregate still records only what the provider read proves). A legacy write
   can therefore lag one reconciliation but never leave the aggregate permanently
   stale, for push and pull-only providers alike. No write fence lands here.
