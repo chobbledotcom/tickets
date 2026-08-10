@@ -46,16 +46,17 @@ import {
 
 const SLOT = "processed_payments.failure_data";
 
-/** What the one consumer that cannot decrypt sees. It carries the claim's
- *  written-at time as well as the word, because that reader also has to tell a
- *  live claim from a crashed worker's — a claim that is never released (a
- *  keyless run whose answer was lost) would otherwise keep its row from ever
- *  being pruned. */
-export const claimMirror = (writtenAt: string): string => `claim:${writtenAt}`;
-
-/** Where the written-at time starts inside the mirror, 1-indexed for SQL's
- *  `substr`. Exported so the prune reads the same offset this writes. */
-export const CLAIM_MIRROR_TIME_AT = "claim:".length + 1;
+/**
+ * What the one consumer that cannot decrypt sees: a plain word saying this row
+ * has refund work on it.
+ *
+ * Pruning is a fixed-cost SQL statement, so it can never read the claim itself.
+ * All it needs is whether there is one, and the answer is deliberately not
+ * time-qualified: an old claim is still the only record that a refund may have
+ * been sent, so the row is kept whether or not the run that took it is still
+ * alive. A later run is not shut out by that — a stale claim is resumable.
+ */
+export const CLAIM_MIRROR = "claim";
 
 /** One row as the claim transaction found it. The stored slot is kept exactly
  *  as read, because every write back is conditioned on it being unchanged. */
@@ -242,7 +243,7 @@ export const claimAttendeeRows = async (
             writtenAt,
           },
         },
-        claimMirror(writtenAt),
+        CLAIM_MIRROR,
       );
     }
     return {
