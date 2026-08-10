@@ -281,16 +281,31 @@ reference, and never more:
   applies. Order tenders are captured money only when they SAY so: today's
   tender pick carries only ids (`square.ts:55-59`), and Square documents that an
   order's tender list can lag and can hold non-captured states, so the widened
-  pick takes each tender's `amount_money` AND its documented capture status
-  (`card_details.status`). Only a tender whose status reads captured counts in
-  the captured sum or toward `multiple_charges`; authorized/voided/failed
-  tenders are named in the evidence but never counted as money; a tender
-  carrying money with a missing or unrecognized status is a malformed read — it
+  pick reads each tender's `amount_money` AND its capture state by the tender's
+  documented TYPE. A card tender counts per `card_details.status` — captured
+  only when the status says so; authorized/voided/failed card tenders are named
+  in the evidence but never counted as money; a CARD tender carrying money with
+  a missing or unrecognized `card_details.status` is a malformed read — it
   refuses at M3's provider-read boundary (retryable callback / failed admin
   row), the same rule as any missing documented field, because no ported
   conflict kind represents an unreadable reading and `outcomeOf` must not invent
-  one. The webhook-named payment keeps its independent COMPLETED check from the
-  payments read — the tender sweep only detects EXTRA captured money.
+  one. A non-card tender (Square documents cash, wallet, gift-card, and other
+  types, none of which carry `card_details`) that states `amount_money` counts
+  as observed captured money in the sweep, its type named in the evidence —
+  these types document no order-level pending state, and counting them errs
+  toward detection (an owner-review record), never toward validity: the
+  webhook-named payment keeps its independent COMPLETED check from the payments
+  read, which alone gates booking — the tender sweep only detects EXTRA captured
+  money. A valid order carrying a cash tender must never wedge as an eternally
+  retrying malformed read. Before any duplicate or multiple-charge check, the
+  observation coalesces the named payment with its own tender: the tender whose
+  payment id IS the webhook-named payment is excluded from the sweep (its facts
+  come from the richer payments read), so a caught-up tender list on an ordinary
+  one-payment order can never read as `duplicate_charge` against the payment
+  itself; `duplicate_charge` remains for two genuinely distinct legs sharing one
+  resource id. Regression: an ordinary Square callback whose caught-up order
+  lists exactly the named payment's own tender judges `ready` — never
+  `duplicate_charge`, never `multiple_charges`.
 - **Stripe**: two tiers by path. A webhook-parsed session carries only
   session-level facts (`amount_total`, currency) — the callback BOOKING judgment
   uses exactly those, the same facts today's verdicts use, with zero new reads.
@@ -394,29 +409,33 @@ never duplicated.
   redelivery of the same payment now showing a higher cumulative `refundedMoney`
   after an external partial refund): the fresh observation — already validated
   and in hand, zero extra provider calls — runs through the pure judge for
-  detection only. What gets recorded is any verdict showing money returned that
-  the terminal answer never saw: an owner-review kind (`partial_refund`,
-  `multiple_charges`, `capture_total_mismatch`) as the owner-review activity
-  record, and equally a `fully_refunded` verdict on a session whose terminal
-  answer booked the money as kept — an external refund reaching 100% must not be
-  quieter than one reaching 60%, so it takes the same activity record and
-  code-only alert. Every record names the stored reference plus every observed
-  charge and goes through the same idempotent recorder, and the recorded
-  terminal outcome is returned unchanged. A redelivery whose observation matches
-  the stored facts detects nothing and simply replays the stored answer. The
-  terminal outcome stands because no automatic remedy — booking or refund — can
-  safely re-run after settlement: re-judging stored terminal evidence is M5's
-  `resolve.ts`, and moving the new money is the owner's dashboard call per
-  decisions 1 and 5. No provider re-read is needed: the observation was
-  validated before the reservation check. Once-ness is carried by the
-  acknowledgement, not by a durable per-resource key, because no M4 surface can
-  hold one (`payment_charges` stays dormant; the activity log has no unique
-  key): the record is written before the terminal answer is returned, and that
-  answer acks the callback, so the provider stops redelivering it. Concurrent
-  duplicate deliveries can therefore each write the record — the failure
-  direction is a duplicate operator-visible record, never a lost one — and the
-  durable per-resource slot that makes this exactly-once is M6's aggregate row.
-  PR B also makes the reference comparison total for new terminal rows:
+  detection only. What gets recorded is total, not a whitelist: EVERY conflict
+  kind the fresh judge emits — owner-review kinds and refuse-and-record kinds
+  alike, because after settlement no automatic remedy is safe, so a new tender
+  in a wrong currency (`currency_mismatch`) or with a wrong parent
+  (`resource_mismatch`) maps to the same durable owner-review record rather than
+  to a refund or a refusal — and equally a `fully_refunded` verdict on a session
+  whose terminal answer booked the money as kept: an external refund reaching
+  100% must not be quieter than one reaching 60%. Every record names the stored
+  reference plus every observed charge and goes through the same recorder, and
+  the recorded terminal outcome is returned unchanged. A redelivery whose
+  observation matches the stored facts detects nothing and simply replays the
+  stored answer. The terminal outcome stands because no automatic remedy —
+  booking or refund — can safely re-run after settlement: re-judging stored
+  terminal evidence is M5's `resolve.ts`, and moving the new money is the
+  owner's dashboard call per decisions 1 and 5. No provider re-read is needed:
+  the observation was validated before the reservation check. Once-ness has two
+  layers, neither a new table (`payment_charges` stays dormant; the activity log
+  has no unique key). First, the recorder checks before it writes: an existing
+  record for the same stored reference and conflict kind means a sequential
+  redelivery — one whose earlier acknowledgement was lost — finds the record
+  already there and writes nothing more. Second, the record is written before
+  the terminal answer is returned, and that answer acks the callback, so the
+  provider stops redelivering it. Only truly concurrent duplicate deliveries can
+  slip both layers and each write a record — the failure direction is a
+  duplicate operator-visible record, never a lost one — and the durable
+  per-resource slot that makes this exactly-once is M6's aggregate row. PR B
+  also makes the reference comparison total for new terminal rows:
   `markSessionFailed` stores the observed payment reference beside
   `failure_data` — the `processed_payments.payment_reference` column already
   exists, but today only success finalization writes it
@@ -712,12 +731,13 @@ src)**
   as today; and a multi-charge refuse remedy parks to owner review (decision 5).
   Regression tests: a post-terminal callback carrying a second captured tender —
   under the original resource name or a new one — records the conflict, never
-  re-books or refunds, and once acked its redeliveries write nothing more; a
-  second capture arriving after a terminal failure is detected the same way (the
-  failure row now carries the reference); a delayed callback for an externally
-  fully-refunded charge issues no paid booking and no refund call; a
-  wrong-currency two-tender observation makes zero refund calls, books nothing,
-  records both resource ids, and answers the manual-check copy.
+  re-books or refunds, and once the record exists its redeliveries write nothing
+  more (the recorder's existence check, exercised by redelivering after a lost
+  acknowledgement); a second capture arriving after a terminal failure is
+  detected the same way (the failure row now carries the reference); a delayed
+  callback for an externally fully-refunded charge issues no paid booking and no
+  refund call; a wrong-currency two-tender observation makes zero refund calls,
+  books nothing, records both resource ids, and answers the manual-check copy.
 - Budgets: zero additional provider or database calls beyond today's callback
   path on the trusted arm, plus the one activity-log statement inside the
   existing processing transaction; the refuse arm makes at most one provider
