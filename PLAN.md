@@ -255,9 +255,18 @@ Src target: 400–700.
   currencies, wrong parents, over-refunds, and money on a free checkout. Every
   refund entry point claims the payment's complete reference set all-or-none
   before any provider call (a row-less legacy reference gets its row minted by
-  the claim), so concurrent refund runs serialize locally for every provider —
-  SumUp has no idempotency key, and a keyless refund whose answer is lost stays
-  claimed until evidence or a safe timeout resolves it.
+  the claim), so concurrent refund runs serialize locally for every provider.
+  The order is fixed: claim the stored rows, then read — provider discovery and
+  the evidence sweeps run under the claim, and a capture a sweep reveals beyond
+  the stored references is detected and parked for the owner, never refunded or
+  claimable by a concurrent run — then judge the whole set, then move money,
+  with every money write fenced on the evidence the run judged (fresh evidence
+  landing mid-run forces a re-judge before any provider call). SumUp has no
+  idempotency key, and a keyless refund whose answer is lost stays claimed IN
+  DOUBT — answering "still settling" — until provider evidence resolves it; a
+  stale claim is re-claimable only behind a fresh evidence read, and the
+  residual (an accepted refund still invisible past the staleness bound) is a
+  named provider-data fault M7's per-attempt records close.
 - The stored payment row is one declared state machine — claims with owner
   scope, owner-review markers, committed evidence, terminal outcomes — bound by
   six laws every consumer follows (the contract's concurrency section).
@@ -274,12 +283,16 @@ Src target: 400–700.
   names its checkout — so an admin refund or refresh sees a sibling capture even
   when no callback redelivery ever revealed it. Writers follow the same routing:
   an attendee merge or delete fails closed while a refund claim or staged refund
-  is live on any affected row (the M4 slice of F6). The row's live work state
-  (claim, staged refund, or owner-review marker) is mirrored in a plain column
-  written by the same statement, so even the SQL-only pruning routes on the real
-  state machine — refund evidence alone never exempts a row from its normal
-  retention. Stored comparison evidence holds one-way codes and money figures
-  only; the raw provider references stay where the owner key protects them.
+  is live on any affected row, an owner-review marker rides a merge onto the
+  target — gating the merged person whole — and a delete is refused while a
+  marker is unresolved, because a parked payment's marker guards the retained
+  buyer contact the manual-check promise relies on (the M4 slice of F6). The
+  row's live work state (claim, staged refund, or owner-review marker) is
+  mirrored in a plain column written by the same statement, so even the SQL-only
+  pruning routes on the real state machine — refund evidence alone never exempts
+  a row from its normal retention. Stored comparison evidence holds one-way
+  codes and money figures only; the raw provider references stay where the owner
+  key protects them.
 - Every refund run — bulk or single attendee — is admitted against the request's
   remaining subrequest budget before any provider call, priced at each adapter's
   physical worst case; an oversized run refuses whole with zero provider calls
