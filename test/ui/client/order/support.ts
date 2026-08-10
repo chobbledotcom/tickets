@@ -80,6 +80,7 @@ export const harness = (): Harness => {
   setGlobal("document", document);
   setGlobal("sessionStorage", window.sessionStorage);
   setGlobal("MutationObserver", window.MutationObserver);
+  setGlobal("CSSStyleSheet", window.CSSStyleSheet);
   setGlobal("location", { assign: (url: string) => navigations.push(url) });
 
   const origDebug = console.debug;
@@ -172,6 +173,25 @@ export const shadow = (h: Harness): Queryable =>
 
 export const cartButton = (h: Harness): QueryNode =>
   shadow(h).querySelector(".cart-button") as QueryNode;
+
+/** The scoped CSS the widget adopted as an in-memory stylesheet (the CSP-safe
+ *  path used when the browser supports constructable stylesheets). */
+export const adoptedCss = (h: Harness): string =>
+  Array.from(
+    (
+      shadow(h) as unknown as {
+        adoptedStyleSheets: { cssRules: ArrayLike<{ cssText: string }> }[];
+      }
+    ).adoptedStyleSheets,
+  )
+    .flatMap((sheet) => Array.from(sheet.cssRules))
+    .map((rule) => rule.cssText)
+    .join("\n");
+
+/** The `<style>` element the widget appends when the browser can't build an
+ *  in-memory stylesheet (the fallback path), or null when it adopted one. */
+export const styleEl = (h: Harness): QueryNode | null =>
+  shadow(h).querySelector("style") as QueryNode | null;
 
 export const dialogEl = (h: Harness): QueryNode =>
   shadow(h).querySelector("dialog") as QueryNode;

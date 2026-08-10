@@ -38,7 +38,7 @@ src/ui/client/order.ts::buildStepper.dec%2etextContent~0e91dik  = → +=   # fre
 src/ui/client/order.ts::buildStepper.value%2etextContent~1wclfso  = → +=   # fresh quantity span textContent
 src/ui/client/order.ts::buildStepper.inc%2etextContent~0hr9vid  = → +=   # fresh increase button textContent
 src/ui/client/order.ts::buildStepper.remove%2etextContent~01m8w0s  = → +=   # fresh Remove button textContent
-src/ui/client/order.ts::buildStyles.style%2etextContent~1mep807  = → +=   # fresh style element textContent
+src/ui/client/order.ts::applyStyles.style%2etextContent~0eh5dyi  = → +=   # fresh style element textContent
 
 # buildButton's initial values are overwritten by the constructor's render
 # before the button is exposed.

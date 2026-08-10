@@ -24,6 +24,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   addLink,
+  adoptedCss,
   buttonType,
   cartButton,
   clickAnchor,
@@ -40,6 +41,7 @@ import {
   shadow,
   stepperButtons,
   storedCart,
+  styleEl,
   textOf,
   useOrderHarness,
 } from "./order/support.ts";
@@ -130,8 +132,10 @@ describe("order widget", {
   test("adding a listing reveals the cart button with a live count", () => {
     mountOpenListing(h, true);
 
-    // Scoped styles are mounted into the shadow root.
-    expect(shadow(h).querySelector("style")).not.toBeNull();
+    // Scoped styles are adopted as an in-memory stylesheet (the CSP-safe path),
+    // so no inline `<style>` element is added to the shadow root.
+    expect(adoptedCss(h)).toContain(".cart-button");
+    expect(styleEl(h)).toBeNull();
     expect(buttonType(shadow(h), ".cart-button")).toBe("button");
     expect(cartButton(h).hidden).toBe(true);
     const prevented = clickAnchor(h, "open");
@@ -186,11 +190,35 @@ describe("order widget", {
 
   test("gives mobile cart rows and actions their own space", () => {
     mountOpenListing(h, true);
-    const styles = shadow(h).querySelector("style")!.textContent;
+    const styles = adoptedCss(h);
 
     expect(styles).toContain("grid-template-columns: minmax(0, 1fr) auto");
     expect(styles).toContain(".stepper { grid-column: 1 / -1");
     expect(styles).toContain(".close { display: block; width: 100%");
+  });
+
+  test("falls back to a <style> element when the browser can't build a sheet", () => {
+    // Pre-16.4 Safari has no constructable CSSStyleSheet; the widget must still
+    // style itself, just without the CSP-safe adopted sheet.
+    h.setGlobal("CSSStyleSheet", undefined);
+    mountOpenListing(h, true);
+
+    const style = styleEl(h);
+    expect(style).not.toBeNull();
+    expect(style!.textContent).toContain(".stepper { grid-column: 1 / -1");
+    expect(adoptedCss(h)).toBe("");
+  });
+
+  test("falls back when CSSStyleSheet exists but isn't constructable", () => {
+    // The interface object exists on older Safari but lacks replaceSync, so
+    // `new CSSStyleSheet()` would throw — the widget must detect that and use
+    // the `<style>` fallback rather than crashing during init.
+    const bare = function CSSStyleSheet() {};
+    h.setGlobal("CSSStyleSheet", bare);
+    mountOpenListing(h, true);
+
+    expect(styleEl(h)).not.toBeNull();
+    expect(adoptedCss(h)).toBe("");
   });
 
   test("data-add-quantity adds the requested count, pluralising the label", () => {
