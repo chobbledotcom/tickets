@@ -10,6 +10,7 @@
 
 // jscpd:ignore-start
 import { t } from "#i18n";
+import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { hashEmail, unsubscribeHash } from "#shared/db/contact-preferences.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -180,6 +181,9 @@ export const opensEmailForListingDay = async (
     throw new Error(`${listingName} offers no way to write to ${date}`);
   }
   await browser.visit(wayIn);
+  // The compose page names the one day it is aimed at, which is the whole
+  // claim: a term booked date by date can be addressed a date at a time.
+  leaveEvidencePage(world, ["one-days-audience"], wayIn);
   return browser;
 };
 
@@ -250,6 +254,9 @@ export const opensEmailForListing = async (
     throw new Error(`"${listingName}" offers no way to write to its attendees`);
   }
   await browser.visit(wayIn);
+  // The compose page names the one day it is aimed at, which is the whole
+  // claim: a term booked date by date can be addressed a date at a time.
+  leaveEvidencePage(world, ["one-days-audience"], wayIn);
   return browser;
 };
 
