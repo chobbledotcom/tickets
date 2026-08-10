@@ -42,21 +42,21 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
   describe("claiming", () => {
     test("an unclaimed attendee's rows are claimed", async () => {
       const attendeeId = await bookedWith("sess-a", "pi_a");
-      const result = await claimAttendeeRows(attendeeId, "keyless");
+      const result = await claimAttendeeRows([attendeeId], "keyless");
       expect(result.kind).toBe("claimed");
       expect(result).toMatchObject({ sessionIds: ["sess-a"] });
     });
 
     test("the claim shows in the plaintext mirror the prune reads", async () => {
       const attendeeId = await bookedWith("sess-b", "pi_b");
-      await claimAttendeeRows(attendeeId, "keyless");
+      await claimAttendeeRows([attendeeId], "keyless");
       expect(await protectedStateOf("sess-b")).toEqual({ v: "claim" });
     });
 
     test("a second run on the same attendee is told the work is in progress", async () => {
       const attendeeId = await bookedWith("sess-c", "pi_c");
-      await claimAttendeeRows(attendeeId, "keyless");
-      expect(await claimAttendeeRows(attendeeId, "keyless")).toEqual({
+      await claimAttendeeRows([attendeeId], "keyless");
+      expect(await claimAttendeeRows([attendeeId], "keyless")).toEqual({
         blockedBy: { kind: "held" },
         kind: "blocked",
       });
@@ -65,8 +65,8 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
     test("two concurrent runs on one attendee: exactly one wins", async () => {
       const attendeeId = await bookedWith("sess-d", "pi_d");
       const results = await Promise.all([
-        claimAttendeeRows(attendeeId, "keyless"),
-        claimAttendeeRows(attendeeId, "keyless"),
+        claimAttendeeRows([attendeeId], "keyless"),
+        claimAttendeeRows([attendeeId], "keyless"),
       ]);
       expect(results.filter((r) => r.kind === "claimed")).toHaveLength(1);
       expect(results.filter((r) => r.kind === "blocked")).toHaveLength(1);
@@ -76,13 +76,13 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
       const first = await bookedWith("sess-e1", "pi_shared");
       const second = await bookedWith("sess-e2", "pi_shared");
 
-      expect(await claimAttendeeRows(first, "keyless")).toMatchObject({
+      expect(await claimAttendeeRows([first], "keyless")).toMatchObject({
         kind: "claimed",
         sessionIds: ["sess-e1"],
       });
       // The second attendee's own row is untouched, but the money behind it is
       // already claimed, so this run must not reach the provider.
-      expect(await claimAttendeeRows(second, "keyless")).toEqual({
+      expect(await claimAttendeeRows([second], "keyless")).toEqual({
         blockedBy: { kind: "held" },
         kind: "blocked",
       });
@@ -92,8 +92,8 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
       const first = await bookedWith("sess-f1", "pi_race");
       const second = await bookedWith("sess-f2", "pi_race");
       const results = await Promise.all([
-        claimAttendeeRows(first, "keyless"),
-        claimAttendeeRows(second, "keyless"),
+        claimAttendeeRows([first], "keyless"),
+        claimAttendeeRows([second], "keyless"),
       ]);
       expect(results.filter((r) => r.kind === "claimed")).toHaveLength(1);
     });
@@ -101,8 +101,8 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
     test("a claim on one attendee leaves an unrelated attendee free", async () => {
       const first = await bookedWith("sess-g1", "pi_g1");
       const second = await bookedWith("sess-g2", "pi_g2");
-      await claimAttendeeRows(first, "keyless");
-      expect(await claimAttendeeRows(second, "keyless")).toMatchObject({
+      await claimAttendeeRows([first], "keyless");
+      expect(await claimAttendeeRows([second], "keyless")).toMatchObject({
         kind: "claimed",
         sessionIds: ["sess-g2"],
       });
@@ -141,10 +141,10 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
   describe("releasing", () => {
     test("a released row can be claimed again", async () => {
       const attendeeId = await bookedWith("sess-l", "pi_l");
-      const claimed = await claimAttendeeRows(attendeeId, "keyless");
+      const claimed = await claimAttendeeRows([attendeeId], "keyless");
       if (claimed.kind !== "claimed") throw new Error("the claim was refused");
       await releaseAttendeeRows(["sess-l"], claimed.heldSince);
-      expect(await claimAttendeeRows(attendeeId, "keyless")).toMatchObject({
+      expect(await claimAttendeeRows([attendeeId], "keyless")).toMatchObject({
         kind: "claimed",
         sessionIds: ["sess-l"],
       });
@@ -152,7 +152,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
 
     test("releasing clears the mirror the prune reads", async () => {
       const attendeeId = await bookedWith("sess-m", "pi_m");
-      const held = await claimAttendeeRows(attendeeId, "keyless");
+      const held = await claimAttendeeRows([attendeeId], "keyless");
       if (held.kind !== "claimed") throw new Error("the claim was refused");
       await releaseAttendeeRows(["sess-m"], held.heldSince);
       expect(await protectedStateOf("sess-m")).toEqual({ v: "" });
@@ -172,19 +172,19 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
   describe("a stalled run waking up", () => {
     test("does not strip the claim a later run now holds", async () => {
       const attendeeId = await bookedWith("sess-stall", "pi_stall");
-      const stalled = await claimAttendeeRows(attendeeId, "keyless");
+      const stalled = await claimAttendeeRows([attendeeId], "keyless");
       if (stalled.kind !== "claimed") throw new Error("the claim was refused");
 
       // A later run resumed these rows and holds them now. The stalled run
       // waking up must not hand its successor's work to a third run.
       await releaseAttendeeRows(stalled.sessionIds, stalled.heldSince);
-      const resumed = await claimAttendeeRows(attendeeId, "keyless");
+      const resumed = await claimAttendeeRows([attendeeId], "keyless");
       if (resumed.kind !== "claimed") throw new Error("the resume was refused");
 
       await releaseAttendeeRows(stalled.sessionIds, stalled.heldSince);
 
       expect(await protectedStateOf("sess-stall")).toEqual({ v: "claim" });
-      expect(await claimAttendeeRows(attendeeId, "keyless")).toEqual({
+      expect(await claimAttendeeRows([attendeeId], "keyless")).toEqual({
         blockedBy: { kind: "held" },
         kind: "blocked",
       });

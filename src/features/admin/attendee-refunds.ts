@@ -23,6 +23,7 @@ import {
 } from "#shared/db/payment-references.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { reportRefundNotRecorded } from "#shared/invariant-errors.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
 import { fail, ok } from "#shared/response.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -41,9 +42,11 @@ import {
 } from "./attendees-route-helpers.ts";
 import { getRefundCandidates } from "./refunds/candidates.ts";
 import {
+  durableRowClaim,
   processRefundBatch,
   type RefundCounts,
   refundCandidateAtProvider,
+  underAttendeeClaim,
 } from "./refunds/provider.ts";
 import { requirePaymentProvider } from "./require-provider.ts";
 
@@ -129,10 +132,29 @@ const handleAttendeeRefund = verifiedAttendeeAction(
     );
     if (provider instanceof Response) return provider;
 
-    const refunded = await refundCandidateAtProvider(
-      provider,
-      { attendee: data.attendee, references },
-      listingId,
+    // One attendee is a run of one: it takes the same hold before reading the
+    // provider, so a bulk wave already working on this person turns it away
+    // instead of both sending.
+    const candidate = { attendee: data.attendee, references };
+    // One attendee is a run of one: it takes the same hold before reading the
+    // provider, so a bulk wave already working on this person turns it away
+    // instead of both sending.
+    const refunded = await underAttendeeClaim(
+      durableRowClaim,
+      [attendeeId],
+      provider.refundCapability,
+      {
+        blocked: (reason) => {
+          logError({
+            code: ErrorCode.PAYMENT_REFUND,
+            detail: `Admin refund not started for attendee ${attendeeId}: ${reason}`,
+            listingId,
+          });
+          return { candidate, outcome: "failed" as const };
+        },
+        lost: (result) => result.outcome === "errored",
+        work: () => refundCandidateAtProvider(provider, candidate, listingId),
+      },
     );
     if (refunded.outcome !== "refunded") {
       return refundError(attendeeId, t("error.refund_failed"), returnUrl);

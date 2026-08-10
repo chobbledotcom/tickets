@@ -14,11 +14,7 @@ import {
   admissionReason,
   sendRefundIfAdmitted,
 } from "#shared/payment/admit-refund.ts";
-import {
-  type ClaimAnswer,
-  claimRefusal,
-  mayReleaseClaim,
-} from "#shared/payment/claim.ts";
+import { claimRefusal, mayReleaseClaim } from "#shared/payment/claim.ts";
 import type { RefundCapability } from "#shared/payment/row-state.ts";
 import type { getActivePaymentProvider } from "#shared/payments.ts";
 import { recordAttendeeRefundsBatch } from "#shared/refund-ledger.ts";
@@ -42,13 +38,13 @@ type MarkReturnedReferences = (
  *  a database, while the real run always takes the durable claim. */
 export type RowClaim = {
   claim: (
-    attendeeId: number,
+    attendeeIds: readonly number[],
     capability: RefundCapability,
   ) => Promise<ClaimResult>;
   release: (sessionIds: readonly string[], heldSince: string) => Promise<void>;
 };
 
-const durableRowClaim: RowClaim = {
+export const durableRowClaim: RowClaim = {
   claim: claimAttendeeRows,
   release: releaseAttendeeRows,
 };
@@ -113,60 +109,52 @@ const refundReferenceAtProvider = async (
   }
 };
 
+/**
+ * Hold every attendee this run will touch, do the work, then let go.
+ *
+ * One claim for the run rather than one per attendee: a bulk wave costs the
+ * same two round trips as a single refund, which matters against the
+ * subrequest allowance, and the run can never end up holding some of its
+ * attendees but not others.
+ *
+ * A run that ended without a clear answer may have sent money it never heard
+ * back about. With an idempotency key a repeat lands on the same refund, so
+ * the hold can go; without one it stands until fresh evidence settles it.
+ */
+export const underAttendeeClaim = async <TResult>(
+  rowClaim: RowClaim,
+  attendeeIds: readonly number[],
+  capability: RefundCapability,
+  run: {
+    blocked: (reason: string) => TResult;
+    lost: (result: TResult) => boolean;
+    work: () => Promise<TResult>;
+  },
+): Promise<TResult> => {
+  const claim = await rowClaim.claim(attendeeIds, capability);
+  if (claim.kind === "blocked") {
+    return run.blocked(claimRefusal(claim.blockedBy));
+  }
+  const release = async (lost: boolean): Promise<void> => {
+    if (mayReleaseClaim(capability, lost ? "lost" : "validated")) {
+      await rowClaim.release(claim.sessionIds, claim.heldSince);
+    }
+  };
+  try {
+    const result = await run.work();
+    await release(run.lost(result));
+    return result;
+  } catch (error) {
+    await release(true);
+    throw error;
+  }
+};
+
 export const refundCandidateAtProvider = async (
   provider: RefundProvider,
   candidate: RefundCandidate,
   listingId: number,
   markReturnedReferences: MarkReturnedReferences = markPaymentReferencesProviderRefunded,
-  rowClaim: RowClaim = durableRowClaim,
-): Promise<{ candidate: RefundCandidate; outcome: RefundOutcome }> => {
-  // Take the whole reference set before reading any provider, so a second run
-  // on this attendee's money is turned away here rather than discovering the
-  // overlap by sending a second payout.
-  const claim = await rowClaim.claim(
-    candidate.attendee.id,
-    provider.refundCapability,
-  );
-  if (claim.kind === "blocked") {
-    return {
-      candidate,
-      outcome: refusedRefund(
-        `Admin refund not started for attendee ${candidate.attendee.id}: ${claimRefusal(claim.blockedBy)}`,
-        listingId,
-      ),
-    };
-  }
-  // A run that ended without a clear answer may have sent money it never heard
-  // back about. With an idempotency key a repeat lands on the same refund, so
-  // the hold can go; without one it stands until fresh evidence settles it,
-  // even though that blocks this attendee until the claim goes stale.
-  const answer = (outcome: RefundOutcome): ClaimAnswer =>
-    outcome === "errored" ? "lost" : "validated";
-  const released = async (outcome: RefundOutcome): Promise<void> => {
-    if (mayReleaseClaim(provider.refundCapability, answer(outcome))) {
-      await rowClaim.release(claim.sessionIds, claim.heldSince);
-    }
-  };
-  try {
-    const result = await refundClaimedCandidate(
-      provider,
-      candidate,
-      listingId,
-      markReturnedReferences,
-    );
-    await released(result.outcome);
-    return result;
-  } catch (error) {
-    await released("errored");
-    throw error;
-  }
-};
-
-const refundClaimedCandidate = async (
-  provider: RefundProvider,
-  candidate: RefundCandidate,
-  listingId: number,
-  markReturnedReferences: MarkReturnedReferences,
 ): Promise<{ candidate: RefundCandidate; outcome: RefundOutcome }> => {
   const results: {
     outcome: RefundOutcome;
@@ -264,6 +252,31 @@ export const processRefundBatch = async (
   batch: RefundCandidate[],
   listingId: number,
   rowClaim: RowClaim = durableRowClaim,
+): Promise<RefundCounts> =>
+  underAttendeeClaim(
+    rowClaim,
+    batch.map((candidate) => candidate.attendee.id),
+    provider.refundCapability,
+    {
+      blocked: (reason) => {
+        for (const candidate of batch) {
+          logError({
+            code: ErrorCode.PAYMENT_REFUND,
+            detail: `Admin bulk refund not started for attendee ${candidate.attendee.id}: ${reason}`,
+            listingId,
+          });
+        }
+        return { errorCount: 0, failedCount: batch.length, refundedCount: 0 };
+      },
+      lost: (counts) => counts.errorCount > 0,
+      work: () => refundClaimedBatch(provider, batch, listingId),
+    },
+  );
+
+const refundClaimedBatch = async (
+  provider: RefundProvider,
+  batch: RefundCandidate[],
+  listingId: number,
 ): Promise<RefundCounts> => {
   const counts: RefundCounts = {
     errorCount: 0,
@@ -275,13 +288,7 @@ export const processRefundBatch = async (
   )) {
     const results = await Promise.all(
       group.map((candidate) =>
-        refundCandidateAtProvider(
-          provider,
-          candidate,
-          listingId,
-          markPaymentReferencesProviderRefunded,
-          rowClaim,
-        ),
+        refundCandidateAtProvider(provider, candidate, listingId),
       ),
     );
     const chunkRefundedAttendees: {
