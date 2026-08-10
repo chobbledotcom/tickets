@@ -7,6 +7,7 @@ import {
   RefundObservationSchema,
   RefundResolutionSchema,
   refundMoneyMatchesCapture,
+  sameProviderResource,
 } from "#shared/payment/resources.ts";
 import {
   chargeLeg,
@@ -247,4 +248,25 @@ describe("what a refund says about the money going back", () => {
       }).success,
     ).toBe(true);
   });
+});
+
+describe("telling two provider resources apart", () => {
+  test("matches a resource against itself", () => {
+    expect(sameProviderResource(refundResource, refundResource)).toBe(true);
+  });
+
+  for (const [field, changed] of [
+    [
+      "provider",
+      { ...refundResource, kind: "square_refund", provider: "square" },
+    ],
+    ["kind", { ...refundResource, kind: "stripe_payment_intent" }],
+    ["id", { ...refundResource, id: "re_2" }],
+  ] as const) {
+    test(`sees a different ${field} as a different resource`, () => {
+      expect(
+        sameProviderResource(refundResource, changed as typeof refundResource),
+      ).toBe(false);
+    });
+  }
 });
