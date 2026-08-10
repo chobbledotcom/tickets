@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { isBulkEmailTarget } from "#shared/bulk-email-targets.ts";
+import { isBulkEmailTarget } from "#shared/bulk-email-targets/types.ts";
 
 describe("bulk email targets", () => {
   test("accepts every target kind", () => {

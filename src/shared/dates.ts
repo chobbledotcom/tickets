@@ -399,6 +399,22 @@ export const formatDateRangeLabel = (
   return formatDateRangeLabelCompactEn(startDate, lastDay);
 };
 
+/** Every YYYY-MM-DD day a stored `[date, endDate)` booking covers.
+ *
+ * A booking with no end recorded covers only the day it starts: that is every
+ * standard booking, and the legacy daily rows written before end dates were
+ * stored. A three-day stay covers all three of its days, which is how capacity
+ * already counts it, so the roster's day picker, the day filter and the per-day
+ * email recipients all agree on which days a booking is present for. */
+export const coveredDays = (
+  date: string | null,
+  endDate: string | null,
+): string[] => {
+  if (!date) return [];
+  const lastDay = endDate ? addDays(endDate, -1) : date;
+  return lastDay > date ? dateRange(date, lastDay) : [date];
+};
+
 /** The whole day count of a stored `[start_at, end_at)` booking range — the
  * customisable day count the buyer chose. A missing or degenerate range is 1. */
 export const bookedSpanDays = (

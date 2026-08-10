@@ -2,6 +2,7 @@
 
 import { filter, joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
+import { targetQuery } from "#shared/bulk-email.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { renderFields, renderSelectOptions } from "#shared/forms/rendering.tsx";
@@ -30,6 +31,33 @@ import { getAddAttendeeFields } from "#templates/fields/add-attendee.ts";
 import type { AttendeeFilter, DateOption } from "./types.ts";
 
 /* jscpd:ignore-end */
+
+/**
+ * Where the roster's "Email this date's attendees" action goes, or `undefined`
+ * when it must not be rendered at all.
+ *
+ * Three things have to hold, and each of them is a page the link would
+ * otherwise break on. A date has to be chosen, because without one the
+ * listing's own Email action already covers every date. The viewer has to be an
+ * owner, because `/admin/emails` is owner-only and a manager can open this
+ * roster. And the day has to have someone with an email on it, because the
+ * compose page 404s on an empty recipient set. The day's attendees are already
+ * decrypted for the table, so the last check costs nothing beyond the scan.
+ */
+export const emailDayHrefFor = (
+  listingId: number,
+  dateFilter: string | null,
+  isOwner: boolean,
+  dayAttendees: Attendee[],
+): string | undefined => {
+  if (!dateFilter || !isOwner) return;
+  const reachable = dayAttendees.some(
+    (a) => hasTicketQuantity(a) && a.email.trim() !== "",
+  );
+  return reachable
+    ? `/admin/emails${targetQuery({ day: dateFilter, kind: "listing-day", listingId })}`
+    : undefined;
+};
 
 const keepByRosterFilter: Record<AttendeeFilter, (a: Attendee) => boolean> = {
   all: () => true,
@@ -198,6 +226,7 @@ export const AttendeesSection = ({
   availableDates,
   activeFilter,
   dateFilter,
+  emailDayHref,
   basePath,
   returnUrl,
   tableRows,
@@ -210,6 +239,9 @@ export const AttendeesSection = ({
   availableDates: DateOption[];
   activeFilter: AttendeeFilter;
   dateFilter: string | null;
+  /** Where "Email this date's attendees" goes, or undefined when the action is
+   * not on offer — see {@link emailDayHrefFor} for what settles that. */
+  emailDayHref: string | undefined;
   basePath: string;
   returnUrl: string;
   tableRows: AttendeeTableRow[];
@@ -244,13 +276,8 @@ export const AttendeesSection = ({
         actions={
           <>
             <a href={exportHref}>{t("listings_table.export_csv")}</a>
-            {/* A day's own way in to writing to the people it belongs to.
-                Offered only while a date is chosen: without one the listing's
-                own Email action already covers every date. */}
-            {dateFilter && (
-              <a href={`/admin/emails?listing=${listingId}&day=${dateFilter}`}>
-                {t("listings_table.email_this_date")}
-              </a>
+            {emailDayHref && (
+              <a href={emailDayHref}>{t("listings_table.email_this_date")}</a>
             )}
           </>
         }
