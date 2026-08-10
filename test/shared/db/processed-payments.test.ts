@@ -228,9 +228,11 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       // Rebuild it from the real schema rather than a copy of it. A
       // hand-written CREATE TABLE here silently falls behind every column the
       // app adds, and the next test to use one fails on a missing column.
-      await getDb().execute(
-        createTableSql(SCHEMA.find(([name]) => name === "processed_payments")!),
-      );
+      const table = SCHEMA.find(([name]) => name === "processed_payments");
+      if (table === undefined) {
+        throw new Error("Missing processed_payments schema definition");
+      }
+      await getDb().execute(createTableSql(table));
     });
   });
 

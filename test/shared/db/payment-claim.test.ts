@@ -2,14 +2,19 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { execute, queryOne } from "#shared/db/client.ts";
 import {
-  CLAIM_MIRROR,
   claimAttendeeRows,
   releaseAttendeeRows,
 } from "#shared/db/payment-claim.ts";
 import { paymentReferenceIndex } from "#shared/db/payment-references.ts";
 import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { staleClaimSlot } from "#test-utils/payment-claim.ts";
+import {
+  CLAIM_MIRROR,
+  putRowState,
+  REVIEW_MIRROR,
+  rowStateSlot,
+  staleClaimSlot,
+} from "#test-utils/payment-claim.ts";
 import { bookedWithPayment } from "#test-utils/processed-payments.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
@@ -128,7 +133,12 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
 
     test("never stores the reference itself", async () => {
       await bookedWithPayment("sess-k", "pi_secret");
-      expect((await referenceIndexOf("sess-k"))?.v).not.toContain("pi_secret");
+      const stored = await referenceIndexOf("sess-k");
+      // The setup just wrote this row, so a missing one is a broken test, not
+      // an outcome to branch on.
+      if (stored === null) throw new Error("the payment row was not stored");
+      expect(stored.v).toBe(await paymentReferenceIndex("pi_secret"));
+      expect(stored.v).not.toContain("pi_secret");
     });
   });
 
@@ -142,6 +152,25 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
         kind: "claimed",
         sessionIds: ["sess-l"],
       });
+    });
+
+    test("releasing a reviewed row leaves its review showing", async () => {
+      // The claim goes, but the owner review it was sitting on top of stays —
+      // and the mirror is all the prune and the orphan purge can see, so
+      // clearing it outright would hand them a row nobody has looked at yet.
+      const attendeeId = await bookedWithPayment("sess-rev", "pi_rev");
+      await putRowState(
+        "sess-rev",
+        await rowStateSlot({ review: { kind: "partial_refund" } }),
+        REVIEW_MIRROR,
+      );
+      const held = await claimAttendeeRows([attendeeId], "keyless");
+      if (held.kind !== "claimed") throw new Error("the claim was refused");
+      expect(await protectedStateOf("sess-rev")).toEqual({ v: CLAIM_MIRROR });
+
+      await releaseAttendeeRows(["sess-rev"], held.heldSince);
+
+      expect(await protectedStateOf("sess-rev")).toEqual({ v: REVIEW_MIRROR });
     });
 
     test("releasing clears the mirror the prune reads", async () => {

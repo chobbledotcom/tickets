@@ -28,6 +28,7 @@ import {
 } from "#shared/db/client.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { isoBefore, nowIso } from "#shared/now.ts";
+import { mirrorFor } from "#shared/payment/admit-move.ts";
 import {
   type ClaimDecision,
   decideClaim,
@@ -45,18 +46,6 @@ import {
 /* jscpd:ignore-end */
 
 const SLOT = "processed_payments.failure_data";
-
-/**
- * What the one consumer that cannot decrypt sees: a plain word saying this row
- * has refund work on it.
- *
- * Pruning is a fixed-cost SQL statement, so it can never read the claim itself.
- * All it needs is whether there is one, and the answer is deliberately not
- * time-qualified: an old claim is still the only record that a refund may have
- * been sent, so the row is kept whether or not the run that took it is still
- * alive. A later run is not shut out by that — a stale claim is resumable.
- */
-export const CLAIM_MIRROR = "claim";
 
 /** One row as the reading transaction found it. The stored slot is kept exactly
  *  as read, because every write back is conditioned on it being unchanged. */
@@ -177,13 +166,12 @@ const writeState = async (
   tx: TxScope,
   row: PaymentRowRecord,
   state: PaymentRowState,
-  protectedState: string,
 ): Promise<void> => {
   const slot = isEmptyRowState(state)
     ? ""
     : await encrypt(writeRowState(state, SLOT));
   const result = await tx.execute({
-    args: [slot, protectedState, row.sessionId, row.slot],
+    args: [slot, mirrorFor(state), row.sessionId, row.slot],
     sql: `UPDATE processed_payments
              SET failure_data = ?, protected_state = ?
            WHERE payment_session_id = ? AND failure_data = ?`,
@@ -252,20 +240,15 @@ export const claimAttendeeRows = async (
       return { blockedBy: { kind: "foreign" }, kind: "blocked" };
     }
     for (const row of rows) {
-      await writeState(
-        tx,
-        row,
-        {
-          ...row.state,
-          claim: {
-            attendeeId: row.attendeeId,
-            capability,
-            scope: "attendee_set",
-            writtenAt,
-          },
+      await writeState(tx, row, {
+        ...row.state,
+        claim: {
+          attendeeId: row.attendeeId,
+          capability,
+          scope: "attendee_set",
+          writtenAt,
         },
-        CLAIM_MIRROR,
-      );
+      });
     }
     return {
       heldSince: writtenAt,
@@ -326,11 +309,15 @@ export const releaseAttendeeRows = async (
             isEmptyRowState(kept)
               ? ""
               : await encrypt(writeRowState(kept, SLOT)),
+            // Letting the claim go does not clear the row: an owner review it
+            // still carries has to keep showing, or a purge takes a row whose
+            // money nobody has looked at yet.
+            mirrorFor(kept),
             row.sessionId,
             row.slot,
           ],
           sql: `UPDATE processed_payments
-                   SET failure_data = ?, protected_state = ''
+                   SET failure_data = ?, protected_state = ?
                  WHERE payment_session_id = ? AND failure_data = ?`,
         };
       }),

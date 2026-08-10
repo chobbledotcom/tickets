@@ -3,19 +3,17 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 // jscpd:ignore-end
 import { queryOne } from "#shared/db/client.ts";
-import { CLAIM_MIRROR } from "#shared/db/payment-claim.ts";
 import { mergePair, submitMerge } from "#test/test-utils/attendees/merge.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
+  CLAIM_MIRROR,
   freshClaimSlot,
   putRowState,
+  REVIEW_MIRROR,
   rowStateSlot,
 } from "#test-utils/payment-claim.ts";
 import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
-
-/** The word the prune reads off a row the owner still has to look at. */
-const REVIEW_MIRROR = "review";
 
 /** Who owns the payment row now, and what the prune can see on it. Both facts
  *  in one read, because "did the merge move it" and "did the marker survive"

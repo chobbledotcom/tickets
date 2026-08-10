@@ -8,6 +8,7 @@ import {
   queryAll,
   type SqlStatement,
 } from "#shared/db/client.ts";
+import { orphanIdsBatch } from "#shared/db/orphan-attendees.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   MAINTENANCE_PRUNE_BATCH,
@@ -123,15 +124,6 @@ const pruneStatements = (): PruneStatement[] => [
   ),
 ];
 
-const ORPHAN_IDS = `SELECT attendee.id
-  FROM attendees AS attendee
- WHERE attendee.created < ?
-   AND NOT EXISTS (
-     SELECT 1 FROM listing_attendees AS booking
-      WHERE booking.attendee_id = attendee.id
-   )
- ORDER BY attendee.id LIMIT ?`;
-
 const orphanStatements = (): PruneStatement[] => {
   if (!settings.autoPurgeOrphans) return [];
   const args = [
@@ -139,10 +131,10 @@ const orphanStatements = (): PruneStatement[] => {
     MAINTENANCE_PRUNE_BATCH,
   ];
   return [
-    ...attendeeDependentDeleteStatements({ args, sql: ORPHAN_IDS }),
+    ...attendeeDependentDeleteStatements({ args, sql: orphanIdsBatch() }),
     {
       args,
-      sql: `DELETE FROM attendees WHERE id IN (${ORPHAN_IDS})`,
+      sql: `DELETE FROM attendees WHERE id IN (${orphanIdsBatch()})`,
     },
   ];
 };

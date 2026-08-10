@@ -5,6 +5,7 @@ import { encrypt } from "#shared/crypto/encryption.ts";
 import { execute } from "#shared/db/client.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
+import { mirrorFor } from "#shared/payment/admit-move.ts";
 import type {
   PaymentRowState,
   RefundCapability,
@@ -12,6 +13,19 @@ import type {
 import { writeRowState } from "#shared/payment/row-state.ts";
 
 const SLOT = "processed_payments.failure_data";
+
+/** The plain words the prune and the orphan purge see, read back out of the
+ *  production table rather than spelled again here — so a change to either word
+ *  moves every fixture and assertion with it. */
+export const CLAIM_MIRROR = mirrorFor({
+  claim: {
+    attendeeId: 0,
+    capability: "keyless",
+    scope: "attendee_set",
+    writtenAt: "",
+  },
+});
+export const REVIEW_MIRROR = mirrorFor({ review: { kind: "partial_refund" } });
 
 /** Any record, encrypted the way the column stores it. */
 export const rowStateSlot = (state: PaymentRowState): Promise<string> =>

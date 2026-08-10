@@ -2,11 +2,12 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { deleteAttendee } from "#shared/db/attendees/delete.ts";
 import { queryOne } from "#shared/db/client.ts";
-import { CLAIM_MIRROR } from "#shared/db/payment-claim.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
+  CLAIM_MIRROR,
   freshClaimSlot,
   putRowState,
+  REVIEW_MIRROR,
   rowStateSlot,
   staleClaimSlot,
 } from "#test-utils/payment-claim.ts";
@@ -18,11 +19,15 @@ const REVIEW_REFUSAL =
   "The owner still has to check a payment for this person. Mark it reviewed, then try again.";
 
 /** What a refused delete says, or null when it went through. */
-const deleteRefusal = (attendeeId: number): Promise<string | null> =>
-  deleteAttendee(attendeeId).then(
-    () => null,
-    (error: Error) => error.message,
-  );
+const deleteRefusal = async (attendeeId: number): Promise<string | null> => {
+  try {
+    await deleteAttendee(attendeeId);
+    return null;
+  } catch (error) {
+    if (!(error instanceof Error)) throw error;
+    return error.message;
+  }
+};
 
 const attendeeStillThere = async (attendeeId: number): Promise<boolean> =>
   (await queryOne<{ id: number }>("SELECT id FROM attendees WHERE id = ?", [
@@ -80,7 +85,7 @@ describeWithEnv(
       await putRowState(
         "sess-busy-4",
         await rowStateSlot({ review: { kind: "partial_refund" } }),
-        "review",
+        REVIEW_MIRROR,
       );
       expect(await deleteRefusal(attendeeId)).toBe(REVIEW_REFUSAL);
       expect(await attendeeStillThere(attendeeId)).toBe(true);
