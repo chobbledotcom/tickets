@@ -202,7 +202,10 @@ Then(
   "the service event page shows the recorded cost",
   async function (this: TicketsWorld): Promise<void> {
     const id = requiredWorldValue(this.servicingEventId, "service event id");
-    const body = await renderAdminPage(`/admin/servicing/${id}`);
+    const path = `/admin/servicing/${id}`;
+    // The page carrying the cost this story just recorded, for a screenshot.
+    leaveEvidencePage(this, ["maintenance-cost-on-a-room"], path);
+    const body = await renderAdminPage(path);
     expect(body).toContain(">£90<");
     expect(body).toContain("Boiler part");
   },
