@@ -38,6 +38,7 @@ import { reportRefundNotRecorded } from "#shared/invariant-errors.ts";
 import { legMatches } from "#shared/ledger/legs.ts";
 import { admitProviderRefund } from "#shared/payment/admit-refund.ts";
 import type { RefundState } from "#shared/payment/refund-state.ts";
+import { reportWithheldRefund } from "#shared/payment-review.ts";
 import type { PaymentProvider } from "#shared/payments.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
 /* jscpd:ignore-start */
@@ -83,6 +84,7 @@ const loadRefreshContext = async (
 const refreshProviderRefunds = async (
   provider: Pick<PaymentProvider, "readChargeMoneyOrNull">,
   references: readonly RefundPaymentReference[],
+  { attendeeId, listingId }: { attendeeId: number; listingId: number },
 ): Promise<RefundPaymentReference[]> => {
   const refreshed: RefundPaymentReference[] = [];
   // Chunk the provider status checks by charge-reference count — a merged
@@ -94,17 +96,30 @@ const refreshProviderRefunds = async (
       ...(await Promise.all(
         group.map(async (reference) => {
           if (reference.refundState === "completed") return reference;
-          // A legacy charge ("unknown") is queried like any other: the provider
-          // answer turns it into a known "completed" or "none". The money is
+          // A legacy charge ("unknown") is queried like any other. The money is
           // judged rather than trusted to a flag, so a charge only reads as
           // refunded when everything it took has actually gone back.
           const admission = await admitProviderRefund(
             provider,
             reference.reference,
           );
-          const refundState: RefundState =
-            admission.kind === "already_returned" ? "completed" : "none";
-          return { ...reference, refundState };
+          if (admission.kind === "already_returned") {
+            return { ...reference, refundState: "completed" as RefundState };
+          }
+          // Only a provider that positively says the money is still with it
+          // settles this charge as "nothing back". Every other answer — a
+          // refund still settling, a disagreement an owner must resolve, a
+          // provider that could not say — leaves what we already knew alone,
+          // rather than turning "we do not know" into a definite "none".
+          if (admission.kind !== "send") {
+            reportWithheldRefund(admission, {
+              attendeeId,
+              listingId,
+              paymentReference: reference.reference,
+            });
+            return reference;
+          }
+          return { ...reference, refundState: "none" as RefundState };
         }),
       )),
     );
@@ -240,6 +255,7 @@ export const handleRefreshPayment: TypedRouteHandler<
     const refreshedReferences = await refreshProviderRefunds(
       provider,
       references,
+      { attendeeId, listingId },
     );
     await markPaymentReferencesProviderRefunded(
       refreshedReferences.filter(hasProviderRefund),

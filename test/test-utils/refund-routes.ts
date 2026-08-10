@@ -127,17 +127,16 @@ const withStripeProvider = async (
   );
 };
 
-export const withRefreshPaymentProbe = async <T>(
-  probe: (reference: string) => Promise<boolean>,
+/** Runs the refresh-payment route against a provider that reports exactly the
+ *  money each reference names. Use this when the answer is more than "was it
+ *  refunded" — a part-returned charge, say. */
+export const withRefreshPaymentMoney = async <T>(
+  probe: (reference: string) => Promise<ChargeMoney>,
   body: (mockRefunded: Stub) => Promise<T>,
 ): Promise<T> => {
   let result!: T;
   await withStripeProvider(async (provider) => {
-    const mockRefunded = stub(
-      provider,
-      "readChargeMoneyOrNull",
-      async (reference) => asChargeMoney(await probe(reference)),
-    );
+    const mockRefunded = stub(provider, "readChargeMoneyOrNull", probe);
     try {
       result = await body(mockRefunded);
     } finally {
@@ -146,6 +145,15 @@ export const withRefreshPaymentProbe = async <T>(
   });
   return result;
 };
+
+export const withRefreshPaymentProbe = <T>(
+  probe: (reference: string) => Promise<boolean>,
+  body: (mockRefunded: Stub) => Promise<T>,
+): Promise<T> =>
+  withRefreshPaymentMoney(
+    async (reference) => asChargeMoney(await probe(reference)),
+    body,
+  );
 
 export const withRefundMock = async (
   refundBehavior: RefundBehavior,

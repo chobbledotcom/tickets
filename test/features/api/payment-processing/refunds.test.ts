@@ -301,6 +301,32 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
     });
   }
 
+  test("tryRefund reports a charge only partly returned", async () => {
+    await setupStripe();
+    const { stripePaymentProvider } = await import(
+      "#shared/stripe-provider.ts"
+    );
+    const refund = stub(stripePaymentProvider, "refundPayment", () =>
+      Promise.resolve(true),
+    );
+    // Some of the money went back, but not all of it: the provider's records
+    // and this booking disagree, and only a person can settle that.
+    const read = stub(stripePaymentProvider, "readChargeMoneyOrNull", () =>
+      Promise.resolve(chargeMoney(1000, 400)),
+    );
+    try {
+      expect(await tryRefund("pi_partly_back")).toBe(false);
+      expect(refund.calls).toHaveLength(0);
+    } finally {
+      refund.restore();
+      read.restore();
+    }
+
+    // It used to go to a debug line, which reaches nobody.
+    expect(errorLogged(errorSpy, "partial_refund")).toBe(true);
+    expect(errorLogged(errorSpy, "an owner needs to look at it")).toBe(true);
+  });
+
   test("validationFailure short-circuits 404 without refunding", () => {
     const result = validationFailure(
       mockSession("cs_404"),
