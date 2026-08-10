@@ -418,7 +418,45 @@ describe("admin refund provider > an unrecorded refund", () => {
     refundPayment: () => Promise.resolve(true),
   };
 
-  test("a refund whose returned-marker write fails is reported unrecorded", async () => {
+  test("a refund the provider did not confirm is unsettled", async () => {
+    const keylessSaysNo = {
+      readChargeMoneyOrNull: () => Promise.resolve(chargeMoney()),
+      refundCapability: "keyless" as const,
+      refundPayment: () => Promise.resolve(false),
+    };
+
+    const result = await refundCandidateAtProvider(
+      keylessSaysNo,
+      candidateWithReferences(["pi_unanswered"]),
+      7,
+      () => Promise.resolve(),
+    );
+
+    // A lost answer looks exactly like a refusal from here, so the run must
+    // keep its hold rather than let a retry send the money again.
+    expect(result.outcome).toBe("failed");
+    expect(result.unsettled).toBe(true);
+  });
+
+  test("a refund never sent is settled — nothing was asked for", async () => {
+    const alreadyBack = {
+      readChargeMoneyOrNull: () => Promise.resolve(fullyRefundedMoney()),
+      refundCapability: "keyless" as const,
+      refundPayment: () => Promise.resolve(true),
+    };
+
+    const result = await refundCandidateAtProvider(
+      alreadyBack,
+      candidateWithReferences(["pi_already"]),
+      7,
+      () => Promise.resolve(),
+    );
+
+    expect(result.outcome).toBe("refunded");
+    expect(result.unsettled).toBeUndefined();
+  });
+
+  test("a refund whose returned-marker write fails is reported unsettled", async () => {
     const result = await refundCandidateAtProvider(
       keyless,
       candidateWithReferences(["pi_unrecorded"]),
@@ -429,10 +467,10 @@ describe("admin refund provider > an unrecorded refund", () => {
     // The money went back, so it still counts as refunded...
     expect(result.outcome).toBe("refunded");
     // ...but nothing durable says so.
-    expect(result.unrecorded).toBe(true);
+    expect(result.unsettled).toBe(true);
   });
 
-  test("a refund whose marker write succeeds is not unrecorded", async () => {
+  test("a refund whose marker write succeeds is settled", async () => {
     const result = await refundCandidateAtProvider(
       keyless,
       candidateWithReferences(["pi_recorded"]),
@@ -441,17 +479,17 @@ describe("admin refund provider > an unrecorded refund", () => {
     );
 
     expect(result.outcome).toBe("refunded");
-    expect(result.unrecorded).toBeUndefined();
+    expect(result.unsettled).toBeUndefined();
   });
 
   /** Run a keyless hold whose work ends recorded or not, and say how many
    *  times it let go. */
-  const releasesAfter = async (unrecorded: boolean): Promise<number> => {
+  const releasesAfter = async (unsettled: boolean): Promise<number> => {
     const rowClaim = grantingRowClaim();
     await underAttendeeClaim(rowClaim, [11], "keyless", 7, {
-      blocked: () => ({ unrecorded: false }),
-      lost: (result) => result.unrecorded,
-      work: () => Promise.resolve({ unrecorded }),
+      blocked: () => ({ unsettled: false }),
+      lost: (result) => result.unsettled,
+      work: () => Promise.resolve({ unsettled }),
     });
     return rowClaim.released.length;
   };
