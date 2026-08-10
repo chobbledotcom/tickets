@@ -1165,31 +1165,36 @@ money; a later admin retry re-claims the complete set and finishes the refund).
 Regression: two concurrent single-attendee refunds of one merged attendee — one
 claims every reference and refunds, the other claims nothing and answers
 in-progress. A legacy reference with no `processed_payments` row does not escape
-the claim: the claiming write MINTS the row — an INSERT-OR-IGNORE keyed by the
-reference's one-way index, carrying the attendee id, the encrypted reference,
-and the claim in `failure_data`; same table, no columns beyond PR A's three. The
-insert-or-ignore IS the winner-decider for row-less references BECAUSE
-`payment_reference_index` carries a UNIQUE index in PR A's migration: the blind
-index is deterministic per reference, so two concurrent mints of one reference
-collide on that constraint — the primary key alone would let both succeed and
-both reach the keyless refund call — and the loser's ignored insert re-reads the
-winner's row and answers in-progress (regression: two concurrent claims on one
-row-less legacy reference produce one anchor row and one refund run) — so the
-previously open legacy simultaneous window closes with the same one mechanism
-instead of waiting for M7. The refresh route's marker writes mint the same
-anchor row for a legacy-only attendee, so a detected `partial_refund` durably
-hides the Refund action there too — the marker never depends on a row the
-reference happens to lack (regression: a legacy-reference attendee whose refresh
-detects a partial refund loses the Refund action, and two concurrent legacy
-SumUp refunds make exactly one provider call). This claim is what makes the
-SumUp cells above real: with no idempotency parameter, two truly simultaneous
-refund calls are serialized only by the provider, and SumUp documents 409 as a
-state conflict, not a concurrency guarantee — so the local claim is the
-serialization, for every provider one mechanism (regression: two concurrent
-admin refunds of one SumUp reference make exactly one provider call; the loser
-answers in-progress). The claim also binds the operator writes that move rows
-between attendees (law 1's writer half): today `applyAttendeeMerge` moves every
-source reference row and its ledger legs unconditionally
+the claim: the claiming write MINTS the row — an INSERT-OR-IGNORE whose PRIMARY
+KEY is derived deterministically from the reference's one-way index (the
+`anchor:` prefix plus `payment_reference_index`), carrying the attendee id, the
+encrypted reference, and the claim in `failure_data`; same table, no columns
+beyond PR A's three. The insert-or-ignore IS the winner-decider for row-less
+references BECAUSE the derived key is the same for two concurrent mints of one
+reference — they collide on the primary key itself, and the loser's ignored
+insert re-reads the winner's row and answers in-progress (regression: two
+concurrent claims on one row-less legacy reference produce one anchor row and
+one refund run). A random or session-derived key would let both mints succeed
+and both reach the keyless refund call; and the constraint deliberately lives on
+the anchor's KEY, not on `payment_reference_index` itself, which stays a PLAIN
+non-unique index — two REAL rows can legitimately carry one reference (the F21
+legacy duplicates the column exists to expose), and legacy rows gain the index
+lazily on first touch, both of which a unique column would make impossible — so
+the previously open legacy simultaneous window closes with the same one
+mechanism instead of waiting for M7. The refresh route's marker writes mint the
+same anchor row for a legacy-only attendee, so a detected `partial_refund`
+durably hides the Refund action there too — the marker never depends on a row
+the reference happens to lack (regression: a legacy-reference attendee whose
+refresh detects a partial refund loses the Refund action, and two concurrent
+legacy SumUp refunds make exactly one provider call). This claim is what makes
+the SumUp cells above real: with no idempotency parameter, two truly
+simultaneous refund calls are serialized only by the provider, and SumUp
+documents 409 as a state conflict, not a concurrency guarantee — so the local
+claim is the serialization, for every provider one mechanism (regression: two
+concurrent admin refunds of one SumUp reference make exactly one provider call;
+the loser answers in-progress). The claim also binds the operator writes that
+move rows between attendees (law 1's writer half): today `applyAttendeeMerge`
+moves every source reference row and its ledger legs unconditionally
 (`src/shared/merge/attendee-merge.ts` —
 `UPDATE processed_payments SET attendee_id …`) and the attendee delete removes
 the rows outright (`src/shared/db/attendees/delete.ts`), so either could
