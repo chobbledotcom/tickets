@@ -84,7 +84,7 @@ the already-merged `money.ts`, `resource-id.ts`, `refund-state.ts`,
 | Branch module                                                                      | Lines | M4 fate                                                                                                                                                                                                                                                    |
 | ---------------------------------------------------------------------------------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `diagnose.ts` (`outcomeOf`, `hasSettled`, `SettledReading`)                        | 196   | Port. The judge                                                                                                                                                                                                                                            |
-| `conflict.ts` (15-kind `PaymentConflict` variant + `IS_THE_READING_ITSELF`)        | 55    | Port. Reconcile `invalid_provider_data`'s reason type against main's `ProviderInvalidReason` (plain union, includes `unrecorded_child`; branch has `mismatched_parent`)                                                                                    |
+| `conflict.ts` (15-kind `PaymentConflict` variant + `IS_THE_READING_ITSELF`)        | 55    | Port minus the four M4-unreachable kinds (see the conflict table's note). Reconcile `invalid_provider_data`'s reason type against main's `ProviderInvalidReason` (plain union, includes `unrecorded_child`; branch has `mismatched_parent`)                |
 | `refund.ts` (`resolveRefund`)                                                      | 72    | Port                                                                                                                                                                                                                                                       |
 | `resources.ts` (charge/refund legs, `refundMoneyMatchesCapture`, resource schemas) | 246   | Port slimmed: reuse main's `money.ts` and `resource-id.ts` instead of restating `MoneySchema`/`ResourceIdSchema`. Keep main's stricter resource-id rule (`/^\S+$/u`, no inner whitespace) — the branch's looser rule accepts `"pi_1 2"` and is not adopted |
 | `words.ts`                                                                         | 87    | Port only the subsets M4 needs (refund states, resource-kind map); the case/decision/ticket vocabularies are M5+                                                                                                                                           |
@@ -141,26 +141,31 @@ type ObservationOutcome =
 Every conflict kind is mapped exhaustively (a `Record<kind, Remedy>` in code, so
 a new kind is a compile error) onto exactly one of two remedies:
 
-| Conflict kind                                                                 | Meaning                                                                                                                                                                           | Remedy in M4                                                                                                                |
-| ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `currency_mismatch`                                                           | Any observed currency differs from the expected currency                                                                                                                          | Refuse-and-record: today's mismatch refund path                                                                             |
-| `provider_total_mismatch`                                                     | Provider session total ≠ signed expected total                                                                                                                                    | Refuse-and-record: mismatch refund path                                                                                     |
-| `partial_charge`                                                              | Captured sum < expected                                                                                                                                                           | Refuse-and-record: mismatch refund path                                                                                     |
-| `capture_total_mismatch`                                                      | Captured sum ≠ expected (over-capture)                                                                                                                                            | Owner review: detect, record, alert                                                                                         |
-| `paid_without_charge`                                                         | Money on a free checkout: expected total is 0 and a charge is present                                                                                                             | Refuse-and-record: mismatch refund path (the charge has a resource to refund)                                               |
-| `resource_mismatch`                                                           | Charge/refund parent or provider disagrees with its session/charge                                                                                                                | Refuse-and-record: refuse retryably (callback) / refuse attempt (refund path); keeps Square's current throw-behavior, named |
-| `duplicate_charge`                                                            | Two charge legs share one resource id                                                                                                                                             | Refuse-and-record                                                                                                           |
-| `duplicate_refund`                                                            | Two refund resources share one id                                                                                                                                                 | Refuse-and-record (refund path refuses the attempt)                                                                         |
-| `multiple_charges`                                                            | More than one captured charge on one payment (Square: >1 paid tender)                                                                                                             | Owner review: detect, record, alert; automatic work proceeds on the signed total as today                                   |
-| `refund_exceeds_capture`                                                      | Returned + returning money would exceed captured (`Math.max(providerCumulative, ourCompleted) + pending > captured`, or any single refund > captured, or refund currency differs) | Refuse-and-record: the refund attempt is refused                                                                            |
-| `multiple_pending_refunds`                                                    | More than one refund in flight                                                                                                                                                    | Refuse-and-record: the refund attempt is refused                                                                            |
-| `failed_refund`                                                               | Provider answered a refund attempt with failure                                                                                                                                   | Refuse-and-record: today's failed-refund handling (release/retry or recorded failure)                                       |
-| `partial_refund`                                                              | Cumulative shows part of the money returned                                                                                                                                       | Owner review: detect, record, alert (no current-path action can safely finish it; the balance-refund engine is M7)          |
-| The branch's two read-level kinds (`invalid_provider_data`,                   |                                                                                                                                                                                   |                                                                                                                             |
-| `missing_resource`) are NOT ported in M4: no `outcomeOf` path emits them, and |                                                                                                                                                                                   |                                                                                                                             |
-| read failures remain M3's `ProviderRead` boundary outcomes. Porting them now  |                                                                                                                                                                                   |                                                                                                                             |
-| would land unreachable union arms (dead code). They arrive with M5's          |                                                                                                                                                                                   |                                                                                                                             |
-| `resolve.ts`, which is what emits them.                                       |                                                                                                                                                                                   |                                                                                                                             |
+| Conflict kind             | Meaning                                                                                                                                                                           | Remedy in M4                                                                                                                |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `currency_mismatch`       | Any observed currency differs from the expected currency                                                                                                                          | Refuse-and-record: today's mismatch refund path                                                                             |
+| `provider_total_mismatch` | Provider session total ≠ signed expected total                                                                                                                                    | Refuse-and-record: mismatch refund path                                                                                     |
+| `partial_charge`          | Captured sum < expected                                                                                                                                                           | Refuse-and-record: mismatch refund path                                                                                     |
+| `capture_total_mismatch`  | Captured sum ≠ expected (over-capture)                                                                                                                                            | Owner review: detect, record, alert                                                                                         |
+| `paid_without_charge`     | Money on a free checkout: expected total is 0 and a charge is present                                                                                                             | Refuse-and-record: mismatch refund path (the charge has a resource to refund)                                               |
+| `resource_mismatch`       | Charge/refund parent or provider disagrees with its session/charge                                                                                                                | Refuse-and-record: refuse retryably (callback) / refuse attempt (refund path); keeps Square's current throw-behavior, named |
+| `duplicate_charge`        | Two charge legs share one resource id                                                                                                                                             | Refuse-and-record                                                                                                           |
+| `multiple_charges`        | More than one captured charge on one payment (Square: >1 paid tender)                                                                                                             | Owner review: detect, record, alert; automatic work proceeds on the signed total as today                                   |
+| `refund_exceeds_capture`  | Returned + returning money would exceed captured (`Math.max(providerCumulative, ourCompleted) + pending > captured`, or any single refund > captured, or refund currency differs) | Refuse-and-record: the refund attempt is refused                                                                            |
+| `failed_refund`           | Provider answered a refund attempt with failure                                                                                                                                   | Refuse-and-record: today's failed-refund handling (release/retry or recorded failure)                                       |
+| `partial_refund`          | Cumulative shows part of the money returned                                                                                                                                       | Owner review: detect, record, alert (no current-path action can safely finish it; the balance-refund engine is M7)          |
+
+Four of the branch's fifteen kinds are NOT ported in M4, because no M4
+observation can produce them and unreachable union arms are dead code. The two
+read-level kinds (`invalid_provider_data`, `missing_resource`) belong to M5's
+`resolve.ts`, which is what emits them — M4 read failures remain M3's
+`ProviderRead` boundary outcomes. And two refund-shape kinds (`duplicate_refund`
+— two refund resources sharing one id — and `multiple_pending_refunds` — more
+than one refund in flight) need evidence M4 never holds: no provider read on
+this path returns a per-refund resource list, and the only pending refund an
+observation can carry is the direct answer to its own single attempt — durable
+pending-refund records are M7's `pending_refund_id`. Both kinds return with M7's
+engine, from the reference branch.
 
 A paid session with no charge reference never reaches the judge either: the
 retained `validatedPaymentSession` boundary already rejects it as
@@ -192,25 +197,24 @@ a wrong currency match both `multiple_charges` and `currency_mismatch`).
 `outcomeOf` reports exactly one, chosen by its fixed evaluation order, which is
 part of this contract: expected-vs-observed currency, provider total vs
 expected, resource parentage, per-leg currency, over-refund, duplicate charge,
-duplicate refund, multiple pending refunds, partial charge, money on a free
-checkout, failed refund — every refuse-and-record kind — and only then the
-owner-review kinds: multiple charges, capture total, partial refund. The port
-makes two adaptations explicit. First: a zero-expected observation with captured
-money is judged by the free-checkout arm FIRST, so `paid_without_charge` (refund
-path) is reachable and the capture-sum kinds never swallow it (equivalently:
-`partial_charge` and `capture_total_mismatch` exclude expected 0). Second: the
-ported order placed `multiple_charges` mid-list, ahead of `partial_charge` —
-kept, two under-paying tenders would emit `multiple_charges` and
-proceed-and-alert an underpaid booking; the adaptation moves every owner-review
-kind after every refuse-and-record validation kind, so that observation emits
-`partial_charge` and (being multi-charge) parks with no booking per decision 5.
-The principle the adapted order encodes: every refuse-and-record validation kind
-is evaluated before the owner-review kinds, so an observation matching both
-always takes the safer refuse path — condition ordering can never quietly
-upgrade a refusable observation into a proceed-with-alert one. Decision 5 does
-not weaken this: a multi-charge observation matching a refuse kind still refuses
-the booking — the rule below only changes whether the refusal's refund is
-automatic.
+partial charge, money on a free checkout, failed refund — every
+refuse-and-record kind — and only then the owner-review kinds: multiple charges,
+capture total, partial refund. The port makes two adaptations explicit. First: a
+zero-expected observation with captured money is judged by the free-checkout arm
+FIRST, so `paid_without_charge` (refund path) is reachable and the capture-sum
+kinds never swallow it (equivalently: `partial_charge` and
+`capture_total_mismatch` exclude expected 0). Second: the ported order placed
+`multiple_charges` mid-list, ahead of `partial_charge` — kept, two under-paying
+tenders would emit `multiple_charges` and proceed-and-alert an underpaid
+booking; the adaptation moves every owner-review kind after every
+refuse-and-record validation kind, so that observation emits `partial_charge`
+and (being multi-charge) parks with no booking per decision 5. The principle the
+adapted order encodes: every refuse-and-record validation kind is evaluated
+before the owner-review kinds, so an observation matching both always takes the
+safer refuse path — condition ordering can never quietly upgrade a refusable
+observation into a proceed-with-alert one. Decision 5 does not weaken this: a
+multi-charge observation matching a refuse kind still refuses the booking — the
+rule below only changes whether the refusal's refund is automatic.
 
 Picking one kind never discards the rest of the evidence. The emitted conflict
 carries the observation's full captured-charge list (resource ids, amounts,
@@ -467,9 +471,17 @@ No money-moving automation is added for any owner-review kind.
   missing ids still cost zero provider calls; a forger replaying a REAL staged
   checkout id costs exactly one bounded read — that read IS the authenticity
   check, by M3's design — answered with the fixed refusal on any mismatch. The
-  bound is per request: an amplification factor of at most one, never several
-  reads from one request. Bounding request volume itself is the platform's rate
-  limiting, unchanged — M4 adds no new unauthenticated read surface.
+  bound is per request — an amplification factor of at most one — with exactly
+  one stated exception: the single delivery that genuinely processes the
+  session. That one request does the session's real work (a rejection arm's
+  evidence read and possibly one refund call), work the system performs exactly
+  once whoever delivered the callback — provider or forger — because the
+  reservation lock serializes it and the terminal record plus acknowledgement
+  end it. Every later replay of that checkout id, forged or not, costs the one
+  authenticity read and nothing more. Regression (PR B): a replayed callback for
+  a terminally processed session costs exactly one provider read and zero refund
+  calls. Bounding request volume itself is the platform's rate limiting,
+  unchanged — M4 adds no new unauthenticated read surface.
 
 ## What is deleted (F51)
 
@@ -580,9 +592,18 @@ correctness, not scope creep.
   where today's blind fallback also spent one. The admin bulk cap is
   `BULK_REFUND_LIMIT` (5) **attendees**, and one attendee can carry several
   references (deposit plus balance; merges): R total references cost 2R provider
-  calls — the same ceiling today's failure path already has, typically R ≤ 10
-  for a full batch. The unbounded-R shape itself is F53, fixed by M7's paged
-  engine, not here. Database calls: unchanged from today.
+  calls, typically R ≤ 10 for a full batch. Because 2R plus the batch's database
+  writes must fit Bunny's 50-subrequest allowance, PR A adds a batch pre-flight:
+  before ANY provider call, the run counts its still-unrefunded references, and
+  a batch whose worst-case calls cannot fit is refused whole — zero provider
+  calls, every row failed with the plain reason "This run has too many payments
+  to refund at once. Refund fewer attendees at a time." A batch can no longer
+  abort mid-flight with some refunds committed and unrecorded; the arithmetic is
+  static, so the refusal is exact, not a guess. Regression: an oversized batch
+  makes zero provider calls and fails every row with that reason. The paged
+  engine that processes arbitrarily large batches is still F53 / M7 — this slice
+  only refuses what one request cannot safely hold. Database calls: unchanged
+  from today.
 - Standalone value: the live system stops repeat and over-refunds.
 
 **PR B — "One judge for callback money, and alerts for what it finds" (≈ 300–400
@@ -664,10 +685,11 @@ before merge, per delivery rule 4.
 - _Stale evidence between read and attempt?_ Provider-side idempotency or
   rejection converts the race to an idempotent landing; the next read converges.
   Fresh-evidence-per-attempt is the rule (no cached verdicts).
-- _Same resource on another record?_ `duplicate_charge`/`duplicate_refund`
-  within one payment's evidence refuse; cross-payment duplicates are F8 (M6,
-  needs the aggregate unique index) and out of scope — stated, not silently
-  dropped.
+- _Same resource on another record?_ `duplicate_charge` within one payment's
+  evidence refuses; duplicated refund resources need the per-refund identities
+  only M7's records hold (see the conflict table's note); cross-payment
+  duplicates are F8 (M6, needs the aggregate unique index) and out of scope —
+  stated, not silently dropped.
 - _One queued item fails permanently?_ Bulk rows record per-reference results; a
   refused reference cannot block the wave.
 - _What does the buyer see?_ Byte-identical answers for the trusted flow and
