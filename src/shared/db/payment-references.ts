@@ -7,6 +7,7 @@
  */
 
 import { unique } from "#fp";
+import { hmacHash } from "#shared/crypto/hashing.ts";
 import {
   decryptWithOwnerKey,
   encryptWithOwnerKey,
@@ -62,6 +63,19 @@ export const encryptPaymentReference = async (
   reference: string,
 ): Promise<OwnerKeyEncrypted | ""> =>
   reference === "" ? "" : encryptWithOwnerKey(reference, settings.publicKey);
+
+/**
+ * The blind one-way index of a reference's identity, written beside the
+ * encrypted reference itself.
+ *
+ * A refund claim needs to ask "is another row already working on this same
+ * provider money?" in SQL, without decrypting every row to find out. The same
+ * reference always hashes to the same index, so the question is a lookup; the
+ * index reveals nothing about the reference to anyone reading the table.
+ */
+export const paymentReferenceIndex = async (
+  reference: string,
+): Promise<string> => (reference === "" ? "" : await hmacHash(reference));
 
 const decryptPaymentReference = (
   stored: string,

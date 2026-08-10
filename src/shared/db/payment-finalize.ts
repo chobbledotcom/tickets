@@ -1,7 +1,10 @@
 import type { InValue } from "@libsql/client";
 import { attendeeOwedSubquery } from "#shared/accounting/projection-sql.ts";
 import type { SqlStatement } from "#shared/db/client.ts";
-import { encryptPaymentReference } from "#shared/db/payment-references.ts";
+import {
+  encryptPaymentReference,
+  paymentReferenceIndex,
+} from "#shared/db/payment-references.ts";
 import {
   encryptTicketTokens,
   UNRESOLVED_RESERVATION,
@@ -33,11 +36,16 @@ const buildFinalizeStatements = async (
       ...attendeeIdArgs,
       await encryptTicketTokens(ticketTokens),
       await encryptPaymentReference(paymentReference),
+      await paymentReferenceIndex(paymentReference),
       sessionId,
       ...guardArgs,
     ],
+    // The blind index is written by the same statement as the reference it
+    // indexes, so a row can never carry one without the other — a refund claim
+    // looks rows up by it to find another row holding the same money.
     sql: `UPDATE processed_payments
-          SET attendee_id = ${attendeeIdSql}, ticket_tokens = ?, payment_reference = ?
+          SET attendee_id = ${attendeeIdSql}, ticket_tokens = ?, payment_reference = ?,
+              payment_reference_index = ?
           WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION} AND ${guard}`,
   },
   paymentFinalizeGuard(guard, guardArgs),
