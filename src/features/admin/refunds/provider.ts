@@ -154,6 +154,22 @@ const refundReferenceAtProvider = async (
  * back about. With an idempotency key a repeat lands on the same refund, so
  * the hold can go; without one it stands until fresh evidence settles it.
  */
+/** Let go of a hold, reporting rather than raising when the row will not. */
+const releaseHold = async (
+  rowClaim: RowClaim,
+  claim: { heldSince: string; sessionIds: readonly string[] },
+  listingId: number,
+): Promise<void> => {
+  try {
+    await rowClaim.release(claim.sessionIds, claim.heldSince);
+  } catch (error) {
+    reportRefundProblem(
+      `Refund claim could not be released: ${String(error)}`,
+      listingId,
+    );
+  }
+};
+
 export const underAttendeeClaim = async <TResult>(
   rowClaim: RowClaim,
   attendeeIds: readonly number[],
@@ -161,6 +177,9 @@ export const underAttendeeClaim = async <TResult>(
   listingId: number,
   run: {
     blocked: (reason: string) => TResult;
+    /** The payment sessions this run loaded. A hold covering anything else
+     *  means the attendee's money grew while the run was queued. */
+    knownSessionIds: ReadonlySet<string>;
     lost: (result: TResult) => boolean;
     work: (alreadyReturned: ReadonlySet<string>) => Promise<TResult>;
   },
@@ -169,20 +188,27 @@ export const underAttendeeClaim = async <TResult>(
   if (claim.kind === "blocked") {
     return run.blocked(claimRefusal(claim.blockedBy));
   }
+  // The hold covers the rows that exist NOW. If it covers a payment this run
+  // never loaded — a balance settlement that landed while we queued — then
+  // refunding what we did load would return part of someone's money and leave
+  // the rest, so the whole run stands down and the operator tries again
+  // against the complete set.
+  const unknown = claim.sessionIds.filter(
+    (sessionId) => !run.knownSessionIds.has(sessionId),
+  );
+  if (unknown.length > 0) {
+    await releaseHold(rowClaim, claim, listingId);
+    return run.blocked(
+      `a payment landed while this run was waiting (${unknown.length} not in the set it loaded)`,
+    );
+  }
   // A release that fails leaves the claim standing until it goes stale, which
   // is recoverable. Losing the answer the run just produced is not, so a
   // release failure is reported and never allowed to replace the result or the
   // original error.
   const release = async (lost: boolean): Promise<void> => {
     if (!mayReleaseClaim(capability, lost ? "lost" : "validated")) return;
-    try {
-      await rowClaim.release(claim.sessionIds, claim.heldSince);
-    } catch (error) {
-      reportRefundProblem(
-        `Refund claim could not be released: ${String(error)}`,
-        listingId,
-      );
-    }
+    await releaseHold(rowClaim, claim, listingId);
   };
   try {
     const result = await run.work(claim.returned);
@@ -336,6 +362,13 @@ export const processRefundBatch = async (
           unsettled: false,
         };
       },
+      knownSessionIds: new Set(
+        batch.flatMap((candidate) =>
+          candidate.references.flatMap((reference) => [
+            ...reference.sessionIds,
+          ]),
+        ),
+      ),
       lost: (result) => result.counts.errorCount > 0 || result.unsettled,
       work: (alreadyReturned) =>
         refundClaimedBatch(

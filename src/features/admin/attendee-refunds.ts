@@ -152,6 +152,9 @@ const handleAttendeeRefund = verifiedAttendeeAction(
 
           return { candidate, outcome: "failed" as const };
         },
+        knownSessionIds: new Set(
+          references.flatMap((reference) => [...reference.sessionIds]),
+        ),
         lost: (result) =>
           result.outcome === "errored" || result.unsettled === true,
         work: (alreadyReturned) =>

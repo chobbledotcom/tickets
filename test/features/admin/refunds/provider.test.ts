@@ -508,6 +508,7 @@ describe("admin refund provider > an unrecorded refund", () => {
     const rowClaim = grantingRowClaim();
     await underAttendeeClaim(rowClaim, [11], "keyless", 7, {
       blocked: () => ({ unsettled: false }),
+      knownSessionIds: new Set<string>(),
       lost: (result) => result.unsettled,
       work: () => Promise.resolve({ unsettled }),
     });
@@ -576,6 +577,7 @@ describe("admin refund provider > a release that fails", () => {
 
     const result = await underAttendeeClaim(refusingRelease, [11], "keyed", 7, {
       blocked: () => ({ tally: "blocked" }),
+      knownSessionIds: new Set(["sess-x"]),
       lost: () => false,
       work: () => Promise.resolve({ tally: "refunded" }),
     });
@@ -583,5 +585,42 @@ describe("admin refund provider > a release that fails", () => {
     // The hold goes stale by itself; the answer does not come back.
     expect(result).toEqual({ tally: "refunded" });
     expect(errors.contains("Refund claim could not be released")).toBe(true);
+  });
+});
+
+describe("admin refund provider > a payment that landed while we waited", () => {
+  test("stands the whole run down rather than refunding part of it", async () => {
+    const released: string[][] = [];
+    // The hold covers a row this run never loaded.
+    const holdsMore: RowClaim = {
+      claim: () =>
+        Promise.resolve({
+          heldSince: "2026-08-10T12:00:00.000Z",
+          kind: "claimed",
+          returned: new Set<string>(),
+          sessionIds: ["sess-known", "sess-new"],
+        }),
+      release: (sessionIds) => {
+        released.push([...sessionIds]);
+        return Promise.resolve();
+      },
+    };
+
+    let worked = false;
+    const result = await underAttendeeClaim(holdsMore, [11], "keyless", 7, {
+      blocked: (reason) => reason,
+      knownSessionIds: new Set(["sess-known"]),
+      lost: () => false,
+      work: () => {
+        worked = true;
+        return Promise.resolve("ran");
+      },
+    });
+
+    // Refunding what we loaded would return part of the money and leave the
+    // rest, so nothing runs and the hold goes back.
+    expect(worked).toBe(false);
+    expect(result).toContain("landed while this run was waiting");
+    expect(released).toEqual([["sess-known", "sess-new"]]);
   });
 });
