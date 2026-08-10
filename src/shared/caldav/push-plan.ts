@@ -158,20 +158,16 @@ const chooseWithinBudget = <T>(
 
 /**
  * Divide the budget between deletes and pushes so neither can starve the
- * other. Whichever side has less work than its half hands the remainder to the
- * other, so a big backlog on one side still leaves the other side moving.
+ * other. Deletes may claim up to half; pushes take whatever is left; then
+ * deletes mop up any slots the pushes did not need — so a big backlog on one
+ * side still leaves the other side moving, and a side with no work hands its
+ * whole share over.
  */
 const shareBudget = (
   budget: number,
   deleteDue: number,
   putDue: number,
 ): { readonly deleteSlots: number; readonly putSlots: number } => {
-  if (deleteDue === 0) {
-    return { deleteSlots: 0, putSlots: Math.min(budget, putDue) };
-  }
-  if (putDue === 0) {
-    return { deleteSlots: Math.min(budget, deleteDue), putSlots: 0 };
-  }
   const half = Math.floor(budget / 2);
   const deleteHalf = Math.min(deleteDue, half);
   const putSlots = Math.min(putDue, budget - deleteHalf);
@@ -222,12 +218,13 @@ export const planPush = (input: PushPlanInput): PushPlan => {
   // Refresh candidates rotate on the same readiness rules, so a permanently
   // failing refresh cools off instead of eating the sweep every wake.
   const refreshReady = sortByReadiness(refresh, nowMs, retryIntervalMs);
-  const readyRefresh = [...refreshReady.fresh, ...refreshReady.dueRetry];
+  const refreshReadyCount =
+    refreshReady.fresh.length + refreshReady.dueRetry.length;
 
   const deleteDue = deleteReady.fresh.length + deleteReady.dueRetry.length;
   const putDue = putReady.fresh.length + putReady.dueRetry.length;
 
-  const reservedForRefresh = refreshReserve(budget, readyRefresh.length);
+  const reservedForRefresh = refreshReserve(budget, refreshReadyCount);
   const workBudget = budget - reservedForRefresh;
   const { deleteSlots, putSlots } = shareBudget(workBudget, deleteDue, putDue);
 
@@ -242,9 +239,15 @@ export const planPush = (input: PushPlanInput): PushPlan => {
     putSlots,
   );
 
+  // Refresh spends only what deletes and pushes left behind, but through the
+  // same fair split — so a stream of fresh refreshes can't starve a due one.
   const leftover =
     budget - chosenDeletes.taken.length - chosenPuts.taken.length;
-  const chosenRefresh = readyRefresh.slice(0, Math.max(0, leftover));
+  const chosenRefresh = chooseWithinBudget(
+    refreshReady.fresh,
+    refreshReady.dueRetry,
+    leftover,
+  );
 
   const skips: PushAction[] = [
     ...deleteReady.waiting,
@@ -267,7 +270,7 @@ export const planPush = (input: PushPlanInput): PushPlan => {
       queueId: row.queueId,
     })),
     ...chosenPuts.taken.map(pendingActionOf("put")),
-    ...chosenRefresh.map((row) => ({
+    ...chosenRefresh.taken.map((row) => ({
       kind: "refresh" as const,
       listingId: row.id,
     })),

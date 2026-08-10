@@ -73,6 +73,18 @@ describe("planPush — local (no calendar call) rules", () => {
       { id: 1, pending: 1 },
       { id: 2, pending: 1 },
     ]);
+    // A local clear costs no calendar call — these rows are never queued as
+    // deletes, because nothing remote exists to delete.
+    expect(ofKind(actions, "queueDelete")).toHaveLength(0);
+  });
+
+  test("clears even a single dateless never-pushed row", () => {
+    const { actions } = plan({
+      pending: [pending({ dated: false, everPushed: false, id: 1 })],
+    });
+    const clears = ofKind(actions, "clearLocal");
+    expect(clears).toHaveLength(1);
+    expect(clears[0]!.rows).toEqual([{ id: 1, pending: 1 }]);
   });
 
   test("emits no clearLocal action when there is nothing to clear", () => {
@@ -131,18 +143,15 @@ describe("planPush — external work and ordering", () => {
 });
 
 describe("planPush — budget sharing", () => {
-  test("splits a tight budget so neither deletes nor pushes are starved", () => {
-    // budget 8, no refresh: both sides have plenty of work, so each gets some.
+  test("splits a tight budget evenly when both sides have plenty of work", () => {
+    // budget 8, no refresh: two equal backlogs split down the middle, 4 each.
     const { actions } = plan({
       budget: 8,
       deletes: manyDeletes(20),
       pending: manyPending(20, 100),
     });
-    expect(ofKind(actions, "deleteRemote").length).toBeGreaterThan(0);
-    expect(ofKind(actions, "put").length).toBeGreaterThan(0);
-    expect(
-      ofKind(actions, "deleteRemote").length + ofKind(actions, "put").length,
-    ).toBe(8);
+    expect(ofKind(actions, "deleteRemote")).toHaveLength(4);
+    expect(ofKind(actions, "put")).toHaveLength(4);
   });
 
   test("gives the whole budget to pushes when there is nothing to delete", () => {
@@ -156,6 +165,13 @@ describe("planPush — budget sharing", () => {
     expect(plan({ budget: 4, pending: listings.slice(0, 3) }).moreWork).toBe(
       false,
     );
+  });
+
+  test("reports more work when even a single due item is left over", () => {
+    // budget 4, five due pushes: four go out, one is deferred → wake again.
+    const { actions, moreWork } = plan({ budget: 4, pending: manyPending(5) });
+    expect(ofKind(actions, "put")).toHaveLength(4);
+    expect(moreWork).toBe(true);
   });
 });
 
@@ -211,15 +227,30 @@ describe("planPush — refresh sweep", () => {
     ]);
   });
 
-  test("keeps a reserved refresh slot even under a full delete/push backlog", () => {
+  test("keeps its one reserved refresh slot under a full delete/push backlog", () => {
+    // budget 8 reserves one slot (8 / 8) for refresh; the rest splits 4/4 into
+    // a 3/4 work split once the reserve is taken out, leaving exactly one
+    // refresh through — the backlog can never freeze the sweep out.
     const { actions } = plan({
       budget: 8,
       deletes: manyDeletes(20),
       pending: manyPending(20, 100),
-      refresh: [fresh(500), fresh(501)],
+      refresh: [fresh(500)],
     });
-    // The backlog cannot consume the whole budget: refresh still gets a turn.
-    expect(ofKind(actions, "refresh").length).toBeGreaterThan(0);
+    expect(ofKind(actions, "refresh").map((a) => a.listingId)).toEqual([500]);
+  });
+
+  test("caps the reserve at a budget-eighth even with more stale candidates", () => {
+    // budget 16 reserves two slots (16 / 8); three candidates queue, so exactly
+    // two refresh this wake and the third waits — the reserve is a floor, not a
+    // free-for-all that would eat into delete/push work.
+    const { actions } = plan({
+      budget: 16,
+      deletes: manyDeletes(20),
+      pending: manyPending(20, 100),
+      refresh: [fresh(500), fresh(501), fresh(502)],
+    });
+    expect(ofKind(actions, "refresh")).toHaveLength(2);
   });
 
   test("skips a refresh candidate that failed too recently to retry", () => {
@@ -230,6 +261,19 @@ describe("planPush — refresh sweep", () => {
     // The recently-failed one cools off; the fresh one still refreshes, so a
     // permanently-failing refresh cannot hog the sweep every wake.
     expect(ofKind(actions, "refresh").map((a) => a.listingId)).toEqual([11]);
+  });
+
+  test("a stream of fresh refreshes never starves an old failed refresh", () => {
+    // budget 4, six ready refreshes (one long-failed): the reserved retry slot
+    // pulls the stale failure in even though five fresh candidates queue ahead.
+    const stuck = { attemptAt: NOW - RETRY_MS * 4, id: 999 };
+    const { actions } = plan({
+      budget: 4,
+      refresh: [stuck, fresh(1), fresh(2), fresh(3), fresh(4), fresh(5)],
+    });
+    const refreshed = ofKind(actions, "refresh").map((a) => a.listingId);
+    expect(refreshed).toHaveLength(4);
+    expect(refreshed).toContain(999);
   });
 
   test("does no refresh when there are no already-mirrored listings", () => {

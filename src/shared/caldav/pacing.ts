@@ -2,33 +2,34 @@
  * Pure timing helper for the CalDAV push task. Kept free of IO so it can be
  * driven by a fake clock in tests.
  *
- * A push worker holds a maintenance claim for a fixed lease. Settings changes
- * wait for that claim, so they cannot commit until the lease frees. To make
- * sure a worker never fires a calendar call at a destination the owner has just
- * changed away from, it stops calling out a little before its lease would
- * expire (the safety margin), and every call it does make carries an abort
- * deadline that also lands inside the margin.
+ * A push worker runs under a maintenance claim with an absolute deadline handed
+ * to it by the runner (its own task deadline, capped by the request deadline).
+ * Settings changes wait for that claim, so they cannot commit until the worker
+ * finishes and releases. To make sure a worker never fires a calendar call at a
+ * destination the owner has just changed away from, it stops calling out a
+ * little before that deadline, and every call it does make carries an abort
+ * deadline that also lands before it.
  */
-
-/** How long a single push pass may hold its claim before it must stop. */
-export const LEASE_MS = 60_000;
 
 /**
- * Stop starting new calendar calls once this little time is left on the lease.
- * The gap covers one in-flight call plus the write that records its result.
+ * Reserve this much time before the maintenance deadline to record the last
+ * call's result. A calendar call must both start and abort this long before
+ * the deadline, so its outcome is written while the worker still holds its
+ * claim — and settings changes, which wait for that claim, stay blocked until
+ * then.
  */
-export const LEASE_SAFETY_MARGIN_MS = 10_000;
+export const RESULT_WRITE_MARGIN_MS = 2_000;
 
 /** Wait at least this long before retrying a listing or delete that failed. */
 export const FAILURE_RETRY_INTERVAL_MS = 5 * 60_000;
 
 /**
- * Milliseconds of lease left before the safety margin.
+ * Milliseconds the next calendar call may run before the maintenance deadline.
  *
- * A **positive** result means there is still time to start another calendar
- * call, and the result is that call's abort deadline — so a hung request can't
- * outlive the lease. **Zero or negative** means the worker must stop calling
- * out for the rest of the pass.
+ * A **positive** result means there is still time to start another call, and
+ * the result is that call's abort deadline — so a hung request can't outlive
+ * the claim. **Zero or negative** means the worker must stop calling out for
+ * the rest of the pass.
  */
-export const leaseTimeLeftMs = (startedAtMs: number, nowMs: number): number =>
-  LEASE_MS - LEASE_SAFETY_MARGIN_MS - (nowMs - startedAtMs);
+export const callTimeLeftMs = (deadlineMs: number, nowMs: number): number =>
+  deadlineMs - nowMs - RESULT_WRITE_MARGIN_MS;
