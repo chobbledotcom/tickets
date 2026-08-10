@@ -52,6 +52,11 @@ export const EVIDENCE_CAPTURES = [
     ".page-regions.admin-page",
   ),
   brandedMobileCapture(
+    "servicing.record-cost",
+    "maintenance-cost-on-a-room",
+    "#servicing-costs",
+  ),
+  brandedMobileCapture(
     "servicing.hold-on-dashboard",
     "servicing-studio-floor-hold",
     "#servicing-form",

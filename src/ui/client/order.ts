@@ -149,7 +149,7 @@ class CartController {
     host.setAttribute("data-chobble-order", "");
     document.body.appendChild(host);
     this.root = host.attachShadow({ mode: "open" });
-    this.root.appendChild(buildStyles());
+    applyStyles(this.root);
     this.button = buildButton(() => this.open());
     this.dialog = document.createElement("dialog");
     this.dialog.addEventListener("close", () => this.button.focus());
@@ -417,9 +417,9 @@ const buildStepper = (
   return wrap;
 };
 
-const buildStyles = (): HTMLStyleElement => {
-  const style = document.createElement("style");
-  style.textContent = `
+/** The cart widget's scoped CSS. Kept as one string so both delivery paths in
+ *  {@link applyStyles} use exactly the same rules. */
+const CART_STYLES = `
     .cart-button { position: fixed; right: 1rem; bottom: 1rem; padding: .75rem 1rem;
       border: 0; border-radius: 999px; background: #1a1a1a; color: #fff; cursor: pointer; }
     dialog { border: 0; border-radius: .5rem; box-sizing: border-box; padding: 1.25rem;
@@ -436,7 +436,32 @@ const buildStyles = (): HTMLStyleElement => {
       border: 0; border-radius: .35rem; background: #1a1a1a; color: #fff; cursor: pointer; }
     .close { display: block; width: 100%; margin-top: .5rem; padding: .5rem; }
   `;
-  return style;
+
+/** True when the browser can build a stylesheet in memory (Chrome 73+,
+ *  Firefox 101+, Safari 16.4+). An in-memory sheet is pure CSSOM, so a host
+ *  page's Content-Security-Policy never blocks it — but an injected `<style>`
+ *  element is subject to `style-src` and a strict policy without
+ *  `'unsafe-inline'` refuses it. `CSSStyleSheet` also exists as a plain
+ *  interface on older Safari where `new CSSStyleSheet()` throws, so we probe for
+ *  `replaceSync`, which only the constructable version carries. */
+const canBuildStyleSheet = (): boolean =>
+  typeof CSSStyleSheet === "function" &&
+  typeof CSSStyleSheet.prototype.replaceSync === "function";
+
+/** Attach the cart's scoped styles to its shadow root. Modern browsers adopt an
+ *  in-memory stylesheet so a strict host-page CSP can't block it; older ones
+ *  fall back to a `<style>` element, which works everywhere except a host page
+ *  that sets a strict `style-src`. */
+const applyStyles = (root: ShadowRoot): void => {
+  if (canBuildStyleSheet()) {
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(CART_STYLES);
+    root.adoptedStyleSheets = [sheet];
+    return;
+  }
+  const style = document.createElement("style");
+  style.textContent = CART_STYLES;
+  root.appendChild(style);
 };
 
 const init = (): void => {
