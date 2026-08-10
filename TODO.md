@@ -2284,3 +2284,30 @@ path that decides whether money moves.
 
 Out of scope where it was found: that slice was the merge/delete admissions and
 the prune's orphan rule. Found by Codex on #2065.
+
+## Two attendees on one charge each get their own reversal
+
+`refundClaimedBatch` in `src/features/admin/refunds/provider.ts` asks the
+provider once per reference (`answeredOnce`), which is right — one charge, one
+payout. But every candidate carrying that reference is then tallied as refunded
+and handed to `recordAttendeeRefundsBatch`, so each posts its own `refund_cash`
+reversal.
+
+Whether that is correct depends on something the code does not currently
+establish: if the one charge genuinely paid for both attendees' bookings, two
+reversals summing to the payout are exactly right. If the two attendees each
+have their own paid booking and merely share a reference — the legacy shape the
+claim layer already guards against, see `readClaimableRows`, which deliberately
+claims other rows on the same reference "so two attendees who share one legacy
+reference [do not] each claim their own row and race two payouts against one
+charge" — then one payout is reversed twice and the money history is wrong.
+
+So the fix is not a code tweak, it is the owner decision already recorded above
+for the conflicted sibling: either admit every reference in a set before any
+money is sent (refusing the whole run when one is shared), or teach the ledger
+to reverse a shared charge proportionally. Both move real money, and picking one
+unilaterally is exactly what the operator-decides rule forbids. What is needed
+first is a read of `computeAttendeeRefund` against a real shared-charge row to
+establish which of the two shapes actually occurs in stored data.
+
+Found by Codex on #2065.
