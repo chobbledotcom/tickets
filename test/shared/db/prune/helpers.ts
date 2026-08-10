@@ -53,6 +53,7 @@ export const insertFailedPayment = async (
 export const insertClaimedPayment = async (
   sessionId: string,
   processedAtIso: string,
+  claimedAtIso = new Date(nowMs()).toISOString(),
 ): Promise<void> => {
   await getDb().execute(
     insert("processed_payments", {
@@ -60,7 +61,7 @@ export const insertClaimedPayment = async (
       failure_data: '{"error":"sold out","status":409,"refunded":true}',
       payment_session_id: sessionId,
       processed_at: processedAtIso,
-      protected_state: "claim",
+      protected_state: `claim:${claimedAtIso}`,
     }),
   );
 };

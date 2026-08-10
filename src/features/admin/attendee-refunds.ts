@@ -132,9 +132,6 @@ const handleAttendeeRefund = verifiedAttendeeAction(
     );
     if (provider instanceof Response) return provider;
 
-    // One attendee is a run of one: it takes the same hold before reading the
-    // provider, so a bulk wave already working on this person turns it away
-    // instead of both sending.
     const candidate = { attendee: data.attendee, references };
     // One attendee is a run of one: it takes the same hold before reading the
     // provider, so a bulk wave already working on this person turns it away
@@ -143,6 +140,7 @@ const handleAttendeeRefund = verifiedAttendeeAction(
       durableRowClaim,
       [attendeeId],
       provider.refundCapability,
+      listingId,
       {
         blocked: (reason) => {
           logError({
@@ -150,9 +148,11 @@ const handleAttendeeRefund = verifiedAttendeeAction(
             detail: `Admin refund not started for attendee ${attendeeId}: ${reason}`,
             listingId,
           });
+
           return { candidate, outcome: "failed" as const };
         },
-        lost: (result) => result.outcome === "errored",
+        lost: (result) =>
+          result.outcome === "errored" || result.unrecorded === true,
         work: () => refundCandidateAtProvider(provider, candidate, listingId),
       },
     );
