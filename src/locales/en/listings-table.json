@@ -17,6 +17,7 @@
   "listings_table.booking_qr": "Booking QR",
   "listings_table.no_email_attendees": "No attendees have an email address",
   "listings_table.export_csv": "Export CSV",
+  "listings_table.email_this_date": "Email this date's attendees",
   "listings_table.column.name.label": "Name",
   "listings_table.column.name.header": "Listing name",
   "listings_table.column.name.description": "Shows the listing name and image. The name links to the listing details.",

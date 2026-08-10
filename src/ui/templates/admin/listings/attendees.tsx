@@ -241,7 +241,19 @@ export const AttendeesSection = ({
         listingId={listingId}
       />
       <AttendeeTableBlock
-        actions={<a href={exportHref}>{t("listings_table.export_csv")}</a>}
+        actions={
+          <>
+            <a href={exportHref}>{t("listings_table.export_csv")}</a>
+            {/* A day's own way in to writing to the people it belongs to.
+                Offered only while a date is chosen: without one the listing's
+                own Email action already covers every date. */}
+            {dateFilter && (
+              <a href={`/admin/emails?listing=${listingId}&day=${dateFilter}`}>
+                {t("listings_table.email_this_date")}
+              </a>
+            )}
+          </>
+        }
         options={attendeeTableOptions({
           activeFilter,
           allowedDomain,

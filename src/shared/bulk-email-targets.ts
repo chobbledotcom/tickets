@@ -13,17 +13,21 @@
 import * as v from "valibot";
 import { filter, firstMatch, map } from "#fp";
 import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
+import { formatDateLabel } from "#shared/dates.ts";
 import {
   getAllAttendeePiiBlobs,
   getAttendeePiiBlobForToken,
+  getAttendeePiiBlobsForListingDay,
   getAttendeePiiBlobsForListings,
 } from "#shared/db/attendees/queries.ts";
+import { dateToRange } from "#shared/db/capacity.ts";
 import {
   getAllListings,
   getListingWithCount,
 } from "#shared/db/listings/records.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ListingWithCount } from "#shared/types.ts";
+import { IsoDateSchema, isIsoDate } from "#shared/validation/date.ts";
 import { guardFor } from "#shared/validation/guard.ts";
 import { parsePositiveIntId } from "#shared/validation/number.ts";
 import { NonEmptyTextSchema } from "#shared/validation/string.ts";
@@ -81,10 +85,19 @@ const audienceTargetSchema = v.object({
   audience: AudienceIdSchema,
   kind: v.literal("audience"),
 });
+/** The listing a listing-scoped target names. Declared once so the whole
+ * listing and one of its days cannot drift apart on what a listing id is. */
+const listingIdField = v.pipe(v.number(), v.integer());
 /** One listing, from that listing's admin page. */
 const listingTargetSchema = v.object({
   kind: v.literal("listing"),
-  listingId: v.pipe(v.number(), v.integer()),
+  listingId: listingIdField,
+});
+/** One day of one listing booked by the day, from that day's attendee list. */
+const listingDayTargetSchema = v.object({
+  day: IsoDateSchema,
+  kind: v.literal("listing-day"),
+  listingId: listingIdField,
 });
 /** One attendee, from that attendee's edit page (by non-empty ticket token). */
 const attendeeTargetSchema = v.object({
@@ -94,10 +107,15 @@ const attendeeTargetSchema = v.object({
 
 export type AudienceTarget = v.InferOutput<typeof audienceTargetSchema>;
 export type ListingTarget = v.InferOutput<typeof listingTargetSchema>;
+export type ListingDayTarget = v.InferOutput<typeof listingDayTargetSchema>;
 export type AttendeeTarget = v.InferOutput<typeof attendeeTargetSchema>;
 
 /** What a bulk email is aimed at. */
-export type BulkEmailTarget = AudienceTarget | ListingTarget | AttendeeTarget;
+export type BulkEmailTarget =
+  | AudienceTarget
+  | ListingTarget
+  | ListingDayTarget
+  | AttendeeTarget;
 
 /** Runtime schema for a target — a variant over the per-kind schemas above.
  * Drives {@link isBulkEmailTarget} and is exported so later validation tiers
@@ -105,6 +123,7 @@ export type BulkEmailTarget = AudienceTarget | ListingTarget | AttendeeTarget;
 export const BulkEmailTargetSchema = v.variant("kind", [
   audienceTargetSchema,
   listingTargetSchema,
+  listingDayTargetSchema,
   attendeeTargetSchema,
 ]);
 
@@ -281,27 +300,87 @@ const listingTargetFromRaw = async (
   return listing ? { kind: "listing", listingId: id } : null;
 };
 
+/** How a listing-scoped target names itself: the listing's own name while it is
+ * still there, and a plain fallback once it is gone. `narrowing` says which
+ * part of it the target means, so one day reads as the listing plus its day. */
+const describeListingAttendees = async (
+  listingId: number,
+  narrowing = "",
+): Promise<TargetDescription> => {
+  const listing = await getListingWithCount(listingId);
+  return {
+    targetLabel: listing
+      ? `Attendees of ${listing.name}${narrowing}`
+      : `Listing attendees${narrowing}`,
+  };
+};
+
+/** What the two listing-scoped targets answer the same way: the listing a send
+ * is logged against, that they always mean a group rather than one person, and
+ * the query string both are reached by. */
+const listingScoped = {
+  logListingId: (target: { listingId: number }): number => target.listingId,
+  singleRecipient: false,
+} as const;
+
+/** The query a listing-scoped target is reached by. One day adds its own day to
+ * this rather than spelling the listing part out again. */
+const listingQuery = (listingId: number): string => `?listing=${listingId}`;
+
 const listingSpec: TargetSpec<ListingTarget> = {
+  ...listingScoped,
   allowEmpty: false,
   composeControl: (target) =>
     fixedControl("listing_id", String(target.listingId)),
   composeCopy: BULK_COMPOSE_COPY,
-  describe: async (target) => {
-    const listing = await getListingWithCount(target.listingId);
-    return {
-      targetLabel: listing
-        ? `Attendees of ${listing.name}`
-        : "Listing attendees",
-    };
-  },
+  describe: (target) => describeListingAttendees(target.listingId),
   fromForm: (form) =>
     fromRawField(listingTargetFromRaw)(form.getString("listing_id")),
   fromQuery: (params) =>
     fromRawField(listingTargetFromRaw)(params.get("listing")),
   loadPiiBlobs: (target) => getAttendeePiiBlobsForListings([target.listingId]),
-  logListingId: (target) => target.listingId,
-  singleRecipient: false,
-  toQuery: (target) => `?listing=${target.listingId}`,
+  toQuery: (target) => listingQuery(target.listingId),
+};
+
+// ── One day of a listing's recipients ───────────────────────────────
+
+/** Resolve a listing id and a day to a target, or null if either is no good.
+ * Both parts have to be there: a listing without a day is the whole-listing
+ * target, which is a different (and still offered) way to choose. */
+const listingDayTargetFrom = async (
+  rawListing: string | null | undefined,
+  rawDay: string | null | undefined,
+): Promise<ListingDayTarget | null | undefined> => {
+  if (!rawListing || !rawDay) return;
+  const id = parsePositiveIntId(rawListing);
+  if (id === null || !isIsoDate(rawDay)) return null;
+  const listing = await getListingWithCount(id);
+  return listing ? { day: rawDay, kind: "listing-day", listingId: id } : null;
+};
+
+const listingDaySpec: TargetSpec<ListingDayTarget> = {
+  ...listingScoped,
+  allowEmpty: false,
+  composeControl: (target) => ({
+    fields: [
+      ["listing_id", String(target.listingId)],
+      ["day", target.day],
+    ],
+    mode: "fixed",
+  }),
+  composeCopy: BULK_COMPOSE_COPY,
+  describe: (target) =>
+    describeListingAttendees(
+      target.listingId,
+      ` on ${formatDateLabel(target.day)}`,
+    ),
+  fromForm: (form) =>
+    listingDayTargetFrom(form.getString("listing_id"), form.getString("day")),
+  fromQuery: (params) =>
+    listingDayTargetFrom(params.get("listing"), params.get("day")),
+  loadPiiBlobs: (target) =>
+    getAttendeePiiBlobsForListingDay(target.listingId, dateToRange(target.day)),
+  toQuery: (target) => `${listingQuery(target.listingId)}&day=${target.day}`,
 };
 
 // ── Attendee recipient ──────────────────────────────────────────────
@@ -342,6 +421,7 @@ const REGISTRY = {
   attendee: attendeeSpec,
   audience: audienceSpec,
   listing: listingSpec,
+  "listing-day": listingDaySpec,
 } as const;
 
 /** The spec for a target's kind. The cast is the one contained cost of a
@@ -392,11 +472,21 @@ export const targetLogListingId = (target: BulkEmailTarget): number | null =>
 // `Parsed<BulkEmailTarget>` so the ordered fold is a single firstMatch.
 const QUERY_PARSERS: ReadonlyArray<
   (params: URLSearchParams) => Parsed<BulkEmailTarget>
-> = [attendeeSpec.fromQuery, listingSpec.fromQuery, audienceSpec.fromQuery];
+> = [
+  attendeeSpec.fromQuery,
+  listingDaySpec.fromQuery,
+  listingSpec.fromQuery,
+  audienceSpec.fromQuery,
+];
 
 const FORM_PARSERS: ReadonlyArray<
   (form: FormParams) => Parsed<BulkEmailTarget>
-> = [attendeeSpec.fromForm, listingSpec.fromForm, audienceSpec.fromForm];
+> = [
+  attendeeSpec.fromForm,
+  listingDaySpec.fromForm,
+  listingSpec.fromForm,
+  audienceSpec.fromForm,
+];
 
 /** Run an ordered set of parsers over a source, returning the first claimed
  * target (or null if the only claim was an invalid one — `firstMatch` treats
