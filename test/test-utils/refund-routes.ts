@@ -1,5 +1,6 @@
 import { type Stub, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
+import type { RowClaim } from "#routes/admin/refunds/provider.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import { paymentsApi } from "#shared/payments.ts";
@@ -170,4 +171,28 @@ export const withRefundMock = async (
       mockRefund.restore();
     }
   });
+};
+
+/**
+ * A row claim that always grants and records what it released. Lets the tally
+ * and ordering rules be tested without a database; the durable claim's own
+ * rules are covered in `test/shared/db/payment-claim.test.ts`.
+ */
+export const grantingRowClaim = (): RowClaim & {
+  released: string[][];
+} => {
+  const released: string[][] = [];
+  return {
+    claim: () =>
+      Promise.resolve({
+        heldSince: "2026-08-10T12:00:00.000Z",
+        kind: "claimed",
+        sessionIds: [],
+      }),
+    release: (sessionIds: readonly string[]) => {
+      released.push([...sessionIds]);
+      return Promise.resolve();
+    },
+    released,
+  };
 };

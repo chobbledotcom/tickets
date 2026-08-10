@@ -54,6 +54,11 @@ const paymentStatement = (): PruneStatement => ({
            SELECT payment.rowid
              FROM processed_payments AS payment
             WHERE payment.processed_at < ?
+              -- A row with live refund work on it is never pruned, however
+              -- old it is: deleting it mid-run would throw away the claim and
+              -- let a later run pay the same money again. This is the one
+              -- reader that cannot decrypt, so it routes on the mirror.
+              AND payment.protected_state = ''
               AND (
                 payment.failure_data != ''
                 OR (

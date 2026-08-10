@@ -5,6 +5,7 @@ import { PRUNE_PAYMENTS_RETENTION_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
+  insertClaimedPayment,
   insertFailedPayment,
   insertFinalizedPayment,
   insertOrphanAttendee,
@@ -85,5 +86,15 @@ describeWithEnv("db > prunePayments", { db: true }, () => {
     await runDatabasePruning();
 
     expect(await paymentExists("sess_failed_recent")).toBe(true);
+  });
+
+  test("keeps an old row a refund run is holding right now", async () => {
+    await insertClaimedPayment("sess_claimed_old", oldEnoughToPrune());
+
+    await runDatabasePruning();
+
+    // Deleting it mid-run would throw away the claim, and a later run could
+    // then pay the same money a second time.
+    expect(await paymentExists("sess_claimed_old")).toBe(true);
   });
 });

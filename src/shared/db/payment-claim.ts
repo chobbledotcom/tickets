@@ -14,9 +14,12 @@
  * is worse than refusing.
  */
 
+/* jscpd:ignore-start -- imports */
+import type { InValue } from "@libsql/client";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
+  inPlaceholders,
   resultRows,
   type TxScope,
   withTransaction,
@@ -38,6 +41,8 @@ import {
   writeRowState,
 } from "#shared/payment/row-state.ts";
 
+/* jscpd:ignore-end */
+
 const SLOT = "processed_payments.failure_data";
 
 /** The plaintext word the one consumer that cannot decrypt routes on. Live
@@ -55,13 +60,29 @@ type ClaimRow = {
 /** What happened when a run asked for an attendee's rows. */
 export type ClaimResult =
   | { blockedBy: ClaimDecision; kind: "blocked" }
-  | { kind: "claimed"; sessionIds: readonly string[] };
+  | { heldSince: string; kind: "claimed"; sessionIds: readonly string[] };
 
 type StoredRow = {
   failure_data: EnvKeyEncrypted | "";
   payment_reference_index: string;
   payment_session_id: string;
 };
+
+/** The columns every claim decision reads, for whichever rows the caller
+ *  names. One place says which columns a claim needs. */
+const readRows = async (
+  tx: TxScope,
+  where: string,
+  args: InValue[],
+): Promise<StoredRow[]> =>
+  resultRows<StoredRow>(
+    await tx.execute({
+      args,
+      sql: `SELECT payment_session_id, failure_data, payment_reference_index
+              FROM processed_payments
+             WHERE ${where}`,
+    }),
+  );
 
 /**
  * Every row that holds this attendee's refundable money, plus every OTHER row
@@ -75,26 +96,19 @@ const readClaimableRows = async (
   tx: TxScope,
   attendeeId: number,
 ): Promise<{ own: StoredRow[]; sharing: StoredRow[] }> => {
-  const own = resultRows<StoredRow>(
-    await tx.execute({
-      args: [attendeeId],
-      sql: `SELECT payment_session_id, failure_data, payment_reference_index
-              FROM processed_payments
-             WHERE attendee_id = ? AND payment_reference != ''`,
-    }),
+  const own = await readRows(
+    tx,
+    "attendee_id = ? AND payment_reference != ''",
+    [attendeeId],
   );
   const indexes = own
     .map((row) => row.payment_reference_index)
     .filter((index) => index !== "");
   if (indexes.length === 0) return { own, sharing: [] };
-  const sharing = resultRows<StoredRow>(
-    await tx.execute({
-      args: [attendeeId, ...indexes],
-      sql: `SELECT payment_session_id, failure_data, payment_reference_index
-              FROM processed_payments
-             WHERE attendee_id IS NOT ?
-               AND payment_reference_index IN (${indexes.map(() => "?").join(", ")})`,
-    }),
+  const sharing = await readRows(
+    tx,
+    `attendee_id IS NOT ? AND payment_reference_index IN (${inPlaceholders(indexes)})`,
+    [attendeeId, ...indexes],
   );
   return { own, sharing };
 };
@@ -173,33 +187,37 @@ export const claimAttendeeRows = async (
         CLAIMED_STATE,
       );
     }
-    return { kind: "claimed", sessionIds: rows.map((row) => row.sessionId) };
+    return {
+      heldSince: writtenAt,
+      kind: "claimed",
+      sessionIds: rows.map((row) => row.sessionId),
+    };
   });
 };
 
 /**
  * Let go of the rows a run claimed, leaving whatever else they carry alone.
  *
- * A row whose claim is gone — a resume took it over while this run stalled —
- * is left exactly as it is: taking its record back would undo the work of
- * whoever holds it now.
+ * `heldSince` is the run's own claim, and only that exact claim is released. A
+ * run that stalled past the staleness cutoff may wake up to find another run
+ * has resumed its rows; releasing then would strip the live claim off work
+ * that is still going and let a third run in behind it. So a claim that is no
+ * longer ours is left exactly where it is.
  */
 export const releaseAttendeeRows = async (
   sessionIds: readonly string[],
+  heldSince: string,
 ): Promise<void> => {
   if (sessionIds.length === 0) return;
   await withTransaction(async (tx) => {
-    const rows = resultRows<StoredRow>(
-      await tx.execute({
-        args: [...sessionIds],
-        sql: `SELECT payment_session_id, failure_data, payment_reference_index
-                FROM processed_payments
-               WHERE payment_session_id IN (${sessionIds.map(() => "?").join(", ")})`,
-      }),
+    const rows = await readRows(
+      tx,
+      `payment_session_id IN (${inPlaceholders(sessionIds)})`,
+      [...sessionIds],
     );
     for (const stored of rows) {
       const row = await asClaimRow(stored);
-      if (row.state.claim === undefined) continue;
+      if (row.state.claim?.writtenAt !== heldSince) continue;
       const { claim: _released, ...kept } = row.state;
       await writeState(tx, row, kept, "");
     }

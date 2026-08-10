@@ -1,5 +1,10 @@
 import { chunk } from "#fp";
 import {
+  type ClaimResult,
+  claimAttendeeRows,
+  releaseAttendeeRows,
+} from "#shared/db/payment-claim.ts";
+import {
   markPaymentReferencesProviderRefunded,
   type RefundPaymentReference,
 } from "#shared/db/payment-references.ts";
@@ -9,6 +14,12 @@ import {
   admissionReason,
   sendRefundIfAdmitted,
 } from "#shared/payment/admit-refund.ts";
+import {
+  type ClaimAnswer,
+  claimRefusal,
+  mayReleaseClaim,
+} from "#shared/payment/claim.ts";
+import type { RefundCapability } from "#shared/payment/row-state.ts";
 import type { getActivePaymentProvider } from "#shared/payments.ts";
 import { recordAttendeeRefundsBatch } from "#shared/refund-ledger.ts";
 import type { RefundCandidate } from "./candidates.ts";
@@ -20,11 +31,27 @@ import {
 
 type RefundProvider = Pick<
   NonNullable<Awaited<ReturnType<typeof getActivePaymentProvider>>>,
-  "readChargeMoneyOrNull" | "refundPayment"
+  "readChargeMoneyOrNull" | "refundCapability" | "refundPayment"
 >;
 type MarkReturnedReferences = (
   references: readonly RefundPaymentReference[],
 ) => Promise<void>;
+
+/** Taking and letting go of the hold on an attendee's payment rows. Injected
+ *  like the marker above so the tally and ordering rules can be tested without
+ *  a database, while the real run always takes the durable claim. */
+export type RowClaim = {
+  claim: (
+    attendeeId: number,
+    capability: RefundCapability,
+  ) => Promise<ClaimResult>;
+  release: (sessionIds: readonly string[], heldSince: string) => Promise<void>;
+};
+
+const durableRowClaim: RowClaim = {
+  claim: claimAttendeeRows,
+  release: releaseAttendeeRows,
+};
 
 export type RefundCounts = {
   refundedCount: number;
@@ -91,6 +118,55 @@ export const refundCandidateAtProvider = async (
   candidate: RefundCandidate,
   listingId: number,
   markReturnedReferences: MarkReturnedReferences = markPaymentReferencesProviderRefunded,
+  rowClaim: RowClaim = durableRowClaim,
+): Promise<{ candidate: RefundCandidate; outcome: RefundOutcome }> => {
+  // Take the whole reference set before reading any provider, so a second run
+  // on this attendee's money is turned away here rather than discovering the
+  // overlap by sending a second payout.
+  const claim = await rowClaim.claim(
+    candidate.attendee.id,
+    provider.refundCapability,
+  );
+  if (claim.kind === "blocked") {
+    return {
+      candidate,
+      outcome: refusedRefund(
+        `Admin refund not started for attendee ${candidate.attendee.id}: ${claimRefusal(claim.blockedBy)}`,
+        listingId,
+      ),
+    };
+  }
+  // A run that ended without a clear answer may have sent money it never heard
+  // back about. With an idempotency key a repeat lands on the same refund, so
+  // the hold can go; without one it stands until fresh evidence settles it,
+  // even though that blocks this attendee until the claim goes stale.
+  const answer = (outcome: RefundOutcome): ClaimAnswer =>
+    outcome === "errored" ? "lost" : "validated";
+  const released = async (outcome: RefundOutcome): Promise<void> => {
+    if (mayReleaseClaim(provider.refundCapability, answer(outcome))) {
+      await rowClaim.release(claim.sessionIds, claim.heldSince);
+    }
+  };
+  try {
+    const result = await refundClaimedCandidate(
+      provider,
+      candidate,
+      listingId,
+      markReturnedReferences,
+    );
+    await released(result.outcome);
+    return result;
+  } catch (error) {
+    await released("errored");
+    throw error;
+  }
+};
+
+const refundClaimedCandidate = async (
+  provider: RefundProvider,
+  candidate: RefundCandidate,
+  listingId: number,
+  markReturnedReferences: MarkReturnedReferences,
 ): Promise<{ candidate: RefundCandidate; outcome: RefundOutcome }> => {
   const results: {
     outcome: RefundOutcome;
@@ -187,6 +263,7 @@ export const processRefundBatch = async (
   provider: RefundProvider,
   batch: RefundCandidate[],
   listingId: number,
+  rowClaim: RowClaim = durableRowClaim,
 ): Promise<RefundCounts> => {
   const counts: RefundCounts = {
     errorCount: 0,
@@ -198,7 +275,13 @@ export const processRefundBatch = async (
   )) {
     const results = await Promise.all(
       group.map((candidate) =>
-        refundCandidateAtProvider(provider, candidate, listingId),
+        refundCandidateAtProvider(
+          provider,
+          candidate,
+          listingId,
+          markPaymentReferencesProviderRefunded,
+          rowClaim,
+        ),
       ),
     );
     const chunkRefundedAttendees: {

@@ -15,6 +15,7 @@ import { existingPaymentProviderState } from "#shared/existing-payment-provider.
 import { logDebug } from "#shared/logger.ts";
 import type { Currency } from "#shared/payment/money.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
+import type { RefundCapability } from "#shared/payment/row-state.ts";
 import type { SessionRejection } from "#shared/payment/validated-session.ts";
 import type { CalcKind, ModifierTrigger } from "#shared/price-modifier.ts";
 import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
@@ -293,6 +294,17 @@ export interface PaymentProvider {
    * @returns the money facts, or null when the charge cannot be read
    */
   readChargeMoneyOrNull(paymentReference: string): Promise<ChargeMoney | null>;
+
+  /**
+   * Whether a refund this provider accepted can safely be asked for twice.
+   *
+   * Providers that take an idempotency key land a repeat call on the original
+   * refund, so a run whose answer went missing may simply try again. SumUp has
+   * no such key: asking twice pays twice. A refund run keeps its hold on the
+   * money until fresh evidence settles a keyless call, which is why every
+   * adapter has to say which kind it is rather than being assumed.
+   */
+  readonly refundCapability: RefundCapability;
 
   /**
    * Refund a completed payment.

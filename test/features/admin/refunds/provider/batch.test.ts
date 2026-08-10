@@ -10,6 +10,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { chargeMoney } from "#test-utils/payment-state.ts";
+import { grantingRowClaim } from "#test-utils/refund-routes.ts";
 
 const LISTING = 7;
 
@@ -39,6 +40,7 @@ const pendingCandidate = (
  * `throws`; used to drive the failed/errored tally branches. */
 const failingProvider = (throws: Set<string>) => ({
   readChargeMoneyOrNull: () => Promise.resolve(chargeMoney()),
+  refundCapability: "keyed" as const,
   refundPayment: (reference: string) => {
     if (throws.has(reference)) throw new Error(`boom ${reference}`);
     return Promise.resolve(false);
@@ -62,6 +64,7 @@ describeWithEnv(
           pendingCandidate(13, ["pi_boom", "pi_two"]),
         ],
         LISTING,
+        grantingRowClaim(),
       );
 
       expect(counts).toEqual({
@@ -85,6 +88,7 @@ describeWithEnv(
         failingProvider(new Set()),
         [],
         LISTING,
+        grantingRowClaim(),
       );
 
       expect(counts).toEqual({
@@ -101,6 +105,7 @@ describeWithEnv(
         failingProvider(new Set()),
         [refundedCandidate(21, "sess-missing")],
         LISTING,
+        grantingRowClaim(),
       );
 
       expect(counts).toEqual({

@@ -180,6 +180,7 @@ export const sumupPaymentProvider: PaymentProvider = {
       refunds,
     );
   },
+  refundCapability: "keyless",
 
   refundPayment(paymentReference: string): Promise<boolean> {
     return sumupApi.refundTransaction(paymentReference);

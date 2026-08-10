@@ -11,7 +11,6 @@
  * upsert. A lookup in the same batch returns any existing outcome.
  */
 
-import * as v from "valibot";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import type {
   EnvKeyEncrypted,
@@ -25,6 +24,10 @@ import {
 import { encryptPaymentReference } from "#shared/db/payment-references.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { isoBefore, nowIso } from "#shared/now.ts";
+import {
+  type StoredPaymentFailure,
+  StoredPaymentFailureSchema,
+} from "#shared/payment/row-state.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
 export { STALE_RESERVATION_MS };
@@ -60,25 +63,6 @@ export type ProcessedPayment = {
   provider_refunded_at: string;
 };
 
-/**
- * The subset of a handled payment failure we persist so a later redirect or
- * webhook retry replays the same terminal result (user-facing message, HTTP
- * status, and whether a refund was already issued) without re-validating the
- * listing or re-attempting the refund.
- *
- * Persisted encrypted (see {@link markSessionFailed} / failure_data): `error`
- * can embed an encrypted-at-rest listing name, so it must never be stored in the
- * clear. Keep this shape free of any field that shouldn't round-trip through the
- * DB encryption key.
- */
-const StoredPaymentFailureSchema = v.strictObject({
-  error: v.string(),
-  refunded: v.optional(v.boolean()),
-  status: v.optional(v.pipe(v.number(), v.safeInteger())),
-});
-export type StoredPaymentFailure = v.InferOutput<
-  typeof StoredPaymentFailureSchema
->;
 const paymentFailureJson = defineStoredJson(StoredPaymentFailureSchema);
 
 /** Result of session reservation attempt */

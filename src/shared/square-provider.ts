@@ -76,6 +76,7 @@ export const squarePaymentProvider: PaymentProvider = {
     if (returned === null) return null;
     return chargeMoneyOrNull(captured.amount, captured.currency, returned);
   },
+  refundCapability: "keyed",
 
   refundPayment(paymentReference: string): Promise<boolean> {
     return squareApi.refundPayment(paymentReference);

@@ -48,6 +48,23 @@ export const insertFailedPayment = async (
   );
 };
 
+/** An old row that a refund run is holding right now: its live work shows in
+ *  the plaintext mirror the prune reads. */
+export const insertClaimedPayment = async (
+  sessionId: string,
+  processedAtIso: string,
+): Promise<void> => {
+  await getDb().execute(
+    insert("processed_payments", {
+      attendee_id: null,
+      failure_data: '{"error":"sold out","status":409,"refunded":true}',
+      payment_session_id: sessionId,
+      processed_at: processedAtIso,
+      protected_state: "claim",
+    }),
+  );
+};
+
 export const paymentExists = async (sessionId: string): Promise<boolean> => {
   const { rows } = await getDb().execute({
     args: [sessionId],

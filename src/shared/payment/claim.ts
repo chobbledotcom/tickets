@@ -87,6 +87,26 @@ export const decideClaim = (
     : { kind: "foreign" };
 };
 
+/** Why no money was sent, in words for a log line. The two claiming answers
+ *  have no reason to give, and listing them as such keeps a new decision from
+ *  quietly falling into whichever arm happens to be last. */
+const REFUSAL_REASONS = {
+  foreign: "another kind of run holds this payment",
+  grant: null,
+  held: "a refund for this payment is already in progress",
+  resume: null,
+} as const satisfies Record<ClaimDecision["kind"], string | null>;
+
+/** Say why a run was turned away. Asking this of a claim that was granted is a
+ *  bug, so it fails rather than inventing words. */
+export const claimRefusal = (decision: ClaimDecision): string => {
+  const reason = REFUSAL_REASONS[decision.kind];
+  if (reason === null) {
+    throw new Error(`A granted claim has no refusal: ${decision.kind}`);
+  }
+  return reason;
+};
+
 /**
  * How a refund call under this claim ended, as far as releasing goes.
  *
