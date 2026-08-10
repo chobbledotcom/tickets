@@ -3,6 +3,7 @@ import { describe, test } from "@std/testing/bdd";
 import {
   type ClaimDecision,
   type ClaimRequest,
+  claimRefusal,
   decideClaim,
   holdsTheRow,
   isClaimStale,
@@ -135,4 +136,26 @@ describe("mayReleaseClaim", () => {
   test("a lost answer keeps an unresolved-provider claim standing", () => {
     expect(mayReleaseClaim("unresolved", "lost")).toBe(false);
   });
+});
+
+describe("saying why a run was turned away", () => {
+  for (const [kind, words] of [
+    ["foreign", "another kind of run holds this payment"],
+    ["held", "a refund for this payment is already in progress"],
+  ] as const satisfies readonly (readonly [ClaimDecision["kind"], string])[]) {
+    test(`${kind} says so in words`, () => {
+      expect(claimRefusal({ kind })).toBe(words);
+    });
+  }
+
+  // Both of these mean the run HOLDS the row. Asking why it was refused is
+  // the caller having lost track of its own answer, so it fails rather than
+  // handing back words that would read as a refusal in a log.
+  for (const kind of ["grant", "resume"] as const) {
+    test(`${kind} has no refusal to give`, () => {
+      expect(() => claimRefusal({ kind })).toThrow(
+        `A granted claim has no refusal: ${kind}`,
+      );
+    });
+  }
 });

@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { execute, queryOne } from "#shared/db/client.ts";
 import {
   encryptPaymentReference,
@@ -442,3 +442,49 @@ describeWithEnv("db > payment references", { db: true }, () => {
     ).toBe(true);
   });
 });
+
+describe("the index a charge is found by", () => {
+  // A row with no reference has nothing to find, and hashing "" would give
+  // every such row the SAME index — which is what a claim looks rows up by,
+  // so two unrelated empty rows would exclude each other.
+  test("a row with no reference gets no index", async () => {
+    expect(await paymentReferenceIndex("")).toBe("");
+  });
+});
+
+describeWithEnv(
+  "db > payment references > rows with nothing to refund",
+  {
+    db: true,
+  },
+  () => {
+    // A session can be reserved before the charge is known, so its row carries
+    // no reference at all. The read leaves those rows behind in SQL, which is
+    // what keeps a blank reference from reaching the refund path as something
+    // to send money against.
+    test("a row holding no reference is passed over", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const created = await bookAttendee(listing, {
+        email: "no-reference@example.com",
+        name: "No Reference",
+      });
+      if (!created.success) throw new Error("setup failed");
+      const attendeeId = created.attendees[0]!.id;
+
+      await reserveSession("sess_no_reference");
+      await execute(
+        `UPDATE processed_payments
+          SET attendee_id = ?, payment_reference = '', processed_at = ?
+        WHERE payment_session_id = ?`,
+        [attendeeId, "2026-06-21T00:00:00.000Z", "sess_no_reference"],
+      );
+
+      const references = await getRefundPaymentReferences(
+        [{ id: attendeeId, payment_id: "" }],
+        await getTestPrivateKey(),
+      );
+
+      expect(references.get(attendeeId)).toEqual([]);
+    });
+  },
+);

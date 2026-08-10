@@ -225,7 +225,6 @@ export const getRefundPaymentReferences = async (
       row.payment_reference,
       privateKey,
     );
-    if (!reference) continue;
     const stored = row.payment_reference_index;
     const index =
       stored === "" ? await paymentReferenceIndex(reference) : stored;
