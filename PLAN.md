@@ -166,7 +166,7 @@ the same rule.
 
 ## Data laws
 
-Seven laws govern how every part of this program behaves around data. Each
+Eight laws govern how every part of this program behaves around data. Each
 milestone contract instantiates them for the data it touches and says which law
 admits each new state, consumer, or fact — so a review finding of one of these
 shapes is answered by the law, and a design that satisfies them up front rules
@@ -208,6 +208,16 @@ these laws bind.
    idempotency key, a cumulative total, an event authority — is declared once,
    and every behavior derives from the declared capability, never a per-party
    arm, so a new party inherits the whole discipline by declaration.
+8. **Atomicity before compensation.** Facts that must agree and live in this
+   database change in ONE atomic write — the same statement, or one libsql batch
+   or interactive transaction, which commit whole and roll back whole, with a
+   conditional write's affected-rows count deciding a winner (the helpers in
+   AGENTS.md's Transactions and Batches section). Never write one half and
+   defend the gap with a check, a retry, or a repair pass. Guards, fences,
+   staleness rules, and re-judges are reserved for the one gap atomicity cannot
+   close — an external call or a concurrent request in the middle — and each one
+   names the gap it spans. When a review offers "add a guard, or make the write
+   atomic", atomic wins.
 
 ## Milestones
 
