@@ -2153,8 +2153,7 @@ a list of attendee ids and claims them all in one transaction (which the
 contract's all-or-none rule already wants — a wave that cannot claim every
 attendee should refuse whole), with one matching release. That is one
 transaction per wave instead of two per attendee, and it also makes the
-all-or-none guarantee true across the wave rather than only within one
-attendee.
+all-or-none guarantee true across the wave rather than only within one attendee.
 
 Do this before wiring the callback arm and the refresh route, since both will
 otherwise inherit the same per-call cost.

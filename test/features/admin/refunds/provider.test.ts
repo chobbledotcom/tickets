@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import {
+  processRefundBatch,
   type RowClaim,
   refundCandidateAtProvider,
 } from "#routes/admin/refunds/provider.ts";
@@ -166,7 +167,6 @@ describe("admin refund provider", () => {
       candidate([{ reference: "pi_pre", refundState: "completed" }]),
       7,
       marker.mark,
-      grantingRowClaim(),
     );
 
     expect(result.outcome).toBe("refunded");
@@ -181,7 +181,6 @@ describe("admin refund provider", () => {
       candidateWithReferences(["pi_now"]),
       7,
       marker.mark,
-      grantingRowClaim(),
     );
 
     expect(result.outcome).toBe("refunded");
@@ -195,7 +194,6 @@ describe("admin refund provider", () => {
       candidateWithReferences(["pi_seen"]),
       7,
       marker.mark,
-      grantingRowClaim(),
     );
 
     expect(result.outcome).toBe("refunded");
@@ -209,7 +207,6 @@ describe("admin refund provider", () => {
       candidateWithReferences(["pi_no"]),
       7,
       marker.mark,
-      grantingRowClaim(),
     );
 
     expect(result.outcome).toBe("failed");
@@ -226,7 +223,6 @@ describe("admin refund provider", () => {
       candidateWithReferences(["pi_boom"]),
       7,
       marker.mark,
-      grantingRowClaim(),
     );
 
     expect(result.outcome).toBe("errored");
@@ -243,7 +239,6 @@ describe("admin refund provider", () => {
       candidateWithReferences(["pi_ok", "pi_bad"]),
       7,
       marker.mark,
-      grantingRowClaim(),
     );
 
     expect(result.outcome).toBe("failed");
@@ -262,7 +257,6 @@ describe("admin refund provider", () => {
       candidateWithReferences(["pi_solo"]),
       7,
       collectingMarker().mark,
-      grantingRowClaim(),
     );
 
     expect(result.outcome).toBe("failed");
@@ -281,7 +275,6 @@ describe("admin refund provider", () => {
       candidateWithReferences(references),
       7,
       marker.mark,
-      grantingRowClaim(),
     );
 
     expect(result.outcome).toBe("refunded");
@@ -294,7 +287,6 @@ describe("admin refund provider", () => {
       candidateWithReferences(["pi_a", "pi_b"]),
       7,
       collectingMarker().mark,
-      grantingRowClaim(),
     );
 
     expect(result.outcome).toBe("refunded");
@@ -311,7 +303,6 @@ describe("admin refund provider", () => {
       candidateWithReferences(["pi_done"]),
       7,
       throwMarker,
-      grantingRowClaim(),
     );
 
     expect(result.outcome).toBe("refunded");
@@ -326,7 +317,6 @@ describe("admin refund provider", () => {
       candidateWithReferences(["pi_done", "pi_failed"]),
       7,
       throwMarker,
-      grantingRowClaim(),
     );
 
     expect(result.outcome).toBe("errored");
@@ -337,52 +327,67 @@ describe("admin refund provider", () => {
 });
 
 describe("admin refund provider > the claim", () => {
-  /** A claim that refuses, as if another run already held this attendee. */
+  /** A claim that refuses, as if another run already held these attendees. */
   const blockedRowClaim = (): RowClaim => ({
     claim: () =>
       Promise.resolve({ blockedBy: { kind: "held" }, kind: "blocked" }),
     release: () => Promise.resolve(),
   });
 
-  test("a blocked run never asks the provider anything", async () => {
-    let providerCalls = 0;
-    const counting = {
-      readChargeMoneyOrNull: () => {
-        providerCalls++;
-        return Promise.resolve(chargeMoney());
-      },
-      refundCapability: "keyless" as const,
-      refundPayment: () => {
-        providerCalls++;
-        return Promise.resolve(true);
-      },
-    };
+  const countingProvider = (calls: { count: number }) => ({
+    readChargeMoneyOrNull: () => {
+      calls.count++;
+      return Promise.resolve(chargeMoney());
+    },
+    refundCapability: "keyless" as const,
+    refundPayment: () => {
+      calls.count++;
+      return Promise.resolve(true);
+    },
+  });
 
-    const result = await refundCandidateAtProvider(
-      counting,
-      candidateWithReferences(["pi_held"]),
+  test("a blocked run never asks the provider anything", async () => {
+    const calls = { count: 0 };
+    const counts = await processRefundBatch(
+      countingProvider(calls),
+      [candidate([{ reference: "pi_held", refundState: "none" }])],
       7,
-      collectingMarker().mark,
       blockedRowClaim(),
     );
 
-    expect(result.outcome).toBe("failed");
-    expect(providerCalls).toBe(0);
+    expect(counts).toEqual({ errorCount: 0, failedCount: 1, refundedCount: 0 });
+    expect(calls.count).toBe(0);
   });
 
-  test("a granted run releases the rows it claimed", async () => {
+  test("the whole batch is held by one claim, not one per attendee", async () => {
     const rowClaim = grantingRowClaim();
-    await refundCandidateAtProvider(
-      provider({ refunded: new Set(["pi_ok"]) }),
-      candidateWithReferences(["pi_ok"]),
+    const claimed: number[][] = [];
+    const counting: RowClaim = {
+      claim: (attendeeIds, capability) => {
+        claimed.push([...attendeeIds]);
+        return rowClaim.claim(attendeeIds, capability);
+      },
+      release: rowClaim.release,
+    };
+
+    await processRefundBatch(
+      provider({ refunded: new Set(["pi_1", "pi_2", "pi_3"]) }),
+      [
+        candidate([{ reference: "pi_1", refundState: "none" }], 11),
+        candidate([{ reference: "pi_2", refundState: "none" }], 12),
+        candidate([{ reference: "pi_3", refundState: "none" }], 13),
+      ],
       7,
-      collectingMarker().mark,
-      rowClaim,
+      counting,
     );
+
+    // Three attendees, one hold — a bulk wave costs the same round trips as a
+    // single refund, which is what the subrequest allowance is sized for.
+    expect(claimed).toEqual([[11, 12, 13]]);
     expect(rowClaim.released).toHaveLength(1);
   });
 
-  test("a keyless run whose call errored keeps its claim standing", async () => {
+  test("a keyless batch whose call errored keeps its claim standing", async () => {
     const rowClaim = grantingRowClaim();
     const keylessThatDies = {
       readChargeMoneyOrNull: () => Promise.resolve(chargeMoney()),
@@ -391,13 +396,14 @@ describe("admin refund provider > the claim", () => {
         throw new Error("the answer never came back");
       },
     };
-    await refundCandidateAtProvider(
+
+    await processRefundBatch(
       keylessThatDies,
-      candidateWithReferences(["pi_lost"]),
+      [candidate([{ reference: "pi_lost", refundState: "none" }])],
       7,
-      collectingMarker().mark,
       rowClaim,
     );
+
     // The money may already have gone; without an idempotency key nothing may
     // try again until fresh evidence says what happened.
     expect(rowClaim.released).toHaveLength(0);

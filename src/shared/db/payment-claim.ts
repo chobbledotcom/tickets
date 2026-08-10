@@ -28,7 +28,6 @@ import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { isoBefore, nowIso } from "#shared/now.ts";
 import {
   type ClaimDecision,
-  type ClaimRequest,
   decideClaim,
   holdsTheRow,
 } from "#shared/payment/claim.ts";
@@ -52,6 +51,7 @@ const CLAIMED_STATE = "claim";
 /** One row as the claim transaction found it. The stored slot is kept exactly
  *  as read, because every write back is conditioned on it being unchanged. */
 type ClaimRow = {
+  readonly attendeeId: number;
   readonly sessionId: string;
   readonly slot: string;
   readonly state: PaymentRowState;
@@ -63,6 +63,7 @@ export type ClaimResult =
   | { heldSince: string; kind: "claimed"; sessionIds: readonly string[] };
 
 type StoredRow = {
+  attendee_id: number | null;
   failure_data: EnvKeyEncrypted | "";
   payment_reference_index: string;
   payment_session_id: string;
@@ -78,7 +79,8 @@ const readRows = async (
   resultRows<StoredRow>(
     await tx.execute({
       args,
-      sql: `SELECT payment_session_id, failure_data, payment_reference_index
+      sql: `SELECT payment_session_id, attendee_id, failure_data,
+                   payment_reference_index
               FROM processed_payments
              WHERE ${where}`,
     }),
@@ -94,12 +96,12 @@ const readRows = async (
  */
 const readClaimableRows = async (
   tx: TxScope,
-  attendeeId: number,
+  attendeeIds: readonly number[],
 ): Promise<{ own: StoredRow[]; sharing: StoredRow[] }> => {
   const own = await readRows(
     tx,
-    "attendee_id = ? AND payment_reference != ''",
-    [attendeeId],
+    `attendee_id IN (${inPlaceholders(attendeeIds)}) AND payment_reference != ''`,
+    [...attendeeIds],
   );
   const indexes = own
     .map((row) => row.payment_reference_index)
@@ -107,14 +109,16 @@ const readClaimableRows = async (
   if (indexes.length === 0) return { own, sharing: [] };
   const sharing = await readRows(
     tx,
-    `attendee_id IS NOT ? AND payment_reference_index IN (${inPlaceholders(indexes)})`,
-    [attendeeId, ...indexes],
+    `attendee_id NOT IN (${inPlaceholders(attendeeIds)})
+       AND payment_reference_index IN (${inPlaceholders(indexes)})`,
+    [...attendeeIds, ...indexes],
   );
   return { own, sharing };
 };
 
 /** Read one stored row into the record it carries. */
 const asClaimRow = async (row: StoredRow): Promise<ClaimRow> => ({
+  attendeeId: Number(row.attendee_id),
   sessionId: row.payment_session_id,
   slot: row.failure_data,
   state: row.failure_data
@@ -150,21 +154,30 @@ const writeState = async (
 };
 
 /**
- * Claim every row this attendee's refund run will touch, or none of them.
+ * Claim every row this run will touch, or none of them.
  *
- * Runs inside one write transaction, so the rows a run reads are the rows it
- * claims: a reference landing between the read and the write cannot slip in
- * unclaimed, and a competing run either lands wholly before us or wholly after.
+ * One transaction for the whole run, however many attendees it covers: a bulk
+ * wave claims all of them together, so it costs the same two round trips as a
+ * single refund and cannot end up holding some attendees but not others. The
+ * rows a run reads are the rows it claims — a reference landing between the
+ * read and the write cannot slip in unclaimed, and a competing run either
+ * lands wholly before us or wholly after.
+ *
+ * Each row's claim names the attendee that row belongs to, not the run, so a
+ * crashed wave is resumed one attendee at a time by whoever claims that
+ * attendee's whole set again.
  */
 export const claimAttendeeRows = async (
-  attendeeId: number,
+  attendeeIds: readonly number[],
   capability: RefundCapability,
 ): Promise<ClaimResult> => {
-  const request: ClaimRequest = { attendeeId, scope: "attendee_set" };
+  if (attendeeIds.length === 0) {
+    return { heldSince: nowIso(), kind: "claimed", sessionIds: [] };
+  }
   const writtenAt = nowIso();
   const staleBefore = isoBefore(STALE_RESERVATION_MS);
   return await withTransaction(async (tx) => {
-    const stored = await readClaimableRows(tx, attendeeId);
+    const stored = await readClaimableRows(tx, attendeeIds);
     const rows = await Promise.all(stored.own.map(asClaimRow));
     // A claim held anywhere on the same provider reference is a claim on the
     // same money, so another attendee's row blocks us even though we never
@@ -172,8 +185,17 @@ export const claimAttendeeRows = async (
     // so a competing run has either committed its claim before we look or
     // cannot start until we are done.
     const sharing = await Promise.all(stored.sharing.map(asClaimRow));
+    // Every row is judged as its own attendee's: that is what lets a crashed
+    // run's rows be picked up one attendee at a time, and what makes a live
+    // claim on a shared reference read as "someone is working on this".
     const refused = [...rows, ...sharing]
-      .map((row) => decideClaim(row.state.claim, request, staleBefore))
+      .map((row) =>
+        decideClaim(
+          row.state.claim,
+          { attendeeId: row.attendeeId, scope: "attendee_set" },
+          staleBefore,
+        ),
+      )
       .find((decision) => !holdsTheRow(decision));
     if (refused !== undefined) return { blockedBy: refused, kind: "blocked" };
     for (const row of rows) {
@@ -182,7 +204,12 @@ export const claimAttendeeRows = async (
         row,
         {
           ...row.state,
-          claim: { attendeeId, capability, scope: "attendee_set", writtenAt },
+          claim: {
+            attendeeId: row.attendeeId,
+            capability,
+            scope: "attendee_set",
+            writtenAt,
+          },
         },
         CLAIMED_STATE,
       );
