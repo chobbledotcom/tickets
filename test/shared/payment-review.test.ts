@@ -25,11 +25,11 @@ describe("reporting a withheld refund", () => {
 
   test("names the conflict it found, not just that there was one", () => {
     reportWithheldRefund(
-      { issue: { kind: "multiple_charges" }, kind: "refused" },
+      { issue: { kind: "failed_refund" }, kind: "refused" },
       where,
     );
 
-    expect(errors.lastMessage()).toContain("multiple_charges");
+    expect(errors.lastMessage()).toContain("failed_refund");
   });
 
   const ordinary: WithheldRefund[] = [
