@@ -9,7 +9,9 @@ import { describeWithEnv } from "#test-utils/db.ts";
 describeWithEnv("db > client round-trip limit", { db: true }, () => {
   test("counts every database operation at the client boundary", async () => {
     await runWithQueryLogContext(async () => {
-      const guardedCalls = 11;
+      // Ten guarded calls below are counted; the rolledBack.rollback() is not —
+      // a rollback is mandatory cleanup, exempt from the round-trip guard.
+      const guardedCalls = 10;
       const executeWithArgsCalls = 1;
       const directCalls =
         BUNNY_SUBREQUEST_LIMIT - guardedCalls - executeWithArgsCalls;
@@ -83,11 +85,6 @@ describeWithEnv("db > client round-trip limit", { db: true }, () => {
         run: (tx) => tx.executeMultiple("SELECT 1;"),
       },
       {
-        label: "transaction rollback",
-        needsTx: true,
-        run: (tx) => tx.rollback(),
-      },
-      {
         label: "transaction statement",
         needsTx: true,
         run: (tx) => tx.execute("SELECT 1"),
@@ -110,6 +107,29 @@ describeWithEnv("db > client round-trip limit", { db: true }, () => {
       // it back outside the counted scope to leave the client clean.
       if (tx) await tx.rollback();
     }
+  });
+
+  test("a rollback runs even when the request's budget is spent", async () => {
+    // A rollback is mandatory cleanup: if the guard blocked it, the interactive
+    // transaction would be left open and poison the shared write connection for
+    // the rest of the request. So it must run even at the limit.
+    await runWithQueryLogContext(async () => {
+      const tx = await getDb().transaction("write");
+      await tx.execute("SELECT 1");
+      await Promise.all(
+        Array.from({ length: BUNNY_SUBREQUEST_LIMIT - 2 }, () =>
+          getDb().execute("SELECT 1"),
+        ),
+      );
+      // A counted transaction statement is now blocked (the guard throws
+      // synchronously, so wrap it to observe the rejection)...
+      const blockedStatement = async () => {
+        await tx.execute("SELECT 1");
+      };
+      await expect(blockedStatement()).rejects.toThrow(/limit 50/);
+      // ...but the rollback still runs, closing the transaction.
+      await expect(tx.rollback()).resolves.toBeUndefined();
+    });
   });
 
   test("a re-set guarded client is not wrapped again (no double counting)", async () => {

@@ -198,8 +198,11 @@ const transactionWithRoundTripGuard = (transaction: Transaction): Transaction =>
       databaseRoundTrip("transaction script", () =>
         transaction.executeMultiple(sql),
       ),
-    rollback: (): Promise<void> =>
-      databaseRoundTrip("transaction rollback", () => transaction.rollback()),
+    // Rollback is mandatory cleanup: an interactive transaction left open (its
+    // rollback blocked) poisons the shared write connection for the rest of the
+    // request. So it bypasses the subrequest guard — never counted, never
+    // blocked — and always runs, even once the budget is spent.
+    rollback: (): Promise<void> => transaction.rollback(),
   });
 
 const guardedClients = new WeakMap<Client, Client>();

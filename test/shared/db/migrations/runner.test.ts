@@ -5,6 +5,7 @@ import { releaseMigrationLock } from "#shared/db/migrations/lock.ts";
 import {
   applyMigrationWithRetry,
   baselineCurrentSchemaIfNeeded,
+  isSubrequestBudgetError,
   missingMigrations,
   restoreStaleSchemaMarkers,
   runPendingMigrations,
@@ -18,6 +19,8 @@ import {
 } from "#shared/db/migrations/schema/version.ts";
 import { syncIndexes } from "#shared/db/migrations/schema-sync.ts";
 import type { Migration } from "#shared/db/migrations/types.ts";
+import { runWithQueryLogContext } from "#shared/db/query-log.ts";
+import { runWithSubrequestBudget } from "#shared/subrequest-budget.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
 import {
@@ -198,6 +201,66 @@ describe("db > migrations > runner", () => {
       expect(verifyAttempts).toBe(2 * (VERIFY_RETRY_BACKOFF_MS.length + 1));
     });
   });
+
+  describe("stops cleanly when the request's subrequest budget is spent", () => {
+    const budgetError = (n: number): Error =>
+      new Error(
+        `Subrequest allowance exceeded: ${n} database + 0 external calls. Blocked database operation: batch`,
+      );
+
+    test("recognises a spent-budget error, and nothing else", () => {
+      expect(isSubrequestBudgetError(budgetError(51))).toBe(true);
+      expect(
+        isSubrequestBudgetError(
+          new Error("Database round-trip limit exceeded: 51 calls (limit 50)"),
+        ),
+      ).toBe(true);
+      expect(isSubrequestBudgetError(new Error("genuine schema defect"))).toBe(
+        false,
+      );
+      expect(isSubrequestBudgetError("Subrequest allowance exceeded")).toBe(
+        false,
+      );
+    });
+
+    test("verify does not retry a spent budget — the reserve is not for retries", async () => {
+      let attempts = 0;
+      await expect(
+        withVirtualBackoff(() =>
+          verifyMigrationWithRetry({
+            description: "budget during verify",
+            id: "budget-verify",
+            up: () => Promise.resolve(),
+            verify: () => {
+              attempts++;
+              return Promise.reject(budgetError(46));
+            },
+          }),
+        ),
+      ).rejects.toThrow("Subrequest allowance exceeded");
+      // One attempt, no backoff retries: a spent budget is not a transient lag.
+      expect(attempts).toBe(1);
+    });
+
+    test("apply does not re-run up() when verify hits a spent budget", async () => {
+      let upCalls = 0;
+      await expect(
+        withVirtualBackoff(() =>
+          applyMigrationWithRetry({
+            description: "budget during verify after up",
+            id: "budget-apply",
+            up: () => {
+              upCalls++;
+              return Promise.resolve();
+            },
+            verify: () => Promise.reject(budgetError(46)),
+          }),
+        ),
+      ).rejects.toThrow("Subrequest allowance exceeded");
+      // up() ran once; a second run has no budget left, so it is not attempted.
+      expect(upCalls).toBe(1);
+    });
+  });
 });
 
 describeWithEnv(
@@ -295,6 +358,39 @@ describeWithEnv(
       }
     });
 
+    test("inside a request, runs as many migrations as fit and returns the finished prefix", async () => {
+      // Each migration spends several round-trips; the batch as a whole exceeds
+      // the request's budget, so the run stops partway and leaves headroom for
+      // the caller's bookkeeping.
+      const spend = async (): Promise<void> => {
+        for (let i = 0; i < 12; i += 1) await getDb().execute("SELECT 1");
+      };
+      const costly = (id: string): Migration => ({
+        description: id,
+        id,
+        up: spend,
+        verify: () => Promise.resolve(),
+      });
+      const pending = ["m1", "m2", "m3", "m4", "m5", "m6"].map(costly);
+      const lockToken = await takeMigrationLock();
+      try {
+        const completed = await runWithSubrequestBudget(() =>
+          runWithQueryLogContext(() =>
+            runPendingMigrations(pending, lockToken),
+          ),
+        );
+        // Some — but not all — ran: the budget stopped the batch.
+        expect(completed.length).toBeGreaterThan(0);
+        expect(completed.length).toBeLessThan(pending.length);
+        // The ones that ran are the leading prefix, in order.
+        expect(completed.map((migration) => migration.id)).toEqual(
+          pending.slice(0, completed.length).map((migration) => migration.id),
+        );
+      } finally {
+        await releaseMigrationLock(lockToken);
+      }
+    });
+
     test("reports the failure and the lost progress together", async () => {
       // The lease is not held, so recording the finished migration fails too.
       const error = await runPendingMigrations(
@@ -319,6 +415,49 @@ describeWithEnv(
       expect((error as AggregateError).message).toBe(
         "Database migration failed and completed progress could not be recorded.",
       );
+    });
+
+    test("records the finished migrations then rethrows the failure", async () => {
+      // The lease IS held, so the finished migration's progress is recorded;
+      // the original failure is what surfaces, not a recording error.
+      const lockToken = await takeMigrationLock();
+      try {
+        const error = await runPendingMigrations(
+          [
+            {
+              description: "first migration, succeeds",
+              id: "runner-progress-recorded",
+              up: () => Promise.resolve(),
+              verify: () => Promise.resolve(),
+            },
+            {
+              description: "second migration, fails",
+              id: "runner-progress-second-fails",
+              up: () => Promise.reject(new Error("migration work failed")),
+              verify: () => Promise.resolve(),
+            },
+          ],
+          lockToken,
+        ).catch((caught: unknown) => caught);
+
+        // The original failure propagates, not an AggregateError.
+        expect(error).toBeInstanceOf(Error);
+        expect((error as Error).message).toBe("migration work failed");
+        // The migration that finished before the failure was recorded.
+        const recorded = await getDb().execute({
+          args: ["runner-progress-recorded"],
+          sql: `SELECT id FROM ${SCHEMA_MIGRATIONS_TABLE} WHERE id = ?`,
+        });
+        expect(recorded.rows.map((row) => String(row.id))).toEqual([
+          "runner-progress-recorded",
+        ]);
+      } finally {
+        await getDb().execute({
+          args: ["runner-progress-recorded"],
+          sql: `DELETE FROM ${SCHEMA_MIGRATIONS_TABLE} WHERE id = ?`,
+        });
+        await releaseMigrationLock(lockToken);
+      }
     });
 
     test("stale markers are restored once the schema checks out", async () => {
