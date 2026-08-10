@@ -22,12 +22,12 @@ import {
   countOrphanedAttendees,
   purgeOrphanedAttendees,
 } from "#shared/db/orphan-attendees.ts";
-import { CLAIM_MIRROR } from "#shared/db/payment-claim.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { CLAIM_MIRROR } from "#test-utils/payment-claim.ts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
