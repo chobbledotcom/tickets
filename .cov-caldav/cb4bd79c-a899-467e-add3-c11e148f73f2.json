@@ -1,0 +1,38 @@
+{
+  "scriptId": "336",
+  "url": "file:///home/user/tickets/src/shared/caldav/vevent.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 1340,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "buildListingEvent",
+      "ranges": [
+        {
+          "startOffset": 736,
+          "endOffset": 1338,
+          "count": 6
+        },
+        {
+          "startOffset": 1009,
+          "endOffset": 1079,
+          "count": 5
+        },
+        {
+          "startOffset": 1097,
+          "endOffset": 1128,
+          "count": 5
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "scriptId": "336",
+  "url": "file:///home/user/tickets/src/shared/caldav/pacing.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 1457,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "leaseTimeLeftMs",
+      "ranges": [
+        {
+          "startOffset": 1376,
+          "endOffset": 1455,
+          "count": 4
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

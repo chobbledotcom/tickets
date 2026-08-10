@@ -1,0 +1,55 @@
+{
+  "scriptId": "336",
+  "url": "file:///home/user/tickets/src/shared/ics.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 1185,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "escapeIcs",
+      "ranges": [
+        {
+          "startOffset": 529,
+          "endOffset": 652,
+          "count": 10
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "formatIcsDate",
+      "ranges": [
+        {
+          "startOffset": 755,
+          "endOffset": 841,
+          "count": 3
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "appendItemSchedule",
+      "ranges": [
+        {
+          "startOffset": 1024,
+          "endOffset": 1183,
+          "count": 3
+        },
+        {
+          "startOffset": 1058,
+          "endOffset": 1108,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

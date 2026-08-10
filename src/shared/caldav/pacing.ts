@@ -1,13 +1,13 @@
 /**
- * Pure timing helpers for the CalDAV push task. Kept free of IO so they can be
+ * Pure timing helper for the CalDAV push task. Kept free of IO so it can be
  * driven by a fake clock in tests.
  *
  * A push worker holds a maintenance claim for a fixed lease. Settings changes
  * wait for that claim, so they cannot commit until the lease frees. To make
  * sure a worker never fires a calendar call at a destination the owner has just
- * changed away from, the worker stops calling out a little before its lease
- * would expire (the safety margin), and every call it does make carries an
- * abort deadline that also lands inside the margin.
+ * changed away from, it stops calling out a little before its lease would
+ * expire (the safety margin), and every call it does make carries an abort
+ * deadline that also lands inside the margin.
  */
 
 /** How long a single push pass may hold its claim before it must stop. */
@@ -23,25 +23,12 @@ export const LEASE_SAFETY_MARGIN_MS = 10_000;
 export const FAILURE_RETRY_INTERVAL_MS = 5 * 60_000;
 
 /**
- * True while there is still enough lease left to start another calendar call.
- * Once the elapsed run time reaches the lease minus the safety margin, the
- * worker stops calling out for the rest of the pass.
+ * Milliseconds of lease left before the safety margin.
+ *
+ * A **positive** result means there is still time to start another calendar
+ * call, and the result is that call's abort deadline — so a hung request can't
+ * outlive the lease. **Zero or negative** means the worker must stop calling
+ * out for the rest of the pass.
  */
-export const canStartCall = (
-  startedAtMs: number,
-  nowMs: number,
-  leaseMs = LEASE_MS,
-  marginMs = LEASE_SAFETY_MARGIN_MS,
-): boolean => nowMs - startedAtMs <= leaseMs - marginMs;
-
-/**
- * How many milliseconds a single calendar call may run before it is aborted.
- * Always lands inside the safety margin, so an in-flight call cannot outlive
- * the lease even if the server hangs.
- */
-export const callDeadlineMs = (
-  startedAtMs: number,
-  nowMs: number,
-  leaseMs = LEASE_MS,
-  marginMs = LEASE_SAFETY_MARGIN_MS,
-): number => Math.max(0, leaseMs - marginMs - (nowMs - startedAtMs));
+export const leaseTimeLeftMs = (startedAtMs: number, nowMs: number): number =>
+  LEASE_MS - LEASE_SAFETY_MARGIN_MS - (nowMs - startedAtMs);
