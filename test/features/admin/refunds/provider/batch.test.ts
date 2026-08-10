@@ -9,6 +9,7 @@ import {
 } from "#test/shared/refund-ledger/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { chargeMoney } from "#test-utils/payment-state.ts";
 
 const LISTING = 7;
 
@@ -37,7 +38,7 @@ const pendingCandidate = (
 /** Provider that fails every live refund and throws for references in
  * `throws`; used to drive the failed/errored tally branches. */
 const failingProvider = (throws: Set<string>) => ({
-  isPaymentRefunded: () => Promise.resolve(false),
+  readChargeMoneyOrNull: () => Promise.resolve(chargeMoney()),
   refundPayment: (reference: string) => {
     if (throws.has(reference)) throw new Error(`boom ${reference}`);
     return Promise.resolve(false);

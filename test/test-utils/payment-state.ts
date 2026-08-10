@@ -6,6 +6,7 @@ import type {
 } from "#shared/payment/observation.ts";
 import type {
   ChargeLeg,
+  ChargeMoney,
   ProviderChargeResource,
   ProviderRefundResource,
   ProviderSessionResource,
@@ -60,6 +61,22 @@ export const refundObservation = (
   }
   return { amount, refund, status: "completed" };
 };
+
+/** What a provider says about a charge nothing has gone back on — the answer
+ *  that lets a refund be sent. Pass `returned` to say some already has. */
+export const chargeMoney = (
+  captured = 1000,
+  returned = 0,
+  currency = "GBP",
+): ChargeMoney => ({
+  captured: { amount: captured, currency },
+  confirmedRefunded: { amount: returned, currency },
+  refunds: [],
+});
+
+/** A charge whose every penny is already back with the buyer. */
+export const fullyRefundedMoney = (captured = 1000): ChargeMoney =>
+  chargeMoney(captured, captured);
 
 export const chargeLeg = (values: Partial<ChargeLeg> = {}): ChargeLeg => ({
   captured: { amount: 100, currency: "GBP" },

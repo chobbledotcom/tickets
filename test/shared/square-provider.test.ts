@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import type { ChargeMoney } from "#shared/payment/resources.ts";
 import { PaymentUserError } from "#shared/payment-helpers.ts";
 import { squareApi } from "#shared/square.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
@@ -284,16 +285,20 @@ describe("square-provider", () => {
     });
   });
 
-  describe("isPaymentRefunded", () => {
+  describe("readChargeMoneyOrNull", () => {
     const REFUND_CASES: {
       name: string;
       payment: SquarePayment;
-      expected: boolean;
+      expected: ChargeMoney | null;
       id?: string;
     }[] = [
       {
-        expected: true,
-        name: "returns true when fully refunded",
+        expected: {
+          captured: { amount: 1000, currency: "GBP" },
+          confirmedRefunded: { amount: 1000, currency: "GBP" },
+          refunds: [],
+        },
+        name: "reports every penny back when fully refunded",
         payment: {
           amountMoney: squareMoney(1000),
           id: "pay_123",
@@ -302,18 +307,12 @@ describe("square-provider", () => {
         },
       },
       {
-        expected: true,
-        name: "returns true when a one-cent payment is fully refunded",
-        payment: {
-          amountMoney: squareMoney(1),
-          id: "pay_123",
-          refundedMoney: squareMoney(1),
-          status: "COMPLETED",
+        expected: {
+          captured: { amount: 1000, currency: "GBP" },
+          confirmedRefunded: { amount: 400, currency: "GBP" },
+          refunds: [],
         },
-      },
-      {
-        expected: false,
-        name: "returns false when only partially refunded",
+        name: "reports the part that went back on a partial refund",
         payment: {
           amountMoney: squareMoney(1000),
           id: "pay_123",
@@ -322,10 +321,23 @@ describe("square-provider", () => {
         },
       },
       {
-        // Without amountMoney we cannot confirm a full refund, so a present
-        // refundedMoney must not be treated as fully refunded.
-        expected: false,
-        name: "returns false when the charged amount is unknown",
+        // Square leaves the refunded total off when nothing has gone back, so
+        // an absent one is a stated zero rather than a missing fact.
+        expected: {
+          captured: { amount: 1000, currency: "GBP" },
+          confirmedRefunded: { amount: 0, currency: "GBP" },
+          refunds: [],
+        },
+        name: "reads an absent refunded total as nothing back",
+        payment: {
+          amountMoney: squareMoney(1000),
+          id: "pay_123",
+          status: "COMPLETED",
+        },
+      },
+      {
+        expected: null,
+        name: "refuses a payment whose charged amount is unknown",
         payment: {
           id: "pay_123",
           refundedMoney: squareMoney(1000),
@@ -333,27 +345,32 @@ describe("square-provider", () => {
         },
       },
       {
-        expected: false,
-        name: "returns false when refundedMoney is zero",
+        expected: null,
+        id: "pay_missing",
+        name: "refuses a payment that cannot be found",
+        payment: null,
+      },
+      {
+        // The refund total is THERE but names no amount. Reading that as zero
+        // would tell the guard nothing has gone back, and a full refund would
+        // be sent on top of money that may already be with the buyer.
+        expected: null,
+        name: "refuses a refunded total that names no amount",
         payment: {
           amountMoney: squareMoney(1000),
           id: "pay_123",
-          refundedMoney: squareMoney(0),
+          refundedMoney: { currency: "GBP" },
           status: "COMPLETED",
         },
       },
       {
-        expected: false,
-        id: "pay_missing",
-        name: "returns false when payment not found",
-        payment: null,
-      },
-      {
-        expected: false,
-        name: "returns false when refundedMoney is missing",
+        // Two currencies cannot be compared, so what came back is unknown.
+        expected: null,
+        name: "refuses a refunded total in another currency",
         payment: {
-          amountMoney: squareMoney(1),
+          amountMoney: squareMoney(1000),
           id: "pay_123",
+          refundedMoney: squareMoney(1000, "USD"),
           status: "COMPLETED",
         },
       },
@@ -365,10 +382,10 @@ describe("square-provider", () => {
           () =>
             stub(squareApi, "retrievePayment", () => Promise.resolve(payment)),
           async () => {
-            const result = await squarePaymentProvider.isPaymentRefunded(
+            const result = await squarePaymentProvider.readChargeMoneyOrNull(
               id ?? "pay_123",
             );
-            expect(result).toBe(expected);
+            expect(result).toEqual(expected);
           },
         );
       });

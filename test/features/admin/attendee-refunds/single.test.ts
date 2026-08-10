@@ -218,6 +218,9 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       ).toContain("Refund issued for attendee 'John Doe'");
     });
 
+    // The money is already back, so it is reported as a success WITHOUT the
+    // provider being asked to send it again. SumUp has no idempotency key, so
+    // a second call there would pay the buyer twice.
     test("treats an already-refunded provider charge as success", async () => {
       const ctx = await setupRefundTest("pi_test_provider_done");
 
@@ -229,7 +232,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
             `/admin/attendees/${ctx.attendee.id}/actions`,
             "Refund issued",
           )(response);
-          expect(mockRefund.calls.length).toBe(1);
+          expect(mockRefund.calls.length).toBe(0);
         },
         { alreadyRefunded: true },
       );

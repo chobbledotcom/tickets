@@ -34,6 +34,27 @@ import type {
 } from "#shared/payments.ts";
 import { squareApi, verifyWebhookSignature } from "#shared/square.ts";
 
+/**
+ * How much of a Square payment has gone back, or nothing when Square's answer
+ * cannot be read.
+ *
+ * Square leaves the refunded total off a payment nothing has gone back on, so
+ * an absent one is a stated zero. A total that IS there but names no amount, or
+ * names a different currency from the money taken, is an answer we cannot
+ * account for — and reading either as zero would tell the refund guard the
+ * buyer is still owed money that may already be back with them.
+ */
+const squareMoneyReturned = (
+  refunded:
+    | { amount?: bigint | undefined; currency?: string | undefined }
+    | undefined,
+  captured: { currency?: string | undefined },
+): bigint | null => {
+  if (refunded === undefined) return 0n;
+  if (refunded.amount === undefined) return null;
+  return refunded.currency === captured.currency ? refunded.amount : null;
+};
+
 /** Square payment provider implementation */
 export const squarePaymentProvider: PaymentProvider = {
   checkoutCompletedEventType: "payment.updated",
@@ -51,14 +72,9 @@ export const squarePaymentProvider: PaymentProvider = {
     const payment = await squareApi.retrievePayment(paymentReference);
     const captured = payment?.amountMoney;
     if (!captured) return null;
-    // Square omits the refunded total on a payment nothing has gone back on,
-    // which is a stated zero rather than a missing fact — its currency is the
-    // captured currency, because Square refunds a payment in what it took.
-    return chargeMoneyOrNull(
-      captured.amount,
-      captured.currency,
-      payment.refundedMoney?.amount ?? 0,
-    );
+    const returned = squareMoneyReturned(payment.refundedMoney, captured);
+    if (returned === null) return null;
+    return chargeMoneyOrNull(captured.amount, captured.currency, returned);
   },
 
   refundPayment(paymentReference: string): Promise<boolean> {

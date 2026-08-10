@@ -269,7 +269,12 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       );
       const mockIntent = stub(stripeApi, "retrievePaymentIntent", () =>
         Promise.resolve({
-          latest_charge: { refunded: false },
+          latest_charge: {
+            amount: 1000,
+            amount_refunded: 0,
+            currency: "gbp",
+            refunded: false,
+          },
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrievePaymentIntent>
         >),

@@ -1,9 +1,16 @@
 import { type Stub, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
+import type { ChargeMoney } from "#shared/payment/resources.ts";
 import { paymentsApi } from "#shared/payments.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
+import { chargeMoney, fullyRefundedMoney } from "#test-utils/payment-state.ts";
+
+/** What a "was it refunded?" answer looks like as charge money. */
+const asChargeMoney = (refunded: boolean): ChargeMoney =>
+  refunded ? fullyRefundedMoney() : chargeMoney();
+
 import {
   mockFormRequest,
   mockProviderType,
@@ -88,10 +95,11 @@ export const expectSingleRefundIssued = async (
   });
 };
 
-/** Run `body` with Stripe configured as the provider and `isPaymentRefunded`
- *  stubbed to `probe`. The refresh-payment route only reads refund status (it
- *  never issues a refund), so — unlike {@link withRefundMock} — this stubs just
- *  that one method. Passes the stub to `body` (so a caller can read its call
+/** Run `body` with Stripe configured as the provider and the charge-money read
+ *  answering `probe`: true reads as every penny already back, false as a charge
+ *  nothing has gone back on. The refresh-payment route only reads refund status
+ *  (it never issues a refund), so — unlike {@link withRefundMock} — this stubs
+ *  just that one method. Passes the stub to `body` (so a caller can read its call
  *  args) and returns whatever `body` returns. */
 type StripeProvider =
   typeof import("#shared/stripe-provider.ts")["stripePaymentProvider"];
@@ -124,7 +132,11 @@ export const withRefreshPaymentProbe = async <T>(
 ): Promise<T> => {
   let result!: T;
   await withStripeProvider(async (provider) => {
-    const mockRefunded = stub(provider, "isPaymentRefunded", probe);
+    const mockRefunded = stub(
+      provider,
+      "readChargeMoneyOrNull",
+      async (reference) => asChargeMoney(await probe(reference)),
+    );
     try {
       result = await body(mockRefunded);
     } finally {
@@ -145,10 +157,11 @@ export const withRefundMock = async (
       "refundPayment",
       refundResult(refundBehavior),
     );
+    const alreadyRefunded = refundResult(options.alreadyRefunded ?? false);
     const mockRefunded = stub(
       provider,
-      "isPaymentRefunded",
-      refundResult(options.alreadyRefunded ?? false),
+      "readChargeMoneyOrNull",
+      async (reference) => asChargeMoney(await alreadyRefunded(reference)),
     );
     try {
       await fn(mockRefund);

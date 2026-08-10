@@ -77,10 +77,25 @@ describe("tryRefund resource id", () => {
       const refundStub = stub(stripeApi, "refundPayment", () =>
         Promise.resolve(answer),
       );
+      // The refund asks what the money has already done before sending any, so
+      // the charge must read as one nothing has come back on for the refund to
+      // be admitted at all.
+      const intentStub = stub(stripeApi, "retrievePaymentIntent", () =>
+        Promise.resolve({
+          id: "pi_1",
+          latest_charge: {
+            amount: 1000,
+            amount_refunded: 0,
+            currency: "gbp",
+            refunded: false,
+          },
+        }),
+      );
       try {
         const result = await withStripeConfigured(body);
         return { calls: refundStub.calls.map((call) => call.args), result };
       } finally {
+        intentStub.restore();
         refundStub.restore();
       }
     };

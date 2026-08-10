@@ -2,6 +2,8 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { storeSumupCheckout } from "#shared/db/sumup-checkouts.ts";
+import type { ChargeMoney } from "#shared/payment/resources.ts";
+import type { SumupTransactionMoney } from "#shared/sumup.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
@@ -143,25 +145,119 @@ describe("sumup-provider", () => {
     });
   });
 
-  describe("isPaymentRefunded", () => {
-    for (const [status, refunded] of [
-      ["REFUNDED", true],
-      ["SUCCESSFUL", false],
-      [null, false],
-    ] as const) {
-      test(`returns ${refunded} when transaction status is ${status}`, () =>
-        withMocks(
-          () =>
-            stub(sumupApi, "getTransactionStatus", () =>
-              Promise.resolve(status),
-            ),
-          async () => {
-            expect(await sumupPaymentProvider.isPaymentRefunded("txn")).toBe(
-              refunded,
-            );
-          },
-        ));
+  describe("readChargeMoneyOrNull", () => {
+    const transaction = (
+      refundEvents: SumupTransactionMoney["refundEvents"],
+    ): SumupTransactionMoney => ({
+      amount: 10,
+      currency: "GBP",
+      refundEvents,
+    });
+
+    /** SumUp states money in major units, so £10.00 is 1000 pence here. */
+    const readMoney = async (txn: SumupTransactionMoney | null) => {
+      // A holder, not a plain let: TypeScript does not track an assignment made
+      // inside the callback, so a bare variable stays narrowed to null.
+      const read: { money: ChargeMoney | null } = { money: null };
+      await withMocks(
+        () =>
+          stub(sumupApi, "readTransactionMoney", () => Promise.resolve(txn)),
+        async () => {
+          read.money = await sumupPaymentProvider.readChargeMoneyOrNull("txn");
+        },
+      );
+      return read.money;
+    };
+
+    test("reads a transaction with no refund events as nothing back", async () => {
+      expect(await readMoney(transaction([]))).toEqual({
+        captured: { amount: 1000, currency: "GBP" },
+        confirmedRefunded: { amount: 0, currency: "GBP" },
+        refunds: [],
+      });
+    });
+
+    // SumUp keeps no cumulative refunded total, so the events carry it all —
+    // and its top-level status still reads SUCCESSFUL after a refund, which is
+    // why the events, not the status, decide what has gone back.
+    test("adds up the refund events rather than trusting a status", async () => {
+      const money = await readMoney(
+        transaction([{ amount: 4, status: "REFUNDED" }]),
+      );
+
+      expect(money?.refunds).toEqual([
+        { amount: { amount: 400, currency: "GBP" }, status: "completed" },
+      ]);
+    });
+
+    test("reports a refund still going as pending", async () => {
+      const money = await readMoney(
+        transaction([{ amount: 10, status: "PENDING" }]),
+      );
+
+      expect(money?.refunds).toEqual([
+        { amount: { amount: 1000, currency: "GBP" }, status: "pending" },
+      ]);
+    });
+
+    test("reports a refund SumUp could not finish as failed", async () => {
+      const money = await readMoney(
+        transaction([{ amount: 10, status: "FAILED" }]),
+      );
+
+      expect(money?.refunds).toEqual([
+        {
+          amount: { amount: 1000, currency: "GBP" },
+          reason: "provider_failed",
+          status: "failed",
+        },
+      ]);
+    });
+
+    // A refund event we cannot account for might be money already returned.
+    // Dropping it would let the guard send that money a second time, and SumUp
+    // has no idempotency key to catch the duplicate.
+    const unreadableEvents: [
+      name: string,
+      events: SumupTransactionMoney["refundEvents"],
+    ][] = [
+      ["a status SumUp does not document", [{ amount: 4, status: "WAT" }]],
+      [
+        "a status that says nothing about refunds",
+        [{ amount: 4, status: "PAID_OUT" }],
+      ],
+      ["an event naming no status", [{ amount: 4, status: undefined }]],
+      [
+        "an event naming no amount",
+        [{ amount: undefined, status: "REFUNDED" }],
+      ],
+    ];
+
+    for (const [name, events] of unreadableEvents) {
+      test(`refuses the whole reading for ${name}`, async () => {
+        expect(await readMoney(transaction(events))).toBeNull();
+      });
     }
+
+    test("refuses a transaction that names no amount", async () => {
+      expect(
+        await readMoney({
+          amount: undefined,
+          currency: "GBP",
+          refundEvents: [],
+        }),
+      ).toBeNull();
+    });
+
+    test("refuses a transaction that names no currency", async () => {
+      expect(
+        await readMoney({ amount: 10, currency: undefined, refundEvents: [] }),
+      ).toBeNull();
+    });
+
+    test("refuses a transaction it cannot read at all", async () => {
+      expect(await readMoney(null)).toBeNull();
+    });
   });
 
   describe("refundPayment", () => {
