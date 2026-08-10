@@ -843,9 +843,10 @@ as distinct fields of the ONE env-key-encrypted `failure_data` record described
 above, and the row's LIVE WORK STATE — claim, staged refund, or owner-review
 marker, else empty — is mirrored in the plaintext `protected_state` column,
 written by the same statement that writes the record it mirrors, so a consumer
-that cannot decrypt still routes on the real state machine. Six laws bind every
-consumer, current and future; the rules in this section and the failure table
-are instances of them, and a new consumer or state must say which law admits it:
+that cannot decrypt still routes on the real state machine. Six laws — PLAN.md's
+data laws instantiated for this row — bind every consumer, current and future;
+the rules in this section and the failure table are instances of them, and a new
+consumer or state must say which law admits it:
 
 1. **Total routing — readers and writers alike.** Every reader routes on the
    same precedence — a claim in the reader's OWN scope first, then the
