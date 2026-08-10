@@ -182,17 +182,19 @@ charge was fully refunded externally) it must NOT issue a paid booking: the
 session takes the stored-refused arm with the refund step short-circuited to
 already-complete — in the session's own path shape (new booking: quantity-0
 placeholder, payment + `refund_cash` ledger, system note; balance payment: no
-placeholder, the existing attendee's balance stays unpaid — the commands table
-row states both) — and the buyer sees the existing refunded answer. This outcome
-is reachable only where the observation in hand carries refund evidence:
-Square's payment read carries it at booking judgment, and the Stripe/SumUp
-rejection arms gain it from the read each buys before a refund attempt. On the
-Stripe and SumUp booking tiers it cannot fire — those reads carry no refund
-facts, and M4 does not buy a refund-facts read for every trusted booking, so an
-externally refunded charge that still reads as a clean paid session books today
-and keeps booking in M4. That exposure is stated, unchanged from today, bounded
-to externally-refunded-then-completed checkouts, and closes with M6's aggregate.
-`refund_pending` refuses a new attempt without treating the charge as refunded.
+placeholder, the existing attendee's balance stays unpaid, and the same
+idempotent payment + `refund_cash` pair posts against the existing attendee —
+the commands table row states both) — and the buyer sees the existing refunded
+answer. This outcome is reachable only where the observation in hand carries
+refund evidence: Square's payment read carries it at booking judgment, and the
+Stripe/SumUp rejection arms gain it from the read each buys before a refund
+attempt. On the Stripe and SumUp booking tiers it cannot fire — those reads
+carry no refund facts, and M4 does not buy a refund-facts read for every trusted
+booking, so an externally refunded charge that still reads as a clean paid
+session books today and keeps booking in M4. That exposure is stated, unchanged
+from today, bounded to externally-refunded-then-completed checkouts, and closes
+with M6's aggregate. `refund_pending` refuses a new attempt without treating the
+charge as refunded.
 
 ### One conflict per observation — the evaluation order is binding
 
@@ -303,18 +305,41 @@ reference, and never more:
   come from the richer payments read), so a caught-up tender list on an ordinary
   one-payment order can never read as `duplicate_charge` against the payment
   itself; `duplicate_charge` remains for two genuinely distinct legs sharing one
-  resource id. Regression: an ordinary Square callback whose caught-up order
-  lists exactly the named payment's own tender judges `ready` — never
-  `duplicate_charge`, never `multiple_charges`.
+  resource id. The observation also carries `order.totalMoney` as the provider
+  SESSION total, a separate observed fact from the per-tender charges — today
+  `retrieveSession` stands the named payment's own amount in as `amountTotal`
+  when the payment is COMPLETED (`square-provider.ts:154-166`), which would make
+  a valid split payment (a £100 signed order paid by two captured £50 tenders)
+  fire `provider_total_mismatch` (50 ≠ 100) and refuse before `multiple_charges`
+  could park it for owner review as decision 1 decided. With the order total
+  carried separately, that observation reads: session total 100 = expected,
+  captured sum 100 = expected, two captured tenders → `multiple_charges`,
+  proceed-and-alert. The existing code comment's guard stays honored — a short
+  or unreadable charge still cannot book by matching the order total, because
+  booking validity remains the named payment's COMPLETED check and the
+  captured-sum comparison, never the session total alone. Regressions: an
+  ordinary Square callback whose caught-up order lists exactly the named
+  payment's own tender judges `ready` — never `duplicate_charge`, never
+  `multiple_charges`; a £100 signed order paid by two captured £50 tenders emits
+  `multiple_charges` (proceed-and-alert), never `provider_total_mismatch`.
 - **Stripe**: two tiers by path. A webhook-parsed session carries only
   session-level facts (`amount_total`, currency) — the callback BOOKING judgment
   uses exactly those, the same facts today's verdicts use, with zero new reads.
-  Refund attempts judge on charge-tier evidence — the widened `amount_refunded`
-  pick (decision 2) plus the documented charge amount. The admin/refresh paths
-  already make that payment-intent read; a Stripe CALLBACK refund attempt (the
-  rejection arm) does not, so it buys the same read before its refund call — one
-  added provider call on that rare arm, budgeted in PR A; the full arithmetic
-  then applies everywhere charge-tier evidence exists.
+  Refund attempts judge on charge-tier evidence. Today's
+  `StripeExpandedPaymentIntentSchema` picks only the intent id and
+  `latest_charge.refunded` (`stripe/schemas.ts:42-52`) — no captured amount, no
+  currency — so the decision-2 widening is stated completely: the pick gains the
+  charge's documented `amount`, `currency`, and `amount_refunded` together.
+  Without the first two the refund gate could not compute returned-vs-captured
+  for a Stripe reference — legacy/admin references included, which carry no
+  signed proof — without copying an expected or ledger amount into the observed
+  slot, which the refund-only input above forbids. All three are documented
+  charge money fields: the same read, more money figures, nothing personal —
+  decision 2's scope, stated explicitly. The admin/refresh paths already make
+  that payment-intent read; a Stripe CALLBACK refund attempt (the rejection arm)
+  does not, so it buys the same read before its refund call — one added provider
+  call on that rare arm, budgeted in PR A; the full arithmetic then applies
+  everywhere charge-tier evidence exists.
 - **SumUp** (including every legacy reference): refund authority is the
   transaction read's `transaction_events[]`, per PR3's verified sandbox contract
   (PR3_PLAN.md) — the cumulative refunded is the sum of that response's
@@ -351,18 +376,18 @@ stated, not defaulted.
 
 ## Commands and events
 
-| Starting state                                                                                                                                                                                                                                  | Command or event                                         | Required result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Paid session observed, judge says `ready`                                                                                                                                                                                                       | Callback/redirect processing                             | Booking proceeds exactly as today (trusted path)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| Paid session observed, refuse-and-record conflict                                                                                                                                                                                               | Callback/redirect processing                             | Single captured charge: today's mismatch/rejection refund path runs unchanged — at most one refund call (the judged attempt runs only when it fits; the refusal rows below make zero), buyer answer unchanged, outcome recorded with the existing `REFUND_REASONS` vocabulary. More than one captured charge: zero refund calls — the session parks to owner review with the manual-check copy (decision 5)                                                                                                                                                                                             |
-| Paid session observed, owner-review conflict                                                                                                                                                                                                    | Callback/redirect processing                             | Booking proceeds on the signed total as today; the durable activity-log record carries the conflict kind, every resource id, and the amounts; the best-effort alert is the existing code-only ntfy ping (`sendNtfyError` sends an error code and nothing else) pointing the owner at the log; no payload echo                                                                                                                                                                                                                                                                                           |
-| Owner-review conflict flagged, booking then fails (sold out, capacity, price)                                                                                                                                                                   | Callback/redirect processing                             | No automatic refund on the conflicted payment; terminal owner-review outcome recorded; buyer sees the manual-check copy; replays return the same answer                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| Charge with no completed/pending refund facts, judge says attempt fits                                                                                                                                                                          | Refund attempt (`tryRefund` / admin single / admin bulk) | Provider refund attempted with the provider's idempotency key (Stripe/Square); success records completion as today                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| Charge where returned + returning would exceed captured (> captured)                                                                                                                                                                            | Refund attempt                                           | Attempt refused before any provider call; recorded/answered through the caller's existing failure shape (callback: retryable; admin: failed row with reason). One boundary everywhere: accounted-for ≤ captured passes; exact equality means nothing is left and routes to the `fully_refunded`/`refund_pending` rows, never to refusal                                                                                                                                                                                                                                                                 |
-| Charge already fully refunded (provider cumulative or our records)                                                                                                                                                                              | Refund attempt                                           | `fully_refunded`: success without a provider refund call, as `tryRefund`'s fallback does today                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| Provider answers in-flight to a refund attempt (Square PENDING; Stripe refund `status` `"pending"` or `"requires_action"` — in flight, not settled, not a rejection; today Stripe collapses both to a false failure at `stripe-provider.ts:81`) | Refund attempt                                           | No completion write, exactly as today. Within the request that observed it, the judge answers `refund_pending` and no further attempt starts. A later redelivery has no durable pending record (that is M7's `pending_refund_id`); its re-attempt reuses the same deterministic idempotency key, so within the provider's key-retention window (~24 hours for Stripe) it lands on the SAME provider refund — one payout. Past the window the overlap guard's fresh pre-attempt read protects, with the stale-cumulative residual named under Retry and replay                                           |
-| Free checkout (expected 0), provider shows money                                                                                                                                                                                                | Callback processing                                      | `paid_without_charge` → refuse-and-record refund path                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| Paid session observed, judge says `fully_refunded` (money already returned)                                                                                                                                                                     | Callback/redirect processing                             | No paid booking, and the refusal takes the session's own path shape. A new-booking session runs the stored-refused arm with the refund short-circuited to already-complete: quantity-0 placeholder, payment + `refund_cash` ledger, system note. A balance session (`balanceAttendeeId` names an existing attendee) creates NO placeholder and no new attendee: the balance stays unpaid, the terminal refused outcome and a system note on the existing attendee name the externally refunded charge. Both: the buyer sees the existing refunded answer; terminal, and replays return the same outcome |
+| Starting state                                                                                                                                                                                                                                  | Command or event                                         | Required result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Paid session observed, judge says `ready`                                                                                                                                                                                                       | Callback/redirect processing                             | Booking proceeds exactly as today (trusted path)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Paid session observed, refuse-and-record conflict                                                                                                                                                                                               | Callback/redirect processing                             | Single captured charge: today's mismatch/rejection refund path runs unchanged — at most one refund call (the judged attempt runs only when it fits; the refusal rows below make zero), buyer answer unchanged, outcome recorded with the existing `REFUND_REASONS` vocabulary. More than one captured charge: zero refund calls — the session parks to owner review with the manual-check copy (decision 5)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Paid session observed, owner-review conflict                                                                                                                                                                                                    | Callback/redirect processing                             | Booking proceeds on the signed total as today; the durable activity-log record carries the conflict kind, every resource id, and the amounts; the best-effort alert is the existing code-only ntfy ping (`sendNtfyError` sends an error code and nothing else) pointing the owner at the log; no payload echo                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Owner-review conflict flagged, booking then fails (sold out, capacity, price)                                                                                                                                                                   | Callback/redirect processing                             | No automatic refund on the conflicted payment; terminal owner-review outcome recorded; buyer sees the manual-check copy; replays return the same answer                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Charge with no completed/pending refund facts, judge says attempt fits                                                                                                                                                                          | Refund attempt (`tryRefund` / admin single / admin bulk) | Provider refund attempted with the provider's idempotency key (Stripe/Square); success records completion as today                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Charge where returned + returning would exceed captured (> captured)                                                                                                                                                                            | Refund attempt                                           | Attempt refused before any provider call; recorded/answered through the caller's existing failure shape (callback: retryable; admin: failed row with reason). One boundary everywhere: accounted-for ≤ captured passes; exact equality means nothing is left and routes to the `fully_refunded`/`refund_pending` rows, never to refusal                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Charge already fully refunded (provider cumulative or our records)                                                                                                                                                                              | Refund attempt                                           | `fully_refunded`: success without a provider refund call, as `tryRefund`'s fallback does today                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Provider answers in-flight to a refund attempt (Square PENDING; Stripe refund `status` `"pending"` or `"requires_action"` — in flight, not settled, not a rejection; today Stripe collapses both to a false failure at `stripe-provider.ts:81`) | Refund attempt                                           | No completion write, exactly as today. Within the request that observed it, the judge answers `refund_pending` and no further attempt starts. A later redelivery has no durable pending record (that is M7's `pending_refund_id`); its re-attempt reuses the same deterministic idempotency key, so within the provider's key-retention window (~24 hours for Stripe) it lands on the SAME provider refund — one payout. Past the window the overlap guard's fresh pre-attempt read protects, with the stale-cumulative residual named under Retry and replay                                                                                                                                                                                                                                                                                                                                       |
+| Free checkout (expected 0), provider shows money                                                                                                                                                                                                | Callback processing                                      | `paid_without_charge` → refuse-and-record refund path                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Paid session observed, judge says `fully_refunded` (money already returned)                                                                                                                                                                     | Callback/redirect processing                             | No paid booking, and the refusal takes the session's own path shape. A new-booking session runs the stored-refused arm with the refund short-circuited to already-complete: quantity-0 placeholder, payment + `refund_cash` ledger, system note. A balance session (`balanceAttendeeId` names an existing attendee) creates NO placeholder and no new attendee: the balance stays unpaid, the terminal refused outcome and a system note on the existing attendee name the externally refunded charge, and the money round trip still reaches the ledger — the same idempotent payment + `refund_cash` pair, keyed by the session, posts against the existing attendee (net zero), so the captured-and-returned cash shows on the attendee statement and in ledger reporting instead of vanishing. Both: the buyer sees the existing refunded answer; terminal, and replays return the same outcome |
 
 Every command keeps one authoritative implementation; the judge is consulted,
 never duplicated.
@@ -424,25 +449,34 @@ never duplicated.
   booking or refund — can safely re-run after settlement: re-judging stored
   terminal evidence is M5's `resolve.ts`, and moving the new money is the
   owner's dashboard call per decisions 1 and 5. No provider re-read is needed:
-  the observation was validated before the reservation check. Once-ness has two
-  layers, neither a new table (`payment_charges` stays dormant; the activity log
-  has no unique key). First, the recorder checks before it writes: an existing
-  record for the same stored reference and conflict kind means a sequential
-  redelivery — one whose earlier acknowledgement was lost — finds the record
-  already there and writes nothing more. Second, the record is written before
-  the terminal answer is returned, and that answer acks the callback, so the
-  provider stops redelivering it. Only truly concurrent duplicate deliveries can
-  slip both layers and each write a record — the failure direction is a
-  duplicate operator-visible record, never a lost one — and the durable
-  per-resource slot that makes this exactly-once is M6's aggregate row. PR B
-  also makes the reference comparison total for new terminal rows:
-  `markSessionFailed` stores the observed payment reference beside
-  `failure_data` — the `processed_payments.payment_reference` column already
-  exists, but today only success finalization writes it
-  (`processed-payments.ts:190-203`), never the failure write (`:213-226`) — so a
-  second capture after a terminal failure is detected exactly like one after a
-  success. Only legacy failure rows from before PR B carry no reference; for
-  those the comparison is vacuous and the replay stands — stated.
+  the observation was validated before the reservation check. Both the replay
+  comparison and once-ness hang off one mechanism, because neither existing
+  surface is comparable from a webhook: the activity log's `message` is
+  owner-key-encrypted ciphertext (`activity-log.ts` — a webhook can write it,
+  never search it), and `processed_payments.payment_reference` is
+  `OwnerKeyEncrypted` — randomized ciphertext the webhook writes but cannot read
+  back or compare. PR B therefore adds an `evidence_index` column to
+  `processed_payments`: a deterministic one-way code (the existing `hmacHash`
+  pattern behind `ticket_token_index` and friends) over the terminal outcome
+  kind plus the sorted observed captured resource ids and amounts — comparable
+  in plaintext, revealing nothing (provider resource ids, no PII). A column on
+  an existing table, not a new table; `payment_charges` stays dormant. Every
+  terminal write stores it — success finalization and `markSessionFailed` alike
+  (`markSessionFailed` also gains the owner-readable `payment_reference` write
+  it lacks today: `processed-payments.ts:190-203` writes it on success,
+  `:213-226` never on failure). A redelivery hashes its fresh observation and
+  compares: an equal fingerprint is an exact replay — nothing written, the
+  stored answer returned; a different fingerprint is new evidence — the total
+  detection rule above records it (a third tender on a payment whose first two
+  were already recorded changes the fingerprint, so later money is never
+  suppressed by an earlier record) and the fingerprint updates to the new
+  observation. Identical redeliveries therefore write nothing more even after a
+  lost acknowledgement; only truly concurrent duplicates — two deliveries in
+  flight before either fingerprint lands — can each record, the failure
+  direction being a duplicate operator-visible record, never a lost one, with
+  M6's aggregate row making it exactly-once. Legacy rows from before PR B carry
+  no fingerprint; for those the comparison is vacuous and the replay stands —
+  stated.
 - Retries stay owned by provider redelivery and the operator, as today. M4 adds
   no scheduler.
 - Permanent failures: a provider's explicit refund rejection records the failed
@@ -648,16 +682,21 @@ correctness, not scope creep.
   is refused whole — zero provider calls, every row failed with the plain reason
   "This run has too many payments to refund at once. Refund fewer attendees at a
   time." The admission compares 3R provider calls plus the batch's own database
-  writes plus a fixed reserve for failure fan-out (per-row activity records, the
-  code-only alert, error reporting) against the allowance MINUS the subrequests
-  the request has already spent before the pre-flight (the db client's call
-  counter is the source — the route's auth and attendee loads are not free). A
-  batch can no longer abort mid-flight with some refunds committed and
-  unrecorded; every term is known at pre-flight time, so the refusal is exact,
-  not a guess. Regression: an oversized batch makes zero provider calls and
-  fails every row with that reason. The paged engine that processes arbitrarily
-  large batches is still F53 / M7 — this slice only refuses what one request
-  cannot safely hold. Database calls: unchanged from today.
+  calls at the client's retry worst case — every post-provider write costed at
+  the bounded maximum of four attempts (`TRANSIENT_ERROR_BACKOFF_MS` in
+  `db/client.ts` allows three retries, and the round-trip guard counts each
+  attempt separately), so a `SQLITE_BUSY` streak after money has moved cannot
+  push the request over the limit — plus a fixed reserve for failure fan-out
+  (per-row activity records, the code-only alert, error reporting) against the
+  allowance MINUS the subrequests the request has already spent before the
+  pre-flight (the db client's call counter is the source — the route's auth and
+  attendee loads are not free). A batch can no longer abort mid-flight with some
+  refunds committed and unrecorded; every term is known at pre-flight time, so
+  the refusal is exact, not a guess. Regression: an oversized batch makes zero
+  provider calls and fails every row with that reason. The paged engine that
+  processes arbitrarily large batches is still F53 / M7 — this slice only
+  refuses what one request cannot safely hold. Database calls: unchanged from
+  today.
 - Standalone value: the live system stops repeat and over-refunds on the admin
   and attempt side. The callback rejection arm keeps today's behavior until PR B
   cuts it over with its reservation — PR A claims nothing about that arm.
@@ -731,13 +770,15 @@ src)**
   as today; and a multi-charge refuse remedy parks to owner review (decision 5).
   Regression tests: a post-terminal callback carrying a second captured tender —
   under the original resource name or a new one — records the conflict, never
-  re-books or refunds, and once the record exists its redeliveries write nothing
-  more (the recorder's existence check, exercised by redelivering after a lost
-  acknowledgement); a second capture arriving after a terminal failure is
-  detected the same way (the failure row now carries the reference); a delayed
-  callback for an externally fully-refunded charge issues no paid booking and no
-  refund call; a wrong-currency two-tender observation makes zero refund calls,
-  books nothing, records both resource ids, and answers the manual-check copy.
+  re-books or refunds, and an identical redelivery writes nothing more (the
+  `evidence_index` fingerprint comparison, exercised by redelivering after a
+  lost acknowledgement), while a THIRD tender arriving after the two-tender
+  record changes the fingerprint and records again; a second capture arriving
+  after a terminal failure is detected the same way (the failure row now carries
+  the fingerprint and reference); a delayed callback for an externally
+  fully-refunded charge issues no paid booking and no refund call; a
+  wrong-currency two-tender observation makes zero refund calls, books nothing,
+  records both resource ids, and answers the manual-check copy.
 - Budgets: zero additional provider or database calls beyond today's callback
   path on the trusted arm, plus the one activity-log statement inside the
   existing processing transaction; the refuse arm makes at most one provider
