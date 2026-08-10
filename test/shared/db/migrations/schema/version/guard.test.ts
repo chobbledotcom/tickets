@@ -103,8 +103,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-07-28_note_entities",
         "2026-07-26_payment_records",
         "2026-08-04_login_attempt_stamp",
+        "2026-08-10_payment_state_columns",
       ],
-      schemaHash: "13v066p",
+      schemaHash: "1nngexq",
     });
   });
 
@@ -118,7 +119,8 @@ describe("db > migrations > schema change guard", () => {
     }).toEqual({
       dbSchemaHash: "db_schema_hash",
       latestDbUpdate: "latest_db_update",
-      latestUpdate: "Track when each login-attempt row was last touched.",
+      latestUpdate:
+        "Record each payment's settled state: its evidence fingerprint, the live work protecting it, and a one-way index of the provider reference it names.",
       migrationLock: "migration_lock",
       schemaMigrations: "schema_migrations",
     });
