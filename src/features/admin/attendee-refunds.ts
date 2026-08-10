@@ -42,6 +42,7 @@ import {
 } from "./attendees-route-helpers.ts";
 import { getRefundCandidates } from "./refunds/candidates.ts";
 import {
+  type CandidateRefund,
   durableRowClaim,
   processRefundBatch,
   type RefundCounts,
@@ -136,7 +137,7 @@ const handleAttendeeRefund = verifiedAttendeeAction(
     // One attendee is a run of one: it takes the same hold before reading the
     // provider, so a bulk wave already working on this person turns it away
     // instead of both sending.
-    const refunded = await underAttendeeClaim(
+    const refunded = await underAttendeeClaim<CandidateRefund>(
       durableRowClaim,
       [attendeeId],
       provider.refundCapability,
@@ -153,7 +154,14 @@ const handleAttendeeRefund = verifiedAttendeeAction(
         },
         lost: (result) =>
           result.outcome === "errored" || result.unsettled === true,
-        work: () => refundCandidateAtProvider(provider, candidate, listingId),
+        work: (alreadyReturned) =>
+          refundCandidateAtProvider(
+            provider,
+            candidate,
+            listingId,
+            undefined,
+            alreadyReturned,
+          ),
       },
     );
     if (refunded.outcome !== "refunded") {

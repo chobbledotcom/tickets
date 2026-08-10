@@ -69,13 +69,24 @@ type ClaimRow = {
 /** What happened when a run asked for an attendee's rows. */
 export type ClaimResult =
   | { blockedBy: ClaimDecision; kind: "blocked" }
-  | { heldSince: string; kind: "claimed"; sessionIds: readonly string[] };
+  | {
+      heldSince: string;
+      kind: "claimed";
+      /** The reference indexes whose claimed row already says the money went
+       *  back. A run reads this instead of trusting the reference list it
+       *  loaded before it had the hold — that list can predate another run's
+       *  answer, and against a provider whose evidence lags, believing it is
+       *  how the same charge gets refunded twice. */
+      returned: ReadonlySet<string>;
+      sessionIds: readonly string[];
+    };
 
 type StoredRow = {
   attendee_id: number | null;
   failure_data: EnvKeyEncrypted | "";
   payment_reference_index: string;
   payment_session_id: string;
+  provider_refunded_at: string;
 };
 
 /** The columns every claim decision reads, for whichever rows the caller
@@ -89,7 +100,7 @@ const readRows = async (
     await tx.execute({
       args,
       sql: `SELECT payment_session_id, attendee_id, failure_data,
-                   payment_reference_index
+                   payment_reference_index, provider_refunded_at
               FROM processed_payments AS payment
              WHERE ${where}`,
     }),
@@ -181,7 +192,12 @@ export const claimAttendeeRows = async (
   capability: RefundCapability,
 ): Promise<ClaimResult> => {
   if (attendeeIds.length === 0) {
-    return { heldSince: nowIso(), kind: "claimed", sessionIds: [] };
+    return {
+      heldSince: nowIso(),
+      kind: "claimed",
+      returned: new Set(),
+      sessionIds: [],
+    };
   }
   const writtenAt = nowIso();
   const staleBefore = isoBefore(STALE_RESERVATION_MS);
@@ -232,6 +248,13 @@ export const claimAttendeeRows = async (
     return {
       heldSince: writtenAt,
       kind: "claimed",
+      // Sharing rows count too: money returned against a reference is
+      // returned for every row carrying it, whoever they belong to.
+      returned: new Set(
+        [...stored.own, ...stored.sharing]
+          .filter((row) => row.provider_refunded_at !== "")
+          .map((row) => row.payment_reference_index),
+      ),
       sessionIds: rows.map((row) => row.sessionId),
     };
   });

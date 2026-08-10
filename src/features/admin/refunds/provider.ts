@@ -6,6 +6,7 @@ import {
 } from "#shared/db/payment-claim.ts";
 import {
   markPaymentReferencesProviderRefunded,
+  paymentReferenceIndex,
   type RefundPaymentReference,
 } from "#shared/db/payment-references.ts";
 import { reportRefundNotRecorded } from "#shared/invariant-errors.ts";
@@ -85,6 +86,7 @@ const refundReferenceAtProvider = async (
   candidate: RefundCandidate,
   listingId: number,
   reference: RefundPaymentReference,
+  alreadyReturned: ReadonlySet<string>,
 ): Promise<ReferenceRefund> => {
   const attendeeId = candidate.attendee.id;
   const paymentReference = reference.reference;
@@ -94,6 +96,15 @@ const refundReferenceAtProvider = async (
   });
   try {
     if (reference.refundState === "completed") return settled("refunded");
+    // What the claimed row says now beats the reference list this run loaded
+    // before it had the hold: another run may have refunded this since. Only
+    // worth hashing the reference when the claim actually saw money go back.
+    if (
+      alreadyReturned.size > 0 &&
+      alreadyReturned.has(await paymentReferenceIndex(paymentReference))
+    ) {
+      return settled("refunded");
+    }
     // What the money has already done decides whether more is sent — see
     // `sendRefundIfAdmitted`. SumUp has no idempotency key to fall back on.
     return await sendRefundIfAdmitted(provider, paymentReference, {
@@ -151,7 +162,7 @@ export const underAttendeeClaim = async <TResult>(
   run: {
     blocked: (reason: string) => TResult;
     lost: (result: TResult) => boolean;
-    work: () => Promise<TResult>;
+    work: (alreadyReturned: ReadonlySet<string>) => Promise<TResult>;
   },
 ): Promise<TResult> => {
   const claim = await rowClaim.claim(attendeeIds, capability);
@@ -174,7 +185,7 @@ export const underAttendeeClaim = async <TResult>(
     }
   };
   try {
-    const result = await run.work();
+    const result = await run.work(claim.returned);
     await release(run.lost(result));
     return result;
   } catch (error) {
@@ -198,6 +209,7 @@ export const refundCandidateAtProvider = async (
   candidate: RefundCandidate,
   listingId: number,
   markReturnedReferences: MarkReturnedReferences = markPaymentReferencesProviderRefunded,
+  alreadyReturned: ReadonlySet<string> = new Set(),
 ): Promise<CandidateRefund> => {
   const results: {
     outcome: RefundOutcome;
@@ -216,6 +228,7 @@ export const refundCandidateAtProvider = async (
           candidate,
           listingId,
           reference,
+          alreadyReturned,
         )),
         reference,
       })),
@@ -324,8 +337,14 @@ export const processRefundBatch = async (
         };
       },
       lost: (result) => result.counts.errorCount > 0 || result.unsettled,
-      work: () =>
-        refundClaimedBatch(provider, batch, listingId, markReturnedReferences),
+      work: (alreadyReturned) =>
+        refundClaimedBatch(
+          provider,
+          batch,
+          listingId,
+          markReturnedReferences,
+          alreadyReturned,
+        ),
     },
   );
   return result.counts;
@@ -336,6 +355,7 @@ const refundClaimedBatch = async (
   batch: RefundCandidate[],
   listingId: number,
   markReturnedReferences: MarkReturnedReferences,
+  alreadyReturned: ReadonlySet<string>,
 ): Promise<{ counts: RefundCounts; unsettled: boolean }> => {
   let unsettled = false;
   const counts: RefundCounts = {
@@ -353,6 +373,7 @@ const refundClaimedBatch = async (
           candidate,
           listingId,
           markReturnedReferences,
+          alreadyReturned,
         ),
       ),
     );
