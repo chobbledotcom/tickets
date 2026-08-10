@@ -196,6 +196,16 @@ export const attendeeTables: [name: string, table: Table][] = [
         ["failure_data", "TEXT NOT NULL DEFAULT ''"],
         ["payment_reference", "TEXT NOT NULL DEFAULT ''"],
         ["provider_refunded_at", "TEXT NOT NULL DEFAULT ''"],
+        // The M4 payment-state columns (PR4_PLAN.md): the replay fingerprint
+        // of the committed evidence, the plain-text mirror of live work that
+        // SQL-only consumers (pruning, orphan selection) can see without
+        // decrypting, and a blind one-way index of the reference's identity
+        // so a claim can spot another row holding the same provider money.
+        // Empty on every pre-M4 row; the reference index fills at write time
+        // for new rows and on first authenticated touch for legacy ones.
+        ["evidence_index", "TEXT NOT NULL DEFAULT ''"],
+        ["protected_state", "TEXT NOT NULL DEFAULT ''"],
+        ["payment_reference_index", "TEXT NOT NULL DEFAULT ''"],
       ],
       // Admin rosters, exports, and refund-all candidate loading look up the
       // retained charge references for a listing's attendees
@@ -206,6 +216,14 @@ export const attendeeTables: [name: string, table: Table][] = [
         {
           columns: ["attendee_id", "payment_reference"],
           name: "idx_processed_payments_attendee_id",
+        },
+        // Deliberately NOT unique: two real rows can carry one legacy
+        // reference (the F21 duplicates this column exposes), and anchor-row
+        // mints get their uniqueness from a primary key derived from this
+        // value instead.
+        {
+          columns: ["payment_reference_index"],
+          name: "idx_processed_payments_reference_index",
         },
       ],
       // FK declarations removed — libsql's FK enforcement breaks table
