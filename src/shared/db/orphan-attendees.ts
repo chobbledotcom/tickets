@@ -53,9 +53,9 @@ export const ORPHAN_IDS = `SELECT attendee.id
  * The same orphans, bounded for one scheduled maintenance batch.
  *
  * Maintenance takes them a page at a time where the operator's page takes them
- * all, and that bound is the ONLY difference — so it is added here rather than
- * by writing the rule out a second time. A second copy is how the automatic
- * purge came to be missing the protected-row check the manual one had.
+ * all, and that bound is the only difference — so it is added here rather than
+ * by writing the rule out a second time, and both purges keep answering the
+ * same question about which rows are safe to take.
  */
 export const orphanIdsBatch = (): string =>
   `${ORPHAN_IDS}\n ORDER BY attendee.id LIMIT ?`;
