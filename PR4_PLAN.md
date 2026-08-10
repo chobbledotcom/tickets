@@ -448,7 +448,7 @@ stated, not defaulted.
 | Starting state                                                                                                                                                                                                                                  | Command or event                                         | Required result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Paid session observed, judge says `ready`                                                                                                                                                                                                       | Callback/redirect processing                             | Booking proceeds exactly as today (trusted path)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| Paid session observed, refuse-and-record conflict                                                                                                                                                                                               | Callback/redirect processing                             | Single captured charge: today's mismatch/rejection refund path runs unchanged — at most one refund call (the judged attempt runs only when it fits; the refusal rows below make zero), buyer answer unchanged, outcome recorded with the existing `REFUND_REASONS` vocabulary. More than one captured charge: zero refund calls — the session parks to owner review with the manual-check copy (decision 5)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Paid session observed, refuse-and-record conflict                                                                                                                                                                                               | Callback/redirect processing                             | Single captured charge WITH COHERENT PARENTAGE: today's mismatch/rejection refund path runs unchanged — at most one refund call (the judged attempt runs only when it fits; the refusal rows below make zero), buyer answer unchanged, outcome recorded with the existing `REFUND_REASONS` vocabulary. Coherent parentage is a PREREQUISITE of this row, never overridden by whichever kind won the evaluation order: a single charge whose parent facts disagree with the signed session takes the action-level gate's retryable zero-call refusal even when `currency_mismatch` or another kind won. More than one captured charge: zero refund calls — the session parks to owner review with the manual-check copy (decision 5)                                                                                                                                                                 |
 | Paid session observed, owner-review conflict                                                                                                                                                                                                    | Callback/redirect processing                             | Booking proceeds on the signed total as today; the durable activity-log record carries the conflict kind, every resource id, and the amounts; the best-effort alert is the existing code-only ntfy ping (`sendNtfyError` sends an error code and nothing else) pointing the owner at the log; no payload echo                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Owner-review conflict flagged, booking then fails (sold out, capacity, price)                                                                                                                                                                   | Callback/redirect processing                             | No automatic refund on the conflicted payment; terminal owner-review outcome recorded; buyer sees the manual-check copy; replays return the same answer                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | Charge with no completed/pending refund facts, judge says attempt fits                                                                                                                                                                          | Refund attempt (`tryRefund` / admin single / admin bulk) | Provider refund attempted with the provider's idempotency key (Stripe/Square); success records completion as today                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
@@ -577,41 +577,57 @@ never duplicated.
   retries the compare-and-detect cycle against the committed index instead of
   suppressing real money that may never be redelivered; the retry is bounded by
   the transaction retry budget and convergent because each round compares
-  against a strictly newer index. An interruption between the two writes can
-  neither make the next identical delivery record twice (fingerprint advanced
-  with the record) nor suppress a record that never landed (neither write
-  happened). Regressions: two simultaneous identical post-terminal deliveries
-  produce one record, one alert; a legacy row's clean seed racing a
-  second-capture delivery ends with the conflict recorded exactly once. When the
-  fresh judge's outcome on a BOOKED session is an owner-review CONFLICT — a
-  first callback finalized `ready` before Square's tender list caught up, a
-  later delivery revealing the second capture — that same batch also writes the
-  owner-review marker into the session row's `failure_data`, STORING THE
-  CONFLICT KIND, and the gates read the kind: every owner-review kind hides the
-  Refund action (its handler could only refuse — the dead-link rule), while only
-  extra-captured-money kinds (`multiple_charges`, `capture_total_mismatch`,
-  `duplicate_charge`) refuse the refresh route's ledger-completion writes.
-  Refund-progress evidence is deliberately NOT gate-closing beyond that: a
-  dashboard FULL refund of the named single charge judges `fully_refunded` —
-  recorded, fingerprint advanced, NO marker — so the refresh route's unambiguous
-  `fully_refunded → completed` ledger write stays open and the provider refund
-  reaches the ledger; a dashboard PARTIAL refund judges `partial_refund`, whose
-  marker hides the Refund action but leaves the refresh route free to observe
-  later settlement and complete what provider state supports. Without the
-  marker, the attendee would keep a live Refund action whose use reverses the
-  full ledger order while the newly detected sibling stays captured
-  (regressions: a session booked clean whose redelivery reveals a second tender
-  loses its Refund action and refuses legacy refunds immediately; one whose
-  charge was dashboard-refunded in full completes its ledger through the refresh
-  route with no marker written). Legacy rows from before PR B carry no
-  fingerprint; their first post-upgrade redelivery takes the detection path, not
-  a blind replay: the fresh observation — validated and in hand — is judged, any
-  conflict records per the total rule (a legacy multi-tender session whose
-  sibling tenders today's code never saw is a REAL first detection), and
-  `evidence_index` is seeded from that observation in the same batch either way;
-  a clean observation seeds silently and writes nothing else. From then on the
-  row compares like any other — only unchanged legacy evidence replays silently,
-  so the total post-terminal rule holds for existing production rows too.
+  against a strictly newer index. The retry writes only what the loser's own
+  observation justifies: an observation that records no conflict beyond the
+  committed evidence — the stale clean seed that lost to the rich second-capture
+  winner — writes NOTHING, never regressing the index to an older snapshot that
+  would make the already-recorded capture look new and alert again; only a retry
+  that records a fresh conflict advances the index with its record (regression:
+  after a clean loser retries against a committed second-capture index, a
+  redelivery of that second capture writes nothing more). An interruption
+  between the two writes can neither make the next identical delivery record
+  twice (fingerprint advanced with the record) nor suppress a record that never
+  landed (neither write happened). Regressions: two simultaneous identical
+  post-terminal deliveries produce one record, one alert; a legacy row's clean
+  seed racing a second-capture delivery ends with the conflict recorded exactly
+  once. When the fresh judge's outcome on a BOOKED session is an owner-review
+  CONFLICT — a first callback finalized `ready` before Square's tender list
+  caught up, a later delivery revealing the second capture — that same batch
+  also writes the owner-review marker into the session row's `failure_data`,
+  STORING THE CONFLICT KIND AND THE OBSERVED CAPTURED-RESOURCE LIST (the marker
+  always carries every charge — picking one kind never discards the rest of the
+  evidence), and the gates read the marker's CONTENT, not just its kind: every
+  marker hides the Refund action (its handler could only refuse — the dead-link
+  rule), while the refresh route's ledger-completion writes are refused whenever
+  the marker's recorded resources name any captured charge beyond the named
+  reference — REGARDLESS of which kind won the evaluation order, because an
+  extra capture can hide behind a higher-priority diagnosis: a replay revealing
+  a second tender AND a partial refund on the named tender emits
+  `partial_refund`, yet completing the ledger when that tender later fully
+  refunds would reverse the whole booking order while the sibling stays captured
+  (regression: such a marker refuses completion even though its kind is
+  `partial_refund`). Refund-progress evidence is deliberately NOT gate-closing
+  beyond that: a dashboard FULL refund of the named single charge judges
+  `fully_refunded` — recorded, fingerprint advanced, NO marker — so the refresh
+  route's unambiguous `fully_refunded → completed` ledger write stays open and
+  the provider refund reaches the ledger; a dashboard PARTIAL refund judges
+  `partial_refund`, whose marker (resources: the named charge alone) hides the
+  Refund action but leaves the refresh route free to observe later settlement
+  and complete what provider state supports. Without the marker, the attendee
+  would keep a live Refund action whose use reverses the full ledger order while
+  the newly detected sibling stays captured (regressions: a session booked clean
+  whose redelivery reveals a second tender loses its Refund action and refuses
+  legacy refunds immediately; one whose charge was dashboard-refunded in full
+  completes its ledger through the refresh route with no marker written). Legacy
+  rows from before PR B carry no fingerprint; their first post-upgrade
+  redelivery takes the detection path, not a blind replay: the fresh observation
+  — validated and in hand — is judged, any conflict records per the total rule
+  (a legacy multi-tender session whose sibling tenders today's code never saw is
+  a REAL first detection), and `evidence_index` is seeded from that observation
+  in the same batch either way; a clean observation seeds silently and writes
+  nothing else. From then on the row compares like any other — only unchanged
+  legacy evidence replays silently, so the total post-terminal rule holds for
+  existing production rows too.
 - Retries stay owned by provider redelivery and the operator, as today. M4 adds
   no scheduler.
 - Permanent failures: a provider's explicit refund rejection records the failed
@@ -651,17 +667,28 @@ without touching the provider; a stale claim (older than the edge request
 lifetime bound) is a crashed worker and may be re-claimed, per the staged
 lifecycle. Regression: two concurrent single-attendee refunds of one merged
 attendee — one claims every reference and refunds, the other claims nothing and
-answers in-progress. This claim is what makes the SumUp cells above real: with
-no idempotency parameter, two truly simultaneous refund calls are serialized
-only by the provider, and SumUp documents 409 as a state conflict, not a
-concurrency guarantee — so the local claim is the serialization, for every
-provider one mechanism (regression: two concurrent admin refunds of one SumUp
-reference make exactly one provider call; the loser answers in-progress). A
-legacy reference with NO `processed_payments` row cannot be claimed: that
-residual simultaneous window is unchanged from today, stated here, and closes
-with M7's durable pending-attempt gate — Stripe/Square legacy attempts still
-dedupe on the provider idempotency key, and SumUp legacy attempts keep the
-provider's second-refund rejection plus the fresh evidence read. PR A's
+answers in-progress. A legacy reference with no `processed_payments` row does
+not escape the claim: the claiming write MINTS the row — an INSERT-OR-IGNORE
+keyed by the reference's one-way index, carrying the attendee id, the encrypted
+reference, and the claim in `failure_data`; same table, no new columns, and the
+insert-or-ignore IS the winner-decider for row-less references — so the
+previously open legacy simultaneous window closes with the same one mechanism
+instead of waiting for M7. The refresh route's marker writes mint the same
+anchor row for a legacy-only attendee, so a detected `partial_refund` durably
+hides the Refund action there too — the marker never depends on a row the
+reference happens to lack (regression: a legacy-reference attendee whose refresh
+detects a partial refund loses the Refund action, and two concurrent legacy
+SumUp refunds make exactly one provider call). This claim is what makes the
+SumUp cells above real: with no idempotency parameter, two truly simultaneous
+refund calls are serialized only by the provider, and SumUp documents 409 as a
+state conflict, not a concurrency guarantee — so the local claim is the
+serialization, for every provider one mechanism (regression: two concurrent
+admin refunds of one SumUp reference make exactly one provider call; the loser
+answers in-progress). A legacy reference with NO `processed_payments` row cannot
+be claimed: that residual simultaneous window is unchanged from today, stated
+here, and closes with M7's durable pending-attempt gate — Stripe/Square legacy
+attempts still dedupe on the provider idempotency key, and SumUp legacy attempts
+keep the provider's second-refund rejection plus the fresh evidence read. PR A's
 concurrency regression exercises our side of this (the second attempt answers
 provider rejection or a fresh `fully_refunded` read) — provider-side
 serialization is the stated assumption, not something a mocked test can prove.
@@ -700,9 +727,17 @@ Genuine conflicts the system must not decide:
   front, because `refundCandidateAtProvider` runs a merged attendee's references
   concurrently and a per-reference refusal would land only after a sibling
   reference's money had already moved, leaving `recordAttendeeRefund` skipped
-  and the states inconsistent; the refresh-payment route likewise refuses the
-  `fully_refunded` → completed ledger write for a marked session — the named
-  tender's dashboard refund does not mean the BOOKING's money came back, and
+  and the states inconsistent. The same attendee-whole rule governs FRESH
+  verdicts, not just markers an earlier request recorded: the run reads and
+  judges the COMPLETE reference set first — evidence reads only, no provider
+  refunds — and only when every reference judges refundable does it issue any
+  refund call; a park-shaped fresh verdict (`partial_refund`, `refund_pending`,
+  an owner-review kind) on ANY reference refuses the whole attendee with zero
+  refund calls (regression: a merged attendee with one clean reference and one
+  part-refunded reference is refused whole — the clean sibling's money does not
+  move); the refresh-payment route likewise refuses the `fully_refunded` →
+  completed ledger write for a marked session — the named tender's dashboard
+  refund does not mean the BOOKING's money came back, and
   `recordConfirmedRefund` would reverse the whole ledger order while a sibling
   tender stays captured — recording the observed provider fact in the activity
   log instead; and the Refund action is not RENDERED for a gated attendee
@@ -797,19 +832,23 @@ No money-moving automation is added for any owner-review kind.
   serializes the work and the terminal record plus acknowledgement end it. The
   honest bound BEFORE the terminal record differs in one case: while a refund
   answer stays provider-PENDING there is deliberately no terminal record (F3's
-  core rule — pending is neither failed nor complete), so each redelivery in
-  that window re-does the session's bounded work — the authenticity read, the
-  evidence read, and one refund re-attempt under the SAME stored idempotency key
-  (one payout regardless). That window is real, provider-ended (it closes when
-  the refund settles, typically one redelivery cycle), and its per-delivery cost
-  is a fixed ceiling — stated and budgeted rather than claimed away; a forger
-  replaying a real staged checkout id during it buys bounded idempotent work,
-  never a second payout. Regressions (PR B): a replayed callback for a
-  terminally processed session costs exactly one provider read and zero refund
-  calls; a replay while the refund is PENDING re-attempts under the same
-  idempotency key and never moves a second payout. Bounding request volume
-  itself is the platform's rate limiting, unchanged — M4 adds no new
-  unauthenticated read surface.
+  core rule — pending is neither failed nor complete). Each redelivery in that
+  window costs the authenticity read, then the staged AGE GATE decides — the
+  same fresh/stale rule as the staged lifecycle, one mechanism: against a FRESH
+  staged claim the delivery answers retryably with ZERO further provider calls
+  (the original worker or the provider is still settling); only against a STALE
+  claim does the resume re-do the evidence read and one refund re-attempt under
+  the SAME stored idempotency key (one payout regardless). That window is real,
+  provider-ended (it closes when the refund settles, typically one redelivery
+  cycle), and its per-delivery cost is a fixed ceiling — stated and budgeted
+  rather than claimed away; a forger replaying a real staged checkout id during
+  it buys bounded idempotent work, never a second payout. Regressions (PR B): a
+  replayed callback for a terminally processed session costs exactly one
+  provider read and zero refund calls; a replay against a FRESH staged row makes
+  zero provider calls beyond authenticity; a replay against a STALE staged row
+  re-attempts under the same idempotency key and never moves a second payout.
+  Bounding request volume itself is the platform's rate limiting, unchanged — M4
+  adds no new unauthenticated read surface.
 
 ## What is deleted (F51)
 
@@ -897,13 +936,13 @@ correctness, not scope creep.
   provider refund (the re-attempt reuses the same idempotency key and lands on
   the same refund — asserted by key equality, one payout); pending + completed
   exceeding captured is refused; completed counts immediately while cumulative
-  lags; two concurrent SumUp refund attempts make at most one payout on our side
-  — the second answers provider rejection or a fresh `fully_refunded` read
-  (application-side behavior; provider serialization of truly simultaneous calls
-  is the concurrency section's stated assumption); a Stripe refund answering a
-  `null` status records nothing until the bounded evidence re-read answers; a
-  SumUp transaction whose successful refund events sum above zero and below
-  `amount` reads as `partial_refund`, never `fully_refunded` — an empty or
+  lags; two concurrent SumUp refund attempts make exactly ONE provider call —
+  the loser of the all-or-none CAS claim answers in-progress without touching
+  the provider (the claim transaction ships in THIS slice, before any provider
+  call on every refund route, per the concurrency section); a Stripe refund
+  answering a `null` status records nothing until the bounded evidence re-read
+  answers; a SumUp transaction whose successful refund events sum above zero and
+  below `amount` reads as `partial_refund`, never `fully_refunded` — an empty or
   absent event list stays `ready`, and events summing to `amount` read
   `fully_refunded` even while top-level status still says `SUCCESSFUL` (the
   sandbox-observed shape); a Stripe refund answering `pending` writes no
@@ -973,8 +1012,11 @@ correctness, not scope creep.
   through the references (regression: a merged attendee whose reference count
   cannot fit the remaining budget gets that error and zero provider calls). The
   paged engine that processes arbitrarily large batches is still F53 / M7 — this
-  slice only refuses what one request cannot safely hold. Database calls:
-  unchanged from today.
+  slice only refuses what one request cannot safely hold. Database calls: one
+  NEW cost beside today's — the all-or-none claim transaction per refund run
+  (claim before any provider call, minting anchor rows for row-less legacy
+  references; finalize/release after), counted in the admission's own
+  arithmetic; everything else unchanged.
 - Standalone value: the live system stops repeat and over-refunds on the admin
   and attempt side. The callback rejection arm keeps today's behavior until PR B
   cuts it over with its reservation — PR A claims nothing about that arm.
