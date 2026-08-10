@@ -277,6 +277,24 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       });
     });
 
+    test("a provider that never answered is not reported as money sent", async () => {
+      // The call died before the provider said anything, so nobody knows
+      // whether the money moved. Telling the operator to correct the books and
+      // never resend would strand a buyer whose refund was never sent.
+      const ctx = await setupRefundTest("pi_uncertain");
+
+      await withRefundMock(
+        () => Promise.reject(new Error("connection reset")),
+        async () => {
+          await expectFlashRedirect(
+            `/admin/attendees/${ctx.attendee.id}/refund`,
+            expect.stringContaining("Refund failed"),
+            false,
+          )(await submitRefund(ctx));
+        },
+      );
+    });
+
     describe("a provider refund the ledger could not record", () => {
       const errors = setupErrorSpy();
 
