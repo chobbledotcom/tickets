@@ -2,7 +2,6 @@ import * as v from "valibot";
 import { sumOf } from "#fp";
 import { MoneySchema, money } from "#shared/payment/money.ts";
 import { ResourceIdSchema } from "#shared/payment/resource-id.ts";
-import { RESOURCE_KIND_BY_PROVIDER } from "#shared/payment/words.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 
 const providerResource = <
@@ -21,33 +20,7 @@ const providerResource = <
     provider: v.literal(provider),
   });
 
-export const ProviderSessionResourceSchema = v.union([
-  providerResource("stripe", "stripe_checkout_session", {}),
-  providerResource("square", "square_order", {}),
-  providerResource("sumup", "sumup_checkout", {}),
-]);
-export type ProviderSessionResource = v.InferOutput<
-  typeof ProviderSessionResourceSchema
->;
-
-// The kind names come from the vocabulary rather than being written again
-// here, so a provider cannot end up with two names for the money it took.
-export const ProviderChargeResourceSchema = v.union([
-  providerResource("stripe", RESOURCE_KIND_BY_PROVIDER.stripe, {
-    parentId: ResourceIdSchema,
-  }),
-  providerResource("square", RESOURCE_KIND_BY_PROVIDER.square, {
-    parentId: ResourceIdSchema,
-  }),
-  providerResource("sumup", RESOURCE_KIND_BY_PROVIDER.sumup, {
-    parentId: ResourceIdSchema,
-  }),
-]);
-export type ProviderChargeResource = v.InferOutput<
-  typeof ProviderChargeResourceSchema
->;
-
-export const ProviderRefundResourceSchema = v.union([
+const ProviderRefundResourceSchema = v.union([
   providerResource("stripe", "stripe_refund", {
     parentId: ResourceIdSchema,
   }),
@@ -62,21 +35,6 @@ export type ProviderRefundResource = v.InferOutput<
   typeof ProviderRefundResourceSchema
 >;
 
-export const ProviderResourceSchema = v.union([
-  ProviderSessionResourceSchema,
-  ProviderChargeResourceSchema,
-  ProviderRefundResourceSchema,
-]);
-export type ProviderResource = v.InferOutput<typeof ProviderResourceSchema>;
-
-export const sameProviderResource = (
-  left: ProviderResource,
-  right: ProviderResource,
-): boolean =>
-  left.provider === right.provider &&
-  left.kind === right.kind &&
-  left.id === right.id;
-
 /** Money that has to be some actual money. Nothing was never taken, and
  *  nothing is never on its way back. */
 const positiveMoney = (message: string) =>
@@ -85,9 +43,7 @@ const positiveMoney = (message: string) =>
     v.check((money) => money.amount > 0, message),
   );
 
-export const PositiveMoneySchema = positiveMoney(
-  "A paid charge must be positive",
-);
+const PositiveMoneySchema = positiveMoney("A paid charge must be positive");
 
 /** A finished or still-going refund must be for some money: a refund of
  *  nothing would read as one still going, for ever. Only a failed refund may
@@ -122,24 +78,21 @@ const pendingRefundResult = refundResult("pending", optionalRefund, {
   amount: MovedRefundMoneySchema,
 });
 
-export const RefundObservationSchema = v.variant("status", [
+const RefundObservationSchema = v.variant("status", [
   completedRefundResult,
   pendingRefundResult,
   refundResult("failed", optionalRefund, { reason: ResourceIdSchema }),
 ]);
 export type RefundObservation = v.InferOutput<typeof RefundObservationSchema>;
 
-export const RefundFailureReasonSchema = v.picklist([
+const RefundFailureReasonSchema = v.picklist([
   "provider_failed",
   "invalid_amount",
   "multiple_pending_refunds",
   "not_observed",
 ]);
-export type RefundFailureReason = v.InferOutput<
-  typeof RefundFailureReasonSchema
->;
 
-export const RefundResolutionSchema = v.variant("status", [
+const RefundResolutionSchema = v.variant("status", [
   completedRefundResult,
   pendingRefundResult,
   refundResult("partial", optionalRefund, { amount: MovedRefundMoneySchema }),
@@ -155,10 +108,9 @@ export type RefundResolution = v.InferOutput<typeof RefundResolutionSchema>;
  *
  * This is everything the money rules read. A refund asked for against a bare
  * provider reference knows this much and no more — it has no checkout to hang
- * the charge off — so the rules take these facts rather than a whole leg, and
- * the leg below is these facts plus the record they came from.
+ * the charge off — so the rules take these facts rather than a whole leg.
  */
-export const ChargeMoneySchema = v.strictObject({
+const ChargeMoneySchema = v.strictObject({
   captured: PositiveMoneySchema,
   confirmedRefunded: MoneySchema,
   refunds: v.array(RefundObservationSchema),
@@ -187,27 +139,6 @@ export const chargeMoneyOrNull = (
   });
   return parsed.success ? parsed.output : null;
 };
-
-export const ChargeLegSchema = v.strictObject({
-  ...ChargeMoneySchema.entries,
-  resource: ProviderChargeResourceSchema,
-});
-export type ChargeLeg = v.InferOutput<typeof ChargeLegSchema>;
-
-export const ChargeLegsSchema = v.pipe(
-  v.array(ChargeLegSchema),
-  v.minLength(1),
-);
-export type ChargeLegs = v.InferOutput<typeof ChargeLegsSchema>;
-
-export const providerRefundResources = (
-  charges: readonly ChargeLeg[],
-): ProviderRefundResource[] =>
-  charges.flatMap((charge) =>
-    charge.refunds.flatMap((refund) =>
-      refund.refund === undefined ? [] : [refund.refund],
-    ),
-  );
 
 /** Adds up the refunds at one point in their life — every one still going, or
  *  every one finished. */

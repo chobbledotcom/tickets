@@ -6,15 +6,7 @@ import { PaymentConflictSchema } from "#shared/payment/conflict.ts";
 describe("what can be wrong with a payment", () => {
   test("validates every payment conflict", () => {
     const conflicts = [
-      { kind: "resource_mismatch" },
-      { kind: "currency_mismatch" },
-      { kind: "provider_total_mismatch" },
-      { kind: "partial_charge" },
-      { kind: "capture_total_mismatch" },
       { kind: "refund_exceeds_capture" },
-      { kind: "duplicate_charge" },
-      { kind: "multiple_charges" },
-      { kind: "paid_without_charge" },
       { kind: "partial_refund" },
       { kind: "failed_refund" },
     ] as const;
@@ -28,10 +20,20 @@ describe("what can be wrong with a payment", () => {
     expect(v.is(PaymentConflictSchema, { kind: "not_a_problem" })).toBe(false);
   });
 
-  // The four reference kinds a later milestone brings back must not be
-  // accepted early: the read-level pair belongs to M5's stored-answer
-  // re-validation and the refund-shape pair to M7's per-refund records.
+  // Nothing can report these yet, so nothing may store one either. The first
+  // eight need a whole reading of the checkout to compare money against what
+  // was owed; the last four belong to later milestones — the read-level pair
+  // to M5's stored-answer re-validation, the refund-shape pair to M7's
+  // per-refund records.
   for (const kind of [
+    "resource_mismatch",
+    "currency_mismatch",
+    "provider_total_mismatch",
+    "partial_charge",
+    "capture_total_mismatch",
+    "duplicate_charge",
+    "multiple_charges",
+    "paid_without_charge",
     "invalid_provider_data",
     "missing_resource",
     "duplicate_refund",

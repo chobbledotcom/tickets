@@ -3,16 +3,16 @@ import { describe, it as test } from "@std/testing/bdd";
 import { admitRefund } from "#shared/payment/admit-refund.ts";
 import type { ObservationOutcome } from "#shared/payment/diagnose.ts";
 import { refundOutcomeOf } from "#shared/payment/diagnose.ts";
-import type { ChargeLeg } from "#shared/payment/resources.ts";
+import type { ChargeMoney } from "#shared/payment/resources.ts";
 import {
-  chargeLeg,
+  chargeMoneyWith,
   partlyRefundedCharge,
   refundObservation,
 } from "#test-utils/payment-state.ts";
 
 /** Money back on every penny of this charge. */
-const fullyRefundedCharge = (): ChargeLeg =>
-  chargeLeg({
+const fullyRefundedCharge = (): ChargeMoney =>
+  chargeMoneyWith({
     confirmedRefunded: { amount: 100, currency: "GBP" },
     refunds: [refundObservation()],
   });
@@ -56,7 +56,7 @@ describe("whether a refund may be sent", () => {
   // The whole point of the guard: these are the readings that must not reach a
   // provider, judged from charge facts rather than from a hand-written outcome.
   for (const [name, charges, expected] of [
-    ["an untouched charge", [chargeLeg()], "send"],
+    ["an untouched charge", [chargeMoneyWith()], "send"],
     [
       "a charge already given back",
       [fullyRefundedCharge()],
@@ -64,14 +64,18 @@ describe("whether a refund may be sent", () => {
     ],
     [
       "a charge with money on its way back",
-      [chargeLeg({ refunds: [refundObservation({ status: "pending" })] })],
+      [
+        chargeMoneyWith({
+          refunds: [refundObservation({ status: "pending" })],
+        }),
+      ],
       "in_flight",
     ],
     ["a part-refunded charge", [partlyRefundedCharge()], "refused"],
     [
       "a charge that gave back more than it took",
       [
-        chargeLeg({
+        chargeMoneyWith({
           confirmedRefunded: { amount: 140, currency: "GBP" },
         }),
       ],
@@ -79,12 +83,12 @@ describe("whether a refund may be sent", () => {
     ],
     [
       "one charge back and one not",
-      [fullyRefundedCharge(), chargeLeg()],
+      [fullyRefundedCharge(), chargeMoneyWith()],
       "refused",
     ],
   ] as const satisfies readonly (readonly [
     string,
-    readonly ChargeLeg[],
+    readonly ChargeMoney[],
     string,
   ])[]) {
     test(`answers ${expected} for ${name}`, () => {

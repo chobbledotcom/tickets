@@ -1,26 +1,26 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { resolveRefund } from "#shared/payment/refund.ts";
-import type { ChargeLeg } from "#shared/payment/resources.ts";
+import type { ChargeMoney } from "#shared/payment/resources.ts";
 import {
-  chargeLeg,
+  chargeMoneyWith,
   refundObservation,
   refundResource,
 } from "#test-utils/payment-state.ts";
 
-const resolved = (charge: ChargeLeg) => resolveRefund(charge);
+const resolved = (charge: ChargeMoney) => resolveRefund(charge);
 
 describe("refund resolver", () => {
   test("rejects invalid confirmed and observed money", () => {
     for (const charge of [
-      chargeLeg({ confirmedRefunded: { amount: 101, currency: "GBP" } }),
-      chargeLeg({ confirmedRefunded: { amount: 1, currency: "USD" } }),
-      chargeLeg({
+      chargeMoneyWith({ confirmedRefunded: { amount: 101, currency: "GBP" } }),
+      chargeMoneyWith({ confirmedRefunded: { amount: 1, currency: "USD" } }),
+      chargeMoneyWith({
         refunds: [
           refundObservation({ amount: { amount: 101, currency: "GBP" } }),
         ],
       }),
-      chargeLeg({
+      chargeMoneyWith({
         refunds: [
           refundObservation({ amount: { amount: 100, currency: "USD" } }),
         ],
@@ -46,7 +46,9 @@ describe("refund resolver", () => {
       refund: { ...refundResource, id: "re_2" },
       status: "pending",
     });
-    expect(resolved(chargeLeg({ refunds: [first, second] }))).toStrictEqual({
+    expect(
+      resolved(chargeMoneyWith({ refunds: [first, second] })),
+    ).toStrictEqual({
       amount: { amount: 0, currency: "GBP" },
       reason: "multiple_pending_refunds",
       status: "failed",
@@ -56,7 +58,9 @@ describe("refund resolver", () => {
   test("retains a pending refund resource", () => {
     expect(
       resolved(
-        chargeLeg({ refunds: [refundObservation({ status: "pending" })] }),
+        chargeMoneyWith({
+          refunds: [refundObservation({ status: "pending" })],
+        }),
       ),
     ).toStrictEqual({
       amount: { amount: 100, currency: "GBP" },
@@ -69,7 +73,7 @@ describe("refund resolver", () => {
     // SumUp says a refund is on its way before it says what it is called.
     expect(
       resolved(
-        chargeLeg({
+        chargeMoneyWith({
           refunds: [
             { amount: { amount: 100, currency: "GBP" }, status: "pending" },
           ],
@@ -85,7 +89,7 @@ describe("refund resolver", () => {
     for (const refunds of [[refundObservation()], []]) {
       expect(
         resolved(
-          chargeLeg({
+          chargeMoneyWith({
             confirmedRefunded: { amount: 100, currency: "GBP" },
             refunds,
           }),
@@ -105,7 +109,7 @@ describe("refund resolver", () => {
     ]) {
       expect(
         resolved(
-          chargeLeg({
+          chargeMoneyWith({
             confirmedRefunded: { amount: 40, currency: "GBP" },
             refunds,
           }),
@@ -118,7 +122,7 @@ describe("refund resolver", () => {
     }
     expect(
       resolved(
-        chargeLeg({ confirmedRefunded: { amount: 1, currency: "GBP" } }),
+        chargeMoneyWith({ confirmedRefunded: { amount: 1, currency: "GBP" } }),
       ),
     ).toStrictEqual({
       amount: { amount: 1, currency: "GBP" },
@@ -129,7 +133,7 @@ describe("refund resolver", () => {
   test("classifies provider failure and missing observations", () => {
     expect(
       resolved(
-        chargeLeg({
+        chargeMoneyWith({
           refunds: [
             refundObservation({ reason: "rejected", status: "failed" }),
           ],
@@ -141,7 +145,7 @@ describe("refund resolver", () => {
       refund: refundResource,
       status: "failed",
     });
-    expect(resolved(chargeLeg())).toStrictEqual({
+    expect(resolved(chargeMoneyWith())).toStrictEqual({
       amount: { amount: 0, currency: "GBP" },
       reason: "not_observed",
       status: "failed",
@@ -157,7 +161,7 @@ describe("money back that the cumulative total has not caught up with", () => {
   test("counts a finished refund the cumulative total has not caught up with", () => {
     expect(
       resolved(
-        chargeLeg({
+        chargeMoneyWith({
           confirmedRefunded: { amount: 0, currency: "GBP" },
           refunds: [refundObservation()],
         }),
@@ -169,7 +173,7 @@ describe("money back that the cumulative total has not caught up with", () => {
   test("reports a refund the provider could not finish over money already back", () => {
     expect(
       resolved(
-        chargeLeg({
+        chargeMoneyWith({
           confirmedRefunded: { amount: 40, currency: "GBP" },
           refunds: [
             refundObservation({
