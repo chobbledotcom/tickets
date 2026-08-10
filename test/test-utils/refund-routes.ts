@@ -3,7 +3,6 @@ import { handleRequest } from "#routes";
 import type { RowClaim } from "#routes/admin/refunds/provider.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
-import type { RefundCapability } from "#shared/payment/row-state.ts";
 import { paymentsApi } from "#shared/payments.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
@@ -37,9 +36,6 @@ type RefundCheck = (mockRefund: Stub) => Promise<void> | void;
 type RefundBehavior = boolean | ((reference: string) => Promise<boolean>);
 type RefundMockOptions = {
   alreadyRefunded?: RefundBehavior;
-  /** Run as a provider with no idempotency key, where a repeat would send the
-   *  money a second time. Stripe is keyed; SumUp is not. */
-  capability?: RefundCapability;
 };
 
 const refundResult = (
@@ -176,14 +172,9 @@ export const withRefundMock = async (
       "readChargeMoneyOrNull",
       async (reference) => asChargeMoney(await alreadyRefunded(reference)),
     );
-    const realCapability = provider.refundCapability;
-    if (options.capability !== undefined) {
-      provider.refundCapability = options.capability;
-    }
     try {
       await fn(mockRefund);
     } finally {
-      provider.refundCapability = realCapability;
       mockRefunded.restore();
       mockRefund.restore();
     }
