@@ -2150,3 +2150,26 @@ promising shape is to give `mutation:audit-equivalents` a way to attempt a
 distinguishing input for each entry — or, failing that, an explicit re-audit
 stamp so an entry has to be re-confirmed after the file it lives in changes
 shape, instead of resting on a proof nobody has re-read since it was written.
+
+---
+
+## CalDAV pull direction — descoped by the owner (from PR #2064)
+
+The CalDAV feature was rescoped to **push-only** (site → calendar mirror) by the
+owner on PR #2064: calendar edits do not flow back, events created or deleted in
+the calendar do nothing here, and setup is paste-the-address. The shipped
+contract is `docs/caldav-two-way-sync.md`.
+
+If the pull direction is ever wanted, do not redesign it from scratch: the full
+two-way behavior contract — three adversarial review rounds deep, with etag/ctag
+change detection, per-listing conflict rules, booked-listing review holds,
+remote create/delete policies, and their concurrency guards — is in this repo's
+git history:
+
+```
+git show 1be31c4:docs/caldav-two-way-sync.md
+```
+
+Starting point: that document's "Commands and events" table, plus the review
+threads on PR #2064 (rounds 1–3) which record every known failure mode and its
+agreed fix.
