@@ -21,6 +21,7 @@ import { signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 // jscpd:ignore-end
 import { setupStripe } from "#test-utils/settings.ts";
+import { stripeIntentWithCharge } from "#test-utils/stripe/responses.ts";
 
 describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
   describe("GET /payment/success (ticket)", () => {
@@ -268,16 +269,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         Promise.resolve(null),
       );
       const mockIntent = stub(stripeApi, "retrievePaymentIntent", () =>
-        Promise.resolve({
-          latest_charge: {
-            amount: 1000,
-            amount_refunded: 0,
-            currency: "gbp",
-            refunded: false,
-          },
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrievePaymentIntent>
-        >),
+        Promise.resolve(stripeIntentWithCharge()),
       );
 
       try {

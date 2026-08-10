@@ -466,6 +466,20 @@ type SquareMoney = {
   currency?: string | undefined;
 };
 
+/** Square's money as we hold it, or nothing when Square stated none. */
+const squareMoneyOrUndefined = (
+  money:
+    | { amount?: bigint | null; currency?: string | null }
+    | null
+    | undefined,
+): SquareMoney | undefined =>
+  money
+    ? {
+        amount: money.amount ?? undefined,
+        currency: money.currency ?? undefined,
+      }
+    : undefined;
+
 /** Square payment response shape (subset we use) */
 type SquarePayment = {
   id?: string | undefined;
@@ -762,17 +776,15 @@ export const squareApi: {
       const response = await client.payments.get({ paymentId });
       const payment = response.payment;
       if (!payment) return null;
+      // Money Square did not state stays absent. Square leaves the refunded
+      // total off a payment nothing has come back on, and building an empty
+      // object for it would turn "nothing was refunded" into "Square gave an
+      // answer we cannot read" — which withholds every refund on the payment.
       return {
-        amountMoney: {
-          amount: payment.amountMoney?.amount as bigint | undefined,
-          currency: payment.amountMoney?.currency as string | undefined,
-        },
+        amountMoney: squareMoneyOrUndefined(payment.amountMoney),
         id: payment.id,
         orderId: payment.orderId,
-        refundedMoney: {
-          amount: payment.refundedMoney?.amount as bigint | undefined,
-          currency: payment.refundedMoney?.currency as string | undefined,
-        },
+        refundedMoney: squareMoneyOrUndefined(payment.refundedMoney),
         status: payment.status,
       };
     }, ErrorCode.SQUARE_SESSION),

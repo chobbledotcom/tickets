@@ -11,6 +11,7 @@ import { paymentsApi } from "#shared/payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { signedMeta, webhookMeta } from "#test-utils/factories.ts";
+import { stripeIntentWithCharge } from "#test-utils/stripe/responses.ts";
 
 setupTestEncryptionKey();
 
@@ -81,15 +82,7 @@ describe("tryRefund resource id", () => {
       // the charge must read as one nothing has come back on for the refund to
       // be admitted at all.
       const intentStub = stub(stripeApi, "retrievePaymentIntent", () =>
-        Promise.resolve({
-          id: "pi_1",
-          latest_charge: {
-            amount: 1000,
-            amount_refunded: 0,
-            currency: "gbp",
-            refunded: false,
-          },
-        }),
+        Promise.resolve(stripeIntentWithCharge()),
       );
       try {
         const result = await withStripeConfigured(body);

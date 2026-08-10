@@ -13,6 +13,7 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { stripeIntentWithCharge } from "#test-utils/stripe/responses.ts";
 import { stubRefundPayment } from "#test-utils/webhooks.ts";
 import {
   bookingIntent,
@@ -39,16 +40,7 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
       Promise.resolve(null),
     );
     using refundState = stub(stripeApi, "retrievePaymentIntent", () =>
-      Promise.resolve({
-        latest_charge: {
-          amount: 1000,
-          amount_refunded: 0,
-          currency: "gbp",
-          refunded: false,
-        },
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrievePaymentIntent>
-      >),
+      Promise.resolve(stripeIntentWithCharge()),
     );
 
     expect(await processPaymentSession(id, data)).toEqual({

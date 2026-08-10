@@ -11,6 +11,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { mockRequest, mockWebhookRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { stripeIntentWithCharge } from "#test-utils/stripe/responses.ts";
 
 /**
  * The three-verdict trust model. A paid session's price proof is the ONLY signal
@@ -133,15 +134,7 @@ export const runFailedRefund = async (
   // The refund asks what the money has already done first, so the charge must
   // state it: a refunded one has every penny back, an unrefunded one none.
   const intent = stub(stripeApi, "retrievePaymentIntent", () =>
-    Promise.resolve({
-      id: "pi_1",
-      latest_charge: {
-        amount: 1200,
-        amount_refunded: intentRefunded ? 1200 : 0,
-        currency: "gbp",
-        refunded: intentRefunded,
-      },
-    }),
+    Promise.resolve(stripeIntentWithCharge(intentRefunded ? 1200 : 0, 1200)),
   );
   const mockVerify = await stubCompletedSession({
     amount_total: 1200,

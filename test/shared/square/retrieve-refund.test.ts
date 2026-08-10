@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { squareApi } from "#shared/square.ts";
+import { squarePaymentProvider } from "#shared/square-provider.ts";
 import { withSquareClient } from "#test/test-utils/square/fixtures.ts";
 import { describeSquare } from "#test/test-utils/square/harness.ts";
 
@@ -246,6 +247,39 @@ describeSquare(() => {
           expect(result).toBeNull();
           expect(paymentsGet.calls[0]!.args[0]).toEqual({
             paymentId: "pay_missing",
+          });
+        },
+      );
+    });
+
+    // Square leaves the refunded total off a payment nothing has come back on.
+    // Building an empty object for it would turn "nothing was refunded" into
+    // "Square gave an answer we cannot read", and the refund guard would then
+    // withhold every refund on every untouched Square charge.
+    test("keeps an absent refunded total absent, so the charge stays readable", async () => {
+      await withSquareClient(
+        {
+          paymentsGet: () =>
+            Promise.resolve({
+              payment: {
+                amountMoney: { amount: BigInt(5000), currency: "GBP" },
+                id: "pay_untouched",
+                status: "COMPLETED",
+              },
+            }),
+        },
+        async () => {
+          const payment = await squareApi.retrievePayment("pay_untouched");
+          expect(payment?.refundedMoney).toBeUndefined();
+
+          // ...and the provider reads that as a charge nothing has gone back on,
+          // which is what lets a refund be sent at all.
+          expect(
+            await squarePaymentProvider.readChargeMoneyOrNull("pay_untouched"),
+          ).toEqual({
+            captured: { amount: 5000, currency: "GBP" },
+            confirmedRefunded: { amount: 0, currency: "GBP" },
+            refunds: [],
           });
         },
       );
