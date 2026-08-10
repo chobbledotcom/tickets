@@ -1148,7 +1148,7 @@ estimates are PR A ≈ 400–550 and PR B ≈ 250–350 — a 650–900 total th
 past the milestone target's top while each PR stays well under its own cap; the
 overage buys review-found correctness, not scope creep.
 
-**PR A — "No refund attempt can exceed the captured money" (≈ 350–500 src)**
+**PR A — "No refund attempt can exceed the captured money" (≈ 400–550 src)**
 
 - Ports the pure closure: `outcomeOf`, conflict kinds, refund legs and
   arithmetic, `resolveRefund`, `kindObject`, the words subsets.
@@ -1328,7 +1328,7 @@ overage buys review-found correctness, not scope creep.
   and attempt side. The callback rejection arm keeps today's behavior until PR B
   cuts it over with its reservation — PR A claims nothing about that arm.
 
-**PR B — "One judge for callback money, and alerts for what it finds" (≈ 300–400
+**PR B — "One judge for callback money, and alerts for what it finds" (≈ 250–350
 src)**
 
 - Builds the callback-side observation (expected facts from the signed proof,
