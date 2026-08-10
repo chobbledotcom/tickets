@@ -60,6 +60,11 @@ const resourcesMatch = (
       ),
   );
 
+/** Any leg where the money back — or on its way — outruns the money taken, or
+ *  where the two are not even in the same currency to compare. */
+const refundOverspendsCapture = (charges: ChargeLegs): boolean =>
+  charges.some((charge) => !refundMoneyMatchesCapture(charge));
+
 const firstDuplicate = (values: string[]): string | undefined => {
   const seen = new Set<string>();
   return values.find((value) => {
@@ -91,7 +96,7 @@ const validatePaymentObservation = (
   ) {
     return conflict({ kind: "currency_mismatch" });
   }
-  if (charges.some((charge) => !refundMoneyMatchesCapture(charge))) {
+  if (refundOverspendsCapture(charges)) {
     return conflict({ kind: "refund_exceeds_capture" });
   }
   if (
@@ -213,6 +218,23 @@ const freeOutcome = (observation: PaymentObservation): ObservationOutcome =>
       (observation.expected.amount === 0
         ? { kind: "ready" }
         : moneyNobodyAskedFor));
+
+/**
+ * What the money on these charges comes to on its own, with no agreed total
+ * behind it.
+ *
+ * A reference the site holds no signed price for — an old row, or one an
+ * operator typed in — can still be judged on what the provider says it took and
+ * gave back. It cannot be judged on what was owed, because nobody recorded
+ * that, so the kinds that compare owed against observed are not asked here
+ * rather than being asked against a stand-in total. The comparison that matters
+ * before sending money back needs no agreed total anyway: money returned is
+ * measured against money TAKEN, both of which the provider states.
+ */
+export const refundOutcomeOf = (charges: ChargeLegs): ObservationOutcome =>
+  refundOverspendsCapture(charges)
+    ? { issue: { kind: "refund_exceeds_capture" }, kind: "conflict" }
+    : refundOutcome(charges);
 
 /** What this reading amounts to. A checkout that owed nothing takes the free
  *  arm whatever the provider calls it: a provider that took money on one
