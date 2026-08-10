@@ -32,6 +32,7 @@ const pendingCandidate = (
     index: `index_of_${reference}`,
     reference,
     refundState: "none" as const,
+    rowSessionIds: [`sess_${reference}`],
     sessionIds: [] as string[],
   })),
 });

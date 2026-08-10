@@ -25,12 +25,32 @@ type Ref = { reference: string; refundState?: RefundState };
  *  only that one reference maps to one index. */
 const indexOf = (reference: string): string => `index_of_${reference}`;
 
+/** One attendee whose charges are already on rows with these session ids, so
+ *  nothing needs anchoring and the sessions are the ones the run loaded. */
+const holding = (...sessionIds: string[]) => [
+  {
+    attendeeId: 11,
+    references: [
+      {
+        index: "index_of_held",
+        reference: "pi_held",
+        refundState: "none" as const,
+        // Already on a row, so nothing needs anchoring and no database is
+        // touched — these tests are about the hold, not about minting.
+        rowSessionIds: sessionIds.length > 0 ? sessionIds : ["sess-held-row"],
+        sessionIds,
+      },
+    ],
+  },
+];
+
 const candidate = (references: Ref[], id = 42): RefundCandidate => ({
   attendee: { id } as RefundCandidate["attendee"],
   references: references.map(({ reference, refundState = "none" }) => ({
     index: indexOf(reference),
     reference,
     refundState,
+    rowSessionIds: [`sess_${reference}`],
     sessionIds: [`sess_${reference}`],
   })),
 });
@@ -508,9 +528,8 @@ describe("admin refund provider > an unrecorded refund", () => {
    *  times it let go. */
   const releasesAfter = async (unsettled: boolean): Promise<number> => {
     const rowClaim = grantingRowClaim();
-    await underAttendeeClaim(rowClaim, [11], "keyless", 7, {
+    await underAttendeeClaim(rowClaim, holding(), "keyless", 7, {
       blocked: () => ({ unsettled: false }),
-      knownSessionIds: new Set<string>(),
       lost: (result) => result.unsettled,
       work: () => Promise.resolve({ unsettled }),
     });
@@ -572,12 +591,17 @@ describe("admin refund provider > a release that fails", () => {
       release: () => Promise.reject(new Error("the row would not let go")),
     };
 
-    const result = await underAttendeeClaim(refusingRelease, [11], "keyed", 7, {
-      blocked: () => ({ tally: "blocked" }),
-      knownSessionIds: new Set(["sess-x"]),
-      lost: () => false,
-      work: () => Promise.resolve({ tally: "refunded" }),
-    });
+    const result = await underAttendeeClaim(
+      refusingRelease,
+      holding("sess-x"),
+      "keyed",
+      7,
+      {
+        blocked: () => ({ tally: "blocked" }),
+        lost: () => false,
+        work: () => Promise.resolve({ tally: "refunded" }),
+      },
+    );
 
     // The hold goes stale by itself; the answer does not come back.
     expect(result).toEqual({ tally: "refunded" });
@@ -599,12 +623,17 @@ describe("admin refund provider > a payment that landed while we waited", () => 
       release: () => Promise.resolve(),
     };
 
-    const result = await underAttendeeClaim(holdsAnchor, [11], "keyless", 7, {
-      blocked: (reason) => reason,
-      knownSessionIds: new Set(["sess-known"]),
-      lost: () => false,
-      work: () => Promise.resolve("ran"),
-    });
+    const result = await underAttendeeClaim(
+      holdsAnchor,
+      holding("sess-known"),
+      "keyless",
+      7,
+      {
+        blocked: (reason) => reason,
+        lost: () => false,
+        work: () => Promise.resolve("ran"),
+      },
+    );
 
     expect(result).toBe("ran");
   });
@@ -627,15 +656,20 @@ describe("admin refund provider > a payment that landed while we waited", () => 
     };
 
     let worked = false;
-    const result = await underAttendeeClaim(holdsMore, [11], "keyless", 7, {
-      blocked: (reason) => reason,
-      knownSessionIds: new Set(["sess-known"]),
-      lost: () => false,
-      work: () => {
-        worked = true;
-        return Promise.resolve("ran");
+    const result = await underAttendeeClaim(
+      holdsMore,
+      holding("sess-known"),
+      "keyless",
+      7,
+      {
+        blocked: (reason) => reason,
+        lost: () => false,
+        work: () => {
+          worked = true;
+          return Promise.resolve("ran");
+        },
       },
-    });
+    );
 
     // Refunding what we loaded would return part of the money and leave the
     // rest, so nothing runs and the hold goes back.

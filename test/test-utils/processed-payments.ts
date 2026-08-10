@@ -2,7 +2,10 @@ import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { executeBatch, queryOne } from "#shared/db/client.ts";
 import { batchFinalizeStatements } from "#shared/db/payment-finalize.ts";
-import { getRefundPaymentReferences } from "#shared/db/payment-references.ts";
+import {
+  getRefundPaymentReferences,
+  paymentReferenceIndex,
+} from "#shared/db/payment-references.ts";
 import {
   type ProcessedPayment,
   reserveSession,
@@ -79,8 +82,10 @@ export const expectProcessedPaymentReference = async (
     ).get(attendeeId),
   ).toEqual([
     {
+      index: await paymentReferenceIndex(paymentReference),
       reference: paymentReference,
       refundState: "none",
+      rowSessionIds: [sessionId],
       sessionIds: [sessionId],
     },
   ]);

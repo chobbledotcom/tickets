@@ -22,6 +22,10 @@ import {
   queryAll,
   type SqlStatement,
 } from "#shared/db/client.ts";
+import {
+  isAnchorSession,
+  legacyMergeSessionId,
+} from "#shared/db/payment-anchor/session.ts";
 import { settings } from "#shared/db/settings.ts";
 import { nowIso } from "#shared/now.ts";
 import type { RefundState } from "#shared/payment/refund-state.ts";
@@ -39,6 +43,9 @@ export type RefundPaymentReference = {
   readonly index: string;
   readonly refundState: RefundState;
   readonly reference: string;
+  /** Every payment row carrying this charge, anchors included. Empty means the
+   *  charge has no row at all — it is on the attendee's own `payment_id`. */
+  readonly rowSessionIds: readonly string[];
   /** Non-legacy sessions ordered by processing time, then session ID. */
   readonly sessionIds: readonly string[];
 };
@@ -55,24 +62,13 @@ type PaymentReferenceAttendeeRow = {
   attendee_id: number;
 };
 
-const LEGACY_MERGE_SESSION_PREFIX = "legacy-merge:";
-
-/**
- * Whether this row is a merge anchor rather than a real checkout.
- *
- * A merge writes one of these to carry an inherited legacy payment, and the
- * reference list deliberately hides its id — so anything comparing a claim's
- * rows against that list has to know they were left out on purpose.
- */
-export const isLegacyMergeSession = (sessionId: string): boolean =>
-  sessionId.startsWith(LEGACY_MERGE_SESSION_PREFIX);
-
 /** One reference's refund status while it is being built up from rows: its
  *  blind index, whether the provider has refunded it, and the payment sessions
  *  seen so far. */
 type ReferenceProgress = {
   index: string;
   refunded: boolean;
+  rowSessionIds: string[];
   sessionIds: string[];
 };
 
@@ -148,6 +144,10 @@ const legacyReference = async (
   // A legacy charge (an old payment_id with no session) starts "unknown": this
   // system never watched its refund, so it may or may not have been returned.
   refundState: refundStateOf({ legacy: true, refunded: false }),
+  // No row anywhere carries this charge — it lives on the attendee's own
+  // `payment_id` column, which is what makes it need an anchor before a refund
+  // can hold it.
+  rowSessionIds: [],
   sessionIds: [],
 });
 
@@ -161,7 +161,7 @@ const withLegacyReference = async (
     : references;
 
 const realSessionIds = (row: PaymentReferenceRow): string[] =>
-  isLegacyMergeSession(row.payment_session_id) ? [] : [row.payment_session_id];
+  isAnchorSession(row.payment_session_id) ? [] : [row.payment_session_id];
 
 const addReference = (
   byReference: ReferenceProgressByKey,
@@ -172,12 +172,14 @@ const addReference = (
   const sessionIds = realSessionIds(row);
   const existing = byReference.get(reference);
   if (existing) {
+    existing.rowSessionIds.push(row.payment_session_id);
     existing.sessionIds.push(...sessionIds);
     existing.refunded ||= row.provider_refunded_at !== "";
   } else {
     byReference.set(reference, {
       index,
       refunded: row.provider_refunded_at !== "",
+      rowSessionIds: [row.payment_session_id],
       sessionIds,
     });
   }
@@ -190,12 +192,13 @@ const asRefundReferences = (
     index: data.index,
     reference,
     // A reference with no live sessions is a legacy charge (its rows were all
-    // legacy-merge entries), so an unconfirmed refund reads as "unknown" rather
-    // than a definite "none".
+    // anchors), so an unconfirmed refund reads as "unknown" rather than a
+    // definite "none".
     refundState: refundStateOf({
       legacy: data.sessionIds.length === 0,
       refunded: data.refunded,
     }),
+    rowSessionIds: data.rowSessionIds,
     sessionIds: data.sessionIds,
   }));
 
@@ -315,7 +318,7 @@ export const legacyMergePaymentReferenceStatement = async (
     ? null
     : {
         args: [
-          `${LEGACY_MERGE_SESSION_PREFIX}${sourceId}`,
+          legacyMergeSessionId(sourceId),
           targetId,
           nowIso(),
           await encryptPaymentReference(sourcePaymentId),

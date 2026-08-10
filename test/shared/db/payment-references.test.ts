@@ -75,6 +75,7 @@ describeWithEnv("db > payment references", { db: true }, () => {
       index: await paymentReferenceIndex("pi_legacy_ignored"),
       reference: "pi_legacy_ignored",
       refundState: "unknown",
+      rowSessionIds: [],
       sessionIds: [],
     });
     expect(references.get(secondId)?.map((entry) => entry.reference)).toEqual([
@@ -135,6 +136,7 @@ describeWithEnv("db > payment references", { db: true }, () => {
         index: await paymentReferenceIndex("pi_merged_legacy"),
         reference: "pi_merged_legacy",
         refundState: "unknown",
+        rowSessionIds: ["legacy-merge:12345"],
         sessionIds: [],
       },
     ]);
@@ -356,6 +358,12 @@ describeWithEnv("db > payment references", { db: true }, () => {
         index: await paymentReferenceIndex("pi_shared"),
         reference: "pi_shared",
         refundState: "none",
+        rowSessionIds: [
+          "sess_shared_b_earlier",
+          "sess_shared_d_earlier",
+          "sess_shared_a_middle",
+          "sess_shared_c_later",
+        ],
         sessionIds: [
           "sess_shared_b_earlier",
           "sess_shared_d_earlier",
@@ -391,6 +399,7 @@ describeWithEnv("db > payment references", { db: true }, () => {
         index: await paymentReferenceIndex("pi_shared_refunded"),
         reference: "pi_shared_refunded",
         refundState: "none",
+        rowSessionIds: ["sess_refunded_a"],
         sessionIds: ["sess_refunded_a"],
       },
     ]);
@@ -407,6 +416,7 @@ describeWithEnv("db > payment references", { db: true }, () => {
         // Ordered by processed_at; both sessions carried this reference, so
         // both session ids remain attached after the merge.
         refundState: "completed",
+        rowSessionIds: ["sess_refunded_a", "sess_refunded_b"],
         sessionIds: ["sess_refunded_a", "sess_refunded_b"],
       },
     ]);

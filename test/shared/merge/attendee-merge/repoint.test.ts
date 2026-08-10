@@ -9,7 +9,10 @@ import {
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { queryAll } from "#shared/db/client.ts";
-import { getRefundPaymentReferences } from "#shared/db/payment-references.ts";
+import {
+  getRefundPaymentReferences,
+  paymentReferenceIndex,
+} from "#shared/db/payment-references.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -126,10 +129,14 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     );
     expect(references.get(target.id)).toEqual([
       {
+        // Indexed on the way in, so a refund claim can see the money it
+        // carries the way it sees any other charge.
+        index: await paymentReferenceIndex("pi_source_legacy"),
         // A legacy-merge charge (no live session) whose refund was never
         // observed reads as "unknown", not a definite "none".
         reference: "pi_source_legacy",
         refundState: "unknown",
+        rowSessionIds: [`legacy-merge:${source.id}`],
         sessionIds: [],
       },
     ]);
