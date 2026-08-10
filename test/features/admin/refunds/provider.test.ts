@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import {
   processRefundBatch,
@@ -11,8 +11,13 @@ import {
   combineRefundOutcomes,
   packByReferenceCount,
 } from "#routes/admin/refunds/waves.ts";
-import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
+import {
+  paymentReferenceIndex,
+  type RefundPaymentReference,
+} from "#shared/db/payment-references.ts";
 import type { RefundState } from "#shared/payment/refund-state.ts";
+import type { RefundCapability } from "#shared/payment/row-state.ts";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { chargeMoney, fullyRefundedMoney } from "#test-utils/payment-state.ts";
 import { grantingRowClaim } from "#test-utils/refund-routes.ts";
@@ -38,16 +43,18 @@ const provider = ({
   refunded = new Set<string>(),
   alreadyRefunded = new Set<string>(),
   throws = new Set<string>(),
+  refundCapability = "keyed" as RefundCapability,
 }: {
   refunded?: Set<string>;
   alreadyRefunded?: Set<string>;
   throws?: Set<string>;
+  refundCapability?: RefundCapability;
 } = {}) => ({
   readChargeMoneyOrNull: (reference: string) =>
     Promise.resolve(
       alreadyRefunded.has(reference) ? fullyRefundedMoney() : chargeMoney(),
     ),
-  refundCapability: "keyed" as const,
+  refundCapability,
   refundPayment: (reference: string) => {
     if (throws.has(reference)) throw new Error(`boom ${reference}`);
     return Promise.resolve(refunded.has(reference));
@@ -390,13 +397,10 @@ describe("admin refund provider > the claim", () => {
 
   test("a keyless batch whose call errored keeps its claim standing", async () => {
     const rowClaim = grantingRowClaim();
-    const keylessThatDies = {
-      readChargeMoneyOrNull: () => Promise.resolve(chargeMoney()),
-      refundCapability: "keyless" as const,
-      refundPayment: (): Promise<boolean> => {
-        throw new Error("the answer never came back");
-      },
-    };
+    const keylessThatDies = provider({
+      refundCapability: "keyless",
+      throws: new Set(["pi_lost"]),
+    });
 
     await processRefundBatch(
       keylessThatDies,
@@ -412,18 +416,13 @@ describe("admin refund provider > the claim", () => {
 });
 
 describe("admin refund provider > an unrecorded refund", () => {
-  const keyless = {
-    readChargeMoneyOrNull: () => Promise.resolve(chargeMoney()),
-    refundCapability: "keyless" as const,
-    refundPayment: () => Promise.resolve(true),
-  };
+  const keyless = provider({
+    refundCapability: "keyless",
+    refunded: new Set(["pi_unrecorded", "pi_recorded"]),
+  });
 
   test("a refund the provider did not confirm is unsettled", async () => {
-    const keylessSaysNo = {
-      readChargeMoneyOrNull: () => Promise.resolve(chargeMoney()),
-      refundCapability: "keyless" as const,
-      refundPayment: () => Promise.resolve(false),
-    };
+    const keylessSaysNo = provider({ refundCapability: "keyless" });
 
     const result = await refundCandidateAtProvider(
       keylessSaysNo,
@@ -439,11 +438,10 @@ describe("admin refund provider > an unrecorded refund", () => {
   });
 
   test("a refund never sent is settled — nothing was asked for", async () => {
-    const alreadyBack = {
-      readChargeMoneyOrNull: () => Promise.resolve(fullyRefundedMoney()),
-      refundCapability: "keyless" as const,
-      refundPayment: () => Promise.resolve(true),
-    };
+    const alreadyBack = provider({
+      alreadyRefunded: new Set(["pi_already"]),
+      refundCapability: "keyless",
+    });
 
     const result = await refundCandidateAtProvider(
       alreadyBack,
@@ -502,5 +500,66 @@ describe("admin refund provider > an unrecorded refund", () => {
 
   test("a keyless run lets go when the answer is recorded", async () => {
     expect(await releasesAfter(false)).toBe(1);
+  });
+});
+
+describe("admin refund provider > a reference already sent back", () => {
+  // The claim reports references by their blind index, which needs the key.
+  beforeEach(() => {
+    setupTestEncryptionKey();
+  });
+
+  test("is not refunded again, whatever the loaded snapshot said", async () => {
+    let providerCalls = 0;
+    const counting = {
+      readChargeMoneyOrNull: () => {
+        providerCalls++;
+        return Promise.resolve(chargeMoney());
+      },
+      refundCapability: "keyless" as const,
+      refundPayment: () => {
+        providerCalls++;
+        return Promise.resolve(true);
+      },
+    };
+
+    // The snapshot says this still needs refunding; the claim says otherwise.
+    const result = await refundCandidateAtProvider(
+      counting,
+      candidateWithReferences(["pi_raced"]),
+      7,
+      () => Promise.resolve(),
+      new Set([await paymentReferenceIndex("pi_raced")]),
+    );
+
+    expect(result.outcome).toBe("refunded");
+    expect(providerCalls).toBe(0);
+  });
+});
+
+describe("admin refund provider > a release that fails", () => {
+  const errors = setupErrorSpy();
+
+  test("reports it and leaves the run's answer alone", async () => {
+    const refusingRelease: RowClaim = {
+      claim: () =>
+        Promise.resolve({
+          heldSince: "2026-08-10T12:00:00.000Z",
+          kind: "claimed",
+          returned: new Set<string>(),
+          sessionIds: ["sess-x"],
+        }),
+      release: () => Promise.reject(new Error("the row would not let go")),
+    };
+
+    const result = await underAttendeeClaim(refusingRelease, [11], "keyed", 7, {
+      blocked: () => ({ tally: "blocked" }),
+      lost: () => false,
+      work: () => Promise.resolve({ tally: "refunded" }),
+    });
+
+    // The hold goes stale by itself; the answer does not come back.
+    expect(result).toEqual({ tally: "refunded" });
+    expect(errors.contains("Refund claim could not be released")).toBe(true);
   });
 });

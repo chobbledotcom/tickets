@@ -277,11 +277,23 @@ export const markPaymentReferencesProviderRefunded = async (
   const sessionIds = unique(
     references.flatMap((reference) => reference.sessionIds),
   );
-  if (sessionIds.length === 0) return;
+  // Mark by the reference's identity, not only by the sessions this attendee
+  // holds: two attendees can carry one provider reference, and money returned
+  // against it is returned for both. Marking only our own rows would leave the
+  // other row looking untouched, and a run arriving before the provider's own
+  // evidence caught up would send the same money again.
+  const indexes = unique(
+    await Promise.all(
+      references.map((reference) => paymentReferenceIndex(reference.reference)),
+    ),
+  ).filter((index) => index !== "");
+  if (sessionIds.length === 0 && indexes.length === 0) return;
   await execute(
     `UPDATE processed_payments
         SET provider_refunded_at = COALESCE(NULLIF(provider_refunded_at, ''), ?)
-      WHERE payment_session_id IN (${inPlaceholders(sessionIds)})`,
-    [nowIso(), ...sessionIds],
+      WHERE payment_session_id IN (${inPlaceholders(sessionIds)})
+         OR (payment_reference_index != ''
+             AND payment_reference_index IN (${inPlaceholders(indexes)}))`,
+    [nowIso(), ...sessionIds, ...indexes],
   );
 };

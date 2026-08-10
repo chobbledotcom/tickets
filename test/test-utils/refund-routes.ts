@@ -187,6 +187,7 @@ export const grantingRowClaim = (): RowClaim & {
       Promise.resolve({
         heldSince: "2026-08-10T12:00:00.000Z",
         kind: "claimed",
+        returned: new Set<string>(),
         sessionIds: [],
       }),
     release: (sessionIds: readonly string[]) => {

@@ -257,4 +257,29 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
       });
     });
   });
+  describe("what the claim reports about the money", () => {
+    test("names a reference another run has already sent back", async () => {
+      const attendeeId = await bookedWith("sess-q", "pi_already_back");
+      await execute(
+        "UPDATE processed_payments SET provider_refunded_at = ? WHERE payment_session_id = ?",
+        [new Date(nowMs()).toISOString(), "sess-q"],
+      );
+
+      const held = await claimAttendeeRows([attendeeId], "keyless");
+      if (held.kind !== "claimed") throw new Error("the claim was refused");
+
+      // A run holding this must not trust the reference list it loaded before
+      // the hold — this is what tells it the money is already back.
+      expect([...held.returned]).toEqual([
+        await paymentReferenceIndex("pi_already_back"),
+      ]);
+    });
+
+    test("names nothing when the money is still with the provider", async () => {
+      const attendeeId = await bookedWith("sess-r", "pi_still_out");
+      const held = await claimAttendeeRows([attendeeId], "keyless");
+      if (held.kind !== "claimed") throw new Error("the claim was refused");
+      expect([...held.returned]).toEqual([]);
+    });
+  });
 });
