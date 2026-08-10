@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
 import { isNotNullish } from "#fp";
+import { resultRows } from "#shared/db/client.ts";
 import type { Table } from "#shared/db/table.ts";
 import { TransactionValidationError } from "#shared/db/transaction.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
@@ -21,11 +22,11 @@ import { createTestApiKeyToken, requestAsApiKey } from "#test-utils/session.ts";
 
 const makeTable = (): Table<Row, Input> => makeIdNameTable("widgets");
 
-const makeRoutes = (
+const makeRoutes = <State = never>(
   table: Table<Row, Input>,
-  config: Partial<CrudApiConfig<Row, Input>> = {},
+  config: Partial<CrudApiConfig<Row, Input, Row, void, State>> = {},
 ): Record<string, unknown> =>
-  defineCrudApi<Row, Input>({
+  defineCrudApi<Row, Input, Row, void, State>({
     getAll: () => table.read.many(),
     name: "widgets",
     nameField: "name",
@@ -205,6 +206,55 @@ describeWithEnv("defineCrudApi", { db: true }, () => {
       name: "Updated",
     });
     expect(await wasActivityLogged("Widget 'Updated' updated")).toBe(true);
+  });
+
+  test("passes one pre-update state snapshot to every transactional hook", async () => {
+    const table = makeTable();
+    const row = await table.insert({ name: "Original" });
+    const events: string[] = [];
+    const routes = makeRoutes<string>(table, {
+      afterWrite: (_tx, _id, _input, state) => {
+        events.push(`after:${state}`);
+        return Promise.resolve();
+      },
+      readState: async (tx, id) => {
+        const current = resultRows<Row>(
+          await tx.execute({
+            args: [id],
+            sql: "SELECT id, name FROM widgets WHERE id = ?",
+          }),
+        )[0];
+        events.push(`read:${current?.name}`);
+        return current?.name ?? null;
+      },
+      sideEffect: {
+        persist: async (tx, id, _value, state) => {
+          const current = resultRows<Row>(
+            await tx.execute({
+              args: [id],
+              sql: "SELECT id, name FROM widgets WHERE id = ?",
+            }),
+          )[0];
+          events.push(`side:${current?.name}:${state}`);
+        },
+        validate: () => Promise.resolve({ value: undefined }),
+      },
+    });
+
+    const response = await callRoute(
+      routes,
+      "PUT /api/admin/widgets/:widgetId",
+      "PUT",
+      { name: "Updated" },
+      row.id,
+    );
+
+    expect(response.status).toBe(200);
+    expect(events).toEqual([
+      "read:Original",
+      "side:Updated:Original",
+      "after:Original",
+    ]);
   });
 
   test("deletes and logs a row", async () => {

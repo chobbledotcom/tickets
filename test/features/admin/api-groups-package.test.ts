@@ -189,18 +189,30 @@ describeWithEnv("Admin API - Groups - package fields", { db: true }, () => {
 
   test("PUT rejects malformed day_prices (shape, keys, and values)", async () => {
     const { group, listing } = await groupWithMember("BadDayPrices");
-    const cases: Record<string, unknown>[] = [
-      { day_prices: [1500], listing_id: listing.id, price: null },
-      { day_prices: { "0": 1500 }, listing_id: listing.id, price: null },
-      { day_prices: { "2e0": 1500 }, listing_id: listing.id, price: null },
-      { day_prices: { "2": -1 }, listing_id: listing.id, price: null },
+    const cases: [Record<string, unknown>, string][] = [
+      [
+        { day_prices: [1500], listing_id: listing.id, price: null },
+        "package_members day_prices must be an object",
+      ],
+      [
+        { day_prices: { "0": 1500 }, listing_id: listing.id, price: null },
+        "package_members day_prices keys must be positive day counts",
+      ],
+      [
+        { day_prices: { "2e0": 1500 }, listing_id: listing.id, price: null },
+        "package_members day_prices keys must be positive day counts",
+      ],
+      [
+        { day_prices: { "2": -1 }, listing_id: listing.id, price: null },
+        "package_members day_prices values must be non-negative integers",
+      ],
     ];
-    for (const member of cases) {
+    for (const [member, error] of cases) {
       await assertJson(
         putGroup(group.id, { is_package: true, package_members: [member] }),
         400,
         (body) => {
-          expect(body.error).toContain("day_prices");
+          expect(body.error).toBe(error);
         },
       );
     }

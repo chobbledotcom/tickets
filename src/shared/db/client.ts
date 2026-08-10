@@ -659,6 +659,12 @@ export type TxScope = {
   execute: (stmt: InStatement) => Promise<ResultSet>;
 };
 
+/** Reads narrow pre-update state through an open write transaction. */
+export type TransactionStateReader<State> = (
+  tx: TxScope,
+  id: number,
+) => Promise<State | null>;
+
 /** The callback {@link withTransaction} runs inside the write transaction: it
  *  issues statements through its {@link TxScope} and resolves to a result. */
 type TransactionWork<T> = (tx: TxScope) => Promise<T>;
@@ -802,19 +808,22 @@ export const insertedRowId = (
 /**
  * Write one row `statement` in a fresh write transaction and run `persist` (the
  * coupled join-table writes) on the same `tx`, so the row and its side writes
- * commit or roll back together. Returns the row id — `existingId` on update, or
- * the key the INSERT returned on create (`existingId` null). Shared by the REST
- * resource (HTML forms) and CRUD API write paths.
+ * commit or roll back together. On update, an optional `readState` runs before
+ * the statement and its result reaches `persist`; creates skip it. Returns the
+ * row id — `existingId` on update, or the key the INSERT returned on create.
  */
-export const writeRowInTransaction = (
+export const writeRowInTransaction = <State = never>(
   statement: InStatement,
   existingId: number | null,
-  persist: (tx: TxScope, id: number) => Promise<void>,
+  persist: (tx: TxScope, id: number, state: State | null) => Promise<void>,
+  readState?: TransactionStateReader<State>,
 ): Promise<number> =>
   withTransaction(async (tx) => {
+    const state =
+      existingId !== null && readState ? await readState(tx, existingId) : null;
     const res = await tx.execute(statement);
     const id = existingId ?? insertedRowId(res);
-    await persist(tx, id);
+    await persist(tx, id, state);
     return id;
   });
 

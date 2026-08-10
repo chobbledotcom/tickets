@@ -39,6 +39,7 @@ import {
   queryIdColumn,
   type TxScope,
 } from "#shared/db/client.ts";
+import { requireTouchingRelationshipsTx } from "#shared/db/listing-parents.ts";
 import { type DayPrices, parseDayPrices } from "#shared/types.ts";
 
 export const PRICE_TYPE_BASE = "base";
@@ -107,7 +108,7 @@ export const groupDayPriceStatements = (
   const rows: PriceRow[] = [];
   for (const member of members) {
     for (const [days, price] of Object.entries(
-      parseDayPrices(member.dayPrices ?? {}),
+      parseDayPrices(member.dayPrices || {}),
     )) {
       rows.push([
         member.listingId,
@@ -187,18 +188,22 @@ export const removeListingGroupPricesStatement = (
   };
 };
 
-/** A raw `group_day` row as SELECTed for the readers below. */
-type GroupDayRow = { listing_id: number; price_id: string; unit_price: number };
+/** A raw day-price row as selected from `listing_prices`. */
+export type DayPriceRow = {
+  listing_id: number;
+  price_id: string;
+  unit_price: number;
+};
 
 /** Fold `group_day` rows into the {@link GroupDayPrices} map, deriving each
  * row's day count from its `"<groupId>/<n>"` price_id. */
 const foldGroupDayRows = (
-  rows: readonly GroupDayRow[],
+  rows: readonly DayPriceRow[],
 ): Map<number, Map<number, number>> => {
   const result = new Map<number, Map<number, number>>();
   for (const row of rows) {
     const dayCount = Number(row.price_id.split("/")[1]);
-    const byDay = result.get(row.listing_id) ?? new Map<number, number>();
+    const byDay = result.get(row.listing_id) || new Map<number, number>();
     byDay.set(dayCount, row.unit_price);
     result.set(row.listing_id, byDay);
   }
@@ -232,7 +237,7 @@ export const getGroupDayPricesByGroupIds = async (
   );
   if (groups.size === 0) return groups;
   const ids = [...groups.keys()];
-  const rows = await queryAll<GroupDayRow>(
+  const rows = await queryAll<DayPriceRow>(
     `SELECT listingPrice.listing_id, listingPrice.price_id, listingPrice.unit_price
        FROM listing_prices AS listingPrice
        JOIN group_listings AS groupListing
@@ -242,7 +247,7 @@ export const getGroupDayPricesByGroupIds = async (
         AND groupListing.group_id IN (${inPlaceholders(ids)})`,
     [PRICE_TYPE_GROUP_DAY, ...ids],
   );
-  const groupIdOf = (row: GroupDayRow): number =>
+  const groupIdOf = (row: DayPriceRow): number =>
     Number(row.price_id.split("/")[0]);
   for (const [groupId, groupRows] of Map.groupBy(rows, groupIdOf)) {
     groups.set(groupId, foldGroupDayRows(groupRows));
@@ -283,7 +288,7 @@ export const dayCountPriceStatements = (
   listingId: number,
   dayPrices: DayPrices | undefined,
 ): PriceStatement[] => {
-  const rows = Object.entries(parseDayPrices(dayPrices ?? {})).map(
+  const rows = Object.entries(parseDayPrices(dayPrices || {})).map(
     ([days, price]): PriceRow => [listingId, PRICE_TYPE_DAY_COUNT, days, price],
   );
   return compact([
@@ -316,18 +321,19 @@ export const getListingDayPrices = async (
   return parseDayPrices(dayPrices);
 };
 
-/** Replace a listing's `day_count` rows from the submitted `dayPrices`, inside a
- * caller's write transaction — the form/API `afterWrite` hook, so the day prices
- * commit atomically with the listing row (the transactional insertStatement/
- * updateStatement path bypasses the {@link listingsTable} wrapper). */
+/** Replace day prices, finish any relationship change that depends on them, then
+ * check every edge against the saved listing's final state. */
 export const writeListingDayCounts = async (
   tx: TxScope,
   listingId: number,
   dayPrices: DayPrices | undefined,
+  finishRelationships?: () => Promise<void>,
 ): Promise<void> => {
   for (const stmt of dayCountPriceStatements(listingId, dayPrices)) {
     await tx.execute(stmt);
   }
+  if (finishRelationships) await finishRelationships();
+  await requireTouchingRelationshipsTx(tx, listingId);
 };
 
 /** A `listings` row projected to the one column the `base` mirror derives from.

@@ -1,7 +1,7 @@
 /**
- * Listing join-table preparation and persistence for the admin API write path:
- * the child-edge and group-membership writes that commit atomically with the
- * listing row. Extracted from `api.ts` so that route file stays focused.
+ * Related listing-data preparation and persistence for the admin API write
+ * path: group links and day prices are written before child edges are checked,
+ * and all three commit atomically with the listing row.
  */
 
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
@@ -15,13 +15,14 @@ import {
   requireListingChildrenPackageCheck,
   setListingChildrenWithPackageCheckTx,
 } from "#shared/db/listing-parents.ts";
+import { writeListingDayCounts } from "#shared/db/listing-prices.ts";
 import { listingInputToEdge } from "#shared/listings-actions.ts";
 import {
   hasChildEdges,
   packageChildEdgeConflict,
   packageChildEdgeError,
 } from "#shared/package-membership.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+import type { DayPrices, ListingWithCount } from "#shared/types.ts";
 import { validateChildEdges } from "./listings-parents.ts";
 
 /** A placeholder id for a not-yet-created parent: listing ids are positive
@@ -35,11 +36,11 @@ const UNCREATED_PARENT_ID = Number.MIN_SAFE_INTEGER;
  * these cleaned ids. */
 type PreparedChildEdges = number[] | null;
 
-/** Both of a listing write's join-table writes, prepared before the row write so
- * they commit in its transaction: the child edges and the group membership
- * (`groupIds` undefined = field omitted, leave membership untouched). */
+/** A listing write's related data, prepared before the row write so it commits
+ * in the same transaction. */
 export type PreparedListingJoins = {
   childEdges: PreparedChildEdges;
+  dayPrices: DayPrices | undefined;
   groupIds: number[] | undefined;
 };
 
@@ -104,7 +105,11 @@ export const prepareListingJoins = async (
 ): Promise<{ error: string } | { value: PreparedListingJoins }> => {
   const groupIds = input.groupIds;
   const submitted = submittedChildIds(body);
-  if ("skip" in submitted) return { value: { childEdges: null, groupIds } };
+  if ("skip" in submitted) {
+    return {
+      value: { childEdges: null, dayPrices: input.dayPrices, groupIds },
+    };
+  }
   if ("error" in submitted) return submitted;
   // A listing gaining children becomes a parent; a HIDDEN package's member
   // can't be a parent (the child selector would name the collapsed members),
@@ -133,13 +138,18 @@ export const prepareListingJoins = async (
     { wouldBeGroupIds: inputGroupIds },
   );
   return result.ok
-    ? { value: { childEdges: result.childIds, groupIds } }
+    ? {
+        value: {
+          childEdges: result.childIds,
+          dayPrices: input.dayPrices,
+          groupIds,
+        },
+      }
     : { error: result.error };
 };
 
-/** Write the prepared join-table rows on the open write transaction,
- * atomically with the listing row: child edges (a no-op when `null`, i.e. field
- * omitted) and group membership (a no-op when `undefined`). */
+/** Write groups and prices before validating child edges against their current
+ * transaction-local state. */
 export const persistListingJoins = async (
   tx: TxScope,
   listingId: number,
@@ -153,13 +163,20 @@ export const persistListingJoins = async (
       value.childEdges === null ? undefined : hasChildEdges(value.childEdges),
     );
   }
-  if (value.childEdges !== null) {
-    requireListingChildrenPackageCheck(
-      await setListingChildrenWithPackageCheckTx(
-        tx,
-        listingId,
-        value.childEdges,
-      ),
-    );
-  }
+  const childEdges = value.childEdges;
+  await writeListingDayCounts(
+    tx,
+    listingId,
+    value.dayPrices,
+    childEdges === null
+      ? undefined
+      : async () =>
+          requireListingChildrenPackageCheck(
+            await setListingChildrenWithPackageCheckTx(
+              tx,
+              listingId,
+              childEdges,
+            ),
+          ),
+  );
 };

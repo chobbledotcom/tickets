@@ -18,7 +18,7 @@
 
 /* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
-import type { TxScope } from "#shared/db/client.ts";
+import type { TransactionStateReader, TxScope } from "#shared/db/client.ts";
 import type { Table } from "#shared/db/table.ts";
 import { byPrimaryKey } from "#shared/db/table-reader.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -88,10 +88,10 @@ export interface ResourceConfig<
   Input,
   Id = InValue,
   Values extends FieldValues = FieldValues,
+  State = never,
 > extends AfterCommitConfig {
   /** Side-effect run after a successful create/update with the written row's
-   * id, the parsed input, the raw form, and the existing row (the pre-update
-   * state, null on create) — e.g. to persist join-table rows (a listing's
+   * id, parsed input, raw form, and narrow pre-update state — e.g. to persist join-table rows (a listing's
    * groups) or dynamic inputs (a group's per-listing package prices) that live
    * outside the main table. Runs inside the SAME transaction as the row write
    * (it receives the transaction scope), so a failure rolls the row write back
@@ -101,12 +101,14 @@ export interface ResourceConfig<
     id: number,
     input: Input,
     form: FormParams,
-    existing: Row | null,
+    state: State | null,
   ) => Promise<void>;
   form: FormSchema<Values>;
   nameField?: keyof Row & string;
   /** Custom delete function (e.g., to delete related records first) */
   onDelete?: (id: InValue) => Promise<void>;
+  /** Read only the pre-update fields needed by transactional hooks. */
+  readState?: TransactionStateReader<State> | undefined;
   table: Table<Row, Input>;
   toInput: (values: Values) => Input | Promise<Input>;
   /** Custom validation (e.g., check uniqueness). Return error message or null. */
@@ -170,6 +172,16 @@ export type NamedResource<
   verifyName: (row: Row, confirmName: string) => boolean;
 };
 
+type NamedResourceConfig<
+  Row,
+  Input,
+  Id,
+  Values extends FieldValues,
+  State,
+> = ResourceConfig<Row, Input, Id, Values, State> & {
+  nameField: keyof Row & string;
+};
+
 /**
  * Define a REST resource with typed CRUD operations.
  */
@@ -178,8 +190,9 @@ export const defineResource = <
   Input,
   Id = InValue,
   Values extends FieldValues = FieldValues,
+  State = never,
 >(
-  config: ResourceConfig<Row, Input, Id, Values>,
+  config: ResourceConfig<Row, Input, Id, Values, State>,
 ): Resource<Row, Input, Values> => {
   const { table, form: schema, toInput, nameField } = config;
 
@@ -205,14 +218,11 @@ export const defineResource = <
   /** Parse + validate the form, write the row (transactionally when
    * `afterWrite` is set, else the plain insert/update `fallback`), then run the
    * post-commit hook. `existingId` is null on create and the row id on update.
-   * `existing` is the pre-update row (null on create), passed to `afterWrite`
-   * so hooks can recheck invariants that depend on the group's pre-write state.
    * Returns the parse/validate error, or the written row. */
   const parseWriteAndCommit = async (
     form: FormParams,
     existingId: number | null,
     fallback: (input: Input) => Promise<Row | null>,
-    existing: Row | null,
     id?: Id,
   ): Promise<ErrorResult | { ok: true; row: Row | null }> => {
     const result = await parseAndValidate(
@@ -223,7 +233,7 @@ export const defineResource = <
     );
     if (!result.ok) return result;
     try {
-      const row = await writeEntity<Row>({
+      const row = await writeEntity<Row, State>({
         afterCommit: config.afterCommit,
         buildStatement: () =>
           existingId === null
@@ -232,12 +242,13 @@ export const defineResource = <
         existingId,
         joinWrites: config.afterWrite
           ? [
-              (tx, rowId) =>
-                config.afterWrite!(tx, rowId, result.value, form, existing),
+              (tx, rowId, state) =>
+                config.afterWrite!(tx, rowId, result.value, form, state),
             ]
           : [],
         plainWrite: () => fallback(result.value),
         readBack: (rowId) => table.findByIdPrimary!(rowId),
+        readState: config.readState,
         tableName: table.name,
       });
       return { ok: true, row };
@@ -250,11 +261,8 @@ export const defineResource = <
   };
 
   const create = async (form: FormParams): Promise<CreateResult<Row>> => {
-    const result = await parseWriteAndCommit(
-      form,
-      null,
-      (input) => table.insert(input),
-      null,
+    const result = await parseWriteAndCommit(form, null, (input) =>
+      table.insert(input),
     );
     // A create's row is never null: `insert` returns the row it wrote, and a
     // transactional write that can't read its own row back throws in
@@ -264,19 +272,10 @@ export const defineResource = <
 
   const update = (id: InValue, form: FormParams): Promise<UpdateResult<Row>> =>
     withExistingRow(id, async (): Promise<UpdateResult<Row>> => {
-      // Only load the pre-update row when an afterWrite hook needs it; the
-      // sold-hidden package recheck reads the old is_package/hide flags from
-      // the pre-update row (the UPDATE runs before afterWrite). A resource
-      // with no afterWrite skips the extra round-trip.
-      const existing =
-        config.afterWrite && table.findByIdPrimary
-          ? await table.findByIdPrimary(id as number)
-          : null;
       const result = await parseWriteAndCommit(
         form,
         id as number,
         (input) => table.update(id, input),
-        existing,
         id as Id,
       );
       return result.ok ? toUpdateResult(result.row) : result;
@@ -319,9 +318,8 @@ export const defineNamedResource = <
   Input,
   Id = InValue,
   V extends FieldValues = FieldValues,
+  State = never,
 >(
-  config: ResourceConfig<Row, Input, Id, V> & {
-    nameField: keyof Row & string;
-  },
+  config: NamedResourceConfig<Row, Input, Id, V, State>,
 ): NamedResource<Row, Input, V> =>
   defineResource(config) as NamedResource<Row, Input, V>;

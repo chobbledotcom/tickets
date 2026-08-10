@@ -13,6 +13,7 @@ import { TransactionValidationError } from "#shared/db/transaction.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { optInAddOnForListings } from "#test-utils/modifiers.ts";
 
 describeWithEnv("db > listing-parents > package check", { db: true }, () => {
   const parentAndChild = async () => ({
@@ -118,6 +119,32 @@ describeWithEnv("db > listing-parents > package check", { db: true }, () => {
         setListingChildrenWithPackageCheckTx(tx, parent.id, [child.id]),
       ),
     ).rejects.toThrow(t("error.child_listing_nested"));
+    expect(await listingChildren.getIds(parent.id)).toEqual([]);
+  });
+
+  test("rejects edge fields changed after validation", async () => {
+    const { parent, child } = await parentAndChild();
+    await listingsTable.update(child.id, { listingType: "daily" });
+
+    await expect(
+      withTransaction((tx) =>
+        setListingChildrenWithPackageCheckTx(tx, parent.id, [child.id]),
+      ),
+    ).rejects.toThrow(
+      t("listings_table.children_err_child_daily", { name: child.name }),
+    );
+    expect(await listingChildren.getIds(parent.id)).toEqual([]);
+  });
+
+  test("rejects an add-on activated after validation", async () => {
+    const { parent, child } = await parentAndChild();
+    await optInAddOnForListings("Child extra", [child.id]);
+
+    await expect(
+      withTransaction((tx) =>
+        setListingChildrenWithPackageCheckTx(tx, parent.id, [child.id]),
+      ),
+    ).rejects.toThrow("Child extra");
     expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 });

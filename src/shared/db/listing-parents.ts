@@ -16,10 +16,12 @@ import { t } from "#i18n";
 import {
   inPlaceholders,
   queryIdColumn,
+  resultRows,
   type TxScope,
 } from "#shared/db/client.ts";
 import { type LinkTableSide, linkTableSide } from "#shared/db/link-table.ts";
 import { guardEdgeWriteTx } from "#shared/db/listing-edge-write.ts";
+import { relationshipErrorTx } from "#shared/db/listing-relationship-validation.ts";
 import { requireListingsWithCountsByIds } from "#shared/db/listings/records.ts";
 import { TransactionValidationError } from "#shared/db/transaction.ts";
 import {
@@ -53,6 +55,48 @@ export const listingParents = linkTableSide(
   "parent_listing_id",
 );
 
+const requireCurrentRelationshipRules = async (
+  tx: TxScope,
+  edges: readonly { childId: number; parentId: number }[],
+): Promise<void> => {
+  const error = await relationshipErrorTx(tx, edges);
+  if (error) throw new TransactionValidationError(error);
+};
+
+/** Recheck every current edge touching a saved listing through the writer's
+ * transaction, including edges another writer added after request validation. */
+export const requireTouchingRelationshipsTx = async (
+  tx: TxScope,
+  listingId: number,
+): Promise<void> => {
+  const [childResult, parentResult] = await tx.batch([
+    {
+      args: [listingId],
+      sql: `SELECT listingParent.child_listing_id AS id
+              FROM listing_parents AS listingParent
+             WHERE listingParent.parent_listing_id = ?
+             ORDER BY listingParent.child_listing_id`,
+    },
+    {
+      args: [listingId],
+      sql: `SELECT listingParent.parent_listing_id AS id
+              FROM listing_parents AS listingParent
+             WHERE listingParent.child_listing_id = ?
+             ORDER BY listingParent.parent_listing_id`,
+    },
+  ]);
+  await requireCurrentRelationshipRules(tx, [
+    ...resultRows<{ id: number }>(childResult!).map(({ id: childId }) => ({
+      childId,
+      parentId: listingId,
+    })),
+    ...resultRows<{ id: number }>(parentResult!).map(({ id: parentId }) => ({
+      childId: listingId,
+      parentId,
+    })),
+  ]);
+};
+
 /** Replaces child edges only when the transaction's package memberships allow
  *  them and every endpoint still exists. `listing_parents` has no foreign key,
  *  so a deleted parent or child would leave an orphan edge that later
@@ -70,6 +114,10 @@ export const setListingChildrenWithPackageCheckTx = async (
     tx,
   });
   if (conflict) return conflict;
+  await requireCurrentRelationshipRules(
+    tx,
+    childIds.map((childId) => ({ childId, parentId })),
+  );
   await listingChildren.setIdsTx(tx, parentId, childIds);
   return null;
 };
@@ -106,6 +154,10 @@ export const addParentEdgesWithPackageCheckTx = async (
       parentIds,
       tx,
     }),
+  );
+  await requireCurrentRelationshipRules(
+    tx,
+    parentIds.map((parentId) => ({ childId, parentId })),
   );
   await listingParents.addIdsTx(tx, childId, parentIds);
 };

@@ -1,4 +1,3 @@
-import jpegEncode from "@jsquash/jpeg/encode.js";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { decodeImage } from "#shared/images/codecs.ts";
@@ -10,6 +9,7 @@ import { transcodeToWebp } from "#shared/images/transcode.ts";
 import {
   expectWebpContainer,
   makeTestPng,
+  testJpeg,
 } from "#test/test-utils/test-image.ts";
 
 /** Assert bytes are a WebP container, then return its decoded dimensions. */
@@ -43,12 +43,7 @@ describe("transcodeToWebp", () => {
   });
 
   test("decodes a JPEG source", async () => {
-    const png = await makeTestPng(120, 90);
-    const decoded = await decodeImage(png, "image/png");
-    const jpeg = new Uint8Array(
-      await jpegEncode(decoded as unknown as ImageData, { quality: 90 }),
-    );
-    const [full] = await transcodeToWebp(jpeg, "image/jpeg", [
+    const [full] = await transcodeToWebp(testJpeg(), "image/jpeg", [
       FULL_IMAGE_TARGET,
     ]);
     // Small source, unchanged size, valid WebP out.

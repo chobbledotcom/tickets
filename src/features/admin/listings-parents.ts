@@ -36,6 +36,7 @@ import {
   childAddOnError,
   type EdgeListing,
   edgeFieldError,
+  type ParentChildEdge,
 } from "#shared/listing-parents-rules.ts";
 import {
   type PackageChildEdgeBlock,
@@ -292,19 +293,17 @@ export const copyDuplicatedChildEdges = async (
   }
 };
 
-type ChildEdge = { childId: number; parentId: number };
-
 /** Group parent/child pairs into the child set for each parent. */
-const groupChildEdges = (edges: ChildEdge[]): Map<number, number[]> =>
+const groupChildEdges = (edges: ParentChildEdge[]): Map<number, number[]> =>
   groupToMap(
-    (edge: ChildEdge) => edge.parentId,
-    (edge: ChildEdge) => edge.childId,
+    (edge: ParentChildEdge) => edge.parentId,
+    (edge: ParentChildEdge) => edge.childId,
   )(edges);
 
 const groupRemappedEdges = (
   idMap: ReadonlyMap<number, number>,
   relatedIdsBySource: ReadonlyMap<number, number[]>,
-  toEdge: (cloneId: number, relatedId: number) => ChildEdge | null,
+  toEdge: (cloneId: number, relatedId: number) => ParentChildEdge | null,
 ): Map<number, number[]> =>
   groupChildEdges(
     [...idMap].flatMap(([sourceId, cloneId]) =>
@@ -317,7 +316,7 @@ const groupRemappedEdges = (
 interface GroupEdgePlan {
   existingMode: "keep" | "replace";
   relatedIdsBySource: ReadonlyMap<number, number[]>;
-  toEdge: (cloneId: number, relatedId: number) => ChildEdge | null;
+  toEdge: (cloneId: number, relatedId: number) => ParentChildEdge | null;
 }
 
 /** Apply each edge plan in order and collect distinct validation errors.

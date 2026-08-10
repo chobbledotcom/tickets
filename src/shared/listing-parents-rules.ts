@@ -32,6 +32,9 @@ export type EdgeListing = {
   day_prices: DayPrices;
 };
 
+/** One directed parent-to-child listing relationship. */
+export type ParentChildEdge = { childId: number; parentId: number };
+
 /** Explain that a child would hide an opt-in add-on reachable only through it. */
 export const childAddOnError = (addOn: string, name: string): string =>
   t("listings_table.children_err_child_addon", { addon: addOn, name });

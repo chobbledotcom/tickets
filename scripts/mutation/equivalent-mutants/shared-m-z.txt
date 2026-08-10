@@ -1,6 +1,5 @@
 # Known-equivalent mutants — see README.txt in this directory.
 
-src/shared/rest/resource.ts::parseAndValidate~0ypp34v  ?? → ||   # validationError is an ErrorResult object or null; an object is truthy
 
 # settings-bundles.ts: bundle is ALL_SNAPSHOT_SETTINGS when undefined (a readonly
 # array, always truthy), so ?? and || agree.
