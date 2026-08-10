@@ -117,11 +117,31 @@ it is built, the code is the authority").
 | Observations, ownership proofs, provider reads                                | `src/shared/payment/observation.ts` (`test/shared/payment/observation.test.ts`)                  | The facts pick and provider-notice schema are M5's and not ported                                                                                                                                                                                                            |
 | `resolveRefund`                                                               | `src/shared/payment/refund.ts` (`test/shared/payment/refund.test.ts`)                            | Verbatim                                                                                                                                                                                                                                                                     |
 | `outcomeOf`, `hasSettled`, `ObservationOutcome`, `SettledReading`             | `src/shared/payment/diagnose.ts` (`test/shared/payment/diagnose.test.ts`)                        | The two dropped-kind checks are gone. A reading holding two refunds in flight now THROWS rather than passing as settled — M4 evidence cannot hold one, so it is broken evidence, not a judged conflict (this is a deliberate departure from the reference's silent conflict) |
-| The three state columns                                                       | `src/shared/db/migrations/2026-08-10_payment_state_columns.ts`, `.../schema/tables-attendees.ts` | `payment_reference_index` takes a PLAIN index, not a unique one — see the anchor-claim rules below, which the migration corrected                                                                                                                                            |
+| The three state columns                                                       | `src/shared/db/migrations/2026-08-10_payment_state_columns.ts`, `.../schema/tables-attendees.ts` | `payment_reference_index` takes a PLAIN index, not a unique one — see the anchor-claim rules below, which the migration corrected. NOTHING WRITES IT YET: the column lands ahead of the claim that fills it, and no read consults it meanwhile                               |
+| The refund-only judgment                                                      | `refundOutcomeOf` in `src/shared/payment/diagnose.ts`                                            | New, not in the reference: a reference carrying no agreed total is judged on captured-vs-returned alone. The booking-tier kinds are not evaluated rather than being evaluated against a synthesized total                                                                    |
+| The money facts a refund is judged on                                         | `ChargeMoney` + `chargeMoneyOrNull` in `src/shared/payment/resources.ts`                         | New: `ChargeLeg` split into its money and the record it came from, because a bare provider reference has no checkout to hang a charge off. `money()` now also takes the `bigint` amounts Square states                                                                       |
+| The overlap guard and its wiring                                              | `src/shared/payment/admit-refund.ts` (`test/shared/payment/admit-refund.test.ts`)                | `admitRefund`, `admitProviderRefund`, `sendRefundIfAdmitted`, `admissionReason`. Every refund now reads before it sends; the attempt-then-check fallback is deleted from both routes                                                                                         |
+| The per-provider refund evidence                                              | `readChargeMoneyOrNull` on each of `{stripe,square,sumup}-provider.ts`                           | Replaces `isPaymentRefunded` outright — that method is gone from the interface. Stripe expands the charge's amount/currency/`amount_refunded`; Square reads its captured and refunded totals; SumUp sums the REFUND events on the transaction                                |
 
-Not yet built: everything from the refund-overlap guard down — the claim,
-discovery and tagging, the sweeps, the admission pre-flight, the recorder, and
-the owner action. Those parts of this document are still promises.
+Still promises: the all-or-none claim, provider discovery and tagging, the
+declared-observation sweeps, the owner-review recorder, the owner "mark
+reviewed" action, the `protected_state` prune gate, and the merge/delete
+admissions.
+
+Two consequences of that ordering are live in the code right now, and are FAULTS
+to close rather than settled design:
+
+- **`outcomeOf` has no production caller.** The refund routes reach the judge
+  through `refundOutcomeOf`, because a bare reference cannot supply a whole
+  observation. `outcomeOf` — and the observation, ownership-proof, and conflict
+  schemas beside it — wait for the declared-observation sweeps, which are what
+  build a full reading. Until then the repo's own no-test-only-exports check
+  fails on them, correctly.
+- **A partial refund on the refresh-payment route records nothing.**
+  `attendees-edit.ts` maps anything short of fully-refunded to `"none"`, because
+  `RefundState` has no partial value and the recorder does not exist yet. The
+  guard already refuses to send money into that state, so no money moves wrongly
+  — but the operator is not told, which is what the recorder is for.
 
 ## Trusted facts and observed facts
 
