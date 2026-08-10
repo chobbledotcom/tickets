@@ -938,53 +938,59 @@ terminal outcome data — and every writer rewrites the whole record with the
 other fields preserved, conditioned on the exact value it read (the same
 compare-and-set shape as everything below), so a claim lands beside a terminal
 record (an operator retrying a reference whose recorded refund failed) and a
-detection lands while a claim is in flight, neither clobbering the other. Before
-ANY provider refund call, every entry point — the callback arm, the admin single
-route, a bulk wave — claims the reference's `processed_payments` row by
-compare-and-set: the staged field written where the record it read carried NO
-live claim, with the batch's written-at time and the claim's OWNER SCOPE — the
-callback rejection arm claims `callback` scope for its own session; the admin
-single route and a bulk wave claim `attendee_set` scope naming the claiming
-run's attendee — affected-rows deciding the winner. The claim is per ATTENDEE
-REQUEST and all-or-none: a route refunding an attendee claims the attendee's
-complete reference set in one interactive transaction — every row claimed or the
-transaction rolls back whole — so two concurrent requests can never split a
-merged attendee's references between them, each winning some rows and moving
-only part of the money; admission (the subrequest pre-flight) runs BEFORE the
-claim, since it is pure arithmetic with no writes, so a refused request never
-leaves claims behind, and a request that dies after claiming recovers via the
-stale rule. The run's ORDER is fixed and total: admission, then the claim
-transaction over the stored reference set (known from our rows alone — no
-provider call decides membership), then every provider read — discovery and the
-order/checkout sweeps run UNDER the claim, so the identity and evidence a run
-acts on cannot be re-resolved by a concurrent run mid-flight — then the
-whole-set judgment, and only then any refund call; a park-shaped verdict
-releases the claim with the recorded answer and zero refund calls. A capture a
-sweep reveals beyond the stored references is DETECTION-ONLY: it has no row, no
-route ever refunds it (multi-charge is owner review), and its detection and
-marker land under the claim on rows the run holds — nothing a sweep discovers is
-claimable or dispatchable by a concurrent run. The verdict a run acts on is
-FENCED to the evidence it judged: the claim records the fingerprint the judgment
-ran against, and both the provider call and the finalize are conditioned — the
-same compare-and-set shape — on the row's `evidence_index` still equal to it; a
-detection that lands mid-run (a concurrent callback writing a sibling-capture
-marker beside the live claim) fails that condition, and the run re-judges from
-the merged summary before any money moves, parking or refusing per the fresh
-verdict (regression: a callback detection landing between an admin run's
-judgment and its refund call forces the re-judge — no refund is issued on the
-stale verdict). The lost-answer recovery read obeys law 6 like every
-money-authorizing read: it re-fetches the provider's COMPLETE declared
-observation — Square's payment plus order sweep, SumUp's transaction plus
-checkout sweep where named — never the named payment alone, so a sibling that
-became visible during the lost-answer window parks the completion instead of
-letting the named cumulative answer `fully_refunded` (regression: a lost-answer
-recovery whose re-read reveals a new captured sibling refuses the ledger
-completion and records the detection). The loser answers "a refund for this
-payment is already in progress" without touching the provider; a stale claim
-(older than the edge request lifetime bound) is a crashed worker and may be
-re-claimed — but only SCOPE-PRESERVING: a stale `callback` claim resumes on the
-callback path per the staged lifecycle, while a stale `attendee_set` claim is
-re-claimable only by an admin run that claims the attendee's complete current
+detection lands while a claim is in flight, neither clobbering the other.
+Throughout this contract, PLAN.md's atomicity law is the standing default: facts
+that must agree — a marker and its mirror, a summary and its fingerprint, a
+buyer record and its staged state, a retirement and its completion — change in
+ONE statement, batch, or interactive transaction, and the only fences that exist
+(the claim's staleness rule, the judged- fingerprint condition on money writes)
+each span a gap atomicity cannot close: a provider call or a concurrent request
+in the middle. Before ANY provider refund call, every entry point — the callback
+arm, the admin single route, a bulk wave — claims the reference's
+`processed_payments` row by compare-and-set: the staged field written where the
+record it read carried NO live claim, with the batch's written-at time and the
+claim's OWNER SCOPE — the callback rejection arm claims `callback` scope for its
+own session; the admin single route and a bulk wave claim `attendee_set` scope
+naming the claiming run's attendee — affected-rows deciding the winner. The
+claim is per ATTENDEE REQUEST and all-or-none: a route refunding an attendee
+claims the attendee's complete reference set in one interactive transaction —
+every row claimed or the transaction rolls back whole — so two concurrent
+requests can never split a merged attendee's references between them, each
+winning some rows and moving only part of the money; admission (the subrequest
+pre-flight) runs BEFORE the claim, since it is pure arithmetic with no writes,
+so a refused request never leaves claims behind, and a request that dies after
+claiming recovers via the stale rule. The run's ORDER is fixed and total:
+admission, then the claim transaction over the stored reference set (known from
+our rows alone — no provider call decides membership), then every provider read
+— discovery and the order/checkout sweeps run UNDER the claim, so the identity
+and evidence a run acts on cannot be re-resolved by a concurrent run mid-flight
+— then the whole-set judgment, and only then any refund call; a park-shaped
+verdict releases the claim with the recorded answer and zero refund calls. A
+capture a sweep reveals beyond the stored references is DETECTION-ONLY: it has
+no row, no route ever refunds it (multi-charge is owner review), and its
+detection and marker land under the claim on rows the run holds — nothing a
+sweep discovers is claimable or dispatchable by a concurrent run. The verdict a
+run acts on is FENCED to the evidence it judged: the claim records the
+fingerprint the judgment ran against, and both the provider call and the
+finalize are conditioned — the same compare-and-set shape — on the row's
+`evidence_index` still equal to it; a detection that lands mid-run (a concurrent
+callback writing a sibling-capture marker beside the live claim) fails that
+condition, and the run re-judges from the merged summary before any money moves,
+parking or refusing per the fresh verdict (regression: a callback detection
+landing between an admin run's judgment and its refund call forces the re-judge
+— no refund is issued on the stale verdict). The lost-answer recovery read obeys
+law 6 like every money-authorizing read: it re-fetches the provider's COMPLETE
+declared observation — Square's payment plus order sweep, SumUp's transaction
+plus checkout sweep where named — never the named payment alone, so a sibling
+that became visible during the lost-answer window parks the completion instead
+of letting the named cumulative answer `fully_refunded` (regression: a
+lost-answer recovery whose re-read reveals a new captured sibling refuses the
+ledger completion and records the detection). The loser answers "a refund for
+this payment is already in progress" without touching the provider; a stale
+claim (older than the edge request lifetime bound) is a crashed worker and may
+be re-claimed — but only SCOPE-PRESERVING: a stale `callback` claim resumes on
+the callback path per the staged lifecycle, while a stale `attendee_set` claim
+is re-claimable only by an admin run that claims the attendee's complete current
 reference set again, all-or-none, re-judging the whole set before any money
 moves. A callback never consumes a claim it did not write: the staged-first
 routing in the callback handler keys on `callback` scope alone, so a session
