@@ -77,6 +77,21 @@ GitHub.
   races, and owner choices. Schemas describe facts, state transitions describe
   changes, and transactions or revision checks protect concurrent changes. Do
   not start coding while any part is implicit or awaiting human approval.
+- **Once it is built, the code is the authority**: A behavior contract governs
+  work that does not exist yet. The moment a slice lands, its code and tests
+  become the truth, and the contract's job changes from _specifying_ that slice
+  to _pointing at_ it: as each slice merges, update the plan's module map to
+  name the real files and exported names, and say where the built thing
+  knowingly differs from what was planned. From then on, check every finding,
+  question, or proposed amendment against the actual `src/` and `test/` before
+  touching the document — when the built behavior is wrong, fix the code and pin
+  it with a regression test instead of rewriting prose to describe the bug.
+  Amend the contract only when the _contract_ is what is wrong (it promised the
+  wrong behavior, or it contradicts a constraint the implementation just
+  proved), and then change the document and the code in the same commit. A plan
+  that keeps describing an implementation that already exists has quietly become
+  a second, drifting source of truth — and the drift is always discovered by
+  someone trusting the wrong one.
 - **Format Markdown with Deno**: Let `deno fmt` apply its standard 80-column
   wrapping to Markdown files. Do not hand-wrap prose to a different width or
   unwrap paragraphs onto single long lines. Formatter exceptions such as tables,

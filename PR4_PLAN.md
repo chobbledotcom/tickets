@@ -99,6 +99,30 @@ The branch's test files (`test/shared/payment-state/diagnose.test.ts`,
 ported behavioral spec, including the pinned arithmetic cases (80 confirmed + 50
 pending out of 100 refused; 100 confirmed + 100 completed not double-counted).
 
+### As built
+
+The rows above say what to port; this section says what EXISTS, and is updated
+as each slice merges. Once a module appears here, **that file and its tests are
+the authority, not the prose above** — check a finding or a proposed amendment
+against the real code first, fix the code when the built behavior is wrong, and
+change this document only when the document is what is wrong (AGENTS.md, "Once
+it is built, the code is the authority").
+
+| Landed                                                                        | Lives in                                                                                         | Differs from the reference                                                                                                                                                                                                                                                   |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `kindObject`                                                                  | `src/shared/validation/kind.ts` (`test/shared/validation/kind.test.ts`)                          | Verbatim                                                                                                                                                                                                                                                                     |
+| The words M4 reads                                                            | `src/shared/payment/words.ts`                                                                    | `PAYMENT_MODES` and `RESOURCE_KIND_BY_PROVIDER` only; the case/decision/ticket vocabularies stay in the reference until M5+ needs them                                                                                                                                       |
+| Charge legs, refund observations and resolutions, `refundMoneyMatchesCapture` | `src/shared/payment/resources.ts` (`test/shared/payment/resources.test.ts`)                      | Money and resource-id schemas come from main's `money.ts` and `resource-id.ts`, which now export them; main's stricter no-whitespace id rule applies                                                                                                                         |
+| The conflict union                                                            | `src/shared/payment/conflict.ts` (`test/shared/payment/conflict.test.ts`)                        | 11 kinds. The read-level pair and the refund-shape pair are absent AND pinned absent by test; `IS_THE_READING_ITSELF` went with them (its only true entries were the read-level kinds, its only callers M5's)                                                                |
+| Observations, ownership proofs, provider reads                                | `src/shared/payment/observation.ts` (`test/shared/payment/observation.test.ts`)                  | The facts pick and provider-notice schema are M5's and not ported                                                                                                                                                                                                            |
+| `resolveRefund`                                                               | `src/shared/payment/refund.ts` (`test/shared/payment/refund.test.ts`)                            | Verbatim                                                                                                                                                                                                                                                                     |
+| `outcomeOf`, `hasSettled`, `ObservationOutcome`, `SettledReading`             | `src/shared/payment/diagnose.ts` (`test/shared/payment/diagnose.test.ts`)                        | The two dropped-kind checks are gone. A reading holding two refunds in flight now THROWS rather than passing as settled — M4 evidence cannot hold one, so it is broken evidence, not a judged conflict (this is a deliberate departure from the reference's silent conflict) |
+| The three state columns                                                       | `src/shared/db/migrations/2026-08-10_payment_state_columns.ts`, `.../schema/tables-attendees.ts` | `payment_reference_index` takes a PLAIN index, not a unique one — see the anchor-claim rules below, which the migration corrected                                                                                                                                            |
+
+Not yet built: everything from the refund-overlap guard down — the claim,
+discovery and tagging, the sweeps, the admission pre-flight, the recorder, and
+the owner action. Those parts of this document are still promises.
+
 ## Trusted facts and observed facts
 
 Trusted (expected) facts — never substituted for observed facts:
