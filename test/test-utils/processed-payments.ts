@@ -10,6 +10,8 @@ import {
   type ProcessedPayment,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 export const getProcessedPayment = (
   sessionId: string,
@@ -64,6 +66,28 @@ export const finalizeProcessedPayment = async (
     ticketToken,
     paymentReference,
   );
+};
+
+/** One attendee on a fresh listing, holding one finalized payment row. The
+ *  starting point for every test about what a live payment lets you do. */
+export const bookedWithPayment = async (
+  sessionId: string,
+  paymentReference: string,
+): Promise<number> => {
+  const listing = await createTestListing();
+  const booked = await bookAttendee(listing, {
+    email: "buyer@example.com",
+    name: "Buyer",
+  });
+  if (!booked.success) throw new Error("Failed to create the attendee");
+  const attendeeId = booked.attendees[0]!.id;
+  await finalizeProcessedPayment(
+    sessionId,
+    attendeeId,
+    "tok",
+    paymentReference,
+  );
+  return attendeeId;
 };
 
 /** Assert the exact decrypted provider reference attached to one attendee. */

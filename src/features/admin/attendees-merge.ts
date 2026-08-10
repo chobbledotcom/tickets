@@ -24,6 +24,7 @@ import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
 import { updateAttendeePII } from "#shared/db/attendees/update.ts";
 import { queryAll } from "#shared/db/client.ts";
 import { syncAttendeeContactTokens } from "#shared/db/contact-tokens.ts";
+import { orRefusal } from "#shared/db/payment-admit-move.ts";
 import { getQuestionsWithListingIds } from "#shared/db/questions/queries.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
@@ -487,17 +488,19 @@ export const handleMergePost: ParamsRoute<AttendeeRouteParams> = mergeHandler(
     const { source, sourceToken } = input;
     const diff = await buildMergeDiffFor(target, source, target.id);
     const decision = parseMergeDecisionForm(form, diff);
+    // Where anything that stops the merge sends the operator: back to the
+    // Actions tab's merge panel, where the decision radios reset (they always
+    // have) but the message flashes and the search re-runs.
+    const mergePanel = `/admin/attendees/${target.id}/actions?token=${encodeURIComponent(
+      sourceToken,
+    )}`;
     const validation = validateAttendeeMergeDecision(diff, decision);
     if (!validation.valid) {
-      // Bounce back to the Actions tab's merge panel; the decision radios reset
-      // (they always have), but the errors flash and the search re-runs.
-      return errorRedirect(
-        `/admin/attendees/${target.id}/actions?token=${encodeURIComponent(
-          sourceToken,
-        )}`,
-        validation.errors.join("; "),
-      );
+      return errorRedirect(mergePanel, validation.errors.join("; "));
     }
-    return applyMergeDecisions(target.id, target, source, diff, decision);
+    return orRefusal(
+      () => applyMergeDecisions(target.id, target, source, diff, decision),
+      (message) => errorRedirect(mergePanel, message),
+    );
   },
 );

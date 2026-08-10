@@ -4,12 +4,13 @@
 
 import {
   deleteByFieldStatement,
-  executeBatch,
   queryAll,
   type SqlStatement,
+  withTransaction,
 } from "#shared/db/client.ts";
 import { ticketCountSumExpr } from "#shared/db/migrations/schema/listing-aggregates.ts";
 import { noteDeleteStatement } from "#shared/db/notes/queries.ts";
+import { assertRowsFreeToMove } from "#shared/db/payment-admit-move.ts";
 
 type DeleteAttendeeOptions = { releaseBookings?: boolean };
 type ListingContribution = {
@@ -92,23 +93,37 @@ export const attendeeDependentDeleteStatements = (
   noteDeleteStatement("attendee", attendeeIds),
 ];
 
-/** Delete an attendee and all dependent data tied to the attendee record. */
+/**
+ * Delete an attendee and all dependent data tied to the attendee record.
+ *
+ * The payment rows this destroys are read for live work first, inside the same
+ * transaction that removes them, so a refund the operator has not finished — or
+ * a payment the owner still has to look at — stops the delete instead of
+ * disappearing with it. One batch inside the transaction keeps the write lock
+ * held for a single round trip however many dependent tables there are.
+ */
 const purgeAttendee = (
   attendeeId: number,
   contributions: ListingContribution[],
 ): Promise<void> =>
-  executeBatch([
-    ...attendeeDependentDeleteStatements({ args: [attendeeId], sql: "?" }),
-    ...restoreListingContributions(contributions),
-    deleteByFieldStatement({
-      field: "id",
-      table: "attendees",
-      value: attendeeId,
-    }),
-  ]);
+  withTransaction(async (tx) => {
+    await assertRowsFreeToMove(tx, [attendeeId], "delete");
+    await tx.batch([
+      ...attendeeDependentDeleteStatements({ args: [attendeeId], sql: "?" }),
+      ...restoreListingContributions(contributions),
+      deleteByFieldStatement({
+        field: "id",
+        table: "attendees",
+        value: attendeeId,
+      }),
+    ]);
+  });
 
 /**
  * Delete an attendee and all its listing links, payments, and answers.
+ *
+ * Refuses with {@link PaymentRowsBusyError} while one of the attendee's
+ * payments is mid-refund or waiting on the owner.
  */
 export const deleteAttendee = async (
   attendeeId: number,

@@ -9,10 +9,8 @@ import {
 import { paymentReferenceIndex } from "#shared/db/payment-references.ts";
 import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { staleClaimSlot } from "#test-utils/payment-claim.ts";
-import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
+import { bookedWithPayment } from "#test-utils/processed-payments.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 const protectedStateOf = (sessionId: string): Promise<{ v: string } | null> =>
@@ -28,32 +26,16 @@ const referenceIndexOf = (sessionId: string): Promise<{ v: string } | null> =>
   );
 
 describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
-  /** One attendee holding one finalized payment row for `reference`. */
-  const bookedWith = async (
-    sessionId: string,
-    reference: string,
-  ): Promise<number> => {
-    const listing = await createTestListing();
-    const booked = await bookAttendee(listing, {
-      email: "buyer@example.com",
-      name: "Buyer",
-    });
-    if (!booked.success) throw new Error("Failed to create the attendee");
-    const attendeeId = booked.attendees[0]!.id;
-    await finalizeProcessedPayment(sessionId, attendeeId, "tok", reference);
-    return attendeeId;
-  };
-
   describe("claiming", () => {
     test("an unclaimed attendee's rows are claimed", async () => {
-      const attendeeId = await bookedWith("sess-a", "pi_a");
+      const attendeeId = await bookedWithPayment("sess-a", "pi_a");
       const result = await claimAttendeeRows([attendeeId], "keyless");
       expect(result.kind).toBe("claimed");
       expect(result).toMatchObject({ sessionIds: ["sess-a"] });
     });
 
     test("the claim shows in the plaintext mirror the prune reads", async () => {
-      const attendeeId = await bookedWith("sess-b", "pi_b");
+      const attendeeId = await bookedWithPayment("sess-b", "pi_b");
       const held = await claimAttendeeRows([attendeeId], "keyless");
       if (held.kind !== "claimed") throw new Error("the claim was refused");
       expect(held.heldSince).not.toBe("");
@@ -64,7 +46,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
     });
 
     test("a second run on the same attendee is told the work is in progress", async () => {
-      const attendeeId = await bookedWith("sess-c", "pi_c");
+      const attendeeId = await bookedWithPayment("sess-c", "pi_c");
       await claimAttendeeRows([attendeeId], "keyless");
       expect(await claimAttendeeRows([attendeeId], "keyless")).toEqual({
         blockedBy: { kind: "held" },
@@ -73,7 +55,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
     });
 
     test("two concurrent runs on one attendee: exactly one wins", async () => {
-      const attendeeId = await bookedWith("sess-d", "pi_d");
+      const attendeeId = await bookedWithPayment("sess-d", "pi_d");
       const results = await Promise.all([
         claimAttendeeRows([attendeeId], "keyless"),
         claimAttendeeRows([attendeeId], "keyless"),
@@ -83,8 +65,8 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
     });
 
     test("two attendees sharing one reference: only one may hold the money", async () => {
-      const first = await bookedWith("sess-e1", "pi_shared");
-      const second = await bookedWith("sess-e2", "pi_shared");
+      const first = await bookedWithPayment("sess-e1", "pi_shared");
+      const second = await bookedWithPayment("sess-e2", "pi_shared");
 
       expect(await claimAttendeeRows([first], "keyless")).toMatchObject({
         kind: "claimed",
@@ -100,8 +82,8 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
     });
 
     test("two attendees sharing one reference, claimed concurrently: one wins", async () => {
-      const first = await bookedWith("sess-f1", "pi_race");
-      const second = await bookedWith("sess-f2", "pi_race");
+      const first = await bookedWithPayment("sess-f1", "pi_race");
+      const second = await bookedWithPayment("sess-f2", "pi_race");
       const results = await Promise.all([
         claimAttendeeRows([first], "keyless"),
         claimAttendeeRows([second], "keyless"),
@@ -110,8 +92,8 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
     });
 
     test("a claim on one attendee leaves an unrelated attendee free", async () => {
-      const first = await bookedWith("sess-g1", "pi_g1");
-      const second = await bookedWith("sess-g2", "pi_g2");
+      const first = await bookedWithPayment("sess-g1", "pi_g1");
+      const second = await bookedWithPayment("sess-g2", "pi_g2");
       await claimAttendeeRows([first], "keyless");
       expect(await claimAttendeeRows([second], "keyless")).toMatchObject({
         kind: "claimed",
@@ -122,37 +104,37 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
 
   describe("the reference index", () => {
     test("is written by the same statement as the reference", async () => {
-      await bookedWith("sess-h", "pi_h");
+      await bookedWithPayment("sess-h", "pi_h");
       expect(await referenceIndexOf("sess-h")).toEqual({
         v: await paymentReferenceIndex("pi_h"),
       });
     });
 
     test("is the same for the same reference on two rows", async () => {
-      await bookedWith("sess-i1", "pi_same");
-      await bookedWith("sess-i2", "pi_same");
+      await bookedWithPayment("sess-i1", "pi_same");
+      await bookedWithPayment("sess-i2", "pi_same");
       expect(await referenceIndexOf("sess-i1")).toEqual(
         await referenceIndexOf("sess-i2"),
       );
     });
 
     test("differs for different references", async () => {
-      await bookedWith("sess-j1", "pi_one");
-      await bookedWith("sess-j2", "pi_two");
+      await bookedWithPayment("sess-j1", "pi_one");
+      await bookedWithPayment("sess-j2", "pi_two");
       expect(await referenceIndexOf("sess-j1")).not.toEqual(
         await referenceIndexOf("sess-j2"),
       );
     });
 
     test("never stores the reference itself", async () => {
-      await bookedWith("sess-k", "pi_secret");
+      await bookedWithPayment("sess-k", "pi_secret");
       expect((await referenceIndexOf("sess-k"))?.v).not.toContain("pi_secret");
     });
   });
 
   describe("releasing", () => {
     test("a released row can be claimed again", async () => {
-      const attendeeId = await bookedWith("sess-l", "pi_l");
+      const attendeeId = await bookedWithPayment("sess-l", "pi_l");
       const claimed = await claimAttendeeRows([attendeeId], "keyless");
       if (claimed.kind !== "claimed") throw new Error("the claim was refused");
       await releaseAttendeeRows(["sess-l"], claimed.heldSince);
@@ -163,7 +145,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
     });
 
     test("releasing clears the mirror the prune reads", async () => {
-      const attendeeId = await bookedWith("sess-m", "pi_m");
+      const attendeeId = await bookedWithPayment("sess-m", "pi_m");
       const held = await claimAttendeeRows([attendeeId], "keyless");
       if (held.kind !== "claimed") throw new Error("the claim was refused");
       await releaseAttendeeRows(["sess-m"], held.heldSince);
@@ -188,7 +170,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
     });
 
     test("releasing an unclaimed row leaves it alone", async () => {
-      await bookedWith("sess-n", "pi_n");
+      await bookedWithPayment("sess-n", "pi_n");
       await releaseAttendeeRows(["sess-n"], "2026-08-10T12:00:00.000Z");
       expect(await protectedStateOf("sess-n")).toEqual({ v: "" });
     });
@@ -196,7 +178,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
 
   describe("a stalled run waking up", () => {
     test("does not strip the claim a later run now holds", async () => {
-      const attendeeId = await bookedWith("sess-stall", "pi_stall");
+      const attendeeId = await bookedWithPayment("sess-stall", "pi_stall");
       const stalled = await claimAttendeeRows([attendeeId], "keyless");
       if (stalled.kind !== "claimed") throw new Error("the claim was refused");
 
@@ -220,8 +202,8 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
   });
   describe("a shared reference someone else is holding", () => {
     test("blocks us even when their claim has gone stale", async () => {
-      const other = await bookedWith("sess-p1", "pi_shared_stale");
-      const ours = await bookedWith("sess-p2", "pi_shared_stale");
+      const other = await bookedWithPayment("sess-p1", "pi_shared_stale");
+      const ours = await bookedWithPayment("sess-p2", "pi_shared_stale");
       const theirs = await claimAttendeeRows([other], "keyless");
       if (theirs.kind !== "claimed") throw new Error("the claim was refused");
 
@@ -240,7 +222,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
   });
   describe("what the claim reports about the money", () => {
     test("names a reference another run has already sent back", async () => {
-      const attendeeId = await bookedWith("sess-q", "pi_already_back");
+      const attendeeId = await bookedWithPayment("sess-q", "pi_already_back");
       await execute(
         "UPDATE processed_payments SET provider_refunded_at = ? WHERE payment_session_id = ?",
         [new Date(nowMs()).toISOString(), "sess-q"],
@@ -257,8 +239,8 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
     });
 
     test("names a reference someone else's row says went back", async () => {
-      const ours = await bookedWith("sess-s1", "pi_shared_back");
-      await bookedWith("sess-s2", "pi_shared_back");
+      const ours = await bookedWithPayment("sess-s1", "pi_shared_back");
+      await bookedWithPayment("sess-s2", "pi_shared_back");
       // Their row is not claimed, so it does not stop us — but it carries the
       // same charge, and that charge has been returned.
       await execute(
@@ -277,7 +259,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
     });
 
     test("names nothing when the money is still with the provider", async () => {
-      const attendeeId = await bookedWith("sess-r", "pi_still_out");
+      const attendeeId = await bookedWithPayment("sess-r", "pi_still_out");
       const held = await claimAttendeeRows([attendeeId], "keyless");
       if (held.kind !== "claimed") throw new Error("the claim was refused");
       expect([...held.returned]).toEqual([]);
