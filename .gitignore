@@ -47,3 +47,4 @@ deploy/certs/*.pem
 /null/
 .test-groups/
 reports/
+.cov-caldav/
