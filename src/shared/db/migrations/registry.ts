@@ -401,6 +401,10 @@ export const MIGRATION_REGISTRY: MigrationRegistryEntry[] = [
     "2026-08-04_login_attempt_stamp",
     () => import("./2026-08-04_login_attempt_stamp.ts"),
   ),
+  entry(
+    "2026-08-10_payment_state_columns",
+    () => import("./2026-08-10_payment_state_columns.ts"),
+  ),
 ];
 /* jscpd:ignore-end */
 
