@@ -2166,10 +2166,26 @@ change detection, per-listing conflict rules, booked-listing review holds,
 remote create/delete policies, and their concurrency guards — is in this repo's
 git history:
 
-```
+```sh
 git show 1be31c4:docs/caldav-two-way-sync.md
 ```
 
 Starting point: that document's "Commands and events" table, plus the review
 threads on PR #2064 (rounds 1–3) which record every known failure mode and its
 agreed fix.
+
+---
+
+## CalDAV contract doc — trim the draft preamble and review history when the implementation lands (from PR #2064)
+
+CodeRabbit on PR #2064 asked for `docs/caldav-two-way-sync.md` to stop carrying
+its draft-status preamble and the round-by-round adversarial-review history,
+because merged prose should describe current behavior only. While the contract
+is a draft under active review, those sections are the working record that
+PR_WORKFLOW.md's challenge step and the reviewers navigate by, so they stay for
+now. When the implementation PR ships: rewrite the document's opening to
+describe the shipped feature, delete the round-by-round history paragraphs in
+the "Adversarial review" section (keep the challenge-question answers), and
+shorten this file's pull-direction note above to the archive pointer alone.
+Starting point: the header and "Adversarial review" section of
+`docs/caldav-two-way-sync.md`.
