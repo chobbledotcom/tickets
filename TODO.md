@@ -2196,3 +2196,32 @@ all-or-none guarantee true across the wave rather than only within one attendee.
 
 Do this before wiring the callback arm and the refresh route, since both will
 otherwise inherit the same per-call cost.
+
+## A legacy-only reference is refunded under a claim that holds nothing
+
+`claimAttendeeRows` claims `processed_payments` rows. `getRefundCandidates` also
+admits an attendee whose only reference is the legacy `payment_id` on the
+attendee row itself, which has no `processed_payments` row — so the run gets a
+successful claim holding zero sessions, and two overlapping requests can both
+pass and both send the same keyless refund.
+
+The contract's answer is the admin-minted anchor row: mint a row for the legacy
+reference keyed by its `payment_reference_index`, claim that, and let the
+terminal write tag it. Until that exists, the alternative is to refuse a run
+whose references are not all durably held — safer, but it makes legacy-only
+attendees unrefundable, so it is a worse answer than minting.
+
+Whichever way it goes, `claimAttendeeRows` should not report a hold it does not
+have.
+
+## Balance settlement can grow a reference set that is already claimed
+
+Law 1's writer exclusivity is not built. `balanceFinalizeStatements` checks only
+the unresolved reservation and the balance guard, so a balance callback can add
+a new charged reference to an attendee whose set an admin refund has already
+claimed and judged. The refund then covers only its earlier snapshot and its
+ledger post sees an uncovered payment group.
+
+The fix the contract names: the balance finalize reads the attendee's claim
+inside its own transaction and answers RETRYABLY without writing while a fresh
+claim is live, so the provider redelivers after the claim resolves.
