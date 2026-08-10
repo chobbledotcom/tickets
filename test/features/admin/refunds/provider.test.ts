@@ -674,6 +674,14 @@ describe("admin refund provider > one charge two attendees carry", () => {
     // The hold cannot separate these two: both rows belong to this same run.
     // Only asking once does.
     expect(refundCalls).toBe(1);
-    expect(counts.refundedCount + counts.errorCount).toBe(2);
+    // Neither attendee was refused: both took the answer from that one call.
+    // They then both fail to post, because these two exist only in the
+    // candidates above and have no account to reverse — so the money moving
+    // shows up as an error apiece rather than as a refund apiece.
+    expect(counts).toEqual({
+      errorCount: 2,
+      failedCount: 0,
+      refundedCount: 0,
+    });
   });
 });

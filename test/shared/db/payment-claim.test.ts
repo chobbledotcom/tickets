@@ -1,39 +1,19 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { encrypt } from "#shared/crypto/encryption.ts";
 import { execute, queryOne } from "#shared/db/client.ts";
 import {
+  CLAIM_MIRROR,
   claimAttendeeRows,
   releaseAttendeeRows,
 } from "#shared/db/payment-claim.ts";
 import { paymentReferenceIndex } from "#shared/db/payment-references.ts";
-import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
-import { writeRowState } from "#shared/payment/row-state.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { staleClaimSlot } from "#test-utils/payment-claim.ts";
 import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
-
-/** The stored record for a claim written long enough ago to be a crashed
- *  worker's. */
-const staleClaimSlot = async (attendeeId: number): Promise<string> =>
-  await encrypt(
-    writeRowState(
-      {
-        claim: {
-          attendeeId,
-          capability: "keyless",
-          scope: "attendee_set",
-          writtenAt: new Date(
-            nowMs() - STALE_RESERVATION_MS - 1000,
-          ).toISOString(),
-        },
-      },
-      "processed_payments.failure_data",
-    ),
-  );
 
 const protectedStateOf = (sessionId: string): Promise<{ v: string } | null> =>
   queryOne<{ v: string }>(
@@ -76,11 +56,11 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
       const attendeeId = await bookedWith("sess-b", "pi_b");
       const held = await claimAttendeeRows([attendeeId], "keyless");
       if (held.kind !== "claimed") throw new Error("the claim was refused");
-      // The mirror carries the claim's own time, so the prune — which cannot
-      // decrypt — can tell a live claim from a crashed worker's.
-      expect(await protectedStateOf("sess-b")).toEqual({
-        v: `claim:${held.heldSince}`,
-      });
+      expect(held.heldSince).not.toBe("");
+      // The prune cannot decrypt, so the mirror is all it has to go on: this
+      // word is what keeps a claimed row from being deleted out from under a
+      // refund that may already be on its way.
+      expect(await protectedStateOf("sess-b")).toEqual({ v: CLAIM_MIRROR });
     });
 
     test("a second run on the same attendee is told the work is in progress", async () => {
@@ -228,8 +208,9 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
 
       await releaseAttendeeRows(stalled.sessionIds, stalled.heldSince);
 
+      expect(resumed.heldSince).not.toBe(stalled.heldSince);
       expect(await protectedStateOf("sess-stall")).toEqual({
-        v: `claim:${resumed.heldSince}`,
+        v: CLAIM_MIRROR,
       });
       expect(await claimAttendeeRows([attendeeId], "keyless")).toEqual({
         blockedBy: { kind: "held" },
@@ -272,6 +253,26 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
       // the hold — this is what tells it the money is already back.
       expect([...held.returned]).toEqual([
         await paymentReferenceIndex("pi_already_back"),
+      ]);
+    });
+
+    test("names a reference someone else's row says went back", async () => {
+      const ours = await bookedWith("sess-s1", "pi_shared_back");
+      await bookedWith("sess-s2", "pi_shared_back");
+      // Their row is not claimed, so it does not stop us — but it carries the
+      // same charge, and that charge has been returned.
+      await execute(
+        "UPDATE processed_payments SET provider_refunded_at = ? WHERE payment_session_id = ?",
+        [new Date(nowMs()).toISOString(), "sess-s2"],
+      );
+
+      const held = await claimAttendeeRows([ours], "keyless");
+      if (held.kind !== "claimed") throw new Error("the claim was refused");
+
+      // Money back on a reference is back for every row carrying it, whoever
+      // they belong to — so our own untouched row must not send it again.
+      expect([...held.returned]).toEqual([
+        await paymentReferenceIndex("pi_shared_back"),
       ]);
     });
 

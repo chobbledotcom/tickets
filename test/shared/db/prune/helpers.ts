@@ -3,6 +3,7 @@ import { KIND } from "#shared/accounting/kinds.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { executeBatch, getDb, insert } from "#shared/db/client.ts";
+import { CLAIM_MIRROR } from "#shared/db/payment-claim.ts";
 import { nowMs } from "#shared/now.ts";
 
 export const insertFinalizedPayment = async (
@@ -48,12 +49,11 @@ export const insertFailedPayment = async (
   );
 };
 
-/** An old row that a refund run is holding right now: its live work shows in
- *  the plaintext mirror the prune reads. */
+/** An old row a refund run is holding: its work shows in the plaintext mirror
+ *  the prune reads. */
 export const insertClaimedPayment = async (
   sessionId: string,
   processedAtIso: string,
-  claimedAtIso = new Date(nowMs()).toISOString(),
 ): Promise<void> => {
   await getDb().execute(
     insert("processed_payments", {
@@ -61,7 +61,7 @@ export const insertClaimedPayment = async (
       failure_data: '{"error":"sold out","status":409,"refunded":true}',
       payment_session_id: sessionId,
       processed_at: processedAtIso,
-      protected_state: `claim:${claimedAtIso}`,
+      protected_state: CLAIM_MIRROR,
     }),
   );
 };

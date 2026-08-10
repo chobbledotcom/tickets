@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { execute } from "#shared/db/client.ts";
+import { claimAttendeeRows } from "#shared/db/payment-claim.ts";
 import { runDatabasePruning } from "#shared/db/prune.ts";
-import {
-  PRUNE_PAYMENTS_RETENTION_MS,
-  STALE_RESERVATION_MS,
-} from "#shared/limits.ts";
+import { PRUNE_PAYMENTS_RETENTION_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { staleClaimSlot } from "#test-utils/payment-claim.ts";
 import {
   insertClaimedPayment,
   insertFailedPayment,
@@ -100,18 +100,29 @@ describeWithEnv("db > prunePayments", { db: true }, () => {
     // then pay the same money a second time.
     expect(await paymentExists("sess_claimed_old")).toBe(true);
   });
-
-  test("prunes an old row whose claim is old enough to be a crashed worker", async () => {
-    // Nothing releases a keyless claim whose answer was lost, so without the
-    // staleness cutoff this row would be kept for ever.
-    await insertClaimedPayment(
-      "sess_claim_stale",
-      oldEnoughToPrune(),
-      new Date(nowMs() - STALE_RESERVATION_MS - 1000).toISOString(),
-    );
-
-    await runDatabasePruning();
-
-    expect(await paymentExists("sess_claim_stale")).toBe(false);
-  });
 });
+
+describeWithEnv(
+  "db > prunePayments > a claim that outlived its run",
+  { db: true, encryptionKey: true },
+  () => {
+    test("keeps the row a lost keyless answer is still holding", async () => {
+      const attendeeId = await insertOldReferencedPayment("sess_claim_stale");
+      const held = await claimAttendeeRows([attendeeId], "keyless");
+      if (held.kind !== "claimed") throw new Error("the claim was refused");
+      // A keyless refund whose answer went missing keeps its claim on purpose,
+      // so the claim ages past the point where a live run could still hold it.
+      await execute(
+        "UPDATE processed_payments SET failure_data = ? WHERE payment_session_id = ?",
+        [await staleClaimSlot(attendeeId), "sess_claim_stale"],
+      );
+
+      await runDatabasePruning();
+
+      // This row is the only record that money may already be on its way back.
+      // Deleting it would take the reference index and the returned-money
+      // marker with it, and the next run would send the same payout again.
+      expect(await paymentExists("sess_claim_stale")).toBe(true);
+    });
+  },
+);
