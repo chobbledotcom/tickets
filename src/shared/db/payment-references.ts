@@ -52,6 +52,16 @@ type PaymentReferenceAttendeeRow = {
 
 const LEGACY_MERGE_SESSION_PREFIX = "legacy-merge:";
 
+/**
+ * Whether this row is a merge anchor rather than a real checkout.
+ *
+ * A merge writes one of these to carry an inherited legacy payment, and the
+ * reference list deliberately hides its id — so anything comparing a claim's
+ * rows against that list has to know they were left out on purpose.
+ */
+export const isLegacyMergeSession = (sessionId: string): boolean =>
+  sessionId.startsWith(LEGACY_MERGE_SESSION_PREFIX);
+
 /** One reference's refund status while it is being built up from rows: whether
  *  the provider has refunded it, and the payment sessions seen so far. */
 type ReferenceProgress = { refunded: boolean; sessionIds: string[] };
@@ -137,9 +147,7 @@ const withLegacyReference = (
     : references;
 
 const realSessionIds = (row: PaymentReferenceRow): string[] =>
-  row.payment_session_id.startsWith(LEGACY_MERGE_SESSION_PREFIX)
-    ? []
-    : [row.payment_session_id];
+  isLegacyMergeSession(row.payment_session_id) ? [] : [row.payment_session_id];
 
 const addReference = (
   byReference: ReferenceProgressByKey,
