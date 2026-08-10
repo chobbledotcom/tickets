@@ -3,9 +3,8 @@
  *
  * Its own file because both the answer a reading produces and the check on a
  * stored answer need these names, and neither should have to load the other to
- * get them. Four of the reference kinds are not here yet: the two read-level
- * kinds belong to M5's stored-answer re-validation, and the two refund-shape
- * kinds need the per-refund records M7 introduces.
+ * get them. Every kind here is one a reading of a payment can actually
+ * produce; a problem nothing can report would be a name with no meaning.
  */
 
 import * as v from "valibot";

@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
 import {
+  type ProviderResource,
   providerRefundResources,
   RefundFailureReasonSchema,
   RefundObservationSchema,
@@ -255,18 +256,31 @@ describe("telling two provider resources apart", () => {
     expect(sameProviderResource(refundResource, refundResource)).toBe(true);
   });
 
-  for (const [field, changed] of [
-    [
-      "provider",
-      { ...refundResource, kind: "square_refund", provider: "square" },
-    ],
-    ["kind", { ...refundResource, kind: "stripe_payment_intent" }],
-    ["id", { ...refundResource, id: "re_2" }],
-  ] as const) {
+  const differentResources: { field: string; resource: ProviderResource }[] = [
+    {
+      field: "provider",
+      resource: {
+        id: "re_1",
+        kind: "square_refund",
+        parentId: "pi_1",
+        provider: "square",
+      },
+    },
+    {
+      field: "kind",
+      resource: {
+        id: "re_1",
+        kind: "stripe_payment_intent",
+        parentId: "cs_1",
+        provider: "stripe",
+      },
+    },
+    { field: "id", resource: { ...refundResource, id: "re_2" } },
+  ];
+
+  for (const { field, resource } of differentResources) {
     test(`sees a different ${field} as a different resource`, () => {
-      expect(
-        sameProviderResource(refundResource, changed as typeof refundResource),
-      ).toBe(false);
+      expect(sameProviderResource(refundResource, resource)).toBe(false);
     });
   }
 });

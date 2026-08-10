@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import type { SettledReading } from "#shared/payment/diagnose.ts";
 import { hasSettled, outcomeOf } from "#shared/payment/diagnose.ts";
 import type { PaymentObservation } from "#shared/payment/observation.ts";
+import type { ChargeLeg } from "#shared/payment/resources.ts";
 import {
   chargeLeg,
   chargeResource,
@@ -259,7 +260,7 @@ describe("which problem a reading is named by when several fit", () => {
   const leg = (amount: number, resource = chargeResource) =>
     chargeLeg({ captured: { amount, currency: "GBP" }, resource });
 
-  for (const [name, charges, expected] of [
+  const orderCases: [name: string, charges: ChargeLeg[], expected: string][] = [
     [
       "two legs summing over the signed total",
       [leg(60), leg(60, secondLeg)],
@@ -316,7 +317,9 @@ describe("which problem a reading is named by when several fit", () => {
       ],
       "currency_mismatch",
     ],
-  ] as const) {
+  ];
+
+  for (const [name, charges, expected] of orderCases) {
     test(`names ${name} ${expected}`, () => {
       const outcome = outcomeOf(finished(paymentObservation({ charges })));
 
