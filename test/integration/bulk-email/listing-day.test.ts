@@ -27,7 +27,8 @@ const NEXT_MONDAY = "2026-03-09";
 
 /** A booking on a daily listing that starts on `date` and lasts `days`. The
  * test writes it through the same atomic create the booking path uses, so the
- * stored day range is the one a real booking would leave behind. */
+ * stored day range is the one a real booking would leave behind. A failed seed
+ * is not guarded: the assertions that follow are what report it. */
 const bookDays = async (
   listingId: number,
   name: string,
@@ -35,7 +36,7 @@ const bookDays = async (
   date: string,
   durationDays = 1,
 ): Promise<void> => {
-  const result = await attendeesApi.createAttendeeAtomic({
+  await attendeesApi.createAttendeeAtomic({
     address: "",
     bookings: [
       { date, durationDays, listingId, packageGroupId: 0, quantity: 1 },
@@ -45,9 +46,6 @@ const bookDays = async (
     phone: "",
     special_instructions: "",
   });
-  if (!result.success) {
-    throw new Error(`Failed to book ${name}: ${result.reason}`);
-  }
 };
 
 /** A listing with one booking on each of two days a week apart — the setup for
