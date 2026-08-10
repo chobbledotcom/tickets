@@ -2113,3 +2113,25 @@ path, so the typical run is now nearer the cap than it was.
 Starting point: `PROVIDER_REFUND_CONCURRENCY` in
 `src/features/admin/refunds/provider.ts`, the budget rules in `PR4_PLAN.md`, and
 the subrequest guard in `src/shared/db/client.ts`.
+
+## Two pending SumUp refunds should withhold, not throw
+
+`refundOutcome` in `src/shared/payment/diagnose.ts` throws when a reading holds
+two refunds in flight, on the contract's reasoning that an M4 observation can
+only carry the answer to its own single attempt. Codex raised (PR #2065) that
+SumUp may surface two still-pending REFUND events on one transaction — for
+example overlapping partial refunds whose combined amount is still within the
+captured total — in which case the refresh-payment route turns a safe "money is
+still settling" reading into an uncaught 500.
+
+Two steps, in order:
+
+1. Re-read `src/shared/sumup-provider.ts` and `src/shared/sumup.ts` against real
+   transaction-event shapes and settle whether two pending refunds can reach
+   `resolveRefund`. If they cannot, leave the throw and record why at the
+   definition.
+2. If they can, make it a withholding conflict rather than a throw. Two pending
+   refunds is unambiguous evidence NOT to send more money, so it belongs with
+   the park-shaped verdicts; catching the exception upstream would be the wrong
+   fix. `PaymentConflict` would gain the kind, and `admit-refund.ts` maps every
+   conflict to `refused` already.
