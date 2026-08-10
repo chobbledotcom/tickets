@@ -14,9 +14,10 @@ import { describeWithEnv } from "#test-utils/db.ts";
 describeWithEnv("db > client round-trip limit", { db: true }, () => {
   test("counts every database operation at the client boundary", async () => {
     await runWithQueryLogContext(async () => {
-      // Ten guarded calls below are counted; the rolledBack.rollback() is not —
-      // a rollback is mandatory cleanup, exempt from the round-trip guard.
-      const guardedCalls = 10;
+      // Eleven guarded calls below are counted, including the rolledBack
+      // rollback: a rollback is counted like any other subrequest (it is only
+      // exempt from being *blocked*), so the running total stays accurate.
+      const guardedCalls = 11;
       const executeWithArgsCalls = 1;
       const directCalls =
         BUNNY_SUBREQUEST_LIMIT - guardedCalls - executeWithArgsCalls;
@@ -153,6 +154,28 @@ describeWithEnv("db > client round-trip limit", { db: true }, () => {
         );
       }),
     );
+  });
+
+  test("a rollback is still blocked at the hard platform limit, as Bunny would", async () => {
+    // The budget exemption only lets a rollback past our own stricter reserve,
+    // never past the real round-trip limit: at the platform cap the rollback
+    // would be a genuine over-limit subrequest that Bunny rejects, so the guard
+    // blocks it here too rather than pretending it succeeds.
+    const tx = await runWithQueryLogContext(async () => {
+      const openTx = await getDb().transaction("write");
+      await Promise.all(
+        Array.from({ length: BUNNY_SUBREQUEST_LIMIT - 1 }, () =>
+          getDb().execute("SELECT 1"),
+        ),
+      );
+      const rollbackAtLimit = async () => {
+        await openTx.rollback();
+      };
+      await expect(rollbackAtLimit()).rejects.toThrow(/limit 50/);
+      return openTx;
+    });
+    // Clean up the still-open transaction outside the counted scope.
+    await tx.rollback();
   });
 
   test("a re-set guarded client is not wrapped again (no double counting)", async () => {
