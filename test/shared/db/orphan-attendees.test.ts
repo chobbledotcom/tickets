@@ -9,13 +9,20 @@
 import { assertExists } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getDb, insert, queryOne, requireOne } from "#shared/db/client.ts";
+import {
+  execute,
+  getDb,
+  insert,
+  queryOne,
+  requireOne,
+} from "#shared/db/client.ts";
 import { createSystemNote, getNoteRows } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
 import {
   countOrphanedAttendees,
   purgeOrphanedAttendees,
 } from "#shared/db/orphan-attendees.ts";
+import { CLAIM_MIRROR } from "#shared/db/payment-claim.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -165,6 +172,55 @@ describeWithEnv("db > orphan-attendees", { db: true }, () => {
       await purgeOrphanedAttendees(nowIso());
 
       expect(await childCount("checkout_stages", id)).toBe(0);
+    });
+  });
+
+  describe("an orphan whose payment is still being worked on", () => {
+    /** An orphan old enough to purge, holding one payment row the mirror says
+     *  has refund work on it. A set-based purge can no more decrypt every
+     *  orphan than the prune can, so this plaintext word is all it reads. */
+    const heldOrphan = async (): Promise<number> => {
+      const id = await insertOrphan(daysAgoIso(365));
+      await getDb().execute(
+        insert("processed_payments", {
+          attendee_id: id,
+          payment_session_id: `ps-held-${id}`,
+          processed_at: nowIso(),
+          protected_state: CLAIM_MIRROR,
+        }),
+      );
+      return id;
+    };
+
+    test("is not offered up for purging", async () => {
+      const id = await heldOrphan();
+      // The count and the delete share one clause, so a page that offered to
+      // remove this orphan would promise something the purge then refuses.
+      expect(await countOrphanedAttendees(nowIso())).toBe(0);
+      expect(await attendeeExists(id)).toBe(true);
+    });
+
+    test("keeps the payment row that says money may be going back", async () => {
+      const id = await heldOrphan();
+
+      await purgeOrphanedAttendees(nowIso());
+
+      expect(await attendeeExists(id)).toBe(true);
+      expect(await childCount("processed_payments", id)).toBe(1);
+    });
+
+    test("goes as normal once the work on its payment is finished", async () => {
+      const id = await heldOrphan();
+      await execute(
+        "UPDATE processed_payments SET protected_state = '' WHERE attendee_id = ?",
+        [id],
+      );
+
+      await purgeOrphanedAttendees(nowIso());
+
+      // Only live work holds an orphan back: having had a payment at all is no
+      // reason to keep it for ever.
+      expect(await attendeeExists(id)).toBe(false);
     });
   });
 });
