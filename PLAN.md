@@ -164,6 +164,61 @@ pure rules, writes with revision or lease fencing, and validates the returned
 row. There must not be parallel raw-row and decoded-domain implementations of
 the same rule.
 
+## Data laws
+
+Eight laws govern how every part of this program behaves around data. Each
+milestone contract instantiates them for the data it touches and says which law
+admits each new state, consumer, or fact — so a review finding of one of these
+shapes is answered by the law, and a design that satisfies them up front rules
+the shape out as a class. M4's concurrency section ("the reference row is one
+state machine") is the first instantiation; M5's cases, M6's aggregate rows,
+M7's refund jobs, M8's completions, and M11's migration copies are all data
+these laws bind.
+
+1. **One authority per fact.** Each fact has one canonical representation and
+   one place that computes it; every other appearance derives from that copy and
+   is regenerated, never restated. Two definitions of one value — a second
+   judge, a second serialization, a second total — are a defect even while they
+   agree.
+2. **Facts carry provenance: signed, stored, or observed — never ambient.** A
+   decision consumes only facts the datum carries, evidence a read proved, or
+   values signed at creation. Live settings may order a search; they never
+   decide a fact. A fact nothing carries is explicitly not evaluable, or an
+   honest failure naming what is missing — never filled from today's
+   configuration.
+3. **Identity is immutable; everything else is an attribute.** Compare, merge,
+   deduplicate, and index by the smallest immutable identity. A changed
+   attribute updates its datum in place and is itself a recordable event; it
+   never mints a second datum.
+4. **Stored state is a declared machine with a total lifecycle.** Every state
+   names what creates it, every consumer that must recognize it — readers and
+   writers alike, including cleanup, merge, delete, restore, and replay — what
+   retires it, and how it ages out under retention. A consumer that cannot read
+   the authoritative record routes on a mirror written in the same statement,
+   never on a proxy. A state and all its consumers ship in one slice.
+5. **Decisions bind to complete, versioned evidence.** A path that acts reads
+   the full declared evidence shape for its source — no path decides on less
+   than the source's declared observation — and every consequential write is
+   fenced on the exact evidence it judged: changed evidence forces a re-judge,
+   and recorded evidence only grows, by merge, never replacement.
+6. **Data never moves to weaker protection.** A fact under a stronger key or
+   boundary is never copied under a weaker one. Cross-boundary comparison uses
+   one-way codes; a plaintext mirror carries a state word, never contents.
+7. **External parties are capability records.** What a provider guarantees — an
+   idempotency key, a cumulative total, an event authority — is declared once,
+   and every behavior derives from the declared capability, never a per-party
+   arm, so a new party inherits the whole discipline by declaration.
+8. **Atomicity before compensation.** Facts that must agree and live in this
+   database change in ONE atomic write — the same statement, or one libsql batch
+   or interactive transaction, which commit whole and roll back whole, with a
+   conditional write's affected-rows count deciding a winner (the helpers in
+   AGENTS.md's Transactions and Batches section). Never write one half and
+   defend the gap with a check, a retry, or a repair pass. Guards, fences,
+   staleness rules, and re-judges are reserved for the one gap atomicity cannot
+   close — an external call or a concurrent request in the middle — and each one
+   names the gap it spans. When a review offers "add a guard, or make the write
+   atomic", atomic wins.
+
 ## Milestones
 
 Milestones are behavior units, not a PR count: one milestone may land as several
@@ -197,14 +252,84 @@ Src target: 400–700.
 - Cut live only the outcomes whose remedy is refuse-and-record: block new
   overlapping refunds until the provider's cumulative total catches up while
   counting a completed refund immediately; reject duplicate resources, wrong
-  currencies, wrong parents, over-refunds, and money on a free checkout.
-- Conflicts that need an owner decision (multiple captures and kin): `outcomeOf`
-  is the only classifier here too — the displaced classifier is deleted in this
-  same merge, so two judges can never disagree about the same money. One handler
-  maps these outcomes onto today's behavior: detect, record, and alert through
-  the existing error classes, and no automatic work is stopped or stranded
-  before an owner can act. The case workflow arrives one merge later (M5) and
-  the page actions with M7/M8. Build no owner tooling on the legacy engines.
+  currencies, wrong parents, over-refunds, and money on a free checkout. Every
+  refund entry point claims the payment's complete reference set all-or-none
+  before any provider call (a row-less legacy reference gets its row minted by
+  the claim), so concurrent refund runs serialize locally for every provider.
+  The order is fixed: claim the stored rows, then read — provider discovery and
+  the evidence sweeps run under the claim, and a capture a sweep reveals beyond
+  the stored references is detected and parked for the owner, never refunded or
+  claimable by a concurrent run — then judge the whole set, then move money,
+  with every money write fenced on the evidence the run judged (fresh evidence
+  landing mid-run forces a re-judge before any provider call). A live fresh
+  claim is exclusive against every other writer: a write that would add a charge
+  to the claimed attendee or advance a claimed row's evidence answers retryably
+  until the claim resolves, so a claimed set never grows and a judged verdict
+  never goes stale mid-run; and sibling-leg evidence reads are capped everywhere
+  — admission reserves the cap as each reference's worst case, and beyond it the
+  observation parks for owner review on the sweep alone instead of letting a
+  provider-controlled leg list chase the request budget. The claim transaction
+  re-checks admission against the exact rows it claims (a set that moved
+  re-admits or refuses whole); a claim on an untagged reference holds no release
+  rule until discovery's validated read binds the provider and its capability —
+  and a discovery that fails outright (every credentialed read erroring or
+  refusing) is itself a bounded outcome: the claim releases with the recorded
+  unresolved answer and zero refund calls, since nothing was sent under it, and
+  a later retry re-claims behind fresh validated reads; and a blind index of
+  each reference's stable identity serializes claims per provider reference
+  ACROSS attendees, so two rows carrying one reference cannot race two refunds.
+  SumUp has no idempotency key, and a keyless refund whose answer is lost stays
+  claimed IN DOUBT — answering "still settling" — until provider evidence
+  resolves it; a stale claim is re-claimable only behind a fresh evidence read,
+  and the residual (an accepted refund still invisible past the staleness bound)
+  is a named provider-data fault M7's per-attempt records close.
+- The stored payment row is one declared state machine — claims with owner
+  scope, owner-review markers, committed evidence, terminal outcomes — bound by
+  six laws every consumer follows (the contract's concurrency section).
+  Committed evidence only grows by merge. Judgments use only signed, stored, or
+  provider-proven facts, never today's settings: a stored reference's provider
+  is carried, or discovered by a validated read and tagged on the terminal
+  write, and a reference no credentialed provider validates fails honestly —
+  refundable from the provider dashboard — until M6's backfill tags it (the M4
+  slice of F13); a stored reference's judgment reads no live site currency (the
+  M4 slice of F12). M6's stored provider and currency close both for every row.
+  Each provider has one declared evidence shape that every money-moving path
+  supplies whole — for Square the payment plus its order's captured-tender
+  sweep, for SumUp the transaction plus its checkout's child sweep where the row
+  names its checkout — so an admin refund or refresh sees a sibling capture even
+  when no callback redelivery ever revealed it. Writers follow the same routing:
+  an attendee merge or delete fails closed while a refund claim or staged refund
+  is live on any affected row, an owner-review marker rides a merge onto the
+  target — gating the merged person whole — and a delete is refused while a
+  marker is unresolved, because a parked payment's marker guards the retained
+  buyer contact the manual-check promise relies on (the M4 slice of F6). Every
+  marker carries a retirement rule — automatic where a write can prove its
+  condition dissolved, plus always the explicit recorded owner action — and
+  scheduled cleanup routes on the same mirror, so the orphan purge never
+  destroys a protected row an admin delete would have been refused over. The
+  row's live work state (claim, staged refund, or owner-review marker) is
+  mirrored in a plain column written by the same statement, so even the SQL-only
+  pruning routes on the real state machine — refund evidence alone never exempts
+  a row from its normal retention. Stored comparison evidence holds one-way
+  codes and money figures only; the raw provider references stay where the owner
+  key protects them.
+- Every refund run — bulk or single attendee — is admitted against the request's
+  remaining subrequest budget before any provider call, priced at each adapter's
+  physical worst case; an oversized run refuses whole with zero provider calls
+  and a plain reason on every row. This is the M4 slice of F53; the paged engine
+  that processes arbitrarily large runs is M7's.
+- Conflicts the system must not resolve on its own (multiple captures and kin):
+  `outcomeOf` is the only classifier here too — the displaced classifier is
+  deleted in this same merge, so two judges can never disagree about the same
+  money. One handler maps these outcomes onto the decided behaviors: every
+  multi-charge observation is an owner-review case — when the captures sum to
+  the signed total and nothing else is wrong, the booking proceeds and the owner
+  is alerted through the existing error classes (the decided automatic
+  exception; automatic refunds act on single-charge observations only) — while
+  partial-refund evidence on a booking, or a multi-charge observation that also
+  fails validation, parks with the buyer retained and the manual-check answer.
+  The case workflow arrives one merge later (M5) and the page actions with
+  M7/M8. Build no owner tooling on the legacy engines.
 
 Standalone value: the live system stops repeat refunds and detects captured
 money combinations it currently misses, with one classifier where there were
@@ -303,9 +428,14 @@ happen in production.
   balance completion read the stored allocation and never re-derive it, so no
   two consumers can disagree about a part. Today's ticket-only
   `allocateReservationDeposit` does not survive the move. Store the provider on
-  each charge: M6's own reconciliation reads it to validate and deduplicate
-  charge identity, and the M7 engine routes refunds by it, closing the
-  multi-provider gap.
+  each aggregate charge: M6's own reconciliation reads it to validate and
+  deduplicate charge identity, and the M7 engine routes refunds by it, closing
+  the multi-provider gap for every stored charge. M4's slice covers the live
+  path: new references are tagged at write time, an untagged reference's
+  provider is discovered by a validated read and tagged on its terminal write,
+  and a reference no credentialed provider validates stays an honest unresolved
+  row — dashboard-refundable — until this backfill tags it from aggregate
+  evidence.
 - Reads: every provider read goes behind one strict observation contract
   covering missing, invalid, unavailable, pending, paid, free, and failed.
   Square payment IDs are named by the order, not scanned from a short list.
@@ -343,12 +473,19 @@ happen in production.
   (`src/shared/payment/validated-session.ts`), so the legacy completion, refund,
   finalize, and maintenance writers keep working unchanged — and keep writing
   their own rows — until M7 and M8. Those legacy writers never touch aggregate
-  rows; the aggregate learns of their effects the way it learns everything, by
-  reading the provider: every legacy completion or refund is followed by the
-  provider's own callback or the scheduled re-read, which the claimed
-  reconciliation folds into the aggregate. Aggregate state is derived from
-  provider truth, so a legacy write can lag one reconciliation but never leave
-  it permanently stale. No write fence lands here.
+  rows directly; the aggregate learns of their effects the way it learns
+  everything, by reading the provider — every legacy completion or refund is
+  followed by the provider's own callback or the scheduled re-read, which the
+  claimed reconciliation folds into the aggregate — except where the provider
+  declares no push for the fact (data law 7): SumUp fires no refund callback and
+  a settled row has no scheduled re-read, so the legacy refund writer records a
+  DURABLE due-reconciliation row for the reference it just refunded, in the same
+  transaction as its refund result — the aggregate's own due-work kind, never
+  the request-scoped pending-work list — on the API and admin refund paths alike
+  (a writer-through trigger for pull-only facts, not a second author: the
+  aggregate still records only what the provider read proves). A legacy write
+  can therefore lag one reconciliation but never leave the aggregate permanently
+  stale, for push and pull-only providers alike. No write fence lands here.
 - Adopt or expire every in-flight pre-cutover checkout (all three providers)
   atomically and idempotently: same claim, identity, and validation rules;
   concurrent callbacks and migration runs bind to one claim; defined outcomes
@@ -735,14 +872,14 @@ mechanism and a regression test, or — if implementation proves the finding wro
 | F3  | Pending and completed refunds together exceeding captured money                        | M4, M7          |
 | F4  | One failed decision blocking all reconciliation                                        | M5, M6          |
 | F5  | Permanent provider or delivery errors retrying forever or blocking a queue             | M5, M6, M9      |
-| F6  | Attendee merge or delete removing records with an open case or unfinished work         | M5, M6, M8      |
+| F6  | Attendee merge or delete removing records with an open case or unfinished work         | M4, M5, M6, M8  |
 | F7  | Restore-deploy workflow allowing incompatible code onto a migrated database            | M6              |
 | F8  | Cross-payment duplicate provider charges                                               | M6              |
 | F9  | Account lookup failure retaining a claim                                               | M6              |
 | F10 | SumUp return IDs interpreted differently by different routes                           | M6              |
 | F11 | Square fallback reads scanning too short a list                                        | M6              |
-| F12 | Delayed work using live currency rather than stored currency                           | M6              |
-| F13 | Charges without a stored provider unrefundable after a provider switch (#2020 gap)     | M6, M7          |
+| F12 | Delayed work using live currency rather than stored currency                           | M4, M6          |
+| F13 | Charges without a stored provider unrefundable after a provider switch (#2020 gap)     | M4, M6, M7      |
 | F14 | In-flight pre-cutover checkouts paid after the cutover, stranded without a row         | M6              |
 | F15 | Old rows changing after the aggregate write cutover                                    | M6, M8, M11     |
 | F16 | Old payment-reference readers surviving after migration                                | M6, M13         |
@@ -782,7 +919,7 @@ mechanism and a regression test, or — if implementation proves the finding wro
 | F50 | Unmigratable evidence keeping buyer PII or ticket tokens forever                       | M11, M12        |
 | F51 | Two classifiers disagreeing about the same settled money between M4 and M5             | M4              |
 | F52 | Checkout fees or price modifiers misallocated into a listing's income                  | M6, M8          |
-| F53 | A bulk refund run exceeding the request budget, refunding only an initial subset       | M7              |
+| F53 | A bulk refund run exceeding the request budget, refunding only an initial subset       | M4, M7          |
 | F54 | One sold-out line half-booking a multi-listing order after payment                     | M8              |
 | F55 | The M8 runner re-completing sales the legacy path already finished                     | M8              |
 | F56 | A deposit checkout losing the full modifier fact to the charged fraction               | M6, M8          |

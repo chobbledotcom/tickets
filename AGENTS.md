@@ -373,6 +373,22 @@ GitHub.
   reviewer proposed, why it's genuinely out of scope here, and a starting
   point), then reply on the thread pointing to the TODO entry. Scope is a real
   boundary, not an excuse to lose good ideas.
+- **"Actually broken" outranks "nice in a perfect world"**: A finding, review
+  comment, or idea earns a fix when it names a concrete failure — real inputs
+  and state under which behaviour is wrong: money lost or double-moved, data
+  corrupted, a crash, a dead or forbidden link, a permission hole. Verify the
+  scenario against the real code first; verified breakage gets the complete fix
+  and its regression test. Everything else — symmetry, hypothetical drift with
+  no concrete trigger, restating what a pinned test already enforces, polish
+  whose only effect is making the document or code "more consistent" — is
+  perfect-world work: declining it with a short reason on the thread is a
+  first-class outcome, and a genuinely good idea goes to `TODO.md` rather than
+  into the queue. This is triage for what enters the queue, never licence to do
+  entered work partially — "Always the complete version" still governs
+  everything we decide to do. Assertive automated reviewers can generate
+  perfect-world findings indefinitely, so bot silence is not a finish line: when
+  consecutive rounds stop naming new concrete failures, declare the review
+  converged and hand the decision to a human.
 - **Finish by rewriting the PR name and description**: Once a feature is done,
   revisit its pull request and update the name and description to match what was
   actually built. A PR often starts life with a WIP or work-in-flight title; the
