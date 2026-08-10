@@ -204,26 +204,34 @@ a wrong currency match both `multiple_charges` and `currency_mismatch`).
 part of this contract: expected-vs-observed currency, provider total vs
 expected, resource parentage, per-leg currency, over-refund, duplicate charge,
 partial charge, money on a free checkout, failed refund — every
-refuse-and-record kind — and only then the owner-review kinds: multiple charges,
-capture total, partial refund. The port makes two adaptations explicit. First: a
-zero-expected observation with captured money is judged by the free-checkout arm
-FIRST — before every expected-vs-observed amount check,
-`provider_total_mismatch` included, which the enumerated order would otherwise
-reach first (a free checkout with a positive provider session total matches it)
-— so `paid_without_charge` (refund path) is the one diagnosis for money on a
-free checkout (equivalently: `provider_total_mismatch`, `partial_charge`, and
-`capture_total_mismatch` all exclude expected 0). Second: the ported order
-placed `multiple_charges` mid-list, ahead of `partial_charge` — kept, two
-under-paying tenders would emit `multiple_charges` and proceed-and-alert an
-underpaid booking; the adaptation moves every owner-review kind after every
-refuse-and-record validation kind, so that observation emits `partial_charge`
-and (being multi-charge) parks with no booking per decision 5. The principle the
-adapted order encodes: every refuse-and-record validation kind is evaluated
-before the owner-review kinds, so an observation matching both always takes the
-safer refuse path — condition ordering can never quietly upgrade a refusable
-observation into a proceed-with-alert one. Decision 5 does not weaken this: a
-multi-charge observation matching a refuse kind still refuses the booking — the
-rule below only changes whether the refusal's refund is automatic.
+refuse-and-record kind — and only then the owner-review kinds, in this order:
+capture total BEFORE multiple charges, then partial refund. Within the
+owner-review group the order matters for the same reason it does globally: a
+multi-leg observation whose captured sum exceeds the signed total matches both
+kinds, and `capture_total_mismatch` must win so the durable record names the
+money discrepancy, not merely the leg count — `multiple_charges` fires only when
+the captured sum equals the signed total, as the owner-choice section states
+(regression: two £60 tenders on a £100 signed order emit
+`capture_total_mismatch`, never `multiple_charges`). The port makes two
+adaptations explicit. First: a zero-expected observation with captured money is
+judged by the free-checkout arm FIRST — before every expected-vs-observed amount
+check, `provider_total_mismatch` included, which the enumerated order would
+otherwise reach first (a free checkout with a positive provider session total
+matches it) — so `paid_without_charge` (refund path) is the one diagnosis for
+money on a free checkout (equivalently: `provider_total_mismatch`,
+`partial_charge`, and `capture_total_mismatch` all exclude expected 0). Second:
+the ported order placed `multiple_charges` mid-list, ahead of `partial_charge` —
+kept, two under-paying tenders would emit `multiple_charges` and
+proceed-and-alert an underpaid booking; the adaptation moves every owner-review
+kind after every refuse-and-record validation kind, so that observation emits
+`partial_charge` and (being multi-charge) parks with no booking per decision 5.
+The principle the adapted order encodes: every refuse-and-record validation kind
+is evaluated before the owner-review kinds, so an observation matching both
+always takes the safer refuse path — condition ordering can never quietly
+upgrade a refusable observation into a proceed-with-alert one. Decision 5 does
+not weaken this: a multi-charge observation matching a refuse kind still refuses
+the booking — the rule below only changes whether the refusal's refund is
+automatic.
 
 Picking one kind never discards the rest of the evidence. The emitted conflict
 carries the observation's full captured-charge list (resource ids, amounts,
@@ -404,12 +412,18 @@ reference, and never more:
   eternal 503 with captured money, never a judged observation, no buyer record,
   no owner alert. PR B's cutover carries the vouched SUCCESSFUL children into
   the observation's captured-charge list instead (each child's documented amount
-  and transaction id), so the judge emits `multiple_charges` and the
-  owner-review park — buyer retained, alert sent — replaces the wedge.
-  `unrecorded_child` remains for a child that fails validation (a bad id, a
-  wrong merchant code), not for extra settled money. Regression: a paid SumUp
-  checkout bearing two SUCCESSFUL children parks to owner review with both
-  charges named — it neither books, refunds, nor 503s forever.
+  and transaction id), and the COMMON remedy map applies — no SumUp-specific
+  arm: children summing to the signed total emit `multiple_charges` and
+  proceed-and-alert per decision 1 (the buyer books, the owner-review marker and
+  alert land), exactly as Square's two £50 tenders do; the park is decision 5's,
+  reserved for a multi-charge observation that also wins a refuse-shaped
+  validation kind. A SumUp buyer who paid correctly in two captures gets a
+  ticket, not a quantity-0 manual-review placeholder. `unrecorded_child` remains
+  for a child that fails validation (a bad id, a wrong merchant code), not for
+  extra settled money. Regressions: a paid SumUp checkout bearing two SUCCESSFUL
+  children summing to the signed total BOOKS with the owner-review record and
+  alert — never a 503, never a park; one whose children also fail validation
+  (wrong currency, short sum) parks with both charges named.
 
 Legacy admin references (`legacyReference`, no session id) are judged the same
 way: by whatever their provider's read genuinely answers for the stored payment
@@ -513,40 +527,53 @@ never duplicated.
   refunded amount. The hash input is the canonical observation object itself,
   not a hand-picked field list, so every fact that can change the verdict or the
   recorded evidence is covered by construction — a future observation field is
-  automatically included. Comparable in plaintext, revealing nothing (a one-way
-  code over provider resource ids and money figures, no PII). This is what keeps
-  the changed-settled-facts guarantee above real in every direction: a grown
-  cumulative refund (still `partial_refund`, same resources), a currency that
-  changed while staying wrong, or a parent that changed while staying mismatched
-  each change the fingerprint and record, rather than masquerading as an exact
-  replay. A column on an existing table, not a new table; `payment_charges`
-  stays dormant. Every terminal write stores it — success finalization and
-  `markSessionFailed` alike (`markSessionFailed` also gains the owner-readable
-  `payment_reference` write it lacks today: `processed-payments.ts:190-203`
-  writes it on success, `:213-226` never on failure). A redelivery hashes its
-  fresh observation and compares: an equal fingerprint is an exact replay —
-  nothing written, the stored answer returned; a different fingerprint is new
-  evidence — the total detection rule above records it (a third tender on a
-  payment whose first two were already recorded changes the fingerprint, so
-  later money is never suppressed by an earlier record) and the fingerprint
-  updates to the new observation. Identical redeliveries therefore write nothing
-  more even after a lost acknowledgement; only truly concurrent duplicates — two
-  deliveries in flight before either fingerprint lands — can each record, the
-  failure direction being a duplicate operator-visible record, never a lost one,
-  with M6's aggregate row making it exactly-once. The detection write itself is
-  atomic: the owner-review record and the `evidence_index` update commit in ONE
-  batch, so an interruption between them can neither make the next identical
-  delivery record twice (fingerprint already advanced with the record) nor
-  suppress a record that never landed (neither write happened). Legacy rows from
-  before PR B carry no fingerprint; their first post-upgrade redelivery takes
-  the detection path, not a blind replay: the fresh observation — validated and
-  in hand — is judged, any conflict records per the total rule (a legacy
-  multi-tender session whose sibling tenders today's code never saw is a REAL
-  first detection), and `evidence_index` is seeded from that observation in the
-  same batch either way; a clean observation seeds silently and writes nothing
-  else. From then on the row compares like any other — only unchanged legacy
-  evidence replays silently, so the total post-terminal rule holds for existing
-  production rows too.
+  automatically included. Canonical includes ORDER: the resource collection is
+  sorted by resource id before serialization, because provider array order is
+  not evidence — Square and SumUp may return the same tenders or children
+  permuted, and an order-sensitive hash would record and alert an identical
+  observation as new money (regression: a redelivery whose only difference is
+  tender order hashes equal and writes nothing). Comparable in plaintext,
+  revealing nothing (a one-way code over provider resource ids and money
+  figures, no PII). This is what keeps the changed-settled-facts guarantee above
+  real in every direction: a grown cumulative refund (still `partial_refund`,
+  same resources), a currency that changed while staying wrong, or a parent that
+  changed while staying mismatched each change the fingerprint and record,
+  rather than masquerading as an exact replay. A column on an existing table,
+  not a new table; `payment_charges` stays dormant. Every terminal write stores
+  it — success finalization and `markSessionFailed` alike (`markSessionFailed`
+  also gains the owner-readable `payment_reference` write it lacks today:
+  `processed-payments.ts:190-203` writes it on success, `:213-226` never on
+  failure). A redelivery hashes its fresh observation and compares: an equal
+  fingerprint is an exact replay — nothing written, the stored answer returned;
+  a different fingerprint is new evidence — the total detection rule above
+  records it (a third tender on a payment whose first two were already recorded
+  changes the fingerprint, so later money is never suppressed by an earlier
+  record) and the fingerprint updates to the new observation. Identical
+  redeliveries therefore write nothing more even after a lost acknowledgement;
+  only truly concurrent duplicates — two deliveries in flight before either
+  fingerprint lands — can each record, the failure direction being a duplicate
+  operator-visible record, never a lost one, with M6's aggregate row making it
+  exactly-once. The detection write itself is atomic: the owner-review record
+  and the `evidence_index` update commit in ONE batch, so an interruption
+  between them can neither make the next identical delivery record twice
+  (fingerprint already advanced with the record) nor suppress a record that
+  never landed (neither write happened). When the new evidence lands on a BOOKED
+  session — a first callback finalized `ready` before Square's tender list
+  caught up, a later delivery revealing the second capture — that same batch
+  also writes the owner-review marker into the session row's `failure_data`, so
+  the legacy-refund, refresh, and UI gates engage from that moment: without it,
+  the attendee would keep a live Refund action whose use reverses the full
+  ledger order while the newly detected sibling stays captured (regression: a
+  session booked clean whose redelivery reveals a second tender loses its Refund
+  action and refuses legacy refunds immediately). Legacy rows from before PR B
+  carry no fingerprint; their first post-upgrade redelivery takes the detection
+  path, not a blind replay: the fresh observation — validated and in hand — is
+  judged, any conflict records per the total rule (a legacy multi-tender session
+  whose sibling tenders today's code never saw is a REAL first detection), and
+  `evidence_index` is seeded from that observation in the same batch either way;
+  a clean observation seeds silently and writes nothing else. From then on the
+  row compares like any other — only unchanged legacy evidence replays silently,
+  so the total post-terminal rule holds for existing production rows too.
 - Retries stay owned by provider redelivery and the operator, as today. M4 adds
   no scheduler.
 - Permanent failures: a provider's explicit refund rejection records the failed
@@ -626,16 +653,26 @@ Genuine conflicts the system must not decide:
   Square. The guard reads in PR A's refund cutover and is written by PR B's
   callback finalize (vacuously true between them); multi-tender bookings that
   predate the judge carry no record for it to read — today's code never saw the
-  sibling tenders — and remain M6 backfill territory, stated. Regressions: an
-  admin single refund against a proceed-and-alert multi-tender booking is
-  refused with the owner-review reason and makes zero provider calls; a merged
-  attendee holding one marked and one normal reference is rejected whole, before
-  either reference's provider call; a refresh-payment run against a marked
-  session whose named tender was dashboard-refunded records the observation and
-  leaves the ledger untouched; the attendee page for a gated attendee renders
-  the owner-review indicator and no Refund action. Automatic work is not
-  stopped: the booking stands on the signed total. This is PLAN.md's approved M4
-  text applied ("one handler maps these outcomes onto today's behavior: detect,
+  sibling tenders — and remain M6 backfill territory, stated. The marker also
+  outlives payment pruning: today's prune deletes ANY aged row with non-empty
+  `failure_data` (`prune.ts:50-77`, retention configurable as low as days),
+  which would silently drop the guard while the attendee and refundable
+  reference live on (`getRefundPaymentReferences` falls back to the attendee's
+  legacy `payment_id`, re-opening the dangerous refund). PR B narrows that prune
+  arm to `failure_data != '' AND attendee_id IS NULL` — byte-identical for every
+  state that exists today, because booked-with-`failure_data` rows are new — so
+  a booked row carrying the owner-review marker (or a staged refund-in-flight
+  row) lives as long as its attendee, and the existing attendee-gone arm still
+  prunes it after the attendee is deleted. Regressions: an admin single refund
+  against a proceed-and-alert multi-tender booking is refused with the
+  owner-review reason and makes zero provider calls; a merged attendee holding
+  one marked and one normal reference is rejected whole, before either
+  reference's provider call; a refresh-payment run against a marked session
+  whose named tender was dashboard-refunded records the observation and leaves
+  the ledger untouched; the attendee page for a gated attendee renders the
+  owner-review indicator and no Refund action. Automatic work is not stopped:
+  the booking stands on the signed total. This is PLAN.md's approved M4 text
+  applied ("one handler maps these outcomes onto today's behavior: detect,
   record, and alert … no automatic work is stopped or stranded before an owner
   can act") — failing the callback closed instead would 503 until provider
   redelivery exhausts, leaving taken money with no booking, no buyer answer, and
@@ -888,15 +925,21 @@ src)**
   makes, no extra provider calls.
 - Carries owner review through downstream booking failures (no automatic refund
   on a conflicted payment; terminal owner-review outcome; the new buyer copy
-  above), and surfaces a failed placeholder-refund ledger write instead of
-  swallowing it: the outcome stays terminal (a retryable answer would re-book
-  the placeholder — the attendee insert has no replay identity), and
-  `posted: false` now writes the activity-log entry and attendee note named in
-  the failure table, closing the TODO.md gap's silent half; durable automated
+  above), and implements the staged placeholder lifecycle the failure table
+  requires: the rejection arm claims the reservation, then ONE batch inserts the
+  placeholder and writes its id plus the staged refund-in-flight marker onto the
+  reservation row BEFORE the provider call (giving the insert its replay
+  identity — a crash mid-arm resumes the refund, never re-creates), the staged
+  state is routed before the finalized-success branch, and the terminal batch
+  lands the outcome, fingerprint, and — on `posted: false` — the unposted-money
+  fact in `failure_data`, atomic with the finalize, with the activity-log entry
+  and attendee note layered on top as best-effort surfacing; durable automated
   re-posting is M7's. Regression tests: the sold-out-with-two-tenders case makes
-  zero refund calls; a failed placeholder ledger write books exactly one
-  placeholder across redeliveries and leaves the miss visible in the activity
-  log and the attendee's notes.
+  zero refund calls; a worker death between the staged batch and the provider
+  call resumes at the refund step on redelivery with exactly one placeholder; a
+  failed placeholder ledger write books exactly one placeholder across
+  redeliveries, names the money durably in the terminal row, and leaves the miss
+  visible in the activity log and the attendee's notes.
 - Separates exact terminal replays from new money, and settles the remaining
   callback arms: the terminal-replay comparison sweeps every captured resource
   in the fresh observation against the stored reference, and any extra captured
