@@ -22,6 +22,7 @@ import {
   getListingWithCount,
   requireListingWithCount,
 } from "#shared/db/listings/records.ts";
+import { orRefusal } from "#shared/db/payment-admit-move.ts";
 import { hasAnyPaymentReference } from "#shared/db/payment-references.ts";
 import {
   ATTENDEE_DEMO_FIELDS,
@@ -72,8 +73,10 @@ const handleAdminAttendeeDeleteGet = attendeeActionPage(
   adminAttendeeDeletePage,
 );
 
-/** Delete an attendee, log the activity, and redirect. */
-const deleteAttendeeAndRedirect = async (
+/** Delete an attendee, log the activity, and redirect. An attendee whose
+ *  payment is mid-refund or waiting on the owner is kept, and the operator is
+ *  told which of those it is. */
+const deleteAttendeeAndRedirect = (
   attendeeId: number,
   listingId: number,
   redirectTo: string,
@@ -81,11 +84,15 @@ const deleteAttendeeAndRedirect = async (
   flashMessage: string,
   opts?: Parameters<typeof redirect>[3],
   releaseBookings = true,
-): Promise<Response> => {
-  await deleteAttendee(attendeeId, { releaseBookings });
-  await logActivity(activityMessage, listingId, attendeeId);
-  return redirect(redirectTo, flashMessage, true, opts);
-};
+): Promise<Response> =>
+  orRefusal(
+    async () => {
+      await deleteAttendee(attendeeId, { releaseBookings });
+      await logActivity(activityMessage, listingId, attendeeId);
+      return redirect(redirectTo, flashMessage, true, opts);
+    },
+    (message) => redirect(redirectTo, message, false, opts),
+  );
 
 /** Handle POST /admin/attendees/:attendeeId/delete. The deleted attendee's
  * pages are gone, so the fallback landing is the attendees roster (a

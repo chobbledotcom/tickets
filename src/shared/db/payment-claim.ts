@@ -58,9 +58,9 @@ const SLOT = "processed_payments.failure_data";
  */
 export const CLAIM_MIRROR = "claim";
 
-/** One row as the claim transaction found it. The stored slot is kept exactly
+/** One row as the reading transaction found it. The stored slot is kept exactly
  *  as read, because every write back is conditioned on it being unchanged. */
-type ClaimRow = {
+export type PaymentRowRecord = {
   readonly attendeeId: number;
   readonly sessionId: string;
   readonly slot: string;
@@ -138,7 +138,7 @@ const readClaimableRows = async (
 };
 
 /** Read one stored row into the record it carries. */
-const asClaimRow = async (row: StoredRow): Promise<ClaimRow> => ({
+const asRowRecord = async (row: StoredRow): Promise<PaymentRowRecord> => ({
   attendeeId: Number(row.attendee_id),
   sessionId: row.payment_session_id,
   slot: row.failure_data,
@@ -148,13 +148,34 @@ const asClaimRow = async (row: StoredRow): Promise<ClaimRow> => ({
 });
 
 /**
+ * Every payment row belonging to these attendees, with the record it carries.
+ *
+ * Unlike the claim's own read this does not filter by reference: a writer that
+ * relocates or removes rows answers for every state on them, and a row that no
+ * longer names a charge can still carry work someone has to finish. Reading it
+ * needs the caller's own write transaction, so what it sees is what that caller
+ * is about to change.
+ */
+export const readAttendeeRowStates = async (
+  tx: TxScope,
+  attendeeIds: readonly number[],
+): Promise<PaymentRowRecord[]> =>
+  await Promise.all(
+    (
+      await readRows(tx, `attendee_id IN (${inPlaceholders(attendeeIds)})`, [
+        ...attendeeIds,
+      ])
+    ).map(asRowRecord),
+  );
+
+/**
  * Write a row's record back, but only while it still holds exactly what we
  * read. A row that changed under us fails its condition, which rolls the whole
  * claim back rather than letting a run hold half a set.
  */
 const writeState = async (
   tx: TxScope,
-  row: ClaimRow,
+  row: PaymentRowRecord,
   state: PaymentRowState,
   protectedState: string,
 ): Promise<void> => {
@@ -204,13 +225,13 @@ export const claimAttendeeRows = async (
   const staleBefore = isoBefore(STALE_RESERVATION_MS);
   return await withTransaction(async (tx) => {
     const stored = await readClaimableRows(tx, attendeeIds);
-    const rows = await Promise.all(stored.own.map(asClaimRow));
+    const rows = await Promise.all(stored.own.map(asRowRecord));
     // A claim held anywhere on the same provider reference is a claim on the
     // same money, so another attendee's row blocks us even though we never
     // write to it. Seeing it is enough: write transactions run one at a time,
     // so a competing run has either committed its claim before we look or
     // cannot start until we are done.
-    const sharing = await Promise.all(stored.sharing.map(asClaimRow));
+    const sharing = await Promise.all(stored.sharing.map(asRowRecord));
     // Our own rows are judged as their attendee's, which is what lets a
     // crashed run be picked up one attendee at a time.
     const refused = rows
@@ -294,7 +315,7 @@ export const releaseAttendeeRows = async (
              WHERE payment_session_id IN (${inPlaceholders(sessionIds)})`,
     },
   ]);
-  const rows = await Promise.all(resultRows<StoredRow>(read!).map(asClaimRow));
+  const rows = await Promise.all(resultRows<StoredRow>(read!).map(asRowRecord));
   const writes = await Promise.all(
     rows
       .filter((row) => row.state.claim?.writtenAt === heldSince)

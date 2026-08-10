@@ -17,7 +17,12 @@ import { transfersByEventGroup } from "#shared/accounting/queries.ts";
 import { repointAttendeeStatements } from "#shared/accounting/repoint.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import { checkoutStageDeleteStatement } from "#shared/db/attendees/delete.ts";
-import { executeBatch, insert, type SqlStatement } from "#shared/db/client.ts";
+import {
+  insert,
+  type SqlStatement,
+  withTransaction,
+} from "#shared/db/client.ts";
+import { assertRowsFreeToMove } from "#shared/db/payment-admit-move.ts";
 import { legacyMergePaymentReferenceStatement } from "#shared/db/payment-references.ts";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import {
@@ -846,7 +851,14 @@ export const applyAttendeeMerge = async (
     moneyLegs,
     nowIso(),
   );
-  await executeBatch([...rowStatements, ...adjustmentInserts]);
+  // Both people's payment rows are read for live work inside the transaction
+  // that moves them: the source's rows change hands, and the target's set grows
+  // by everything the source brings, so a refund run judging either one would be
+  // working from a world that no longer exists.
+  await withTransaction(async (tx) => {
+    await assertRowsFreeToMove(tx, [targetId, sourceId], "merge");
+    await tx.batch([...rowStatements, ...adjustmentInserts]);
+  });
 
   // Save merged answers for target. The choice decisions reduce to one answer
   // per question; re-supplying the merged free-text plaintext lets
