@@ -19,7 +19,9 @@ import type { InValue } from "@libsql/client";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
+  executeBatch,
   inPlaceholders,
+  queryBatch,
   resultRows,
   type TxScope,
   withTransaction,
@@ -236,17 +238,39 @@ export const releaseAttendeeRows = async (
   heldSince: string,
 ): Promise<void> => {
   if (sessionIds.length === 0) return;
-  await withTransaction(async (tx) => {
-    const rows = await readRows(
-      tx,
-      `payment_session_id IN (${inPlaceholders(sessionIds)})`,
-      [...sessionIds],
-    );
-    for (const stored of rows) {
-      const row = await asClaimRow(stored);
-      if (row.state.claim?.writtenAt !== heldSince) continue;
-      const { claim: _released, ...kept } = row.state;
-      await writeState(tx, row, kept, "");
-    }
-  });
+  // Two batches rather than an interactive transaction: releasing needs to
+  // read each record and write it back without its claim, but nothing in
+  // between depends on the write, and each write is conditioned on the exact
+  // record it read. A batch is one round trip where a transaction is several,
+  // and a refund request has few to spare.
+  const [read] = await queryBatch([
+    {
+      args: [...sessionIds],
+      sql: `SELECT payment_session_id, attendee_id, failure_data,
+                   payment_reference_index
+              FROM processed_payments
+             WHERE payment_session_id IN (${inPlaceholders(sessionIds)})`,
+    },
+  ]);
+  const rows = await Promise.all(resultRows<StoredRow>(read!).map(asClaimRow));
+  const writes = await Promise.all(
+    rows
+      .filter((row) => row.state.claim?.writtenAt === heldSince)
+      .map(async (row) => {
+        const { claim: _released, ...kept } = row.state;
+        return {
+          args: [
+            isEmptyRowState(kept)
+              ? ""
+              : await encrypt(writeRowState(kept, SLOT)),
+            row.sessionId,
+            row.slot,
+          ],
+          sql: `UPDATE processed_payments
+                   SET failure_data = ?, protected_state = ''
+                 WHERE payment_session_id = ? AND failure_data = ?`,
+        };
+      }),
+  );
+  if (writes.length > 0) await executeBatch(writes);
 };
