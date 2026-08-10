@@ -148,6 +148,28 @@ to close rather than settled design:
   schemas beside it — wait for the declared-observation sweeps, which are what
   build a full reading. Until then the repo's own no-test-only-exports check
   fails on them, correctly.
+- **A conflicted sibling reference strands its clean sibling's refund.** When a
+  merged attendee carries several charge references, `refundCandidateAtProvider`
+  reads and sends each one concurrently, so a clean reference can go back while
+  a sibling is still being read. If that sibling then refuses — a persistent
+  conflict such as `partial_refund` — `combineRefundOutcomes` fails the whole
+  candidate and the ledger never posts, though real money has already left.
+
+  Two things do hold: `markReturnedReferences` records the returned reference,
+  so a retry cannot send it twice, and the mismatch is reported loudly. What is
+  missing is the money record. A retry fixes this only if the conflict later
+  clears; a permanent conflict strands the clean refund unledgered for good.
+
+  The ledger cannot simply record the part that moved. `coveredRefundGroups`
+  uses the references as a coverage test and then reverses the _whole account_ —
+  it has no partial-reversal concept, so posting the moved part is not a
+  narrower call to the same function but a new capability in the money system.
+  That leaves two coherent fixes, and they differ in what a buyer experiences:
+  admit every reference before sending any (provider stays all-or-nothing, like
+  the ledger, but one stuck reference withholds the buyer's clean money too), or
+  teach the ledger partial reversal (buyer gets what can be returned; a larger
+  change to the money model). **Awaiting the owner's decision — it changes when
+  real refunds reach real buyers, so it is not being chosen unattended.**
 - **A partial refund on the refresh-payment route records nothing.**
   `attendees-edit.ts` maps anything short of fully-refunded to `"none"`, because
   `RefundState` has no partial value and the recorder does not exist yet. The

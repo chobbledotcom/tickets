@@ -2211,3 +2211,23 @@ shapes:
 
 Needs a decision against `PR4_PLAN.md`'s failure table before changing, since
 `failed_refund` is currently listed as an owner-review conflict.
+
+## Conflicted sibling reference strands a clean refund (PR #2065, Codex P1)
+
+`src/features/admin/refunds/provider.ts` — `refundCandidateAtProvider` sends
+each of a merged attendee's references concurrently. A clean reference can be
+refunded while a sibling is still being read; if that sibling refuses with a
+persistent conflict, the candidate combines to `failed` and the ledger never
+posts, even though money left. The reference is marked returned (no double send)
+and the mismatch is reported, so what is lost is the money record, and only
+permanently when the conflict never clears.
+
+The naive fix does not work: `coveredRefundGroups` in
+`src/shared/refund-ledger.ts` uses references only as a coverage test and
+reverses the whole account, so there is no way to post just the part that moved
+without giving the ledger a partial-reversal concept it does not have.
+
+Two options, both real behaviour changes for buyers: (a) admit every reference
+before sending any, matching the ledger's all-or-nothing shape but withholding
+clean money when one sibling is stuck; (b) teach the ledger partial reversal.
+Needs the owner's call. Recorded in PR4_PLAN.md's live faults.
