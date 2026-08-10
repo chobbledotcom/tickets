@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
+import type { RefundCapability } from "#shared/payment/row-state.ts";
 import {
   postBooking,
   sessionReference,
@@ -39,9 +40,12 @@ const pendingCandidate = (
 
 /** Provider that fails every live refund and throws for references in
  * `throws`; used to drive the failed/errored tally branches. */
-const failingProvider = (throws: Set<string>) => ({
+const failingProvider = (
+  throws: Set<string>,
+  refundCapability: RefundCapability = "keyed",
+) => ({
   readChargeMoneyOrNull: () => Promise.resolve(chargeMoney()),
-  refundCapability: "keyed" as const,
+  refundCapability,
   refundPayment: (reference: string) => {
     if (throws.has(reference)) throw new Error(`boom ${reference}`);
     return Promise.resolve(false);
@@ -82,6 +86,38 @@ describeWithEnv(
           "Admin bulk refund errored for attendee 13, payments pi_boom, pi_two",
         ),
       ).toBe(true);
+    });
+
+    test("a keyless run keeps its hold when the ledger cannot record it", async () => {
+      // No booking is posted, so the reversal finds no order and the post
+      // fails. Without an idempotency key a retry would send the money a
+      // second time, so the row has to stay held until someone corrects the
+      // ledger — and it can only stay held if the post happens while the hold
+      // is still on.
+      const claim = grantingRowClaim();
+
+      const counts = await processRefundBatch(
+        failingProvider(new Set(), "keyless"),
+        [refundedCandidate(21, "sess-21")],
+        LISTING,
+        claim,
+      );
+
+      expect(counts.errorCount).toBe(1);
+      expect(claim.released).toEqual([]);
+    });
+
+    test("a keyed run lets go, because a repeat lands on the same refund", async () => {
+      const claim = grantingRowClaim();
+
+      await processRefundBatch(
+        failingProvider(new Set()),
+        [refundedCandidate(22, "sess-22")],
+        LISTING,
+        claim,
+      );
+
+      expect(claim.released).toHaveLength(1);
     });
 
     test("returns all-zero counts for an empty batch", async () => {

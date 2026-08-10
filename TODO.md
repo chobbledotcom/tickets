@@ -2192,3 +2192,29 @@ Two options, both real behaviour changes for buyers: (a) admit every reference
 before sending any, matching the ledger's all-or-nothing shape but withholding
 clean money when one sibling is stuck; (b) teach the ledger partial reversal.
 Needs the owner's call. Recorded in PR4_PLAN.md's live faults.
+
+## A merge can delete the source before the answers and PII are saved
+
+`applyAttendeeMerge` (`src/shared/merge/attendee-merge.ts`) commits the source
+delete, the payment-row move, and the ledger repoint in one transaction — but
+`saveAttendeeAnswers` runs after that transaction commits, and
+`updateTargetPiiFromDecision` runs later still, back in the route
+(`src/features/admin/attendees-merge.ts`). A failure in either leaves the source
+attendee already deleted with the merged answers or PII never written. The
+answers are recoverable only from the deleted source, so they are gone.
+
+The fix is the one CodeRabbit names: open one `TxScope` for the whole merge and
+thread it through the payment-row batch, `saveAttendeeAnswers`, and
+`updateTargetPiiFromDecision`, committing only once every write has succeeded.
+The transaction handle now exists — the merge became an interactive transaction
+when the payment-row admission landed — so this is threading it outward rather
+than introducing one. The awkward parts are `saveAttendeeAnswers`, whose
+delete-then-insert re-encrypts free-text answers, and the PII update, which
+needs the request private key and currently sits in the route.
+
+Out of scope where it was found: that slice was the merge/delete payment
+admissions, and this ordering predates it — the old code committed the same rows
+in one `executeBatch`, which is the same boundary. Worth doing on its own, with
+regression coverage that fails each post-batch write and checks the source
+attendee, payment rows, ledger rows, answers, and PII are all still as they
+were.

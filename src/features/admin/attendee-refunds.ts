@@ -22,9 +22,6 @@ import {
   hasRefundPaymentReference,
 } from "#shared/db/payment-references.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { reportRefundNotRecorded } from "#shared/invariant-errors.ts";
-import { ErrorCode, logError } from "#shared/logger.ts";
-import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
 import { fail, ok } from "#shared/response.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { BULK_REFUND_LIMIT } from "#shared/subrequest-budget.ts";
@@ -41,14 +38,7 @@ import {
   verifiedAttendeeAction,
 } from "./attendees-route-helpers.ts";
 import { getRefundCandidates } from "./refunds/candidates.ts";
-import {
-  type CandidateRefund,
-  durableRowClaim,
-  processRefundBatch,
-  type RefundCounts,
-  refundCandidateAtProvider,
-  underAttendeeClaim,
-} from "./refunds/provider.ts";
+import { processRefundBatch, type RefundCounts } from "./refunds/provider.ts";
 import { requirePaymentProvider } from "./require-provider.ts";
 
 /* jscpd:ignore-end */
@@ -133,58 +123,35 @@ const handleAttendeeRefund = verifiedAttendeeAction(
     );
     if (provider instanceof Response) return provider;
 
-    const candidate = { attendee: data.attendee, references };
-    // One attendee is a run of one: it takes the same hold before reading the
-    // provider, so a bulk wave already working on this person turns it away
-    // instead of both sending.
-    const refunded = await underAttendeeClaim<CandidateRefund>(
-      durableRowClaim,
-      [{ attendeeId, references }],
-      provider.refundCapability,
+    // One attendee is a run of one. It goes through the very same path a wave
+    // does — claim, refund, post the ledger, release — because the ledger post
+    // has to happen while the hold is still on: a merge or delete landing
+    // between the provider call and the post would strand the money's
+    // accounting, and a run of one is no less exposed to that than a run of
+    // fifty.
+    const counts = await processRefundBatch(
+      provider,
+      [{ attendee: data.attendee, references }],
       listingId,
-      {
-        blocked: (reason) => {
-          logError({
-            code: ErrorCode.PAYMENT_REFUND,
-            detail: `Admin refund not started for attendee ${attendeeId}: ${reason}`,
-            listingId,
-          });
-
-          return { candidate, outcome: "failed" as const };
-        },
-        lost: (result) =>
-          result.outcome === "errored" || result.unsettled === true,
-        work: (alreadyReturned) =>
-          refundCandidateAtProvider(
-            provider,
-            candidate,
-            listingId,
-            undefined,
-            alreadyReturned,
-          ),
-      },
     );
-    if (refunded.outcome !== "refunded") {
-      return refundError(attendeeId, t("error.refund_failed"), returnUrl);
+    if (counts.refundedCount !== 1) {
+      // The run already reported whichever way it went; all that is left is
+      // telling the operator which one it was. A refund the provider sent but
+      // our ledger could not record must not be retried, so it says so
+      // separately rather than reading as an ordinary failure.
+      return refundError(
+        attendeeId,
+        counts.errorCount === 1
+          ? t("error.refund_not_recorded")
+          : t("error.refund_failed"),
+        returnUrl,
+      );
     }
-
-    const { posted } = await recordAttendeeRefund(attendeeId, references);
     await logActivity(
       `Refund issued for attendee '${data.attendee.name}'`,
       listingId,
       attendeeId,
     );
-    // The provider refund succeeded; if the ledger post missed (refund status is
-    // now ledger-only), surface it so the admin makes a manual adjustment rather
-    // than re-refunding an already-refunded payment — and report it, since money
-    // moved without our ledger recording it.
-    if (!posted) {
-      return refundError(
-        attendeeId,
-        reportRefundNotRecorded({ attendeeId, listingId }),
-        returnUrl,
-      );
-    }
     // Honor the caller's return_url (e.g. the attendee page's Actions tab);
     // fall back to that tab otherwise.
     return redirect(
