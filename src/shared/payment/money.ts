@@ -11,7 +11,7 @@ import { integerAtLeast } from "#shared/validation/number.ts";
 
 /** An ISO 4217 currency code, upper-cased. Providers return mixed case
  *  ("gbp", "GBP"); {@link money} canonicalises before this runs. */
-const CurrencySchema = v.pipe(
+export const CurrencySchema = v.pipe(
   v.string(),
   v.regex(/^[A-Z]{3}$/u, "Currency must be three uppercase letters"),
 );
@@ -26,11 +26,11 @@ export const isCurrency = (value: unknown): value is Currency =>
 /** Money: a non-negative minor-unit amount paired with its currency. The
  *  amount is already in the smallest unit the currency uses, so two amounts in
  *  the same currency can be compared or summed with no conversion. */
-const MoneySchema = v.strictObject({
+export const MoneySchema = v.strictObject({
   amount: integerAtLeast(0),
   currency: CurrencySchema,
 });
-type Money = v.InferOutput<typeof MoneySchema>;
+export type Money = v.InferOutput<typeof MoneySchema>;
 
 /**
  * Build a {@link Money}, or `null` if the amount or currency is malformed.
