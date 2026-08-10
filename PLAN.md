@@ -261,10 +261,12 @@ Src target: 400–700.
   the stored references is detected and parked for the owner, never refunded or
   claimable by a concurrent run — then judge the whole set, then move money,
   with every money write fenced on the evidence the run judged (fresh evidence
-  landing mid-run forces a re-judge before any provider call). A balance
-  settlement that would add a new charge to a claimed attendee answers retryably
-  until the claim resolves, so a claimed set never gains a charge mid-run; and
-  sibling-leg evidence reads are capped on callbacks — beyond the cap the
+  landing mid-run forces a re-judge before any provider call). A live fresh
+  claim is exclusive against every other writer: a write that would add a charge
+  to the claimed attendee or advance a claimed row's evidence answers retryably
+  until the claim resolves, so a claimed set never grows and a judged verdict
+  never goes stale mid-run; and sibling-leg evidence reads are capped everywhere
+  — admission reserves the cap as each reference's worst case, and beyond it the
   observation parks for owner review on the sweep alone instead of letting a
   provider-controlled leg list chase the request budget. SumUp has no
   idempotency key, and a keyless refund whose answer is lost stays claimed IN
