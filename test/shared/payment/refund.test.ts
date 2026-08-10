@@ -26,7 +26,7 @@ describe("refund resolver", () => {
         ],
       }),
     ]) {
-      expect(resolved(charge)).toEqual({
+      expect(resolved(charge)).toStrictEqual({
         amount: charge.confirmedRefunded,
         reason: "invalid_amount",
         status: "failed",
@@ -46,7 +46,7 @@ describe("refund resolver", () => {
       refund: { ...refundResource, id: "re_2" },
       status: "pending",
     });
-    expect(resolved(chargeLeg({ refunds: [first, second] }))).toEqual({
+    expect(resolved(chargeLeg({ refunds: [first, second] }))).toStrictEqual({
       amount: { amount: 0, currency: "GBP" },
       reason: "multiple_pending_refunds",
       status: "failed",
@@ -58,7 +58,7 @@ describe("refund resolver", () => {
       resolved(
         chargeLeg({ refunds: [refundObservation({ status: "pending" })] }),
       ),
-    ).toEqual({
+    ).toStrictEqual({
       amount: { amount: 100, currency: "GBP" },
       refund: refundResource,
       status: "pending",
@@ -75,7 +75,7 @@ describe("refund resolver", () => {
           ],
         }),
       ),
-    ).toEqual({
+    ).toStrictEqual({
       amount: { amount: 100, currency: "GBP" },
       status: "pending",
     });
@@ -90,7 +90,7 @@ describe("refund resolver", () => {
             refunds,
           }),
         ),
-      ).toEqual({
+      ).toStrictEqual({
         amount: { amount: 100, currency: "GBP" },
         ...(refunds.length === 0 ? {} : { refund: refundResource }),
         status: "completed",
@@ -110,7 +110,7 @@ describe("refund resolver", () => {
             refunds,
           }),
         ),
-      ).toEqual({
+      ).toStrictEqual({
         amount: { amount: 40, currency: "GBP" },
         ...(refunds.length === 0 ? {} : { refund: refundResource }),
         status: "partial",
@@ -120,7 +120,7 @@ describe("refund resolver", () => {
       resolved(
         chargeLeg({ confirmedRefunded: { amount: 1, currency: "GBP" } }),
       ),
-    ).toEqual({
+    ).toStrictEqual({
       amount: { amount: 1, currency: "GBP" },
       status: "partial",
     });
@@ -135,13 +135,13 @@ describe("refund resolver", () => {
           ],
         }),
       ),
-    ).toEqual({
+    ).toStrictEqual({
       amount: { amount: 0, currency: "GBP" },
       reason: "provider_failed",
       refund: refundResource,
       status: "failed",
     });
-    expect(resolved(chargeLeg())).toEqual({
+    expect(resolved(chargeLeg())).toStrictEqual({
       amount: { amount: 0, currency: "GBP" },
       reason: "not_observed",
       status: "failed",

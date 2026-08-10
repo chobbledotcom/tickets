@@ -89,11 +89,9 @@ export const PositiveMoneySchema = positiveMoney(
   "A paid charge must be positive",
 );
 
-/** A refund that says money moved has to have moved some. A refund of nothing
- *  is answered before the money already returned is looked at, so a charge
- *  fully given back would read as still going, for ever, and the provider
- *  saying a refund finished would be thrown away. The one refund that may be
- *  for nothing is a failed one, where no money moved at all. */
+/** A finished or still-going refund must be for some money: a refund of
+ *  nothing would read as one still going, for ever. Only a failed refund may
+ *  be for nothing, because no money moved at all. */
 const MovedRefundMoneySchema = positiveMoney(
   "A refund that moved money must be positive",
 );
@@ -174,10 +172,8 @@ export const providerRefundResources = (
     ),
   );
 
-/** Money on its way back that the provider has not finished sending. A refund
- *  it has finished is already counted in the returned total, so only the ones
- *  still going are added on top. */
-/** The money named by every refund at one point in its life, added up. */
+/** Adds up the refunds at one point in their life — every one still going, or
+ *  every one finished. */
 const refundMoneyThatIs =
   (status: RefundObservation["status"]) =>
   (charge: ChargeLeg): number =>

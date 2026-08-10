@@ -5,8 +5,6 @@ import type { PaymentProviderType } from "#shared/types.ts";
  *
  * Both the tables and the checks the code runs are built from these, so the
  * database and the code can never disagree about what a payment may say.
- * Later milestones add their own vocabularies here (case states, decision
- * states); M4 ships only the words its judge consumes.
  */
 
 /** Whether a payment was real money or a test. */

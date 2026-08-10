@@ -11,7 +11,10 @@
 import type { PaymentConflict } from "#shared/payment/conflict.ts";
 import type { PaymentObservation } from "#shared/payment/observation.ts";
 import { resolveRefund } from "#shared/payment/refund.ts";
-import type { ChargeLegs } from "#shared/payment/resources.ts";
+import type {
+  ChargeLegs,
+  RefundResolution,
+} from "#shared/payment/resources.ts";
 import { refundMoneyMatchesCapture } from "#shared/payment/resources.ts";
 
 /* jscpd:ignore-end */
@@ -117,7 +120,7 @@ export type SettledReading = PaymentObservation & {
 };
 
 /** A refund the provider tried and could not finish. */
-const providerCouldNotRefund = (refund: { reason?: string; status: string }) =>
+const providerCouldNotRefund = (refund: RefundResolution): boolean =>
   refund.status === "failed" && refund.reason === "provider_failed";
 
 /** Money was taken and the reading has been checked, so all that is left is
