@@ -164,6 +164,51 @@ pure rules, writes with revision or lease fencing, and validates the returned
 row. There must not be parallel raw-row and decoded-domain implementations of
 the same rule.
 
+## Data laws
+
+Seven laws govern how every part of this program behaves around data. Each
+milestone contract instantiates them for the data it touches and says which law
+admits each new state, consumer, or fact — so a review finding of one of these
+shapes is answered by the law, and a design that satisfies them up front rules
+the shape out as a class. M4's concurrency section ("the reference row is one
+state machine") is the first instantiation; M5's cases, M6's aggregate rows,
+M7's refund jobs, M8's completions, and M11's migration copies are all data
+these laws bind.
+
+1. **One authority per fact.** Each fact has one canonical representation and
+   one place that computes it; every other appearance derives from that copy and
+   is regenerated, never restated. Two definitions of one value — a second
+   judge, a second serialization, a second total — are a defect even while they
+   agree.
+2. **Facts carry provenance: signed, stored, or observed — never ambient.** A
+   decision consumes only facts the datum carries, evidence a read proved, or
+   values signed at creation. Live settings may order a search; they never
+   decide a fact. A fact nothing carries is explicitly not evaluable, or an
+   honest failure naming what is missing — never filled from today's
+   configuration.
+3. **Identity is immutable; everything else is an attribute.** Compare, merge,
+   deduplicate, and index by the smallest immutable identity. A changed
+   attribute updates its datum in place and is itself a recordable event; it
+   never mints a second datum.
+4. **Stored state is a declared machine with a total lifecycle.** Every state
+   names what creates it, every consumer that must recognize it — readers and
+   writers alike, including cleanup, merge, delete, restore, and replay — what
+   retires it, and how it ages out under retention. A consumer that cannot read
+   the authoritative record routes on a mirror written in the same statement,
+   never on a proxy. A state and all its consumers ship in one slice.
+5. **Decisions bind to complete, versioned evidence.** A path that acts reads
+   the full declared evidence shape for its source — no path decides on less
+   than the source's declared observation — and every consequential write is
+   fenced on the exact evidence it judged: changed evidence forces a re-judge,
+   and recorded evidence only grows, by merge, never replacement.
+6. **Data never moves to weaker protection.** A fact under a stronger key or
+   boundary is never copied under a weaker one. Cross-boundary comparison uses
+   one-way codes; a plaintext mirror carries a state word, never contents.
+7. **External parties are capability records.** What a provider guarantees — an
+   idempotency key, a cumulative total, an event authority — is declared once,
+   and every behavior derives from the declared capability, never a per-party
+   arm, so a new party inherits the whole discipline by declaration.
+
 ## Milestones
 
 Milestones are behavior units, not a PR count: one milestone may land as several
