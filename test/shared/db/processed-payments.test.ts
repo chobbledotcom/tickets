@@ -4,6 +4,7 @@ import { stub } from "@std/testing/mock";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { getDb, insert } from "#shared/db/client.ts";
+import { paymentReferenceIndex } from "#shared/db/payment-references.ts";
 import {
   clearSessionTokens,
   decryptSessionTokens,
@@ -25,6 +26,7 @@ import {
   expectProcessedPaymentReference,
   finalizeReservedPayment,
   getProcessedPayment,
+  referenceIndexOf,
 } from "#test-utils/processed-payments.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
@@ -282,6 +284,12 @@ describeWithEnv("db > processed payments", { db: true }, () => {
     test("stores a supplied payment reference while healing", async () => {
       await reserveSession("sess_heal_reference");
       await finalizeSessionIfUnresolved("sess_heal_reference", 42, "pi_healed");
+      // Read the stored column before anything else looks at this attendee:
+      // the refund read repairs a missing index, so asserting through it would
+      // pass whether or not this write put one there.
+      expect(await referenceIndexOf("sess_heal_reference")).toBe(
+        await paymentReferenceIndex("pi_healed"),
+      );
       await expectProcessedPaymentReference(
         42,
         "sess_heal_reference",
