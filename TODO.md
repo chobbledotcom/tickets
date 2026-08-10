@@ -2135,3 +2135,26 @@ Two steps, in order:
    the park-shaped verdicts; catching the exception upstream would be the wrong
    fix. `PaymentConflict` would gain the kind, and `admit-refund.ts` maps every
    conflict to `refused` already.
+
+## The bulk refund wave needs one claim, not one per attendee
+
+`refundCandidateAtProvider` takes and releases the claim per attendee, and each
+of those is its own interactive transaction. A bulk wave refunds several
+attendees in one request, so the run now spends roughly two extra transactions
+per attendee against the hard subrequest allowance in
+`src/shared/subrequest-budget.ts` — the allowance `BULK_REFUND_LIMIT = 5` is
+derived from. `reports failures with one/multiple refunds remaining` in
+`test/features/admin/attendee-refunds/bulk.test.ts` fails on this: it passes
+alone and fails in a full grouped run, and which of the two rows fails varies,
+because the budget is exhausted at a different point each time.
+
+The fix is to claim per WAVE rather than per attendee: `claimAttendeeRows` takes
+a list of attendee ids and claims them all in one transaction (which the
+contract's all-or-none rule already wants — a wave that cannot claim every
+attendee should refuse whole), with one matching release. That is one
+transaction per wave instead of two per attendee, and it also makes the
+all-or-none guarantee true across the wave rather than only within one
+attendee.
+
+Do this before wiring the callback arm and the refresh route, since both will
+otherwise inherit the same per-call cost.
