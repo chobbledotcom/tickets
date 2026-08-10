@@ -437,6 +437,28 @@ describe("admin refund provider > an unrecorded refund", () => {
     expect(result.unsettled).toBe(true);
   });
 
+  test("a reading the provider could not give leaves the hold free", async () => {
+    const unreadable = {
+      readChargeMoneyOrNull: (): Promise<never> => {
+        throw new Error("the provider could not be reached");
+      },
+      refundCapability: "keyless" as const,
+      refundPayment: () => Promise.resolve(true),
+    };
+
+    const result = await refundCandidateAtProvider(
+      unreadable,
+      candidateWithReferences(["pi_unreadable"]),
+      7,
+      () => Promise.resolve(),
+    );
+
+    // No money was asked for, so there is nothing to be in doubt about and a
+    // retry in a moment is free.
+    expect(result.outcome).toBe("failed");
+    expect(result.unsettled).toBeUndefined();
+  });
+
   test("a refund never sent is settled — nothing was asked for", async () => {
     const alreadyBack = provider({
       alreadyRefunded: new Set(["pi_already"]),

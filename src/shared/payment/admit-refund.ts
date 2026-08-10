@@ -12,6 +12,7 @@
 import type { PaymentConflict } from "#shared/payment/conflict.ts";
 import type { ObservationOutcome } from "#shared/payment/diagnose.ts";
 import { refundOutcomeOf } from "#shared/payment/diagnose.ts";
+import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { PaymentProvider } from "#shared/payments.ts";
 
 /** What to do about a refund somebody asked for. Only `send` reaches a
@@ -69,15 +70,34 @@ const ADMISSION_REASONS = {
  * refund may be sent. A charge the provider cannot state is never refunded on
  * the hope that it was fine: unreadable evidence and "already back" look
  * identical from here, and only one of them is safe to send money against.
+ *
+ * A read that fails outright is the same answer as one that comes back empty —
+ * the provider did not say. Catching it here is what keeps it distinct from a
+ * refund CALL that failed: no money was asked for, so the caller is free to
+ * try again in a moment rather than treating this as money possibly in flight.
  */
 export const admitProviderRefund = async (
   provider: Pick<PaymentProvider, "readChargeMoneyOrNull">,
   paymentReference: string,
 ): Promise<RefundAdmission> => {
-  const charge = await provider.readChargeMoneyOrNull(paymentReference);
+  const charge = await chargeOrNothing(() =>
+    provider.readChargeMoneyOrNull(paymentReference),
+  );
   return charge === null
     ? { kind: "unreadable" }
     : admitRefund(refundOutcomeOf([charge]));
+};
+
+/** A read that fails is a read that said nothing. Takes the read rather than
+ *  the provider so a reader that throws before it returns is caught too. */
+const chargeOrNothing = async (
+  read: () => Promise<ChargeMoney | null>,
+): Promise<ChargeMoney | null> => {
+  try {
+    return await read();
+  } catch {
+    return null;
+  }
 };
 
 /**
