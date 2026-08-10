@@ -2186,3 +2186,22 @@ ledger post sees an uncovered payment group.
 The fix the contract names: the balance finalize reads the attendee's claim
 inside its own transaction and answers RETRYABLY without writing while a fresh
 claim is live, so the provider redelivers after the claim resolves.
+
+## A refund run judges references it loaded before it took the hold
+
+`processRefundBatch` claims the attendee set, but the candidates — and each
+reference's `refundState` — were loaded by the caller before the claim. Two
+overlapping bulk requests can therefore interleave: the second loads its
+candidates, waits on the write queue, takes the hold only after the first has
+released it, and then acts on a snapshot that predates the first run's durable
+`provider_refunded_at` marker. Where the provider's own refund events lag —
+SumUp — the fresh read looks untouched too, and the second run sends a second
+keyless refund.
+
+The contract already says the claim transaction re-runs the arithmetic against
+the exact rows it reads. The concrete fix: have `claimAttendeeRows` return the
+`provider_refunded_at` state of each row it claimed, keyed by
+`payment_reference_index`, and have the refund run skip any reference whose
+claimed row already says the money went back. The index for a candidate's
+reference is computable without a database call
+(`paymentReferenceIndex(reference)`), so this costs no extra round trips.
