@@ -449,32 +449,48 @@ reference, and never more:
   transaction response missing the documented `amount` is a malformed read at
   M3's provider-read boundary (retryable callback / failed admin row); an absent
   or empty event list is zero refunded — the genuinely expected shape of a
-  never-refunded transaction, not a malformed read. Same single read as today;
-  no call count increases. Our own refund calls remain full-amount (no amount
-  body), and legacy references keep working — the same read answers them. A
-  SumUp CALLBACK refund attempt (the rejection arm) starts from the checkout
-  observation, which carries `amountMinor` and `transactionId` but no refund
-  events — so, exactly like Stripe's rejection arm, it buys the one transaction
-  read before its refund call; the arithmetic never runs on an invented zero.
-  SumUp is NOT structurally single-charge: a paid checkout can carry more than
-  one SUCCESSFUL child transaction, and today `paidChildVerdict` refuses ANY
-  extra child as `unrecorded_child` (`sumup-observation.ts:143-150`), which the
-  provider turns into a retryable refusal (`sumup-provider.ts:133-139`) — an
-  eternal 503 with captured money, never a judged observation, no buyer record,
-  no owner alert. PR B's cutover carries the vouched SUCCESSFUL children into
-  the observation's captured-charge list instead (each child's documented amount
-  and transaction id), and the COMMON remedy map applies — no SumUp-specific
-  arm: children summing to the signed total emit `multiple_charges` and
-  proceed-and-alert per decision 1 (the buyer books, the owner-review marker and
-  alert land), exactly as Square's two £50 tenders do; the park is decision 5's,
-  reserved for a multi-charge observation that also wins a refuse-shaped
-  validation kind. A SumUp buyer who paid correctly in two captures gets a
-  ticket, not a quantity-0 manual-review placeholder. `unrecorded_child` remains
-  for a child that fails validation (a bad id, a wrong merchant code), not for
-  extra settled money. Regressions: a paid SumUp checkout bearing two SUCCESSFUL
-  children summing to the signed total BOOKS with the owner-review record and
-  alert — never a 503, never a park; one whose children also fail validation
-  (wrong currency, short sum) parks with both charges named.
+  never-refunded transaction, not a malformed read. The transaction read is not
+  the whole declared shape, though: a paid checkout can carry more than one
+  SUCCESSFUL child (below), the replay contract treats a later-visible child as
+  possible, and a stored row names only ITS child — so for any money decision on
+  a row that names its checkout, the declared SumUp observation is the
+  transaction read PLUS the checkout's vouched-children sweep (law 6, the same
+  children pick the callback path validates), exactly as Square's order sweep:
+  the admin single and bulk preflights and the refresh route buy the one
+  checkout read, and a sibling SUCCESSFUL child is a multi-charge observation —
+  the whole attendee refuses with zero refund calls and the detection records. A
+  checkout read that fails is M3's no-verdict boundary — money never moves on
+  the narrower read. A legacy reference that names no checkout has the
+  transaction read as its whole declared shape — stated, the same M6/M7 residual
+  as its other unknowns (regressions: an admin refund of a SumUp booking whose
+  checkout carries a second SUCCESSFUL child — booked before the child was
+  visible, no redelivery since — is refused whole with zero refund calls and the
+  detection recorded; the refresh twin refuses its ledger completion the same
+  way). Our own refund calls remain full-amount (no amount body), and legacy
+  references keep working — the same reads answer them. A SumUp CALLBACK refund
+  attempt (the rejection arm) starts from the checkout observation, which
+  carries `amountMinor` and `transactionId` but no refund events — so, exactly
+  like Stripe's rejection arm, it buys the one transaction read before its
+  refund call; the arithmetic never runs on an invented zero. SumUp is NOT
+  structurally single-charge: a paid checkout can carry more than one SUCCESSFUL
+  child transaction, and today `paidChildVerdict` refuses ANY extra child as
+  `unrecorded_child` (`sumup-observation.ts:143-150`), which the provider turns
+  into a retryable refusal (`sumup-provider.ts:133-139`) — an eternal 503 with
+  captured money, never a judged observation, no buyer record, no owner alert.
+  PR B's cutover carries the vouched SUCCESSFUL children into the observation's
+  captured-charge list instead (each child's documented amount and transaction
+  id), and the COMMON remedy map applies — no SumUp-specific arm: children
+  summing to the signed total emit `multiple_charges` and proceed-and-alert per
+  decision 1 (the buyer books, the owner-review marker and alert land), exactly
+  as Square's two £50 tenders do; the park is decision 5's, reserved for a
+  multi-charge observation that also wins a refuse-shaped validation kind. A
+  SumUp buyer who paid correctly in two captures gets a ticket, not a quantity-0
+  manual-review placeholder. `unrecorded_child` remains for a child that fails
+  validation (a bad id, a wrong merchant code), not for extra settled money.
+  Regressions: a paid SumUp checkout bearing two SUCCESSFUL children summing to
+  the signed total BOOKS with the owner-review record and alert — never a 503,
+  never a park; one whose children also fail validation (wrong currency, short
+  sum) parks with both charges named.
 
 Legacy admin references (`legacyReference`, no session id) are judged the same
 way: by whatever their provider's read genuinely answers for the stored payment
@@ -532,14 +548,14 @@ never duplicated.
 
 ## Failure table
 
-| Work completed                 | Failure                                                                                                                                                                                                                                    | Required result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Retry owner                                                                |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| Nothing                        | Provider read unavailable before judgment                                                                                                                                                                                                  | No verdict; caller's existing unavailable handling (callback 503 retryable; admin row fails with reason)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Provider redelivery / operator                                             |
-| Judge refused refund           | — (refusal is the outcome)                                                                                                                                                                                                                 | No provider call, no local mutation beyond the recorded answer                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Provider redelivery / operator re-runs later; cumulative catch-up unblocks |
-| Provider refund succeeded      | Local completion write fails                                                                                                                                                                                                               | A next attempt's fresh read sees the provider cumulative (Square/Stripe) or the amount evidence (SumUp) → `fully_refunded`, success without a second payout. On the callback placeholder-refund path the outcome stays TERMINAL even when `recordPlaceholderRefund` reports `posted: false`: the attendee insert precedes the ledger write, and today it carries no replay identity, so a retryable answer would re-enter booking and insert a second placeholder — the current docstring's "a retry must NOT re-create it" is kept. PR B gives the insert that identity and closes the re-creation window structurally, on EVERY path that persists a buyer record and then refunds — the boundary rejection arm (`refundRejectedCharge`) and the stored-refused booking failures alike (`storeRefundedBooking` inserts its placeholder before refunding, `store-refund.ts:167-185`, called from `payment-processing/index.ts:208-249,291-298` — the same crash window): the arm claims the reservation, then ONE batch persists the buyer record and writes its id plus a staged refund-in-flight marker onto the reservation row (`failure_data` with a distinct staged kind, naming the deterministic idempotency key, the batch's written-at time, and its `callback` owner scope per Concurrency) plus the session's payment reference — the charge being refunded, encrypted as today; a staged row with an empty reference would match the prune's empty-reference arm (`prune.ts:60-63`) and a very late redelivery would mint a second placeholder — and only then calls the provider. The buyer record follows the session's shape: a new-booking session inserts the quantity-0 placeholder; a balance session inserts NOTHING — it binds the existing attendee whose balance was being paid, and the payment/refund pair posts against that attendee per the commands table, because a placeholder would attach the money to a spurious record. `blank_reference` never enters this lifecycle: it is retryable and unrefundable by construction — no resource to refund — so its reservation releases and the callback answers retryably until a delivery carries a usable reference; it is never stored as a terminal rejection. A worker death between that batch and the terminal batch leaves the staged row — neither an unresolved reservation (the reaper never deletes it: `attendee_id` is set) nor a finalized answer — so a redelivery reads it and re-creates nothing (the buyer-record identity is on the row). Whether it RESUMES is decided by the staged row's age against the edge request lifetime bound: a FRESH row means the original worker may still be awaiting the provider, so the duplicate answers retryably without touching the provider — Stripe/Square would dedupe a concurrent resume under the stored idempotency key, but SumUp has no key, and the age gate is what keeps two live workers from racing full refunds — while a STALE row is a crashed worker, and the redelivery resumes at the refund step: Stripe/Square under the stored idempotency key, SumUp behind its fresh pre-attempt evidence read (a cumulative covering the charge answers `fully_refunded` with no second call). The staged state is routed BEFORE the finalized-success branch: today's conflict handler answers success for any row with `attendee_id` set before it ever reads `failure_data` (`payment-processing/index.ts:69-74`), which would replay a staged row as a completed booking while the buyer's money sat captured — PR B's handler checks `failure_data` for the CALLBACK-scope staged kind FIRST, so a staged rejection-arm row resumes at the refund step and only a genuinely finalized row replays success — an `attendee_set` claim is invisible to this routing, per Concurrency (regression: a redelivery against a staged callback-scope row answers the refund resume, never `alreadyProcessedResult`). PR B fixes the silent half too: `posted: false` stops being ignored — the unposted-money fact rides the terminal write itself, stored in the terminal record's outcome data (`failure_data`, the same env-key-encrypted slot `markSessionFailed` writes, naming the session and amount) in the SAME batch as the finalize, so the durable marker and the replay identity land atomically: even if every other write fails, the terminal row itself names the money the ledger is missing. The activity-log entry and the attendee system note are layered on top as operator surfacing, non-throwing best-effort — their failure logs a classified error and never prevents the finalize, so redelivery cannot re-book the placeholder. Repair stays with existing tools (the refresh-payment route re-posts what provider state supports; the manual ledger correction `reportRefundNotRecorded` covers the rest); durable automated re-posting is M7's persistence half | Next redelivery / operator                                                 |
-| Refund call sent               | No validated provider verdict (transport error, timeout, or a response body that fails its schema — `StripeRefundSchema` / the Square refund response shape; a 2xx with an unreadable body moves money just as invisibly as a lost packet) | Not recorded as failed blindly: the malformed body is surfaced loudly (a classified error naming the provider and reference — never parsed leniently), and one post-call evidence re-read re-judges. A cumulative that now covers the charge records completion — the money moved, and the idempotency key or the provider's second-refund rejection keeps it one payout. Anything else records the honest failure — including when the re-read itself is stale (cumulative totals lag): that recorded failure is the row above wearing a different cause, repaired the same way — a later judged read (the refresh-payment route or an operator re-run) observes the caught-up cumulative, answers `fully_refunded`, and records completion, while the idempotency key (Stripe/Square) or full-refund rejection (SumUp) keeps any interim re-attempt at one payout. A definitive rejection that names its reason (Stripe's explicit failure statuses, Square's typed errors) skips the re-read: the verdict is the answer. SumUp's generic 409 state-conflict is NOT definitive — it does not say which state conflicted, so it is never assumed to mean already-refunded: it takes the same one bounded re-read, and the evidence answers (a cumulative covering the charge records `fully_refunded`; anything else records the honest failure). What that recorded failure RELEASES is concurrency law 3's capability rule: a KEYED claim (Stripe/Square) releases with the record — a re-run lands on the same idempotency key, one payout — while a KEYLESS claim (SumUp) stays standing IN DOUBT: the sent call may have committed while its answer was lost, and with no key a released claim would let an immediate re-run race the first call's settlement. The in-doubt failed row answers the approved settling copy ("A refund for this payment is still settling. Try again after it completes."); a re-run against the FRESH claim repeats that answer with zero provider calls; once the claim is STALE (the first call's request is certainly dead, and an accepted refund has had the whole staleness window to reach the evidence read) a scope-preserving re-claim resumes behind the fresh pre-attempt read, and at any time a read whose cumulative covers the charge resolves the claim to `fully_refunded` with no call. The residual — an accepted refund still invisible to evidence past the staleness bound — is the same named provider-data-fault class as the stale cumulative under Retry and replay, closed by M7's per-attempt records                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Same caller; operator re-runs                                              |
-| Provider refund PENDING        | Request ends                                                                                                                                                                                                                               | No completion write; Stripe/Square replay lands on the same idempotency key; SumUp: a re-attempt's fresh amount read answers `fully_refunded` before any call when the cumulative covers the charge, and a provider 409 on the call itself is classified by the bounded re-read, never assumed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Provider redelivery                                                        |
-| Owner-review conflict detected | Alert delivery fails                                                                                                                                                                                                                       | The durable record survives: the conflict is written to the activity log in the same transaction as the processing outcome, so it is admin-visible regardless of alert delivery. The ntfy/log alert itself is best-effort, stated as such — terminal replays do not re-observe, so a lost alert is not retried on this path. Retryable owner alerting is M5's unsent-revision machinery                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Operator (activity log today; M5 cases)                                    |
+| Work completed                 | Failure                                                                                                                                                                                                                                    | Required result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Retry owner                                                                |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Nothing                        | Provider read unavailable before judgment                                                                                                                                                                                                  | No verdict; caller's existing unavailable handling (callback 503 retryable; admin row fails with reason)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Provider redelivery / operator                                             |
+| Judge refused refund           | — (refusal is the outcome)                                                                                                                                                                                                                 | No provider call, no local mutation beyond the recorded answer                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Provider redelivery / operator re-runs later; cumulative catch-up unblocks |
+| Provider refund succeeded      | Local completion write fails                                                                                                                                                                                                               | A next attempt's fresh read sees the provider cumulative (Square/Stripe) or the amount evidence (SumUp) → `fully_refunded`, success without a second payout. On the callback placeholder-refund path the outcome stays TERMINAL even when `recordPlaceholderRefund` reports `posted: false`: the attendee insert precedes the ledger write, and today it carries no replay identity, so a retryable answer would re-enter booking and insert a second placeholder — the current docstring's "a retry must NOT re-create it" is kept. PR B gives the insert that identity and closes the re-creation window structurally, on EVERY path that persists a buyer record and then refunds — the boundary rejection arm (`refundRejectedCharge`) and the stored-refused booking failures alike (`storeRefundedBooking` inserts its placeholder before refunding, `store-refund.ts:167-185`, called from `payment-processing/index.ts:208-249,291-298` — the same crash window): the arm claims the reservation, then ONE batch persists the buyer record and writes its id plus a staged refund-in-flight marker onto the reservation row (`failure_data` with a distinct staged kind, naming the deterministic idempotency key, the batch's written-at time, and its `callback` owner scope per Concurrency) plus the session's payment reference — the charge being refunded, encrypted as today, so a stale resume knows exactly what to refund — and only then calls the provider (the staged batch also sets the `protected_state` mirror, so no retention arm can reach the row mid-flight). The buyer record follows the session's shape: a new-booking session inserts the quantity-0 placeholder; a balance session inserts NOTHING — it binds the existing attendee whose balance was being paid, and the payment/refund pair posts against that attendee per the commands table, because a placeholder would attach the money to a spurious record. `blank_reference` never enters this lifecycle: it is retryable and unrefundable by construction — no resource to refund — so its reservation releases and the callback answers retryably until a delivery carries a usable reference; it is never stored as a terminal rejection. A worker death between that batch and the terminal batch leaves the staged row — neither an unresolved reservation (the reaper never deletes it: `attendee_id` is set) nor a finalized answer — so a redelivery reads it and re-creates nothing (the buyer-record identity is on the row). Whether it RESUMES is decided by the staged row's age against the edge request lifetime bound: a FRESH row means the original worker may still be awaiting the provider, so the duplicate answers retryably without touching the provider — Stripe/Square would dedupe a concurrent resume under the stored idempotency key, but SumUp has no key, and the age gate is what keeps two live workers from racing full refunds — while a STALE row is a crashed worker, and the redelivery resumes at the refund step: Stripe/Square under the stored idempotency key, SumUp behind its fresh pre-attempt evidence read (a cumulative covering the charge answers `fully_refunded` with no second call). The staged state is routed BEFORE the finalized-success branch: today's conflict handler answers success for any row with `attendee_id` set before it ever reads `failure_data` (`payment-processing/index.ts:69-74`), which would replay a staged row as a completed booking while the buyer's money sat captured — PR B's handler checks `failure_data` for the CALLBACK-scope staged kind FIRST, so a staged rejection-arm row resumes at the refund step and only a genuinely finalized row replays success — an `attendee_set` claim is invisible to this routing, per Concurrency (regression: a redelivery against a staged callback-scope row answers the refund resume, never `alreadyProcessedResult`). PR B fixes the silent half too: `posted: false` stops being ignored — the unposted-money fact rides the terminal write itself, stored in the terminal record's outcome data (`failure_data`, the same env-key-encrypted slot `markSessionFailed` writes, naming the session and amount) in the SAME batch as the finalize, so the durable marker and the replay identity land atomically: even if every other write fails, the terminal row itself names the money the ledger is missing. The activity-log entry and the attendee system note are layered on top as operator surfacing, non-throwing best-effort — their failure logs a classified error and never prevents the finalize, so redelivery cannot re-book the placeholder. Repair stays with existing tools (the refresh-payment route re-posts what provider state supports; the manual ledger correction `reportRefundNotRecorded` covers the rest); durable automated re-posting is M7's persistence half | Next redelivery / operator                                                 |
+| Refund call sent               | No validated provider verdict (transport error, timeout, or a response body that fails its schema — `StripeRefundSchema` / the Square refund response shape; a 2xx with an unreadable body moves money just as invisibly as a lost packet) | Not recorded as failed blindly: the malformed body is surfaced loudly (a classified error naming the provider and reference — never parsed leniently), and one post-call evidence re-read re-judges. A cumulative that now covers the charge records completion — the money moved, and the idempotency key or the provider's second-refund rejection keeps it one payout. Anything else records the honest failure — including when the re-read itself is stale (cumulative totals lag): that recorded failure is the row above wearing a different cause, repaired the same way — a later judged read (the refresh-payment route or an operator re-run) observes the caught-up cumulative, answers `fully_refunded`, and records completion, while the idempotency key (Stripe/Square) or full-refund rejection (SumUp) keeps any interim re-attempt at one payout. A definitive rejection that names its reason (Stripe's explicit failure statuses, Square's typed errors) skips the re-read: the verdict is the answer. SumUp's generic 409 state-conflict is NOT definitive — it does not say which state conflicted, so it is never assumed to mean already-refunded: it takes the same one bounded re-read, and the evidence answers (a cumulative covering the charge records `fully_refunded`; anything else records the honest failure). What that recorded failure RELEASES is concurrency law 3's capability rule: a KEYED claim (Stripe/Square) releases with the record — a re-run lands on the same idempotency key, one payout — while a KEYLESS claim (SumUp) stays standing IN DOUBT: the sent call may have committed while its answer was lost, and with no key a released claim would let an immediate re-run race the first call's settlement. The in-doubt failed row answers the approved settling copy ("A refund for this payment is still settling. Try again after it completes."); a re-run against the FRESH claim repeats that answer with zero provider calls; once the claim is STALE (the first call's request is certainly dead, and an accepted refund has had the whole staleness window to reach the evidence read) a scope-preserving re-claim resumes behind the fresh pre-attempt read, and at any time a read whose cumulative covers the charge resolves the claim to `fully_refunded` with no call. The residual — an accepted refund still invisible to evidence past the staleness bound — is the same named provider-data-fault class as the stale cumulative under Retry and replay, closed by M7's per-attempt records                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Same caller; operator re-runs                                              |
+| Provider refund PENDING        | Request ends                                                                                                                                                                                                                               | No completion write; Stripe/Square replay lands on the same idempotency key; SumUp: a re-attempt's fresh amount read answers `fully_refunded` before any call when the cumulative covers the charge, and a provider 409 on the call itself is classified by the bounded re-read, never assumed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Provider redelivery                                                        |
+| Owner-review conflict detected | Alert delivery fails                                                                                                                                                                                                                       | The durable record survives: the conflict is written to the activity log in the same transaction as the processing outcome, so it is admin-visible regardless of alert delivery. The ntfy/log alert itself is best-effort, stated as such — terminal replays do not re-observe, so a lost alert is not retried on this path. Retryable owner alerting is M5's unsent-revision machinery                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Operator (activity log today; M5 cases)                                    |
 
 ## Retry and replay
 
@@ -636,10 +652,10 @@ never duplicated.
   real in every direction: a grown cumulative refund (still `partial_refund`,
   same resources), a currency that changed while staying wrong, or a parent that
   changed while staying mismatched each change the fingerprint and record,
-  rather than masquerading as an exact replay. A column on an existing table,
-  not a new table; `payment_charges` stays dormant. Every terminal write stores
-  it — success finalization and `markSessionFailed` alike (`markSessionFailed`
-  also gains the owner-readable `payment_reference` write it lacks today:
+  rather than masquerading as an exact replay. Columns on an existing table, not
+  a new table; `payment_charges` stays dormant. Every terminal write stores it —
+  success finalization and `markSessionFailed` alike (`markSessionFailed` also
+  gains the owner-readable `payment_reference` write it lacks today:
   `processed-payments.ts:190-203` writes it on success, `:213-226` never on
   failure). A redelivery hashes its fresh observation and compares: an equal
   fingerprint is an exact replay — nothing written, the stored answer returned;
@@ -666,89 +682,106 @@ never duplicated.
   loser's own observation justifies, and "beyond the committed evidence" is
   DECIDABLE FROM THE ROW ALONE: every write that sets or advances
   `evidence_index` — a detection, a legacy seed, a confirmation — stores the
-  judged observation's canonical summary (the same canonical serialization the
-  fingerprint hashes: each resource's identity, settled facts, and cumulative
-  refunded, plus the session total) as its own field of the row's `failure_data`
-  record, in the same batch as the index, so a losing retry compares CONTENT,
-  never a one-way hash it cannot decompose — on terminal failure rows exactly as
-  on booked ones. Advances are MONOTONE (concurrency law 2): an advancing write
-  stores the MERGE of the committed summary with the judged observation — legs
-  united by their full canonical identity, so a committed leg never leaves the
-  summary (identical legs keep the larger observed count, preserving
-  `duplicate_charge` multiplicity); each leg's cumulative refunded keeps its
-  maximum; a leg's settled facts take the provider's newest reading, that change
-  itself being a recordable fact — and the stored fingerprint is the hash of
-  that MERGED summary. Committed evidence can therefore only grow, even when the
-  advancing observation is a lagging SUBSET carrying one genuinely new fact: a
-  committed two-tender summary receiving a one-tender observation with newer
-  refund progress advances to a summary still naming BOTH tenders plus the
-  progress, so the gates below never un-learn a capture, and the caught-up
-  two-tender redelivery after it hashes equal to the merged summary and replays
-  silently. An observation whose merge ADDS NOTHING — every leg already present
-  with the same settled facts, no refund progress past the summary's — is a
-  STALE snapshot (Square serving one delivery a lagging tender list) and writes
-  NOTHING, never regressing the index to an older observation that would make
-  already-recorded money look new and alert again; only a merge that adds a fact
-  — a leg the summary lacks, a changed settled fact, refund progress past it —
-  records and advances the index, the added delta classified as detection or
-  confirmation by the total rule above (regressions: after a clean loser retries
-  against a committed second-capture index, a redelivery of that second capture
-  writes nothing more; a stale two-tender loser that lost to a committed
-  three-tender record finds both its tenders in the summary, writes nothing, and
-  the next three-tender redelivery fingerprints equal and replays silently — one
-  record, one alert; a lagging one-tender delivery bearing newer refund progress
-  on a two-tender record advances a summary still naming both tenders, and the
-  refresh gate still refuses ledger completion on the sibling capture). The
-  equal-fingerprint replay path never reads the summary; that decrypt is paid
-  only on the rare differing-index retry. An interruption between the two writes
-  can neither make the next identical delivery record twice (fingerprint
-  advanced with the record) nor suppress a record that never landed (neither
-  write happened). Regressions: two simultaneous identical post-terminal
-  deliveries produce one record, one alert; a legacy row's clean seed racing a
-  second-capture delivery ends with the conflict recorded exactly once. When the
-  fresh judge's outcome on a BOOKED session is an owner-review CONFLICT — a
-  first callback finalized `ready` before Square's tender list caught up, a
-  later delivery revealing the second capture — that same batch also writes the
-  owner-review marker into the session row's `failure_data`: the conflict KIND,
-  beside the same batch's committed observation summary — the captured-resource
-  evidence lives ONCE, in the summary, serving the loser retries and the gates
-  alike, so the marker's charges can never drift from the fingerprint's, and
-  picking one kind never discards the rest of the evidence (nor can the summary
-  later forget a capture: advances merge per law 2, so a committed leg never
-  leaves the summary) — and the gates read CONTENT, not just kind: every marker
-  hides the Refund action (its handler could only refuse — the dead-link rule),
-  while the refresh route's ledger-completion writes are refused whenever the
-  committed summary names any captured charge beyond the named reference —
-  REGARDLESS of which kind won the evaluation order, because an extra capture
-  can hide behind a higher-priority diagnosis: a replay revealing a second
-  tender AND a partial refund on the named tender emits `partial_refund`, yet
-  completing the ledger when that tender later fully refunds would reverse the
-  whole booking order while the sibling stays captured (regression: such a
-  marker refuses completion even though its kind is `partial_refund`).
-  Refund-progress evidence is deliberately NOT gate-closing beyond that: a
-  dashboard FULL refund of the named single charge judges `fully_refunded` —
-  recorded and alerted precisely because NO local fact explains it (the app
-  performed no refund; that is the external-change test above), fingerprint
-  advanced, NO marker — so the refresh route's unambiguous
-  `fully_refunded → completed` ledger write stays open and the provider refund
-  reaches the ledger; a dashboard PARTIAL refund judges `partial_refund`, whose
-  marker (the committed summary: the named charge alone) hides the Refund action
-  but leaves the refresh route free to observe later settlement and complete
-  what provider state supports. Without the marker, the attendee would keep a
-  live Refund action whose use reverses the full ledger order while the newly
-  detected sibling stays captured (regressions: a session booked clean whose
-  redelivery reveals a second tender loses its Refund action and refuses legacy
-  refunds immediately; one whose charge was dashboard-refunded in full completes
-  its ledger through the refresh route with no marker written). Legacy rows from
-  before PR B carry no fingerprint; their first post-upgrade redelivery takes
-  the detection path, not a blind replay: the fresh observation — validated and
-  in hand — is judged, any conflict records per the total rule (a legacy
-  multi-tender session whose sibling tenders today's code never saw is a REAL
-  first detection), and `evidence_index` is seeded from that observation in the
-  same batch either way; a clean observation seeds silently — the fingerprint
-  and its committed summary, nothing else. From then on the row compares like
-  any other — only unchanged legacy evidence replays silently, so the total
-  post-terminal rule holds for existing production rows too.
+  judged observation's CODED canonical summary as its own field of the row's
+  `failure_data` record, in the same batch as the index, so a losing retry
+  compares CONTENT, never a one-way hash it cannot decompose — on terminal
+  failure rows exactly as on booked ones. CODED, because the env-key slot must
+  not weaken the owner-key boundary: stored payment references are deliberately
+  owner-key encrypted (`src/shared/db/payment-references.ts` — checkout and
+  webhook code writes them, only an authenticated admin request reads them
+  back), so a summary holding raw provider resource ids would re-expose under
+  the weaker env key exactly what that boundary protects. The summary therefore
+  stores, per leg: a one-way identity code over the leg's full canonical
+  identity (the existing `hmacHash` blind-index pattern behind
+  `ticket_token_index`), a one-way settled-facts code, the observed count, the
+  capture state, and the money numbers (captured amount and currency, cumulative
+  refunded) — plus the session-total number. No raw provider resource or parent
+  id ever enters env-key data; the human-readable evidence — the real ids and
+  amounts the owner acts on — is the owner-key activity-log record the same
+  detection batch already writes. Every comparison the summary serves works on
+  codes: a losing retry codes its own fresh observation's legs the same way and
+  set-compares; the refresh and refund gates code the named reference (decrypted
+  in their authenticated context) and check the summary for captured legs beyond
+  it; a webhook can compute every code from the fresh observation it holds, and
+  none can be reversed from a database dump. Advances are MONOTONE (concurrency
+  law 2): an advancing write stores the MERGE of the committed summary with the
+  judged observation — legs united by their one-way identity code, so a
+  committed leg never leaves the summary (identical legs keep the larger
+  observed count, preserving `duplicate_charge` multiplicity); each leg's
+  cumulative refunded keeps its maximum; a leg's settled-facts code takes the
+  provider's newest reading, that change itself being a recordable fact — and
+  the stored fingerprint is the hash of that MERGED coded summary. Committed
+  evidence can therefore only grow, even when the advancing observation is a
+  lagging SUBSET carrying one genuinely new fact: a committed two-tender summary
+  receiving a one-tender observation with newer refund progress advances to a
+  summary still naming BOTH tenders plus the progress, so the gates below never
+  un-learn a capture, and the caught-up two-tender redelivery after it hashes
+  equal to the merged summary and replays silently. An observation whose merge
+  ADDS NOTHING — every leg already present with the same settled facts, no
+  refund progress past the summary's — is a STALE snapshot (Square serving one
+  delivery a lagging tender list) and writes NOTHING, never regressing the index
+  to an older observation that would make already-recorded money look new and
+  alert again; only a merge that adds a fact — a leg the summary lacks, a
+  changed settled fact, refund progress past it — records and advances the
+  index, the added delta classified as detection or confirmation by the total
+  rule above (regressions: after a clean loser retries against a committed
+  second-capture index, a redelivery of that second capture writes nothing more;
+  a stale two-tender loser that lost to a committed three-tender record finds
+  both its tenders in the summary, writes nothing, and the next three-tender
+  redelivery fingerprints equal and replays silently — one record, one alert; a
+  lagging one-tender delivery bearing newer refund progress on a two-tender
+  record advances a summary still naming both tenders, and the refresh gate
+  still refuses ledger completion on the sibling capture). The equal-fingerprint
+  replay path never reads the summary; that decrypt is paid only on the rare
+  differing-index retry. An interruption between the two writes can neither make
+  the next identical delivery record twice (fingerprint advanced with the
+  record) nor suppress a record that never landed (neither write happened).
+  Regressions: two simultaneous identical post-terminal deliveries produce one
+  record, one alert; a legacy row's clean seed racing a second-capture delivery
+  ends with the conflict recorded exactly once. When the fresh judge's outcome
+  on a BOOKED session is an owner-review CONFLICT — a first callback finalized
+  `ready` before Square's tender list caught up, a later delivery revealing the
+  second capture — that same batch also writes the owner-review marker into the
+  session row's `failure_data`: the conflict KIND, beside the same batch's
+  committed observation summary — the captured-resource evidence lives ONCE, in
+  the summary, serving the loser retries and the gates alike, so the marker's
+  charges can never drift from the fingerprint's, and picking one kind never
+  discards the rest of the evidence (nor can the summary later forget a capture:
+  advances merge per law 2, so a committed leg never leaves the summary) — and
+  the gates read CONTENT, not just kind: every marker hides the Refund action
+  (its handler could only refuse — the dead-link rule), while the refresh
+  route's ledger-completion writes are refused whenever the committed summary
+  names any captured charge beyond the named reference — REGARDLESS of which
+  kind won the evaluation order, because an extra capture can hide behind a
+  higher-priority diagnosis: a replay revealing a second tender AND a partial
+  refund on the named tender emits `partial_refund`, yet completing the ledger
+  when that tender later fully refunds would reverse the whole booking order
+  while the sibling stays captured (regression: such a marker refuses completion
+  even though its kind is `partial_refund`). Refund-progress evidence is
+  deliberately NOT gate-closing beyond that: a dashboard FULL refund of the
+  named single charge judges `fully_refunded` — recorded and alerted precisely
+  because NO local fact explains it (the app performed no refund; that is the
+  external-change test above), fingerprint advanced, NO marker — so the refresh
+  route's unambiguous `fully_refunded → completed` ledger write stays open and
+  the provider refund reaches the ledger; a dashboard PARTIAL refund judges
+  `partial_refund`, whose marker (the committed summary: the named charge alone)
+  hides the Refund action but leaves the refresh route free to observe later
+  settlement and complete what provider state supports. Without the marker, the
+  attendee would keep a live Refund action whose use reverses the full ledger
+  order while the newly detected sibling stays captured (regressions: a session
+  booked clean whose redelivery reveals a second tender loses its Refund action
+  and refuses legacy refunds immediately; one whose charge was
+  dashboard-refunded in full completes its ledger through the refresh route with
+  no marker written). Legacy rows from before PR B carry no fingerprint; their
+  first post-upgrade redelivery takes the detection path, not a blind replay:
+  the fresh observation — validated and in hand — is judged, any conflict
+  records per the total rule (a legacy multi-tender session whose sibling
+  tenders today's code never saw is a REAL first detection), and
+  `evidence_index` is seeded from that observation in the same batch either way;
+  a clean observation seeds silently — the fingerprint and its committed
+  summary, nothing else. From then on the row compares like any other — only
+  unchanged legacy evidence replays silently, so the total post-terminal rule
+  holds for existing production rows too.
 - Retries stay owned by provider redelivery and the operator, as today. M4 adds
   no scheduler.
 - Permanent failures: a provider's explicit refund rejection records the failed
@@ -770,29 +803,35 @@ RESOLUTION (open reservation → booked success or terminal failure —
 claim: owner scope `callback`/`attendee_set`, the claiming batch's written-at
 time, and whether the claimed call carries a provider idempotency key), its
 OWNER-REVIEW MARKER (none, or the conflict kind), and its COMMITTED EVIDENCE
-(the fingerprint plus the canonical summary). All but the resolution live as
-distinct fields of the ONE env-key-encrypted `failure_data` record described
-above. Six laws bind every consumer, current and future; the rules in this
-section and the failure table are instances of them, and a new consumer or state
-must say which law admits it:
+(the fingerprint plus the coded canonical summary). All but the resolution live
+as distinct fields of the ONE env-key-encrypted `failure_data` record described
+above, and the row's LIVE WORK STATE — claim, staged refund, or owner-review
+marker, else empty — is mirrored in the plaintext `protected_state` column,
+written by the same statement that writes the record it mirrors, so a consumer
+that cannot decrypt still routes on the real state machine. Six laws bind every
+consumer, current and future; the rules in this section and the failure table
+are instances of them, and a new consumer or state must say which law admits it:
 
 1. **Total routing — readers and writers alike.** Every reader routes on the
    same precedence — a claim in the reader's OWN scope first, then the
    resolution, then open — and leaves untouched any state it does not own (a
    callback never consumes an `attendee_set` claim; an admin run never resumes a
-   `callback` staged row). A reader that can decrypt the record routes on the
-   discriminant, never a proxy. The one reader that cannot — the prune's SQL —
-   treats ANY non-empty record as a live protected state: deletable only through
-   the attendee-gone arm, per the narrowed arms under Owner choices. Routing is
-   total over WRITERS too: an operation that relocates or removes rows — the
-   attendee merge's reference move, the attendee delete's cascade — is a
-   consumer of every state on them, so its admission reads each affected row's
-   record inside the same interactive transaction that would move or remove it
-   and FAILS CLOSED against any live claim or staged marker, fresh or stale (the
-   answer names the fix: finish or re-run the refund, then retry); markers and
-   terminal outcomes ride the moved row unchanged. The write lock makes the
-   check race-free — a claim lands before the admission and blocks it, or after
-   the transaction commits and sees the moved world.
+   `callback` staged row). Every consumer routes on a DISCRIMINANT, never a
+   proxy: a reader that can decrypt the record routes on the record's own
+   discriminant, and the one reader that cannot — the prune's SQL — routes on
+   the plaintext `protected_state` mirror above. Non-emptiness of the encrypted
+   slot is NOT a state: committed evidence and terminal outcome data ride the
+   same slot without protecting the row, so refund evidence alone never exempts
+   a row from its normal retention (the prune design under Owner choices).
+   Routing is total over WRITERS too: an operation that relocates or removes
+   rows — the attendee merge's reference move, the attendee delete's cascade —
+   is a consumer of every state on them, so its admission reads each affected
+   row's record inside the same interactive transaction that would move or
+   remove it and FAILS CLOSED against any live claim or staged marker, fresh or
+   stale (the answer names the fix: finish or re-run the refund, then retry);
+   markers and terminal outcomes ride the moved row unchanged. The write lock
+   makes the check race-free — a claim lands before the admission and blocks it,
+   or after the transaction commits and sees the moved world.
 2. **Monotone evidence.** Committed evidence only grows: every advance stores
    the merge of committed and observed, never the raw observation (the merge is
    defined under Retry and replay). No consumer can ever read a summary that
@@ -819,13 +858,14 @@ must say which law admits it:
 5. **States never straddle slices.** The PR that first WRITES a state ships
    every consumer that must recognize it — prune arms, routing, resume rules,
    the merge and delete admissions — in the same slice. PR A writes the first
-   claims, so PR A ships the narrowed prune arms and the merge/delete
-   admissions; PR B's staged markers and owner-review markers land on arms
-   already safe for any non-empty record.
+   claims, so PR A ships the `protected_state` mirror with its prune gate and
+   the merge/delete admissions; PR B's staged markers and owner-review markers
+   land on a prune that already routes on the mirror.
 6. **Total evidence.** Each provider declares ONE observation shape for money
    decisions — Square: the payment plus its order's captured-tender sweep;
    Stripe: the charge tier; SumUp: the transaction's documented amount plus its
-   refund events — and every path that moves or reverses money (a callback
+   refund events, plus the checkout's vouched-children sweep where the row names
+   its checkout — and every path that moves or reverses money (a callback
    remedy, an admin single or bulk refund, the refresh route's ledger
    completion) supplies the complete shape before acting. No path judges money
    on a narrower read than the declared observation; a path that cannot afford
@@ -839,13 +879,15 @@ must say which law admits it:
 | Refund run holding a live claim             | Attendee merge or delete of a claimed attendee    | Rows never move or vanish under live refund work; the merge/delete answers the settling reason | Law 1's writer admission: the merge/delete transaction reads every affected row's record and fails closed on any live claim or staged marker                                                                                                                                     |
 | Judgment read                               | Provider state changes after read, before attempt | Provider-side rejection or idempotent landing; never a silent double payout                    | Provider guarantees (documented full-refund rejection) + next read converges                                                                                                                                                                                                     |
 
-M4 adds no new tables and exactly ONE new column —
-`processed_payments.
-evidence_index`, the replay fingerprint above, with its
-schema migration; the durable refund serialization needs no second one, reusing
-the staged refund-in-flight marker in `failure_data`, and the provider tag rides
-inside the owner-key-encrypted reference value, not a second column. That slot
-is ONE env-key-encrypted record with a distinct field per concern — the staged
+M4 adds no new tables and exactly TWO new columns, both on `processed_payments`
+with one schema migration: `evidence_index`, the replay fingerprint above, and
+`protected_state`, the plaintext live-work mirror law 1 requires for the one
+consumer that cannot decrypt (empty on every row that exists today, so current
+pruning behavior is unchanged until a claim, staged refund, or marker actually
+lands). The durable refund serialization needs nothing further — the staged
+refund-in-flight marker rides in `failure_data`, and the provider tag rides
+inside the owner-key-encrypted reference value, not a third column. That slot is
+ONE env-key-encrypted record with a distinct field per concern — the staged
 claim, the owner-review marker kind, the committed observation summary, the
 terminal outcome data — and every writer rewrites the whole record with the
 other fields preserved, conditioned on the exact value it read (the same
@@ -999,39 +1041,46 @@ Genuine conflicts the system must not decide:
   `failure_data` (`prune.ts:50-77`, retention configurable as low as days),
   which would silently drop the guard while the attendee and refundable
   reference live on (`getRefundPaymentReferences` falls back to the attendee's
-  legacy `payment_id`, re-opening the dangerous refund). PR A narrows that prune
-  arm — law 5: PR A writes the FIRST `failure_data` states, its claims, and a
-  claim landing on a row already older than the payment retention (an old
-  booking or legacy anchor being refunded) would otherwise make that row
+  legacy `payment_id`, re-opening the dangerous refund). But non-empty
+  `failure_data` cannot be the protection predicate either, in the other
+  direction: committed evidence and terminal outcome data ride the same slot, so
+  once every terminal write stores its summary, "non-empty means protected"
+  would exempt every ordinary row from the configured retention forever —
+  provider references and money evidence retained indefinitely with no live work
+  on the row. Law 1's plaintext mirror is the answer for both directions: PR A
+  adds the `protected_state` column (law 5: PR A writes the FIRST claims, and a
+  claim landing on a row already older than the payment retention — an old
+  booking or legacy anchor being refunded — would otherwise make that row
   deletable the moment the claim lands, letting a concurrent request mint a
   fresh row, claim it, and reach a second keyless provider call while the first
-  still runs — to `failure_data != '' AND attendee_id IS NULL`, and the attendee
-  branch's OTHER arms — reference-empty and refund-history (`prune.ts:60-72`) —
-  gain `AND failure_data = ''`, because each independently reaches marked rows:
-  the staged batch stores the payment reference so the empty-reference arm
-  cannot match a staged row, and the refund-history arm would otherwise sweep
-  out the marked row of any attendee carrying an earlier `refund_cash` transfer
-  (a prior refund; a merge) once the retention age passed. Every arm is
-  byte-identical for rows without `failure_data` — the states that exist today —
-  so a claimed, marked, or staged row prunes ONLY via the attendee-gone arm,
-  living exactly as long as its attendee (a marked booked row whose attendee
-  carries an earlier refund transfer survives pruning; a claim written onto a
-  row older than the retention survives a concurrent prune run). Regressions: an
-  admin single refund against a proceed-and-alert multi-tender booking is
-  refused with the owner-review reason and makes zero provider calls; a merged
-  attendee holding one marked and one normal reference is rejected whole, before
-  either reference's provider call; a refresh-payment run against a marked
-  session whose named tender was dashboard-refunded records the observation and
-  leaves the ledger untouched; the attendee page for a gated attendee renders
-  the owner-review indicator and no Refund action. Automatic work is not
-  stopped: the booking stands on the signed total. This is PLAN.md's approved M4
-  text applied ("one handler maps these outcomes onto today's behavior: detect,
-  record, and alert … no automatic work is stopped or stranded before an owner
-  can act") — failing the callback closed instead would 503 until provider
-  redelivery exhausts, leaving taken money with no booking, no buyer answer, and
-  no case tooling until M5, which is precisely the stranding the plan forbids.
-  No money moves automatically either way; the tenders sit untouched for the
-  owner. Decision 1 records the owner's explicit choice of this remedy.
+  still runs), every writer sets it in the same statement as the record it
+  mirrors (claim/staged/marker, cleared again by the release that removes the
+  state), and the prune's payment statement becomes: a row with an empty
+  `protected_state` takes today's arms byte-identical — aged failure rows,
+  reference-empty, attendee-gone, and refund-history prune exactly as they do
+  now, whether or not the slot holds evidence — while a row with a live
+  protected state prunes ONLY via the attendee-gone arm, living exactly as long
+  as its attendee (a marked booked row whose attendee carries an earlier refund
+  transfer survives pruning; a claim written onto a row older than the retention
+  survives a concurrent prune run; an evidence-only booked row past the
+  retention with refund history prunes exactly as today; a released claim's row
+  resumes its normal schedule; a SumUp in-doubt claim's failed row survives
+  retention while the claim stands). Regressions: an admin single refund against
+  a proceed-and-alert multi-tender booking is refused with the owner-review
+  reason and makes zero provider calls; a merged attendee holding one marked and
+  one normal reference is rejected whole, before either reference's provider
+  call; a refresh-payment run against a marked session whose named tender was
+  dashboard-refunded records the observation and leaves the ledger untouched;
+  the attendee page for a gated attendee renders the owner-review indicator and
+  no Refund action. Automatic work is not stopped: the booking stands on the
+  signed total. This is PLAN.md's approved M4 text applied ("one handler maps
+  these outcomes onto today's behavior: detect, record, and alert … no automatic
+  work is stopped or stranded before an owner can act") — failing the callback
+  closed instead would 503 until provider redelivery exhausts, leaving taken
+  money with no booking, no buyer answer, and no case tooling until M5, which is
+  precisely the stranding the plan forbids. No money moves automatically either
+  way; the tenders sit untouched for the owner. Decision 1 records the owner's
+  explicit choice of this remedy.
 - **`capture_total_mismatch`**: same detect-record-alert handling — the buyer
   over-paid, so their claim to the booking is valid and the surplus is named for
   the owner; the evidence names expected vs observed amounts. Resolution today
@@ -1069,6 +1118,13 @@ No money-moving automation is added for any owner-review kind.
   and capture-status fields, and SumUp's documented transaction `amount` and
   `transaction_events[]` refund events — money figures and money states, none
   personal.
+- The owner-key boundary on stored payment references is preserved: the
+  env-key-encrypted `failure_data` record never holds a raw provider resource or
+  parent id — the committed summary stores one-way leg codes and money numbers
+  (Retry and replay), and the raw ids live only where they always have, in the
+  owner-key-encrypted `payment_reference` and activity log. The plaintext
+  `protected_state` mirror carries a state word alone — never an id, an amount,
+  or a key.
 - Untrusted inputs cannot reach the judge without passing M3's ownership
   boundary first. Forged SumUp callbacks with unknown, oversized, empty, or
   missing ids still cost zero provider calls; a forger replaying a REAL staged
@@ -1114,22 +1170,23 @@ In the same merges that wire `outcomeOf` in:
 - The refresh-payment route's `refunded ? "completed" : "none"` boolean mapping
   (`attendees-edit.ts:98-102`) — a third judge. Its provider poll becomes the
   provider's DECLARED money-decision observation (law 6 — for Square the payment
-  plus its order's captured-tender sweep; the charge tier for Stripe; the
-  transaction read for SumUp), judged by `outcomeOf`: `fully_refunded` →
-  completed as today — EXCEPT on a session carrying an extra-captured-money
-  marker kind, or whose fresh sweep itself reveals a captured sibling, where the
-  ledger write is refused and the observation recorded instead (the named
-  tender's refund is not the booking's; see the `multiple_charges` owner choice;
-  regression: a refresh whose named tender is fully refunded but whose order
-  sweep shows a captured sibling refuses the completion write with the detection
-  recorded, even when no marker existed before the run); `refund_pending` →
-  stays unrefunded with the pending answer surfaced; `partial_refund` → a
-  PERSISTED owner-review record (the marker with its kind), never a silent
-  "none" or a bare activity entry: the marker durably hides the attendee's
-  Refund action from that moment — a rendered action whose handler could only
-  re-read the same partial state and refuse would be a dead link — while the
-  refresh action itself remains available to observe later settlement (a marker
-  whose kind is `partial_refund` does not refuse refresh completion writes).
+  plus its order's captured-tender sweep; the charge tier for Stripe; for SumUp
+  the transaction read plus its checkout's child sweep where the row names its
+  checkout), judged by `outcomeOf`: `fully_refunded` → completed as today —
+  EXCEPT on a session carrying an extra-captured-money marker kind, or whose
+  fresh sweep itself reveals a captured sibling, where the ledger write is
+  refused and the observation recorded instead (the named tender's refund is not
+  the booking's; see the `multiple_charges` owner choice; regression: a refresh
+  whose named tender is fully refunded but whose order sweep shows a captured
+  sibling refuses the completion write with the detection recorded, even when no
+  marker existed before the run); `refund_pending` → stays unrefunded with the
+  pending answer surfaced; `partial_refund` → a PERSISTED owner-review record
+  (the marker with its kind), never a silent "none" or a bare activity entry:
+  the marker durably hides the attendee's Refund action from that moment — a
+  rendered action whose handler could only re-read the same partial state and
+  refuse would be a dead link — while the refresh action itself remains
+  available to observe later settlement (a marker whose kind is `partial_refund`
+  does not refuse refresh completion writes).
 - No alias, wrapper, or re-export bridges the old names.
 
 `validatedPaymentSession` (M3 boundary), `refund-state.ts` (a record-derived
@@ -1174,7 +1231,9 @@ overage buys review-found correctness, not scope creep.
   verdict at all, so it takes the failure table's lost-answer arm: the one
   bounded evidence re-read decides, nothing is recorded from the null itself —
   instead of today's collapse of everything non-succeeded to failure; SumUp
-  widened to the documented `amount` plus `transaction_events[]`) and fronts
+  widened to the documented `amount` plus `transaction_events[]`, and — where
+  the row names its checkout — the checkout's vouched-children sweep per law 6,
+  reusing the children pick the callback path already validates) and fronts
   `tryRefund`, `refundReferenceAtProvider`, and the admin refresh-payment
   route's provider poll with the judge.
 - Lands the shared owner-review recorder — the activity-log write and the
@@ -1199,9 +1258,13 @@ overage buys review-found correctness, not scope creep.
   inside the owner-key-encrypted reference value (no new column), new callback
   writes tag at write time, and an admin-minted anchor row is tagged by the
   terminal write that records a provider-validated outcome.
-- Narrows the payment prune arms (the Owner-choices analysis; law 5): any row
-  carrying a non-empty `failure_data` record — this slice's claims today, PR B's
-  markers and staged rows later — prunes only through the attendee-gone arm.
+- Adds the `protected_state` mirror and its prune gate (the Owner-choices
+  analysis; laws 1 and 5): every writer of a claim, staged refund, or marker
+  sets the plaintext column in the same statement, releases clear it, and the
+  payment prune keeps today's arms byte-identical for rows whose mirror is empty
+  — evidence and terminal outcome data never exempt a row from its retention —
+  while a row with a live protected state prunes only through the attendee-gone
+  arm.
 - Guards the row-moving writers (laws 1 and 5, shipped with the first claims):
   the attendee merge and attendee delete admissions read every affected
   reference row's `failure_data` inside their own interactive transaction and
@@ -1220,60 +1283,64 @@ overage buys review-found correctness, not scope creep.
   settling copy with zero provider calls, a stale claim re-claims behind the
   fresh evidence read, and a covering read resolves it with no call (law 3); a
   claim written onto a row older than the payment retention survives a
-  concurrent prune run (the narrowed arms ship in this slice, law 5); a merged
-  attendee carrying references from two providers judges and refunds each at its
-  own provider — an untagged pre-switch reference discovered by the validated
-  read and tagged on its terminal write — while a tagged reference whose
-  provider has no stored credentials fails its row naming that provider with
-  zero provider calls, and an untagged reference no credentialed provider
-  validates fails unresolved, dispatching no refund (law 4); a legacy reference
-  captured under a previous site currency refunds cleanly after the currency
-  switch — its judgment never reads `settings.currency` (law 4); an admin refund
-  against a Square booking whose order carries a second captured tender — no
-  marker, no redelivery — is refused whole with zero refund calls (law 6); a
-  merge submitted while a refund claim is live on a source reference moves
-  nothing and answers the settling reason, an attendee delete against a staged
-  row is refused the same way, and a merge after release carries markers and
-  terminal outcomes unchanged (law 1); a Stripe refund answering a `null` status
-  records nothing until the bounded evidence re-read answers; a SumUp
-  transaction whose successful refund events sum above zero and below `amount`
-  reads as `partial_refund`, never `fully_refunded` — an empty or absent event
-  list stays `ready`, and events summing to `amount` read `fully_refunded` even
-  while top-level status still says `SUCCESSFUL` (the sandbox-observed shape); a
-  Stripe refund answering `pending` writes no completion, reports the pending
-  answer (not failure), and a re-run lands on the same idempotency key; a refund
-  whose transport answer is lost but which committed at the provider records
-  completion after the reconcile read — one payout; a partially-refunded
-  reference on the refresh-payment route records owner review instead of
-  silently reading as unrefunded.
-- Budgets: on the normal arms, 2 provider calls per admin Stripe or SumUp
-  reference (1 evidence read — its result IS the judgment input, never a
-  separate call — plus at most 1 refund call) and 3 per Square reference (the
-  declared observation is two reads, the payment then its order's tender sweep,
-  per law 6, plus the refund call); at most 1 more when a sent refund's answer
-  is lost (the indeterminate re-read in the failure table — the payment or
-  transaction read alone, the sweep is not re-bought). Discovery adds reads only
-  for an UNTAGGED reference whose earlier candidate fails to validate: worst
-  case one evidence read per credentialed provider (at most three exist), the
-  validating read doubling as the judgment input. Per outcome: refusal and
-  `fully_refunded` cost the evidence reads alone (1, or 2 for Square; 0 when our
-  own records already refuse); a normal attempt adds the refund call. A callback
-  refund costs its refund call plus evidence: 0 extra reads for a Square
-  rejection carrying valid money (the carried payment evidence judges; one whose
-  money fields were the malformed part buys the one re-read, like the other
-  arms), 1 read on the Stripe and SumUp rejection arms (the payment-intent /
-  transaction read each buys). Today the same reference costs 1–2 (the refund,
-  plus the fallback read on failure), so M4 moves the read up front, the
-  lost-answer arm spends its extra read exactly where today's blind fallback
-  also spent one, and Square's second normal-arm read buys the sibling-capture
-  check no path makes today. The admin bulk cap is `BULK_REFUND_LIMIT` (5)
-  **attendees**, and one attendee can carry several references (deposit plus
-  balance; merges): R total references cost 2R (Stripe/SumUp) to 3R (Square)
-  provider calls on the normal arms, plus 1 per reference whose sent refund's
-  answer is lost (the reconciling re-read above) and the discovery reads of any
-  untagged reference, typically R ≤ 10 for a full batch. Because the worst case
-  must fit Bunny's 50-subrequest allowance even if every answer is lost, PR A
-  adds a batch pre-flight: before ANY provider call, the run counts its
+  concurrent prune run, while an evidence-only booked row past the retention
+  with refund history prunes exactly as today (the `protected_state` gate ships
+  in this slice, law 5); a merged attendee carrying references from two
+  providers judges and refunds each at its own provider — an untagged pre-switch
+  reference discovered by the validated read and tagged on its terminal write —
+  while a tagged reference whose provider has no stored credentials fails its
+  row naming that provider with zero provider calls, and an untagged reference
+  no credentialed provider validates fails unresolved, dispatching no refund
+  (law 4); a legacy reference captured under a previous site currency refunds
+  cleanly after the currency switch — its judgment never reads
+  `settings.currency` (law 4); an admin refund against a Square booking whose
+  order carries a second captured tender — no marker, no redelivery — is refused
+  whole with zero refund calls (law 6); a merge submitted while a refund claim
+  is live on a source reference moves nothing and answers the settling reason,
+  an attendee delete against a staged row is refused the same way, and a merge
+  after release carries markers and terminal outcomes unchanged (law 1); a
+  Stripe refund answering a `null` status records nothing until the bounded
+  evidence re-read answers; a SumUp transaction whose successful refund events
+  sum above zero and below `amount` reads as `partial_refund`, never
+  `fully_refunded` — an empty or absent event list stays `ready`, and events
+  summing to `amount` read `fully_refunded` even while top-level status still
+  says `SUCCESSFUL` (the sandbox-observed shape); a Stripe refund answering
+  `pending` writes no completion, reports the pending answer (not failure), and
+  a re-run lands on the same idempotency key; a refund whose transport answer is
+  lost but which committed at the provider records completion after the
+  reconcile read — one payout; a partially-refunded reference on the
+  refresh-payment route records owner review instead of silently reading as
+  unrefunded.
+- Budgets: on the normal arms, 2 provider calls per admin Stripe reference and
+  per checkout-less legacy SumUp reference (1 evidence read — its result IS the
+  judgment input, never a separate call — plus at most 1 refund call) and 3 per
+  Square or checkout-linked SumUp reference (the declared observation is two
+  reads — the payment then its order's tender sweep, or the transaction then its
+  checkout's child sweep, per law 6 — plus the refund call); at most 1 more when
+  a sent refund's answer is lost (the indeterminate re-read in the failure table
+  — the payment or transaction read alone, the sweep is not re-bought).
+  Discovery adds reads only for an UNTAGGED reference whose earlier candidate
+  fails to validate: worst case one evidence read per credentialed provider (at
+  most three exist), the validating read doubling as the judgment input. Per
+  outcome: refusal and `fully_refunded` cost the evidence reads alone (1; 2 for
+  Square and checkout-linked SumUp; 0 when our own records already refuse); a
+  normal attempt adds the refund call. A callback refund costs its refund call
+  plus evidence: 0 extra reads for a Square rejection carrying valid money (the
+  carried payment evidence judges; one whose money fields were the malformed
+  part buys the one re-read, like the other arms), 1 read on the Stripe and
+  SumUp rejection arms (the payment-intent / transaction read each buys). Today
+  the same reference costs 1–2 (the refund, plus the fallback read on failure),
+  so M4 moves the read up front, the lost-answer arm spends its extra read
+  exactly where today's blind fallback also spent one, and Square's second
+  normal-arm read buys the sibling-capture check no path makes today. The admin
+  bulk cap is `BULK_REFUND_LIMIT` (5) **attendees**, and one attendee can carry
+  several references (deposit plus balance; merges): R total references cost 2R
+  (Stripe; checkout-less SumUp) to 3R (Square; checkout-linked SumUp) provider
+  calls on the normal arms, plus 1 per reference whose sent refund's answer is
+  lost (the reconciling re-read above) and the discovery reads of any untagged
+  reference, typically R ≤ 10 for a full batch. Because the worst case must fit
+  Bunny's 50-subrequest allowance even if every answer is lost, PR A adds a
+  batch pre-flight: before ANY provider call, the run counts its
   still-unrefunded references, and a batch whose recovery worst case cannot fit
   the request's REMAINING subrequest budget is refused whole — zero provider
   calls, every row failed with the plain reason "This run has too many payments
@@ -1283,31 +1350,31 @@ overage buys review-found correctness, not scope creep.
   (`STRIPE_MAX_NETWORK_RETRIES = 2` in `stripe/request.ts`, each attempt counted
   by the guard via `countExternalSubrequest`), so a Stripe batch's three logical
   calls per tagged reference admit as 9R; the Square and SumUp adapters make
-  exactly one fetch per call today, so their factor is 1 (a tagged Square
-  reference admits as 4 — two evidence reads, the refund, the lost-answer
-  re-read; SumUp as 3) — each factor read from the adapter's own retry constant,
-  so a future retry change moves the admission with it. An untagged reference
-  admits with its discovery worst case on top: one evidence read per
-  credentialed provider, each priced at that provider's own factor. The
-  admission compares that physical provider worst case plus the batch's own
-  database calls at the client's retry worst case — every post-provider write
-  costed at the bounded maximum of four attempts (`TRANSIENT_ERROR_BACKOFF_MS`
-  in `db/client.ts` allows three retries, and the round-trip guard counts each
-  attempt separately), so a `SQLITE_BUSY` streak after money has moved cannot
-  push the request over the limit — plus a failure reserve PROPORTIONAL to R,
-  not a constant: the worst case is every admitted reference failing, and each
-  failed reference spends its own error fan-out (`logError`'s ntfy and Sentry
-  subrequests plus the per-row activity record, database writes at the retry
-  multiplier), on top of one batch-level error report — R × the per-failure
-  fan-out cost plus the batch constant, every term still static at admission —
-  against the allowance MINUS the subrequests the request has already spent
-  before the pre-flight (the db client's call counter is the source — the
-  route's auth and attendee loads are not free). A batch can no longer abort
-  mid-flight with some refunds committed and unrecorded; every term is known at
-  pre-flight time, so the refusal is exact, not a guess. Regression: an
-  oversized batch makes zero provider calls and fails every row with that
-  reason. The same admission fronts EVERY route that attempts provider refunds
-  in one request — not just the bulk route: the single-attendee refund
+  exactly one fetch per call today, so their factor is 1 (a tagged Square or
+  checkout-linked SumUp reference admits as 4 — two evidence reads, the refund,
+  the lost-answer re-read; a checkout-less SumUp as 3) — each factor read from
+  the adapter's own retry constant, so a future retry change moves the admission
+  with it. An untagged reference admits with its discovery worst case on top:
+  one evidence read per credentialed provider, each priced at that provider's
+  own factor. The admission compares that physical provider worst case plus the
+  batch's own database calls at the client's retry worst case — every
+  post-provider write costed at the bounded maximum of four attempts
+  (`TRANSIENT_ERROR_BACKOFF_MS` in `db/client.ts` allows three retries, and the
+  round-trip guard counts each attempt separately), so a `SQLITE_BUSY` streak
+  after money has moved cannot push the request over the limit — plus a failure
+  reserve PROPORTIONAL to R, not a constant: the worst case is every admitted
+  reference failing, and each failed reference spends its own error fan-out
+  (`logError`'s ntfy and Sentry subrequests plus the per-row activity record,
+  database writes at the retry multiplier), on top of one batch-level error
+  report — R × the per-failure fan-out cost plus the batch constant, every term
+  still static at admission — against the allowance MINUS the subrequests the
+  request has already spent before the pre-flight (the db client's call counter
+  is the source — the route's auth and attendee loads are not free). A batch can
+  no longer abort mid-flight with some refunds committed and unrecorded; every
+  term is known at pre-flight time, so the refusal is exact, not a guess.
+  Regression: an oversized batch makes zero provider calls and fails every row
+  with that reason. The same admission fronts EVERY route that attempts provider
+  refunds in one request — not just the bulk route: the single-attendee refund
   (`POST /admin/attendees/:attendeeId/refund` calls `refundCandidateAtProvider`
   directly, `attendee-refunds.ts:120-140`, bypassing the bulk batch) runs the
   identical pre-flight over the one attendee's reference count, because a merged

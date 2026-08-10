@@ -214,11 +214,17 @@ Src target: 400–700.
   slice of F13); a stored reference's judgment reads no live site currency (the
   M4 slice of F12). M6's stored provider and currency close both for every row.
   Each provider has one declared evidence shape that every money-moving path
-  supplies whole — for Square, the payment plus its order's captured-tender
-  sweep, so an admin refund or refresh sees a sibling capture even when no
-  callback redelivery ever revealed it. Writers follow the same routing: an
-  attendee merge or delete fails closed while a refund claim or staged refund is
-  live on any affected row (the M4 slice of F6).
+  supplies whole — for Square the payment plus its order's captured-tender
+  sweep, for SumUp the transaction plus its checkout's child sweep where the row
+  names its checkout — so an admin refund or refresh sees a sibling capture even
+  when no callback redelivery ever revealed it. Writers follow the same routing:
+  an attendee merge or delete fails closed while a refund claim or staged refund
+  is live on any affected row (the M4 slice of F6). The row's live work state
+  (claim, staged refund, or owner-review marker) is mirrored in a plain column
+  written by the same statement, so even the SQL-only pruning routes on the real
+  state machine — refund evidence alone never exempts a row from its normal
+  retention. Stored comparison evidence holds one-way codes and money figures
+  only; the raw provider references stay where the owner key protects them.
 - Every refund run — bulk or single attendee — is admitted against the request's
   remaining subrequest budget before any provider call, priced at each adapter's
   physical worst case; an oversized run refuses whole with zero provider calls
