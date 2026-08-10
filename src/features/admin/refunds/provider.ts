@@ -5,6 +5,7 @@ import {
   releaseAttendeeRows,
 } from "#shared/db/payment-claim.ts";
 import {
+  isLegacyMergeSession,
   markPaymentReferencesProviderRefunded,
   paymentReferenceIndex,
   type RefundPaymentReference,
@@ -81,7 +82,26 @@ const refusedRefund = (detail: string, listingId: number): RefundOutcome => {
  *  either way. A refund we never asked for does not set it. */
 type ReferenceRefund = { outcome: RefundOutcome; unanswered: boolean };
 
-const refundReferenceAtProvider = async (
+/**
+ * Do the work at most once for each key, and give everyone the same answer.
+ *
+ * Two attendees in one run can carry the same charge, and the durable hold
+ * cannot separate them because both rows belong to this same run — so the
+ * second asker waits on the first's answer rather than making its own call.
+ */
+const answeredOnce = <TAnswer>(
+  asked: Map<string, Promise<TAnswer>>,
+  key: string,
+  ask: () => Promise<TAnswer>,
+): Promise<TAnswer> => {
+  const started = asked.get(key);
+  if (started !== undefined) return started;
+  const running = ask();
+  asked.set(key, running);
+  return running;
+};
+
+const refundReferenceOnce = async (
   provider: RefundProvider,
   candidate: RefundCandidate,
   listingId: number,
@@ -193,8 +213,12 @@ export const underAttendeeClaim = async <TResult>(
   // refunding what we did load would return part of someone's money and leave
   // the rest, so the whole run stands down and the operator tries again
   // against the complete set.
+  // A merge anchor is not a new charge: the reference list leaves its id out
+  // on purpose, so it would otherwise look like money that appeared while we
+  // waited and stand every merged attendee's refund down for ever.
   const unknown = claim.sessionIds.filter(
-    (sessionId) => !run.knownSessionIds.has(sessionId),
+    (sessionId) =>
+      !run.knownSessionIds.has(sessionId) && !isLegacyMergeSession(sessionId),
   );
   if (unknown.length > 0) {
     await releaseHold(rowClaim, claim, listingId);
@@ -236,6 +260,7 @@ export const refundCandidateAtProvider = async (
   listingId: number,
   markReturnedReferences: MarkReturnedReferences = markPaymentReferencesProviderRefunded,
   alreadyReturned: ReadonlySet<string> = new Set(),
+  inFlight: Map<string, Promise<ReferenceRefund>> = new Map(),
 ): Promise<CandidateRefund> => {
   const results: {
     outcome: RefundOutcome;
@@ -249,12 +274,14 @@ export const refundCandidateAtProvider = async (
   )) {
     const groupResults = await Promise.all(
       group.map(async (reference) => ({
-        ...(await refundReferenceAtProvider(
-          provider,
-          candidate,
-          listingId,
-          reference,
-          alreadyReturned,
+        ...(await answeredOnce(inFlight, reference.reference, () =>
+          refundReferenceOnce(
+            provider,
+            candidate,
+            listingId,
+            reference,
+            alreadyReturned,
+          ),
         )),
         reference,
       })),
@@ -391,6 +418,9 @@ const refundClaimedBatch = async (
   alreadyReturned: ReadonlySet<string>,
 ): Promise<{ counts: RefundCounts; unsettled: boolean }> => {
   let unsettled = false;
+  // Shared across the whole run, so a charge two attendees both carry is asked
+  // about once.
+  const inFlight = new Map<string, Promise<ReferenceRefund>>();
   const counts: RefundCounts = {
     errorCount: 0,
     failedCount: 0,
@@ -407,6 +437,7 @@ const refundClaimedBatch = async (
           listingId,
           markReturnedReferences,
           alreadyReturned,
+          inFlight,
         ),
       ),
     );

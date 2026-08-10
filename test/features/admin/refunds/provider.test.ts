@@ -589,6 +589,29 @@ describe("admin refund provider > a release that fails", () => {
 });
 
 describe("admin refund provider > a payment that landed while we waited", () => {
+  test("a merge anchor is not mistaken for one", async () => {
+    // The reference list leaves a merge anchor's id out on purpose.
+    const holdsAnchor: RowClaim = {
+      claim: () =>
+        Promise.resolve({
+          heldSince: "2026-08-10T12:00:00.000Z",
+          kind: "claimed",
+          returned: new Set<string>(),
+          sessionIds: ["sess-known", "legacy-merge:7"],
+        }),
+      release: () => Promise.resolve(),
+    };
+
+    const result = await underAttendeeClaim(holdsAnchor, [11], "keyless", 7, {
+      blocked: (reason) => reason,
+      knownSessionIds: new Set(["sess-known"]),
+      lost: () => false,
+      work: () => Promise.resolve("ran"),
+    });
+
+    expect(result).toBe("ran");
+  });
+
   test("stands the whole run down rather than refunding part of it", async () => {
     const released: string[][] = [];
     // The hold covers a row this run never loaded.
@@ -622,5 +645,35 @@ describe("admin refund provider > a payment that landed while we waited", () => 
     expect(worked).toBe(false);
     expect(result).toContain("landed while this run was waiting");
     expect(released).toEqual([["sess-known", "sess-new"]]);
+  });
+});
+
+describe("admin refund provider > one charge two attendees carry", () => {
+  test("is asked about once in a run, not once per attendee", async () => {
+    let refundCalls = 0;
+    const counting = {
+      readChargeMoneyOrNull: () => Promise.resolve(chargeMoney()),
+      refundCapability: "keyless" as const,
+      refundPayment: () => {
+        refundCalls++;
+        return Promise.resolve(true);
+      },
+    };
+
+    const counts = await processRefundBatch(
+      counting,
+      [
+        candidate([{ reference: "pi_both", refundState: "none" }], 11),
+        candidate([{ reference: "pi_both", refundState: "none" }], 12),
+      ],
+      7,
+      grantingRowClaim(),
+      () => Promise.resolve(),
+    );
+
+    // The hold cannot separate these two: both rows belong to this same run.
+    // Only asking once does.
+    expect(refundCalls).toBe(1);
+    expect(counts.refundedCount + counts.errorCount).toBe(2);
   });
 });

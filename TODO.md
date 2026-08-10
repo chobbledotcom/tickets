@@ -2186,3 +2186,28 @@ ledger post sees an uncovered payment group.
 The fix the contract names: the balance finalize reads the attendee's claim
 inside its own transaction and answers RETRYABLY without writing while a fresh
 claim is live, so the provider redelivers after the claim resolves.
+
+## A settled failed refund blocks every later attempt
+
+A SumUp refund attempt that ends in a persistent `FAILED` transaction event is
+mapped by the provider to a `failed_refund` conflict. `admitRefund` turns every
+conflict into `refused`, so the next redelivery or admin retry is stopped before
+`refundPayment` is called — and because the failed event stays in the
+transaction's history for ever, no later attempt can ever be made. The buyer
+stays charged unless someone refunds outside the system.
+
+The judge is right that a failed refund is not something to send more money into
+blindly, but "this attempt failed" and "this payment must never be retried" are
+different facts, and only the second justifies refusing for good. Two candidate
+shapes:
+
+- Treat a settled failed attempt as retryable once it has been recorded — the
+  money demonstrably did not move, so a fresh attempt is legitimate. This is
+  what the contract already says for Stripe (`failed`/`canceled` → settled as
+  not-happening, a fresh operator attempt is legitimate), so SumUp reading the
+  same fact differently is an inconsistency rather than a design choice.
+- Or distinguish a failure belonging to THIS attempt from one already in the
+  history, so only the former refuses.
+
+Needs a decision against `PR4_PLAN.md`'s failure table before changing, since
+`failed_refund` is currently listed as an owner-review conflict.
