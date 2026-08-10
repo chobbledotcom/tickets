@@ -2257,3 +2257,30 @@ in one `executeBatch`, which is the same boundary. Worth doing on its own, with
 regression coverage that fails each post-batch write and checks the source
 attendee, payment rows, ledger rows, answers, and PII are all still as they
 were.
+
+## A malformed provider reply reads as "the provider said nothing"
+
+`chargeOrNothing` in `src/shared/payment/admit-refund.ts` wraps the charge read
+in a bare `catch { return null; }`, and a null read becomes an `unreadable`
+admission — the refund is withheld with only a debug line.
+
+That is right for the failure it was written for: a network blip or a provider
+timeout genuinely is "no answer", and a bulk wave should not die on one. It is
+wrong for the failure it also swallows. Stripe's request boundary raises
+`StripeProtocolError` (`src/shared/stripe/request.ts`) when a 200 response
+carries invalid JSON or is missing a documented money field, and
+`stripeClientRuntime` deliberately preserves it. Caught here, a provider
+protocol failure — exactly the kind of thing an operator has to be told about —
+is indistinguishable from a slow network, and every refund behind it is quietly
+withheld.
+
+The fix is not a bigger catch in this module: `admit-refund.ts` is provider
+agnostic and should not learn Stripe's error names. It belongs one layer down,
+where each adapter's `readChargeMoneyOrNull` decides what its own null means —
+return null only for genuine transport unavailability, and let protocol and
+validation errors through — after which this catch can go entirely. That is a
+change to all three adapters (Stripe, Square, SumUp) plus their tests, on the
+path that decides whether money moves.
+
+Out of scope where it was found: that slice was the merge/delete admissions and
+the prune's orphan rule. Found by Codex on #2065.
