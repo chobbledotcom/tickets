@@ -528,52 +528,57 @@ never duplicated.
   not a hand-picked field list, so every fact that can change the verdict or the
   recorded evidence is covered by construction — a future observation field is
   automatically included. Canonical includes ORDER: the resource collection is
-  sorted by resource id before serialization, because provider array order is
-  not evidence — Square and SumUp may return the same tenders or children
-  permuted, and an order-sensitive hash would record and alert an identical
-  observation as new money (regression: a redelivery whose only difference is
-  tender order hashes equal and writes nothing). Comparable in plaintext,
-  revealing nothing (a one-way code over provider resource ids and money
-  figures, no PII). This is what keeps the changed-settled-facts guarantee above
-  real in every direction: a grown cumulative refund (still `partial_refund`,
-  same resources), a currency that changed while staying wrong, or a parent that
-  changed while staying mismatched each change the fingerprint and record,
-  rather than masquerading as an exact replay. A column on an existing table,
-  not a new table; `payment_charges` stays dormant. Every terminal write stores
-  it — success finalization and `markSessionFailed` alike (`markSessionFailed`
-  also gains the owner-readable `payment_reference` write it lacks today:
-  `processed-payments.ts:190-203` writes it on success, `:213-226` never on
-  failure). A redelivery hashes its fresh observation and compares: an equal
-  fingerprint is an exact replay — nothing written, the stored answer returned;
-  a different fingerprint is new evidence — the total detection rule above
-  records it (a third tender on a payment whose first two were already recorded
-  changes the fingerprint, so later money is never suppressed by an earlier
-  record) and the fingerprint updates to the new observation. Identical
-  redeliveries therefore write nothing more even after a lost acknowledgement;
-  only truly concurrent duplicates — two deliveries in flight before either
-  fingerprint lands — can each record, the failure direction being a duplicate
-  operator-visible record, never a lost one, with M6's aggregate row making it
-  exactly-once. The detection write itself is atomic: the owner-review record
-  and the `evidence_index` update commit in ONE batch, so an interruption
-  between them can neither make the next identical delivery record twice
-  (fingerprint already advanced with the record) nor suppress a record that
-  never landed (neither write happened). When the new evidence lands on a BOOKED
-  session — a first callback finalized `ready` before Square's tender list
-  caught up, a later delivery revealing the second capture — that same batch
-  also writes the owner-review marker into the session row's `failure_data`, so
-  the legacy-refund, refresh, and UI gates engage from that moment: without it,
-  the attendee would keep a live Refund action whose use reverses the full
-  ledger order while the newly detected sibling stays captured (regression: a
-  session booked clean whose redelivery reveals a second tender loses its Refund
-  action and refuses legacy refunds immediately). Legacy rows from before PR B
-  carry no fingerprint; their first post-upgrade redelivery takes the detection
-  path, not a blind replay: the fresh observation — validated and in hand — is
-  judged, any conflict records per the total rule (a legacy multi-tender session
-  whose sibling tenders today's code never saw is a REAL first detection), and
-  `evidence_index` is seeded from that observation in the same batch either way;
-  a clean observation seeds silently and writes nothing else. From then on the
-  row compares like any other — only unchanged legacy evidence replays silently,
-  so the total post-terminal rule holds for existing production rows too.
+  sorted before serialization by a TOTAL key — resource id first, ties broken by
+  the complete canonical representation of the resource itself — because
+  provider array order is not evidence: Square and SumUp may return the same
+  tenders or children permuted, and an order-sensitive hash would record and
+  alert an identical observation as new money. The tiebreak matters precisely
+  where ids repeat — a reachable `duplicate_charge` observation carries two legs
+  with one id, and an id-only sort would leave their relative order the
+  provider's (regressions: a redelivery whose only difference is tender order
+  hashes equal and writes nothing; so does one permuting two same-id legs).
+  Comparable in plaintext, revealing nothing (a one-way code over provider
+  resource ids and money figures, no PII). This is what keeps the
+  changed-settled-facts guarantee above real in every direction: a grown
+  cumulative refund (still `partial_refund`, same resources), a currency that
+  changed while staying wrong, or a parent that changed while staying mismatched
+  each change the fingerprint and record, rather than masquerading as an exact
+  replay. A column on an existing table, not a new table; `payment_charges`
+  stays dormant. Every terminal write stores it — success finalization and
+  `markSessionFailed` alike (`markSessionFailed` also gains the owner-readable
+  `payment_reference` write it lacks today: `processed-payments.ts:190-203`
+  writes it on success, `:213-226` never on failure). A redelivery hashes its
+  fresh observation and compares: an equal fingerprint is an exact replay —
+  nothing written, the stored answer returned; a different fingerprint is new
+  evidence — the total detection rule above records it (a third tender on a
+  payment whose first two were already recorded changes the fingerprint, so
+  later money is never suppressed by an earlier record) and the fingerprint
+  updates to the new observation. Identical redeliveries therefore write nothing
+  more even after a lost acknowledgement; only truly concurrent duplicates — two
+  deliveries in flight before either fingerprint lands — can each record, the
+  failure direction being a duplicate operator-visible record, never a lost one,
+  with M6's aggregate row making it exactly-once. The detection write itself is
+  atomic: the owner-review record and the `evidence_index` update commit in ONE
+  batch, so an interruption between them can neither make the next identical
+  delivery record twice (fingerprint already advanced with the record) nor
+  suppress a record that never landed (neither write happened). When the new
+  evidence lands on a BOOKED session — a first callback finalized `ready` before
+  Square's tender list caught up, a later delivery revealing the second capture
+  — that same batch also writes the owner-review marker into the session row's
+  `failure_data`, so the legacy-refund, refresh, and UI gates engage from that
+  moment: without it, the attendee would keep a live Refund action whose use
+  reverses the full ledger order while the newly detected sibling stays captured
+  (regression: a session booked clean whose redelivery reveals a second tender
+  loses its Refund action and refuses legacy refunds immediately). Legacy rows
+  from before PR B carry no fingerprint; their first post-upgrade redelivery
+  takes the detection path, not a blind replay: the fresh observation —
+  validated and in hand — is judged, any conflict records per the total rule (a
+  legacy multi-tender session whose sibling tenders today's code never saw is a
+  REAL first detection), and `evidence_index` is seeded from that observation in
+  the same batch either way; a clean observation seeds silently and writes
+  nothing else. From then on the row compares like any other — only unchanged
+  legacy evidence replays silently, so the total post-terminal rule holds for
+  existing production rows too.
 - Retries stay owned by provider redelivery and the operator, as today. M4 adds
   no scheduler.
 - Permanent failures: a provider's explicit refund rejection records the failed
@@ -773,15 +778,20 @@ correctness, not scope creep.
 - Ports the pure closure: `outcomeOf`, conflict kinds, refund legs and
   arithmetic, `resolveRefund`, `kindObject`, the words subsets.
 - Builds the per-provider refund-evidence adapters (Square cumulative + PENDING
-  answer; Stripe widened `amount_refunded` plus refund `status`, mapped totally
-  — `succeeded` → completed; `pending` and `requires_action` → `refund_pending`
-  (in flight: re-attempts land on the same idempotency key, and the operator's
-  answer names the status); `failed` and `canceled` → `failed_refund` (settled
-  as not-happening; a fresh operator attempt is legitimate — noting, unchanged
-  from today's use of the same deterministic key, that a re-attempt inside
-  Stripe's ~24-hour idempotency window replays the original failed answer, and a
-  genuinely new attempt exists once the window lapses; per-attempt identity is
-  M7's `pending_refund_idempotency_key`); and a `null` status — a shape the
+  answer; Stripe widened to the charge's documented `amount`, `currency`, AND
+  `amount_refunded` — the full decision-2 pick, because an admin or legacy
+  Stripe reference carries no signed expected total, so without the first two
+  the overlap guard has no captured-money denominator and no currency check (the
+  evidence-tiers section states this; the slice must not narrow it) — plus
+  refund `status`, mapped totally — `succeeded` → completed; `pending` and
+  `requires_action` → `refund_pending` (in flight: re-attempts land on the same
+  idempotency key, and the operator's answer names the status); `failed` and
+  `canceled` → `failed_refund` (settled as not-happening; a fresh operator
+  attempt is legitimate — noting, unchanged from today's use of the same
+  deterministic key, that a re-attempt inside Stripe's ~24-hour idempotency
+  window replays the original failed answer, and a genuinely new attempt exists
+  once the window lapses; per-attempt identity is M7's
+  `pending_refund_idempotency_key`); and a `null` status — a shape the
   production schema accepts (`StripeRefundSchema`, `schemas.ts:64-72`) — is no
   verdict at all, so it takes the failure table's lost-answer arm: the one
   bounded evidence re-read decides, nothing is recorded from the null itself —
@@ -869,9 +879,21 @@ correctness, not scope creep.
   mid-flight with some refunds committed and unrecorded; every term is known at
   pre-flight time, so the refusal is exact, not a guess. Regression: an
   oversized batch makes zero provider calls and fails every row with that
-  reason. The paged engine that processes arbitrarily large batches is still F53
-  / M7 — this slice only refuses what one request cannot safely hold. Database
-  calls: unchanged from today.
+  reason. The same admission fronts EVERY route that attempts provider refunds
+  in one request — not just the bulk route: the single-attendee refund
+  (`POST /admin/attendees/:attendeeId/refund` calls `refundCandidateAtProvider`
+  directly, `attendee-refunds.ts:120-140`, bypassing the bulk batch) runs the
+  identical pre-flight over the one attendee's reference count, because a merged
+  attendee can carry many references — six Stripe references admit as 54
+  physical fetches on the lost-answer path, over the allowance on their own. Its
+  refusal is the single-attendee shape of the same plain reason ("This attendee
+  has too many payments to refund in one go. Refund them from the provider
+  dashboard.") — refused whole before any provider call, never a partial pass
+  through the references (regression: a merged attendee whose reference count
+  cannot fit the remaining budget gets that error and zero provider calls). The
+  paged engine that processes arbitrarily large batches is still F53 / M7 — this
+  slice only refuses what one request cannot safely hold. Database calls:
+  unchanged from today.
 - Standalone value: the live system stops repeat and over-refunds on the admin
   and attempt side. The callback rejection arm keeps today's behavior until PR B
   cuts it over with its reservation — PR A claims nothing about that arm.
