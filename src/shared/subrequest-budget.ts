@@ -86,13 +86,24 @@ export const withSubrequestAllowance = <T>(
   );
 };
 
+/**
+ * Count one subrequest, throwing when it takes the budget over its limit.
+ *
+ * `enforce: false` still counts the call — so the running total stays accurate
+ * for every later call — but never throws. It is for mandatory cleanup (a
+ * transaction rollback) that must run even once the budget is spent: blocking it
+ * would leave the transaction open, and hiding it entirely would under-count and
+ * let a later call slip past the guard into a real over-limit rejection.
+ */
 export const countSubrequest = (
   kind: SubrequestKind,
   operation: string,
+  enforce = true,
 ): void => {
   const state = budgetScope.current();
   if (!state) return;
   state.counts[kind] += 1;
+  if (!enforce) return;
   const usage = usageOf(state.counts);
   if (
     state.counts[kind] > state.limits[kind] ||

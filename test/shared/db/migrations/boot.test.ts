@@ -13,6 +13,7 @@ import {
   SCHEMA_HASH,
 } from "#shared/db/migrations.ts";
 import { runWithQueryLogContext } from "#shared/db/query-log.ts";
+import { runWithSubrequestBudget } from "#shared/subrequest-budget.ts";
 import { setBuildCommitForTest } from "#shared/update.ts";
 import {
   markCurrentSchemaMigrationPending,
@@ -130,22 +131,36 @@ describeWithEnv(
       );
     });
 
-    test("only four migrations run per request when the request budget applies", async () => {
+    test("migrations are batched across requests when the request budget applies", async () => {
       await markMigrationsForRerun();
 
       try {
-        await runWithQueryLogContext(async () => {
-          await expect(initDb()).rejects.toThrow(
-            "Database update is continuing on the next request.",
-          );
-        });
-
-        expect((await appliedMigrationIds()).length).toBe(4);
-        expect(debugLines()).toContain(
-          "[Migration] Recorded 4 migrations; continuing on the next request...",
+        // A real request: subrequest budget plus query log. The backlog is far
+        // more than one request's budget, so a bounded batch runs and the boot
+        // asks to continue on the next request.
+        await runWithSubrequestBudget(() =>
+          runWithQueryLogContext(async () => {
+            await expect(initDb()).rejects.toThrow(
+              "Database update is continuing on the next request.",
+            );
+          }),
         );
+
+        // Some migrations ran, but not the whole backlog — the budget bounded
+        // the batch, and how many fit is what drives it, not a fixed count.
+        const recorded = (await appliedMigrationIds()).length;
+        expect(recorded).toBeGreaterThan(0);
+        expect(recorded).toBeLessThan(MIGRATION_IDS.length);
+        expect(
+          debugLines().some((line) =>
+            /Recorded \d+ migrations; continuing on the next request/.test(
+              line,
+            ),
+          ),
+        ).toBe(true);
       } finally {
-        // Leave the database fully migrated for the tests that follow.
+        // Leave the database fully migrated for the tests that follow. Outside a
+        // request budget the whole backlog runs in one pass.
         invalidateInitDbCache();
         await markMigrationsForRerun();
         await initDb();

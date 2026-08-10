@@ -321,6 +321,49 @@ describeWithEnv(
       );
     });
 
+    test("records the finished migrations then rethrows the failure", async () => {
+      // The lease IS held, so the finished migration's progress is recorded;
+      // the original failure is what surfaces, not a recording error.
+      const lockToken = await takeMigrationLock();
+      try {
+        const error = await runPendingMigrations(
+          [
+            {
+              description: "first migration, succeeds",
+              id: "runner-progress-recorded",
+              up: () => Promise.resolve(),
+              verify: () => Promise.resolve(),
+            },
+            {
+              description: "second migration, fails",
+              id: "runner-progress-second-fails",
+              up: () => Promise.reject(new Error("migration work failed")),
+              verify: () => Promise.resolve(),
+            },
+          ],
+          lockToken,
+        ).catch((caught: unknown) => caught);
+
+        // The original failure propagates, not an AggregateError.
+        expect(error).toBeInstanceOf(Error);
+        expect((error as Error).message).toBe("migration work failed");
+        // The migration that finished before the failure was recorded.
+        const recorded = await getDb().execute({
+          args: ["runner-progress-recorded"],
+          sql: `SELECT id FROM ${SCHEMA_MIGRATIONS_TABLE} WHERE id = ?`,
+        });
+        expect(recorded.rows.map((row) => String(row.id))).toEqual([
+          "runner-progress-recorded",
+        ]);
+      } finally {
+        await getDb().execute({
+          args: ["runner-progress-recorded"],
+          sql: `DELETE FROM ${SCHEMA_MIGRATIONS_TABLE} WHERE id = ?`,
+        });
+        await releaseMigrationLock(lockToken);
+      }
+    });
+
     test("stale markers are restored once the schema checks out", async () => {
       await staleSchemaHash();
 

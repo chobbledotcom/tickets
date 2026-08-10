@@ -159,8 +159,12 @@ const createDbClient = (): Client => {
 
 const GUARDED_CLIENT = Symbol("guarded-db-client");
 
-const databaseRoundTrip = <T>(operation: string, run: () => T): T => {
-  countDatabaseRoundTrip(operation);
+const databaseRoundTrip = <T>(
+  operation: string,
+  run: () => T,
+  enforceBudget = true,
+): T => {
+  countDatabaseRoundTrip(operation, enforceBudget);
   return run();
 };
 
@@ -198,8 +202,18 @@ const transactionWithRoundTripGuard = (transaction: Transaction): Transaction =>
       databaseRoundTrip("transaction script", () =>
         transaction.executeMultiple(sql),
       ),
+    // Rollback is mandatory cleanup: an interactive transaction left open (its
+    // rollback blocked) poisons the shared write connection for the rest of the
+    // request. It is counted like any other subrequest — so the running total
+    // stays accurate for later calls — but never blocked, so it always runs even
+    // once the budget is spent (within the migration reserve, or on any path
+    // that still has real headroom below Bunny's hard cap).
     rollback: (): Promise<void> =>
-      databaseRoundTrip("transaction rollback", () => transaction.rollback()),
+      databaseRoundTrip(
+        "transaction rollback",
+        () => transaction.rollback(),
+        false,
+      ),
   });
 
 const guardedClients = new WeakMap<Client, Client>();

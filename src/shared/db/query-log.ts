@@ -173,8 +173,19 @@ export const TRANSACTION_ROUNDTRIP_THRESHOLD = 30;
 /** Count one actual libsql client call and stop before call 51 reaches the
  * network. Unlike advisory N+1 reporting, this stays hard in production because
  * Bunny would reject the same request immediately afterwards anyway. */
-export const countDatabaseRoundTrip = (operation: string): void => {
-  countSubrequest("database", operation);
+/**
+ * `enforceBudget: false` exempts the call from the *budget* allowance only — the
+ * reserve/allowance cap the migration runner sets below the real limit. The hard
+ * round-trip limit below always applies: it mirrors Bunny's platform cap, which
+ * no call, cleanup included, can exceed. So a rollback is let past our own
+ * stricter reserve to run, but is still blocked if it would be a genuine
+ * over-the-platform-limit subrequest — exactly as Bunny would reject it.
+ */
+export const countDatabaseRoundTrip = (
+  operation: string,
+  enforceBudget = true,
+): void => {
+  countSubrequest("database", operation, enforceBudget);
   const state = queryLogScope.current();
   if (!state) return;
   state.databaseRoundTrips += 1;
