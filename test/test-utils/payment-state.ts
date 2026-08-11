@@ -114,10 +114,16 @@ export const partlyRefundedCharge = (): ChargeMoney =>
  *  one, or a charge whose rows are all anchors. */
 export const refundReference = (
   reference: string,
-  values: Partial<RefundPaymentReference> = {},
+  values: Partial<
+    Omit<
+      Extract<RefundPaymentReference, { kind: "untagged" }>,
+      "kind" | "reference"
+    >
+  > = {},
 ): RefundPaymentReference => ({
   heldRowSessionIds: [],
   index: `index_of_${reference}`,
+  kind: "untagged",
   reference,
   refundState: "none",
   rowSessionIds: [`sess_${reference}`],

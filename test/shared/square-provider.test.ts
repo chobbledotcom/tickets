@@ -164,6 +164,7 @@ describe("square-provider", () => {
           ).toEqual({
             metadata: { ...BLANK_SESSION_METADATA, ...SQUARE_ORDER_META },
             paymentReference: "pay_1",
+            provider: "square",
             reason: "malformed_charge",
             refundable: true,
           });
@@ -180,6 +181,7 @@ describe("square-provider", () => {
           expect(result).not.toBeNull();
           expect(asSession(result).paymentStatus).toBe("paid");
           expect(asSession(result).paymentReference).toBe("pay_1");
+          expect(asSession(result).provider).toBe("square");
           expect(mocks.payment.calls[0]!.args).toEqual(["pay_1"]);
         },
       );

@@ -26,6 +26,7 @@ const cancelledSession = (items: string): ValidatedPaymentSession => ({
   // Nothing was paid, so there is no payment to point at.
   paymentReference: "",
   paymentStatus: "unpaid",
+  provider: "stripe",
 });
 
 /** One package line: a member bought as part of the bundle it hangs off. */

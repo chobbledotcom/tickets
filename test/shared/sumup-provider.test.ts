@@ -78,7 +78,9 @@ describe("sumup-provider", () => {
 
     test("asSession refuses a null or rejected result", () => {
       expect(() => asSession(null)).toThrow();
-      expect(() => asSession({ reason: "blank_reference" })).toThrow();
+      expect(() =>
+        asSession({ provider: "sumup", reason: "blank_reference" })
+      ).toThrow();
     });
 
     test("fetches by the stored SumUp id and returns the paid session", async () => {
@@ -91,6 +93,7 @@ describe("sumup-provider", () => {
             id: "ref",
             paymentReference: "txn",
             paymentStatus: "paid",
+            provider: "sumup",
           }),
         );
         expect(asSession(result).metadata.email).toBe("alice@example.com");

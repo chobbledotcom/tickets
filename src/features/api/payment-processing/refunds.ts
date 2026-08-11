@@ -23,14 +23,18 @@ import {
 } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { sendRefundIfAdmitted } from "#shared/payment/admit-refund.ts";
+import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 import type { RefundActionResult } from "#shared/payment/refund-attempt.ts";
-import { isResourceId } from "#shared/payment/resource-id.ts";
-import type { SessionRejection } from "#shared/payment/validated-session.ts";
+import {
+  paidPaymentReferenceOf,
+  type SessionRejection,
+} from "#shared/payment/validated-session.ts";
 import { reportWithheldRefund } from "#shared/payment-review.ts";
 import { parsePriceProof, verifyPrice } from "#shared/payment-signature.ts";
 import {
   type ExistingPaymentProvider,
   getPaymentProviderForExistingPayments,
+  loadPaymentProvider,
   type ValidatedPaymentSession,
 } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
@@ -44,11 +48,9 @@ export const failureDetail = (result: PaymentFailureResult): string =>
   result.detail ?? result.error;
 
 /**
- * Resolve the provider for refunding or reconciling an existing payment. Falls
- * back to the last activated provider when new sales are off, so refunds keep
- * working after the operator switches new sales off. When none is configured,
- * log a structured error with the caller's code/detail and return null, so each
- * caller can pick its own fallback (a false, a 400, ...).
+ * Resolve the configured provider for an incoming webhook. Falls back to the
+ * last activated provider when new sales are off. When none is configured, log
+ * the caller's structured error before returning null.
  */
 export const getPaymentProviderOrLog = async (
   code: ErrorCodeType,
@@ -92,7 +94,11 @@ export const refundRejectedCharge = async (
   }
   // The verified proof establishes ownership, but the refund amount comes from a
   // fresh provider read: malformed charges may have captured a different sum.
-  const refunded = await tryRefund(rejection.paymentReference);
+  const refunded = await tryRefund({
+    kind: "tagged",
+    provider: rejection.provider,
+    reference: rejection.paymentReference,
+  });
   return { refunded, settled: refunded };
 };
 
@@ -123,21 +129,11 @@ export const answerRejectedSession = async (
  * Logs an error if refund fails.
  */
 export const tryRefund = async (
-  paymentReference: string,
+  reference: TaggedPaymentReference,
   listingId?: number,
 ): Promise<boolean> => {
-  // A blank or whitespace-only provider resource id names no charge to refund,
-  // so the refund is refused before any provider call. The provider boundary
-  // already rejects a paid session with a blank id; this is the safety net for
-  // a reference that reaches here from a stored or legacy row.
-  if (!isResourceId(paymentReference)) return false;
-
-  const provider = await getPaymentProviderOrLog(
-    ErrorCode.PAYMENT_REFUND,
-    "No payment provider configured for refund",
-    listingId,
-  );
-  if (!provider) return false;
+  const paymentReference = reference.reference;
+  const provider = await loadPaymentProvider(reference.provider);
 
   // Ask what the money has already done before sending any more. Stripe and
   // Square reject a second full refund themselves, but SumUp has no idempotency
@@ -172,7 +168,8 @@ const refundResultSucceeded = (
   }
   logError({
     code: ErrorCode.PAYMENT_REFUND,
-    detail: `Refund ${result.kind} for payment ${paymentReference} (${result.reason})`,
+    detail:
+      `Refund ${result.kind} for payment ${paymentReference} (${result.reason})`,
     listingId,
   });
   return false;
@@ -184,7 +181,7 @@ const refundAndLog = async (
   error: string,
   listingId: number,
 ): Promise<boolean> => {
-  const refunded = await tryRefund(session.paymentReference, listingId);
+  const refunded = await tryRefund(paidPaymentReferenceOf(session), listingId);
   if (refunded) {
     await logActivity(`Automatic refund: ${error}`, listingId);
   }
@@ -316,8 +313,7 @@ export type RefundCode = keyof typeof REFUND_REASONS;
  *  and any alert, the caller supplies the internal log line (ids/prices, never
  *  PII). */
 export const refundSpec =
-  (code: RefundCode) =>
-  (detail: string): RefundSpec => ({
+  (code: RefundCode) => (detail: string): RefundSpec => ({
     code,
     detail,
     ...REFUND_REASONS[code],

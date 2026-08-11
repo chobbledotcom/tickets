@@ -14,12 +14,11 @@ import {
   finalizeSessionIfUnresolved,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
-import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { webhookMeta } from "#test-utils/factories.ts";
+import { paidSession } from "#test-utils/payment-session.ts";
 import { bookingIntent } from "./index/helpers.ts";
 
 const intent = (): BookingIntent => bookingIntent([{ e: 1, p: 1000, q: 1 }]);
@@ -37,15 +36,6 @@ const checkedLine = (listing: ListingWithCount): ValidatedItem[] =>
   [
     { item: { e: listing.id, p: 1000, q: 1 }, listing },
   ] as unknown as ValidatedItem[];
-
-const session = (id: string): ValidatedPaymentSession => ({
-  amountTotal: 1000,
-  currency: "GBP",
-  id,
-  metadata: webhookMeta({ name: "Buyer" }),
-  paymentReference: `pi_${id}`,
-  paymentStatus: "paid",
-});
 
 /** Prepare a booking under a ticket token we choose, so the test can hand the
  *  same token to the recovery. Only the token's one-way code is stored, which
@@ -73,18 +63,20 @@ const runRecovery = async (opts: {
   const result = await recoverOrRefundUnexpectedCreate({
     complete: (entries) => {
       completed.push(entries);
-      return Promise.resolve({
-        attendee: { id: entries[0]?.attendee.id ?? 0 },
-        listingId: entries[0]?.listing.id ?? 0,
-        success: true,
-        ticketTokens: [opts.ticketToken],
-      } satisfies PaymentResult);
+      return Promise.resolve(
+        {
+          attendee: { id: entries[0]?.attendee.id ?? 0 },
+          listingId: entries[0]?.listing.id ?? 0,
+          success: true,
+          ticketTokens: [opts.ticketToken],
+        } satisfies PaymentResult,
+      );
     },
     error: opts.error,
     intent: intent(),
     placeholders: placeholderBookings(opts.validatedItems, intent()),
     publicStatusId: await requirePublicStatusId(),
-    session: session(opts.sessionId),
+    session: paidSession(opts.sessionId),
     ticketToken: opts.ticketToken,
     validatedItems: opts.validatedItems,
   });
@@ -111,7 +103,7 @@ describeWithEnv(
       );
       const loaded = await loadedListing(listing.id);
       await reserveSession("cs_recover");
-      await finalizeSessionIfUnresolved("cs_recover", attendee.id);
+      await finalizeSessionIfUnresolved("cs_recover", attendee.id, null);
 
       const { completed, result } = await runRecovery({
         error: new Error("the write went quiet"),

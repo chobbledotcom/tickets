@@ -28,7 +28,10 @@ import { modifiersTable } from "#shared/db/modifiers.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { getProcessedPayment } from "#test-utils/processed-payments.ts";
+import {
+  getProcessedPayment,
+  taggedPaymentReference,
+} from "#test-utils/processed-payments.ts";
 
 /** Narrow a createBookingAtomic result to the successful shape, or fail the test. */
 const expectBookingOk = (
@@ -107,7 +110,10 @@ const buildPlan = async (opts: {
     usages,
     { eventId: opts.eventId, occurredAt: OCCURRED_AT, pricedOrder },
     opts.sessionId
-      ? { paymentReference: `pi_${opts.sessionId}`, sessionId: opts.sessionId }
+      ? {
+          paymentReference: taggedPaymentReference(`pi_${opts.sessionId}`),
+          sessionId: opts.sessionId,
+        }
       : undefined,
   );
   return { plan, pricedOrder };

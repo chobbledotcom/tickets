@@ -4,7 +4,6 @@ import { spy, stub } from "@std/testing/mock";
 import {
   answerRejectedSession,
   refundRejectedCharge,
-  tryRefund,
 } from "#routes/api/payment-processing/refunds.ts";
 import { settings } from "#shared/db/settings.ts";
 import type {
@@ -12,6 +11,7 @@ import type {
   RefundRequest,
 } from "#shared/payment/refund-attempt.ts";
 import { paymentsApi } from "#shared/payments.ts";
+import type { PaymentProviderType } from "#shared/types.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import {
   completedStripeRefund,
@@ -23,26 +23,16 @@ import { stripeIntentWithCharge } from "#test-utils/stripe/responses.ts";
 
 setupTestEncryptionKey();
 
-/**
- * The refund path is where the live callbacks reject a blank provider resource
- * id — consistently, whatever the provider, because every refund goes through
- * `tryRefund`. A blank or whitespace-only id names no charge to refund, so the
- * refund is refused before any provider call. (A captured charge is still kept
- * and surfaced — see storeRefundedBooking — only the refund is refused.)
- *
- * A provider is configured and its refund methods spied on, so the assertions
- * prove the guard fires before any provider work rather than merely returning
- * false because no provider was resolvable.
- */
-describe("tryRefund resource id", () => {
+describe("rejected session refunds", () => {
   /** Run `body` with Stripe as the provider a refund resolves to. The key has
    *  to be there as well as the choice: an existing payment is only refunded
    *  through a provider this site still holds credentials for. */
-  const withStripeConfigured = async <T>(
+  const withProviderSelected = async <T>(
+    selected: PaymentProviderType,
     body: () => Promise<T>,
   ): Promise<T> => {
     const original = paymentsApi.getConfiguredProvider;
-    paymentsApi.getConfiguredProvider = () => "stripe";
+    paymentsApi.getConfiguredProvider = () => selected;
     settings.setForTest({ stripe_secret_key: "sk_test_rejected_charge" });
     try {
       return await body();
@@ -55,7 +45,7 @@ describe("tryRefund resource id", () => {
   /** Run `body` and prove it never reached Stripe — spies keep the real
    *  methods, so a call would leave for the provider and be counted here. */
   const withStripeProvider = (run: () => Promise<void>): Promise<void> =>
-    withStripeConfigured(async () => {
+    withProviderSelected("stripe", async () => {
       const refundSpy = spy(stripeApi, "refundCharge");
       const intentSpy = spy(stripeApi, "readPaymentIntent");
       try {
@@ -72,21 +62,26 @@ describe("tryRefund resource id", () => {
    *  returned and the arguments the refund was actually called with. Stubbed,
    *  not spied: a spy keeps the real method, so the refund would leave for
    *  Stripe itself. */
-  const withRefundAnswering =
-    (
-      answer: (request: RefundRequest) => RefundAttemptResult,
-      capturedAmount = 500,
-    ) =>
-    async <T>(
-      body: () => Promise<T>,
-    ): Promise<{ calls: unknown[][]; result: T }> => {
-      const refundStub = stub(stripeApi, "refundCharge", (request) =>
-        Promise.resolve(answer(request)),
-      );
-      // The refund asks what the money has already done before sending any, so
-      // the charge must read as one nothing has come back on for the refund to
-      // be admitted at all.
-      const intentStub = stub(stripeApi, "readPaymentIntent", (reference) =>
+  const withRefundAnswering = (
+    answer: (request: RefundRequest) => RefundAttemptResult,
+    capturedAmount = 500,
+    selectedProvider: PaymentProviderType = "stripe",
+  ) =>
+  async <T>(
+    body: () => Promise<T>,
+  ): Promise<{ calls: unknown[][]; result: T }> => {
+    const refundStub = stub(
+      stripeApi,
+      "refundCharge",
+      (request) => Promise.resolve(answer(request)),
+    );
+    // The refund asks what the money has already done before sending any, so
+    // the charge must read as one nothing has come back on for the refund to
+    // be admitted at all.
+    const intentStub = stub(
+      stripeApi,
+      "readPaymentIntent",
+      (reference) =>
         Promise.resolve({
           resource: {
             ...stripeIntentWithCharge(0, capturedAmount),
@@ -94,15 +89,15 @@ describe("tryRefund resource id", () => {
           },
           status: "found",
         }),
-      );
-      try {
-        const result = await withStripeConfigured(body);
-        return { calls: refundStub.calls.map((call) => call.args), result };
-      } finally {
-        intentStub.restore();
-        refundStub.restore();
-      }
-    };
+    );
+    try {
+      const result = await withProviderSelected(selectedProvider, body);
+      return { calls: refundStub.calls.map((call) => call.args), result };
+    } finally {
+      intentStub.restore();
+      refundStub.restore();
+    }
+  };
 
   const withSucceedingRefundFor = (capturedAmount: number) =>
     withRefundAnswering(
@@ -129,26 +124,32 @@ describe("tryRefund resource id", () => {
       500,
     ),
     paymentReference,
+    provider: "stripe" as const,
     reason: "malformed_charge" as const,
     refundable: true,
   });
 
-  it("refuses an empty provider resource id before any provider call", () =>
-    withStripeProvider(async () => {
-      expect(await tryRefund("")).toBe(false);
-    }));
-
-  it("refuses a whitespace-only provider resource id before any provider call", () =>
-    withStripeProvider(async () => {
-      expect(await tryRefund("   ")).toBe(false);
-      expect(await tryRefund("\t\n")).toBe(false);
-    }));
-
   it("refunds a rejected paid charge whose price proof verifies", async () => {
     const { calls, result } = await withSucceedingRefund(() =>
-      refundRejectedCharge(ourRejection("pi_usable")),
+      refundRejectedCharge(ourRejection("pi_usable"))
     );
     expect(calls).toEqual([[stripeRefundRequest("pi_usable", 500)]]);
+    expect(result).toEqual({ refunded: true, settled: true });
+  });
+
+  it("uses the provider that validated the charge after the site switches", async () => {
+    const { calls, result } = await withRefundAnswering(
+      (request) =>
+        completedStripeRefund(
+          request.paymentReference,
+          "re_original_provider",
+          request.charge.captured.amount,
+        ),
+      500,
+      "sumup",
+    )(() => refundRejectedCharge(ourRejection("pi_before_switch")));
+
+    expect(calls).toEqual([[stripeRefundRequest("pi_before_switch", 500)]]);
     expect(result).toEqual({ refunded: true, settled: true });
   });
 
@@ -166,6 +167,7 @@ describe("tryRefund resource id", () => {
             price_proof: "500.deadbeef",
           },
           paymentReference: "pi_foreign",
+          provider: "stripe",
           reason: "malformed_charge",
           refundable: true,
         }),
@@ -184,6 +186,7 @@ describe("tryRefund resource id", () => {
             name: "A",
           }),
           paymentReference: "pi_noproof",
+          provider: "stripe",
           reason: "malformed_charge",
           refundable: true,
         }),
@@ -192,9 +195,12 @@ describe("tryRefund resource id", () => {
 
   it("does not refund a blank-reference rejection", () =>
     withStripeProvider(async () => {
-      expect(await refundRejectedCharge({ reason: "blank_reference" })).toEqual(
-        { refunded: false, settled: true },
-      );
+      expect(
+        await refundRejectedCharge({
+          provider: "stripe",
+          reason: "blank_reference",
+        }),
+      ).toEqual({ refunded: false, settled: true });
     }));
 
   /** Run the callbacks' answer for a rejection, collecting what it logged. */
@@ -225,7 +231,7 @@ describe("tryRefund resource id", () => {
 
   it("tells a buyer whose charge came back, and settles it at 400", async () => {
     const { calls, result } = await withSucceedingRefund(() =>
-      answerFor("pi_settled"),
+      answerFor("pi_settled")
     );
     expect(calls).toEqual([[stripeRefundRequest("pi_settled", 500)]]);
     expect(result.status).toBe(400);
@@ -239,7 +245,7 @@ describe("tryRefund resource id", () => {
     // Nothing came back, so the buyer must not be told it did — and the caller
     // must retry rather than acknowledge the charge away.
     const { calls, result } = await withRefusedRefund(() =>
-      answerFor("pi_stuck"),
+      answerFor("pi_stuck")
     );
     expect(calls).toEqual([[stripeRefundRequest("pi_stuck", 500)]]);
     expect(result.status).toBe(503);

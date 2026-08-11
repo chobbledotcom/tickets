@@ -6,11 +6,11 @@ import {
 } from "#shared/db/payment-references.ts";
 import { reportRefundNotRecorded } from "#shared/invariant-errors.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import type { ResolvedRefundCapability } from "#shared/payment/row-state.ts";
 import { recordAttendeeRefundsBatch } from "#shared/refund-ledger.ts";
 import {
   type CandidateRefund,
   type MarkReturnedReferences,
-  PROVIDER_REFUND_CONCURRENCY,
   type PreparedReferenceRefund,
   type RefundProvider,
   refundCandidateAtProvider,
@@ -24,6 +24,7 @@ import {
   underAttendeeClaim,
 } from "./claim.ts";
 import { reportRefundProblem } from "./report.ts";
+import { PROVIDER_REFUND_CONCURRENCY } from "./provider-requests.ts";
 import { packByReferenceCount, type RefundOutcome } from "./waves.ts";
 
 type RecordRefunds = typeof recordAttendeeRefundsBatch;
@@ -32,7 +33,7 @@ type RecordRefunds = typeof recordAttendeeRefundsBatch;
 const MAY_RETRY_INHERITED_CALL = {
   keyed: true,
   keyless: false,
-} as const satisfies Record<RefundProvider["refundCapability"], boolean>;
+} as const satisfies Record<ResolvedRefundCapability, boolean>;
 
 export type RefundCounts = {
   refundedCount: number;
@@ -215,7 +216,7 @@ const refundClaimedBatch = async (
   writes: { markReturned: MarkReturnedReferences; record: RecordRefunds },
   alreadyReturned: ReadonlySet<string>,
   findings: RunFindings,
-  inherited: ReadonlyMap<number, RefundProvider["refundCapability"]>,
+  inherited: ReadonlyMap<number, ResolvedRefundCapability>,
 ): Promise<RefundCounts> => {
   const inFlight = new Map<string, Promise<PreparedReferenceRefund>>();
   const observeOnly = new Set(

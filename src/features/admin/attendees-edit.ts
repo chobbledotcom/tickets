@@ -50,7 +50,7 @@ import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee } from "#shared/types.ts";
 /* jscpd:ignore-end */
 import { NO_PROVIDER_ERROR } from "./attendees-route-helpers.ts";
-import { PROVIDER_REFUND_CONCURRENCY } from "./refunds/attempt.ts";
+import { PROVIDER_REFUND_CONCURRENCY } from "./refunds/provider-requests.ts";
 import { requirePaymentProvider } from "./require-provider.ts";
 
 /** Minimal context needed by the refresh-payment flow. */

@@ -25,7 +25,10 @@ import {
   staleClaimSlot,
 } from "#test-utils/payment-claim.ts";
 import { chargeMoney, fullyRefundedMoney } from "#test-utils/payment-state.ts";
-import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
+import {
+  finalizeProcessedPayment,
+  taggedPaymentReference,
+} from "#test-utils/processed-payments.ts";
 
 const SESSION_ID = "sess_uncertain_claim_lifecycle";
 const PAYMENT_REFERENCE = "pi_uncertain_claim_lifecycle";
@@ -69,7 +72,7 @@ describeWithEnv(
         SESSION_ID,
         attendee.id,
         "tok-uncertain",
-        PAYMENT_REFERENCE,
+        taggedPaymentReference(PAYMENT_REFERENCE),
       );
 
       const firstCandidate = await loadCandidate(attendee.id);

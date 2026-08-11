@@ -46,6 +46,7 @@ import {
   saveAttendeeAnswers,
 } from "#shared/db/questions/attendee-answers/save.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import { paymentReferenceOf } from "#shared/payment/validated-session.ts";
 import type {
   CheckoutIntent,
   ModifierSpec,
@@ -150,10 +151,10 @@ export type HonourResult =
   | { ok: true; entries: CreatedEntry[] }
   | { ok: null; error: unknown }
   | {
-      ok: false;
-      reason: "sold_out" | "capacity_exceeded" | "unexpected_error";
-      detail: string;
-    };
+    ok: false;
+    reason: "sold_out" | "capacity_exceeded" | "unexpected_error";
+    detail: string;
+  };
 
 /**
  * Keep only the text-answer refs that still carry a resolved string id (`s`).
@@ -241,8 +242,9 @@ export const promoCodeActivities = (
       spec.id,
       `Modifier application ${spec.id} was not loaded for promo code activity`,
     ).delta;
-    const effect =
-      delta < 0 ? `${formatCurrency(-delta)} off` : `+${formatCurrency(delta)}`;
+    const effect = delta < 0
+      ? `${formatCurrency(-delta)} off`
+      : `+${formatCurrency(delta)}`;
     return {
       attendeeId,
       listing,
@@ -289,10 +291,9 @@ export const createAttendeeForSession = async (
       },
       checkoutBookingLines(pricingIntent.items, listingById, paidByIntentItem),
     );
-    const remainingBalance =
-      intent.reservationAmount === undefined
-        ? 0
-        : pricedOrder.fullSubtotal - orderLineTotal(pricedOrder);
+    const remainingBalance = intent.reservationAmount === undefined
+      ? 0
+      : pricedOrder.fullSubtotal - orderLineTotal(pricedOrder);
 
     // Build every fallible input before starting the atomic write. A failure
     // here is known not to have committed, while a write failure below must be
@@ -304,7 +305,10 @@ export const createAttendeeForSession = async (
         occurredAt: businessTime(session),
         pricedOrder,
       },
-      { paymentReference: session.paymentReference, sessionId: session.id },
+      {
+        paymentReference: paymentReferenceOf(session),
+        sessionId: session.id,
+      },
     );
     prepared = {
       attendeeInput: {
@@ -318,7 +322,9 @@ export const createAttendeeForSession = async (
     };
   } catch (error) {
     return {
-      detail: `Unexpected error preparing session ${session.id}: ${String(error)}`,
+      detail: `Unexpected error preparing session ${session.id}: ${
+        String(error)
+      }`,
       ok: false,
       reason: "unexpected_error",
     };
@@ -347,8 +353,8 @@ export const createAttendeeForSession = async (
     // The named arm needs one listing: a paid checkout always has at least one
     // validated item, so the first is guaranteed to exist.
     const errorName = pricingIntent.items.some(
-      (item) => item.packageGroupId !== undefined,
-    )
+        (item) => item.packageGroupId !== undefined,
+      )
       ? ""
       : validatedItems[0]!.listing.name;
     return {

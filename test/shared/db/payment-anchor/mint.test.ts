@@ -6,16 +6,17 @@ import {
   claimAttendeeRows,
   type LoadedRefundAttendee,
 } from "#shared/db/payment-claim/take.ts";
-import {
-  getRefundPaymentReferencesForAttendee,
-  paymentReferenceIndex,
-} from "#shared/db/payment-references.ts";
+import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
+import { getRefundPaymentReferencesForAttendee } from "#shared/db/payment-references.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { heldSessionIds } from "#test-utils/payment-claim.ts";
-import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
+import {
+  finalizeProcessedPayment,
+  taggedPaymentReference,
+} from "#test-utils/processed-payments.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 const paymentRowCount = async (attendeeId: number): Promise<number> =>
@@ -84,7 +85,10 @@ describeWithEnv(
       );
       if (claim.kind !== "claimed") throw new Error("the claim was refused");
       expect(heldSessionIds(claim)).toEqual([
-        `legacy:${attendeeId}:${await paymentReferenceIndex("pi_old")}`,
+        `legacy:${attendeeId}:${await paymentReferenceIndex({
+          kind: "untagged",
+          reference: "pi_old",
+        })}`,
       ]);
     });
 
@@ -119,7 +123,12 @@ describeWithEnv(
 
     test("a charge already on a row is left alone", async () => {
       const attendeeId = await newAttendee("recorded@example.com");
-      await finalizeProcessedPayment("sess-recorded", attendeeId, "", "pi_new");
+      await finalizeProcessedPayment(
+        "sess-recorded",
+        attendeeId,
+        "",
+        taggedPaymentReference("pi_new"),
+      );
 
       const run = [await about(attendeeId, "")];
       const calls = await countDatabaseCalls(0, async () => {

@@ -16,6 +16,7 @@ import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import {
   bookedWithPayment,
   finalizeProcessedPayment,
+  taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
 import { provider } from "./helpers.ts";
 
@@ -110,7 +111,7 @@ describeWithEnv(
         "sess_added_before_claim",
         attendeeId,
         "tok-added",
-        "pi_added_before_claim",
+        taggedPaymentReference("pi_added_before_claim"),
       );
 
       await expectRunStandsDown(candidate, 7);

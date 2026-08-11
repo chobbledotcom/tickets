@@ -36,6 +36,7 @@ import { mockRequest } from "#test-utils/mocks.ts";
 import {
   expectProcessedPaymentReference,
   getProcessedPayment,
+  taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks/stripe.ts";
 
@@ -177,7 +178,7 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
           await expectProcessedPaymentReference(
             attendee!.id,
             sessionId,
-            `pi_${sessionId}`,
+            taggedPaymentReference(`pi_${sessionId}`),
             privateKey,
           );
           const expectedReferences = await expectedBookingReferences(
@@ -244,7 +245,7 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
           await expectProcessedPaymentReference(
             attendee!.id,
             sessionId,
-            `pi_${sessionId}`,
+            taggedPaymentReference(`pi_${sessionId}`),
             privateKey,
           );
           const finalMessages = (await getAllActivityLog()).map(

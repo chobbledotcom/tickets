@@ -15,15 +15,15 @@ import {
 } from "#routes/api/payment-processing/refunds.ts";
 import type { PaymentFailureResult } from "#routes/api/webhook-types.ts";
 import type { RefundRequest } from "#shared/payment/refund-attempt.ts";
-import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
-import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
+import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { paidSession } from "#test-utils/payment-session.ts";
 import {
   chargeMoney,
   completedRefund,
@@ -82,10 +82,13 @@ const withRefundRedirect = async (
           : ({ kind: "rejected", reason: "failed" } as const),
       ),
   );
-  using _refunded = stub(stripePaymentProvider, "readCharge", () =>
-    Promise.resolve(
-      foundCharge(alreadyRefunded ? fullyRefundedMoney() : chargeMoney()),
-    ),
+  using _refunded = stub(
+    stripePaymentProvider,
+    "readCharge",
+    () =>
+      Promise.resolve(
+        foundCharge(alreadyRefunded ? fullyRefundedMoney() : chargeMoney()),
+      ),
   );
   const mockRetrieve = stubRetrieveCheckoutSession({
     amountTotal: 1000,
@@ -104,15 +107,6 @@ const withRefundRedirect = async (
     mockRetrieve.restore();
   }
 };
-
-const mockSession = (id: string): ValidatedPaymentSession => ({
-  amountTotal: 1000,
-  currency: "GBP",
-  id,
-  metadata: webhookMeta({ name: "Buyer" }),
-  paymentReference: `pi_${id}`,
-  paymentStatus: "paid",
-});
 
 describeWithEnv("server (refund helper mutations)", { db: true }, () => {
   const debugSpy = useDebugLogSpy();
@@ -236,11 +230,11 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
   });
 
   test("chargeMismatchSpec and deletedListingSpec select their code and detail", () => {
-    const mismatch = chargeMismatchSpec(mockSession("cs_charge"), 1000);
+    const mismatch = chargeMismatchSpec(paidSession("cs_charge"), 1000);
     expect(mismatch.code).toBe("charge_mismatch");
     expect(mismatch.detail).toContain("1000");
     expect(mismatch.reason).toContain("did not match the agreed total");
-    const removed = deletedListingSpec(mockSession("cs_deleted"));
+    const removed = deletedListingSpec(paidSession("cs_deleted"));
     expect(removed.code).toBe("listing_removed");
     expect(removed.detail).toContain("cs_deleted");
     expect(removed.reason).toContain("was removed while they were paying");
@@ -261,7 +255,7 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
 
   test("validationFailure short-circuits 404 without refunding", () => {
     const result = validationFailure(
-      mockSession("cs_404"),
+      paidSession("cs_404"),
       { error: "Listing not found", status: 404 },
       1,
     ) as PaymentFailureResult;
@@ -276,7 +270,7 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
   test("validationFailure refunds for non-404 statuses", async () => {
     await withRefundMock(true, async () => {
       const result = await validationFailure(
-        mockSession("cs_410"),
+        paidSession("cs_410"),
         { error: "no longer accepting", status: 410 },
         1,
       );
@@ -287,7 +281,7 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
 
   test("refuseMismatch returns the price-changed message at 409 and refunds", async () => {
     await withRefundMock(true, async () => {
-      const result = await refuseMismatch(mockSession("cs_price"), 1000, 1);
+      const result = await refuseMismatch(paidSession("cs_price"), 1000, 1);
       expect(result.success).toBe(false);
       if (result.success) throw new Error("expected a failure result");
       expect(result.refunded).toBe(true);

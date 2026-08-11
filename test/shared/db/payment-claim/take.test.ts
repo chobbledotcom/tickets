@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { execute } from "#shared/db/client.ts";
 import { releaseAttendeeRows } from "#shared/db/payment-claim.ts";
-import { paymentReferenceIndex } from "#shared/db/payment-references.ts";
+import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -14,7 +14,10 @@ import {
   referenceIndexOf,
   staleClaimSlot,
 } from "#test-utils/payment-claim.ts";
-import { bookedWithPayment } from "#test-utils/processed-payments.ts";
+import {
+  bookedWithPayment,
+  taggedPaymentReference,
+} from "#test-utils/processed-payments.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 describeWithEnv(
@@ -121,7 +124,7 @@ describeWithEnv(
       test("is written beside the reference", async () => {
         await bookedWithPayment("sess-h", "pi_h");
         expect(await referenceIndexOf("sess-h")).toBe(
-          await paymentReferenceIndex("pi_h"),
+          await paymentReferenceIndex(taggedPaymentReference("pi_h")),
         );
       });
 
@@ -140,7 +143,9 @@ describeWithEnv(
       test("does not expose the reference", async () => {
         await bookedWithPayment("sess-k", "pi_secret");
         const stored = await referenceIndexOf("sess-k");
-        expect(stored).toBe(await paymentReferenceIndex("pi_secret"));
+        expect(stored).toBe(
+          await paymentReferenceIndex(taggedPaymentReference("pi_secret")),
+        );
         expect(stored).not.toContain("pi_secret");
       });
     });
@@ -163,6 +168,31 @@ describeWithEnv(
           inherited: new Map([[attendeeId, "keyless"]]),
           kind: "claimed",
         });
+      });
+
+      test("a stalled unresolved claim predates any provider send", async () => {
+        const attendeeId = await bookedWithPayment(
+          "sess-inherit-unresolved",
+          "pi_inherit_unresolved",
+        );
+        await putRowState(
+          "sess-inherit-unresolved",
+          await staleClaimSlot(attendeeId, "unresolved"),
+          CLAIM_MIRROR,
+        );
+
+        const resumed = await claimCurrentAttendeeRows(
+          [attendeeId],
+          "unresolved",
+        );
+
+        expect(resumed).toMatchObject({
+          inherited: new Map(),
+          kind: "claimed",
+        });
+        expect(
+          await claimCurrentAttendeeRows([attendeeId], "unresolved"),
+        ).toEqual({ blockedBy: { kind: "held" }, kind: "blocked" });
       });
 
       test("a fresh grant has no inherited doubt", async () => {
@@ -224,7 +254,9 @@ describeWithEnv(
         const held = await claimCurrentAttendeeRows([attendeeId], "keyless");
         if (held.kind !== "claimed") throw new Error("the claim was refused");
         expect([...held.returned]).toEqual([
-          await paymentReferenceIndex("pi_already_back"),
+          await paymentReferenceIndex(
+            taggedPaymentReference("pi_already_back"),
+          ),
         ]);
       });
 
@@ -238,7 +270,7 @@ describeWithEnv(
         const held = await claimCurrentAttendeeRows([ours], "keyless");
         if (held.kind !== "claimed") throw new Error("the claim was refused");
         expect([...held.returned]).toEqual([
-          await paymentReferenceIndex("pi_shared_back"),
+          await paymentReferenceIndex(taggedPaymentReference("pi_shared_back")),
         ]);
       });
 

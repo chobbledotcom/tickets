@@ -18,6 +18,7 @@ import {
   finalizeReservedPayment,
   readReference,
   refundReferencesFor,
+  taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
 import {
   createAttendee,
@@ -90,7 +91,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       "source-paid-session",
       source.id,
       "",
-      "pi_source_paid",
+      taggedPaymentReference("pi_source_paid"),
     );
 
     const { result } = await runMerge({ source, target });
@@ -130,7 +131,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     expect(
       await refundReferencesFor(target.id, await getTestPrivateKey()),
     ).toEqual([
-      await readReference("pi_source_legacy", {
+      await readReference({ kind: "untagged", reference: "pi_source_legacy" }, {
         refundState: "unknown",
         rowSessionIds: [`legacy-merge:${source.id}`],
         sessionIds: [],

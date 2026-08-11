@@ -138,6 +138,7 @@ describe("square-provider resolveWebhookSession", () => {
         expect(result).toEqual(
           expect.objectContaining({
             paymentReference: "pay_no_amount",
+            provider: "square",
             reason: "malformed_charge",
             refundable: true,
           }),

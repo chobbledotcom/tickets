@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import {
+  admitObservedRefund,
   admitProviderRefund,
   admitRefund,
   sendRefundIfAdmitted,
@@ -10,7 +11,7 @@ import type { ObservationOutcome } from "#shared/payment/diagnose.ts";
 import { refundOutcomeOf } from "#shared/payment/diagnose.ts";
 import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
-import type { RefundCapability } from "#shared/payment/row-state.ts";
+import type { ResolvedRefundCapability } from "#shared/payment/row-state.ts";
 import type { PaymentProvider } from "#shared/payments.ts";
 import {
   chargeMoneyWith,
@@ -124,7 +125,7 @@ describe("provider evidence before a refund", () => {
 
   const provider = (
     readCharge: PaymentProvider["readCharge"],
-    refundCapability: RefundCapability = "keyed",
+    refundCapability: ResolvedRefundCapability = "keyed",
     result: RefundAttemptResult = completed,
   ) => {
     const refundCharge = spy(() => Promise.resolve(result));
@@ -160,6 +161,15 @@ describe("provider evidence before a refund", () => {
         paymentReference: "pi_1",
       },
     ]);
+  });
+
+  test("admits an existing validated reading without another provider read", () => {
+    const charge = chargeMoneyWith();
+
+    expect(admitObservedRefund("pi_1", charge)).toEqual({
+      kind: "send",
+      request: { charge, paymentReference: "pi_1" },
+    });
   });
 
   test("returns an accepted attempt without calling it completed", async () => {

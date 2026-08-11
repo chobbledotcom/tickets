@@ -24,7 +24,10 @@ import {
   freshClaimSlot,
   putRowState,
 } from "#test-utils/payment-claim.ts";
-import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
+import {
+  finalizeProcessedPayment,
+  taggedPaymentReference,
+} from "#test-utils/processed-payments.ts";
 
 /** An attendee whose one charge the provider has already returned, so nothing
  *  is still out and their row reads refunded. */
@@ -39,7 +42,12 @@ const alreadyReturned = async (
   });
   if (!created.success) throw new Error("booking setup failed");
   const attendee = created.attendees[0]!;
-  await finalizeProcessedPayment(sessionId, attendee.id, "", reference);
+  await finalizeProcessedPayment(
+    sessionId,
+    attendee.id,
+    "",
+    taggedPaymentReference(reference),
+  );
   await markPaymentReferencesProviderRefunded(
     await getRefundPaymentReferencesForAttendee(
       attendee,

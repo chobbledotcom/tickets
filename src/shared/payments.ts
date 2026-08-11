@@ -14,7 +14,7 @@ import type {
   RefundRequest,
 } from "#shared/payment/refund-attempt.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
-import type { RefundCapability } from "#shared/payment/row-state.ts";
+import type { ResolvedRefundCapability } from "#shared/payment/row-state.ts";
 import type { SessionRejection } from "#shared/payment/validated-session.ts";
 import type { CalcKind, ModifierTrigger } from "#shared/price-modifier.ts";
 import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
@@ -178,6 +178,9 @@ export type ValidatedPaymentSession = {
   id: string;
   paymentStatus: PaymentStatus;
   paymentReference: string;
+  /** Provider that authenticated and read this session. This is evidence about
+   *  the charge, unlike the site's currently selected provider. */
+  provider: PaymentProviderType;
   /** Total amount charged in smallest currency unit (cents), from the payment provider.
    *  Validated at the provider boundary alongside its currency, so a malformed
    *  amount never reaches a callback. */
@@ -270,7 +273,7 @@ export interface PaymentProvider {
    *  An idempotency key lands a repeat call on the original refund; SumUp has
    *  no such key, so asking twice pays twice. Every adapter says which kind it
    *  is rather than being assumed. */
-  readonly refundCapability: RefundCapability;
+  readonly refundCapability: ResolvedRefundCapability;
 
   /** Ask for the observed charge to be refunded and preserve the provider's
    * exact completed, accepted, rejected, unsent, or uncertain answer. */
@@ -347,6 +350,11 @@ const providerLoaders: Record<
     (await import("#shared/sumup-provider.ts")).sumupPaymentProvider,
 };
 
+/** Load one explicitly named provider implementation. */
+export const loadPaymentProvider = (
+  provider: PaymentProviderType,
+): Promise<PaymentProvider> => providerLoaders[provider]();
+
 /** Resolve a provider type and lazy-load its implementation. */
 const resolveProvider = async (
   resolveType: () => PaymentProviderType | null,
@@ -359,7 +367,7 @@ const resolveProvider = async (
     return null;
   }
   logDebug("Payment", `Resolving payment provider${label}: ${providerType}`);
-  return providerLoaders[providerType]();
+  return loadPaymentProvider(providerType);
 };
 
 export const getActivePaymentProvider = (): Promise<PaymentProvider | null> =>

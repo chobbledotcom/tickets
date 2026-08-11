@@ -129,6 +129,7 @@ describeWithEnv("server webhooks > unrecognized sessions", { db: true }, () => {
           }),
           paymentReference: "pi_fallback_foreign",
           paymentStatus: "paid" as const,
+          provider: "stripe" as const,
         }),
     );
 

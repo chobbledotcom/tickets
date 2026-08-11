@@ -17,7 +17,18 @@ import { defineStoredJson } from "#shared/validation/stored-json.ts";
  *  Every lost answer keeps the claim first. A resumed `keyed` call may safely
  *  repeat its deterministic request; `keyless` work may only observe until
  *  fresh evidence settles it. */
-export const RefundCapabilitySchema = v.picklist(["keyed", "keyless"]);
+export const ResolvedRefundCapabilitySchema = v.picklist(["keyed", "keyless"]);
+export type ResolvedRefundCapability = v.InferOutput<
+  typeof ResolvedRefundCapabilitySchema
+>;
+
+/** A claim starts before an old reference's provider is known. It may only
+ *  become retryable or observe-only after provider evidence binds every row. */
+export const RefundCapabilitySchema = v.picklist([
+  "keyed",
+  "keyless",
+  "unresolved",
+]);
 export type RefundCapability = v.InferOutput<typeof RefundCapabilitySchema>;
 
 /**

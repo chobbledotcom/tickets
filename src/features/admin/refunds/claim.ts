@@ -8,7 +8,10 @@ import {
   releaseAttendeeRows,
 } from "#shared/db/payment-claim.ts";
 import { claimRefusal, mayReleaseClaim } from "#shared/payment/claim.ts";
-import type { RefundCapability } from "#shared/payment/row-state.ts";
+import type {
+  RefundCapability,
+  ResolvedRefundCapability,
+} from "#shared/payment/row-state.ts";
 import { reportRefundProblem } from "./report.ts";
 
 /** Taking and letting go of the hold on an attendee's payment rows. Injected
@@ -36,6 +39,12 @@ export type RunFindings = {
 export type RefundRunBlock =
   | { kind: "claim_held"; reason: string }
   | { kind: "payment_set_changed"; reason: string };
+
+/** The exact durable hold provider preparation must bind before any send. */
+export type HeldRefundClaim = Pick<
+  Extract<ClaimResult, { kind: "claimed" }>,
+  "held" | "heldSince"
+>;
 
 export const durableRowClaim: RowClaim = {
   claim: claimAttendeeRows,
@@ -84,7 +93,8 @@ export const underAttendeeClaim = async <TResult>(
     work: (
       alreadyReturned: ReadonlySet<string>,
       findings: RunFindings,
-      inherited: ReadonlyMap<number, RefundCapability>,
+      inherited: ReadonlyMap<number, ResolvedRefundCapability>,
+      claim: HeldRefundClaim,
     ) => Promise<TResult>;
   },
 ): Promise<TResult> => {
@@ -126,7 +136,10 @@ export const underAttendeeClaim = async <TResult>(
       listingId,
     );
   };
-  const result = await run.work(claim.returned, findings, claim.inherited);
+  const result = await run.work(claim.returned, findings, claim.inherited, {
+    held: claim.held,
+    heldSince: claim.heldSince,
+  });
   await settle();
   return result;
 };

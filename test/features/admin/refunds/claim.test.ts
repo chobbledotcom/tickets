@@ -10,7 +10,10 @@ import type {
   LoadedRefundAttendee,
 } from "#shared/db/payment-claim/take.ts";
 import type { RowRelease } from "#shared/db/payment-claim.ts";
-import type { RefundCapability } from "#shared/payment/row-state.ts";
+import type {
+  RefundCapability,
+  ResolvedRefundCapability,
+} from "#shared/payment/row-state.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 
 type ClaimedRows = Extract<ClaimResult, { kind: "claimed" }>;
@@ -42,7 +45,7 @@ const claimResult = (
 
 const claimedRows = (
   held: ReadonlyMap<number, readonly string[]>,
-  inherited: ReadonlyMap<number, RefundCapability> = new Map(),
+  inherited: ReadonlyMap<number, ResolvedRefundCapability> = new Map(),
 ): ClaimedRows => ({
   held,
   heldSince: "2026-08-11T12:00:00.000Z",
@@ -102,7 +105,9 @@ describe("admin refunds > attendee claim", () => {
   });
 
   test("releases only attendees whose provider answer is settled", async () => {
-    const inherited = new Map<number, RefundCapability>([[4, "keyless"]]);
+    const inherited = new Map<number, ResolvedRefundCapability>([
+      [4, "keyless"],
+    ]);
     const claim = claimResult(
       claimedRows(
         new Map([

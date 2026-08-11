@@ -1,4 +1,3 @@
-import { chunk } from "#fp";
 import {
   markPaymentReferencesProviderRefunded,
   type RefundPaymentReference,
@@ -12,6 +11,7 @@ import type { RefundRequest } from "#shared/payment/refund-attempt.ts";
 import { reportWithheldRefund } from "#shared/payment-review.ts";
 import type { getActivePaymentProvider } from "#shared/payments.ts";
 import type { RefundCandidate } from "./candidates.ts";
+import { mapProviderRequests } from "./provider-requests.ts";
 import { reportRefundProblem } from "./report.ts";
 import { combineRefundOutcomes, type RefundOutcome } from "./waves.ts";
 
@@ -23,21 +23,6 @@ export type RefundProvider = Pick<
 export type MarkReturnedReferences = (
   references: readonly RefundPaymentReference[],
 ) => Promise<void>;
-
-/** Max provider refund subrequests in flight at once. */
-export const PROVIDER_REFUND_CONCURRENCY = 5;
-
-/** Run one bounded group at a time while each group's work runs together. */
-const mapInRefundGroups = async <TItem, TResult>(
-  items: TItem[],
-  run: (item: TItem) => Promise<TResult>,
-): Promise<TResult[]> => {
-  const results: TResult[] = [];
-  for (const group of chunk(PROVIDER_REFUND_CONCURRENCY)(items)) {
-    results.push(...(await Promise.all(group.map(run))));
-  }
-  return results;
-};
 
 const refusedRefund = (detail: string, listingId: number): RefundOutcome => {
   reportRefundProblem(detail, listingId);
@@ -197,7 +182,7 @@ export const refundCandidateAtProvider = async (
   inFlight: Map<string, Promise<PreparedReferenceRefund>> = new Map(),
   observeOnly: ReadonlySet<string> = new Set(),
 ): Promise<CandidateRefund> => {
-  const prepared = await mapInRefundGroups(
+  const prepared = await mapProviderRequests(
     candidate.references,
     async (reference) => ({
       ...(await answeredOnce(inFlight, reference.reference, () =>
@@ -220,7 +205,7 @@ export const refundCandidateAtProvider = async (
   const attempts = blocked
     ? prepared.filter((attempt) => attempt.kind === "answered")
     : prepared;
-  const results = await mapInRefundGroups(attempts, async (attempt) => ({
+  const results = await mapProviderRequests(attempts, async (attempt) => ({
     ...(attempt.kind === "ready" ? await attempt.send() : attempt.result),
     reference: attempt.reference,
   }));

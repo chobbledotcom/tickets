@@ -112,10 +112,9 @@ export const squarePaymentProvider: PaymentProvider = {
     const obj = listing.data.object;
 
     // Square nests payment fields under data.object.payment
-    const payment =
-      typeof obj.payment === "object" && obj.payment !== null
-        ? (obj.payment as Record<string, unknown>)
-        : obj;
+    const payment = typeof obj.payment === "object" && obj.payment !== null
+      ? (obj.payment as Record<string, unknown>)
+      : obj;
 
     const paymentId = typeof payment.id === "string" ? payment.id : null;
     if (!paymentId && listing.type.startsWith("payment.")) {
@@ -123,8 +122,9 @@ export const squarePaymentProvider: PaymentProvider = {
     }
 
     // Extract the order ID (Square's session equivalent)
-    const orderId =
-      typeof payment.order_id === "string" ? payment.order_id : null;
+    const orderId = typeof payment.order_id === "string"
+      ? payment.order_id
+      : null;
 
     if (!orderId || !paymentId) return Promise.resolve(null);
 
@@ -170,8 +170,8 @@ export const squarePaymentProvider: PaymentProvider = {
     // A webhook names the payment Square just reported COMPLETED, so it wins:
     // the order's tenders can lag behind it entirely, or still lead with an
     // earlier payment, and either would call this captured charge unpaid.
-    const paymentReference =
-      paidPaymentId ?? order.tenders?.[0]?.paymentId ?? "";
+    const paymentReference = paidPaymentId ?? order.tenders?.[0]?.paymentId ??
+      "";
     const payment = await sessionPayment(paymentReference);
     // The webhook already saw this payment complete, so a read-back that is
     // missing or still short of COMPLETED is Square lagging its own signed
@@ -210,14 +210,16 @@ export const squarePaymentProvider: PaymentProvider = {
     return validatedPaymentSession({
       // A missing amount stays missing: Number(null) is 0, which the
       // boundary would accept as a real free order.
-      amountTotal:
-        typeof charged?.amount === "bigint" ? Number(charged.amount) : null,
+      amountTotal: typeof charged?.amount === "bigint"
+        ? Number(charged.amount)
+        : null,
       createdAt: toCanonicalIso(order.createdAt),
       currency: charged?.currency,
       id: order.id,
       metadata,
       paymentReference,
       paymentStatus: paid ? "paid" : "unpaid",
+      provider: "square",
     });
   },
 

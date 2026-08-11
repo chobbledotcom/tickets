@@ -80,7 +80,7 @@ describeStripe("stripe-provider resolveWebhookSession", () => {
           id: "evt_no_intent",
           type: "checkout.session.completed",
         }),
-      ).toEqual({ reason: "blank_reference" });
+      ).toEqual({ provider: "stripe", reason: "blank_reference" });
     } finally {
       retrieve.restore();
     }

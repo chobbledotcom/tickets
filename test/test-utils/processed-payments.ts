@@ -2,15 +2,20 @@ import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { executeBatch, queryOne } from "#shared/db/client.ts";
 import { batchFinalizeStatements } from "#shared/db/payment-finalize.ts";
+import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import {
   getRefundPaymentReferences,
-  paymentReferenceIndex,
   type RefundPaymentReference,
 } from "#shared/db/payment-references.ts";
 import {
   type ProcessedPayment,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
+import type {
+  PaymentReference,
+  TaggedPaymentReference,
+} from "#shared/payment/provider-reference.ts";
+import type { PaymentProviderType } from "#shared/types.ts";
 import {
   bookAttendee,
   bookedAttendee,
@@ -39,12 +44,20 @@ export const expectSessionFailed = async (sessionId: string): Promise<void> => {
   expect(failureData.length).toBeGreaterThan(0);
 };
 
+/** A provider-validated reference written by a modern payment callback. */
+export const taggedPaymentReference = (
+  reference: string,
+  provider: PaymentProviderType = "stripe",
+): TaggedPaymentReference => ({ kind: "tagged", provider, reference });
+
 /** Finalize a reserved payment through the same guarded batch as checkout. */
 export const finalizeReservedPayment = async (
   sessionId: string,
   attendeeId: number,
   ticketToken = "tok-test",
-  paymentReference = `pi_${sessionId}`,
+  paymentReference: PaymentReference = taggedPaymentReference(
+    `pi_${sessionId}`,
+  ),
 ): Promise<void> => {
   await executeBatch(
     await batchFinalizeStatements(
@@ -62,7 +75,9 @@ export const finalizeProcessedPayment = async (
   sessionId: string,
   attendeeId: number,
   ticketToken = "tok-test",
-  paymentReference = `pi_${sessionId}`,
+  paymentReference: PaymentReference = taggedPaymentReference(
+    `pi_${sessionId}`,
+  ),
 ): Promise<void> => {
   await reserveSession(sessionId);
   await finalizeReservedPayment(
@@ -89,7 +104,7 @@ export const bookedWithPayment = async (
     sessionId,
     attendeeId,
     "tok",
-    paymentReference,
+    taggedPaymentReference(paymentReference),
   );
   return attendeeId;
 };
@@ -109,18 +124,19 @@ export const refundReferencesFor = async (
 /** A reference as the production read hands it back — the fixture builder's
  *  shape with the real blind index rather than the builder's stand-in. */
 export const readReference = async (
-  reference: string,
+  payment: PaymentReference,
   values: Partial<RefundPaymentReference> = {},
 ): Promise<RefundPaymentReference> => ({
-  ...refundReference(reference, values),
-  index: await paymentReferenceIndex(reference),
+  ...refundReference(payment.reference, values),
+  ...payment,
+  index: await paymentReferenceIndex(payment),
 });
 
 /** Assert the exact decrypted provider reference attached to one attendee. */
 export const expectProcessedPaymentReference = async (
   attendeeId: number,
   sessionId: string,
-  paymentReference: string,
+  paymentReference: PaymentReference,
   privateKey: CryptoKey,
 ): Promise<void> => {
   expect(await refundReferencesFor(attendeeId, privateKey)).toEqual([

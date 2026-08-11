@@ -3,6 +3,7 @@ import type {
   ValidatedPaymentSession,
   WebhookSessionResult,
 } from "#shared/payments.ts";
+import { webhookMeta } from "#test-utils/factories.ts";
 
 /**
  * Every metadata field the price signature covers, blank. The boundary hands
@@ -30,6 +31,21 @@ export const BLANK_SESSION_METADATA: ValidatedPaymentSession["metadata"] = {
   text_answer_ids: "",
   thank_you_url: "",
 };
+
+/** A paid Stripe session with one valid charge reference. */
+export const paidSession = (
+  id: string,
+  overrides: Partial<ValidatedPaymentSession> = {},
+): ValidatedPaymentSession => ({
+  amountTotal: 1000,
+  currency: "GBP",
+  id,
+  metadata: webhookMeta({ name: "Buyer" }),
+  paymentReference: `pi_${id}`,
+  paymentStatus: "paid",
+  provider: "stripe",
+  ...overrides,
+});
 
 /** Narrow any provider session result to the session; fail the test on a
  *  rejection, a skip, a retry refusal, or null. */

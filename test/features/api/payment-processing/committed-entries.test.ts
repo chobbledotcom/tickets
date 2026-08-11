@@ -40,6 +40,7 @@ const session = (): ValidatedPaymentSession => ({
   metadata: webhookMeta({ name: "Signed Buyer" }),
   paymentReference: "pi_committed",
   paymentStatus: "paid",
+  provider: "stripe",
 });
 
 describeWithEnv(

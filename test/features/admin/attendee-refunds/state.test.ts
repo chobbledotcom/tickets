@@ -27,7 +27,10 @@ import {
   putRowState,
   staleClaimSlot,
 } from "#test-utils/payment-claim.ts";
-import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
+import {
+  finalizeProcessedPayment,
+  taggedPaymentReference,
+} from "#test-utils/processed-payments.ts";
 import {
   postRefundAll,
   refundAllUrl,
@@ -103,7 +106,12 @@ describeWithEnv("server (admin refund state)", { db: true }, () => {
         gross: 500,
         listingId: listing.id,
       });
-      await finalizeProcessedPayment(sessionId, attendee.id, "", "pi_stranded");
+      await finalizeProcessedPayment(
+        sessionId,
+        attendee.id,
+        "",
+        taggedPaymentReference("pi_stranded"),
+      );
       await markPaymentReferencesProviderRefunded(
         await getRefundPaymentReferencesForAttendee(
           attendee,
@@ -136,7 +144,12 @@ describeWithEnv("server (admin refund state)", { db: true }, () => {
         "held-open@example.com",
         "",
       );
-      await finalizeProcessedPayment("sess_held", attendee.id, "", "pi_held");
+      await finalizeProcessedPayment(
+        "sess_held",
+        attendee.id,
+        "",
+        taggedPaymentReference("pi_held"),
+      );
       await markPaymentReferencesProviderRefunded(
         await getRefundPaymentReferencesForAttendee(
           attendee,

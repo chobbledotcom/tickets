@@ -56,6 +56,7 @@ const paidSession = (
   },
   paymentReference: "pi_classify",
   paymentStatus: "paid",
+  provider: "stripe",
 });
 
 describeWithEnv("telling whether a checkout is ours", { db: true }, () => {
@@ -212,6 +213,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
         500,
       ),
       paymentReference: "pi_refunded",
+      provider: "stripe",
       reason: "malformed_charge",
       refundable: true,
     });
@@ -264,6 +266,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
       }),
       paymentReference: "",
       paymentStatus: "failed" as const,
+      provider: "stripe" as const,
     });
 
     const result = await validatePaidSession("cs_failed");
@@ -283,6 +286,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
       metadata: webhookMeta({ name: "Still Going" }),
       paymentReference: "",
       paymentStatus: "unpaid" as const,
+      provider: "stripe" as const,
     });
 
     const result = await runWithPendingWork(() =>

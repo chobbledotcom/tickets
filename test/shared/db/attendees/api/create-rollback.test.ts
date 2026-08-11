@@ -28,6 +28,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   expectProcessedPaymentReference,
   getProcessedPayment,
+  taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
 
 const OCCURRED_AT = "2026-07-15T00:00:00.000Z";
@@ -69,7 +70,7 @@ const paidPlan = async (
       occurredAt: OCCURRED_AT,
       pricedOrder: pricedOrder(listingId, ticketTotal, modifierApplications),
     },
-    { paymentReference: `pi_${sessionId}`, sessionId },
+    { paymentReference: taggedPaymentReference(`pi_${sessionId}`), sessionId },
   );
 
 const input = (
@@ -265,7 +266,7 @@ describeWithEnv("db > attendee create rollback", { db: true }, () => {
     await expectProcessedPaymentReference(
       created.id,
       sessionId,
-      `pi_${sessionId}`,
+      taggedPaymentReference(`pi_${sessionId}`),
       privateKey,
     );
     const rawBeforeReplay = await getAttendeesRaw(listing.id);

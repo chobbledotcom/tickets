@@ -22,6 +22,7 @@ import { insertModifierUsage } from "#test-utils/modifiers.ts";
 import {
   finalizeReservedPayment,
   getProcessedPayment,
+  taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
 
 describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
@@ -61,7 +62,7 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
       "sess_attendee_delete",
       attendee.id,
       "tok-test",
-      "pi_attendee_delete",
+      taggedPaymentReference("pi_attendee_delete"),
     );
 
     await deleteAttendee(attendee.id);

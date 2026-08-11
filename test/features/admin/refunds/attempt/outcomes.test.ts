@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  PROVIDER_REFUND_CONCURRENCY,
   type PreparedReferenceRefund,
   type RefundProvider,
   refundCandidateAtProvider,
 } from "#routes/admin/refunds/attempt.ts";
+import { PROVIDER_REFUND_CONCURRENCY } from "#routes/admin/refunds/provider-requests.ts";
 import {
   candidate,
   candidateWithReferences,

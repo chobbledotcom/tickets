@@ -1,4 +1,4 @@
-import { compact, map, pipe } from "#fp";
+import { compact, filter, map, pipe } from "#fp";
 import { settings } from "#shared/db/settings.ts";
 import { PAYMENT_PROVIDER_IDS } from "#shared/payment-providers.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
@@ -10,10 +10,15 @@ const providerHasCredentials: Record<PaymentProviderType, () => boolean> = {
   sumup: () => settings.sumup.hasKey,
 };
 
+/** Whether this provider has the stored credentials needed for an API read. */
+export const paymentProviderHasCredentials = (
+  provider: PaymentProviderType,
+): boolean => providerHasCredentials[provider]();
+
 const configuredPaymentProviderTypes = (): PaymentProviderType[] =>
   pipe(
     map((provider: PaymentProviderType) =>
-      providerHasCredentials[provider]() ? provider : null,
+      paymentProviderHasCredentials(provider) ? provider : null,
     ),
     compact,
   )(PAYMENT_PROVIDER_IDS);
@@ -51,4 +56,20 @@ export const existingPaymentProviderState = (
   return onlyProvider
     ? { provider: onlyProvider, recoveryChoices: [] }
     : { provider: null, recoveryChoices: configured };
+};
+
+/** Every provider that can be read, with the existing-payment choice first. */
+export const orderedCredentialedPaymentProviderTypes = (
+  current = settings.paymentProvider,
+): PaymentProviderType[] => {
+  const configured = configuredPaymentProviderTypes();
+  const preferred = existingPaymentProviderState(current).provider;
+  return preferred === null
+    ? configured
+    : [
+        preferred,
+        ...filter((provider: PaymentProviderType) => provider !== preferred)(
+          configured,
+        ),
+      ];
 };

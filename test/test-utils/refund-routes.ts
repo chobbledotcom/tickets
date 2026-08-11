@@ -7,7 +7,7 @@ import type {
   RefundRequest,
 } from "#shared/payment/refund-attempt.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
-import type { RefundCapability } from "#shared/payment/row-state.ts";
+import type { ResolvedRefundCapability } from "#shared/payment/row-state.ts";
 import { paymentsApi } from "#shared/payments.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
@@ -213,7 +213,7 @@ export const withRefundMock = async (
  *  `test/shared/db/payment-claim.test.ts`. */
 export const grantingRowClaim = (
   held: ReadonlyMap<number, readonly string[]> = new Map(),
-  inherited: ReadonlyMap<number, RefundCapability> = new Map(),
+  inherited: ReadonlyMap<number, ResolvedRefundCapability> = new Map(),
 ): RowClaim & { released: string[][]; unrecorded: string[][] } => {
   const released: string[][] = [];
   const unrecorded: string[][] = [];

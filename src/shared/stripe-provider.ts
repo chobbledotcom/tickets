@@ -66,6 +66,7 @@ const toValidatedSession = (
     metadata,
     paymentReference: payment_intent ?? "",
     paymentStatus: payment_status,
+    provider: "stripe",
   });
 };
 

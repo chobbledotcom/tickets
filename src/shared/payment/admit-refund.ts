@@ -30,9 +30,9 @@ export type RefundAdmission =
 export type ProviderRefundAdmission =
   | Exclude<RefundAdmission, { kind: "send" }>
   | {
-      kind: "read_failed";
-      read: Exclude<ProviderRead<ChargeMoney>, { status: "found" }>;
-    }
+    kind: "read_failed";
+    read: Exclude<ProviderRead<ChargeMoney>, { status: "found" }>;
+  }
   | { kind: "send"; request: RefundRequest };
 
 /** The answer for each way a reading can come out settled, listed
@@ -63,8 +63,8 @@ export const admissionReason = (admission: WithheldRefund): string =>
   admission.kind === "read_failed"
     ? providerReadReason(admission.read)
     : admission.kind === "refused"
-      ? `needs the owner to look at it (${admission.issue.kind})`
-      : ADMISSION_REASONS[admission.kind];
+    ? `needs the owner to look at it (${admission.issue.kind})`
+    : ADMISSION_REASONS[admission.kind];
 
 const PROVIDER_READ_REASONS = {
   invalid: "the provider returned invalid data",
@@ -90,6 +90,17 @@ const ADMISSION_REASONS = {
   string
 >;
 
+/** Decide from one already-validated provider reading without reading again. */
+export const admitObservedRefund = (
+  paymentReference: string,
+  charge: ChargeMoney,
+): ProviderRefundAdmission => {
+  const admission = admitRefund(refundOutcomeOf([charge]));
+  return admission.kind === "send"
+    ? { kind: "send", request: { charge, paymentReference } }
+    : admission;
+};
+
 /**
  * Ask the provider what has become of this charge's money, and answer whether
  * a refund may be sent. A charge it cannot state is never refunded on the hope
@@ -102,11 +113,7 @@ export const admitProviderRefund = async (
 ): Promise<ProviderRefundAdmission> => {
   const read = await provider.readCharge(paymentReference);
   if (read.status !== "found") return { kind: "read_failed", read };
-  const charge = read.resource;
-  const admission = admitRefund(refundOutcomeOf([charge]));
-  return admission.kind === "send"
-    ? { kind: "send", request: { charge, paymentReference } }
-    : admission;
+  return admitObservedRefund(paymentReference, read.resource);
 };
 
 /** The whole refund mechanism: ask what the money has already done, send more

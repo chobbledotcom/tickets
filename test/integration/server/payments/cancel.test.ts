@@ -104,6 +104,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
                   500,
                 ),
                 paymentReference: "pi_unusable",
+                provider: "stripe",
                 reason: "malformed_charge",
                 refundable: true,
               }),

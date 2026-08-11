@@ -89,6 +89,7 @@ const buildValidatedSession = (
     metadata: metadata as SessionMetadata,
     paymentReference: checkout.transactionId,
     paymentStatus: toPaymentStatus(checkout.status),
+    provider: "sumup",
   });
 
 /** SumUp's checkout-session builder (see {@link makeCreateCheckoutSession}). */

@@ -16,7 +16,10 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
-import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
+import {
+  finalizeReservedPayment,
+  taggedPaymentReference,
+} from "#test-utils/processed-payments.ts";
 import {
   expectSingleRefundIssued,
   postRefundAll,
@@ -90,7 +93,7 @@ const setupBalancePaidRefundTest = async (): Promise<RefundCtx> => {
       "balance_refund_session",
       attendee.id,
       1500,
-      "pi_balance_refund",
+      taggedPaymentReference("pi_balance_refund"),
     ),
   );
   return refundCtx(attendee, listing);
@@ -128,7 +131,7 @@ const setupSettledReservationRefundTest = async (): Promise<RefundCtx> => {
     "reservation_deposit_session",
     attendee.id,
     "",
-    "pi_reservation_deposit",
+    taggedPaymentReference("pi_reservation_deposit"),
   );
   await reserveSession("reservation_balance_session");
   await settleAttendeeBalance(
@@ -139,7 +142,7 @@ const setupSettledReservationRefundTest = async (): Promise<RefundCtx> => {
       "reservation_balance_session",
       attendee.id,
       8000,
-      "pi_reservation_balance",
+      taggedPaymentReference("pi_reservation_balance"),
     ),
   );
   return refundCtx(attendee, listing);

@@ -24,6 +24,7 @@ import type {
 import { type TxScope, update } from "#shared/db/client.ts";
 import type { ModifierUsage } from "#shared/db/modifier-usage.ts";
 import { nowIso } from "#shared/now.ts";
+import type { PaymentReference } from "#shared/payment/provider-reference.ts";
 
 /**
  * The attendee id stitched into the booking facts when building legs for the
@@ -42,7 +43,7 @@ const BATCH_LEG_ATTENDEE_PLACEHOLDER = 1;
 export const bookingBatchPlan = async (
   usages: ModifierUsage[],
   ledger: { pricedOrder: PricedOrder; occurredAt: string; eventId: string },
-  finalize?: { paymentReference: string; sessionId: string },
+  finalize?: { paymentReference: PaymentReference | null; sessionId: string },
 ): Promise<BookingBatchPlan> => ({
   ...(finalize !== undefined ? { finalize } : {}),
   legs: await mapBooking(
@@ -92,8 +93,7 @@ export const postBookingLegsTx = async (
  * never sets a balance. A zero-gross add (free listings) owes nothing.
  */
 export const manualAddLedgerPoster =
-  (order: PricedOrder): LedgerPoster =>
-  async (tx, attendeeId) => {
+  (order: PricedOrder): LedgerPoster => async (tx, attendeeId) => {
     const legs = await mapBooking(
       bookingFactsFromOrder(owedOrderForLedger(order), {
         attendeeId,

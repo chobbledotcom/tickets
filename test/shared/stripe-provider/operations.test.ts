@@ -188,6 +188,7 @@ describeStripe("stripe-provider", () => {
         expect(asSession(result).id).toBe("cs_resolve_1");
         expect(asSession(result).paymentStatus).toBe("paid");
         expect(asSession(result).paymentReference).toBe("pi_resolve_1");
+        expect(asSession(result).provider).toBe("stripe");
         expect(asSession(result).amountTotal).toBe(2000);
       }
     });

@@ -253,6 +253,7 @@ describeStripe("stripe-provider", () => {
               name: "No Cur",
             },
             paymentReference: "pi_no_currency",
+            provider: "stripe",
             reason: "malformed_charge",
             refundable: true,
           });
@@ -288,6 +289,7 @@ describeStripe("stripe-provider", () => {
               name: "Null Amount User",
             },
             paymentReference: "pi_null_amount",
+            provider: "stripe",
             reason: "malformed_charge",
             refundable: true,
           });

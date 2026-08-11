@@ -26,7 +26,10 @@ import {
   decideClaim,
   holdsTheRow,
 } from "#shared/payment/claim.ts";
-import type { RefundCapability } from "#shared/payment/row-state.ts";
+import type {
+  RefundCapability,
+  ResolvedRefundCapability,
+} from "#shared/payment/row-state.ts";
 /* jscpd:ignore-end */
 
 /** What happened when a run asked for an attendee's rows. */
@@ -41,7 +44,7 @@ export type ClaimResult =
       kind: "claimed";
       /** Attendees inheriting a crashed run's doubt, under that run's own
        *  provider capability. */
-      inherited: ReadonlyMap<number, RefundCapability>;
+      inherited: ReadonlyMap<number, ResolvedRefundCapability>;
       /** References a claimed or sharing row already says came back. */
       returned: ReadonlySet<string>;
     };
@@ -148,7 +151,7 @@ const rowsMatch = (
 };
 
 const claimCapability = (
-  inherited: ReadonlyMap<number, RefundCapability>,
+  inherited: ReadonlyMap<number, ResolvedRefundCapability>,
   attendeeId: number,
   current: RefundCapability,
 ): RefundCapability => {
@@ -209,9 +212,10 @@ export const claimAttendeeRows = async (
     if (sharing.some((row) => row.state.claim !== undefined)) {
       return { blockedBy: { kind: "foreign" }, kind: "blocked" };
     }
-    const inherited = new Map(
+    const inherited = new Map<number, ResolvedRefundCapability>(
       judged.flatMap(({ decision, row }) =>
-        decision.kind === "resume"
+        decision.kind === "resume" &&
+        decision.resuming.capability !== "unresolved"
           ? [[row.attendeeId, decision.resuming.capability] as const]
           : [],
       ),

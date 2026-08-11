@@ -20,7 +20,10 @@ import {
   rowStateSlot,
   UNRECORDED_MIRROR,
 } from "#test-utils/payment-claim.ts";
-import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
+import {
+  finalizeReservedPayment,
+  taggedPaymentReference,
+} from "#test-utils/processed-payments.ts";
 import { withRefreshPaymentProbe } from "#test-utils/refund-routes.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
@@ -73,7 +76,7 @@ const setupPlaceholderForRefresh = async (
     sessionId,
     attendee.id,
     "tok-placeholder",
-    paymentReference,
+    taggedPaymentReference(paymentReference),
   );
   if (beforeRefresh) await beforeRefresh(listing.id);
   return attendee;
@@ -177,7 +180,7 @@ describeWithEnv(
           "unrecorded-refresh-session",
           attendee.id,
           "tok-unrecorded",
-          "pi_unrecorded_refresh",
+          taggedPaymentReference("pi_unrecorded_refresh"),
         );
 
         // The account carries no ledgered order, so the reversal has nothing

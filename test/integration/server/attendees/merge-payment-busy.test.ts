@@ -13,7 +13,10 @@ import {
   REVIEW_MIRROR,
   rowStateSlot,
 } from "#test-utils/payment-claim.ts";
-import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
+import {
+  finalizeProcessedPayment,
+  taggedPaymentReference,
+} from "#test-utils/processed-payments.ts";
 
 /** Who owns the payment row now, and what the prune can see on it. Both facts
  *  in one read, because "did the merge move it" and "did the marker survive"
@@ -39,7 +42,7 @@ describeWithEnv(
         sessionId,
         pair.source.id,
         "tok",
-        `pi_${sessionId}`,
+        taggedPaymentReference(`pi_${sessionId}`),
       );
       return pair;
     };

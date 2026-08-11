@@ -15,7 +15,7 @@ import type {
 } from "#shared/payment/refund-attempt.ts";
 import type { RefundState } from "#shared/payment/refund-state.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
-import type { RefundCapability } from "#shared/payment/row-state.ts";
+import type { ResolvedRefundCapability } from "#shared/payment/row-state.ts";
 import { sessionReference } from "#test/shared/refund-ledger/helpers.ts";
 import {
   acceptedRefund,
@@ -81,14 +81,14 @@ export const provider = ({
   refunded = new Set<string>(),
   alreadyRefunded = new Set<string>(),
   throws = new Set<string>(),
-  refundCapability = "keyed" as RefundCapability,
+  refundCapability = "keyed",
   read,
 }: {
   accepted?: Set<string>;
   refunded?: Set<string>;
   alreadyRefunded?: Set<string>;
   throws?: Set<string>;
-  refundCapability?: RefundCapability;
+  refundCapability?: ResolvedRefundCapability;
   read?: (reference: string) => Promise<ChargeMoney | null>;
 } = {}): RecordingProvider => {
   const reads: string[] = [];
@@ -133,7 +133,7 @@ export const provider = ({
 
 /** Unreadable provider that records anything it is asked to send. */
 export const unreadableProvider = (
-  refundCapability: RefundCapability,
+  refundCapability: ResolvedRefundCapability,
 ): UnreadableProvider => {
   const source = provider({
     read: () => Promise.resolve(null),
@@ -200,7 +200,7 @@ export const pendingCandidate = (
 /** Provider that rejects each refund except named uncertain answers. */
 export const failingProvider = (
   uncertain: Set<string>,
-  refundCapability: RefundCapability = "keyed",
+  refundCapability: ResolvedRefundCapability = "keyed",
 ): RefundProvider => ({
   readCharge: () =>
     Promise.resolve({ resource: chargeMoney(), status: "found" } as const),

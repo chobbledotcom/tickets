@@ -21,7 +21,10 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postPaymentLeg } from "#test-utils/db-helpers/payment-leg.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { chargeMoney } from "#test-utils/payment-state.ts";
-import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
+import {
+  finalizeReservedPayment,
+  taggedPaymentReference,
+} from "#test-utils/processed-payments.ts";
 import {
   withRefreshPaymentMoney,
   withRefreshPaymentProbe,
@@ -68,7 +71,7 @@ const setupBalanceRefresh = async (
     balanceSessionId,
     attendee.id,
     "",
-    balancePaymentId,
+    taggedPaymentReference(balancePaymentId),
   );
   return attendee;
 };

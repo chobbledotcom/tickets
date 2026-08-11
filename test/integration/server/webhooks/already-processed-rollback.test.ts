@@ -133,14 +133,14 @@ describeWithEnv(
       if (!attResult.success) throw new Error("Failed to create attendee");
 
       // Reserve and finalize the session with the real attendee
-      const { finalizeProcessedPayment } = await import(
+      const { finalizeProcessedPayment, taggedPaymentReference } = await import(
         "#test-utils/processed-payments.ts"
       );
       await finalizeProcessedPayment(
         "cs_del_listing_wh",
         attResult.attendees[0]!.id,
         "tok-test",
-        "pi_del_listing_wh",
+        taggedPaymentReference("pi_del_listing_wh"),
       );
 
       // The metadata points at a since-deleted listing (99999). Because the

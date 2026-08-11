@@ -35,7 +35,10 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import { expectRefundReferences } from "#test-utils/payment-references.ts";
-import { getProcessedPayment } from "#test-utils/processed-payments.ts";
+import {
+  getProcessedPayment,
+  taggedPaymentReference,
+} from "#test-utils/processed-payments.ts";
 
 describeWithEnv("db > settle attendee balance", { db: true }, () => {
   test("clears the balance, moves to the paid status and logs it", async () => {
@@ -91,7 +94,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
         "balance-ref-ok",
         attendeeId,
         1500,
-        "pi_balance_ok",
+        taggedPaymentReference("pi_balance_ok"),
       ),
     );
 
@@ -125,7 +128,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
           "balance-held",
           attendeeId,
           1500,
-          "pi_balance_held",
+          taggedPaymentReference("pi_balance_held"),
         ),
       ),
     ).rejects.toThrow();
@@ -147,7 +150,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
         "balance-ref-mismatch",
         attendeeId,
         1000,
-        "pi_balance_mismatch",
+        taggedPaymentReference("pi_balance_mismatch"),
       ),
     );
 
