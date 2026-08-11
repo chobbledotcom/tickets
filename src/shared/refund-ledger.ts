@@ -97,13 +97,18 @@ const hasOperatorMoney = (group: Transfer[]): boolean =>
  * one group at a time, and mirrors every leg of it, so reversing part of an
  * account leaves the rest of it exactly as it was.
  */
+/** The order groups to reverse, and whether money that came back could not be
+ *  placed among them — a legacy reference names no session, so on a partial
+ *  return there is no saying which group it paid for. */
+type ReturnedGroups = { groups: Transfer[][]; unplaced: boolean };
+
 const returnedRefundGroups = async (
   groups: Transfer[][],
   references: RefundReferences,
-): Promise<Transfer[][]> => {
+): Promise<ReturnedGroups> => {
   // Operator money stays a person's call: a manual payment or an adjustment is
   // not something a provider refund can mirror back.
-  if (groups.some(hasOperatorMoney)) return [];
+  if (groups.some(hasOperatorMoney)) return { groups: [], unplaced: false };
   const returned = await refundedSessionGroups(references);
   const cameBack = (group: Transfer[]): boolean =>
     returned.has(group[0]!.eventGroup);
@@ -115,9 +120,12 @@ const returnedRefundGroups = async (
   // reference names no session and so cannot say WHICH group it paid for —
   // this is the one place that does not matter, because the answer is all of
   // them.
-  return unnamed.length <= legacyReferenceCount(references)
-    ? groups
-    : groups.filter(cameBack);
+  const legacyCount = legacyReferenceCount(references);
+  if (unnamed.length <= legacyCount) return { groups, unplaced: false };
+  // Only some of the account came back. A legacy reference that returned has
+  // no session to place it by, so its money belongs to no group we can name:
+  // post what we can and let the row say a person has to finish it.
+  return { groups: groups.filter(cameBack), unplaced: legacyCount > 0 };
 };
 
 /**
@@ -176,7 +184,10 @@ const computeAttendeeRefund = async (
   if (groups.length > 0 && open.length === 0) {
     return { groups: [], posted: true };
   }
-  const orders = await returnedRefundGroups(open, references);
+  const { groups: orders, unplaced } = await returnedRefundGroups(
+    open,
+    references,
+  );
   if (orders.length === 0) return { groups: [], posted: false };
   // Only auto-reverse a fully-paid account — UNLESS the account is a pure
   // payment-only placeholder (every order group is ONLY provider-payment legs,
@@ -201,7 +212,9 @@ const computeAttendeeRefund = async (
         }),
       ),
     ),
-    posted: true,
+    // Money that could not be placed leaves the ledger short of what moved, so
+    // this is not a complete record — the caller marks the row for a person.
+    posted: !unplaced,
   };
 };
 
