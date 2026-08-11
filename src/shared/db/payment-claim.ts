@@ -55,13 +55,16 @@ export type PaymentRowRecord = {
 export type ClaimResult =
   | { blockedBy: ClaimDecision; kind: "blocked" }
   | {
+      /** Each attendee's claimed rows, kept apart so a run can let one
+       *  attendee go while another's answer is still in doubt. Settlement is
+       *  per attendee, so the release has to be too. */
+      held: ReadonlyMap<number, readonly string[]>;
       heldSince: string;
       kind: "claimed";
       /** The reference indexes whose claimed row already says the money went
        *  back. Read instead of the reference list this run loaded before it
        *  had the hold, which can predate another run's answer. */
       returned: ReadonlySet<string>;
-      sessionIds: readonly string[];
     };
 
 type StoredRow = {
@@ -181,10 +184,10 @@ export const claimAttendeeRows = async (
 ): Promise<ClaimResult> => {
   if (attendeeIds.length === 0) {
     return {
+      held: new Map(),
       heldSince: nowIso(),
       kind: "claimed",
       returned: new Set(),
-      sessionIds: [],
     };
   }
   const writtenAt = nowIso();
@@ -226,6 +229,14 @@ export const claimAttendeeRows = async (
       });
     }
     return {
+      held: new Map(
+        [...Map.groupBy(rows, (row) => row.attendeeId)].map(
+          ([attendeeId, owned]) => [
+            attendeeId,
+            owned.map((row) => row.sessionId),
+          ],
+        ),
+      ),
       heldSince: writtenAt,
       kind: "claimed",
       // Sharing rows count too: money returned against a reference is
@@ -235,18 +246,27 @@ export const claimAttendeeRows = async (
           .filter((row) => row.provider_refunded_at !== "")
           .map((row) => row.payment_reference_index),
       ),
-      sessionIds: rows.map((row) => row.sessionId),
     };
   });
 };
 
-/** Let go of the rows a run claimed, leaving whatever else they carry alone.
- *  Only the exact `heldSince` claim is released: a run that stalled past the
- *  staleness cutoff must not strip the live claim off work another run has
- *  since resumed. */
+/**
+ * Let go of the rows a run claimed, leaving whatever else they carry alone.
+ *
+ * Only the exact `heldSince` claim is released: a run that stalled past the
+ * staleness cutoff must not strip the live claim off work another run has
+ * since resumed.
+ *
+ * `unrecorded` names the sessions whose money went back with no ledger entry.
+ * The mark goes on as the hold comes off, so the row that proves the money
+ * moved is never left unprotected in between — and letting go without it
+ * clears an older mark, which is how the state retires when a later run's
+ * ledger post finally lands.
+ */
 export const releaseAttendeeRows = async (
   sessionIds: readonly string[],
   heldSince: string,
+  unrecorded: ReadonlySet<string> = new Set(),
 ): Promise<void> => {
   if (sessionIds.length === 0) return;
   // Two batches rather than a transaction: nothing between the read and the
@@ -268,8 +288,13 @@ export const releaseAttendeeRows = async (
       .map(async (row) => {
         // Letting the claim go does not clear the row: an owner review it
         // still carries has to keep showing.
-        const { claim: _released, ...kept } = row.state;
-        return await rowStateStatement(row, kept);
+        const { claim: _released, unrecorded: _settled, ...kept } = row.state;
+        return await rowStateStatement(
+          row,
+          unrecorded.has(row.sessionId)
+            ? { ...kept, unrecorded: { returnedAt: nowIso() } }
+            : kept,
+        );
       }),
   );
   if (writes.length > 0) await executeBatch(writes);

@@ -152,13 +152,15 @@ describeWithEnv(
       expect(await refundCashAmounts(attendeeId)).toEqual([5000]);
     });
 
-    test("a keyless run keeps its hold when the ledger cannot record it", async () => {
+    test("a keyless run whose ledger post failed marks the row and lets go", async () => {
       // No booking is posted, so the reversal finds no order and the post
-      // fails. Without an idempotency key a retry would send the money a
-      // second time, so the row has to stay held until someone corrects the
-      // ledger — and it can only stay held if the post happens while the hold
-      // is still on.
-      const claim = grantingRowClaim();
+      // fails. The provider answered clearly, though — the money did go back —
+      // so there is no doubt for the hold to guard against, only books that are
+      // behind. Keeping the claim here is what left a SumUp attendee stuck for
+      // good: ledger-refunded, so no later run picks them up to release it, and
+      // refused by both delete and merge. The mark protects the row the
+      // correction needs and does none of that.
+      const claim = grantingRowClaim(new Map([[21, ["sess-21"]]]));
 
       const counts = await processRefundBatch(
         failingProvider(new Set(), "keyless"),
@@ -171,11 +173,12 @@ describeWithEnv(
       // A provider that answered clearly is not an uncertain provider: the two
       // are counted apart so only one of them can say the money moved.
       expect(counts.errorCount).toBe(0);
-      expect(claim.released).toEqual([]);
+      expect(claim.released).toEqual([["sess-21"]]);
+      expect(claim.unrecorded).toEqual([["sess-21"]]);
     });
 
     test("a keyed run lets go, because a repeat lands on the same refund", async () => {
-      const claim = grantingRowClaim();
+      const claim = grantingRowClaim(new Map([[22, ["sess-22"]]]));
 
       await processRefundBatch(
         failingProvider(new Set()),

@@ -177,24 +177,33 @@ export const withRefundMock = async (
   });
 };
 
-/** A row claim that always grants and records what it released. The durable
- *  claim's own rules are covered in `test/shared/db/payment-claim.test.ts`. */
-export const grantingRowClaim = (): RowClaim & {
-  released: string[][];
-} => {
+/** A row claim that always grants, holding exactly the rows it is told the run
+ *  loaded, and recording every release and every row it marked as money the
+ *  ledger has not caught up with. The durable claim's own rules are covered in
+ *  `test/shared/db/payment-claim.test.ts`. */
+export const grantingRowClaim = (
+  held: ReadonlyMap<number, readonly string[]> = new Map(),
+): RowClaim & { released: string[][]; unrecorded: string[][] } => {
   const released: string[][] = [];
+  const unrecorded: string[][] = [];
   return {
     claim: () =>
       Promise.resolve({
+        held,
         heldSince: "2026-08-10T12:00:00.000Z",
         kind: "claimed",
         returned: new Set<string>(),
-        sessionIds: [],
       }),
-    release: (sessionIds: readonly string[]) => {
+    release: (
+      sessionIds: readonly string[],
+      _heldSince: string,
+      marked: ReadonlySet<string> = new Set(),
+    ) => {
       released.push([...sessionIds]);
+      unrecorded.push([...marked]);
       return Promise.resolve();
     },
     released,
+    unrecorded,
   };
 };

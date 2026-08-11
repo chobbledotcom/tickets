@@ -43,8 +43,25 @@ export type RowClaim = {
     attendeeIds: readonly number[],
     capability: RefundCapability,
   ) => Promise<ClaimResult>;
-  release: (sessionIds: readonly string[], heldSince: string) => Promise<void>;
+  release: (
+    sessionIds: readonly string[],
+    heldSince: string,
+    unrecorded?: ReadonlySet<string>,
+  ) => Promise<void>;
 };
+
+/**
+ * What a run decided about one attendee it held. An attendee named by neither
+ * is settled and simply lets go.
+ *
+ * `in_doubt` is the only verdict that can keep a hold, and only against a
+ * keyless provider: the call was made and not confirmed, so a retry could pay
+ * twice. `unrecorded` is the opposite — the provider answered clearly and it
+ * is our books that are behind, so the row says so and the hold goes. Keeping
+ * the claim there would protect nothing the mark does not, while making the
+ * attendee impossible to pick up, delete or merge for good.
+ */
+export type AttendeeVerdict = "in_doubt" | "unrecorded";
 
 export const durableRowClaim: RowClaim = {
   claim: claimAttendeeRows,
@@ -170,11 +187,14 @@ const refundReferenceOnce = async (
 /** Let go of a hold, reporting rather than raising when the row will not. */
 const releaseHold = async (
   rowClaim: RowClaim,
-  claim: { heldSince: string; sessionIds: readonly string[] },
+  heldSince: string,
+  sessionIds: readonly string[],
+  unrecorded: ReadonlySet<string>,
   listingId: number,
 ): Promise<void> => {
+  if (sessionIds.length === 0) return;
   try {
-    await rowClaim.release(claim.sessionIds, claim.heldSince);
+    await rowClaim.release(sessionIds, heldSince, unrecorded);
   } catch (error) {
     reportRefundProblem(
       `Refund claim could not be released: ${String(error)}`,
@@ -193,7 +213,7 @@ export const underAttendeeClaim = async <TResult>(
   listingId: number,
   run: {
     blocked: (reason: string) => TResult;
-    lost: (result: TResult) => boolean;
+    verdicts: (result: TResult) => ReadonlyMap<number, AttendeeVerdict>;
     work: (alreadyReturned: ReadonlySet<string>) => Promise<TResult>;
   },
 ): Promise<TResult> => {
@@ -219,12 +239,19 @@ export const underAttendeeClaim = async <TResult>(
   // leave the rest, so the whole run stands down. An anchor is not such a
   // payment: it stands in for a charge this run already knows about, and the
   // reference list leaves its id out on purpose.
-  const unknown = claim.sessionIds.filter(
+  const heldSessionIds = [...claim.held.values()].flat();
+  const unknown = heldSessionIds.filter(
     (sessionId) =>
       !knownSessionIds.has(sessionId) && !isAnchorSession(sessionId),
   );
   if (unknown.length > 0) {
-    await releaseHold(rowClaim, claim, listingId);
+    await releaseHold(
+      rowClaim,
+      claim.heldSince,
+      heldSessionIds,
+      new Set(),
+      listingId,
+    );
     return run.blocked(
       `a payment landed while this run was waiting (${unknown.length} not in the set it loaded)`,
     );
@@ -232,16 +259,36 @@ export const underAttendeeClaim = async <TResult>(
   // A failed release leaves the claim standing until it goes stale, which is
   // recoverable; losing the answer the run just produced is not. So it is
   // reported, never allowed to replace the result or the original error.
-  const release = async (lost: boolean): Promise<void> => {
-    if (!mayReleaseClaim(capability, lost ? "lost" : "validated")) return;
-    await releaseHold(rowClaim, claim, listingId);
+  const settle = async (
+    verdicts: ReadonlyMap<number, AttendeeVerdict>,
+  ): Promise<void> => {
+    const releasing: string[] = [];
+    const unrecorded = new Set<string>();
+    for (const [attendeeId, sessions] of claim.held) {
+      const verdict = verdicts.get(attendeeId);
+      if (verdict === "in_doubt" && !mayReleaseClaim(capability, "lost")) {
+        continue;
+      }
+      releasing.push(...sessions);
+      if (verdict === "unrecorded") {
+        for (const sessionId of sessions) unrecorded.add(sessionId);
+      }
+    }
+    await releaseHold(
+      rowClaim,
+      claim.heldSince,
+      releasing,
+      unrecorded,
+      listingId,
+    );
   };
   try {
     const result = await run.work(claim.returned);
-    await release(run.lost(result));
+    await settle(run.verdicts(result));
     return result;
   } catch (error) {
-    await release(true);
+    // Nothing is known about anybody, so every attendee is in doubt.
+    await settle(new Map([...claim.held.keys()].map((id) => [id, "in_doubt"])));
     throw error;
   }
 };
@@ -385,6 +432,13 @@ const tallyProviderRefund = (
   }
 };
 
+/** What a claimed run comes to: the tally, and what it decided about each
+ *  attendee it held. */
+type ClaimedRun = {
+  counts: RefundCounts;
+  verdicts: ReadonlyMap<number, AttendeeVerdict>;
+};
+
 /** Refund one chunk of attendees at the provider, then record full successes in
  * the ledger before starting the next chunk. */
 export const processRefundBatch = async (
@@ -394,7 +448,7 @@ export const processRefundBatch = async (
   rowClaim: RowClaim = durableRowClaim,
   markReturnedReferences: MarkReturnedReferences = markPaymentReferencesProviderRefunded,
 ): Promise<RefundCounts> => {
-  const result = await underAttendeeClaim(
+  const result = await underAttendeeClaim<ClaimedRun>(
     rowClaim,
     batch.map((candidate) => ({
       attendeeId: candidate.attendee.id,
@@ -410,12 +464,9 @@ export const processRefundBatch = async (
             listingId,
           );
         }
-        return { counts: noRefunds(batch.length), unsettled: false };
+        return { counts: noRefunds(batch.length), verdicts: new Map() };
       },
-      lost: (result) =>
-        result.counts.errorCount > 0 ||
-        result.counts.notRecordedCount > 0 ||
-        result.unsettled,
+      verdicts: (result) => result.verdicts,
       work: (alreadyReturned) =>
         refundClaimedBatch(
           provider,
@@ -435,8 +486,8 @@ const refundClaimedBatch = async (
   listingId: number,
   markReturnedReferences: MarkReturnedReferences,
   alreadyReturned: ReadonlySet<string>,
-): Promise<{ counts: RefundCounts; unsettled: boolean }> => {
-  let unsettled = false;
+): Promise<ClaimedRun> => {
+  const verdicts = new Map<number, AttendeeVerdict>();
   // Shared across the whole run, so a charge two attendees both carry is asked
   // about once.
   const inFlight = new Map<string, Promise<ReferenceRefund>>();
@@ -458,7 +509,11 @@ const refundClaimedBatch = async (
     );
     const postings: LedgerPosting[] = [];
     for (const result of results) {
-      if (result.unsettled === true) unsettled = true;
+      // Nothing durable proves what this attendee's money did, so their rows
+      // keep the hold against a keyless provider that would pay twice.
+      if (result.unsettled === true) {
+        verdicts.set(result.candidate.attendee.id, "in_doubt");
+      }
       tallyProviderRefund(counts, result, listingId, postings);
     }
     const posted = await recordAttendeeRefundsBatch(postings);
@@ -469,10 +524,14 @@ const refundClaimedBatch = async (
         // report the broken promise per attendee, not just the aggregate count.
         counts.notRecordedCount++;
         reportRefundNotRecorded({ attendeeId, listingId });
+        // Certain the money moved, so the row says so and the hold goes.
+        // Doubt about the same attendee outranks it: there, the money may not
+        // have moved at all.
+        if (!verdicts.has(attendeeId)) verdicts.set(attendeeId, "unrecorded");
       } else if (posting.whole) {
         counts.refundedCount++;
       }
     }
   }
-  return { counts, unsettled };
+  return { counts, verdicts };
 };

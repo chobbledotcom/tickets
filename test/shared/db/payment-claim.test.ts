@@ -10,10 +10,12 @@ import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   CLAIM_MIRROR,
+  heldSessionIds,
   putRowState,
   REVIEW_MIRROR,
   rowStateSlot,
   staleClaimSlot,
+  UNRECORDED_MIRROR,
 } from "#test-utils/payment-claim.ts";
 import { bookedWithPayment } from "#test-utils/processed-payments.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
@@ -37,8 +39,9 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
     test("an unclaimed attendee's rows are claimed", async () => {
       const attendeeId = await bookedWithPayment("sess-a", "pi_a");
       const result = await claimAttendeeRows([attendeeId], "keyless");
-      expect(result.kind).toBe("claimed");
-      expect(result).toMatchObject({ sessionIds: ["sess-a"] });
+      if (result.kind !== "claimed") throw new Error("the claim was refused");
+      expect(heldSessionIds(result)).toEqual(["sess-a"]);
+      expect([...result.held.keys()]).toEqual([attendeeId]);
     });
 
     test("the claim shows in the plaintext mirror the prune reads", async () => {
@@ -75,10 +78,9 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
       const first = await bookedWithPayment("sess-e1", "pi_shared");
       const second = await bookedWithPayment("sess-e2", "pi_shared");
 
-      expect(await claimAttendeeRows([first], "keyless")).toMatchObject({
-        kind: "claimed",
-        sessionIds: ["sess-e1"],
-      });
+      const held = await claimAttendeeRows([first], "keyless");
+      if (held.kind !== "claimed") throw new Error("the claim was refused");
+      expect(heldSessionIds(held)).toEqual(["sess-e1"]);
       // The second attendee's own row is untouched, but the money behind it is
       // already claimed by someone we cannot take over, so this run must not
       // reach the provider.
@@ -102,10 +104,9 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
       const first = await bookedWithPayment("sess-g1", "pi_g1");
       const second = await bookedWithPayment("sess-g2", "pi_g2");
       await claimAttendeeRows([first], "keyless");
-      expect(await claimAttendeeRows([second], "keyless")).toMatchObject({
-        kind: "claimed",
-        sessionIds: ["sess-g2"],
-      });
+      const second_ = await claimAttendeeRows([second], "keyless");
+      if (second_.kind !== "claimed") throw new Error("the claim was refused");
+      expect(heldSessionIds(second_)).toEqual(["sess-g2"]);
     });
   });
 
@@ -152,7 +153,6 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
       await releaseAttendeeRows(["sess-l"], claimed.heldSince);
       expect(await claimAttendeeRows([attendeeId], "keyless")).toMatchObject({
         kind: "claimed",
-        sessionIds: ["sess-l"],
       });
     });
 
@@ -175,6 +175,52 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
       expect(await protectedStateOf("sess-rev")).toEqual({ v: REVIEW_MIRROR });
     });
 
+    test("money the ledger missed is marked as the hold comes off", async () => {
+      // The provider sent this money back and our books do not have it. The
+      // claim is the wrong thing to keep — it would stop any later run picking
+      // the attendee up, and both delete and merge, for good — but the row is
+      // the repair target, so it cannot go unprotected either. The mark does
+      // one without the other, and lands in the same write as the release so
+      // there is no moment where neither holds.
+      const attendeeId = await bookedWithPayment("sess-off", "pi_off");
+      const held = await claimAttendeeRows([attendeeId], "keyless");
+      if (held.kind !== "claimed") throw new Error("the claim was refused");
+
+      await releaseAttendeeRows(
+        ["sess-off"],
+        held.heldSince,
+        new Set(["sess-off"]),
+      );
+
+      expect(await protectedStateOf("sess-off")).toEqual({
+        v: UNRECORDED_MIRROR,
+      });
+      // And it really is free to be claimed again, which is what lets a later
+      // run post the ledger entry that retires it.
+      expect(await claimAttendeeRows([attendeeId], "keyless")).toMatchObject({
+        kind: "claimed",
+      });
+    });
+
+    test("a later run that records the money takes the mark off", async () => {
+      const attendeeId = await bookedWithPayment("sess-on", "pi_on");
+      await putRowState(
+        "sess-on",
+        await rowStateSlot({
+          unrecorded: { returnedAt: "2026-01-01T00:00:00.000Z" },
+        }),
+        UNRECORDED_MIRROR,
+      );
+      const held = await claimAttendeeRows([attendeeId], "keyless");
+      if (held.kind !== "claimed") throw new Error("the claim was refused");
+
+      // Letting go without naming it is how the state retires: the run that
+      // finally got the ledger entry in has nothing left to protect.
+      await releaseAttendeeRows(["sess-on"], held.heldSince);
+
+      expect(await protectedStateOf("sess-on")).toEqual({ v: "" });
+    });
+
     test("releasing clears the mirror the prune reads", async () => {
       const attendeeId = await bookedWithPayment("sess-m", "pi_m");
       const held = await claimAttendeeRows([attendeeId], "keyless");
@@ -192,10 +238,9 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
 
     test("claiming nobody holds nothing and reaches no database", async () => {
       const calls = await countDatabaseCalls(0, async () => {
-        expect(await claimAttendeeRows([], "keyless")).toMatchObject({
-          kind: "claimed",
-          sessionIds: [],
-        });
+        const nobody = await claimAttendeeRows([], "keyless");
+        if (nobody.kind !== "claimed") throw new Error("refused");
+        expect(heldSessionIds(nobody)).toEqual([]);
       });
       expect(calls).toBe(0);
     });
@@ -215,11 +260,11 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
 
       // A later run resumed these rows and holds them now. The stalled run
       // waking up must not hand its successor's work to a third run.
-      await releaseAttendeeRows(stalled.sessionIds, stalled.heldSince);
+      await releaseAttendeeRows(heldSessionIds(stalled), stalled.heldSince);
       const resumed = await claimAttendeeRows([attendeeId], "keyless");
       if (resumed.kind !== "claimed") throw new Error("the resume was refused");
 
-      await releaseAttendeeRows(stalled.sessionIds, stalled.heldSince);
+      await releaseAttendeeRows(heldSessionIds(stalled), stalled.heldSince);
 
       expect(resumed.heldSince).not.toBe(stalled.heldSince);
       expect(await protectedStateOf("sess-stall")).toEqual({

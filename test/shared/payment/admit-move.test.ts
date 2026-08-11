@@ -14,6 +14,8 @@ const CLAIM_REFUSAL =
   "A refund for this person is still in progress. Finish or re-run the refund, then try again.";
 const REVIEW_REFUSAL =
   "The owner still has to check a payment for this person. Mark it reviewed, then try again.";
+const UNRECORDED_REFUSAL =
+  "This person's money went back, but the accounts do not show it. Record it, then try again.";
 
 const CLAIMED: PaymentRowState = {
   claim: {
@@ -24,6 +26,9 @@ const CLAIMED: PaymentRowState = {
   },
 };
 const UNDER_REVIEW: PaymentRowState = { review: { kind: "partial_refund" } };
+const UNRECORDED: PaymentRowState = {
+  unrecorded: { returnedAt: "2026-01-01T00:00:00.000Z" },
+};
 const SETTLED: PaymentRowState = { outcome: { error: "Card declined" } };
 const FREE: PaymentRowState = {};
 
@@ -48,6 +53,23 @@ describe("payment > admit move", () => {
     // the review is still there to do.
     test("merge carries the review across instead of refusing", () => {
       expect(moveRefusalOrNull([UNDER_REVIEW], "merge")).toBeNull();
+    });
+  });
+
+  describe("money the books have not caught up with", () => {
+    // Deleting destroys the payment row, and that row is the repair target for
+    // the correction somebody was just asked to make — while the payout stays
+    // missing from the ledger.
+    test("delete waits until the money is on the books", () => {
+      expect(moveRefusalOrNull([UNRECORDED], "delete")).toBe(
+        UNRECORDED_REFUSAL,
+      );
+    });
+
+    // A merge relocates the row, so the mark rides across and the correction
+    // is still there to make afterwards.
+    test("merge carries the mark across instead of refusing", () => {
+      expect(moveRefusalOrNull([UNRECORDED], "merge")).toBeNull();
     });
   });
 
@@ -97,8 +119,19 @@ describe("payment > admit move", () => {
       expect(mirrorFor(UNDER_REVIEW)).toBe("review");
     });
 
+    test("a row whose money is off the books shows that", () => {
+      // Same reason as the review: this word is the whole of what the prune
+      // and the orphan purge can see.
+      expect(mirrorFor(UNRECORDED)).toBe("unrecorded");
+    });
+
     test("a claim outranks a review while both are on the row", () => {
       expect(mirrorFor({ ...CLAIMED, ...UNDER_REVIEW })).toBe("claim");
+    });
+
+    test("money off the books outranks a review, and a claim outranks both", () => {
+      expect(mirrorFor({ ...UNRECORDED, ...UNDER_REVIEW })).toBe("unrecorded");
+      expect(mirrorFor({ ...CLAIMED, ...UNRECORDED })).toBe("claim");
     });
 
     test("a payment that already ended shows nothing", () => {

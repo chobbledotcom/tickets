@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import {
+  type AttendeeVerdict,
   processRefundBatch,
   type RowClaim,
   refundCandidateAtProvider,
@@ -427,7 +428,13 @@ describe("admin refund provider > the claim", () => {
   });
 
   test("the whole batch is held by one claim, not one per attendee", async () => {
-    const rowClaim = grantingRowClaim();
+    const rowClaim = grantingRowClaim(
+      new Map([
+        [11, ["sess_pi_1"]],
+        [12, ["sess_pi_2"]],
+        [13, ["sess_pi_3"]],
+      ]),
+    );
     const claimed: number[][] = [];
     const counting: RowClaim = {
       claim: (attendeeIds, capability) => {
@@ -455,7 +462,7 @@ describe("admin refund provider > the claim", () => {
   });
 
   test("a keyless batch whose call errored keeps its claim standing", async () => {
-    const rowClaim = grantingRowClaim();
+    const rowClaim = grantingRowClaim(new Map([[42, ["sess_pi_lost"]]]));
     const keylessThatDies = provider({
       refundCapability: "keyless",
       throws: new Set(["pi_lost"]),
@@ -563,24 +570,37 @@ describe("admin refund provider > an unrecorded refund", () => {
 
   /** Run a keyless hold whose work ends recorded or not, and say how many
    *  times it let go. */
-  const releasesAfter = async (unsettled: boolean): Promise<number> => {
-    const rowClaim = grantingRowClaim();
-    await underAttendeeClaim(rowClaim, holding(), "keyless", 7, {
-      blocked: () => ({ unsettled: false }),
-      lost: (result) => result.unsettled,
-      work: () => Promise.resolve({ unsettled }),
+  /** Run a keyless hold on one attendee and report what it let go of, and what
+   *  it marked as money the ledger has not caught up with. */
+  const keylessHold = async (verdict?: AttendeeVerdict) => {
+    const rowClaim = grantingRowClaim(new Map([[11, ["sess-held"]]]));
+    await underAttendeeClaim(rowClaim, holding("sess-held"), "keyless", 7, {
+      blocked: () => "blocked",
+      verdicts: () => (verdict ? new Map([[11, verdict]]) : new Map()),
+      work: () => Promise.resolve("ran"),
     });
-    return rowClaim.released.length;
+    return rowClaim;
   };
 
-  test("a keyless run keeps its hold when the answer is unrecorded", async () => {
+  test("a keyless run keeps its hold while the answer is in doubt", async () => {
     // Releasing here is how a retry, reading a provider that has not caught
     // up, sends the money a second time.
-    expect(await releasesAfter(true)).toBe(0);
+    expect((await keylessHold("in_doubt")).released).toEqual([]);
   });
 
-  test("a keyless run lets go when the answer is recorded", async () => {
-    expect(await releasesAfter(false)).toBe(1);
+  test("a keyless run lets go when the answer is settled", async () => {
+    expect((await keylessHold()).released).toEqual([["sess-held"]]);
+  });
+
+  test("a keyless run whose money the ledger missed lets go, marked", async () => {
+    // The provider answered clearly, so there is no doubt to hold against —
+    // only books that are behind. Keeping the claim here is what left a SumUp
+    // attendee un-pickable, un-deletable and un-mergeable for good; the mark
+    // protects the row the correction needs without any of that.
+    const rowClaim = await keylessHold("unrecorded");
+
+    expect(rowClaim.released).toEqual([["sess-held"]]);
+    expect(rowClaim.unrecorded).toEqual([["sess-held"]]);
   });
 });
 
@@ -609,10 +629,10 @@ describe("admin refund provider > a release that fails", () => {
     const refusingRelease: RowClaim = {
       claim: () =>
         Promise.resolve({
+          held: new Map([[11, ["sess-x"]]]),
           heldSince: "2026-08-10T12:00:00.000Z",
           kind: "claimed",
           returned: new Set<string>(),
-          sessionIds: ["sess-x"],
         }),
       release: () => Promise.reject(new Error("the row would not let go")),
     };
@@ -624,7 +644,7 @@ describe("admin refund provider > a release that fails", () => {
       7,
       {
         blocked: () => ({ tally: "blocked" }),
-        lost: () => false,
+        verdicts: () => new Map(),
         work: () => Promise.resolve({ tally: "refunded" }),
       },
     );
@@ -641,10 +661,10 @@ describe("admin refund provider > a payment that landed while we waited", () => 
     const holdsAnchor: RowClaim = {
       claim: () =>
         Promise.resolve({
+          held: new Map([[11, ["sess-known", "legacy-merge:7"]]]),
           heldSince: "2026-08-10T12:00:00.000Z",
           kind: "claimed",
           returned: new Set<string>(),
-          sessionIds: ["sess-known", "legacy-merge:7"],
         }),
       release: () => Promise.resolve(),
     };
@@ -656,7 +676,7 @@ describe("admin refund provider > a payment that landed while we waited", () => 
       7,
       {
         blocked: (reason) => reason,
-        lost: () => false,
+        verdicts: () => new Map(),
         work: () => Promise.resolve("ran"),
       },
     );
@@ -670,10 +690,10 @@ describe("admin refund provider > a payment that landed while we waited", () => 
     const holdsMore: RowClaim = {
       claim: () =>
         Promise.resolve({
+          held: new Map([[11, ["sess-known", "sess-new"]]]),
           heldSince: "2026-08-10T12:00:00.000Z",
           kind: "claimed",
           returned: new Set<string>(),
-          sessionIds: ["sess-known", "sess-new"],
         }),
       release: (sessionIds) => {
         released.push([...sessionIds]);
@@ -689,7 +709,7 @@ describe("admin refund provider > a payment that landed while we waited", () => 
       7,
       {
         blocked: (reason) => reason,
-        lost: () => false,
+        verdicts: () => new Map(),
         work: () => {
           worked = true;
           return Promise.resolve("ran");
@@ -747,10 +767,10 @@ describe("admin refund provider > a run that dies holding money", () => {
     const recordsRelease: RowClaim = {
       claim: () =>
         Promise.resolve({
+          held: new Map([[11, ["sess-x"]]]),
           heldSince: "2026-08-10T12:00:00.000Z",
           kind: "claimed",
           returned: new Set<string>(),
-          sessionIds: ["sess-x"],
         }),
       release: () => {
         releases.push("released");
@@ -761,7 +781,7 @@ describe("admin refund provider > a run that dies holding money", () => {
     await expect(
       underAttendeeClaim(recordsRelease, holding("sess-x"), "keyed", 7, {
         blocked: () => "blocked",
-        lost: () => false,
+        verdicts: () => new Map(),
         work: () => Promise.reject(new Error("the provider fell over")),
       }),
     ).rejects.toThrow("the provider fell over");
