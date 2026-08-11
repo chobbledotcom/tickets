@@ -724,3 +724,35 @@ describe("admin refund provider > one charge two attendees carry", () => {
     });
   });
 });
+
+describe("admin refund provider > a run that dies holding money", () => {
+  test("lets the hold go and raises the failure, rather than swallowing it", async () => {
+    const releases: string[] = [];
+    const recordsRelease: RowClaim = {
+      claim: () =>
+        Promise.resolve({
+          heldSince: "2026-08-10T12:00:00.000Z",
+          kind: "claimed",
+          returned: new Set<string>(),
+          sessionIds: ["sess-x"],
+        }),
+      release: () => {
+        releases.push("released");
+        return Promise.resolve();
+      },
+    };
+
+    await expect(
+      underAttendeeClaim(recordsRelease, holding("sess-x"), "keyed", 7, {
+        blocked: () => "blocked",
+        lost: () => false,
+        work: () => Promise.reject(new Error("the provider fell over")),
+      }),
+    ).rejects.toThrow("the provider fell over");
+
+    // A run that died never learned what the money did, so its hold is judged
+    // as a lost answer. A keyed provider is safe to re-run onto the same key,
+    // so the hold goes rather than standing until it goes stale.
+    expect(releases).toEqual(["released"]);
+  });
+});
