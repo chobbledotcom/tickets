@@ -2497,3 +2497,40 @@ That should be said out loud somewhere an operator will see it, rather than
 being left as a 503 nobody can explain.
 
 Found by Codex on #2065.
+
+## The two-pending-refunds throw escapes into a 500
+
+`refundOutcome` throws when a reading holds two refunds in flight. That was a
+deliberate choice — broken evidence should be loud rather than pass as settled —
+but `admitProviderRefund` calls `refundOutcomeOf` OUTSIDE `chargeOrNothing`'s
+catch, which wraps only the provider read. So the throw escapes: the
+refresh-payment route and the refund callbacks answer 500 and retry for ever,
+and an admin run reads the same evidence as an unanswered call.
+
+It is reachable with real data. SumUp maps both PENDING and SCHEDULED to
+"pending", so a transaction carrying two such REFUND events — overlapping
+historical attempts — produces two pending observations.
+
+Loud and safe are not in conflict here. Two pending refunds are conclusive
+evidence to withhold, so the honest answer is a withheld outcome that reports
+itself, not an exception that becomes a retrying 500. Changing it contradicts a
+decision recorded in PR4_PLAN.md, so the document and the code want changing
+together.
+
+## Legacy sibling rows can go unindexed until it is too late
+
+The claim's sibling lookup finds rows by `payment_reference_index`, and
+`getRefundPaymentReferences` repairs that index only for the attendee it is
+loading. On an upgraded database where attendees A and B hold old rows sharing
+one SumUp reference, a refund for A cannot mark B's still-unindexed row. After
+A's ledger refund, ordinary payment pruning can delete A's row — and with it the
+only marker saying that money already went back. When B is loaded later its
+index is repaired, but there is no marked sibling left to find, so lagging SumUp
+evidence can admit a second keyless payout for the same charge.
+
+Every step is ordinary: an upgrade, a shared legacy reference, a refund, a
+prune, a slow provider. The fix is to backfill every legacy reference index
+before claims and marker fan-out depend on the lookup, rather than repairing one
+attendee at a time on read.
+
+Both found by Codex on #2065.
