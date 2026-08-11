@@ -118,7 +118,7 @@ describeWithEnv(
     test("keeps a resumed keyless hold when the provider cannot be read", async () => {
       const claim = grantingRowClaim(
         new Map([[31, ["sess-31"]]]),
-        new Set([31]),
+        new Map([[31, "keyless"]]),
       );
 
       const provider = unreadableProvider("keyless");
@@ -131,6 +131,27 @@ describeWithEnv(
       );
 
       // Whatever the hold does, an unreadable provider is never sent money.
+      expect(provider.sent).toEqual([]);
+      expect(claim.released).toEqual([]);
+    });
+
+    // The risk belongs to the call that was made. An operator switching the
+    // existing-payment provider to Stripe must not make a SumUp hold
+    // releasable, or switching back while its evidence lags pays twice.
+    test("keeps an inherited keyless hold even when this run is keyed", async () => {
+      const claim = grantingRowClaim(
+        new Map([[34, ["sess-34"]]]),
+        new Map([[34, "keyless"]]),
+      );
+      const provider = unreadableProvider("keyed");
+
+      await processRefundBatch(
+        provider,
+        [heldCandidate(34, "sess-34")],
+        LISTING,
+        { claim },
+      );
+
       expect(provider.sent).toEqual([]);
       expect(claim.released).toEqual([]);
     });
@@ -155,7 +176,7 @@ describeWithEnv(
     test("lets a resumed KEYED hold go when the provider cannot be read", async () => {
       const claim = grantingRowClaim(
         new Map([[33, ["sess-33"]]]),
-        new Set([33]),
+        new Map([[33, "keyed"]]),
       );
 
       const provider = unreadableProvider("keyed");

@@ -3,6 +3,7 @@ import { handleRequest } from "#routes";
 import type { RowClaim } from "#routes/admin/refunds/provider.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
+import type { RefundCapability } from "#shared/payment/row-state.ts";
 import { paymentsApi } from "#shared/payments.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
@@ -183,7 +184,7 @@ export const withRefundMock = async (
  *  `test/shared/db/payment-claim.test.ts`. */
 export const grantingRowClaim = (
   held: ReadonlyMap<number, readonly string[]> = new Map(),
-  resumed: ReadonlySet<number> = new Set(),
+  inherited: ReadonlyMap<number, RefundCapability> = new Map(),
 ): RowClaim & { released: string[][]; unrecorded: string[][] } => {
   const released: string[][] = [];
   const unrecorded: string[][] = [];
@@ -192,8 +193,8 @@ export const grantingRowClaim = (
       Promise.resolve({
         held,
         heldSince: "2026-08-10T12:00:00.000Z",
+        inherited,
         kind: "claimed",
-        resumed,
         returned: new Set<string>(),
       }),
     release: ({ sessionIds, unrecorded: marked = new Set() }) => {

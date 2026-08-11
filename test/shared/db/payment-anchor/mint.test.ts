@@ -76,8 +76,8 @@ describeWithEnv(
       expect(await claimAttendeeRows([attendeeId], "keyless")).toEqual({
         held: new Map(),
         heldSince: expect.any(String),
+        inherited: new Map(),
         kind: "claimed",
-        resumed: new Set(),
         returned: new Set(),
       });
 

@@ -57,7 +57,7 @@ describe("decideClaim", () => {
   test("a stale claim on our own attendee's set is resumed", () => {
     expect(
       decideClaim(attendeeClaim(CRASHED), ADMIN_RUN, STALE_BEFORE),
-    ).toEqual({ kind: "resume" });
+    ).toEqual({ kind: "resume", resuming: attendeeClaim(CRASHED) });
   });
 
   test("a stale claim on a different attendee's set is left alone", () => {
@@ -72,7 +72,7 @@ describe("holdsTheRow", () => {
     [{ kind: "foreign" }, false],
     [{ kind: "grant" }, true],
     [{ kind: "held" }, false],
-    [{ kind: "resume" }, true],
+    [{ kind: "resume", resuming: attendeeClaim(CRASHED) }, true],
   ];
   for (const [decision, expected] of HOLDS) {
     test(`${decision.kind} ${expected ? "holds" : "does not hold"} the row`, () => {
@@ -120,10 +120,14 @@ describe("saying why a run was turned away", () => {
   // Both of these mean the run HOLDS the row. Asking why it was refused is
   // the caller having lost track of its own answer, so it fails rather than
   // handing back words that would read as a refusal in a log.
-  for (const kind of ["grant", "resume"] as const) {
-    test(`${kind} has no refusal to give`, () => {
-      expect(() => claimRefusal({ kind })).toThrow(
-        `A granted claim has no refusal: ${kind}`,
+  const GRANTED: ClaimDecision[] = [
+    { kind: "grant" },
+    { kind: "resume", resuming: attendeeClaim(CRASHED) },
+  ];
+  for (const decision of GRANTED) {
+    test(`${decision.kind} has no refusal to give`, () => {
+      expect(() => claimRefusal(decision)).toThrow(
+        `A granted claim has no refusal: ${decision.kind}`,
       );
     });
   }
