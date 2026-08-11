@@ -65,7 +65,7 @@ type PrefixRoute = {
 const continueRoute = (_path: string, _method: string): null => null;
 
 const prefixRoute = (
-  messageGroups: readonly MessageGroup[],
+  messageGroups: readonly MessageGroup[] = [],
   handler: RouterFn,
   beforeMessages: PrefixRoute["beforeMessages"] = continueRoute,
 ): PrefixRoute => ({ beforeMessages, handler, messageGroups });
@@ -104,51 +104,14 @@ const lazyRouter = <M>(
 ): (() => Promise<RouterFn>) =>
   once(async () => createRouter(routes(await load())));
 
-// Import specifiers stay literal so esbuild can bundle every lazy target.
-const routeLoaders = {
-  admin: lazyExport(() => import("#routes/admin/index.ts"), "routeAdmin"),
-  api: lazyExport(() => import("#routes/api/index.ts"), "routeApi"),
-  balance: lazyExport(
-    () => import("#routes/public/balance.ts"),
-    "routeBalance",
-  ),
-  checkin: lazyExport(() => import("#routes/checkin.ts"), "routeCheckin"),
-  demoReset: lazyExport(
-    () => import("#routes/admin/database-reset.ts"),
-    "routeDatabaseReset",
-  ),
-  feed: lazyExport(() => import("#routes/feeds.ts"), "routeFeed"),
-  googleWallet: lazyExport(
-    () => import("#routes/wallet/google.ts"),
-    "routeGoogleWallet",
-  ),
-  image: lazyExport(() => import("#routes/images.ts"), "routeImage"),
-  join: lazyExport(() => import("#routes/join.ts"), "routeJoin"),
-  news: lazyExport(() => import("#routes/public/news.ts"), "routeNews"),
-  order: lazyExport(() => import("#routes/public/order.ts"), "routeOrder"),
-  payment: lazyExport(() => import("#routes/api/webhooks.ts"), "routePayment"),
-  sitePage: lazyExport(
-    () => import("#routes/public/site-page.ts"),
-    "routeSitePage",
-  ),
-  smsWebhook: lazyExport(
-    () => import("#routes/api/sms-webhook.ts"),
-    "routeSmsWebhook",
-  ),
-  ticket: lazyExport(
-    () => import("#routes/public/ticket-routes.ts"),
-    "routeTicket",
-  ),
-  ticketView: lazyExport(
-    () => import("#routes/tickets/index.ts"),
-    "routeTicketView",
-  ),
-  wallet: lazyExport(() => import("#routes/wallet/index.ts"), "routeWallet"),
-  walletWebservice: lazyExport(
-    () => import("#routes/wallet/webservice.ts"),
-    "routeWalletWebservice",
-  ),
-};
+// Handlers loaded on demand by the custom prefix handlers below (not lazy
+// prefix routers, so they stay out of the LAZY_PREFIXES table).
+const loadPublicPages = once(() => import("#routes/public/pages.ts"));
+
+const loadAdminApiRoutes = lazyRouter(
+  () => import("#routes/admin/api.ts"),
+  ({ adminApiRoutes }) => adminApiRoutes,
+);
 
 const handlerLoaders = {
   customCss: lazyExport(
@@ -161,27 +124,55 @@ const handlerLoaders = {
   ),
 };
 
-const loadPublicPages = once(() => import("#routes/public/pages.ts"));
-
-const loadAttachmentRoutes = once(async () =>
-  createRouter((await import("#routes/attachments.ts")).attachmentRoutes),
+// prefix -> the module loaded when its URL prefix is first matched. Import
+// specifiers stay literal so esbuild can bundle every lazy target into the
+// single edge file while still deferring its evaluation until first matched.
+// Loaders shared by more than one prefix are named so both prefixes reuse the
+// same once-cached import.
+const feedLoader = lazyExport(() => import("#routes/feeds.ts"), "routeFeed");
+const ticketLoader = lazyExport(
+  () => import("#routes/public/ticket-routes.ts"),
+  "routeTicket",
 );
 
-const loadAdminApiRoutes = once(async () =>
-  createRouter((await import("#routes/admin/api.ts")).adminApiRoutes),
-);
-
-const loadInstanceRoutes = once(async () =>
-  createRouter((await import("#routes/instance.ts")).instanceRoutes),
-);
-
-const exactRouteLoaders = {
-  addressLookup: lazyRouter(
+const PREFIX_LOADERS = {
+  "address-lookup": lazyRouter(
     () => import("#routes/public/address-lookup.ts"),
     ({ handleAddressLookupGet }) =>
       defineRoutes({ "GET /address-lookup": handleAddressLookupGet }),
   ),
-  renewal: lazyRouter(
+  admin: lazyExport(() => import("#routes/admin/index.ts"), "routeAdmin"),
+  attachment: lazyRouter(
+    () => import("#routes/attachments.ts"),
+    ({ attachmentRoutes }) => attachmentRoutes,
+  ),
+  calculate: ticketLoader,
+  caldav: feedLoader,
+  checkin: lazyExport(() => import("#routes/checkin.ts"), "routeCheckin"),
+  demo: lazyExport(
+    () => import("#routes/admin/database-reset.ts"),
+    "routeDatabaseReset",
+  ),
+  feeds: feedLoader,
+  gwallet: lazyExport(
+    () => import("#routes/wallet/google.ts"),
+    "routeGoogleWallet",
+  ),
+  image: lazyExport(() => import("#routes/images.ts"), "routeImage"),
+  instance: lazyRouter(
+    () => import("#routes/instance.ts"),
+    ({ instanceRoutes }) => instanceRoutes,
+  ),
+  join: lazyExport(() => import("#routes/join.ts"), "routeJoin"),
+  news: lazyExport(() => import("#routes/public/news.ts"), "routeNews"),
+  order: lazyExport(() => import("#routes/public/order.ts"), "routeOrder"),
+  page: lazyExport(
+    () => import("#routes/public/site-page.ts"),
+    "routeSitePage",
+  ),
+  pay: lazyExport(() => import("#routes/public/balance.ts"), "routeBalance"),
+  payment: lazyExport(() => import("#routes/api/webhooks.ts"), "routePayment"),
+  renew: lazyRouter(
     () => import("#routes/public/renewal.ts"),
     ({ handleRenewalGet, handleRenewalPost }) =>
       defineRoutes({
@@ -189,6 +180,12 @@ const exactRouteLoaders = {
         "POST /renew": handleRenewalPost,
       }),
   ),
+  sms: lazyExport(
+    () => import("#routes/api/sms-webhook.ts"),
+    "routeSmsWebhook",
+  ),
+  t: lazyExport(() => import("#routes/tickets/index.ts"), "routeTicketView"),
+  ticket: ticketLoader,
   unsubscribe: lazyRouter(
     () => import("#routes/public/unsubscribe.ts"),
     ({ handleUnsubscribeGet, handleUnsubscribePost }) =>
@@ -197,6 +194,77 @@ const exactRouteLoaders = {
         "POST /unsubscribe": handleUnsubscribePost,
       }),
   ),
+  v1: lazyExport(
+    () => import("#routes/wallet/webservice.ts"),
+    "routeWalletWebservice",
+  ),
+  wallet: lazyExport(() => import("#routes/wallet/index.ts"), "routeWallet"),
+} satisfies Record<string, () => Promise<RouterFn>>;
+
+/** Every prefix the lazy router serves; the two tables below key off it. */
+type Prefix = keyof typeof PREFIX_LOADERS;
+
+// prefix -> the message-group bundle its handlers render. Prefixes absent here
+// (admin, image, sms, feeds, ...) render no route-specific groups.
+const PREFIX_MESSAGE_GROUPS: Partial<Record<Prefix, readonly MessageGroup[]>> =
+  {
+    "address-lookup": ["address-lookup"],
+    calculate: publicMessageGroups("payment", "tickets", "validation"),
+    checkin: [
+      ...ADMIN_SHELL_MESSAGE_GROUPS,
+      "attendees",
+      "check-in",
+      "listing-qr",
+      "validation",
+    ],
+    demo: [...ADMIN_SHELL_MESSAGE_GROUPS, "login", "settings", "validation"],
+    gwallet: publicMessageGroups("tickets"),
+    join: JOIN_MESSAGE_GROUPS,
+    news: publicMessageGroups("news", "public-site"),
+    order: publicMessageGroups(
+      "availability",
+      "capacity",
+      "date-picker",
+      "modifiers",
+      "order",
+      "public-site",
+      "tickets",
+      "validation",
+    ),
+    page: publicMessageGroups("public-site", "site-pages"),
+    pay: publicMessageGroups("ledger", "payment", "tickets", "validation"),
+    payment: ["payment", "validation"],
+    renew: publicMessageGroups(
+      "address-lookup",
+      "payment",
+      "public-site",
+      "renewal",
+      "tickets",
+      "validation",
+    ),
+    t: publicMessageGroups("listing-qr", "payment", "tickets"),
+    ticket: publicMessageGroups(
+      "address-lookup",
+      "availability",
+      "date-picker",
+      "modifiers",
+      "order",
+      "payment",
+      "public-site",
+      "questions",
+      "tickets",
+      "validation",
+    ),
+    unsubscribe: publicMessageGroups("unsubscribe", "validation"),
+    v1: ["tickets"],
+    wallet: publicMessageGroups("tickets"),
+  };
+
+// prefix -> a gate that can answer before message groups load (e.g. redirect a
+// GET to login when the public site is off). Prefixes absent here never gate.
+const PREFIX_GATES: Partial<Record<Prefix, PrefixRoute["beforeMessages"]>> = {
+  news: disabledPublicSiteGet,
+  page: disabledPublicSiteGet,
 };
 
 type PublicPagesModule = Awaited<ReturnType<typeof loadPublicPages>>;
@@ -278,140 +346,64 @@ const customCssPrefixHandler: RouterFn = async (_request, path, method) => {
   return (await handlerLoaders.customCss())();
 };
 
+const apiPrefixHandler: RouterFn = async (request, path, method, server) => {
+  if (path.startsWith("/api/admin/")) {
+    const { requireAdminApiOr } = await import("#routes/auth.ts");
+    return await requireAdminApiOr(request, () =>
+      withMessageGroups(ADMIN_API_MESSAGE_GROUPS, async () =>
+        (await loadAdminApiRoutes())(request, path, method, server),
+      ),
+    );
+  }
+  return settings.showPublicApi
+    ? withMessageGroups(PUBLIC_API_MESSAGE_GROUPS, async () =>
+        (await import("#routes/api/index.ts")).routeApi(
+          request,
+          path,
+          method,
+          server,
+        ),
+      )
+    : null;
+};
+
+const readOnlyInfoHandler: RouterFn = (_request, path, method) =>
+  path === "/read-only" && method === "GET"
+    ? Promise.resolve(htmlResponse(readOnlyPage()))
+    : Promise.resolve(null);
+
+// Object.entries widens the keys to string; name them back as prefixes so the
+// group and gate lookups below stay typed.
+const prefixLoaderEntries = Object.entries(PREFIX_LOADERS) as [
+  Prefix,
+  () => Promise<RouterFn>,
+][];
+
+/** Build each prefix's dispatchable route from its loader, groups, and gate. */
+const lazyPrefixHandlers: Record<string, PrefixRoute> = Object.fromEntries(
+  prefixLoaderEntries.map(([prefix, loader]) => [
+    prefix,
+    prefixRoute(
+      PREFIX_MESSAGE_GROUPS[prefix],
+      lazyRoute(loader),
+      PREFIX_GATES[prefix],
+    ),
+  ]),
+);
+
 const prefixHandlers: Record<string, PrefixRoute> = {
   ...publicPageHandlers,
-  "address-lookup": prefixRoute(
-    ["address-lookup"],
-    lazyRoute(exactRouteLoaders.addressLookup),
-  ),
-  admin: prefixRoute([], lazyRoute(routeLoaders.admin)),
-  api: prefixRoute([], async (request, path, method, server) => {
-    if (path.startsWith("/api/admin/")) {
-      const { requireAdminApiOr } = await import("#routes/auth.ts");
-      return await requireAdminApiOr(request, () =>
-        withMessageGroups(ADMIN_API_MESSAGE_GROUPS, async () =>
-          (await loadAdminApiRoutes())(request, path, method, server),
-        ),
-      );
-    }
-    return settings.showPublicApi
-      ? withMessageGroups(PUBLIC_API_MESSAGE_GROUPS, async () =>
-          (await routeLoaders.api())(request, path, method, server),
-        )
-      : null;
-  }),
-  attachment: prefixRoute([], lazyRoute(loadAttachmentRoutes)),
-  calculate: prefixRoute(
-    publicMessageGroups("payment", "tickets", "validation"),
-    lazyRoute(routeLoaders.ticket),
-  ),
-  caldav: prefixRoute([], lazyRoute(routeLoaders.feed)),
-  checkin: prefixRoute(
-    [
-      ...ADMIN_SHELL_MESSAGE_GROUPS,
-      "attendees",
-      "check-in",
-      "listing-qr",
-      "validation",
-    ],
-    lazyRoute(routeLoaders.checkin),
-  ),
+  ...lazyPrefixHandlers,
+  api: prefixRoute([], apiPrefixHandler),
   contact: prefixRoute(
     publicMessageGroups("contact", "public-site", "validation"),
     contactPrefixHandler,
     requirePublicSiteGet("/contact"),
   ),
   "custom.css": prefixRoute([], customCssPrefixHandler),
-  demo: prefixRoute(
-    [...ADMIN_SHELL_MESSAGE_GROUPS, "login", "settings", "validation"],
-    lazyRoute(routeLoaders.demoReset),
-  ),
   events: prefixRoute([], legacyEventsRedirectHandler),
-  feeds: prefixRoute([], lazyRoute(routeLoaders.feed)),
-  gwallet: prefixRoute(
-    publicMessageGroups("tickets"),
-    lazyRoute(routeLoaders.googleWallet),
-  ),
-  image: prefixRoute([], lazyRoute(routeLoaders.image)),
-  instance: prefixRoute([], lazyRoute(loadInstanceRoutes)),
-  join: prefixRoute(JOIN_MESSAGE_GROUPS, lazyRoute(routeLoaders.join)),
-  news: prefixRoute(
-    publicMessageGroups("news", "public-site"),
-    lazyRoute(routeLoaders.news),
-    disabledPublicSiteGet,
-  ),
-  order: prefixRoute(
-    publicMessageGroups(
-      "availability",
-      "capacity",
-      "date-picker",
-      "modifiers",
-      "order",
-      "public-site",
-      "tickets",
-      "validation",
-    ),
-    lazyRoute(routeLoaders.order),
-  ),
   "order.js": prefixRoute([], orderJsPrefixHandler),
-  page: prefixRoute(
-    publicMessageGroups("public-site", "site-pages"),
-    lazyRoute(routeLoaders.sitePage),
-    disabledPublicSiteGet,
-  ),
-  pay: prefixRoute(
-    publicMessageGroups("ledger", "payment", "tickets", "validation"),
-    lazyRoute(routeLoaders.balance),
-  ),
-  payment: prefixRoute(
-    ["payment", "validation"],
-    lazyRoute(routeLoaders.payment),
-  ),
-  "read-only": prefixRoute([], (_request, path, method) =>
-    path === "/read-only" && method === "GET"
-      ? Promise.resolve(htmlResponse(readOnlyPage()))
-      : Promise.resolve(null),
-  ),
-  renew: prefixRoute(
-    publicMessageGroups(
-      "address-lookup",
-      "payment",
-      "public-site",
-      "renewal",
-      "tickets",
-      "validation",
-    ),
-    lazyRoute(exactRouteLoaders.renewal),
-  ),
-  sms: prefixRoute([], lazyRoute(routeLoaders.smsWebhook)),
-  t: prefixRoute(
-    publicMessageGroups("listing-qr", "payment", "tickets"),
-    lazyRoute(routeLoaders.ticketView),
-  ),
-  ticket: prefixRoute(
-    publicMessageGroups(
-      "address-lookup",
-      "availability",
-      "date-picker",
-      "modifiers",
-      "order",
-      "payment",
-      "public-site",
-      "questions",
-      "tickets",
-      "validation",
-    ),
-    lazyRoute(routeLoaders.ticket),
-  ),
-  unsubscribe: prefixRoute(
-    publicMessageGroups("unsubscribe", "validation"),
-    lazyRoute(exactRouteLoaders.unsubscribe),
-  ),
-  v1: prefixRoute(["tickets"], lazyRoute(routeLoaders.walletWebservice)),
-  wallet: prefixRoute(
-    publicMessageGroups("tickets"),
-    lazyRoute(routeLoaders.wallet),
-  ),
+  "read-only": prefixRoute([], readOnlyInfoHandler),
 };
 
 /** Route main application requests after setup is complete. */
