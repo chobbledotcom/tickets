@@ -3,7 +3,10 @@ import {
   type AnchoredAttendee,
   anchorLegacyCharges,
 } from "#shared/db/payment-anchor/mint.ts";
-import { isAnchorSession } from "#shared/db/payment-anchor/session.ts";
+import {
+  anchorSessionId,
+  isAnchorSession,
+} from "#shared/db/payment-anchor/session.ts";
 import {
   type ClaimResult,
   claimAttendeeRows,
@@ -49,22 +52,34 @@ export type RowClaim = {
 };
 
 /**
- * What a run decided about one attendee it held. An attendee named by none of
- * these is settled and simply lets go.
+ * What a run could not prove about one attendee's money, which is what decides
+ * whether its hold stays on. An attendee named by neither is settled.
  *
  * `in_doubt`: the call was made and not confirmed. `unread`: the provider could
- * not be asked, so nothing was sent and nothing was learnt. `unrecorded`: the
- * provider answered and it is our books that are behind, which the row records
- * instead — holding the claim there would only make the attendee impossible to
- * pick up, delete or merge. {@link mayLetGo} decides what each one releases.
+ * not be asked, so nothing was sent and nothing was learnt. {@link mayLetGo}
+ * decides what each one releases.
  */
-export type AttendeeVerdict =
-  | { kind: "in_doubt" }
-  | { kind: "unread" }
-  /** Names the rows whose money actually went back, because only those may be
-   *  marked: a sibling charge still with the provider must never read as money
-   *  the books have not caught up with. */
-  | { kind: "unrecorded"; returnedSessionIds: readonly string[] };
+export type AttendeeDoubt = "in_doubt" | "unread";
+
+/**
+ * What a run learnt about the attendees it held.
+ *
+ * The two are INDEPENDENT, and a run routinely holds both about one person: a
+ * charge that definitely came back and a sibling the provider could not be
+ * asked about. Folding them into one verdict loses whichever came second — and
+ * the one that gets lost is the durable marker, so the row is released saying
+ * nothing about money that really did move.
+ *
+ * Filled in as the run goes, so a failure part-way through still settles on
+ * everything learnt before it.
+ */
+type RunFindings = {
+  /** Attendees whose money this run could not account for. */
+  doubts: Map<number, AttendeeDoubt>;
+  /** Per attendee, the rows whose returned money the books have not caught up
+   *  with. Only rows that carried money that came back may be named. */
+  unrecorded: Map<number, readonly string[]>;
+};
 
 export const durableRowClaim: RowClaim = {
   claim: claimAttendeeRows,
@@ -193,14 +208,14 @@ const refundReferenceOnce = async (
 /** Whether this attendee's rows may be let go. Only genuine doubt keeps a
  *  hold, and only against a provider where a repeat would pay twice. */
 const mayLetGo = (
-  verdict: AttendeeVerdict | undefined,
+  doubt: AttendeeDoubt | undefined,
   capability: RefundCapability,
   resumed: boolean,
 ): boolean => {
-  if (verdict?.kind === "in_doubt") return mayReleaseClaim(capability, "lost");
+  if (doubt === "in_doubt") return mayReleaseClaim(capability, "lost");
   // Learning nothing settles nothing, so an inherited hold keeps whatever the
   // dead run left on it.
-  if (verdict?.kind === "unread") {
+  if (doubt === "unread") {
     return !resumed || mayReleaseClaim(capability, "lost");
   }
   return true;
@@ -233,8 +248,10 @@ const underAttendeeClaim = async <TResult>(
   listingId: number,
   run: {
     blocked: (reason: string) => TResult;
-    verdicts: (result: TResult) => ReadonlyMap<number, AttendeeVerdict>;
-    work: (alreadyReturned: ReadonlySet<string>) => Promise<TResult>;
+    work: (
+      alreadyReturned: ReadonlySet<string>,
+      findings: RunFindings,
+    ) => Promise<TResult>;
   },
 ): Promise<TResult> => {
   // A charge with no row of its own cannot be held, and a claim that holds
@@ -277,14 +294,13 @@ const underAttendeeClaim = async <TResult>(
   // A failed release leaves the claim standing until it goes stale, which is
   // recoverable; losing the answer the run just produced is not. So it is
   // reported, never allowed to replace the result or the original error.
-  const settle = async (
-    verdicts: ReadonlyMap<number, AttendeeVerdict>,
-  ): Promise<void> => {
+  const findings: RunFindings = { doubts: new Map(), unrecorded: new Map() };
+  const settle = async (): Promise<void> => {
     const letting = [...claim.held].filter(([attendeeId]) =>
       // An inherited hold is judged under the capability its original call was
       // made under, not this run's provider.
       mayLetGo(
-        verdicts.get(attendeeId),
+        findings.doubts.get(attendeeId),
         claim.inherited.get(attendeeId) ?? capability,
         claim.inherited.has(attendeeId),
       ),
@@ -294,29 +310,31 @@ const underAttendeeClaim = async <TResult>(
       {
         heldSince: claim.heldSince,
         sessionIds: letting.flatMap(([, sessions]) => sessions),
+        // Only rows being let go are marked: a row still under claim is
+        // already protected, and the run that finally releases it re-posts the
+        // ledger and marks whatever is still outstanding then.
         unrecorded: new Set(
-          letting.flatMap(([attendeeId]) => {
-            const verdict = verdicts.get(attendeeId);
-            return verdict?.kind === "unrecorded"
-              ? verdict.returnedSessionIds
-              : [];
-          }),
+          letting.flatMap(
+            ([attendeeId]) => findings.unrecorded.get(attendeeId) ?? [],
+          ),
         ),
       },
       listingId,
     );
   };
   try {
-    const result = await run.work(claim.returned);
-    await settle(run.verdicts(result));
+    const result = await run.work(claim.returned, findings);
+    await settle();
     return result;
   } catch (error) {
-    // Nothing is known about anybody, so every attendee is in doubt.
-    await settle(
-      new Map(
-        [...claim.held.keys()].map((id) => [id, { kind: "in_doubt" } as const]),
-      ),
-    );
+    // Nothing more is known about anybody, so every attendee this run still
+    // had an answer for falls into doubt. What it had already LEARNT stands:
+    // a wave that returned money the books missed is a fact the throw does
+    // not undo, and the row has to keep saying so.
+    for (const attendeeId of claim.held.keys()) {
+      findings.doubts.set(attendeeId, "in_doubt");
+    }
+    await settle();
     throw error;
   }
 };
@@ -468,18 +486,35 @@ const tallyProviderRefund = (
 };
 
 /**
- * Post whatever came back for one wave, and say how each attendee ended.
+ * The rows this charge is held by.
  *
- * A post that did not land is the one place a verdict is added rather than
- * read: the provider answered clearly, so there is no doubt to hold against,
- * only books that are behind. Doubt already recorded about the same attendee
- * outranks it, because there the money may not have moved at all.
+ * A legacy charge has none of its own — it lives in the attendee's
+ * `payment_id` column — so it was given an anchor row before the claim. The
+ * reference was loaded before that and still names no row, so the anchor is
+ * derived the same way it was minted. Without this a returned legacy charge
+ * marks nothing, and its anchor is released free to be deleted.
+ */
+const rowsHolding = (
+  attendeeId: number,
+  reference: RefundPaymentReference,
+): readonly string[] =>
+  reference.rowSessionIds.length > 0
+    ? reference.rowSessionIds
+    : [anchorSessionId(attendeeId, reference.index)];
+
+/**
+ * Post whatever came back for one wave, and write down what it came to.
+ *
+ * A post that did not land is recorded whatever else is known about the
+ * attendee: the provider answered clearly, so this is not doubt but a fact
+ * about rows, and a sibling charge nobody could ask about does not make it
+ * less true.
  */
 const recordWave = async (
   record: RecordRefunds,
   counts: RefundCounts,
   postings: readonly LedgerPosting[],
-  verdicts: Map<number, AttendeeVerdict>,
+  findings: RunFindings,
   listingId: number,
 ): Promise<void> => {
   const posted = await record(postings);
@@ -489,27 +524,18 @@ const recordWave = async (
       // report the broken promise per attendee, not just the aggregate count.
       counts.notRecordedCount++;
       reportRefundNotRecorded({ attendeeId, listingId });
-      if (!verdicts.has(attendeeId)) {
-        verdicts.set(attendeeId, {
-          kind: "unrecorded",
-          // The posting's own charges, so the mark lands on the rows that
-          // carried the money and on no others.
-          returnedSessionIds: references.flatMap(
-            (reference) => reference.rowSessionIds,
-          ),
-        });
-      }
+      // The posting's own charges, so the mark lands on the rows that carried
+      // the money and on no others.
+      findings.unrecorded.set(attendeeId, [
+        ...(findings.unrecorded.get(attendeeId) ?? []),
+        ...references.flatMap((reference) =>
+          rowsHolding(attendeeId, reference),
+        ),
+      ]);
     } else if (whole) {
       counts.refundedCount++;
     }
   }
-};
-
-/** What a claimed run comes to: the tally, and what it decided about each
- *  attendee it held. */
-type ClaimedRun = {
-  counts: RefundCounts;
-  verdicts: ReadonlyMap<number, AttendeeVerdict>;
 };
 
 /** Refund one chunk of attendees at the provider, then record full successes in
@@ -534,7 +560,7 @@ export const processRefundBatch = async (
     record = recordAttendeeRefundsBatch,
   }: RefundWrites = {},
 ): Promise<RefundCounts> => {
-  const result = await underAttendeeClaim<ClaimedRun>(
+  const counts = await underAttendeeClaim<RefundCounts>(
     rowClaim,
     batch.map((candidate) => ({
       attendeeId: candidate.attendee.id,
@@ -550,20 +576,20 @@ export const processRefundBatch = async (
             listingId,
           );
         }
-        return { counts: noRefunds(batch.length), verdicts: new Map() };
+        return noRefunds(batch.length);
       },
-      verdicts: (result) => result.verdicts,
-      work: (alreadyReturned) =>
+      work: (alreadyReturned, findings) =>
         refundClaimedBatch(
           provider,
           batch,
           listingId,
           { markReturned: markReturnedReferences, record },
           alreadyReturned,
+          findings,
         ),
     },
   );
-  return result.counts;
+  return counts;
 };
 
 const refundClaimedBatch = async (
@@ -572,8 +598,8 @@ const refundClaimedBatch = async (
   listingId: number,
   writes: { markReturned: MarkReturnedReferences; record: RecordRefunds },
   alreadyReturned: ReadonlySet<string>,
-): Promise<ClaimedRun> => {
-  const verdicts = new Map<number, AttendeeVerdict>();
+  findings: RunFindings,
+): Promise<RefundCounts> => {
   // Shared across the whole run, so a charge two attendees both carry is asked
   // about once.
   const inFlight = new Map<string, Promise<ReferenceRefund>>();
@@ -599,13 +625,14 @@ const refundClaimedBatch = async (
       // rule reads; the two doubts are kept apart because they are not the
       // same risk.
       if (result.doubt !== undefined) {
-        verdicts.set(result.candidate.attendee.id, {
-          kind: result.doubt === "lost" ? "in_doubt" : "unread",
-        });
+        findings.doubts.set(
+          result.candidate.attendee.id,
+          result.doubt === "lost" ? "in_doubt" : "unread",
+        );
       }
       tallyProviderRefund(counts, result, listingId, postings);
     }
-    await recordWave(writes.record, counts, postings, verdicts, listingId);
+    await recordWave(writes.record, counts, postings, findings, listingId);
   }
-  return { counts, verdicts };
+  return counts;
 };

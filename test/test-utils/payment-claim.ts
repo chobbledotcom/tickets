@@ -2,7 +2,7 @@
  *  to already be in a particular state. */
 
 import { encrypt } from "#shared/crypto/encryption.ts";
-import { execute, queryOne } from "#shared/db/client.ts";
+import { execute, requireOne } from "#shared/db/client.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 import { mirrorFor } from "#shared/payment/admit-move.ts";
@@ -31,20 +31,20 @@ export const UNRECORDED_MIRROR = mirrorFor({
 });
 
 /** One column off a payment row, by the session that names it. Every caller
- *  has just written the row it asks about, so a missing one is a broken test
- *  rather than an outcome to branch on. */
+ *  has just written the row it asks about, so a missing one is a broken test:
+ *  `requireOne` names the failed query rather than handing back a null for the
+ *  assertion to trip over further along. */
 const paymentRowColumn =
   (column: string) =>
-  async (sessionId: string): Promise<string> => {
-    const row = await queryOne<{ v: string }>(
-      `SELECT payment.${column} AS v
-         FROM processed_payments AS payment
-        WHERE payment.payment_session_id = ?`,
-      [sessionId],
-    );
-    if (row === null) throw new Error(`No payment row for ${sessionId}`);
-    return row.v;
-  };
+  async (sessionId: string): Promise<string> =>
+    (
+      await requireOne<{ v: string }>(
+        `SELECT payment.${column} AS v
+           FROM processed_payments AS payment
+          WHERE payment.payment_session_id = ?`,
+        [sessionId],
+      )
+    ).v;
 
 /** The plain word the row shows the readers that cannot decrypt it. */
 export const protectedStateOf = paymentRowColumn("protected_state");
