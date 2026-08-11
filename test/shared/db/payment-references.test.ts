@@ -10,12 +10,15 @@ import {
   legacyMergePaymentReferenceStatement,
   markPaymentReferencesProviderRefunded,
   paymentReferenceIndex,
+  stillWithTheProvider,
 } from "#shared/db/payment-references.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
+import type { RefundState } from "#shared/payment/refund-state.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { refundReference } from "#test-utils/payment-state.ts";
 import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
 
 const indexOf = (sessionId: string): Promise<{ v: string } | null> =>
@@ -488,3 +491,37 @@ describeWithEnv(
     });
   },
 );
+
+describe("db > payment references > still with the provider", () => {
+  const withStates = (...states: RefundState[]) =>
+    states.map((refundState, index) =>
+      refundReference(`pi_${index}`, { refundState }),
+    );
+
+  test("a charge this system watched and has not seen come back is still out", () => {
+    expect(stillWithTheProvider(withStates("none"))).toBe(true);
+  });
+
+  test("a charge seen come back is settled", () => {
+    expect(stillWithTheProvider(withStates("completed"))).toBe(false);
+  });
+
+  // The fault this closes: a merged attendee with one tracked charge and one
+  // legacy charge. Refunding the tracked one makes the ledger read refunded,
+  // and treating the legacy "unknown" as settled hid every retry for good —
+  // though nothing has ever shown that charge coming back.
+  test("a legacy charge beside a returned one keeps the retry open", () => {
+    expect(stillWithTheProvider(withStates("completed", "unknown"))).toBe(true);
+  });
+
+  // A legacy charge alone is the likeliest thing the account's refunded flag
+  // is describing, so it stays settled — only a sibling that already came back
+  // takes that explanation away.
+  test("a legacy charge on its own stays settled", () => {
+    expect(stillWithTheProvider(withStates("unknown"))).toBe(false);
+  });
+
+  test("nothing to refund is not still with the provider", () => {
+    expect(stillWithTheProvider([])).toBe(false);
+  });
+});

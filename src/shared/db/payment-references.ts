@@ -268,18 +268,31 @@ export const getRefundPaymentReferencesForAttendee = async (
   (await getRefundPaymentReferences([attendee], privateKey)).get(attendee.id)!;
 
 /**
- * Whether any of these charges is still with the provider.
+ * Whether any of these charges may still be with the provider.
  *
  * The ledger's `refunded` flag is an EXISTS on any reversal, so an attendee
  * whose money came back in part reads as refunded there — and treating that as
- * finished strands the rest of their money for ever. "none" is the precise
- * question: this system watched the charge and has not seen it come back. A
- * legacy charge reads "unknown" instead, so an old booking refunded before we
- * watched anything is still left alone.
+ * finished strands the rest of their money for ever.
+ *
+ * "none" is the clear case: this system watched the charge and has not seen it
+ * come back. A legacy "unknown" charge was never watched, so what settles it is
+ * what else is in the set. On its own it is what the refunded flag is most
+ * likely describing, so it is left alone. Beside a charge already seen coming
+ * back, that sibling explains the flag and the legacy one is left unaccounted
+ * for — so it stays open rather than being hidden for good.
  */
 export const stillWithTheProvider = (
   references: readonly RefundPaymentReference[],
-): boolean => references.some((reference) => reference.refundState === "none");
+): boolean => {
+  const cameBack = references.some(
+    (reference) => reference.refundState === "completed",
+  );
+  return references.some(
+    (reference) =>
+      reference.refundState === "none" ||
+      (cameBack && reference.refundState === "unknown"),
+  );
+};
 
 export const hasRefundPaymentReference = async (
   attendee: RefundPaymentReferenceSource,

@@ -27,6 +27,7 @@ import {
   bookingEventGroup,
   mapBooking,
   mapRefund,
+  refundEventGroup,
 } from "#shared/accounting/mappers.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { postTransferGroups } from "#shared/accounting/store.ts";
@@ -97,10 +98,9 @@ const hasOperatorMoney = (group: Transfer[]): boolean =>
  * account leaves the rest of it exactly as it was.
  */
 const returnedRefundGroups = async (
-  legs: Transfer[],
+  groups: Transfer[][],
   references: RefundReferences,
 ): Promise<Transfer[][]> => {
-  const groups = accountRefundGroups(legs);
   // Operator money stays a person's call: a manual payment or an adjustment is
   // not something a provider refund can mirror back.
   if (groups.some(hasOperatorMoney)) return [];
@@ -118,6 +118,27 @@ const returnedRefundGroups = async (
   return unnamed.length <= legacyReferenceCount(references)
     ? groups
     : groups.filter(cameBack);
+};
+
+/**
+ * The order groups whose reversal is not already in the ledger. Each reversal
+ * is posted under a group derived from the booking's, so a re-submit is
+ * recognised group by group. "Any refund leg at all" would close the account
+ * after a partial reversal and strand every charge that came back later.
+ */
+const notYetReversed = async (
+  legs: Transfer[],
+  groups: Transfer[][],
+): Promise<Transfer[][]> => {
+  const reversed = new Set(
+    legs.filter((leg) => isRefundLeg(leg.kind)).map((leg) => leg.eventGroup),
+  );
+  const done = await Promise.all(
+    groups.map(async (group) =>
+      reversed.has(await refundEventGroup(group[0]!.eventGroup)),
+    ),
+  );
+  return groups.filter((_, index) => done[index] === false);
 };
 
 /**
@@ -146,13 +167,16 @@ const computeAttendeeRefund = async (
 ): Promise<ComputedRefund> => {
   const account = attendeeAccount(attendeeId);
   const legs = await transfersByAccount(account);
-  // Already refunded (e.g. an idempotent re-submit): the `refund_cash` leg is the
-  // durable refund record, so report success without re-posting — and without
-  // rebuilding legs under a fresh `nowIso()`.
-  if (legs.some((leg) => leg.kind === KIND.refundCash)) {
+  // Every order group already carries its reversal (e.g. an idempotent
+  // re-submit): those legs are the durable refund record, so report success
+  // without re-posting — and without rebuilding legs under a fresh `nowIso()`.
+  // An account with no ledgered order at all is a different answer, below.
+  const groups = accountRefundGroups(legs);
+  const open = await notYetReversed(legs, groups);
+  if (groups.length > 0 && open.length === 0) {
     return { groups: [], posted: true };
   }
-  const orders = await returnedRefundGroups(legs, references);
+  const orders = await returnedRefundGroups(open, references);
   if (orders.length === 0) return { groups: [], posted: false };
   // Only auto-reverse a fully-paid account — UNLESS the account is a pure
   // payment-only placeholder (every order group is ONLY provider-payment legs,

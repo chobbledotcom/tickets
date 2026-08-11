@@ -25,11 +25,13 @@ describe("reporting a withheld refund", () => {
 
   test("names the conflict it found, not just that there was one", () => {
     reportWithheldRefund(
-      { issue: { kind: "partial_refund" }, kind: "refused" },
+      { issue: { kind: "refund_exceeds_capture" }, kind: "refused" },
       where,
     );
 
-    expect(errors.lastMessage()).toContain("partial_refund");
+    // A second kind, so the report is proved to carry the one it was given
+    // rather than a fixed word.
+    expect(errors.lastMessage()).toContain("refund_exceeds_capture");
   });
 
   const ordinary: WithheldRefund[] = [

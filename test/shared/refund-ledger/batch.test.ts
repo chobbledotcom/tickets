@@ -204,6 +204,27 @@ describeWithEnv(
       expect(await refundCashAmounts(19)).toEqual([1000, 2000]);
     });
 
+    // The fault this closes: a partial reversal used to close the account. Any
+    // `refund_cash` leg read as "already refunded", so the charge that came
+    // back on a later run posted nothing while the route reported success.
+    test("posts the second charge's reversal when it comes back later", async () => {
+      const attendeeId = 41;
+      await postBooking({ attendeeId, eventId: "sess-first" });
+      await postBooking({ attendeeId, eventId: "sess-second" });
+
+      await recordAttendeeRefund(attendeeId, [sessionReference("sess-first")]);
+      expect(await refundCashAmounts(attendeeId)).toEqual([5000]);
+
+      expect(
+        await recordAttendeeRefund(attendeeId, [
+          sessionReference("sess-first"),
+          sessionReference("sess-second"),
+        ]),
+      ).toEqual({ posted: true });
+      expect(await refundCashAmounts(attendeeId)).toEqual([5000, 5000]);
+      expect(await accountBalance(attendeeAccount(attendeeId))).toBe(0);
+    });
+
     test("treats an empty attendee list as a no-op", async () => {
       expect(await recordAttendeeRefundsBatch([])).toEqual(new Map());
     });

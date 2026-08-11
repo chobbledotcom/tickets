@@ -70,9 +70,7 @@ describe("what charges alone come to, with no agreed total", () => {
     ],
     [
       // No money moved, so it settles as not-happening and a fresh attempt is
-      // legitimate. Refusing for good is what left a SumUp buyer charged: that
-      // FAILED event never leaves the transaction history, so every later read
-      // saw it again and refused again.
+      // legitimate.
       "a refund the provider tried and could not finish",
       [
         chargeMoneyWith({

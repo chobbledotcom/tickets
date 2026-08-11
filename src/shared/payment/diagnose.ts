@@ -45,20 +45,14 @@ const refundOutcome = (charges: readonly ChargeMoney[]): ObservationOutcome => {
   if (refunds.some((refund) => refund.status === "pending")) {
     return { kind: "refund_pending" };
   }
-  // Any money back at all, on any leg, parks the booking for the owner: the
-  // provider is keeping less than the signed total. The question is the AMOUNT
-  // rather than the status, because a charge whose refund the provider could
-  // not finish still reports what came back before it failed — and sending
-  // again on top of that pays the buyer twice.
+  // Any money back at all parks the booking: the provider is keeping less than
+  // the signed total. Judged on the AMOUNT, not the status, because a refund
+  // the provider could not finish still reports what came back before it
+  // failed — sending again on top of that would pay the buyer twice. A failure
+  // that moved nothing leaves the charge ready for a fresh attempt.
   return refunds.some((refund) => refund.amount.amount > 0)
     ? { issue: { kind: "partial_refund" }, kind: "conflict" }
-    : // Nothing came back anywhere. A refund the provider tried and could not
-      // finish moved no money, so it settles as not-happening and a fresh
-      // attempt is legitimate — the reading the contract already gives
-      // Stripe's `failed`/`canceled`. Refusing for good is what left a SumUp
-      // buyer charged: that FAILED event never leaves the transaction history,
-      // so every later read saw it again and refused again.
-      { kind: "ready" };
+    : { kind: "ready" };
 };
 
 /** What the money on these charges comes to on its own, with no agreed total
