@@ -16,6 +16,8 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postPaymentLeg } from "#test-utils/db-helpers/payment-leg.ts";
 import {
   protectedStateOf,
+  putRowState,
+  rowStateSlot,
   UNRECORDED_MIRROR,
 } from "#test-utils/payment-claim.ts";
 import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
@@ -192,6 +194,28 @@ describeWithEnv(
         expect(await protectedStateOf("unrecorded-refresh-session")).toBe(
           UNRECORDED_MIRROR,
         );
+      });
+
+      // The fault this closes: the marker had no way off this path. A
+      // placeholder has no ticket quantity, so the refund route that clears
+      // one never picks it up — the row would have refused deletion for good,
+      // long after the books had caught up.
+      test("takes the mark off once the ledger catches up", async () => {
+        const attendee = await setupPlaceholderForRefresh(
+          "Caught Up",
+          "caught-up@example.com",
+          "caught-up-session",
+          "pi_caught_up",
+        );
+        await putRowState(
+          "caught-up-session",
+          await rowStateSlot({ unrecorded: { returnedAt: "2026-08-01" } }),
+          UNRECORDED_MIRROR,
+        );
+
+        await refreshAndVerifyRefundCash(attendee);
+
+        expect(await protectedStateOf("caught-up-session")).toBe("");
       });
 
       test("cleans up a stale note on retry even when the ledger is already posted", async () => {
