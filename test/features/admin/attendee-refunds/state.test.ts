@@ -103,12 +103,7 @@ describeWithEnv("server (admin refund state)", { db: true }, () => {
         gross: 500,
         listingId: listing.id,
       });
-      await finalizeProcessedPayment(
-        sessionId,
-        attendee.id,
-        "",
-        "pi_stranded",
-      );
+      await finalizeProcessedPayment(sessionId, attendee.id, "", "pi_stranded");
       await markPaymentReferencesProviderRefunded(
         await getRefundPaymentReferencesForAttendee(
           attendee,

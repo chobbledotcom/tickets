@@ -1,15 +1,10 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { type Stub, stub } from "@std/testing/mock";
+import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import type {
-  RefundAttemptResult,
-  RefundRequest,
-} from "#shared/payment/refund-attempt.ts";
 import { paymentsApi } from "#shared/payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
-import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import {
   expectHtmlResponse,
@@ -18,7 +13,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
-import { completedRefund } from "#test-utils/payment-state.ts";
+import { withRefundMock } from "#test-utils/refund-routes.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 // jscpd:ignore-end
 
@@ -151,7 +146,7 @@ export const refundByTyping = async (
     "#test/specs/support/form-controls.ts"
   );
   const browser = await openAdminPage(world, where.page);
-  await withRefundMock(provider, async (mockRefund: Stub) => {
+  await withRefundMock(provider, async (mockRefund) => {
     await fillInAndSend(
       browser,
       { confirm_identifier: where.typed },
@@ -161,32 +156,3 @@ export const refundByTyping = async (
   });
   return browser;
 };
-
-// -- Refund driver (mirrors server-refunds.test.ts withRefundMock) -------- //
-
-/** Run `body` with the payment provider resolved to a stripe provider whose
- *  `refundCharge` is stubbed, so the admin refund routes reach the ledger
- *  reversal without a real network call. `refund` is either a fixed outcome or a
- *  per-`paymentId` function — the latter lets a bulk refund decline one specific
- *  payment while the rest succeed. */
-export const withRefundMock = (
-  refund: boolean | ((paymentId: string) => Promise<boolean>),
-  body: (mockRefund: Stub) => Promise<void>,
-): Promise<void> =>
-  withStripeAsProvider(async () => {
-    const behave =
-      typeof refund === "function" ? refund : () => Promise.resolve(refund);
-    const mockRefund = stub(
-      stripePaymentProvider,
-      "refundCharge",
-      async (request: RefundRequest): Promise<RefundAttemptResult> =>
-        (await behave(request.paymentReference))
-          ? completedRefund(request.charge)
-          : { kind: "rejected", reason: "failed" },
-    );
-    try {
-      await body(mockRefund);
-    } finally {
-      mockRefund.restore();
-    }
-  });
