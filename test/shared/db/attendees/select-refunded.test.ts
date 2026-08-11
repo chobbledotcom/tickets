@@ -17,6 +17,7 @@ import { postTransferGroups } from "#shared/accounting/store.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
+import type { Attendee } from "#shared/types.ts";
 import { createPaidListing } from "#test/features/admin/refunds-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
@@ -76,10 +77,13 @@ const reverseOrderFor = async (
   ]);
 };
 
+/** The row's own flag, in the shape the row type declares. The SQL emits 0/1,
+ *  so the assertions below compare against those — the truth the callers read
+ *  through `!a.refunded` and `if (entry.attendee.refunded)`. */
 const refundedOn = async (
   listingId: number,
   attendeeId: number,
-): Promise<number> => {
+): Promise<Attendee["refunded"]> => {
   const row = (await getAttendeesRaw(listingId)).find(
     (entry) => entry.id === attendeeId,
   );
