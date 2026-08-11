@@ -319,4 +319,32 @@ describeSquare(() => {
       );
     });
   });
+
+  describe("retrievePayment money Square only partly states", () => {
+    // Square can name a money object while leaving its amount or currency out.
+    // Carrying those through as nulls would read as "Square said zero"; absent
+    // is the honest answer, and the refund guard treats it as unreadable.
+    test("leaves out an amount and currency Square did not give", async () => {
+      await withSquareClient(
+        {
+          paymentsGet: () =>
+            Promise.resolve({
+              payment: {
+                amountMoney: { amount: null, currency: null },
+                id: "pay_partial",
+                status: "COMPLETED",
+              },
+            }),
+        },
+        async () => {
+          const result = await squareApi.retrievePayment("pay_partial");
+
+          expect(result!.amountMoney).toEqual({
+            amount: undefined,
+            currency: undefined,
+          });
+        },
+      );
+    });
+  });
 });
