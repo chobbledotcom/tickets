@@ -2140,12 +2140,12 @@ evidence read AND usually a refund — so a merged attendee carrying around
 twenty-five charges needs more than the whole allowance, before the claim and
 ledger database calls are counted at all.
 
-What makes it worse than a failed request: the references are refunded as the
-loop goes. Run out partway and the later ones fail after the earlier ones have
-already sent money, `combineRefundOutcomes` fails the whole candidate, and the
-ledger reversal never posts. That is the SAME harm as the conflicted-sibling
-fault recorded above, reached by a different door: real money back with no
-accounting for it. A fix for one may well want to cover both.
+The worst of it is closed: the references are refunded as the loop goes, and run
+out partway and the later ones fail after the earlier ones have already sent
+money — but the ledger now reverses the groups whose money came back rather than
+nothing at all, so the accounting is no longer lost with it. What remains is the
+cut-off itself: the operator is told the refund failed, and the rest of the
+buyer's money is still with the provider until somebody runs it again.
 
 Codex's suggestion is the safe shape, and is the admission reserve the M4
 contract already describes under "Budgets" (`PR4_PLAN.md`, `SIBLING_READ_CAP`
@@ -2206,51 +2206,6 @@ ledger post sees an uncovered payment group.
 The fix the contract names: the balance finalize reads the attendee's claim
 inside its own transaction and answers RETRYABLY without writing while a fresh
 claim is live, so the provider redelivers after the claim resolves.
-
-## A settled failed refund blocks every later attempt
-
-A SumUp refund attempt that ends in a persistent `FAILED` transaction event is
-mapped by the provider to a `failed_refund` conflict. `admitRefund` turns every
-conflict into `refused`, so the next redelivery or admin retry is stopped before
-`refundPayment` is called — and because the failed event stays in the
-transaction's history for ever, no later attempt can ever be made. The buyer
-stays charged unless someone refunds outside the system.
-
-The judge is right that a failed refund is not something to send more money into
-blindly, but "this attempt failed" and "this payment must never be retried" are
-different facts, and only the second justifies refusing for good. Two candidate
-shapes:
-
-- Treat a settled failed attempt as retryable once it has been recorded — the
-  money demonstrably did not move, so a fresh attempt is legitimate. This is
-  what the contract already says for Stripe (`failed`/`canceled` → settled as
-  not-happening, a fresh operator attempt is legitimate), so SumUp reading the
-  same fact differently is an inconsistency rather than a design choice.
-- Or distinguish a failure belonging to THIS attempt from one already in the
-  history, so only the former refuses.
-
-Needs a decision against `PR4_PLAN.md`'s failure table before changing, since
-`failed_refund` is currently listed as an owner-review conflict.
-
-## Conflicted sibling reference strands a clean refund (PR #2065, Codex P1)
-
-`src/features/admin/refunds/provider.ts` — `refundCandidateAtProvider` sends
-each of a merged attendee's references concurrently. A clean reference can be
-refunded while a sibling is still being read; if that sibling refuses with a
-persistent conflict, the candidate combines to `failed` and the ledger never
-posts, even though money left. The reference is marked returned (no double send)
-and the mismatch is reported, so what is lost is the money record, and only
-permanently when the conflict never clears.
-
-The naive fix does not work: `coveredRefundGroups` in
-`src/shared/refund-ledger.ts` uses references only as a coverage test and
-reverses the whole account, so there is no way to post just the part that moved
-without giving the ledger a partial-reversal concept it does not have.
-
-Two options, both real behaviour changes for buyers: (a) admit every reference
-before sending any, matching the ledger's all-or-nothing shape but withholding
-clean money when one sibling is stuck; (b) teach the ledger partial reversal.
-Needs the owner's call. Recorded in PR4_PLAN.md's live faults.
 
 ## A merge can delete the source before the answers and PII are saved
 
@@ -2322,13 +2277,18 @@ claims other rows on the same reference "so two attendees who share one legacy
 reference [do not] each claim their own row and race two payouts against one
 charge" — then one payout is reversed twice and the money history is wrong.
 
-So the fix is not a code tweak, it is the owner decision already recorded above
-for the conflicted sibling: either admit every reference in a set before any
-money is sent (refusing the whole run when one is shared), or teach the ledger
-to reverse a shared charge proportionally. Both move real money, and picking one
-unilaterally is exactly what the operator-decides rule forbids. What is needed
-first is a read of `computeAttendeeRefund` against a real shared-charge row to
-establish which of the two shapes actually occurs in stored data.
+The owner chose the ledger direction for the sibling case, and the ledger can
+now reverse part of an account — but that does not settle this one, because each
+attendee's reversal is computed against their OWN account. If the charge really
+did pay for both bookings, two reversals summing to the payout are right; if it
+paid for one and the other merely shares a legacy reference, one payout is
+reversed twice, and no amount of per-group precision inside one account can tell
+those apart.
+
+What is needed first is a read of `computeAttendeeRefund` against a real
+shared-charge row, to establish which shape actually occurs in stored data.
+Until then the two ways out are unchanged: refuse a run whose reference is
+shared, or make the reversal proportional across the attendees sharing it.
 
 Found by Codex on #2065.
 
@@ -2405,59 +2365,6 @@ wrong is that the ledger cannot say it happened. Codex's suggestion was to
 validate inside the claim transaction and refuse the run when the attendee has
 gone — that is the fuller fix, and it changes the claim contract, so it is not
 being taken unilaterally on a money path.
-
-Found by Codex on #2065.
-
-## Money back at the provider but not in the ledger has no state of its own
-
-Two faults recorded against this branch turn out to be one missing thing, and
-they point in opposite directions.
-
-When a refund succeeds at the provider but `recordAttendeeRefundsBatch` returns
-`posted: false`, the run is classified as lost (`notRecordedCount > 0` feeds
-`lost`). What happens next depends only on the provider's capability:
-
-- **Keyed (Stripe, Square).** `mayReleaseClaim` releases on a lost answer, so
-  the claim goes. All that is left on the row is `provider_refunded_at`, and
-  `LIVE_WORK` in `admit-move.ts` knows only `claim` and `review` — so nothing
-  stops an operator deleting the attendee. That destroys the payment row, which
-  is the repair target for the correction somebody was asked to make, while the
-  real payout stays missing from the ledger.
-- **Keyless (SumUp).** The claim is kept instead. But `getRefundCandidates`
-  filters `!attendee.refunded`, so no later run can pick the attendee up to
-  release it, and merge and delete refuse on any claim. The attendee is stuck
-  for good.
-
-So the same underlying situation — the provider has paid the buyer back and our
-books do not know — is under-protected on one provider and over-protected on the
-other. Neither is right, and neither is fixable by tuning the release rule,
-because the record has nowhere to say it: `PaymentRowState` carries a claim, an
-owner-review marker and a terminal outcome, and none of them means "money went
-back and the ledger has not caught up".
-
-The fix is a state, not a patch: give that situation its own field in the
-record, give it a word in `LIVE_WORK` (so the mirror, the prune and the orphan
-purge all honour it), decide which writers it stops, and give it a way to be
-retired — either by the ledger post finally landing or by an operator recording
-the correction. That is the same shape as the owner-review marker, and it should
-probably be built alongside it rather than separately.
-
-Both halves found by Codex on #2065.
-
-### Third way into the same trap: one wave, one verdict
-
-`refundClaimedBatch` returns a single `unsettled` for the whole batch, and
-`underAttendeeClaim` releases the claim as one. So a SumUp wave where attendee
-A's refund, marker and ledger post all succeed, and attendee B's refund answer
-is uncertain, keeps EVERY row — A's included. A is then ledger-refunded, so
-`getRefundCandidates` excludes them from any later run, and their claim can
-never be released: blocked from deletion and merging for good.
-
-Same ending as the two above, reached through batch granularity rather than a
-failed write. It says the claim's grain is wrong as well as its vocabulary:
-settlement is per attendee, so the release has to be too. Worth settling
-alongside the missing state rather than separately — three triggers, one
-mechanism.
 
 Found by Codex on #2065.
 

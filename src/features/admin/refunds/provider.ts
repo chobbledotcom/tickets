@@ -36,6 +36,7 @@ type RefundProvider = Pick<
 type MarkReturnedReferences = (
   references: readonly RefundPaymentReference[],
 ) => Promise<void>;
+type RecordRefunds = typeof recordAttendeeRefundsBatch;
 
 /** Taking and letting go of the hold on an attendee's payment rows. Injected
  *  so the tally and ordering rules can be tested without a database. */
@@ -208,7 +209,7 @@ const releaseHold = async (
 /** Hold every attendee this run will touch, do the work, then let go. One
  *  claim for the whole run costs the same two round trips as a single refund,
  *  and the run can never hold some of its attendees but not others. */
-export const underAttendeeClaim = async <TResult>(
+const underAttendeeClaim = async <TResult>(
   rowClaim: RowClaim,
   held: readonly AnchoredAttendee[],
   capability: RefundCapability,
@@ -438,12 +439,13 @@ const tallyProviderRefund = (
  * outranks it, because there the money may not have moved at all.
  */
 const recordWave = async (
+  record: RecordRefunds,
   counts: RefundCounts,
   postings: readonly LedgerPosting[],
   verdicts: Map<number, AttendeeVerdict>,
   listingId: number,
 ): Promise<void> => {
-  const posted = await recordAttendeeRefundsBatch(postings);
+  const posted = await record(postings);
   for (const { attendeeId, whole } of postings) {
     if (posted.get(attendeeId) !== true) {
       // The provider sent this refund but our ledger could not record it —
@@ -466,12 +468,25 @@ type ClaimedRun = {
 
 /** Refund one chunk of attendees at the provider, then record full successes in
  * the ledger before starting the next chunk. */
+/** The writes a run makes away from the provider. Injectable together, so a
+ *  test can drive the tally and the ordering rules without a database — and so
+ *  the list does not grow into a row of positional arguments. */
+export type RefundWrites = {
+  claim?: RowClaim;
+  markReturned?: MarkReturnedReferences;
+  record?: RecordRefunds;
+};
+
 export const processRefundBatch = async (
   provider: RefundProvider,
   batch: RefundCandidate[],
   listingId: number,
-  rowClaim: RowClaim = durableRowClaim,
-  markReturnedReferences: MarkReturnedReferences = markPaymentReferencesProviderRefunded,
+  {
+    claim: rowClaim = durableRowClaim,
+    markReturned:
+      markReturnedReferences = markPaymentReferencesProviderRefunded,
+    record = recordAttendeeRefundsBatch,
+  }: RefundWrites = {},
 ): Promise<RefundCounts> => {
   const result = await underAttendeeClaim<ClaimedRun>(
     rowClaim,
@@ -497,7 +512,7 @@ export const processRefundBatch = async (
           provider,
           batch,
           listingId,
-          markReturnedReferences,
+          { markReturned: markReturnedReferences, record },
           alreadyReturned,
         ),
     },
@@ -509,7 +524,7 @@ const refundClaimedBatch = async (
   provider: RefundProvider,
   batch: RefundCandidate[],
   listingId: number,
-  markReturnedReferences: MarkReturnedReferences,
+  writes: { markReturned: MarkReturnedReferences; record: RecordRefunds },
   alreadyReturned: ReadonlySet<string>,
 ): Promise<ClaimedRun> => {
   const verdicts = new Map<number, AttendeeVerdict>();
@@ -526,7 +541,7 @@ const refundClaimedBatch = async (
           provider,
           candidate,
           listingId,
-          markReturnedReferences,
+          writes.markReturned,
           alreadyReturned,
           inFlight,
         ),
@@ -541,7 +556,7 @@ const refundClaimedBatch = async (
       }
       tallyProviderRefund(counts, result, listingId, postings);
     }
-    await recordWave(counts, postings, verdicts, listingId);
+    await recordWave(writes.record, counts, postings, verdicts, listingId);
   }
   return { counts, verdicts };
 };

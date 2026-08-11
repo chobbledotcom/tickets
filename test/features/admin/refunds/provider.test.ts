@@ -2,11 +2,9 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import {
-  type AttendeeVerdict,
   processRefundBatch,
   type RowClaim,
   refundCandidateAtProvider,
-  underAttendeeClaim,
 } from "#routes/admin/refunds/provider.ts";
 import {
   combineRefundOutcomes,
@@ -28,21 +26,6 @@ import { grantingRowClaim } from "#test-utils/refund-routes.ts";
 
 type Ref = { reference: string; refundState?: RefundState };
 
-/** One attendee whose charge is already on a row, so nothing needs anchoring
- *  and no database is touched — these tests are about the hold, not minting. */
-const holding = (...sessionIds: string[]) => [
-  {
-    attendeeId: 11,
-    references: [
-      refundReference("pi_held", {
-        index: "index_of_held",
-        rowSessionIds: sessionIds.length > 0 ? sessionIds : ["sess-held-row"],
-        sessionIds,
-      }),
-    ],
-  },
-];
-
 const candidate = (references: Ref[], id = 42): RefundCandidate => ({
   attendee: { id } as RefundCandidate["attendee"],
   references: references.map(({ reference, refundState = "none" }) =>
@@ -50,11 +33,11 @@ const candidate = (references: Ref[], id = 42): RefundCandidate => ({
   ),
 });
 
-/** A claim that grants attendee 11 the rows it names — the attendee `holding`
- *  builds — and lets each test say what its release does. */
+/** A claim that grants attendee 11 exactly the rows it names, and lets each
+ *  test say what its release does. */
 const holdingClaim = (
   release: RowClaim["release"],
-  sessions: readonly string[] = ["sess-x"],
+  sessions: readonly string[],
 ): RowClaim => ({
   claim: () =>
     Promise.resolve({
@@ -431,7 +414,7 @@ describe("admin refund provider > the claim", () => {
       untouched,
       [candidate([{ reference: "pi_held", refundState: "none" }])],
       7,
-      blockedRowClaim(),
+      { claim: blockedRowClaim() },
     );
 
     expect(counts).toEqual({
@@ -468,7 +451,7 @@ describe("admin refund provider > the claim", () => {
         candidate([{ reference: "pi_3", refundState: "none" }], 13),
       ],
       7,
-      counting,
+      { claim: counting },
     );
 
     // Three attendees, one hold — a bulk wave costs the same round trips as a
@@ -488,7 +471,7 @@ describe("admin refund provider > the claim", () => {
       keylessThatDies,
       [candidate([{ reference: "pi_lost", refundState: "none" }])],
       7,
-      rowClaim,
+      { claim: rowClaim },
     );
 
     // The money may already have gone; without an idempotency key nothing may
@@ -584,39 +567,47 @@ describe("admin refund provider > an unrecorded refund", () => {
     expect(result.unsettled).toBeUndefined();
   });
 
-  /** Run a keyless hold whose work ends recorded or not, and say how many
-   *  times it let go. */
-  /** Run a keyless hold on one attendee and report what it let go of, and what
-   *  it marked as money the ledger has not caught up with. */
-  const keylessHold = async (verdict?: AttendeeVerdict) => {
-    const rowClaim = grantingRowClaim(new Map([[11, ["sess-held"]]]));
-    await underAttendeeClaim(rowClaim, holding("sess-held"), "keyless", 7, {
-      blocked: () => "blocked",
-      verdicts: () => (verdict ? new Map([[11, verdict]]) : new Map()),
-      work: () => Promise.resolve("ran"),
-    });
-    return rowClaim;
+  /** One keyless attendee through a whole run, with the ledger answering
+   *  however the case needs. Returns the claim so a test can say what the run
+   *  let go of, and what it marked. */
+  const keylessRun = async (posted: boolean, refunds = ["pi_held"]) => {
+    const claim = grantingRowClaim(new Map([[11, ["sess_pi_held"]]]));
+    await processRefundBatch(
+      provider({ refundCapability: "keyless", refunded: new Set(refunds) }),
+      [candidate([{ reference: "pi_held" }], 11)],
+      7,
+      {
+        claim,
+        markReturned: () => Promise.resolve(),
+        record: (attendees) =>
+          Promise.resolve(
+            new Map(attendees.map(({ attendeeId }) => [attendeeId, posted])),
+          ),
+      },
+    );
+    return claim;
   };
 
   test("a keyless run keeps its hold while the answer is in doubt", async () => {
-    // Releasing here is how a retry, reading a provider that has not caught
-    // up, sends the money a second time.
-    expect((await keylessHold("in_doubt")).released).toEqual([]);
+    // The provider was asked and did not confirm. Releasing here is how a
+    // retry, reading a provider that has not caught up, sends the money a
+    // second time.
+    expect((await keylessRun(true, [])).released).toEqual([]);
   });
 
   test("a keyless run lets go when the answer is settled", async () => {
-    expect((await keylessHold()).released).toEqual([["sess-held"]]);
+    expect((await keylessRun(true)).released).toEqual([["sess_pi_held"]]);
   });
 
   test("a keyless run whose money the ledger missed lets go, marked", async () => {
     // The provider answered clearly, so there is no doubt to hold against —
     // only books that are behind. Keeping the claim here is what left a SumUp
     // attendee un-pickable, un-deletable and un-mergeable for good; the mark
-    // protects the row the correction needs without any of that.
-    const rowClaim = await keylessHold("unrecorded");
+    // protects the row the correction needs and does none of that.
+    const claim = await keylessRun(false);
 
-    expect(rowClaim.released).toEqual([["sess-held"]]);
-    expect(rowClaim.unrecorded).toEqual([["sess-held"]]);
+    expect(claim.released).toEqual([["sess_pi_held"]]);
+    expect(claim.unrecorded).toEqual([["sess_pi_held"]]);
   });
 });
 
@@ -642,24 +633,25 @@ describe("admin refund provider > a release that fails", () => {
   const errors = setupErrorSpy();
 
   test("reports it and leaves the run's answer alone", async () => {
-    const refusingRelease = holdingClaim(() =>
-      Promise.reject(new Error("the row would not let go")),
+    const refusingRelease = holdingClaim(
+      () => Promise.reject(new Error("the row would not let go")),
+      ["sess_pi_held"],
     );
 
-    const result = await underAttendeeClaim(
-      refusingRelease,
-      holding("sess-x"),
-      "keyed",
+    const counts = await processRefundBatch(
+      provider({ refunded: new Set(["pi_held"]) }),
+      [candidate([{ reference: "pi_held" }], 11)],
       7,
       {
-        blocked: () => ({ tally: "blocked" }),
-        verdicts: () => new Map(),
-        work: () => Promise.resolve({ tally: "refunded" }),
+        claim: refusingRelease,
+        markReturned: () => Promise.resolve(),
+        record: (attendees) =>
+          Promise.resolve(new Map(attendees.map((a) => [a.attendeeId, true]))),
       },
     );
 
     // The hold goes stale by itself; the answer does not come back.
-    expect(result).toEqual({ tally: "refunded" });
+    expect(counts.refundedCount).toBe(1);
     expect(errors.contains("Refund claim could not be released")).toBe(true);
   });
 });
@@ -669,22 +661,25 @@ describe("admin refund provider > a payment that landed while we waited", () => 
     // The reference list leaves a merge anchor's id out on purpose.
     const holdsAnchor = holdingClaim(
       () => Promise.resolve(),
-      ["sess-known", "legacy-merge:7"],
+      ["sess_pi_known", "legacy-merge:7"],
     );
 
-    const result = await underAttendeeClaim(
-      holdsAnchor,
-      holding("sess-known"),
-      "keyless",
+    const asked = provider({
+      refundCapability: "keyless",
+      refunded: new Set(["pi_known"]),
+    });
+
+    const counts = await processRefundBatch(
+      asked,
+      [candidate([{ reference: "pi_known" }], 11)],
       7,
-      {
-        blocked: (reason) => reason,
-        verdicts: () => new Map(),
-        work: () => Promise.resolve("ran"),
-      },
+      { claim: holdsAnchor, markReturned: () => Promise.resolve() },
     );
 
-    expect(result).toBe("ran");
+    // The run went ahead: the anchor did not read as money that appeared
+    // while it waited.
+    expect(asked.refunds).toEqual(["pi_known"]);
+    expect(counts.failedCount).toBe(0);
   });
 
   test("stands the whole run down rather than refunding part of it", async () => {
@@ -695,30 +690,23 @@ describe("admin refund provider > a payment that landed while we waited", () => 
         released.push([...sessionIds]);
         return Promise.resolve();
       },
-      ["sess-known", "sess-new"],
+      ["sess_pi_known", "sess-new"],
     );
 
-    let worked = false;
-    const result = await underAttendeeClaim(
-      holdsMore,
-      holding("sess-known"),
-      "keyless",
+    const asked = provider({ refundCapability: "keyless" });
+
+    const counts = await processRefundBatch(
+      asked,
+      [candidate([{ reference: "pi_known" }], 11)],
       7,
-      {
-        blocked: (reason) => reason,
-        verdicts: () => new Map(),
-        work: () => {
-          worked = true;
-          return Promise.resolve("ran");
-        },
-      },
+      { claim: holdsMore, markReturned: () => Promise.resolve() },
     );
 
     // Refunding what we loaded would return part of the money and leave the
     // rest, so nothing runs and the hold goes back.
-    expect(worked).toBe(false);
-    expect(result).toContain("landed while this run was waiting");
-    expect(released).toEqual([["sess-known", "sess-new"]]);
+    expect([...asked.reads, ...asked.refunds]).toEqual([]);
+    expect(counts.failedCount).toBe(1);
+    expect(released).toEqual([["sess_pi_known", "sess-new"]]);
   });
 });
 
@@ -736,8 +724,7 @@ describe("admin refund provider > one charge two attendees carry", () => {
         candidate([{ reference: "pi_both", refundState: "none" }], 12),
       ],
       7,
-      grantingRowClaim(),
-      () => Promise.resolve(),
+      { claim: grantingRowClaim(), markReturned: () => Promise.resolve() },
     );
 
     // The hold cannot separate these two: both rows belong to this same run.
@@ -764,15 +751,22 @@ describe("admin refund provider > a run that dies holding money", () => {
     const recordsRelease = holdingClaim(() => {
       releases.push("released");
       return Promise.resolve();
-    });
+    }, ["sess_pi_held"]);
 
     await expect(
-      underAttendeeClaim(recordsRelease, holding("sess-x"), "keyed", 7, {
-        blocked: () => "blocked",
-        verdicts: () => new Map(),
-        work: () => Promise.reject(new Error("the provider fell over")),
-      }),
-    ).rejects.toThrow("the provider fell over");
+      processRefundBatch(
+        provider({ refunded: new Set(["pi_held"]) }),
+        [candidate([{ reference: "pi_held" }], 11)],
+        7,
+        {
+          claim: recordsRelease,
+          markReturned: () => Promise.resolve(),
+          // The one write inside the hold that is not already guarded. If it
+          // ever throws, the run must not keep the money held on its way out.
+          record: () => Promise.reject(new Error("the ledger fell over")),
+        },
+      ),
+    ).rejects.toThrow("the ledger fell over");
 
     // A run that died never learned what the money did, so its hold is judged
     // as a lost answer. A keyed provider is safe to re-run onto the same key,

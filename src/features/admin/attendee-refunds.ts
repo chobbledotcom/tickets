@@ -19,6 +19,7 @@ import { logActivity } from "#shared/db/activity-log.ts";
 import { hasActiveBookingLine } from "#shared/db/attendees/queries.ts";
 import {
   getRefundPaymentReferences,
+  type RefundPaymentReference,
   stillWithTheProvider,
 } from "#shared/db/payment-references.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -59,6 +60,33 @@ const refundError = (
  * payment, already refunded, or a no-quantity ghost home line) render the
  * page with a message at 400; the clean GET renders the flashed error (if
  * any) at 200 — attendeeActionPage supplies exactly that shape. */
+/** What is left to refund for this attendee, or the reason nothing is. Both
+ *  the page guard and the POST ask it, so the page a person is looking at and
+ *  the action they submit can never disagree about whether a refund is still
+ *  possible. */
+type RefundableCharges =
+  | { kind: "nothing"; reason: string }
+  | { kind: "refundable"; references: RefundPaymentReference[] };
+
+const whatIsLeftToRefund = async (
+  attendee: Attendee,
+): Promise<RefundableCharges> => {
+  const references = (
+    await getRefundPaymentReferences(
+      [attendee],
+      await requireRequestPrivateKey(),
+    )
+  ).get(attendee.id)!;
+  // Refunded in part still leaves money to send back, so the ledger's flag
+  // alone is not the answer — see `stillWithTheProvider`.
+  if (attendee.refunded && !stillWithTheProvider(references)) {
+    return { kind: "nothing", reason: t("error.already_refunded") };
+  }
+  return references.length === 0
+    ? { kind: "nothing", reason: t("error.no_payment_to_refund") }
+    : { kind: "refundable", references };
+};
+
 const handleAdminAttendeeRefundGet = attendeeActionPage(
   adminRefundAttendeePage,
   async (data) => {
@@ -68,21 +96,8 @@ const handleAdminAttendeeRefundGet = attendeeActionPage(
     if (!(await hasActiveBookingLine(data.attendee.id, data.listing.id))) {
       return t("error.no_payment_to_refund");
     }
-    const references = (
-      await getRefundPaymentReferences(
-        [data.attendee],
-        await requireRequestPrivateKey(),
-      )
-    ).get(data.attendee.id)!;
-    // Refunded in part still leaves money to send back, so the flag alone is
-    // not the answer — see `stillWithTheProvider`.
-    if (data.attendee.refunded && !stillWithTheProvider(references)) {
-      return t("error.already_refunded");
-    }
-    if (references.length === 0) {
-      return t("error.no_payment_to_refund");
-    }
-    return null;
+    const left = await whatIsLeftToRefund(data.attendee);
+    return left.kind === "nothing" ? left.reason : null;
   },
 );
 
@@ -104,22 +119,11 @@ const handleAttendeeRefund = verifiedAttendeeAction(
         returnUrl,
       );
     }
-    const references = (
-      await getRefundPaymentReferences(
-        [data.attendee],
-        await requireRequestPrivateKey(),
-      )
-    ).get(attendeeId)!;
-    if (data.attendee.refunded && !stillWithTheProvider(references)) {
-      return refundError(attendeeId, t("error.already_refunded"), returnUrl);
+    const left = await whatIsLeftToRefund(data.attendee);
+    if (left.kind === "nothing") {
+      return refundError(attendeeId, left.reason, returnUrl);
     }
-    if (references.length === 0) {
-      return refundError(
-        attendeeId,
-        t("error.no_payment_to_refund"),
-        returnUrl,
-      );
-    }
+    const references = left.references;
 
     const provider = await requirePaymentProvider(() =>
       refundError(attendeeId, NO_PROVIDER_ERROR, returnUrl),

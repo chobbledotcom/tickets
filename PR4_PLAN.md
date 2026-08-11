@@ -132,6 +132,30 @@ it is built, the code is the authority").
 | Which live work stops which writer                               | `src/shared/payment/admit-move.ts` (`test/shared/payment/admit-move.test.ts`)                                           | Pure: `moveRefusalOrNull` folds one `LIVE_WORK` table keyed by the record's own fields, so a new kind of work on a row is a compile error until it says which writers it stops. A terminal outcome is classified as settled and stops neither                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | The merge/delete admissions                                      | `src/shared/db/payment-admit-move.ts` (`test/shared/db/payment-admit-move.test.ts`)                                     | `assertRowsFreeToMove` reads every affected row through the CALLER's `TxScope` — `deleteAttendee`'s cascade and `applyAttendeeMerge`'s batch both became interactive transactions to give it one — and throws `PaymentRowsBusyError`. `orRefusal` turns that into an operator message on both routes. The merge admits BOTH ids: the source's rows change hands and the target's set grows by what the source brings. The orphan purge is the third writer and gates in SQL off the `protected_state` mirror, since a set-based purge cannot decrypt what it removes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
+| Partial reversal in the ledger | `returnedRefundGroups` in
+`src/shared/refund-ledger.ts`
+(`test/features/admin/refunds/provider/batch.test.ts`) | New, and an owner
+decision (2026-08-11): the ledger reverses the event groups whose money came
+back rather than the whole account or nothing. `mapRefund` already worked one
+group at a time, so only the picking changed. The whole-account path is
+unchanged, legacy references included. `CandidateRefund` carries the references
+that returned, and a partial post records the money without counting the
+attendee refunded | | Money the books have not caught up with | `unrecorded` on
+`PaymentRowState`; its entry in `LIVE_WORK`
+(`test/shared/payment/admit-move.test.ts`,
+`test/shared/db/payment-claim.test.ts`) | New, and the merge blocker the owner
+named (2026-08-11). A provider refund that the ledger could not record now says
+so on the row: it stops a delete, which would destroy the repair target, but not
+a merge, which relocates it. The mirror carries it, so the prune and the orphan
+purge honour it for free. It retires when a later run's ledger post lands. "Not
+recorded" is no longer treated as doubt — the provider answered clearly — so the
+claim is kept for a genuinely unconfirmed call alone | | Per-attendee release |
+`claimAttendeeRows`' `held` map and `underAttendeeClaim`'s verdicts in
+`src/features/admin/refunds/provider.ts` | New: the claim hands its rows back
+grouped by attendee and the run gives a verdict for each, so one uncertain
+attendee no longer holds their settled neighbours' rows. Settlement is per
+attendee, so the release is too |
+
 Still promises: provider discovery and tagging, and the declared-observation
 sweeps.
 
