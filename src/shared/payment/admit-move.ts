@@ -27,6 +27,11 @@ type LiveWork = {
   mirror: string;
   /** What to tell the operator, naming what to do next. */
   refusal: string;
+  /** Where this comes in the order things are said when a row carries more
+   *  than one, lowest first. Declared per entry because the order the fields
+   *  are written in belongs to the formatter, which sorts them alphabetically
+   *  — so a rename could otherwise reorder what an operator is told. */
+  saidFirst: number;
   /** Which operations this work stops. */
   stops: Record<RowMove, boolean>;
 };
@@ -36,11 +41,13 @@ type LiveWork = {
  *
  * A claim stops both writers fresh or stale: a stale one means a run died
  * holding this money and its record is the only sign the money may be going
- * back. The writers part company on an owner review — a merge relocates the
- * marker, so the review is still there afterwards, while a delete destroys the
- * promise that someone will look at this person's money.
+ * back. The other two part company — a merge RELOCATES, so the marker rides
+ * the moved row and the work is still there to do afterwards, while a delete
+ * DESTROYS the row the correction needs.
  *
- * Claim first: money that may be moving now is the more urgent thing to say.
+ * `saidFirst` puts the most urgent one first when a row carries more than one:
+ * money that may be moving right now, then money that moved and is not on the
+ * books, then money somebody should look at.
  */
 const LIVE_WORK = {
   claim: {
@@ -48,6 +55,7 @@ const LIVE_WORK = {
     mirror: "claim",
     refusal:
       "A refund for this person is still in progress. Finish or re-run the refund, then try again.",
+    saidFirst: 0,
     stops: { delete: true, merge: true },
   },
   review: {
@@ -55,9 +63,25 @@ const LIVE_WORK = {
     mirror: "review",
     refusal:
       "The owner still has to check a payment for this person. Mark it reviewed, then try again.",
+    saidFirst: 2,
+    stops: { delete: true, merge: false },
+  },
+  unrecorded: {
+    found: (state: PaymentRowState) => state.unrecorded !== undefined,
+    mirror: "unrecorded",
+    refusal:
+      "This person's money went back, but the accounts do not show it. Record it, then try again.",
+    saidFirst: 1,
     stops: { delete: true, merge: false },
   },
 } satisfies Record<LiveWorkField, LiveWork>;
+
+/** Every kind of live work, most urgent first. Built once from the table's own
+ *  `saidFirst`, so both readers below agree and neither depends on the order
+ *  the fields happen to be written in. */
+const WORST_FIRST: readonly LiveWork[] = Object.values(LIVE_WORK).sort(
+  (one, other) => one.saidFirst - other.saidFirst,
+);
 
 /** Why this move must not go ahead, or null when the rows are free. Most rows
  *  are in the middle of nothing, so that is an ordinary answer. */
@@ -65,7 +89,7 @@ export const moveRefusalOrNull = (
   states: readonly PaymentRowState[],
   move: RowMove,
 ): string | null => {
-  const blocking = Object.values(LIVE_WORK).find(
+  const blocking = WORST_FIRST.find(
     (work) => work.stops[move] && states.some(work.found),
   );
   return blocking === undefined ? null : blocking.refusal;
@@ -76,6 +100,6 @@ export const moveRefusalOrNull = (
  *  from the record it stores, so a row whose claim is let go but whose review
  *  remains still reads as protected. Empty when nothing is live. */
 export const mirrorFor = (state: PaymentRowState): string => {
-  const work = Object.values(LIVE_WORK).find((entry) => entry.found(state));
+  const work = WORST_FIRST.find((entry) => entry.found(state));
   return work === undefined ? "" : work.mirror;
 };

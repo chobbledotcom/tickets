@@ -60,6 +60,20 @@ export type StoredPaymentFailure = v.InferOutput<
   typeof StoredPaymentFailureSchema
 >;
 
+/**
+ * Money the provider sent back that our books do not have.
+ *
+ * Its own field because none of the others means it. A claim says someone is
+ * working on this; an outcome says it ended; a review marker says the records
+ * disagree. "The money moved and nobody wrote it down" is a fourth thing, and
+ * it is the one an operator has to act on — so the row that proves it has to
+ * survive until they do.
+ */
+export const UnrecordedRefundSchema = v.strictObject({
+  returnedAt: v.string(),
+});
+export type UnrecordedRefund = v.InferOutput<typeof UnrecordedRefundSchema>;
+
 /** The whole record. Every field is optional because a row carries only the
  *  concerns it has reached: a claim without an outcome while a run works, an
  *  outcome without a claim once one finishes. */
@@ -67,6 +81,7 @@ const PaymentRowStateSchema = v.strictObject({
   claim: v.optional(RefundClaimSchema),
   outcome: v.optional(StoredPaymentFailureSchema),
   review: v.optional(PaymentConflictSchema),
+  unrecorded: v.optional(UnrecordedRefundSchema),
 });
 export type PaymentRowState = v.InferOutput<typeof PaymentRowStateSchema>;
 
@@ -100,4 +115,5 @@ export const writeRowState = (
 export const isEmptyRowState = (state: PaymentRowState): boolean =>
   state.claim === undefined &&
   state.outcome === undefined &&
-  state.review === undefined;
+  state.review === undefined &&
+  state.unrecorded === undefined;

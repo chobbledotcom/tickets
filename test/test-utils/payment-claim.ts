@@ -26,6 +26,9 @@ export const CLAIM_MIRROR = mirrorFor({
   },
 });
 export const REVIEW_MIRROR = mirrorFor({ review: { kind: "partial_refund" } });
+export const UNRECORDED_MIRROR = mirrorFor({
+  unrecorded: { returnedAt: "" },
+});
 
 /** Any record, encrypted the way the column stores it. */
 export const rowStateSlot = (state: PaymentRowState): Promise<string> =>
@@ -70,3 +73,10 @@ export const putRowState = async (
     [slot, mirror, sessionId],
   );
 };
+
+/** Every row a claim holds, flattened. The claim keeps them per attendee so a
+ *  run can let one person go while another's answer is in doubt; a test that
+ *  only cares WHICH rows were held asks for them this way. */
+export const heldSessionIds = (claim: {
+  held: ReadonlyMap<number, readonly string[]>;
+}): string[] => [...claim.held.values()].flat();

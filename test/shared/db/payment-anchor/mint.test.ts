@@ -14,6 +14,7 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { heldSessionIds } from "#test-utils/payment-claim.ts";
 import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
@@ -73,17 +74,17 @@ describeWithEnv(
       // Nothing to claim, so the run is told it holds this attendee while
       // holding none of their money.
       expect(await claimAttendeeRows([attendeeId], "keyless")).toEqual({
+        held: new Map(),
         heldSince: expect.any(String),
         kind: "claimed",
         returned: new Set(),
-        sessionIds: [],
       });
 
       await anchorLegacyCharges([await about(attendeeId, "pi_old")]);
 
       const claim = await claimAttendeeRows([attendeeId], "keyless");
       if (claim.kind !== "claimed") throw new Error("the claim was refused");
-      expect(claim.sessionIds).toEqual([
+      expect(heldSessionIds(claim)).toEqual([
         `legacy:${attendeeId}:${await paymentReferenceIndex("pi_old")}`,
       ]);
     });
