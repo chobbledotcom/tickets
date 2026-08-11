@@ -7,10 +7,7 @@
 
 import type { PaymentConflict } from "#shared/payment/conflict.ts";
 import { resolveRefund } from "#shared/payment/refund.ts";
-import type {
-  ChargeMoney,
-  RefundResolution,
-} from "#shared/payment/resources.ts";
+import type { ChargeMoney } from "#shared/payment/resources.ts";
 import { refundMoneyMatchesCapture } from "#shared/payment/resources.ts";
 
 /** What a reading comes to once it has been looked at. Only "conflict" is a
@@ -25,10 +22,6 @@ export type ObservationOutcome =
  *  where the two are not even in the same currency to compare. */
 const refundOverspendsCapture = (charges: readonly ChargeMoney[]): boolean =>
   charges.some((charge) => !refundMoneyMatchesCapture(charge));
-
-/** A refund the provider tried and could not finish. */
-const providerCouldNotRefund = (refund: RefundResolution): boolean =>
-  refund.status === "failed" && refund.reason === "provider_failed";
 
 /** Money was taken and the reading has been checked, so all that is left is
  *  what became of any refunds on it. */
@@ -52,17 +45,20 @@ const refundOutcome = (charges: readonly ChargeMoney[]): ObservationOutcome => {
   if (refunds.some((refund) => refund.status === "pending")) {
     return { kind: "refund_pending" };
   }
-  if (refunds.some(providerCouldNotRefund)) {
-    return { issue: { kind: "failed_refund" }, kind: "conflict" };
-  }
-  // Money back on SOME legs but not all is a partial refund of the booking
-  // even when each leg's own refund finished: the provider is keeping less
-  // than the signed total, so the booking parks for the owner.
-  return refunds.some(
-    (refund) => refund.status === "partial" || refund.status === "completed",
-  )
+  // Any money back at all, on any leg, parks the booking for the owner: the
+  // provider is keeping less than the signed total. The question is the AMOUNT
+  // rather than the status, because a charge whose refund the provider could
+  // not finish still reports what came back before it failed — and sending
+  // again on top of that pays the buyer twice.
+  return refunds.some((refund) => refund.amount.amount > 0)
     ? { issue: { kind: "partial_refund" }, kind: "conflict" }
-    : { kind: "ready" };
+    : // Nothing came back anywhere. A refund the provider tried and could not
+      // finish moved no money, so it settles as not-happening and a fresh
+      // attempt is legitimate — the reading the contract already gives
+      // Stripe's `failed`/`canceled`. Refusing for good is what left a SumUp
+      // buyer charged: that FAILED event never leaves the transaction history,
+      // so every later read saw it again and refused again.
+      { kind: "ready" };
 };
 
 /** What the money on these charges comes to on its own, with no agreed total

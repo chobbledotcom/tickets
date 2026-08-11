@@ -69,9 +69,11 @@ describe("what charges alone come to, with no agreed total", () => {
       "refund_exceeds_capture",
     ],
     [
+      // No money moved, so it settles as not-happening and a fresh attempt is
+      // legitimate. Refusing for good is what left a SumUp buyer charged: that
+      // FAILED event never leaves the transaction history, so every later read
+      // saw it again and refused again.
       "a refund the provider tried and could not finish",
-      // Only a refund actually attempted counts: the money is still with us
-      // and nothing else will try again, so the owner has to be told.
       [
         chargeMoneyWith({
           refunds: [
@@ -79,7 +81,27 @@ describe("what charges alone come to, with no agreed total", () => {
           ],
         }),
       ],
-      "failed_refund",
+      "ready",
+    ],
+    [
+      // But not when money has already come back: sending again there pays the
+      // buyer twice, so a failed attempt beside a returned one still parks.
+      "a failed attempt beside money already returned",
+      [
+        chargeMoneyWith({
+          confirmedRefunded: gbp(40),
+          refunds: [
+            refundObservation({ amount: gbp(40) }),
+            refundObservation({
+              amount: gbp(30),
+              reason: "provider_failed",
+              refund: { ...refundResource, id: "re_2" },
+              status: "failed",
+            }),
+          ],
+        }),
+      ],
+      "partial_refund",
     ],
     // The rules comparing what was owed against what was observed cannot run
     // without an agreed total, so a reference carrying none is judged on the
