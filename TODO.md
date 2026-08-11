@@ -2364,3 +2364,26 @@ The fix is to take the wall clock out of it: have the test age the record
 against the same fake clock it ticks, rather than against `Date.now()`, so the
 margin is deterministic. Out of scope where it was found — that session was
 closing the M4 coverage gaps and this file is mutation-run tooling.
+
+## A refund run whose attendee vanished still asks the provider
+
+`anchorLegacyCharges` no longer mints a row for an attendee who has been deleted
+since the run loaded its candidates — the INSERT now carries an EXISTS on
+`attendees`, so no orphan row is created and no claim can be taken on one. That
+closes the concrete harm Codex named on PR #2065: a row naming nobody, protected
+from the purge by its own claim, with money sent against a booking and ledger
+target that had already gone.
+
+What it does not close: the run itself. Its candidate list was read before the
+delete, so it can still reach the provider for that charge and send the money
+back. Nothing records it afterwards, because the attendee account it would post
+to no longer exists.
+
+Whether that is even wrong is an owner's call. The buyer getting their money
+back after their booking was deleted may be exactly right; what is certainly
+wrong is that the ledger cannot say it happened. Codex's suggestion was to
+validate inside the claim transaction and refuse the run when the attendee has
+gone — that is the fuller fix, and it changes the claim contract, so it is not
+being taken unilaterally on a money path.
+
+Found by Codex on #2065.

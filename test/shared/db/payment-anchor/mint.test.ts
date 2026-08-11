@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { queryAll } from "#shared/db/client.ts";
+import { execute, queryAll } from "#shared/db/client.ts";
 import {
   type AnchoredAttendee,
   anchorLegacyCharges,
@@ -48,6 +48,21 @@ describeWithEnv(
         { id: attendeeId, payment_id: paymentId },
         await getTestPrivateKey(),
       ),
+    });
+
+    test("a charge whose attendee has since gone gets no row at all", async () => {
+      const attendeeId = await newAttendee("vanished@example.com");
+      const held = await about(attendeeId, "pi_gone");
+
+      // A run reads its candidates before it anchors, and a delete can land in
+      // between: the delete refuses on payment rows, and this charge has none
+      // for it to see. The row this would have minted names nobody, and the
+      // claim on it would have let the run send money with no booking left to
+      // record it against.
+      await execute("DELETE FROM attendees WHERE id = ?", [attendeeId]);
+      await anchorLegacyCharges([held]);
+
+      expect(await paymentRowCount(attendeeId)).toBe(0);
     });
 
     test("a charge with no row of its own cannot be held until it has one", async () => {
