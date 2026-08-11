@@ -52,6 +52,11 @@ export const protectedStateOf = paymentRowColumn("protected_state");
 /** The blind one-way index stored beside the row's payment reference. */
 export const referenceIndexOf = paymentRowColumn("payment_reference_index");
 
+/** The stored record itself, still encrypted. Compared between two calls it
+ *  shows whether a writer left the row alone: a rewrite would carry a fresh
+ *  time and fresh ciphertext even for the same facts. */
+export const storedRecordOf = paymentRowColumn("failure_data");
+
 /** Any record, encrypted the way the column stores it. */
 export const rowStateSlot = (state: PaymentRowState): Promise<string> =>
   encrypt(writeRowState(state, SLOT));
