@@ -82,7 +82,7 @@ describe("holdsTheRow", () => {
 });
 
 describe("mayReleaseClaim", () => {
-  const CAPABILITIES: RefundCapability[] = ["keyed", "keyless", "unresolved"];
+  const CAPABILITIES: RefundCapability[] = ["keyed", "keyless"];
 
   for (const capability of CAPABILITIES) {
     test(`${capability} releases when the answer came back`, () => {
@@ -100,10 +100,6 @@ describe("mayReleaseClaim", () => {
 
   test("a lost answer keeps a keyless claim standing", () => {
     expect(mayReleaseClaim("keyless", "lost")).toBe(false);
-  });
-
-  test("a lost answer keeps an unresolved-provider claim standing", () => {
-    expect(mayReleaseClaim("unresolved", "lost")).toBe(false);
   });
 });
 

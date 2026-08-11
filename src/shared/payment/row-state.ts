@@ -16,14 +16,8 @@ import { defineStoredJson } from "#shared/validation/stored-json.ts";
 /** Whether a second attempt under this claim would land on the money twice.
  *  `keyed` takes an idempotency key, so a lost call may be re-run and the
  *  claim released on any answer. `keyless` (SumUp) has no such promise, so a
- *  lost answer keeps the claim until fresh evidence settles it. `unresolved`
- *  names a reference whose provider is not yet known, where guessing either
- *  way is unsafe, so only staleness releases it. */
-export const RefundCapabilitySchema = v.picklist([
-  "keyed",
-  "keyless",
-  "unresolved",
-]);
+ *  lost answer keeps the claim until fresh evidence settles it. */
+export const RefundCapabilitySchema = v.picklist(["keyed", "keyless"]);
 export type RefundCapability = v.InferOutput<typeof RefundCapabilitySchema>;
 
 /**

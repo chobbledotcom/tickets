@@ -168,15 +168,6 @@ const rowStateStatement = async (
          WHERE payment_session_id = ? AND failure_data = ?`,
 });
 
-/** Write a row's record back inside the claim's own transaction. */
-const writeState = async (
-  tx: TxScope,
-  row: PaymentRowRecord,
-  state: PaymentRowState,
-): Promise<void> => {
-  await tx.execute(await rowStateStatement(row, state));
-};
-
 /**
  * Claim every row this run will touch, or none of them. One transaction for
  * the whole run, so it costs the same two round trips however many attendees
@@ -236,17 +227,24 @@ export const claimAttendeeRows = async (
           : [],
       ),
     );
-    for (const row of rows) {
-      await writeState(tx, row, {
-        ...row.state,
-        claim: {
-          attendeeId: row.attendeeId,
-          capability: inherited.get(row.attendeeId) ?? capability,
-          scope: "attendee_set",
-          writtenAt,
-        },
-      });
-    }
+    // One batch, not one call per row: a merged attendee can carry many
+    // charges, and each `execute` is a subrequest the run has to fit inside
+    // Bunny's cap before it has even reached the provider.
+    await tx.batch(
+      await Promise.all(
+        rows.map((row) =>
+          rowStateStatement(row, {
+            ...row.state,
+            claim: {
+              attendeeId: row.attendeeId,
+              capability: inherited.get(row.attendeeId) ?? capability,
+              scope: "attendee_set",
+              writtenAt,
+            },
+          }),
+        ),
+      ),
+    );
     return {
       held: new Map(
         [...Map.groupBy(rows, (row) => row.attendeeId)].map(
