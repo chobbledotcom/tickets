@@ -46,14 +46,26 @@ const anchorStatement = async (
     nowIso(),
     await encryptPaymentReference(reference.reference),
     reference.index,
+    attendeeId,
   ],
   // Ignoring a clash is right here, and only because the session id names the
   // attendee AND the charge: a row already under that id is this same person's
   // row for this same money, so there is nothing to write.
+  //
+  // The EXISTS is what keeps this from writing a row for somebody who is no
+  // longer there. A run loads its candidates before it anchors, and nothing
+  // stops a delete landing in between: the delete refuses on payment rows, and
+  // a charge carried only in `payment_id` has none for it to see. Without the
+  // check this INSERT would then mint a row naming a deleted attendee — the
+  // table holds no foreign key to stop it — and the claim that follows would
+  // succeed, letting the run send money with no booking or ledger left to
+  // record it against.
   sql: `INSERT OR IGNORE INTO processed_payments
         (payment_session_id, attendee_id, processed_at, payment_reference,
          payment_reference_index)
-        VALUES (?, ?, ?, ?, ?)`,
+        SELECT ?, ?, ?, ?, ?
+         WHERE EXISTS (SELECT 1 FROM attendees AS attendee
+                        WHERE attendee.id = ?)`,
 });
 
 /**
