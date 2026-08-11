@@ -28,6 +28,7 @@ import {
 } from "#shared/db/payment-anchor/session.ts";
 import { settings } from "#shared/db/settings.ts";
 import { nowIso } from "#shared/now.ts";
+import { CLAIM_MIRROR } from "#shared/payment/admit-move.ts";
 import type { RefundState } from "#shared/payment/refund-state.ts";
 import { refundStateOf } from "#shared/payment/refund-state.ts";
 /* jscpd:ignore-end */
@@ -38,6 +39,10 @@ export type RefundPaymentReferenceSource = {
 };
 
 export type RefundPaymentReference = {
+  /** The rows carrying this charge that a refund run is still holding. A run
+   *  that finished its money but lost the write that lets go leaves its hold
+   *  behind, and nothing else in the system ever takes one off. */
+  readonly heldRowSessionIds: readonly string[];
   /** The blind one-way index of this reference, carried from the read so no
    *  later step has to hash it again. */
   readonly index: string;
@@ -55,6 +60,7 @@ type PaymentReferenceRow = {
   payment_reference: string;
   payment_reference_index: string;
   payment_session_id: string;
+  protected_state: string;
   provider_refunded_at: string;
 };
 
@@ -66,6 +72,7 @@ type PaymentReferenceAttendeeRow = {
  *  blind index, whether the provider has refunded it, and the payment sessions
  *  seen so far. */
 type ReferenceProgress = {
+  heldRowSessionIds: string[];
   index: string;
   refunded: boolean;
   rowSessionIds: string[];
@@ -121,7 +128,7 @@ const paymentReferencesForIds = (
   queryProcessedReferences(
     attendeeIds,
     `attendee_id, payment_session_id, payment_reference,
-     payment_reference_index, provider_refunded_at`,
+     payment_reference_index, protected_state, provider_refunded_at`,
     "ORDER BY attendee_id, processed_at, payment_session_id",
   );
 
@@ -133,6 +140,8 @@ const attendeeIdsWithProcessedReferences = (
 const legacyReference = async (
   reference: string,
 ): Promise<RefundPaymentReference> => ({
+  // No row at all, so no row of it can be held.
+  heldRowSessionIds: [],
   index: await paymentReferenceIndex(reference),
   reference,
   // A legacy charge (an old payment_id with no session) starts "unknown": this
@@ -157,6 +166,9 @@ const withLegacyReference = async (
 const realSessionIds = (row: PaymentReferenceRow): string[] =>
   isAnchorSession(row.payment_session_id) ? [] : [row.payment_session_id];
 
+const heldRowSessionIds = (row: PaymentReferenceRow): string[] =>
+  row.protected_state === CLAIM_MIRROR ? [row.payment_session_id] : [];
+
 const addReference = (
   byReference: ReferenceProgressByKey,
   row: PaymentReferenceRow,
@@ -164,13 +176,16 @@ const addReference = (
   index: string,
 ): void => {
   const sessionIds = realSessionIds(row);
+  const held = heldRowSessionIds(row);
   const existing = byReference.get(reference);
   if (existing) {
+    existing.heldRowSessionIds.push(...held);
     existing.rowSessionIds.push(row.payment_session_id);
     existing.sessionIds.push(...sessionIds);
     existing.refunded ||= row.provider_refunded_at !== "";
   } else {
     byReference.set(reference, {
+      heldRowSessionIds: held,
       index,
       refunded: row.provider_refunded_at !== "",
       rowSessionIds: [row.payment_session_id],
@@ -183,6 +198,7 @@ const asRefundReferences = (
   byReference: ReferenceProgressByKey,
 ): RefundPaymentReference[] =>
   [...byReference].map(([reference, data]) => ({
+    heldRowSessionIds: data.heldRowSessionIds,
     index: data.index,
     reference,
     // A reference with no live sessions is a legacy charge (its rows were all
@@ -275,6 +291,18 @@ export const getRefundPaymentReferencesForAttendee = async (
  * explains the attendee's refunded flag; on its own it is what that flag is
  * most likely describing.
  */
+/**
+ * Whether a refund run is still holding any of these charges' rows.
+ *
+ * Its hold refuses the attendee's delete and their merge, and only another run
+ * can take it off — so a held attendee is work outstanding even when every
+ * penny is already back.
+ */
+export const underRefundClaim = (
+  references: readonly RefundPaymentReference[],
+): boolean =>
+  references.some((reference) => reference.heldRowSessionIds.length > 0);
+
 export const stillWithTheProvider = (
   references: readonly RefundPaymentReference[],
 ): boolean => {

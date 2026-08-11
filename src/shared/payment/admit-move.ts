@@ -76,6 +76,11 @@ const LIVE_WORK = {
   },
 } satisfies Record<LiveWorkField, LiveWork>;
 
+/** The word a row a refund run is holding shows in `protected_state`. Named
+ *  here because this is where the word is decided, and read by the SQL guards
+ *  that have to ask without decrypting the record. */
+export const CLAIM_MIRROR: string = LIVE_WORK.claim.mirror;
+
 /** Every kind of live work, most urgent first. Built once from the table's own
  *  `saidFirst`, so both readers below agree and neither depends on the order
  *  the fields happen to be written in. */

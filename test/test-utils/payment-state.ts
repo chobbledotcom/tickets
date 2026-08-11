@@ -86,6 +86,7 @@ export const refundReference = (
   reference: string,
   values: Partial<RefundPaymentReference> = {},
 ): RefundPaymentReference => ({
+  heldRowSessionIds: [],
   index: `index_of_${reference}`,
   reference,
   refundState: "none",

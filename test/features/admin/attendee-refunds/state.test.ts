@@ -1,5 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { queryOne } from "#shared/db/client.ts";
+import {
+  getRefundPaymentReferencesForAttendee,
+  markPaymentReferencesProviderRefunded,
+} from "#shared/db/payment-references.ts";
+import { CLAIM_MIRROR } from "#shared/payment/admit-move.ts";
 import {
   createPaidListing,
   markAsRefunded,
@@ -9,16 +15,30 @@ import {
   expectFlashRedirect,
   expectHtmlResponse,
 } from "#test-utils/assertions.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { putRowState, staleClaimSlot } from "#test-utils/payment-claim.ts";
+import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
 import {
+  postRefundAll,
   refundAllUrl,
   refundUrl,
   submitRefund,
   withRefundMock,
 } from "#test-utils/refund-routes.ts";
 import { testCookie } from "#test-utils/session.ts";
+
+/** The plain word the row shows the readers that cannot decrypt it. */
+const protectedStateOf = async (sessionId: string): Promise<string> => {
+  const row = await queryOne<{ v: string }>(
+    "SELECT protected_state AS v FROM processed_payments WHERE payment_session_id = ?",
+    [sessionId],
+  );
+  if (row === null) throw new Error(`No payment row for ${sessionId}`);
+  return row.v;
+};
 
 describeWithEnv("server (admin refund state)", { db: true }, () => {
   describe("already-refunded guard", () => {
@@ -64,6 +84,45 @@ describeWithEnv("server (admin refund state)", { db: true }, () => {
         cookie: await testCookie(),
       });
       await expectHtmlResponse(response, 200, "1 attendee(s) with payments");
+    });
+
+    // The fault this closes: a run refunded the money, marked the charge and
+    // posted the ledger, then lost the write that lets go of its hold. That
+    // hold refuses the person's delete AND their merge, and tells the operator
+    // to re-run the refund — but a person whose money was all back was no
+    // longer picked up, so no re-run could ever reach them. Stuck for good.
+    test("refund-all frees an attendee a crashed run is still holding", async () => {
+      const listing = await createPaidListing();
+      const attendee = await createPaidTestAttendee(
+        listing.id,
+        "Stranded",
+        "stranded@example.com",
+        "",
+      );
+      await finalizeProcessedPayment(
+        "sess_stranded",
+        attendee.id,
+        "",
+        "pi_stranded",
+      );
+      await markPaymentReferencesProviderRefunded(
+        await getRefundPaymentReferencesForAttendee(
+          attendee,
+          await getTestPrivateKey(),
+        ),
+      );
+      await markAsRefunded(attendee.id);
+      await putRowState(
+        "sess_stranded",
+        await staleClaimSlot(attendee.id),
+        CLAIM_MIRROR,
+      );
+
+      await withRefundMock(true, async () => {
+        await postRefundAll(listing);
+      });
+
+      expect(await protectedStateOf("sess_stranded")).toBe("");
     });
 
     test("marks attendee as refunded after successful refund", async () => {

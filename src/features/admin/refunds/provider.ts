@@ -49,8 +49,8 @@ export type RowClaim = {
 };
 
 /**
- * What a run decided about one attendee it held. An attendee named by neither
- * is settled and simply lets go.
+ * What a run decided about one attendee it held. An attendee named by none of
+ * these is settled and simply lets go.
  *
  * `in_doubt`: the call was made and not confirmed. `unread`: the provider could
  * not be asked, so nothing was sent and nothing was learnt. `unrecorded`: the
@@ -58,7 +58,13 @@ export type RowClaim = {
  * instead — holding the claim there would only make the attendee impossible to
  * pick up, delete or merge. {@link mayLetGo} decides what each one releases.
  */
-export type AttendeeVerdict = "in_doubt" | "unread" | "unrecorded";
+export type AttendeeVerdict =
+  | { kind: "in_doubt" }
+  | { kind: "unread" }
+  /** Names the rows whose money actually went back, because only those may be
+   *  marked: a sibling charge still with the provider must never read as money
+   *  the books have not caught up with. */
+  | { kind: "unrecorded"; returnedSessionIds: readonly string[] };
 
 export const durableRowClaim: RowClaim = {
   claim: claimAttendeeRows,
@@ -191,10 +197,10 @@ const mayLetGo = (
   capability: RefundCapability,
   resumed: boolean,
 ): boolean => {
-  if (verdict === "in_doubt") return mayReleaseClaim(capability, "lost");
+  if (verdict?.kind === "in_doubt") return mayReleaseClaim(capability, "lost");
   // Learning nothing settles nothing, so an inherited hold keeps whatever the
   // dead run left on it.
-  if (verdict === "unread") {
+  if (verdict?.kind === "unread") {
     return !resumed || mayReleaseClaim(capability, "lost");
   }
   return true;
@@ -289,9 +295,12 @@ const underAttendeeClaim = async <TResult>(
         heldSince: claim.heldSince,
         sessionIds: letting.flatMap(([, sessions]) => sessions),
         unrecorded: new Set(
-          letting
-            .filter(([attendeeId]) => verdicts.get(attendeeId) === "unrecorded")
-            .flatMap(([, sessions]) => sessions),
+          letting.flatMap(([attendeeId]) => {
+            const verdict = verdicts.get(attendeeId);
+            return verdict?.kind === "unrecorded"
+              ? verdict.returnedSessionIds
+              : [];
+          }),
         ),
       },
       listingId,
@@ -303,7 +312,11 @@ const underAttendeeClaim = async <TResult>(
     return result;
   } catch (error) {
     // Nothing is known about anybody, so every attendee is in doubt.
-    await settle(new Map([...claim.held.keys()].map((id) => [id, "in_doubt"])));
+    await settle(
+      new Map(
+        [...claim.held.keys()].map((id) => [id, { kind: "in_doubt" } as const]),
+      ),
+    );
     throw error;
   }
 };
@@ -470,13 +483,22 @@ const recordWave = async (
   listingId: number,
 ): Promise<void> => {
   const posted = await record(postings);
-  for (const { attendeeId, whole } of postings) {
+  for (const { attendeeId, references, whole } of postings) {
     if (posted.get(attendeeId) !== true) {
       // The provider sent this refund but our ledger could not record it —
       // report the broken promise per attendee, not just the aggregate count.
       counts.notRecordedCount++;
       reportRefundNotRecorded({ attendeeId, listingId });
-      if (!verdicts.has(attendeeId)) verdicts.set(attendeeId, "unrecorded");
+      if (!verdicts.has(attendeeId)) {
+        verdicts.set(attendeeId, {
+          kind: "unrecorded",
+          // The posting's own charges, so the mark lands on the rows that
+          // carried the money and on no others.
+          returnedSessionIds: references.flatMap(
+            (reference) => reference.rowSessionIds,
+          ),
+        });
+      }
     } else if (whole) {
       counts.refundedCount++;
     }
@@ -577,10 +599,9 @@ const refundClaimedBatch = async (
       // rule reads; the two doubts are kept apart because they are not the
       // same risk.
       if (result.doubt !== undefined) {
-        verdicts.set(
-          result.candidate.attendee.id,
-          result.doubt === "lost" ? "in_doubt" : "unread",
-        );
+        verdicts.set(result.candidate.attendee.id, {
+          kind: result.doubt === "lost" ? "in_doubt" : "unread",
+        });
       }
       tallyProviderRefund(counts, result, listingId, postings);
     }

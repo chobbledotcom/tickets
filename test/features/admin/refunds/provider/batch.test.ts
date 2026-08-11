@@ -10,7 +10,12 @@ import {
 } from "#test/shared/refund-ledger/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
-import { chargeMoney, refundReference } from "#test-utils/payment-state.ts";
+import {
+  chargeMoney,
+  chargeMoneyWith,
+  refundObservation,
+  refundReference,
+} from "#test-utils/payment-state.ts";
 import { grantingRowClaim } from "#test-utils/refund-routes.ts";
 
 const LISTING = 7;
@@ -288,6 +293,50 @@ describeWithEnv(
       expect(counts.errorCount).toBe(0);
       expect(claim.released).toEqual([["sess-21"]]);
       expect(claim.unrecorded).toEqual([["sess-21"]]);
+    });
+
+    // The fault this closes: the mark went on EVERY row the attendee's hold
+    // covered, so a sibling charge still sitting with the provider read as
+    // money that had come back. The operator is then told a falsehood about
+    // that row, the prune protects it for a reason it does not have, and its
+    // delete stays refused after the real problem is put right.
+    test("marks only the rows whose money actually went back", async () => {
+      const claim = grantingRowClaim(
+        new Map([[24, ["sess-back", "sess-stuck"]]]),
+      );
+
+      const counts = await processRefundBatch(
+        {
+          // A refund already on its way is the provider answering clearly, so
+          // the stuck charge leaves no doubt for the hold to guard.
+          readChargeMoneyOrNull: () =>
+            Promise.resolve(
+              chargeMoneyWith({
+                refunds: [refundObservation({ status: "pending" })],
+              }),
+            ),
+          refundCapability: "keyed" as const,
+          refundPayment: () => Promise.resolve(true),
+        },
+        [
+          {
+            attendee: { id: 24 } as RefundCandidate["attendee"],
+            references: [
+              sessionReference("sess-back"),
+              refundReference("pi_stuck", {
+                rowSessionIds: ["sess-stuck"],
+                sessionIds: ["sess-stuck"],
+              }),
+            ],
+          },
+        ],
+        LISTING,
+        { claim },
+      );
+
+      expect(counts.notRecordedCount).toBe(1);
+      expect(claim.released).toEqual([["sess-back", "sess-stuck"]]);
+      expect(claim.unrecorded).toEqual([["sess-back"]]);
     });
 
     test("a keyed run lets go, because a repeat lands on the same refund", async () => {

@@ -19,7 +19,11 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { refundReference } from "#test-utils/payment-state.ts";
-import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
+import {
+  finalizeProcessedPayment,
+  readReference,
+  refundReferencesFor,
+} from "#test-utils/processed-payments.ts";
 
 const indexOf = (sessionId: string): Promise<{ v: string } | null> =>
   queryOne<{ v: string }>(
@@ -75,6 +79,7 @@ describeWithEnv("db > payment references", { db: true }, () => {
     // The legacy payment_id falls through `legacyReference`, which marks an
     // unobserved refund "unknown" — distinguish that from "completed".
     expect(firstRefs.at(-1)).toEqual({
+      heldRowSessionIds: [],
       index: await paymentReferenceIndex("pi_legacy_ignored"),
       reference: "pi_legacy_ignored",
       refundState: "unknown",
@@ -129,19 +134,14 @@ describeWithEnv("db > payment references", { db: true }, () => {
     if (!statement) throw new Error("setup failed");
     await execute(statement.sql, statement.args);
 
-    const references = await getRefundPaymentReferences(
-      [{ id: attendeeId, payment_id: "" }],
-      await getTestPrivateKey(),
-    );
-
-    expect(references.get(attendeeId)).toEqual([
-      {
-        index: await paymentReferenceIndex("pi_merged_legacy"),
-        reference: "pi_merged_legacy",
+    expect(
+      await refundReferencesFor(attendeeId, await getTestPrivateKey()),
+    ).toEqual([
+      await readReference("pi_merged_legacy", {
         refundState: "unknown",
         rowSessionIds: ["legacy-merge:12345"],
         sessionIds: [],
-      },
+      }),
     ]);
   });
 
@@ -351,29 +351,20 @@ describeWithEnv("db > payment references", { db: true }, () => {
       ],
     );
 
-    const references = await getRefundPaymentReferences(
-      [{ id: attendeeId, payment_id: "" }],
-      await getTestPrivateKey(),
-    );
+    const inProcessedOrder = [
+      "sess_shared_b_earlier",
+      "sess_shared_d_earlier",
+      "sess_shared_a_middle",
+      "sess_shared_c_later",
+    ];
 
-    expect(references.get(attendeeId)).toEqual([
-      {
-        index: await paymentReferenceIndex("pi_shared"),
-        reference: "pi_shared",
-        refundState: "none",
-        rowSessionIds: [
-          "sess_shared_b_earlier",
-          "sess_shared_d_earlier",
-          "sess_shared_a_middle",
-          "sess_shared_c_later",
-        ],
-        sessionIds: [
-          "sess_shared_b_earlier",
-          "sess_shared_d_earlier",
-          "sess_shared_a_middle",
-          "sess_shared_c_later",
-        ],
-      },
+    expect(
+      await refundReferencesFor(attendeeId, await getTestPrivateKey()),
+    ).toEqual([
+      await readReference("pi_shared", {
+        rowSessionIds: inProcessedOrder,
+        sessionIds: inProcessedOrder,
+      }),
     ]);
   });
 
@@ -398,30 +389,22 @@ describeWithEnv("db > payment references", { db: true }, () => {
       "pi_shared_refunded",
     );
     await markPaymentReferencesProviderRefunded([
-      {
-        index: await paymentReferenceIndex("pi_shared_refunded"),
-        reference: "pi_shared_refunded",
-        refundState: "none",
+      await readReference("pi_shared_refunded", {
         rowSessionIds: ["sess_refunded_a"],
         sessionIds: ["sess_refunded_a"],
-      },
+      }),
     ]);
 
-    const references = await getRefundPaymentReferences(
-      [{ id: attendeeId, payment_id: "" }],
-      await getTestPrivateKey(),
-    );
-
-    expect(references.get(attendeeId)).toEqual([
-      {
-        index: await paymentReferenceIndex("pi_shared_refunded"),
-        reference: "pi_shared_refunded",
-        // Ordered by processed_at; both sessions carried this reference, so
-        // both session ids remain attached after the merge.
+    // Ordered by processed_at; both sessions carried this reference, so both
+    // session ids remain attached after the merge.
+    expect(
+      await refundReferencesFor(attendeeId, await getTestPrivateKey()),
+    ).toEqual([
+      await readReference("pi_shared_refunded", {
         refundState: "completed",
         rowSessionIds: ["sess_refunded_a", "sess_refunded_b"],
         sessionIds: ["sess_refunded_a", "sess_refunded_b"],
-      },
+      }),
     ]);
   });
 
