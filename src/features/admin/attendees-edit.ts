@@ -28,7 +28,10 @@ import {
   getNotesFor,
 } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
-import { markReturnedUnrecorded } from "#shared/db/payment-claim.ts";
+import {
+  clearReturnedUnrecorded,
+  markReturnedUnrecorded,
+} from "#shared/db/payment-claim.ts";
 import {
   getRefundPaymentReferencesForAttendee,
   markPaymentReferencesProviderRefunded,
@@ -128,6 +131,14 @@ const refreshProviderRefunds = async (
   return refreshed;
 };
 
+/** The rows carrying the charges this refresh found already returned. */
+const refundedRowSessionIds = (
+  references: readonly RefundPaymentReference[],
+): string[] =>
+  references
+    .filter(hasProviderRefund)
+    .flatMap((reference) => reference.rowSessionIds);
+
 const hasProviderRefund = (
   reference: Pick<RefundPaymentReference, "refundState">,
 ): boolean => reference.refundState === "completed";
@@ -168,16 +179,16 @@ const recordConfirmedRefund = async (
   // carried it say so too, or nothing stops them being deleted before anyone
   // gets to the correction.
   if (!posted) {
-    await markReturnedUnrecorded(
-      references
-        .filter(hasProviderRefund)
-        .flatMap((reference) => reference.rowSessionIds),
-    );
+    await markReturnedUnrecorded(refundedRowSessionIds(references));
     return errorRedirect(
       `/admin/attendees/${attendeeId}`,
       reportRefundNotRecorded({ attendeeId, listingId }),
     );
   }
+  // The books have caught up, so the row stops saying they have not. Nothing
+  // else can take that word off a placeholder: it has no ticket quantity, so
+  // the refund route that clears one never picks it up.
+  await clearReturnedUnrecorded(refundedRowSessionIds(references));
   // Always delete the stale "could NOT be refunded" note when the refund is
   // confirmed, even when isPlaceholder is false (after the first refresh the
   // account has a refund_cash leg, so isPlaceholder becomes false — but the

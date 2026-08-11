@@ -334,23 +334,29 @@ export const releaseAttendeeRows = ({
   });
 
 /**
- * Say on these rows that their money went back and the books have not caught
- * up with it.
+ * Put on, or take off, the row's word that its money went back and the books
+ * have not caught up.
  *
  * For the paths that DISCOVER a refund rather than send one — the refresh
- * route finds the provider already returned a charge, and its ledger post does
- * not land. There is no claim to let go of there, only a fact that has to
- * survive: without it nothing stops the row being deleted, and the record of
- * the refund goes with it along with the ledger's correction target.
+ * route finds the provider already returned a charge. Without a claim to let
+ * go of, these are the only writers of that word, so both halves live here:
+ * the marker whose absence would let the row be deleted before anyone reaches
+ * the correction, and its retirement when a later run's ledger post lands. A
+ * marker nothing can take off is its own trap — a placeholder never enters the
+ * refund route that clears one, so it would refuse deletion for good.
  *
- * A row already saying so keeps the time it first did, so repeated refreshes
- * do not keep moving the date a person is meant to be looking into.
+ * Either half leaves a row that already says what is wanted completely alone,
+ * so repeated refreshes neither move the date somebody is meant to be looking
+ * into nor touch a row they have nothing to say about.
  */
-export const markReturnedUnrecorded = (
-  sessionIds: readonly string[],
-): Promise<void> =>
-  rewriteRows(sessionIds, (row) =>
-    row.state.unrecorded === undefined
-      ? { ...row.state, unrecorded: { returnedAt: nowIso() } }
-      : null,
-  );
+const returnedUnrecorded =
+  (marked: boolean) =>
+  (sessionIds: readonly string[]): Promise<void> =>
+    rewriteRows(sessionIds, (row) => {
+      if ((row.state.unrecorded !== undefined) === marked) return null;
+      const { unrecorded: _retired, ...kept } = row.state;
+      return marked ? { ...kept, unrecorded: { returnedAt: nowIso() } } : kept;
+    });
+
+export const markReturnedUnrecorded = returnedUnrecorded(true);
+export const clearReturnedUnrecorded = returnedUnrecorded(false);
