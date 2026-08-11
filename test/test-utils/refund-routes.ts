@@ -194,11 +194,7 @@ export const grantingRowClaim = (
         kind: "claimed",
         returned: new Set<string>(),
       }),
-    release: (
-      sessionIds: readonly string[],
-      _heldSince: string,
-      marked: ReadonlySet<string> = new Set(),
-    ) => {
+    release: ({ sessionIds, unrecorded: marked = new Set() }) => {
       released.push([...sessionIds]);
       unrecorded.push([...marked]);
       return Promise.resolve();

@@ -2,6 +2,7 @@ import { filter } from "#fp";
 import {
   getRefundPaymentReferences,
   type RefundPaymentReference,
+  stillWithTheProvider,
 } from "#shared/db/payment-references.ts";
 import type { Attendee } from "#shared/types.ts";
 import { hasTicketQuantity } from "#shared/types.ts";
@@ -11,8 +12,8 @@ export type RefundCandidate = {
   references: RefundPaymentReference[];
 };
 
-/** Attendees refundable on this listing: a real ticket line, not already
- * refunded, and at least one stored provider charge reference. */
+/** Attendees refundable on this listing: a real ticket line, money still with
+ * the provider, and at least one stored provider charge reference. */
 export const getRefundCandidates = async (
   attendees: Attendee[],
   privateKey: CryptoKey,
@@ -24,7 +25,8 @@ export const getRefundCandidates = async (
   return filter(
     (candidate: RefundCandidate) =>
       candidate.references.length > 0 &&
-      !candidate.attendee.refunded &&
+      (!candidate.attendee.refunded ||
+        stillWithTheProvider(candidate.references)) &&
       hasTicketQuantity(candidate.attendee),
   )(
     attendees.map((attendee) => ({

@@ -19,7 +19,7 @@ import { logActivity } from "#shared/db/activity-log.ts";
 import { hasActiveBookingLine } from "#shared/db/attendees/queries.ts";
 import {
   getRefundPaymentReferences,
-  hasRefundPaymentReference,
+  stillWithTheProvider,
 } from "#shared/db/payment-references.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { fail, ok } from "#shared/response.ts";
@@ -68,15 +68,18 @@ const handleAdminAttendeeRefundGet = attendeeActionPage(
     if (!(await hasActiveBookingLine(data.attendee.id, data.listing.id))) {
       return t("error.no_payment_to_refund");
     }
-    if (data.attendee.refunded) {
+    const references = (
+      await getRefundPaymentReferences(
+        [data.attendee],
+        await requireRequestPrivateKey(),
+      )
+    ).get(data.attendee.id)!;
+    // Refunded in part still leaves money to send back, so the flag alone is
+    // not the answer — see `stillWithTheProvider`.
+    if (data.attendee.refunded && !stillWithTheProvider(references)) {
       return t("error.already_refunded");
     }
-    if (
-      !(await hasRefundPaymentReference(
-        data.attendee,
-        await requireRequestPrivateKey(),
-      ))
-    ) {
+    if (references.length === 0) {
       return t("error.no_payment_to_refund");
     }
     return null;
@@ -101,15 +104,15 @@ const handleAttendeeRefund = verifiedAttendeeAction(
         returnUrl,
       );
     }
-    if (data.attendee.refunded) {
-      return refundError(attendeeId, t("error.already_refunded"), returnUrl);
-    }
     const references = (
       await getRefundPaymentReferences(
         [data.attendee],
         await requireRequestPrivateKey(),
       )
     ).get(attendeeId)!;
+    if (data.attendee.refunded && !stillWithTheProvider(references)) {
+      return refundError(attendeeId, t("error.already_refunded"), returnUrl);
+    }
     if (references.length === 0) {
       return refundError(
         attendeeId,

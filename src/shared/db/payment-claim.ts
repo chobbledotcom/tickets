@@ -250,6 +250,15 @@ export const claimAttendeeRows = async (
   });
 };
 
+/** The rows a run is letting go of, the claim it is letting go of them under,
+ *  and which of them carry money the books have not caught up with. One shape
+ *  because the three always travel together. */
+export type RowRelease = {
+  heldSince: string;
+  sessionIds: readonly string[];
+  unrecorded?: ReadonlySet<string>;
+};
+
 /**
  * Let go of the rows a run claimed, leaving whatever else they carry alone.
  *
@@ -263,11 +272,11 @@ export const claimAttendeeRows = async (
  * clears an older mark, which is how the state retires when a later run's
  * ledger post finally lands.
  */
-export const releaseAttendeeRows = async (
-  sessionIds: readonly string[],
-  heldSince: string,
-  unrecorded: ReadonlySet<string> = new Set(),
-): Promise<void> => {
+export const releaseAttendeeRows = async ({
+  heldSince,
+  sessionIds,
+  unrecorded = new Set(),
+}: RowRelease): Promise<void> => {
   if (sessionIds.length === 0) return;
   // Two batches rather than a transaction: nothing between the read and the
   // write depends on it, and each write is conditioned on the exact record it
