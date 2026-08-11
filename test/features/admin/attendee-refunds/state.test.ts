@@ -16,7 +16,11 @@ import {
 } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import {
+  createPaidAttendeeWithoutLedger,
+  createPaidTestAttendee,
+} from "#test-utils/db-helpers/attendee-payments.ts";
+import { postListingSale } from "#test-utils/ledger.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
   protectedStateOf,
@@ -85,15 +89,22 @@ describeWithEnv("server (admin refund state)", { db: true }, () => {
     // to re-run the refund — but a person whose money was all back was no
     // longer picked up, so no re-run could ever reach them. Stuck for good.
     test("refund-all frees an attendee a crashed run is still holding", async () => {
+      const sessionId = "sess_stranded";
       const listing = await createPaidListing();
-      const attendee = await createPaidTestAttendee(
+      const attendee = await createPaidAttendeeWithoutLedger(
         listing.id,
         "Stranded",
         "stranded@example.com",
         "",
       );
+      await postListingSale({
+        attendeeId: attendee.id,
+        eventId: sessionId,
+        gross: 500,
+        listingId: listing.id,
+      });
       await finalizeProcessedPayment(
-        "sess_stranded",
+        sessionId,
         attendee.id,
         "",
         "pi_stranded",
@@ -106,7 +117,7 @@ describeWithEnv("server (admin refund state)", { db: true }, () => {
       );
       await markAsRefunded(attendee.id);
       await putRowState(
-        "sess_stranded",
+        sessionId,
         await staleClaimSlot(attendee.id),
         CLAIM_MIRROR,
       );
@@ -115,7 +126,7 @@ describeWithEnv("server (admin refund state)", { db: true }, () => {
         await postRefundAll(listing);
       });
 
-      expect(await protectedStateOf("sess_stranded")).toBe("");
+      expect(await protectedStateOf(sessionId)).toBe("");
     });
 
     // The fault this closes: the single page carried its own copy of the
