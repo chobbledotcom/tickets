@@ -2371,3 +2371,56 @@ before claims and marker fan-out depend on the lookup, rather than repairing one
 attendee at a time on read.
 
 Both found by Codex on #2065.
+
+## Refunded status cannot tell two orders on ONE listing apart
+
+_Origin: Codex and CodeRabbit, both on PR #2065 (partial ledger reversal)._
+
+`refundedForBooking` (`src/shared/db/attendees/select.ts`) answers "did THIS
+booking come back" per (attendee, listing): a sold booking that came back has a
+`refund_sale` leg running revenue → attendee. That fixed the severe case — one
+returned charge used to mark every booking the person held, so the scanner and
+check-in turned them away from events they had paid for.
+
+What is left is narrower: one attendee holding TWO orders for the SAME listing
+(a merge of two people who both booked it, or two dates). Reversing either makes
+both rows read refunded. This is not new — before the per-listing fix the whole
+account read refunded — but it is now the only remaining case.
+
+Both reviewers proposed scoping the predicate by
+`listing_attendees.
+ledger_event_group`. That does not work as suggested: a
+reversal leg's `event_group` is `refundEventGroup(bookingGroup)` and its
+`reference` is `legReference([REFUND, bookingGroup, ...])` — both HASHES, so SQL
+cannot join a reversal back to the booking group it reversed. The sale side
+could be scoped; the reversal side could not, which leaves both rows reading the
+same answer.
+
+Two ways out, both real work:
+
+- Populate `reverses_id` on refund legs in `mapRefund`, giving a joinable link
+  from each reversal to the leg it reverses. This contradicts decision 8 ("a
+  refund posts many rows and repeat/partial refunds are scoped by event group
+  instead"), and existing plus backfilled refund legs carry no `reverses_id`, so
+  it needs a backfill or a documented fallback.
+- Add a column naming the reversed booking group, with the same backfill.
+
+Start by reading `mapRefund` in `src/shared/accounting/mappers.ts` and the
+`reverses_id` note above it.
+
+## Pruning may delete a sibling charge that never came back
+
+_Origin: Codex on PR #2065, review of 774d1949._
+
+`paymentStatement` in `src/shared/db/prune.ts` treats the attendee's
+`refund_cash` leg as permission to delete their unprotected payment rows. With
+partial reversal that leg now exists after only SOME of a multi-charge
+attendee's money has come back, so the row carrying a still-unreturned sibling
+charge can age out and be deleted. If that row is the only durable copy of a
+balance or merged payment reference, a later refund attempt cannot find the
+charge.
+
+Pruning has to establish that each ROW's own charge was returned before deleting
+it, rather than reading one attendee-wide leg. Note this shares the correlation
+problem above — a reversal leg cannot currently be traced to the charge it
+reversed — so the two are likely one piece of work.

@@ -204,9 +204,6 @@ describeWithEnv(
       expect(await refundCashAmounts(19)).toEqual([1000, 2000]);
     });
 
-    // The fault this closes: a partial reversal used to close the account. Any
-    // `refund_cash` leg read as "already refunded", so the charge that came
-    // back on a later run posted nothing while the route reported success.
     test("posts the second charge's reversal when it comes back later", async () => {
       const attendeeId = 41;
       await postBooking({ attendeeId, eventId: "sess-first" });
