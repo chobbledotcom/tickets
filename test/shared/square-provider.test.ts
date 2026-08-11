@@ -350,17 +350,4 @@ describe("square-provider", () => {
       await expectCheckoutUserError(intent, "Email address is invalid");
     });
   });
-
-  describe("setupWebhookEndpoint", () => {
-    test("returns failure since Square webhooks are manual", async () => {
-      const result = await squarePaymentProvider.setupWebhookEndpoint(
-        "key",
-        "https://example.com/webhook",
-      );
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error).toContain("Square Developer Dashboard");
-      }
-    });
-  });
 });

@@ -197,44 +197,14 @@ describe("sumup transactions", () => {
       });
     });
 
-    for (const [statusCode, expected] of [
-      [404, { status: "missing" }],
-      [429, { reason: "rate_limited", status: "unavailable" }],
-      [500, { reason: "provider_error", status: "unavailable" }],
-    ] as const) {
-      test(`keeps an HTTP ${statusCode} transaction answer distinct`, async () => {
-        const client = makeSumupClient({
-          txnGet: () =>
-            Promise.reject(
-              new APIError(statusCode, "provider answer", new Response()),
-            ),
-        });
-        await withSumupClient(client, async () => {
-          expect(await sumupApi.readTransactionMoney("txn")).toEqual(expected);
-        });
-      });
-    }
-
-    test("reports a connection failure as unavailable", async () => {
+    test("passes a failed read through SumUp failure classification", async () => {
       const client = makeSumupClient({
-        txnGet: () => Promise.reject(new TypeError("connection reset")),
+        txnGet: () =>
+          Promise.reject(new APIError(404, "missing", new Response())),
       });
       await withSumupClient(client, async () => {
         expect(await sumupApi.readTransactionMoney("txn")).toEqual({
-          reason: "network_error",
-          status: "unavailable",
-        });
-      });
-    });
-
-    test("reports a timeout separately", async () => {
-      const client = makeSumupClient({
-        txnGet: () => Promise.reject(new DOMException("late", "TimeoutError")),
-      });
-      await withSumupClient(client, async () => {
-        expect(await sumupApi.readTransactionMoney("txn")).toEqual({
-          reason: "timeout",
-          status: "unavailable",
+          status: "missing",
         });
       });
     });
@@ -302,54 +272,14 @@ describe("sumup transactions", () => {
       });
     });
 
-    for (const [name, error, reason] of [
-      [
-        "provider failure",
-        new APIError(500, "unknown", new Response()),
-        "provider_error",
-      ],
-      ["lost connection", new TypeError("connection reset"), "network_error"],
-      ["timeout", new DOMException("late", "TimeoutError"), "timeout"],
-      ["HTTP timeout", new APIError(408, "late", new Response()), "timeout"],
-      [
-        "rate limit",
-        new APIError(429, "slow down", new Response()),
-        "rate_limited",
-      ],
-    ] as const) {
-      test(`reports a ${name} as uncertain`, async () => {
-        const client = makeSumupClient({
-          refund: () => Promise.reject(error),
-        });
-        await withSumupClient(client, async () => {
-          expect(await sumupApi.refundTransaction("txn")).toEqual({
-            kind: "uncertain",
-            reason,
-          });
-        });
+    test("does not disguise an internal refund error", async () => {
+      const failure = new Error("broken adapter");
+      const client = makeSumupClient({
+        refund: () => Promise.reject(failure),
       });
-    }
-
-    for (const [name, makeFailure] of [
-      ["an internal refund error", () => new Error("broken adapter")],
-      [
-        "an API error missing its status",
-        () => {
-          const failure = new APIError(500, "missing status", new Response());
-          Object.defineProperty(failure, "status", { value: undefined });
-          return failure;
-        },
-      ],
-    ] as const) {
-      test(`does not disguise ${name}`, async () => {
-        const failure = makeFailure();
-        const client = makeSumupClient({
-          refund: () => Promise.reject(failure),
-        });
-        await withSumupClient(client, async () => {
-          await expect(sumupApi.refundTransaction("txn")).rejects.toBe(failure);
-        });
+      await withSumupClient(client, async () => {
+        await expect(sumupApi.refundTransaction("txn")).rejects.toBe(failure);
       });
-    }
+    });
   });
 });

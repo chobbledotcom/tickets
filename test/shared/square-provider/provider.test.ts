@@ -281,6 +281,19 @@ describeSquare(() => {
       );
     });
 
+    test("reports that webhook setup must be done in Square", async () => {
+      expect(
+        await squarePaymentProvider.setupWebhookEndpoint(
+          "unused secret",
+          "https://example.com/payment/webhook",
+        ),
+      ).toEqual({
+        error:
+          "Square webhooks must be configured manually in the Square Developer Dashboard",
+        success: false,
+      });
+    });
+
     test("verifyWebhookSignature reports failure when no signature key configured", async () => {
       // With no webhook signature key stored, verification fails up front.
       const body = '{"test": true}';
