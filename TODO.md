@@ -2549,6 +2549,56 @@ end, for the shape where partial reversal misreports the books.
 **This one needs an owner decision**: it changes what the money history says
 about real bookings, and the partial-reversal direction was an owner call.
 
+## A refund run can spend its subrequest budget mid-flight
+
+_Origin: Codex on PR #2065, `refunds/provider.ts:369`._
+
+`packByReferenceCount(PROVIDER_REFUND_CONCURRENCY)` bounds how many references
+are asked about AT ONCE, not how many a run asks about in total. Every
+non-settled reference now costs TWO external calls — the evidence read this PR
+added, then the refund — on top of the claim transaction, the returned-marker
+write, the ledger post and the release. A merged attendee carrying roughly two
+dozen refundable charges therefore crosses Bunny's hard 50 mid-run.
+
+What happens then is not money lost, and that is why this is recorded rather
+than rushed: the budget guard throws, `underAttendeeClaim`'s catch settles every
+attendee it holds (keyless holds stay standing, keyed ones release, and anything
+already learnt about returned-but-unrecorded money is marked), and the charges
+that did come back carry `provider_refunded_at`, so a re-run picks up only the
+rest. The claim machinery is built for exactly this.
+
+What is missing is refusing BEFORE the first payout rather than stopping after
+some. Compute the worst case from the candidate set — references × 2, plus the
+fixed writes — and refuse the whole run with an operator-readable reason when it
+will not fit, the way `BULK_REFUND_LIMIT` bounds the attendee count. Start at
+`src/shared/subrequest-budget.ts` (the request-scoped counter and its limits)
+and `packByReferenceCount` in `src/features/admin/refunds/waves.ts`.
+
+## A malformed provider answer is treated as an unreachable provider
+
+_Origin: Codex on PR #2065, `admit-refund.ts:92`. Needs an owner decision._
+
+`chargeOrNothing` catches everything the read throws and answers `null`, which
+`admitProviderRefund` turns into `unreadable`. That folds two different things
+into one: a provider we could not reach, and a provider that answered with JSON
+its own documented shape does not fit. The first is ordinary and transient. The
+second is a provider-contract failure that no amount of retrying fixes, and
+under it admin refunds are quietly withheld with a debug line while callbacks
+keep declining.
+
+The tension is real and both sides are written down. AGENTS.md says a missing
+expected field from structured external data is a hard no to default away. The
+module's own docstring says the opposite for this specific case, deliberately:
+"unreadable evidence and 'already back' look identical from here, and only one
+is safe to send money against" — and letting the parse error propagate turns a
+provider hiccup into a 500 on an operator's refund page.
+
+A middle path exists — keep withholding the refund, but report a malformed
+answer at incident volume instead of debug, so it reaches somebody — and that is
+probably the right answer. It is a judgement call about how loudly the system
+should shout at an operator, so it wants a human. Start at `chargeOrNothing` in
+`src/shared/payment/admit-refund.ts` and `reportWithheldRefund`.
+
 ## The stripe-mock start-count test races its own subprocesses
 
 `test/scripts/stripe-mock/lifecycle.test.ts` — "stops trying once the mock has
