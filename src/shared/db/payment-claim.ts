@@ -318,6 +318,17 @@ const rewriteRows = async (
   if (writes.length > 0) await executeBatch(writes);
 };
 
+/** The row's record with its books-behind word put on or taken off, leaving
+ *  everything else it carries exactly as it was. Both writers of that word go
+ *  through here, so neither can disturb what the other leaves alone. */
+const sayingBooksAreBehind = (
+  state: PaymentRowState,
+  marked: boolean,
+): PaymentRowState => {
+  const { unrecorded: _was, ...kept } = state;
+  return marked ? { ...kept, unrecorded: { returnedAt: nowIso() } } : kept;
+};
+
 export const releaseAttendeeRows = ({
   heldSince,
   sessionIds,
@@ -327,10 +338,8 @@ export const releaseAttendeeRows = ({
     if (row.state.claim?.writtenAt !== heldSince) return null;
     // Letting the claim go does not clear the row: an owner review it still
     // carries has to keep showing.
-    const { claim: _released, unrecorded: _settled, ...kept } = row.state;
-    return unrecorded.has(row.sessionId)
-      ? { ...kept, unrecorded: { returnedAt: nowIso() } }
-      : kept;
+    const { claim: _released, ...held } = row.state;
+    return sayingBooksAreBehind(held, unrecorded.has(row.sessionId));
   });
 
 /**
@@ -352,11 +361,11 @@ export const releaseAttendeeRows = ({
 const returnedUnrecorded =
   (marked: boolean) =>
   (sessionIds: readonly string[]): Promise<void> =>
-    rewriteRows(sessionIds, (row) => {
-      if ((row.state.unrecorded !== undefined) === marked) return null;
-      const { unrecorded: _retired, ...kept } = row.state;
-      return marked ? { ...kept, unrecorded: { returnedAt: nowIso() } } : kept;
-    });
+    rewriteRows(sessionIds, (row) =>
+      (row.state.unrecorded !== undefined) === marked
+        ? null
+        : sayingBooksAreBehind(row.state, marked),
+    );
 
 export const markReturnedUnrecorded = returnedUnrecorded(true);
 export const clearReturnedUnrecorded = returnedUnrecorded(false);
