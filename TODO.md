@@ -2454,3 +2454,20 @@ the correction. That is the same shape as the owner-review marker, and it should
 probably be built alongside it rather than separately.
 
 Both halves found by Codex on #2065.
+
+### Third way into the same trap: one wave, one verdict
+
+`refundClaimedBatch` returns a single `unsettled` for the whole batch, and
+`underAttendeeClaim` releases the claim as one. So a SumUp wave where attendee
+A's refund, marker and ledger post all succeed, and attendee B's refund answer
+is uncertain, keeps EVERY row — A's included. A is then ledger-refunded, so
+`getRefundCandidates` excludes them from any later run, and their claim can
+never be released: blocked from deletion and merging for good.
+
+Same ending as the two above, reached through batch granularity rather than a
+failed write. It says the claim's grain is wrong as well as its vocabulary:
+settlement is per attendee, so the release has to be too. Worth settling
+alongside the missing state rather than separately — three triggers, one
+mechanism.
+
+Found by Codex on #2065.
