@@ -24,8 +24,8 @@ import {
   postBooking,
   refundCashAmounts,
   refundLegsOf,
-  refundReference,
   refundTarget,
+  returnedReference,
   sessionReference,
 } from "./helpers.ts";
 
@@ -194,7 +194,7 @@ describeWithEnv(
           attendeeId: 19,
           references: [
             sessionReference("sess-19"),
-            refundReference("pi-balance-19", ["balance-19"]),
+            returnedReference("pi-balance-19", ["balance-19"]),
           ],
         },
       ]);

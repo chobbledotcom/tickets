@@ -18,17 +18,17 @@ import {
 import { bookedWithPayment } from "#test-utils/processed-payments.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
-const protectedStateOf = (sessionId: string): Promise<{ v: string } | null> =>
-  queryOne<{ v: string }>(
-    "SELECT protected_state AS v FROM processed_payments WHERE payment_session_id = ?",
-    [sessionId],
-  );
+/** Read one column off a payment row, by the session that names it. */
+const columnOf =
+  (column: string) =>
+  (sessionId: string): Promise<{ v: string } | null> =>
+    queryOne<{ v: string }>(
+      `SELECT ${column} AS v FROM processed_payments WHERE payment_session_id = ?`,
+      [sessionId],
+    );
 
-const referenceIndexOf = (sessionId: string): Promise<{ v: string } | null> =>
-  queryOne<{ v: string }>(
-    "SELECT payment_reference_index AS v FROM processed_payments WHERE payment_session_id = ?",
-    [sessionId],
-  );
+const protectedStateOf = columnOf("protected_state");
+const referenceIndexOf = columnOf("payment_reference_index");
 
 describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
   describe("claiming", () => {

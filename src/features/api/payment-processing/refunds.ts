@@ -90,8 +90,8 @@ export const refundRejectedCharge = async (
     return NOTHING_TO_REFUND;
   }
   // The charge's own numbers are what was malformed, so the guard cannot read
-  // them to decide. Left to refuse, this path would answer 503 for ever and
-  // the buyer would stay charged with no route back.
+  // them to decide. Refusing here answers 503 for ever and leaves the buyer
+  // charged with no route back.
   const refunded = await tryRefund(rejection.paymentReference, undefined, true);
   return { refunded, settled: refunded };
 };

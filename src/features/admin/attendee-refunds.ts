@@ -123,23 +123,19 @@ const handleAttendeeRefund = verifiedAttendeeAction(
     );
     if (provider instanceof Response) return provider;
 
-    // One attendee is a run of one. It goes through the very same path a wave
-    // does — claim, refund, post the ledger, release — because the ledger post
-    // has to happen while the hold is still on: a merge or delete landing
-    // between the provider call and the post would strand the money's
-    // accounting, and a run of one is no less exposed to that than a run of
-    // fifty.
+    // One attendee is a run of one, through the very same path a wave takes.
+    // The ledger post has to happen while the hold is still on, and a run of
+    // one is no less exposed to a merge landing mid-refund than a run of fifty.
     const counts = await processRefundBatch(
       provider,
       [{ attendee: data.attendee, references }],
       listingId,
     );
     if (counts.refundedCount !== 1) {
-      // The run already reported whichever way it went; all that is left is
-      // telling the operator which one it was. Only a refund the provider
-      // confirmed and the ledger could not record says "do not send this
-      // again" — a provider that never gave a clear answer has not told us
-      // the money moved, and must not be dressed up as though it had.
+      // The run already reported whichever way it went; this only tells the
+      // operator which. Only a confirmed refund the ledger could not record
+      // says "do not send this again" — a provider that gave no clear answer
+      // has not told us the money moved.
       return refundError(
         attendeeId,
         counts.notRecordedCount === 1

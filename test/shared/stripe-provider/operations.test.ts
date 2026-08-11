@@ -17,9 +17,9 @@ import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import { asSession } from "#test-utils/payment-session.ts";
+import { gbp } from "#test-utils/payment-state.ts";
 import { activateStripe } from "#test-utils/settings.ts";
 import { checkoutSessionEvent } from "#test-utils/webhooks.ts";
-import { gbp } from "#test-utils/payment-state.ts";
 
 describeStripe("stripe-provider", () => {
   describe("verifyWebhookSignature delegation", () => {

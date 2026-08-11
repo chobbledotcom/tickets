@@ -9,7 +9,12 @@ import type { ObservationOutcome } from "#shared/payment/diagnose.ts";
 import { refundOutcomeOf } from "#shared/payment/diagnose.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { RefundCapability } from "#shared/payment/row-state.ts";
-import { chargeMoneyWith, gbp, partlyRefundedCharge, refundObservation } from "#test-utils/payment-state.ts";
+import {
+  chargeMoneyWith,
+  gbp,
+  partlyRefundedCharge,
+  refundObservation,
+} from "#test-utils/payment-state.ts";
 
 /** Money back on every penny of this charge. */
 const fullyRefundedCharge = (): ChargeMoney =>

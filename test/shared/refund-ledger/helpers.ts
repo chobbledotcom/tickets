@@ -35,7 +35,7 @@ export const postBooking = async (
 };
 
 /** A reference the provider has already returned, on the rows it names. */
-const returnedReference = (
+export const returnedReference = (
   reference: string,
   sessionIds: readonly string[],
 ): RefundPaymentReference =>

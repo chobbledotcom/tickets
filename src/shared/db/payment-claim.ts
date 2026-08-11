@@ -85,9 +85,7 @@ const readRows = async (
   where: string,
   args: InValue[],
 ): Promise<StoredRow[]> =>
-  resultRows<StoredRow>(
-    await tx.execute({ args, sql: claimRowsSql(where) }),
-  );
+  resultRows<StoredRow>(await tx.execute({ args, sql: claimRowsSql(where) }));
 
 /** Every row holding this attendee's refundable money, plus every OTHER row
  *  carrying the same provider reference — a claim anywhere on the reference is
