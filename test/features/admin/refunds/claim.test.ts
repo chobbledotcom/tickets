@@ -62,7 +62,9 @@ describe("admin refunds > attendee claim", () => {
     const claim = claimResult({ kind: "changed" });
     let worked = false;
 
-    const result = await underAttendeeClaim(claim, LOADED, "keyed", 7, {
+    const result = await underAttendeeClaim<
+      RefundRunBlock | { readonly kind: "work" }
+    >(claim, LOADED, "keyed", 7, {
       blocked: (block) => block,
       work: () => {
         worked = true;
