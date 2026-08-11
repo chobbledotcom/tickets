@@ -68,7 +68,7 @@ describeWithEnv(
         },
         [pendingCandidate(21, ["pi_unreadable"])],
         LISTING,
-        grantingRowClaim(),
+        { claim: grantingRowClaim() },
       );
 
       expect(counts).toEqual({
@@ -91,7 +91,7 @@ describeWithEnv(
           pendingCandidate(13, ["pi_boom", "pi_two"]),
         ],
         LISTING,
-        grantingRowClaim(),
+        { claim: grantingRowClaim() },
       );
 
       expect(counts).toEqual({
@@ -136,7 +136,7 @@ describeWithEnv(
           },
         ],
         LISTING,
-        grantingRowClaim(),
+        { claim: grantingRowClaim() },
       );
 
       // Not a refunded attendee — one of their charges is still with the
@@ -166,7 +166,7 @@ describeWithEnv(
         failingProvider(new Set(), "keyless"),
         [refundedCandidate(21, "sess-21")],
         LISTING,
-        claim,
+        { claim: claim },
       );
 
       expect(counts.notRecordedCount).toBe(1);
@@ -184,7 +184,7 @@ describeWithEnv(
         failingProvider(new Set()),
         [refundedCandidate(22, "sess-22")],
         LISTING,
-        claim,
+        { claim: claim },
       );
 
       expect(claim.released).toHaveLength(1);
@@ -195,7 +195,7 @@ describeWithEnv(
         failingProvider(new Set()),
         [],
         LISTING,
-        grantingRowClaim(),
+        { claim: grantingRowClaim() },
       );
 
       expect(counts).toEqual({
@@ -216,7 +216,7 @@ describeWithEnv(
         failingProvider(new Set()),
         [refundedCandidate(21, "sess-missing")],
         LISTING,
-        grantingRowClaim(),
+        { claim: grantingRowClaim() },
       );
 
       expect(counts).toEqual({
