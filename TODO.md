@@ -2519,3 +2519,32 @@ end, for the shape where partial reversal misreports the books.
 
 **This one needs an owner decision**: it changes what the money history says
 about real bookings, and the partial-reversal direction was an owner call.
+
+## The stripe-mock start-count test races its own subprocesses
+
+`test/scripts/stripe-mock/lifecycle.test.ts` — "stops trying once the mock has
+been started as many times as asked" — failed once on CI (PR #2065, run
+31501332067, 22,419 of 22,420 passing) on a commit that changed only Markdown
+and a test comment, and passes reliably locally.
+
+The counting mock is a shell script whose whole body is `echo x >> <countPath>`
+(`writeCountingFailingMock` in `test/scripts/stripe-mock/fixtures.ts`).
+`triesBeforeGivingUp` spawns it three times, then reads the file ONCE with
+`startCount` and asserts exactly 3.
+
+Nothing makes the children's writes happen-before that read. Each attempt gives
+up on `waitForOwnedStripeMock` returning false, which happens either when the
+child's `status` promise resolves OR when the per-attempt budget (50ms in this
+test) elapses — so the parent can move on, and finally reject and be read, while
+the last `/bin/sh` has been spawned but has not yet appended its line. On a
+loaded runner that gap is easily wide enough, and the count reads 2.
+
+Two ways to fix it. Wait for the count to REACH the expected number with a
+deadline instead of reading once — the property is "three starts happened", not
+"three starts had happened by the instant the promise rejected". Or make
+`startStripeMock` await each child's exit before the next attempt, which is
+tidier anyway: the CI run's cleanup reported an orphan process, and a start path
+that leaves children behind is worth a look on its own.
+
+The two sibling cases (`toBe(1)`) are not exposed, since one attempt gives the
+single child far longer to write before the read.

@@ -21,6 +21,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import {
   BOOKING_AT,
+  legacyReference,
   postBooking,
   refundCashAmounts,
   refundLegsOf,
@@ -220,6 +221,28 @@ describeWithEnv(
       ).toEqual({ posted: true });
       expect(await refundCashAmounts(attendeeId)).toEqual([5000, 5000]);
       expect(await accountBalance(attendeeAccount(attendeeId))).toBe(0);
+    });
+
+    // A legacy reference names no session, so when only SOME groups came back
+    // there is no way to say which one it paid for. Posting the groups we can
+    // name and calling that complete leaves its money reversed nowhere and
+    // nothing saying so.
+    test("reports an unplaceable legacy return as not recorded", async () => {
+      const attendeeId = 61;
+      await postBooking({ attendeeId, eventId: "sess-a" });
+      await postBooking({ attendeeId, eventId: "sess-b" });
+      await postBooking({ attendeeId, eventId: "sess-c" });
+
+      // Tracked A and a legacy charge came back; tracked C did not.
+      const posted = await recordAttendeeRefund(attendeeId, [
+        sessionReference("sess-a"),
+        legacyReference("pi-legacy"),
+      ]);
+
+      expect(posted).toEqual({ posted: false });
+      // What could be named is still recorded — the money that moved is not
+      // thrown away for the part that could not be placed.
+      expect(await refundCashAmounts(attendeeId)).toEqual([5000]);
     });
 
     test("treats an empty attendee list as a no-op", async () => {
