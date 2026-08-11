@@ -47,9 +47,10 @@ const setupDeleteListingAndAttendee = (): ReturnType<
 
 /** Whether the attendee row is still there. */
 const attendeeExists = async (attendeeId: number): Promise<boolean> =>
-  (await queryOne<{ id: number }>("SELECT id FROM attendees WHERE id = ?", [
-    attendeeId,
-  ])) !== null;
+  (await queryOne<{ id: number }>(
+    "SELECT attendee.id FROM attendees AS attendee WHERE attendee.id = ?",
+    [attendeeId],
+  )) !== null;
 
 describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
   const deleteAction = adminAttendeeAction("delete");
