@@ -2129,44 +2129,6 @@ Found by Codex on #2065. Starting point: `PROVIDER_REFUND_CONCURRENCY`, the
 budget rules in `PR4_PLAN.md`, and the subrequest guard in
 `src/shared/db/client.ts`.
 
-## Two pending refunds throw, and the throw escapes into a 500
-
-`refundOutcome` in `src/shared/payment/diagnose.ts` throws when a reading holds
-two refunds in flight, on the contract's reasoning that an M4 observation can
-only carry the answer to its own single attempt. That was deliberate — broken
-evidence should be loud rather than pass as settled — but two things are wrong
-with it.
-
-It is reachable with real data. SumUp maps both PENDING and SCHEDULED to
-"pending", so one transaction carrying two such REFUND events — overlapping
-partial refunds, or historical attempts — produces two pending observations.
-
-And the throw escapes. `admitProviderRefund` calls `refundOutcomeOf` OUTSIDE
-`chargeOrNothing`'s catch, which wraps only the provider read. So the
-refresh-payment route and the refund callbacks answer 500 and retry for ever,
-and an admin run reads the same evidence as an unanswered call.
-
-Loud and safe are not in conflict here. Two pending refunds are conclusive
-evidence NOT to send more money, so the honest answer is a withholding conflict
-that reports itself: `PaymentConflict` gains the kind, and `admit-refund.ts`
-maps every conflict to `refused` already. Catching the exception upstream would
-be the wrong fix. Changing it contradicts a decision recorded in `PR4_PLAN.md`,
-so the document and the code want changing together.
-
-Found by Codex on #2065.
-
-## Balance settlement can grow a reference set that is already claimed
-
-Law 1's writer exclusivity is not built. `balanceFinalizeStatements` checks only
-the unresolved reservation and the balance guard, so a balance callback can add
-a new charged reference to an attendee whose set an admin refund has already
-claimed and judged. The refund then covers only its earlier snapshot and its
-ledger post sees an uncovered payment group.
-
-The fix the contract names: the balance finalize reads the attendee's claim
-inside its own transaction and answers RETRYABLY without writing while a fresh
-claim is live, so the provider redelivers after the claim resolves.
-
 ## A merge can delete the source before the answers and PII are saved
 
 `applyAttendeeMerge` (`src/shared/merge/attendee-merge.ts`) commits the source
@@ -2220,7 +2182,7 @@ path that decides whether money moves.
 Out of scope where it was found: that slice was the merge/delete admissions and
 the prune's orphan rule. Found by Codex on #2065.
 
-## Two attendees on one charge each get their own reversal
+## A shared legacy charge has no authoritative allocation
 
 `refundClaimedBatch` in `src/features/admin/refunds/provider.ts` asks the
 provider once per reference (`answeredOnce`), which is right — one charge, one
@@ -2237,18 +2199,12 @@ claims other rows on the same reference "so two attendees who share one legacy
 reference [do not] each claim their own row and race two payouts against one
 charge" — then one payout is reversed twice and the money history is wrong.
 
-The owner chose the ledger direction for the sibling case, and the ledger can
-now reverse part of an account — but that does not settle this one, because each
-attendee's reversal is computed against their OWN account. If the charge really
-did pay for both bookings, two reversals summing to the payout are right; if it
-paid for one and the other merely shares a legacy reference, one payout is
-reversed twice, and no amount of per-group precision inside one account can tell
-those apart.
-
-What is needed first is a read of `computeAttendeeRefund` against a real
-shared-charge row, to establish which shape actually occurs in stored data.
-Until then the two ways out are unchanged: refuse a run whose reference is
-shared, or make the reversal proportional across the attendees sharing it.
+The approved closure is in `PLAN.md` and `PR4_PLAN.md`: the owner either records
+an exact, revision-fenced allocation across one or more stable booking
+obligations, with positive Money parts summing to the captured amount, or
+rejects the automated action. Refund and ledger work fail closed until that
+decision exists. No attendee-count, row-order, equal, or proportional split is
+inferred.
 
 Found by Codex on #2065.
 
@@ -2493,71 +2449,12 @@ though only a third of the money came back, and the attendee's account reads
 +2000 — the balance we still hold and have not returned. Revenue is reversed for
 a booking whose other charge the provider refused.
 
-Codex proposes reversing only the returned cash leg and holding the non-cash
-reversal until every charge is back. That has the opposite flaw: with the sale
-left standing at 3000 and 1000 returned, the account reads -1000, so the
-attendee appears to OWE money they never got back. Neither reading is right on
-its own, which is why this is recorded rather than patched.
-
-The shape of a real fix: only reverse a group when every provider payment that
-paid for its sale has returned. That means knowing which charges back which
-sale, across groups — related to the correlation gap recorded above, and likely
-the same piece of work. Until then a deposit-backed booking should probably fall
-back to all-or-nothing, accepting the stranding partial reversal was built to
-end, for the shape where partial reversal misreports the books.
-
-**This one needs an owner decision**: it changes what the money history says
-about real bookings, and the partial-reversal direction was an owner call.
-
-## A refund run can spend its subrequest budget mid-flight
-
-_Origin: Codex on PR #2065, `refunds/provider.ts:369`._
-
-`packByReferenceCount(PROVIDER_REFUND_CONCURRENCY)` bounds how many references
-are asked about AT ONCE, not how many a run asks about in total. Every
-non-settled reference now costs TWO external calls — the evidence read this PR
-added, then the refund — on top of the claim transaction, the returned-marker
-write, the ledger post and the release. A merged attendee carrying roughly two
-dozen refundable charges therefore crosses Bunny's hard 50 mid-run.
-
-What happens then is not money lost, and that is why this is recorded rather
-than rushed: the budget guard throws, `underAttendeeClaim`'s catch settles every
-attendee it holds (keyless holds stay standing, keyed ones release, and anything
-already learnt about returned-but-unrecorded money is marked), and the charges
-that did come back carry `provider_refunded_at`, so a re-run picks up only the
-rest. The claim machinery is built for exactly this.
-
-What is missing is refusing BEFORE the first payout rather than stopping after
-some. Compute the worst case from the candidate set — references × 2, plus the
-fixed writes — and refuse the whole run with an operator-readable reason when it
-will not fit, the way `BULK_REFUND_LIMIT` bounds the attendee count. Start at
-`src/shared/subrequest-budget.ts` (the request-scoped counter and its limits)
-and `packByReferenceCount` in `src/features/admin/refunds/waves.ts`.
-
-## A malformed provider answer is treated as an unreachable provider
-
-_Origin: Codex on PR #2065, `admit-refund.ts:92`. Needs an owner decision._
-
-`chargeOrNothing` catches everything the read throws and answers `null`, which
-`admitProviderRefund` turns into `unreadable`. That folds two different things
-into one: a provider we could not reach, and a provider that answered with JSON
-its own documented shape does not fit. The first is ordinary and transient. The
-second is a provider-contract failure that no amount of retrying fixes, and
-under it admin refunds are quietly withheld with a debug line while callbacks
-keep declining.
-
-The tension is real and both sides are written down. AGENTS.md says a missing
-expected field from structured external data is a hard no to default away. The
-module's own docstring says the opposite for this specific case, deliberately:
-"unreadable evidence and 'already back' look identical from here, and only one
-is safe to send money against" — and letting the parse error propagate turns a
-provider hiccup into a 500 on an operator's refund page.
-
-A middle path exists — keep withholding the refund, but report a malformed
-answer at incident volume instead of debug, so it reaches somebody — and that is
-probably the right answer. It is a judgement call about how loudly the system
-should shout at an operator, so it wants a human. Start at `chargeOrNothing` in
-`src/shared/payment/admit-refund.ts` and `reportWithheldRefund`.
+The approved closure separates the two effects. Every confirmed provider refund
+records its exact returned cash. Cancelling the obligation reverses its sale,
+modifier, and fee facts once under a stable identity, and never follows from a
+single returned charge. A partial return requires the owner to keep the booking
+with the return due, return all remaining cash then cancel, or cancel now while
+retained cash stays visible as refund work. There is no default.
 
 ## The stripe-mock start-count test races its own subprocesses
 

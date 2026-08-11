@@ -2,21 +2,25 @@
 
 ## Status
 
-PR A is built and green; PR B has not started. What exists is inventoried under
-"As built" below, and that table is the authority for anything landed — the rows
-above it say what was planned to be ported, not what is there now.
+PR A is built on PR #2065; its production module map is "As built" below. Once a
+row appears there, the named code and tests are authoritative; planned-port
+prose and historical estimates are not alternative specifications. The remaining
+approved current-path layers have not started.
 
-All five owner decisions are recorded below: proceed-and-alert for the
+All approved owner decisions are recorded below: proceed-and-alert for the
 multi-charge observation, the Stripe `amount_refunded` read widening, both new
 copy strings, the two-PR slicing (2026-08-09), and owner review for every
 multi-charge observation — automatic refunds act on single-charge observations
-only (2026-08-10). The first two of those have nothing to act on in PR A: every
-kind that compares money against what was owed needs a whole reading of the
-checkout, which this slice does not build, so those kinds are absent and pinned
-absent by test. Milestone source: PLAN.md's M4 section, fault rows F3 and F51
-(with M4 slices of F6, F12, F13, and F53), and the binding decided behaviors on
-refunds and multiple captures; this PR carries the matching PLAN.md sync (the M4
-section, the M6 provider note, and those fault rows).
+only (2026-08-10), plus exact allocation or rejection for a shared legacy
+charge, separate cash-return and obligation-cancellation effects, required
+partial-payment choices, and the two approved implementation stacks
+(2026-08-11). The earlier first two decisions have nothing to act on in PR A:
+every kind that compares money against what was owed needs a whole reading of
+the checkout, which this slice does not build, so those kinds are absent and
+pinned absent by test. Milestone source: PLAN.md's M4 section, fault rows F3 and
+F51 (with M4 slices of F6, F12, F13, and F53), and the binding decided behaviors
+on refunds and multiple captures; this PR carries the matching PLAN.md sync (the
+M4 section, the M6 provider note, and those fault rows).
 
 ## Current-system value
 
@@ -148,8 +152,8 @@ what that slice actually needs. The repo's no-test-only-exports check is what
 forced the choice, and it was right to: a mechanism with no caller is a promise
 wearing the costume of a built thing.
 
-Three faults are live in the code right now, and are to close rather than
-settled design:
+Four faults are live in the code right now, and are to close rather than settled
+design:
 
 - **Only the admin routes claim.** Both take the hold before they read a
   provider — the bulk wave through `processRefundBatch` and the single refund
@@ -161,18 +165,15 @@ settled design:
   running refund, though: `balanceFinalizeStatements` stands down while a claim
   holds the attendee, and aborts rather than passing as a no-op, so the callback
   retries.
-- **Two attendees on one charge each get their own reversal.**
+- **A shared legacy charge has no authoritative allocation.**
   `refundClaimedBatch` asks the provider once per reference, which is right —
   one charge, one payout. But every candidate carrying that reference is then
-  tallied as refunded, so each posts its own `refund_cash` reversal against its
-  OWN account. If the charge genuinely paid for both bookings, two reversals
-  summing to the payout are right; if it paid for one and the other merely
-  shares a legacy reference, one payout is reversed twice. Partial reversal does
-  not settle this — per-group precision inside one account cannot tell the two
-  shapes apart. Recorded in `TODO.md` ("Two attendees on one charge each get
-  their own reversal"); it needs a read of `computeAttendeeRefund` against a
-  real shared-charge row before either way out — refuse a shared reference, or
-  make the reversal proportional — can be chosen.
+  tallied as refunded, which can reverse one payout several times. Before money
+  or ledger work proceeds, a revision-fenced owner decision must allocate the
+  charge's exact captured Money across one or more stable booking obligations,
+  with positive parts summing exactly to the captured amount, or reject the
+  automated action. No allocation is inferred from attendee count, row order,
+  current ownership, or proportions.
 - **A partial refund the refresh route observes leaves no durable mark.**
   `attendees-edit.ts` maps anything short of fully-refunded to `"none"`, because
   `RefundState` has no partial value. The guard refuses to send money into that
@@ -183,6 +184,13 @@ settled design:
   and refuse the same conflict. `review` is declared on `PaymentRowState` and
   already stops both writers through `LIVE_WORK`; what is missing is a writer
   and the owner action that retires it.
+- **A returned deposit can currently cancel an obligation it only part-paid.**
+  The current ledger selection can reverse a whole booking group after only its
+  deposit came back. The approved closure records exact returned cash
+  independently and requires the owner to keep the booking, return all then
+  cancel, or cancel now while retained cash remains visible refund work.
+  Cancellation is its own idempotent obligation effect and is never inferred
+  from the returned charge.
 
 ## Trusted facts and observed facts
 
@@ -1639,16 +1647,22 @@ display fact, not a judge), and the ledger stay.
 
 ## Vertical PR slices
 
-Two PRs, each standing alone, hardest invariant first (decision 4). PLAN.md's
-400–700 src figure is the milestone target; the hard rule is delivery rule 3's
-800 changed src lines PER PR. The review rounds added real closures
-(owner-review carry-through, the ledger-swallow fix, the SumUp amount widening,
-the terminal-replay sweep, the six-law state machine with provider discovery,
-the admin-side tender sweep, and the merge/delete admissions), and decision 5
-removed the multi-charge refund machinery a middle revision had grown. The
-estimates are PR A ≈ 400–550 and PR B ≈ 250–350 — a 650–900 total that can run
-past the milestone target's top while each PR stays well under its own cap; the
-overage buys review-found correctness, not scope creep.
+The approved current-path stack has six standalone layers: exhaustive provider
+outcomes; legacy-reference readiness; canonical planning and whole-run budgets;
+exact claims and provider permits across admin, callback, and refresh; one
+transition repository finishing the callback lifecycle; and owner-visible
+payment cases. The aggregate stack then makes attendee merge atomic, cuts over
+stable obligations and exact allocations, and replaces refunds with the durable
+allocation-driven engine. PLAN.md's 400–700 src figure is the milestone target;
+the hard rule is delivery rule 3's 800 changed src lines PER PR. The review
+rounds added real closures (owner-review carry-through, the ledger-swallow fix,
+the SumUp amount widening, the terminal-replay sweep, the six-law state machine
+with provider discovery, the admin-side tender sweep, and the merge/delete
+admissions), and decision 5 removed the multi-charge refund machinery a middle
+revision had grown. The estimates are PR A ≈ 400–550 and PR B ≈ 250–350 — a
+650–900 total that can run past the milestone target's top while each PR stays
+well under its own cap; the overage buys review-found correctness, not scope
+creep.
 
 **PR A — "No refund attempt can exceed the captured money" (≈ 400–550 src)**
 
@@ -2021,7 +2035,7 @@ before merge, per delivery rule 4.
   out of that window: the keyless claim stays standing until evidence or
   staleness resolves it; our own refund calls are full-amount only.
 
-## Owner decisions (answered 2026-08-09 and 2026-08-10)
+## Owner decisions (answered 2026-08-09 through 2026-08-11)
 
 1. **Owner-review remedy for `multiple_charges` — DECIDED: proceed-and-alert.**
    Booking proceeds on the signed total, with a durable activity-log record
@@ -2040,8 +2054,9 @@ before merge, per delivery rule 4.
    again after it completes." Conflicted payment whose booking failed (buyer
    page): "We received your payment. Your booking needs a manual check. Do not
    pay again — we will contact you."
-4. **Slicing — DECIDED: two PRs.** PR A (refund-overlap guard) first, then PR B
-   (callback cutover); each stands alone, hardest first.
+4. **M4 slicing — DECIDED: two original PRs.** PR A (refund-overlap guard)
+   first, then PR B (callback cutover); each stands alone, hardest first. The
+   later approved layers refine PR B's remaining work without changing PR A.
 5. **Multi-charge refunds — DECIDED: owner review, never automatic
    (2026-08-10).** An observation carrying more than one captured charge never
    receives automatic refunds. When it also fails validation (wrong currency,
@@ -2055,3 +2070,22 @@ before merge, per delivery rule 4.
    facts (an unread tender's refund state), an unbounded provider fan-out
    against the edge subrequest budget, and a ledger shape with no slot for a
    partly-returned batch.
+6. **Legacy shared-charge identity — DECIDED: exact allocation or reject.** A
+   charge may fund one or more stable booking obligations. The owner records
+   positive Money parts whose currency matches the charge and whose amounts sum
+   exactly to the captured amount, fenced on the reviewed evidence revision, or
+   rejects the automated action. No allocation is inferred.
+7. **Cash return and obligation cancellation — DECIDED: separate effects.** A
+   provider refund records only returned cash. Cancelling a booking reverses its
+   sale, modifier, and fee facts once under the stable obligation identity.
+   Neither operation implies the other.
+8. **Partially returned obligation — DECIDED: required owner choice.** The owner
+   keeps the booking with the returned amount due, returns all remaining cash
+   then cancels, or cancels now while retained cash stays visible as refund work
+   owed to the buyer. There is no default, and the choice is revision-fenced.
+9. **Delivery — DECIDED: two stacks.** The six-layer current-path stack adds
+   exhaustive outcomes, reference readiness, planning and budgets, exact claims
+   and permits, one transition repository, and payment cases. The three-layer
+   aggregate stack makes merge atomic, cuts over obligations and allocations,
+   and replaces refunds with the durable allocation-driven engine. Each layer is
+   independently green and merges bottom-up.
