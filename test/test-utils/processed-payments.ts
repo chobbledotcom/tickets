@@ -10,7 +10,10 @@ import {
   type ProcessedPayment,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
-import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import {
+  bookAttendee,
+  bookedAttendee,
+} from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 export const getProcessedPayment = (
@@ -79,8 +82,7 @@ export const bookedWithPayment = async (
     email: "buyer@example.com",
     name: "Buyer",
   });
-  if (!booked.success) throw new Error("Failed to create the attendee");
-  const attendeeId = booked.attendees[0]!.id;
+  const attendeeId = bookedAttendee(booked).id;
   await finalizeProcessedPayment(
     sessionId,
     attendeeId,

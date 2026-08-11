@@ -1,5 +1,6 @@
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
+import { bookedAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 
@@ -41,8 +42,7 @@ const bookAttendeeOwing = async (
     remainingBalance,
     statusId,
   });
-  if (!result.success) throw new Error("setup failed");
-  const attendeeId = result.attendees[0]!.id;
+  const attendeeId = bookedAttendee(result).id;
   await postListingSale({
     amountPaid: 100,
     attendeeId,
