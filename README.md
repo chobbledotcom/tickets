@@ -449,11 +449,12 @@ The task writes a versioned `reports/evidence/manifest.json` and PNG files under
 `reports/evidence/assets/`. The manifest uses the authored story, rule, case,
 and capture IDs. It includes the app commit, image hash and dimensions, browser
 profile, viewport, and presentation type. Raw Cucumber messages and reports are
-not part of this evidence folder. The app workflow verifies the capture on pull
-requests. Main pushes and a monthly refresh upload this folder as the stable
-`tickets-evidence` artifact with GitHub's 35-day retention. The Tickets website
-imports that artifact into a reviewed pull request and keeps its ordinary site
-build offline.
+not part of this evidence folder. Main pushes and a monthly refresh check the
+captures and upload this folder as the stable `tickets-evidence` artifact with
+GitHub's 35-day retention. Nothing checks the captures before a merge, so a
+broken capture shows up on `main` rather than on the branch that caused it. The
+Tickets website imports that artifact into a reviewed pull request and keeps its
+ordinary site build offline.
 
 ```bash
 # Install Deno, cache dependencies, run all checks
