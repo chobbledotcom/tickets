@@ -114,12 +114,7 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
               },
               pre_populated_data: {
                 buyer_email: input.prePopulatedData.buyerEmail,
-                ...(input.prePopulatedData.buyerPhoneNumber
-                  ? {
-                      buyer_phone_number:
-                        input.prePopulatedData.buyerPhoneNumber,
-                    }
-                  : {}),
+                buyer_phone_number: input.prePopulatedData.buyerPhoneNumber,
               },
             },
           );
