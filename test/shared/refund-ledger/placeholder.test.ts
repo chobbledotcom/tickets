@@ -6,7 +6,10 @@ import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { legReference } from "#shared/accounting/refs.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
-import { recordPlaceholderRefund } from "#shared/refund-ledger.ts";
+import {
+  isPaymentOnlyAccount,
+  recordPlaceholderRefund,
+} from "#shared/refund-ledger.ts";
 import { BOOKING_AT } from "#test/shared/refund-ledger/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
@@ -53,6 +56,11 @@ describeWithEnv("refund-ledger > recordPlaceholderRefund", { db: true }, () => {
     expect(
       await recordPlaceholderRefund(PLACEHOLDER, "price_changed", true),
     ).toEqual({ posted: true });
+    expect(
+      isPaymentOnlyAccount(
+        await transfersByAccount(attendeeAccount(PLACEHOLDER.attendeeId)),
+      ),
+    ).toBe(true);
     const legs = await transfersByAccount(
       attendeeAccount(PLACEHOLDER.attendeeId),
     );

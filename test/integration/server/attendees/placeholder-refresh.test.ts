@@ -172,8 +172,9 @@ describeWithEnv(
           name: "Unrecorded",
           paymentId: "pi_unrecorded_refresh",
         });
-        if (!created.success)
+        if (!created.success) {
           throw new Error(`setup failed: ${created.reason}`);
+        }
         const attendee = created.attendees[0]!;
         await reserveSession("unrecorded-refresh-session");
         await finalizeReservedPayment(
@@ -235,11 +236,11 @@ describeWithEnv(
         await refreshAndVerifyRefundCash(attendee);
         await createSystemNote(
           attendeeNotes(attendee.id),
-          "This booking was kept at quantity 0 but its payment could NOT be refunded.",
+          "This booking was kept at quantity 0 but its payment could NOT be refunded. Payment reference: pi_placeholder_retry.",
         );
 
-        // Second refresh: attendee.refunded is now true (the ledger has the
-        // refund_cash leg), but the stale note must still be cleaned up.
+        // The ledger already has the refund_cash leg, but the stale note must
+        // still be cleaned up without duplicating the confirmation.
         await submitRefreshPayment(
           attendee,
           () => Promise.resolve(true),

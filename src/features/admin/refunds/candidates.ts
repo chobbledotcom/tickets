@@ -1,10 +1,12 @@
 import { filter } from "#fp";
+import { anchorSessionId } from "#shared/db/payment-anchor/session.ts";
 import {
   getRefundPaymentReferences,
   type RefundPaymentReference,
   stillWithTheProvider,
   underRefundClaim,
 } from "#shared/db/payment-references.ts";
+import type { LoadedRefundAttendee } from "#shared/db/payment-claim/take.ts";
 import type { Attendee } from "#shared/types.ts";
 import { hasTicketQuantity } from "#shared/types.ts";
 
@@ -12,6 +14,24 @@ export type RefundCandidate = {
   attendee: Attendee;
   references: RefundPaymentReference[];
 };
+
+/** The durable rows that carry one attendee's copy of a reference. */
+export const referenceRowIds = (
+  attendeeId: number,
+  reference: RefundPaymentReference,
+): readonly string[] =>
+  reference.rowSessionIds.length > 0
+    ? reference.rowSessionIds
+    : [anchorSessionId(attendeeId, reference.index)];
+
+/** The exact attendee revision and payment rows the claim must verify. */
+export const loadedRefundAttendee = (
+  candidate: RefundCandidate,
+): LoadedRefundAttendee => ({
+  attendeeId: candidate.attendee.id,
+  loadedPiiBlob: candidate.attendee.pii_blob,
+  references: candidate.references,
+});
 
 /**
  * Whether a refund run still has work for this attendee.

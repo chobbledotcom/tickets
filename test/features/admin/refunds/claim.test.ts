@@ -9,7 +9,7 @@ import type {
   ClaimResult,
   LoadedRefundAttendee,
 } from "#shared/db/payment-claim/take.ts";
-import type { RowRelease } from "#shared/db/payment-claim.ts";
+import type { RowSettlement } from "#shared/db/payment-claim.ts";
 import type {
   RefundCapability,
   ResolvedRefundCapability,
@@ -19,39 +19,42 @@ import { setupErrorSpy } from "#test-utils/error-spy.ts";
 type ClaimedRows = Extract<ClaimResult, { kind: "claimed" }>;
 
 type RecordingClaim = RowClaim & {
-  releases: RowRelease[];
+  settlements: RowSettlement[];
   requests: [readonly LoadedRefundAttendee[], RefundCapability][];
 };
 
 const claimResult = (
   result: ClaimResult,
-  release: RowClaim["release"] = () => Promise.resolve(),
+  settle: RowClaim["settle"] = () => Promise.resolve(),
 ): RecordingClaim => {
-  const releases: RowRelease[] = [];
+  const settlements: RowSettlement[] = [];
   const requests: RecordingClaim["requests"] = [];
   return {
     claim: (attendees, capability) => {
       requests.push([attendees, capability]);
       return Promise.resolve(result);
     },
-    release: (released) => {
-      releases.push(released);
-      return release(released);
+    settle: (settlement) => {
+      settlements.push(settlement);
+      return settle(settlement);
     },
-    releases,
     requests,
+    settlements,
   };
 };
 
 const claimedRows = (
   held: ReadonlyMap<number, readonly string[]>,
   inherited: ReadonlyMap<number, ResolvedRefundCapability> = new Map(),
+  unrecorded: ReadonlyMap<number, readonly string[]> = new Map(),
 ): ClaimedRows => ({
   held,
   heldSince: "2026-08-11T12:00:00.000Z",
   inherited,
   kind: "claimed",
   returned: new Set(["pi_returned"]),
+  reviews: new Map(),
+  unrecorded,
 });
 
 const LOADED = [
@@ -82,7 +85,7 @@ describe("admin refunds > attendee claim", () => {
     });
     expect(worked).toBe(false);
     expect(claim.requests).toEqual([[LOADED, "keyed"]]);
-    expect(claim.releases).toEqual([]);
+    expect(claim.settlements).toEqual([]);
   });
 
   test("reports the reason another live claim refused the run", async () => {
@@ -101,12 +104,15 @@ describe("admin refunds > attendee claim", () => {
       reason: "a refund for this payment is already in progress",
     });
     expect(claim.requests).toEqual([[LOADED, "keyless"]]);
-    expect(claim.releases).toEqual([]);
+    expect(claim.settlements).toEqual([]);
   });
 
   test("releases only attendees whose provider answer is settled", async () => {
     const inherited = new Map<number, ResolvedRefundCapability>([
       [4, "keyless"],
+    ]);
+    const unrecorded = new Map<number, readonly string[]>([
+      [3, ["sess-three"]],
     ]);
     const claim = claimResult(
       claimedRows(
@@ -117,35 +123,80 @@ describe("admin refunds > attendee claim", () => {
           [4, ["sess-four"]],
         ]),
         inherited,
+        unrecorded,
       ),
     );
 
     const result = await underAttendeeClaim(claim, LOADED, "keyed", 9, {
       blocked: () => "blocked",
-      work: ({ alreadyReturned, findings, inherited: inheritedClaims }) => {
+      work: ({
+        alreadyReturned,
+        findings,
+        inherited: inheritedClaims,
+        unrecorded: existingUnrecorded,
+      }) => {
         expect([...alreadyReturned]).toEqual(["pi_returned"]);
         expect(inheritedClaims).toBe(inherited);
+        expect(existingUnrecorded).toBe(unrecorded);
         expect(findings).toEqual({
           doubts: new Map(),
+          recorded: new Set(),
+          reviews: new Map(),
           unrecorded: new Map(),
         });
         findings.doubts.set(2, "in_doubt");
         findings.doubts.set(3, "unread");
         findings.doubts.set(4, "unread");
-        findings.unrecorded.set(1, ["missed-one"]);
-        findings.unrecorded.set(2, ["missed-two"]);
-        findings.unrecorded.set(3, ["missed-three"]);
-        findings.unrecorded.set(4, ["missed-four"]);
+        findings.unrecorded.set(1, ["sess-one"]);
+        findings.unrecorded.set(2, ["sess-two"]);
+        findings.unrecorded.set(3, ["sess-three"]);
+        findings.unrecorded.set(4, ["sess-four"]);
+        findings.reviews.set("sess-one", {
+          kind: "review",
+          reason: { kind: "partial_refund" },
+        });
+        findings.reviews.set("sess-two", { kind: "resolved" });
+        findings.reviews.set("sess-three", {
+          kind: "review",
+          reason: { kind: "shared_reference" },
+        });
+        findings.reviews.set("sess-four", { kind: "resolved" });
         return Promise.resolve("worked");
       },
     });
 
     expect(result).toBe("worked");
-    expect(claim.releases).toEqual([
+    expect(claim.settlements).toEqual([
       {
         heldSince: "2026-08-11T12:00:00.000Z",
-        sessionIds: ["sess-one", "sess-three"],
-        unrecorded: new Set(["missed-one", "missed-three"]),
+        rows: new Map([
+          ["sess-one", {
+            books: "unrecorded",
+            claim: "release",
+            review: {
+              kind: "review",
+              reason: { kind: "partial_refund" },
+            },
+          }],
+          ["sess-two", {
+            books: "unrecorded",
+            claim: "keep",
+            review: { kind: "resolved" },
+          }],
+          ["sess-three", {
+            books: "unrecorded",
+            claim: "release",
+            review: {
+              kind: "review",
+              reason: { kind: "shared_reference" },
+            },
+          }],
+          ["sess-four", {
+            books: "unrecorded",
+            claim: "keep",
+            review: { kind: "resolved" },
+          }],
+        ]),
       },
     ]);
   });
@@ -159,12 +210,13 @@ describe("admin refunds > attendee claim", () => {
     });
 
     expect(result).toBe("worked");
-    expect(claim.releases).toEqual([]);
+    expect(claim.settlements).toEqual([]);
   });
 
   test("reports a release failure without losing the run result", async () => {
-    const claim = claimResult(claimedRows(new Map([[1, ["sess-one"]]])), () =>
-      Promise.reject(new Error("the row would not let go")),
+    const claim = claimResult(
+      claimedRows(new Map([[1, ["sess-one"]]])),
+      () => Promise.reject(new Error("the row would not let go")),
     );
 
     const result = await underAttendeeClaim(claim, [], "keyed", 11, {
@@ -173,10 +225,10 @@ describe("admin refunds > attendee claim", () => {
     });
 
     expect(result).toBe("worked");
-    expect(claim.releases).toHaveLength(1);
+    expect(claim.settlements).toHaveLength(1);
     expect(
       errors.contains(
-        "Refund claim could not be released: Error: the row would not let go",
+        "Refund claim could not be settled: Error: the row would not let go",
       ),
     ).toBe(true);
   });
@@ -201,6 +253,6 @@ describe("admin refunds > attendee claim", () => {
       }),
     ).rejects.toThrow("the ledger fell over");
 
-    expect(claim.releases).toEqual([]);
+    expect(claim.settlements).toEqual([]);
   });
 });

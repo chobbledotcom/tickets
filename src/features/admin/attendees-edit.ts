@@ -14,16 +14,9 @@ import { AUTH_FORM, withAuth } from "#routes/auth.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 /* jscpd:ignore-end */
-import { logActivity } from "#shared/db/activity-log.ts";
 import { decryptAttendeeOrNull } from "#shared/db/attendees/pii.ts";
 import { getAttendeeRaw } from "#shared/db/attendees/queries.ts";
 import { queryOne } from "#shared/db/client.ts";
-import {
-  createSystemNote,
-  deleteNotes,
-  getNotesFor,
-} from "#shared/db/notes/queries.ts";
-import { attendeeNotes } from "#shared/db/notes/target.ts";
 import {
   getRefundPaymentReferencesForAttendee,
   type RefundPaymentReference,
@@ -68,53 +61,6 @@ const loadRefreshContext = async (
   return { attendee, listingId: firstBooking.listing_id };
 };
 
-/** Finish the operator-visible work after the claimed ledger post lands. */
-const finishConfirmedRefund = async (
-  attendee: Attendee,
-  attendeeId: number,
-  listingId: number,
-  paymentOnly: boolean,
-  privateKey: CryptoKey,
-): Promise<void> => {
-  if (!attendee.refunded) {
-    await logActivity(
-      `Payment marked as refunded for attendee '${attendee.name}'`,
-      listingId,
-      attendeeId,
-    );
-  }
-  // Always delete the stale "could NOT be refunded" note when the refund is
-  // confirmed, even when paymentOnly is false (after the first refresh the
-  // account has a refund_cash leg, so isPlaceholder becomes false — but the
-  // stale note could still be there if the previous cleanup failed).
-  await cleanupStaleManualRefundNote(attendeeId, privateKey);
-  if (paymentOnly) {
-    await createSystemNote(
-      attendeeNotes(attendeeId),
-      t("note.placeholder_refund_confirmed"),
-    );
-  }
-};
-
-/** Delete any stale "could NOT be refunded" system notes left by
- *  storeRefundedBooking. Retryable on every refresh — even when the ledger
- *  was already posted — so a failed note cleanup on a previous refresh does
- *  not strand the stale manual-refund instruction forever. */
-const cleanupStaleManualRefundNote = async (
-  attendeeId: number,
-  privateKey: CryptoKey,
-): Promise<void> => {
-  const notes = await getNotesFor(attendeeNotes(attendeeId), privateKey);
-  const stale = notes.filter(
-    (note) =>
-      note.type === "system" && note.note.includes("could NOT be refunded"),
-  );
-  await deleteNotes(
-    attendeeNotes(attendeeId),
-    stale.map((note) => note.id),
-  );
-};
-
 /** Load the attendee, listing, and payment references for a refresh. Returns
  *  either a Redirect (for the error paths: not found or no references) or the
  *  context the handler needs. */
@@ -124,11 +70,10 @@ const loadRefreshState = async (
 ): Promise<
   | Response
   | {
-      attendee: Attendee;
-      listingId: number;
-      privateKey: CryptoKey;
-      references: readonly RefundPaymentReference[];
-    }
+    attendee: Attendee;
+    listingId: number;
+    references: readonly RefundPaymentReference[];
+  }
 > => {
   const ctx = await loadRefreshContext(attendeeId);
   if (!ctx) return htmlResponse("", 404);
@@ -146,7 +91,7 @@ const loadRefreshState = async (
       { form },
     );
   }
-  return { attendee, listingId, privateKey, references };
+  return { attendee, listingId, references };
 };
 
 /** Handle POST /admin/attendees/:attendeeId/refresh-payment */
@@ -157,7 +102,7 @@ export const handleRefreshPayment: TypedRouteHandler<
     const form = _form as FormParams;
     const state = await loadRefreshState(attendeeId, form);
     if (state instanceof Response) return state;
-    const { attendee, listingId, privateKey, references } = state;
+    const { attendee, listingId, references } = state;
     const result = await refreshClaimedPayment(
       { attendee, references: [...references] },
       listingId,
@@ -168,7 +113,7 @@ export const handleRefreshPayment: TypedRouteHandler<
         t("error.refund_pending"),
       );
     }
-    if (result.kind === "not_ready") {
+    if (result.kind === "not_ready" || result.kind === "needs_review") {
       return errorRedirect(
         `/admin/attendees/${attendeeId}`,
         result.message,
@@ -181,18 +126,9 @@ export const handleRefreshPayment: TypedRouteHandler<
           reportRefundNotRecorded({ attendeeId, listingId }),
         );
       }
-      // The ledger post is idempotent, and stale-note cleanup must remain
-      // retryable when a prior refresh posted money but failed during cleanup.
-      await finishConfirmedRefund(
-        attendee,
-        attendeeId,
-        listingId,
-        result.paymentOnly,
-        privateKey,
-      );
       return redirect(
         `/admin/attendees/${attendeeId}`,
-        attendee.refunded
+        result.confirmation === "current"
           ? t("success.payment_status_current")
           : t("success.payment_status_refunded"),
         true,

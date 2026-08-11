@@ -18,6 +18,7 @@ import {
 } from "#shared/db/client.ts";
 import { nowIso } from "#shared/now.ts";
 import { mirrorFor } from "#shared/payment/admit-move.ts";
+import type { PaymentReviewReason } from "#shared/payment/review.ts";
 import {
   EMPTY_ROW_STATE,
   isEmptyRowState,
@@ -94,6 +95,27 @@ export const readAttendeeRowStates = async (
     ).map(asPaymentRowRecord),
   );
 
+/** Fail when a confirmer no longer owns every payment row it started with. */
+export const assertRefundRowsHeld = async (
+  tx: TxScope,
+  claim: { heldSince: string; sessionIds: readonly string[] },
+): Promise<void> => {
+  const stored = claim.sessionIds.length === 0
+    ? []
+    : await readPaymentClaimRows(
+      tx,
+      `payment_session_id IN (${inPlaceholders(claim.sessionIds)})`,
+      [...claim.sessionIds],
+    );
+  const rows = await Promise.all(stored.map(asPaymentRowRecord));
+  if (
+    rows.length !== claim.sessionIds.length ||
+    rows.some((row) => row.state.claim?.writtenAt !== claim.heldSince)
+  ) {
+    throw new Error("Refund confirmation no longer owns every payment row");
+  }
+};
+
 /** The one statement that puts a record on a row, with the plain word derived
  *  from that same record so the two cannot disagree. Conditioned on the row
  *  still holding exactly what we read, so a row that changed under us matches
@@ -113,13 +135,24 @@ export const paymentRowStateStatement = async (
          WHERE payment_session_id = ? AND failure_data = ?`,
 });
 
-/** The rows a run is letting go of, the claim it is letting go of them under,
- *  and which of them carry money the books have not caught up with. One shape
- *  because the three always travel together. */
-export type RowRelease = {
-  heldSince: string;
-  sessionIds: readonly string[];
-  unrecorded?: ReadonlySet<string>;
+export type PaymentReviewChange =
+  | { readonly kind: "review"; readonly reason: PaymentReviewReason }
+  | { readonly kind: "resolved" };
+
+export type PaymentBooksChange = "recorded" | "unrecorded";
+
+/** Every change one run can make to one exact row. Omitted facts are
+ * preserved; no absence silently clears an older repair target. */
+export type PaymentRowSettlement = {
+  readonly books?: PaymentBooksChange;
+  readonly claim: "keep" | "release";
+  readonly review?: PaymentReviewChange;
+};
+
+/** The exact row transitions made under one durable claim. */
+export type RowSettlement = {
+  readonly heldSince: string;
+  readonly rows: ReadonlyMap<string, PaymentRowSettlement>;
 };
 
 /**
@@ -129,11 +162,10 @@ export type RowRelease = {
  * staleness cutoff must not strip the live claim off work another run has
  * since resumed.
  *
- * `unrecorded` names the sessions whose money went back with no ledger entry.
- * The mark goes on as the hold comes off, so the row that proves the money
- * moved is never left unprotected in between — and letting go without it
- * clears an older mark, which is how the state retires when a later run's
- * ledger post finally lands.
+ * A row can keep its claim while recording a discovered review or missed
+ * ledger write. This matters when one sibling is settled and another provider
+ * answer is still in doubt. Every other field is preserved unless its change
+ * is named explicitly.
  */
 const rewriteRows = async (
   sessionIds: readonly string[],
@@ -164,61 +196,56 @@ const rewriteRows = async (
   if (writes.length > 0) await executeBatch(writes);
 };
 
-/** The row's record with its books-behind word put on or taken off, leaving
- *  everything else it carries exactly as it was. Both writers of that word go
- *  through here, so neither can disturb what the other leaves alone. */
-const sayingBooksAreBehind = (
+/** Put on or take off the row's books-behind word without disturbing its
+ * other state. A retry keeps the date the first failed ledger write stored. */
+const withBooksChange = (
   state: PaymentRowState,
-  marked: boolean,
+  change: PaymentBooksChange | undefined,
 ): PaymentRowState => {
+  if (change === undefined) return state;
   const { unrecorded: _was, ...kept } = state;
-  if (!marked) return kept;
+  if (change === "recorded") return kept;
   return {
     ...kept,
-    unrecorded:
-      state.unrecorded === undefined
-        ? { returnedAt: nowIso() }
-        : state.unrecorded,
+    unrecorded: state.unrecorded === undefined
+      ? { returnedAt: nowIso() }
+      : state.unrecorded,
   };
 };
 
-export const releaseAttendeeRows = ({
+/** Apply only the review decision this run made, preserving it when the run
+ * made none. */
+const withReviewChange = (
+  state: PaymentRowState,
+  change: PaymentReviewChange | undefined,
+): PaymentRowState => {
+  if (change === undefined) return state;
+  const { review: _was, ...kept } = state;
+  return change.kind === "resolved" ? kept : { ...kept, review: change.reason };
+};
+
+const withClaimChange = (
+  state: PaymentRowState,
+  change: PaymentRowSettlement["claim"],
+): PaymentRowState => {
+  if (change === "keep") return state;
+  const { claim: _released, ...kept } = state;
+  return kept;
+};
+
+export const settleAttendeeRows = ({
   heldSince,
-  sessionIds,
-  unrecorded = new Set(),
-}: RowRelease): Promise<void> =>
-  rewriteRows(sessionIds, (row) => {
+  rows,
+}: RowSettlement): Promise<void> =>
+  rewriteRows([...rows.keys()], (row) => {
     if (row.state.claim?.writtenAt !== heldSince) return null;
-    // Letting the claim go does not clear the row: an owner review it still
-    // carries has to keep showing.
-    const { claim: _released, ...held } = row.state;
-    return sayingBooksAreBehind(held, unrecorded.has(row.sessionId));
-  });
-
-/**
- * Put on, or take off, the row's word that its money went back and the books
- * have not caught up.
- *
- * For the paths that DISCOVER a refund rather than send one — the refresh
- * route finds the provider already returned a charge. Without a claim to let
- * go of, these are the only writers of that word, so both halves live here:
- * the marker whose absence would let the row be deleted before anyone reaches
- * the correction, and its retirement when a later run's ledger post lands. A
- * marker nothing can take off is its own trap — a placeholder never enters the
- * refund route that clears one, so it would refuse deletion for good.
- *
- * Either half leaves a row that already says what is wanted completely alone,
- * so repeated refreshes neither move the date somebody is meant to be looking
- * into nor touch a row they have nothing to say about.
- */
-const returnedUnrecorded =
-  (marked: boolean) =>
-  (sessionIds: readonly string[]): Promise<void> =>
-    rewriteRows(sessionIds, (row) =>
-      (row.state.unrecorded !== undefined) === marked
-        ? null
-        : sayingBooksAreBehind(row.state, marked),
+    const change = rows.get(row.sessionId);
+    if (change === undefined) return null;
+    return withClaimChange(
+      withReviewChange(
+        withBooksChange(row.state, change.books),
+        change.review,
+      ),
+      change.claim,
     );
-
-export const markReturnedUnrecorded = returnedUnrecorded(true);
-export const clearReturnedUnrecorded = returnedUnrecorded(false);
+  });

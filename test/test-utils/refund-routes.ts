@@ -1,6 +1,7 @@
 import { type Spy, spy, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import type { RowClaim } from "#routes/admin/refunds/claim.ts";
+import type { PaymentReviewChange } from "#shared/db/payment-claim.ts";
 import { settings } from "#shared/db/settings.ts";
 import type {
   RefundAttemptResult,
@@ -8,6 +9,7 @@ import type {
 } from "#shared/payment/refund-attempt.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { ResolvedRefundCapability } from "#shared/payment/row-state.ts";
+import type { PaymentReviewReason } from "#shared/payment/review.ts";
 import { paymentsApi } from "#shared/payments.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
@@ -55,12 +57,12 @@ type RefundMockOptions = {
 
 const refundResult = (
   behavior: RefundBehavior,
-): ((reference: string) => Promise<RefundAnswer>) =>
+): (reference: string) => Promise<RefundAnswer> =>
   typeof behavior === "function" ? behavior : () => Promise.resolve(behavior);
 
 const chargeResult = (
   behavior: ChargeBehavior,
-): ((reference: string) => Promise<ChargeMoney>) =>
+): (reference: string) => Promise<ChargeMoney> =>
   typeof behavior === "function" ? behavior : () => Promise.resolve(behavior);
 
 /** POST the refund-all confirmation form for a listing as the owner. */
@@ -129,8 +131,10 @@ const withStripeProvider = async (
   await settings.update.stripe.secretKey("sk_test_refund_routes");
   await withMocks(
     () =>
-      stub(paymentsApi, "getConfiguredProvider", () =>
-        mockProviderType("stripe"),
+      stub(
+        paymentsApi,
+        "getConfiguredProvider",
+        () => mockProviderType("stripe"),
       ),
     async () => {
       const { stripePaymentProvider } = await import(
@@ -151,8 +155,10 @@ export const withRefreshPaymentMoney = async <T>(
   let result!: T;
   await withStripeProvider(async (provider) => {
     const mockRefunded = spy(probe);
-    const readCharge = stub(provider, "readCharge", async (reference) =>
-      foundCharge(await mockRefunded(reference)),
+    const readCharge = stub(
+      provider,
+      "readCharge",
+      async (reference) => foundCharge(await mockRefunded(reference)),
     );
     try {
       result = await body(mockRefunded);
@@ -195,8 +201,10 @@ export const withRefundMock = async (
       },
     );
     const readMoney = chargeResult(options.charge ?? chargeMoney());
-    const readCharge = stub(provider, "readCharge", async (reference) =>
-      foundCharge(await readMoney(reference)),
+    const readCharge = stub(
+      provider,
+      "readCharge",
+      async (reference) => foundCharge(await readMoney(reference)),
     );
     try {
       await fn(mockRefund);
@@ -214,8 +222,15 @@ export const withRefundMock = async (
 export const grantingRowClaim = (
   held: ReadonlyMap<number, readonly string[]> = new Map(),
   inherited: ReadonlyMap<number, ResolvedRefundCapability> = new Map(),
-): RowClaim & { released: string[][]; unrecorded: string[][] } => {
+  existingUnrecorded: ReadonlyMap<number, readonly string[]> = new Map(),
+  existingReviews: ReadonlyMap<string, PaymentReviewReason> = new Map(),
+): RowClaim & {
+  released: string[][];
+  reviewChanges: ReadonlyMap<string, PaymentReviewChange>[];
+  unrecorded: string[][];
+} => {
   const released: string[][] = [];
+  const reviewChanges: ReadonlyMap<string, PaymentReviewChange>[] = [];
   const unrecorded: string[][] = [];
   return {
     claim: () =>
@@ -225,13 +240,33 @@ export const grantingRowClaim = (
         inherited,
         kind: "claimed",
         returned: new Set<string>(),
+        reviews: existingReviews,
+        unrecorded: existingUnrecorded,
       }),
-    release: ({ sessionIds, unrecorded: marked = new Set() }) => {
-      released.push([...sessionIds]);
-      unrecorded.push([...marked]);
+    settle: ({ rows }) => {
+      released.push(
+        [...rows]
+          .filter(([, change]) => change.claim === "release")
+          .map(([sessionId]) => sessionId),
+      );
+      reviewChanges.push(
+        new Map(
+          [...rows].flatMap(([sessionId, change]) =>
+            change.review === undefined
+              ? []
+              : [[sessionId, change.review] as const]
+          ),
+        ),
+      );
+      unrecorded.push(
+        [...rows]
+          .filter(([, change]) => change.books === "unrecorded")
+          .map(([sessionId]) => sessionId),
+      );
       return Promise.resolve();
     },
     released,
+    reviewChanges,
     unrecorded,
   };
 };

@@ -10,7 +10,7 @@
  */
 
 import * as v from "valibot";
-import { PaymentConflictSchema } from "#shared/payment/conflict.ts";
+import { PaymentReviewReasonSchema } from "#shared/payment/review.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
 /** Whether a stale claim may repeat a provider call that gave no answer.
@@ -81,7 +81,7 @@ export type UnrecordedRefund = v.InferOutput<typeof UnrecordedRefundSchema>;
 const PaymentRowStateSchema = v.strictObject({
   claim: v.optional(RefundClaimSchema),
   outcome: v.optional(StoredPaymentFailureSchema),
-  review: v.optional(PaymentConflictSchema),
+  review: v.optional(PaymentReviewReasonSchema),
   unrecorded: v.optional(UnrecordedRefundSchema),
 });
 export type PaymentRowState = v.InferOutput<typeof PaymentRowStateSchema>;

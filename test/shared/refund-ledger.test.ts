@@ -22,7 +22,10 @@ import {
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
-import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
+import {
+  isPaymentOnlyAccount,
+  recordAttendeeRefund,
+} from "#shared/refund-ledger.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import {
@@ -125,6 +128,11 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     });
     await recordAttendeeRefund(ATTENDEE, [sessionReference("sess-1")]);
 
+    expect(
+      isPaymentOnlyAccount(
+        await transfersByAccount(attendeeAccount(ATTENDEE)),
+      ),
+    ).toBe(false);
     expect(await accountBalance(modifierAccount(7))).toBe(0);
     expect(await accountBalance(attendeeAccount(ATTENDEE))).toBe(0);
     await expectSingleRefundCash(500);

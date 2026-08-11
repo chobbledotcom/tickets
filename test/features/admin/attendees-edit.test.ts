@@ -112,10 +112,12 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
         "pi_refresh_balance",
       );
 
-      const queried = await submitRefreshPayment(attendee, (reference) =>
-        Promise.resolve(
-          ["pi_refresh_balance", "pi_refresh_deposit"].includes(reference),
-        ),
+      const queried = await submitRefreshPayment(
+        attendee,
+        (reference) =>
+          Promise.resolve(
+            ["pi_refresh_balance", "pi_refresh_deposit"].includes(reference),
+          ),
       );
 
       expect([...queried].sort()).toEqual([
@@ -187,7 +189,9 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
       const message = "Payment marked as refunded for attendee 'First Real'";
       expect(
         pipe(
-          filter((entry: ActivityLogEntry) => entry.message === message),
+          filter((entry: ActivityLogEntry) =>
+            entry.message.startsWith(message)
+          ),
           map(({ attendee_id, listing_id }) => ({ attendee_id, listing_id })),
         )(await getAttendeeActivityLog(attendee.id)),
       ).toEqual([{ attendee_id: attendee.id, listing_id: firstReal.id }]);
@@ -205,8 +209,9 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
         ["2026-07-01T00:01:00.000Z", "refresh-balance-already-refunded"],
       );
 
-      const queried = await submitRefreshPayment(attendee, (reference) =>
-        Promise.resolve(reference === "pi_refresh_deposit"),
+      const queried = await submitRefreshPayment(
+        attendee,
+        (reference) => Promise.resolve(reference === "pi_refresh_deposit"),
       );
 
       expect(queried).toEqual(["pi_refresh_deposit"]);

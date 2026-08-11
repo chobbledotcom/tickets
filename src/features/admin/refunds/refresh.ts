@@ -1,29 +1,35 @@
+/* jscpd:ignore-start -- imports */
 import { compact } from "#fp";
-import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
-import { KIND } from "#shared/accounting/kinds.ts";
+import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { markPaymentReferencesProviderRefunded } from "#shared/db/payment-references.ts";
-import { legMatches } from "#shared/ledger/legs.ts";
-import {
-  admitObservedRefund,
-  type ObservedRefundAdmission,
-} from "#shared/payment/admit-refund.ts";
+import type { ObservedRefundAdmission } from "#shared/payment/admit-refund.ts";
 import { reportWithheldRefund } from "#shared/payment-review.ts";
-import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
-import type { RefundCandidate } from "./candidates.ts";
+import {
+  isPaymentOnlyAccount,
+  recordAttendeeRefund,
+} from "#shared/refund-ledger.ts";
+import { referenceRowIds, type RefundCandidate } from "./candidates.ts";
 import {
   durableRowClaim,
+  type HeldRefundClaim,
+  type HeldRefundWork,
   type RowClaim,
   type RunFindings,
-  underAttendeeClaim,
 } from "./claim.ts";
+import {
+  type ConfirmedRefund,
+  confirmRefund,
+  type RefundConfirmation,
+} from "./confirmation.ts";
 import {
   prepareRefundReadiness,
   type ReadyRefundCandidate,
   type ReadyRefundReference,
 } from "./readiness.ts";
-import { refundReadinessMessage } from "./readiness-problem.ts";
-import { reportRefundProblem } from "./report.ts";
+import { readyRefundAdmission } from "./ready-admission.ts";
+import { runRefundReadiness } from "./readiness-run.ts";
+/* jscpd:ignore-end */
 
 type TaggedRefundReference = ReadyRefundReference["reference"];
 type MarkReturnedReferences = (
@@ -33,44 +39,51 @@ type RecordRefund = (
   attendeeId: number,
   references: readonly TaggedRefundReference[],
 ) => Promise<{ posted: boolean }>;
+type ConfirmRefund = (
+  facts: Omit<ConfirmedRefund, "listingId">,
+) => Promise<RefundConfirmation>;
 
 export type RefreshPaymentResult =
   | { kind: "blocked"; reason: "refund_in_progress" }
   | { kind: "current" }
+  | { kind: "needs_review"; message: string }
   | { kind: "not_ready"; message: string }
-  | { kind: "returned"; paymentOnly: boolean; posted: boolean };
+  | { kind: "returned"; posted: false }
+  | { confirmation: RefundConfirmation; kind: "returned"; posted: true };
 
 export type RefreshPaymentDependencies = {
   claim?: RowClaim;
+  confirm?: ConfirmRefund;
   markReturned?: MarkReturnedReferences;
   paymentOnly?: (attendeeId: number) => Promise<boolean>;
   prepare?: typeof prepareRefundReadiness;
   record?: RecordRefund;
 };
 
-const isProviderPayment = legMatches({ from: WORLD, kind: KIND.payment });
-
-const paymentOnlyBeforeRefund = async (attendeeId: number): Promise<boolean> => {
+const paymentOnlyBeforeRefund = async (
+  attendeeId: number,
+): Promise<boolean> => {
   const legs = await transfersByAccount(attendeeAccount(attendeeId));
-  return legs.length > 0 && legs.every(isProviderPayment);
+  return isPaymentOnlyAccount(legs);
 };
 
 type RefreshedReference =
   | { kind: "returned"; reference: TaggedRefundReference }
-  | { doubt: boolean; kind: "unreturned" };
+  | {
+    admission: Exclude<ObservedRefundAdmission, { kind: "already_returned" }>;
+    kind: "unreturned";
+    reference: TaggedRefundReference;
+  };
+
+const REVIEW_REQUIRED_MESSAGE =
+  "This payment needs an owner review before another refund can be attempted.";
 
 const observedReference = (
   ready: ReadyRefundReference,
   attendeeId: number,
   listingId: number,
 ): RefreshedReference => {
-  if (ready.kind === "already_returned") {
-    return { kind: "returned", reference: ready.reference };
-  }
-  const admission = admitObservedRefund(
-    ready.reference.reference,
-    ready.charge,
-  );
+  const admission = readyRefundAdmission(ready);
   if (admission.kind === "already_returned") {
     return { kind: "returned", reference: ready.reference };
   }
@@ -82,8 +95,9 @@ const observedReference = (
     });
   }
   return {
-    doubt: admission.kind === "in_flight",
+    admission,
     kind: "unreturned",
+    reference: ready.reference,
   };
 };
 
@@ -92,15 +106,57 @@ const returnedReference = (
 ): TaggedRefundReference | null =>
   observed.kind === "returned" ? observed.reference : null;
 
+/** Persist each provider disagreement on the exact rows that carried it. */
+const recordProviderReviews = (
+  observed: readonly RefreshedReference[],
+  attendeeId: number,
+  findings: RunFindings,
+): boolean => {
+  const refused = observed.filter(
+    (
+      result,
+    ): result is Extract<RefreshedReference, { kind: "unreturned" }> & {
+      admission: Extract<ObservedRefundAdmission, { kind: "refused" }>;
+    } => result.kind === "unreturned" && result.admission.kind === "refused",
+  );
+  refused.forEach(({ admission, reference }) =>
+    referenceRowIds(attendeeId, reference).forEach((sessionId) =>
+      findings.reviews.set(sessionId, {
+        kind: "review",
+        reason: admission.issue,
+      })
+    )
+  );
+  return refused.length > 0;
+};
+
+/** Retire only the partial-provider marker a completed ledger post disproves. */
+const retireCompletedProviderReviews = (
+  returned: readonly TaggedRefundReference[],
+  attendeeId: number,
+  heldReviews: HeldRefundWork["reviews"],
+  findings: RunFindings,
+): void =>
+  returned
+    .flatMap((reference) => referenceRowIds(attendeeId, reference))
+    .filter((sessionId) =>
+      heldReviews.get(sessionId)?.kind === "partial_refund"
+    )
+    .forEach((sessionId) =>
+      findings.reviews.set(sessionId, { kind: "resolved" })
+    );
+
 const refreshReadyCandidate = async (
   candidate: ReadyRefundCandidate,
   listingId: number,
   inheritedKeyless: boolean,
   findings: RunFindings,
+  claim: HeldRefundClaim,
+  heldReviews: HeldRefundWork["reviews"],
   dependencies: Required<
     Pick<
       RefreshPaymentDependencies,
-      "markReturned" | "paymentOnly" | "record"
+      "confirm" | "markReturned" | "paymentOnly" | "record"
     >
   >,
 ): Promise<RefreshPaymentResult> => {
@@ -113,18 +169,30 @@ const refreshReadyCandidate = async (
   );
   const returned = compact(observed.map(returnedReference));
   const hasUnreturned = returned.length !== candidate.references.length;
-  const keepsClaim =
-    observed.some(
-      (reference) => reference.kind === "unreturned" && reference.doubt,
-    ) ||
-    (inheritedKeyless && hasUnreturned);
+  const needsReview = recordProviderReviews(
+    observed,
+    candidate.attendee.id,
+    findings,
+  );
+  const keepsClaim = observed.some(
+    (reference) =>
+      reference.kind === "unreturned" &&
+      reference.admission.kind === "in_flight",
+  ) ||
+    (inheritedKeyless &&
+      observed.some(
+        (reference) =>
+          reference.kind === "unreturned" &&
+          reference.admission.kind === "send",
+      ));
   if (keepsClaim) {
     findings.doubts.set(candidate.attendee.id, "in_doubt");
   }
   await dependencies.markReturned(returned);
   if (hasUnreturned) {
-    return keepsClaim
-      ? { kind: "blocked", reason: "refund_in_progress" }
+    if (keepsClaim) return { kind: "blocked", reason: "refund_in_progress" };
+    return needsReview
+      ? { kind: "needs_review", message: REVIEW_REQUIRED_MESSAGE }
       : { kind: "current" };
   }
 
@@ -136,10 +204,28 @@ const refreshReadyCandidate = async (
   if (!posted) {
     findings.unrecorded.set(
       candidate.attendee.id,
-      returned.flatMap(({ rowSessionIds }) => rowSessionIds),
+      returned.flatMap((reference) =>
+        referenceRowIds(candidate.attendee.id, reference)
+      ),
     );
+    return { kind: "returned", posted: false };
   }
-  return { kind: "returned", paymentOnly, posted };
+  returned
+    .flatMap((reference) => referenceRowIds(candidate.attendee.id, reference))
+    .forEach((sessionId) => findings.recorded.add(sessionId));
+  retireCompletedProviderReviews(
+    returned,
+    candidate.attendee.id,
+    heldReviews,
+    findings,
+  );
+  const confirmation = await dependencies.confirm({
+    attendee: candidate.attendee,
+    claim,
+    paymentOnly,
+    references: returned,
+  });
+  return { confirmation, kind: "returned", posted: true };
 };
 
 const oneReadyCandidate = (
@@ -160,62 +246,33 @@ export const refreshClaimedPayment = async (
 ): Promise<RefreshPaymentResult> => {
   const {
     claim = durableRowClaim,
+    confirm = (refund) => confirmRefund({ ...refund, listingId }),
     markReturned = markPaymentReferencesProviderRefunded,
     paymentOnly = paymentOnlyBeforeRefund,
     prepare = prepareRefundReadiness,
     record = recordAttendeeRefund,
   } = dependencies;
-  return await underAttendeeClaim<RefreshPaymentResult>(
+  return await runRefundReadiness<RefreshPaymentResult>({
+    candidates: [candidate],
+    changedMessage:
+      "The attendee or payment set changed while this refresh was starting. Try again.",
     claim,
-    [
-      {
-        attendeeId: candidate.attendee.id,
-        loadedPiiBlob: candidate.attendee.pii_blob,
-        references: candidate.references,
-      },
-    ],
-    "unresolved",
+    label: "Admin payment refresh",
     listingId,
-    {
-      blocked: ({ kind, reason }) => {
-        if (kind === "claim_held") {
-          return { kind: "blocked", reason: "refund_in_progress" };
-        }
-        reportRefundProblem(
-          `Admin payment refresh not started for attendee ${candidate.attendee.id}: ${reason}`,
-          listingId,
-        );
-        return {
-          kind: "not_ready",
-          message:
-            "The attendee or payment set changed while this refresh was starting. Try again.",
-        };
-      },
-      work: async ({ alreadyReturned, claim, findings, inherited }) => {
-        const readiness = await prepare(
-          [candidate],
-          claim,
-          alreadyReturned,
-        );
-        if (readiness.kind === "not_ready") {
-          const message = refundReadinessMessage(readiness);
-          if (readiness.reason !== "historical_marker") {
-            findings.doubts.set(candidate.attendee.id, "unread");
-          }
-          reportRefundProblem(
-            `Admin payment refresh not started for attendee ${candidate.attendee.id}: ${message}`,
-            listingId,
-          );
-          return { kind: "not_ready", message };
-        }
-        return await refreshReadyCandidate(
-          oneReadyCandidate(readiness.candidates),
-          listingId,
-          inherited.get(candidate.attendee.id) === "keyless",
-          findings,
-          { markReturned, paymentOnly, record },
-        );
-      },
-    },
-  );
+    notReady: (message) => ({ kind: "not_ready", message }),
+    prepare,
+    ready: (
+      candidates,
+      { claim: heldClaim, findings, inherited, reviews },
+    ) =>
+      refreshReadyCandidate(
+        oneReadyCandidate(candidates),
+        listingId,
+        inherited.get(candidate.attendee.id) === "keyless",
+        findings,
+        heldClaim,
+        reviews,
+        { confirm, markReturned, paymentOnly, record },
+      ),
+  });
 };

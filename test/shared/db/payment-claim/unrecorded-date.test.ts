@@ -4,7 +4,7 @@ import { FakeTime } from "@std/testing/time";
 import { withTransaction } from "#shared/db/client.ts";
 import {
   readAttendeeRowStates,
-  releaseAttendeeRows,
+  settleAttendeeRows,
 } from "#shared/db/payment-claim.ts";
 import type { PaymentRowState } from "#shared/payment/row-state.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -31,10 +31,11 @@ const claimAndReleaseUnrecorded = async (
 ): Promise<void> => {
   const claim = await claimCurrentAttendeeRows([attendeeId], "keyless");
   if (claim.kind !== "claimed") throw new Error("The claim was refused");
-  await releaseAttendeeRows({
+  await settleAttendeeRows({
     heldSince: claim.heldSince,
-    sessionIds: [sessionId],
-    unrecorded: new Set([sessionId]),
+    rows: new Map([
+      [sessionId, { books: "unrecorded", claim: "release" }],
+    ]),
   });
 };
 

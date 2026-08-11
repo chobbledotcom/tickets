@@ -1,8 +1,7 @@
+/* jscpd:ignore-start -- imports */
 import type { AnchoredAttendee } from "#shared/db/payment-anchor/mint.ts";
-import { anchorSessionId } from "#shared/db/payment-anchor/session.ts";
 import {
   markPaymentReferencesProviderRefunded,
-  type RefundPaymentReference,
 } from "#shared/db/payment-references.ts";
 import { reportRefundNotRecorded } from "#shared/invariant-errors.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
@@ -14,23 +13,16 @@ import {
   type PreparedReferenceRefund,
   refundReadyCandidate,
 } from "./attempt.ts";
-import type { RefundCandidate } from "./candidates.ts";
-import {
-  durableRowClaim,
-  type RefundRunBlock,
-  type RowClaim,
-  type RunFindings,
-  underAttendeeClaim,
-} from "./claim.ts";
+import { referenceRowIds, type RefundCandidate } from "./candidates.ts";
+import { durableRowClaim, type RowClaim, type RunFindings } from "./claim.ts";
 import { PROVIDER_REFUND_CONCURRENCY } from "./provider-requests.ts";
 import {
   prepareRefundReadiness,
   type ReadyRefundCandidate,
-  type RefundReadinessResult,
 } from "./readiness.ts";
-import { refundReadinessMessage } from "./readiness-problem.ts";
-import { reportRefundProblem } from "./report.ts";
+import { runRefundReadiness } from "./readiness-run.ts";
 import { packByReferenceCount, type RefundOutcome } from "./waves.ts";
+/* jscpd:ignore-end */
 
 type RecordRefunds = typeof recordAttendeeRefundsBatch;
 
@@ -65,11 +57,6 @@ const noRefunds = (failedCount = 0): RefundCounts => ({
   pendingCount: 0,
   refundedCount: 0,
 });
-
-const BLOCK_IS_SETTLING = {
-  claim_held: true,
-  payment_set_changed: false,
-} as const satisfies Record<RefundRunBlock["kind"], boolean>;
 
 const finished = (counts: RefundCounts): RefundBatchResult => ({
   counts,
@@ -128,17 +115,6 @@ const tallyProviderRefund = (
   }
 };
 
-/** The rows this charge is held by. */
-const rowsHolding = (
-  attendeeId: number,
-  reference: RefundPaymentReference,
-): readonly string[] => {
-  if (reference.rowSessionIds.length > 0) {
-    return reference.rowSessionIds;
-  }
-  return [anchorSessionId(attendeeId, reference.index)];
-};
-
 /** Post whatever came back for one wave, and retain any missed ledger write. */
 const recordWave = async (
   record: RecordRefunds,
@@ -153,7 +129,7 @@ const recordWave = async (
       counts.notRecordedCount++;
       reportRefundNotRecorded({ attendeeId, listingId });
       const missedRows = references.flatMap((reference) =>
-        rowsHolding(attendeeId, reference)
+        referenceRowIds(attendeeId, reference)
       );
       const earlierMissedRows = findings.unrecorded.get(attendeeId);
       findings.unrecorded.set(
@@ -162,8 +138,11 @@ const recordWave = async (
           ? missedRows
           : [...earlierMissedRows, ...missedRows],
       );
-    } else if (whole) {
-      counts.refundedCount++;
+    } else {
+      references
+        .flatMap((reference) => referenceRowIds(attendeeId, reference))
+        .forEach((sessionId) => findings.recorded.add(sessionId));
+      if (whole) counts.refundedCount++;
     }
   }
 };
@@ -187,73 +166,26 @@ export const processRefundBatch = async (
     record = recordAttendeeRefundsBatch,
   }: RefundRunDependencies = {},
 ): Promise<RefundBatchResult> =>
-  await underAttendeeClaim<RefundBatchResult>(
-    rowClaim,
-    batch.map((candidate) => ({
-      attendeeId: candidate.attendee.id,
-      loadedPiiBlob: candidate.attendee.pii_blob,
-      references: candidate.references,
-    })),
-    "unresolved",
+  await runRefundReadiness<RefundBatchResult>({
+    candidates: batch,
+    changedMessage:
+      "The attendee or payment set changed while this refund was starting. Try again.",
+    claim: rowClaim,
+    label: "Admin bulk refund",
     listingId,
-    {
-      blocked: ({ kind, reason }) => {
-        if (BLOCK_IS_SETTLING[kind]) {
-          return { kind: "blocked", reason: "refund_in_progress" };
-        }
-        for (const candidate of batch) {
-          reportRefundProblem(
-            `Admin bulk refund not started for attendee ${candidate.attendee.id}: ${reason}`,
-            listingId,
-          );
-        }
-        return notReady(
-          noRefunds(batch.length),
-          "The attendee or payment set changed while this refund was starting. Try again.",
-        );
-      },
-      work: async ({ alreadyReturned, claim, findings, inherited }) => {
-        const readiness = await prepare(batch, claim, alreadyReturned);
-        if (readiness.kind === "not_ready") {
-          const problem = refundReadinessFailure(
-            readiness,
-            batch,
-            findings,
-            listingId,
-          );
-          return notReady(problem.counts, problem.message);
-        }
-        return finished(
-          await refundClaimedBatch(
-            readiness.candidates,
-            listingId,
-            { markReturned: markReturnedReferences, record },
-            findings,
-            inherited,
-          ),
-        );
-      },
-    },
-  );
-
-const refundReadinessFailure = (
-  readiness: Extract<RefundReadinessResult, { kind: "not_ready" }>,
-  batch: readonly RefundCandidate[],
-  findings: RunFindings,
-  listingId: number,
-): { counts: RefundCounts; message: string } => {
-  const message = refundReadinessMessage(readiness);
-  for (const candidate of batch) {
-    if (readiness.reason !== "historical_marker") {
-      findings.doubts.set(candidate.attendee.id, "unread");
-    }
-    reportRefundProblem(
-      `Admin bulk refund not started for attendee ${candidate.attendee.id}: ${message}`,
-      listingId,
-    );
-  }
-  return { counts: noRefunds(batch.length), message };
-};
+    notReady: (message) => notReady(noRefunds(batch.length), message),
+    prepare,
+    ready: async (candidates, { findings, inherited }) =>
+      finished(
+        await refundClaimedBatch(
+          candidates,
+          listingId,
+          { markReturned: markReturnedReferences, record },
+          findings,
+          inherited,
+        ),
+      ),
+  });
 
 const refundClaimedBatch = async (
   batch: ReadyRefundCandidate[],

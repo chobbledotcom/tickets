@@ -1,9 +1,6 @@
 import { markPaymentReferencesProviderRefunded } from "#shared/db/payment-references.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import {
-  admitObservedRefund,
-  type ObservedRefundAdmission,
-} from "#shared/payment/admit-refund.ts";
+import { type ObservedRefundAdmission } from "#shared/payment/admit-refund.ts";
 import type { RefundRequest } from "#shared/payment/refund-attempt.ts";
 import { reportWithheldRefund } from "#shared/payment-review.ts";
 import { mapProviderRequests } from "./provider-requests.ts";
@@ -12,6 +9,7 @@ import type {
   ReadyRefundProvider,
   ReadyRefundReference,
 } from "./readiness.ts";
+import { readyRefundAdmission } from "./ready-admission.ts";
 import { reportRefundProblem } from "./report.ts";
 import { combineRefundOutcomes, type RefundOutcome } from "./waves.ts";
 
@@ -57,7 +55,7 @@ const answeredOnce = <TAnswer>(
 /** Start one provider request even when several attendees share its charge. */
 const sendOnce = <TAnswer>(
   send: () => Promise<TAnswer>,
-): (() => Promise<TAnswer>) => {
+): () => Promise<TAnswer> => {
   let running: Promise<TAnswer> | undefined;
   return () => {
     running ??= send();
@@ -119,13 +117,7 @@ const prepareReferenceRefund = async (
   ready: ReadyRefundReference,
   observeOnly: boolean,
 ): Promise<PreparedReferenceRefund> => {
-  if (ready.kind === "already_returned") {
-    return { kind: "answered", result: refunded() };
-  }
-  const admission = admitObservedRefund(
-    ready.reference.reference,
-    ready.charge,
-  );
+  const admission = readyRefundAdmission(ready);
   if (admission.kind !== "send") {
     return {
       kind: "answered",
@@ -151,7 +143,7 @@ const prepareReferenceRefund = async (
         candidate.attendee.id,
         listingId,
         admission.request,
-      ),
+      )
     ),
   };
 };
@@ -169,20 +161,24 @@ export type CandidateRefund = {
 export const refundReadyCandidate = async (
   candidate: ReadyRefundCandidate,
   listingId: number,
-  markReturnedReferences: MarkReturnedReferences = markPaymentReferencesProviderRefunded,
+  markReturnedReferences: MarkReturnedReferences =
+    markPaymentReferencesProviderRefunded,
   inFlight: Map<string, Promise<PreparedReferenceRefund>> = new Map(),
   observeOnly: ReadonlySet<string> = new Set(),
 ): Promise<CandidateRefund> => {
   const prepared = await mapProviderRequests(
     candidate.references,
     async (ready) => ({
-      ...(await answeredOnce(inFlight, ready.reference.index, () =>
-        prepareReferenceRefund(
-          candidate,
-          listingId,
-          ready,
-          observeOnly.has(ready.reference.index),
-        ),
+      ...(await answeredOnce(
+        inFlight,
+        ready.reference.index,
+        () =>
+          prepareReferenceRefund(
+            candidate,
+            listingId,
+            ready,
+            observeOnly.has(ready.reference.index),
+          ),
       )),
       reference: ready.reference,
     }),
@@ -211,9 +207,11 @@ export const refundReadyCandidate = async (
     await markReturnedReferences(returnedReferences);
   } catch (error) {
     reportRefundProblem(
-      `Admin refund could not record returned payments for attendee ${candidate.attendee.id}: ${String(
-        error,
-      )}`,
+      `Admin refund could not record returned payments for attendee ${candidate.attendee.id}: ${
+        String(
+          error,
+        )
+      }`,
       listingId,
     );
     if (outcome !== "refunded") {
@@ -237,7 +235,8 @@ export const refundReadyCandidate = async (
   ) {
     logError({
       code: ErrorCode.PAYMENT_REFUND,
-      detail: `Admin refund did not complete every payment for attendee ${candidate.attendee.id}`,
+      detail:
+        `Admin refund did not complete every payment for attendee ${candidate.attendee.id}`,
       listingId,
     });
   }

@@ -5,7 +5,6 @@ import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
 import { updateAttendeePII } from "#shared/db/attendees/update.ts";
 import { execute, requireOne } from "#shared/db/client.ts";
 import { claimAttendeeRows } from "#shared/db/payment-claim/take.ts";
-import { releaseAttendeeRows } from "#shared/db/payment-claim.ts";
 import { getRefundPaymentReferencesForAttendee } from "#shared/db/payment-references.ts";
 import type { Attendee } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
@@ -13,6 +12,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { releaseClaimRows } from "#test-utils/payment-claim.ts";
 import {
   bookedWithPayment,
   finalizeProcessedPayment,
@@ -51,6 +51,8 @@ const expectRunStandsDown = async (
   expect(result).toMatchObject({
     counts: { failedCount: 1 },
     kind: "not_ready",
+    message:
+      "The attendee or payment set changed while this refund was starting. Try again.",
   });
   expect(prepared).toBe(false);
 };
@@ -151,10 +153,7 @@ describeWithEnv(
         "keyless",
       );
       if (claim.kind !== "claimed") throw new Error("the anchor was not held");
-      await releaseAttendeeRows({
-        heldSince: claim.heldSince,
-        sessionIds: [...claim.held.values()].flat(),
-      });
+      await releaseClaimRows(claim, [...claim.held.values()].flat());
       const candidate = await withStoredRevision(attendee);
       const [anchor] = candidate.references.flatMap(
         (reference) => reference.rowSessionIds,

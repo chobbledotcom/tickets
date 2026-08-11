@@ -63,6 +63,12 @@ const isOperatorMoneyLeg = (leg: Transfer): boolean =>
 const isPaymentOnlyPlaceholder = (group: Transfer[]): boolean =>
   group.length > 0 && group.every(isProviderPaymentLeg);
 
+/** Whether every original order group is provider cash with no sale or fee. */
+export const isPaymentOnlyAccount = (legs: Transfer[]): boolean => {
+  const groups = accountRefundGroups(legs);
+  return groups.length > 0 && groups.every(isPaymentOnlyPlaceholder);
+};
+
 const refundedSessionGroups = async (
   references: RefundReferences,
 ): Promise<string[][]> =>
@@ -72,8 +78,8 @@ const refundedSessionGroups = async (
         Promise.all([
           bookingEventGroup(sessionId),
           balanceEventGroup(sessionId),
-        ]),
-      ),
+        ])
+      )
     ),
   );
 
@@ -103,7 +109,7 @@ const returnedRefundGroups = async (
     groups.filter(hasProviderPayment).map((group) => group[0]!.eventGroup),
   );
   const namedUnplaced = namedSessionGroups.some((possible) =>
-    possible.every((eventGroup) => !providerGroups.has(eventGroup)),
+    possible.every((eventGroup) => !providerGroups.has(eventGroup))
   );
   const unnamed = groups.filter(
     (group) => hasProviderPayment(group) && !cameBack(group),
@@ -141,7 +147,7 @@ const notYetReversed = async (
   );
   const done = await Promise.all(
     groups.map(async (group) =>
-      reversed.has(await refundEventGroup(group[0]!.eventGroup)),
+      reversed.has(await refundEventGroup(group[0]!.eventGroup))
     ),
   );
   return groups.filter((_, index) => done[index] === false);
@@ -190,7 +196,7 @@ const computeAttendeeRefund = async (
   // operator's "refresh payment" reconcile a placeholder when a PENDING refund
   // later settles. A surcharge-only order (payment + fee, no sale) does NOT
   // qualify — reversing it would cancel the fee receivable.
-  const isPlaceholder = orders.every(isPaymentOnlyPlaceholder);
+  const isPlaceholder = isPaymentOnlyAccount(legs);
   if (!isPlaceholder && balanceOf(account)(legs) !== 0) {
     return { groups: [], posted: false };
   }
@@ -202,7 +208,7 @@ const computeAttendeeRefund = async (
           memo,
           occurredAt,
           orderLegs: order,
-        }),
+        })
       ),
     ),
     // Money that could not be placed leaves the ledger short of what moved, so
@@ -293,7 +299,8 @@ export const recordAttendeeRefundsBatch = async (
   } catch (error) {
     logError({
       code: ErrorCode.LEDGER_POST,
-      detail: `bulk refund batch failed, falling back to per-attendee (${attendees.length}): ${error}`,
+      detail:
+        `bulk refund batch failed, falling back to per-attendee (${attendees.length}): ${error}`,
     });
     // Record each attendee independently so one failure never strands the rest:
     // recordAttendeeRefund opens its own transaction, is idempotent (an
@@ -368,13 +375,13 @@ export const recordPlaceholderRefund = (
       });
       const groups = refunded
         ? [
-            payment,
-            await mapRefund({
-              memo,
-              occurredAt: facts.occurredAt,
-              orderLegs: asOrderLegs(payment, facts.occurredAt),
-            }),
-          ]
+          payment,
+          await mapRefund({
+            memo,
+            occurredAt: facts.occurredAt,
+            orderLegs: asOrderLegs(payment, facts.occurredAt),
+          }),
+        ]
         : [payment];
       await postTransferGroups(groups);
       return true;

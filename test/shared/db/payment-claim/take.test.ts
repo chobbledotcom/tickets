@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { execute } from "#shared/db/client.ts";
-import { releaseAttendeeRows } from "#shared/db/payment-claim.ts";
 import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -12,7 +11,10 @@ import {
   protectedStateOf,
   putRowState,
   referenceIndexOf,
+  releaseClaimRows,
+  rowStateSlot,
   staleClaimSlot,
+  UNRECORDED_MIRROR,
 } from "#test-utils/payment-claim.ts";
 import {
   bookedWithPayment,
@@ -208,19 +210,13 @@ describeWithEnv(
         if (stalled.kind !== "claimed") {
           throw new Error("the claim was refused");
         }
-        await releaseAttendeeRows({
-          heldSince: stalled.heldSince,
-          sessionIds: heldSessionIds(stalled),
-        });
+        await releaseClaimRows(stalled, heldSessionIds(stalled));
         const resumed = await claimCurrentAttendeeRows([attendeeId], "keyless");
         if (resumed.kind !== "claimed") {
           throw new Error("the resume was refused");
         }
 
-        await releaseAttendeeRows({
-          heldSince: stalled.heldSince,
-          sessionIds: heldSessionIds(stalled),
-        });
+        await releaseClaimRows(stalled, heldSessionIds(stalled));
 
         expect(resumed.heldSince).not.toBe(stalled.heldSince);
         expect(await protectedStateOf("sess-stall")).toBe(CLAIM_MIRROR);
@@ -245,6 +241,27 @@ describeWithEnv(
     });
 
     describe("returned money", () => {
+      test("names rows whose returned money is not in the books", async () => {
+        const attendeeId = await bookedWithPayment(
+          "sess-unrecorded",
+          "pi_unrecorded",
+        );
+        await putRowState(
+          "sess-unrecorded",
+          await rowStateSlot({
+            unrecorded: { returnedAt: "2026-08-11T10:00:00.000Z" },
+          }),
+          UNRECORDED_MIRROR,
+        );
+
+        const held = await claimCurrentAttendeeRows([attendeeId], "keyless");
+
+        if (held.kind !== "claimed") throw new Error("the claim was refused");
+        expect(held.unrecorded).toEqual(
+          new Map([[attendeeId, ["sess-unrecorded"]]]),
+        );
+      });
+
       test("names a reference this run's row says came back", async () => {
         const attendeeId = await bookedWithPayment("sess-q", "pi_already_back");
         await execute(

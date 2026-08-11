@@ -34,7 +34,7 @@ describe("admin refund provider > the claim", () => {
   const blockedRowClaim = (): RowClaim => ({
     claim: () =>
       Promise.resolve({ blockedBy: { kind: "held" }, kind: "blocked" }),
-    release: () => Promise.resolve(),
+    settle: () => Promise.resolve(),
   });
 
   test("a blocked run reports settling without asking the provider", async () => {
@@ -71,7 +71,7 @@ describe("admin refund provider > the claim", () => {
         claimed.push(attendees.map((attendee) => attendee.attendeeId));
         return rowClaim.claim(attendees, capability);
       },
-      release: rowClaim.release,
+      settle: rowClaim.settle,
     };
 
     await processRefundBatchAt(
@@ -167,7 +167,7 @@ describe("admin refund provider > a release that fails", () => {
     );
 
     expect(counts.refundedCount).toBe(1);
-    expect(errors.contains("Refund claim could not be released")).toBe(true);
+    expect(errors.contains("Refund claim could not be settled")).toBe(true);
   });
 });
 
@@ -175,7 +175,7 @@ describe("admin refund provider > a payment that landed while we waited", () => 
   test("stands the whole run down rather than refunding part of it", async () => {
     const changed: RowClaim = {
       claim: () => Promise.resolve({ kind: "changed" }),
-      release: () => Promise.resolve(),
+      settle: () => Promise.resolve(),
     };
     const asked = provider({ refundCapability: "keyless" });
 
@@ -306,10 +306,12 @@ describe("admin refund provider > a refund still settling", () => {
     expect(rowClaim.released).toEqual([]);
   });
 
-  for (const [name, read] of [
-    ["missing", { status: "missing" }],
-    ["invalid", { reason: "malformed_response", status: "invalid" }],
-  ] as const satisfies readonly [string, ProviderRead<ChargeMoney>][]) {
+  for (
+    const [name, read] of [
+      ["missing", { status: "missing" }],
+      ["invalid", { reason: "malformed_response", status: "invalid" }],
+    ] as const satisfies readonly [string, ProviderRead<ChargeMoney>][]
+  ) {
     test(`keeps an inherited keyless claim when the provider read is ${name}`, async () => {
       const rowClaim = grantingRowClaim(
         new Map([[42, ["sess_pi_unproved"]]]),

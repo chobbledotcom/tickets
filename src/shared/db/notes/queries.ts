@@ -11,6 +11,7 @@ import {
   executeBatch,
   insert,
   type SqlStatement,
+  type TxScope,
 } from "#shared/db/client.ts";
 import { readOneRow, readRows } from "#shared/db/read.ts";
 import {
@@ -27,9 +28,14 @@ const NOTE_COLUMNS = "id, entity_type, entity_id, type, note, created";
 
 /** Build a "record a note" function for one kind of note: it seals the text the
  *  way that kind is sealed, then stores it against the record it is about. */
+type NoteWriter = (
+  target: NoteTarget,
+  note: string,
+  transaction?: TxScope,
+) => Promise<void>;
+
 const noteWriterOf =
-  (type: SystemNoteType) =>
-  async (target: NoteTarget, note: string): Promise<void> => {
+  (type: SystemNoteType): NoteWriter => async (target, note, transaction) => {
     const { sql, args } = insert("system_notes", {
       created: nowIso(),
       entity_id: target.id,
@@ -37,7 +43,11 @@ const noteWriterOf =
       note: await sealNote(type, note),
       type,
     });
-    await execute(sql, args);
+    if (transaction === undefined) {
+      await execute(sql, args);
+    } else {
+      await transaction.execute({ args, sql });
+    }
   };
 
 /**
@@ -165,11 +175,15 @@ export const getNote = async (
 export const deleteNotes = (
   target: NoteTarget,
   noteIds: number[],
+  transaction?: TxScope,
 ): Promise<void> => {
   if (noteIds.length === 0) return Promise.resolve();
-  return executeBatch(
-    noteIds.map((noteId) => deleteNotesWhere(noteOfTarget(target, noteId))),
+  const statements = noteIds.map((noteId) =>
+    deleteNotesWhere(noteOfTarget(target, noteId))
   );
+  return transaction === undefined
+    ? executeBatch(statements)
+    : transaction.batch(statements).then(() => undefined);
 };
 
 /** Delete the notes of records chosen by a subquery — for a delete path that

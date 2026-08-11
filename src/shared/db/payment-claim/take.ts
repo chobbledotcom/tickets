@@ -30,6 +30,7 @@ import type {
   RefundCapability,
   ResolvedRefundCapability,
 } from "#shared/payment/row-state.ts";
+import type { PaymentReviewReason } from "#shared/payment/review.ts";
 /* jscpd:ignore-end */
 
 /** What happened when a run asked for an attendee's rows. */
@@ -37,17 +38,22 @@ export type ClaimResult =
   | { blockedBy: ClaimDecision; kind: "blocked" }
   | { kind: "changed" }
   | {
-      /** Each attendee's claimed rows, kept apart so a run can let one
-       *  attendee go while another's answer is still in doubt. */
-      held: ReadonlyMap<number, readonly string[]>;
-      heldSince: string;
-      kind: "claimed";
-      /** Attendees inheriting a crashed run's doubt, under that run's own
-       *  provider capability. */
-      inherited: ReadonlyMap<number, ResolvedRefundCapability>;
-      /** References a claimed or sharing row already says came back. */
-      returned: ReadonlySet<string>;
-    };
+    /** Each attendee's claimed rows, kept apart so a run can let one
+     *  attendee go while another's answer is still in doubt. */
+    held: ReadonlyMap<number, readonly string[]>;
+    heldSince: string;
+    kind: "claimed";
+    /** Attendees inheriting a crashed run's doubt, under that run's own
+     *  provider capability. */
+    inherited: ReadonlyMap<number, ResolvedRefundCapability>;
+    /** References a claimed or sharing row already says came back. */
+    returned: ReadonlySet<string>;
+    /** Owner-review reasons carried by each claimed row. */
+    reviews: ReadonlyMap<string, PaymentReviewReason>;
+    /** Claimed rows that already say returned money is missing from the
+     *  books. A failed readiness check must not erase this repair target. */
+    unrecorded: ReadonlyMap<number, readonly string[]>;
+  };
 
 /** The exact attendee and payment-reference snapshot an admin run loaded.
  *  `loadedPiiBlob` is the attendee revision: payment_id lives inside it, so a
@@ -77,9 +83,11 @@ const readClaimableRows = async (
 }> => {
   const own = await readPaymentClaimRows(
     tx,
-    `attendee_id IN (${inPlaceholders(
-      attendeeIds,
-    )}) AND payment_reference != ''`,
+    `attendee_id IN (${
+      inPlaceholders(
+        attendeeIds,
+      )
+    }) AND payment_reference != ''`,
     [...attendeeIds],
   );
   const indexes = own
@@ -103,10 +111,9 @@ const expectedRowsBySession = (
   new Map(
     attendees.flatMap((attendee) =>
       attendee.references.flatMap((reference) => {
-        const sessionIds =
-          reference.rowSessionIds.length > 0
-            ? reference.rowSessionIds
-            : [anchorSessionId(attendee.attendeeId, reference.index)];
+        const sessionIds = reference.rowSessionIds.length > 0
+          ? reference.rowSessionIds
+          : [anchorSessionId(attendee.attendeeId, reference.index)];
         return sessionIds.map(
           (sessionId) =>
             [
@@ -117,7 +124,7 @@ const expectedRowsBySession = (
               },
             ] as const,
         );
-      }),
+      })
     ),
   );
 
@@ -172,6 +179,8 @@ export const claimAttendeeRows = async (
       inherited: new Map(),
       kind: "claimed",
       returned: new Set(),
+      reviews: new Map(),
+      unrecorded: new Map(),
     };
   }
   const attendeeIds = attendees.map((attendee) => attendee.attendeeId);
@@ -215,9 +224,9 @@ export const claimAttendeeRows = async (
     const inherited = new Map<number, ResolvedRefundCapability>(
       judged.flatMap(({ decision, row }) =>
         decision.kind === "resume" &&
-        decision.resuming.capability !== "unresolved"
+          decision.resuming.capability !== "unresolved"
           ? [[row.attendeeId, decision.resuming.capability] as const]
-          : [],
+          : []
       ),
     );
     await tx.batch(
@@ -235,7 +244,7 @@ export const claimAttendeeRows = async (
               scope: "attendee_set",
               writtenAt,
             },
-          }),
+          })
         ),
       ),
     );
@@ -255,6 +264,24 @@ export const claimAttendeeRows = async (
         [...stored.own, ...stored.sharing]
           .filter((row) => row.provider_refunded_at !== "")
           .map((row) => row.payment_reference_index),
+      ),
+      reviews: new Map(
+        rows.flatMap((row) =>
+          row.state.review === undefined
+            ? []
+            : [[row.sessionId, row.state.review] as const]
+        ),
+      ),
+      unrecorded: new Map(
+        [
+          ...Map.groupBy(
+            rows.filter((row) => row.state.unrecorded !== undefined),
+            (row) => row.attendeeId,
+          ),
+        ].map(([attendeeId, behind]) => [
+          attendeeId,
+          behind.map((row) => row.sessionId),
+        ]),
       ),
     };
   });

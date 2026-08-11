@@ -346,7 +346,7 @@ export const refs = (id: string, count: number): RefundCandidate =>
   );
 
 export const holdingClaim = (
-  release: RowClaim["release"],
+  settle: RowClaim["settle"],
   sessions: readonly string[],
 ): RowClaim => ({
   claim: () =>
@@ -356,8 +356,10 @@ export const holdingClaim = (
       inherited: new Map(),
       kind: "claimed",
       returned: new Set<string>(),
+      reviews: new Map(),
+      unrecorded: new Map(),
     }),
-  release,
+  settle,
 });
 
 export const refundedCandidate = (

@@ -28,6 +28,7 @@ import type {
 } from "#shared/crypto/sealed.ts";
 import {
   executeBatchWithResults,
+  queryAll,
   queryBatch,
   resultRows,
   type TxScope,
@@ -138,8 +139,8 @@ const toListingId = (listing?: ListingRef | null): number | null =>
   isNullish(listing)
     ? null
     : typeof listing === "number"
-      ? listing
-      : listing.id;
+    ? listing
+    : listing.id;
 
 /** One thing to record in the log: what happened, and which listing/attendee it
  * happened to. */
@@ -176,7 +177,7 @@ export const logActivities = async (
         },
         undefined,
         ACTIVITY_LOG_COLUMNS,
-      ),
+      )
     ),
   );
   const results = transaction
@@ -263,6 +264,22 @@ export const getAttendeeActivityLog = async (
       { attendee_id: attendeeId },
       { ...NEWEST_FIRST, limit },
     ),
+  );
+
+/** Every decrypted activity message for one attendee, for durable replay checks. */
+export const getAttendeeActivityMessages = async (
+  attendeeId: number,
+  privateKey: CryptoKey,
+): Promise<string[]> =>
+  await Promise.all(
+    (
+      await queryAll<{ message: StoredLogMessage }>(
+        `SELECT activity.message
+           FROM activity_log AS activity
+          WHERE activity.attendee_id = ?`,
+        [attendeeId],
+      )
+    ).map(({ message }) => decryptLogMessage(message, privateKey)),
   );
 
 /** Result type for listing + activity log batch query */

@@ -14,7 +14,7 @@ import type {
   ReadyRefundReference,
   RefundReadinessResult,
 } from "#routes/admin/refunds/readiness.ts";
-import type { RowRelease } from "#shared/db/payment-claim.ts";
+import type { RowSettlement } from "#shared/db/payment-claim.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import type { RefundRequest } from "#shared/payment/refund-attempt.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
@@ -106,13 +106,11 @@ const readyCandidate = (
   references: ReadyRefundReference[],
 ): ReadyRefundCandidate => ({ attendee: source.attendee, references });
 
-const readyPreparation =
-  (
-    candidates: ReadyRefundCandidate[],
-    capability: ResolvedRefundCapability = "keyed",
-  ): Prepare =>
-  () =>
-    Promise.resolve({ candidates, capability, kind: "ready" });
+const readyPreparation = (
+  candidates: ReadyRefundCandidate[],
+  capability: ResolvedRefundCapability = "keyed",
+): Prepare =>
+() => Promise.resolve({ candidates, capability, kind: "ready" });
 
 const noValidatingProvider = (
   reference: RefundPaymentReference,
@@ -142,10 +140,10 @@ const rowClaimHarness = (
   events: string[] = [],
 ) => {
   const capabilities: RefundCapability[] = [];
-  const releases: RowRelease[] = [];
+  const settlements: RowSettlement[] = [];
   return {
     capabilities,
-    releases,
+    settlements,
     rowClaim: {
       claim: (_attendees, capability) => {
         events.push("claim");
@@ -156,16 +154,25 @@ const rowClaimHarness = (
           inherited,
           kind: "claimed",
           returned,
+          reviews: new Map(),
+          unrecorded: new Map(),
         });
       },
-      release: (release) => {
-        events.push("release");
-        releases.push(release);
+      settle: (settlement) => {
+        events.push("settle");
+        settlements.push(settlement);
         return Promise.resolve();
       },
     } satisfies RowClaim,
   };
 };
+
+const releasedRows = (settlements: readonly RowSettlement[]): string[][] =>
+  settlements.map(({ rows }) =>
+    [...rows]
+      .filter(([, change]) => change.claim === "release")
+      .map(([sessionId]) => sessionId)
+  );
 
 const recordingWrites = (): {
   dependencies: Pick<RefundRunDependencies, "markReturned" | "record">;
@@ -230,12 +237,12 @@ describe("admin refund provider readiness integration", () => {
     );
 
     expect(claim.capabilities).toEqual(["unresolved"]);
-    expect(events).toEqual(["claim", "prepare", "release"]);
+    expect(events).toEqual(["claim", "prepare", "settle"]);
     expect(preparedBatch).toBe(batch);
     expect(preparedClaim?.held).toBe(held);
     expect(preparedClaim?.heldSince).toBe(HELD_SINCE);
     expect(preparedReturned).toBe(returned);
-    expect(claim.releases.map(({ sessionIds }) => sessionIds)).toEqual([
+    expect(releasedRows(claim.settlements)).toEqual([
       reference.rowSessionIds,
     ]);
     expect(counts.failedCount).toBe(1);
@@ -373,7 +380,7 @@ describe("admin refund provider readiness integration", () => {
     expect(writes.marked.flat().map(({ index }) => index)).toEqual([
       stripeRef.index,
     ]);
-    expect(claim.releases.map(({ sessionIds }) => sessionIds)).toEqual([
+    expect(releasedRows(claim.settlements)).toEqual([
       ["row_3"],
     ]);
   });
@@ -393,7 +400,7 @@ describe("admin refund provider readiness integration", () => {
       ...writes.dependencies,
     });
 
-    expect(claim.releases).toEqual([]);
+    expect(claim.settlements).toEqual([]);
     expect(writes.marked).toEqual([]);
     expect(writes.recorded).toEqual([]);
   });

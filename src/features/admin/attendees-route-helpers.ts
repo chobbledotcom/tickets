@@ -37,9 +37,6 @@ export type AttendeeWithListing = {
   listing: ListingWithCount;
 };
 
-/** No payment provider configured error (shared with attendee-refunds) */
-export const NO_PROVIDER_ERROR = "No payment provider configured.";
-
 /**
  * Load attendee ensuring it belongs to the specified listing.
  * Uses batched query to fetch listing + attendee in a single DB round-trip.
