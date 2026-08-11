@@ -2418,3 +2418,39 @@ need deciding rather than guessing:
   once" is only acceptable if something else can still finish the job.
 
 Found by Codex on #2065.
+
+## Money back at the provider but not in the ledger has no state of its own
+
+Two faults recorded against this branch turn out to be one missing thing, and
+they point in opposite directions.
+
+When a refund succeeds at the provider but `recordAttendeeRefundsBatch` returns
+`posted: false`, the run is classified as lost (`notRecordedCount > 0` feeds
+`lost`). What happens next depends only on the provider's capability:
+
+- **Keyed (Stripe, Square).** `mayReleaseClaim` releases on a lost answer, so
+  the claim goes. All that is left on the row is `provider_refunded_at`, and
+  `LIVE_WORK` in `admit-move.ts` knows only `claim` and `review` — so nothing
+  stops an operator deleting the attendee. That destroys the payment row, which
+  is the repair target for the correction somebody was asked to make, while the
+  real payout stays missing from the ledger.
+- **Keyless (SumUp).** The claim is kept instead. But `getRefundCandidates`
+  filters `!attendee.refunded`, so no later run can pick the attendee up to
+  release it, and merge and delete refuse on any claim. The attendee is stuck
+  for good.
+
+So the same underlying situation — the provider has paid the buyer back and our
+books do not know — is under-protected on one provider and over-protected on the
+other. Neither is right, and neither is fixable by tuning the release rule,
+because the record has nowhere to say it: `PaymentRowState` carries a claim, an
+owner-review marker and a terminal outcome, and none of them means "money went
+back and the ledger has not caught up".
+
+The fix is a state, not a patch: give that situation its own field in the
+record, give it a word in `LIVE_WORK` (so the mirror, the prune and the orphan
+purge all honour it), decide which writers it stops, and give it a way to be
+retired — either by the ledger post finally landing or by an operator recording
+the correction. That is the same shape as the owner-review marker, and it should
+probably be built alongside it rather than separately.
+
+Both halves found by Codex on #2065.
