@@ -2387,3 +2387,34 @@ gone — that is the fuller fix, and it changes the claim contract, so it is not
 being taken unilaterally on a money path.
 
 Found by Codex on #2065.
+
+## A big merged attendee can outrun the subrequest budget mid-refund
+
+`refundCandidateAtProvider` chunks a candidate's references by
+`PROVIDER_REFUND_CONCURRENCY`, which bounds how many run at once and not how
+many run in total — the comment beside it says as much. Since this branch, each
+reference costs an evidence read AND usually a refund request, so the per-
+reference cost roughly doubled. A merged attendee carrying around twenty-five
+charges therefore needs more than Bunny's fifty subrequests, before the claim
+and ledger database calls are counted at all.
+
+What makes it more than a failed request: the references are refunded as the
+loop goes. Run out of budget partway and the later ones fail after the earlier
+ones have already sent money — then `combineRefundOutcomes` fails the whole
+candidate and the ledger reversal never posts. That is the SAME harm as the
+conflicted-sibling fault recorded above, reached by a different door: real money
+back with no accounting for it. A fix for one may well want to cover both.
+
+Codex's suggestion is the safe shape: refuse the whole candidate before ANY
+provider call when its worst case cannot fit the remaining budget. Refusing to
+start moves no money, so it needs no owner decision — but two things about it do
+need deciding rather than guessing:
+
+- What the ceiling is. AGENTS.md puts the hard limit at fifty subrequests and
+  tells routes that also call providers to target at most forty database calls,
+  so the per-reference worst case has to be counted honestly against that.
+- What the operator sees. A merged attendee past the ceiling becomes
+  un-refundable through this route, and being told "too many charges to do at
+  once" is only acceptable if something else can still finish the job.
+
+Found by Codex on #2065.
