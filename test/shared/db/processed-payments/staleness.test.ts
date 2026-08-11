@@ -9,10 +9,10 @@ import {
 } from "#shared/db/processed-payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { useProcessedPaymentsAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { referenceIndexOf } from "#test-utils/payment-claim.ts";
 import {
   finalizeReservedPayment,
   getProcessedPayment,
-  referenceIndexOf,
 } from "#test-utils/processed-payments.ts";
 
 describeWithEnv("processed-payments / staleness", { db: true }, () => {

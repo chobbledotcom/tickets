@@ -10,7 +10,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getRefundCandidates } from "#routes/admin/refunds/candidates.ts";
-import { execute } from "#shared/db/client.ts";
 import {
   getRefundPaymentReferencesForAttendee,
   markPaymentReferencesProviderRefunded,
@@ -20,6 +19,11 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  CLAIM_MIRROR,
+  freshClaimSlot,
+  putRowState,
+} from "#test-utils/payment-claim.ts";
 import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
 
 /** An attendee whose one charge the provider has already returned, so nothing
@@ -45,11 +49,14 @@ const alreadyReturned = async (
   return { ...attendee, refunded: true };
 };
 
-const holdRow = (sessionId: string): Promise<unknown> =>
-  execute(
-    "UPDATE processed_payments SET protected_state = 'claim' WHERE payment_session_id = ?",
-    [sessionId],
-  );
+/** Put a live claim on the row, record and mirror both, the way a refund run
+ *  that has not let go leaves it. */
+const holdRow = async (
+  sessionId: string,
+  attendeeId: number,
+): Promise<void> => {
+  await putRowState(sessionId, await freshClaimSlot(attendeeId), CLAIM_MIRROR);
+};
 
 const candidateIds = async (attendees: Attendee[]): Promise<number[]> =>
   (await getRefundCandidates(attendees, await getTestPrivateKey())).map(
@@ -70,7 +77,7 @@ describeWithEnv("admin refunds > who a run picks up", { db: true }, () => {
   // ever reach them. The person was stuck for good.
   test("picks up an attendee a run is still holding", async () => {
     const stuck = await alreadyReturned("sess_stuck", "pi_stuck");
-    await holdRow("sess_stuck");
+    await holdRow("sess_stuck", stuck.id);
 
     expect(await candidateIds([stuck])).toEqual([stuck.id]);
   });

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { execute, queryOne } from "#shared/db/client.ts";
+import { execute } from "#shared/db/client.ts";
 import {
   claimAttendeeRows,
   releaseAttendeeRows,
@@ -11,28 +11,16 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import {
   CLAIM_MIRROR,
   heldSessionIds,
+  protectedStateOf,
   putRowState,
   REVIEW_MIRROR,
+  referenceIndexOf,
   rowStateSlot,
   staleClaimSlot,
   UNRECORDED_MIRROR,
 } from "#test-utils/payment-claim.ts";
 import { bookedWithPayment } from "#test-utils/processed-payments.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
-
-/** Read one column off a payment row, by the session that names it. */
-const columnOf =
-  (column: string) =>
-  (sessionId: string): Promise<{ v: string } | null> =>
-    queryOne<{ v: string }>(
-      `SELECT payment.${column} AS v
-         FROM processed_payments AS payment
-        WHERE payment.payment_session_id = ?`,
-      [sessionId],
-    );
-
-const protectedStateOf = columnOf("protected_state");
-const referenceIndexOf = columnOf("payment_reference_index");
 
 describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
   describe("claiming", () => {
@@ -52,7 +40,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
       // The prune cannot decrypt, so the mirror is all it has to go on: this
       // word is what keeps a claimed row from being deleted out from under a
       // refund that may already be on its way.
-      expect(await protectedStateOf("sess-b")).toEqual({ v: CLAIM_MIRROR });
+      expect(await protectedStateOf("sess-b")).toBe(CLAIM_MIRROR);
     });
 
     test("a second run on the same attendee is told the work is in progress", async () => {
@@ -113,9 +101,9 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
   describe("the reference index", () => {
     test("is written by the same statement as the reference", async () => {
       await bookedWithPayment("sess-h", "pi_h");
-      expect(await referenceIndexOf("sess-h")).toEqual({
-        v: await paymentReferenceIndex("pi_h"),
-      });
+      expect(await referenceIndexOf("sess-h")).toBe(
+        await paymentReferenceIndex("pi_h"),
+      );
     });
 
     test("is the same for the same reference on two rows", async () => {
@@ -137,11 +125,8 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
     test("never stores the reference itself", async () => {
       await bookedWithPayment("sess-k", "pi_secret");
       const stored = await referenceIndexOf("sess-k");
-      // The setup just wrote this row, so a missing one is a broken test, not
-      // an outcome to branch on.
-      if (stored === null) throw new Error("the payment row was not stored");
-      expect(stored.v).toBe(await paymentReferenceIndex("pi_secret"));
-      expect(stored.v).not.toContain("pi_secret");
+      expect(stored).toBe(await paymentReferenceIndex("pi_secret"));
+      expect(stored).not.toContain("pi_secret");
     });
   });
 
@@ -171,14 +156,14 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
       );
       const held = await claimAttendeeRows([attendeeId], "keyless");
       if (held.kind !== "claimed") throw new Error("the claim was refused");
-      expect(await protectedStateOf("sess-rev")).toEqual({ v: CLAIM_MIRROR });
+      expect(await protectedStateOf("sess-rev")).toBe(CLAIM_MIRROR);
 
       await releaseAttendeeRows({
         heldSince: held.heldSince,
         sessionIds: ["sess-rev"],
       });
 
-      expect(await protectedStateOf("sess-rev")).toEqual({ v: REVIEW_MIRROR });
+      expect(await protectedStateOf("sess-rev")).toBe(REVIEW_MIRROR);
     });
 
     test("money the ledger missed is marked as the hold comes off", async () => {
@@ -198,9 +183,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
         unrecorded: new Set(["sess-off"]),
       });
 
-      expect(await protectedStateOf("sess-off")).toEqual({
-        v: UNRECORDED_MIRROR,
-      });
+      expect(await protectedStateOf("sess-off")).toBe(UNRECORDED_MIRROR);
       // And it really is free to be claimed again, which is what lets a later
       // run post the ledger entry that retires it.
       expect(await claimAttendeeRows([attendeeId], "keyless")).toMatchObject({
@@ -227,7 +210,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
         sessionIds: ["sess-on"],
       });
 
-      expect(await protectedStateOf("sess-on")).toEqual({ v: "" });
+      expect(await protectedStateOf("sess-on")).toBe("");
     });
 
     test("releasing clears the mirror the prune reads", async () => {
@@ -238,7 +221,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
         heldSince: held.heldSince,
         sessionIds: ["sess-m"],
       });
-      expect(await protectedStateOf("sess-m")).toEqual({ v: "" });
+      expect(await protectedStateOf("sess-m")).toBe("");
     });
 
     test("releasing nothing reaches no database at all", async () => {
@@ -266,7 +249,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
         heldSince: "2026-08-10T12:00:00.000Z",
         sessionIds: ["sess-n"],
       });
-      expect(await protectedStateOf("sess-n")).toEqual({ v: "" });
+      expect(await protectedStateOf("sess-n")).toBe("");
     });
   });
 
@@ -336,9 +319,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
       });
 
       expect(resumed.heldSince).not.toBe(stalled.heldSince);
-      expect(await protectedStateOf("sess-stall")).toEqual({
-        v: CLAIM_MIRROR,
-      });
+      expect(await protectedStateOf("sess-stall")).toBe(CLAIM_MIRROR);
       expect(await claimAttendeeRows([attendeeId], "keyless")).toEqual({
         blockedBy: { kind: "held" },
         kind: "blocked",

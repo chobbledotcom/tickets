@@ -24,11 +24,11 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
+import { referenceIndexOf } from "#test-utils/payment-claim.ts";
 import {
   expectProcessedPaymentReference,
   finalizeReservedPayment,
   getProcessedPayment,
-  referenceIndexOf,
 } from "#test-utils/processed-payments.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 

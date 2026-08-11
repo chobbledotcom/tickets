@@ -2,7 +2,7 @@
  *  to already be in a particular state. */
 
 import { encrypt } from "#shared/crypto/encryption.ts";
-import { execute } from "#shared/db/client.ts";
+import { execute, queryOne } from "#shared/db/client.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 import { mirrorFor } from "#shared/payment/admit-move.ts";
@@ -29,6 +29,28 @@ export const REVIEW_MIRROR = mirrorFor({ review: { kind: "partial_refund" } });
 export const UNRECORDED_MIRROR = mirrorFor({
   unrecorded: { returnedAt: "" },
 });
+
+/** One column off a payment row, by the session that names it. Every caller
+ *  has just written the row it asks about, so a missing one is a broken test
+ *  rather than an outcome to branch on. */
+const paymentRowColumn =
+  (column: string) =>
+  async (sessionId: string): Promise<string> => {
+    const row = await queryOne<{ v: string }>(
+      `SELECT payment.${column} AS v
+         FROM processed_payments AS payment
+        WHERE payment.payment_session_id = ?`,
+      [sessionId],
+    );
+    if (row === null) throw new Error(`No payment row for ${sessionId}`);
+    return row.v;
+  };
+
+/** The plain word the row shows the readers that cannot decrypt it. */
+export const protectedStateOf = paymentRowColumn("protected_state");
+
+/** The blind one-way index stored beside the row's payment reference. */
+export const referenceIndexOf = paymentRowColumn("payment_reference_index");
 
 /** Any record, encrypted the way the column stores it. */
 export const rowStateSlot = (state: PaymentRowState): Promise<string> =>

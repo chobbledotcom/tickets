@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { queryOne } from "#shared/db/client.ts";
 import {
   getRefundPaymentReferencesForAttendee,
   markPaymentReferencesProviderRefunded,
@@ -19,7 +18,11 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
-import { putRowState, staleClaimSlot } from "#test-utils/payment-claim.ts";
+import {
+  protectedStateOf,
+  putRowState,
+  staleClaimSlot,
+} from "#test-utils/payment-claim.ts";
 import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
 import {
   postRefundAll,
@@ -29,16 +32,6 @@ import {
   withRefundMock,
 } from "#test-utils/refund-routes.ts";
 import { testCookie } from "#test-utils/session.ts";
-
-/** The plain word the row shows the readers that cannot decrypt it. */
-const protectedStateOf = async (sessionId: string): Promise<string> => {
-  const row = await queryOne<{ v: string }>(
-    "SELECT protected_state AS v FROM processed_payments WHERE payment_session_id = ?",
-    [sessionId],
-  );
-  if (row === null) throw new Error(`No payment row for ${sessionId}`);
-  return row.v;
-};
 
 describeWithEnv("server (admin refund state)", { db: true }, () => {
   describe("already-refunded guard", () => {
