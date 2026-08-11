@@ -1,15 +1,11 @@
 /**
- * What can be wrong with a payment, as a list of named problems.
+ * What can be wrong with a payment, as a list of named problems. Its own file
+ * because both the answer a reading produces and the check on a stored answer
+ * need these names, and neither should have to load the other.
  *
- * Its own file because both the answer a reading produces and the check on a
- * stored answer need these names, and neither should have to load the other to
- * get them. Every kind here is one a reading of a payment can actually
- * produce; a problem nothing can report would be a name with no meaning.
- *
- * Judging money against what was owed needs a whole reading of the checkout,
- * which nothing builds yet, so the only problems named here are the ones a
- * charge's own money can show. The rest arrive with the readings that produce
- * them.
+ * Every kind here is one a reading can actually produce. Judging money against
+ * what was owed needs a whole reading of the checkout, which nothing builds
+ * yet, so only the problems a charge's own money can show are named.
  */
 
 import * as v from "valibot";

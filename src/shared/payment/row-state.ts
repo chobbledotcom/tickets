@@ -1,31 +1,24 @@
 /**
- * Everything one payment row remembers besides its own resolution.
- *
- * A row's `failure_data` slot holds ONE record with a separate field per
- * concern: the claim a refund run holds while it works, the marker saying the
- * owner still has to look at this money, and the terminal outcome a later
- * delivery replays. Keeping them in one record is what lets a writer change its
- * own field and leave the others exactly as it found them, so an operator
- * retrying a reference whose refund failed does not lose the recorded failure.
+ * Everything one payment row remembers besides its own resolution. The
+ * `failure_data` slot holds ONE record with a field per concern — the claim a
+ * run holds, the marker saying the owner must look, the terminal outcome a
+ * later delivery replays — so a writer can change its own field and leave the
+ * others exactly as it found them.
  *
  * This module is pure: it says what the record means and how it reads and
- * writes. Who may change it, and under what conditions, is the claim's job.
+ * writes. Who may change it is the claim's job.
  */
 
 import * as v from "valibot";
 import { PaymentConflictSchema } from "#shared/payment/conflict.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
-/**
- * Whether a second attempt under this claim would land on the money twice.
- *
- * `keyed` providers take an idempotency key, so re-running a lost call is safe
- * and the claim may be released on any recorded answer. `keyless` (SumUp) has
- * no such promise, so a claim whose answer was lost stays standing until fresh
- * evidence says what the money did. `unresolved` is a claim on a reference
- * whose provider is not yet known — no release rule applies to it but
- * staleness, because guessing either way is unsafe.
- */
+/** Whether a second attempt under this claim would land on the money twice.
+ *  `keyed` takes an idempotency key, so a lost call may be re-run and the
+ *  claim released on any answer. `keyless` (SumUp) has no such promise, so a
+ *  lost answer keeps the claim until fresh evidence settles it. `unresolved`
+ *  names a reference whose provider is not yet known, where guessing either
+ *  way is unsafe, so only staleness releases it. */
 export const RefundCapabilitySchema = v.picklist([
   "keyed",
   "keyless",
@@ -53,16 +46,11 @@ export const RefundClaimSchema = v.variant("scope", [
 ]);
 export type RefundClaim = v.InferOutput<typeof RefundClaimSchema>;
 
-/**
- * The subset of a handled payment failure we persist so a later redirect or
- * webhook retry replays the same terminal result (user-facing message, HTTP
- * status, and whether a refund was already issued) without re-validating the
- * listing or re-attempting the refund.
- *
- * `error` can embed an encrypted-at-rest listing name, so this whole record is
- * stored encrypted. Keep this shape free of any field that shouldn't
- * round-trip through the DB encryption key.
- */
+/** The handled payment failure a later redirect or webhook retry replays —
+ *  message, status, and whether a refund was already issued — without
+ *  re-validating the listing or re-attempting the refund. `error` can embed an
+ *  encrypted-at-rest listing name, so the whole record is stored encrypted;
+ *  keep it free of anything that must not round-trip through that key. */
 export const StoredPaymentFailureSchema = v.strictObject({
   error: v.string(),
   refunded: v.optional(v.boolean()),
@@ -88,14 +76,9 @@ export const EMPTY_ROW_STATE: PaymentRowState = {};
 const rowStateJson = defineStoredJson(PaymentRowStateSchema);
 const legacyFailureJson = defineStoredJson(StoredPaymentFailureSchema);
 
-/**
- * Read the record out of a decrypted slot.
- *
- * Rows written before this record existed hold a bare terminal failure, so that
- * shape is accepted and read as an outcome-only record. This is a stored-format
- * boundary, which is the one place a compatibility read belongs: the rows are
- * already on disk and cannot be asked to change shape.
- */
+/** Read the record out of a decrypted slot. Rows written before it existed
+ *  hold a bare terminal failure, read as an outcome-only record — a
+ *  stored-format boundary is the one place a compatibility read belongs. */
 export const readRowState = (
   stored: string,
   context: string,

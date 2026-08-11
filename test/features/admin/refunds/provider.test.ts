@@ -12,6 +12,7 @@ import {
   packByReferenceCount,
 } from "#routes/admin/refunds/waves.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
+import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { RefundState } from "#shared/payment/refund-state.ts";
 import type { RefundCapability } from "#shared/payment/row-state.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
@@ -20,44 +21,32 @@ import {
   chargeMoneyWith,
   fullyRefundedMoney,
   refundObservation,
+  refundReference,
 } from "#test-utils/payment-state.ts";
 import { grantingRowClaim } from "#test-utils/refund-routes.ts";
 
 type Ref = { reference: string; refundState?: RefundState };
 
-/** Stands in for the blind index a real read carries. Both the claim and the
- *  reference take theirs from the same stored column, so what matters here is
- *  only that one reference maps to one index. */
-const indexOf = (reference: string): string => `index_of_${reference}`;
-
-/** One attendee whose charges are already on rows with these session ids, so
- *  nothing needs anchoring and the sessions are the ones the run loaded. */
+/** One attendee whose charge is already on a row, so nothing needs anchoring
+ *  and no database is touched — these tests are about the hold, not minting. */
 const holding = (...sessionIds: string[]) => [
   {
     attendeeId: 11,
     references: [
-      {
+      refundReference("pi_held", {
         index: "index_of_held",
-        reference: "pi_held",
-        refundState: "none" as const,
-        // Already on a row, so nothing needs anchoring and no database is
-        // touched — these tests are about the hold, not about minting.
         rowSessionIds: sessionIds.length > 0 ? sessionIds : ["sess-held-row"],
         sessionIds,
-      },
+      }),
     ],
   },
 ];
 
 const candidate = (references: Ref[], id = 42): RefundCandidate => ({
   attendee: { id } as RefundCandidate["attendee"],
-  references: references.map(({ reference, refundState = "none" }) => ({
-    index: indexOf(reference),
-    reference,
-    refundState,
-    rowSessionIds: [`sess_${reference}`],
-    sessionIds: [`sess_${reference}`],
-  })),
+  references: references.map(({ reference, refundState = "none" }) =>
+    refundReference(reference, { refundState }),
+  ),
 });
 
 const candidateWithReferences = (references: string[]): RefundCandidate =>
@@ -65,28 +54,42 @@ const candidateWithReferences = (references: string[]): RefundCandidate =>
 
 /** Provider that refunds exactly the references in `refunded`, reports the
  * ones in `alreadyRefunded` as refunded on the follow-up check, and throws for
- * references in `throws`. */
+ * references in `throws`. `read` replaces the charge-money answer outright.
+ * Records every reference it was asked about, so a test can say plainly which
+ * calls were made — and that none was. */
 const provider = ({
   refunded = new Set<string>(),
   alreadyRefunded = new Set<string>(),
   throws = new Set<string>(),
   refundCapability = "keyed" as RefundCapability,
+  read,
 }: {
   refunded?: Set<string>;
   alreadyRefunded?: Set<string>;
   throws?: Set<string>;
   refundCapability?: RefundCapability;
-} = {}) => ({
-  readChargeMoneyOrNull: (reference: string) =>
-    Promise.resolve(
-      alreadyRefunded.has(reference) ? fullyRefundedMoney() : chargeMoney(),
-    ),
-  refundCapability,
-  refundPayment: (reference: string) => {
-    if (throws.has(reference)) throw new Error(`boom ${reference}`);
-    return Promise.resolve(refunded.has(reference));
-  },
-});
+  read?: () => Promise<ChargeMoney | null>;
+} = {}) => {
+  const reads: string[] = [];
+  const refunds: string[] = [];
+  return {
+    readChargeMoneyOrNull: (reference: string) => {
+      reads.push(reference);
+      if (read) return read();
+      return Promise.resolve(
+        alreadyRefunded.has(reference) ? fullyRefundedMoney() : chargeMoney(),
+      );
+    },
+    reads,
+    refundCapability,
+    refundPayment: (reference: string) => {
+      refunds.push(reference);
+      if (throws.has(reference)) throw new Error(`boom ${reference}`);
+      return Promise.resolve(refunded.has(reference));
+    },
+    refunds,
+  };
+};
 
 const collectingMarker = () => {
   const marked: string[] = [];
@@ -213,52 +216,35 @@ describe("admin refund provider", () => {
   ] as const) {
     test(`a provider that ${name} raises no incident`, async () => {
       const marker = collectingMarker();
-      let refundCalls = 0;
+      const quiet = provider({ read });
       const result = await refundCandidateAtProvider(
-        {
-          readChargeMoneyOrNull: read,
-          refundCapability: "keyed" as const,
-          refundPayment: () => {
-            refundCalls++;
-            return Promise.resolve(false);
-          },
-        },
+        quiet,
         candidate([{ reference: "pi_quiet" }]),
         7,
         marker.mark,
       );
 
-      // "failed" alone cannot tell a withheld refund from one the provider
-      // turned down, because this double refuses either way. What the test is
-      // actually about is that no money was asked for at all.
-      expect(refundCalls).toBe(0);
+      // What the test is actually about is that no money was asked for at all,
+      // and "withheld" is what says so where "failed" could not.
+      expect(quiet.refunds).toEqual([]);
       expect(marker.marked).toEqual([]);
-      // Distinct from "failed": no money was asked for, and the reason has
-      // already been said at the volume it deserved.
       expect(result.outcome).toBe("withheld");
       expect(errors.calls).toHaveLength(0);
     });
   }
 
   test("counts a reference already marked refunded without calling the provider", async () => {
-    let refundCalls = 0;
     const marker = collectingMarker();
+    const untouched = provider();
     const result = await refundCandidateAtProvider(
-      {
-        readChargeMoneyOrNull: () => Promise.resolve(chargeMoney()),
-        refundCapability: "keyed" as const,
-        refundPayment: () => {
-          refundCalls++;
-          return Promise.resolve(false);
-        },
-      },
+      untouched,
       candidate([{ reference: "pi_pre", refundState: "completed" }]),
       7,
       marker.mark,
     );
 
     expect(result.outcome).toBe("refunded");
-    expect(refundCalls).toBe(0);
+    expect([...untouched.reads, ...untouched.refunds]).toEqual([]);
     expect(marker.marked).toEqual(["pi_pre"]);
   });
 
@@ -422,22 +408,10 @@ describe("admin refund provider > the claim", () => {
     release: () => Promise.resolve(),
   });
 
-  const countingProvider = (calls: { count: number }) => ({
-    readChargeMoneyOrNull: () => {
-      calls.count++;
-      return Promise.resolve(chargeMoney());
-    },
-    refundCapability: "keyless" as const,
-    refundPayment: () => {
-      calls.count++;
-      return Promise.resolve(true);
-    },
-  });
-
   test("a blocked run never asks the provider anything", async () => {
-    const calls = { count: 0 };
+    const untouched = provider({ refundCapability: "keyless" });
     const counts = await processRefundBatch(
-      countingProvider(calls),
+      untouched,
       [candidate([{ reference: "pi_held", refundState: "none" }])],
       7,
       blockedRowClaim(),
@@ -449,7 +423,7 @@ describe("admin refund provider > the claim", () => {
       notRecordedCount: 0,
       refundedCount: 0,
     });
-    expect(calls.count).toBe(0);
+    expect([...untouched.reads, ...untouched.refunds]).toEqual([]);
   });
 
   test("the whole batch is held by one claim, not one per attendee", async () => {
@@ -523,13 +497,12 @@ describe("admin refund provider > an unrecorded refund", () => {
   });
 
   test("a reading the provider could not give leaves the hold free", async () => {
-    const unreadable = {
-      readChargeMoneyOrNull: (): Promise<never> => {
+    const unreadable = provider({
+      read: () => {
         throw new Error("the provider could not be reached");
       },
-      refundCapability: "keyless" as const,
-      refundPayment: () => Promise.resolve(true),
-    };
+      refundCapability: "keyless",
+    });
 
     const result = await refundCandidateAtProvider(
       unreadable,
@@ -613,30 +586,19 @@ describe("admin refund provider > an unrecorded refund", () => {
 
 describe("admin refund provider > a reference already sent back", () => {
   test("is not refunded again, whatever the loaded snapshot said", async () => {
-    let providerCalls = 0;
-    const counting = {
-      readChargeMoneyOrNull: () => {
-        providerCalls++;
-        return Promise.resolve(chargeMoney());
-      },
-      refundCapability: "keyless" as const,
-      refundPayment: () => {
-        providerCalls++;
-        return Promise.resolve(true);
-      },
-    };
+    const untouched = provider({ refundCapability: "keyless" });
 
     // The snapshot says this still needs refunding; the claim says otherwise.
     const result = await refundCandidateAtProvider(
-      counting,
+      untouched,
       candidateWithReferences(["pi_raced"]),
       7,
       () => Promise.resolve(),
-      new Set([indexOf("pi_raced")]),
+      new Set([refundReference("pi_raced").index]),
     );
 
     expect(result.outcome).toBe("refunded");
-    expect(providerCalls).toBe(0);
+    expect([...untouched.reads, ...untouched.refunds]).toEqual([]);
   });
 });
 
@@ -745,18 +707,13 @@ describe("admin refund provider > a payment that landed while we waited", () => 
 
 describe("admin refund provider > one charge two attendees carry", () => {
   test("is asked about once in a run, not once per attendee", async () => {
-    let refundCalls = 0;
-    const counting = {
-      readChargeMoneyOrNull: () => Promise.resolve(chargeMoney()),
-      refundCapability: "keyless" as const,
-      refundPayment: () => {
-        refundCalls++;
-        return Promise.resolve(true);
-      },
-    };
+    const shared = provider({
+      refundCapability: "keyless",
+      refunded: new Set(["pi_both"]),
+    });
 
     const counts = await processRefundBatch(
-      counting,
+      shared,
       [
         candidate([{ reference: "pi_both", refundState: "none" }], 11),
         candidate([{ reference: "pi_both", refundState: "none" }], 12),
@@ -768,7 +725,7 @@ describe("admin refund provider > one charge two attendees carry", () => {
 
     // The hold cannot separate these two: both rows belong to this same run.
     // Only asking once does.
-    expect(refundCalls).toBe(1);
+    expect(shared.refunds).toEqual(["pi_both"]);
     // Neither attendee was refused: both took the answer from that one call.
     // They then both fail to post, because these two exist only in the
     // candidates above and have no account to reverse — so the money moving

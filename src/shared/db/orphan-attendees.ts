@@ -28,13 +28,11 @@ import { executeBatchWithResults, requireOne } from "#shared/db/client.ts";
  * once and reused by every statement below so the "what counts as a purgeable
  * orphan" rule lives in a single place. The single `?` binds the ISO cut-off.
  *
- * An orphan whose payment is mid-refund, or waiting on the owner, is left where
- * it is: this purge destroys the same payment rows the single-attendee delete
- * does, and those rows are the only sign that money may still be moving. It
- * reads the plaintext `protected_state` mirror rather than the record itself,
- * because a set-based purge can no more decrypt every orphan than the prune can
- * — and the count and the delete share this one clause, so the page can never
- * promise to remove an orphan the delete then keeps.
+ * An orphan whose payment is mid-refund, or waiting on the owner, is left
+ * where it is: those rows are the only sign money may still be moving. It
+ * reads the plaintext `protected_state` mirror because a set-based purge can
+ * no more decrypt every orphan than the prune can — and the count and the
+ * delete share this clause, so the page cannot promise a removal it keeps.
  */
 export const ORPHAN_IDS = `SELECT attendee.id
      FROM attendees AS attendee

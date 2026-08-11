@@ -1,11 +1,8 @@
 import type { RefundCandidate } from "./candidates.ts";
 
-/** The result of attempting to refund one charge reference (or a whole
- * candidate, once its per-reference outcomes are combined). */
-/** What a refund came to. `withheld` means no money was sent and the reason
- *  has already been reported at whatever volume it deserved — it is separate
- *  from `failed` so a bulk tally does not report it a second time, as an
- *  incident, on top of a debug line. */
+/** What a refund came to. `withheld` means no money was sent and the reason has
+ *  already been reported at the volume it deserved — separate from `failed` so
+ *  a bulk tally does not report it again as an incident. */
 export type RefundOutcome = "refunded" | "withheld" | "failed" | "errored";
 
 /** Pack candidates into waves whose combined charge references stay within
@@ -32,14 +29,11 @@ export const packByReferenceCount =
     return waves;
   };
 
-/** Reduce a candidate's per-reference outcomes to a single outcome, worst
- * first: any errored reference errors the candidate, any failed reference
- * fails it, otherwise it is fully refunded. */
+/** Worst wins, so one bad reference is never hidden by a good one beside it. */
+const OUTCOMES_WORST_FIRST = ["errored", "failed", "withheld"] as const;
+
+/** Reduce a candidate's per-reference outcomes to a single outcome. */
 export const combineRefundOutcomes = (
   outcomes: RefundOutcome[],
-): RefundOutcome => {
-  if (outcomes.includes("errored")) return "errored";
-  if (outcomes.includes("failed")) return "failed";
-  if (outcomes.includes("withheld")) return "withheld";
-  return "refunded";
-};
+): RefundOutcome =>
+  OUTCOMES_WORST_FIRST.find((worst) => outcomes.includes(worst)) ?? "refunded";

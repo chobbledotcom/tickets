@@ -1,13 +1,10 @@
 /**
  * Who is allowed to work on a payment row's money, and when they must let go.
+ * A refund run holds its claim from before it reads the provider until after
+ * it has written down what happened, which is what stops two runs sending the
+ * same money back twice.
  *
- * A refund run holds a claim from before it reads the provider until after it
- * has written down what happened. That span is what stops two runs sending the
- * same money back twice, so the rules for taking and releasing a claim live
- * here on their own, away from the database work that applies them.
- *
- * This module is pure: it decides from the claim it is shown and the time it is
- * given.
+ * This module is pure: it decides from the claim and the time it is shown.
  */
 
 import type {
@@ -15,31 +12,24 @@ import type {
   RefundClaim,
 } from "#shared/payment/row-state.ts";
 
-/** A run asking to work on a row. An admin run names the attendee whose whole
- *  reference set it is taking, because only a run taking that same set again
- *  may pick up where a crashed one left off. */
+/** A run asking to work on a row. An admin run names its attendee, because
+ *  only a run taking that same whole set again may resume a crashed one. */
 export type ClaimRequest =
   | { attendeeId: number; scope: "attendee_set" }
   | { scope: "callback" };
 
-/**
- * What a run may do with the row it just read.
- *
- * `grant` and `resume` both end with this run holding the claim; they are
- * separate answers because resuming means a previous run died mid-flight, which
- * the run must re-judge behind fresh evidence rather than trusting anything the
- * dead one left. `held` and `foreign` both mean "send nothing" — the difference
- * is whether the work belongs to someone in this run's own scope or to a scope
- * this run must never touch.
- */
+/** What a run may do with the row it just read. `grant` and `resume` both end
+ *  holding the claim, kept apart because resuming means a previous run died
+ *  mid-flight and must be re-judged behind fresh evidence. `held` and
+ *  `foreign` both mean send nothing, kept apart by whose work it is. */
 export type ClaimDecision =
   | { kind: "foreign" }
   | { kind: "grant" }
   | { kind: "held" }
   | { kind: "resume" };
 
-/** Whether this run ends up holding the row. Listing both claiming answers
- *  means a new decision has to say which side it falls on. */
+/** Whether this run ends up holding the row. Listed exhaustively so a new
+ *  decision has to say which side it falls on. */
 const CLAIMS_THE_ROW = {
   foreign: false,
   grant: true,
@@ -51,12 +41,9 @@ const CLAIMS_THE_ROW = {
 export const holdsTheRow = (decision: ClaimDecision): boolean =>
   CLAIMS_THE_ROW[decision.kind];
 
-/**
- * A claim older than one request can possibly live is a crashed worker, not a
- * run still going, so it stops holding the row. `staleBefore` is the same
- * written-at cutoff the reservation sweep compares against, so both read
- * staleness off one clock.
- */
+/** A claim older than one request can live is a crashed worker, not a run
+ *  still going. `staleBefore` is the reservation sweep's own cutoff, so both
+ *  read staleness off one clock. */
 export const isClaimStale = (
   claim: RefundClaim,
   staleBefore: string,
@@ -67,13 +54,9 @@ const sameAttendee = (claim: RefundClaim, request: ClaimRequest): boolean =>
   request.scope === "attendee_set" &&
   claim.attendeeId === request.attendeeId;
 
-/**
- * Decide what this run may do with a row.
- *
- * A claim in another scope is left alone whether it is fresh or stale: a
- * callback and an admin run recover differently, and each recovering the
- * other's work is how a refund gets sent from under someone.
- */
+/** Decide what this run may do with a row. Another scope's claim is left
+ *  alone fresh or stale: a callback and an admin run recover differently, and
+ *  each recovering the other's work sends a refund from under someone. */
 export const decideClaim = (
   existing: RefundClaim | undefined,
   request: ClaimRequest,
@@ -88,8 +71,7 @@ export const decideClaim = (
 };
 
 /** Why no money was sent, in words for a log line. The two claiming answers
- *  have no reason to give, and listing them as such keeps a new decision from
- *  quietly falling into whichever arm happens to be last. */
+ *  have no reason to give, and say so rather than falling into a default. */
 const REFUSAL_REASONS = {
   foreign: "another kind of run holds this payment",
   grant: null,
@@ -107,24 +89,15 @@ export const claimRefusal = (decision: ClaimDecision): string => {
   return reason;
 };
 
-/**
- * How a refund call under this claim ended, as far as releasing goes.
- *
- * `not_sent` covers every ending where no money was asked for at all — the
- * judgment parked, or discovery never found a provider — so there is nothing
- * to be in doubt about.
- */
+/** How a refund call under this claim ended, as far as releasing goes.
+ *  `not_sent` covers every ending where no money was asked for at all, so
+ *  there is nothing to be in doubt about. */
 export type ClaimAnswer = "lost" | "not_sent" | "validated";
 
-/**
- * Whether the claim may be let go now.
- *
- * A lost answer is the one that turns on the provider: with an idempotency key
- * a re-run lands on the same refund, so the claim can go. Without one — SumUp,
- * or a reference whose provider is still unknown — letting go would let the
- * next run send a second payout against evidence that has not caught up, so the
- * claim stands until fresh evidence says what the money did.
- */
+/** Whether the claim may be let go now. A lost answer turns on the provider:
+ *  with an idempotency key a re-run lands on the same refund, so the claim can
+ *  go; without one, letting go lets the next run send a second payout against
+ *  evidence that has not caught up. */
 export const mayReleaseClaim = (
   capability: RefundCapability,
   answer: ClaimAnswer,

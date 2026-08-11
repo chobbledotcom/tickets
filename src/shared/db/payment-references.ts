@@ -80,15 +80,9 @@ export const encryptPaymentReference = async (
 ): Promise<OwnerKeyEncrypted | ""> =>
   reference === "" ? "" : encryptWithOwnerKey(reference, settings.publicKey);
 
-/**
- * The blind one-way index of a reference's identity, written beside the
- * encrypted reference itself.
- *
- * A refund claim needs to ask "is another row already working on this same
- * provider money?" in SQL, without decrypting every row to find out. The same
- * reference always hashes to the same index, so the question is a lookup; the
- * index reveals nothing about the reference to anyone reading the table.
- */
+/** The blind one-way index of a reference, written beside the encrypted
+ *  reference itself. Lets a claim ask "is another row already working on this
+ *  same provider money?" in SQL, without decrypting every row to find out. */
 export const paymentReferenceIndex = async (
   reference: string,
 ): Promise<string> => (reference === "" ? "" : await hmacHash(reference));
@@ -252,17 +246,10 @@ export const getRefundPaymentReferences = async (
   );
 };
 
-/**
- * Write the blind index onto a row that predates the column.
- *
- * Only an authenticated request can do this: the index is derived from the
- * reference, and the reference is owner-key encrypted, so nothing running
- * without the owner's key — a migration, the prune — could ever fill it in.
- * The refund path already decrypts the reference, so the first admin to look
- * at the attendee repairs the row for every later claim. Writing only into an
- * empty column keeps this idempotent and keeps it from ever overwriting an
- * index a live write just put there.
- */
+/** Write the blind index onto a row that predates the column. Only an
+ *  authenticated request can: the index derives from the owner-key encrypted
+ *  reference, so no migration could fill it in. Writing only into an empty
+ *  column keeps it idempotent and never overwrites a live write's index. */
 const indexRepair = (
   row: PaymentReferenceRow,
   index: string,

@@ -6,18 +6,17 @@ import type { ChargeMoney } from "#shared/payment/resources.ts";
 import { paymentsApi } from "#shared/payments.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
-import { chargeMoney, fullyRefundedMoney } from "#test-utils/payment-state.ts";
-
-/** What a "was it refunded?" answer looks like as charge money. */
-const asChargeMoney = (refunded: boolean): ChargeMoney =>
-  refunded ? fullyRefundedMoney() : chargeMoney();
-
 import {
   mockFormRequest,
   mockProviderType,
   withMocks,
 } from "#test-utils/mocks.ts";
+import { chargeMoney, fullyRefundedMoney } from "#test-utils/payment-state.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
+
+/** What a "was it refunded?" answer looks like as charge money. */
+const asChargeMoney = (refunded: boolean): ChargeMoney =>
+  refunded ? fullyRefundedMoney() : chargeMoney();
 
 export const refundUrl = (attendeeId: number) =>
   `/admin/attendees/${attendeeId}/refund`;
@@ -96,12 +95,6 @@ export const expectSingleRefundIssued = async (
   });
 };
 
-/** Run `body` with Stripe configured as the provider and the charge-money read
- *  answering `probe`: true reads as every penny already back, false as a charge
- *  nothing has gone back on. The refresh-payment route only reads refund status
- *  (it never issues a refund), so — unlike {@link withRefundMock} — this stubs
- *  just that one method. Passes the stub to `body` (so a caller can read its call
- *  args) and returns whatever `body` returns. */
 type StripeProvider =
   typeof import("#shared/stripe-provider.ts")["stripePaymentProvider"];
 
@@ -146,6 +139,9 @@ export const withRefreshPaymentMoney = async <T>(
   return result;
 };
 
+/** The refresh-payment route only reads refund status, so `probe` answers a
+ *  plain "was it refunded": true reads as every penny back, false as a charge
+ *  nothing has gone back on. */
 export const withRefreshPaymentProbe = <T>(
   probe: (reference: string) => Promise<boolean>,
   body: (mockRefunded: Stub) => Promise<T>,
@@ -181,11 +177,8 @@ export const withRefundMock = async (
   });
 };
 
-/**
- * A row claim that always grants and records what it released. Lets the tally
- * and ordering rules be tested without a database; the durable claim's own
- * rules are covered in `test/shared/db/payment-claim.test.ts`.
- */
+/** A row claim that always grants and records what it released. The durable
+ *  claim's own rules are covered in `test/shared/db/payment-claim.test.ts`. */
 export const grantingRowClaim = (): RowClaim & {
   released: string[][];
 } => {

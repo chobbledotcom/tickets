@@ -1,12 +1,9 @@
 /**
  * Whether a refund may be sent, given what the provider says has already
- * happened to the money.
- *
- * Every refund route asks this before it calls a provider, so "the money is
- * already back" and "a refund is already on its way" stop the call rather than
- * being discovered by making it. Stripe and Square would reject a second full
- * refund on their own, but SumUp carries no idempotency key, so a second call
- * there sends the money twice.
+ * happened to the money. Every refund route asks before it calls a provider,
+ * so "already back" and "already on its way" stop the call rather than being
+ * discovered by making it. Stripe and Square reject a second full refund
+ * themselves; SumUp has no idempotency key and would pay twice.
  */
 
 import type { PaymentConflict } from "#shared/payment/conflict.ts";
@@ -24,9 +21,8 @@ export type RefundAdmission =
   | { kind: "send" }
   | { kind: "unreadable" };
 
-/** The answer for each way a reading can come out settled. Listing them
- *  exhaustively means a new outcome must say what it does about refunds here,
- *  rather than falling into whichever arm happens to be last. */
+/** The answer for each way a reading can come out settled, listed
+ *  exhaustively so a new outcome must say what it does about refunds. */
 const ADMISSION_BY_OUTCOME = {
   fully_refunded: { kind: "already_returned" },
   ready: { kind: "send" },
@@ -36,11 +32,9 @@ const ADMISSION_BY_OUTCOME = {
   RefundAdmission
 >;
 
-/**
- * Turn what a reading came to into what to do about a refund. A problem the
- * owner has to look at never sends money: the reading and the booking disagree,
- * and sending more money into that disagreement is how one buyer is paid twice.
- */
+/** Turn what a reading came to into what to do about a refund. A problem the
+ *  owner has to look at never sends money: paying into a disagreement between
+ *  the reading and the booking is how one buyer is paid twice. */
 export const admitRefund = (outcome: ObservationOutcome): RefundAdmission =>
   outcome.kind === "conflict"
     ? { issue: outcome.issue, kind: "refused" }
@@ -66,15 +60,14 @@ const ADMISSION_REASONS = {
 >;
 
 /**
- * Ask the provider what has become of this charge's money, and answer whether a
- * refund may be sent. A charge the provider cannot state is never refunded on
- * the hope that it was fine: unreadable evidence and "already back" look
- * identical from here, and only one of them is safe to send money against.
+ * Ask the provider what has become of this charge's money, and answer whether
+ * a refund may be sent. A charge it cannot state is never refunded on the hope
+ * that it was fine: unreadable evidence and "already back" look identical from
+ * here, and only one is safe to send money against.
  *
- * A read that fails outright is the same answer as one that comes back empty —
- * the provider did not say. Catching it here is what keeps it distinct from a
- * refund CALL that failed: no money was asked for, so the caller is free to
- * try again in a moment rather than treating this as money possibly in flight.
+ * A read that throws is the same answer as one that comes back empty. Catching
+ * it here keeps it distinct from a refund CALL that failed — no money was
+ * asked for, so the caller may simply try again.
  */
 export const admitProviderRefund = async (
   provider: Pick<PaymentProvider, "readChargeMoneyOrNull">,
@@ -100,15 +93,10 @@ const chargeOrNothing = async (
   }
 };
 
-/**
- * The whole refund mechanism: ask what the money has already done, send more
- * only if it may be sent, and hand back whichever answer fits.
- *
- * The refund routes report their results differently — one a plain yes or no,
- * one a word for a bulk tally — but they must never differ on WHEN money
- * leaves, so every step up to the provider call lives here once and each route
- * only says how to phrase the three endings.
- */
+/** The whole refund mechanism: ask what the money has already done, send more
+ *  only if it may be sent, hand back whichever answer fits. The routes phrase
+ *  their endings differently but must never differ on WHEN money leaves, so
+ *  every step up to the provider call lives here once. */
 export const sendRefundIfAdmitted = async <TAnswer>(
   provider: Pick<
     PaymentProvider,
@@ -121,16 +109,13 @@ export const sendRefundIfAdmitted = async <TAnswer>(
     withhold: (admission: WithheldRefund) => TAnswer;
   },
   /**
-   * Whether a charge the provider cannot state may still be sent back.
+   * Whether a charge the provider cannot state may still be sent back. Only
+   * the rejected-charge recovery sets this, and only it can: that path exists
+   * BECAUSE the charge's numbers came back unusable, so asking the guard to
+   * read them asks the question that already failed.
    *
-   * Only the rejected-charge recovery sets this, and only it can: that path
-   * exists BECAUSE the charge's own numbers came back unusable, so asking the
-   * guard to read them is asking the question that already failed. Refusing
-   * there leaves the buyer charged with no route back at all.
-   *
-   * It still only sends where a repeat is harmless. A keyed provider rejects a
-   * second full refund itself, so an unnecessary attempt costs nothing; a
-   * keyless one would simply pay twice, so it keeps withholding and says so.
+   * It still only sends where a repeat is harmless — a keyed provider rejects
+   * a second full refund itself, a keyless one would pay twice.
    */
   sendWhenUnreadable = false,
 ): Promise<TAnswer> => {

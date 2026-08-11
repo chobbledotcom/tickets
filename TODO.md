@@ -2090,51 +2090,70 @@ distinguishing input for each entry — or, failing that, an explicit re-audit
 stamp so an entry has to be re-confirmed after the file it lives in changes
 shape, instead of resting on a proof nobody has re-read since it was written.
 
-## Cap the whole run's provider calls, not just how many run at once
+## The whole run's provider calls have no ceiling, only its concurrency
 
 `refundCandidateAtProvider` (`src/features/admin/refunds/provider.ts`) chunks a
 candidate's references by `PROVIDER_REFUND_CONCURRENCY`, which bounds how many
-provider calls are in flight at once but not how many the request makes in
-total. Bunny stops a request at 50 subrequests, and each reference can now cost
-two calls — the evidence read plus the refund — before HTTP retries multiply
-either one. A merged attendee carrying many references can therefore be cut off
-mid-run, having already refunded the earlier references and silently skipped the
-later ones.
+provider calls run at once and not how many the request makes in total. Bunny
+stops a request at 50 subrequests, and since this branch each reference costs an
+evidence read AND usually a refund — so a merged attendee carrying around
+twenty-five charges needs more than the whole allowance, before the claim and
+ledger database calls are counted at all.
 
-Raised by Codex on PR #2065 against `admit-refund.ts`. It is real but sits
-outside the overlap guard: the fix is to work out the worst-case cost of the
-whole run up front and refuse it whole when it cannot fit, which is the
-admission reserve the M4 contract describes under "Budgets" (`PR4_PLAN.md`,
-`SIBLING_READ_CAP` and the per-reference call counts). Note the guard did not
-add the worst case — a reference cost two calls before this change too (refund,
-then the already-refunded check) — but it did add a second call to the NORMAL
-path, so the typical run is now nearer the cap than it was.
+What makes it worse than a failed request: the references are refunded as the
+loop goes. Run out partway and the later ones fail after the earlier ones have
+already sent money, `combineRefundOutcomes` fails the whole candidate, and the
+ledger reversal never posts. That is the SAME harm as the conflicted-sibling
+fault recorded above, reached by a different door: real money back with no
+accounting for it. A fix for one may well want to cover both.
 
-Starting point: `PROVIDER_REFUND_CONCURRENCY` in
-`src/features/admin/refunds/provider.ts`, the budget rules in `PR4_PLAN.md`, and
-the subrequest guard in `src/shared/db/client.ts`.
+Codex's suggestion is the safe shape, and is the admission reserve the M4
+contract already describes under "Budgets" (`PR4_PLAN.md`, `SIBLING_READ_CAP`
+and the per-reference call counts): work out the worst case for the whole run up
+front and refuse it whole before ANY provider call. Refusing to start moves no
+money, so it needs no owner decision — but two things about it do:
 
-## Two pending SumUp refunds should withhold, not throw
+- What the ceiling is. AGENTS.md puts the hard limit at fifty subrequests and
+  tells routes that also call providers to target at most forty database calls,
+  so the per-reference worst case has to be counted honestly against that.
+- What the operator sees. A merged attendee past the ceiling becomes
+  un-refundable through this route, and being told "too many charges to do at
+  once" is only acceptable if something else can still finish the job.
+
+Note the guard did not create the worst case — a reference cost two calls before
+this change too (refund, then the already-refunded check) — but it did add a
+second call to the NORMAL path, so the typical run is nearer the cap than it
+was.
+
+Found by Codex on #2065. Starting point: `PROVIDER_REFUND_CONCURRENCY`, the
+budget rules in `PR4_PLAN.md`, and the subrequest guard in
+`src/shared/db/client.ts`.
+
+## Two pending refunds throw, and the throw escapes into a 500
 
 `refundOutcome` in `src/shared/payment/diagnose.ts` throws when a reading holds
 two refunds in flight, on the contract's reasoning that an M4 observation can
-only carry the answer to its own single attempt. Codex raised (PR #2065) that
-SumUp may surface two still-pending REFUND events on one transaction — for
-example overlapping partial refunds whose combined amount is still within the
-captured total — in which case the refresh-payment route turns a safe "money is
-still settling" reading into an uncaught 500.
+only carry the answer to its own single attempt. That was deliberate — broken
+evidence should be loud rather than pass as settled — but two things are wrong
+with it.
 
-Two steps, in order:
+It is reachable with real data. SumUp maps both PENDING and SCHEDULED to
+"pending", so one transaction carrying two such REFUND events — overlapping
+partial refunds, or historical attempts — produces two pending observations.
 
-1. Re-read `src/shared/sumup-provider.ts` and `src/shared/sumup.ts` against real
-   transaction-event shapes and settle whether two pending refunds can reach
-   `resolveRefund`. If they cannot, leave the throw and record why at the
-   definition.
-2. If they can, make it a withholding conflict rather than a throw. Two pending
-   refunds is unambiguous evidence NOT to send more money, so it belongs with
-   the park-shaped verdicts; catching the exception upstream would be the wrong
-   fix. `PaymentConflict` would gain the kind, and `admit-refund.ts` maps every
-   conflict to `refused` already.
+And the throw escapes. `admitProviderRefund` calls `refundOutcomeOf` OUTSIDE
+`chargeOrNothing`'s catch, which wraps only the provider read. So the
+refresh-payment route and the refund callbacks answer 500 and retry for ever,
+and an admin run reads the same evidence as an unanswered call.
+
+Loud and safe are not in conflict here. Two pending refunds are conclusive
+evidence NOT to send more money, so the honest answer is a withholding conflict
+that reports itself: `PaymentConflict` gains the kind, and `admit-refund.ts`
+maps every conflict to `refused` already. Catching the exception upstream would
+be the wrong fix. Changing it contradicts a decision recorded in `PR4_PLAN.md`,
+so the document and the code want changing together.
+
+Found by Codex on #2065.
 
 ## Balance settlement can grow a reference set that is already claimed
 
@@ -2349,37 +2368,6 @@ being taken unilaterally on a money path.
 
 Found by Codex on #2065.
 
-## A big merged attendee can outrun the subrequest budget mid-refund
-
-`refundCandidateAtProvider` chunks a candidate's references by
-`PROVIDER_REFUND_CONCURRENCY`, which bounds how many run at once and not how
-many run in total — the comment beside it says as much. Since this branch, each
-reference costs an evidence read AND usually a refund request, so the per-
-reference cost roughly doubled. A merged attendee carrying around twenty-five
-charges therefore needs more than Bunny's fifty subrequests, before the claim
-and ledger database calls are counted at all.
-
-What makes it more than a failed request: the references are refunded as the
-loop goes. Run out of budget partway and the later ones fail after the earlier
-ones have already sent money — then `combineRefundOutcomes` fails the whole
-candidate and the ledger reversal never posts. That is the SAME harm as the
-conflicted-sibling fault recorded above, reached by a different door: real money
-back with no accounting for it. A fix for one may well want to cover both.
-
-Codex's suggestion is the safe shape: refuse the whole candidate before ANY
-provider call when its worst case cannot fit the remaining budget. Refusing to
-start moves no money, so it needs no owner decision — but two things about it do
-need deciding rather than guessing:
-
-- What the ceiling is. AGENTS.md puts the hard limit at fifty subrequests and
-  tells routes that also call providers to target at most forty database calls,
-  so the per-reference worst case has to be counted honestly against that.
-- What the operator sees. A merged attendee past the ceiling becomes
-  un-refundable through this route, and being told "too many charges to do at
-  once" is only acceptable if something else can still finish the job.
-
-Found by Codex on #2065.
-
 ## Money back at the provider but not in the ledger has no state of its own
 
 Two faults recorded against this branch turn out to be one missing thing, and
@@ -2458,25 +2446,6 @@ That should be said out loud somewhere an operator will see it, rather than
 being left as a 503 nobody can explain.
 
 Found by Codex on #2065.
-
-## The two-pending-refunds throw escapes into a 500
-
-`refundOutcome` throws when a reading holds two refunds in flight. That was a
-deliberate choice — broken evidence should be loud rather than pass as settled —
-but `admitProviderRefund` calls `refundOutcomeOf` OUTSIDE `chargeOrNothing`'s
-catch, which wraps only the provider read. So the throw escapes: the
-refresh-payment route and the refund callbacks answer 500 and retry for ever,
-and an admin run reads the same evidence as an unanswered call.
-
-It is reachable with real data. SumUp maps both PENDING and SCHEDULED to
-"pending", so a transaction carrying two such REFUND events — overlapping
-historical attempts — produces two pending observations.
-
-Loud and safe are not in conflict here. Two pending refunds are conclusive
-evidence to withhold, so the honest answer is a withheld outcome that reports
-itself, not an exception that becomes a retrying 500. Changing it contradicts a
-decision recorded in PR4_PLAN.md, so the document and the code want changing
-together.
 
 ## Legacy sibling rows can go unindexed until it is too late
 

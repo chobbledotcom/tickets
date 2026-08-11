@@ -1,3 +1,4 @@
+import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import type { Money } from "#shared/payment/money.ts";
 import type {
   ChargeMoney,
@@ -74,3 +75,18 @@ export const partlyRefundedCharge = (): ChargeMoney =>
     confirmedRefunded: { amount: 40, currency: "GBP" },
     refunds: [refundObservation({ amount: { amount: 40, currency: "GBP" } })],
   });
+
+/** A charge reference as a claim's read carries it: on a row of its own, with
+ *  nothing gone back yet. Override any part for a legacy charge, a returned
+ *  one, or a charge whose rows are all anchors. */
+export const refundReference = (
+  reference: string,
+  values: Partial<RefundPaymentReference> = {},
+): RefundPaymentReference => ({
+  index: `index_of_${reference}`,
+  reference,
+  refundState: "none",
+  rowSessionIds: [`sess_${reference}`],
+  sessionIds: [`sess_${reference}`],
+  ...values,
+});

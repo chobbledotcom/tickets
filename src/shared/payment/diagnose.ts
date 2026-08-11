@@ -34,11 +34,9 @@ const providerCouldNotRefund = (refund: RefundResolution): boolean =>
  *  what became of any refunds on it. */
 const refundOutcome = (charges: readonly ChargeMoney[]): ObservationOutcome => {
   const refunds = charges.map(resolveRefund);
-  // No M4 reading can carry two refunds in flight: the only pending refund an
-  // observation holds is the direct answer to its own single attempt. Seeing
-  // one means the evidence itself is broken, so fail loudly rather than
-  // letting the reading pass as settled. M7's per-refund records turn this
-  // into the judged `multiple_pending_refunds` conflict.
+  // No M4 reading can carry two refunds in flight: the only pending refund it
+  // holds is the answer to its own single attempt, so seeing one means the
+  // evidence is broken. M7's per-refund records turn this into a conflict.
   if (
     refunds.some(
       (refund) =>
@@ -67,18 +65,11 @@ const refundOutcome = (charges: readonly ChargeMoney[]): ObservationOutcome => {
     : { kind: "ready" };
 };
 
-/**
- * What the money on these charges comes to on its own, with no agreed total
- * behind it.
- *
- * A reference the site holds no signed price for — an old row, or one an
- * operator typed in — can still be judged on what the provider says it took and
- * gave back. It cannot be judged on what was owed, because nobody recorded
- * that, so the kinds that compare owed against observed are not asked here
- * rather than being asked against a stand-in total. The comparison that matters
- * before sending money back needs no agreed total anyway: money returned is
- * measured against money TAKEN, both of which the provider states.
- */
+/** What the money on these charges comes to on its own, with no agreed total
+ *  behind it. A reference the site holds no signed price for cannot be judged
+ *  on what was owed, so those kinds are not asked here rather than asked
+ *  against a stand-in. The comparison that matters before sending money needs
+ *  no total anyway: returned is measured against TAKEN. */
 export const refundOutcomeOf = (
   charges: readonly ChargeMoney[],
 ): ObservationOutcome =>
