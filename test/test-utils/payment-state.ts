@@ -6,6 +6,9 @@ import type {
   RefundObservation,
 } from "#shared/payment/resources.ts";
 
+/** Money in the currency these tests use throughout. */
+export const gbp = (amount: number): Money => ({ amount, currency: "GBP" });
+
 interface RefundObservationValueBase {
   amount?: Money;
   refund?: ProviderRefundResource;

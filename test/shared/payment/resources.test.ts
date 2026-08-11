@@ -1,27 +1,26 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { RefundObservation } from "#shared/payment/resources.ts";
+import type {
+  ChargeMoney,
+  RefundObservation,
+} from "#shared/payment/resources.ts";
 import {
   chargeMoneyOrNull,
   refundMoneyMatchesCapture,
 } from "#shared/payment/resources.ts";
-import {
-  chargeMoneyWith,
-  refundObservation,
-  refundResource,
-} from "#test-utils/payment-state.ts";
+import { chargeMoneyWith, gbp, refundObservation, refundResource } from "#test-utils/payment-state.ts";
 
 describe("what a refund says about the money going back", () => {
   test("keeps completed, pending, and failed refunds on a charge", () => {
     const charge = chargeMoneyOrNull(100, "GBP", 0, [
-      { amount: { amount: 100, currency: "GBP" }, status: "completed" },
+      { amount: gbp(100), status: "completed" },
       {
-        amount: { amount: 100, currency: "GBP" },
+        amount: gbp(100),
         refund: refundResource,
         status: "pending",
       },
       {
-        amount: { amount: 100, currency: "GBP" },
+        amount: gbp(100),
         reason: "declined",
         refund: refundResource,
         status: "failed",
@@ -38,7 +37,7 @@ describe("what a refund says about the money going back", () => {
   // A refund of nothing reads as "no refund seen", so the provider saying one
   // finished would be thrown away and the money could go back twice. A failed
   // refund moved no money, so nothing is the right amount there.
-  const noMoney = { amount: 0, currency: "GBP" } as const;
+  const noMoney = gbp(0);
   for (const [refund, allowed] of [
     [{ amount: noMoney, status: "completed" }, false],
     [{ amount: noMoney, status: "pending" }, false],
@@ -51,11 +50,11 @@ describe("what a refund says about the money going back", () => {
 
   test("keeps a pending refund when the provider names no refund of its own", () => {
     const charge = chargeMoneyOrNull(100, "GBP", 0, [
-      { amount: { amount: 100, currency: "GBP" }, status: "pending" },
+      { amount: gbp(100), status: "pending" },
     ]);
 
     expect(charge?.refunds).toEqual([
-      { amount: { amount: 100, currency: "GBP" }, status: "pending" },
+      { amount: gbp(100), status: "pending" },
     ]);
   });
 
@@ -65,125 +64,50 @@ describe("what a refund says about the money going back", () => {
     expect(chargeMoneyOrNull(0, "GBP", 0, [])).toBe(null);
   });
 
-  test("counts a refund still going on top of the money already returned", () => {
-    // A refund the provider has not finished is money on its way out, on top
-    // of what has already gone back. Checked one at a time, £80 returned and
-    // £50 on its way both fit inside £100 — together they do not.
-    expect(
-      refundMoneyMatchesCapture(
-        chargeMoneyWith({
-          confirmedRefunded: { amount: 80, currency: "GBP" },
-          refunds: [
-            refundObservation({
-              amount: { amount: 50, currency: "GBP" },
-              status: "pending",
-            }),
-          ],
-        }),
-      ),
-    ).toBe(false);
-  });
+  const secondRefund = { ...refundResource, id: "re_2" };
 
-  test("does not count a finished refund twice", () => {
-    // A refund the provider has finished is already inside the returned
-    // total, so it must not be added again.
-    expect(
-      refundMoneyMatchesCapture(
-        chargeMoneyWith({
-          confirmedRefunded: { amount: 100, currency: "GBP" },
-          refunds: [
-            refundObservation({ amount: { amount: 100, currency: "GBP" } }),
-          ],
-        }),
-      ),
-    ).toBe(true);
-  });
+  /** One £100 charge read many ways. Every refusing case is one where each
+   *  figure looks right on its own and only the totals together give it
+   *  away — which is the whole point of the rule. */
+  const captureCases: readonly [string, ChargeMoney, boolean][] = [
+    ["nothing has gone back", chargeMoneyWith(), true],
+    ["the whole capture is back", chargeMoneyWith({ confirmedRefunded: gbp(100) }), true],
+    ["one finished refund with no total beside it", chargeMoneyWith({ refunds: [refundObservation()] }), true],
+    [
+      "a finished refund already inside the returned total, not counted twice",
+      chargeMoneyWith({ confirmedRefunded: gbp(100), refunds: [refundObservation({ amount: gbp(100) })] }),
+      true,
+    ],
+    ["a returned total in another currency", chargeMoneyWith({ confirmedRefunded: { amount: 1, currency: "USD" } }), false],
+    ["more returned than was ever taken", chargeMoneyWith({ confirmedRefunded: gbp(101) }), false],
+    ["a refund in another currency", chargeMoneyWith({ refunds: [refundObservation({ amount: { amount: 100, currency: "USD" } })] }), false],
+    ["a single refund larger than the capture", chargeMoneyWith({ refunds: [refundObservation({ amount: gbp(101) })] }), false],
+    [
+      "£80 back and £50 still on its way — each fits inside £100, together they do not",
+      chargeMoneyWith({ confirmedRefunded: gbp(80), refunds: [refundObservation({ amount: gbp(50), status: "pending" })] }),
+      false,
+    ],
+    [
+      "two finished £60 refunds against a £100 returned total",
+      chargeMoneyWith({
+        confirmedRefunded: gbp(100),
+        refunds: [refundObservation({ amount: gbp(60) }), refundObservation({ amount: gbp(60), refund: secondRefund })],
+      }),
+      false,
+    ],
+    [
+      "£80 finished and £80 more still going",
+      chargeMoneyWith({
+        confirmedRefunded: gbp(0),
+        refunds: [refundObservation({ amount: gbp(80) }), refundObservation({ amount: gbp(80), refund: secondRefund, status: "pending" })],
+      }),
+      false,
+    ],
+  ];
 
-  test("refuses finished refunds that together come to more than was taken", () => {
-    // Each £60 refund fits inside £100 on its own, and the returned total says
-    // £100, so every figure looks right one at a time. Together the provider
-    // is claiming £120 went back out of £100 — the two readings cannot both be
-    // true of one charge, so the reading is wrong rather than settled.
-    expect(
-      refundMoneyMatchesCapture(
-        chargeMoneyWith({
-          confirmedRefunded: { amount: 100, currency: "GBP" },
-          refunds: [
-            refundObservation({ amount: { amount: 60, currency: "GBP" } }),
-            refundObservation({
-              amount: { amount: 60, currency: "GBP" },
-              refund: { ...refundResource, id: "re_2" },
-            }),
-          ],
-        }),
-      ),
-    ).toBe(false);
-  });
-
-  test("counts money already back and money still going as one total", () => {
-    // £80 has gone and £80 more is on its way, out of £100 taken. Each half
-    // fits on its own, so checked apart this reads as a refund quietly in
-    // progress rather than a reading that cannot be true.
-    expect(
-      refundMoneyMatchesCapture(
-        chargeMoneyWith({
-          confirmedRefunded: { amount: 0, currency: "GBP" },
-          refunds: [
-            refundObservation({ amount: { amount: 80, currency: "GBP" } }),
-            refundObservation({
-              amount: { amount: 80, currency: "GBP" },
-              refund: { ...refundResource, id: "re_2" },
-              status: "pending",
-            }),
-          ],
-        }),
-      ),
-    ).toBe(false);
-  });
-
-  test("checks every refund amount and currency against its capture", () => {
-    expect(refundMoneyMatchesCapture(chargeMoneyWith())).toBe(true);
-    expect(
-      refundMoneyMatchesCapture(
-        chargeMoneyWith({
-          confirmedRefunded: { amount: 100, currency: "GBP" },
-        }),
-      ),
-    ).toBe(true);
-    expect(
-      refundMoneyMatchesCapture(
-        chargeMoneyWith({ refunds: [refundObservation()] }),
-      ),
-    ).toBe(true);
-    expect(
-      refundMoneyMatchesCapture(
-        chargeMoneyWith({ confirmedRefunded: { amount: 1, currency: "USD" } }),
-      ),
-    ).toBe(false);
-    expect(
-      refundMoneyMatchesCapture(
-        chargeMoneyWith({
-          confirmedRefunded: { amount: 101, currency: "GBP" },
-        }),
-      ),
-    ).toBe(false);
-    expect(
-      refundMoneyMatchesCapture(
-        chargeMoneyWith({
-          refunds: [
-            refundObservation({ amount: { amount: 100, currency: "USD" } }),
-          ],
-        }),
-      ),
-    ).toBe(false);
-    expect(
-      refundMoneyMatchesCapture(
-        chargeMoneyWith({
-          refunds: [
-            refundObservation({ amount: { amount: 101, currency: "GBP" } }),
-          ],
-        }),
-      ),
-    ).toBe(false);
-  });
+  for (const [name, charge, addsUp] of captureCases) {
+    test(`${addsUp ? "accepts" : "refuses"} ${name}`, () => {
+      expect(refundMoneyMatchesCapture(charge)).toBe(addsUp);
+    });
+  }
 });

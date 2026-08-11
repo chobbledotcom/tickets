@@ -9,16 +9,12 @@ import type { ObservationOutcome } from "#shared/payment/diagnose.ts";
 import { refundOutcomeOf } from "#shared/payment/diagnose.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { RefundCapability } from "#shared/payment/row-state.ts";
-import {
-  chargeMoneyWith,
-  partlyRefundedCharge,
-  refundObservation,
-} from "#test-utils/payment-state.ts";
+import { chargeMoneyWith, gbp, partlyRefundedCharge, refundObservation } from "#test-utils/payment-state.ts";
 
 /** Money back on every penny of this charge. */
 const fullyRefundedCharge = (): ChargeMoney =>
   chargeMoneyWith({
-    confirmedRefunded: { amount: 100, currency: "GBP" },
+    confirmedRefunded: gbp(100),
     refunds: [refundObservation()],
   });
 
@@ -81,7 +77,7 @@ describe("whether a refund may be sent", () => {
       "a charge that gave back more than it took",
       [
         chargeMoneyWith({
-          confirmedRefunded: { amount: 140, currency: "GBP" },
+          confirmedRefunded: gbp(140),
         }),
       ],
       "refused",
