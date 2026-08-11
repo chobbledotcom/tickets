@@ -11,10 +11,7 @@ import {
   isClaimStale,
   mayReleaseClaim,
 } from "#shared/payment/claim.ts";
-import type {
-  RefundCapability,
-  RefundClaim,
-} from "#shared/payment/row-state.ts";
+import type { RefundClaim } from "#shared/payment/row-state.ts";
 
 const STALE_BEFORE = "2026-08-10T12:00:00.000Z";
 const FRESH = "2026-08-10T12:00:01.000Z";
@@ -104,24 +101,16 @@ describe("holdsTheRow", () => {
 });
 
 describe("mayReleaseClaim", () => {
-  const CAPABILITIES: RefundCapability[] = ["keyed", "keyless"];
-
-  for (const capability of CAPABILITIES) {
-    test(`${capability} releases when the answer came back`, () => {
-      expect(mayReleaseClaim(capability, "validated")).toBe(true);
-    });
-
-    test(`${capability} releases when nothing was sent`, () => {
-      expect(mayReleaseClaim(capability, "not_sent")).toBe(true);
-    });
-  }
-
-  test("a lost answer releases a keyed claim — a re-run lands on the same key", () => {
-    expect(mayReleaseClaim("keyed", "lost")).toBe(true);
+  test("releases when the answer came back", () => {
+    expect(mayReleaseClaim("validated")).toBe(true);
   });
 
-  test("a lost answer keeps a keyless claim standing", () => {
-    expect(mayReleaseClaim("keyless", "lost")).toBe(false);
+  test("releases when nothing was sent", () => {
+    expect(mayReleaseClaim("not_sent")).toBe(true);
+  });
+
+  test("a lost answer keeps the claim standing", () => {
+    expect(mayReleaseClaim("lost")).toBe(false);
   });
 });
 

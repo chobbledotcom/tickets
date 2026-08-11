@@ -1,5 +1,7 @@
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import type { Money } from "#shared/payment/money.ts";
+import type { ProviderRead } from "#shared/payment/provider-read.ts";
+import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
 import type {
   ChargeMoney,
   ProviderRefundResource,
@@ -69,6 +71,27 @@ export const chargeMoneyWith = (
 ): ChargeMoney => ({
   ...chargeMoney(100),
   ...values,
+});
+
+/** A successful explicit read of charge money for provider fakes. */
+export const foundCharge = (
+  charge: ChargeMoney = chargeMoney(),
+): ProviderRead<ChargeMoney> => ({ resource: charge, status: "found" });
+
+/** A provider fake's confirmed full refund of the charge it was handed. */
+export const completedRefund = (charge: ChargeMoney): RefundAttemptResult => ({
+  amount: charge.captured,
+  kind: "completed",
+  proof: { charge, kind: "charge_observation" },
+});
+
+/** A provider accepted the exact charge refund but has not completed it. */
+export const acceptedRefund = (
+  charge: ChargeMoney = chargeMoney(),
+): RefundAttemptResult => ({
+  amount: charge.captured,
+  kind: "accepted",
+  proof: { charge, kind: "charge_observation" },
 });
 
 /** A charge that gave some of the money back but not all of it — what a

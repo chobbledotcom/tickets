@@ -1,3 +1,5 @@
+import { stripeRefund } from "#test/test-utils/stripe/fixtures.ts";
+
 const checkout = {
   amount_total: 1000,
   created: 123,
@@ -17,18 +19,22 @@ export const stripeIntentWithCharge = (
 ): {
   id: string;
   latest_charge: {
-    amount: number;
+    amount_captured: number;
     amount_refunded: number;
+    captured: boolean;
     currency: string;
-    refunded: boolean;
+    paid: boolean;
+    status: "succeeded";
   };
 } => ({
   id: "pi_1",
   latest_charge: {
-    amount: captured,
+    amount_captured: captured,
     amount_refunded: returned,
+    captured: true,
     currency: "gbp",
-    refunded: returned >= captured,
+    paid: true,
+    status: "succeeded",
   },
 });
 
@@ -36,7 +42,7 @@ export const stripeIntentWithCharge = (
 export const stripeResponseFor = (path: string, method: string): Response => {
   if (path === "/v1/balance") return Response.json({ livemode: false });
   if (path === "/v1/refunds") {
-    return Response.json({ id: "re_1", status: "succeeded" });
+    return Response.json(stripeRefund());
   }
   if (path.startsWith("/v1/payment_intents/")) {
     return Response.json(stripeIntentWithCharge());

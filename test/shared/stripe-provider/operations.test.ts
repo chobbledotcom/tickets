@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { settings } from "#shared/db/settings.ts";
-import type { ChargeMoney } from "#shared/payment/resources.ts";
 import { sanitizeStripeError } from "#shared/stripe/runtime.ts";
 import type { StripeWebhookEvent } from "#shared/stripe/webhook.ts";
 import { stripeApi } from "#shared/stripe.ts";
@@ -17,7 +16,6 @@ import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import { asSession } from "#test-utils/payment-session.ts";
-import { gbp } from "#test-utils/payment-state.ts";
 import { activateStripe } from "#test-utils/settings.ts";
 import { checkoutSessionEvent } from "#test-utils/webhooks.ts";
 
@@ -90,80 +88,6 @@ describeStripe("stripe-provider", () => {
     });
   });
 
-  describe("refundPayment delegation", () => {
-    for (const [status, completed] of [
-      ["succeeded", true],
-      ["pending", false],
-      ["requires_action", false],
-      ["failed", false],
-      ["canceled", false],
-    ] as const) {
-      test(`returns ${completed} when Stripe reports ${status}`, async () => {
-        const client = await stripeClient();
-        await withMocks(
-          () =>
-            stub(client.refunds, "create", () =>
-              Promise.resolve({ id: `re_${status}`, status }),
-            ),
-          async () => {
-            expect(
-              await stripePaymentProvider.refundPayment(`pi_${status}`),
-            ).toBe(completed);
-          },
-        );
-      });
-    }
-
-    test("returns false when Stripe returns null (no refund created)", async () => {
-      await withMocks(
-        () => stub(stripeApi, "refundPayment", () => Promise.resolve(null)),
-        async () => {
-          const result = await stripePaymentProvider.refundPayment("pi_null");
-          expect(result).toBe(false);
-        },
-      );
-    });
-
-    test("returns false when refund fails", async () => {
-      const client = await stripeClient();
-      await withMocks(
-        () =>
-          stub(client.refunds, "create", () =>
-            Promise.reject(new Error("Refund failed")),
-          ),
-        async () => {
-          const result = await stripePaymentProvider.refundPayment("pi_fail");
-          expect(result).toBe(false);
-        },
-      );
-    });
-
-    test("passes a stable SHA-256 idempotency key derived from the payment intent", async () => {
-      // A webhook redelivery of the same refund must reach Stripe with the
-      // same Idempotency-Key so the second call is deduplicated, not charged
-      // again. The key is a pure function of (provider, payment reference),
-      // so it is reproducible here without re-running the hash.
-      const client = await stripeClient();
-      const createStub = stub(client.refunds, "create", () =>
-        Promise.resolve({ id: "re_stable", status: "succeeded" }),
-      );
-      await withMocks(
-        () => createStub,
-        async () => {
-          expect(await stripePaymentProvider.refundPayment("pi_stable")).toBe(
-            true,
-          );
-        },
-      );
-
-      const [params, idempotencyKey] = createStub.calls[0]!.args;
-      expect(params).toEqual({ payment_intent: "pi_stable" });
-      expect(idempotencyKey).toBe(
-        "zMXoB60J9cW7f7GxpMobuLm6VM5BATENKpD_jsjvf4g",
-      );
-    });
-  });
-
   describe("sanitizeStripeError edge cases", () => {
     test("returns err.name when no statusCode/code/type and name is set", () => {
       const err = new TypeError("something went wrong");
@@ -181,132 +105,6 @@ describeStripe("stripe-provider", () => {
       });
       const client = await stripeClient("sk_test_123");
       expect(client.balance.retrieve).toBeInstanceOf(Function);
-    });
-  });
-
-  describe("retrievePaymentIntent", () => {
-    test("returns null when stripe key not set", async () => {
-      const result = await stripeApi.retrievePaymentIntent("pi_test_123");
-      expect(result).toBeNull();
-    });
-
-    test("returns null when Stripe API throws error", async () => {
-      const client = await stripeClient();
-      await withMocks(
-        () =>
-          stub(client.paymentIntents, "retrieveWithLatestCharge", () =>
-            Promise.reject(new Error("Network error")),
-          ),
-        async (retrieveSpy) => {
-          const result = await stripeApi.retrievePaymentIntent("pi_test_123");
-          expect(result).toBeNull();
-          expect(retrieveSpy.calls[0]?.args).toEqual(["pi_test_123"]);
-        },
-      );
-    });
-  });
-
-  describe("readChargeMoneyOrNull", () => {
-    /** The charge money Stripe's expanded intent comes out as. */
-    const expectMoney = (
-      client: Awaited<ReturnType<typeof stripeClient>>,
-      retrieveImpl: Awaited<
-        ReturnType<typeof stripeClient>
-      >["paymentIntents"]["retrieveWithLatestCharge"],
-      expected: ChargeMoney | null,
-    ) =>
-      withMocks(
-        () =>
-          stub(client.paymentIntents, "retrieveWithLatestCharge", retrieveImpl),
-        async () => {
-          const result =
-            await stripePaymentProvider.readChargeMoneyOrNull("pi_check");
-          expect(result).toEqual(expected);
-        },
-      );
-
-    const intent =
-      (charge: {
-        amount: number;
-        amount_refunded: number;
-        currency: string;
-        refunded: boolean;
-      }) =>
-      () =>
-        Promise.resolve({ id: "pi_1", latest_charge: charge });
-
-    test("reports every penny back on a fully refunded charge", async () => {
-      const client = await stripeClient();
-      await expectMoney(
-        client,
-        intent({
-          amount: 1000,
-          amount_refunded: 1000,
-          currency: "gbp",
-          refunded: true,
-        }),
-        {
-          captured: gbp(1000),
-          confirmedRefunded: gbp(1000),
-          refunds: [],
-        },
-      );
-    });
-
-    // The `refunded` flag is false for a PART refund, so reading it alone would
-    // say nothing has gone back and let a full refund go out on top.
-    test("reports the part that went back while refunded is still false", async () => {
-      const client = await stripeClient();
-      await expectMoney(
-        client,
-        intent({
-          amount: 1000,
-          amount_refunded: 400,
-          currency: "gbp",
-          refunded: false,
-        }),
-        {
-          captured: gbp(1000),
-          confirmedRefunded: gbp(400),
-          refunds: [],
-        },
-      );
-    });
-
-    test("reports nothing back on an untouched charge", async () => {
-      const client = await stripeClient();
-      await expectMoney(
-        client,
-        intent({
-          amount: 1000,
-          amount_refunded: 0,
-          currency: "gbp",
-          refunded: false,
-        }),
-        {
-          captured: gbp(1000),
-          confirmedRefunded: gbp(0),
-          refunds: [],
-        },
-      );
-    });
-
-    test("refuses an intent carrying no charge", async () => {
-      const client = await stripeClient();
-      await expectMoney(
-        client,
-        () => Promise.resolve({ id: "pi_1", latest_charge: null }),
-        null,
-      );
-    });
-
-    test("refuses a payment intent that cannot be found", async () => {
-      const client = await stripeClient();
-      await expectMoney(
-        client,
-        () => Promise.reject(new Error("Not found")),
-        null,
-      );
     });
   });
 

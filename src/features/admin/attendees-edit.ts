@@ -50,7 +50,7 @@ import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee } from "#shared/types.ts";
 /* jscpd:ignore-end */
 import { NO_PROVIDER_ERROR } from "./attendees-route-helpers.ts";
-import { PROVIDER_REFUND_CONCURRENCY } from "./refunds/provider.ts";
+import { PROVIDER_REFUND_CONCURRENCY } from "./refunds/attempt.ts";
 import { requirePaymentProvider } from "./require-provider.ts";
 
 /** Minimal context needed by the refresh-payment flow. */
@@ -86,7 +86,7 @@ const loadRefreshContext = async (
 };
 
 const refreshProviderRefunds = async (
-  provider: Pick<PaymentProvider, "readChargeMoneyOrNull">,
+  provider: Pick<PaymentProvider, "readCharge">,
   references: readonly RefundPaymentReference[],
   { attendeeId, listingId }: { attendeeId: number; listingId: number },
 ): Promise<RefundPaymentReference[]> => {

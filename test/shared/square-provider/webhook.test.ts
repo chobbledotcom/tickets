@@ -1,15 +1,20 @@
+/* jscpd:ignore-start */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { squareApi } from "#shared/square.ts";
+import { squareApi } from "#shared/square/api.ts";
+import type { SquarePayment } from "#shared/square/payment-outcomes.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
 import {
   SQUARE_ORDER_META,
   setupSquareProviderSuite,
   squareMoney,
 } from "#test/test-utils/square/fixtures.ts";
+import { squarePaymentRead } from "#test/test-utils/square/outcomes.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import { asSession } from "#test-utils/payment-session.ts";
+
+/* jscpd:ignore-end */
 
 describe("square-provider resolveWebhookSession", () => {
   const debug = setupSquareProviderSuite();
@@ -30,11 +35,13 @@ describe("square-provider resolveWebhookSession", () => {
             totalMoney: { amount: BigInt(1000), currency: "GBP" },
           }),
         ),
-        payment: stub(squareApi, "retrievePayment", () =>
-          Promise.resolve({
-            id: "pay_nested_123",
-            status: "COMPLETED",
-          }),
+        payment: stub(squareApi, "readPayment", () =>
+          Promise.resolve(
+            squarePaymentRead({
+              id: "pay_nested_123",
+              status: "COMPLETED",
+            }),
+          ),
         ),
       }),
       async (mocks) => {
@@ -63,10 +70,12 @@ describe("square-provider resolveWebhookSession", () => {
   /** Stubs the order and the payment Square answers the webhook with. */
   const withOrderAndPayment = (
     order: Awaited<ReturnType<typeof squareApi.retrieveOrder>>,
-    payment: Awaited<ReturnType<typeof squareApi.retrievePayment>>,
+    payment: SquarePayment | null,
   ) => ({
     order: stub(squareApi, "retrieveOrder", () => Promise.resolve(order)),
-    payment: stub(squareApi, "retrievePayment", () => Promise.resolve(payment)),
+    payment: stub(squareApi, "readPayment", () =>
+      Promise.resolve(squarePaymentRead(payment)),
+    ),
   });
 
   /** Deliver a completed payment.updated webhook for `paymentId`. */
@@ -103,64 +112,6 @@ describe("square-provider resolveWebhookSession", () => {
         const result = await completedWebhook("pay_partial", "order_partial");
         expect(asSession(result).amountTotal).toBe(500);
         expect(asSession(result).currency).toBe("GBP");
-      },
-    );
-  });
-
-  test("asks to be retried when the payment's order contradicts the event", async () => {
-    // The signed event already linked this payment to order_mine, so a lookup
-    // naming another order is Square disagreeing with itself about money it
-    // has taken — not a payment that belongs elsewhere. Booking would use the
-    // wrong metadata and acknowledging is terminal, so neither is safe: the
-    // contradiction has to stay retryable until Square answers consistently.
-    await withMocks(
-      () =>
-        withOrderAndPayment(
-          {
-            id: "order_mine",
-            metadata: SQUARE_ORDER_META,
-            state: "COMPLETED",
-            totalMoney: squareMoney(1000),
-          },
-          {
-            amountMoney: squareMoney(1000),
-            id: "pay_stranger",
-            orderId: "order_someone_else",
-            status: "COMPLETED",
-          },
-        ),
-      async () => {
-        await expect(
-          completedWebhook("pay_stranger", "order_mine"),
-        ).rejects.toThrow("order_someone_else");
-      },
-    );
-  });
-
-  test("asks to be retried when the read-back payment is not completed", async () => {
-    // The signed event already reported this payment COMPLETED, so a read-back
-    // still saying APPROVED is Square lagging its own event, not a charge that
-    // never went through. Building an unpaid session would acknowledge captured
-    // money as pending, and Square would never redeliver it.
-    await withMocks(
-      () =>
-        withOrderAndPayment(
-          {
-            id: "order_stale",
-            metadata: SQUARE_ORDER_META,
-            state: "COMPLETED",
-            totalMoney: squareMoney(1000),
-          },
-          {
-            amountMoney: squareMoney(1000),
-            id: "pay_stale",
-            status: "APPROVED",
-          },
-        ),
-      async () => {
-        await expect(
-          completedWebhook("pay_stale", "order_stale"),
-        ).rejects.toThrow("pay_stale");
       },
     );
   });
@@ -232,12 +183,14 @@ describe("square-provider resolveWebhookSession", () => {
             totalMoney: squareMoney(1000),
           }),
         ),
-        payment: stub(squareApi, "retrievePayment", () =>
-          Promise.resolve({
-            amountMoney: squareMoney(1000),
-            id: "pay_lagging",
-            status: "COMPLETED",
-          }),
+        payment: stub(squareApi, "readPayment", () =>
+          Promise.resolve(
+            squarePaymentRead({
+              amountMoney: squareMoney(1000),
+              id: "pay_lagging",
+              status: "COMPLETED",
+            }),
+          ),
         ),
       }),
       async (mocks) => {
@@ -277,12 +230,14 @@ describe("square-provider resolveWebhookSession", () => {
             totalMoney: squareMoney(1000),
           }),
         ),
-        payment: stub(squareApi, "retrievePayment", () =>
-          Promise.resolve({
-            amountMoney: squareMoney(1000),
-            id: "pay_latest",
-            status: "COMPLETED",
-          }),
+        payment: stub(squareApi, "readPayment", () =>
+          Promise.resolve(
+            squarePaymentRead({
+              amountMoney: squareMoney(1000),
+              id: "pay_latest",
+              status: "COMPLETED",
+            }),
+          ),
         ),
       }),
       async (mocks) => {
@@ -347,7 +302,7 @@ describe("square-provider resolveWebhookSession", () => {
     await withMocks(
       () => ({
         order: stub(squareApi, "retrieveOrder"),
-        payment: stub(squareApi, "retrievePayment"),
+        payment: stub(squareApi, "readPayment"),
       }),
       async (mocks) => {
         const result = await squarePaymentProvider.resolveWebhookSession({

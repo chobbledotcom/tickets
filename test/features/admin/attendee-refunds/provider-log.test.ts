@@ -25,7 +25,7 @@ describeWithEnv("server (admin refund provider logging)", { db: true }, () => {
         await submitRefund(ctx);
       });
       expect(
-        loggedDetails().some((s) => s.includes("Admin refund failed")),
+        loggedDetails().some((s) => s.includes("Admin refund rejected")),
       ).toBe(true);
     });
 
@@ -45,7 +45,7 @@ describeWithEnv("server (admin refund provider logging)", { db: true }, () => {
       ).toBe(true);
     });
 
-    test("a bulk refund the provider throws on is logged as errored", async () => {
+    test("an uncertain bulk refund answer is logged as errored", async () => {
       const listing = await createPaidListing();
       await createPaidTestAttendee(
         listing.id,
@@ -54,7 +54,11 @@ describeWithEnv("server (admin refund provider logging)", { db: true }, () => {
         "pi_logfail_throw",
       );
       await withRefundMock(
-        () => Promise.reject(new Error("provider boom")),
+        () =>
+          Promise.resolve({
+            kind: "uncertain",
+            reason: "network_error",
+          } as const),
         async () => {
           await postRefundAll(listing);
         },

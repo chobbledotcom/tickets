@@ -37,7 +37,7 @@ import {
   expectProcessedPaymentReference,
   getProcessedPayment,
 } from "#test-utils/processed-payments.ts";
-import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
+import { stubRetrieveCheckoutSession } from "#test-utils/webhooks/stripe.ts";
 
 const contactCountsByHash = async (hash: string) =>
   queryOne<{ public_booking_count: number; visits: number }>(

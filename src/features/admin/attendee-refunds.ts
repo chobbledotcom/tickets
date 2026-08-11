@@ -41,7 +41,11 @@ import {
   getRefundCandidates,
   refundWorkRemains,
 } from "./refunds/candidates.ts";
-import { processRefundBatch, type RefundCounts } from "./refunds/provider.ts";
+import {
+  processRefundBatch,
+  type RefundBatchResult,
+  type RefundCounts,
+} from "./refunds/provider.ts";
 import { requirePaymentProvider } from "./require-provider.ts";
 
 /* jscpd:ignore-end */
@@ -139,11 +143,15 @@ const handleAttendeeRefund = verifiedAttendeeAction(
     // One attendee is a run of one, through the very same path a wave takes.
     // The ledger post has to happen while the hold is still on, and a run of
     // one is no less exposed to a merge landing mid-refund than a run of fifty.
-    const counts = await processRefundBatch(
+    const result = await processRefundBatch(
       provider,
       [{ attendee: data.attendee, references }],
       listingId,
     );
+    if (result.kind === "blocked") {
+      return refundError(attendeeId, t("error.refund_pending"), returnUrl);
+    }
+    const { counts } = result;
     if (counts.refundedCount !== 1) {
       // The run already reported whichever way it went; this only tells the
       // operator which. Only a confirmed refund the ledger could not record
@@ -153,7 +161,9 @@ const handleAttendeeRefund = verifiedAttendeeAction(
         attendeeId,
         counts.notRecordedCount === 1
           ? t("error.refund_not_recorded")
-          : t("error.refund_failed"),
+          : counts.pendingCount === 1
+            ? t("error.refund_pending")
+            : t("error.refund_failed"),
         returnUrl,
       );
     }
@@ -205,12 +215,42 @@ type RefundResponseCtx = {
   remaining: number;
 };
 
+const buildBlockedRefundResponse = async (
+  listing: ListingWithCount,
+  refundAllUrl: string,
+  totalRefundable: number,
+): Promise<Response> => {
+  await logActivity(
+    `Bulk refund: not started because another refund is still settling for '${listing.name}'`,
+    listing.id,
+  );
+  return fail(
+    refundAllUrl,
+    [
+      t("error.refund_pending"),
+      t("admin.attendees.refund_all_result_remaining", {
+        count: totalRefundable,
+      }),
+    ].join(" "),
+  );
+};
+
+const refundActivityCounts = (
+  counts: RefundCounts,
+  failedCount?: number,
+): string =>
+  compact([
+    `${counts.refundedCount} succeeded`,
+    counts.pendingCount > 0 ? `${counts.pendingCount} still settling` : null,
+    failedCount === undefined ? null : `${failedCount} failed`,
+  ]).join(", ");
+
 /** Build the error response branch of a bulk refund (some refunds failed). */
 const buildRefundProblemResponse = async (
   ctx: RefundResponseCtx,
 ): Promise<Response> => {
   const { listing, refundAllUrl, counts, remaining } = ctx;
-  const { refundedCount, failedCount, notRecordedCount } = counts;
+  const { refundedCount, failedCount, notRecordedCount, pendingCount } = counts;
   // A refund the ledger never recorded is a problem the operator has to act
   // on, so it is counted with the errors rather than passing as a success.
   const errorCount = counts.errorCount + notRecordedCount;
@@ -219,6 +259,11 @@ const buildRefundProblemResponse = async (
     t("admin.attendees.refund_all_result_refunds", {
       count: refundedCount,
     }),
+    pendingCount > 0
+      ? t("admin.attendees.refund_all_result_pending", {
+          count: pendingCount,
+        })
+      : null,
     t("admin.attendees.refund_all_result_failures", {
       count: problemCount,
     }),
@@ -233,7 +278,10 @@ const buildRefundProblemResponse = async (
     ),
   ]).join(" ");
   await logActivity(
-    `Bulk refund: ${refundedCount} succeeded, ${problemCount} failed for '${listing.name}'`,
+    `Bulk refund: ${refundActivityCounts(
+      counts,
+      problemCount,
+    )} for '${listing.name}'`,
     listing.id,
   );
   return fail(refundAllUrl, msg);
@@ -255,6 +303,29 @@ const buildRefundAllResponse = async (
       refundAllUrl,
       remaining,
     });
+  }
+
+  if (counts.pendingCount > 0) {
+    await logActivity(
+      `Bulk refund: ${refundActivityCounts(counts)} for '${listing.name}'`,
+      listing.id,
+    );
+    return ok(
+      refundAllUrl,
+      compact([
+        t("admin.attendees.refund_all_result_refunds", {
+          count: refundedCount,
+        }),
+        t("admin.attendees.refund_all_result_pending", {
+          count: counts.pendingCount,
+        }),
+        remaining > 0
+          ? t("admin.attendees.refund_all_result_remaining", {
+              count: remaining,
+            })
+          : null,
+      ]).join(" "),
+    );
   }
 
   if (remaining > 0) {
@@ -313,7 +384,15 @@ const processRefundAll = async (
 
   const batch = refundable.slice(0, BULK_REFUND_LIMIT);
   const remaining = refundable.length - batch.length;
-  const counts = await processRefundBatch(provider, batch, listing.id);
+  const result: RefundBatchResult = await processRefundBatch(
+    provider,
+    batch,
+    listing.id,
+  );
+  if (result.kind === "blocked") {
+    return buildBlockedRefundResponse(listing, refundAllUrl, refundable.length);
+  }
+  const { counts } = result;
   return buildRefundAllResponse({
     counts,
     listing,

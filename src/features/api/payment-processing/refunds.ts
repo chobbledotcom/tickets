@@ -23,6 +23,7 @@ import {
 } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { sendRefundIfAdmitted } from "#shared/payment/admit-refund.ts";
+import type { RefundActionResult } from "#shared/payment/refund-attempt.ts";
 import { isResourceId } from "#shared/payment/resource-id.ts";
 import type { SessionRejection } from "#shared/payment/validated-session.ts";
 import { reportWithheldRefund } from "#shared/payment-review.ts";
@@ -89,10 +90,9 @@ export const refundRejectedCharge = async (
   ) {
     return NOTHING_TO_REFUND;
   }
-  // The charge's own numbers are what was malformed, so the guard cannot read
-  // them to decide. Refusing here answers 503 for ever and leaves the buyer
-  // charged with no route back.
-  const refunded = await tryRefund(rejection.paymentReference, undefined, true);
+  // The verified proof establishes ownership, but the refund amount comes from a
+  // fresh provider read: malformed charges may have captured a different sum.
+  const refunded = await tryRefund(rejection.paymentReference);
   return { refunded, settled: refunded };
 };
 
@@ -125,8 +125,6 @@ export const answerRejectedSession = async (
 export const tryRefund = async (
   paymentReference: string,
   listingId?: number,
-  /** Set only by the rejected-charge recovery — see `sendRefundIfAdmitted`. */
-  sendWhenUnreadable = false,
 ): Promise<boolean> => {
   // A blank or whitespace-only provider resource id names no charge to refund,
   // so the refund is refused before any provider call. The provider boundary
@@ -144,29 +142,40 @@ export const tryRefund = async (
   // Ask what the money has already done before sending any more. Stripe and
   // Square reject a second full refund themselves, but SumUp has no idempotency
   // key, so there an unguarded re-attempt pays the buyer twice.
-  return sendRefundIfAdmitted(
-    provider,
-    paymentReference,
-    {
-      failed: () => {
-        logError({
-          code: ErrorCode.PAYMENT_REFUND,
-          detail: `Failed to refund payment ${paymentReference}`,
-          listingId,
-        });
-        return false;
-      },
-      sent: () => {
-        logDebug("Payment", "Refund issued");
-        return true;
-      },
-      withhold: (admission) => {
-        reportWithheldRefund(admission, { listingId, paymentReference });
-        return admission.kind === "already_returned";
-      },
-    },
-    sendWhenUnreadable,
-  );
+  const result = await sendRefundIfAdmitted(provider, paymentReference);
+  return refundResultSucceeded(result, { listingId, paymentReference });
+};
+
+type RefundLogContext = {
+  listingId?: number | undefined;
+  paymentReference: string;
+};
+
+/** Finish the current boolean callback contract without losing which provider
+ * answer made the choice. Accepted means the provider took responsibility for
+ * the request; the durable lifecycle records that distinction in its layer. */
+const refundResultSucceeded = (
+  result: RefundActionResult<Parameters<typeof reportWithheldRefund>[0]>,
+  { listingId, paymentReference }: RefundLogContext,
+): boolean => {
+  if (result.kind === "withheld") {
+    reportWithheldRefund(result.admission, { listingId, paymentReference });
+    return result.admission.kind === "already_returned";
+  }
+  if (result.kind === "completed") {
+    logDebug("Payment", "Refund completed");
+    return true;
+  }
+  if (result.kind === "accepted") {
+    logDebug("Payment", "Refund accepted but not completed");
+    return false;
+  }
+  logError({
+    code: ErrorCode.PAYMENT_REFUND,
+    detail: `Refund ${result.kind} for payment ${paymentReference} (${result.reason})`,
+    listingId,
+  });
+  return false;
 };
 
 /** Attempt refund and log activity if successful */

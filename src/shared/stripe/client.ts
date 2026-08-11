@@ -68,6 +68,12 @@ export interface StripeWebhookEndpointCreateParams {
   url: Stripe.WebhookEndpointCreateParams["url"];
 }
 
+interface StripeRefundCreateParams
+  extends Readonly<Record<string, StripeFormValue>> {
+  amount: NonNullable<Stripe.RefundCreateParams["amount"]>;
+  payment_intent: NonNullable<Stripe.RefundCreateParams["payment_intent"]>;
+}
+
 export interface StripeClient {
   balance: { retrieve: () => Promise<StripeBalance> };
   checkout: {
@@ -87,7 +93,7 @@ export interface StripeClient {
   };
   refunds: {
     create: (
-      params: Pick<Stripe.RefundCreateParams, "payment_intent">,
+      params: StripeRefundCreateParams,
       idempotencyKey?: string,
     ) => Promise<StripeRefund>;
   };

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { squareApi } from "#shared/square.ts";
+import { squareApi } from "#shared/square/api.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
 import { withSquareClient } from "#test/test-utils/square/fixtures.ts";
 import { describeSquare } from "#test/test-utils/square/harness.ts";
@@ -234,18 +234,24 @@ describeSquare(() => {
     });
   });
 
-  describe("retrievePayment", () => {
-    test("returns null when access token not set", async () => {
-      const result = await squareApi.retrievePayment("pay_123");
-      expect(result).toBeNull();
+  describe("readPayment", () => {
+    test("returns unavailable when access token not set", async () => {
+      const result = await squareApi.readPayment("pay_123");
+      expect(result).toEqual({
+        reason: "not_configured",
+        status: "unavailable",
+      });
     });
 
-    test("returns null when SDK returns no payment", async () => {
+    test("refuses a successful response with no payment", async () => {
       await withSquareClient(
         { paymentsGet: () => Promise.resolve({ payment: null }) },
         async ({ paymentsGet }) => {
-          const result = await squareApi.retrievePayment("pay_missing");
-          expect(result).toBeNull();
+          const result = await squareApi.readPayment("pay_missing");
+          expect(result).toEqual({
+            reason: "missing_documented_resource",
+            status: "invalid",
+          });
           expect(paymentsGet.calls[0]!.args[0]).toEqual({
             paymentId: "pay_missing",
           });
@@ -270,17 +276,22 @@ describeSquare(() => {
             }),
         },
         async () => {
-          const payment = await squareApi.retrievePayment("pay_untouched");
-          expect(payment?.refundedMoney).toBeUndefined();
+          const payment = await squareApi.readPayment("pay_untouched");
+          expect(payment.status).toBe("found");
+          if (payment.status !== "found") return;
+          expect(payment.resource.refundedMoney).toBeUndefined();
 
           // ...and the provider reads that as a charge nothing has gone back on,
           // which is what lets a refund be sent at all.
           expect(
-            await squarePaymentProvider.readChargeMoneyOrNull("pay_untouched"),
+            await squarePaymentProvider.readCharge("pay_untouched"),
           ).toEqual({
-            captured: gbp(5000),
-            confirmedRefunded: gbp(0),
-            refunds: [],
+            resource: {
+              captured: gbp(5000),
+              confirmedRefunded: gbp(0),
+              refunds: [],
+            },
+            status: "found",
           });
         },
       );
@@ -307,21 +318,22 @@ describeSquare(() => {
             }),
         },
         async () => {
-          const result = await squareApi.retrievePayment("pay_full");
-          expect(result).not.toBeNull();
-          expect(result!.id).toBe("pay_full");
-          expect(result!.status).toBe("COMPLETED");
-          expect(result!.orderId).toBe("order_999");
-          expect(result!.amountMoney!.amount).toBe(BigInt(5000));
-          expect(result!.amountMoney!.currency).toBe("GBP");
-          expect(result!.refundedMoney!.amount).toBe(BigInt(5000));
-          expect(result!.refundedMoney!.currency).toBe("GBP");
+          const result = await squareApi.readPayment("pay_full");
+          expect(result.status).toBe("found");
+          if (result.status !== "found") return;
+          expect(result.resource.id).toBe("pay_full");
+          expect(result.resource.status).toBe("COMPLETED");
+          expect(result.resource.orderId).toBe("order_999");
+          expect(result.resource.amountMoney!.amount).toBe(BigInt(5000));
+          expect(result.resource.amountMoney!.currency).toBe("GBP");
+          expect(result.resource.refundedMoney!.amount).toBe(BigInt(5000));
+          expect(result.resource.refundedMoney!.currency).toBe("GBP");
         },
       );
     });
   });
 
-  describe("retrievePayment money Square only partly states", () => {
+  describe("readPayment money Square only partly states", () => {
     // Square can name a money object while leaving its amount or currency out.
     // Carrying those through as nulls would read as "Square said zero"; absent
     // is the honest answer, and the refund guard treats it as unreadable.
@@ -338,9 +350,10 @@ describeSquare(() => {
             }),
         },
         async () => {
-          const result = await squareApi.retrievePayment("pay_partial");
-
-          expect(result!.amountMoney).toEqual({
+          const result = await squareApi.readPayment("pay_partial");
+          expect(result.status).toBe("found");
+          if (result.status !== "found") return;
+          expect(result.resource.amountMoney).toEqual({
             amount: undefined,
             currency: undefined,
           });

@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import { log } from "#e2e/log.ts";
-import { squareRequestInit } from "#shared/square.ts";
+import { squareRequestInit } from "#shared/square/transport.ts";
 import {
   configureProvider,
   exerciseAdminRefund,

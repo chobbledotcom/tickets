@@ -1,5 +1,6 @@
 import type Stripe from "stripe";
 import * as v from "valibot";
+import { ResourceIdSchema } from "#shared/payment/resource-id.ts";
 import { NonEmptyTextSchema } from "#shared/validation/string.ts";
 
 const NonEmptyNullableStringSchema = v.nullable(NonEmptyTextSchema);
@@ -42,13 +43,24 @@ export type StripeCheckoutSession = StripeCheckoutSessionFields;
 type StripeExpandedPaymentIntentFields = Pick<Stripe.PaymentIntent, "id"> & {
   latest_charge: null | Pick<
     Stripe.Charge,
-    "amount" | "amount_refunded" | "currency" | "refunded"
+    | "amount_captured"
+    | "amount_refunded"
+    | "captured"
+    | "currency"
+    | "paid"
+    | "status"
   >;
 };
 
-/** The charge is expanded so a refund can be judged from the money itself —
- *  what was taken, in what currency, and how much has gone back — rather than
- *  from the `refunded` flag alone, which says nothing about a partial refund. */
+const StripeChargeStatusSchema = v.picklist([
+  "failed",
+  "pending",
+  "succeeded",
+] as const satisfies readonly Stripe.Charge.Status[]);
+
+/** The latest charge is expanded with its captured money and settled state.
+ * The intended amount may exceed a partial capture, so it is not evidence of
+ * how much can safely go back. */
 export const StripeExpandedPaymentIntentSchema: v.GenericSchema<
   unknown,
   StripeExpandedPaymentIntentFields
@@ -56,10 +68,12 @@ export const StripeExpandedPaymentIntentSchema: v.GenericSchema<
   id: NonEmptyTextSchema,
   latest_charge: v.nullable(
     v.object({
-      amount: v.number(),
+      amount_captured: v.number(),
       amount_refunded: v.number(),
+      captured: v.boolean(),
       currency: NonEmptyTextSchema,
-      refunded: v.boolean(),
+      paid: v.boolean(),
+      status: StripeChargeStatusSchema,
     }),
   ),
 });
@@ -74,13 +88,17 @@ const StripeRefundStatuses = [
   "succeeded",
 ] as const satisfies readonly NonNullable<Stripe.Refund["status"]>[];
 
-type StripeRefundFields = Pick<Stripe.Refund, "id"> & {
+type StripeRefundFields = Pick<Stripe.Refund, "amount" | "currency" | "id"> & {
+  payment_intent: string;
   status: (typeof StripeRefundStatuses)[number] | null;
 };
 
 export const StripeRefundSchema: v.GenericSchema<unknown, StripeRefundFields> =
   v.object({
-    id: NonEmptyTextSchema,
+    amount: v.number(),
+    currency: NonEmptyTextSchema,
+    id: ResourceIdSchema,
+    payment_intent: ResourceIdSchema,
     status: v.nullable(v.picklist(StripeRefundStatuses)),
   });
 

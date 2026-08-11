@@ -1,10 +1,4 @@
-/**
- * Payment provider abstraction layer
- *
- * Defines a provider-agnostic interface for payment operations.
- * Admins choose a provider (e.g. Stripe) in settings; routes use
- * this interface so they never depend on a specific provider.
- */
+/** Provider-neutral checkout, callback, and refund contracts. */
 
 /* jscpd:ignore-start */
 import * as v from "valibot";
@@ -14,6 +8,11 @@ import { settings } from "#shared/db/settings.ts";
 import { existingPaymentProviderState } from "#shared/existing-payment-provider.ts";
 import { logDebug } from "#shared/logger.ts";
 import type { Currency } from "#shared/payment/money.ts";
+import type { ProviderRead } from "#shared/payment/provider-read.ts";
+import type {
+  RefundAttemptResult,
+  RefundRequest,
+} from "#shared/payment/refund-attempt.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { RefundCapability } from "#shared/payment/row-state.ts";
 import type { SessionRejection } from "#shared/payment/validated-session.ts";
@@ -81,19 +80,13 @@ export type ModifierSpec = {
 /** Fields shared between BookingIntent and CheckoutIntent that carry
  * deposit, redirect, and child-allocation metadata through the checkout. */
 type CheckoutMetaFields = {
-  /** When set, this session settles a reserved attendee's outstanding balance
-   * (rather than creating a new attendee). */
+  /** Reserved attendee whose outstanding balance this session settles. */
   balanceAttendeeId?: number | undefined;
-  /** Reservation amount string (e.g. "10%") — present when the items are
-   * deposit-priced so the webhook can re-derive the deposit and the balance. */
+  /** Pricing rule used to re-derive a deposit and its balance. */
   reservationAmount?: string | undefined;
-  /** Explicit thank-you redirect carried through the paid round-trip, so a
-   * single parent's configured `thank_you_url` survives folding a child (which
-   * makes the booking multi-listing and would otherwise drop it). */
+  /** Explicit redirect that survives the paid round-trip. */
   thankYouUrl?: string | undefined;
-  /** Per-(child, parent) allocation map from the fold, carried through the
-   * signed metadata so the webhook can expand child bookings into per-parent
-   * rows. Absent for legacy/no-parent orders. */
+  /** Child bookings assigned to their parent rows. */
   allocations?: ChildAllocation[] | undefined;
 };
 
@@ -137,22 +130,8 @@ export type CheckoutSessionResult =
     }
   | null;
 
-/**
- * Metadata attached to a validated payment session.
- *
- * All fields are guaranteed to be strings after extraction.
- * Empty string ("") is the canonical representation for "not provided" —
- * payment providers store metadata as string key-value pairs, so null/undefined
- * are normalized to "" by extractSessionMetadata. Domain types (e.g.
- * RegistrationIntent.date) may use null for "not provided"; conversion
- * between "" and null happens at the extraction boundary.
- *
- * This is the *logical* shape. On the Square wire, several small fields are
- * collapsed into a single packed entry to fit its 10-entry metadata cap (see
- * packMetadata); Stripe/SumUp store the fields top-level. extractSessionMetadata
- * unpacks the Square form back to this shape, so no consumer beyond that boundary
- * needs to know which form was used.
- */
+/** Validated logical metadata. Missing wire values are represented by `""`;
+ * provider-specific packing is removed at extraction. */
 export type SessionMetadata = ContactInfo & {
   _origin: string;
   items: string;
@@ -266,20 +245,12 @@ export type SetupWebhookEndpoint = (
   existingEndpointId?: string | null,
 ) => Promise<WebhookSetupResult>;
 
-/**
- * Payment provider interface.
- *
- * Each provider (Stripe, Square, etc.) implements this interface.
- * Routes call these methods without knowing which provider is active.
- */
+/** Operations every configured payment provider supplies. */
 export interface PaymentProvider {
   /** The webhook event type name that indicates a completed checkout */
   readonly checkoutCompletedEventType: string;
 
-  /**
-   * Create a checkout session for one or more listings.
-   * Returns a session ID and hosted checkout URL, or null on failure.
-   */
+  /** Create a checkout for one or more listings. */
   createCheckoutSession(
     intent: CheckoutIntent,
     baseUrl: string,
@@ -291,9 +262,9 @@ export interface PaymentProvider {
    * and the edit-attendee page asks it to refresh a booking's refund state.
    *
    * @param paymentReference - provider-specific payment reference
-   * @returns the money facts, or null when the charge cannot be read
+   * Missing, unavailable, and invalid answers remain distinct.
    */
-  readChargeMoneyOrNull(paymentReference: string): Promise<ChargeMoney | null>;
+  readCharge(paymentReference: string): Promise<ProviderRead<ChargeMoney>>;
 
   /** Whether a refund this provider accepted can safely be asked for twice.
    *  An idempotency key lands a repeat call on the original refund; SumUp has
@@ -301,12 +272,9 @@ export interface PaymentProvider {
    *  is rather than being assumed. */
   readonly refundCapability: RefundCapability;
 
-  /**
-   * Refund a completed payment.
-   * @param paymentReference - provider-specific payment reference (e.g. Stripe payment_intent ID)
-   * @returns true if refund succeeded, false otherwise
-   */
-  refundPayment(paymentReference: string): Promise<boolean>;
+  /** Ask for the observed charge to be refunded and preserve the provider's
+   * exact completed, accepted, rejected, unsent, or uncertain answer. */
+  refundCharge(request: RefundRequest): Promise<RefundAttemptResult>;
 
   /** Whether incoming webhooks carry a verifiable signature. Providers that
    * sign their webhooks (Stripe, Square) set this true so the endpoint rejects
@@ -343,10 +311,7 @@ export interface PaymentProvider {
     paidPaymentId?: string,
   ): Promise<RetrieveSessionResult>;
 
-  /**
-   * Set up a webhook endpoint for this provider.
-   * Some providers (e.g. Stripe) support programmatic creation.
-   */
+  /** Set up the provider's webhook endpoint where supported. */
   setupWebhookEndpoint: SetupWebhookEndpoint;
   /** Provider identifier */
   readonly type: PaymentProviderType;

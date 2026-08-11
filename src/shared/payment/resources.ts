@@ -1,6 +1,7 @@
 import * as v from "valibot";
 import { sumOf } from "#fp";
 import { MoneySchema, money } from "#shared/payment/money.ts";
+import type { ProviderRead } from "#shared/payment/provider-read.ts";
 import { ResourceIdSchema } from "#shared/payment/resource-id.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 
@@ -118,26 +119,29 @@ const ChargeMoneySchema = v.strictObject({
 export type ChargeMoney = v.InferOutput<typeof ChargeMoneySchema>;
 
 /**
- * The money a provider states about one charge, or nothing when what it states
- * cannot be money: an amount that will not parse, a missing currency, or a
- * charge that took nothing at all. The one door provider numbers come through,
- * so no adapter invents a currency or reads a missing amount as zero.
+ * The money a provider states about one charge. An amount that will not parse,
+ * a missing currency, or a charge that took nothing is named as invalid. This
+ * is the one door provider numbers come through, so no adapter invents money.
  */
-export const chargeMoneyOrNull = (
+export const chargeMoneyRead = (
   capturedAmount: unknown,
   currency: unknown,
   refundedAmount: unknown,
   refunds: RefundObservation[] = [],
-): ChargeMoney | null => {
+): ProviderRead<ChargeMoney> => {
   const captured = money(capturedAmount, currency);
   const confirmedRefunded = money(refundedAmount, currency);
-  if (captured === null || confirmedRefunded === null) return null;
+  if (captured === null || confirmedRefunded === null) {
+    return { reason: "malformed_money", status: "invalid" };
+  }
   const parsed = v.safeParse(ChargeMoneySchema, {
     captured,
     confirmedRefunded,
     refunds,
   });
-  return parsed.success ? parsed.output : null;
+  return parsed.success
+    ? { resource: parsed.output, status: "found" }
+    : { reason: "malformed_money", status: "invalid" };
 };
 
 /** Adds up the refunds at one point in their life — every one still going, or
@@ -179,7 +183,7 @@ export const refundMoneyReturned = (charge: ChargeMoney): number =>
 
 /** Everything back or on its way, counted once — money still going is
  *  genuinely on top of the money already returned. */
-const refundMoneyAccountedFor = (charge: ChargeMoney): number =>
+export const refundMoneyAccountedFor = (charge: ChargeMoney): number =>
   refundMoneyReturned(charge) + refundMoneyStillGoing(charge);
 
 /** Nothing given back, or still on its way, comes to more than was taken. */

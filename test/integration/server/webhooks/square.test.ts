@@ -5,7 +5,7 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
 import type { WebhookEvent } from "#shared/payments.ts";
-import { squareApi } from "#shared/square.ts";
+import { squareApi } from "#shared/square/api.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
 import { configureSquare } from "#test/test-utils/square/fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -30,7 +30,7 @@ describeWithEnv("Square payment webhooks", { db: true }, () => {
     await withMocks(
       () => ({
         order: stub(squareApi, "retrieveOrder"),
-        payment: stub(squareApi, "retrievePayment"),
+        payment: stub(squareApi, "readPayment"),
         verify: stub(squarePaymentProvider, "verifyWebhookSignature", () =>
           Promise.resolve({ listing: event, valid: true as const }),
         ),

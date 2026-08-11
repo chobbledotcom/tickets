@@ -14,7 +14,7 @@ import {
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stripeIntentWithCharge } from "#test-utils/stripe/responses.ts";
-import { stubRefundPayment } from "#test-utils/webhooks.ts";
+import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 import {
   bookingIntent,
   expectStoredRefund,
@@ -36,11 +36,17 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
       bookingIntent([{ e: listing.id, p: 800, q: 1 }]),
       800,
     );
-    using refund = stub(stripeApi, "refundPayment", () =>
-      Promise.resolve(null),
+    using refund = stub(stripeApi, "refundCharge", () =>
+      Promise.resolve({ kind: "rejected", reason: "rejected" } as const),
     );
-    using refundState = stub(stripeApi, "retrievePaymentIntent", () =>
-      Promise.resolve(stripeIntentWithCharge()),
+    using refundState = stub(stripeApi, "readPaymentIntent", () =>
+      Promise.resolve({
+        resource: {
+          ...stripeIntentWithCharge(0, 800),
+          id: data.session.paymentReference,
+        },
+        status: "found",
+      } as const),
     );
 
     expect(await processPaymentSession(id, data)).toEqual({
@@ -63,7 +69,7 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
     await setupStripe();
     const id = "cs_direct_price_changed";
     const { data, listing } = await singleListingPayment(id, 1000, 800);
-    using refund = stubRefundPayment("re_price_changed");
+    using refund = stubRefundPayment("re_price_changed", 800);
 
     const result = await processPaymentSession(id, data);
     await expectStoredRefund(
@@ -91,7 +97,7 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
     });
     if (!booked.success) throw new Error("Failed to fill listing");
     const id = "cs_direct_capacity";
-    using refund = stubRefundPayment("re_capacity");
+    using refund = stubRefundPayment("re_capacity", 600);
 
     const result = await processPaymentSession(
       id,
@@ -118,7 +124,7 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
     using uncertain = stub(attendeesApi, "createBookingAtomic", () =>
       Promise.reject(new Error("write result unknown")),
     );
-    using refund = stubRefundPayment("re_uncertain");
+    using refund = stubRefundPayment("re_uncertain", 500);
 
     const result = await processPaymentSession(
       id,

@@ -18,7 +18,7 @@ describeWithEnv("server webhooks > unrecognized sessions", { db: true }, () => {
   test("webhook ignores session with no _origin marker", async () => {
     await setupStripe();
 
-    const mockRefund = spy(stripeApi, "refundPayment");
+    const mockRefund = spy(stripeApi, "refundCharge");
 
     // Returns 200 to prevent provider retries; should not attempt to process
     // or refund.
@@ -44,7 +44,7 @@ describeWithEnv("server webhooks > unrecognized sessions", { db: true }, () => {
   test("webhook ignores session with wrong _origin marker", async () => {
     await setupStripe();
 
-    const mockRefund = spy(stripeApi, "refundPayment");
+    const mockRefund = spy(stripeApi, "refundCharge");
 
     await expectWebhookIgnored(
       checkoutSessionEvent({
@@ -69,7 +69,7 @@ describeWithEnv("server webhooks > unrecognized sessions", { db: true }, () => {
   test("webhook ignores a signed session whose booking will not read back", async () => {
     await setupStripe();
 
-    const mockRefund = spy(stripeApi, "refundPayment");
+    const mockRefund = spy(stripeApi, "refundCharge");
 
     // The proof is ours, but the modifiers came back as an object instead of a
     // list. Booking cannot act on that, so nothing is booked with values
@@ -132,7 +132,7 @@ describeWithEnv("server webhooks > unrecognized sessions", { db: true }, () => {
         }),
     );
 
-    const mockRefund = spy(stripeApi, "refundPayment");
+    const mockRefund = spy(stripeApi, "refundCharge");
 
     await expectWebhookIgnored(
       checkoutSessionEvent({

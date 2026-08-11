@@ -1,9 +1,14 @@
 import type { RefundCandidate } from "./candidates.ts";
 
 /** What a refund came to. `withheld` means no money was sent and the reason has
- *  already been reported at the volume it deserved — separate from `failed` so
- *  a bulk tally does not report it again as an incident. */
-export type RefundOutcome = "refunded" | "withheld" | "failed" | "errored";
+ * already been reported at the volume it deserved. `pending` means the
+ * provider accepted it but has not yet proved the money returned. */
+export type RefundOutcome =
+  | "refunded"
+  | "pending"
+  | "withheld"
+  | "failed"
+  | "errored";
 
 /** Pack candidates into waves whose combined charge references stay within
  * `budget`, so each concurrently-processed wave issues at most ~`budget`
@@ -30,7 +35,12 @@ export const packByReferenceCount =
   };
 
 /** Worst wins, so one bad reference is never hidden by a good one beside it. */
-const OUTCOMES_WORST_FIRST = ["errored", "failed", "withheld"] as const;
+const OUTCOMES_WORST_FIRST = [
+  "errored",
+  "failed",
+  "withheld",
+  "pending",
+] as const;
 
 /** Reduce a candidate's per-reference outcomes to a single outcome. */
 export const combineRefundOutcomes = (

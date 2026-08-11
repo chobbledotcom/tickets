@@ -1,10 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { queryAll } from "#shared/db/client.ts";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
-import { stripeApi } from "#shared/stripe.ts";
 import type { Group, Listing } from "#shared/types.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -13,6 +11,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta } from "#test-utils/factories.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
+import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 import { checkoutSessionEvent } from "#test-utils/webhooks.ts";
 
 /**
@@ -62,12 +61,7 @@ const paidSession = async (
       sessionId: `cs_${ref}`,
     }),
   );
-  const mockRefund = stub(stripeApi, "refundPayment", () =>
-    Promise.resolve({
-      id: `re_${ref}`,
-      status: "succeeded",
-    } as unknown as Awaited<ReturnType<typeof stripeApi.refundPayment>>),
-  );
+  const mockRefund = stubRefundPayment(`re_${ref}`, total);
   return { mockRefund, mockVerify };
 };
 

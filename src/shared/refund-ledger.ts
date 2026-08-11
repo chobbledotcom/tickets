@@ -65,18 +65,16 @@ const isPaymentOnlyPlaceholder = (group: Transfer[]): boolean =>
 
 const refundedSessionGroups = async (
   references: RefundReferences,
-): Promise<Set<string>> =>
-  new Set(
-    (
-      await Promise.all(
-        references.flatMap((reference) =>
-          reference.sessionIds.flatMap((sessionId) => [
-            bookingEventGroup(sessionId),
-            balanceEventGroup(sessionId),
-          ]),
-        ),
-      )
-    ).flat(),
+): Promise<string[][]> =>
+  await Promise.all(
+    references.flatMap((reference) =>
+      reference.sessionIds.map((sessionId) =>
+        Promise.all([
+          bookingEventGroup(sessionId),
+          balanceEventGroup(sessionId),
+        ]),
+      ),
+    ),
   );
 
 const legacyReferenceCount = (references: RefundReferences): number =>
@@ -88,15 +86,6 @@ const hasProviderPayment = (group: Transfer[]): boolean =>
 const hasOperatorMoney = (group: Transfer[]): boolean =>
   group.some(isOperatorMoneyLeg);
 
-/**
- * The order groups whose money actually came back.
- *
- * A run can return some of an attendee's charges and not others — a sibling the
- * provider refused, or one a subrequest budget cut off — and the ledger has to
- * say what moved rather than say nothing at all. `mapRefund` already reverses
- * one group at a time, and mirrors every leg of it, so reversing part of an
- * account leaves the rest of it exactly as it was.
- */
 /** The order groups to reverse, and whether money that came back could not be
  *  placed among them — a legacy reference names no session, so on a partial
  *  return there is no saying which group it paid for. */
@@ -106,12 +95,16 @@ const returnedRefundGroups = async (
   groups: Transfer[][],
   references: RefundReferences,
 ): Promise<ReturnedGroups> => {
-  // Operator money stays a person's call: a manual payment or an adjustment is
-  // not something a provider refund can mirror back.
-  if (groups.some(hasOperatorMoney)) return { groups: [], unplaced: false };
-  const returned = await refundedSessionGroups(references);
+  const namedSessionGroups = await refundedSessionGroups(references);
+  const returned = new Set(namedSessionGroups.flat());
   const cameBack = (group: Transfer[]): boolean =>
     returned.has(group[0]!.eventGroup);
+  const providerGroups = new Set(
+    groups.filter(hasProviderPayment).map((group) => group[0]!.eventGroup),
+  );
+  const namedUnplaced = namedSessionGroups.some((possible) =>
+    possible.every((eventGroup) => !providerGroups.has(eventGroup)),
+  );
   const unnamed = groups.filter(
     (group) => hasProviderPayment(group) && !cameBack(group),
   );
@@ -121,11 +114,16 @@ const returnedRefundGroups = async (
   // this is the one place that does not matter, because the answer is all of
   // them.
   const legacyCount = legacyReferenceCount(references);
-  if (unnamed.length <= legacyCount) return { groups, unplaced: false };
+  if (unnamed.length === legacyCount) {
+    return { groups, unplaced: namedUnplaced };
+  }
   // Only some of the account came back. A legacy reference that returned has
   // no session to place it by, so its money belongs to no group we can name:
   // post what we can and let the row say a person has to finish it.
-  return { groups: groups.filter(cameBack), unplaced: legacyCount > 0 };
+  return {
+    groups: groups.filter(cameBack),
+    unplaced: namedUnplaced || legacyCount > 0,
+  };
 };
 
 /**
@@ -149,11 +147,7 @@ const notYetReversed = async (
   return groups.filter((_, index) => done[index] === false);
 };
 
-/**
- * The account event groups to reverse for a full-account refund. Prior refund
- * groups are ignored; the caller separately treats any refund_cash as already
- * refunded, so a normal re-submit never reaches this mapper.
- */
+/** The original account event groups that a returned charge may reverse. */
 export const accountRefundGroups = (legs: Transfer[]): Transfer[][] => [
   ...Map.groupBy(
     legs.filter((leg) => !isRefundLeg(leg.kind)),
@@ -175,19 +169,18 @@ const computeAttendeeRefund = async (
 ): Promise<ComputedRefund> => {
   const account = attendeeAccount(attendeeId);
   const legs = await transfersByAccount(account);
-  // Every order group already carries its reversal (e.g. an idempotent
-  // re-submit): those legs are the durable refund record, so report success
-  // without re-posting — and without rebuilding legs under a fresh `nowIso()`.
-  // An account with no ledgered order at all is a different answer, below.
   const groups = accountRefundGroups(legs);
-  const open = await notYetReversed(legs, groups);
-  if (groups.length > 0 && open.length === 0) {
-    return { groups: [], posted: true };
+  const returned = await returnedRefundGroups(groups, references);
+  const orders = await notYetReversed(legs, returned.groups);
+  // Every requested group already carries its reversal: those legs are the
+  // durable record, so replay is a no-op success. Unplaceable returned money
+  // still reports false even when every group we could name was already done.
+  if (returned.groups.length > 0 && orders.length === 0) {
+    return { groups: [], posted: !returned.unplaced };
   }
-  const { groups: orders, unplaced } = await returnedRefundGroups(
-    open,
-    references,
-  );
+  // Operator money stays a person's call: a manual payment or adjustment is
+  // not something a new provider refund can mirror back.
+  if (groups.some(hasOperatorMoney)) return { groups: [], posted: false };
   if (orders.length === 0) return { groups: [], posted: false };
   // Only auto-reverse a fully-paid account — UNLESS the account is a pure
   // payment-only placeholder (every order group is ONLY provider-payment legs,
@@ -214,7 +207,7 @@ const computeAttendeeRefund = async (
     ),
     // Money that could not be placed leaves the ledger short of what moved, so
     // this is not a complete record — the caller marks the row for a person.
-    posted: !unplaced,
+    posted: !returned.unplaced,
   };
 };
 
@@ -270,15 +263,10 @@ export const recordAttendeeRefund = (
  * bulk refund doesn't open an interactive write transaction per attendee and
  * contend the single SQLite writer (SQLITE_BUSY) once enough overlap.
  *
- * But that batch is all-or-nothing, and the provider refunds have *already*
- * committed by the time we post: if one group fails (a reference conflict, a
- * transient write error) — or even a single attendee's read/mapping throws while
- * computing — the whole batch rolls back, and a later retry sees those payments
- * as already-refunded (`refundPayment` returns false) and never re-posts them, so
- * they'd be stranded without a `refund_cash` leg forever. So on *any* fast-path
- * failure we fall back to recording each attendee on its own through the
- * never-throw {@link recordAttendeeRefund}: the clean refunds still land and only
- * the genuinely failing attendees stay errored (`posted:false`). Never throws.
+ * The batch is all-or-nothing after the provider refunds have committed. On any
+ * mapping or write failure, the fallback records each attendee independently:
+ * clean reversals land now, while failed ones stay `posted:false` for the
+ * retained row state and a later per-group replay to repair. Never throws.
  */
 export const recordAttendeeRefundsBatch = async (
   attendees: readonly {

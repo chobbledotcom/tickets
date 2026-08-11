@@ -7,10 +7,7 @@
  * This module is pure: it decides from the claim and the time it is shown.
  */
 
-import type {
-  RefundCapability,
-  RefundClaim,
-} from "#shared/payment/row-state.ts";
+import type { RefundClaim } from "#shared/payment/row-state.ts";
 
 /** A run asking to work on a row. An admin run names its attendee, because
  *  only a run taking that same whole set again may resume a crashed one. */
@@ -110,11 +107,8 @@ export const claimRefusal = (decision: ClaimDecision): string => {
  *  there is nothing to be in doubt about. */
 export type ClaimAnswer = "lost" | "not_sent" | "validated";
 
-/** Whether the claim may be let go now. A lost answer turns on the provider:
- *  with an idempotency key a re-run lands on the same refund, so the claim can
- *  go; without one, letting go lets the next run send a second payout against
- *  evidence that has not caught up. */
-export const mayReleaseClaim = (
-  capability: RefundCapability,
-  answer: ClaimAnswer,
-): boolean => answer !== "lost" || capability === "keyed";
+/** Whether the claim may be let go now. A lost answer keeps the only durable
+ *  sign that money may still settle, whatever retry mechanism the provider
+ *  offered for the original call. */
+export const mayReleaseClaim = (answer: ClaimAnswer): boolean =>
+  answer !== "lost";

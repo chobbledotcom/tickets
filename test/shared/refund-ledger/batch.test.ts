@@ -223,6 +223,49 @@ describeWithEnv(
       expect(await accountBalance(attendeeAccount(attendeeId))).toBe(0);
     });
 
+    test("replaying one returned charge keeps its existing reversal recorded", async () => {
+      const attendeeId = 51;
+      await postBooking({ attendeeId, eventId: "sess-back" });
+      await postBooking({ attendeeId, eventId: "sess-stuck" });
+      const returned = [sessionReference("sess-back")];
+      await recordAttendeeRefund(attendeeId, returned);
+      const transferCount = (await allTransfers()).length;
+
+      expect(await recordAttendeeRefund(attendeeId, returned)).toEqual({
+        posted: true,
+      });
+      expect((await allTransfers()).length).toBe(transferCount);
+      expect(await refundCashAmounts(attendeeId)).toEqual([5000]);
+    });
+
+    test("reports a named return that has no ledger group", async () => {
+      const attendeeId = 52;
+      await postBooking({ attendeeId, eventId: "sess-placed" });
+
+      expect(
+        await recordAttendeeRefund(attendeeId, [
+          sessionReference("sess-placed"),
+          sessionReference("sess-missing"),
+        ]),
+      ).toEqual({ posted: false });
+      expect(await refundCashAmounts(attendeeId)).toEqual([5000]);
+    });
+
+    test("does not place two legacy returns on one unmatched payment group", async () => {
+      const attendeeId = 53;
+      await postBooking({ attendeeId, eventId: "sess-named" });
+      await postBooking({ attendeeId, eventId: "sess-one-legacy" });
+
+      expect(
+        await recordAttendeeRefund(attendeeId, [
+          sessionReference("sess-named"),
+          legacyReference("pi-legacy-one"),
+          legacyReference("pi-legacy-two"),
+        ]),
+      ).toEqual({ posted: false });
+      expect(await refundCashAmounts(attendeeId)).toEqual([5000]);
+    });
+
     // A legacy reference names no session, so when only SOME groups came back
     // there is no way to say which one it paid for. Posting the groups we can
     // name and calling that complete leaves its money reversed nowhere and

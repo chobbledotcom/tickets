@@ -21,7 +21,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
-import { setupStripe } from "#test-utils/settings.ts";
+import { withRefundMock } from "#test-utils/refund-routes.ts";
 import { bookingIntent, paymentSession } from "./index/helpers.ts";
 
 /** A signed cart line: `e` is the listing, `k`/`r` mark a package path. */
@@ -176,17 +176,19 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
 
   describe("when the money could be sent back", () => {
     test("tells the customer their details were saved", async () => {
-      await setupStripe();
-      const { result } = await storeFor("cs_refunded");
-      expect(result.error).toBe(
-        "We couldn't complete your booking, so we've saved your details and a member of our team can help you rebook.",
-      );
+      await withRefundMock(true, async () => {
+        const { result } = await storeFor("cs_refunded");
+        expect(result.error).toBe(
+          "We couldn't complete your booking, so we've saved your details and a member of our team can help you rebook.",
+        );
+      });
     });
 
     test("records that the refund happened", async () => {
-      await setupStripe();
-      const { result } = await storeFor("cs_refunded_flag");
-      expect(result.refunded).toBe(true);
+      await withRefundMock(true, async () => {
+        const { result } = await storeFor("cs_refunded_flag");
+        expect(result.refunded).toBe(true);
+      });
     });
   });
 

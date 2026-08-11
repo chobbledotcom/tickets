@@ -88,8 +88,8 @@ test("the small client matches stripe-node requests for every used operation", a
       () => small.paymentIntents.retrieveWithLatestCharge("pi_1"),
     ],
     [
-      () => official.refunds.create({ payment_intent: "pi_1" }),
-      () => small.refunds.create({ payment_intent: "pi_1" }),
+      () => official.refunds.create({ amount: 1000, payment_intent: "pi_1" }),
+      () => small.refunds.create({ amount: 1000, payment_intent: "pi_1" }),
     ],
     [() => official.balance.retrieve(), () => small.balance.retrieve()],
     [

@@ -8,8 +8,15 @@
 /* jscpd:ignore-start -- imports */
 import type Stripe from "stripe";
 import * as v from "valibot";
-import type { ChargeMoney } from "#shared/payment/resources.ts";
-import { chargeMoneyOrNull } from "#shared/payment/resources.ts";
+import {
+  mapProviderReader,
+  type ProviderRead,
+} from "#shared/payment/provider-read.ts";
+import { refundWithOneReread } from "#shared/payment/refund-attempt.ts";
+import {
+  type ChargeMoney,
+  chargeMoneyRead,
+} from "#shared/payment/resources.ts";
 import { validatedPaymentSession } from "#shared/payment/validated-session.ts";
 /* jscpd:ignore-end */
 import {
@@ -69,30 +76,39 @@ const createStripeCheckoutSession = makeCreateCheckoutSession(
   (session) => ({ id: session?.id, url: session?.url }),
 );
 
+const readStripeCharge = mapProviderReader(
+  (reference) => stripeApi.readPaymentIntent(reference),
+  ({ latest_charge: charge }): ProviderRead<ChargeMoney> => {
+    if (charge === null) {
+      return {
+        reason: "missing_documented_resource",
+        status: "invalid",
+      };
+    }
+    if (!charge.captured || !charge.paid || charge.status !== "succeeded") {
+      return { reason: "unsupported_status", status: "invalid" };
+    }
+    return chargeMoneyRead(
+      charge.amount_captured,
+      charge.currency,
+      charge.amount_refunded,
+    );
+  },
+);
+
 /** Stripe payment provider implementation */
 export const stripePaymentProvider: PaymentProvider = {
   checkoutCompletedEventType:
     "checkout.session.completed" satisfies StripeCheckoutCompletedEvent["type"],
   createCheckoutSession: createStripeCheckoutSession,
 
-  async readChargeMoneyOrNull(
-    paymentReference: string,
-  ): Promise<ChargeMoney | null> {
-    const charge = (await stripeApi.retrievePaymentIntent(paymentReference))
-      ?.latest_charge;
-    if (!charge) return null;
-    return chargeMoneyOrNull(
-      charge.amount,
-      charge.currency,
-      charge.amount_refunded,
-    );
-  },
+  readCharge: readStripeCharge,
   refundCapability: "keyed",
 
-  async refundPayment(paymentReference: string): Promise<boolean> {
-    const result = await stripeApi.refundPayment(paymentReference);
-    return result?.status === "succeeded";
-  },
+  refundCharge: refundWithOneReread(
+    (request) => stripeApi.refundCharge(request),
+    (reference) => stripePaymentProvider.readCharge(reference),
+  ),
   requiresWebhookSignature: true,
 
   async resolveWebhookSession({

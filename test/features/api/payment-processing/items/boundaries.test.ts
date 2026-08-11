@@ -19,7 +19,7 @@ import {
   pastCloseTime,
 } from "#test-utils/db-helpers/listings.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { stubRefundPayment } from "#test-utils/webhooks.ts";
+import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 import { nonStandalonePair, packageParentOrder } from "./helpers.ts";
 
 const pricesFor = async (

@@ -47,3 +47,7 @@ export const money = (amount: unknown, currency: unknown): Money | null => {
   });
   return result.success ? result.output : null;
 };
+
+/** Whether two amounts name exactly the same money. */
+export const sameMoney = (left: Money, right: Money): boolean =>
+  left.amount === right.amount && left.currency === right.currency;

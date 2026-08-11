@@ -10,7 +10,8 @@ import {
   getProcessedPayment,
 } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { stubRefundPayment } from "#test-utils/webhooks.ts";
+import { stripeRefundRequest } from "#test-utils/stripe/fixtures.ts";
+import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 import { bookingIntent, trustedPayment } from "./helpers.ts";
 
 const balanceData = (
@@ -81,7 +82,7 @@ describeWithEnv("payment processing balance outcomes", { db: true }, () => {
     const data = balanceData(id, attendeeId, listingId, 1000);
     data.session.amountTotal = 900;
     data.verdict = { agreed: 1000, verdict: "mismatch" };
-    using refund = stubRefundPayment("re_balance_mismatch");
+    using refund = stubRefundPayment("re_balance_mismatch", 900);
 
     expect(await processPaymentSession(id, data)).toMatchObject({
       detail: "Provider charged 900 but signed total was 1000",
@@ -92,7 +93,9 @@ describeWithEnv("payment processing balance outcomes", { db: true }, () => {
     expect((await getAttendeeBalanceState(attendeeId))?.remainingBalance).toBe(
       1000,
     );
-    expect(refund.calls[0]?.args).toEqual([`pi_${id}`]);
+    expect(refund.calls[0]?.args).toEqual([
+      stripeRefundRequest(`pi_${id}`, 900),
+    ]);
     await expectSessionFailed(id);
   });
 });

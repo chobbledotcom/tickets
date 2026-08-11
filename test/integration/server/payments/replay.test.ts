@@ -12,13 +12,13 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { singleItem } from "#test-utils/factories.ts";
 import { mockRequest, withMocks } from "#test-utils/mocks.ts";
-import { chargeMoney } from "#test-utils/payment-state.ts";
+import { chargeMoney, foundCharge } from "#test-utils/payment-state.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   stubRefundPayment,
   stubRetrieveCheckoutSession,
-} from "#test-utils/webhooks.ts";
+} from "#test-utils/webhooks/stripe.ts";
 
 // jscpd:ignore-end
 
@@ -185,13 +185,11 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
         () => ({
           // The provider's refund call fails (e.g. transiently down) and the
           // payment is not already refunded, so the refund genuinely failed.
-          mockRefund: stub(stripePaymentProvider, "refundPayment", () =>
-            Promise.resolve(false),
+          mockRefund: stub(stripePaymentProvider, "refundCharge", () =>
+            Promise.resolve({ kind: "rejected", reason: "failed" } as const),
           ),
-          mockRefunded: stub(
-            stripePaymentProvider,
-            "readChargeMoneyOrNull",
-            () => Promise.resolve(chargeMoney()),
+          mockRefunded: stub(stripePaymentProvider, "readCharge", () =>
+            Promise.resolve(foundCharge(chargeMoney())),
           ),
           mockRetrieve: stubRetrieveCheckoutSession({
             amountTotal: 1000,

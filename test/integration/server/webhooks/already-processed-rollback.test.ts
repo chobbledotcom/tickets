@@ -9,10 +9,10 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
+import { expectWebhookKeptAndRefunded } from "#test-utils/webhooks/stripe.ts";
 import {
   checkoutSessionEvent,
   expectKeptAsQuantityZeroAndRefunded,
-  expectWebhookKeptAndRefunded,
   postWebhookAndAssert,
 } from "#test-utils/webhooks.ts";
 

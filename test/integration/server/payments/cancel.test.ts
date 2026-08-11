@@ -1,9 +1,8 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { spy, stub } from "@std/testing/mock";
+import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import { stripeApi } from "#shared/stripe.ts";
 import {
   assertPublicHtml,
   expectHtmlResponse,
@@ -14,7 +13,11 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest, withMocks } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
+import { stripeRefundRequest } from "#test-utils/stripe/fixtures.ts";
+import {
+  stubRefundPayment,
+  stubRetrieveCheckoutSession,
+} from "#test-utils/webhooks/stripe.ts";
 
 // jscpd:ignore-end
 
@@ -90,7 +93,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       const { stripePaymentProvider } = await import(
         "#shared/stripe-provider.ts"
       );
-      const refundSpy = spy(stripeApi, "refundPayment");
+      const refundSpy = stubRefundPayment("re_unusable", 500);
       try {
         await withMocks(
           () =>
@@ -119,7 +122,9 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           },
         );
         expect(refundSpy.calls.length).toBe(1);
-        expect(refundSpy.calls[0]?.args[0]).toBe("pi_unusable");
+        expect(refundSpy.calls[0]?.args).toEqual([
+          stripeRefundRequest("pi_unusable", 500),
+        ]);
         // The buyer's page does not name the session, so the log is the
         // operator's only record of which one was refused.
         expect(

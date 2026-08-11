@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeEach, describe } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
-import { type SquareClient, squareApi } from "#shared/square.ts";
+import { squareApi } from "#shared/square/api.ts";
+import type { SquareClient } from "#shared/square/client.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { reclaimLeakedFdsNow } from "#test-utils/reclaim-fds.ts";
 

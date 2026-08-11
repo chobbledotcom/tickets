@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute, queryAll } from "#shared/db/client.ts";
+import { execute, queryAll, requireOne } from "#shared/db/client.ts";
+import { legacyAnchorStatements } from "#shared/db/payment-anchor/mint.ts";
 import {
-  type AnchoredAttendee,
-  anchorLegacyCharges,
-} from "#shared/db/payment-anchor/mint.ts";
-import { claimAttendeeRows } from "#shared/db/payment-claim.ts";
+  claimAttendeeRows,
+  type LoadedRefundAttendee,
+} from "#shared/db/payment-claim/take.ts";
 import {
   getRefundPaymentReferencesForAttendee,
   paymentReferenceIndex,
@@ -43,8 +43,14 @@ describeWithEnv(
     const about = async (
       attendeeId: number,
       paymentId: string,
-    ): Promise<AnchoredAttendee> => ({
+    ): Promise<LoadedRefundAttendee> => ({
       attendeeId,
+      loadedPiiBlob: (
+        await requireOne<{ pii_blob: string }>(
+          "SELECT pii_blob FROM attendees WHERE id = ?",
+          [attendeeId],
+        )
+      ).pii_blob,
       references: await getRefundPaymentReferencesForAttendee(
         { id: attendeeId, payment_id: paymentId },
         await getTestPrivateKey(),
@@ -63,27 +69,19 @@ describeWithEnv(
       await execute("DELETE FROM attendees AS attendee WHERE attendee.id = ?", [
         attendeeId,
       ]);
-      await anchorLegacyCharges([held]);
+      expect(await claimAttendeeRows([held], "keyless")).toEqual({
+        kind: "changed",
+      });
 
       expect(await paymentRowCount(attendeeId)).toBe(0);
     });
 
-    test("a charge with no row of its own cannot be held until it has one", async () => {
+    test("a charge with no row of its own is minted and held together", async () => {
       const attendeeId = await newAttendee("legacy@example.com");
-
-      // Nothing to claim, so the run is told it holds this attendee while
-      // holding none of their money.
-      expect(await claimAttendeeRows([attendeeId], "keyless")).toEqual({
-        held: new Map(),
-        heldSince: expect.any(String),
-        inherited: new Map(),
-        kind: "claimed",
-        returned: new Set(),
-      });
-
-      await anchorLegacyCharges([await about(attendeeId, "pi_old")]);
-
-      const claim = await claimAttendeeRows([attendeeId], "keyless");
+      const claim = await claimAttendeeRows(
+        [await about(attendeeId, "pi_old")],
+        "keyless",
+      );
       if (claim.kind !== "claimed") throw new Error("the claim was refused");
       expect(heldSessionIds(claim)).toEqual([
         `legacy:${attendeeId}:${await paymentReferenceIndex("pi_old")}`,
@@ -92,14 +90,14 @@ describeWithEnv(
 
     test("a second run is turned away from an anchored legacy charge", async () => {
       const attendeeId = await newAttendee("legacy2@example.com");
-      await anchorLegacyCharges([await about(attendeeId, "pi_once")]);
+      const loaded = await about(attendeeId, "pi_once");
 
-      expect(await claimAttendeeRows([attendeeId], "keyless")).toMatchObject({
+      expect(await claimAttendeeRows([loaded], "keyless")).toMatchObject({
         kind: "claimed",
       });
       // The whole point: with no row to hold, both runs passed this line and
       // both sent a payout against the one charge.
-      expect(await claimAttendeeRows([attendeeId], "keyless")).toEqual({
+      expect(await claimAttendeeRows([loaded], "keyless")).toEqual({
         blockedBy: { kind: "held" },
         kind: "blocked",
       });
@@ -109,8 +107,10 @@ describeWithEnv(
       const attendeeId = await newAttendee("legacy3@example.com");
       const run = [await about(attendeeId, "pi_twice")];
 
-      await anchorLegacyCharges(run);
-      await anchorLegacyCharges(run);
+      await Promise.all([
+        claimAttendeeRows(run, "keyless"),
+        claimAttendeeRows(run, "keyless"),
+      ]);
 
       // The row names the attendee and the charge, so the second write has
       // nothing to add.
@@ -122,17 +122,21 @@ describeWithEnv(
       await finalizeProcessedPayment("sess-recorded", attendeeId, "", "pi_new");
 
       const run = [await about(attendeeId, "")];
-      const calls = await countDatabaseCalls(0, () => anchorLegacyCharges(run));
+      const calls = await countDatabaseCalls(0, async () => {
+        expect(await legacyAnchorStatements(run)).toEqual([]);
+      });
 
       // The normal case: nothing is missing, so nothing is written.
       expect(calls).toBe(0);
       expect(await paymentRowCount(attendeeId)).toBe(1);
     });
 
-    test("anchoring nobody reaches no database", async () => {
-      expect(await countDatabaseCalls(0, () => anchorLegacyCharges([]))).toBe(
-        0,
-      );
+    test("preparing anchors for nobody reaches no database", async () => {
+      expect(
+        await countDatabaseCalls(0, async () => {
+          expect(await legacyAnchorStatements([])).toEqual([]);
+        }),
+      ).toBe(0);
     });
   },
 );

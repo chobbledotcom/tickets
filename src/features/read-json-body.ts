@@ -6,12 +6,8 @@
  * turns a failure into whatever error response its surface needs (an API 400, a
  * form 400), keeping this response-agnostic.
  */
+import { readJson } from "#shared/read-json.ts";
+
 export const readJsonBody = async (
   request: Request,
-): Promise<{ ok: true; value: unknown } | { ok: false }> => {
-  try {
-    return { ok: true, value: await request.json() };
-  } catch {
-    return { ok: false };
-  }
-};
+): ReturnType<typeof readJson> => await readJson(() => request.json());

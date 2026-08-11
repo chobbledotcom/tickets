@@ -13,10 +13,10 @@ import * as v from "valibot";
 import { PaymentConflictSchema } from "#shared/payment/conflict.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
-/** Whether a second attempt under this claim would land on the money twice.
- *  `keyed` takes an idempotency key, so a lost call may be re-run and the
- *  claim released on any answer. `keyless` (SumUp) has no such promise, so a
- *  lost answer keeps the claim until fresh evidence settles it. */
+/** Whether a stale claim may repeat a provider call that gave no answer.
+ *  Every lost answer keeps the claim first. A resumed `keyed` call may safely
+ *  repeat its deterministic request; `keyless` work may only observe until
+ *  fresh evidence settles it. */
 export const RefundCapabilitySchema = v.picklist(["keyed", "keyless"]);
 export type RefundCapability = v.InferOutput<typeof RefundCapabilitySchema>;
 

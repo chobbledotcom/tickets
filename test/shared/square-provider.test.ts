@@ -1,9 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import type { ChargeMoney } from "#shared/payment/resources.ts";
+import type { ProviderRead } from "#shared/payment/provider-read.ts";
 import { PaymentUserError } from "#shared/payment-helpers.ts";
-import { squareApi } from "#shared/square.ts";
+import { squareApi } from "#shared/square/api.ts";
+import type { SquarePayment } from "#shared/square/payment-outcomes.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
 import {
   SQUARE_ORDER_META,
@@ -16,7 +17,6 @@ import {
   asSession,
   BLANK_SESSION_METADATA,
 } from "#test-utils/payment-session.ts";
-import { gbp } from "#test-utils/payment-state.ts";
 
 /** A completed order carrying no metadata (the "ignore" fixture). */
 const NO_META_ORDER = {
@@ -26,9 +26,11 @@ const NO_META_ORDER = {
   totalMoney: squareMoney(1000),
 };
 
-type SquarePayment = Awaited<ReturnType<typeof squareApi.retrievePayment>>;
+const foundPayment = (
+  resource: SquarePayment,
+): ProviderRead<SquarePayment> => ({ resource, status: "found" });
 
-/** retrieveOrder + retrievePayment stubs for a paid (pay_1/COMPLETED) order. */
+/** Order and payment reads for a paid (pay_1/COMPLETED) order. */
 const paidPay1Mocks = (id: string, createdAt?: string) => ({
   order: stub(squareApi, "retrieveOrder", () =>
     Promise.resolve({
@@ -40,12 +42,14 @@ const paidPay1Mocks = (id: string, createdAt?: string) => ({
       totalMoney: squareMoney(1000),
     }),
   ),
-  payment: stub(squareApi, "retrievePayment", () =>
-    Promise.resolve({
-      amountMoney: squareMoney(1000),
-      id: "pay_1",
-      status: "COMPLETED",
-    }),
+  payment: stub(squareApi, "readPayment", () =>
+    Promise.resolve(
+      foundPayment({
+        amountMoney: squareMoney(1000),
+        id: "pay_1",
+        status: "COMPLETED",
+      }),
+    ),
   ),
 });
 
@@ -150,8 +154,8 @@ describe("square-provider", () => {
               totalMoney: { amount: null, currency: null },
             }),
           ),
-          payment: stub(squareApi, "retrievePayment", () =>
-            Promise.resolve({ id: "pay_1", status: "COMPLETED" }),
+          payment: stub(squareApi, "readPayment", () =>
+            Promise.resolve(foundPayment({ id: "pay_1", status: "COMPLETED" })),
           ),
         }),
         async () => {
@@ -209,12 +213,14 @@ describe("square-provider", () => {
               totalMoney: { amount: BigInt(1000), currency: "GBP" },
             }),
           ),
-          payment: stub(squareApi, "retrievePayment", () =>
-            Promise.resolve({
-              amountMoney: squareMoney(1000),
-              id: "pay_2",
-              status: "COMPLETED",
-            }),
+          payment: stub(squareApi, "readPayment", () =>
+            Promise.resolve(
+              foundPayment({
+                amountMoney: squareMoney(1000),
+                id: "pay_2",
+                status: "COMPLETED",
+              }),
+            ),
           ),
         }),
         async (mocks) => {
@@ -244,11 +250,13 @@ describe("square-provider", () => {
               totalMoney: { amount: BigInt(1000), currency: "GBP" },
             }),
           ),
-          payment: stub(squareApi, "retrievePayment", () =>
-            Promise.resolve({
-              id: "pay_3",
-              status: "PENDING",
-            }),
+          payment: stub(squareApi, "readPayment", () =>
+            Promise.resolve(
+              foundPayment({
+                id: "pay_3",
+                status: "PENDING",
+              }),
+            ),
           ),
         }),
         async () => {
@@ -284,113 +292,6 @@ describe("square-provider", () => {
         },
       );
     });
-  });
-
-  describe("readChargeMoneyOrNull", () => {
-    const REFUND_CASES: {
-      name: string;
-      payment: SquarePayment;
-      expected: ChargeMoney | null;
-      id?: string;
-    }[] = [
-      {
-        expected: {
-          captured: gbp(1000),
-          confirmedRefunded: gbp(1000),
-          refunds: [],
-        },
-        name: "reports every penny back when fully refunded",
-        payment: {
-          amountMoney: squareMoney(1000),
-          id: "pay_123",
-          refundedMoney: squareMoney(1000),
-          status: "COMPLETED",
-        },
-      },
-      {
-        expected: {
-          captured: gbp(1000),
-          confirmedRefunded: gbp(400),
-          refunds: [],
-        },
-        name: "reports the part that went back on a partial refund",
-        payment: {
-          amountMoney: squareMoney(1000),
-          id: "pay_123",
-          refundedMoney: squareMoney(400),
-          status: "COMPLETED",
-        },
-      },
-      {
-        // Square leaves the refunded total off when nothing has gone back, so
-        // an absent one is a stated zero rather than a missing fact.
-        expected: {
-          captured: gbp(1000),
-          confirmedRefunded: gbp(0),
-          refunds: [],
-        },
-        name: "reads an absent refunded total as nothing back",
-        payment: {
-          amountMoney: squareMoney(1000),
-          id: "pay_123",
-          status: "COMPLETED",
-        },
-      },
-      {
-        expected: null,
-        name: "refuses a payment whose charged amount is unknown",
-        payment: {
-          id: "pay_123",
-          refundedMoney: squareMoney(1000),
-          status: "COMPLETED",
-        },
-      },
-      {
-        expected: null,
-        id: "pay_missing",
-        name: "refuses a payment that cannot be found",
-        payment: null,
-      },
-      {
-        // The refund total is THERE but names no amount. Reading that as zero
-        // would tell the guard nothing has gone back, and a full refund would
-        // be sent on top of money that may already be with the buyer.
-        expected: null,
-        name: "refuses a refunded total that names no amount",
-        payment: {
-          amountMoney: squareMoney(1000),
-          id: "pay_123",
-          refundedMoney: { currency: "GBP" },
-          status: "COMPLETED",
-        },
-      },
-      {
-        // Two currencies cannot be compared, so what came back is unknown.
-        expected: null,
-        name: "refuses a refunded total in another currency",
-        payment: {
-          amountMoney: squareMoney(1000),
-          id: "pay_123",
-          refundedMoney: squareMoney(1000, "USD"),
-          status: "COMPLETED",
-        },
-      },
-    ];
-
-    for (const { name, payment, expected, id } of REFUND_CASES) {
-      test(name, async () => {
-        await withMocks(
-          () =>
-            stub(squareApi, "retrievePayment", () => Promise.resolve(payment)),
-          async () => {
-            const result = await squarePaymentProvider.readChargeMoneyOrNull(
-              id ?? "pay_123",
-            );
-            expect(result).toEqual(expected);
-          },
-        );
-      });
-    }
   });
 
   describe("createCheckoutSession", () => {

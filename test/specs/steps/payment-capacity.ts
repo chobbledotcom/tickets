@@ -22,14 +22,16 @@ import {
 } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
+  expectWebhookKeptAndRefunded,
+  stubRefundPayment,
+  stubRetrieveCheckoutSession,
+} from "#test-utils/webhooks/stripe.ts";
+import {
   checkoutSessionEvent,
   expectAttendeeCreatedWithPiiBlob,
   expectRefundedWithNote,
-  expectWebhookKeptAndRefunded,
   expectWebhookProcessed,
   findKeptPlaceholder,
-  stubRefundPayment,
-  stubRetrieveCheckoutSession,
 } from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end

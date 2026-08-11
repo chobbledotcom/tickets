@@ -1,440 +1,76 @@
-import { chunk } from "#fp";
-import {
-  type AnchoredAttendee,
-  anchorLegacyCharges,
-} from "#shared/db/payment-anchor/mint.ts";
-import {
-  anchorSessionId,
-  isAnchorSession,
-} from "#shared/db/payment-anchor/session.ts";
-import {
-  type ClaimResult,
-  claimAttendeeRows,
-  type RowRelease,
-  releaseAttendeeRows,
-} from "#shared/db/payment-claim.ts";
+import type { AnchoredAttendee } from "#shared/db/payment-anchor/mint.ts";
+import { anchorSessionId } from "#shared/db/payment-anchor/session.ts";
 import {
   markPaymentReferencesProviderRefunded,
   type RefundPaymentReference,
 } from "#shared/db/payment-references.ts";
 import { reportRefundNotRecorded } from "#shared/invariant-errors.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import { sendRefundIfAdmitted } from "#shared/payment/admit-refund.ts";
-import { claimRefusal, mayReleaseClaim } from "#shared/payment/claim.ts";
-import type { RefundCapability } from "#shared/payment/row-state.ts";
-import { reportWithheldRefund } from "#shared/payment-review.ts";
-import type { getActivePaymentProvider } from "#shared/payments.ts";
 import { recordAttendeeRefundsBatch } from "#shared/refund-ledger.ts";
+import {
+  type CandidateRefund,
+  type MarkReturnedReferences,
+  PROVIDER_REFUND_CONCURRENCY,
+  type PreparedReferenceRefund,
+  type RefundProvider,
+  refundCandidateAtProvider,
+} from "./attempt.ts";
 import type { RefundCandidate } from "./candidates.ts";
 import {
-  combineRefundOutcomes,
-  packByReferenceCount,
-  type RefundOutcome,
-} from "./waves.ts";
+  durableRowClaim,
+  type RefundRunBlock,
+  type RowClaim,
+  type RunFindings,
+  underAttendeeClaim,
+} from "./claim.ts";
+import { reportRefundProblem } from "./report.ts";
+import { packByReferenceCount, type RefundOutcome } from "./waves.ts";
 
-type RefundProvider = Pick<
-  NonNullable<Awaited<ReturnType<typeof getActivePaymentProvider>>>,
-  "readChargeMoneyOrNull" | "refundCapability" | "refundPayment"
->;
-type MarkReturnedReferences = (
-  references: readonly RefundPaymentReference[],
-) => Promise<void>;
 type RecordRefunds = typeof recordAttendeeRefundsBatch;
 
-/** Taking and letting go of the hold on an attendee's payment rows. Injected
- *  so the tally and ordering rules can be tested without a database. */
-export type RowClaim = {
-  claim: (
-    attendeeIds: readonly number[],
-    capability: RefundCapability,
-  ) => Promise<ClaimResult>;
-  release: (release: RowRelease) => Promise<void>;
-};
-
-/**
- * What a run could not prove about one attendee's money, which is what decides
- * whether its hold stays on. An attendee named by neither is settled.
- *
- * `in_doubt`: the call was made and not confirmed. `unread`: the provider could
- * not be asked, so nothing was sent and nothing was learnt. {@link mayLetGo}
- * decides what each one releases.
- */
-export type AttendeeDoubt = "in_doubt" | "unread";
-
-/**
- * What a run learnt about the attendees it held.
- *
- * The two are INDEPENDENT, and a run routinely holds both about one person: a
- * charge that definitely came back and a sibling the provider could not be
- * asked about. Folding them into one verdict loses whichever came second — and
- * the one that gets lost is the durable marker, so the row is released saying
- * nothing about money that really did move.
- *
- * Filled in as the run goes, so a failure part-way through still settles on
- * everything learnt before it.
- */
-type RunFindings = {
-  /** Attendees whose money this run could not account for. */
-  doubts: Map<number, AttendeeDoubt>;
-  /** Per attendee, the rows whose returned money the books have not caught up
-   *  with. Only rows that carried money that came back may be named. */
-  unrecorded: Map<number, readonly string[]>;
-};
-
-export const durableRowClaim: RowClaim = {
-  claim: claimAttendeeRows,
-  release: releaseAttendeeRows,
-};
+/** Whether a stale run can safely repeat the provider call it inherited. */
+const MAY_RETRY_INHERITED_CALL = {
+  keyed: true,
+  keyless: false,
+} as const satisfies Record<RefundProvider["refundCapability"], boolean>;
 
 export type RefundCounts = {
   refundedCount: number;
+  /** The provider accepted the refund but has not proved it completed. */
+  pendingCount: number;
   failedCount: number;
-  /** The provider was asked and did not give a clear answer, so nobody knows
-   *  whether the money moved. Never say it did. */
+  /** The provider was asked and did not give a clear answer. */
   errorCount: number;
-  /** The money definitely went back and the ledger could not record it. This
-   *  needs a correction, and must never be retried. */
+  /** The money went back and the ledger could not record it. */
   notRecordedCount: number;
 };
+
+/** A batch either ran and has per-attendee tallies, or never started because
+ *  another live refund owns part of its complete set. */
+export type RefundBatchResult =
+  | { kind: "blocked"; reason: "refund_in_progress" }
+  | { counts: RefundCounts; kind: "finished" };
 
 const noRefunds = (failedCount = 0): RefundCounts => ({
   errorCount: 0,
   failedCount,
   notRecordedCount: 0,
+  pendingCount: 0,
   refundedCount: 0,
 });
 
-/** Max provider refund subrequests in flight at once. Bounds concurrency by
- * charge reference, not attendee: an attendee can carry several references (a
- * deposit plus a balance charge, or a merged attendee's combined charges), so
- * capping attendees alone could still fan a bulk refund out to far more
- * subrequests than an edge worker can safely hold open. Waves are packed by
- * reference count and each candidate's own references are chunked to this too.
- * The refresh-payment status check reuses it to bound its own fan-out. */
-export const PROVIDER_REFUND_CONCURRENCY = 5;
+const BLOCK_IS_SETTLING = {
+  claim_held: true,
+  payment_set_changed: false,
+} as const satisfies Record<RefundRunBlock["kind"], boolean>;
 
-/** Say that something went wrong with a refund on this listing. */
-const reportRefundProblem = (detail: string, listingId: number): void =>
-  logError({ code: ErrorCode.PAYMENT_REFUND, detail, listingId });
-
-/** Log why one reference's money did not move, and report it as failed. */
-const refusedRefund = (detail: string, listingId: number): RefundOutcome => {
-  reportRefundProblem(detail, listingId);
-  return "failed";
-};
-
-/** What a run could not prove about one charge. `lost`: asked and not
- *  confirmed, which looks identical to a refusal from here. `unread`: could not
- *  be asked, so nothing moved and nothing was learnt. */
-export type RefundDoubt = "lost" | "unread";
-
-/** One reference's result. A charge we never had to ask about carries none. */
-type ReferenceRefund = { doubt?: RefundDoubt; outcome: RefundOutcome };
-
-/** Do the work at most once per key. Two attendees in one run can carry the
- *  same charge, and the hold cannot separate them because both rows belong to
- *  this run — so the second asker waits on the first's answer. */
-const answeredOnce = <TAnswer>(
-  asked: Map<string, Promise<TAnswer>>,
-  key: string,
-  ask: () => Promise<TAnswer>,
-): Promise<TAnswer> => {
-  const started = asked.get(key);
-  if (started !== undefined) return started;
-  const running = ask();
-  asked.set(key, running);
-  return running;
-};
-
-const refundReferenceOnce = async (
-  provider: RefundProvider,
-  candidate: RefundCandidate,
-  listingId: number,
-  reference: RefundPaymentReference,
-  alreadyReturned: ReadonlySet<string>,
-): Promise<ReferenceRefund> => {
-  const attendeeId = candidate.attendee.id;
-  const paymentReference = reference.reference;
-  const settled = (outcome: RefundOutcome): ReferenceRefund => ({ outcome });
-  try {
-    if (reference.refundState === "completed") return settled("refunded");
-    // What the claimed row says now beats the reference list this run loaded
-    // before it had the hold: another run may have refunded this since.
-    if (alreadyReturned.has(reference.index)) return settled("refunded");
-    // What the money has already done decides whether more is sent — see
-    // `sendRefundIfAdmitted`. SumUp has no idempotency key to fall back on.
-    return await sendRefundIfAdmitted(provider, paymentReference, {
-      // Asked and not confirmed: it may never have happened, or the answer
-      // may simply have been lost.
-      failed: () => ({
-        doubt: "lost",
-        outcome: refusedRefund(
-          `Admin refund failed for attendee ${attendeeId}, payment ${paymentReference}`,
-          listingId,
-        ),
-      }),
-      sent: () => settled("refunded"),
-      withhold: (admission) => {
-        if (admission.kind === "already_returned") return settled("refunded");
-        // How loudly this is said belongs to the one reporter that knows: an
-        // unreachable provider is an answer, not an incident, and alerting on
-        // it buries the disagreements that need somebody.
-        reportWithheldRefund(admission, {
-          attendeeId,
-          listingId,
-          paymentReference,
-        });
-        // Every other withholding is the provider answering clearly. Only an
-        // unreadable one leaves this run knowing no more than it started with.
-        return admission.kind === "unreadable"
-          ? { doubt: "unread", outcome: "withheld" }
-          : settled("withheld");
-      },
-    });
-  } catch (err) {
-    logError({
-      code: ErrorCode.PAYMENT_REFUND,
-      detail: `Admin refund errored for attendee ${attendeeId}, payment ${paymentReference}: ${String(
-        err,
-      )}`,
-      listingId,
-    });
-    // A throw is the same doubt as an unconfirmed answer: the call may have
-    // landed before it failed.
-    return { doubt: "lost", outcome: "errored" };
-  }
-};
-
-/** Whether this attendee's rows may be let go. Only genuine doubt keeps a
- *  hold, and only against a provider where a repeat would pay twice. */
-const mayLetGo = (
-  doubt: AttendeeDoubt | undefined,
-  capability: RefundCapability,
-  resumed: boolean,
-): boolean => {
-  if (doubt === "in_doubt") return mayReleaseClaim(capability, "lost");
-  // Learning nothing settles nothing, so an inherited hold keeps whatever the
-  // dead run left on it.
-  if (doubt === "unread") {
-    return !resumed || mayReleaseClaim(capability, "lost");
-  }
-  return true;
-};
-
-/** Let go of a hold, reporting rather than raising when the row will not. */
-const releaseHold = async (
-  rowClaim: RowClaim,
-  release: RowRelease,
-  listingId: number,
-): Promise<void> => {
-  if (release.sessionIds.length === 0) return;
-  try {
-    await rowClaim.release(release);
-  } catch (error) {
-    reportRefundProblem(
-      `Refund claim could not be released: ${String(error)}`,
-      listingId,
-    );
-  }
-};
-
-/** Hold every attendee this run will touch, do the work, then let go. One
- *  claim for the whole run costs the same two round trips as a single refund,
- *  and the run can never hold some of its attendees but not others. */
-const underAttendeeClaim = async <TResult>(
-  rowClaim: RowClaim,
-  held: readonly AnchoredAttendee[],
-  capability: RefundCapability,
-  listingId: number,
-  run: {
-    blocked: (reason: string) => TResult;
-    work: (
-      alreadyReturned: ReadonlySet<string>,
-      findings: RunFindings,
-    ) => Promise<TResult>;
-  },
-): Promise<TResult> => {
-  // A charge with no row of its own cannot be held, and a claim that holds
-  // nothing lets two runs both believe they have the money. Give it one first.
-  await anchorLegacyCharges(held);
-  // The payment sessions this run loaded. A hold covering anything else means
-  // the attendee's money grew while the run was queued.
-  const knownSessionIds = new Set(
-    held.flatMap((attendee) =>
-      attendee.references.flatMap((reference) => [...reference.sessionIds]),
-    ),
-  );
-  const claim = await rowClaim.claim(
-    held.map((attendee) => attendee.attendeeId),
-    capability,
-  );
-  if (claim.kind === "blocked") {
-    return run.blocked(claimRefusal(claim.blockedBy));
-  }
-  // The hold covers the rows that exist NOW. A payment this run never loaded
-  // means refunding what we did load would return part of someone's money and
-  // leave the rest, so the whole run stands down. An anchor is not such a
-  // payment: it stands in for a charge this run already knows about, and the
-  // reference list leaves its id out on purpose.
-  const heldSessionIds = [...claim.held.values()].flat();
-  const unknown = heldSessionIds.filter(
-    (sessionId) =>
-      !knownSessionIds.has(sessionId) && !isAnchorSession(sessionId),
-  );
-  if (unknown.length > 0) {
-    await releaseHold(
-      rowClaim,
-      { heldSince: claim.heldSince, sessionIds: heldSessionIds },
-      listingId,
-    );
-    return run.blocked(
-      `a payment landed while this run was waiting (${unknown.length} not in the set it loaded)`,
-    );
-  }
-  // A failed release leaves the claim standing until it goes stale, which is
-  // recoverable; losing the answer the run just produced is not. So it is
-  // reported, never allowed to replace the result or the original error.
-  const findings: RunFindings = { doubts: new Map(), unrecorded: new Map() };
-  const settle = async (): Promise<void> => {
-    const letting = [...claim.held].filter(([attendeeId]) =>
-      // An inherited hold is judged under the capability its original call was
-      // made under, not this run's provider.
-      mayLetGo(
-        findings.doubts.get(attendeeId),
-        claim.inherited.get(attendeeId) ?? capability,
-        claim.inherited.has(attendeeId),
-      ),
-    );
-    await releaseHold(
-      rowClaim,
-      {
-        heldSince: claim.heldSince,
-        sessionIds: letting.flatMap(([, sessions]) => sessions),
-        // Only rows being let go are marked: a row still under claim is
-        // already protected, and the run that finally releases it re-posts the
-        // ledger and marks whatever is still outstanding then.
-        unrecorded: new Set(
-          letting.flatMap(
-            ([attendeeId]) => findings.unrecorded.get(attendeeId) ?? [],
-          ),
-        ),
-      },
-      listingId,
-    );
-  };
-  try {
-    const result = await run.work(claim.returned, findings);
-    await settle();
-    return result;
-  } catch (error) {
-    // Nothing more is known about anybody, so every attendee this run still
-    // had an answer for falls into doubt. What it had already LEARNT stands:
-    // a wave that returned money the books missed is a fact the throw does
-    // not undo, and the row has to keep saying so.
-    for (const attendeeId of claim.held.keys()) {
-      findings.doubts.set(attendeeId, "in_doubt");
-    }
-    await settle();
-    throw error;
-  }
-};
-
-/** What one attendee's refund came to. `doubt` says what this run could not
- *  prove about their money, which is what decides whether the hold goes. */
-export type CandidateRefund = {
-  candidate: RefundCandidate;
-  outcome: RefundOutcome;
-  /** The charges that actually went back. On a whole refund this is every
-   *  reference; on a partial one it is the part that moved, which the ledger
-   *  reverses on its own rather than recording nothing. */
-  returned: readonly RefundPaymentReference[];
-  doubt?: RefundDoubt;
-};
-
-export const refundCandidateAtProvider = async (
-  provider: RefundProvider,
-  candidate: RefundCandidate,
-  listingId: number,
-  markReturnedReferences: MarkReturnedReferences = markPaymentReferencesProviderRefunded,
-  alreadyReturned: ReadonlySet<string> = new Set(),
-  inFlight: Map<string, Promise<ReferenceRefund>> = new Map(),
-): Promise<CandidateRefund> => {
-  const results: (ReferenceRefund & {
-    reference: RefundPaymentReference;
-  })[] = [];
-  // Chunk this attendee's own references so a merged attendee carrying many
-  // charges never fans out past the concurrency budget on its own.
-  for (const group of chunk(PROVIDER_REFUND_CONCURRENCY)(
-    candidate.references,
-  )) {
-    const groupResults = await Promise.all(
-      group.map(async (reference) => ({
-        ...(await answeredOnce(inFlight, reference.reference, () =>
-          refundReferenceOnce(
-            provider,
-            candidate,
-            listingId,
-            reference,
-            alreadyReturned,
-          ),
-        )),
-        reference,
-      })),
-    );
-    results.push(...groupResults);
-  }
-  const outcome = combineRefundOutcomes(
-    results.map((result) => result.outcome),
-  );
-  // A lost answer outranks an unread provider: there the money may already
-  // have moved, so the hold has to survive either way.
-  const doubt = results.some((result) => result.doubt === "lost")
-    ? "lost"
-    : results.find((result) => result.doubt === "unread")?.doubt;
-  const returnedReferences = results
-    .filter((result) => result.outcome === "refunded")
-    .map((result) => result.reference);
-  try {
-    await markReturnedReferences(returnedReferences);
-  } catch (error) {
-    reportRefundProblem(
-      `Admin refund could not record returned payments for attendee ${candidate.attendee.id}: ${String(error)}`,
-      listingId,
-    );
-    // Nothing durable says which charges came back, so the ledger must not be
-    // told: a reversal it cannot re-derive is worse than one it never made.
-    // The doubt stands either way — a marker write that failed leaves nothing
-    // settled, and the hold is then the only thing between money that did go
-    // back and a second payout.
-    if (outcome !== "refunded") {
-      return { candidate, doubt: "lost", outcome: "errored", returned: [] };
-    }
-    // The money went back but nothing records it. The refund still counts, so
-    // the ledger still posts — but the run must not let go of its hold.
-    return {
-      candidate,
-      doubt: "lost",
-      outcome,
-      returned: returnedReferences,
-    };
-  }
-  if (outcome !== "refunded" && candidate.references.length > 1) {
-    logError({
-      code: ErrorCode.PAYMENT_REFUND,
-      detail: `Admin refund did not complete every payment for attendee ${candidate.attendee.id}`,
-      listingId,
-    });
-  }
-  return {
-    candidate,
-    ...(doubt !== undefined ? { doubt } : {}),
-    outcome,
-    returned: returnedReferences,
-  };
-};
+const finished = (counts: RefundCounts): RefundBatchResult => ({
+  counts,
+  kind: "finished",
+});
 
 const logBulkRefundProblem = (
-  outcome: Exclude<RefundOutcome, "refunded" | "withheld">,
+  outcome: Extract<RefundOutcome, "errored" | "failed">,
   candidate: RefundCandidate,
   listingId: number,
 ): void => {
@@ -448,9 +84,7 @@ const logBulkRefundProblem = (
   });
 };
 
-/** An attendee's charges that came back, and whether that was all of them. A
- *  post for a partial one records the money without calling the attendee
- *  refunded, because the rest of their charges are still with the provider. */
+/** An attendee's charges that came back, and whether that was all of them. */
 type LedgerPosting = AnchoredAttendee & { whole: boolean };
 
 const tallyProviderRefund = (
@@ -466,16 +100,12 @@ const tallyProviderRefund = (
   } else if (outcome === "failed") {
     counts.failedCount++;
     logBulkRefundProblem(outcome, candidate, listingId);
+  } else if (outcome === "pending") {
+    counts.pendingCount++;
   } else if (outcome === "withheld") {
-    // No money was sent, so it counts as not refunded — but the reason was
-    // already said at the volume it deserved. Saying it again here as an
-    // incident is how a provider outage fills the log with one error per
-    // reference.
     counts.failedCount++;
   }
-  // Whatever came back is recorded, whether or not the rest did. A refused
-  // sibling used to strand its clean sibling's money with no ledger entry at
-  // all; the ledger reverses the groups that moved and leaves the others.
+  // Record whatever came back, even when a sibling charge did not.
   if (returned.length > 0) {
     postings.push({
       attendeeId: candidate.attendee.id,
@@ -485,15 +115,7 @@ const tallyProviderRefund = (
   }
 };
 
-/**
- * The rows this charge is held by.
- *
- * A legacy charge has none of its own — it lives in the attendee's
- * `payment_id` column — so it was given an anchor row before the claim. The
- * reference was loaded before that and still names no row, so the anchor is
- * derived the same way it was minted. Without this a returned legacy charge
- * marks nothing, and its anchor is released free to be deleted.
- */
+/** The rows this charge is held by. */
 const rowsHolding = (
   attendeeId: number,
   reference: RefundPaymentReference,
@@ -502,14 +124,7 @@ const rowsHolding = (
     ? reference.rowSessionIds
     : [anchorSessionId(attendeeId, reference.index)];
 
-/**
- * Post whatever came back for one wave, and write down what it came to.
- *
- * A post that did not land is recorded whatever else is known about the
- * attendee: the provider answered clearly, so this is not doubt but a fact
- * about rows, and a sibling charge nobody could ask about does not make it
- * less true.
- */
+/** Post whatever came back for one wave, and retain any missed ledger write. */
 const recordWave = async (
   record: RecordRefunds,
   counts: RefundCounts,
@@ -520,12 +135,8 @@ const recordWave = async (
   const posted = await record(postings);
   for (const { attendeeId, references, whole } of postings) {
     if (posted.get(attendeeId) !== true) {
-      // The provider sent this refund but our ledger could not record it —
-      // report the broken promise per attendee, not just the aggregate count.
       counts.notRecordedCount++;
       reportRefundNotRecorded({ attendeeId, listingId });
-      // The posting's own charges, so the mark lands on the rows that carried
-      // the money and on no others.
       findings.unrecorded.set(attendeeId, [
         ...(findings.unrecorded.get(attendeeId) ?? []),
         ...references.flatMap((reference) =>
@@ -538,11 +149,7 @@ const recordWave = async (
   }
 };
 
-/** Refund one chunk of attendees at the provider, then record full successes in
- * the ledger before starting the next chunk. */
-/** The writes a run makes away from the provider. Injectable together, so a
- *  test can drive the tally and the ordering rules without a database — and so
- *  the list does not grow into a row of positional arguments. */
+/** The writes a run makes away from the provider. */
 export type RefundWrites = {
   claim?: RowClaim;
   markReturned?: MarkReturnedReferences;
@@ -559,38 +166,43 @@ export const processRefundBatch = async (
       markReturnedReferences = markPaymentReferencesProviderRefunded,
     record = recordAttendeeRefundsBatch,
   }: RefundWrites = {},
-): Promise<RefundCounts> => {
-  const counts = await underAttendeeClaim<RefundCounts>(
+): Promise<RefundBatchResult> =>
+  await underAttendeeClaim<RefundBatchResult>(
     rowClaim,
     batch.map((candidate) => ({
       attendeeId: candidate.attendee.id,
+      loadedPiiBlob: candidate.attendee.pii_blob,
       references: candidate.references,
     })),
     provider.refundCapability,
     listingId,
     {
-      blocked: (reason) => {
+      blocked: ({ kind, reason }) => {
+        if (BLOCK_IS_SETTLING[kind]) {
+          return { kind: "blocked", reason: "refund_in_progress" };
+        }
         for (const candidate of batch) {
           reportRefundProblem(
             `Admin bulk refund not started for attendee ${candidate.attendee.id}: ${reason}`,
             listingId,
           );
         }
-        return noRefunds(batch.length);
+        return finished(noRefunds(batch.length));
       },
-      work: (alreadyReturned, findings) =>
-        refundClaimedBatch(
-          provider,
-          batch,
-          listingId,
-          { markReturned: markReturnedReferences, record },
-          alreadyReturned,
-          findings,
+      work: async (alreadyReturned, findings, inherited) =>
+        finished(
+          await refundClaimedBatch(
+            provider,
+            batch,
+            listingId,
+            { markReturned: markReturnedReferences, record },
+            alreadyReturned,
+            findings,
+            inherited,
+          ),
         ),
     },
   );
-  return counts;
-};
 
 const refundClaimedBatch = async (
   provider: RefundProvider,
@@ -599,10 +211,21 @@ const refundClaimedBatch = async (
   writes: { markReturned: MarkReturnedReferences; record: RecordRefunds },
   alreadyReturned: ReadonlySet<string>,
   findings: RunFindings,
+  inherited: ReadonlyMap<number, RefundProvider["refundCapability"]>,
 ): Promise<RefundCounts> => {
-  // Shared across the whole run, so a charge two attendees both carry is asked
-  // about once.
-  const inFlight = new Map<string, Promise<ReferenceRefund>>();
+  const inFlight = new Map<string, Promise<PreparedReferenceRefund>>();
+  const observeOnly = new Set(
+    batch
+      .filter((candidate) => {
+        const capability = inherited.get(candidate.attendee.id);
+        return (
+          capability !== undefined && !MAY_RETRY_INHERITED_CALL[capability]
+        );
+      })
+      .flatMap((candidate) =>
+        candidate.references.map((reference) => reference.reference),
+      ),
+  );
   const counts = noRefunds();
   for (const group of packByReferenceCount(PROVIDER_REFUND_CONCURRENCY)(
     batch,
@@ -616,19 +239,14 @@ const refundClaimedBatch = async (
           writes.markReturned,
           alreadyReturned,
           inFlight,
+          observeOnly,
         ),
       ),
     );
     const postings: LedgerPosting[] = [];
     for (const result of results) {
-      // What this run could not prove about the money is what the release
-      // rule reads; the two doubts are kept apart because they are not the
-      // same risk.
       if (result.doubt !== undefined) {
-        findings.doubts.set(
-          result.candidate.attendee.id,
-          result.doubt === "lost" ? "in_doubt" : "unread",
-        );
+        findings.doubts.set(result.candidate.attendee.id, result.doubt);
       }
       tallyProviderRefund(counts, result, listingId, postings);
     }

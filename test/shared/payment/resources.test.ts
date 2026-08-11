@@ -5,7 +5,7 @@ import type {
   RefundObservation,
 } from "#shared/payment/resources.ts";
 import {
-  chargeMoneyOrNull,
+  chargeMoneyRead,
   refundMoneyMatchesCapture,
 } from "#shared/payment/resources.ts";
 import {
@@ -17,7 +17,7 @@ import {
 
 describe("what a refund says about the money going back", () => {
   test("keeps completed, pending, and failed refunds on a charge", () => {
-    const charge = chargeMoneyOrNull(100, "GBP", 0, [
+    const refunds = [
       { amount: gbp(100), status: "completed" },
       {
         amount: gbp(100),
@@ -30,13 +30,17 @@ describe("what a refund says about the money going back", () => {
         refund: refundResource,
         status: "failed",
       },
-    ]);
+    ] satisfies RefundObservation[];
+    const charge = chargeMoneyRead(100, "GBP", 0, refunds);
 
-    expect(charge?.refunds.map((refund) => refund.status)).toEqual([
-      "completed",
-      "pending",
-      "failed",
-    ]);
+    expect(charge).toEqual({
+      resource: {
+        captured: gbp(100),
+        confirmedRefunded: gbp(0),
+        refunds,
+      },
+      status: "found",
+    });
   });
 
   // A refund of nothing reads as "no refund seen", so the provider saying one
@@ -49,22 +53,41 @@ describe("what a refund says about the money going back", () => {
     [{ amount: noMoney, reason: "not_observed", status: "failed" }, true],
   ] as const satisfies readonly (readonly [RefundObservation, boolean])[]) {
     test(`${allowed ? "keeps" : "refuses"} a ${refund.status} refund for no money`, () => {
-      expect(chargeMoneyOrNull(100, "GBP", 0, [refund]) !== null).toBe(allowed);
+      expect(chargeMoneyRead(100, "GBP", 0, [refund]).status === "found").toBe(
+        allowed,
+      );
     });
   }
 
   test("keeps a pending refund when the provider names no refund of its own", () => {
-    const charge = chargeMoneyOrNull(100, "GBP", 0, [
+    const charge = chargeMoneyRead(100, "GBP", 0, [
       { amount: gbp(100), status: "pending" },
     ]);
 
-    expect(charge?.refunds).toEqual([{ amount: gbp(100), status: "pending" }]);
+    expect(charge).toEqual({
+      resource: {
+        captured: gbp(100),
+        confirmedRefunded: gbp(0),
+        refunds: [{ amount: gbp(100), status: "pending" }],
+      },
+      status: "found",
+    });
   });
 
   test("refuses a charge that took no money at all", () => {
     // Nothing was ever taken, so there is no money a refund could be measured
     // against.
-    expect(chargeMoneyOrNull(0, "GBP", 0, [])).toBe(null);
+    expect(chargeMoneyRead(0, "GBP", 0, [])).toEqual({
+      reason: "malformed_money",
+      status: "invalid",
+    });
+  });
+
+  test("names malformed provider money instead of hiding it as no charge", () => {
+    expect(chargeMoneyRead("not money", "GBP", 0)).toEqual({
+      reason: "malformed_money",
+      status: "invalid",
+    });
   });
 
   const secondRefund = { ...refundResource, id: "re_2" };

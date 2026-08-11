@@ -1,3 +1,4 @@
+/* jscpd:ignore-start */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { APIError } from "@sumup/sdk";
@@ -8,6 +9,8 @@ import {
   setupSumupSuite,
   withSumupClient,
 } from "#test-utils/sumup.ts";
+
+/* jscpd:ignore-end */
 
 describe("sumup", () => {
   const { loggedDebug } = setupSumupSuite();

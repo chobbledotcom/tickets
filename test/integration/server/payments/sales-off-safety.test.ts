@@ -4,6 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
+import type { RefundRequest } from "#shared/payment/refund-attempt.ts";
 import {
   expectFlashRedirect,
   expectHtmlResponse,
@@ -19,13 +20,20 @@ import {
   mockWebhookRequest,
   withMocks,
 } from "#test-utils/mocks.ts";
+import {
+  chargeMoney,
+  completedRefund,
+  foundCharge,
+} from "#test-utils/payment-state.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
-  checkoutSessionEvent,
-  expectAttendeeCreatedWithPiiBlob,
   expectWebhookKeptAndRefunded,
   stubRefundPayment,
   stubRetrieveCheckoutSession,
+} from "#test-utils/webhooks/stripe.ts";
+import {
+  checkoutSessionEvent,
+  expectAttendeeCreatedWithPiiBlob,
 } from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
@@ -188,8 +196,14 @@ describeWithEnv(
         const { stripePaymentProvider } = await import(
           "#shared/stripe-provider.ts"
         );
-        using mockRefund = stub(stripePaymentProvider, "refundPayment", () =>
-          Promise.resolve(true),
+        using _read = stub(stripePaymentProvider, "readCharge", () =>
+          Promise.resolve(foundCharge(chargeMoney())),
+        );
+        using mockRefund = stub(
+          stripePaymentProvider,
+          "refundCharge",
+          (request: RefundRequest) =>
+            Promise.resolve(completedRefund(request.charge)),
         );
         const response = await submitRefund(ctx);
         await expectFlashRedirect(

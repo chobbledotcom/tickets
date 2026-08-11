@@ -1,11 +1,8 @@
 import { expect } from "@std/expect";
-import { type Stub, stub } from "@std/testing/mock";
 import type { SessionMetadata } from "#shared/payments.ts";
-import { stripeApi } from "#shared/stripe.ts";
 import type { Attendee } from "#shared/types.ts";
 import { expectSessionFailed } from "#test-utils/processed-payments.ts";
 import { assertJson } from "./assertions.ts";
-import { signedMeta } from "./factories.ts";
 import { mockWebhookRequest } from "./mocks.ts";
 import { stubWebhookVerify } from "./settings.ts";
 
@@ -139,49 +136,6 @@ export const expectWebhookProcessed = async (
   });
 };
 
-/**
- * The "kept and refunded" webhook assertion: stub `verifyWebhookSignature` to
- * return `event` and `stripeApi.refundPayment` to succeed, POST the webhook,
- * and assert the standard price-mismatch response — acknowledged but not
- * processed, with an error containing `errorContains` (the generic
- * saved-your-details message by default; pass an override for a scenario with
- * its own message, e.g. an inactive/closed listing). Returns the refund stub
- * so the caller can assert on `mockRefund.calls.length` and continue with
- * scenario-specific checks (the quantity-0 placeholder, the system note, the
- * failed `processed_payments` record, ...).
- */
-export const expectWebhookKeptAndRefunded = async (
-  event: Parameters<typeof stubWebhookVerify>[0],
-  refundId = "re_test",
-  errorContains: string | string[] = "saved your details",
-  signature?: string,
-) => {
-  const mockVerify = await stubWebhookVerify(event);
-  const mockRefund = stub(stripeApi, "refundPayment", () =>
-    Promise.resolve({ id: refundId, status: "succeeded" } as unknown as Awaited<
-      ReturnType<typeof stripeApi.refundPayment>
-    >),
-  );
-  await postWebhookAndAssert(
-    () => {
-      mockVerify.restore();
-      mockRefund.restore();
-    },
-    200,
-    (json) => {
-      expect(json.received).toBe(true);
-      expect(json.processed).toBe(false);
-      for (const substring of Array.isArray(errorContains)
-        ? errorContains
-        : [errorContains]) {
-        expect(json.error).toContain(substring);
-      }
-    },
-    signature ?? "sig_valid",
-  );
-  return { mockRefund };
-};
-
 /** Quantity-0 placeholders on a listing that also has booked attendees. */
 const getKeptPlaceholders = async (listingId: number): Promise<Attendee[]> => {
   const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
@@ -293,55 +247,6 @@ export const expectWebhookIgnored = (
     extraCleanup,
   );
 
-/**
- * Stub `stripeApi.retrieveCheckoutSession` — the shape the `/payment/success`
- * redirect handler reads directly from Stripe, as opposed to the webhook's
- * signed-event path (see `checkoutSessionEvent`/`stubWebhookVerify` for that).
- * `email`/`items`/`name` build the standard signed metadata via `signedMeta`;
- * pass `metadata` directly instead for a scenario that needs a non-standard
- * or corrupt shape. The two variants are exclusive by type, so a caller
- * can't hand over a `metadata` blob and stray identity fields at once.
- */
-export const stubRetrieveCheckoutSession = (
-  session: {
-    sessionId: string;
-    amountTotal: number;
-    paymentIntent: string | null;
-    paymentStatus?: string;
-  } & (
-    | { metadata: Record<string, unknown> }
-    | { email: string; items: string; name: string }
-  ),
-): Stub<
-  typeof stripeApi,
-  Parameters<typeof stripeApi.retrieveCheckoutSession>,
-  Promise<Awaited<ReturnType<typeof stripeApi.retrieveCheckoutSession>>>
-> =>
-  stub(stripeApi, "retrieveCheckoutSession", () =>
-    Promise.resolve({
-      amount_total: session.amountTotal,
-      created: 1_700_000_000,
-      currency: "gbp",
-      id: session.sessionId,
-      metadata:
-        "metadata" in session
-          ? session.metadata
-          : signedMeta(
-              {
-                email: session.email,
-                items: session.items,
-                name: session.name,
-              },
-              session.amountTotal,
-            ),
-      payment_intent: session.paymentIntent,
-      payment_status: session.paymentStatus ?? "paid",
-      url: null,
-    } as unknown as Awaited<
-      ReturnType<typeof stripeApi.retrieveCheckoutSession>
-    >),
-  );
-
 /** Assert a listing has exactly one attendee recorded with the given
  *  `price_paid` — the tail check for a processed webhook whose test cares
  *  about the actual amount charged (can_pay_more, amount_total-as-number
@@ -370,17 +275,6 @@ export const expectAttendeeCreatedWithPiiBlob = async (
   expect(attendees[0]?.pii_blob).not.toBe("");
   return attendees[0]!;
 };
-
-/** Stub `stripeApi.refundPayment` to succeed with the given (or default)
- *  provider refund id — the bare stub for tests that drive the refund
- *  through the `/payment/success` redirect path directly rather than through
- *  `expectWebhookKeptAndRefunded`. */
-export const stubRefundPayment = (refundId = "re_test") =>
-  stub(stripeApi, "refundPayment", () =>
-    Promise.resolve({ id: refundId, status: "succeeded" } as unknown as Awaited<
-      ReturnType<typeof stripeApi.refundPayment>
-    >),
-  );
 
 /**
  * A fourth webhook outcome alongside processed/kept-and-refunded/ignored: the

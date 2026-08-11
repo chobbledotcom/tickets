@@ -10,7 +10,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
+import { stubRetrieveCheckoutSession } from "#test-utils/webhooks/stripe.ts";
 // jscpd:ignore-end
 
 import { errorLogged, useErrorLogSpy } from "#test-utils/debug-log.ts";

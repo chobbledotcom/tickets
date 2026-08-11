@@ -7,19 +7,21 @@ import {
   tryRefund,
 } from "#routes/api/payment-processing/refunds.ts";
 import { settings } from "#shared/db/settings.ts";
+import type {
+  RefundAttemptResult,
+  RefundRequest,
+} from "#shared/payment/refund-attempt.ts";
 import { paymentsApi } from "#shared/payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
+import {
+  completedStripeRefund,
+  stripeRefundRequest,
+} from "#test/test-utils/stripe/fixtures.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { signedMeta, webhookMeta } from "#test-utils/factories.ts";
 import { stripeIntentWithCharge } from "#test-utils/stripe/responses.ts";
 
 setupTestEncryptionKey();
-
-/** What Stripe answers a refund it accepted with. */
-const succeededRefund = {
-  id: "re_settled",
-  status: "succeeded",
-} as unknown as Awaited<ReturnType<typeof stripeApi.refundPayment>>;
 
 /**
  * The refund path is where the live callbacks reject a blank provider resource
@@ -54,8 +56,8 @@ describe("tryRefund resource id", () => {
    *  methods, so a call would leave for the provider and be counted here. */
   const withStripeProvider = (run: () => Promise<void>): Promise<void> =>
     withStripeConfigured(async () => {
-      const refundSpy = spy(stripeApi, "refundPayment");
-      const intentSpy = spy(stripeApi, "retrievePaymentIntent");
+      const refundSpy = spy(stripeApi, "refundCharge");
+      const intentSpy = spy(stripeApi, "readPaymentIntent");
       try {
         await run();
         expect(refundSpy.calls.length).toBe(0);
@@ -71,18 +73,27 @@ describe("tryRefund resource id", () => {
    *  not spied: a spy keeps the real method, so the refund would leave for
    *  Stripe itself. */
   const withRefundAnswering =
-    (answer: Awaited<ReturnType<typeof stripeApi.refundPayment>>) =>
+    (
+      answer: (request: RefundRequest) => RefundAttemptResult,
+      capturedAmount = 500,
+    ) =>
     async <T>(
       body: () => Promise<T>,
     ): Promise<{ calls: unknown[][]; result: T }> => {
-      const refundStub = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve(answer),
+      const refundStub = stub(stripeApi, "refundCharge", (request) =>
+        Promise.resolve(answer(request)),
       );
       // The refund asks what the money has already done before sending any, so
       // the charge must read as one nothing has come back on for the refund to
       // be admitted at all.
-      const intentStub = stub(stripeApi, "retrievePaymentIntent", () =>
-        Promise.resolve(stripeIntentWithCharge()),
+      const intentStub = stub(stripeApi, "readPaymentIntent", (reference) =>
+        Promise.resolve({
+          resource: {
+            ...stripeIntentWithCharge(0, capturedAmount),
+            id: reference,
+          },
+          status: "found",
+        }),
       );
       try {
         const result = await withStripeConfigured(body);
@@ -93,9 +104,22 @@ describe("tryRefund resource id", () => {
       }
     };
 
-  const withSucceedingRefund = withRefundAnswering(succeededRefund);
+  const withSucceedingRefundFor = (capturedAmount: number) =>
+    withRefundAnswering(
+      (request) =>
+        completedStripeRefund(
+          request.paymentReference,
+          "re_settled",
+          request.charge.captured.amount,
+        ),
+      capturedAmount,
+    );
+  const withSucceedingRefund = withSucceedingRefundFor(500);
   /** Stripe refusing the refund: it reports nothing refunded. */
-  const withRefusedRefund = withRefundAnswering(null);
+  const withRefusedRefund = withRefundAnswering(() => ({
+    kind: "rejected",
+    reason: "rejected",
+  }));
 
   /** A refundable malformed-charge rejection this instance signed, so its
    *  ownership check passes and the refund goes ahead. */
@@ -124,7 +148,7 @@ describe("tryRefund resource id", () => {
     const { calls, result } = await withSucceedingRefund(() =>
       refundRejectedCharge(ourRejection("pi_usable")),
     );
-    expect(calls).toEqual([["pi_usable"]]);
+    expect(calls).toEqual([[stripeRefundRequest("pi_usable", 500)]]);
     expect(result).toEqual({ refunded: true, settled: true });
   });
 
@@ -186,11 +210,24 @@ describe("tryRefund resource id", () => {
     return { logged, page: await response.text(), status: response.status };
   };
 
+  for (const capturedAmount of [400, 600]) {
+    it(`settles after refunding the exact observed ${capturedAmount} capture for a signed 500 rejection`, async () => {
+      const reference = `pi_observed_${capturedAmount}`;
+      const { calls, result } = await withSucceedingRefundFor(capturedAmount)(
+        () => answerFor(reference),
+      );
+
+      expect(calls).toEqual([[stripeRefundRequest(reference, capturedAmount)]]);
+      expect(result.status).toBe(400);
+      expect(result.page).toContain("sent your money back");
+    });
+  }
+
   it("tells a buyer whose charge came back, and settles it at 400", async () => {
     const { calls, result } = await withSucceedingRefund(() =>
       answerFor("pi_settled"),
     );
-    expect(calls).toEqual([["pi_settled"]]);
+    expect(calls).toEqual([[stripeRefundRequest("pi_settled", 500)]]);
     expect(result.status).toBe(400);
     expect(result.page).toContain("sent your money back");
     expect(result.logged).toEqual([
@@ -204,7 +241,7 @@ describe("tryRefund resource id", () => {
     const { calls, result } = await withRefusedRefund(() =>
       answerFor("pi_stuck"),
     );
-    expect(calls).toEqual([["pi_stuck"]]);
+    expect(calls).toEqual([[stripeRefundRequest("pi_stuck", 500)]]);
     expect(result.status).toBe(503);
     expect(result.page).not.toContain("sent your money back");
     expect(result.logged).toEqual([

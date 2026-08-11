@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
 import {
   createPaidListing,
   type RefundCtx,
@@ -20,6 +21,8 @@ import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
+import { claimCurrentAttendeeRows } from "#test-utils/payment-claim.ts";
+import { acceptedRefund } from "#test-utils/payment-state.ts";
 import {
   expectSingleRefundIssued,
   refundUrl,
@@ -277,6 +280,37 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       });
     });
 
+    test("reports an accepted refund as still settling, not failed", async () => {
+      const ctx = await setupRefundTest("pi_test_pending");
+
+      await withRefundMock(acceptedRefund(), async () => {
+        const response = await submitRefund(ctx);
+        await expectFlashRedirect(
+          `/admin/attendees/${ctx.attendee.id}/refund`,
+          "A refund for this payment is still settling. Try again after it completes.",
+          false,
+        )(response);
+      });
+    });
+
+    test("a refund run that loses the claim race reports settling without a provider call", async () => {
+      const ctx = await setupRefundTest("pi_claimed_elsewhere");
+      await claimCurrentAttendeeRows(
+        [ctx.attendee.id],
+        "keyless",
+        new Map([[ctx.attendee.id, "pi_claimed_elsewhere"]]),
+      );
+
+      await withRefundMock(true, async (mockRefund) => {
+        await expectFlashRedirect(
+          `/admin/attendees/${ctx.attendee.id}/refund`,
+          "A refund for this payment is still settling. Try again after it completes.",
+          false,
+        )(await submitRefund(ctx));
+        expect(mockRefund.calls).toEqual([]);
+      });
+    });
+
     test("a provider that never answered is not reported as money sent", async () => {
       // The call died before the provider said anything, so nobody knows
       // whether the money moved. Telling the operator to correct the books and
@@ -284,7 +318,10 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       const ctx = await setupRefundTest("pi_uncertain");
 
       await withRefundMock(
-        () => Promise.reject(new Error("connection reset")),
+        async (): Promise<RefundAttemptResult> => ({
+          kind: "uncertain",
+          reason: "network_error",
+        }),
         async () => {
           await expectFlashRedirect(
             `/admin/attendees/${ctx.attendee.id}/refund`,

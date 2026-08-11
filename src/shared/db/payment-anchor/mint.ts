@@ -9,7 +9,7 @@
  * reference and blind index as a checkout row.
  */
 
-import { executeBatch, type SqlStatement } from "#shared/db/client.ts";
+import type { SqlStatement } from "#shared/db/client.ts";
 import { anchorSessionId } from "#shared/db/payment-anchor/session.ts";
 import {
   encryptPaymentReference,
@@ -62,20 +62,16 @@ const anchorStatement = async (
             ON CONFLICT (payment_session_id) DO NOTHING`,
 });
 
-/** Make sure every charge these attendees carry has a row to be held by. Runs
- *  before the claim, so the claim finds these rows the way it finds any
- *  others: two runs arriving together both write, the second is ignored, and
- *  the claim decides which may move the money. Costs nothing in the normal
- *  case, where every charge already has a row. */
-export const anchorLegacyCharges = async (
+/** The writes that give every row-less charge a deterministic row. The claim
+ *  runs them inside its own transaction, so the new row and its hold become
+ *  visible together. The normal case returns no writes. */
+export const legacyAnchorStatements = async (
   attendees: readonly AnchoredAttendee[],
-): Promise<void> => {
-  const statements = await Promise.all(
+): Promise<SqlStatement[]> =>
+  await Promise.all(
     attendees.flatMap((attendee) =>
       attendee.references
         .filter(needsAnchor)
         .map((reference) => anchorStatement(attendee.attendeeId, reference)),
     ),
   );
-  if (statements.length > 0) await executeBatch(statements);
-};

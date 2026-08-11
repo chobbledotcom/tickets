@@ -112,7 +112,7 @@ src/shared/runtime.ts::buildRuntimeInfo.nodeCompatVersion~1m2e610  ?? → ||   #
 src/shared/runtime.ts::buildRuntimeInfo.os~05o6squ  ?? → ||   # os is string|undefined and falls back to "", so both operators agree
 src/shared/runtime.ts::buildRuntimeInfo.typescriptVersion~14e4wx7  ?? → ||   # typescriptVersion is string|undefined and falls back to "", so both operators agree
 src/shared/runtime.ts::buildRuntimeInfo.userAgent~17udaa2  ?? → ||   # userAgent is string|undefined and falls back to "", so both operators agree
-src/shared/square.ts::createSquareClient.checkout.paymentLinks.create.data.pre_populated_data~0evahy5  ?: → consequent only   # the buyer_phone_number ternary spreads {} when the phone is absent; the consequent-only mutant always spreads { buyer_phone_number: undefined }, but JSON.stringify omits undefined values, so the serialized request body is identical in both cases
+src/shared/square/client.ts::createSquareClient.checkout.paymentLinks.create.data.pre_populated_data~0evahy5  ?: → consequent only   # the buyer_phone_number ternary spreads {} when the phone is absent; the consequent-only mutant always spreads { buyer_phone_number: undefined }, but JSON.stringify omits undefined values, so the serialized request body is identical in both cases
 src/ui/client/dom.ts::createButton.button%2eclassName~16pvzvs  = → +=   # createElement returns a new button with className "", so both assignments produce the supplied class string
 
 # Paid-payment processing: private defaults are always supplied by their only

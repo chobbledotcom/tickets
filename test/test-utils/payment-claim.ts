@@ -2,7 +2,17 @@
  *  to already be in a particular state. */
 
 import { encrypt } from "#shared/crypto/encryption.ts";
-import { execute, requireOne } from "#shared/db/client.ts";
+import {
+  execute,
+  inPlaceholders,
+  queryAll,
+  requireOne,
+} from "#shared/db/client.ts";
+import {
+  type ClaimResult,
+  claimAttendeeRows,
+} from "#shared/db/payment-claim/take.ts";
+import { getRefundPaymentReferences } from "#shared/db/payment-references.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 import { mirrorFor } from "#shared/payment/admit-move.ts";
@@ -11,8 +21,58 @@ import type {
   RefundCapability,
 } from "#shared/payment/row-state.ts";
 import { writeRowState } from "#shared/payment/row-state.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
 
 const SLOT = "processed_payments.failure_data";
+
+type StoredClaimAttendee = {
+  id: number;
+  pii_blob: string;
+};
+
+/** Load the same exact snapshot as an admin refund and claim it. Most claim
+ *  tests care about claim behaviour after the load, so this keeps the real
+ *  reference/index/revision boundary out of every fixture. */
+export const claimCurrentAttendeeRows = async (
+  attendeeIds: readonly number[],
+  capability: RefundCapability,
+  legacyPaymentIds: ReadonlyMap<number, string> = new Map(),
+): Promise<ClaimResult> => {
+  if (attendeeIds.length === 0) return claimAttendeeRows([], capability);
+  const stored = await queryAll<StoredClaimAttendee>(
+    `SELECT attendee.id, attendee.pii_blob
+       FROM attendees AS attendee
+      WHERE attendee.id IN (${inPlaceholders(attendeeIds)})`,
+    [...attendeeIds],
+  );
+  const storedById = new Map(stored.map((attendee) => [attendee.id, attendee]));
+  const sources = attendeeIds.map((id) => ({
+    id,
+    payment_id: legacyPaymentIds.get(id) ?? "",
+  }));
+  const references = await getRefundPaymentReferences(
+    sources,
+    await getTestPrivateKey(),
+  );
+  return await claimAttendeeRows(
+    sources.map(({ id }) => {
+      const attendee = storedById.get(id);
+      if (attendee === undefined) {
+        throw new Error(`Attendee ${id} was not found before the claim`);
+      }
+      const loaded = references.get(id);
+      if (loaded === undefined) {
+        throw new Error(`Attendee ${id}'s payment references were not loaded`);
+      }
+      return {
+        attendeeId: id,
+        loadedPiiBlob: attendee.pii_blob,
+        references: loaded,
+      };
+    }),
+    capability,
+  );
+};
 
 /** The plain words the prune and the orphan purge see, read back out of the
  *  production table rather than spelled again here — so a change to either word

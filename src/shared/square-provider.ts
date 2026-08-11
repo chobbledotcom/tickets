@@ -14,8 +14,8 @@
 
 /* jscpd:ignore-start -- imports */
 import { logDebug } from "#shared/logger.ts";
-import type { ChargeMoney } from "#shared/payment/resources.ts";
-import { chargeMoneyOrNull } from "#shared/payment/resources.ts";
+import { refundWithOneReread } from "#shared/payment/refund-attempt.ts";
+import { chargeMoneyRead } from "#shared/payment/resources.ts";
 import { validatedPaymentSession } from "#shared/payment/validated-session.ts";
 /* jscpd:ignore-end */
 import {
@@ -32,7 +32,9 @@ import type {
   WebhookSessionResult,
   WebhookSetupResult,
 } from "#shared/payments.ts";
-import { squareApi, verifyWebhookSignature } from "#shared/square.ts";
+import { squareApi } from "#shared/square/api.ts";
+import type { SquarePayment } from "#shared/square/payment-outcomes.ts";
+import { verifySquareWebhookSignature } from "#shared/square/webhook.ts";
 
 /** How much of a Square payment has gone back, or nothing when Square's
  *  answer cannot be read. An absent total is a stated zero; one that names no
@@ -43,11 +45,25 @@ const squareMoneyReturned = (
   refunded:
     | { amount?: bigint | undefined; currency?: string | undefined }
     | undefined,
-  captured: { currency?: string | undefined },
+  captured: { currency?: string | undefined } | undefined,
 ): bigint | null => {
   if (refunded === undefined) return 0n;
-  if (refunded.amount === undefined) return null;
+  if (captured === undefined || refunded.amount === undefined) return null;
   return refunded.currency === captured.currency ? refunded.amount : null;
+};
+
+/** A missing payment is a genuine unpaid answer outside a completed webhook.
+ * Any failed read remains loud so the request can be retried. */
+const sessionPayment = async (
+  paymentReference: string,
+): Promise<SquarePayment | null> => {
+  if (!paymentReference) return null;
+  const read = await squareApi.readPayment(paymentReference);
+  if (read.status === "found") return read.resource;
+  if (read.status === "missing") return null;
+  throw new Error(
+    `Square payment ${paymentReference} could not be read (${read.status}:${read.reason})`,
+  );
 };
 
 /** Square payment provider implementation */
@@ -61,21 +77,32 @@ export const squarePaymentProvider: PaymentProvider = {
     });
   },
 
-  async readChargeMoneyOrNull(
+  async readCharge(
     paymentReference: string,
-  ): Promise<ChargeMoney | null> {
-    const payment = await squareApi.retrievePayment(paymentReference);
-    const captured = payment?.amountMoney;
-    if (!captured) return null;
-    const returned = squareMoneyReturned(payment.refundedMoney, captured);
-    if (returned === null) return null;
-    return chargeMoneyOrNull(captured.amount, captured.currency, returned);
+  ): ReturnType<PaymentProvider["readCharge"]> {
+    const read = await squareApi.readPayment(paymentReference);
+    if (read.status !== "found") return read;
+    if (read.resource.status !== "COMPLETED") {
+      return { reason: "unsupported_status", status: "invalid" };
+    }
+    const captured = read.resource.amountMoney;
+    const refunded = read.resource.refundedMoney;
+    if (
+      captured?.currency !== undefined &&
+      refunded?.currency !== undefined &&
+      captured.currency !== refunded.currency
+    ) {
+      return { reason: "mismatched_money", status: "invalid" };
+    }
+    const returned = squareMoneyReturned(refunded, captured);
+    return chargeMoneyRead(captured?.amount, captured?.currency, returned);
   },
   refundCapability: "keyed",
 
-  refundPayment(paymentReference: string): Promise<boolean> {
-    return squareApi.refundPayment(paymentReference);
-  },
+  refundCharge: refundWithOneReread(
+    (request) => squareApi.refundCharge(request),
+    (reference) => squarePaymentProvider.readCharge(reference),
+  ),
   requiresWebhookSignature: true,
 
   async resolveWebhookSession(
@@ -144,9 +171,7 @@ export const squarePaymentProvider: PaymentProvider = {
     // earlier payment, and either would call this captured charge unpaid.
     const paymentReference =
       paidPaymentId ?? order.tenders?.[0]?.paymentId ?? "";
-    const payment = paymentReference
-      ? await squareApi.retrievePayment(paymentReference)
-      : null;
+    const payment = await sessionPayment(paymentReference);
     // The webhook already saw this payment complete, so a read-back that is
     // missing or still short of COMPLETED is Square lagging its own signed
     // event, not an unpaid order. Throwing answers the caller retryably; going
@@ -154,7 +179,9 @@ export const squarePaymentProvider: PaymentProvider = {
     // have no reason to deliver it again.
     if (paidPaymentId && payment?.status !== "COMPLETED") {
       throw new Error(
-        `Square payment ${paidPaymentId} did not read back as completed (status=${payment?.status ?? "unreadable"})`,
+        `Square payment ${paidPaymentId} did not read back as completed (status=${
+          payment?.status ?? "unreadable"
+        })`,
       );
     }
 
@@ -211,6 +238,6 @@ export const squarePaymentProvider: PaymentProvider = {
   verifyWebhookSignature(
     ...args: Parameters<PaymentProvider["verifyWebhookSignature"]>
   ) {
-    return verifyWebhookSignature(...args);
+    return verifySquareWebhookSignature(...args);
   },
 };

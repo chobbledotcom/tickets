@@ -9,11 +9,13 @@ import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
-  checkoutSessionEvent,
   expectWebhookKeptAndRefunded,
-  expectWebhookProcessed,
   stubRefundPayment,
   stubRetrieveCheckoutSession,
+} from "#test-utils/webhooks/stripe.ts";
+import {
+  checkoutSessionEvent,
+  expectWebhookProcessed,
 } from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end

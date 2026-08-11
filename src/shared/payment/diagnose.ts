@@ -27,9 +27,8 @@ const refundOverspendsCapture = (charges: readonly ChargeMoney[]): boolean =>
  *  what became of any refunds on it. */
 const refundOutcome = (charges: readonly ChargeMoney[]): ObservationOutcome => {
   const refunds = charges.map(resolveRefund);
-  // No M4 reading can carry two refunds in flight: the only pending refund it
-  // holds is the answer to its own single attempt, so seeing one means the
-  // evidence is broken. M7's per-refund records turn this into a conflict.
+  // Two live refunds cannot be assigned to this run, so the owner must settle
+  // which attempt each provider event belongs to.
   if (
     refunds.some(
       (refund) =>
