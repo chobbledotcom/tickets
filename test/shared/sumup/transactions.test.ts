@@ -7,6 +7,7 @@ import {
   setupSumupSuite,
   withSumupClient,
 } from "#test-utils/sumup.ts";
+import { gbp } from "#test-utils/payment-state.ts";
 
 describe("sumup transactions", () => {
   const { errorSpy } = setupSumupSuite();
@@ -43,7 +44,7 @@ describe("sumup transactions", () => {
 
     test("reports no refund events when the transaction lists none", async () => {
       const client = makeSumupClient({
-        txnGet: () => Promise.resolve({ amount: 10, currency: "GBP" }),
+        txnGet: () => Promise.resolve(gbp(10)),
       });
       await withSumupClient(client, async () => {
         expect(await sumupApi.readTransactionMoney("txn")).toEqual({

@@ -16,6 +16,7 @@ import {
   asSession,
   BLANK_SESSION_METADATA,
 } from "#test-utils/payment-session.ts";
+import { gbp } from "#test-utils/payment-state.ts";
 
 /** A completed order carrying no metadata (the "ignore" fixture). */
 const NO_META_ORDER = {
@@ -294,8 +295,8 @@ describe("square-provider", () => {
     }[] = [
       {
         expected: {
-          captured: { amount: 1000, currency: "GBP" },
-          confirmedRefunded: { amount: 1000, currency: "GBP" },
+          captured: gbp(1000),
+          confirmedRefunded: gbp(1000),
           refunds: [],
         },
         name: "reports every penny back when fully refunded",
@@ -308,8 +309,8 @@ describe("square-provider", () => {
       },
       {
         expected: {
-          captured: { amount: 1000, currency: "GBP" },
-          confirmedRefunded: { amount: 400, currency: "GBP" },
+          captured: gbp(1000),
+          confirmedRefunded: gbp(400),
           refunds: [],
         },
         name: "reports the part that went back on a partial refund",
@@ -324,8 +325,8 @@ describe("square-provider", () => {
         // Square leaves the refunded total off when nothing has gone back, so
         // an absent one is a stated zero rather than a missing fact.
         expected: {
-          captured: { amount: 1000, currency: "GBP" },
-          confirmedRefunded: { amount: 0, currency: "GBP" },
+          captured: gbp(1000),
+          confirmedRefunded: gbp(0),
           refunds: [],
         },
         name: "reads an absent refunded total as nothing back",

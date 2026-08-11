@@ -4,6 +4,7 @@ import { squareApi } from "#shared/square.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
 import { withSquareClient } from "#test/test-utils/square/fixtures.ts";
 import { describeSquare } from "#test/test-utils/square/harness.ts";
+import { gbp } from "#test-utils/payment-state.ts";
 
 describeSquare(() => {
   describe("retrieveOrder", () => {
@@ -277,8 +278,8 @@ describeSquare(() => {
           expect(
             await squarePaymentProvider.readChargeMoneyOrNull("pay_untouched"),
           ).toEqual({
-            captured: { amount: 5000, currency: "GBP" },
-            confirmedRefunded: { amount: 0, currency: "GBP" },
+            captured: gbp(5000),
+            confirmedRefunded: gbp(0),
             refunds: [],
           });
         },

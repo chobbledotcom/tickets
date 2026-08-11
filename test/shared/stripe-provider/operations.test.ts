@@ -19,6 +19,7 @@ import { withMocks } from "#test-utils/mocks.ts";
 import { asSession } from "#test-utils/payment-session.ts";
 import { activateStripe } from "#test-utils/settings.ts";
 import { checkoutSessionEvent } from "#test-utils/webhooks.ts";
+import { gbp } from "#test-utils/payment-state.ts";
 
 describeStripe("stripe-provider", () => {
   describe("verifyWebhookSignature delegation", () => {
@@ -245,8 +246,8 @@ describeStripe("stripe-provider", () => {
           refunded: true,
         }),
         {
-          captured: { amount: 1000, currency: "GBP" },
-          confirmedRefunded: { amount: 1000, currency: "GBP" },
+          captured: gbp(1000),
+          confirmedRefunded: gbp(1000),
           refunds: [],
         },
       );
@@ -265,8 +266,8 @@ describeStripe("stripe-provider", () => {
           refunded: false,
         }),
         {
-          captured: { amount: 1000, currency: "GBP" },
-          confirmedRefunded: { amount: 400, currency: "GBP" },
+          captured: gbp(1000),
+          confirmedRefunded: gbp(400),
           refunds: [],
         },
       );
@@ -283,8 +284,8 @@ describeStripe("stripe-provider", () => {
           refunded: false,
         }),
         {
-          captured: { amount: 1000, currency: "GBP" },
-          confirmedRefunded: { amount: 0, currency: "GBP" },
+          captured: gbp(1000),
+          confirmedRefunded: gbp(0),
           refunds: [],
         },
       );

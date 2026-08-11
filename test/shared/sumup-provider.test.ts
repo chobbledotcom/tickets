@@ -16,6 +16,7 @@ import {
   withFetchedSumupCheckout,
   withSumupCheckoutRead,
 } from "#test-utils/sumup.ts";
+import { gbp } from "#test-utils/payment-state.ts";
 
 describe("sumup-provider", () => {
   beforeEach(async () => {
@@ -171,8 +172,8 @@ describe("sumup-provider", () => {
 
     test("reads a transaction with no refund events as nothing back", async () => {
       expect(await readMoney(transaction([]))).toEqual({
-        captured: { amount: 1000, currency: "GBP" },
-        confirmedRefunded: { amount: 0, currency: "GBP" },
+        captured: gbp(1000),
+        confirmedRefunded: gbp(0),
         refunds: [],
       });
     });
@@ -186,7 +187,7 @@ describe("sumup-provider", () => {
       );
 
       expect(money?.refunds).toEqual([
-        { amount: { amount: 400, currency: "GBP" }, status: "completed" },
+        { amount: gbp(400), status: "completed" },
       ]);
     });
 
@@ -196,7 +197,7 @@ describe("sumup-provider", () => {
       );
 
       expect(money?.refunds).toEqual([
-        { amount: { amount: 1000, currency: "GBP" }, status: "pending" },
+        { amount: gbp(1000), status: "pending" },
       ]);
     });
 
@@ -207,7 +208,7 @@ describe("sumup-provider", () => {
 
       expect(money?.refunds).toEqual([
         {
-          amount: { amount: 1000, currency: "GBP" },
+          amount: gbp(1000),
           reason: "provider_failed",
           status: "failed",
         },
