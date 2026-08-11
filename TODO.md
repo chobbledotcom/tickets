@@ -2446,3 +2446,36 @@ before building candidates, so refund-all processes people rather than lines.
 What it needs is a regression that actually builds an attendee with two rows on
 one listing (the package + standalone shape), which is why it is here rather
 than done inline.
+
+## A returned deposit reverses the whole sale it only part-paid
+
+_Origin: Codex on PR #2065, review of 05b0bba6 (P1). Reproduced._
+
+Partial reversal picks whole ORDER GROUPS, which is right when each charge backs
+its own group — the merged-attendee shape it was built for. A deposit-backed
+booking is not that shape: the sale lives in the booking group, and TWO charges
+pay for it, the deposit in that same group and the balance in its own
+`balanceEventGroup`.
+
+Reproduced on a 3000 sale with a 1000 deposit and a 2000 balance. Refund only
+the deposit and `returnedRefundGroups` selects the booking group, so `mapRefund`
+writes `refund_sale 3000` beside `refund_cash 1000`. The whole sale is cancelled
+though only a third of the money came back, and the attendee's account reads
++2000 — the balance we still hold and have not returned. Revenue is reversed for
+a booking whose other charge the provider refused.
+
+Codex proposes reversing only the returned cash leg and holding the non-cash
+reversal until every charge is back. That has the opposite flaw: with the sale
+left standing at 3000 and 1000 returned, the account reads -1000, so the
+attendee appears to OWE money they never got back. Neither reading is right on
+its own, which is why this is recorded rather than patched.
+
+The shape of a real fix: only reverse a group when every provider payment that
+paid for its sale has returned. That means knowing which charges back which
+sale, across groups — related to the correlation gap recorded above, and likely
+the same piece of work. Until then a deposit-backed booking should probably fall
+back to all-or-nothing, accepting the stranding partial reversal was built to
+end, for the shape where partial reversal misreports the books.
+
+**This one needs an owner decision**: it changes what the money history says
+about real bookings, and the partial-reversal direction was an owner call.
