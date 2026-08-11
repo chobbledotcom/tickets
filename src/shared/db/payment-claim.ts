@@ -27,6 +27,7 @@ import { isoBefore, nowIso } from "#shared/now.ts";
 import { mirrorFor } from "#shared/payment/admit-move.ts";
 import {
   type ClaimDecision,
+  claimLeaseMs,
   decideClaim,
   holdsTheRow,
 } from "#shared/payment/claim.ts";
@@ -190,7 +191,7 @@ export const claimAttendeeRows = async (
     };
   }
   const writtenAt = nowIso();
-  const staleBefore = isoBefore(STALE_RESERVATION_MS);
+  const staleBefore = isoBefore(claimLeaseMs(STALE_RESERVATION_MS));
   return await withTransaction(async (tx) => {
     const stored = await readClaimableRows(tx, attendeeIds);
     const rows = await Promise.all(stored.own.map(asRowRecord));
