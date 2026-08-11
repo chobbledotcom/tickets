@@ -48,9 +48,11 @@ const anchorStatement = async (
     reference.index,
     attendeeId,
   ],
-  // Ignoring a clash is right here, and only because the session id names the
+  // Passing over a clash is right here, and only because the session id names the
   // attendee AND the charge: a row already under that id is this same person's
-  // row for this same money, so there is nothing to write.
+  // row for this same money, so there is nothing to write. Naming the column
+  // keeps that to the clash: a NOT NULL or future constraint failure still
+  // raises, rather than quietly leaving the run without the row it must hold.
   //
   // The EXISTS is what keeps this from writing a row for somebody who is no
   // longer there. A run loads its candidates before it anchors, and nothing
@@ -60,12 +62,13 @@ const anchorStatement = async (
   // table holds no foreign key to stop it — and the claim that follows would
   // succeed, letting the run send money with no booking or ledger left to
   // record it against.
-  sql: `INSERT OR IGNORE INTO processed_payments
+  sql: `INSERT INTO processed_payments
         (payment_session_id, attendee_id, processed_at, payment_reference,
          payment_reference_index)
         SELECT ?, ?, ?, ?, ?
          WHERE EXISTS (SELECT 1 FROM attendees AS attendee
-                        WHERE attendee.id = ?)`,
+                        WHERE attendee.id = ?)
+            ON CONFLICT (payment_session_id) DO NOTHING`,
 });
 
 /**

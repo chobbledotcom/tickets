@@ -2,7 +2,11 @@ import type { RefundCandidate } from "./candidates.ts";
 
 /** The result of attempting to refund one charge reference (or a whole
  * candidate, once its per-reference outcomes are combined). */
-export type RefundOutcome = "refunded" | "failed" | "errored";
+/** What a refund came to. `withheld` means no money was sent and the reason
+ *  has already been reported at whatever volume it deserved — it is separate
+ *  from `failed` so a bulk tally does not report it a second time, as an
+ *  incident, on top of a debug line. */
+export type RefundOutcome = "refunded" | "withheld" | "failed" | "errored";
 
 /** Pack candidates into waves whose combined charge references stay within
  * `budget`, so each concurrently-processed wave issues at most ~`budget`
@@ -36,5 +40,6 @@ export const combineRefundOutcomes = (
 ): RefundOutcome => {
   if (outcomes.includes("errored")) return "errored";
   if (outcomes.includes("failed")) return "failed";
+  if (outcomes.includes("withheld")) return "withheld";
   return "refunded";
 };

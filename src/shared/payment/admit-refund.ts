@@ -135,12 +135,13 @@ export const sendRefundIfAdmitted = async <TAnswer>(
   sendWhenUnreadable = false,
 ): Promise<TAnswer> => {
   const admission = await admitProviderRefund(provider, paymentReference);
-  const maySend =
-    admission.kind === "send" ||
-    (sendWhenUnreadable &&
+  if (admission.kind !== "send") {
+    const repeatIsHarmless =
+      sendWhenUnreadable &&
       admission.kind === "unreadable" &&
-      provider.refundCapability === "keyed");
-  if (!maySend) return answer.withhold(admission as WithheldRefund);
+      provider.refundCapability === "keyed";
+    if (!repeatIsHarmless) return answer.withhold(admission);
+  }
   return (await provider.refundPayment(paymentReference))
     ? answer.sent()
     : answer.failed();

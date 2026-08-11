@@ -149,7 +149,7 @@ const refundReferenceOnce = async (
           listingId,
           paymentReference,
         });
-        return settled("failed");
+        return settled("withheld");
       },
     });
   } catch (err) {
@@ -335,7 +335,7 @@ export const refundCandidateAtProvider = async (
 };
 
 const logBulkRefundProblem = (
-  outcome: Exclude<RefundOutcome, "refunded">,
+  outcome: Exclude<RefundOutcome, "refunded" | "withheld">,
   candidate: RefundCandidate,
   listingId: number,
 ): void => {
@@ -365,6 +365,12 @@ const tallyProviderRefund = (
   } else if (outcome === "failed") {
     counts.failedCount++;
     logBulkRefundProblem(outcome, candidate, listingId);
+  } else if (outcome === "withheld") {
+    // No money was sent, so it counts as not refunded — but the reason was
+    // already said at the volume it deserved. Saying it again here as an
+    // incident is how a provider outage fills the log with one error per
+    // reference.
+    counts.failedCount++;
   } else {
     refundedAttendees.push({
       attendeeId: candidate.attendee.id,

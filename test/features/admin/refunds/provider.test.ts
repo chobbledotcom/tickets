@@ -175,6 +175,14 @@ describe("combineRefundOutcomes", () => {
     expect(combineRefundOutcomes(["refunded", "failed"])).toBe("failed");
   });
 
+  test("prefers failed over withheld — one asked and was turned down", () => {
+    expect(combineRefundOutcomes(["withheld", "failed"])).toBe("failed");
+  });
+
+  test("prefers withheld over refunded — not every penny went back", () => {
+    expect(combineRefundOutcomes(["refunded", "withheld"])).toBe("withheld");
+  });
+
   test("is refunded only when every outcome is refunded", () => {
     expect(combineRefundOutcomes(["refunded", "refunded"])).toBe("refunded");
   });
@@ -205,18 +213,29 @@ describe("admin refund provider", () => {
   ] as const) {
     test(`a provider that ${name} raises no incident`, async () => {
       const marker = collectingMarker();
+      let refundCalls = 0;
       const result = await refundCandidateAtProvider(
         {
           readChargeMoneyOrNull: read,
           refundCapability: "keyed" as const,
-          refundPayment: () => Promise.resolve(false),
+          refundPayment: () => {
+            refundCalls++;
+            return Promise.resolve(false);
+          },
         },
         candidate([{ reference: "pi_quiet" }]),
         7,
         marker.mark,
       );
 
-      expect(result.outcome).toBe("failed");
+      // "failed" alone cannot tell a withheld refund from one the provider
+      // turned down, because this double refuses either way. What the test is
+      // actually about is that no money was asked for at all.
+      expect(refundCalls).toBe(0);
+      expect(marker.marked).toEqual([]);
+      // Distinct from "failed": no money was asked for, and the reason has
+      // already been said at the volume it deserved.
+      expect(result.outcome).toBe("withheld");
       expect(errors.calls).toHaveLength(0);
     });
   }
@@ -520,8 +539,9 @@ describe("admin refund provider > an unrecorded refund", () => {
     );
 
     // No money was asked for, so there is nothing to be in doubt about and a
-    // retry in a moment is free.
-    expect(result.outcome).toBe("failed");
+    // retry in a moment is free. "withheld" says that where "failed" could not:
+    // nothing was sent, rather than something sent and refused.
+    expect(result.outcome).toBe("withheld");
     expect(result.unsettled).toBeUndefined();
   });
 
