@@ -2424,3 +2424,25 @@ Pruning has to establish that each ROW's own charge was returned before deleting
 it, rather than reading one attendee-wide leg. Note this shares the correlation
 problem above — a reversal leg cannot currently be traced to the charge it
 reversed — so the two are likely one piece of work.
+
+## Refund-all counts booking lines, not people
+
+_Origin: Codex on PR #2065, review of 774d1949 (P2)._
+
+`withListingAttendeesAuth` hands `getRefundCandidates`
+(`src/features/admin/refunds/candidates.ts`) one `Attendee` entry per
+`listing_attendees` row, so somebody holding two rows on one listing — a
+standalone booking beside a package one — becomes two candidates carrying the
+same complete reference set.
+
+`answeredOnce` still stops the provider being asked twice, so no money moves
+twice. What goes wrong is downstream: the ledger batch receives duplicate
+reversal groups and logs a false batch failure before falling back to the
+per-attendee path, `refundedCount` counts the person once per row, and each
+duplicate eats a `BULK_REFUND_LIMIT` slot.
+
+The fix is small — collapse by attendee id (`uniqueBy((a) => a.id)` from `#fp`)
+before building candidates, so refund-all processes people rather than lines.
+What it needs is a regression that actually builds an attendee with two rows on
+one listing (the package + standalone shape), which is why it is here rather
+than done inline.
