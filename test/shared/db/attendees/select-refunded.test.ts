@@ -120,10 +120,8 @@ describeWithEnv(
         expect(await refundedOn(stillPaid, attendeeId)).toBe(0);
       });
 
-      // The fault this closes: a free booking has no sale leg of its own, so it
-      // fell to the placeholder fallback and read whatever the ACCOUNT's cash
-      // said. One refunded paid booking then turned the free ticket away at
-      // the door, which is the harm the per-listing question exists to stop.
+      // A free booking has no sale leg, like a placeholder — but no money
+      // either, so it must never read another listing's returned cash.
       test("a free booking beside a refunded one is not refunded", async () => {
         const free = await createTestListing({
           maxAttendees: 10,
