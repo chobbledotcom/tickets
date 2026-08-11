@@ -18,12 +18,6 @@ const STALE_BEFORE = "2026-08-10T12:00:00.000Z";
 const FRESH = "2026-08-10T12:00:01.000Z";
 const CRASHED = "2026-08-10T11:59:59.000Z";
 
-const callbackClaim = (writtenAt: string): RefundClaim => ({
-  capability: "keyed",
-  scope: "callback",
-  writtenAt,
-});
-
 const attendeeClaim = (writtenAt: string, attendeeId = 7): RefundClaim => ({
   attendeeId,
   capability: "keyless",
@@ -32,19 +26,18 @@ const attendeeClaim = (writtenAt: string, attendeeId = 7): RefundClaim => ({
 });
 
 const ADMIN_RUN: ClaimRequest = { attendeeId: 7, scope: "attendee_set" };
-const CALLBACK_RUN: ClaimRequest = { scope: "callback" };
 
 describe("isClaimStale", () => {
   test("a claim written before the cutoff is a crashed worker", () => {
-    expect(isClaimStale(callbackClaim(CRASHED), STALE_BEFORE)).toBe(true);
+    expect(isClaimStale(attendeeClaim(CRASHED), STALE_BEFORE)).toBe(true);
   });
 
   test("a claim written after the cutoff is a run still going", () => {
-    expect(isClaimStale(callbackClaim(FRESH), STALE_BEFORE)).toBe(false);
+    expect(isClaimStale(attendeeClaim(FRESH), STALE_BEFORE)).toBe(false);
   });
 
   test("a claim written exactly at the cutoff is still going", () => {
-    expect(isClaimStale(callbackClaim(STALE_BEFORE), STALE_BEFORE)).toBe(false);
+    expect(isClaimStale(attendeeClaim(STALE_BEFORE), STALE_BEFORE)).toBe(false);
   });
 });
 
@@ -67,34 +60,10 @@ describe("decideClaim", () => {
     ).toEqual({ kind: "resume" });
   });
 
-  test("a stale callback claim is resumed on the callback path", () => {
-    expect(
-      decideClaim(callbackClaim(CRASHED), CALLBACK_RUN, STALE_BEFORE),
-    ).toEqual({ kind: "resume" });
-  });
-
-  test("an admin run never takes over a callback's stale claim", () => {
-    expect(
-      decideClaim(callbackClaim(CRASHED), ADMIN_RUN, STALE_BEFORE),
-    ).toEqual({ kind: "foreign" });
-  });
-
-  test("a callback never takes over an admin run's stale claim", () => {
-    expect(
-      decideClaim(attendeeClaim(CRASHED), CALLBACK_RUN, STALE_BEFORE),
-    ).toEqual({ kind: "foreign" });
-  });
-
   test("a stale claim on a different attendee's set is left alone", () => {
     expect(
       decideClaim(attendeeClaim(CRASHED, 99), ADMIN_RUN, STALE_BEFORE),
     ).toEqual({ kind: "foreign" });
-  });
-
-  test("a fresh claim from another scope is left alone, not reported held", () => {
-    expect(decideClaim(callbackClaim(FRESH), ADMIN_RUN, STALE_BEFORE)).toEqual({
-      kind: "foreign",
-    });
   });
 });
 

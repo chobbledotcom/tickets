@@ -27,20 +27,16 @@ export const RefundCapabilitySchema = v.picklist([
 export type RefundCapability = v.InferOutput<typeof RefundCapabilitySchema>;
 
 /**
- * One refund run's hold on this row. `attendeeId` is present only for an
- * `attendee_set` claim, which is re-claimable only by another run that takes
- * the same attendee's whole reference set again.
+ * One refund run's hold on this row, re-claimable only by another run that
+ * takes the same attendee's whole reference set again. `scope` is the
+ * discriminator a second kind of run is added under; today only the admin
+ * runs claim, so it has one value.
  */
 export const RefundClaimSchema = v.variant("scope", [
   v.strictObject({
     attendeeId: v.pipe(v.number(), v.safeInteger()),
     capability: RefundCapabilitySchema,
     scope: v.literal("attendee_set"),
-    writtenAt: v.string(),
-  }),
-  v.strictObject({
-    capability: RefundCapabilitySchema,
-    scope: v.literal("callback"),
     writtenAt: v.string(),
   }),
 ]);

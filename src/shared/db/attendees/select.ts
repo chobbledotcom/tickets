@@ -33,9 +33,10 @@ import type { Attendee } from "#shared/types.ts";
 /* jscpd:ignore-end */
 
 /**
- * This booking's refund status, projected from the transfers ledger rather than
- * a stored column. Returns 0/1 aliased `refunded`, matching the `number` shape
- * the booking row type carries.
+ * This booking's refund status as a bare SQL expression (0/1), projected from
+ * the transfers ledger rather than a stored column. The single home for "did
+ * THIS booking come back", so the projection and the stats that exclude
+ * refunded bookings cannot answer it differently.
  *
  * Asked per LISTING, not per person: a refund can now return one of somebody's
  * charges and leave a sibling with the provider, and the scanner and check-in
@@ -51,7 +52,7 @@ import type { Attendee } from "#shared/types.ts";
  * `listing_attendees` row has NULL ids, which match nothing, so both arms are
  * false (0).
  */
-export const refundedFromLedger = (
+export const refundedForBooking = (
   attendeeIdExpr: string,
   listingIdExpr: string,
 ): string => {
@@ -69,8 +70,14 @@ export const refundedFromLedger = (
     KIND.refundCash,
     accountPredicate("source", ATTENDEE, attendeeIdExpr),
   );
-  return `(SELECT CASE WHEN ${wasSold} THEN ${saleCameBack} ELSE ${cashCameBack} END) AS refunded`;
+  return `(SELECT CASE WHEN ${wasSold} THEN ${saleCameBack} ELSE ${cashCameBack} END)`;
 };
+
+/** {@link refundedForBooking} under the alias the booking row type reads. */
+export const refundedFromLedger = (
+  attendeeIdExpr: string,
+  listingIdExpr: string,
+): string => `${refundedForBooking(attendeeIdExpr, listingIdExpr)} AS refunded`;
 
 /**
  * Per-row amount paid, projected from the ledger rather than a stored column:

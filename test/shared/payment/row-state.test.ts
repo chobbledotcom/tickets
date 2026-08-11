@@ -46,8 +46,9 @@ describe("readRowState", () => {
   test("a claim-only record is not mistaken for a legacy outcome", () => {
     const claimOnly: PaymentRowState = {
       claim: {
+        attendeeId: 7,
         capability: "keyed",
-        scope: "callback",
+        scope: "attendee_set",
         writtenAt: "2026-08-10T12:00:00.000Z",
       },
     };
@@ -74,7 +75,7 @@ describe("readRowState", () => {
 
   test("refuses a claim with no written-at time", () => {
     const rogue = JSON.stringify({
-      claim: { capability: "keyed", scope: "callback" },
+      claim: { attendeeId: 7, capability: "keyed", scope: "attendee_set" },
     });
     expect(() => readRowState(rogue, CONTEXT)).toThrow(CONTEXT);
   });
@@ -103,7 +104,12 @@ describe("writeRowState", () => {
 
   test("refuses to store a claim the reader could not trust", () => {
     const bad = {
-      claim: { capability: "guessed", scope: "callback", writtenAt: "now" },
+      claim: {
+        attendeeId: 7,
+        capability: "guessed",
+        scope: "attendee_set",
+        writtenAt: "now",
+      },
     } as unknown as PaymentRowState;
     expect(() => writeRowState(bad, CONTEXT)).toThrow(CONTEXT);
   });

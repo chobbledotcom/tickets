@@ -14,9 +14,7 @@ import type {
 
 /** A run asking to work on a row. An admin run names its attendee, because
  *  only a run taking that same whole set again may resume a crashed one. */
-export type ClaimRequest =
-  | { attendeeId: number; scope: "attendee_set" }
-  | { scope: "callback" };
+export type ClaimRequest = { attendeeId: number; scope: "attendee_set" };
 
 /** What a run may do with the row it just read. `grant` and `resume` both end
  *  holding the claim, kept apart because resuming means a previous run died
@@ -50,22 +48,19 @@ export const isClaimStale = (
 ): boolean => claim.writtenAt < staleBefore;
 
 const sameAttendee = (claim: RefundClaim, request: ClaimRequest): boolean =>
-  claim.scope === "attendee_set" &&
-  request.scope === "attendee_set" &&
   claim.attendeeId === request.attendeeId;
 
-/** Decide what this run may do with a row. Another scope's claim is left
- *  alone fresh or stale: a callback and an admin run recover differently, and
- *  each recovering the other's work sends a refund from under someone. */
+/** Decide what this run may do with a row. A stale claim is resumable only by
+ *  a run taking the same attendee again — recovering somebody else's work
+ *  would send a refund from under them. */
 export const decideClaim = (
   existing: RefundClaim | undefined,
   request: ClaimRequest,
   staleBefore: string,
 ): ClaimDecision => {
   if (existing === undefined) return { kind: "grant" };
-  if (existing.scope !== request.scope) return { kind: "foreign" };
   if (!isClaimStale(existing, staleBefore)) return { kind: "held" };
-  return existing.scope === "callback" || sameAttendee(existing, request)
+  return sameAttendee(existing, request)
     ? { kind: "resume" }
     : { kind: "foreign" };
 };

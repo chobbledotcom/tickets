@@ -26,6 +26,7 @@ import {
   saleLegPredicate,
 } from "#shared/accounting/projection-sql.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
+import { refundedForBooking } from "#shared/db/attendees/select.ts";
 import { requireOne } from "#shared/db/client.ts";
 import type { Listing } from "#shared/types.ts";
 import { isPaidListing } from "#shared/types.ts";
@@ -61,13 +62,12 @@ export type ListingOverviewStats = {
   incompleteSales: number;
 };
 
-/** SQL predicate: the attendee has NOT been refunded — no `refund_cash` leg
- *  sourced from their account. Mirrors `refundedFromLedger` in
- *  `attendees/queries.ts` (minus its `AS refunded` alias) so a refunded booking
- *  whose processed reference was later pruned is not mistaken for a bare sale. */
-const notRefunded = (attendeeIdExpr: string): string =>
-  `NOT EXISTS (SELECT 1 FROM transfers WHERE kind = '${KIND.refundCash}'` +
-  ` AND ${accountPredicate("source", ATTENDEE, attendeeIdExpr)})`;
+/** SQL predicate: this booking has NOT come back, asked through the same
+ *  `refundedForBooking` the row projection uses so the two cannot drift. It is
+ *  here so a refunded booking whose processed reference was later pruned is not
+ *  mistaken for a bare sale. */
+const notRefunded = (attendeeIdExpr: string, listingIdExpr: string): string =>
+  `NOT ${refundedForBooking(attendeeIdExpr, listingIdExpr)}`;
 
 /** SQL boolean (0/1) marking a `listing_attendees` row `listingAttendee` as an
  *  incomplete payment: a recognised `sale` leg for the booking with no
@@ -99,7 +99,10 @@ const incompleteRowPredicate = (paid: boolean): string => {
   )} <= 0`;
   return (
     `(${hasSale} AND NOT ${hasPayment} AND NOT ${hasProviderReference}` +
-    ` AND ${nothingOwed} AND ${notRefunded("listingAttendee.attendee_id")})`
+    ` AND ${nothingOwed} AND ${notRefunded(
+      "listingAttendee.attendee_id",
+      "listingAttendee.listing_id",
+    )})`
   );
 };
 
@@ -132,7 +135,10 @@ const incompleteSales = async (listingId: number): Promise<number> => {
   const nothingOwed = `${attendeeOwedSubquery(
     "CAST(saleLeg.source_id AS INTEGER)",
   )} <= 0`;
-  const notRefundedSale = notRefunded("CAST(saleLeg.source_id AS INTEGER)");
+  const notRefundedSale = notRefunded(
+    "CAST(saleLeg.source_id AS INTEGER)",
+    "CAST(saleLeg.dest_id AS INTEGER)",
+  );
   const row = await requireOne<{ incomplete_sales: number | bigint }>(
     `SELECT COALESCE(SUM(saleLeg.amount), 0) AS incomplete_sales
        FROM transfers AS saleLeg
