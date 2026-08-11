@@ -10,6 +10,7 @@
 
 /* jscpd:ignore-start -- imports */
 import type { InValue } from "@libsql/client";
+import { mapNotNullish } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
@@ -291,16 +292,15 @@ export type RowRelease = {
  * clears an older mark, which is how the state retires when a later run's
  * ledger post finally lands.
  */
-export const releaseAttendeeRows = async ({
-  heldSince,
-  sessionIds,
-  unrecorded = new Set(),
-}: RowRelease): Promise<void> => {
+const rewriteRows = async (
+  sessionIds: readonly string[],
+  next: (row: PaymentRowRecord) => PaymentRowState | null,
+): Promise<void> => {
   if (sessionIds.length === 0) return;
   // Two batches rather than a transaction: nothing between the read and the
   // write depends on it, and each write is conditioned on the exact record it
-  // read. Pinned to the primary because it reads this run's own claim — a
-  // lagging replica would match no write and leave the claim standing.
+  // read. Pinned to the primary because a caller may be reading its own claim
+  // — a lagging replica would match no write and leave the claim standing.
   const [read] = await queryBatchPrimary([
     {
       args: [...sessionIds],
@@ -311,19 +311,47 @@ export const releaseAttendeeRows = async ({
   ]);
   const rows = await Promise.all(resultRows<StoredRow>(read!).map(asRowRecord));
   const writes = await Promise.all(
-    rows
-      .filter((row) => row.state.claim?.writtenAt === heldSince)
-      .map(async (row) => {
-        // Letting the claim go does not clear the row: an owner review it
-        // still carries has to keep showing.
-        const { claim: _released, unrecorded: _settled, ...kept } = row.state;
-        return await rowStateStatement(
-          row,
-          unrecorded.has(row.sessionId)
-            ? { ...kept, unrecorded: { returnedAt: nowIso() } }
-            : kept,
-        );
-      }),
+    mapNotNullish((row: PaymentRowRecord) => {
+      const state = next(row);
+      return state === null ? undefined : { row, state };
+    })(rows).map(({ row, state }) => rowStateStatement(row, state)),
   );
   if (writes.length > 0) await executeBatch(writes);
 };
+
+export const releaseAttendeeRows = ({
+  heldSince,
+  sessionIds,
+  unrecorded = new Set(),
+}: RowRelease): Promise<void> =>
+  rewriteRows(sessionIds, (row) => {
+    if (row.state.claim?.writtenAt !== heldSince) return null;
+    // Letting the claim go does not clear the row: an owner review it still
+    // carries has to keep showing.
+    const { claim: _released, unrecorded: _settled, ...kept } = row.state;
+    return unrecorded.has(row.sessionId)
+      ? { ...kept, unrecorded: { returnedAt: nowIso() } }
+      : kept;
+  });
+
+/**
+ * Say on these rows that their money went back and the books have not caught
+ * up with it.
+ *
+ * For the paths that DISCOVER a refund rather than send one — the refresh
+ * route finds the provider already returned a charge, and its ledger post does
+ * not land. There is no claim to let go of there, only a fact that has to
+ * survive: without it nothing stops the row being deleted, and the record of
+ * the refund goes with it along with the ledger's correction target.
+ *
+ * A row already saying so keeps the time it first did, so repeated refreshes
+ * do not keep moving the date a person is meant to be looking into.
+ */
+export const markReturnedUnrecorded = (
+  sessionIds: readonly string[],
+): Promise<void> =>
+  rewriteRows(sessionIds, (row) =>
+    row.state.unrecorded === undefined
+      ? { ...row.state, unrecorded: { returnedAt: nowIso() } }
+      : null,
+  );

@@ -13,9 +13,28 @@ export type RefundCandidate = {
   references: RefundPaymentReference[];
 };
 
+/**
+ * Whether a refund run still has work for this attendee.
+ *
+ * Money still with the provider is the obvious kind. A hold a run left behind
+ * is the other: nothing else in the system can take one off, so an attendee
+ * whose money is all back but whose row is still held has to be picked up
+ * again — and until they are, their delete and their merge stay refused.
+ *
+ * The bulk list and the single-attendee page both ask this, so the page a
+ * person is looking at and the run they start cannot disagree about whether
+ * there is anything left to do.
+ */
+export const refundWorkRemains = (
+  attendee: Pick<Attendee, "refunded">,
+  references: readonly RefundPaymentReference[],
+): boolean =>
+  !attendee.refunded ||
+  stillWithTheProvider(references) ||
+  underRefundClaim(references);
+
 /** Attendees a refund run still has work for on this listing: a real ticket
- * line, at least one stored provider charge reference, and either money still
- * with the provider or a hold a run left behind. */
+ * line, at least one stored provider charge reference, and work remaining. */
 export const getRefundCandidates = async (
   attendees: Attendee[],
   privateKey: CryptoKey,
@@ -27,13 +46,7 @@ export const getRefundCandidates = async (
   return filter(
     (candidate: RefundCandidate) =>
       candidate.references.length > 0 &&
-      (!candidate.attendee.refunded ||
-        stillWithTheProvider(candidate.references) ||
-        // A run whose money went back but whose release write did not is the
-        // only thing that can let its own hold go. Leaving such an attendee
-        // out is what stranded them: refused by delete and by merge, and told
-        // to re-run a refund that would never pick them up again.
-        underRefundClaim(candidate.references)) &&
+      refundWorkRemains(candidate.attendee, candidate.references) &&
       hasTicketQuantity(candidate.attendee),
   )(
     attendees.map((attendee) => ({

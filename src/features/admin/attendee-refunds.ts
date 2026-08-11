@@ -20,7 +20,6 @@ import { hasActiveBookingLine } from "#shared/db/attendees/queries.ts";
 import {
   getRefundPaymentReferences,
   type RefundPaymentReference,
-  stillWithTheProvider,
 } from "#shared/db/payment-references.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { fail, ok } from "#shared/response.ts";
@@ -38,7 +37,10 @@ import {
   NO_PROVIDER_ERROR,
   verifiedAttendeeAction,
 } from "./attendees-route-helpers.ts";
-import { getRefundCandidates } from "./refunds/candidates.ts";
+import {
+  getRefundCandidates,
+  refundWorkRemains,
+} from "./refunds/candidates.ts";
 import { processRefundBatch, type RefundCounts } from "./refunds/provider.ts";
 import { requirePaymentProvider } from "./require-provider.ts";
 
@@ -79,9 +81,11 @@ const whatIsLeftToRefund = async (
     attendee.id,
     `No refund references read for attendee ${attendee.id}`,
   );
-  // Refunded in part still leaves money to send back, so the ledger's flag
-  // alone is not the answer — see `stillWithTheProvider`.
-  if (attendee.refunded && !stillWithTheProvider(references)) {
+  // The ledger's flag alone is not the answer: a part refund still leaves
+  // money to send back, and a hold left behind still needs a run to take it
+  // off. Asked through the same rule the bulk list uses, so this page and that
+  // one cannot disagree.
+  if (!refundWorkRemains(attendee, references)) {
     return { kind: "nothing", reason: t("error.already_refunded") };
   }
   return references.length === 0

@@ -28,6 +28,7 @@ import {
   getNotesFor,
 } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
+import { markReturnedUnrecorded } from "#shared/db/payment-claim.ts";
 import {
   getRefundPaymentReferencesForAttendee,
   markPaymentReferencesProviderRefunded,
@@ -163,8 +164,15 @@ const recordConfirmedRefund = async (
     );
   }
   // Money moved at the provider without our ledger recording it — report it as
-  // well as telling the operator to add the correction by hand.
+  // well as telling the operator to add the correction by hand. The rows that
+  // carried it say so too, or nothing stops them being deleted before anyone
+  // gets to the correction.
   if (!posted) {
+    await markReturnedUnrecorded(
+      references
+        .filter(hasProviderRefund)
+        .flatMap((reference) => reference.rowSessionIds),
+    );
     return errorRedirect(
       `/admin/attendees/${attendeeId}`,
       reportRefundNotRecorded({ attendeeId, listingId }),
