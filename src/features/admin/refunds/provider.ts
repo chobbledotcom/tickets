@@ -15,12 +15,10 @@ import {
 } from "#shared/db/payment-references.ts";
 import { reportRefundNotRecorded } from "#shared/invariant-errors.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import {
-  admissionReason,
-  sendRefundIfAdmitted,
-} from "#shared/payment/admit-refund.ts";
+import { sendRefundIfAdmitted } from "#shared/payment/admit-refund.ts";
 import { claimRefusal, mayReleaseClaim } from "#shared/payment/claim.ts";
 import type { RefundCapability } from "#shared/payment/row-state.ts";
+import { reportWithheldRefund } from "#shared/payment-review.ts";
 import type { getActivePaymentProvider } from "#shared/payments.ts";
 import { recordAttendeeRefundsBatch } from "#shared/refund-ledger.ts";
 import type { RefundCandidate } from "./candidates.ts";
@@ -140,15 +138,19 @@ const refundReferenceOnce = async (
         unanswered: true,
       }),
       sent: () => settled("refunded"),
-      withhold: (admission) =>
-        settled(
-          admission.kind === "already_returned"
-            ? "refunded"
-            : refusedRefund(
-                `Admin refund not sent for attendee ${attendeeId}, payment ${paymentReference}: ${admissionReason(admission)}`,
-                listingId,
-              ),
-        ),
+      withhold: (admission) => {
+        if (admission.kind === "already_returned") return settled("refunded");
+        // How loudly a withheld refund is said belongs to the one reporter
+        // that knows: a provider we could not reach, or a refund already on
+        // its way, are answers rather than incidents. Alerting on those buries
+        // the disagreements that genuinely need somebody.
+        reportWithheldRefund(admission, {
+          attendeeId,
+          listingId,
+          paymentReference,
+        });
+        return settled("failed");
+      },
     });
   } catch (err) {
     logError({
