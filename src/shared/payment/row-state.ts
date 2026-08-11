@@ -17,14 +17,6 @@ import { PaymentConflictSchema } from "#shared/payment/conflict.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
 /**
- * Who a claim belongs to. A run only ever consumes a claim in its own scope: a
- * provider callback never takes over work an admin run started, and an admin
- * run never resumes a callback's, because the two recover differently.
- */
-export const ClaimScopeSchema = v.picklist(["attendee_set", "callback"]);
-export type ClaimScope = v.InferOutput<typeof ClaimScopeSchema>;
-
-/**
  * Whether a second attempt under this claim would land on the money twice.
  *
  * `keyed` providers take an idempotency key, so re-running a lost call is safe

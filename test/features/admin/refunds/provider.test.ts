@@ -15,7 +15,12 @@ import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import type { RefundState } from "#shared/payment/refund-state.ts";
 import type { RefundCapability } from "#shared/payment/row-state.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
-import { chargeMoney, fullyRefundedMoney } from "#test-utils/payment-state.ts";
+import {
+  chargeMoney,
+  chargeMoneyWith,
+  fullyRefundedMoney,
+  refundObservation,
+} from "#test-utils/payment-state.ts";
 import { grantingRowClaim } from "#test-utils/refund-routes.ts";
 
 type Ref = { reference: string; refundState?: RefundState };
@@ -181,6 +186,40 @@ describe("combineRefundOutcomes", () => {
 
 describe("admin refund provider", () => {
   const errors = setupErrorSpy();
+
+  // A withheld refund is not automatically an incident. The shared reporter
+  // decides how loudly each kind is said, and only a real disagreement gets
+  // the classified fan-out — alerting on a provider outage or a refund already
+  // settling would bury the ones that need somebody.
+  for (const [name, read] of [
+    ["could not be reached", () => Promise.resolve(null)],
+    [
+      "says a refund is already on its way",
+      () =>
+        Promise.resolve(
+          chargeMoneyWith({
+            refunds: [refundObservation({ status: "pending" })],
+          }),
+        ),
+    ],
+  ] as const) {
+    test(`a provider that ${name} raises no incident`, async () => {
+      const marker = collectingMarker();
+      const result = await refundCandidateAtProvider(
+        {
+          readChargeMoneyOrNull: read,
+          refundCapability: "keyed" as const,
+          refundPayment: () => Promise.resolve(false),
+        },
+        candidate([{ reference: "pi_quiet" }]),
+        7,
+        marker.mark,
+      );
+
+      expect(result.outcome).toBe("failed");
+      expect(errors.calls).toHaveLength(0);
+    });
+  }
 
   test("counts a reference already marked refunded without calling the provider", async () => {
     let refundCalls = 0;
