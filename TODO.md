@@ -2471,3 +2471,29 @@ alongside the missing state rather than separately — three triggers, one
 mechanism.
 
 Found by Codex on #2065.
+
+## SumUp's malformed charge still has no way back
+
+The malformed-charge recovery was repaired for Stripe and Square by letting the
+guard send when it cannot read the charge. That allowance is gated on the
+provider being `keyed`, because a keyed provider rejects a second full refund
+itself. SumUp declares `keyless`, so its malformed charges are still refused:
+the callback answers 503 for ever and the buyer stays charged.
+
+Be clear about what that means. Before this branch the path attempted the refund
+for every provider. It now attempts it for two of three. The regression is
+narrowed, not gone.
+
+The gate is not wrong — sending unguarded to a keyless provider on a callback
+that retries is how one buyer is paid twice, which is the whole reason the guard
+exists. What is missing is the thing that would make a single keyless send safe:
+a durable claim on the callback path, which is PR B's `callback` claim scope and
+is already listed as deferred in this PR's description.
+
+So this is not a fix waiting to be written; it is a fix waiting on that scope.
+Until it lands, a SumUp checkout whose amount or currency comes back unreadable
+cannot be refunded automatically and needs an operator to return it by hand.
+That should be said out loud somewhere an operator will see it, rather than
+being left as a 503 nobody can explain.
+
+Found by Codex on #2065.
