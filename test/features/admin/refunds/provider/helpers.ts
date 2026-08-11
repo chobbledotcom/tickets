@@ -29,7 +29,6 @@ import { sessionReference } from "#test/shared/refund-ledger/helpers.ts";
 import {
   acceptedRefund,
   chargeMoney,
-  fullyRefundedMoney,
   refundReference,
 } from "#test-utils/payment-state.ts";
 
@@ -70,13 +69,9 @@ export const candidate = (
 ): RefundCandidate => ({
   attendee: { id } as RefundCandidate["attendee"],
   references: references.map(({ reference, refundState = "none" }) =>
-    refundReference(reference, { refundState }),
+    refundReference(reference, { refundState })
   ),
 });
-
-export const candidateWithReferences = (
-  references: string[],
-): RefundCandidate => candidate(references.map((reference) => ({ reference })));
 
 type ReadyReferenceInput = {
   charge?: ChargeMoney;
@@ -86,7 +81,6 @@ type ReadyReferenceInput = {
   reference: string;
 };
 
-/** A provider-bound reference carrying the exact readiness observation. */
 export const readyReference = (
   input: ReadyReferenceInput,
   defaultProvider: RecordingProvider,
@@ -101,11 +95,11 @@ export const readyReference = (
   return input.kind === "already_returned"
     ? { kind: "already_returned", provider: source, reference }
     : {
-        charge: input.charge ?? chargeMoney(),
-        kind: "observed",
-        provider: source,
-        reference,
-      };
+      charge: input.charge ?? chargeMoney(),
+      kind: "observed",
+      provider: source,
+      reference,
+    };
 };
 
 export const readyCandidate = (
@@ -148,24 +142,15 @@ const prepareProviderReference = async (
   return read.status === "found"
     ? { charge: read.resource, kind: "observed" }
     : {
-        evidence:
-          reference.kind === "tagged"
-            ? {
-                ...read,
-                attempts: [{ provider: source.type, result: read }],
-                provider: reference.provider,
-                reference: reference.reference,
-                source: "tagged",
-              }
-            : {
-                attempts: [{ provider: source.type, result: read }],
-                reason: "no_validating_provider",
-                reference: reference.reference,
-                source: "untagged",
-                status: "unresolved",
-              },
-        index: reference.index,
-      };
+      evidence: {
+        attempts: [{ provider: source.type, result: read }],
+        reason: "no_validating_provider",
+        reference: reference.reference,
+        source: "untagged",
+        status: "unresolved",
+      },
+      index: reference.index,
+    };
 };
 
 const isReadinessFailure = (
@@ -183,68 +168,75 @@ const readyReferenceFrom = (
     index: `index_of_${source.type}_${reference.reference}`,
     kind: "tagged" as const,
     provider: source.type,
-    rowSessionIds:
-      reference.rowSessionIds.length === 0
-        ? [anchorSessionId(attendeeId, reference.index)]
-        : reference.rowSessionIds,
+    rowSessionIds: reference.rowSessionIds.length === 0
+      ? [anchorSessionId(attendeeId, reference.index)]
+      : reference.rowSessionIds,
   };
   return prepared.kind === "already_returned"
     ? { kind: "already_returned", provider: source, reference: tagged }
     : {
-        charge: prepared.charge,
-        kind: "observed",
-        provider: source,
-        reference: tagged,
-      };
+      charge: prepared.charge,
+      kind: "observed",
+      provider: source,
+      reference: tagged,
+    };
 };
 
-/** Test boundary that supplies one provider's exact reads as readiness. */
 export const prepareAtProvider =
   (source: RecordingProvider): NonNullable<RefundRunDependencies["prepare"]> =>
   async (candidates, _claim, alreadyReturned) => {
     const references = uniqueBy(
       (reference: RefundPaymentReference) => reference.index,
     )(candidates.flatMap((candidate) => candidate.references));
-    const preparedByIndex = new Map(
-      await Promise.all(
-        references.map(
-          async (
-            reference,
-          ): Promise<readonly [string, PreparedProviderReference]> => [
-            reference.index,
-            await prepareProviderReference(reference, source, alreadyReturned),
-          ],
+    const preparedReferences = await Promise.all(
+      references.map(async (reference) => ({
+        index: reference.index,
+        prepared: await prepareProviderReference(
+          reference,
+          source,
+          alreadyReturned,
         ),
-      ),
+      })),
     );
-    const failures = [...preparedByIndex.values()].filter(isReadinessFailure);
+    const failures = preparedReferences
+      .map(({ prepared }) => prepared)
+      .filter(isReadinessFailure);
+    const preparedByIndex = new Map(
+      preparedReferences
+        .filter(
+          (
+            entry,
+          ): entry is typeof entry & {
+            prepared: Exclude<
+              PreparedProviderReference,
+              RefundReadinessRead
+            >;
+          } => !isReadinessFailure(entry.prepared),
+        )
+        .map(({ index, prepared }) => [index, prepared]),
+    );
     return failures.length > 0
       ? { kind: "not_ready", reads: failures, reason: "provider_evidence" }
       : {
-          candidates: candidates.map((candidate) => ({
-            attendee: candidate.attendee,
-            references: candidate.references.map((reference) => {
-              const prepared = requiredMapValue(
-                preparedByIndex,
-                reference.index,
-                `Test readiness lost payment reference ${reference.index}`,
-              );
-              if (isReadinessFailure(prepared)) {
-                throw new Error(
-                  `Test readiness tried to execute failed reference ${reference.index}`,
-                );
-              }
-              return readyReferenceFrom(
-                reference,
-                prepared,
-                source,
-                candidate.attendee.id,
-              );
-            }),
-          })),
-          capability: source.refundCapability,
-          kind: "ready",
-        };
+        candidates: candidates.map((candidate) => ({
+          attendee: candidate.attendee,
+          references: candidate.references.map((reference) => {
+            const prepared = requiredMapValue(
+              preparedByIndex,
+              reference.index,
+              `Test readiness lost payment reference ${reference.index}`,
+            );
+            return readyReferenceFrom(
+              reference,
+              prepared,
+              source,
+              candidate.attendee.id,
+            );
+          }),
+        })),
+        capability: source.refundCapability,
+        kind: "ready",
+      };
   };
 
 /** Run provider orchestration tests behind their explicit readiness fixture. */
@@ -267,20 +259,17 @@ export const completedRefund = (
   proof: { charge: request.charge, kind: "charge_observation" },
 });
 
-/** Provider that records every read and refund request. */
 export const provider = ({
   accepted = new Set<string>(),
   refunded = new Set<string>(),
-  alreadyRefunded = new Set<string>(),
   throws = new Set<string>(),
   refundCapability = "keyed",
   paymentProvider = "stripe",
-  read,
+  read = () => Promise.resolve(chargeMoney()),
   refund,
 }: {
   accepted?: Set<string>;
   refunded?: Set<string>;
-  alreadyRefunded?: Set<string>;
   throws?: Set<string>;
   refundCapability?: ResolvedRefundCapability;
   paymentProvider?: PaymentProviderType;
@@ -293,18 +282,10 @@ export const provider = ({
   return {
     readCharge: async (reference: string) => {
       reads.push(reference);
-      try {
-        const charge = read
-          ? await read(reference)
-          : alreadyRefunded.has(reference)
-            ? fullyRefundedMoney()
-            : chargeMoney();
-        return charge === null
-          ? ({ reason: "network_error", status: "unavailable" } as const)
-          : ({ resource: charge, status: "found" } as const);
-      } catch {
-        return { reason: "network_error", status: "unavailable" } as const;
-      }
+      const charge = await read(reference);
+      return charge === null
+        ? ({ reason: "network_error", status: "unavailable" } as const)
+        : ({ resource: charge, status: "found" } as const);
     },
     reads,
     refundCapability,
@@ -322,8 +303,8 @@ export const provider = ({
         accepted.has(request.paymentReference)
           ? acceptedRefund(request.charge)
           : refunded.has(request.paymentReference)
-            ? completedRefund(request)
-            : { kind: "rejected", reason: "failed" },
+          ? completedRefund(request)
+          : { kind: "rejected", reason: "failed" },
       );
     },
     refunds,
@@ -332,7 +313,6 @@ export const provider = ({
   };
 };
 
-/** Unreadable provider that records anything it is asked to send. */
 export const unreadableProvider = (
   refundCapability: ResolvedRefundCapability,
 ): UnreadableProvider => {
@@ -394,7 +374,7 @@ export const pendingCandidate = (
 ): RefundCandidate => ({
   attendee: { id: attendeeId } as RefundCandidate["attendee"],
   references: references.map((reference) =>
-    refundReference(reference, { sessionIds: [] }),
+    refundReference(reference, { sessionIds: [] })
   ),
 });
 

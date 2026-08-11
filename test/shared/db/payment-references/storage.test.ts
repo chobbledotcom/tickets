@@ -237,4 +237,35 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
     ]);
     expect(await indexOf("sess_unindexed")).toEqual({ value: expected });
   });
+
+  test("refuses a stored row whose reference index does not match", async () => {
+    const listing = await createTestListing({ maxAttendees: 50 });
+    const created = await bookAttendee(listing, {
+      email: "mismatched-index@example.com",
+      name: "Mismatched Index",
+    });
+    if (!created.success) throw new Error("setup failed");
+    const attendeeId = created.attendees[0]!.id;
+    const sessionId = "sess_mismatched_index";
+    await finalizeProcessedPayment(
+      sessionId,
+      attendeeId,
+      "",
+      taggedPaymentReference("pi_mismatched_index", "square"),
+    );
+    await execute(
+      `UPDATE processed_payments
+          SET payment_reference_index = ?
+        WHERE payment_session_id = ?`,
+      ["wrong-index", sessionId],
+    );
+
+    await expect(
+      getRefundPaymentReferences(
+        [{ id: attendeeId, payment_id: "" }],
+        await getTestPrivateKey(),
+      ),
+    ).rejects.toThrow(`Payment reference index does not match ${sessionId}`);
+    expect(await indexOf(sessionId)).toEqual({ value: "wrong-index" });
+  });
 });

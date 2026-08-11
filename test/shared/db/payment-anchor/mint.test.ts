@@ -92,6 +92,23 @@ describeWithEnv(
       ]);
     });
 
+    test("refuses to mint a charge whose stored identity changed", async () => {
+      const attendeeId = await newAttendee("changed-index@example.com");
+      const loaded = await about(attendeeId, "pi_changed");
+      const reference = loaded.references[0];
+      if (!reference) throw new Error("setup failed");
+
+      await expect(
+        legacyAnchorStatements([{
+          attendeeId,
+          references: [{ ...reference, index: "stale-index" }],
+        }]),
+      ).rejects.toThrow(
+        `Payment reference index changed for attendee ${attendeeId}`,
+      );
+      expect(await paymentRowCount(attendeeId)).toBe(0);
+    });
+
     test("a second run is turned away from an anchored legacy charge", async () => {
       const attendeeId = await newAttendee("legacy2@example.com");
       const loaded = await about(attendeeId, "pi_once");

@@ -1,9 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
+import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
 import { anchorSessionId } from "#shared/db/payment-anchor/session.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
 import {
+  candidate,
   completedRefund,
   failingProvider,
   finishedCounts,
@@ -11,6 +13,7 @@ import {
   pendingCandidate,
   processRefundBatchAt,
   provider,
+  readyCandidate,
   refundedCandidate,
   unreadableProvider,
 } from "#test/features/admin/refunds/provider/helpers.ts";
@@ -112,6 +115,22 @@ describeWithEnv(
 
       expect(counts).toEqual(oneFailedRefundCounts);
       expect(await refundCashAmounts(attendeeId)).toEqual([5000]);
+    });
+
+    test("counts a refund the provider could not send as failed", async () => {
+      const counts = finishedCounts(
+        await processRefundBatchAt(
+          provider({
+            refund: () =>
+              Promise.resolve({ kind: "not_sent", reason: "not_configured" }),
+          }),
+          [pendingCandidate(34, ["pi_not_sent"])],
+          LISTING,
+          { claim: grantingRowClaim() },
+        ),
+      );
+
+      expect(counts).toEqual(oneFailedRefundCounts);
     });
 
     test("replaying that partial result does not mark recorded money missing", async () => {
@@ -259,6 +278,49 @@ describeWithEnv(
 
       expect(counts.notRecordedCount).toBe(1);
       expect(claim.released).toEqual([[anchor]]);
+      expect(claim.unrecorded).toEqual([[anchor]]);
+    });
+
+    test("derives a missing returned row from its attendee and index", async () => {
+      const attendeeId = 35;
+      const input = candidate([{ reference: "pi_rowless" }], attendeeId);
+      const source = provider({ refunded: new Set(["pi_rowless"]) });
+      const prepared = readyCandidate(
+        [{ index: "index_of_pi_rowless", reference: "pi_rowless" }],
+        source,
+        attendeeId,
+      );
+      const observed = prepared.references[0];
+      if (observed === undefined) {
+        throw new Error("Expected one prepared refund reference");
+      }
+      const ready = {
+        ...prepared,
+        references: [
+          {
+            ...observed,
+            reference: { ...observed.reference, rowSessionIds: [] },
+          },
+        ],
+      };
+      const anchor = anchorSessionId(attendeeId, observed.reference.index);
+      const claim = grantingRowClaim(new Map([[attendeeId, [anchor]]]));
+
+      const counts = finishedCounts(
+        await processRefundBatch([input], LISTING, {
+          claim,
+          markReturned: () => Promise.resolve(),
+          prepare: () =>
+            Promise.resolve({
+              candidates: [ready],
+              capability: "keyed",
+              kind: "ready",
+            }),
+          record: () => Promise.resolve(new Map([[attendeeId, false]])),
+        }),
+      );
+
+      expect(counts.notRecordedCount).toBe(1);
       expect(claim.unrecorded).toEqual([[anchor]]);
     });
 

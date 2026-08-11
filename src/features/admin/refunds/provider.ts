@@ -91,7 +91,8 @@ const logBulkRefundProblem = (
     .join(", ");
   logError({
     code: ErrorCode.PAYMENT_REFUND,
-    detail: `Admin bulk refund ${outcome} for attendee ${candidate.attendee.id}, payments ${refs}`,
+    detail:
+      `Admin bulk refund ${outcome} for attendee ${candidate.attendee.id}, payments ${refs}`,
     listingId,
   });
 };
@@ -131,10 +132,12 @@ const tallyProviderRefund = (
 const rowsHolding = (
   attendeeId: number,
   reference: RefundPaymentReference,
-): readonly string[] =>
-  reference.rowSessionIds.length > 0
-    ? reference.rowSessionIds
-    : [anchorSessionId(attendeeId, reference.index)];
+): readonly string[] => {
+  if (reference.rowSessionIds.length > 0) {
+    return reference.rowSessionIds;
+  }
+  return [anchorSessionId(attendeeId, reference.index)];
+};
 
 /** Post whatever came back for one wave, and retain any missed ledger write. */
 const recordWave = async (
@@ -150,7 +153,7 @@ const recordWave = async (
       counts.notRecordedCount++;
       reportRefundNotRecorded({ attendeeId, listingId });
       const missedRows = references.flatMap((reference) =>
-        rowsHolding(attendeeId, reference),
+        rowsHolding(attendeeId, reference)
       );
       const earlierMissedRows = findings.unrecorded.get(attendeeId);
       findings.unrecorded.set(
@@ -178,8 +181,8 @@ export const processRefundBatch = async (
   listingId: number,
   {
     claim: rowClaim = durableRowClaim,
-    markReturned:
-      markReturnedReferences = markPaymentReferencesProviderRefunded,
+    markReturned: markReturnedReferences =
+      markPaymentReferencesProviderRefunded,
     prepare = prepareRefundReadiness,
     record = recordAttendeeRefundsBatch,
   }: RefundRunDependencies = {},
@@ -269,13 +272,15 @@ const refundClaimedBatch = async (
         );
       })
       .flatMap((candidate) =>
-        candidate.references.map(({ reference }) => reference.index),
+        candidate.references.map(({ reference }) => reference.index)
       ),
   );
   const counts = noRefunds();
-  for (const group of packByReferenceCount(PROVIDER_REFUND_CONCURRENCY)(
-    batch,
-  )) {
+  for (
+    const group of packByReferenceCount(PROVIDER_REFUND_CONCURRENCY)(
+      batch,
+    )
+  ) {
     const results = await Promise.all(
       group.map((candidate) =>
         refundReadyCandidate(
@@ -284,7 +289,7 @@ const refundClaimedBatch = async (
           writes.markReturned,
           inFlight,
           observeOnly,
-        ),
+        )
       ),
     );
     const postings: LedgerPosting[] = [];

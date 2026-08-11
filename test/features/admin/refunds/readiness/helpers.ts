@@ -10,6 +10,7 @@ import type { PaymentReferenceEvidence } from "#shared/payment/provider-discover
 import type { PaymentReference } from "#shared/payment/provider-reference.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
+import { provider as recordingProvider } from "#test/features/admin/refunds/provider/helpers.ts";
 
 export const charge = (): ChargeMoney => ({
   captured: { amount: 1000, currency: "GBP" },
@@ -69,12 +70,8 @@ export const heldClaim: HeldRefundClaim = {
 export const provider = (
   type: PaymentProviderType,
   refundCapability: ReadyRefundProvider["refundCapability"] = "keyed",
-): ReadyRefundProvider => ({
-  refundCapability,
-  refundCharge: () =>
-    Promise.resolve({ kind: "not_sent", reason: "not_configured" }),
-  type,
-});
+): ReadyRefundProvider =>
+  recordingProvider({ paymentProvider: type, refundCapability });
 
 export const found = (
   reference: PaymentReference,

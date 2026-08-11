@@ -8,16 +8,12 @@
  * `refund_cash` leg is what the per-row `refunded` projection now reads.
  */
 
-import { chunk } from "#fp";
 import { t } from "#i18n";
 import { AUTH_FORM, withAuth } from "#routes/auth.ts";
 /* jscpd:ignore-start */
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 /* jscpd:ignore-end */
-import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
-import { KIND } from "#shared/accounting/kinds.ts";
-import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { logActivity } from "#shared/db/activity-log.ts";
 import { decryptAttendeeOrNull } from "#shared/db/attendees/pii.ts";
 import { getAttendeeRaw } from "#shared/db/attendees/queries.ts";
@@ -29,29 +25,16 @@ import {
 } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
 import {
-  clearReturnedUnrecorded,
-  markReturnedUnrecorded,
-} from "#shared/db/payment-claim.ts";
-import {
   getRefundPaymentReferencesForAttendee,
-  markPaymentReferencesProviderRefunded,
   type RefundPaymentReference,
 } from "#shared/db/payment-references.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { reportRefundNotRecorded } from "#shared/invariant-errors.ts";
-import { legMatches } from "#shared/ledger/legs.ts";
-import { admitProviderRefund } from "#shared/payment/admit-refund.ts";
-import type { RefundState } from "#shared/payment/refund-state.ts";
-import { reportWithheldRefund } from "#shared/payment-review.ts";
-import type { PaymentProvider } from "#shared/payments.ts";
-import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
 /* jscpd:ignore-start */
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee } from "#shared/types.ts";
 /* jscpd:ignore-end */
-import { NO_PROVIDER_ERROR } from "./attendees-route-helpers.ts";
-import { PROVIDER_REFUND_CONCURRENCY } from "./refunds/provider-requests.ts";
-import { requirePaymentProvider } from "./require-provider.ts";
+import { refreshClaimedPayment } from "./refunds/refresh.ts";
 
 /** Minimal context needed by the refresh-payment flow. */
 type RefreshPaymentContext = {
@@ -85,88 +68,14 @@ const loadRefreshContext = async (
   return { attendee, listingId: firstBooking.listing_id };
 };
 
-const refreshProviderRefunds = async (
-  provider: Pick<PaymentProvider, "readCharge">,
-  references: readonly RefundPaymentReference[],
-  { attendeeId, listingId }: { attendeeId: number; listingId: number },
-): Promise<RefundPaymentReference[]> => {
-  const refreshed: RefundPaymentReference[] = [];
-  // Chunk the provider status checks by charge-reference count — a merged
-  // attendee can carry many charges, and an unbounded fan-out would blow the
-  // edge subrequest budget before the ledger is marked. Same bound the
-  // bulk-refund path uses.
-  for (const group of chunk(PROVIDER_REFUND_CONCURRENCY)([...references])) {
-    refreshed.push(
-      ...(await Promise.all(
-        group.map(async (reference) => {
-          if (reference.refundState === "completed") return reference;
-          // A legacy charge ("unknown") is queried like any other. The money is
-          // judged rather than trusted to a flag, so a charge only reads as
-          // refunded when everything it took has actually gone back.
-          const admission = await admitProviderRefund(
-            provider,
-            reference.reference,
-          );
-          if (admission.kind === "already_returned") {
-            return { ...reference, refundState: "completed" as RefundState };
-          }
-          // Only a provider that positively says the money is still with it
-          // settles this charge as "nothing back". Every other answer — a
-          // refund still settling, a disagreement an owner must resolve, a
-          // provider that could not say — leaves what we already knew alone,
-          // rather than turning "we do not know" into a definite "none".
-          if (admission.kind !== "send") {
-            reportWithheldRefund(admission, {
-              attendeeId,
-              listingId,
-              paymentReference: reference.reference,
-            });
-            return reference;
-          }
-          return { ...reference, refundState: "none" as RefundState };
-        }),
-      )),
-    );
-  }
-  return refreshed;
-};
-
-/** The rows carrying the charges this refresh found already returned. */
-const refundedRowSessionIds = (
-  references: readonly RefundPaymentReference[],
-): string[] =>
-  references
-    .filter(hasProviderRefund)
-    .flatMap((reference) => reference.rowSessionIds);
-
-const hasProviderRefund = (
-  reference: Pick<RefundPaymentReference, "refundState">,
-): boolean => reference.refundState === "completed";
-
-/** After the provider confirms the refund, record it in the ledger and add a
- *  resolving note if the attendee is a quantity-0 placeholder. Returns null on
- *  success (caller redirects), or a Response for the error redirect paths. */
-const recordConfirmedRefund = async (
+/** Finish the operator-visible work after the claimed ledger post lands. */
+const finishConfirmedRefund = async (
   attendee: Attendee,
   attendeeId: number,
   listingId: number,
-  references: readonly RefundPaymentReference[],
+  paymentOnly: boolean,
   privateKey: CryptoKey,
-): Promise<Response | null> => {
-  // Check if this is a payment-only placeholder BEFORE posting the refund —
-  // afterward the new refund_cash leg would make the "only payment legs" check
-  // fail. A placeholder has ONLY provider-payment legs (from world, kind =
-  // payment), no sale/fee/adjustment. A surcharge-only order (payment + fee)
-  // is NOT a placeholder, so the note is not created for it. This matches the
-  // isPaymentOnlyPlaceholder check in refund-ledger.ts.
-  const legsBeforeRefund = await transfersByAccount(
-    attendeeAccount(attendeeId),
-  );
-  const isProviderPayment = legMatches({ from: WORLD, kind: KIND.payment });
-  const isPlaceholder =
-    legsBeforeRefund.length > 0 && legsBeforeRefund.every(isProviderPayment);
-
-  const { posted } = await recordAttendeeRefund(attendeeId, references);
+): Promise<void> => {
   if (!attendee.refunded) {
     await logActivity(
       `Payment marked as refunded for attendee '${attendee.name}'`,
@@ -174,33 +83,17 @@ const recordConfirmedRefund = async (
       attendeeId,
     );
   }
-  // Money moved at the provider without our ledger recording it — report it as
-  // well as telling the operator to add the correction by hand. The rows that
-  // carried it say so too, or nothing stops them being deleted before anyone
-  // gets to the correction.
-  if (!posted) {
-    await markReturnedUnrecorded(refundedRowSessionIds(references));
-    return errorRedirect(
-      `/admin/attendees/${attendeeId}`,
-      reportRefundNotRecorded({ attendeeId, listingId }),
-    );
-  }
-  // The books have caught up, so the row stops saying they have not. Nothing
-  // else can take that word off a placeholder: it has no ticket quantity, so
-  // the refund route that clears one never picks it up.
-  await clearReturnedUnrecorded(refundedRowSessionIds(references));
   // Always delete the stale "could NOT be refunded" note when the refund is
-  // confirmed, even when isPlaceholder is false (after the first refresh the
+  // confirmed, even when paymentOnly is false (after the first refresh the
   // account has a refund_cash leg, so isPlaceholder becomes false — but the
   // stale note could still be there if the previous cleanup failed).
   await cleanupStaleManualRefundNote(attendeeId, privateKey);
-  if (isPlaceholder) {
+  if (paymentOnly) {
     await createSystemNote(
       attendeeNotes(attendeeId),
       t("note.placeholder_refund_confirmed"),
     );
   }
-  return null;
 };
 
 /** Delete any stale "could NOT be refunded" system notes left by
@@ -223,8 +116,8 @@ const cleanupStaleManualRefundNote = async (
 };
 
 /** Load the attendee, listing, and payment references for a refresh. Returns
- *  either a Redirect (for the error paths: not found, no references, no
- *  provider) or the context the handler needs. */
+ *  either a Redirect (for the error paths: not found or no references) or the
+ *  context the handler needs. */
 const loadRefreshState = async (
   attendeeId: number,
   form: FormParams,
@@ -234,7 +127,6 @@ const loadRefreshState = async (
       attendee: Attendee;
       listingId: number;
       privateKey: CryptoKey;
-      provider: PaymentProvider;
       references: readonly RefundPaymentReference[];
     }
 > => {
@@ -254,11 +146,7 @@ const loadRefreshState = async (
       { form },
     );
   }
-  const provider = await requirePaymentProvider(() =>
-    errorRedirect(`/admin/attendees/${attendeeId}`, NO_PROVIDER_ERROR),
-  );
-  if (provider instanceof Response) return provider;
-  return { attendee, listingId, privateKey, provider, references };
+  return { attendee, listingId, privateKey, references };
 };
 
 /** Handle POST /admin/attendees/:attendeeId/refresh-payment */
@@ -269,31 +157,39 @@ export const handleRefreshPayment: TypedRouteHandler<
     const form = _form as FormParams;
     const state = await loadRefreshState(attendeeId, form);
     if (state instanceof Response) return state;
-    const { attendee, listingId, privateKey, provider, references } = state;
-
-    const refreshedReferences = await refreshProviderRefunds(
-      provider,
-      references,
-      { attendeeId, listingId },
+    const { attendee, listingId, privateKey, references } = state;
+    const result = await refreshClaimedPayment(
+      { attendee, references: [...references] },
+      listingId,
     );
-    await markPaymentReferencesProviderRefunded(
-      refreshedReferences.filter(hasProviderRefund),
-    );
-    const allRefunded = refreshedReferences.every(hasProviderRefund);
-    if (allRefunded) {
-      // Always run the confirmed-refund handler when the provider says
-      // refunded — the ledger post is idempotent (already-posted → no-op),
-      // and the stale-note cleanup must be retryable even when
-      // attendee.refunded was already true (the note could have survived a
-      // failed cleanup on a previous refresh).
-      const error = await recordConfirmedRefund(
+    if (result.kind === "blocked") {
+      return errorRedirect(
+        `/admin/attendees/${attendeeId}`,
+        t("error.refund_pending"),
+      );
+    }
+    if (result.kind === "not_ready") {
+      return errorRedirect(
+        `/admin/attendees/${attendeeId}`,
+        result.message,
+      );
+    }
+    if (result.kind === "returned") {
+      if (!result.posted) {
+        return errorRedirect(
+          `/admin/attendees/${attendeeId}`,
+          reportRefundNotRecorded({ attendeeId, listingId }),
+        );
+      }
+      // The ledger post is idempotent, and stale-note cleanup must remain
+      // retryable when a prior refresh posted money but failed during cleanup.
+      await finishConfirmedRefund(
         attendee,
         attendeeId,
         listingId,
-        refreshedReferences,
+        result.paymentOnly,
         privateKey,
       );
-      if (error) return error;
       return redirect(
         `/admin/attendees/${attendeeId}`,
         attendee.refunded
@@ -303,7 +199,6 @@ export const handleRefreshPayment: TypedRouteHandler<
         { form },
       );
     }
-
     return redirect(
       `/admin/attendees/${attendeeId}`,
       t("success.payment_status_current"),
