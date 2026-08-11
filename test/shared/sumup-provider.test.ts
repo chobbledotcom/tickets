@@ -9,6 +9,7 @@ import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import { asSession } from "#test-utils/payment-session.ts";
+import { gbp } from "#test-utils/payment-state.ts";
 import {
   SUMUP_META,
   stageSumupCheckout,
@@ -16,7 +17,6 @@ import {
   withFetchedSumupCheckout,
   withSumupCheckoutRead,
 } from "#test-utils/sumup.ts";
-import { gbp } from "#test-utils/payment-state.ts";
 
 describe("sumup-provider", () => {
   beforeEach(async () => {

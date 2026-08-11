@@ -8,7 +8,12 @@ import {
   chargeMoneyOrNull,
   refundMoneyMatchesCapture,
 } from "#shared/payment/resources.ts";
-import { chargeMoneyWith, gbp, refundObservation, refundResource } from "#test-utils/payment-state.ts";
+import {
+  chargeMoneyWith,
+  gbp,
+  refundObservation,
+  refundResource,
+} from "#test-utils/payment-state.ts";
 
 describe("what a refund says about the money going back", () => {
   test("keeps completed, pending, and failed refunds on a charge", () => {
@@ -53,9 +58,7 @@ describe("what a refund says about the money going back", () => {
       { amount: gbp(100), status: "pending" },
     ]);
 
-    expect(charge?.refunds).toEqual([
-      { amount: gbp(100), status: "pending" },
-    ]);
+    expect(charge?.refunds).toEqual([{ amount: gbp(100), status: "pending" }]);
   });
 
   test("refuses a charge that took no money at all", () => {
@@ -71,27 +74,64 @@ describe("what a refund says about the money going back", () => {
    *  away — which is the whole point of the rule. */
   const captureCases: readonly [string, ChargeMoney, boolean][] = [
     ["nothing has gone back", chargeMoneyWith(), true],
-    ["the whole capture is back", chargeMoneyWith({ confirmedRefunded: gbp(100) }), true],
-    ["one finished refund with no total beside it", chargeMoneyWith({ refunds: [refundObservation()] }), true],
     [
-      "a finished refund already inside the returned total, not counted twice",
-      chargeMoneyWith({ confirmedRefunded: gbp(100), refunds: [refundObservation({ amount: gbp(100) })] }),
+      "the whole capture is back",
+      chargeMoneyWith({ confirmedRefunded: gbp(100) }),
       true,
     ],
-    ["a returned total in another currency", chargeMoneyWith({ confirmedRefunded: { amount: 1, currency: "USD" } }), false],
-    ["more returned than was ever taken", chargeMoneyWith({ confirmedRefunded: gbp(101) }), false],
-    ["a refund in another currency", chargeMoneyWith({ refunds: [refundObservation({ amount: { amount: 100, currency: "USD" } })] }), false],
-    ["a single refund larger than the capture", chargeMoneyWith({ refunds: [refundObservation({ amount: gbp(101) })] }), false],
+    [
+      "one finished refund with no total beside it",
+      chargeMoneyWith({ refunds: [refundObservation()] }),
+      true,
+    ],
+    [
+      "a finished refund already inside the returned total, not counted twice",
+      chargeMoneyWith({
+        confirmedRefunded: gbp(100),
+        refunds: [refundObservation({ amount: gbp(100) })],
+      }),
+      true,
+    ],
+    [
+      "a returned total in another currency",
+      chargeMoneyWith({ confirmedRefunded: { amount: 1, currency: "USD" } }),
+      false,
+    ],
+    [
+      "more returned than was ever taken",
+      chargeMoneyWith({ confirmedRefunded: gbp(101) }),
+      false,
+    ],
+    [
+      "a refund in another currency",
+      chargeMoneyWith({
+        refunds: [
+          refundObservation({ amount: { amount: 100, currency: "USD" } }),
+        ],
+      }),
+      false,
+    ],
+    [
+      "a single refund larger than the capture",
+      chargeMoneyWith({ refunds: [refundObservation({ amount: gbp(101) })] }),
+      false,
+    ],
     [
       "£80 back and £50 still on its way — each fits inside £100, together they do not",
-      chargeMoneyWith({ confirmedRefunded: gbp(80), refunds: [refundObservation({ amount: gbp(50), status: "pending" })] }),
+      chargeMoneyWith({
+        confirmedRefunded: gbp(80),
+        refunds: [refundObservation({ amount: gbp(50), status: "pending" })],
+      }),
       false,
     ],
     [
       "two finished £60 refunds against a £100 returned total",
       chargeMoneyWith({
         confirmedRefunded: gbp(100),
-        refunds: [refundObservation({ amount: gbp(60) }), refundObservation({ amount: gbp(60), refund: secondRefund })],
+        refunds: [
+          refundObservation({ amount: gbp(60) }),
+          refundObservation({ amount: gbp(60), refund: secondRefund }),
+        ],
       }),
       false,
     ],
@@ -99,7 +139,14 @@ describe("what a refund says about the money going back", () => {
       "£80 finished and £80 more still going",
       chargeMoneyWith({
         confirmedRefunded: gbp(0),
-        refunds: [refundObservation({ amount: gbp(80) }), refundObservation({ amount: gbp(80), refund: secondRefund, status: "pending" })],
+        refunds: [
+          refundObservation({ amount: gbp(80) }),
+          refundObservation({
+            amount: gbp(80),
+            refund: secondRefund,
+            status: "pending",
+          }),
+        ],
       }),
       false,
     ],
