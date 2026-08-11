@@ -14,6 +14,5 @@ import { kindObject } from "#shared/validation/kind.ts";
 export const PaymentConflictSchema = v.variant("kind", [
   kindObject("refund_exceeds_capture"),
   kindObject("partial_refund"),
-  kindObject("failed_refund"),
 ]);
 export type PaymentConflict = v.InferOutput<typeof PaymentConflictSchema>;

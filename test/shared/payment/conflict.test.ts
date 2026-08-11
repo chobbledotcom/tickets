@@ -8,7 +8,6 @@ describe("what can be wrong with a payment", () => {
     const conflicts = [
       { kind: "refund_exceeds_capture" },
       { kind: "partial_refund" },
-      { kind: "failed_refund" },
     ] as const;
 
     expect(
