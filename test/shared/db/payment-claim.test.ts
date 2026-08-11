@@ -150,7 +150,10 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
       const attendeeId = await bookedWithPayment("sess-l", "pi_l");
       const claimed = await claimAttendeeRows([attendeeId], "keyless");
       if (claimed.kind !== "claimed") throw new Error("the claim was refused");
-      await releaseAttendeeRows(["sess-l"], claimed.heldSince);
+      await releaseAttendeeRows({
+        heldSince: claimed.heldSince,
+        sessionIds: ["sess-l"],
+      });
       expect(await claimAttendeeRows([attendeeId], "keyless")).toMatchObject({
         kind: "claimed",
       });
@@ -170,7 +173,10 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
       if (held.kind !== "claimed") throw new Error("the claim was refused");
       expect(await protectedStateOf("sess-rev")).toEqual({ v: CLAIM_MIRROR });
 
-      await releaseAttendeeRows(["sess-rev"], held.heldSince);
+      await releaseAttendeeRows({
+        heldSince: held.heldSince,
+        sessionIds: ["sess-rev"],
+      });
 
       expect(await protectedStateOf("sess-rev")).toEqual({ v: REVIEW_MIRROR });
     });
@@ -186,11 +192,11 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
       const held = await claimAttendeeRows([attendeeId], "keyless");
       if (held.kind !== "claimed") throw new Error("the claim was refused");
 
-      await releaseAttendeeRows(
-        ["sess-off"],
-        held.heldSince,
-        new Set(["sess-off"]),
-      );
+      await releaseAttendeeRows({
+        heldSince: held.heldSince,
+        sessionIds: ["sess-off"],
+        unrecorded: new Set(["sess-off"]),
+      });
 
       expect(await protectedStateOf("sess-off")).toEqual({
         v: UNRECORDED_MIRROR,
@@ -216,7 +222,10 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
 
       // Letting go without naming it is how the state retires: the run that
       // finally got the ledger entry in has nothing left to protect.
-      await releaseAttendeeRows(["sess-on"], held.heldSince);
+      await releaseAttendeeRows({
+        heldSince: held.heldSince,
+        sessionIds: ["sess-on"],
+      });
 
       expect(await protectedStateOf("sess-on")).toEqual({ v: "" });
     });
@@ -225,13 +234,19 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
       const attendeeId = await bookedWithPayment("sess-m", "pi_m");
       const held = await claimAttendeeRows([attendeeId], "keyless");
       if (held.kind !== "claimed") throw new Error("the claim was refused");
-      await releaseAttendeeRows(["sess-m"], held.heldSince);
+      await releaseAttendeeRows({
+        heldSince: held.heldSince,
+        sessionIds: ["sess-m"],
+      });
       expect(await protectedStateOf("sess-m")).toEqual({ v: "" });
     });
 
     test("releasing nothing reaches no database at all", async () => {
       const calls = await countDatabaseCalls(0, async () => {
-        await releaseAttendeeRows([], "2026-08-10T12:00:00.000Z");
+        await releaseAttendeeRows({
+          heldSince: "2026-08-10T12:00:00.000Z",
+          sessionIds: [],
+        });
       });
       expect(calls).toBe(0);
     });
@@ -247,7 +262,10 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
 
     test("releasing an unclaimed row leaves it alone", async () => {
       await bookedWithPayment("sess-n", "pi_n");
-      await releaseAttendeeRows(["sess-n"], "2026-08-10T12:00:00.000Z");
+      await releaseAttendeeRows({
+        heldSince: "2026-08-10T12:00:00.000Z",
+        sessionIds: ["sess-n"],
+      });
       expect(await protectedStateOf("sess-n")).toEqual({ v: "" });
     });
   });
@@ -260,11 +278,17 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
 
       // A later run resumed these rows and holds them now. The stalled run
       // waking up must not hand its successor's work to a third run.
-      await releaseAttendeeRows(heldSessionIds(stalled), stalled.heldSince);
+      await releaseAttendeeRows({
+        heldSince: stalled.heldSince,
+        sessionIds: heldSessionIds(stalled),
+      });
       const resumed = await claimAttendeeRows([attendeeId], "keyless");
       if (resumed.kind !== "claimed") throw new Error("the resume was refused");
 
-      await releaseAttendeeRows(heldSessionIds(stalled), stalled.heldSince);
+      await releaseAttendeeRows({
+        heldSince: stalled.heldSince,
+        sessionIds: heldSessionIds(stalled),
+      });
 
       expect(resumed.heldSince).not.toBe(stalled.heldSince);
       expect(await protectedStateOf("sess-stall")).toEqual({

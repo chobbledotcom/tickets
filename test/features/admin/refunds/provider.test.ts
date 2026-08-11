@@ -50,6 +50,22 @@ const candidate = (references: Ref[], id = 42): RefundCandidate => ({
   ),
 });
 
+/** A claim that grants attendee 11 the rows it names — the attendee `holding`
+ *  builds — and lets each test say what its release does. */
+const holdingClaim = (
+  release: RowClaim["release"],
+  sessions: readonly string[] = ["sess-x"],
+): RowClaim => ({
+  claim: () =>
+    Promise.resolve({
+      held: new Map([[11, sessions]]),
+      heldSince: "2026-08-10T12:00:00.000Z",
+      kind: "claimed",
+      returned: new Set<string>(),
+    }),
+  release,
+});
+
 const candidateWithReferences = (references: string[]): RefundCandidate =>
   candidate(references.map((reference) => ({ reference })));
 
@@ -626,16 +642,9 @@ describe("admin refund provider > a release that fails", () => {
   const errors = setupErrorSpy();
 
   test("reports it and leaves the run's answer alone", async () => {
-    const refusingRelease: RowClaim = {
-      claim: () =>
-        Promise.resolve({
-          held: new Map([[11, ["sess-x"]]]),
-          heldSince: "2026-08-10T12:00:00.000Z",
-          kind: "claimed",
-          returned: new Set<string>(),
-        }),
-      release: () => Promise.reject(new Error("the row would not let go")),
-    };
+    const refusingRelease = holdingClaim(() =>
+      Promise.reject(new Error("the row would not let go")),
+    );
 
     const result = await underAttendeeClaim(
       refusingRelease,
@@ -658,16 +667,10 @@ describe("admin refund provider > a release that fails", () => {
 describe("admin refund provider > a payment that landed while we waited", () => {
   test("a merge anchor is not mistaken for one", async () => {
     // The reference list leaves a merge anchor's id out on purpose.
-    const holdsAnchor: RowClaim = {
-      claim: () =>
-        Promise.resolve({
-          held: new Map([[11, ["sess-known", "legacy-merge:7"]]]),
-          heldSince: "2026-08-10T12:00:00.000Z",
-          kind: "claimed",
-          returned: new Set<string>(),
-        }),
-      release: () => Promise.resolve(),
-    };
+    const holdsAnchor = holdingClaim(
+      () => Promise.resolve(),
+      ["sess-known", "legacy-merge:7"],
+    );
 
     const result = await underAttendeeClaim(
       holdsAnchor,
@@ -687,19 +690,13 @@ describe("admin refund provider > a payment that landed while we waited", () => 
   test("stands the whole run down rather than refunding part of it", async () => {
     const released: string[][] = [];
     // The hold covers a row this run never loaded.
-    const holdsMore: RowClaim = {
-      claim: () =>
-        Promise.resolve({
-          held: new Map([[11, ["sess-known", "sess-new"]]]),
-          heldSince: "2026-08-10T12:00:00.000Z",
-          kind: "claimed",
-          returned: new Set<string>(),
-        }),
-      release: (sessionIds) => {
+    const holdsMore = holdingClaim(
+      ({ sessionIds }) => {
         released.push([...sessionIds]);
         return Promise.resolve();
       },
-    };
+      ["sess-known", "sess-new"],
+    );
 
     let worked = false;
     const result = await underAttendeeClaim(
@@ -764,19 +761,10 @@ describe("admin refund provider > one charge two attendees carry", () => {
 describe("admin refund provider > a run that dies holding money", () => {
   test("lets the hold go and raises the failure, rather than swallowing it", async () => {
     const releases: string[] = [];
-    const recordsRelease: RowClaim = {
-      claim: () =>
-        Promise.resolve({
-          held: new Map([[11, ["sess-x"]]]),
-          heldSince: "2026-08-10T12:00:00.000Z",
-          kind: "claimed",
-          returned: new Set<string>(),
-        }),
-      release: () => {
-        releases.push("released");
-        return Promise.resolve();
-      },
-    };
+    const recordsRelease = holdingClaim(() => {
+      releases.push("released");
+      return Promise.resolve();
+    });
 
     await expect(
       underAttendeeClaim(recordsRelease, holding("sess-x"), "keyed", 7, {

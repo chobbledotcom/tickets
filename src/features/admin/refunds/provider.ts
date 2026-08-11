@@ -7,6 +7,7 @@ import { isAnchorSession } from "#shared/db/payment-anchor/session.ts";
 import {
   type ClaimResult,
   claimAttendeeRows,
+  type RowRelease,
   releaseAttendeeRows,
 } from "#shared/db/payment-claim.ts";
 import {
@@ -43,11 +44,7 @@ export type RowClaim = {
     attendeeIds: readonly number[],
     capability: RefundCapability,
   ) => Promise<ClaimResult>;
-  release: (
-    sessionIds: readonly string[],
-    heldSince: string,
-    unrecorded?: ReadonlySet<string>,
-  ) => Promise<void>;
+  release: (release: RowRelease) => Promise<void>;
 };
 
 /**
@@ -184,17 +181,22 @@ const refundReferenceOnce = async (
   }
 };
 
+/** Whether this attendee's rows may be let go. Only genuine doubt keeps a
+ *  hold, and only against a provider where a repeat would pay twice. */
+const mayLetGo = (
+  verdict: AttendeeVerdict | undefined,
+  capability: RefundCapability,
+): boolean => verdict !== "in_doubt" || mayReleaseClaim(capability, "lost");
+
 /** Let go of a hold, reporting rather than raising when the row will not. */
 const releaseHold = async (
   rowClaim: RowClaim,
-  heldSince: string,
-  sessionIds: readonly string[],
-  unrecorded: ReadonlySet<string>,
+  release: RowRelease,
   listingId: number,
 ): Promise<void> => {
-  if (sessionIds.length === 0) return;
+  if (release.sessionIds.length === 0) return;
   try {
-    await rowClaim.release(sessionIds, heldSince, unrecorded);
+    await rowClaim.release(release);
   } catch (error) {
     reportRefundProblem(
       `Refund claim could not be released: ${String(error)}`,
@@ -247,9 +249,7 @@ export const underAttendeeClaim = async <TResult>(
   if (unknown.length > 0) {
     await releaseHold(
       rowClaim,
-      claim.heldSince,
-      heldSessionIds,
-      new Set(),
+      { heldSince: claim.heldSince, sessionIds: heldSessionIds },
       listingId,
     );
     return run.blocked(
@@ -262,23 +262,20 @@ export const underAttendeeClaim = async <TResult>(
   const settle = async (
     verdicts: ReadonlyMap<number, AttendeeVerdict>,
   ): Promise<void> => {
-    const releasing: string[] = [];
-    const unrecorded = new Set<string>();
-    for (const [attendeeId, sessions] of claim.held) {
-      const verdict = verdicts.get(attendeeId);
-      if (verdict === "in_doubt" && !mayReleaseClaim(capability, "lost")) {
-        continue;
-      }
-      releasing.push(...sessions);
-      if (verdict === "unrecorded") {
-        for (const sessionId of sessions) unrecorded.add(sessionId);
-      }
-    }
+    const letting = [...claim.held].filter(([attendeeId]) =>
+      mayLetGo(verdicts.get(attendeeId), capability),
+    );
     await releaseHold(
       rowClaim,
-      claim.heldSince,
-      releasing,
-      unrecorded,
+      {
+        heldSince: claim.heldSince,
+        sessionIds: letting.flatMap(([, sessions]) => sessions),
+        unrecorded: new Set(
+          letting
+            .filter(([attendeeId]) => verdicts.get(attendeeId) === "unrecorded")
+            .flatMap(([, sessions]) => sessions),
+        ),
+      },
       listingId,
     );
   };
@@ -432,6 +429,34 @@ const tallyProviderRefund = (
   }
 };
 
+/**
+ * Post whatever came back for one wave, and say how each attendee ended.
+ *
+ * A post that did not land is the one place a verdict is added rather than
+ * read: the provider answered clearly, so there is no doubt to hold against,
+ * only books that are behind. Doubt already recorded about the same attendee
+ * outranks it, because there the money may not have moved at all.
+ */
+const recordWave = async (
+  counts: RefundCounts,
+  postings: readonly LedgerPosting[],
+  verdicts: Map<number, AttendeeVerdict>,
+  listingId: number,
+): Promise<void> => {
+  const posted = await recordAttendeeRefundsBatch(postings);
+  for (const { attendeeId, whole } of postings) {
+    if (posted.get(attendeeId) !== true) {
+      // The provider sent this refund but our ledger could not record it —
+      // report the broken promise per attendee, not just the aggregate count.
+      counts.notRecordedCount++;
+      reportRefundNotRecorded({ attendeeId, listingId });
+      if (!verdicts.has(attendeeId)) verdicts.set(attendeeId, "unrecorded");
+    } else if (whole) {
+      counts.refundedCount++;
+    }
+  }
+};
+
 /** What a claimed run comes to: the tally, and what it decided about each
  *  attendee it held. */
 type ClaimedRun = {
@@ -516,22 +541,7 @@ const refundClaimedBatch = async (
       }
       tallyProviderRefund(counts, result, listingId, postings);
     }
-    const posted = await recordAttendeeRefundsBatch(postings);
-    for (const posting of postings) {
-      const attendeeId = posting.attendeeId;
-      if (posted.get(attendeeId) !== true) {
-        // The provider sent this refund but our ledger could not record it —
-        // report the broken promise per attendee, not just the aggregate count.
-        counts.notRecordedCount++;
-        reportRefundNotRecorded({ attendeeId, listingId });
-        // Certain the money moved, so the row says so and the hold goes.
-        // Doubt about the same attendee outranks it: there, the money may not
-        // have moved at all.
-        if (!verdicts.has(attendeeId)) verdicts.set(attendeeId, "unrecorded");
-      } else if (posting.whole) {
-        counts.refundedCount++;
-      }
-    }
+    await recordWave(counts, postings, verdicts, listingId);
   }
   return { counts, verdicts };
 };

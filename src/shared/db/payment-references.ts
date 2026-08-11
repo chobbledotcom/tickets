@@ -267,6 +267,20 @@ export const getRefundPaymentReferencesForAttendee = async (
 ): Promise<RefundPaymentReference[]> =>
   (await getRefundPaymentReferences([attendee], privateKey)).get(attendee.id)!;
 
+/**
+ * Whether any of these charges is still with the provider.
+ *
+ * The ledger's `refunded` flag is an EXISTS on any reversal, so an attendee
+ * whose money came back in part reads as refunded there — and treating that as
+ * finished strands the rest of their money for ever. "none" is the precise
+ * question: this system watched the charge and has not seen it come back. A
+ * legacy charge reads "unknown" instead, so an old booking refunded before we
+ * watched anything is still left alone.
+ */
+export const stillWithTheProvider = (
+  references: readonly RefundPaymentReference[],
+): boolean => references.some((reference) => reference.refundState === "none");
+
 export const hasRefundPaymentReference = async (
   attendee: RefundPaymentReferenceSource,
   privateKey: CryptoKey,
