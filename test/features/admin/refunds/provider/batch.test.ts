@@ -2,8 +2,10 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
+import { anchorSessionId } from "#shared/db/payment-anchor/session.ts";
 import type { RefundCapability } from "#shared/payment/row-state.ts";
 import {
+  legacyReference,
   postBooking,
   refundCashAmounts,
   sessionReference,
@@ -337,6 +339,68 @@ describeWithEnv(
       expect(counts.notRecordedCount).toBe(1);
       expect(claim.released).toEqual([["sess-back", "sess-stuck"]]);
       expect(claim.unrecorded).toEqual([["sess-back"]]);
+    });
+
+    // The fault this closes: the doubt and the unrecorded fact shared one
+    // channel, so whichever landed second was dropped. The doubt is written
+    // first, so what got dropped was the durable marker — the run then let the
+    // rows go saying nothing about money that really had moved, and a delete
+    // could destroy the only record of it.
+    test("marks returned money even when a sibling charge is in doubt", async () => {
+      const claim = grantingRowClaim(
+        new Map([[25, ["sess-came", "sess-dark"]]]),
+      );
+      const provider = unreadableProvider("keyed");
+
+      const counts = await processRefundBatch(
+        provider,
+        [
+          {
+            attendee: { id: 25 } as RefundCandidate["attendee"],
+            references: [
+              sessionReference("sess-came"),
+              refundReference("pi_dark", {
+                rowSessionIds: ["sess-dark"],
+                sessionIds: ["sess-dark"],
+              }),
+            ],
+          },
+        ],
+        LISTING,
+        { claim },
+      );
+
+      // The unreadable sibling is never sent money, and its doubt releases
+      // because a keyed repeat would land on the same refund.
+      expect(provider.sent).toEqual([]);
+      expect(counts.notRecordedCount).toBe(1);
+      expect(claim.released).toEqual([["sess-came", "sess-dark"]]);
+      expect(claim.unrecorded).toEqual([["sess-came"]]);
+    });
+
+    // The fault this closes: a legacy charge lives in the attendee's own
+    // column, so the run gives it an anchor row AFTER loading its reference.
+    // The reference still named no row, so the returned money marked nothing
+    // and the anchor was released free to be deleted.
+    test("marks the anchor row a returned legacy charge is held by", async () => {
+      const anchor = anchorSessionId(26, "index_of_pi_legacy");
+      const claim = grantingRowClaim(new Map([[26, [anchor]]]));
+
+      const counts = await processRefundBatch(
+        failingProvider(new Set()),
+        [
+          {
+            attendee: { id: 26 } as RefundCandidate["attendee"],
+            references: [legacyReference("pi_legacy")],
+          },
+        ],
+        LISTING,
+        { claim },
+      );
+
+      expect(counts.notRecordedCount).toBe(1);
+      expect(claim.released).toEqual([[anchor]]);
+      expect(claim.unrecorded).toEqual([[anchor]]);
     });
 
     test("a keyed run lets go, because a repeat lands on the same refund", async () => {
