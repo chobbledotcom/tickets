@@ -2,17 +2,21 @@
 
 ## Status
 
-All five owner decisions are recorded below: proceed-and-alert for
-`multiple_charges`, the Stripe `amount_refunded` read widening, both new copy
-strings, the two-PR slicing (2026-08-09), and owner review for every
+PR A is built and green; PR B has not started. What exists is inventoried under
+"As built" below, and that table is the authority for anything landed — the rows
+above it say what was planned to be ported, not what is there now.
+
+All five owner decisions are recorded below: proceed-and-alert for the
+multi-charge observation, the Stripe `amount_refunded` read widening, both new
+copy strings, the two-PR slicing (2026-08-09), and owner review for every
 multi-charge observation — automatic refunds act on single-charge observations
-only (2026-08-10). No implementation has started. Per PR_WORKFLOW.md the final
-sign-off is explicit approval of this latest version (merging PR #2063 or saying
-"approved"); tests and code start only after that. Milestone source: PLAN.md's
-M4 section, fault rows F3 and F51 (with M4 slices of F6, F12, F13, and F53), and
-the binding decided behaviors on refunds and multiple captures; this PR carries
-the matching PLAN.md sync (the M4 section, the M6 provider note, and those fault
-rows).
+only (2026-08-10). The first two of those have nothing to act on in PR A: every
+kind that compares money against what was owed needs a whole reading of the
+checkout, which this slice does not build, so those kinds are absent and pinned
+absent by test. Milestone source: PLAN.md's M4 section, fault rows F3 and F51
+(with M4 slices of F6, F12, F13, and F53), and the binding decided behaviors on
+refunds and multiple captures; this PR carries the matching PLAN.md sync (the M4
+section, the M6 provider note, and those fault rows).
 
 ## Current-system value
 
