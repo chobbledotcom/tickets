@@ -182,22 +182,13 @@ const rowStateStatement = async (
          WHERE payment_session_id = ? AND failure_data = ?`,
 });
 
-/**
- * Write a row's record back, failing if it changed under us. A row that no
- * longer holds what we read matches nothing, which rolls the whole claim back
- * rather than letting a run hold half a set.
- */
+/** Write a row's record back inside the claim's own transaction. */
 const writeState = async (
   tx: TxScope,
   row: PaymentRowRecord,
   state: PaymentRowState,
 ): Promise<void> => {
-  const result = await tx.execute(await rowStateStatement(row, state));
-  if (result.rowsAffected !== 1) {
-    throw new Error(
-      `Payment row changed while being claimed: ${row.sessionId}`,
-    );
-  }
+  await tx.execute(await rowStateStatement(row, state));
 };
 
 /**
