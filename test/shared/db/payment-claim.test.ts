@@ -23,7 +23,9 @@ const columnOf =
   (column: string) =>
   (sessionId: string): Promise<{ v: string } | null> =>
     queryOne<{ v: string }>(
-      `SELECT ${column} AS v FROM processed_payments WHERE payment_session_id = ?`,
+      `SELECT payment.${column} AS v
+         FROM processed_payments AS payment
+        WHERE payment.payment_session_id = ?`,
       [sessionId],
     );
 
