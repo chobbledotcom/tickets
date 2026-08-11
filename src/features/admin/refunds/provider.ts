@@ -37,8 +37,7 @@ type MarkReturnedReferences = (
 ) => Promise<void>;
 
 /** Taking and letting go of the hold on an attendee's payment rows. Injected
- *  like the marker above so the tally and ordering rules can be tested without
- *  a database, while the real run always takes the durable claim. */
+ *  so the tally and ordering rules can be tested without a database. */
 export type RowClaim = {
   claim: (
     attendeeIds: readonly number[],
@@ -63,6 +62,13 @@ export type RefundCounts = {
   notRecordedCount: number;
 };
 
+const noRefunds = (failedCount = 0): RefundCounts => ({
+  errorCount: 0,
+  failedCount,
+  notRecordedCount: 0,
+  refundedCount: 0,
+});
+
 /** Max provider refund subrequests in flight at once. Bounds concurrency by
  * charge reference, not attendee: an attendee can carry several references (a
  * deposit plus a balance charge, or a merged attendee's combined charges), so
@@ -83,18 +89,14 @@ const refusedRefund = (detail: string, listingId: number): RefundOutcome => {
 };
 
 /** One reference's result. `unanswered` means the provider was asked and did
- *  not confirm — which is not the same as "it did not happen": a lost response
- *  looks exactly like a refusal from here, so a keyless run must keep its hold
- *  either way. A refund we never asked for does not set it. */
+ *  not confirm, which is not the same as "it did not happen" — a lost response
+ *  looks like a refusal from here, so a keyless run keeps its hold either
+ *  way. A refund we never asked for does not set it. */
 type ReferenceRefund = { outcome: RefundOutcome; unanswered: boolean };
 
-/**
- * Do the work at most once for each key, and give everyone the same answer.
- *
- * Two attendees in one run can carry the same charge, and the durable hold
- * cannot separate them because both rows belong to this same run — so the
- * second asker waits on the first's answer rather than making its own call.
- */
+/** Do the work at most once per key. Two attendees in one run can carry the
+ *  same charge, and the hold cannot separate them because both rows belong to
+ *  this run — so the second asker waits on the first's answer. */
 const answeredOnce = <TAnswer>(
   asked: Map<string, Promise<TAnswer>>,
   key: string,
@@ -128,22 +130,21 @@ const refundReferenceOnce = async (
     // What the money has already done decides whether more is sent — see
     // `sendRefundIfAdmitted`. SumUp has no idempotency key to fall back on.
     return await sendRefundIfAdmitted(provider, paymentReference, {
+      // Asked and not confirmed: it may never have happened, or the answer
+      // may simply have been lost.
       failed: () => ({
         outcome: refusedRefund(
           `Admin refund failed for attendee ${attendeeId}, payment ${paymentReference}`,
           listingId,
         ),
-        // The provider was asked and did not confirm. It may never have
-        // happened, or the answer may simply have been lost.
         unanswered: true,
       }),
       sent: () => settled("refunded"),
       withhold: (admission) => {
         if (admission.kind === "already_returned") return settled("refunded");
-        // How loudly a withheld refund is said belongs to the one reporter
-        // that knows: a provider we could not reach, or a refund already on
-        // its way, are answers rather than incidents. Alerting on those buries
-        // the disagreements that genuinely need somebody.
+        // How loudly this is said belongs to the one reporter that knows: an
+        // unreachable provider is an answer, not an incident, and alerting on
+        // it buries the disagreements that need somebody.
         reportWithheldRefund(admission, {
           attendeeId,
           listingId,
@@ -166,18 +167,6 @@ const refundReferenceOnce = async (
   }
 };
 
-/**
- * Hold every attendee this run will touch, do the work, then let go.
- *
- * One claim for the run rather than one per attendee: a bulk wave costs the
- * same two round trips as a single refund, which matters against the
- * subrequest allowance, and the run can never end up holding some of its
- * attendees but not others.
- *
- * A run that ended without a clear answer may have sent money it never heard
- * back about. With an idempotency key a repeat lands on the same refund, so
- * the hold can go; without one it stands until fresh evidence settles it.
- */
 /** Let go of a hold, reporting rather than raising when the row will not. */
 const releaseHold = async (
   rowClaim: RowClaim,
@@ -194,6 +183,9 @@ const releaseHold = async (
   }
 };
 
+/** Hold every attendee this run will touch, do the work, then let go. One
+ *  claim for the whole run costs the same two round trips as a single refund,
+ *  and the run can never hold some of its attendees but not others. */
 export const underAttendeeClaim = async <TResult>(
   rowClaim: RowClaim,
   held: readonly AnchoredAttendee[],
@@ -222,15 +214,11 @@ export const underAttendeeClaim = async <TResult>(
   if (claim.kind === "blocked") {
     return run.blocked(claimRefusal(claim.blockedBy));
   }
-  // The hold covers the rows that exist NOW. If it covers a payment this run
-  // never loaded — a balance settlement that landed while we queued — then
-  // refunding what we did load would return part of someone's money and leave
-  // the rest, so the whole run stands down and the operator tries again
-  // against the complete set.
-  // An anchor is not a new charge: it stands in for one this run already
-  // knows about — either minted just now, or left by an earlier merge — and
-  // the reference list leaves its id out on purpose. Counting one would look
-  // like money that appeared while we waited, and stand the refund down.
+  // The hold covers the rows that exist NOW. A payment this run never loaded
+  // means refunding what we did load would return part of someone's money and
+  // leave the rest, so the whole run stands down. An anchor is not such a
+  // payment: it stands in for a charge this run already knows about, and the
+  // reference list leaves its id out on purpose.
   const unknown = claim.sessionIds.filter(
     (sessionId) =>
       !knownSessionIds.has(sessionId) && !isAnchorSession(sessionId),
@@ -241,10 +229,9 @@ export const underAttendeeClaim = async <TResult>(
       `a payment landed while this run was waiting (${unknown.length} not in the set it loaded)`,
     );
   }
-  // A release that fails leaves the claim standing until it goes stale, which
-  // is recoverable. Losing the answer the run just produced is not, so a
-  // release failure is reported and never allowed to replace the result or the
-  // original error.
+  // A failed release leaves the claim standing until it goes stale, which is
+  // recoverable; losing the answer the run just produced is not. So it is
+  // reported, never allowed to replace the result or the original error.
   const release = async (lost: boolean): Promise<void> => {
     if (!mayReleaseClaim(capability, lost ? "lost" : "validated")) return;
     await releaseHold(rowClaim, claim, listingId);
@@ -260,9 +247,8 @@ export const underAttendeeClaim = async <TResult>(
 };
 
 /** What one attendee's refund came to. `unsettled` means nothing durable
- *  proves what the money did — the provider was asked and did not confirm, or
- *  it confirmed and saying so failed. Either way the run keeps its hold, since
- *  a keyless retry against evidence that has not caught up sends twice. */
+ *  proves what the money did, so the run keeps its hold: a keyless retry
+ *  against evidence that has not caught up sends twice. */
 export type CandidateRefund = {
   candidate: RefundCandidate;
   outcome: RefundOutcome;
@@ -354,10 +340,7 @@ const tallyProviderRefund = (
   candidate: RefundCandidate,
   outcome: RefundOutcome,
   listingId: number,
-  refundedAttendees: {
-    attendeeId: number;
-    references: readonly RefundPaymentReference[];
-  }[],
+  refundedAttendees: AnchoredAttendee[],
 ): void => {
   if (outcome === "errored") {
     counts.errorCount++;
@@ -404,15 +387,7 @@ export const processRefundBatch = async (
             listingId,
           );
         }
-        return {
-          counts: {
-            errorCount: 0,
-            failedCount: batch.length,
-            notRecordedCount: 0,
-            refundedCount: 0,
-          },
-          unsettled: false,
-        };
+        return { counts: noRefunds(batch.length), unsettled: false };
       },
       lost: (result) =>
         result.counts.errorCount > 0 ||
@@ -442,12 +417,7 @@ const refundClaimedBatch = async (
   // Shared across the whole run, so a charge two attendees both carry is asked
   // about once.
   const inFlight = new Map<string, Promise<ReferenceRefund>>();
-  const counts: RefundCounts = {
-    errorCount: 0,
-    failedCount: 0,
-    notRecordedCount: 0,
-    refundedCount: 0,
-  };
+  const counts = noRefunds();
   for (const group of packByReferenceCount(PROVIDER_REFUND_CONCURRENCY)(
     batch,
   )) {
@@ -463,10 +433,7 @@ const refundClaimedBatch = async (
         ),
       ),
     );
-    const chunkRefundedAttendees: {
-      attendeeId: number;
-      references: readonly RefundPaymentReference[];
-    }[] = [];
+    const chunkRefundedAttendees: AnchoredAttendee[] = [];
     for (const { candidate, outcome, unsettled: doubt } of results) {
       if (doubt === true) unsettled = true;
       tallyProviderRefund(

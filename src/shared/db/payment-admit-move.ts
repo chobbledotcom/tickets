@@ -1,13 +1,9 @@
 /**
  * The check every writer runs before it moves or removes an attendee's payment
- * rows.
- *
- * The read happens on the caller's OWN write transaction, so the rows it sees
- * are the rows that caller is about to change. That is what makes the answer
- * safe rather than a guess: a refund run's claim either lands before this read
- * and stops the writer, or waits for the writer's transaction to commit and
- * then sees the moved world. Checking any earlier leaves a gap where a claim
- * arrives between the check and the write.
+ * rows. The read happens on the caller's OWN write transaction, so a refund
+ * run's claim either lands before it and stops the writer, or waits for the
+ * commit and sees the moved world. Checking any earlier leaves a gap where a
+ * claim arrives between the check and the write.
  */
 
 import type { TxScope } from "#shared/db/client.ts";
@@ -24,14 +20,9 @@ export class PaymentRowsBusyError extends Error {
   }
 }
 
-/**
- * Stop the caller's transaction unless every one of these attendees' payment
- * rows is free to be moved or removed.
- *
- * Throwing rather than answering means a caller that forgets to look still
- * fails closed and rolls its whole transaction back, which is the safe way round
- * for a writer that would otherwise take money records with it.
- */
+/** Stop the caller's transaction unless every one of these attendees' payment
+ *  rows is free to move. Throwing rather than answering means a caller that
+ *  forgets to look still fails closed and rolls its transaction back. */
 export const assertRowsFreeToMove = async (
   tx: TxScope,
   attendeeIds: readonly number[],
@@ -45,14 +36,9 @@ export const assertRowsFreeToMove = async (
   if (refusal !== null) throw new PaymentRowsBusyError(refusal);
 };
 
-/**
- * Run work that may be refused, handing the refusal's words to `refused`
- * instead of letting them escape as an error.
- *
- * Being turned away is an ordinary answer for an operator — something else is
- * mid-flight, try again after — so the page says so rather than showing an
- * error. Anything else thrown is a real fault and is left alone.
- */
+/** Run work that may be refused, handing the refusal's words to `refused`
+ *  rather than letting them escape. Being turned away is an ordinary answer
+ *  for an operator; anything else thrown is a real fault and is left alone. */
 export const orRefusal = async <T>(
   work: () => Promise<T>,
   refused: (message: string) => T,

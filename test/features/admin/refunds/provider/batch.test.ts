@@ -9,7 +9,7 @@ import {
 } from "#test/shared/refund-ledger/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
-import { chargeMoney } from "#test-utils/payment-state.ts";
+import { chargeMoney, refundReference } from "#test-utils/payment-state.ts";
 import { grantingRowClaim } from "#test-utils/refund-routes.ts";
 
 const LISTING = 7;
@@ -29,13 +29,9 @@ const pendingCandidate = (
   references: string[],
 ): RefundCandidate => ({
   attendee: { id: attendeeId } as RefundCandidate["attendee"],
-  references: references.map((reference) => ({
-    index: `index_of_${reference}`,
-    reference,
-    refundState: "none" as const,
-    rowSessionIds: [`sess_${reference}`],
-    sessionIds: [] as string[],
-  })),
+  references: references.map((reference) =>
+    refundReference(reference, { sessionIds: [] }),
+  ),
 });
 
 /** Provider that fails every live refund and throws for references in

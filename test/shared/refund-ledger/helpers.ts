@@ -12,6 +12,7 @@ import { postTransfers } from "#shared/accounting/store.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
+import { refundReference } from "#test-utils/payment-state.ts";
 
 export const ATTENDEE = 3;
 export const BOOKING_AT = "2026-06-21T00:00:00.000Z";
@@ -33,22 +34,22 @@ export const postBooking = async (
   await postTransfers(await mapBooking(facts(overrides)));
 };
 
-export const refundReference = (
+/** A reference the provider has already returned, on the rows it names. */
+const returnedReference = (
   reference: string,
   sessionIds: readonly string[],
-): RefundPaymentReference => ({
-  index: `index_of_${reference}`,
-  reference,
-  refundState: "completed",
-  rowSessionIds: sessionIds,
-  sessionIds,
-});
+): RefundPaymentReference =>
+  refundReference(reference, {
+    refundState: "completed",
+    rowSessionIds: sessionIds,
+    sessionIds,
+  });
 
 export const sessionReference = (sessionId: string): RefundPaymentReference =>
-  refundReference(`pi-${sessionId}`, [sessionId]);
+  returnedReference(`pi-${sessionId}`, [sessionId]);
 
 export const legacyReference = (reference: string): RefundPaymentReference =>
-  refundReference(reference, []);
+  returnedReference(reference, []);
 
 export const refundTarget = (
   attendeeId: number,

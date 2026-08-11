@@ -295,15 +295,10 @@ export interface PaymentProvider {
    */
   readChargeMoneyOrNull(paymentReference: string): Promise<ChargeMoney | null>;
 
-  /**
-   * Whether a refund this provider accepted can safely be asked for twice.
-   *
-   * Providers that take an idempotency key land a repeat call on the original
-   * refund, so a run whose answer went missing may simply try again. SumUp has
-   * no such key: asking twice pays twice. A refund run keeps its hold on the
-   * money until fresh evidence settles a keyless call, which is why every
-   * adapter has to say which kind it is rather than being assumed.
-   */
+  /** Whether a refund this provider accepted can safely be asked for twice.
+   *  An idempotency key lands a repeat call on the original refund; SumUp has
+   *  no such key, so asking twice pays twice. Every adapter says which kind it
+   *  is rather than being assumed. */
   readonly refundCapability: RefundCapability;
 
   /**

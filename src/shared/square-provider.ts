@@ -34,16 +34,11 @@ import type {
 } from "#shared/payments.ts";
 import { squareApi, verifyWebhookSignature } from "#shared/square.ts";
 
-/**
- * How much of a Square payment has gone back, or nothing when Square's answer
- * cannot be read.
- *
- * Square leaves the refunded total off a payment nothing has gone back on, so
- * an absent one is a stated zero. A total that IS there but names no amount, or
- * names a different currency from the money taken, is an answer we cannot
- * account for — and reading either as zero would tell the refund guard the
- * buyer is still owed money that may already be back with them.
- */
+/** How much of a Square payment has gone back, or nothing when Square's
+ *  answer cannot be read. An absent total is a stated zero; one that names no
+ *  amount, or a different currency from the money taken, cannot be accounted
+ *  for — reading either as zero would tell the guard the buyer is still
+ *  owed money that may already be back with them. */
 const squareMoneyReturned = (
   refunded:
     | { amount?: bigint | undefined; currency?: string | undefined }

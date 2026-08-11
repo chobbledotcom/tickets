@@ -1,17 +1,12 @@
 /**
  * Giving a legacy charge a row of its own, so a refund can hold it.
  *
- * Most charges arrive with a `processed_payments` row already — checkout wrote
- * one. An old booking can instead carry its charge in the `payment_id` column
- * on the attendee itself, with no payment row anywhere. A refund claim holds
- * rows, so such a charge could be refunded under a claim that held nothing at
- * all: two runs would each be told they had the money to themselves, and each
- * would send a payout against the same charge.
- *
- * So before a run claims anything, every charge it is about to touch is given a
- * row if it has none. The row carries the same reference and the same blind
- * index as a checkout row, so from then on it is claimed, marked, and read
- * exactly like any other charge.
+ * An old booking can carry its charge in the attendee's `payment_id` column
+ * with no payment row anywhere. A claim holds rows, so such a charge could be
+ * refunded under a claim that held nothing: two runs would each be told they
+ * had the money, and each would pay out against the same charge. So every
+ * charge a run is about to touch is given a row first, carrying the same
+ * reference and blind index as a checkout row.
  */
 
 import { executeBatch, type SqlStatement } from "#shared/db/client.ts";
@@ -48,20 +43,16 @@ const anchorStatement = async (
     reference.index,
     attendeeId,
   ],
-  // Passing over a clash is right here, and only because the session id names the
-  // attendee AND the charge: a row already under that id is this same person's
-  // row for this same money, so there is nothing to write. Naming the column
-  // keeps that to the clash: a NOT NULL or future constraint failure still
-  // raises, rather than quietly leaving the run without the row it must hold.
+  // Passing over a clash is right only because the session id names the
+  // attendee AND the charge, so a row already under it is this person's row
+  // for this money. Naming the column keeps that to the clash: a NOT NULL or
+  // future constraint failure still raises.
   //
-  // The EXISTS is what keeps this from writing a row for somebody who is no
-  // longer there. A run loads its candidates before it anchors, and nothing
-  // stops a delete landing in between: the delete refuses on payment rows, and
-  // a charge carried only in `payment_id` has none for it to see. Without the
-  // check this INSERT would then mint a row naming a deleted attendee — the
-  // table holds no foreign key to stop it — and the claim that follows would
-  // succeed, letting the run send money with no booking or ledger left to
-  // record it against.
+  // The EXISTS stops this minting a row for somebody no longer there. A delete
+  // can land between loading candidates and anchoring — it refuses on payment
+  // rows, and a `payment_id`-only charge has none for it to see — and the
+  // table holds no foreign key, so the claim would then succeed and the run
+  // would send money with no booking or ledger left to record it against.
   sql: `INSERT INTO processed_payments
         (payment_session_id, attendee_id, processed_at, payment_reference,
          payment_reference_index)
@@ -71,16 +62,11 @@ const anchorStatement = async (
             ON CONFLICT (payment_session_id) DO NOTHING`,
 });
 
-/**
- * Make sure every charge these attendees carry has a row to be held by.
- *
- * Runs before the claim rather than inside it, so the claim finds these rows
- * the way it finds any others. Two runs arriving together both write, and the
- * second write is ignored; the claim that follows is what decides which of them
- * may actually move the money.
- *
- * Costs nothing when every charge already has a row, which is the normal case.
- */
+/** Make sure every charge these attendees carry has a row to be held by. Runs
+ *  before the claim, so the claim finds these rows the way it finds any
+ *  others: two runs arriving together both write, the second is ignored, and
+ *  the claim decides which may move the money. Costs nothing in the normal
+ *  case, where every charge already has a row. */
 export const anchorLegacyCharges = async (
   attendees: readonly AnchoredAttendee[],
 ): Promise<void> => {
