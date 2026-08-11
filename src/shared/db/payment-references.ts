@@ -270,16 +270,10 @@ export const getRefundPaymentReferencesForAttendee = async (
 /**
  * Whether any of these charges may still be with the provider.
  *
- * The ledger's `refunded` flag is an EXISTS on any reversal, so an attendee
- * whose money came back in part reads as refunded there — and treating that as
- * finished strands the rest of their money for ever.
- *
- * "none" is the clear case: this system watched the charge and has not seen it
- * come back. A legacy "unknown" charge was never watched, so what settles it is
- * what else is in the set. On its own it is what the refunded flag is most
- * likely describing, so it is left alone. Beside a charge already seen coming
- * back, that sibling explains the flag and the legacy one is left unaccounted
- * for — so it stays open rather than being hidden for good.
+ * A "none" charge was watched and has not come back. A legacy "unknown" one was
+ * never watched, so it stays open only when a "completed" sibling already
+ * explains the attendee's refunded flag; on its own it is what that flag is
+ * most likely describing.
  */
 export const stillWithTheProvider = (
   references: readonly RefundPaymentReference[],
