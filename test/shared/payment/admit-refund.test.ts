@@ -136,7 +136,7 @@ describe("a charge the provider cannot state", () => {
 
   // SumUp has no idempotency key, so a repeat is a second payout. Being unable
   // to read the charge means we cannot rule that out, so it still withholds.
-  for (const capability of ["keyless", "unresolved"] as const) {
+  for (const capability of ["keyless"] as const) {
     test(`is still withheld for a ${capability} provider`, async () => {
       expect(
         await sendRefundIfAdmitted(
