@@ -34,7 +34,6 @@ import {
   attendeeActionPage,
   attendeeActionUrlWithReturn,
   type ListingRouteParams,
-  NO_PROVIDER_ERROR,
   verifiedAttendeeAction,
 } from "./attendees-route-helpers.ts";
 import {
@@ -46,7 +45,6 @@ import {
   type RefundBatchResult,
   type RefundCounts,
 } from "./refunds/provider.ts";
-import { requirePaymentProvider } from "./require-provider.ts";
 
 /* jscpd:ignore-end */
 
@@ -135,21 +133,18 @@ const handleAttendeeRefund = verifiedAttendeeAction(
     }
     const references = left.references;
 
-    const provider = await requirePaymentProvider(() =>
-      refundError(attendeeId, NO_PROVIDER_ERROR, returnUrl),
-    );
-    if (provider instanceof Response) return provider;
-
     // One attendee is a run of one, through the very same path a wave takes.
     // The ledger post has to happen while the hold is still on, and a run of
     // one is no less exposed to a merge landing mid-refund than a run of fifty.
     const result = await processRefundBatch(
-      provider,
       [{ attendee: data.attendee, references }],
       listingId,
     );
     if (result.kind === "blocked") {
       return refundError(attendeeId, t("error.refund_pending"), returnUrl);
+    }
+    if (result.kind === "not_ready") {
+      return refundError(attendeeId, result.message, returnUrl);
     }
     const { counts } = result;
     if (counts.refundedCount !== 1) {
@@ -377,20 +372,14 @@ const processRefundAll = async (
     return fail(refundAllUrl, t("error.no_attendees_to_refund"));
   }
 
-  const provider = await requirePaymentProvider(() =>
-    fail(refundAllUrl, NO_PROVIDER_ERROR),
-  );
-  if (provider instanceof Response) return provider;
-
   const batch = refundable.slice(0, BULK_REFUND_LIMIT);
   const remaining = refundable.length - batch.length;
-  const result: RefundBatchResult = await processRefundBatch(
-    provider,
-    batch,
-    listing.id,
-  );
+  const result: RefundBatchResult = await processRefundBatch(batch, listing.id);
   if (result.kind === "blocked") {
     return buildBlockedRefundResponse(listing, refundAllUrl, refundable.length);
+  }
+  if (result.kind === "not_ready") {
+    return fail(refundAllUrl, result.message);
   }
   const { counts } = result;
   return buildRefundAllResponse({

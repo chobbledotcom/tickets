@@ -12,8 +12,7 @@ import {
   type CandidateRefund,
   type MarkReturnedReferences,
   type PreparedReferenceRefund,
-  type RefundProvider,
-  refundCandidateAtProvider,
+  refundReadyCandidate,
 } from "./attempt.ts";
 import type { RefundCandidate } from "./candidates.ts";
 import {
@@ -23,8 +22,14 @@ import {
   type RunFindings,
   underAttendeeClaim,
 } from "./claim.ts";
-import { reportRefundProblem } from "./report.ts";
 import { PROVIDER_REFUND_CONCURRENCY } from "./provider-requests.ts";
+import {
+  prepareRefundReadiness,
+  type ReadyRefundCandidate,
+  type RefundReadinessResult,
+} from "./readiness.ts";
+import { refundReadinessMessage } from "./readiness-problem.ts";
+import { reportRefundProblem } from "./report.ts";
 import { packByReferenceCount, type RefundOutcome } from "./waves.ts";
 
 type RecordRefunds = typeof recordAttendeeRefundsBatch;
@@ -50,7 +55,8 @@ export type RefundCounts = {
  *  another live refund owns part of its complete set. */
 export type RefundBatchResult =
   | { kind: "blocked"; reason: "refund_in_progress" }
-  | { counts: RefundCounts; kind: "finished" };
+  | { counts: RefundCounts; kind: "finished" }
+  | { counts: RefundCounts; kind: "not_ready"; message: string };
 
 const noRefunds = (failedCount = 0): RefundCounts => ({
   errorCount: 0,
@@ -70,13 +76,18 @@ const finished = (counts: RefundCounts): RefundBatchResult => ({
   kind: "finished",
 });
 
+const notReady = (
+  counts: RefundCounts,
+  message: string,
+): RefundBatchResult => ({ counts, kind: "not_ready", message });
+
 const logBulkRefundProblem = (
   outcome: Extract<RefundOutcome, "errored" | "failed">,
-  candidate: RefundCandidate,
+  candidate: ReadyRefundCandidate,
   listingId: number,
 ): void => {
   const refs = candidate.references
-    .map((reference) => reference.reference)
+    .map(({ reference }) => reference.reference)
     .join(", ");
   logError({
     code: ErrorCode.PAYMENT_REFUND,
@@ -154,23 +165,24 @@ const recordWave = async (
   }
 };
 
-/** The writes a run makes away from the provider. */
-export type RefundWrites = {
+/** Boundaries a refund run crosses after its candidate list is loaded. */
+export type RefundRunDependencies = {
   claim?: RowClaim;
   markReturned?: MarkReturnedReferences;
+  prepare?: typeof prepareRefundReadiness;
   record?: RecordRefunds;
 };
 
 export const processRefundBatch = async (
-  provider: RefundProvider,
   batch: RefundCandidate[],
   listingId: number,
   {
     claim: rowClaim = durableRowClaim,
     markReturned:
       markReturnedReferences = markPaymentReferencesProviderRefunded,
+    prepare = prepareRefundReadiness,
     record = recordAttendeeRefundsBatch,
-  }: RefundWrites = {},
+  }: RefundRunDependencies = {},
 ): Promise<RefundBatchResult> =>
   await underAttendeeClaim<RefundBatchResult>(
     rowClaim,
@@ -179,7 +191,7 @@ export const processRefundBatch = async (
       loadedPiiBlob: candidate.attendee.pii_blob,
       references: candidate.references,
     })),
-    provider.refundCapability,
+    "unresolved",
     listingId,
     {
       blocked: ({ kind, reason }) => {
@@ -192,29 +204,58 @@ export const processRefundBatch = async (
             listingId,
           );
         }
-        return finished(noRefunds(batch.length));
+        return notReady(
+          noRefunds(batch.length),
+          "The attendee or payment set changed while this refund was starting. Try again.",
+        );
       },
-      work: async (alreadyReturned, findings, inherited) =>
-        finished(
-          await refundClaimedBatch(
-            provider,
+      work: async ({ alreadyReturned, claim, findings, inherited }) => {
+        const readiness = await prepare(batch, claim, alreadyReturned);
+        if (readiness.kind === "not_ready") {
+          const problem = refundReadinessFailure(
+            readiness,
             batch,
+            findings,
+            listingId,
+          );
+          return notReady(problem.counts, problem.message);
+        }
+        return finished(
+          await refundClaimedBatch(
+            readiness.candidates,
             listingId,
             { markReturned: markReturnedReferences, record },
-            alreadyReturned,
             findings,
             inherited,
           ),
-        ),
+        );
+      },
     },
   );
 
+const refundReadinessFailure = (
+  readiness: Extract<RefundReadinessResult, { kind: "not_ready" }>,
+  batch: readonly RefundCandidate[],
+  findings: RunFindings,
+  listingId: number,
+): { counts: RefundCounts; message: string } => {
+  const message = refundReadinessMessage(readiness);
+  for (const candidate of batch) {
+    if (readiness.reason !== "historical_marker") {
+      findings.doubts.set(candidate.attendee.id, "unread");
+    }
+    reportRefundProblem(
+      `Admin bulk refund not started for attendee ${candidate.attendee.id}: ${message}`,
+      listingId,
+    );
+  }
+  return { counts: noRefunds(batch.length), message };
+};
+
 const refundClaimedBatch = async (
-  provider: RefundProvider,
-  batch: RefundCandidate[],
+  batch: ReadyRefundCandidate[],
   listingId: number,
   writes: { markReturned: MarkReturnedReferences; record: RecordRefunds },
-  alreadyReturned: ReadonlySet<string>,
   findings: RunFindings,
   inherited: ReadonlyMap<number, ResolvedRefundCapability>,
 ): Promise<RefundCounts> => {
@@ -228,7 +269,7 @@ const refundClaimedBatch = async (
         );
       })
       .flatMap((candidate) =>
-        candidate.references.map((reference) => reference.reference),
+        candidate.references.map(({ reference }) => reference.index),
       ),
   );
   const counts = noRefunds();
@@ -237,12 +278,10 @@ const refundClaimedBatch = async (
   )) {
     const results = await Promise.all(
       group.map((candidate) =>
-        refundCandidateAtProvider(
-          provider,
+        refundReadyCandidate(
           candidate,
           listingId,
           writes.markReturned,
-          alreadyReturned,
           inFlight,
           observeOnly,
         ),

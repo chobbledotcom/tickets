@@ -1,7 +1,7 @@
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { money } from "#shared/payment/money.ts";
-import { isResourceId } from "#shared/payment/resource-id.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
+import { isResourceId } from "#shared/payment/resource-id.ts";
 import { extractSessionMetadata } from "#shared/payment-helpers.ts";
 import type {
   PaymentProviderType,
@@ -18,12 +18,12 @@ import { isPaymentProvider, isRecord } from "#shared/types.ts";
  */
 export type SessionRejection =
   | {
-    reason: "malformed_charge";
-    paymentReference: string;
-    provider: PaymentProviderType;
-    refundable: boolean;
-    metadata: SessionMetadata;
-  }
+      reason: "malformed_charge";
+      paymentReference: string;
+      provider: PaymentProviderType;
+      refundable: boolean;
+      metadata: SessionMetadata;
+    }
   | { provider: PaymentProviderType; reason: "blank_reference" };
 
 /** The durable charge identity proved by a validated session, or no charge for
@@ -71,7 +71,8 @@ export const isSessionRejection = (
     !isRecord(value) ||
     typeof value.provider !== "string" ||
     !isPaymentProvider(value.provider)
-  ) return false;
+  )
+    return false;
   if (value.reason === "blank_reference") return true;
   return (
     value.reason === "malformed_charge" &&
@@ -125,8 +126,7 @@ export const validatedPaymentSession = (fields: {
   if (charge === null) {
     logError({
       code: ErrorCode.PAYMENT_SESSION,
-      detail:
-        `Session ${fields.id} carries a malformed charge (amount=${fields.amountTotal}, currency=${fields.currency})`,
+      detail: `Session ${fields.id} carries a malformed charge (amount=${fields.amountTotal}, currency=${fields.currency})`,
     });
     return malformedChargeRejection(
       fields.paymentReference,

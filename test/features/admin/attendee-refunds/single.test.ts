@@ -203,12 +203,14 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       )(await submitRefund(ctx));
     });
 
-    test("returns error when no payment provider configured", async () => {
+    test("explains when no configured provider recognizes the payment", async () => {
       const ctx = await setupRefundTest("pi_test_noprov");
       const response = await submitRefund(ctx);
       await expectFlashRedirect(
         `/admin/attendees/${ctx.attendee.id}/refund`,
-        expect.stringContaining("No payment provider configured"),
+        expect.stringContaining(
+          "No configured payment provider recognizes this payment",
+        ),
         false,
       )(response);
     });

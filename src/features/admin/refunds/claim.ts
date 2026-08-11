@@ -46,6 +46,14 @@ export type HeldRefundClaim = Pick<
   "held" | "heldSince"
 >;
 
+/** The facts protected by one complete attendee-row claim. */
+export interface HeldRefundWork {
+  readonly alreadyReturned: ReadonlySet<string>;
+  readonly claim: HeldRefundClaim;
+  readonly findings: RunFindings;
+  readonly inherited: ReadonlyMap<number, ResolvedRefundCapability>;
+}
+
 export const durableRowClaim: RowClaim = {
   claim: claimAttendeeRows,
   release: releaseAttendeeRows,
@@ -90,12 +98,7 @@ export const underAttendeeClaim = async <TResult>(
   listingId: number,
   run: {
     blocked: (block: RefundRunBlock) => TResult;
-    work: (
-      alreadyReturned: ReadonlySet<string>,
-      findings: RunFindings,
-      inherited: ReadonlyMap<number, ResolvedRefundCapability>,
-      claim: HeldRefundClaim,
-    ) => Promise<TResult>;
+    work: (heldWork: HeldRefundWork) => Promise<TResult>;
   },
 ): Promise<TResult> => {
   const claim = await rowClaim.claim(held, capability);
@@ -136,9 +139,11 @@ export const underAttendeeClaim = async <TResult>(
       listingId,
     );
   };
-  const result = await run.work(claim.returned, findings, claim.inherited, {
-    held: claim.held,
-    heldSince: claim.heldSince,
+  const result = await run.work({
+    alreadyReturned: claim.returned,
+    claim: { held: claim.held, heldSince: claim.heldSince },
+    findings,
+    inherited: claim.inherited,
   });
   await settle();
   return result;

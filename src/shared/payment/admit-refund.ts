@@ -25,15 +25,20 @@ export type RefundAdmission =
   | { kind: "in_flight" }
   | { kind: "send" };
 
-/** A provider read either supplies the sendable charge or keeps its exact
+/** Admission from charge facts that were already validated at the provider
+ * boundary. It cannot carry a read failure because no read happens here. */
+export type ObservedRefundAdmission =
+  | Exclude<RefundAdmission, { kind: "send" }>
+  | { kind: "send"; request: RefundRequest };
+
+/** A provider read either supplies the observed admission or keeps its exact
  * failure. Missing, unavailable, and invalid evidence need different repair. */
 export type ProviderRefundAdmission =
-  | Exclude<RefundAdmission, { kind: "send" }>
+  | ObservedRefundAdmission
   | {
-    kind: "read_failed";
-    read: Exclude<ProviderRead<ChargeMoney>, { status: "found" }>;
-  }
-  | { kind: "send"; request: RefundRequest };
+      kind: "read_failed";
+      read: Exclude<ProviderRead<ChargeMoney>, { status: "found" }>;
+    };
 
 /** The answer for each way a reading can come out settled, listed
  *  exhaustively so a new outcome must say what it does about refunds. */
@@ -63,8 +68,8 @@ export const admissionReason = (admission: WithheldRefund): string =>
   admission.kind === "read_failed"
     ? providerReadReason(admission.read)
     : admission.kind === "refused"
-    ? `needs the owner to look at it (${admission.issue.kind})`
-    : ADMISSION_REASONS[admission.kind];
+      ? `needs the owner to look at it (${admission.issue.kind})`
+      : ADMISSION_REASONS[admission.kind];
 
 const PROVIDER_READ_REASONS = {
   invalid: "the provider returned invalid data",
@@ -94,7 +99,7 @@ const ADMISSION_REASONS = {
 export const admitObservedRefund = (
   paymentReference: string,
   charge: ChargeMoney,
-): ProviderRefundAdmission => {
+): ObservedRefundAdmission => {
   const admission = admitRefund(refundOutcomeOf([charge]));
   return admission.kind === "send"
     ? { kind: "send", request: { charge, paymentReference } }

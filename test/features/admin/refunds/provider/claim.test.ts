@@ -1,29 +1,28 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { refundCandidateAtProvider } from "#routes/admin/refunds/attempt.ts";
+import { refundReadyCandidate } from "#routes/admin/refunds/attempt.ts";
 import type { RowClaim } from "#routes/admin/refunds/claim.ts";
-import {
-  processRefundBatch,
-  type RefundWrites,
-} from "#routes/admin/refunds/provider.ts";
+import type { RefundRunDependencies } from "#routes/admin/refunds/provider.ts";
 import type { ProviderRead } from "#shared/payment/provider-read.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import {
   chargeMoneyWith,
   refundObservation,
-  refundReference,
 } from "#test-utils/payment-state.ts";
 import { grantingRowClaim } from "#test-utils/refund-routes.ts";
 import {
   candidate,
-  candidateWithReferences,
   finishedCounts,
   holdingClaim,
+  processRefundBatchAt,
   provider,
+  readyCandidate,
 } from "./helpers.ts";
 
-const recordEveryRefund: NonNullable<RefundWrites["record"]> = (attendees) =>
+const recordEveryRefund: NonNullable<RefundRunDependencies["record"]> = (
+  attendees,
+) =>
   Promise.resolve(
     new Map(attendees.map(({ attendeeId }) => [attendeeId, true])),
   );
@@ -40,7 +39,7 @@ describe("admin refund provider > the claim", () => {
 
   test("a blocked run reports settling without asking the provider", async () => {
     const untouched = provider({ refundCapability: "keyless" });
-    const result = await processRefundBatch(
+    const result = await processRefundBatchAt(
       untouched,
       [candidate([{ reference: "pi_held", refundState: "none" }])],
       7,
@@ -75,7 +74,7 @@ describe("admin refund provider > the claim", () => {
       release: rowClaim.release,
     };
 
-    await processRefundBatch(
+    await processRefundBatchAt(
       provider({ refunded: new Set(["pi_1", "pi_2", "pi_3"]) }),
       [
         candidate([{ reference: "pi_1", refundState: "none" }], 11),
@@ -97,7 +96,7 @@ describe("admin refund provider > the claim", () => {
   test("a keyless batch whose call errored keeps its claim standing", async () => {
     const rowClaim = grantingRowClaim(new Map([[42, ["sess_pi_lost"]]]));
 
-    await processRefundBatch(
+    await processRefundBatchAt(
       provider({
         refundCapability: "keyless",
         throws: new Set(["pi_lost"]),
@@ -113,7 +112,7 @@ describe("admin refund provider > the claim", () => {
   test("a keyed batch whose call is uncertain keeps its claim standing", async () => {
     const rowClaim = grantingRowClaim(new Map([[42, ["sess_pi_uncertain"]]]));
 
-    await processRefundBatch(
+    await processRefundBatchAt(
       provider({
         refundCapability: "keyed",
         throws: new Set(["pi_uncertain"]),
@@ -131,12 +130,13 @@ describe("admin refund provider > a reference already sent back", () => {
   test("is not refunded again, whatever the loaded snapshot said", async () => {
     const untouched = provider({ refundCapability: "keyless" });
 
-    const result = await refundCandidateAtProvider(
-      untouched,
-      candidateWithReferences(["pi_raced"]),
+    const result = await refundReadyCandidate(
+      readyCandidate(
+        [{ kind: "already_returned", reference: "pi_raced" }],
+        untouched,
+      ),
       7,
       () => Promise.resolve(),
-      new Set([refundReference("pi_raced").index]),
     );
 
     expect(result.outcome).toBe("refunded");
@@ -154,7 +154,7 @@ describe("admin refund provider > a release that fails", () => {
     );
 
     const counts = finishedCounts(
-      await processRefundBatch(
+      await processRefundBatchAt(
         provider({ refunded: new Set(["pi_held"]) }),
         [candidate([{ reference: "pi_held" }], 11)],
         7,
@@ -180,7 +180,7 @@ describe("admin refund provider > a payment that landed while we waited", () => 
     const asked = provider({ refundCapability: "keyless" });
 
     const counts = finishedCounts(
-      await processRefundBatch(
+      await processRefundBatchAt(
         asked,
         [candidate([{ reference: "pi_known" }], 11)],
         7,
@@ -205,7 +205,7 @@ describe("admin refund provider > a refund still settling", () => {
     });
 
     const counts = finishedCounts(
-      await processRefundBatch(
+      await processRefundBatchAt(
         retryable,
         [candidate([{ reference: "pi_keyed_retry" }])],
         7,
@@ -230,7 +230,7 @@ describe("admin refund provider > a refund still settling", () => {
     const invisible = provider({ refundCapability: "keyless" });
 
     const counts = finishedCounts(
-      await processRefundBatch(
+      await processRefundBatchAt(
         invisible,
         [candidate([{ reference: "pi_invisible" }])],
         7,
@@ -255,7 +255,7 @@ describe("admin refund provider > a refund still settling", () => {
     const shared = provider({ refundCapability: "keyless" });
 
     const counts = finishedCounts(
-      await processRefundBatch(
+      await processRefundBatchAt(
         shared,
         [
           candidate([{ reference: "pi_shared_invisible" }], 41),
@@ -288,7 +288,7 @@ describe("admin refund provider > a refund still settling", () => {
     });
 
     const counts = finishedCounts(
-      await processRefundBatch(
+      await processRefundBatchAt(
         pending,
         [candidate([{ reference: "pi_pending" }])],
         7,
@@ -318,7 +318,7 @@ describe("admin refund provider > a refund still settling", () => {
       const unproved = provider({ refundCapability: "keyed" });
       unproved.readCharge = () => Promise.resolve(read);
 
-      await processRefundBatch(
+      await processRefundBatchAt(
         unproved,
         [candidate([{ reference: "pi_unproved" }])],
         7,
@@ -338,7 +338,7 @@ describe("admin refund provider > one charge two attendees carry", () => {
     });
 
     const counts = finishedCounts(
-      await processRefundBatch(
+      await processRefundBatchAt(
         shared,
         [
           candidate([{ reference: "pi_both", refundState: "none" }], 11),
@@ -369,7 +369,7 @@ describe("admin refund provider > a run that dies holding money", () => {
     }, ["sess_pi_held"]);
 
     await expect(
-      processRefundBatch(
+      processRefundBatchAt(
         provider({ refunded: new Set(["pi_held"]) }),
         [candidate([{ reference: "pi_held" }], 11)],
         7,

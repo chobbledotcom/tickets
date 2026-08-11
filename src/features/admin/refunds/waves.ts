@@ -1,5 +1,3 @@
-import type { RefundCandidate } from "./candidates.ts";
-
 /** What a refund came to. `withheld` means no money was sent and the reason has
  * already been reported at the volume it deserved. `pending` means the
  * provider accepted it but has not yet proved the money returned. */
@@ -10,15 +8,20 @@ export type RefundOutcome =
   | "failed"
   | "errored";
 
+type CandidateWithReferences = {
+  readonly references: readonly unknown[];
+};
+
 /** Pack candidates into waves whose combined charge references stay within
  * `budget`, so each concurrently-processed wave issues at most ~`budget`
  * provider subrequests. A single candidate carrying more references than the
- * budget forms its own wave; its references are chunked inside
- * `refundCandidateAtProvider`. */
+ * budget forms its own wave; its references are chunked inside the attempt. */
 export const packByReferenceCount =
   (budget: number) =>
-  (candidates: RefundCandidate[]): RefundCandidate[][] => {
-    const waves: RefundCandidate[][] = [];
+  <TCandidate extends CandidateWithReferences>(
+    candidates: readonly TCandidate[],
+  ): TCandidate[][] => {
+    const waves: TCandidate[][] = [];
     let currentCount = 0;
     for (const candidate of candidates) {
       const refs = candidate.references.length;

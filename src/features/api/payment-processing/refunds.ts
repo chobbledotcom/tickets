@@ -168,8 +168,7 @@ const refundResultSucceeded = (
   }
   logError({
     code: ErrorCode.PAYMENT_REFUND,
-    detail:
-      `Refund ${result.kind} for payment ${paymentReference} (${result.reason})`,
+    detail: `Refund ${result.kind} for payment ${paymentReference} (${result.reason})`,
     listingId,
   });
   return false;
@@ -313,7 +312,8 @@ export type RefundCode = keyof typeof REFUND_REASONS;
  *  and any alert, the caller supplies the internal log line (ids/prices, never
  *  PII). */
 export const refundSpec =
-  (code: RefundCode) => (detail: string): RefundSpec => ({
+  (code: RefundCode) =>
+  (detail: string): RefundSpec => ({
     code,
     detail,
     ...REFUND_REASONS[code],

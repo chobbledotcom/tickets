@@ -1,11 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
-import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
 import {
   finishedCounts,
   oneFailedRefundCounts,
   pendingCandidate,
+  processRefundBatchAt,
+  provider,
   unreadableProvider,
 } from "#test/features/admin/refunds/provider/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -21,22 +22,10 @@ describeWithEnv(
   () => {
     const errors = setupErrorSpy();
 
-    test("counts an unreadable charge as not refunded without raising an incident", async () => {
+    test("counts and reports an unreadable charge without sending", async () => {
       const counts = finishedCounts(
-        await processRefundBatch(
-          {
-            readCharge: () =>
-              Promise.resolve({
-                reason: "network_error",
-                status: "unavailable",
-              } as const),
-            refundCapability: "keyed" as const,
-            refundCharge: () =>
-              Promise.resolve({
-                kind: "uncertain",
-                reason: "network_error",
-              } as const),
-          },
+        await processRefundBatchAt(
+          provider({ read: () => Promise.resolve(null) }),
           [pendingCandidate(21, ["pi_unreadable"])],
           LISTING,
           { claim: grantingRowClaim() },
@@ -44,7 +33,13 @@ describeWithEnv(
       );
 
       expect(counts).toEqual(oneFailedRefundCounts);
-      expect(errors.calls).toHaveLength(0);
+      expect(
+        errors.contains(
+          "No configured payment provider recognizes this payment. " +
+            "Add the provider it was taken with, or refund it from that " +
+            "provider's dashboard.",
+        ),
+      ).toBe(true);
     });
 
     const heldCandidate = (
@@ -67,7 +62,7 @@ describeWithEnv(
       );
       const provider = unreadableProvider("keyless");
 
-      await processRefundBatch(
+      await processRefundBatchAt(
         provider,
         [heldCandidate(31, "sess-31")],
         LISTING,
@@ -85,7 +80,7 @@ describeWithEnv(
       );
       const provider = unreadableProvider("keyed");
 
-      await processRefundBatch(
+      await processRefundBatchAt(
         provider,
         [heldCandidate(34, "sess-34")],
         LISTING,
@@ -100,7 +95,7 @@ describeWithEnv(
       const claim = grantingRowClaim(new Map([[32, ["sess-32"]]]));
       const provider = unreadableProvider("keyless");
 
-      await processRefundBatch(
+      await processRefundBatchAt(
         provider,
         [heldCandidate(32, "sess-32")],
         LISTING,
@@ -118,7 +113,7 @@ describeWithEnv(
       );
       const provider = unreadableProvider("keyed");
 
-      await processRefundBatch(
+      await processRefundBatchAt(
         provider,
         [heldCandidate(33, "sess-33")],
         LISTING,

@@ -93,14 +93,16 @@ const queryProcessedReferences = <Row>(
   select: string,
   suffix = "",
 ): Promise<Row[]> =>
-  attendeeIds.length === 0 ? Promise.resolve([]) : queryAll<Row>(
-    `SELECT ${select}
+  attendeeIds.length === 0
+    ? Promise.resolve([])
+    : queryAll<Row>(
+        `SELECT ${select}
            FROM processed_payments
           WHERE attendee_id IN (${inPlaceholders(attendeeIds)})
             AND payment_reference != ''
           ${suffix}`,
-    [...attendeeIds],
-  );
+        [...attendeeIds],
+      );
 
 const paymentReferencesForIds = (
   attendeeIds: readonly number[],
@@ -140,7 +142,7 @@ const withLegacyReference = async (
   legacyPaymentId: string,
 ): Promise<RefundPaymentReference[]> =>
   legacyPaymentId !== "" &&
-    !references.some((entry) => entry.reference === legacyPaymentId)
+  !references.some((entry) => entry.reference === legacyPaymentId)
     ? [...references, await legacyReference(legacyPaymentId)]
     : references;
 
@@ -211,11 +213,9 @@ export const getRefundPaymentReferences = async (
       new Map<string, ReferenceProgress>(),
     ]),
   );
-  for (
-    const row of await paymentReferencesForIds(
-      attendees.map((attendee) => attendee.id),
-    )
-  ) {
+  for (const row of await paymentReferencesForIds(
+    attendees.map((attendee) => attendee.id),
+  )) {
     const payment = await loadPaymentReference(
       row.payment_reference,
       privateKey,
@@ -308,7 +308,7 @@ export const hasRefundPaymentReference = async (
   privateKey: CryptoKey,
 ): Promise<boolean> =>
   (await getRefundPaymentReferencesForAttendee(attendee, privateKey)).length >
-    0;
+  0;
 
 export const getAttendeeIdsWithPaymentReference = async (
   attendees: readonly RefundPaymentReferenceSource[],
@@ -318,11 +318,9 @@ export const getAttendeeIdsWithPaymentReference = async (
       .filter((attendee) => attendee.payment_id !== "")
       .map((attendee) => attendee.id),
   );
-  for (
-    const row of await attendeeIdsWithProcessedReferences(
-      attendees.map((attendee) => attendee.id),
-    )
-  ) {
+  for (const row of await attendeeIdsWithProcessedReferences(
+    attendees.map((attendee) => attendee.id),
+  )) {
     ids.add(Number(row.attendee_id));
   }
   return ids;

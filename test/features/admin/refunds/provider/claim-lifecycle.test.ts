@@ -1,14 +1,16 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import type { RefundProvider } from "#routes/admin/refunds/attempt.ts";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
-import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
 import { deleteAttendee } from "#shared/db/attendees/delete.ts";
 import { getAttendeeOrNull } from "#shared/db/attendees/queries.ts";
 import { getRefundPaymentReferencesForAttendee } from "#shared/db/payment-references.ts";
 import type { ProviderRead } from "#shared/payment/provider-read.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
-import { finishedCounts } from "#test/features/admin/refunds/provider/helpers.ts";
+import {
+  finishedCounts,
+  processRefundBatchAt,
+  provider,
+} from "#test/features/admin/refunds/provider/helpers.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -86,19 +88,26 @@ describeWithEnv(
         reads++;
         return Promise.resolve({ resource: chargeMoney(), status: "found" });
       };
-      const uncertainProvider: RefundProvider = {
-        readCharge: readBeforeSettlement,
-        refundCapability: "keyed",
-        refundCharge: () => {
+      const uncertainProvider = provider({
+        read: async () => {
+          const read = await readBeforeSettlement();
+          return read.status === "found" ? read.resource : null;
+        },
+        refund: () => {
           sends++;
           return Promise.resolve({
             kind: "uncertain",
             reason: "network_error",
           });
         },
-      };
+        refundCapability: "keyed",
+      });
 
-      await processRefundBatch(uncertainProvider, [firstCandidate], listing.id);
+      await processRefundBatchAt(
+        uncertainProvider,
+        [firstCandidate],
+        listing.id,
+      );
 
       expect(reads).toBe(1);
       expect(sends).toBe(1);
@@ -113,21 +122,17 @@ describeWithEnv(
         CLAIM_MIRROR,
       );
       let retrySends = 0;
-      const settledProvider: RefundProvider = {
-        readCharge: () =>
-          Promise.resolve({
-            resource: fullyRefundedMoney(),
-            status: "found",
-          }),
-        refundCapability: "keyed",
-        refundCharge: () => {
+      const settledProvider = provider({
+        read: () => Promise.resolve(fullyRefundedMoney()),
+        refund: () => {
           retrySends++;
           return Promise.resolve({ kind: "rejected", reason: "failed" });
         },
-      };
+        refundCapability: "keyed",
+      });
 
       const settled = finishedCounts(
-        await processRefundBatch(
+        await processRefundBatchAt(
           settledProvider,
           [await loadCandidate(attendee.id)],
           listing.id,

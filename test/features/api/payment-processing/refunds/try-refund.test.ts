@@ -22,21 +22,17 @@ describeWithEnv("tryRefund", { db: true }, () => {
     reference,
   });
 
-  for (
-    const [name, refundSucceeds, alreadyRefunded, expected] of [
-      ["refund succeeds", true, false, true],
-      ["already refunded", false, true, true],
-      ["refund fails", false, false, false],
-    ] as const
-  ) {
+  for (const [name, refundSucceeds, alreadyRefunded, expected] of [
+    ["refund succeeds", true, false, true],
+    ["already refunded", false, true, true],
+    ["refund fails", false, false, false],
+  ] as const) {
     test(`returns ${expected} when ${name}`, async () => {
       await withRefundMock(
         refundSucceeds,
         async () => {
           expect(
-            await tryRefund(
-              stripeReference(`pi_${name.replace(/\s/g, "_")}`),
-            ),
+            await tryRefund(stripeReference(`pi_${name.replace(/\s/g, "_")}`)),
           ).toBe(expected);
         },
         {
@@ -46,28 +42,26 @@ describeWithEnv("tryRefund", { db: true }, () => {
     });
   }
 
-  for (
-    const [name, result] of [
-      [
-        "accepted",
-        {
-          amount: { amount: 1000, currency: "GBP" },
-          kind: "accepted",
-          proof: {
-            charge: chargeMoney(),
-            kind: "charge_observation",
-          },
+  for (const [name, result] of [
+    [
+      "accepted",
+      {
+        amount: { amount: 1000, currency: "GBP" },
+        kind: "accepted",
+        proof: {
+          charge: chargeMoney(),
+          kind: "charge_observation",
         },
-      ],
-      ["not sent", { kind: "not_sent", reason: "not_configured" }],
-      ["uncertain", { kind: "uncertain", reason: "timeout" }],
-    ] as const satisfies readonly (readonly [string, RefundAttemptResult])[]
-  ) {
+      },
+    ],
+    ["not sent", { kind: "not_sent", reason: "not_configured" }],
+    ["uncertain", { kind: "uncertain", reason: "timeout" }],
+  ] as const satisfies readonly (readonly [string, RefundAttemptResult])[]) {
     test(`does not call an ${name} refund completed`, async () => {
       await withRefundMock(result, async () => {
-        expect(
-          await tryRefund(stripeReference(`pi_${result.kind}`)),
-        ).toBe(false);
+        expect(await tryRefund(stripeReference(`pi_${result.kind}`))).toBe(
+          false,
+        );
       });
     });
   }

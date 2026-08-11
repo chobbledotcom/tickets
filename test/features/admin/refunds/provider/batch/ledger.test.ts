@@ -1,12 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
-import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
 import { anchorSessionId } from "#shared/db/payment-anchor/session.ts";
-import type {
-  RefundAttemptResult,
-  RefundRequest,
-} from "#shared/payment/refund-attempt.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
 import {
   completedRefund,
@@ -14,6 +9,8 @@ import {
   finishedCounts,
   oneFailedRefundCounts,
   pendingCandidate,
+  processRefundBatchAt,
+  provider,
   refundedCandidate,
   unreadableProvider,
 } from "#test/features/admin/refunds/provider/helpers.ts";
@@ -26,7 +23,6 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import {
-  chargeMoney,
   chargeMoneyWith,
   refundObservation,
   refundReference,
@@ -56,7 +52,7 @@ describeWithEnv(
       await postBooking({ attendeeId: 11, eventId: "sess-11" });
 
       const counts = finishedCounts(
-        await processRefundBatch(
+        await processRefundBatchAt(
           failingProvider(new Set(["pi_boom"])),
           [
             refundedCandidate(11, "sess-11"),
@@ -91,21 +87,15 @@ describeWithEnv(
       await postBooking({ attendeeId, eventId: "sess-stuck" });
 
       const counts = finishedCounts(
-        await processRefundBatch(
-          {
-            readCharge: () =>
-              Promise.resolve({
-                resource: chargeMoney(),
-                status: "found",
-              } as const),
-            refundCapability: "keyed" as const,
-            refundCharge: (request: RefundRequest) =>
-              Promise.resolve<RefundAttemptResult>(
+        await processRefundBatchAt(
+          provider({
+            refund: (request) =>
+              Promise.resolve(
                 request.paymentReference === "pi_back"
                   ? completedRefund(request)
                   : { kind: "rejected", reason: "failed" },
               ),
-          },
+          }),
           [
             {
               attendee: { id: attendeeId } as RefundCandidate["attendee"],
@@ -134,7 +124,7 @@ describeWithEnv(
       );
 
       const counts = finishedCounts(
-        await processRefundBatch(
+        await processRefundBatchAt(
           failingProvider(new Set()),
           [returnedAndStuckCandidate(attendeeId)],
           LISTING,
@@ -151,7 +141,7 @@ describeWithEnv(
       const claim = grantingRowClaim(new Map([[21, ["sess-21"]]]));
 
       const counts = finishedCounts(
-        await processRefundBatch(
+        await processRefundBatchAt(
           failingProvider(new Set(), "keyless"),
           [refundedCandidate(21, "sess-21")],
           LISTING,
@@ -172,7 +162,7 @@ describeWithEnv(
       );
 
       const counts = finishedCounts(
-        await processRefundBatch(
+        await processRefundBatchAt(
           failingProvider(new Set()),
           [
             refundedCandidate(attendeeId, "sess-first"),
@@ -196,19 +186,16 @@ describeWithEnv(
       );
 
       const counts = finishedCounts(
-        await processRefundBatch(
-          {
-            readCharge: () =>
-              Promise.resolve({
-                resource: chargeMoneyWith({
+        await processRefundBatchAt(
+          provider({
+            read: () =>
+              Promise.resolve(
+                chargeMoneyWith({
                   refunds: [refundObservation({ status: "pending" })],
                 }),
-                status: "found",
-              } as const),
-            refundCapability: "keyed" as const,
-            refundCharge: (request: RefundRequest) =>
-              Promise.resolve(completedRefund(request)),
-          },
+              ),
+            refund: (request) => Promise.resolve(completedRefund(request)),
+          }),
           [returnedAndStuckCandidate(24)],
           LISTING,
           { claim },
@@ -220,14 +207,14 @@ describeWithEnv(
       expect(claim.unrecorded).toEqual([]);
     });
 
-    test("marks returned money even when a sibling charge is in doubt", async () => {
+    test("starts no ledger work when sibling evidence cannot be read", async () => {
       const claim = grantingRowClaim(
         new Map([[25, ["sess-came", "sess-dark"]]]),
       );
       const provider = unreadableProvider("keyed");
 
       const counts = finishedCounts(
-        await processRefundBatch(
+        await processRefundBatchAt(
           provider,
           [
             {
@@ -247,9 +234,9 @@ describeWithEnv(
       );
 
       expect(provider.sent).toEqual([]);
-      expect(counts.notRecordedCount).toBe(1);
+      expect(counts).toEqual(oneFailedRefundCounts);
       expect(claim.released).toEqual([["sess-came", "sess-dark"]]);
-      expect(claim.unrecorded).toEqual([["sess-came"]]);
+      expect(claim.unrecorded).toEqual([[]]);
     });
 
     test("marks the anchor row a returned legacy charge is held by", async () => {
@@ -257,7 +244,7 @@ describeWithEnv(
       const claim = grantingRowClaim(new Map([[26, [anchor]]]));
 
       const counts = finishedCounts(
-        await processRefundBatch(
+        await processRefundBatchAt(
           failingProvider(new Set()),
           [
             {
@@ -278,7 +265,7 @@ describeWithEnv(
     test("a keyed run lets go after its settled answer", async () => {
       const claim = grantingRowClaim(new Map([[22, ["sess-22"]]]));
 
-      await processRefundBatch(
+      await processRefundBatchAt(
         failingProvider(new Set()),
         [refundedCandidate(22, "sess-22")],
         LISTING,
@@ -290,7 +277,7 @@ describeWithEnv(
 
     test("returns all-zero counts for an empty batch", async () => {
       const counts = finishedCounts(
-        await processRefundBatch(failingProvider(new Set()), [], LISTING, {
+        await processRefundBatchAt(failingProvider(new Set()), [], LISTING, {
           claim: grantingRowClaim(),
         }),
       );
@@ -306,7 +293,7 @@ describeWithEnv(
 
     test("counts a refund the ledger cannot post apart from an uncertain one", async () => {
       const counts = finishedCounts(
-        await processRefundBatch(
+        await processRefundBatchAt(
           failingProvider(new Set()),
           [refundedCandidate(21, "sess-missing")],
           LISTING,

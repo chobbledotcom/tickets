@@ -63,14 +63,12 @@ const runRecovery = async (opts: {
   const result = await recoverOrRefundUnexpectedCreate({
     complete: (entries) => {
       completed.push(entries);
-      return Promise.resolve(
-        {
-          attendee: { id: entries[0]?.attendee.id ?? 0 },
-          listingId: entries[0]?.listing.id ?? 0,
-          success: true,
-          ticketTokens: [opts.ticketToken],
-        } satisfies PaymentResult,
-      );
+      return Promise.resolve({
+        attendee: { id: entries[0]?.attendee.id ?? 0 },
+        listingId: entries[0]?.listing.id ?? 0,
+        success: true,
+        ticketTokens: [opts.ticketToken],
+      } satisfies PaymentResult);
     },
     error: opts.error,
     intent: intent(),

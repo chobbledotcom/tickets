@@ -82,13 +82,10 @@ const withRefundRedirect = async (
           : ({ kind: "rejected", reason: "failed" } as const),
       ),
   );
-  using _refunded = stub(
-    stripePaymentProvider,
-    "readCharge",
-    () =>
-      Promise.resolve(
-        foundCharge(alreadyRefunded ? fullyRefundedMoney() : chargeMoney()),
-      ),
+  using _refunded = stub(stripePaymentProvider, "readCharge", () =>
+    Promise.resolve(
+      foundCharge(alreadyRefunded ? fullyRefundedMoney() : chargeMoney()),
+    ),
   );
   const mockRetrieve = stubRetrieveCheckoutSession({
     amountTotal: 1000,

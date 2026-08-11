@@ -39,14 +39,14 @@ import type {
 } from "#routes/api/webhook-types.ts";
 import { eventGroupHasLegs } from "#shared/accounting/queries.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
-import { priceCheckout, type PricedOrder } from "#shared/checkout-pricing.ts";
+import { type PricedOrder, priceCheckout } from "#shared/checkout-pricing.ts";
 import { generateTicketToken } from "#shared/crypto/utils.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import {
   finalizeSessionIfUnresolved,
   markSessionFailed,
-  parseSessionFailure,
   type ProcessedPayment,
+  parseSessionFailure,
   releaseReservation,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
@@ -119,8 +119,7 @@ const alreadyHandledSession = (
   sessionId: string,
   listingId: number,
 ): PaymentFailureResult => ({
-  detail:
-    `Ledger already records session ${sessionId} with no live booking (listing ${listingId})`,
+  detail: `Ledger already records session ${sessionId} with no live booking (listing ${listingId})`,
   error: "This payment has already been processed.",
   status: 200,
   success: false,
@@ -221,9 +220,10 @@ const processNewBookingSession = async (
   // — the provider charged a different total, or a listing/modifier/answer price
   // was edited between checkout and now: keep it as a quantity-0 placeholder and
   // refund, never drop it.
-  const knownRefund = verdict.verdict === "mismatch"
-    ? chargeMismatchSpec(session, verdict.agreed)
-    : paidPricingRefund(validatedItems, pricedOrder, verdict.agreed);
+  const knownRefund =
+    verdict.verdict === "mismatch"
+      ? chargeMismatchSpec(session, verdict.agreed)
+      : paidPricingRefund(validatedItems, pricedOrder, verdict.agreed);
   if (knownRefund) {
     return storeRefundedBooking(
       session,

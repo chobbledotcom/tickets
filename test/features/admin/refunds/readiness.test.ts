@@ -1,108 +1,23 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  prepareRefundReadiness,
-  type ReadyRefundProvider,
-} from "#routes/admin/refunds/readiness.ts";
-import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
-import type { HeldRefundClaim } from "#routes/admin/refunds/claim.ts";
+import { prepareRefundReadiness } from "#routes/admin/refunds/readiness.ts";
 import type {
   PaymentReferenceProviderBindingRequest,
   PaymentReferenceProviderBindingResult,
 } from "#shared/db/payment-reference-provider.ts";
-import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import type { PaymentReferenceEvidence } from "#shared/payment/provider-discovery.ts";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
-import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
-
-const charge = (): ChargeMoney => ({
-  captured: { amount: 1000, currency: "GBP" },
-  confirmedRefunded: { amount: 0, currency: "GBP" },
-  refunds: [],
-});
-
-const referenceFacts = (
-  index: string,
-  refundState: RefundPaymentReference["refundState"] = "none",
-) => ({
-  heldRowSessionIds: [`session_${index}`],
-  index,
-  refundState,
-  rowSessionIds: [`session_${index}`],
-  sessionIds: [`session_${index}`],
-});
-
-const untagged = (
-  reference: string,
-  index = `old_${reference}`,
-  refundState: RefundPaymentReference["refundState"] = "none",
-): Extract<RefundPaymentReference, { kind: "untagged" }> => ({
-  ...referenceFacts(index, refundState),
-  kind: "untagged",
-  reference,
-});
-
-const tagged = (
-  reference: string,
-  provider: PaymentProviderType,
-  index = `tagged_${reference}`,
-  refundState: RefundPaymentReference["refundState"] = "none",
-): Extract<RefundPaymentReference, { kind: "tagged" }> => ({
-  ...referenceFacts(index, refundState),
-  kind: "tagged",
+import {
+  boundIndexes,
+  candidate,
+  charge,
+  found,
+  heldClaim,
   provider,
-  reference,
-});
-
-const candidate = (
-  id: number,
-  references: RefundPaymentReference[],
-): RefundCandidate => ({
-  attendee: { id } as RefundCandidate["attendee"],
-  references,
-});
-
-const heldClaim: HeldRefundClaim = {
-  held: new Map([
-    [1, ["session_old_shared", "session_tagged_returned"]],
-    [2, ["session_old_shared"]],
-  ]),
-  heldSince: "2026-08-11T12:00:00.000Z",
-};
-
-const provider = (
-  type: PaymentProviderType,
-  refundCapability: ReadyRefundProvider["refundCapability"] = "keyed",
-): ReadyRefundProvider => ({
-  refundCapability,
-  refundCharge: () =>
-    Promise.resolve({ kind: "not_sent", reason: "not_configured" }),
-  type,
-});
-
-const found = (
-  reference: RefundPaymentReference,
-  provider: PaymentProviderType,
-  observed: ChargeMoney,
-): PaymentReferenceEvidence => ({
-  attempts: [
-    {
-      provider,
-      result: { resource: observed, status: "found" },
-    },
-  ],
-  charge: observed,
-  provider,
-  reference: reference.reference,
-  source: reference.kind === "tagged" ? "tagged" : "discovered",
-  status: "found",
-});
-
-const boundIndexes = (
-  bindings: PaymentReferenceProviderBindingRequest["bindings"],
-): ReadonlyMap<string, string> =>
-  new Map([...bindings.keys()].map((index) => [index, `bound_${index}`]));
+  stripeReadiness,
+  tagged,
+  untagged,
+} from "./readiness/helpers.ts";
 
 describe("admin refund readiness", () => {
   test("deduplicates reads and carries exact evidence into every candidate", async () => {
@@ -110,19 +25,38 @@ describe("admin refund readiness", () => {
     const square = provider("square");
     const stripe = provider("stripe");
     const shared = untagged("shared");
+    const firstShared = {
+      ...shared,
+      heldRowSessionIds: ["session_first"],
+      rowSessionIds: ["session_first"],
+      sessionIds: ["session_first"],
+    };
+    const secondShared = {
+      ...shared,
+      heldRowSessionIds: ["session_second"],
+      rowSessionIds: ["session_second"],
+      sessionIds: ["session_second"],
+    };
     const returned = tagged(
       "returned",
       "stripe",
       "tagged_returned",
       "completed",
     );
-    const reads: RefundPaymentReference[] = [];
+    const reads: string[] = [];
     const loads: PaymentProviderType[] = [];
     const bindings: PaymentReferenceProviderBindingRequest[] = [];
+    const exactClaim = {
+      held: new Map([
+        [1, ["session_first", "session_tagged_returned"]],
+        [2, ["session_second"]],
+      ]),
+      heldSince: heldClaim.heldSince,
+    };
 
     const result = await prepareRefundReadiness(
-      [candidate(1, [shared, returned]), candidate(2, [shared])],
-      heldClaim,
+      [candidate(1, [firstShared, returned]), candidate(2, [secondShared])],
+      exactClaim,
       new Set(),
       {
         bindProviders: (request) => {
@@ -137,7 +71,7 @@ describe("admin refund readiness", () => {
           return Promise.resolve(type === "square" ? square : stripe);
         },
         readEvidence: (reference) => {
-          reads.push(reference as RefundPaymentReference);
+          reads.push(reference.reference);
           return Promise.resolve(found(shared, "square", observed));
         },
       },
@@ -146,7 +80,7 @@ describe("admin refund readiness", () => {
     expect(result.kind).toBe("ready");
     if (result.kind !== "ready") return;
     expect(result.capability).toBe("keyed");
-    expect(reads.map(({ index }) => index)).toEqual(["old_shared"]);
+    expect(reads).toEqual(["shared"]);
     expect(loads).toEqual(["square", "stripe"]);
     expect(bindings).toHaveLength(1);
     expect(bindings[0]).toEqual({
@@ -161,7 +95,7 @@ describe("admin refund readiness", () => {
         ],
       ]),
       capability: "keyed",
-      ...heldClaim,
+      ...exactClaim,
     });
     const [first, second] = result.candidates;
     const observedFirst = first?.references[0];
@@ -172,11 +106,15 @@ describe("admin refund readiness", () => {
     if (
       observedFirst?.kind !== "observed" ||
       observedSecond?.kind !== "observed"
-    ) return;
+    ) {
+      return;
+    }
     expect(observedFirst.charge).toBe(observed);
     expect(observedSecond.charge).toBe(observed);
     expect(observedFirst.provider).toBe(square);
     expect(observedSecond.provider).toBe(square);
+    expect(observedFirst.reference.rowSessionIds).toEqual(["session_first"]);
+    expect(observedSecond.reference.rowSessionIds).toEqual(["session_second"]);
     expect(observedFirst.reference).toMatchObject({
       index: "bound_old_shared",
       kind: "tagged",
@@ -191,12 +129,18 @@ describe("admin refund readiness", () => {
   test("uses keyless capability when any resolved provider is keyless", async () => {
     const stripe = provider("stripe");
     const sumup = provider("sumup", "keyless");
-    const references = [untagged("stripe_charge"), untagged("sumup_charge")];
+    const references = [
+      tagged("stripe_charge", "stripe"),
+      untagged("sumup_charge"),
+    ];
     const bindingRequests: PaymentReferenceProviderBindingRequest[] = [];
 
     const result = await prepareRefundReadiness(
       [candidate(1, references)],
-      { held: new Map([[1, references.map((entry) => entry.rowSessionIds[0]!)]]), heldSince: heldClaim.heldSince },
+      {
+        held: new Map([[1, references.map(({ index }) => `session_${index}`)]]),
+        heldSince: heldClaim.heldSince,
+      },
       new Set(),
       {
         bindProviders: (request) => {
@@ -211,7 +155,7 @@ describe("admin refund readiness", () => {
         readEvidence: (reference) =>
           Promise.resolve(
             found(
-              reference as RefundPaymentReference,
+              reference,
               reference.reference.startsWith("sumup") ? "sumup" : "stripe",
               charge(),
             ),
@@ -220,12 +164,23 @@ describe("admin refund readiness", () => {
     );
 
     expect(result.kind === "ready" && result.capability).toBe("keyless");
+    expect(
+      result.kind === "ready" && result.candidates[0]?.references[0]?.kind,
+    ).toBe("observed");
     expect(bindingRequests[0]?.capability).toBe("keyless");
   });
 
   for (const [name, returned, alreadyReturned] of [
-    ["returned by the held claim", untagged("legacy_claim"), new Set(["old_legacy_claim"])],
-    ["marked returned on its row", untagged("legacy_marker", undefined, "completed"), new Set<string>()],
+    [
+      "returned by the held claim",
+      untagged("legacy_claim"),
+      new Set(["old_legacy_claim"]),
+    ],
+    [
+      "marked returned on its row",
+      untagged("legacy_marker", undefined, "completed"),
+      new Set<string>(),
+    ],
   ] as const) {
     test(`quarantines an untagged reference ${name} without provider calls`, async () => {
       let called = false;
@@ -259,17 +214,66 @@ describe("admin refund readiness", () => {
   }
 
   const unreadCases = [
-    ["missing", { attempts: [{ provider: "stripe", result: { status: "missing" } }], provider: "stripe", reference: "unread", source: "tagged", status: "missing" }],
-    ["invalid", { attempts: [{ provider: "stripe", result: { reason: "mismatched_id", status: "invalid" } }], provider: "stripe", reason: "mismatched_id", reference: "unread", source: "tagged", status: "invalid" }],
-    ["unavailable", { attempts: [{ provider: "stripe", result: { reason: "timeout", status: "unavailable" } }], provider: "stripe", reason: "timeout", reference: "unread", source: "tagged", status: "unavailable" }],
-    ["unresolved", { attempts: [{ provider: "square", result: { status: "missing" } }], reason: "no_validating_provider", reference: "unread", source: "untagged", status: "unresolved" }],
+    [
+      "missing",
+      {
+        attempts: [{ provider: "stripe", result: { status: "missing" } }],
+        provider: "stripe",
+        reference: "unread",
+        source: "tagged",
+        status: "missing",
+      },
+    ],
+    [
+      "invalid",
+      {
+        attempts: [
+          {
+            provider: "stripe",
+            result: { reason: "mismatched_id", status: "invalid" },
+          },
+        ],
+        provider: "stripe",
+        reason: "mismatched_id",
+        reference: "unread",
+        source: "tagged",
+        status: "invalid",
+      },
+    ],
+    [
+      "unavailable",
+      {
+        attempts: [
+          {
+            provider: "stripe",
+            result: { reason: "timeout", status: "unavailable" },
+          },
+        ],
+        provider: "stripe",
+        reason: "timeout",
+        reference: "unread",
+        source: "tagged",
+        status: "unavailable",
+      },
+    ],
+    [
+      "unresolved",
+      {
+        attempts: [{ provider: "square", result: { status: "missing" } }],
+        reason: "no_validating_provider",
+        reference: "unread",
+        source: "untagged",
+        status: "unresolved",
+      },
+    ],
   ] as const satisfies readonly (readonly [string, PaymentReferenceEvidence])[];
 
   for (const [name, evidence] of unreadCases) {
     test(`keeps ${name} evidence and does not bind`, async () => {
-      const reference = evidence.source === "tagged"
-        ? tagged("unread", "stripe", "old_unread")
-        : untagged("unread", "old_unread");
+      const reference =
+        evidence.source === "tagged"
+          ? tagged("unread", "stripe", "old_unread")
+          : untagged("unread", "old_unread");
       let bindCount = 0;
       let loadCount = 0;
       const result = await prepareRefundReadiness(
@@ -301,7 +305,7 @@ describe("admin refund readiness", () => {
 
   test("keeps at most five provider evidence reads in flight", async () => {
     const references = Array.from({ length: 6 }, (_, index) =>
-      untagged(`charge_${index}`)
+      untagged(`charge_${index}`),
     );
     const gate = Promise.withResolvers<void>();
     const firstWave = Promise.withResolvers<void>();
@@ -312,23 +316,15 @@ describe("admin refund readiness", () => {
       [candidate(1, references)],
       heldClaim,
       new Set(),
-      {
-        bindProviders: (request) =>
-          Promise.resolve({
-            indexes: boundIndexes(request.bindings),
-            kind: "bound",
-          }),
-        loadProvider: () => Promise.resolve(provider("stripe")),
-        readEvidence: async (reference) => {
-          active++;
-          started++;
-          highest = Math.max(highest, active);
-          if (started === 5) firstWave.resolve();
-          await gate.promise;
-          active--;
-          return found(reference as RefundPaymentReference, "stripe", charge());
-        },
-      },
+      stripeReadiness(async (reference) => {
+        active++;
+        started++;
+        highest = Math.max(highest, active);
+        if (started === 5) firstWave.resolve();
+        await gate.promise;
+        active--;
+        return found(reference, "stripe", charge());
+      }),
     );
 
     await firstWave.promise;
@@ -362,10 +358,10 @@ describe("admin refund readiness", () => {
         bindingResult.kind === "claim_changed"
           ? { kind: "not_ready", reason: "claim_changed" }
           : {
-            indexes: bindingResult.indexes,
-            kind: "not_ready",
-            reason: "historical_marker",
-          },
+              indexes: bindingResult.indexes,
+              kind: "not_ready",
+              reason: "historical_marker",
+            },
       );
     });
   }

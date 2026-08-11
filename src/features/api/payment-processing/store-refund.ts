@@ -16,10 +16,10 @@ import {
 import { businessTime } from "#routes/api/payment-processing/metadata.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import {
-  refundAndFail,
   type RefundCode,
-  refundedNoteText,
   type RefundSpec,
+  refundAndFail,
+  refundedNoteText,
   refundSpec,
   tryRefund,
 } from "#routes/api/payment-processing/refunds.ts";
@@ -36,8 +36,8 @@ import { createSystemNote } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import { paidPaymentReferenceOf } from "#shared/payment/validated-session.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
+import { paidPaymentReferenceOf } from "#shared/payment/validated-session.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 import { recordPlaceholderRefund } from "#shared/refund-ledger.ts";
@@ -193,8 +193,7 @@ export const storeRefundedBooking = async (
   } else {
     logError({
       code: ErrorCode.PAYMENT_REFUND,
-      detail:
-        `Stored-but-unrefunded booking ${attendeeId} (${spec.code}): ${spec.detail}`,
+      detail: `Stored-but-unrefunded booking ${attendeeId} (${spec.code}): ${spec.detail}`,
       listingId,
     });
   }

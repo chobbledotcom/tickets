@@ -131,11 +131,14 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     expect(
       await refundReferencesFor(target.id, await getTestPrivateKey()),
     ).toEqual([
-      await readReference({ kind: "untagged", reference: "pi_source_legacy" }, {
-        refundState: "unknown",
-        rowSessionIds: [`legacy-merge:${source.id}`],
-        sessionIds: [],
-      }),
+      await readReference(
+        { kind: "untagged", reference: "pi_source_legacy" },
+        {
+          refundState: "unknown",
+          rowSessionIds: [`legacy-merge:${source.id}`],
+          sessionIds: [],
+        },
+      ),
     ]);
   });
 

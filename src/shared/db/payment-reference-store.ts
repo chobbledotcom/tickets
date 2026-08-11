@@ -17,7 +17,6 @@ import {
   type PaymentReference,
   paymentReferenceIndexInput,
   readPaymentReference,
-  writePaymentReference,
 } from "#shared/payment/provider-reference.ts";
 
 /** The two columns that must always be written together. */
@@ -31,11 +30,6 @@ type MissingReferenceIndexRow = {
   payment_session_id: string;
 };
 
-const paymentReferencePlaintext = (reference: PaymentReference): string =>
-  reference.kind === "tagged"
-    ? writePaymentReference(reference)
-    : reference.reference;
-
 /** The blind stable identity of one provider charge. */
 export const paymentReferenceIndex = (
   reference: PaymentReference,
@@ -46,7 +40,7 @@ export const storePaymentReference = async (
   reference: PaymentReference,
 ): Promise<StoredPaymentReference> => ({
   encrypted: await encryptWithOwnerKey(
-    paymentReferencePlaintext(reference),
+    paymentReferenceIndexInput(reference),
     settings.publicKey,
   ),
   index: await paymentReferenceIndex(reference),
@@ -112,7 +106,7 @@ export const preparePaymentReferenceIndexes = async (
 ): Promise<void> => {
   const repairs = await Promise.all(
     (await missingReferenceIndexes()).map((row) =>
-      indexRepair(row, privateKey)
+      indexRepair(row, privateKey),
     ),
   );
   if (repairs.length > 0) await executeBatch(repairs);

@@ -79,7 +79,7 @@ describe("sumup-provider", () => {
     test("asSession refuses a null or rejected result", () => {
       expect(() => asSession(null)).toThrow();
       expect(() =>
-        asSession({ provider: "sumup", reason: "blank_reference" })
+        asSession({ provider: "sumup", reason: "blank_reference" }),
       ).toThrow();
     });
 

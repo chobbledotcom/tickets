@@ -1,12 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { refundCandidateAtProvider } from "#routes/admin/refunds/attempt.ts";
+import { refundReadyCandidate } from "#routes/admin/refunds/attempt.ts";
 import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
 import {
   candidate,
-  candidateWithReferences,
   finishedCounts,
   provider,
+  readyCandidate,
+  readyCandidateWithReferences,
 } from "#test/features/admin/refunds/provider/helpers.ts";
 import { grantingRowClaim } from "#test-utils/refund-routes.ts";
 
@@ -17,9 +18,9 @@ describe("admin refund provider > an unrecorded refund", () => {
   });
 
   test("a refund the provider rejected leaves no doubt", async () => {
-    const result = await refundCandidateAtProvider(
-      provider({ refundCapability: "keyless" }),
-      candidateWithReferences(["pi_unanswered"]),
+    const source = provider({ refundCapability: "keyless" });
+    const result = await refundReadyCandidate(
+      readyCandidateWithReferences(["pi_unanswered"], source),
       7,
       () => Promise.resolve(),
     );
@@ -28,47 +29,25 @@ describe("admin refund provider > an unrecorded refund", () => {
     expect(result.doubt).toBeUndefined();
   });
 
-  test("a reading the provider could not give leaves the hold free", async () => {
-    const unreadable = provider({
-      read: () => {
-        throw new Error("the provider could not be reached");
-      },
-      refundCapability: "keyless",
-    });
-
-    const result = await refundCandidateAtProvider(
-      unreadable,
-      candidateWithReferences(["pi_unreadable"]),
-      7,
-      () => Promise.resolve(),
-    );
-
-    // Nothing was sent, but the run did not learn what an inherited hold did.
-    expect(result.outcome).toBe("withheld");
-    expect(result.doubt).toBe("unread");
-  });
-
   test("a refund never sent is settled — nothing was asked for", async () => {
-    const alreadyBack = provider({
-      alreadyRefunded: new Set(["pi_already"]),
-      refundCapability: "keyless",
-    });
-
-    const result = await refundCandidateAtProvider(
-      alreadyBack,
-      candidateWithReferences(["pi_already"]),
+    const source = provider({ refundCapability: "keyless" });
+    const result = await refundReadyCandidate(
+      readyCandidate(
+        [{ kind: "already_returned", reference: "pi_already" }],
+        source,
+      ),
       7,
       () => Promise.resolve(),
     );
 
+    expect(source.refunds).toEqual([]);
     expect(result.outcome).toBe("refunded");
     expect(result.doubt).toBeUndefined();
   });
 
   test("a refund whose returned-marker write fails leaves a lost answer", async () => {
-    const result = await refundCandidateAtProvider(
-      keyless,
-      candidateWithReferences(["pi_unrecorded"]),
+    const result = await refundReadyCandidate(
+      readyCandidateWithReferences(["pi_unrecorded"], keyless),
       7,
       () => Promise.reject(new Error("the marker could not be written")),
     );
@@ -78,9 +57,8 @@ describe("admin refund provider > an unrecorded refund", () => {
   });
 
   test("a marker write that fails beside a refused sibling keeps the doubt", async () => {
-    const result = await refundCandidateAtProvider(
-      keyless,
-      candidateWithReferences(["pi_recorded", "pi_refused"]),
+    const result = await refundReadyCandidate(
+      readyCandidateWithReferences(["pi_recorded", "pi_refused"], keyless),
       7,
       () => Promise.reject(new Error("the marker could not be written")),
     );
@@ -93,9 +71,8 @@ describe("admin refund provider > an unrecorded refund", () => {
   });
 
   test("a refund whose marker write succeeds is settled", async () => {
-    const result = await refundCandidateAtProvider(
-      keyless,
-      candidateWithReferences(["pi_recorded"]),
+    const result = await refundReadyCandidate(
+      readyCandidateWithReferences(["pi_recorded"], keyless),
       7,
       () => Promise.resolve(),
     );
@@ -109,9 +86,9 @@ describe("admin refund provider > an unrecorded refund", () => {
       new Map([[11, ["sess_pi_returned", "sess_pi_refused"]]]),
     );
     const recordedSessions: string[] = [];
+    const source = provider({ refunded: new Set(["pi_returned"]) });
     const counts = finishedCounts(
       await processRefundBatch(
-        provider({ refunded: new Set(["pi_returned"]) }),
         [
           candidate(
             [{ reference: "pi_returned" }, { reference: "pi_refused" }],
@@ -123,6 +100,18 @@ describe("admin refund provider > an unrecorded refund", () => {
           claim,
           markReturned: () =>
             Promise.reject(new Error("the marker could not be written")),
+          prepare: () =>
+            Promise.resolve({
+              candidates: [
+                readyCandidateWithReferences(
+                  ["pi_returned", "pi_refused"],
+                  source,
+                  11,
+                ),
+              ],
+              capability: "keyed",
+              kind: "ready",
+            }),
           record: (attendees) => {
             recordedSessions.push(
               ...attendees.flatMap(({ references }) =>
@@ -150,23 +139,25 @@ describe("admin refund provider > an unrecorded refund", () => {
     uncertain = false,
   ) => {
     const claim = grantingRowClaim(new Map([[11, ["sess_pi_held"]]]));
-    await processRefundBatch(
-      provider({
-        refundCapability: "keyless",
-        refunded: new Set(refunds),
-        throws: uncertain ? new Set(["pi_held"]) : new Set(),
-      }),
-      [candidate([{ reference: "pi_held" }], 11)],
-      7,
-      {
-        claim,
-        markReturned: () => Promise.resolve(),
-        record: (attendees) =>
-          Promise.resolve(
-            new Map(attendees.map(({ attendeeId }) => [attendeeId, posted])),
-          ),
-      },
-    );
+    const source = provider({
+      refundCapability: "keyless",
+      refunded: new Set(refunds),
+      throws: uncertain ? new Set(["pi_held"]) : new Set(),
+    });
+    await processRefundBatch([candidate([{ reference: "pi_held" }], 11)], 7, {
+      claim,
+      markReturned: () => Promise.resolve(),
+      prepare: () =>
+        Promise.resolve({
+          candidates: [readyCandidateWithReferences(["pi_held"], source, 11)],
+          capability: "keyless",
+          kind: "ready",
+        }),
+      record: (attendees) =>
+        Promise.resolve(
+          new Map(attendees.map(({ attendeeId }) => [attendeeId, posted])),
+        ),
+    });
     return claim;
   };
 

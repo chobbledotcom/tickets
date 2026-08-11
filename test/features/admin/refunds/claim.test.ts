@@ -122,8 +122,8 @@ describe("admin refunds > attendee claim", () => {
 
     const result = await underAttendeeClaim(claim, LOADED, "keyed", 9, {
       blocked: () => "blocked",
-      work: (returned, findings, inheritedClaims) => {
-        expect([...returned]).toEqual(["pi_returned"]);
+      work: ({ alreadyReturned, findings, inherited: inheritedClaims }) => {
+        expect([...alreadyReturned]).toEqual(["pi_returned"]);
         expect(inheritedClaims).toBe(inherited);
         expect(findings).toEqual({
           doubts: new Map(),
@@ -194,7 +194,7 @@ describe("admin refunds > attendee claim", () => {
     await expect(
       underAttendeeClaim(claim, [], "keyed", 12, {
         blocked: () => "blocked",
-        work: (_returned, findings) => {
+        work: ({ findings }) => {
           findings.unrecorded.set(1, ["missed-one"]);
           return Promise.reject(new Error("the ledger fell over"));
         },

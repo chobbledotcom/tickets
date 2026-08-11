@@ -1,27 +1,28 @@
-import {
-  markPaymentReferencesProviderRefunded,
-  type RefundPaymentReference,
-} from "#shared/db/payment-references.ts";
+import { markPaymentReferencesProviderRefunded } from "#shared/db/payment-references.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import {
-  admitProviderRefund,
-  type WithheldRefund,
+  admitObservedRefund,
+  type ObservedRefundAdmission,
 } from "#shared/payment/admit-refund.ts";
 import type { RefundRequest } from "#shared/payment/refund-attempt.ts";
 import { reportWithheldRefund } from "#shared/payment-review.ts";
-import type { getActivePaymentProvider } from "#shared/payments.ts";
-import type { RefundCandidate } from "./candidates.ts";
 import { mapProviderRequests } from "./provider-requests.ts";
+import type {
+  ReadyRefundCandidate,
+  ReadyRefundProvider,
+  ReadyRefundReference,
+} from "./readiness.ts";
 import { reportRefundProblem } from "./report.ts";
 import { combineRefundOutcomes, type RefundOutcome } from "./waves.ts";
 
-export type RefundProvider = Pick<
-  NonNullable<Awaited<ReturnType<typeof getActivePaymentProvider>>>,
-  "readCharge" | "refundCapability" | "refundCharge"
+type TaggedRefundReference = ReadyRefundReference["reference"];
+type ObservedWithheldRefund = Exclude<
+  ObservedRefundAdmission,
+  { kind: "send" }
 >;
 
 export type MarkReturnedReferences = (
-  references: readonly RefundPaymentReference[],
+  references: readonly TaggedRefundReference[],
 ) => Promise<void>;
 
 const refusedRefund = (detail: string, listingId: number): RefundOutcome => {
@@ -29,30 +30,27 @@ const refusedRefund = (detail: string, listingId: number): RefundOutcome => {
   return "failed";
 };
 
-/** What a run could not prove about one charge. */
-export type RefundDoubt = "in_doubt" | "unread";
-
 /** One reference's result. A charge we never had to ask about carries none. */
 export type ReferenceRefund = {
-  doubt?: RefundDoubt;
+  doubt?: "in_doubt";
   outcome: RefundOutcome;
 };
 
-/** A read answer shared by every attendee carrying the same reference. */
+/** A readiness answer shared by every attendee carrying the same reference. */
 export type PreparedReferenceRefund =
   | { kind: "answered"; result: ReferenceRefund }
   | { kind: "ready"; send: () => Promise<ReferenceRefund> };
 
-/** Do the work at most once per key. */
+/** Do the work at most once per stable provider-aware identity. */
 const answeredOnce = <TAnswer>(
   asked: Map<string, Promise<TAnswer>>,
-  key: string,
+  index: string,
   ask: () => Promise<TAnswer>,
 ): Promise<TAnswer> => {
-  const started = asked.get(key);
+  const started = asked.get(index);
   if (started !== undefined) return started;
   const running = ask();
-  asked.set(key, running);
+  asked.set(index, running);
   return running;
 };
 
@@ -70,7 +68,7 @@ const sendOnce = <TAnswer>(
 const refunded = (): ReferenceRefund => ({ outcome: "refunded" });
 
 const withheldResult = (
-  admission: WithheldRefund,
+  admission: ObservedWithheldRefund,
   attendeeId: number,
   listingId: number,
   paymentReference: string,
@@ -81,16 +79,13 @@ const withheldResult = (
     listingId,
     paymentReference,
   });
-  if (admission.kind === "read_failed") {
-    return { doubt: "unread", outcome: "withheld" };
-  }
   return admission.kind === "in_flight"
     ? { doubt: "in_doubt", outcome: "pending" }
     : { outcome: "withheld" };
 };
 
 const sendReferenceRefund = async (
-  provider: RefundProvider,
+  provider: ReadyRefundProvider,
   attendeeId: number,
   listingId: number,
   request: RefundRequest,
@@ -119,21 +114,18 @@ const sendReferenceRefund = async (
 };
 
 const prepareReferenceRefund = async (
-  provider: RefundProvider,
-  candidate: RefundCandidate,
+  candidate: ReadyRefundCandidate,
   listingId: number,
-  reference: RefundPaymentReference,
-  alreadyReturned: ReadonlySet<string>,
+  ready: ReadyRefundReference,
   observeOnly: boolean,
 ): Promise<PreparedReferenceRefund> => {
-  // What the claimed row says now beats the list loaded before the hold.
-  if (
-    reference.refundState === "completed" ||
-    alreadyReturned.has(reference.index)
-  ) {
+  if (ready.kind === "already_returned") {
     return { kind: "answered", result: refunded() };
   }
-  const admission = await admitProviderRefund(provider, reference.reference);
+  const admission = admitObservedRefund(
+    ready.reference.reference,
+    ready.charge,
+  );
   if (admission.kind !== "send") {
     return {
       kind: "answered",
@@ -141,7 +133,7 @@ const prepareReferenceRefund = async (
         admission,
         candidate.attendee.id,
         listingId,
-        reference.reference,
+        ready.reference.reference,
       ),
     };
   }
@@ -155,7 +147,7 @@ const prepareReferenceRefund = async (
     kind: "ready",
     send: sendOnce(() =>
       sendReferenceRefund(
-        provider,
+        ready.provider,
         candidate.attendee.id,
         listingId,
         admission.request,
@@ -166,36 +158,33 @@ const prepareReferenceRefund = async (
 
 /** What one attendee's refund came to. */
 export type CandidateRefund = {
-  candidate: RefundCandidate;
+  candidate: ReadyRefundCandidate;
   outcome: RefundOutcome;
-  /** The charges that actually went back. */
-  returned: readonly RefundPaymentReference[];
-  doubt?: RefundDoubt;
+  /** The provider-tagged charges that actually went back. */
+  returned: readonly TaggedRefundReference[];
+  doubt?: "in_doubt";
 };
 
-export const refundCandidateAtProvider = async (
-  provider: RefundProvider,
-  candidate: RefundCandidate,
+/** Refund one readiness-qualified attendee without doing another provider read. */
+export const refundReadyCandidate = async (
+  candidate: ReadyRefundCandidate,
   listingId: number,
   markReturnedReferences: MarkReturnedReferences = markPaymentReferencesProviderRefunded,
-  alreadyReturned: ReadonlySet<string> = new Set(),
   inFlight: Map<string, Promise<PreparedReferenceRefund>> = new Map(),
   observeOnly: ReadonlySet<string> = new Set(),
 ): Promise<CandidateRefund> => {
   const prepared = await mapProviderRequests(
     candidate.references,
-    async (reference) => ({
-      ...(await answeredOnce(inFlight, reference.reference, () =>
+    async (ready) => ({
+      ...(await answeredOnce(inFlight, ready.reference.index, () =>
         prepareReferenceRefund(
-          provider,
           candidate,
           listingId,
-          reference,
-          alreadyReturned,
-          observeOnly.has(reference.reference),
+          ready,
+          observeOnly.has(ready.reference.index),
         ),
       )),
-      reference,
+      reference: ready.reference,
     }),
   );
   const blocked = prepared.some(
@@ -214,7 +203,7 @@ export const refundCandidateAtProvider = async (
   );
   const doubt = results.some((result) => result.doubt === "in_doubt")
     ? "in_doubt"
-    : results.find((result) => result.doubt === "unread")?.doubt;
+    : undefined;
   const returnedReferences = results
     .filter((result) => result.outcome === "refunded")
     .map((result) => result.reference);

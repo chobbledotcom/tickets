@@ -117,7 +117,6 @@ src/ui/client/dom.ts::createButton.button%2eclassName~16pvzvs  = → +=   # crea
 # Paid-payment processing: private defaults are always supplied by their only
 # callers; optional collections are arrays (always truthy); parsed day counts and
 # stored package quantities are positive; equal zero fallbacks stay equal.
-src/features/api/payment-processing/index.ts::replaySuccess.paymentReference~12k7fdb   → "mutated"   # replaySuccess is private and both callers always pass session.paymentReference, so the default is never evaluated
 src/features/api/payment-processing/items.ts::bookingPaths.allocations~1sr8ybw  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
 src/features/api/payment-processing/items.ts::validateAllItems.staleNonStandaloneChild~0bp0o7q  ?? → ||   # a parent list length is non-negative; its only falsy value is 0, which equals the fallback
 src/features/api/payment-processing/items.ts::validateAllItems.expectedPrice~0mb68sn  ?? → ||   # extractIntent emits a positive dayCount or undefined, so every present value is truthy

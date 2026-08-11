@@ -18,7 +18,6 @@ import {
   finalizeProcessedPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
-import { provider } from "./helpers.ts";
 
 const withStoredRevision = async (
   attendee: Pick<Attendee, "id" | "payment_id">,
@@ -42,17 +41,18 @@ const expectRunStandsDown = async (
   candidate: RefundCandidate,
   listingId: number,
 ): Promise<void> => {
-  const untouched = provider({
-    refunded: new Set(
-      candidate.references.map((reference) => reference.reference),
-    ),
+  let prepared = false;
+  const result = await processRefundBatch([candidate], listingId, {
+    prepare: () => {
+      prepared = true;
+      throw new Error("readiness must not start for a changed row set");
+    },
   });
-  const result = await processRefundBatch(untouched, [candidate], listingId);
   expect(result).toMatchObject({
     counts: { failedCount: 1 },
-    kind: "finished",
+    kind: "not_ready",
   });
-  expect([...untouched.reads, ...untouched.refunds]).toEqual([]);
+  expect(prepared).toBe(false);
 };
 
 describeWithEnv(

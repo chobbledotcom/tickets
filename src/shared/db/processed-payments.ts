@@ -24,11 +24,11 @@ import {
 import { storePaymentReference } from "#shared/db/payment-reference-store.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { isoBefore, nowIso } from "#shared/now.ts";
+import type { PaymentReference } from "#shared/payment/provider-reference.ts";
 import {
   type StoredPaymentFailure,
   StoredPaymentFailureSchema,
 } from "#shared/payment/row-state.ts";
-import type { PaymentReference } from "#shared/payment/provider-reference.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
 export { STALE_RESERVATION_MS };
@@ -78,7 +78,8 @@ const execWithSessionId = (sessionId: string, sql: string): Promise<unknown> =>
 /** A void write parameterized by a single payment session ID: curries the SQL,
  * returns a function that runs it for one session. */
 const sessionIdWrite =
-  (sql: string) => async (sessionId: string): Promise<void> => {
+  (sql: string) =>
+  async (sessionId: string): Promise<void> => {
     await execWithSessionId(sessionId, sql);
   };
 
@@ -125,8 +126,7 @@ export const reserveSession = async (
   const [claimResult, lookupResult] = await executeBatchWithResults([
     {
       args: [sessionId, claimedAt, staleBefore],
-      sql:
-        `INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at)
+      sql: `INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at)
             VALUES (?, NULL, ?)
             ON CONFLICT(payment_session_id) DO UPDATE SET
               attendee_id = NULL,
@@ -142,8 +142,7 @@ export const reserveSession = async (
     },
     {
       args: [sessionId],
-      sql:
-        "SELECT payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data, payment_reference, provider_refunded_at FROM processed_payments WHERE payment_session_id = ?",
+      sql: "SELECT payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data, payment_reference, provider_refunded_at FROM processed_payments WHERE payment_session_id = ?",
     },
   ]);
   if (resultRows(claimResult!)[0] !== undefined) return { reserved: true };
@@ -182,9 +181,10 @@ export const finalizeSessionIfUnresolved = async (
   // The index goes in with the reference it indexes, never separately: a
   // refund claim finds another row holding the same money by that column, so a
   // reference stored without one is money no claim can see.
-  const storedReference = paymentReference === null
-    ? null
-    : await storePaymentReference(paymentReference);
+  const storedReference =
+    paymentReference === null
+      ? null
+      : await storePaymentReference(paymentReference);
   const refClause = storedReference
     ? ", payment_reference = ?, payment_reference_index = ?"
     : "";

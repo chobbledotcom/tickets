@@ -132,7 +132,7 @@ describe("validatedPaymentSession", () => {
         id: "invented",
         paymentReference: "   ",
         provider: "stripe",
-      })
+      }),
     ).toThrow("Validated session invented has an invalid provider resource id");
   });
 

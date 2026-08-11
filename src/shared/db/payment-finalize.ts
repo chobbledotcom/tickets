@@ -47,27 +47,31 @@ const buildFinalizeStatements = async (
   guardArgs: InValue[] = [],
   standDownWhen = "1 = 1",
 ): Promise<SqlStatement[]> => {
-  const storedReference = paymentReference === null
-    ? null
-    : await storePaymentReference(paymentReference);
-  return [{
-    args: [
-      ...attendeeIdArgs,
-      await encryptTicketTokens(ticketTokens),
-      storedReference?.encrypted ?? "",
-      storedReference?.index ?? "",
-      sessionId,
-      ...guardArgs,
-    ],
-    // The blind index is written by the same statement as the reference it
-    // indexes, so a row can never carry one without the other — a refund claim
-    // looks rows up by it to find another row holding the same money.
-    sql: `UPDATE processed_payments
+  const storedReference =
+    paymentReference === null
+      ? null
+      : await storePaymentReference(paymentReference);
+  return [
+    {
+      args: [
+        ...attendeeIdArgs,
+        await encryptTicketTokens(ticketTokens),
+        storedReference?.encrypted ?? "",
+        storedReference?.index ?? "",
+        sessionId,
+        ...guardArgs,
+      ],
+      // The blind index is written by the same statement as the reference it
+      // indexes, so a row can never carry one without the other — a refund claim
+      // looks rows up by it to find another row holding the same money.
+      sql: `UPDATE processed_payments
           SET attendee_id = ${attendeeIdSql}, ticket_tokens = ?, payment_reference = ?,
               payment_reference_index = ?
           WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}
             AND ${guard} AND ${standDownWhen}`,
-  }, paymentFinalizeGuard(guard, guardArgs)];
+    },
+    paymentFinalizeGuard(guard, guardArgs),
+  ];
 };
 
 /** Finalize a newly-created attendee and persist its stable ticket token. The
