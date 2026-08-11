@@ -9,16 +9,16 @@ import {
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { queryAll } from "#shared/db/client.ts";
-import {
-  getRefundPaymentReferences,
-  paymentReferenceIndex,
-} from "#shared/db/payment-references.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
+import {
+  finalizeReservedPayment,
+  readReference,
+  refundReferencesFor,
+} from "#test-utils/processed-payments.ts";
 import {
   createAttendee,
   getBookings,
@@ -123,22 +123,18 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     });
 
     expect(result.success).toBe(true);
-    const references = await getRefundPaymentReferences(
-      [{ id: target.id, payment_id: "" }],
-      await getTestPrivateKey(),
-    );
-    expect(references.get(target.id)).toEqual([
-      {
-        // Indexed on the way in, so a refund claim can see the money it
-        // carries the way it sees any other charge.
-        index: await paymentReferenceIndex("pi_source_legacy"),
-        // A legacy-merge charge (no live session) whose refund was never
-        // observed reads as "unknown", not a definite "none".
-        reference: "pi_source_legacy",
+    // The index is written on the way in, so a refund claim can see the money
+    // it carries the way it sees any other charge. A legacy-merge charge (no
+    // live session) whose refund was never observed reads as "unknown", not a
+    // definite "none".
+    expect(
+      await refundReferencesFor(target.id, await getTestPrivateKey()),
+    ).toEqual([
+      await readReference("pi_source_legacy", {
         refundState: "unknown",
         rowSessionIds: [`legacy-merge:${source.id}`],
         sessionIds: [],
-      },
+      }),
     ]);
   });
 

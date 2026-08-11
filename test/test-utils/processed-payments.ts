@@ -5,6 +5,7 @@ import { batchFinalizeStatements } from "#shared/db/payment-finalize.ts";
 import {
   getRefundPaymentReferences,
   paymentReferenceIndex,
+  type RefundPaymentReference,
 } from "#shared/db/payment-references.ts";
 import {
   type ProcessedPayment,
@@ -15,6 +16,7 @@ import {
   bookedAttendee,
 } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { refundReference } from "#test-utils/payment-state.ts";
 
 export const getProcessedPayment = (
   sessionId: string,
@@ -92,6 +94,28 @@ export const bookedWithPayment = async (
   return attendeeId;
 };
 
+/** One attendee's references, read the way every caller reads them. */
+export const refundReferencesFor = async (
+  attendeeId: number,
+  privateKey: CryptoKey,
+): Promise<RefundPaymentReference[] | undefined> =>
+  (
+    await getRefundPaymentReferences(
+      [{ id: attendeeId, payment_id: "" }],
+      privateKey,
+    )
+  ).get(attendeeId);
+
+/** A reference as the production read hands it back — the fixture builder's
+ *  shape with the real blind index rather than the builder's stand-in. */
+export const readReference = async (
+  reference: string,
+  values: Partial<RefundPaymentReference> = {},
+): Promise<RefundPaymentReference> => ({
+  ...refundReference(reference, values),
+  index: await paymentReferenceIndex(reference),
+});
+
 /** Assert the exact decrypted provider reference attached to one attendee. */
 export const expectProcessedPaymentReference = async (
   attendeeId: number,
@@ -99,21 +123,11 @@ export const expectProcessedPaymentReference = async (
   paymentReference: string,
   privateKey: CryptoKey,
 ): Promise<void> => {
-  expect(
-    (
-      await getRefundPaymentReferences(
-        [{ id: attendeeId, payment_id: "" }],
-        privateKey,
-      )
-    ).get(attendeeId),
-  ).toEqual([
-    {
-      index: await paymentReferenceIndex(paymentReference),
-      reference: paymentReference,
-      refundState: "none",
+  expect(await refundReferencesFor(attendeeId, privateKey)).toEqual([
+    await readReference(paymentReference, {
       rowSessionIds: [sessionId],
       sessionIds: [sessionId],
-    },
+    }),
   ]);
 };
 

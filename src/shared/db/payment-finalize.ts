@@ -9,6 +9,7 @@ import {
   encryptTicketTokens,
   UNRESOLVED_RESERVATION,
 } from "#shared/db/processed-payments.ts";
+import { CLAIM_MIRROR } from "#shared/payment/admit-move.ts";
 
 /** Abort a batch unless the immediately preceding finalize updated one row.
  * `requiredWhen` lets a conditional operation remain a normal no-op when its
@@ -35,7 +36,8 @@ const paymentFinalizeGuard = (
  */
 const noRefundRunHolding = (attendeeIdExpr: string): string =>
   `NOT EXISTS (SELECT 1 FROM processed_payments AS holder
-     WHERE holder.attendee_id = ${attendeeIdExpr} AND holder.protected_state = 'claim')`;
+     WHERE holder.attendee_id = ${attendeeIdExpr}
+       AND holder.protected_state = '${CLAIM_MIRROR}')`;
 
 const buildFinalizeStatements = async (
   attendeeIdSql: string,
