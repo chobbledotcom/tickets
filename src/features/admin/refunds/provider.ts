@@ -370,8 +370,11 @@ export const refundCandidateAtProvider = async (
     );
     // Nothing durable says which charges came back, so the ledger must not be
     // told: a reversal it cannot re-derive is worse than one it never made.
+    // The doubt stands either way — a marker write that failed leaves nothing
+    // settled, and the hold is then the only thing between money that did go
+    // back and a second payout.
     if (outcome !== "refunded") {
-      return { candidate, outcome: "errored", returned: [] };
+      return { candidate, doubt: "lost", outcome: "errored", returned: [] };
     }
     // The money went back but nothing records it. The refund still counts, so
     // the ledger still posts — but the run must not let go of its hold.

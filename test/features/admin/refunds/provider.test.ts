@@ -557,6 +557,24 @@ describe("admin refund provider > an unrecorded refund", () => {
     expect(result.doubt).toBe("lost");
   });
 
+  // The fault this closes: with a sibling refused the combined outcome is not
+  // "refunded", so the branch dropped the returned reference AND its doubt. The
+  // keyless hold went with it, leaving money that had gone back with nothing
+  // recording it and nothing stopping a retry sending it again.
+  test("a marker write that fails beside a refused sibling keeps the doubt", async () => {
+    const result = await refundCandidateAtProvider(
+      keyless,
+      candidateWithReferences(["pi_recorded", "pi_refused"]),
+      7,
+      () => Promise.reject(new Error("the marker could not be written")),
+    );
+
+    expect(result.outcome).toBe("errored");
+    // The ledger is still not told — nothing durable says which came back.
+    expect(result.returned).toEqual([]);
+    expect(result.doubt).toBe("lost");
+  });
+
   test("a refund whose marker write succeeds is settled", async () => {
     const result = await refundCandidateAtProvider(
       keyless,

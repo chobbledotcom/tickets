@@ -73,8 +73,12 @@ export type ListingOverviewStats = {
  *  `refundedForBooking` the row projection uses so the two cannot drift. It is
  *  here so a refunded booking whose processed reference was later pruned is not
  *  mistaken for a bare sale. */
-const notRefunded = (attendeeIdExpr: string, listingIdExpr: string): string =>
-  `NOT ${refundedForBooking(attendeeIdExpr, listingIdExpr)}`;
+const notRefunded = (
+  attendeeIdExpr: string,
+  listingIdExpr: string,
+  placeholderWhen: string,
+): string =>
+  `NOT ${refundedForBooking(attendeeIdExpr, listingIdExpr, placeholderWhen)}`;
 
 /** SQL boolean (0/1) marking a `listing_attendees` row `listingAttendee` as an
  *  incomplete payment: a recognised `sale` leg for the booking with no
@@ -109,6 +113,7 @@ const incompleteRowPredicate = (paid: boolean): string => {
     ` AND ${nothingOwed} AND ${notRefunded(
       "listingAttendee.attendee_id",
       "listingAttendee.listing_id",
+      "listingAttendee.quantity = 0",
     )})`
   );
 };
@@ -142,9 +147,12 @@ const incompleteSales = async (listingId: number): Promise<number> => {
   const nothingOwed = `${attendeeOwedSubquery(
     "CAST(saleLeg.source_id AS INTEGER)",
   )} <= 0`;
+  // Every row here HAS a sale leg — the query reads from them — so the
+  // placeholder arm is unreachable and says so rather than guessing a quantity.
   const notRefundedSale = notRefunded(
     "CAST(saleLeg.source_id AS INTEGER)",
     "CAST(saleLeg.dest_id AS INTEGER)",
+    "0",
   );
   const row = await requireOne<{ incomplete_sales: number | bigint }>(
     `SELECT COALESCE(SUM(saleLeg.amount), 0) AS incomplete_sales

@@ -20,6 +20,7 @@ import type { Transfer } from "#shared/ledger/types.ts";
 import type { Attendee } from "#shared/types.ts";
 import { createPaidListing } from "#test/features/admin/refunds-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 
 const PRICE = 500;
@@ -117,6 +118,34 @@ describeWithEnv(
         await reverseOrderFor(attendeeId, cameBack);
 
         expect(await refundedOn(stillPaid, attendeeId)).toBe(0);
+      });
+
+      // The fault this closes: a free booking has no sale leg of its own, so it
+      // fell to the placeholder fallback and read whatever the ACCOUNT's cash
+      // said. One refunded paid booking then turned the free ticket away at
+      // the door, which is the harm the per-listing question exists to stop.
+      test("a free booking beside a refunded one is not refunded", async () => {
+        const free = await createTestListing({
+          maxAttendees: 10,
+          unitPrice: 0,
+        });
+        const paid = await createPaidListing({ name: "Paid" });
+        const made = await attendeesApi.createAttendeeAtomic({
+          bookings: [
+            { listingId: free.id, pricePaid: 0 },
+            { listingId: paid.id, pricePaid: PRICE },
+          ],
+          email: "mixed@example.com",
+          name: "Free And Paid",
+        });
+        if (!made.success) throw new Error("booking setup failed");
+        const attendeeId = made.attendees[0]!.id;
+        await postListingSale({ attendeeId, gross: PRICE, listingId: paid.id });
+
+        await reverseOrderFor(attendeeId, paid.id);
+
+        expect(await refundedOn(paid.id, attendeeId)).toBe(1);
+        expect(await refundedOn(free.id, attendeeId)).toBe(0);
       });
 
       test("reversing both leaves neither booking paid", async () => {
