@@ -37,7 +37,10 @@ const refundOutcome = (charges: readonly ChargeMoney[]): ObservationOutcome => {
         refund.reason === "multiple_pending_refunds",
     )
   ) {
-    throw new Error("An M4 reading cannot hold more than one refund in flight");
+    return {
+      issue: { kind: "multiple_pending_refunds" },
+      kind: "conflict",
+    };
   }
   if (refunds.every((refund) => refund.status === "completed")) {
     return { kind: "fully_refunded" };

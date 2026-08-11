@@ -6,6 +6,7 @@ import { PaymentConflictSchema } from "#shared/payment/conflict.ts";
 describe("what can be wrong with a payment", () => {
   test("validates every payment conflict", () => {
     const conflicts = [
+      { kind: "multiple_pending_refunds" },
       { kind: "refund_exceeds_capture" },
       { kind: "partial_refund" },
     ] as const;
@@ -36,7 +37,6 @@ describe("what can be wrong with a payment", () => {
     "invalid_provider_data",
     "missing_resource",
     "duplicate_refund",
-    "multiple_pending_refunds",
   ] as const) {
     test(`does not yet know ${kind}`, () => {
       expect(v.is(PaymentConflictSchema, { kind })).toBe(false);

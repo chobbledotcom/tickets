@@ -125,14 +125,11 @@ describe("what charges alone come to, with no agreed total", () => {
     });
   }
 
-  test("throws on a reading holding two refunds in flight", () => {
-    // No M4 evidence can carry two pending refunds: the only pending refund a
-    // reading holds is the answer to its own single attempt. The judge fails
-    // loudly instead of letting broken evidence pass as settled.
-    expect(() =>
+  test("parks a reading holding two refunds in flight for owner review", () => {
+    expect(
       verdict(
         chargeMoneyWith({ refunds: [stillGoing(40), stillGoing(40, "re_2")] }),
       ),
-    ).toThrow("more than one refund in flight");
+    ).toBe("multiple_pending_refunds");
   });
 });
