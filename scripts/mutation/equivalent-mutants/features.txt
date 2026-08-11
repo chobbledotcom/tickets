@@ -91,10 +91,6 @@ src/shared/db/contact-tokens.ts::syncChannelToken~07hz79m  ?? → ||   # `remove
 src/features/admin/index.ts::adminPathSegment~1hrcxzo  ?? → ||   # `path.split("/")[2] ?? ""`: the RHS is "" and the only falsy string is "", so `x ?? ""` and `x || ""` agree on every string|undefined input
 src/features/admin/index.ts::buildSegmentRouters.areas~1hp6gg8  ?? → ||   # areasBySegment values are arrays, so every present value is truthy and a miss is undefined
 
-# App prefix dispatch (app/routes.ts) — two provably-equivalent survivors.
-src/features/app/routes.ts::publicPagePath~05stvfg   → "mutated"   # publicPagePath only receives the declared prefixes "", "listings", and "terms"; for "", both ternary arms return "/", and neither non-empty prefix equals "mutated", so no declared route path changes
-src/features/app/routes.ts::routeMainApp~04n7sdh  ?? → ||   # route handlers return Response|null; every Response object is truthy, while null (and the mutation runner's return-undefined mutants) selects notFoundResponse under both operators
-
 # Admin refund waves (refunds/waves.ts) — one provably-equivalent survivor from
 # the packByReferenceCount run.
 src/features/admin/refunds/waves.ts::packByReferenceCount.currentCount~0bth322  0 → 1   # packByReferenceCount's `currentCount` init: the first iteration always hits `!wave` (waves is empty, so waves[-1] is undefined), which short-circuits the `|| currentCount + refs > budget` before currentCount is read; every later iteration reassigns it first, so the initial value is never observed
