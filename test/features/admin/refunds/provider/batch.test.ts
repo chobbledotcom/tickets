@@ -5,6 +5,7 @@ import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
 import type { RefundCapability } from "#shared/payment/row-state.ts";
 import {
   postBooking,
+  refundCashAmounts,
   sessionReference,
 } from "#test/shared/refund-ledger/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -108,6 +109,47 @@ describeWithEnv(
           "Admin bulk refund errored for attendee 13, payments pi_boom, pi_two",
         ),
       ).toBe(true);
+    });
+
+    // The fault this closes: a merged attendee carries several charges, one
+    // comes back and a sibling is refused, and the whole candidate combines to
+    // "failed" — so the money that DID move used to reach no ledger at all.
+    test("records the charges that came back when a sibling is refused", async () => {
+      const attendeeId = 31;
+      await postBooking({ attendeeId, eventId: "sess-back" });
+      await postBooking({ attendeeId, eventId: "sess-stuck" });
+
+      const counts = await processRefundBatch(
+        {
+          readChargeMoneyOrNull: () => Promise.resolve(chargeMoney()),
+          refundCapability: "keyed" as const,
+          refundPayment: (reference: string) =>
+            Promise.resolve(reference === "pi_back"),
+        },
+        [
+          {
+            attendee: { id: attendeeId } as RefundCandidate["attendee"],
+            references: [
+              refundReference("pi_back", { sessionIds: ["sess-back"] }),
+              refundReference("pi_stuck", { sessionIds: ["sess-stuck"] }),
+            ],
+          },
+        ],
+        LISTING,
+        grantingRowClaim(),
+      );
+
+      // Not a refunded attendee — one of their charges is still with the
+      // provider — but the money that moved is now on the books.
+      expect(counts).toEqual({
+        errorCount: 0,
+        failedCount: 1,
+        notRecordedCount: 0,
+        refundedCount: 0,
+      });
+      // Exactly one reversal, for the booking whose charge came back. The
+      // stuck booking is left exactly as it was.
+      expect(await refundCashAmounts(attendeeId)).toEqual([5000]);
     });
 
     test("a keyless run keeps its hold when the ledger cannot record it", async () => {

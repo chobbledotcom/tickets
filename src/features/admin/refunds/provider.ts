@@ -252,6 +252,10 @@ export const underAttendeeClaim = async <TResult>(
 export type CandidateRefund = {
   candidate: RefundCandidate;
   outcome: RefundOutcome;
+  /** The charges that actually went back. On a whole refund this is every
+   *  reference; on a partial one it is the part that moved, which the ledger
+   *  reverses on its own rather than recording nothing. */
+  returned: readonly RefundPaymentReference[];
   unsettled?: boolean;
 };
 
@@ -303,10 +307,19 @@ export const refundCandidateAtProvider = async (
       `Admin refund could not record returned payments for attendee ${candidate.attendee.id}: ${String(error)}`,
       listingId,
     );
-    if (outcome !== "refunded") return { candidate, outcome: "errored" };
+    // Nothing durable says which charges came back, so the ledger must not be
+    // told: a reversal it cannot re-derive is worse than one it never made.
+    if (outcome !== "refunded") {
+      return { candidate, outcome: "errored", returned: [] };
+    }
     // The money went back but nothing records it. The refund still counts, so
     // the ledger still posts — but the run must not let go of its hold.
-    return { candidate, outcome, unsettled: true };
+    return {
+      candidate,
+      outcome,
+      returned: returnedReferences,
+      unsettled: true,
+    };
   }
   if (outcome !== "refunded" && candidate.references.length > 1) {
     logError({
@@ -316,8 +329,8 @@ export const refundCandidateAtProvider = async (
     });
   }
   return unanswered
-    ? { candidate, outcome, unsettled: true }
-    : { candidate, outcome };
+    ? { candidate, outcome, returned: returnedReferences, unsettled: true }
+    : { candidate, outcome, returned: returnedReferences };
 };
 
 const logBulkRefundProblem = (
@@ -335,13 +348,18 @@ const logBulkRefundProblem = (
   });
 };
 
+/** An attendee's charges that came back, and whether that was all of them. A
+ *  post for a partial one records the money without calling the attendee
+ *  refunded, because the rest of their charges are still with the provider. */
+type LedgerPosting = AnchoredAttendee & { whole: boolean };
+
 const tallyProviderRefund = (
   counts: RefundCounts,
-  candidate: RefundCandidate,
-  outcome: RefundOutcome,
+  result: CandidateRefund,
   listingId: number,
-  refundedAttendees: AnchoredAttendee[],
+  postings: LedgerPosting[],
 ): void => {
+  const { candidate, outcome, returned } = result;
   if (outcome === "errored") {
     counts.errorCount++;
     logBulkRefundProblem(outcome, candidate, listingId);
@@ -354,10 +372,15 @@ const tallyProviderRefund = (
     // incident is how a provider outage fills the log with one error per
     // reference.
     counts.failedCount++;
-  } else {
-    refundedAttendees.push({
+  }
+  // Whatever came back is recorded, whether or not the rest did. A refused
+  // sibling used to strand its clean sibling's money with no ledger entry at
+  // all; the ledger reverses the groups that moved and leaves the others.
+  if (returned.length > 0) {
+    postings.push({
       attendeeId: candidate.attendee.id,
-      references: candidate.references,
+      references: returned,
+      whole: outcome === "refunded",
     });
   }
 };
@@ -433,26 +456,21 @@ const refundClaimedBatch = async (
         ),
       ),
     );
-    const chunkRefundedAttendees: AnchoredAttendee[] = [];
-    for (const { candidate, outcome, unsettled: doubt } of results) {
-      if (doubt === true) unsettled = true;
-      tallyProviderRefund(
-        counts,
-        candidate,
-        outcome,
-        listingId,
-        chunkRefundedAttendees,
-      );
+    const postings: LedgerPosting[] = [];
+    for (const result of results) {
+      if (result.unsettled === true) unsettled = true;
+      tallyProviderRefund(counts, result, listingId, postings);
     }
-    const posted = await recordAttendeeRefundsBatch(chunkRefundedAttendees);
-    for (const [attendeeId, ok] of posted) {
-      if (ok) {
-        counts.refundedCount++;
-      } else {
+    const posted = await recordAttendeeRefundsBatch(postings);
+    for (const posting of postings) {
+      const attendeeId = posting.attendeeId;
+      if (posted.get(attendeeId) !== true) {
         // The provider sent this refund but our ledger could not record it —
         // report the broken promise per attendee, not just the aggregate count.
         counts.notRecordedCount++;
         reportRefundNotRecorded({ attendeeId, listingId });
+      } else if (posting.whole) {
+        counts.refundedCount++;
       }
     }
   }

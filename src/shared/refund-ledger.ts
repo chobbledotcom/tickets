@@ -1,12 +1,13 @@
 /**
  * Ledger wiring for an admin full refund.
  *
- * The provider refund is a full refund of every provider charge recorded for the
- * account, so the ledger mirrors it by reversing every non-refund event group
- * only when all provider-cash groups are covered by the refunded references (see
- * {@link mapRefund}). It only auto-reverses when the attendee's account is
- * **paid in full**. Pre-ledger, still-owing, mixed manual-money, or credit
- * accounts are left for a manual adjustment rather than half- or over-reversed.
+ * The ledger mirrors a provider refund by reversing the event groups whose money
+ * came back. When every provider charge came back that is the whole account;
+ * when only some did — a sibling reference the provider refused, say — it is
+ * those groups alone, because a buyer who got part of their money back is worse
+ * served by a ledger that records none of it. It only auto-reverses when the
+ * attendee's account is **paid in full**. Pre-ledger, still-owing, mixed
+ * manual-money, or credit accounts are left for a manual adjustment.
  *
  * Posting never throws: the provider refund has already committed by the time we
  * get here, so a ledger write must not turn a completed refund into a 500. But
@@ -86,20 +87,37 @@ const hasProviderPayment = (group: Transfer[]): boolean =>
 const hasOperatorMoney = (group: Transfer[]): boolean =>
   group.some(isOperatorMoneyLeg);
 
-const coveredRefundGroups = async (
+/**
+ * The order groups whose money actually came back.
+ *
+ * A run can return some of an attendee's charges and not others — a sibling the
+ * provider refused, or one a subrequest budget cut off — and the ledger has to
+ * say what moved rather than say nothing at all. `mapRefund` already reverses
+ * one group at a time, and mirrors every leg of it, so reversing part of an
+ * account leaves the rest of it exactly as it was.
+ */
+const returnedRefundGroups = async (
   legs: Transfer[],
   references: RefundReferences,
 ): Promise<Transfer[][]> => {
   const groups = accountRefundGroups(legs);
+  // Operator money stays a person's call: a manual payment or an adjustment is
+  // not something a provider refund can mirror back.
   if (groups.some(hasOperatorMoney)) return [];
-  const coveredGroups = await refundedSessionGroups(references);
-  const uncoveredProviderGroups = groups.filter(
-    (group) =>
-      hasProviderPayment(group) && !coveredGroups.has(group[0]!.eventGroup),
+  const returned = await refundedSessionGroups(references);
+  const cameBack = (group: Transfer[]): boolean =>
+    returned.has(group[0]!.eventGroup);
+  const unnamed = groups.filter(
+    (group) => hasProviderPayment(group) && !cameBack(group),
   );
-  return uncoveredProviderGroups.length <= legacyReferenceCount(references)
+  // Every provider charge is accounted for, so the whole account reverses,
+  // groups carrying no provider payment of their own included. A legacy
+  // reference names no session and so cannot say WHICH group it paid for —
+  // this is the one place that does not matter, because the answer is all of
+  // them.
+  return unnamed.length <= legacyReferenceCount(references)
     ? groups
-    : [];
+    : groups.filter(cameBack);
 };
 
 /**
@@ -134,7 +152,7 @@ const computeAttendeeRefund = async (
   if (legs.some((leg) => leg.kind === KIND.refundCash)) {
     return { groups: [], posted: true };
   }
-  const orders = await coveredRefundGroups(legs, references);
+  const orders = await returnedRefundGroups(legs, references);
   if (orders.length === 0) return { groups: [], posted: false };
   // Only auto-reverse a fully-paid account — UNLESS the account is a pure
   // payment-only placeholder (every order group is ONLY provider-payment legs,
