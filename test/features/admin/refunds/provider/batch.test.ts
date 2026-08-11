@@ -58,6 +58,31 @@ describeWithEnv(
   () => {
     const errors = setupErrorSpy();
 
+    // A provider that cannot be reached is an ordinary answer, and the shared
+    // reporter already said so at debug. Counting it as not-refunded is right;
+    // reporting it AGAIN here as an incident is how one provider outage fills
+    // the operator's log with an error per reference.
+    test("counts an unreadable charge as not refunded without raising an incident", async () => {
+      const counts = await processRefundBatch(
+        {
+          readChargeMoneyOrNull: () => Promise.resolve(null),
+          refundCapability: "keyed" as const,
+          refundPayment: () => Promise.resolve(true),
+        },
+        [pendingCandidate(21, ["pi_unreadable"])],
+        LISTING,
+        grantingRowClaim(),
+      );
+
+      expect(counts).toEqual({
+        errorCount: 0,
+        failedCount: 1,
+        notRecordedCount: 0,
+        refundedCount: 0,
+      });
+      expect(errors.calls).toHaveLength(0);
+    });
+
     test("tallies refunded, failed and errored candidates in one batch", async () => {
       await postBooking({ attendeeId: 11, eventId: "sess-11" });
 

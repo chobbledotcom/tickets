@@ -59,7 +59,9 @@ describeWithEnv(
       // for it to see. The row this would have minted names nobody, and the
       // claim on it would have let the run send money with no booking left to
       // record it against.
-      await execute("DELETE FROM attendees WHERE id = ?", [attendeeId]);
+      await execute("DELETE FROM attendees AS attendee WHERE attendee.id = ?", [
+        attendeeId,
+      ]);
       await anchorLegacyCharges([held]);
 
       expect(await paymentRowCount(attendeeId)).toBe(0);
