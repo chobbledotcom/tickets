@@ -52,14 +52,18 @@ export type RowClaim = {
  * What a run decided about one attendee it held. An attendee named by neither
  * is settled and simply lets go.
  *
- * `in_doubt` is the only verdict that can keep a hold, and only against a
- * keyless provider: the call was made and not confirmed, so a retry could pay
- * twice. `unrecorded` is the opposite — the provider answered clearly and it
+ * `in_doubt` keeps a hold against a keyless provider: the call was made and
+ * not confirmed, so a retry could pay twice. `unread` is weaker — the provider
+ * could not be asked, so nothing was sent and a FRESH hold goes; a resumed one
+ * stays, because the doubt riding on it belongs to the run that died. Every
+ * later run would find the same lagging evidence and send again.
+ *
+ * `unrecorded` is the opposite of both — the provider answered clearly and it
  * is our books that are behind, so the row says so and the hold goes. Keeping
  * the claim there would protect nothing the mark does not, while making the
  * attendee impossible to pick up, delete or merge for good.
  */
-export type AttendeeVerdict = "in_doubt" | "unrecorded";
+export type AttendeeVerdict = "in_doubt" | "unread" | "unrecorded";
 
 export const durableRowClaim: RowClaim = {
   claim: claimAttendeeRows,
@@ -103,11 +107,17 @@ const refusedRefund = (detail: string, listingId: number): RefundOutcome => {
   return "failed";
 };
 
-/** One reference's result. `unanswered` means the provider was asked and did
- *  not confirm, which is not the same as "it did not happen" — a lost response
- *  looks like a refusal from here, so a keyless run keeps its hold either
- *  way. A refund we never asked for does not set it. */
-type ReferenceRefund = { outcome: RefundOutcome; unanswered: boolean };
+/** What a run could not prove about one charge.
+ *  - `lost`: the provider was asked and did not confirm. Not the same as "it
+ *    did not happen" — a lost response looks like a refusal from here, so a
+ *    keyless run keeps its hold either way.
+ *  - `unread`: the provider could not be asked, so this run learned nothing.
+ *    Nothing was sent, so a fresh hold has no doubt of its own; a resumed one
+ *    is still carrying the earlier run's. */
+export type RefundDoubt = "lost" | "unread";
+
+/** One reference's result. A charge we never had to ask about carries none. */
+type ReferenceRefund = { doubt?: RefundDoubt; outcome: RefundOutcome };
 
 /** Do the work at most once per key. Two attendees in one run can carry the
  *  same charge, and the hold cannot separate them because both rows belong to
@@ -133,10 +143,7 @@ const refundReferenceOnce = async (
 ): Promise<ReferenceRefund> => {
   const attendeeId = candidate.attendee.id;
   const paymentReference = reference.reference;
-  const settled = (outcome: RefundOutcome): ReferenceRefund => ({
-    outcome,
-    unanswered: false,
-  });
+  const settled = (outcome: RefundOutcome): ReferenceRefund => ({ outcome });
   try {
     if (reference.refundState === "completed") return settled("refunded");
     // What the claimed row says now beats the reference list this run loaded
@@ -148,11 +155,11 @@ const refundReferenceOnce = async (
       // Asked and not confirmed: it may never have happened, or the answer
       // may simply have been lost.
       failed: () => ({
+        doubt: "lost",
         outcome: refusedRefund(
           `Admin refund failed for attendee ${attendeeId}, payment ${paymentReference}`,
           listingId,
         ),
-        unanswered: true,
       }),
       sent: () => settled("refunded"),
       withhold: (admission) => {
@@ -165,7 +172,11 @@ const refundReferenceOnce = async (
           listingId,
           paymentReference,
         });
-        return settled("withheld");
+        // Every other withholding is the provider answering clearly. Only an
+        // unreadable one leaves this run knowing no more than it started with.
+        return admission.kind === "unreadable"
+          ? { doubt: "unread", outcome: "withheld" }
+          : settled("withheld");
       },
     });
   } catch (err) {
@@ -178,7 +189,7 @@ const refundReferenceOnce = async (
     });
     // A throw is the same doubt as an unconfirmed answer: the call may have
     // landed before it failed.
-    return { outcome: "errored", unanswered: true };
+    return { doubt: "lost", outcome: "errored" };
   }
 };
 
@@ -187,7 +198,16 @@ const refundReferenceOnce = async (
 const mayLetGo = (
   verdict: AttendeeVerdict | undefined,
   capability: RefundCapability,
-): boolean => verdict !== "in_doubt" || mayReleaseClaim(capability, "lost");
+  resumed: boolean,
+): boolean => {
+  if (verdict === "in_doubt") return mayReleaseClaim(capability, "lost");
+  // Learning nothing settles nothing, so an inherited hold keeps whatever the
+  // dead run left on it.
+  if (verdict === "unread") {
+    return !resumed || mayReleaseClaim(capability, "lost");
+  }
+  return true;
+};
 
 /** Let go of a hold, reporting rather than raising when the row will not. */
 const releaseHold = async (
@@ -264,7 +284,11 @@ const underAttendeeClaim = async <TResult>(
     verdicts: ReadonlyMap<number, AttendeeVerdict>,
   ): Promise<void> => {
     const letting = [...claim.held].filter(([attendeeId]) =>
-      mayLetGo(verdicts.get(attendeeId), capability),
+      mayLetGo(
+        verdicts.get(attendeeId),
+        capability,
+        claim.resumed.has(attendeeId),
+      ),
     );
     await releaseHold(
       rowClaim,
@@ -291,9 +315,8 @@ const underAttendeeClaim = async <TResult>(
   }
 };
 
-/** What one attendee's refund came to. `unsettled` means nothing durable
- *  proves what the money did, so the run keeps its hold: a keyless retry
- *  against evidence that has not caught up sends twice. */
+/** What one attendee's refund came to. `doubt` says what this run could not
+ *  prove about their money, which is what decides whether the hold goes. */
 export type CandidateRefund = {
   candidate: RefundCandidate;
   outcome: RefundOutcome;
@@ -301,7 +324,7 @@ export type CandidateRefund = {
    *  reference; on a partial one it is the part that moved, which the ledger
    *  reverses on its own rather than recording nothing. */
   returned: readonly RefundPaymentReference[];
-  unsettled?: boolean;
+  doubt?: RefundDoubt;
 };
 
 export const refundCandidateAtProvider = async (
@@ -312,11 +335,9 @@ export const refundCandidateAtProvider = async (
   alreadyReturned: ReadonlySet<string> = new Set(),
   inFlight: Map<string, Promise<ReferenceRefund>> = new Map(),
 ): Promise<CandidateRefund> => {
-  const results: {
-    outcome: RefundOutcome;
+  const results: (ReferenceRefund & {
     reference: RefundPaymentReference;
-    unanswered: boolean;
-  }[] = [];
+  })[] = [];
   // Chunk this attendee's own references so a merged attendee carrying many
   // charges never fans out past the concurrency budget on its own.
   for (const group of chunk(PROVIDER_REFUND_CONCURRENCY)(
@@ -341,7 +362,11 @@ export const refundCandidateAtProvider = async (
   const outcome = combineRefundOutcomes(
     results.map((result) => result.outcome),
   );
-  const unanswered = results.some((result) => result.unanswered);
+  // A lost answer outranks an unread provider: there the money may already
+  // have moved, so the hold has to survive either way.
+  const doubt = results.some((result) => result.doubt === "lost")
+    ? "lost"
+    : results.find((result) => result.doubt === "unread")?.doubt;
   const returnedReferences = results
     .filter((result) => result.outcome === "refunded")
     .map((result) => result.reference);
@@ -361,9 +386,9 @@ export const refundCandidateAtProvider = async (
     // the ledger still posts — but the run must not let go of its hold.
     return {
       candidate,
+      doubt: "lost",
       outcome,
       returned: returnedReferences,
-      unsettled: true,
     };
   }
   if (outcome !== "refunded" && candidate.references.length > 1) {
@@ -373,9 +398,12 @@ export const refundCandidateAtProvider = async (
       listingId,
     });
   }
-  return unanswered
-    ? { candidate, outcome, returned: returnedReferences, unsettled: true }
-    : { candidate, outcome, returned: returnedReferences };
+  return {
+    candidate,
+    ...(doubt !== undefined ? { doubt } : {}),
+    outcome,
+    returned: returnedReferences,
+  };
 };
 
 const logBulkRefundProblem = (
@@ -549,10 +577,14 @@ const refundClaimedBatch = async (
     );
     const postings: LedgerPosting[] = [];
     for (const result of results) {
-      // Nothing durable proves what this attendee's money did, so their rows
-      // keep the hold against a keyless provider that would pay twice.
-      if (result.unsettled === true) {
-        verdicts.set(result.candidate.attendee.id, "in_doubt");
+      // What this run could not prove about the money is what the release
+      // rule reads; the two doubts are kept apart because they are not the
+      // same risk.
+      if (result.doubt !== undefined) {
+        verdicts.set(
+          result.candidate.attendee.id,
+          result.doubt === "lost" ? "in_doubt" : "unread",
+        );
       }
       tallyProviderRefund(counts, result, listingId, postings);
     }

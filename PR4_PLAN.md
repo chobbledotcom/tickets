@@ -157,7 +157,10 @@ settled design:
   (`tryRefund` / `refundReferenceAtProvider` in `payment-processing/refunds.ts`)
   and the refresh-payment route still read and send without one, so the keyless
   double-send window stays open on those two paths. They claim when the
-  `callback` scope lands.
+  `callback` scope lands. A balance callback can no longer land a charge under a
+  running refund, though: `balanceFinalizeStatements` stands down while a claim
+  holds the attendee, and aborts rather than passing as a no-op, so the callback
+  retries.
 - **Two attendees on one charge each get their own reversal.**
   `refundClaimedBatch` asks the provider once per reference, which is right —
   one charge, one payout. But every candidate carrying that reference is then

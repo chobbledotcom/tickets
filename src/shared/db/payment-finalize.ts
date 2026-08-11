@@ -22,6 +22,21 @@ const paymentFinalizeGuard = (
         SELECT '', NULL WHERE changes() != ? AND ${requiredWhen}`,
 });
 
+/**
+ * SQL predicate: no refund run is holding this attendee's payment rows.
+ *
+ * A run compares the attendee's whole set of charges once and then works from
+ * that snapshot, so a charge landing underneath it is refunded by nobody while
+ * the run reports success. Read off the plaintext mirror rather than the
+ * record, because a live claim always shows as the worst work on the row and
+ * this is a plain SQL guard. Kept OUT of the finalize guard's `requiredWhen`
+ * on purpose: a held attendee must abort the batch so the callback retries,
+ * not pass as a no-op the way a stale business precondition does.
+ */
+const noRefundRunHolding = (attendeeIdExpr: string): string =>
+  `NOT EXISTS (SELECT 1 FROM processed_payments AS holder
+     WHERE holder.attendee_id = ${attendeeIdExpr} AND holder.protected_state = 'claim')`;
+
 const buildFinalizeStatements = async (
   attendeeIdSql: string,
   attendeeIdArgs: InValue[],
@@ -30,6 +45,7 @@ const buildFinalizeStatements = async (
   ticketTokens: string[],
   guard: string,
   guardArgs: InValue[] = [],
+  standDownWhen = "1 = 1",
 ): Promise<SqlStatement[]> => [
   {
     args: [
@@ -46,7 +62,8 @@ const buildFinalizeStatements = async (
     sql: `UPDATE processed_payments
           SET attendee_id = ${attendeeIdSql}, ticket_tokens = ?, payment_reference = ?,
               payment_reference_index = ?
-          WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION} AND ${guard}`,
+          WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}
+            AND ${guard} AND ${standDownWhen}`,
   },
   paymentFinalizeGuard(guard, guardArgs),
 ];
@@ -85,4 +102,5 @@ export const balanceFinalizeStatements = (
     [],
     `${attendeeOwedSubquery(String(attendeeId))} = ?`,
     [expectedAmount],
+    noRefundRunHolding(String(attendeeId)),
   );

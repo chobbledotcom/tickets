@@ -183,6 +183,7 @@ export const withRefundMock = async (
  *  `test/shared/db/payment-claim.test.ts`. */
 export const grantingRowClaim = (
   held: ReadonlyMap<number, readonly string[]> = new Map(),
+  resumed: ReadonlySet<number> = new Set(),
 ): RowClaim & { released: string[][]; unrecorded: string[][] } => {
   const released: string[][] = [];
   const unrecorded: string[][] = [];
@@ -192,6 +193,7 @@ export const grantingRowClaim = (
         held,
         heldSince: "2026-08-10T12:00:00.000Z",
         kind: "claimed",
+        resumed,
         returned: new Set<string>(),
       }),
     release: ({ sessionIds, unrecorded: marked = new Set() }) => {
