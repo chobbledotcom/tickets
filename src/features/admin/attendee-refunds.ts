@@ -4,7 +4,7 @@ import { defineRoutes } from "#routes/router.ts";
  */
 
 /* jscpd:ignore-start */
-import { compact } from "#fp";
+import { compact, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import {
   withDecryptedAttendees,
@@ -71,12 +71,14 @@ type RefundableCharges =
 const whatIsLeftToRefund = async (
   attendee: Attendee,
 ): Promise<RefundableCharges> => {
-  const references = (
+  const references = requiredMapValue(
     await getRefundPaymentReferences(
       [attendee],
       await requireRequestPrivateKey(),
-    )
-  ).get(attendee.id)!;
+    ),
+    attendee.id,
+    `No refund references read for attendee ${attendee.id}`,
+  );
   // Refunded in part still leaves money to send back, so the ledger's flag
   // alone is not the answer — see `stillWithTheProvider`.
   if (attendee.refunded && !stillWithTheProvider(references)) {
