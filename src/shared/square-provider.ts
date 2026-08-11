@@ -49,7 +49,8 @@ const squareMoneyReturned = (
 ): bigint | null => {
   if (refunded === undefined) return 0n;
   if (captured === undefined || refunded.amount === undefined) return null;
-  return refunded.currency === captured.currency ? refunded.amount : null;
+  if (refunded.currency !== captured.currency) return null;
+  return refunded.amount;
 };
 
 /** A missing payment is a genuine unpaid answer outside a completed webhook.

@@ -1,6 +1,7 @@
 /** Building the stored records a refund claim reads, for tests that need a row
  *  to already be in a particular state. */
 
+import { requiredMapValue } from "#fp";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import {
   execute,
@@ -56,14 +57,16 @@ export const claimCurrentAttendeeRows = async (
   );
   return await claimAttendeeRows(
     sources.map(({ id }) => {
-      const attendee = storedById.get(id);
-      if (attendee === undefined) {
-        throw new Error(`Attendee ${id} was not found before the claim`);
-      }
-      const loaded = references.get(id);
-      if (loaded === undefined) {
-        throw new Error(`Attendee ${id}'s payment references were not loaded`);
-      }
+      const attendee = requiredMapValue(
+        storedById,
+        id,
+        `Attendee ${id} was not found before the claim`,
+      );
+      const loaded = requiredMapValue(
+        references,
+        id,
+        `Attendee ${id}'s payment references were not loaded`,
+      );
       return {
         attendeeId: id,
         loadedPiiBlob: attendee.pii_blob,

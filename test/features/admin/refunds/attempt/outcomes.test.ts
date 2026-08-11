@@ -180,6 +180,30 @@ describe("admin refund provider", () => {
     );
   });
 
+  test("withholds when the provider proves no refund request was sent", async () => {
+    const marker = collectingMarker();
+    const result = await refundCandidateAtProvider(
+      {
+        readCharge: () =>
+          Promise.resolve({ resource: chargeMoneyWith(), status: "found" }),
+        refundCapability: "keyed",
+        refundCharge: () =>
+          Promise.resolve({
+            kind: "not_sent",
+            reason: "not_configured",
+          }),
+      },
+      candidateWithReferences(["pi_not_sent"]),
+      7,
+      marker.mark,
+    );
+
+    expect(result.outcome).toBe("withheld");
+    expect(result.doubt).toBeUndefined();
+    expect(marker.marked).toEqual([]);
+    expect(errors.calls).toHaveLength(0);
+  });
+
   test("errors and logs when the provider throws", async () => {
     const marker = collectingMarker();
     const result = await refundCandidateAtProvider(

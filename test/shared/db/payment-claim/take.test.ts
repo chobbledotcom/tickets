@@ -109,6 +109,12 @@ describeWithEnv(
         });
         expect(calls).toBe(0);
       });
+
+      test("a missing attendee fails at the snapshot boundary", async () => {
+        await expect(claimCurrentAttendeeRows([-1], "keyless")).rejects.toThrow(
+          "Attendee -1 was not found before the claim",
+        );
+      });
     });
 
     describe("the reference index", () => {

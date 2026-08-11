@@ -18,6 +18,10 @@ type UnavailableReason = Exclude<
 >;
 
 type UncertainRefund = Extract<RefundAttemptResult, { kind: "uncertain" }>;
+type FailedRefund = Extract<
+  RefundAttemptResult,
+  { kind: "rejected" | "uncertain" }
+>;
 type ConnectionReason = Extract<
   ProviderUnavailableReason,
   "network_error" | "timeout"
@@ -33,7 +37,7 @@ export type ProviderFailureFacts = {
 /** The read and refund meanings of the same known provider failure. */
 export type ProviderFailure = {
   read: ProviderRead<never>;
-  refund: RefundAttemptResult;
+  refund: FailedRefund;
 };
 
 const httpUnavailableReason = (statusCode: number): UnavailableReason =>
@@ -50,7 +54,7 @@ const httpReadFailure = (statusCode: number): ProviderRead<never> =>
       ? { reason: "rejected_request", status: "invalid" }
       : { reason: httpUnavailableReason(statusCode), status: "unavailable" };
 
-const httpRefundFailure = (statusCode: number): RefundAttemptResult =>
+const httpRefundFailure = (statusCode: number): FailedRefund =>
   statusCode >= 400 &&
   statusCode < 500 &&
   statusCode !== 408 &&

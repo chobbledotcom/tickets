@@ -22,7 +22,10 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { claimCurrentAttendeeRows } from "#test-utils/payment-claim.ts";
-import { acceptedRefund } from "#test-utils/payment-state.ts";
+import {
+  acceptedRefund,
+  fullyRefundedMoney,
+} from "#test-utils/payment-state.ts";
 import {
   expectSingleRefundIssued,
   refundUrl,
@@ -237,7 +240,12 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
           )(response);
           expect(mockRefund.calls.length).toBe(0);
         },
-        { alreadyRefunded: true },
+        {
+          charge: (reference) => {
+            expect(reference).toBe("pi_test_provider_done");
+            return Promise.resolve(fullyRefundedMoney());
+          },
+        },
       );
     });
 

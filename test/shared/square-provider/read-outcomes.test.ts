@@ -212,6 +212,16 @@ describe("square-provider read outcomes", () => {
         }),
       },
       {
+        expected: { reason: "malformed_money", status: "invalid" },
+        name: "refuses a refunded total that names no currency",
+        payment: squarePaymentRead({
+          amountMoney: squareMoney(1000),
+          id: "pay_read",
+          refundedMoney: { amount: 1000n },
+          status: "COMPLETED",
+        }),
+      },
+      {
         expected: { reason: "mismatched_money", status: "invalid" },
         name: "refuses a refunded total in another currency",
         payment: squarePaymentRead({

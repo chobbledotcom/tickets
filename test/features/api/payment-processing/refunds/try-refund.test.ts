@@ -5,7 +5,7 @@ import { tryRefund } from "#routes/api/payment-processing/refunds.ts";
 import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { errorLogged, useErrorLogSpy } from "#test-utils/debug-log.ts";
-import { chargeMoney } from "#test-utils/payment-state.ts";
+import { chargeMoney, fullyRefundedMoney } from "#test-utils/payment-state.ts";
 import {
   withRefreshPaymentMoney,
   withRefundMock,
@@ -40,7 +40,9 @@ describeWithEnv("tryRefund", { db: true }, () => {
             expected,
           );
         },
-        { alreadyRefunded },
+        {
+          charge: alreadyRefunded ? fullyRefundedMoney() : chargeMoney(),
+        },
       );
     });
   }

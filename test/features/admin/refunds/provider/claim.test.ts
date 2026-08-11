@@ -51,6 +51,9 @@ describe("admin refund provider > the claim", () => {
       kind: "blocked",
       reason: "refund_in_progress",
     });
+    expect(() => finishedCounts(result)).toThrow(
+      "Expected the refund batch to run (refund_in_progress)",
+    );
     expect([...untouched.reads, ...untouched.refunds]).toEqual([]);
     expect(errors.calls).toEqual([]);
   });

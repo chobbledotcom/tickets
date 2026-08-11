@@ -44,17 +44,10 @@ type CheckoutSessionDetails = {
 
 const copyMetadata = (
   metadata: SessionMetadata | StripeCheckoutSession["metadata"],
-): StripeCheckoutSession["metadata"] =>
-  metadata === null
-    ? null
-    : Object.fromEntries(
-        Object.entries(metadata).map(([key, value]) => {
-          if (typeof value !== "string") {
-            throw new Error(`Stripe metadata ${key} must be text`);
-          }
-          return [key, value];
-        }),
-      );
+): StripeCheckoutSession["metadata"] => {
+  if (metadata === null) return null;
+  return Object.fromEntries(Object.entries(metadata));
+};
 
 /** Stub the Stripe session read used by payment redirects. */
 export const stubRetrieveCheckoutSession = (
@@ -133,11 +126,11 @@ export const expectWebhookKeptAndRefunded = async (
   errorContains: string | string[] = "saved your details",
   signature?: string,
 ): Promise<{ mockRefund: StripeRefundStub }> => {
-  const mockVerify = await stubWebhookVerify(event);
   const amount = event.data.object.amount_total;
   if (typeof amount !== "number") {
     throw new Error("A refunded Stripe test event must state amount_total");
   }
+  const mockVerify = await stubWebhookVerify(event);
   const mockRefund = stubRefundPayment(refundId, amount);
   await postWebhookAndAssert(
     () => {

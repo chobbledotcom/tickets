@@ -46,11 +46,11 @@ type RefundAnswer = boolean | RefundAttemptResult;
 type RefundBehavior =
   | RefundAnswer
   | ((reference: string) => Promise<RefundAnswer>);
-type AlreadyRefundedBehavior =
-  | boolean
-  | ((reference: string) => Promise<boolean>);
+type ChargeBehavior =
+  | ChargeMoney
+  | ((reference: string) => Promise<ChargeMoney>);
 type RefundMockOptions = {
-  alreadyRefunded?: AlreadyRefundedBehavior;
+  charge?: ChargeBehavior;
 };
 
 const refundResult = (
@@ -58,9 +58,9 @@ const refundResult = (
 ): ((reference: string) => Promise<RefundAnswer>) =>
   typeof behavior === "function" ? behavior : () => Promise.resolve(behavior);
 
-const refundedResult = (
-  behavior: AlreadyRefundedBehavior,
-): ((reference: string) => Promise<boolean>) =>
+const chargeResult = (
+  behavior: ChargeBehavior,
+): ((reference: string) => Promise<ChargeMoney>) =>
   typeof behavior === "function" ? behavior : () => Promise.resolve(behavior);
 
 /** POST the refund-all confirmation form for a listing as the owner. */
@@ -194,9 +194,9 @@ export const withRefundMock = async (
           : answer;
       },
     );
-    const alreadyRefunded = refundedResult(options.alreadyRefunded ?? false);
+    const readMoney = chargeResult(options.charge ?? chargeMoney());
     const readCharge = stub(provider, "readCharge", async (reference) =>
-      foundCharge(asChargeMoney(await alreadyRefunded(reference))),
+      foundCharge(await readMoney(reference)),
     );
     try {
       await fn(mockRefund);

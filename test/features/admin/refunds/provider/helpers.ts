@@ -75,26 +75,6 @@ export const completedRefund = (
   proof: { charge: request.charge, kind: "charge_observation" },
 });
 
-/** Unreadable provider that records anything it is asked to send. */
-export const unreadableProvider = (
-  refundCapability: RefundCapability,
-): UnreadableProvider => {
-  const sent: string[] = [];
-  return {
-    readCharge: () =>
-      Promise.resolve({
-        reason: "network_error",
-        status: "unavailable",
-      } as const),
-    refundCapability,
-    refundCharge: (request: RefundRequest) => {
-      sent.push(request.paymentReference);
-      return Promise.resolve(completedRefund(request));
-    },
-    sent,
-  };
-};
-
 /** Provider that records every read and refund request. */
 export const provider = ({
   accepted = new Set<string>(),
@@ -149,6 +129,17 @@ export const provider = ({
     },
     refunds,
   };
+};
+
+/** Unreadable provider that records anything it is asked to send. */
+export const unreadableProvider = (
+  refundCapability: RefundCapability,
+): UnreadableProvider => {
+  const source = provider({
+    read: () => Promise.resolve(null),
+    refundCapability,
+  });
+  return { ...source, sent: source.refunds };
 };
 
 export const collectingMarker = (): Marker => {

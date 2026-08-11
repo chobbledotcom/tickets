@@ -1,9 +1,10 @@
 // jscpd:ignore-start
-import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
+import { requiredMapValue } from "#fp";
 import { handleRequest } from "#routes";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import type { ChargeMoney } from "#shared/payment/resources.ts";
 import { paymentsApi } from "#shared/payments.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import {
@@ -13,6 +14,8 @@ import {
 } from "#test-utils/assertions.ts";
 import { signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { chargeMoney } from "#test-utils/payment-state.ts";
+import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { withRefundMock } from "#test-utils/refund-routes.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 // jscpd:ignore-end
@@ -31,6 +34,13 @@ export type StripeOrder = {
   sessionId: string;
   paymentIntent: string;
 };
+
+const providerCharge = (world: TicketsWorld, reference: string): ChargeMoney =>
+  requiredMapValue(
+    world.providerCharges,
+    reference,
+    `The provider has no charge ${reference}`,
+  );
 
 /**
  * Stub the Stripe session retrieval for `order` (metadata signed exactly as
@@ -80,8 +90,12 @@ export const withStripeSuccess = async (
 
 /** Drive a first-time Stripe success and assert the production thank-you
  *  redirect (the common case over {@link withStripeSuccess}). */
-export const runStripeSuccess = (order: StripeOrder): Promise<void> =>
-  withStripeSuccess(order, async (redirect) => {
+export const runStripeSuccess = async (
+  world: TicketsWorld,
+  order: StripeOrder,
+): Promise<number> => {
+  world.providerCharges.set(order.paymentIntent, chargeMoney(order.total));
+  await withStripeSuccess(order, async (redirect) => {
     expectRedirect(redirect, /^\/payment\/success\?tokens=.+$/);
     await expectHtmlResponse(
       await followRedirect(redirect, handleRequest),
@@ -89,6 +103,13 @@ export const runStripeSuccess = (order: StripeOrder): Promise<void> =>
       "Thank you for your order",
     );
   });
+  const missingAttendee = `Paid session ${order.sessionId} has no attendee`;
+  const payment = requireValue(
+    await getProcessedPayment(order.sessionId),
+    missingAttendee,
+  );
+  return requireValue(payment.attendee_id, missingAttendee);
+};
 
 /**
  * Drive a genuine single-listing Stripe success for `gross` minor units and
@@ -96,14 +117,15 @@ export const runStripeSuccess = (order: StripeOrder): Promise<void> =>
  * {@link runStripeSuccess}.
  */
 export const completePaidOrder = async (
+  world: TicketsWorld,
   listingId: number,
   name: string,
   email: string,
   gross: number,
   sessionId = "cs_e2e",
   paymentIntent = "pi_e2e",
-): Promise<number> => {
-  await runStripeSuccess({
+): Promise<number> =>
+  await runStripeSuccess(world, {
     email,
     items: singleItem(listingId, 1, gross),
     name,
@@ -111,10 +133,6 @@ export const completePaidOrder = async (
     sessionId,
     total: gross,
   });
-  const attendees = await getAttendeesRaw(listingId);
-  expect(attendees.length).toBe(1);
-  return attendees[0]!.id;
-};
 
 /** Run `body` with the site's payment provider answering as stripe. Both the
  * refund driver and the shown-code driver need that same standing-in provider,
@@ -146,13 +164,19 @@ export const refundByTyping = async (
     "#test/specs/support/form-controls.ts"
   );
   const browser = await openAdminPage(world, where.page);
-  await withRefundMock(provider, async (mockRefund) => {
-    await fillInAndSend(
-      browser,
-      { confirm_identifier: where.typed },
-      where.buttonText,
-    );
-    world.refundCalls = () => mockRefund.calls.length;
-  });
+  await withRefundMock(
+    provider,
+    async (mockRefund) => {
+      await fillInAndSend(
+        browser,
+        { confirm_identifier: where.typed },
+        where.buttonText,
+      );
+      world.refundCalls = () => mockRefund.calls.length;
+    },
+    {
+      charge: (reference) => Promise.resolve(providerCharge(world, reference)),
+    },
+  );
   return browser;
 };

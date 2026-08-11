@@ -6,7 +6,6 @@
 
 // jscpd:ignore-start
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { sellSomethingAt } from "#test/specs/support/listings.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import {
@@ -19,7 +18,6 @@ import {
   type TicketsWorld,
   theListing,
 } from "#test/specs/support/world.ts";
-import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { singleItem } from "#test-utils/factories.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
@@ -41,14 +39,18 @@ export const paidPlaceEach = async (
   world.confirmName = name;
   world.attendeeIds = [];
   for (const [index, who] of people.entries()) {
-    const attendee = await createPaidTestAttendee(
-      listing.id,
-      who,
-      `${who.toLowerCase()}@example.com`,
-      `pi_bulk_${index + 1}`,
-      minorUnits(price),
+    const number = index + 1;
+    const paid = minorUnits(price);
+    world.attendeeIds.push(
+      await runStripeSuccess(world, {
+        email: `${who.toLowerCase()}@example.com`,
+        items: singleItem(listing.id, 1, paid),
+        name: who,
+        paymentIntent: `pi_bulk_${number}`,
+        sessionId: `cs_bulk_${number}`,
+        total: paid,
+      }),
     );
-    world.attendeeIds.push(attendee.id);
   }
 };
 
@@ -93,7 +95,7 @@ export const payMoreListing = async (
 export const payYourOwnPrice: ActOnSomeMoney = async (world, chosen) => {
   const listingId = theListing(world);
   const paid = minorUnits(chosen);
-  await runStripeSuccess({
+  world.attendeeId = await runStripeSuccess(world, {
     email: "generous@example.com",
     items: singleItem(listingId, 1, paid),
     name: "Generous",
@@ -101,7 +103,6 @@ export const payYourOwnPrice: ActOnSomeMoney = async (world, chosen) => {
     sessionId: "cs_pay_more",
     total: paid,
   });
-  world.attendeeId = (await getAttendeesRaw(listingId))[0]!.id;
   // The statement that has to show what they chose rather than what was asked.
   leaveEvidencePage(
     world,

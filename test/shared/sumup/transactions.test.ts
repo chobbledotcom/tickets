@@ -330,14 +330,26 @@ describe("sumup transactions", () => {
       });
     }
 
-    test("does not disguise an internal refund error as a network failure", async () => {
-      const failure = new Error("broken adapter");
-      const client = makeSumupClient({
-        refund: () => Promise.reject(failure),
+    for (const [name, makeFailure] of [
+      ["an internal refund error", () => new Error("broken adapter")],
+      [
+        "an API error missing its status",
+        () => {
+          const failure = new APIError(500, "missing status", new Response());
+          Object.defineProperty(failure, "status", { value: undefined });
+          return failure;
+        },
+      ],
+    ] as const) {
+      test(`does not disguise ${name}`, async () => {
+        const failure = makeFailure();
+        const client = makeSumupClient({
+          refund: () => Promise.reject(failure),
+        });
+        await withSumupClient(client, async () => {
+          await expect(sumupApi.refundTransaction("txn")).rejects.toBe(failure);
+        });
       });
-      await withSumupClient(client, async () => {
-        await expect(sumupApi.refundTransaction("txn")).rejects.toBe(failure);
-      });
-    });
+    }
   });
 });

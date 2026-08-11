@@ -62,8 +62,5 @@ export const sumupReadFailure = <Resource>(
 };
 
 /** A failed send either proves SumUp refused it or leaves the answer unknown. */
-export const sumupRefundFailure = (err: unknown): SumupRefundSubmission => {
-  const refund = knownSumupFailure(err).outcome.refund;
-  if (refund.kind === "rejected" || refund.kind === "uncertain") return refund;
-  throw new Error(`SumUp failure became an impossible ${refund.kind} refund`);
-};
+export const sumupRefundFailure = (err: unknown): SumupRefundSubmission =>
+  knownSumupFailure(err).outcome.refund;

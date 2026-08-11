@@ -53,6 +53,7 @@ export const buyOnePlace = async (
   await setupStripe();
   const { id: listingId } = await sellPlacesAt(world, name, pounds);
   const attendeeId = await completePaidOrder(
+    world,
     listingId,
     who,
     `${who.toLowerCase().replaceAll(" ", ".")}@example.com`,
@@ -106,7 +107,7 @@ export const buyPlaceWithExtra = async (
     world.things.recall("listing", name)?.id ??
     (await sellPlacesAt(world, name, pounds)).id;
   const price = minorUnits(pounds);
-  await runStripeSuccess({
+  world.attendeeId = await runStripeSuccess(world, {
     email: `${who.toLowerCase().replaceAll(" ", ".")}@example.com`,
     items: JSON.stringify([{ e: listingId, p: price, q: 1 }]),
     ...(modifierId === undefined
@@ -117,7 +118,6 @@ export const buyPlaceWithExtra = async (
     sessionId: `cs_${name.toLowerCase().replaceAll(" ", "_")}`,
     total: price + minorUnits(extraPounds),
   });
-  world.attendeeId = await soleBookingOn(listingId);
   world.attendeeName = who;
 };
 
