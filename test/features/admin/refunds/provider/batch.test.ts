@@ -80,13 +80,21 @@ describeWithEnv(
       expect(errors.calls).toHaveLength(0);
     });
 
-    /** A provider that cannot be read at all. Nothing is sent, so a fresh run
-     *  has no doubt of its own — but it also learns nothing. */
-    const unreadableProvider = (refundCapability: RefundCapability) => ({
-      readChargeMoneyOrNull: () => Promise.resolve(null),
-      refundCapability,
-      refundPayment: () => Promise.resolve(true),
-    });
+    /** A provider that cannot be read at all, recording anything it is
+     *  nonetheless asked to send. It answers `true` so a run that skipped the
+     *  read would look like a success rather than failing on its own. */
+    const unreadableProvider = (refundCapability: RefundCapability) => {
+      const sent: string[] = [];
+      return {
+        readChargeMoneyOrNull: () => Promise.resolve(null),
+        refundCapability,
+        refundPayment: (reference: string) => {
+          sent.push(reference);
+          return Promise.resolve(true);
+        },
+        sent,
+      };
+    };
 
     /** A candidate whose reference names the very session the hold covers, so
      *  the run recognises its own rows rather than standing down. */
@@ -113,26 +121,34 @@ describeWithEnv(
         new Set([31]),
       );
 
+      const provider = unreadableProvider("keyless");
+
       await processRefundBatch(
-        unreadableProvider("keyless"),
+        provider,
         [heldCandidate(31, "sess-31")],
         LISTING,
         { claim },
       );
 
+      // Whatever the hold does, an unreadable provider is never sent money.
+      expect(provider.sent).toEqual([]);
       expect(claim.released).toEqual([]);
     });
 
     test("lets a fresh keyless hold go when the provider cannot be read", async () => {
       const claim = grantingRowClaim(new Map([[32, ["sess-32"]]]));
 
+      const provider = unreadableProvider("keyless");
+
       await processRefundBatch(
-        unreadableProvider("keyless"),
+        provider,
         [heldCandidate(32, "sess-32")],
         LISTING,
         { claim },
       );
 
+      // Whatever the hold does, an unreadable provider is never sent money.
+      expect(provider.sent).toEqual([]);
       expect(claim.released).toEqual([["sess-32"]]);
     });
 
@@ -142,13 +158,17 @@ describeWithEnv(
         new Set([33]),
       );
 
+      const provider = unreadableProvider("keyed");
+
       await processRefundBatch(
-        unreadableProvider("keyed"),
+        provider,
         [heldCandidate(33, "sess-33")],
         LISTING,
         { claim },
       );
 
+      // Whatever the hold does, an unreadable provider is never sent money.
+      expect(provider.sent).toEqual([]);
       expect(claim.released).toEqual([["sess-33"]]);
     });
 

@@ -276,17 +276,20 @@ a new kind is a compile error) onto exactly one of two remedies:
 | `failed_refund`           | Provider answered a refund attempt with failure                                                                                                                                                                   | **Not built, deliberately — see the as-built row for the conflict union.** A failure that moved no money settles as not-happening and a fresh attempt is legitimate, which is what "release/retry" meant; a failure reported beside money already returned parks as `partial_refund`. Neither needs a kind of its own, and giving it one made every later attempt refuse                        |
 | `partial_refund`          | Cumulative shows part of the money returned                                                                                                                                                                       | Owner review. On the BOOKING path it PARKS — no ticket, buyer retained, alert — because the provider retaining less than the signed total is an operator choice (a dashboard discount? a cancellation underway?), never an automatic booking. On a refund attempt or the refresh route it is detect-record-alert (no current-path action can safely finish it; the balance-refund engine is M7) |
 
-Four of the branch's fifteen kinds are NOT ported in M4, because no M4
-observation can produce them and unreachable union arms are dead code. The two
-read-level kinds (`invalid_provider_data`, `missing_resource`) belong to M5's
-`resolve.ts`, which is what emits them — M4 read failures remain M3's
-`ProviderRead` boundary outcomes. And two refund-shape kinds (`duplicate_refund`
-— two refund resources sharing one id — and `multiple_pending_refunds` — more
-than one refund in flight) need evidence M4 never holds: no provider read on
-this path returns a per-refund resource list, and the only pending refund an
-observation can carry is the direct answer to its own single attempt — durable
-pending-refund records are M7's `pending_refund_id`. Both kinds return with M7's
-engine, from the reference branch.
+Five of the branch's fifteen kinds are NOT ported in M4. `failed_refund` is
+dropped on purpose rather than for want of evidence — see the as-built row for
+the conflict union above, and the retryable-failure entry below. The other four
+are absent because no M4 observation can produce them and unreachable union arms
+are dead code. The two read-level kinds (`invalid_provider_data`,
+`missing_resource`) belong to M5's `resolve.ts`, which is what emits them — M4
+read failures remain M3's `ProviderRead` boundary outcomes. And two refund-shape
+kinds (`duplicate_refund` — two refund resources sharing one id — and
+`multiple_pending_refunds` — more than one refund in flight) need evidence M4
+never holds: no provider read on this path returns a per-refund resource list,
+and the only pending refund an observation can carry is the direct answer to its
+own single attempt — durable pending-refund records are M7's
+`pending_refund_id`. Both kinds return with M7's engine, from the reference
+branch.
 
 A paid session with no charge reference never reaches the judge either: the
 retained `validatedPaymentSession` boundary already rejects it as

@@ -52,16 +52,11 @@ export type RowClaim = {
  * What a run decided about one attendee it held. An attendee named by neither
  * is settled and simply lets go.
  *
- * `in_doubt` keeps a hold against a keyless provider: the call was made and
- * not confirmed, so a retry could pay twice. `unread` is weaker — the provider
- * could not be asked, so nothing was sent and a FRESH hold goes; a resumed one
- * stays, because the doubt riding on it belongs to the run that died. Every
- * later run would find the same lagging evidence and send again.
- *
- * `unrecorded` is the opposite of both — the provider answered clearly and it
- * is our books that are behind, so the row says so and the hold goes. Keeping
- * the claim there would protect nothing the mark does not, while making the
- * attendee impossible to pick up, delete or merge for good.
+ * `in_doubt`: the call was made and not confirmed. `unread`: the provider could
+ * not be asked, so nothing was sent and nothing was learnt. `unrecorded`: the
+ * provider answered and it is our books that are behind, which the row records
+ * instead — holding the claim there would only make the attendee impossible to
+ * pick up, delete or merge. {@link mayLetGo} decides what each one releases.
  */
 export type AttendeeVerdict = "in_doubt" | "unread" | "unrecorded";
 
@@ -107,13 +102,9 @@ const refusedRefund = (detail: string, listingId: number): RefundOutcome => {
   return "failed";
 };
 
-/** What a run could not prove about one charge.
- *  - `lost`: the provider was asked and did not confirm. Not the same as "it
- *    did not happen" — a lost response looks like a refusal from here, so a
- *    keyless run keeps its hold either way.
- *  - `unread`: the provider could not be asked, so this run learned nothing.
- *    Nothing was sent, so a fresh hold has no doubt of its own; a resumed one
- *    is still carrying the earlier run's. */
+/** What a run could not prove about one charge. `lost`: asked and not
+ *  confirmed, which looks identical to a refusal from here. `unread`: could not
+ *  be asked, so nothing moved and nothing was learnt. */
 export type RefundDoubt = "lost" | "unread";
 
 /** One reference's result. A charge we never had to ask about carries none. */
