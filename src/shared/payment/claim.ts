@@ -42,9 +42,27 @@ const CLAIMS_THE_ROW = {
 export const holdsTheRow = (decision: ClaimDecision): boolean =>
   CLAIMS_THE_ROW[decision.kind];
 
+/**
+ * The shortest a claim may be treated as live for, however the reservation
+ * sweep is tuned.
+ *
+ * Comfortably longer than any edge request can run. `STALE_RESERVATION_MS` is
+ * an operator-tunable knob, and turning it down is harmless for its own job —
+ * abandoned reservations are simply swept sooner. Reading a claim's lease off
+ * the same number is not: below one request's lifetime a second run would
+ * treat a worker that is still going as dead, resume its rows, and send a
+ * keyless provider a second payout against the same charge.
+ */
+const MIN_CLAIM_LEASE_MS = 5 * 60 * 1000;
+
+/** How long a claim counts as a live run's before it may be resumed. Takes the
+ *  reservation cutoff so the two agree wherever the operator has raised it, and
+ *  never drops below what a request can outlive. */
+export const claimLeaseMs = (reservationStaleMs: number): number =>
+  Math.max(reservationStaleMs, MIN_CLAIM_LEASE_MS);
+
 /** A claim older than one request can live is a crashed worker, not a run
- *  still going. `staleBefore` is the reservation sweep's own cutoff, so both
- *  read staleness off one clock. */
+ *  still going. `staleBefore` is the cutoff {@link claimLeaseMs} decides. */
 export const isClaimStale = (
   claim: RefundClaim,
   staleBefore: string,

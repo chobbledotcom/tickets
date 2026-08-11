@@ -1,8 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, test } from "@std/testing/bdd";
+import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import {
   type ClaimDecision,
   type ClaimRequest,
+  claimLeaseMs,
   claimRefusal,
   decideClaim,
   holdsTheRow,
@@ -38,6 +40,26 @@ describe("isClaimStale", () => {
 
   test("a claim written exactly at the cutoff is still going", () => {
     expect(isClaimStale(attendeeClaim(STALE_BEFORE), STALE_BEFORE)).toBe(false);
+  });
+});
+
+describe("claimLeaseMs", () => {
+  // The fault this closes: a claim's lease was read straight off
+  // `STALE_RESERVATION_MS`, which takes any positive value from the
+  // environment. Tuned down — to sweep abandoned reservations sooner — it made
+  // a run that was still going look dead, so a second run resumed its rows and
+  // sent a keyless provider a second payout against the same charge.
+  test("a reservation cutoff below one request's life does not shorten it", () => {
+    expect(claimLeaseMs(1)).toBeGreaterThan(1);
+  });
+
+  test("a raised reservation cutoff is followed, so the two agree", () => {
+    const raised = claimLeaseMs(1) * 2;
+    expect(claimLeaseMs(raised)).toBe(raised);
+  });
+
+  test("the floor outlives the reservation default it is usually equal to", () => {
+    expect(claimLeaseMs(STALE_RESERVATION_MS)).toBe(STALE_RESERVATION_MS);
   });
 });
 
