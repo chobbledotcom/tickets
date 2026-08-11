@@ -127,9 +127,15 @@ const handlerLoaders = {
 // prefix -> the module loaded when its URL prefix is first matched. Import
 // specifiers stay literal so esbuild can bundle every lazy target into the
 // single edge file while still deferring its evaluation until first matched.
+// Loaders shared by more than one prefix are named so both prefixes reuse the
+// same once-cached import.
 const feedLoader = lazyExport(() => import("#routes/feeds.ts"), "routeFeed");
+const ticketLoader = lazyExport(
+  () => import("#routes/public/ticket-routes.ts"),
+  "routeTicket",
+);
 
-const PREFIX_LOADERS: Record<string, () => Promise<RouterFn>> = {
+const PREFIX_LOADERS = {
   "address-lookup": lazyRouter(
     () => import("#routes/public/address-lookup.ts"),
     ({ handleAddressLookupGet }) =>
@@ -140,10 +146,7 @@ const PREFIX_LOADERS: Record<string, () => Promise<RouterFn>> = {
     () => import("#routes/attachments.ts"),
     ({ attachmentRoutes }) => attachmentRoutes,
   ),
-  calculate: lazyExport(
-    () => import("#routes/public/ticket-routes.ts"),
-    "routeTicket",
-  ),
+  calculate: ticketLoader,
   caldav: feedLoader,
   checkin: lazyExport(() => import("#routes/checkin.ts"), "routeCheckin"),
   demo: lazyExport(
@@ -182,10 +185,7 @@ const PREFIX_LOADERS: Record<string, () => Promise<RouterFn>> = {
     "routeSmsWebhook",
   ),
   t: lazyExport(() => import("#routes/tickets/index.ts"), "routeTicketView"),
-  ticket: lazyExport(
-    () => import("#routes/public/ticket-routes.ts"),
-    "routeTicket",
-  ),
+  ticket: ticketLoader,
   unsubscribe: lazyRouter(
     () => import("#routes/public/unsubscribe.ts"),
     ({ handleUnsubscribeGet, handleUnsubscribePost }) =>
@@ -199,66 +199,70 @@ const PREFIX_LOADERS: Record<string, () => Promise<RouterFn>> = {
     "routeWalletWebservice",
   ),
   wallet: lazyExport(() => import("#routes/wallet/index.ts"), "routeWallet"),
-};
+} satisfies Record<string, () => Promise<RouterFn>>;
+
+/** Every prefix the lazy router serves; the two tables below key off it. */
+type Prefix = keyof typeof PREFIX_LOADERS;
 
 // prefix -> the message-group bundle its handlers render. Prefixes absent here
 // (admin, image, sms, feeds, ...) render no route-specific groups.
-const PREFIX_MESSAGE_GROUPS: Record<string, readonly MessageGroup[]> = {
-  "address-lookup": ["address-lookup"],
-  calculate: publicMessageGroups("payment", "tickets", "validation"),
-  checkin: [
-    ...ADMIN_SHELL_MESSAGE_GROUPS,
-    "attendees",
-    "check-in",
-    "listing-qr",
-    "validation",
-  ],
-  demo: [...ADMIN_SHELL_MESSAGE_GROUPS, "login", "settings", "validation"],
-  gwallet: publicMessageGroups("tickets"),
-  join: JOIN_MESSAGE_GROUPS,
-  news: publicMessageGroups("news", "public-site"),
-  order: publicMessageGroups(
-    "availability",
-    "capacity",
-    "date-picker",
-    "modifiers",
-    "order",
-    "public-site",
-    "tickets",
-    "validation",
-  ),
-  page: publicMessageGroups("public-site", "site-pages"),
-  pay: publicMessageGroups("ledger", "payment", "tickets", "validation"),
-  payment: ["payment", "validation"],
-  renew: publicMessageGroups(
-    "address-lookup",
-    "payment",
-    "public-site",
-    "renewal",
-    "tickets",
-    "validation",
-  ),
-  t: publicMessageGroups("listing-qr", "payment", "tickets"),
-  ticket: publicMessageGroups(
-    "address-lookup",
-    "availability",
-    "date-picker",
-    "modifiers",
-    "order",
-    "payment",
-    "public-site",
-    "questions",
-    "tickets",
-    "validation",
-  ),
-  unsubscribe: publicMessageGroups("unsubscribe", "validation"),
-  v1: ["tickets"],
-  wallet: publicMessageGroups("tickets"),
-};
+const PREFIX_MESSAGE_GROUPS: Partial<Record<Prefix, readonly MessageGroup[]>> =
+  {
+    "address-lookup": ["address-lookup"],
+    calculate: publicMessageGroups("payment", "tickets", "validation"),
+    checkin: [
+      ...ADMIN_SHELL_MESSAGE_GROUPS,
+      "attendees",
+      "check-in",
+      "listing-qr",
+      "validation",
+    ],
+    demo: [...ADMIN_SHELL_MESSAGE_GROUPS, "login", "settings", "validation"],
+    gwallet: publicMessageGroups("tickets"),
+    join: JOIN_MESSAGE_GROUPS,
+    news: publicMessageGroups("news", "public-site"),
+    order: publicMessageGroups(
+      "availability",
+      "capacity",
+      "date-picker",
+      "modifiers",
+      "order",
+      "public-site",
+      "tickets",
+      "validation",
+    ),
+    page: publicMessageGroups("public-site", "site-pages"),
+    pay: publicMessageGroups("ledger", "payment", "tickets", "validation"),
+    payment: ["payment", "validation"],
+    renew: publicMessageGroups(
+      "address-lookup",
+      "payment",
+      "public-site",
+      "renewal",
+      "tickets",
+      "validation",
+    ),
+    t: publicMessageGroups("listing-qr", "payment", "tickets"),
+    ticket: publicMessageGroups(
+      "address-lookup",
+      "availability",
+      "date-picker",
+      "modifiers",
+      "order",
+      "payment",
+      "public-site",
+      "questions",
+      "tickets",
+      "validation",
+    ),
+    unsubscribe: publicMessageGroups("unsubscribe", "validation"),
+    v1: ["tickets"],
+    wallet: publicMessageGroups("tickets"),
+  };
 
 // prefix -> a gate that can answer before message groups load (e.g. redirect a
 // GET to login when the public site is off). Prefixes absent here never gate.
-const PREFIX_GATES: Record<string, PrefixRoute["beforeMessages"]> = {
+const PREFIX_GATES: Partial<Record<Prefix, PrefixRoute["beforeMessages"]>> = {
   news: disabledPublicSiteGet,
   page: disabledPublicSiteGet,
 };
@@ -368,9 +372,16 @@ const readOnlyInfoHandler: RouterFn = (_request, path, method) =>
     ? Promise.resolve(htmlResponse(readOnlyPage()))
     : Promise.resolve(null);
 
+// Object.entries widens the keys to string; name them back as prefixes so the
+// group and gate lookups below stay typed.
+const prefixLoaderEntries = Object.entries(PREFIX_LOADERS) as [
+  Prefix,
+  () => Promise<RouterFn>,
+][];
+
 /** Build each prefix's dispatchable route from its loader, groups, and gate. */
 const lazyPrefixHandlers: Record<string, PrefixRoute> = Object.fromEntries(
-  Object.entries(PREFIX_LOADERS).map(([prefix, loader]) => [
+  prefixLoaderEntries.map(([prefix, loader]) => [
     prefix,
     prefixRoute(
       PREFIX_MESSAGE_GROUPS[prefix],
