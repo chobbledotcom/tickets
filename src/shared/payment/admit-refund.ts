@@ -110,16 +110,37 @@ const chargeOrNothing = async (
  * only says how to phrase the three endings.
  */
 export const sendRefundIfAdmitted = async <TAnswer>(
-  provider: Pick<PaymentProvider, "readChargeMoneyOrNull" | "refundPayment">,
+  provider: Pick<
+    PaymentProvider,
+    "readChargeMoneyOrNull" | "refundCapability" | "refundPayment"
+  >,
   paymentReference: string,
   answer: {
     sent: () => TAnswer;
     failed: () => TAnswer;
     withhold: (admission: WithheldRefund) => TAnswer;
   },
+  /**
+   * Whether a charge the provider cannot state may still be sent back.
+   *
+   * Only the rejected-charge recovery sets this, and only it can: that path
+   * exists BECAUSE the charge's own numbers came back unusable, so asking the
+   * guard to read them is asking the question that already failed. Refusing
+   * there leaves the buyer charged with no route back at all.
+   *
+   * It still only sends where a repeat is harmless. A keyed provider rejects a
+   * second full refund itself, so an unnecessary attempt costs nothing; a
+   * keyless one would simply pay twice, so it keeps withholding and says so.
+   */
+  sendWhenUnreadable = false,
 ): Promise<TAnswer> => {
   const admission = await admitProviderRefund(provider, paymentReference);
-  if (admission.kind !== "send") return answer.withhold(admission);
+  const maySend =
+    admission.kind === "send" ||
+    (sendWhenUnreadable &&
+      admission.kind === "unreadable" &&
+      provider.refundCapability === "keyed");
+  if (!maySend) return answer.withhold(admission as WithheldRefund);
   return (await provider.refundPayment(paymentReference))
     ? answer.sent()
     : answer.failed();

@@ -1,9 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { admitRefund } from "#shared/payment/admit-refund.ts";
+import type { WithheldRefund } from "#shared/payment/admit-refund.ts";
+import {
+  admitRefund,
+  sendRefundIfAdmitted,
+} from "#shared/payment/admit-refund.ts";
 import type { ObservationOutcome } from "#shared/payment/diagnose.ts";
 import { refundOutcomeOf } from "#shared/payment/diagnose.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
+import type { RefundCapability } from "#shared/payment/row-state.ts";
 import {
   chargeMoneyWith,
   partlyRefundedCharge,
@@ -93,6 +98,53 @@ describe("whether a refund may be sent", () => {
   ])[]) {
     test(`answers ${expected} for ${name}`, () => {
       expect(admitRefund(refundOutcomeOf([...charges])).kind).toBe(expected);
+    });
+  }
+});
+
+describe("a charge the provider cannot state", () => {
+  /** A provider whose numbers come back unusable, which is the very thing the
+   *  rejected-charge recovery exists to deal with. */
+  const cannotState = (refundCapability: RefundCapability) => ({
+    readChargeMoneyOrNull: () => Promise.resolve(null),
+    refundCapability,
+    refundPayment: () => Promise.resolve(true),
+  });
+
+  const answer = {
+    failed: () => "failed",
+    sent: () => "sent",
+    withhold: (admission: WithheldRefund) => admission.kind,
+  };
+
+  test("is withheld by default, because nobody can say what its money did", async () => {
+    expect(
+      await sendRefundIfAdmitted(cannotState("keyed"), "pi_1", answer),
+    ).toBe("unreadable");
+  });
+
+  // The recovery path only exists because the charge's numbers came back
+  // unusable, so asking the guard to read them asks the question that already
+  // failed. A keyed provider rejects a second full refund itself, so trying
+  // costs nothing — and refusing would leave the buyer charged for good.
+  test("is sent by the recovery path when a repeat would be harmless", async () => {
+    expect(
+      await sendRefundIfAdmitted(cannotState("keyed"), "pi_1", answer, true),
+    ).toBe("sent");
+  });
+
+  // SumUp has no idempotency key, so a repeat is a second payout. Being unable
+  // to read the charge means we cannot rule that out, so it still withholds.
+  for (const capability of ["keyless", "unresolved"] as const) {
+    test(`is still withheld for a ${capability} provider`, async () => {
+      expect(
+        await sendRefundIfAdmitted(
+          cannotState(capability),
+          "pi_1",
+          answer,
+          true,
+        ),
+      ).toBe("unreadable");
     });
   }
 });

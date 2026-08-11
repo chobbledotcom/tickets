@@ -89,7 +89,10 @@ export const refundRejectedCharge = async (
   ) {
     return NOTHING_TO_REFUND;
   }
-  const refunded = await tryRefund(rejection.paymentReference);
+  // The charge's own numbers are what was malformed, so the guard cannot read
+  // them to decide. Left to refuse, this path would answer 503 for ever and
+  // the buyer would stay charged with no route back.
+  const refunded = await tryRefund(rejection.paymentReference, undefined, true);
   return { refunded, settled: refunded };
 };
 
@@ -122,6 +125,8 @@ export const answerRejectedSession = async (
 export const tryRefund = async (
   paymentReference: string,
   listingId?: number,
+  /** Set only by the rejected-charge recovery — see `sendRefundIfAdmitted`. */
+  sendWhenUnreadable = false,
 ): Promise<boolean> => {
   // A blank or whitespace-only provider resource id names no charge to refund,
   // so the refund is refused before any provider call. The provider boundary
@@ -139,24 +144,29 @@ export const tryRefund = async (
   // Ask what the money has already done before sending any more. Stripe and
   // Square reject a second full refund themselves, but SumUp has no idempotency
   // key, so there an unguarded re-attempt pays the buyer twice.
-  return sendRefundIfAdmitted(provider, paymentReference, {
-    failed: () => {
-      logError({
-        code: ErrorCode.PAYMENT_REFUND,
-        detail: `Failed to refund payment ${paymentReference}`,
-        listingId,
-      });
-      return false;
+  return sendRefundIfAdmitted(
+    provider,
+    paymentReference,
+    {
+      failed: () => {
+        logError({
+          code: ErrorCode.PAYMENT_REFUND,
+          detail: `Failed to refund payment ${paymentReference}`,
+          listingId,
+        });
+        return false;
+      },
+      sent: () => {
+        logDebug("Payment", "Refund issued");
+        return true;
+      },
+      withhold: (admission) => {
+        reportWithheldRefund(admission, { listingId, paymentReference });
+        return admission.kind === "already_returned";
+      },
     },
-    sent: () => {
-      logDebug("Payment", "Refund issued");
-      return true;
-    },
-    withhold: (admission) => {
-      reportWithheldRefund(admission, { listingId, paymentReference });
-      return admission.kind === "already_returned";
-    },
-  });
+    sendWhenUnreadable,
+  );
 };
 
 /** Attempt refund and log activity if successful */
