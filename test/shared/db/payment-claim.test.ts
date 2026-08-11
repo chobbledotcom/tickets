@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { execute } from "#shared/db/client.ts";
 import {
   claimAttendeeRows,
+  markReturnedUnrecorded,
   releaseAttendeeRows,
 } from "#shared/db/payment-claim.ts";
 import { paymentReferenceIndex } from "#shared/db/payment-references.ts";
@@ -17,6 +18,7 @@ import {
   referenceIndexOf,
   rowStateSlot,
   staleClaimSlot,
+  storedRecordOf,
   UNRECORDED_MIRROR,
 } from "#test-utils/payment-claim.ts";
 import { bookedWithPayment } from "#test-utils/processed-payments.ts";
@@ -241,6 +243,21 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
         expect(heldSessionIds(nobody)).toEqual([]);
       });
       expect(calls).toBe(0);
+    });
+
+    // The refresh route finds money already back at the provider and can be
+    // run again and again. Each run must not move the date, or the age of a
+    // problem somebody is meant to be looking into resets every time they
+    // look at it.
+    test("saying the books are behind twice leaves the first answer alone", async () => {
+      await bookedWithPayment("sess-twice", "pi_twice");
+      await markReturnedUnrecorded(["sess-twice"]);
+      const first = await storedRecordOf("sess-twice");
+
+      await markReturnedUnrecorded(["sess-twice"]);
+
+      expect(await storedRecordOf("sess-twice")).toBe(first);
+      expect(await protectedStateOf("sess-twice")).toBe(UNRECORDED_MIRROR);
     });
 
     test("releasing an unclaimed row leaves it alone", async () => {
