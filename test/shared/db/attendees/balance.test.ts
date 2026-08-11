@@ -101,6 +101,40 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     await expectRefundReferences(attendeeId, ["pi_balance_ok"]);
   });
 
+  // The fault this closes: a refund run compares the attendee's whole set of
+  // charges once and then works from that snapshot. A balance landing
+  // underneath it is refunded by nobody, and the run reports success. The
+  // callback must stand down and retry rather than write.
+  test("refuses to finalize a balance while a refund run holds the attendee", async () => {
+    const { attendeeId } = await createReservedAttendee(1500);
+    // Their deposit charge, with a refund run holding it.
+    await reserveSession("deposit-held");
+    await getDb().execute(
+      `UPDATE processed_payments SET attendee_id = ?, protected_state = 'claim'
+        WHERE payment_session_id = ?`,
+      [attendeeId, "deposit-held"],
+    );
+    await reserveSession("balance-held");
+
+    await expect(
+      settleAttendeeBalance(
+        attendeeId,
+        1500,
+        settle("balance-held"),
+        await balanceFinalizeStatements(
+          "balance-held",
+          attendeeId,
+          1500,
+          "pi_balance_held",
+        ),
+      ),
+    ).rejects.toThrow();
+
+    const row = await getProcessedPayment("balance-held");
+    expect(row?.attendee_id).toBe(null);
+    await expectRefundReferences(attendeeId, []);
+  });
+
   test("does not finalize a balance session reference on amount mismatch", async () => {
     const { attendeeId } = await createReservedAttendee(1500);
     await reserveSession("balance-ref-mismatch");

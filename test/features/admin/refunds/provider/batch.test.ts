@@ -80,6 +80,78 @@ describeWithEnv(
       expect(errors.calls).toHaveLength(0);
     });
 
+    /** A provider that cannot be read at all. Nothing is sent, so a fresh run
+     *  has no doubt of its own — but it also learns nothing. */
+    const unreadableProvider = (refundCapability: RefundCapability) => ({
+      readChargeMoneyOrNull: () => Promise.resolve(null),
+      refundCapability,
+      refundPayment: () => Promise.resolve(true),
+    });
+
+    /** A candidate whose reference names the very session the hold covers, so
+     *  the run recognises its own rows rather than standing down. */
+    const heldCandidate = (
+      attendeeId: number,
+      sessionId: string,
+    ): RefundCandidate => ({
+      attendee: { id: attendeeId } as RefundCandidate["attendee"],
+      references: [
+        refundReference(`pi_${sessionId}`, {
+          rowSessionIds: [sessionId],
+          sessionIds: [sessionId],
+        }),
+      ],
+    });
+
+    // The fault this closes: a keyless run whose answer was lost leaves its
+    // claim standing on purpose. A later run resuming it and then failing to
+    // read the provider has learned nothing, so releasing hands the rows to a
+    // third run that sees lagging evidence and pays the buyer twice.
+    test("keeps a resumed keyless hold when the provider cannot be read", async () => {
+      const claim = grantingRowClaim(
+        new Map([[31, ["sess-31"]]]),
+        new Set([31]),
+      );
+
+      await processRefundBatch(
+        unreadableProvider("keyless"),
+        [heldCandidate(31, "sess-31")],
+        LISTING,
+        { claim },
+      );
+
+      expect(claim.released).toEqual([]);
+    });
+
+    test("lets a fresh keyless hold go when the provider cannot be read", async () => {
+      const claim = grantingRowClaim(new Map([[32, ["sess-32"]]]));
+
+      await processRefundBatch(
+        unreadableProvider("keyless"),
+        [heldCandidate(32, "sess-32")],
+        LISTING,
+        { claim },
+      );
+
+      expect(claim.released).toEqual([["sess-32"]]);
+    });
+
+    test("lets a resumed KEYED hold go when the provider cannot be read", async () => {
+      const claim = grantingRowClaim(
+        new Map([[33, ["sess-33"]]]),
+        new Set([33]),
+      );
+
+      await processRefundBatch(
+        unreadableProvider("keyed"),
+        [heldCandidate(33, "sess-33")],
+        LISTING,
+        { claim },
+      );
+
+      expect(claim.released).toEqual([["sess-33"]]);
+    });
+
     test("tallies refunded, failed and errored candidates in one batch", async () => {
       await postBooking({ attendeeId: 11, eventId: "sess-11" });
 

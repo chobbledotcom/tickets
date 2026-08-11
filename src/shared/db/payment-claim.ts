@@ -61,6 +61,10 @@ export type ClaimResult =
       held: ReadonlyMap<number, readonly string[]>;
       heldSince: string;
       kind: "claimed";
+      /** The attendees whose hold was INHERITED from a run that died without
+       *  saying what its money did. Their doubt is still open, so learning
+       *  nothing this time must not settle it. */
+      resumed: ReadonlySet<number>;
       /** The reference indexes whose claimed row already says the money went
        *  back. Read instead of the reference list this run loaded before it
        *  had the hold, which can predate another run's answer. */
@@ -187,6 +191,7 @@ export const claimAttendeeRows = async (
       held: new Map(),
       heldSince: nowIso(),
       kind: "claimed",
+      resumed: new Set(),
       returned: new Set(),
     };
   }
@@ -201,16 +206,18 @@ export const claimAttendeeRows = async (
     const sharing = await Promise.all(stored.sharing.map(asRowRecord));
     // Our own rows are judged as their attendee's, which is what lets a
     // crashed run be picked up one attendee at a time.
-    const refused = rows
-      .map((row) =>
-        decideClaim(
-          row.state.claim,
-          { attendeeId: row.attendeeId, scope: "attendee_set" },
-          staleBefore,
-        ),
-      )
-      .find((decision) => !holdsTheRow(decision));
-    if (refused !== undefined) return { blockedBy: refused, kind: "blocked" };
+    const judged = rows.map((row) => ({
+      decision: decideClaim(
+        row.state.claim,
+        { attendeeId: row.attendeeId, scope: "attendee_set" },
+        staleBefore,
+      ),
+      row,
+    }));
+    const refused = judged.find(({ decision }) => !holdsTheRow(decision));
+    if (refused !== undefined) {
+      return { blockedBy: refused.decision, kind: "blocked" };
+    }
     // Someone else's row stops us whether its claim is stale or not: we never
     // write to it, so we could not take it over, and sending against money
     // another claim still holds is how one charge is refunded twice.
@@ -239,6 +246,11 @@ export const claimAttendeeRows = async (
       ),
       heldSince: writtenAt,
       kind: "claimed",
+      resumed: new Set(
+        judged
+          .filter(({ decision }) => decision.kind === "resume")
+          .map(({ row }) => row.attendeeId),
+      ),
       // Sharing rows count too: money returned against a reference is
       // returned for every row carrying it, whoever they belong to.
       returned: new Set(

@@ -44,6 +44,7 @@ const holdingClaim = (
       held: new Map([[11, sessions]]),
       heldSince: "2026-08-10T12:00:00.000Z",
       kind: "claimed",
+      resumed: new Set<number>(),
       returned: new Set<string>(),
     }),
   release,
@@ -486,7 +487,7 @@ describe("admin refund provider > an unrecorded refund", () => {
     refunded: new Set(["pi_unrecorded", "pi_recorded"]),
   });
 
-  test("a refund the provider did not confirm is unsettled", async () => {
+  test("a refund the provider did not confirm leaves a lost answer", async () => {
     const keylessSaysNo = provider({ refundCapability: "keyless" });
 
     const result = await refundCandidateAtProvider(
@@ -499,7 +500,7 @@ describe("admin refund provider > an unrecorded refund", () => {
     // A lost answer looks exactly like a refusal from here, so the run must
     // keep its hold rather than let a retry send the money again.
     expect(result.outcome).toBe("failed");
-    expect(result.unsettled).toBe(true);
+    expect(result.doubt).toBe("lost");
   });
 
   test("a reading the provider could not give leaves the hold free", async () => {
@@ -517,11 +518,12 @@ describe("admin refund provider > an unrecorded refund", () => {
       () => Promise.resolve(),
     );
 
-    // No money was asked for, so there is nothing to be in doubt about and a
-    // retry in a moment is free. "withheld" says that where "failed" could not:
+    // No money was asked for, so this is not the doubt a lost answer leaves —
+    // but the run learned nothing either, which matters to a hold it inherited
+    // from a run that died. "withheld" says that where "failed" could not:
     // nothing was sent, rather than something sent and refused.
     expect(result.outcome).toBe("withheld");
-    expect(result.unsettled).toBeUndefined();
+    expect(result.doubt).toBe("unread");
   });
 
   test("a refund never sent is settled — nothing was asked for", async () => {
@@ -538,10 +540,10 @@ describe("admin refund provider > an unrecorded refund", () => {
     );
 
     expect(result.outcome).toBe("refunded");
-    expect(result.unsettled).toBeUndefined();
+    expect(result.doubt).toBeUndefined();
   });
 
-  test("a refund whose returned-marker write fails is reported unsettled", async () => {
+  test("a refund whose returned-marker write fails leaves a lost answer", async () => {
     const result = await refundCandidateAtProvider(
       keyless,
       candidateWithReferences(["pi_unrecorded"]),
@@ -552,7 +554,7 @@ describe("admin refund provider > an unrecorded refund", () => {
     // The money went back, so it still counts as refunded...
     expect(result.outcome).toBe("refunded");
     // ...but nothing durable says so.
-    expect(result.unsettled).toBe(true);
+    expect(result.doubt).toBe("lost");
   });
 
   test("a refund whose marker write succeeds is settled", async () => {
@@ -564,7 +566,7 @@ describe("admin refund provider > an unrecorded refund", () => {
     );
 
     expect(result.outcome).toBe("refunded");
-    expect(result.unsettled).toBeUndefined();
+    expect(result.doubt).toBeUndefined();
   });
 
   /** One keyless attendee through a whole run, with the ledger answering

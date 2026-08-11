@@ -271,10 +271,38 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
   });
 
   describe("a stalled run waking up", () => {
+    // A claim that is INHERITED rather than granted carries the dead run's
+    // doubt: it never said what its money did. The run that picks the rows up
+    // has to be told, or learning nothing this time reads as settling it.
+    test("names the attendees whose hold was inherited", async () => {
+      const attendeeId = await bookedWithPayment("sess-inherit", "pi_inherit");
+      await putRowState(
+        "sess-inherit",
+        await staleClaimSlot(attendeeId),
+        CLAIM_MIRROR,
+      );
+
+      const claimed = await claimAttendeeRows([attendeeId], "keyless");
+
+      expect(claimed).toMatchObject({
+        kind: "claimed",
+        resumed: new Set([attendeeId]),
+      });
+    });
+
+    test("a fresh grant is not an inherited hold", async () => {
+      const attendeeId = await bookedWithPayment("sess-grant", "pi_grant");
+
+      expect(await claimAttendeeRows([attendeeId], "keyless")).toMatchObject({
+        resumed: new Set(),
+      });
+    });
+
     test("does not strip the claim a later run now holds", async () => {
       const attendeeId = await bookedWithPayment("sess-stall", "pi_stall");
       const stalled = await claimAttendeeRows([attendeeId], "keyless");
       if (stalled.kind !== "claimed") throw new Error("the claim was refused");
+      expect(stalled.resumed).toEqual(new Set());
 
       // A later run resumed these rows and holds them now. The stalled run
       // waking up must not hand its successor's work to a third run.

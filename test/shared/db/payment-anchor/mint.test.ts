@@ -77,6 +77,7 @@ describeWithEnv(
         held: new Map(),
         heldSince: expect.any(String),
         kind: "claimed",
+        resumed: new Set(),
         returned: new Set(),
       });
 
