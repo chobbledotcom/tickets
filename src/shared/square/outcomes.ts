@@ -1,4 +1,5 @@
 import * as v from "valibot";
+/* jscpd:ignore-start -- imports */
 import {
   type ProviderFailure,
   providerFailure,
@@ -13,6 +14,8 @@ import {
   SquareConnectionError,
   SquareProtocolError,
 } from "#shared/square/transport.ts";
+
+/* jscpd:ignore-end */
 
 const squareFailure = (error: unknown): ProviderFailure | undefined =>
   providerFailure({

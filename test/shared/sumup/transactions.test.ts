@@ -115,18 +115,13 @@ describe("sumup transactions", () => {
     });
 
     test("refuses a malformed transaction container", async () => {
-      const client = makeSumupClient({
-        txnGet: () =>
-          Promise.resolve(
-            transactionWire({ transaction_events: "not a list" }),
-          ),
-      });
-      await withSumupClient(client, async () => {
-        expect(await sumupApi.readTransactionMoney("txn")).toEqual({
+      await expectTransactionBody(
+        transactionWire({ transaction_events: "not a list" }),
+        {
           reason: "malformed_response",
           status: "invalid",
-        });
-      });
+        },
+      );
     });
 
     for (const [name, fields, reason] of [
@@ -170,22 +165,17 @@ describe("sumup transactions", () => {
     });
 
     test("refuses an event type SumUp does not document", async () => {
-      const client = makeSumupClient({
-        txnGet: () =>
-          Promise.resolve(
-            transactionWire({
-              transaction_events: [
-                { amount: 10, event_type: "UNKNOWN", status: "SUCCESSFUL" },
-              ],
-            }),
-          ),
-      });
-      await withSumupClient(client, async () => {
-        expect(await sumupApi.readTransactionMoney("txn")).toEqual({
+      await expectTransactionBody(
+        transactionWire({
+          transaction_events: [
+            { amount: 10, event_type: "UNKNOWN", status: "SUCCESSFUL" },
+          ],
+        }),
+        {
           reason: "malformed_response",
           status: "invalid",
-        });
-      });
+        },
+      );
     });
 
     test("refuses a chargeback event instead of treating it as refundable", async () => {

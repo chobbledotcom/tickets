@@ -78,6 +78,13 @@ export const foundCharge = (
   charge: ChargeMoney = chargeMoney(),
 ): ProviderRead<ChargeMoney> => ({ resource: charge, status: "found" });
 
+/** Provider reads that cannot establish any charge money. */
+export const unreadChargeCases = [
+  ["missing", { status: "missing" }],
+  ["unavailable", { reason: "timeout", status: "unavailable" }],
+  ["invalid", { reason: "malformed_money", status: "invalid" }],
+] as const satisfies readonly (readonly [string, ProviderRead<ChargeMoney>])[];
+
 /** A provider fake's confirmed full refund of the charge it was handed. */
 export const completedRefund = (charge: ChargeMoney): RefundAttemptResult => ({
   amount: charge.captured,

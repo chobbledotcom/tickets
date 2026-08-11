@@ -253,7 +253,7 @@ export const recordAttendeeRefund = (
       references,
       memo,
     );
-    if (groups.length > 0) await postTransferGroups(groups);
+    await postTransferGroups(groups);
     return posted;
   });
 
@@ -288,7 +288,7 @@ export const recordAttendeeRefundsBatch = async (
       })),
     );
     const groups = computed.flatMap((entry) => entry.groups);
-    if (groups.length > 0) await postTransferGroups(groups);
+    await postTransferGroups(groups);
     return new Map(computed.map((entry) => [entry.id, entry.posted]));
   } catch (error) {
     logError({

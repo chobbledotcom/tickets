@@ -2,7 +2,10 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { refundCandidateAtProvider } from "#routes/admin/refunds/attempt.ts";
 import type { RowClaim } from "#routes/admin/refunds/claim.ts";
-import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
+import {
+  processRefundBatch,
+  type RefundWrites,
+} from "#routes/admin/refunds/provider.ts";
 import type { ProviderRead } from "#shared/payment/provider-read.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
@@ -19,6 +22,11 @@ import {
   holdingClaim,
   provider,
 } from "./helpers.ts";
+
+const recordEveryRefund: NonNullable<RefundWrites["record"]> = (attendees) =>
+  Promise.resolve(
+    new Map(attendees.map(({ attendeeId }) => [attendeeId, true])),
+  );
 
 describe("admin refund provider > the claim", () => {
   const errors = setupErrorSpy();
@@ -75,10 +83,7 @@ describe("admin refund provider > the claim", () => {
       {
         claim: counting,
         markReturned: () => Promise.resolve(),
-        record: (attendees) =>
-          Promise.resolve(
-            new Map(attendees.map((attendee) => [attendee.attendeeId, true])),
-          ),
+        record: recordEveryRefund,
       },
     );
 
@@ -153,10 +158,7 @@ describe("admin refund provider > a release that fails", () => {
         {
           claim: refusingRelease,
           markReturned: () => Promise.resolve(),
-          record: (attendees) =>
-            Promise.resolve(
-              new Map(attendees.map((a) => [a.attendeeId, true])),
-            ),
+          record: recordEveryRefund,
         },
       ),
     );
@@ -207,10 +209,7 @@ describe("admin refund provider > a refund still settling", () => {
         {
           claim: rowClaim,
           markReturned: () => Promise.resolve(),
-          record: (attendees) =>
-            Promise.resolve(
-              new Map(attendees.map((attendee) => [attendee.attendeeId, true])),
-            ),
+          record: recordEveryRefund,
         },
       ),
     );

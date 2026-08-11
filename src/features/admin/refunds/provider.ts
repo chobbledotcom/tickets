@@ -137,12 +137,16 @@ const recordWave = async (
     if (posted.get(attendeeId) !== true) {
       counts.notRecordedCount++;
       reportRefundNotRecorded({ attendeeId, listingId });
-      findings.unrecorded.set(attendeeId, [
-        ...(findings.unrecorded.get(attendeeId) ?? []),
-        ...references.flatMap((reference) =>
-          rowsHolding(attendeeId, reference),
-        ),
-      ]);
+      const missedRows = references.flatMap((reference) =>
+        rowsHolding(attendeeId, reference),
+      );
+      const earlierMissedRows = findings.unrecorded.get(attendeeId);
+      findings.unrecorded.set(
+        attendeeId,
+        earlierMissedRows === undefined
+          ? missedRows
+          : [...earlierMissedRows, ...missedRows],
+      );
     } else if (whole) {
       counts.refundedCount++;
     }

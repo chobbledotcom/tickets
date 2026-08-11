@@ -17,6 +17,7 @@ import {
   gbp,
   partlyRefundedCharge,
   refundObservation,
+  unreadChargeCases,
 } from "#test-utils/payment-state.ts";
 
 /** Money back on every penny of this charge. */
@@ -130,11 +131,7 @@ describe("provider evidence before a refund", () => {
     return { readCharge, refundCapability, refundCharge };
   };
 
-  for (const [name, read] of [
-    ["missing", { status: "missing" }],
-    ["unavailable", { reason: "timeout", status: "unavailable" }],
-    ["invalid", { reason: "malformed_money", status: "invalid" }],
-  ] as const) {
+  for (const [name, read] of unreadChargeCases) {
     test(`keeps a ${name} read distinct`, async () => {
       const source = provider(() => Promise.resolve(read));
       expect(await admitProviderRefund(source, "pi_1")).toEqual({

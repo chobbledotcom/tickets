@@ -90,6 +90,9 @@ describeWithEnv("refund-ledger > recordPlaceholderRefund", { db: true }, () => {
       await transfersByAccount(attendeeAccount(PLACEHOLDER.attendeeId)),
     ).toEqual([]);
     expect(errors.lastMessage()).toContain("E_LEDGER_POST");
+    expect(errors.lastMessage()).toContain(
+      "placeholder refund ledger post failed for attendee 7:",
+    );
   });
 
   test("logs and does not throw when the payment reference conflicts", async () => {

@@ -169,6 +169,9 @@ describeWithEnv(
         logged.some((message) => message.includes("bulk refund batch failed")),
       ).toBe(true);
       expect(errors.lastMessage()).toContain("E_LEDGER_POST");
+      expect(errors.lastMessage()).toContain(
+        "refund ledger post failed for attendee 18:",
+      );
     });
 
     test("posts all refund groups for a balance-settled attendee in a bulk batch", async () => {

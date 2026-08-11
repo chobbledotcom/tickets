@@ -104,6 +104,10 @@ export const underAttendeeClaim = async <TResult>(
   }
   const findings: RunFindings = { doubts: new Map(), unrecorded: new Map() };
   const settle = async (): Promise<void> => {
+    const unrecordedRowsFor = (attendeeId: number): readonly string[] => {
+      const rows = findings.unrecorded.get(attendeeId);
+      return rows === undefined ? [] : rows;
+    };
     const letting = [...claim.held].filter(([attendeeId]) =>
       mayLetGo(
         findings.doubts.get(attendeeId),
@@ -116,25 +120,13 @@ export const underAttendeeClaim = async <TResult>(
         heldSince: claim.heldSince,
         sessionIds: letting.flatMap(([, sessions]) => sessions),
         unrecorded: new Set(
-          letting.flatMap(
-            ([attendeeId]) => findings.unrecorded.get(attendeeId) ?? [],
-          ),
+          letting.flatMap(([attendeeId]) => unrecordedRowsFor(attendeeId)),
         ),
       },
       listingId,
     );
   };
-  try {
-    const result = await run.work(claim.returned, findings, claim.inherited);
-    await settle();
-    return result;
-  } catch (error) {
-    // A failure leaves every unsettled attendee in doubt, while facts already
-    // learnt about returned money still remain on the claim.
-    for (const attendeeId of claim.held.keys()) {
-      findings.doubts.set(attendeeId, "in_doubt");
-    }
-    await settle();
-    throw error;
-  }
+  const result = await run.work(claim.returned, findings, claim.inherited);
+  await settle();
+  return result;
 };

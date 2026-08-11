@@ -19,6 +19,7 @@ import {
   chargeMoneyWith,
   gbp,
   refundObservation,
+  unreadChargeCases,
 } from "#test-utils/payment-state.ts";
 
 const request: RefundRequest = {
@@ -48,14 +49,7 @@ describe("uncertain refund reread judgment", () => {
     );
   });
 
-  for (const [name, read] of [
-    ["missing", { status: "missing" }],
-    ["unavailable", { reason: "timeout", status: "unavailable" }],
-    ["invalid", { reason: "malformed_money", status: "invalid" }],
-  ] as const satisfies readonly (readonly [
-    string,
-    ProviderRead<ChargeMoney>,
-  ])[]) {
+  for (const [name, read] of unreadChargeCases) {
     test(`preserves the uncertain answer after a ${name} read`, () => {
       expect(judge(read)).toEqual(uncertain);
     });

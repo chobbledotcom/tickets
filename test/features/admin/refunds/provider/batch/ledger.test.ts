@@ -165,6 +165,31 @@ describeWithEnv(
       expect(claim.unrecorded).toEqual([["sess-21"]]);
     });
 
+    test("keeps every missed row when one attendee has two postings", async () => {
+      const attendeeId = 27;
+      const claim = grantingRowClaim(
+        new Map([[attendeeId, ["sess-first", "sess-second"]]]),
+      );
+
+      const counts = finishedCounts(
+        await processRefundBatch(
+          failingProvider(new Set()),
+          [
+            refundedCandidate(attendeeId, "sess-first"),
+            refundedCandidate(attendeeId, "sess-second"),
+          ],
+          LISTING,
+          {
+            claim,
+            record: () => Promise.resolve(new Map([[attendeeId, false]])),
+          },
+        ),
+      );
+
+      expect(counts.notRecordedCount).toBe(2);
+      expect(claim.unrecorded).toEqual([["sess-first", "sess-second"]]);
+    });
+
     test("retains the whole claim while a sibling charge is in doubt", async () => {
       const claim = grantingRowClaim(
         new Map([[24, ["sess-back", "sess-stuck"]]]),

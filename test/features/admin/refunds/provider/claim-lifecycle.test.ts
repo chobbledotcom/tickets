@@ -73,8 +73,9 @@ describeWithEnv(
       );
 
       const firstCandidate = await loadCandidate(attendee.id);
-      expect(firstCandidate.references.map((reference) => reference.reference))
-        .toEqual([PAYMENT_REFERENCE]);
+      expect(
+        firstCandidate.references.map((reference) => reference.reference),
+      ).toEqual([PAYMENT_REFERENCE]);
 
       let reads = 0;
       let sends = 0;
@@ -87,17 +88,14 @@ describeWithEnv(
         refundCapability: "keyed",
         refundCharge: () => {
           sends++;
-          return Promise.resolve(
-            { kind: "uncertain", reason: "network_error" },
-          );
+          return Promise.resolve({
+            kind: "uncertain",
+            reason: "network_error",
+          });
         },
       };
 
-      await processRefundBatch(
-        uncertainProvider,
-        [firstCandidate],
-        listing.id,
-      );
+      await processRefundBatch(uncertainProvider, [firstCandidate], listing.id);
 
       expect(reads).toBe(1);
       expect(sends).toBe(1);
