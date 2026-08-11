@@ -65,7 +65,7 @@ type PrefixRoute = {
 const continueRoute = (_path: string, _method: string): null => null;
 
 const prefixRoute = (
-  messageGroups: readonly MessageGroup[],
+  messageGroups: readonly MessageGroup[] = [],
   handler: RouterFn,
   beforeMessages: PrefixRoute["beforeMessages"] = continueRoute,
 ): PrefixRoute => ({ beforeMessages, handler, messageGroups });
@@ -373,7 +373,7 @@ const lazyPrefixHandlers: Record<string, PrefixRoute> = Object.fromEntries(
   Object.entries(PREFIX_LOADERS).map(([prefix, loader]) => [
     prefix,
     prefixRoute(
-      PREFIX_MESSAGE_GROUPS[prefix] ?? [],
+      PREFIX_MESSAGE_GROUPS[prefix],
       lazyRoute(loader),
       PREFIX_GATES[prefix],
     ),
