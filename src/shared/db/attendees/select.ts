@@ -46,15 +46,18 @@ import type { Attendee } from "#shared/types.ts";
  * A refund mirrors every leg of the order it reverses, so a sold booking that
  * came back has a `refund_sale` running the other way — revenue to attendee.
  * That is the precise question, and it holds for backfilled historical refunds
- * too, since they are mapped by the same reverser. A booking with no sale leg
- * of its own (a payment-only placeholder) has no such mirror, so it falls back
- * to the account's returned cash. A LEFT JOIN with no matching
- * `listing_attendees` row has NULL ids, which match nothing, so both arms are
- * false (0).
+ * too, since they are mapped by the same reverser.
+ *
+ * A payment-only placeholder has no sale to mirror, so it falls back to the
+ * account's returned cash. Only a placeholder may: a FREE booking has no sale
+ * leg either, and reading the account's cash there would turn a real ticket
+ * away because some other booking of theirs came back. Anything else with no
+ * sale of its own took no money and so cannot have had any returned.
  */
 export const refundedForBooking = (
   attendeeIdExpr: string,
   listingIdExpr: string,
+  placeholderWhen: string,
 ): string => {
   const legExists = (kind: string, predicate: string): string =>
     `EXISTS(SELECT 1 FROM transfers WHERE kind = '${kind}' AND ${predicate})`;
@@ -70,14 +73,19 @@ export const refundedForBooking = (
     KIND.refundCash,
     accountPredicate("source", ATTENDEE, attendeeIdExpr),
   );
-  return `(SELECT CASE WHEN ${wasSold} THEN ${saleCameBack} ELSE ${cashCameBack} END)`;
+  return (
+    `(SELECT CASE WHEN ${wasSold} THEN ${saleCameBack}` +
+    ` WHEN ${placeholderWhen} THEN ${cashCameBack} ELSE 0 END)`
+  );
 };
 
 /** {@link refundedForBooking} under the alias the booking row type reads. */
 export const refundedFromLedger = (
   attendeeIdExpr: string,
   listingIdExpr: string,
-): string => `${refundedForBooking(attendeeIdExpr, listingIdExpr)} AS refunded`;
+  placeholderWhen: string,
+): string =>
+  `${refundedForBooking(attendeeIdExpr, listingIdExpr, placeholderWhen)} AS refunded`;
 
 /**
  * Per-row amount paid, projected from the ledger rather than a stored column:
@@ -224,6 +232,7 @@ const FIELD_SQL: Record<AttendeeField, (join: AttendeeJoin) => string> = {
     refundedFromLedger(
       "listingAttendee.attendee_id",
       "listingAttendee.listing_id",
+      "listingAttendee.quantity = 0",
     ),
   remaining_balance: () => remainingBalanceFromLedger("attendee.id"),
 };
