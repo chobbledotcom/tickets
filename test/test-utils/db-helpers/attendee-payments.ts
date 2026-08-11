@@ -14,6 +14,21 @@ import { createTestAttendee } from "./attendees.ts";
 import { createTestListing } from "./listings.ts";
 
 /**
+ * The attendee a booking made, or a stop right here.
+ *
+ * Every fixture that books somebody needs the same narrowing, and a booking
+ * that failed is a broken fixture rather than a case under test — so it says
+ * so by name instead of each caller inventing its own guard or asserting the
+ * shape it hopes for.
+ */
+export const bookedAttendee = (result: CreateAttendeeResult): Attendee => {
+  if (!result.success) {
+    throw new Error(`Failed to create the attendee: ${result.reason}`);
+  }
+  return result.attendees[0]!;
+};
+
+/**
  * Create a paid attendee (a payment_id + booking) WITHOUT posting any ledger
  * sale — a booking that predates the transfers ledger. A refund of it finds no
  * clean order to reverse, so `recordAttendeeRefund` reports `posted:false`; use
@@ -33,7 +48,7 @@ export const createPaidAttendeeWithoutLedger = async (
     name,
     paymentId,
   });
-  return (result as { success: true; attendees: Attendee[] }).attendees[0]!;
+  return bookedAttendee(result);
 };
 
 export const createPaidTestAttendee = async (
