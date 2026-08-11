@@ -2408,6 +2408,35 @@ Two ways out, both real work:
 Start by reading `mapRefund` in `src/shared/accounting/mappers.ts` and the
 `reverses_id` note above it.
 
+### A free member of a paid package is never marked refunded
+
+_Origin: Codex on PR #2065, `select.ts:86`. Same root cause, worth doing in the
+same pass._
+
+`mapBooking` drops zero-value legs
+(`facts.lines.filter((line) => line.gross >
+0)` in `bookingLegSpecs`), so an
+explicitly-free member of a PAID package has no sale leg of its own.
+`refundedForBooking` then falls through to `ELSE 0` and the row stays live after
+the whole package order — including its paid member's sale — has been reversed.
+The scanner and check-in keep accepting that ticket.
+
+The obvious fix — "did any booking sharing my order group come back" — is NOT
+safe on the data as it stands, and this is the trap to avoid:
+`ledger_event_group` is stamped per ATTENDEE, not per order. Both
+`postBookingLegsTx` (`src/shared/checkout-complete.ts`) and the backfill's
+`stampStatement` (`src/shared/accounting/backfill.ts`) write it with
+`WHERE attendee_id = ?`, so an attendee's second order overwrites the first
+order's rows. Correlating on it would let one order's refund mark a DIFFERENT
+order's booking as refunded — turning someone away from an event they paid for,
+which is the bug the per-listing fix just closed.
+
+So this needs the order key made per-order first. That is the same dependency
+the two options above have, which is why it belongs with them: fix the key, and
+the free-package-member arm and the two-orders-on-one-listing case both become
+expressible. Note the same weakness applies to `pricePaidFromLedger`, which
+already keys on this column.
+
 ## Pruning may delete a sibling charge that never came back
 
 _Origin: Codex on PR #2065, review of 774d1949._
