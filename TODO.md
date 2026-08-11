@@ -2344,3 +2344,23 @@ against the sweep that actually reads it, and let the old code be a reference
 rather than a starting point. The conflict kinds in particular are a stored
 schema (`row-state.ts` keeps the owner-review marker as a `PaymentConflict`), so
 widening the union is backward compatible but narrowing it later would not be.
+
+## The stale-claim touch test is timing-flaky on CI
+
+`test/scripts/stale-claim/touching.test.ts` — "touches the claim on time, so it
+never reads as walked away" — failed once on a loaded CI runner (PR #2065, run
+31448224401) and passes reliably locally. It is the file lock that stops two
+mutation runs sharing `.mutation-runs/`, not the payment claim, despite the
+shared word.
+
+It is fragile because it mixes three clocks: a `FakeTime` it ticks with
+`time.tickAsync(5)`, a real `Date.now() - 40` written into the record, and real
+disk writes it then polls for with `eventually()`. The fake clock does not move
+`Date.now()` in the record, so the margin between "aged 40ms" and the 25ms
+freshness window is real wall-clock time, and a runner that stalls between the
+write and the poll can miss it.
+
+The fix is to take the wall clock out of it: have the test age the record
+against the same fake clock it ticks, rather than against `Date.now()`, so the
+margin is deterministic. Out of scope where it was found — that session was
+closing the M4 coverage gaps and this file is mutation-run tooling.
