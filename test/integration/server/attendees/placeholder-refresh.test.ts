@@ -14,6 +14,10 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postPaymentLeg } from "#test-utils/db-helpers/payment-leg.ts";
+import {
+  protectedStateOf,
+  UNRECORDED_MIRROR,
+} from "#test-utils/payment-claim.ts";
 import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
 import { withRefreshPaymentProbe } from "#test-utils/refund-routes.ts";
 import { adminFormPost } from "#test-utils/session.ts";
@@ -145,6 +149,49 @@ describeWithEnv(
           },
         );
         await refreshAndVerifyRefundCash(attendee);
+      });
+
+      // The fault this closes: refresh found the money already back at the
+      // provider and marked the charge, but a ledger post that did not land
+      // left the row saying nothing at all. Delete then had nothing to refuse,
+      // so the record of the refund — and the correction's target — could be
+      // destroyed while the books still said the person had paid.
+      test("marks the row when a found refund cannot be recorded", async () => {
+        const listing = await createTestListing({
+          maxAttendees: 50,
+          unitPrice: 800,
+        });
+        const created = await attendeesApi.createAttendeeAtomic({
+          bookings: [{ listingId: listing.id, pricePaid: 800, quantity: 1 }],
+          email: "unrecorded@example.com",
+          name: "Unrecorded",
+          paymentId: "pi_unrecorded_refresh",
+        });
+        if (!created.success)
+          throw new Error(`setup failed: ${created.reason}`);
+        const attendee = created.attendees[0]!;
+        await reserveSession("unrecorded-refresh-session");
+        await finalizeReservedPayment(
+          "unrecorded-refresh-session",
+          attendee.id,
+          "tok-unrecorded",
+          "pi_unrecorded_refresh",
+        );
+
+        // The account carries no ledgered order, so the reversal has nothing
+        // to mirror and the post cannot land.
+        await withRefreshPaymentProbe(
+          () => Promise.resolve(true),
+          async () => {
+            await adminFormPost(
+              `/admin/attendees/${attendee.id}/refresh-payment`,
+            );
+          },
+        );
+
+        expect(await protectedStateOf("unrecorded-refresh-session")).toBe(
+          UNRECORDED_MIRROR,
+        );
       });
 
       test("cleans up a stale note on retry even when the ledger is already posted", async () => {

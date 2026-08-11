@@ -118,6 +118,39 @@ describeWithEnv("server (admin refund state)", { db: true }, () => {
       expect(await protectedStateOf("sess_stranded")).toBe("");
     });
 
+    // The fault this closes: the single page carried its own copy of the
+    // "anything left to do?" rule, so it still refused a held attendee after
+    // the bulk list learned to pick them up. The delete refusal tells the
+    // operator to re-run the refund, and this is the page they would use.
+    test("the refund page opens for an attendee a crashed run is still holding", async () => {
+      const listing = await createPaidListing();
+      const attendee = await createPaidTestAttendee(
+        listing.id,
+        "Held Open",
+        "held-open@example.com",
+        "",
+      );
+      await finalizeProcessedPayment("sess_held", attendee.id, "", "pi_held");
+      await markPaymentReferencesProviderRefunded(
+        await getRefundPaymentReferencesForAttendee(
+          attendee,
+          await getTestPrivateKey(),
+        ),
+      );
+      await markAsRefunded(attendee.id);
+      await putRowState(
+        "sess_held",
+        await staleClaimSlot(attendee.id),
+        CLAIM_MIRROR,
+      );
+
+      const response = await awaitTestRequest(refundUrl(attendee.id), {
+        cookie: await testCookie(),
+      });
+
+      expect(response.status).toBe(200);
+    });
+
     test("marks attendee as refunded after successful refund", async () => {
       const ctx = await setupRefundTest("pi_mark_refund");
 
