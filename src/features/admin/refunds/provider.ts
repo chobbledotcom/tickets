@@ -275,10 +275,12 @@ const underAttendeeClaim = async <TResult>(
     verdicts: ReadonlyMap<number, AttendeeVerdict>,
   ): Promise<void> => {
     const letting = [...claim.held].filter(([attendeeId]) =>
+      // An inherited hold is judged under the capability its original call was
+      // made under, not this run's provider.
       mayLetGo(
         verdicts.get(attendeeId),
-        capability,
-        claim.resumed.has(attendeeId),
+        claim.inherited.get(attendeeId) ?? capability,
+        claim.inherited.has(attendeeId),
       ),
     );
     await releaseHold(

@@ -285,16 +285,33 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
       const claimed = await claimAttendeeRows([attendeeId], "keyless");
 
       expect(claimed).toMatchObject({
+        inherited: new Map([[attendeeId, "keyless"]]),
         kind: "claimed",
-        resumed: new Set([attendeeId]),
       });
+    });
+
+    // The risk belongs to the call that was made, not to whatever provider is
+    // selected now. An operator switching to Stripe must not turn a SumUp
+    // hold into a releasable one.
+    test("keeps the capability the original call was made under", async () => {
+      const attendeeId = await bookedWithPayment("sess-keep", "pi_keep");
+      await putRowState(
+        "sess-keep",
+        await staleClaimSlot(attendeeId, "keyless"),
+        CLAIM_MIRROR,
+      );
+
+      const resumed = await claimAttendeeRows([attendeeId], "keyed");
+      if (resumed.kind !== "claimed") throw new Error("the resume was refused");
+
+      expect(resumed.inherited).toEqual(new Map([[attendeeId, "keyless"]]));
     });
 
     test("a fresh grant is not an inherited hold", async () => {
       const attendeeId = await bookedWithPayment("sess-grant", "pi_grant");
 
       expect(await claimAttendeeRows([attendeeId], "keyless")).toMatchObject({
-        resumed: new Set(),
+        inherited: new Map(),
       });
     });
 
@@ -302,7 +319,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
       const attendeeId = await bookedWithPayment("sess-stall", "pi_stall");
       const stalled = await claimAttendeeRows([attendeeId], "keyless");
       if (stalled.kind !== "claimed") throw new Error("the claim was refused");
-      expect(stalled.resumed).toEqual(new Set());
+      expect(stalled.inherited).toEqual(new Map());
 
       // A later run resumed these rows and holds them now. The stalled run
       // waking up must not hand its successor's work to a third run.

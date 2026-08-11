@@ -19,12 +19,15 @@ export type ClaimRequest = { attendeeId: number; scope: "attendee_set" };
 /** What a run may do with the row it just read. `grant` and `resume` both end
  *  holding the claim, kept apart because resuming means a previous run died
  *  mid-flight and must be re-judged behind fresh evidence. `held` and
- *  `foreign` both mean send nothing, kept apart by whose work it is. */
+ *  `foreign` both mean send nothing, kept apart by whose work it is.
+ *
+ *  A resume carries the claim it is taking over, so the run inheriting the
+ *  work cannot lose what the dead run's call was made under. */
 export type ClaimDecision =
   | { kind: "foreign" }
   | { kind: "grant" }
   | { kind: "held" }
-  | { kind: "resume" };
+  | { kind: "resume"; resuming: RefundClaim };
 
 /** Whether this run ends up holding the row. Listed exhaustively so a new
  *  decision has to say which side it falls on. */
@@ -61,7 +64,7 @@ export const decideClaim = (
   if (existing === undefined) return { kind: "grant" };
   if (!isClaimStale(existing, staleBefore)) return { kind: "held" };
   return sameAttendee(existing, request)
-    ? { kind: "resume" }
+    ? { kind: "resume", resuming: existing }
     : { kind: "foreign" };
 };
 

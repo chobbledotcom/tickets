@@ -43,8 +43,8 @@ const holdingClaim = (
     Promise.resolve({
       held: new Map([[11, sessions]]),
       heldSince: "2026-08-10T12:00:00.000Z",
+      inherited: new Map(),
       kind: "claimed",
-      resumed: new Set<number>(),
       returned: new Set<string>(),
     }),
   release,

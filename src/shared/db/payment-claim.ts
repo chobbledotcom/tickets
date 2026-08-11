@@ -62,9 +62,11 @@ export type ClaimResult =
       heldSince: string;
       kind: "claimed";
       /** The attendees whose hold was INHERITED from a run that died without
-       *  saying what its money did. Their doubt is still open, so learning
-       *  nothing this time must not settle it. */
-      resumed: ReadonlySet<number>;
+       *  saying what its money did, and the capability that run made its call
+       *  under. Their doubt is still open, so learning nothing this time must
+       *  not settle it — and the risk belongs to the call that was made, not
+       *  to whatever provider is selected now. */
+      inherited: ReadonlyMap<number, RefundCapability>;
       /** The reference indexes whose claimed row already says the money went
        *  back. Read instead of the reference list this run loaded before it
        *  had the hold, which can predate another run's answer. */
@@ -190,8 +192,8 @@ export const claimAttendeeRows = async (
     return {
       held: new Map(),
       heldSince: nowIso(),
+      inherited: new Map(),
       kind: "claimed",
-      resumed: new Set(),
       returned: new Set(),
     };
   }
@@ -224,12 +226,21 @@ export const claimAttendeeRows = async (
     if (sharing.some((row) => row.state.claim !== undefined)) {
       return { blockedBy: { kind: "foreign" }, kind: "blocked" };
     }
+    // A resumed row keeps the capability its original call was made under: a
+    // lost keyless call stays keyless however this run reaches the provider.
+    const inherited = new Map(
+      judged.flatMap(({ decision, row }) =>
+        decision.kind === "resume"
+          ? [[row.attendeeId, decision.resuming.capability] as const]
+          : [],
+      ),
+    );
     for (const row of rows) {
       await writeState(tx, row, {
         ...row.state,
         claim: {
           attendeeId: row.attendeeId,
-          capability,
+          capability: inherited.get(row.attendeeId) ?? capability,
           scope: "attendee_set",
           writtenAt,
         },
@@ -245,12 +256,8 @@ export const claimAttendeeRows = async (
         ),
       ),
       heldSince: writtenAt,
+      inherited,
       kind: "claimed",
-      resumed: new Set(
-        judged
-          .filter(({ decision }) => decision.kind === "resume")
-          .map(({ row }) => row.attendeeId),
-      ),
       // Sharing rows count too: money returned against a reference is
       // returned for every row carrying it, whoever they belong to.
       returned: new Set(
