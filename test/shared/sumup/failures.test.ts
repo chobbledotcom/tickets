@@ -1,4 +1,5 @@
 /* jscpd:ignore-start -- imports */
+import { assertThrows } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { APIError } from "@sumup/sdk";
@@ -85,26 +86,24 @@ describe("SumUp failures", () => {
     });
   }
 
-  const expectPropagated = async (failure: Error): Promise<void> => {
-    await expect(
-      Promise.resolve().then(() => sumupReadFailure("Transaction", failure)),
-    ).rejects.toBe(failure);
-    await expect(
-      Promise.resolve().then(() => sumupRefundFailure(failure)),
-    ).rejects.toBe(failure);
+  const expectPropagated = (failure: Error): void => {
+    expect(assertThrows(() => sumupReadFailure("Transaction", failure))).toBe(
+      failure,
+    );
+    expect(assertThrows(() => sumupRefundFailure(failure))).toBe(failure);
   };
 
-  test("does not claim an internal error", async () => {
-    await expectPropagated(new Error("broken adapter"));
+  test("does not claim an internal error", () => {
+    expectPropagated(new Error("broken adapter"));
   });
 
-  test("does not claim an HTTP error with no status", async () => {
+  test("does not claim an HTTP error with no status", () => {
     const failure = new APIError(500, "missing status", new Response());
     Object.defineProperty(failure, "status", { value: undefined });
-    await expectPropagated(failure);
+    expectPropagated(failure);
   });
 
-  test("does not claim another kind of DOM failure", async () => {
-    await expectPropagated(new DOMException("broken", "DataError"));
+  test("does not claim another kind of DOM failure", () => {
+    expectPropagated(new DOMException("broken", "DataError"));
   });
 });
