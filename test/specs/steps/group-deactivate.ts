@@ -5,7 +5,7 @@ import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { groups } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
-import { ORGANISER, openAdminPage } from "#test/specs/support/browser.ts";
+import { adminBrowser, ORGANISER } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import { listingNamed, rememberListing } from "#test/specs/support/listings.ts";
 import {
@@ -126,14 +126,17 @@ Given(
  * name they typed. What the site told them is kept under the organiser's name —
  * the same place every "the organiser is told …" step reads from — because a
  * refused deactivation lands back on the form with words on it, and a successful
- * one lands on the group's page. */
+ * one lands on the group's page. The form's pre-submission page text is also
+ * kept, so a `Then` can assert the rendered impact count before the send. */
 const organiserDeactivatesGroup = async (
   world: TicketsWorld,
   groupName: string,
   typed: string,
 ): Promise<TestBrowser> => {
   const group = await groupNamed(groupName);
-  const browser = await openAdminPage(world, DEACTIVATE_PATH(group.id));
+  const browser = await adminBrowser(world);
+  await browser.visit(DEACTIVATE_PATH(group.id));
+  world.things.remember("told", `${ORGANISER} form`, browser.pageText);
   await fillInAndSend(
     browser,
     { confirm_identifier: typed },
@@ -155,7 +158,8 @@ When(
   },
 );
 
-/** A refused deactivation — the organiser types the wrong name. */
+/** A refused deactivation — the organiser types the wrong name. The browser is
+ * kept so a following `Then` can assert the site left them on the retry form. */
 When(
   "the organiser tries to take the {string} group off sale, typing {string} instead",
   async function (
@@ -163,7 +167,8 @@ When(
     groupName: string,
     typed: string,
   ): Promise<void> {
-    await organiserDeactivatesGroup(this, groupName, typed);
+    const browser = await organiserDeactivatesGroup(this, groupName, typed);
+    this.things.remember("browser", ORGANISER, browser);
   },
 );
 
@@ -243,5 +248,31 @@ Then(
   "listings outside the {string} group are still on sale",
   async function (this: TicketsWorld, groupName: string): Promise<void> {
     await assertActive(outsiderIdsOf(this, groupName), true);
+  },
+);
+
+/** The deactivate confirmation page renders an impact count — "deactivate N
+ * active listing(s)" — so the organiser knows what they are about to do. A
+ * regression that omits or wrongly pluralizes this copy would no longer fail
+ * any test; this step reads the pre-submission form text captured when the
+ * organiser opened the page. */
+Then(
+  "the confirmation form says it will deactivate {int} active listings",
+  function (this: TicketsWorld, count: number): void {
+    const formText = this.things.require("told", `${ORGANISER} form`);
+    const noun = count === 1 ? "listing" : "listings";
+    expect(formText).toContain(`deactivate ${count} active ${noun}`);
+  },
+);
+
+/** A wrong name should leave the organiser on the retry form (the deactivate
+ * path), not redirect them away while carrying the error text. Asserting the
+ * flash message alone would miss a regression that sends them elsewhere. */
+Then(
+  "the organiser is still on the {string} group's deactivate form",
+  async function (this: TicketsWorld, groupName: string): Promise<void> {
+    const group = await groupNamed(groupName);
+    const browser = this.things.require("browser", ORGANISER);
+    expect(browser.currentUrl).toBe(DEACTIVATE_PATH(group.id));
   },
 );

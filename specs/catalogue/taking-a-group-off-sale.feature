@@ -25,6 +25,7 @@ Feature: The organiser takes a whole group of listings off sale at once
       And the site has a group called "Workshops" with "Autumn Workshop" on sale
       When the organiser takes the "Workshops" group off sale, typing its name to confirm
       Then the organiser is sent to the "Workshops" group's page
+      And the confirmation form says it will deactivate 2 active listings
       And every listing in the "Workshops" group is off sale
 
   @rule:catalogue.deactivate-refuses-a-wrong-name
@@ -39,6 +40,8 @@ Feature: The organiser takes a whole group of listings off sale at once
       Given the site has a group called "Keep Active" with "Listing One" on sale
       When the organiser tries to take the "Keep Active" group off sale, typing "Wrong Name" instead
       Then the organiser is told the group name does not match
+      And the organiser is still on the "Keep Active" group's deactivate form
+      And the confirmation form says it will deactivate 1 active listings
       And every listing in the "Keep Active" group is still on sale
 
   @rule:catalogue.deactivate-leaves-other-groups-alone
@@ -55,5 +58,6 @@ Feature: The organiser takes a whole group of listings off sale at once
       And the site has a listing called "Ungrouped Listing" on sale with no group
       When the organiser takes the "Target" group off sale, typing its name to confirm
       Then the organiser is sent to the "Target" group's page
+      And the confirmation form says it will deactivate 1 active listings
       And every listing in the "Target" group is off sale
       And listings outside the "Target" group are still on sale
