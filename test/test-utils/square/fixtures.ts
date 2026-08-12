@@ -5,10 +5,9 @@ import { setEffectiveDomainForTest } from "#shared/config.ts";
 import { settings } from "#shared/db/settings.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
-import { squareApi } from "#shared/square.ts";
+import { squareApi } from "#shared/square/api.ts";
 import { createMockClient } from "#test/test-utils/square/harness.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
-import { withMocks } from "#test-utils/mocks.ts";
 
 type MockImpls = Parameters<typeof createMockClient>[0];
 type SquareMock = ReturnType<typeof createMockClient>;
@@ -19,16 +18,19 @@ type SquareMock = ReturnType<typeof createMockClient>;
  * `getSquareClient` at it, and restores the original afterwards. The mock
  * (with its spyable methods) is handed to the body.
  */
-export const withSquareClient = (
+export const withSquareClient = async <Result>(
   impls: MockImpls,
-  body: (mock: SquareMock) => void | Promise<void>,
-): Promise<void> => {
+  body: (mock: SquareMock) => Result | Promise<Result>,
+): Promise<Result> => {
   const mock = createMockClient(impls);
-  return withMocks(
-    () =>
-      stub(squareApi, "getSquareClient", () => Promise.resolve(mock.client)),
-    () => body(mock),
+  const client = stub(squareApi, "getSquareClient", () =>
+    Promise.resolve(mock.client),
   );
+  try {
+    return await body(mock);
+  } finally {
+    client.restore();
+  }
 };
 
 /** Asserts that creating a payment link for this intent yields no link. */

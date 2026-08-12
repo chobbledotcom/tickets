@@ -7,9 +7,11 @@ import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
 import { withEntityLoader } from "#routes/admin/entity-handlers.ts";
 import {
   AUTH_FORM,
+  type AuthPolicy,
   type AuthSession,
   formGuard,
   requireSessionOr,
+  type SessionGuard,
 } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { createEntityHandler, type IdFormHandler } from "#routes/entity.ts";
@@ -22,7 +24,7 @@ import { getListingWithAttendeeRaw } from "#shared/db/listings/attendees.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { findByIdThen } from "#shared/find-by-id.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import type { ResponseHandler } from "#shared/response-steps.ts";
+import type { ParamsRoute, ResponseHandler } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type {
   AdminSession,
@@ -36,9 +38,6 @@ export type AttendeeWithListing = {
   attendee: Attendee;
   listing: ListingWithCount;
 };
-
-/** No payment provider configured error (shared with attendee-refunds) */
-export const NO_PROVIDER_ERROR = "No payment provider configured.";
 
 /**
  * Load attendee ensuring it belongs to the specified listing.
@@ -78,7 +77,7 @@ export const withDecryptedAttendee =
 /**
  * Load an attendee (by id alone) plus its HOME listing — the attendee-scoped
  * counterpart of {@link loadAttendeeForListing} for the action routes under
- * /admin/attendees/:id/* (delete, refund, resend-notification). The home
+ * /admin/attendees/:id/* (delete, refund, payment review, notification). The home
  * listing is the attendee's first booking, exactly what the Actions tab keys
  * its links on; an orphan attendee (no bookings) 404s, as it always has.
  */
@@ -97,15 +96,11 @@ export type ListingRouteParams = { id: number };
 /** Route params for listing-scoped attendee routes */
 type AttendeeRouteParams = { listingId: number; attendeeId: number };
 
-/** GET/POST handler pair for the attendee-scoped action routes. */
+/** Shared loader for attendee-scoped GET and POST action handlers. */
 const attendeeActionHandler = createEntityHandler<
   AttendeeIdRouteParams,
   AttendeeWithListing
 >(({ attendeeId }) => loadAttendeeWithHomeListing(attendeeId));
-const attendeeActionHandlers = {
-  get: attendeeActionHandler(requireSessionOr),
-  post: attendeeActionHandler(formGuard(AUTH_FORM)),
-};
 
 /** The canonical URL of an attendee-scoped action (confirm page + POST). */
 export const attendeeActionUrl = (attendeeId: number, action: string): string =>
@@ -131,15 +126,16 @@ type AttendeeActionRenderer = (
   error?: string,
 ) => string;
 
-/** GET handler for an attendee-action confirm page: auth, load the attendee +
- * home listing, render with the flashed error and threaded return_url. An
- * optional guard can block the action up front — its message renders in the
- * page at HTTP 400 (the refund page's no-payment/already-refunded states). */
+type AttendeeActionRoute = ParamsRoute<AttendeeIdRouteParams>;
+
+/** Render an attendee confirmation. A guard answers HTTP 400; callers may also
+ * supply a stricter session gate. */
 export const attendeeActionPage = (
   render: AttendeeActionRenderer,
   guard?: (data: AttendeeWithListing) => Promise<string | null>,
-) =>
-  attendeeActionHandlers.get(async (data, session, request) => {
+  requireSession: SessionGuard<AuthSession> = requireSessionOr,
+): AttendeeActionRoute =>
+  attendeeActionHandler(requireSession)(async (data, session, request) => {
     const returnUrl = getReturnUrl(request);
     const blocked = guard ? await guard(data) : null;
     if (blocked !== null) {
@@ -150,13 +146,15 @@ export const attendeeActionPage = (
   });
 
 /** POST handler for an attendee-scoped action that first verifies the typed
- * attendee name, bouncing back to the action's own confirm page on mismatch. */
+ * attendee name, bouncing back to the action's own confirm page on mismatch.
+ * Its form policy can narrow the role allowed to submit. */
 export const verifiedAttendeeAction = (
   action: string,
   actionLabel: string | undefined,
   handler: ResponseHandler<[data: AttendeeWithListing, form: FormParams]>,
-) =>
-  attendeeActionHandlers.post((data, _session, form) => {
+  auth: AuthPolicy<"form"> = AUTH_FORM,
+): AttendeeActionRoute =>
+  attendeeActionHandler(formGuard(auth))((data, _session, form) => {
     const error = verifyOrRedirect(
       form,
       data.attendee.name,

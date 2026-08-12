@@ -31,7 +31,8 @@ ledger.
 | M2 money/resource vocabulary (was PR 2) | Core modules merged inside #2020. Any provider parsing still off those schemas rides with M3 or M4.                                                |
 | M3 provider ownership (was PR 3)        | Complete: #2048 (payment processing core), #2050 (bounded registration delivery), #2060 (observation boundary + SumUp callback wiring; F2 closed). |
 | M11 verifier slice (was PR 13)          | Started early in #2056 — the verifier is read-only and parallelizable.                                                                             |
-| M4–M10 and M12–M13                      | Not started.                                                                                                                                       |
+| M4 settled-money diagnosis (was PR 4)   | PR A is built on #2065. Its production module map is the `PR4_PLAN.md` "As built" section; the remaining current-path closure is stacked above it. |
+| M5–M10 and M12–M13                      | Not started.                                                                                                                                       |
 
 Budgets below count `src/` lines only. Observed totals run 4–15x the `src/`
 figure once tests, stories, and catalog copy are included (#2020: 714 src lines,
@@ -115,6 +116,21 @@ that ships the behavior:
   the provider again.
 - Every captured charge is stored, but more than one captured charge on one
   payment requires owner review.
+- A legacy provider charge may fund one or more booking obligations. Before an
+  automated refund or ledger reversal can use it, the owner either records an
+  exact allocation of its captured Money across those obligations or rejects the
+  automated action. Every part is positive, uses the charge currency, and the
+  parts sum exactly to the captured amount. The system never invents an equal,
+  proportional, first-attendee, or current-row split.
+- Returning cash and cancelling a booking obligation are separate effects. A
+  confirmed provider refund records only the cash that charge returned. An
+  obligation cancellation reverses its sale, modifier, and fee facts exactly
+  once under the stable obligation identity. Neither effect implies the other.
+- When one payment under an obligation returns while another remains captured,
+  the owner makes a required, revision-fenced choice with no default: keep the
+  booking and make the returned amount due, return all remaining cash and then
+  cancel, or cancel now while keeping the retained cash as visible refund work
+  owed to the buyer.
 - A queued owner email uses the current business address at send time. Its body
   and buyer facts remain the stored payment snapshot.
 - An incomplete or contradictory legacy record is copied without invented facts,
@@ -228,6 +244,15 @@ merged bottom-up). Provider cutovers move Stripe, Square, and SumUp together
 behind exhaustive records keyed by provider, so adding or omitting a provider is
 a compile error.
 
+The approved work lands in two stacks. The current-path stack adds exhaustive
+provider outcomes, legacy-reference readiness, one canonical refund plan with a
+whole-run budget, exact claims and provider permits, one transition repository
+for callback/admin/refresh settlement, and owner-visible payment cases. The
+aggregate stack makes attendee merge atomic, cuts checkout and reads over to
+stable booking obligations with exact allocations, then replaces every refund
+path with the durable allocation-driven engine and exact cancellation effects.
+Each layer removes the live path it replaces and stands alone green.
+
 ### Stack A — finish the current path (M3–M5)
 
 #### M3: Check provider ownership on the current path (was PR 3, in flight)
@@ -245,6 +270,12 @@ be used to amplify outbound requests.
 #### M4: One diagnosis for settled money — fail-closed cutovers only (was PR 4)
 
 Src target: 400–700.
+
+PR #2065 is PR A and is already built. Its actual files, exported names, tests,
+and known differences are mapped under `PR4_PLAN.md` "As built"; that map and
+the code it names override the planned-port prose below. The remaining M4 layers
+own exhaustive provider outcomes, current-run planning and budgets,
+callback/refresh claims, and durable transitions and review writes.
 
 - Adapt the conflict, `outcomeOf`, and refund-accounting pure modules.
   `outcomeOf` replaces the current callback and refund classification as the
@@ -536,18 +567,17 @@ over).
   recorded. Today's `processRefundBatch` loops every group unbounded, and that
   shape does not survive the move. Each queued page is self-contained: it
   carries the provider-qualified payment identities, amounts, and allocation
-  facts it acts on — never a live attendee lookup. Refunding a reservation
-  separates two kinds of reversal: each payment page returns and reverses only
-  the cash that payment actually moved (the deposit's charge, the balance's
-  charge), while the booking-level obligation — sale, modifier, and fee facts
-  shared by all of that reservation's payments — is cancelled exactly once,
-  idempotently, however many payments the refund touches. That cancellation is
-  recorded as a completion effect under one stable booking-level identity,
-  claimed atomically with the refund result, so recovery retries it when the
-  provider reversal succeeded but the local write failed — and can never run it
-  twice. The buyer gets back what they paid, nothing is reversed twice, and a
-  cancelled booking leaves no debt behind. Each queued item also stores the
-  payment-evidence revision it was built from, and the claiming transaction
+  facts it acts on — never a live attendee lookup. Cash return and booking
+  cancellation are separate durable effects. Each payment page returns and posts
+  only the cash that payment moved. The booking obligation owns the sale,
+  modifier, and fee facts shared by those payments; cancelling it is a separate
+  effect under the stable obligation identity, claimed atomically with its
+  decision and applied exactly once. When only some payments have returned,
+  cancellation waits for the required owner choice: keep the booking and make
+  the return due, return all remaining cash then cancel, or cancel now while
+  retained cash stays visible as refund work. Recovery may retry either effect,
+  but cannot turn one into the other or cancel twice. Each queued item stores
+  the payment-evidence revision it was built from, and the claiming transaction
   re-runs the outcome and blocking-case checks before every provider call: a
   payment whose evidence moved on — a second captured charge, an external
   refund, a newly opened case — parks as owner-review work instead of being
@@ -582,11 +612,13 @@ over).
   fail-closed cases carry their own required decision, shipped here: the owner
   supplies verified evidence for every missing fact the condition names —
   provider, account, captured amount, currency, and completion state, any of
-  which the engine's provider re-read may confirm or supply deterministically —
-  and, when one reference spans several attendees, assigns the charge to exactly
-  one attendee — after which the refund proceeds through the engine; or the
-  owner rejects the refund. This is the same owner-evidence rule M11 applies to
-  ambiguous account assignment.
+  which the engine's provider re-read may confirm or supply deterministically. A
+  shared reference is either rejected or allocated across one or more stable
+  obligations with positive Money parts in the captured currency that sum
+  exactly to the captured amount. The decision is revision-fenced and becomes
+  the authority for refund cash and ledger effects. There is no inferred split.
+  This is the same owner-evidence rule M11 applies to ambiguous account
+  assignment.
 - Delete every replaced refund path and prove no production caller remains.
 
 Standalone value: every refund has the same retry, evidence, and Money

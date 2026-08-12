@@ -20,13 +20,12 @@ import {
   execute,
   executeBatchWithResults,
   resultRows,
+  withTransaction,
 } from "#shared/db/client.ts";
-import {
-  encryptPaymentReference,
-  paymentReferenceIndex,
-} from "#shared/db/payment-references.ts";
+import { preparePaymentReferenceWrite } from "#shared/db/payment-reference-store.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { isoBefore, nowIso } from "#shared/now.ts";
+import type { PaymentReference } from "#shared/payment/provider-reference.ts";
 import {
   type StoredPaymentFailure,
   StoredPaymentFailureSchema,
@@ -178,24 +177,50 @@ export const encryptTicketTokens = (
 export const finalizeSessionIfUnresolved = async (
   sessionId: string,
   attendeeId: number,
-  paymentReference = "",
+  paymentReference: PaymentReference | null,
 ): Promise<void> => {
   // The index goes in with the reference it indexes, never separately: a
   // refund claim finds another row holding the same money by that column, so a
   // reference stored without one is money no claim can see.
-  const refClause = paymentReference
+  const referenceWrite = await preparePaymentReferenceWrite(paymentReference);
+  const storedReference = referenceWrite.stored;
+  const refClause = storedReference
     ? ", payment_reference = ?, payment_reference_index = ?"
     : "";
-  const refParams = paymentReference
-    ? [
-        await encryptPaymentReference(paymentReference),
-        await paymentReferenceIndex(paymentReference),
-      ]
+  const refParams = storedReference
+    ? [storedReference.encrypted, storedReference.index]
     : [];
-  await execute(
-    `UPDATE processed_payments SET attendee_id = ?${refClause} WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
-    [attendeeId, ...refParams, sessionId],
-  );
+  if (paymentReference === null) {
+    await execute(
+      `UPDATE processed_payments SET attendee_id = ? WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
+      [attendeeId, sessionId],
+    );
+    return;
+  }
+  const referenceClaim = referenceWrite.claim;
+  await withTransaction(async (tx) => {
+    const finalized = await tx.execute({
+      args: [attendeeId, ...refParams, sessionId, ...referenceClaim.args],
+      sql: `UPDATE processed_payments
+               SET attendee_id = ?${refClause}
+             WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}
+               AND ${referenceClaim.sql}`,
+    });
+    if (finalized.rowsAffected > 0) return;
+    const blocked = await tx.execute({
+      args: [sessionId, ...referenceClaim.args],
+      sql: `SELECT 1
+              FROM processed_payments AS payment
+             WHERE payment.payment_session_id = ?
+               AND ${UNRESOLVED_RESERVATION}
+               AND NOT (${referenceClaim.sql})`,
+    });
+    if (resultRows(blocked).length > 0) {
+      throw new Error(
+        `Payment ${sessionId} cannot finalize while its reference is held`,
+      );
+    }
+  });
 };
 
 /**

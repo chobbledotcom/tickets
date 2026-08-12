@@ -23,13 +23,18 @@ import {
 } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { sendRefundIfAdmitted } from "#shared/payment/admit-refund.ts";
-import { isResourceId } from "#shared/payment/resource-id.ts";
-import type { SessionRejection } from "#shared/payment/validated-session.ts";
+import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
+import type { RefundActionResult } from "#shared/payment/refund-attempt.ts";
+import {
+  paidPaymentReferenceOf,
+  type SessionRejection,
+} from "#shared/payment/validated-session.ts";
 import { reportWithheldRefund } from "#shared/payment-review.ts";
 import { parsePriceProof, verifyPrice } from "#shared/payment-signature.ts";
 import {
   type ExistingPaymentProvider,
   getPaymentProviderForExistingPayments,
+  loadPaymentProvider,
   type ValidatedPaymentSession,
 } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
@@ -43,11 +48,9 @@ export const failureDetail = (result: PaymentFailureResult): string =>
   result.detail ?? result.error;
 
 /**
- * Resolve the provider for refunding or reconciling an existing payment. Falls
- * back to the last activated provider when new sales are off, so refunds keep
- * working after the operator switches new sales off. When none is configured,
- * log a structured error with the caller's code/detail and return null, so each
- * caller can pick its own fallback (a false, a 400, ...).
+ * Resolve the configured provider for an incoming webhook. Falls back to the
+ * last activated provider when new sales are off. When none is configured, log
+ * the caller's structured error before returning null.
  */
 export const getPaymentProviderOrLog = async (
   code: ErrorCodeType,
@@ -89,10 +92,13 @@ export const refundRejectedCharge = async (
   ) {
     return NOTHING_TO_REFUND;
   }
-  // The charge's own numbers are what was malformed, so the guard cannot read
-  // them to decide. Refusing here answers 503 for ever and leaves the buyer
-  // charged with no route back.
-  const refunded = await tryRefund(rejection.paymentReference, undefined, true);
+  // The verified proof establishes ownership, but the refund amount comes from a
+  // fresh provider read: malformed charges may have captured a different sum.
+  const refunded = await tryRefund({
+    kind: "tagged",
+    provider: rejection.provider,
+    reference: rejection.paymentReference,
+  });
   return { refunded, settled: refunded };
 };
 
@@ -123,50 +129,47 @@ export const answerRejectedSession = async (
  * Logs an error if refund fails.
  */
 export const tryRefund = async (
-  paymentReference: string,
+  reference: TaggedPaymentReference,
   listingId?: number,
-  /** Set only by the rejected-charge recovery — see `sendRefundIfAdmitted`. */
-  sendWhenUnreadable = false,
 ): Promise<boolean> => {
-  // A blank or whitespace-only provider resource id names no charge to refund,
-  // so the refund is refused before any provider call. The provider boundary
-  // already rejects a paid session with a blank id; this is the safety net for
-  // a reference that reaches here from a stored or legacy row.
-  if (!isResourceId(paymentReference)) return false;
-
-  const provider = await getPaymentProviderOrLog(
-    ErrorCode.PAYMENT_REFUND,
-    "No payment provider configured for refund",
-    listingId,
-  );
-  if (!provider) return false;
+  const paymentReference = reference.reference;
+  const provider = await loadPaymentProvider(reference.provider);
 
   // Ask what the money has already done before sending any more. Stripe and
   // Square reject a second full refund themselves, but SumUp has no idempotency
   // key, so there an unguarded re-attempt pays the buyer twice.
-  return sendRefundIfAdmitted(
-    provider,
-    paymentReference,
-    {
-      failed: () => {
-        logError({
-          code: ErrorCode.PAYMENT_REFUND,
-          detail: `Failed to refund payment ${paymentReference}`,
-          listingId,
-        });
-        return false;
-      },
-      sent: () => {
-        logDebug("Payment", "Refund issued");
-        return true;
-      },
-      withhold: (admission) => {
-        reportWithheldRefund(admission, { listingId, paymentReference });
-        return admission.kind === "already_returned";
-      },
-    },
-    sendWhenUnreadable,
-  );
+  const result = await sendRefundIfAdmitted(provider, paymentReference);
+  return refundResultSucceeded(result, { listingId, paymentReference });
+};
+
+type RefundLogContext = {
+  listingId?: number | undefined;
+  paymentReference: string;
+};
+
+/** Accepted means the provider took responsibility, not that money returned. */
+const refundResultSucceeded = (
+  result: RefundActionResult<Parameters<typeof reportWithheldRefund>[0]>,
+  { listingId, paymentReference }: RefundLogContext,
+): boolean => {
+  if (result.kind === "withheld") {
+    reportWithheldRefund(result.admission, { listingId, paymentReference });
+    return result.admission.kind === "already_returned";
+  }
+  if (result.kind === "completed") {
+    logDebug("Payment", "Refund completed");
+    return true;
+  }
+  if (result.kind === "accepted") {
+    logDebug("Payment", "Refund accepted but not completed");
+    return false;
+  }
+  logError({
+    code: ErrorCode.PAYMENT_REFUND,
+    detail: `Refund ${result.kind} for payment ${paymentReference} (${result.reason})`,
+    listingId,
+  });
+  return false;
 };
 
 /** Attempt refund and log activity if successful */
@@ -175,7 +178,7 @@ const refundAndLog = async (
   error: string,
   listingId: number,
 ): Promise<boolean> => {
-  const refunded = await tryRefund(session.paymentReference, listingId);
+  const refunded = await tryRefund(paidPaymentReferenceOf(session), listingId);
   if (refunded) {
     await logActivity(`Automatic refund: ${error}`, listingId);
   }

@@ -1,15 +1,13 @@
 import type { InValue } from "@libsql/client";
 import { attendeeOwedSubquery } from "#shared/accounting/projection-sql.ts";
 import type { SqlStatement } from "#shared/db/client.ts";
-import {
-  encryptPaymentReference,
-  paymentReferenceIndex,
-} from "#shared/db/payment-references.ts";
+import { preparePaymentReferenceWrite } from "#shared/db/payment-reference-store.ts";
 import {
   encryptTicketTokens,
   UNRESOLVED_RESERVATION,
 } from "#shared/db/processed-payments.ts";
 import { CLAIM_MIRROR } from "#shared/payment/admit-move.ts";
+import type { PaymentReference } from "#shared/payment/provider-reference.ts";
 
 /** Abort a batch unless the immediately preceding finalize updated one row.
  * `requiredWhen` lets a conditional operation remain a normal no-op when its
@@ -43,32 +41,36 @@ const buildFinalizeStatements = async (
   attendeeIdSql: string,
   attendeeIdArgs: InValue[],
   sessionId: string,
-  paymentReference: string,
+  paymentReference: PaymentReference | null,
   ticketTokens: string[],
   guard: string,
   guardArgs: InValue[] = [],
   standDownWhen = "1 = 1",
-): Promise<SqlStatement[]> => [
-  {
-    args: [
-      ...attendeeIdArgs,
-      await encryptTicketTokens(ticketTokens),
-      await encryptPaymentReference(paymentReference),
-      await paymentReferenceIndex(paymentReference),
-      sessionId,
-      ...guardArgs,
-    ],
-    // The blind index is written by the same statement as the reference it
-    // indexes, so a row can never carry one without the other — a refund claim
-    // looks rows up by it to find another row holding the same money.
-    sql: `UPDATE processed_payments
+): Promise<SqlStatement[]> => {
+  const referenceWrite = await preparePaymentReferenceWrite(paymentReference);
+  return [
+    {
+      args: [
+        ...attendeeIdArgs,
+        await encryptTicketTokens(ticketTokens),
+        referenceWrite.stored?.encrypted ?? "",
+        referenceWrite.stored?.index ?? "",
+        sessionId,
+        ...guardArgs,
+        ...referenceWrite.claim.args,
+      ],
+      // The blind index is written by the same statement as the reference it
+      // indexes, so a row can never carry one without the other — a refund claim
+      // looks rows up by it to find another row holding the same money.
+      sql: `UPDATE processed_payments
           SET attendee_id = ${attendeeIdSql}, ticket_tokens = ?, payment_reference = ?,
               payment_reference_index = ?
           WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}
-            AND ${guard} AND ${standDownWhen}`,
-  },
-  paymentFinalizeGuard(guard, guardArgs),
-];
+            AND ${guard} AND ${referenceWrite.claim.sql} AND ${standDownWhen}`,
+    },
+    paymentFinalizeGuard(guard, guardArgs),
+  ];
+};
 
 /** Finalize a newly-created attendee and persist its stable ticket token. The
  * returned guard must stay immediately after the UPDATE in the batch. */
@@ -76,7 +78,7 @@ export const batchFinalizeStatements = (
   sessionId: string,
   attendeeIdSql: string,
   attendeeIdArg: InValue,
-  paymentReference: string,
+  paymentReference: PaymentReference | null,
   ticketToken: string,
 ): Promise<SqlStatement[]> =>
   buildFinalizeStatements(
@@ -94,7 +96,7 @@ export const balanceFinalizeStatements = (
   sessionId: string,
   attendeeId: number,
   expectedAmount: number,
-  paymentReference: string,
+  paymentReference: PaymentReference,
 ): Promise<SqlStatement[]> =>
   buildFinalizeStatements(
     "?",

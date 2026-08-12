@@ -1,16 +1,11 @@
 /**
- * Taking and letting go of the hold a refund run keeps on an attendee's
- * payment rows. A run claims every row it will touch before it reads a
- * provider and keeps the claim until it has written down what happened, so two
- * runs can never both decide one untouched charge is refundable.
- *
- * All-or-none per attendee: splitting a merged attendee's references between
- * two runs would move part of someone's money and leave the rest.
+ * Reading, rewriting, and letting go of the rows a refund run holds. Taking
+ * the all-or-none hold lives in `payment-claim/take.ts`.
  */
 
 /* jscpd:ignore-start -- imports */
 import type { InValue } from "@libsql/client";
-import { mapNotNullish } from "#fp";
+import { mapNotNullish, requiredMapValue } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
@@ -20,22 +15,14 @@ import {
   resultRows,
   type SqlStatement,
   type TxScope,
-  withTransaction,
 } from "#shared/db/client.ts";
-import { STALE_RESERVATION_MS } from "#shared/limits.ts";
-import { isoBefore, nowIso } from "#shared/now.ts";
+import { nowIso } from "#shared/now.ts";
 import { mirrorFor } from "#shared/payment/admit-move.ts";
-import {
-  type ClaimDecision,
-  claimLeaseMs,
-  decideClaim,
-  holdsTheRow,
-} from "#shared/payment/claim.ts";
+import type { PaymentReviewReason } from "#shared/payment/review.ts";
 import {
   EMPTY_ROW_STATE,
   isEmptyRowState,
   type PaymentRowState,
-  type RefundCapability,
   readRowState,
   writeRowState,
 } from "#shared/payment/row-state.ts";
@@ -53,29 +40,7 @@ export type PaymentRowRecord = {
   readonly state: PaymentRowState;
 };
 
-/** What happened when a run asked for an attendee's rows. */
-export type ClaimResult =
-  | { blockedBy: ClaimDecision; kind: "blocked" }
-  | {
-      /** Each attendee's claimed rows, kept apart so a run can let one
-       *  attendee go while another's answer is still in doubt. Settlement is
-       *  per attendee, so the release has to be too. */
-      held: ReadonlyMap<number, readonly string[]>;
-      heldSince: string;
-      kind: "claimed";
-      /** The attendees whose hold was INHERITED from a run that died without
-       *  saying what its money did, and the capability that run made its call
-       *  under. Their doubt is still open, so learning nothing this time must
-       *  not settle it — and the risk belongs to the call that was made, not
-       *  to whatever provider is selected now. */
-      inherited: ReadonlyMap<number, RefundCapability>;
-      /** The reference indexes whose claimed row already says the money went
-       *  back. Read instead of the reference list this run loaded before it
-       *  had the hold, which can predate another run's answer. */
-      returned: ReadonlySet<string>;
-    };
-
-type StoredRow = {
+export type StoredPaymentClaimRow = {
   attendee_id: number | null;
   failure_data: EnvKeyEncrypted | "";
   payment_reference_index: string;
@@ -85,47 +50,25 @@ type StoredRow = {
 
 /** One place says which columns a claim needs, so no reader can build a
  *  `StoredRow` that is missing one. */
-const claimRowsSql = (where: string): string =>
+export const paymentClaimRowsSql = (where: string): string =>
   `SELECT payment_session_id, attendee_id, failure_data,
           payment_reference_index, provider_refunded_at
      FROM processed_payments AS payment
     WHERE ${where}`;
 
-const readRows = async (
+export const readPaymentClaimRows = async (
   tx: TxScope,
   where: string,
   args: InValue[],
-): Promise<StoredRow[]> =>
-  resultRows<StoredRow>(await tx.execute({ args, sql: claimRowsSql(where) }));
-
-/** Every row holding this attendee's refundable money, plus every OTHER row
- *  carrying the same provider reference — a claim anywhere on the reference is
- *  a claim on the money, so two attendees sharing one legacy charge cannot
- *  race two payouts against it. */
-const readClaimableRows = async (
-  tx: TxScope,
-  attendeeIds: readonly number[],
-): Promise<{ own: StoredRow[]; sharing: StoredRow[] }> => {
-  const own = await readRows(
-    tx,
-    `attendee_id IN (${inPlaceholders(attendeeIds)}) AND payment_reference != ''`,
-    [...attendeeIds],
+): Promise<StoredPaymentClaimRow[]> =>
+  resultRows<StoredPaymentClaimRow>(
+    await tx.execute({ args, sql: paymentClaimRowsSql(where) }),
   );
-  const indexes = own
-    .map((row) => row.payment_reference_index)
-    .filter((index) => index !== "");
-  if (indexes.length === 0) return { own, sharing: [] };
-  const sharing = await readRows(
-    tx,
-    `attendee_id NOT IN (${inPlaceholders(attendeeIds)})
-       AND payment_reference_index IN (${inPlaceholders(indexes)})`,
-    [...attendeeIds, ...indexes],
-  );
-  return { own, sharing };
-};
 
 /** Read one stored row into the record it carries. */
-const asRowRecord = async (row: StoredRow): Promise<PaymentRowRecord> => ({
+export const asPaymentRowRecord = async (
+  row: StoredPaymentClaimRow,
+): Promise<PaymentRowRecord> => ({
   attendeeId: Number(row.attendee_id),
   sessionId: row.payment_session_id,
   slot: row.failure_data,
@@ -133,6 +76,11 @@ const asRowRecord = async (row: StoredRow): Promise<PaymentRowRecord> => ({
     ? readRowState(await decrypt(row.failure_data), SLOT)
     : EMPTY_ROW_STATE,
 });
+
+/** Decode the row-state slots returned by either payment-row reader. */
+const asPaymentRowRecords = (
+  rows: readonly StoredPaymentClaimRow[],
+): Promise<PaymentRowRecord[]> => Promise.all(rows.map(asPaymentRowRecord));
 
 /** Every payment row these attendees own, with its record. Unlike the claim's
  *  read this does not filter by reference: a row that no longer names a charge
@@ -142,19 +90,56 @@ export const readAttendeeRowStates = async (
   tx: TxScope,
   attendeeIds: readonly number[],
 ): Promise<PaymentRowRecord[]> =>
-  await Promise.all(
-    (
-      await readRows(tx, `attendee_id IN (${inPlaceholders(attendeeIds)})`, [
-        ...attendeeIds,
-      ])
-    ).map(asRowRecord),
+  await asPaymentRowRecords(
+    await readPaymentClaimRows(
+      tx,
+      `attendee_id IN (${inPlaceholders(attendeeIds)})`,
+      [...attendeeIds],
+    ),
   );
+
+/** Read payment-row work from the primary without opening a write transaction. */
+export const loadAttendeeRowStates = async (
+  attendeeIds: readonly number[],
+): Promise<PaymentRowRecord[]> => {
+  const [read] = await queryBatchPrimary([
+    {
+      args: [...attendeeIds],
+      sql: paymentClaimRowsSql(
+        `attendee_id IN (${inPlaceholders(attendeeIds)})`,
+      ),
+    },
+  ]);
+  return asPaymentRowRecords(resultRows<StoredPaymentClaimRow>(read!));
+};
+
+/** Fail when a confirmer no longer owns every payment row it started with. */
+export const assertRefundRowsHeld = async (
+  tx: TxScope,
+  claim: { heldSince: string; sessionIds: readonly string[] },
+): Promise<void> => {
+  const stored =
+    claim.sessionIds.length === 0
+      ? []
+      : await readPaymentClaimRows(
+          tx,
+          `payment_session_id IN (${inPlaceholders(claim.sessionIds)})`,
+          [...claim.sessionIds],
+        );
+  const rows = await Promise.all(stored.map(asPaymentRowRecord));
+  if (
+    rows.length !== claim.sessionIds.length ||
+    rows.some((row) => row.state.claim?.writtenAt !== claim.heldSince)
+  ) {
+    throw new Error("Refund confirmation no longer owns every payment row");
+  }
+};
 
 /** The one statement that puts a record on a row, with the plain word derived
  *  from that same record so the two cannot disagree. Conditioned on the row
  *  still holding exactly what we read, so a row that changed under us matches
  *  nothing. */
-const rowStateStatement = async (
+export const paymentRowStateStatement = async (
   row: PaymentRowRecord,
   state: PaymentRowState,
 ): Promise<SqlStatement> => ({
@@ -169,113 +154,27 @@ const rowStateStatement = async (
          WHERE payment_session_id = ? AND failure_data = ?`,
 });
 
-/**
- * Claim every row this run will touch, or none of them. One transaction for
- * the whole run, so it costs the same two round trips however many attendees
- * it covers and cannot end up holding some but not others.
- *
- * Each row's claim names the attendee it belongs to, not the run, so a crashed
- * wave is resumed one attendee at a time.
- */
-export const claimAttendeeRows = async (
-  attendeeIds: readonly number[],
-  capability: RefundCapability,
-): Promise<ClaimResult> => {
-  if (attendeeIds.length === 0) {
-    return {
-      held: new Map(),
-      heldSince: nowIso(),
-      inherited: new Map(),
-      kind: "claimed",
-      returned: new Set(),
+export type PaymentReviewChange =
+  | { readonly kind: "review"; readonly reason: PaymentReviewReason }
+  | {
+      readonly kind: "resolved";
+      readonly reason: PaymentReviewReason["kind"];
     };
-  }
-  const writtenAt = nowIso();
-  const staleBefore = isoBefore(claimLeaseMs(STALE_RESERVATION_MS));
-  return await withTransaction(async (tx) => {
-    const stored = await readClaimableRows(tx, attendeeIds);
-    const rows = await Promise.all(stored.own.map(asRowRecord));
-    // Seeing a competing claim is enough: write transactions run one at a
-    // time, so a rival has either committed before we look or cannot start
-    // until we are done.
-    const sharing = await Promise.all(stored.sharing.map(asRowRecord));
-    // Our own rows are judged as their attendee's, which is what lets a
-    // crashed run be picked up one attendee at a time.
-    const judged = rows.map((row) => ({
-      decision: decideClaim(
-        row.state.claim,
-        { attendeeId: row.attendeeId, scope: "attendee_set" },
-        staleBefore,
-      ),
-      row,
-    }));
-    const refused = judged.find(({ decision }) => !holdsTheRow(decision));
-    if (refused !== undefined) {
-      return { blockedBy: refused.decision, kind: "blocked" };
-    }
-    // Someone else's row stops us whether its claim is stale or not: we never
-    // write to it, so we could not take it over, and sending against money
-    // another claim still holds is how one charge is refunded twice.
-    if (sharing.some((row) => row.state.claim !== undefined)) {
-      return { blockedBy: { kind: "foreign" }, kind: "blocked" };
-    }
-    // A resumed row keeps the capability its original call was made under: a
-    // lost keyless call stays keyless however this run reaches the provider.
-    const inherited = new Map(
-      judged.flatMap(({ decision, row }) =>
-        decision.kind === "resume"
-          ? [[row.attendeeId, decision.resuming.capability] as const]
-          : [],
-      ),
-    );
-    // One batch, not one call per row: a merged attendee can carry many
-    // charges, and each `execute` is a subrequest the run has to fit inside
-    // Bunny's cap before it has even reached the provider.
-    await tx.batch(
-      await Promise.all(
-        rows.map((row) =>
-          rowStateStatement(row, {
-            ...row.state,
-            claim: {
-              attendeeId: row.attendeeId,
-              capability: inherited.get(row.attendeeId) ?? capability,
-              scope: "attendee_set",
-              writtenAt,
-            },
-          }),
-        ),
-      ),
-    );
-    return {
-      held: new Map(
-        [...Map.groupBy(rows, (row) => row.attendeeId)].map(
-          ([attendeeId, owned]) => [
-            attendeeId,
-            owned.map((row) => row.sessionId),
-          ],
-        ),
-      ),
-      heldSince: writtenAt,
-      inherited,
-      kind: "claimed",
-      // Sharing rows count too: money returned against a reference is
-      // returned for every row carrying it, whoever they belong to.
-      returned: new Set(
-        [...stored.own, ...stored.sharing]
-          .filter((row) => row.provider_refunded_at !== "")
-          .map((row) => row.payment_reference_index),
-      ),
-    };
-  });
+
+export type PaymentBooksChange = "recorded" | "unrecorded";
+
+/** Every change one run can make to one exact row. Omitted facts are
+ * preserved; no absence silently clears an older repair target. */
+export type PaymentRowSettlement = {
+  readonly books?: PaymentBooksChange;
+  readonly claim: "keep" | "release";
+  readonly review?: PaymentReviewChange;
 };
 
-/** The rows a run is letting go of, the claim it is letting go of them under,
- *  and which of them carry money the books have not caught up with. One shape
- *  because the three always travel together. */
-export type RowRelease = {
-  heldSince: string;
-  sessionIds: readonly string[];
-  unrecorded?: ReadonlySet<string>;
+/** The exact row transitions made under one durable claim. */
+export type RowSettlement = {
+  readonly heldSince: string;
+  readonly rows: ReadonlyMap<string, PaymentRowSettlement>;
 };
 
 /**
@@ -285,11 +184,10 @@ export type RowRelease = {
  * staleness cutoff must not strip the live claim off work another run has
  * since resumed.
  *
- * `unrecorded` names the sessions whose money went back with no ledger entry.
- * The mark goes on as the hold comes off, so the row that proves the money
- * moved is never left unprotected in between — and letting go without it
- * clears an older mark, which is how the state retires when a later run's
- * ledger post finally lands.
+ * A row can keep its claim while recording a discovered review or missed
+ * ledger write. This matters when one sibling is settled and another provider
+ * answer is still in doubt. Every other field is preserved unless its change
+ * is named explicitly.
  */
 const rewriteRows = async (
   sessionIds: readonly string[],
@@ -303,69 +201,77 @@ const rewriteRows = async (
   const [read] = await queryBatchPrimary([
     {
       args: [...sessionIds],
-      sql: claimRowsSql(
+      sql: paymentClaimRowsSql(
         `payment_session_id IN (${inPlaceholders(sessionIds)})`,
       ),
     },
   ]);
-  const rows = await Promise.all(resultRows<StoredRow>(read!).map(asRowRecord));
+  const rows = await asPaymentRowRecords(
+    resultRows<StoredPaymentClaimRow>(read!),
+  );
   const writes = await Promise.all(
     mapNotNullish((row: PaymentRowRecord) => {
       const state = next(row);
       return state === null ? undefined : { row, state };
-    })(rows).map(({ row, state }) => rowStateStatement(row, state)),
+    })(rows).map(({ row, state }) => paymentRowStateStatement(row, state)),
   );
   if (writes.length > 0) await executeBatch(writes);
 };
 
-/** The row's record with its books-behind word put on or taken off, leaving
- *  everything else it carries exactly as it was. Both writers of that word go
- *  through here, so neither can disturb what the other leaves alone. */
-const sayingBooksAreBehind = (
+/** Put on or take off the row's books-behind word without disturbing its
+ * other state. A retry keeps the date the first failed ledger write stored. */
+const withBooksChange = (
   state: PaymentRowState,
-  marked: boolean,
+  change: PaymentBooksChange | undefined,
 ): PaymentRowState => {
+  if (change === undefined) return state;
   const { unrecorded: _was, ...kept } = state;
-  return marked ? { ...kept, unrecorded: { returnedAt: nowIso() } } : kept;
+  if (change === "recorded") return kept;
+  return {
+    ...kept,
+    unrecorded:
+      state.unrecorded === undefined
+        ? { returnedAt: nowIso() }
+        : state.unrecorded,
+  };
 };
 
-export const releaseAttendeeRows = ({
+/** Apply only the review decision this run made, preserving it when the run
+ * made none. */
+const withReviewChange = (
+  state: PaymentRowState,
+  change: PaymentReviewChange | undefined,
+): PaymentRowState => {
+  if (change === undefined) return state;
+  if (change.kind === "resolved" && state.review?.kind !== change.reason) {
+    return state;
+  }
+  const { review: _was, ...kept } = state;
+  return change.kind === "resolved" ? kept : { ...kept, review: change.reason };
+};
+
+const withClaimChange = (
+  state: PaymentRowState,
+  change: PaymentRowSettlement["claim"],
+): PaymentRowState => {
+  if (change === "keep") return state;
+  const { claim: _released, ...kept } = state;
+  return kept;
+};
+
+export const settleAttendeeRows = ({
   heldSince,
-  sessionIds,
-  unrecorded = new Set(),
-}: RowRelease): Promise<void> =>
-  rewriteRows(sessionIds, (row) => {
+  rows,
+}: RowSettlement): Promise<void> =>
+  rewriteRows([...rows.keys()], (row) => {
     if (row.state.claim?.writtenAt !== heldSince) return null;
-    // Letting the claim go does not clear the row: an owner review it still
-    // carries has to keep showing.
-    const { claim: _released, ...held } = row.state;
-    return sayingBooksAreBehind(held, unrecorded.has(row.sessionId));
-  });
-
-/**
- * Put on, or take off, the row's word that its money went back and the books
- * have not caught up.
- *
- * For the paths that DISCOVER a refund rather than send one — the refresh
- * route finds the provider already returned a charge. Without a claim to let
- * go of, these are the only writers of that word, so both halves live here:
- * the marker whose absence would let the row be deleted before anyone reaches
- * the correction, and its retirement when a later run's ledger post lands. A
- * marker nothing can take off is its own trap — a placeholder never enters the
- * refund route that clears one, so it would refuse deletion for good.
- *
- * Either half leaves a row that already says what is wanted completely alone,
- * so repeated refreshes neither move the date somebody is meant to be looking
- * into nor touch a row they have nothing to say about.
- */
-const returnedUnrecorded =
-  (marked: boolean) =>
-  (sessionIds: readonly string[]): Promise<void> =>
-    rewriteRows(sessionIds, (row) =>
-      (row.state.unrecorded !== undefined) === marked
-        ? null
-        : sayingBooksAreBehind(row.state, marked),
+    const change = requiredMapValue(
+      rows,
+      row.sessionId,
+      `Refund settlement lost payment row ${row.sessionId}`,
     );
-
-export const markReturnedUnrecorded = returnedUnrecorded(true);
-export const clearReturnedUnrecorded = returnedUnrecorded(false);
+    return withClaimChange(
+      withReviewChange(withBooksChange(row.state, change.books), change.review),
+      change.claim,
+    );
+  });

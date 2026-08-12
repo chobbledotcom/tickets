@@ -1,5 +1,7 @@
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import type { Money } from "#shared/payment/money.ts";
+import type { ProviderRead } from "#shared/payment/provider-read.ts";
+import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
 import type {
   ChargeMoney,
   ProviderRefundResource,
@@ -71,6 +73,34 @@ export const chargeMoneyWith = (
   ...values,
 });
 
+/** A successful explicit read of charge money for provider fakes. */
+export const foundCharge = (
+  charge: ChargeMoney = chargeMoney(),
+): ProviderRead<ChargeMoney> => ({ resource: charge, status: "found" });
+
+/** Provider reads that cannot establish any charge money. */
+export const unreadChargeCases = [
+  ["missing", { status: "missing" }],
+  ["unavailable", { reason: "timeout", status: "unavailable" }],
+  ["invalid", { reason: "malformed_money", status: "invalid" }],
+] as const satisfies readonly (readonly [string, ProviderRead<ChargeMoney>])[];
+
+/** A provider fake's confirmed full refund of the charge it was handed. */
+export const completedRefund = (charge: ChargeMoney): RefundAttemptResult => ({
+  amount: charge.captured,
+  kind: "completed",
+  proof: { charge, kind: "charge_observation" },
+});
+
+/** A provider accepted the exact charge refund but has not completed it. */
+export const acceptedRefund = (
+  charge: ChargeMoney = chargeMoney(),
+): RefundAttemptResult => ({
+  amount: charge.captured,
+  kind: "accepted",
+  proof: { charge, kind: "charge_observation" },
+});
+
 /** A charge that gave some of the money back but not all of it — what a
  *  "partly refunded" problem is actually made of. */
 export const partlyRefundedCharge = (): ChargeMoney =>
@@ -84,10 +114,17 @@ export const partlyRefundedCharge = (): ChargeMoney =>
  *  one, or a charge whose rows are all anchors. */
 export const refundReference = (
   reference: string,
-  values: Partial<RefundPaymentReference> = {},
+  values: Partial<
+    Omit<
+      Extract<RefundPaymentReference, { kind: "untagged" }>,
+      "kind" | "reference"
+    >
+  > = {},
 ): RefundPaymentReference => ({
   heldRowSessionIds: [],
   index: `index_of_${reference}`,
+  kind: "untagged",
+  matchingIndexes: [`index_of_${reference}`],
   reference,
   refundState: "none",
   rowSessionIds: [`sess_${reference}`],

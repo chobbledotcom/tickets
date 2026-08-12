@@ -51,6 +51,8 @@ import {
   reserveSession,
 } from "#shared/db/processed-payments.ts";
 import { logDebug } from "#shared/logger.ts";
+import type { PaymentReference } from "#shared/payment/provider-reference.ts";
+import { paymentReferenceOf } from "#shared/payment/validated-session.ts";
 import type { BookingLedgerDisposition } from "#shared/session-ledger.ts";
 
 /** The shared shape of the two-phase session processors: reserve/process a paid
@@ -98,7 +100,7 @@ const replaySuccess = async (
   sessionId: string,
   attendeeId: number,
   listingId: number,
-  paymentReference = "",
+  paymentReference: PaymentReference | null,
 ): Promise<PaymentResult> => {
   await finalizeSessionIfUnresolved(sessionId, attendeeId, paymentReference);
   logDebug("Payment", `Replayed already-ledgered session ${sessionId}`);
@@ -137,7 +139,7 @@ const alreadyHandledSession = (
 const replaySessionFromLedger = async (
   sessionId: string,
   listingId: number,
-  paymentReference: string,
+  paymentReference: PaymentReference | null,
   disposition: BookingLedgerDisposition,
 ): Promise<PaymentResult | null> => {
   switch (disposition.status) {
@@ -155,23 +157,6 @@ const replaySessionFromLedger = async (
   }
 };
 
-/**
- * The balance-settlement counterpart of {@link replaySessionFromLedger}: replay a
- * balance session whose payment leg the ledger already records (its idempotency
- * row was pruned or lost), or null to settle it fresh. The attendee is known from
- * the proof-bound intent, so — unlike the booking path — there is no orphaned
- * case to resolve.
- */
-const replayBalanceFromLedger = async (
-  sessionId: string,
-  attendeeId: number,
-  listingId: number,
-  paymentReference: string,
-): Promise<PaymentResult | null> =>
-  (await eventGroupHasLegs(await balanceEventGroup(sessionId)))
-    ? replaySuccess(sessionId, attendeeId, listingId, paymentReference)
-    : null;
-
 const processNewBookingSession = async (
   sessionId: string,
   data: ValidatedSession,
@@ -188,7 +173,7 @@ const processNewBookingSession = async (
   const replay = await replaySessionFromLedger(
     sessionId,
     signedListingId,
-    session.paymentReference,
+    paymentReferenceOf(session),
     snapshot.ledger,
   );
   if (replay) return replay;
@@ -321,13 +306,14 @@ const processReservedSession: SessionProcessor = async (sessionId, data) => {
     // A balance session whose payment leg is already in the ledger is a replay
     // even if its idempotency row was pruned or lost. Settling it again would
     // find nothing owed and refund a balance that is already paid.
-    const replay = await replayBalanceFromLedger(
-      sessionId,
-      intent.balanceAttendeeId,
-      signedListingId,
-      session.paymentReference,
-    );
-    if (replay) return replay;
+    if (await eventGroupHasLegs(await balanceEventGroup(sessionId))) {
+      return replaySuccess(
+        sessionId,
+        intent.balanceAttendeeId,
+        signedListingId,
+        paymentReferenceOf(session),
+      );
+    }
     if (verdict.verdict === "mismatch") {
       return refuseMismatch(session, verdict.agreed, signedListingId);
     }

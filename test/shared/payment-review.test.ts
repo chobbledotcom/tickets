@@ -37,7 +37,10 @@ describe("reporting a withheld refund", () => {
   const ordinary: WithheldRefund[] = [
     { kind: "already_returned" },
     { kind: "in_flight" },
-    { kind: "unreadable" },
+    {
+      kind: "read_failed",
+      read: { reason: "network_error", status: "unavailable" },
+    },
   ];
 
   for (const admission of ordinary) {
@@ -48,6 +51,21 @@ describe("reporting a withheld refund", () => {
       // settling, a provider that could not be reached. Reporting them would
       // train the operator to ignore the ones that matter.
       expect(errors.calls).toHaveLength(0);
+    });
+  }
+
+  for (const read of [
+    { status: "missing" },
+    { reason: "malformed_response", status: "invalid" },
+  ] as const) {
+    test(`${read.status} provider evidence is an incident`, () => {
+      reportWithheldRefund({ kind: "read_failed", read }, where);
+
+      expect(errors.calls).toHaveLength(1);
+      expect(errors.lastMessage()).toContain(
+        read.status === "missing" ? "does not exist" : "invalid",
+      );
+      expect(errors.lastMessage()).toContain("an owner needs to look at it");
     });
   }
 });

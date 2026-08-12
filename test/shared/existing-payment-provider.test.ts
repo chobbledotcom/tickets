@@ -5,6 +5,7 @@ import {
   CONFIG_KEYS,
   settings,
 } from "#shared/db/settings.ts";
+import { orderedCredentialedPaymentProviderTypes } from "#shared/existing-payment-provider.ts";
 import { getPaymentProviderForExistingPayments } from "#shared/payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { debugLogged, useDebugLogSpy } from "#test-utils/debug-log.ts";
@@ -110,5 +111,48 @@ describeWithEnv("getPaymentProviderForExistingPayments", { db: true }, () => {
     await settings.loadKeys(ALL_SETTINGS_KEYS);
 
     expect((await getPaymentProviderForExistingPayments())?.type).toBe("sumup");
+  });
+
+  test("orders every credentialed provider behind the active provider", async () => {
+    await settings.update.stripe.secretKey("sk_test_order");
+    await settings.update.paymentProvider("stripe");
+    await settings.update.square.accessToken("square_order");
+    await settings.update.sumup.apiKey("sumup_order");
+
+    expect(orderedCredentialedPaymentProviderTypes()).toEqual([
+      "stripe",
+      "square",
+      "sumup",
+    ]);
+  });
+
+  test("orders every credentialed provider behind the remembered provider", async () => {
+    await settings.update.sumup.apiKey("sumup_remembered_order");
+    await settings.update.paymentProvider("sumup");
+    await settings.update.setPaymentProviderNone();
+    await settings.update.square.accessToken("square_remembered_order");
+    await settings.update.stripe.secretKey("sk_test_remembered_order");
+
+    expect(orderedCredentialedPaymentProviderTypes()).toEqual([
+      "sumup",
+      "square",
+      "stripe",
+    ]);
+  });
+
+  test("uses registry order when several providers have no preferred one", async () => {
+    await settings.update.square.accessToken("square_registry_order");
+    await settings.update.stripe.secretKey("sk_test_registry_order");
+    await settings.update.sumup.apiKey("sumup_registry_order");
+    await settings.setRaw(CONFIG_KEYS.PAYMENT_PROVIDER, "none");
+    await settings.setRaw(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, "");
+    settings.invalidateCache();
+    await settings.loadKeys(ALL_SETTINGS_KEYS);
+
+    expect(orderedCredentialedPaymentProviderTypes()).toEqual([
+      "square",
+      "stripe",
+      "sumup",
+    ]);
   });
 });

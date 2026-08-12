@@ -18,6 +18,8 @@ import {
 import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
+import { stripeRefundRequest } from "#test-utils/stripe/fixtures.ts";
+import { foundStripeIntent } from "#test-utils/stripe/responses.ts";
 import {
   checkoutSessionEvent,
   expectWebhookIgnored,
@@ -100,8 +102,11 @@ describeWithEnv(
       // A paid charge the boundary cannot read (fractional amount) with a
       // usable reference is refunded; a refund the provider refuses must not
       // be acked away, so the webhook answers 503 for the provider to retry.
-      const refundStub = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve(null),
+      const refundStub = stub(stripeApi, "refundCharge", () =>
+        Promise.resolve({ kind: "rejected", reason: "rejected" } as const),
+      );
+      const intentStub = stub(stripeApi, "readPaymentIntent", () =>
+        Promise.resolve(foundStripeIntent("pi_malformed", 500)),
       );
       const mockVerify = await stubWebhookVerify(
         checkoutSessionEvent({
@@ -126,7 +131,7 @@ describeWithEnv(
         // the captured charge — a 503 returned before the provider call would
         // leave the money with Stripe and nothing asking for it back.
         expect(refundStub.calls.map((call) => call.args)).toEqual([
-          ["pi_malformed"],
+          [stripeRefundRequest("pi_malformed", 500)],
         ]);
         // Stripe retries silently, so the log is the operator's only sign
         // that a captured charge is sitting unrefunded.
@@ -138,6 +143,7 @@ describeWithEnv(
         ).toBe(true);
       } finally {
         mockVerify.restore();
+        intentStub.restore();
         refundStub.restore();
       }
     });
@@ -201,7 +207,7 @@ describeWithEnv(
       });
       // listing2 does not exist (id 99999) — validation fails before any attendees are created
 
-      const mockRefund = spy(stripeApi, "refundPayment");
+      const mockRefund = spy(stripeApi, "refundCharge");
 
       // Unsigned session (no valid price proof): ignored (200 ack) without
       // processing, without a refund, and without creating any attendee.

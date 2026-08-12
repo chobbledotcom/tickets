@@ -1,9 +1,15 @@
-import { type Stub, stub } from "@std/testing/mock";
+import { type Spy, spy, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import type { RowClaim } from "#routes/admin/refunds/provider.ts";
+import type { RowClaim } from "#routes/admin/refunds/claim.ts";
+import type { InheritedRefundCapabilities } from "#shared/db/payment-claim/take.ts";
+import type { PaymentReviewChange } from "#shared/db/payment-claim.ts";
 import { settings } from "#shared/db/settings.ts";
+import type {
+  RefundAttemptResult,
+  RefundRequest,
+} from "#shared/payment/refund-attempt.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
-import type { RefundCapability } from "#shared/payment/row-state.ts";
+import type { PaymentReviewReason } from "#shared/payment/review.ts";
 import { paymentsApi } from "#shared/payments.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
@@ -12,7 +18,13 @@ import {
   mockProviderType,
   withMocks,
 } from "#test-utils/mocks.ts";
-import { chargeMoney, fullyRefundedMoney } from "#test-utils/payment-state.ts";
+import {
+  acceptedRefund,
+  chargeMoney,
+  completedRefund,
+  foundCharge,
+  fullyRefundedMoney,
+} from "#test-utils/payment-state.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
 
 /** What a "was it refunded?" answer looks like as charge money. */
@@ -32,16 +44,38 @@ type RefundRouteCtx = {
   listing: Pick<Listing, "id" | "name">;
 };
 
-type RefundCheck = (mockRefund: Stub) => Promise<void> | void;
-type RefundBehavior = boolean | ((reference: string) => Promise<boolean>);
+type RefundBehavior = (request: RefundRequest) => Promise<RefundAttemptResult>;
+type RefundSpy = Spy<unknown, [RefundRequest], Promise<RefundAttemptResult>>;
+type RefundCheck = (mockRefund: RefundSpy) => Promise<void> | void;
+type ChargeBehavior =
+  | ChargeMoney
+  | ((reference: string) => Promise<ChargeMoney>);
 type RefundMockOptions = {
-  alreadyRefunded?: RefundBehavior;
+  charge?: ChargeBehavior;
 };
 
-const refundResult = (
-  behavior: RefundBehavior,
-): ((reference: string) => Promise<boolean>) =>
+const chargeResult = (
+  behavior: ChargeBehavior,
+): ((reference: string) => Promise<ChargeMoney>) =>
   typeof behavior === "function" ? behavior : () => Promise.resolve(behavior);
+
+/** A provider that completes the exact refund it was asked to send. */
+export const refundCompletes = (
+  request: RefundRequest,
+): Promise<RefundAttemptResult> =>
+  Promise.resolve(completedRefund(request.charge));
+
+/** A provider that accepts the exact refund but has not settled it yet. */
+export const refundStaysPending = (
+  request: RefundRequest,
+): Promise<RefundAttemptResult> =>
+  Promise.resolve(acceptedRefund(request.charge));
+
+/** A provider that refuses the refund without moving money. */
+export const refundIsRejected = (
+  _request: RefundRequest,
+): Promise<RefundAttemptResult> =>
+  Promise.resolve({ kind: "rejected", reason: "failed" });
 
 /** POST the refund-all confirmation form for a listing as the owner. */
 export const postRefundAll = async (listing: {
@@ -84,9 +118,9 @@ export const submitRefundAll = (
 
 export const expectSingleRefundIssued = async (
   ctx: RefundRouteCtx,
-  checkRefund: RefundCheck = () => {},
+  checkRefund: RefundCheck,
 ): Promise<void> => {
-  await withRefundMock(true, async (mockRefund) => {
+  await withRefundMock(refundCompletes, async (mockRefund) => {
     const response = await submitRefund(ctx);
     await expectFlashRedirect(
       `/admin/attendees/${ctx.attendee.id}/actions`,
@@ -126,15 +160,18 @@ const withStripeProvider = async (
  *  refunded" — a part-returned charge, say. */
 export const withRefreshPaymentMoney = async <T>(
   probe: (reference: string) => Promise<ChargeMoney>,
-  body: (mockRefunded: Stub) => Promise<T>,
+  body: (mockRefunded: Spy) => Promise<T>,
 ): Promise<T> => {
   let result!: T;
   await withStripeProvider(async (provider) => {
-    const mockRefunded = stub(provider, "readChargeMoneyOrNull", probe);
+    const mockRefunded = spy(probe);
+    const readCharge = stub(provider, "readCharge", async (reference) =>
+      foundCharge(await mockRefunded(reference)),
+    );
     try {
       result = await body(mockRefunded);
     } finally {
-      mockRefunded.restore();
+      readCharge.restore();
     }
   });
   return result;
@@ -145,7 +182,7 @@ export const withRefreshPaymentMoney = async <T>(
  *  nothing has gone back on. */
 export const withRefreshPaymentProbe = <T>(
   probe: (reference: string) => Promise<boolean>,
-  body: (mockRefunded: Stub) => Promise<T>,
+  body: (mockRefunded: Spy) => Promise<T>,
 ): Promise<T> =>
   withRefreshPaymentMoney(
     async (reference) => asChargeMoney(await probe(reference)),
@@ -154,26 +191,26 @@ export const withRefreshPaymentProbe = <T>(
 
 export const withRefundMock = async (
   refundBehavior: RefundBehavior,
-  fn: (mockRefund: Stub) => Promise<void>,
+  fn: (mockRefund: RefundSpy) => Promise<void>,
   options: RefundMockOptions = {},
 ): Promise<void> => {
   await withStripeProvider(async (provider) => {
-    const mockRefund = stub(
+    const mockRefund = spy(refundBehavior);
+    const refundCharge = stub(
       provider,
-      "refundPayment",
-      refundResult(refundBehavior),
+      "refundCharge",
+      (request: RefundRequest): Promise<RefundAttemptResult> =>
+        mockRefund(request),
     );
-    const alreadyRefunded = refundResult(options.alreadyRefunded ?? false);
-    const mockRefunded = stub(
-      provider,
-      "readChargeMoneyOrNull",
-      async (reference) => asChargeMoney(await alreadyRefunded(reference)),
+    const readMoney = chargeResult(options.charge ?? chargeMoney());
+    const readCharge = stub(provider, "readCharge", async (reference) =>
+      foundCharge(await readMoney(reference)),
     );
     try {
       await fn(mockRefund);
     } finally {
-      mockRefunded.restore();
-      mockRefund.restore();
+      readCharge.restore();
+      refundCharge.restore();
     }
   });
 };
@@ -184,9 +221,18 @@ export const withRefundMock = async (
  *  `test/shared/db/payment-claim.test.ts`. */
 export const grantingRowClaim = (
   held: ReadonlyMap<number, readonly string[]> = new Map(),
-  inherited: ReadonlyMap<number, RefundCapability> = new Map(),
-): RowClaim & { released: string[][]; unrecorded: string[][] } => {
+  inherited: InheritedRefundCapabilities = new Map(),
+  existingUnrecorded: ReadonlyMap<number, readonly string[]> = new Map(),
+  existingReviews: ReadonlyMap<string, PaymentReviewReason> = new Map(),
+): RowClaim & {
+  recorded: string[][];
+  released: string[][];
+  reviewChanges: ReadonlyMap<string, PaymentReviewChange>[];
+  unrecorded: string[][];
+} => {
+  const recorded: string[][] = [];
   const released: string[][] = [];
+  const reviewChanges: ReadonlyMap<string, PaymentReviewChange>[] = [];
   const unrecorded: string[][] = [];
   return {
     claim: () =>
@@ -196,13 +242,40 @@ export const grantingRowClaim = (
         inherited,
         kind: "claimed",
         returned: new Set<string>(),
+        reviews: existingReviews,
+        shared: new Map(),
+        unrecorded: existingUnrecorded,
       }),
-    release: ({ sessionIds, unrecorded: marked = new Set() }) => {
-      released.push([...sessionIds]);
-      unrecorded.push([...marked]);
+    recorded,
+    released,
+    reviewChanges,
+    settle: ({ rows }) => {
+      released.push(
+        [...rows]
+          .filter(([, change]) => change.claim === "release")
+          .map(([sessionId]) => sessionId),
+      );
+      reviewChanges.push(
+        new Map(
+          [...rows].flatMap(([sessionId, change]) =>
+            change.review === undefined
+              ? []
+              : [[sessionId, change.review] as const],
+          ),
+        ),
+      );
+      recorded.push(
+        [...rows]
+          .filter(([, change]) => change.books === "recorded")
+          .map(([sessionId]) => sessionId),
+      );
+      unrecorded.push(
+        [...rows]
+          .filter(([, change]) => change.books === "unrecorded")
+          .map(([sessionId]) => sessionId),
+      );
       return Promise.resolve();
     },
-    released,
     unrecorded,
   };
 };

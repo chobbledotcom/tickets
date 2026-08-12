@@ -43,8 +43,8 @@ const amountPaidPara = (attendee: Attendee): JSX.Element | null =>
   ) : null;
 
 /**
- * The prose "attendee details" block shared by the delete/refund/resend
- * confirmation pages: name, email, quantity, (optionally) amount paid,
+ * The prose "attendee details" block shared by attendee confirmation pages:
+ * name, email, quantity, (optionally) amount paid,
  * registered timestamp, then any page-specific trailing children.
  */
 const AttendeeDetails = ({
@@ -84,8 +84,8 @@ const AttendeeDetails = ({
   );
 };
 
-/** Shared ConfirmPage shell for the delete/refund/resend attendee action
- *  pages: all three wrap an {@link AttendeeDetails} body in a ConfirmPage with
+/** Shared ConfirmPage shell for attendee action pages: each wraps an
+ *  {@link AttendeeDetails} body in a ConfirmPage with
  *  the same active/label/name/returnUrl/warning structure. Only the action,
  *  title, button text, confirm message, and body children differ — those are
  *  passed via the config. The `warning` paragraph wraps a `<strong>` prefix
@@ -140,8 +140,8 @@ const attendeeConfirmPage = (
       </p>
     ),
   });
-/** Build an attendee confirm-page renderer for a single action — the three
- *  admin delete/refund/resend pages share this signature, differing only in
+/** Build an attendee confirm-page renderer for a single action. The action
+ *  pages share this signature, differing only in
  *  the route `segment` and the {@link attendeeConfirmPage} config. The
  *  wrapping `({ attendee }: {...}, session, returnUrl?, error?) => attendeeConfirmPage(...)`
  *  boilerplate was duplicated enough to trip jscpd; this factory keeps it in
@@ -166,7 +166,7 @@ export const adminAttendeeDeletePage = attendeeRouteConfirm("delete", {
   body: (
     <>
       <CheckboxLabel
-        checked={true}
+        checked
         label={` ${t("admin.attendees.release_bookings")}`}
         name="release_bookings"
         value="1"
@@ -195,6 +195,15 @@ export const adminRefundAttendeePage = attendeeRouteConfirm("refund", {
   warningPrefix: "Warning",
   warningText:
     "This will issue a full refund for this attendee's payment. The attendee will remain registered.",
+});
+
+/** Record that the owner has handled an ambiguous payment outcome. */
+export const adminPaymentReviewPage = attendeeRouteConfirm("payment-review", {
+  buttonText: t("admin.attendees.payment_review_submit"),
+  confirmKey: "admin.attendees.payment_review_confirm",
+  titleAction: t("admin.attendees.payment_review_title"),
+  warningPrefix: t("admin.attendees.payment_review_warning_prefix"),
+  warningText: t("admin.attendees.payment_review_warning"),
 });
 
 /**

@@ -9,6 +9,7 @@ import {
 import { describeSquare } from "#test/test-utils/square/harness.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
 import { asSession } from "#test-utils/payment-session.ts";
+import { gbp } from "#test-utils/payment-state.ts";
 
 describeSquare(() => {
   describe("squarePaymentProvider integration", () => {
@@ -253,18 +254,9 @@ describeSquare(() => {
       );
     });
 
-    test("refundPayment delegates through SDK", async () => {
+    test("refundCharge delegates through the Square adapter", async () => {
       await withSquareClient(
         {
-          paymentsGet: () =>
-            Promise.resolve({
-              payment: {
-                amountMoney: { amount: BigInt(2000), currency: "GBP" },
-                id: "pay_prov_ref",
-                orderId: "order_prov_ref",
-                status: "COMPLETED",
-              },
-            }),
           refundsRefundPayment: () =>
             Promise.resolve({
               refund: {
@@ -276,11 +268,30 @@ describeSquare(() => {
             }),
         },
         async () => {
-          const result =
-            await squarePaymentProvider.refundPayment("pay_prov_ref");
-          expect(result).toBe(true);
+          const result = await squarePaymentProvider.refundCharge({
+            charge: {
+              captured: gbp(2000),
+              confirmedRefunded: gbp(0),
+              refunds: [],
+            },
+            paymentReference: "pay_prov_ref",
+          });
+          expect(result.kind).toBe("completed");
         },
       );
+    });
+
+    test("reports that webhook setup must be done in Square", async () => {
+      expect(
+        await squarePaymentProvider.setupWebhookEndpoint(
+          "unused secret",
+          "https://example.com/payment/webhook",
+        ),
+      ).toEqual({
+        error:
+          "Square webhooks must be configured manually in the Square Developer Dashboard",
+        success: false,
+      });
     });
 
     test("verifyWebhookSignature reports failure when no signature key configured", async () => {

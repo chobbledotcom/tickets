@@ -1,19 +1,24 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { WithheldRefund } from "#shared/payment/admit-refund.ts";
+import { spy } from "@std/testing/mock";
 import {
+  admitObservedRefund,
+  admitProviderRefund,
   admitRefund,
   sendRefundIfAdmitted,
 } from "#shared/payment/admit-refund.ts";
 import type { ObservationOutcome } from "#shared/payment/diagnose.ts";
 import { refundOutcomeOf } from "#shared/payment/diagnose.ts";
+import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
-import type { RefundCapability } from "#shared/payment/row-state.ts";
+import type { ResolvedRefundCapability } from "#shared/payment/row-state.ts";
+import type { PaymentProvider } from "#shared/payments.ts";
 import {
   chargeMoneyWith,
   gbp,
   partlyRefundedCharge,
   refundObservation,
+  unreadChargeCases,
 } from "#test-utils/payment-state.ts";
 
 /** Money back on every penny of this charge. */
@@ -103,49 +108,83 @@ describe("whether a refund may be sent", () => {
   }
 });
 
-describe("a charge the provider cannot state", () => {
-  /** A provider whose numbers come back unusable, which is the very thing the
-   *  rejected-charge recovery exists to deal with. */
-  const cannotState = (refundCapability: RefundCapability) => ({
-    readChargeMoneyOrNull: () => Promise.resolve(null),
-    refundCapability,
-    refundPayment: () => Promise.resolve(true),
-  });
-
-  const answer = {
-    failed: () => "failed",
-    sent: () => "sent",
-    withhold: (admission: WithheldRefund) => admission.kind,
+describe("provider evidence before a refund", () => {
+  const completed: RefundAttemptResult = {
+    amount: gbp(100),
+    kind: "completed",
+    proof: {
+      kind: "named_refund",
+      refund: {
+        id: "re_1",
+        kind: "stripe_refund",
+        parentId: "pi_1",
+        provider: "stripe",
+      },
+    },
   };
 
-  test("is withheld by default, because nobody can say what its money did", async () => {
-    expect(
-      await sendRefundIfAdmitted(cannotState("keyed"), "pi_1", answer),
-    ).toBe("unreadable");
-  });
+  const provider = (
+    readCharge: PaymentProvider["readCharge"],
+    refundCapability: ResolvedRefundCapability = "keyed",
+    result: RefundAttemptResult = completed,
+  ) => {
+    const refundCharge = spy(() => Promise.resolve(result));
+    return { readCharge, refundCapability, refundCharge };
+  };
 
-  // The recovery path only exists because the charge's numbers came back
-  // unusable, so asking the guard to read them asks the question that already
-  // failed. A keyed provider rejects a second full refund itself, so trying
-  // costs nothing — and refusing would leave the buyer charged for good.
-  test("is sent by the recovery path when a repeat would be harmless", async () => {
-    expect(
-      await sendRefundIfAdmitted(cannotState("keyed"), "pi_1", answer, true),
-    ).toBe("sent");
-  });
-
-  // SumUp has no idempotency key, so a repeat is a second payout. Being unable
-  // to read the charge means we cannot rule that out, so it still withholds.
-  for (const capability of ["keyless"] as const) {
-    test(`is still withheld for a ${capability} provider`, async () => {
-      expect(
-        await sendRefundIfAdmitted(
-          cannotState(capability),
-          "pi_1",
-          answer,
-          true,
-        ),
-      ).toBe("unreadable");
+  for (const [name, read] of unreadChargeCases) {
+    test(`keeps a ${name} read distinct`, async () => {
+      const source = provider(() => Promise.resolve(read));
+      expect(await admitProviderRefund(source, "pi_1")).toEqual({
+        kind: "read_failed",
+        read,
+      });
+      expect(source.refundCharge.calls).toHaveLength(0);
+      expect(await sendRefundIfAdmitted(source, "pi_1")).toEqual({
+        admission: { kind: "read_failed", read },
+        kind: "withheld",
+      });
+      expect(source.refundCharge.calls).toHaveLength(0);
     });
   }
+
+  test("sends the exact observed charge to the provider", async () => {
+    const charge = chargeMoneyWith();
+    const source = provider(() =>
+      Promise.resolve({ resource: charge, status: "found" }),
+    );
+
+    expect(await sendRefundIfAdmitted(source, "pi_1")).toEqual(completed);
+    expect(source.refundCharge.calls).toHaveLength(1);
+    expect(source.refundCharge.calls[0]?.args).toEqual([
+      {
+        charge,
+        paymentReference: "pi_1",
+      },
+    ]);
+  });
+
+  test("admits an existing validated reading without another provider read", () => {
+    const charge = chargeMoneyWith();
+
+    expect(admitObservedRefund("pi_1", charge)).toEqual({
+      kind: "send",
+      request: { charge, paymentReference: "pi_1" },
+    });
+  });
+
+  test("returns an accepted attempt without calling it completed", async () => {
+    const accepted: RefundAttemptResult = {
+      amount: gbp(100),
+      kind: "accepted",
+      proof: completed.proof,
+    };
+    const source = provider(
+      () => Promise.resolve({ resource: chargeMoneyWith(), status: "found" }),
+      "keyed",
+      accepted,
+    );
+
+    expect(await sendRefundIfAdmitted(source, "pi_1")).toEqual(accepted);
+  });
 });

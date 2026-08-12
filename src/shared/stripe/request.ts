@@ -75,11 +75,25 @@ export class StripeApiError extends Error {
   }
 }
 
-export class StripeConnectionError extends namedError(
-  "StripeConnectionError",
-) {}
+export type StripeConnectionFailure = "network_error" | "timeout";
 
-export class StripeProtocolError extends namedError("StripeProtocolError") {}
+export class StripeConnectionError extends namedError("StripeConnectionError") {
+  readonly reason: StripeConnectionFailure;
+
+  constructor(reason: StripeConnectionFailure, message: string) {
+    super(message);
+    this.reason = reason;
+  }
+}
+
+export class StripeProtocolError extends namedError("StripeProtocolError") {
+  readonly statusCode: number | undefined;
+
+  constructor(message: string, statusCode?: number) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+}
 
 class StripeBodyReadError extends Error {
   readonly source: unknown;
@@ -144,15 +158,24 @@ const connectionError = (
   error: unknown,
   retry: number,
   timeout: number,
-): StripeConnectionError =>
-  new StripeConnectionError(
-    error instanceof DOMException && error.name === "TimeoutError"
+): StripeConnectionError => {
+  const timedOut =
+    error instanceof DOMException && error.name === "TimeoutError";
+  return new StripeConnectionError(
+    timedOut ? "timeout" : "network_error",
+    timedOut
       ? `Request aborted due to timeout being reached (${timeout}ms)`
       : `An error occurred with our connection to Stripe. Request was retried ${retry} times.`,
   );
+};
 
 const retriesRemain = (retry: number, maximum: number): boolean =>
   retry < maximum;
+
+const isTransportFailure = (error: unknown): boolean =>
+  error instanceof TypeError ||
+  (error instanceof DOMException &&
+    (error.name === "AbortError" || error.name === "TimeoutError"));
 
 const headerOrUndefined = (
   headers: Headers,
@@ -193,6 +216,7 @@ const stripeError = async (response: Response): Promise<StripeApiError> => {
       error instanceof SyntaxError
         ? "Invalid JSON received from the Stripe API"
         : "Invalid response received from the Stripe API",
+      response.status,
     );
   }
   return responseError(
@@ -266,7 +290,9 @@ export const createStripeRequest = (
     options: StripeRequestOptions = {},
   ): Promise<T> => {
     const encoded = encodeStripeForm(params);
-    const url = `${config.apiBase}${path}${method === "GET" && encoded ? `?${encoded}` : ""}`;
+    const url = `${config.apiBase}${path}${
+      method === "GET" && encoded ? `?${encoded}` : ""
+    }`;
     const idempotencyKey =
       options.idempotencyKey ??
       (method === "POST" && config.maxNetworkRetries > 0
@@ -281,6 +307,7 @@ export const createStripeRequest = (
     if (idempotencyKey) headers.set("Idempotency-Key", idempotencyKey);
 
     async function retryConnection(error: unknown, retry: number): Promise<T> {
+      if (!isTransportFailure(error)) throw error;
       if (!retriesRemain(retry, config.maxNetworkRetries)) {
         throw connectionError(error, retry, config.timeout);
       }

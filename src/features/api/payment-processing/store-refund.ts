@@ -37,9 +37,10 @@ import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
+import { paidPaymentReferenceOf } from "#shared/payment/validated-session.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
-import { recordPlaceholderRefund } from "#shared/refund-ledger.ts";
+import { recordPlaceholderRefund } from "#shared/refund-ledger/placeholder.ts";
 
 /** User-facing message when the outstanding balance changed mid-payment. */
 const BALANCE_CHANGED_MESSAGE =
@@ -118,7 +119,7 @@ export const settleBalanceSession = async (
       sessionId,
       attendeeId,
       expectedAmount,
-      session.paymentReference,
+      paidPaymentReferenceOf(session),
     ),
   );
   if (!settled.settled) {
@@ -171,7 +172,7 @@ export const storeRefundedBooking = async (
   });
   const attendeeId = (stored as Extract<typeof stored, { success: true }>)
     .attendees[0]!.id;
-  const refunded = await tryRefund(session.paymentReference, listingId);
+  const refunded = await tryRefund(paidPaymentReferenceOf(session), listingId);
   await recordPlaceholderRefund(
     {
       amount: session.amountTotal,

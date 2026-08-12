@@ -9,8 +9,8 @@ import type { ActivityLogEntry } from "#shared/db/activity-log.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import { execute } from "#shared/db/client.ts";
+import { getPaymentReviewStatus } from "#shared/db/payment-review.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
-import { t } from "#shared/i18n.ts";
 import type { Attendee } from "#shared/types.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import { expectErrorFlash, expectFlash } from "#test-utils/assertions.ts";
@@ -20,8 +20,12 @@ import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postPaymentLeg } from "#test-utils/db-helpers/payment-leg.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { claimCurrentAttendeeRows } from "#test-utils/payment-claim.ts";
 import { chargeMoney } from "#test-utils/payment-state.ts";
-import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
+import {
+  finalizeReservedPayment,
+  taggedPaymentReference,
+} from "#test-utils/processed-payments.ts";
 import {
   withRefreshPaymentMoney,
   withRefreshPaymentProbe,
@@ -68,7 +72,7 @@ const setupBalanceRefresh = async (
     balanceSessionId,
     attendee.id,
     "",
-    balancePaymentId,
+    taggedPaymentReference(balancePaymentId),
   );
   return attendee;
 };
@@ -181,7 +185,9 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
 
       await submitRefreshPayment(attendee, () => Promise.resolve(true));
 
-      const message = "Payment marked as refunded for attendee 'First Real'";
+      const message =
+        "Payment marked as refunded for attendee 'First Real'; " +
+        'payment references ["pi_refresh_first_real"]';
       expect(
         pipe(
           filter((entry: ActivityLogEntry) => entry.message === message),
@@ -257,6 +263,30 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
       expect(queried).toEqual(["pi_not_refunded"]);
     });
 
+    test("reports a refund already in progress when another run owns the payment", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        unitPrice: 800,
+      });
+      const attendee = await createPaidAttendeeWithoutLedger(
+        listing.id,
+        "Already Refreshing",
+        "already-refreshing@example.com",
+        "pi_already_refreshing",
+        500,
+      );
+      await claimCurrentAttendeeRows([attendee.id], "keyed");
+
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}/refresh-payment`,
+      );
+
+      expectErrorFlash(
+        response,
+        "A refund for this payment is still settling. Try again after it completes.",
+      );
+    });
+
     describe("a provider refund the ledger has no clean order to reverse", () => {
       const errors = setupErrorSpy();
 
@@ -312,18 +342,17 @@ describeWithEnv(
           const { response } = await adminFormPost(
             `/admin/attendees/${attendee.id}/refresh-payment`,
           );
-          // The route still says "nothing changed" — the charge is not
-          // refunded, which stays true. What must not happen is the
-          // disagreement disappearing.
-          expectFlash(response, t("success.payment_status_current"), true);
+          expectFlash(
+            response,
+            "This payment needs an owner review before another refund can be attempted.",
+            false,
+          );
         },
       );
 
-      // Before this, every answer but "fully refunded" was written down as a
-      // definite "none" and the disagreement went to a debug line nobody
-      // reads.
       expect(errors.contains("partial_refund")).toBe(true);
       expect(errors.contains("an owner needs to look at it")).toBe(true);
+      expect(await getPaymentReviewStatus(attendee.id)).toBe("available");
     });
   },
 );

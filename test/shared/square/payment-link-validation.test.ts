@@ -1,12 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { spy } from "@std/testing/mock";
 import {
   extractSessionMetadata,
   PaymentUserError,
 } from "#shared/payment-helpers.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
-import type { CreatePaymentLinkInput } from "#shared/square.ts";
-import { squareApi } from "#shared/square.ts";
+import { squareApi } from "#shared/square/api.ts";
+import type { CreatePaymentLinkInput } from "#shared/square/client.ts";
 import {
   configureSquare,
   expectNoLink,
@@ -268,6 +269,17 @@ describeSquare(() => {
       await expectNullLink(
         new Error("Status code: 400 Body: { invalid json content }"),
       );
+    });
+
+    test("preserves an error whose errors field is malformed", async () => {
+      const sdkError = new Error('Status code: 400 Body: { "errors": {} }');
+      const errorLog = spy(console, "error");
+      try {
+        await expectNullLink(sdkError);
+        expect(errorLog.calls.at(-1)?.args[0]).toContain(sdkError.message);
+      } finally {
+        errorLog.restore();
+      }
     });
   });
 });

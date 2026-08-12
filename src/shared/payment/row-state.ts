@@ -10,14 +10,25 @@
  */
 
 import * as v from "valibot";
-import { PaymentConflictSchema } from "#shared/payment/conflict.ts";
+import { PaymentReviewReasonSchema } from "#shared/payment/review.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
-/** Whether a second attempt under this claim would land on the money twice.
- *  `keyed` takes an idempotency key, so a lost call may be re-run and the
- *  claim released on any answer. `keyless` (SumUp) has no such promise, so a
- *  lost answer keeps the claim until fresh evidence settles it. */
-export const RefundCapabilitySchema = v.picklist(["keyed", "keyless"]);
+/** Whether a stale claim may repeat a provider call that gave no answer.
+ *  Every lost answer keeps the claim first. A resumed `keyed` call may safely
+ *  repeat its deterministic request; `keyless` work may only observe until
+ *  fresh evidence settles it. */
+export const ResolvedRefundCapabilitySchema = v.picklist(["keyed", "keyless"]);
+export type ResolvedRefundCapability = v.InferOutput<
+  typeof ResolvedRefundCapabilitySchema
+>;
+
+/** A claim starts before an old reference's provider is known. It may only
+ *  become retryable or observe-only after provider evidence binds every row. */
+export const RefundCapabilitySchema = v.picklist([
+  "keyed",
+  "keyless",
+  "unresolved",
+]);
 export type RefundCapability = v.InferOutput<typeof RefundCapabilitySchema>;
 
 /**
@@ -70,7 +81,7 @@ export type UnrecordedRefund = v.InferOutput<typeof UnrecordedRefundSchema>;
 const PaymentRowStateSchema = v.strictObject({
   claim: v.optional(RefundClaimSchema),
   outcome: v.optional(StoredPaymentFailureSchema),
-  review: v.optional(PaymentConflictSchema),
+  review: v.optional(PaymentReviewReasonSchema),
   unrecorded: v.optional(UnrecordedRefundSchema),
 });
 export type PaymentRowState = v.InferOutput<typeof PaymentRowStateSchema>;

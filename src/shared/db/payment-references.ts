@@ -6,18 +6,10 @@
  * authenticated request.
  */
 
-import { unique } from "#fp";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import {
-  decryptWithOwnerKey,
-  encryptWithOwnerKey,
-  HYBRID_PREFIX,
-} from "#shared/crypto/keys.ts";
-import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
+import { requiredMapValue, unique } from "#fp";
 /* jscpd:ignore-start */
 import {
   execute,
-  executeBatch,
   inPlaceholders,
   queryAll,
   type SqlStatement,
@@ -26,9 +18,20 @@ import {
   isAnchorSession,
   legacyMergeSessionId,
 } from "#shared/db/payment-anchor/session.ts";
-import { settings } from "#shared/db/settings.ts";
+import { prepareRefundReferenceHolders } from "#shared/db/payment-reference-holders.ts";
+import {
+  loadIndexedPaymentReference,
+  matchingPaymentReferenceIndexes,
+  paymentReferenceIndex,
+  storePaymentReference,
+} from "#shared/db/payment-reference-store.ts";
 import { nowIso } from "#shared/now.ts";
 import { CLAIM_MIRROR } from "#shared/payment/admit-move.ts";
+import type {
+  PaymentReference,
+  TaggedPaymentReference,
+  UntaggedPaymentReference,
+} from "#shared/payment/provider-reference.ts";
 import type { RefundState } from "#shared/payment/refund-state.ts";
 import { refundStateOf } from "#shared/payment/refund-state.ts";
 /* jscpd:ignore-end */
@@ -38,7 +41,7 @@ export type RefundPaymentReferenceSource = {
   payment_id: string;
 };
 
-export type RefundPaymentReference = {
+type RefundPaymentReferenceFacts = {
   /** The rows carrying this charge that a refund run is still holding. A run
    *  that finished its money but lost the write that lets go leaves its hold
    *  behind, and nothing else in the system ever takes one off. */
@@ -46,14 +49,20 @@ export type RefundPaymentReference = {
   /** The blind one-way index of this reference, carried from the read so no
    *  later step has to hash it again. */
   readonly index: string;
+  /** Blind identities that may be an older/newer spelling of this same
+   *  provider charge. Known providers with the same raw id stay distinct. */
+  readonly matchingIndexes: readonly string[];
   readonly refundState: RefundState;
-  readonly reference: string;
   /** Every payment row carrying this charge, anchors included. Empty means the
    *  charge has no row at all — it is on the attendee's own `payment_id`. */
   readonly rowSessionIds: readonly string[];
   /** Non-legacy sessions ordered by processing time, then session ID. */
   readonly sessionIds: readonly string[];
 };
+
+export type RefundPaymentReference =
+  | (RefundPaymentReferenceFacts & TaggedPaymentReference)
+  | (RefundPaymentReferenceFacts & UntaggedPaymentReference);
 
 type PaymentReferenceRow = {
   attendee_id: number;
@@ -74,37 +83,14 @@ type PaymentReferenceAttendeeRow = {
 type ReferenceProgress = {
   heldRowSessionIds: string[];
   index: string;
+  payment: PaymentReference;
   refunded: boolean;
   rowSessionIds: string[];
   sessionIds: string[];
 };
 
-/** In-progress refund references, keyed by the reference string. */
+/** In-progress refund references, keyed by stable provider identity. */
 type ReferenceProgressByKey = Map<string, ReferenceProgress>;
-
-export const encryptPaymentReference = async (
-  reference: string,
-): Promise<OwnerKeyEncrypted | ""> =>
-  reference === "" ? "" : encryptWithOwnerKey(reference, settings.publicKey);
-
-/** The blind one-way index of a reference, written beside the encrypted
- *  reference itself. Lets a claim ask "is another row already working on this
- *  same provider money?" in SQL, without decrypting every row to find out. */
-export const paymentReferenceIndex = async (
-  reference: string,
-): Promise<string> => (reference === "" ? "" : await hmacHash(reference));
-
-const decryptPaymentReference = (
-  stored: string,
-  privateKey: CryptoKey,
-): Promise<string> | string => {
-  if (stored.startsWith(HYBRID_PREFIX)) {
-    return decryptWithOwnerKey(stored as OwnerKeyEncrypted, privateKey);
-  }
-  // Development builds of the in-flight migration wrote this column in the clear.
-  // Keep those rows refundable while every new write stores owner-key ciphertext.
-  return stored;
-};
 
 const queryProcessedReferences = <Row>(
   attendeeIds: readonly number[],
@@ -139,20 +125,22 @@ const attendeeIdsWithProcessedReferences = (
 
 const legacyReference = async (
   reference: string,
-): Promise<RefundPaymentReference> => ({
-  // No row at all, so no row of it can be held.
-  heldRowSessionIds: [],
-  index: await paymentReferenceIndex(reference),
-  reference,
-  // A legacy charge (an old payment_id with no session) starts "unknown": this
-  // system never watched its refund, so it may or may not have been returned.
-  refundState: refundStateOf({ legacy: true, refunded: false }),
-  // No row anywhere carries this charge — it lives on the attendee's own
-  // `payment_id` column, which is what makes it need an anchor before a refund
-  // can hold it.
-  rowSessionIds: [],
-  sessionIds: [],
-});
+): Promise<RefundPaymentReference> => {
+  const payment = { kind: "untagged", reference } as const;
+  const index = await paymentReferenceIndex(payment);
+  return {
+    // No row at all, so no row of it can be held.
+    heldRowSessionIds: [],
+    index,
+    kind: "untagged",
+    matchingIndexes: await matchingPaymentReferenceIndexes(payment),
+    reference,
+    // A legacy charge was never watched, so it may have come back already.
+    refundState: refundStateOf({ legacy: true, refunded: false }),
+    rowSessionIds: [],
+    sessionIds: [],
+  };
+};
 
 const withLegacyReference = async (
   references: RefundPaymentReference[],
@@ -172,21 +160,22 @@ const heldRowSessionIds = (row: PaymentReferenceRow): string[] =>
 const addReference = (
   byReference: ReferenceProgressByKey,
   row: PaymentReferenceRow,
-  reference: string,
+  payment: PaymentReference,
   index: string,
 ): void => {
   const sessionIds = realSessionIds(row);
   const held = heldRowSessionIds(row);
-  const existing = byReference.get(reference);
+  const existing = byReference.get(index);
   if (existing) {
     existing.heldRowSessionIds.push(...held);
     existing.rowSessionIds.push(row.payment_session_id);
     existing.sessionIds.push(...sessionIds);
     existing.refunded ||= row.provider_refunded_at !== "";
   } else {
-    byReference.set(reference, {
+    byReference.set(index, {
       heldRowSessionIds: held,
       index,
+      payment,
       refunded: row.provider_refunded_at !== "",
       rowSessionIds: [row.payment_session_id],
       sessionIds,
@@ -194,23 +183,24 @@ const addReference = (
   }
 };
 
-const asRefundReferences = (
+const asRefundReferences = async (
   byReference: ReferenceProgressByKey,
-): RefundPaymentReference[] =>
-  [...byReference].map(([reference, data]) => ({
-    heldRowSessionIds: data.heldRowSessionIds,
-    index: data.index,
-    reference,
-    // A reference with no live sessions is a legacy charge (its rows were all
-    // anchors), so an unconfirmed refund reads as "unknown" rather than a
-    // definite "none".
-    refundState: refundStateOf({
-      legacy: data.sessionIds.length === 0,
-      refunded: data.refunded,
-    }),
-    rowSessionIds: data.rowSessionIds,
-    sessionIds: data.sessionIds,
-  }));
+): Promise<RefundPaymentReference[]> =>
+  await Promise.all(
+    [...byReference.values()].map(async (data) => ({
+      ...data.payment,
+      heldRowSessionIds: data.heldRowSessionIds,
+      index: data.index,
+      matchingIndexes: await matchingPaymentReferenceIndexes(data.payment),
+      // An anchor-only reference predates refund observation.
+      refundState: refundStateOf({
+        legacy: data.sessionIds.length === 0,
+        refunded: data.refunded,
+      }),
+      rowSessionIds: data.rowSessionIds,
+      sessionIds: data.sessionIds,
+    })),
+  );
 
 /**
  * Refundable provider references for each attendee. New processed_payments rows
@@ -221,39 +211,45 @@ export const getRefundPaymentReferences = async (
   attendees: readonly RefundPaymentReferenceSource[],
   privateKey: CryptoKey,
 ): Promise<Map<number, RefundPaymentReference[]>> => {
+  if (attendees.length === 0) return new Map();
+  await prepareRefundReferenceHolders(privateKey);
   const byAttendee = new Map(
     attendees.map((attendee) => [
       attendee.id,
       new Map<string, ReferenceProgress>(),
     ]),
   );
-  const missingIndexes: SqlStatement[] = [];
   for (const row of await paymentReferencesForIds(
     attendees.map((attendee) => attendee.id),
   )) {
-    const reference = await decryptPaymentReference(
-      row.payment_reference,
+    const { index, payment } = await loadIndexedPaymentReference(
+      row,
       privateKey,
     );
-    const stored = row.payment_reference_index;
-    const index =
-      stored === "" ? await paymentReferenceIndex(reference) : stored;
-    if (stored === "") missingIndexes.push(indexRepair(row, index));
     addReference(
-      byAttendee.get(Number(row.attendee_id))!,
+      requiredMapValue(
+        byAttendee,
+        Number(row.attendee_id),
+        `Payment reference attendee ${row.attendee_id} was not loaded`,
+      ),
       row,
-      reference,
+      payment,
       index,
     );
   }
-  if (missingIndexes.length > 0) await executeBatch(missingIndexes);
   return new Map(
     await Promise.all(
       attendees.map(
         async (attendee): Promise<[number, RefundPaymentReference[]]> => [
           attendee.id,
           await withLegacyReference(
-            asRefundReferences(byAttendee.get(attendee.id)!),
+            await asRefundReferences(
+              requiredMapValue(
+                byAttendee,
+                attendee.id,
+                `Refund references for attendee ${attendee.id} were not loaded`,
+              ),
+            ),
             attendee.payment_id,
           ),
         ],
@@ -262,26 +258,16 @@ export const getRefundPaymentReferences = async (
   );
 };
 
-/** Write the blind index onto a row that predates the column. Only an
- *  authenticated request can: the index derives from the owner-key encrypted
- *  reference, so no migration could fill it in. Writing only into an empty
- *  column keeps it idempotent and never overwrites a live write's index. */
-const indexRepair = (
-  row: PaymentReferenceRow,
-  index: string,
-): SqlStatement => ({
-  args: [index, row.payment_session_id],
-  sql: `UPDATE processed_payments
-           SET payment_reference_index = ?
-         WHERE payment_session_id = ? AND payment_reference_index = ''`,
-});
-
 /** The refund payment references for one attendee (never null). */
 export const getRefundPaymentReferencesForAttendee = async (
   attendee: RefundPaymentReferenceSource,
   privateKey: CryptoKey,
 ): Promise<RefundPaymentReference[]> =>
-  (await getRefundPaymentReferences([attendee], privateKey)).get(attendee.id)!;
+  requiredMapValue(
+    await getRefundPaymentReferences([attendee], privateKey),
+    attendee.id,
+    `Refund references for attendee ${attendee.id} were not loaded`,
+  );
 
 /**
  * Whether any of these charges may still be with the provider.
@@ -348,25 +334,29 @@ export const legacyMergePaymentReferenceStatement = async (
   targetId: number,
   sourceId: number,
   sourcePaymentId: string,
-): Promise<SqlStatement | null> =>
-  sourcePaymentId === ""
-    ? null
-    : {
-        args: [
-          legacyMergeSessionId(sourceId),
-          targetId,
-          nowIso(),
-          await encryptPaymentReference(sourcePaymentId),
-          await paymentReferenceIndex(sourcePaymentId),
-        ],
-        // The index goes in with the reference, as everywhere else: a refund
-        // claim finds another row holding the same money by this column alone,
-        // so an anchor written without one is money no claim can see.
-        sql: `INSERT OR IGNORE INTO processed_payments
-              (payment_session_id, attendee_id, processed_at, payment_reference,
-               payment_reference_index)
-              VALUES (?, ?, ?, ?, ?)`,
-      };
+): Promise<SqlStatement | null> => {
+  if (sourcePaymentId === "") return null;
+  const stored = await storePaymentReference({
+    kind: "untagged",
+    reference: sourcePaymentId,
+  });
+  return {
+    args: [
+      legacyMergeSessionId(sourceId),
+      targetId,
+      nowIso(),
+      stored.encrypted,
+      stored.index,
+    ],
+    // The index goes in with the reference, as everywhere else: a refund
+    // claim finds another row holding the same money by this column alone,
+    // so an anchor written without one is money no claim can see.
+    sql: `INSERT OR IGNORE INTO processed_payments
+          (payment_session_id, attendee_id, processed_at, payment_reference,
+           payment_reference_index)
+          VALUES (?, ?, ?, ?, ?)`,
+  };
+};
 
 /**
  * Mark processed-payment rows whose provider refund has already happened. The

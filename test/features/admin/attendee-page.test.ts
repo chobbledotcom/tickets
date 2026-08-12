@@ -14,6 +14,18 @@ import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
+import {
+  CLAIM_MIRROR,
+  freshClaimSlot,
+  putRowState,
+  REVIEW_MIRROR,
+  rowStateSlot,
+  staleClaimSlot,
+} from "#test-utils/payment-claim.ts";
+import {
+  finalizeProcessedPayment,
+  taggedPaymentReference,
+} from "#test-utils/processed-payments.ts";
 import { withTestSession } from "#test-utils/session.ts";
 
 const sessionAt = (adminLevel: AuthSession["adminLevel"]): AuthSession => ({
@@ -36,6 +48,28 @@ const bookAttendee = async (): Promise<number> => {
     "ada@example.com",
   );
   return attendee.id;
+};
+
+/** One paid attendee whose modern payment row can carry review work. */
+const paidPagePayment = async (
+  suffix: string,
+): Promise<{ attendeeId: number; sessionId: string }> => {
+  const listing = await createTestListing({});
+  const paymentId = `pi_page_${suffix}`;
+  const attendee = await createPaidTestAttendee(
+    listing.id,
+    "Paid Person",
+    "paid@example.com",
+    paymentId,
+  );
+  const sessionId = `sess-page-${suffix}`;
+  await finalizeProcessedPayment(
+    sessionId,
+    attendee.id,
+    `tok-page-${suffix}`,
+    taggedPaymentReference(paymentId),
+  );
+  return { attendeeId: attendee.id, sessionId };
 };
 
 const renderTab = async (
@@ -158,17 +192,61 @@ describeWithEnv("the attendee page", { db: true }, () => {
 
   describe("a refund", () => {
     test("is offered for an attendee who paid", async () => {
-      const listing = await createTestListing({});
-      const attendee = await createPaidTestAttendee(
-        listing.id,
-        "Paid Person",
-        "paid@example.com",
-        "pi_page_refund",
-      );
-      const html = await tabHtml(attendee.id, "actions");
-      expect(html).toContain(`/admin/attendees/${attendee.id}/refund`);
+      const { attendeeId } = await paidPagePayment("refund");
+      const html = await tabHtml(attendeeId, "actions");
+      expect(html).toContain(`/admin/attendees/${attendeeId}/refund`);
       // Named, not just linked — the label is what the operator reads.
       expect(html).toContain("Refund");
+    });
+  });
+
+  describe("payment review", () => {
+    test("shows only owners the review action instead of refund", async () => {
+      const { attendeeId, sessionId } = await paidPagePayment("review");
+      await putRowState(
+        sessionId,
+        await rowStateSlot({ review: { kind: "partial_refund" } }),
+        REVIEW_MIRROR,
+      );
+
+      const ownerHtml = await tabHtml(attendeeId, "actions");
+      expect(ownerHtml).toContain(
+        `/admin/attendees/${attendeeId}/payment-review`,
+      );
+      expect(ownerHtml).toContain("Mark payment reviewed");
+      expect(ownerHtml).not.toContain(`/admin/attendees/${attendeeId}/refund`);
+
+      const managerHtml = await tabHtml(attendeeId, "actions", MANAGER);
+      expect(managerHtml).not.toContain("payment-review");
+      expect(managerHtml).not.toContain("Mark payment reviewed");
+    });
+
+    test("maps ordinary, stale, and in-progress rows to safe actions", async () => {
+      const { attendeeId, sessionId } = await paidPagePayment("states");
+      const refundUrl = `/admin/attendees/${attendeeId}/refund`;
+      const reviewUrl = `/admin/attendees/${attendeeId}/payment-review`;
+
+      const ordinary = await tabHtml(attendeeId, "actions");
+      expect(ordinary).toContain(refundUrl);
+      expect(ordinary).not.toContain(reviewUrl);
+
+      await putRowState(
+        sessionId,
+        await staleClaimSlot(attendeeId, "unresolved"),
+        CLAIM_MIRROR,
+      );
+      const stale = await tabHtml(attendeeId, "actions");
+      expect(stale).not.toContain(refundUrl);
+      expect(stale).toContain(reviewUrl);
+
+      await putRowState(
+        sessionId,
+        await freshClaimSlot(attendeeId, "keyed"),
+        CLAIM_MIRROR,
+      );
+      const inProgress = await tabHtml(attendeeId, "actions");
+      expect(inProgress).not.toContain(refundUrl);
+      expect(inProgress).not.toContain(reviewUrl);
     });
   });
 

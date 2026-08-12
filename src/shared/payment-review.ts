@@ -28,8 +28,14 @@ export const reportWithheldRefund = (
   admission: WithheldRefund,
   { attendeeId, listingId, paymentReference }: WithheldContext,
 ): void => {
-  const detail = `Refund not sent for ${paymentReference}: ${admissionReason(admission)}`;
-  if (admission.kind !== "refused") {
+  const detail = `Refund not sent for ${paymentReference}: ${admissionReason(
+    admission,
+  )}`;
+  const needsOwner =
+    admission.kind === "refused" ||
+    (admission.kind === "read_failed" &&
+      admission.read.status !== "unavailable");
+  if (!needsOwner) {
     logDebug("Payment", detail);
     return;
   }

@@ -32,7 +32,7 @@ test("maps every used Stripe operation to its endpoint", async () => {
   });
   await client.checkout.sessions.retrieve("cs/1");
   await client.paymentIntents.retrieveWithLatestCharge("pi/1");
-  await client.refunds.create({ payment_intent: "pi_1" });
+  await client.refunds.create({ amount: 1000, payment_intent: "pi_1" });
   await client.webhookEndpoints.list();
   await client.webhookEndpoints.list("we/cursor");
   await client.webhookEndpoints.create({
@@ -56,7 +56,7 @@ test("maps every used Stripe operation to its endpoint", async () => {
       path: "/v1/payment_intents/pi%2F1?expand[0]=latest_charge",
     },
     {
-      body: "payment_intent=pi_1",
+      body: "amount=1000&payment_intent=pi_1",
       method: "POST",
       path: "/v1/refunds",
     },
@@ -80,7 +80,10 @@ test("sends the supplied idempotency key as the Idempotency-Key header on a refu
   // default; the caller's key must take precedence over it.
   const { client, capturedKey } = refundHeaderProbe("sk_test_client");
 
-  await client.refunds.create({ payment_intent: "pi_1" }, "stable-refund-key");
+  await client.refunds.create(
+    { amount: 1000, payment_intent: "pi_1" },
+    "stable-refund-key",
+  );
 
   expect(capturedKey()).toBe("stable-refund-key");
 });

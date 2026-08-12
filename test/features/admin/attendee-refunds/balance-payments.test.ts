@@ -5,6 +5,7 @@ import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
+import { t } from "#shared/i18n.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import type { RefundCtx } from "#test/features/admin/refunds-helpers.ts";
 import {
@@ -16,10 +17,15 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
-import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
+import {
+  finalizeReservedPayment,
+  taggedPaymentReference,
+} from "#test-utils/processed-payments.ts";
 import {
   expectSingleRefundIssued,
   postRefundAll,
+  refundCompletes,
+  refundIsRejected,
   submitRefund,
   withRefundMock,
 } from "#test-utils/refund-routes.ts";
@@ -33,17 +39,20 @@ const SETTLED_RESERVATION_REFERENCES = [
 const expectSettledReservationRefundFailure = async (
   ctx: RefundCtx,
   refundBehavior: Parameters<typeof withRefundMock>[0],
+  message: Parameters<typeof expectFlashRedirect>[1] = expect.stringContaining(
+    "Refund failed",
+  ),
 ) => {
   await withRefundMock(refundBehavior, async (mockRefund) => {
     const response = await submitRefund(ctx);
     await expectFlashRedirect(
       `/admin/attendees/${ctx.attendee.id}/refund`,
-      expect.stringContaining("Refund failed"),
+      message,
       false,
     )(response);
-    expect(mockRefund.calls.map((call) => call.args[0]).sort()).toEqual(
-      SETTLED_RESERVATION_REFERENCES,
-    );
+    expect(
+      mockRefund.calls.map((call) => call.args[0].paymentReference).sort(),
+    ).toEqual(SETTLED_RESERVATION_REFERENCES);
   });
 };
 
@@ -90,7 +99,7 @@ const setupBalancePaidRefundTest = async (): Promise<RefundCtx> => {
       "balance_refund_session",
       attendee.id,
       1500,
-      "pi_balance_refund",
+      taggedPaymentReference("pi_balance_refund"),
     ),
   );
   return refundCtx(attendee, listing);
@@ -128,7 +137,7 @@ const setupSettledReservationRefundTest = async (): Promise<RefundCtx> => {
     "reservation_deposit_session",
     attendee.id,
     "",
-    "pi_reservation_deposit",
+    taggedPaymentReference("pi_reservation_deposit"),
   );
   await reserveSession("reservation_balance_session");
   await settleAttendeeBalance(
@@ -139,7 +148,7 @@ const setupSettledReservationRefundTest = async (): Promise<RefundCtx> => {
       "reservation_balance_session",
       attendee.id,
       8000,
-      "pi_reservation_balance",
+      taggedPaymentReference("pi_reservation_balance"),
     ),
   );
   return refundCtx(attendee, listing);
@@ -153,9 +162,9 @@ describeWithEnv("server (admin balance-payment refunds)", { db: true }, () => {
       const ctx = await setupBalancePaidRefundTest();
 
       await expectSingleRefundIssued(ctx, (mockRefund) => {
-        expect(mockRefund.calls.map((call) => call.args[0])).toEqual([
-          "pi_balance_refund",
-        ]);
+        expect(
+          mockRefund.calls.map((call) => call.args[0].paymentReference),
+        ).toEqual(["pi_balance_refund"]);
       });
     });
 
@@ -163,16 +172,16 @@ describeWithEnv("server (admin balance-payment refunds)", { db: true }, () => {
       const ctx = await setupSettledReservationRefundTest();
 
       await expectSingleRefundIssued(ctx, (mockRefund) => {
-        expect(mockRefund.calls.map((call) => call.args[0]).sort()).toEqual(
-          SETTLED_RESERVATION_REFERENCES,
-        );
+        expect(
+          mockRefund.calls.map((call) => call.args[0].paymentReference).sort(),
+        ).toEqual(SETTLED_RESERVATION_REFERENCES);
       });
     });
 
     test("logs when a settled reservation refund misses one of its charges", async () => {
       const ctx = await setupSettledReservationRefundTest();
 
-      await expectSettledReservationRefundFailure(ctx, false);
+      await expectSettledReservationRefundFailure(ctx, refundIsRejected);
       expect(
         errors.calls
           .map((call) => String(call.args[0]))
@@ -185,14 +194,19 @@ describeWithEnv("server (admin balance-payment refunds)", { db: true }, () => {
     test("records a returned charge when the other charge fails", async () => {
       const ctx = await setupSettledReservationRefundTest();
 
-      await expectSettledReservationRefundFailure(ctx, (reference) =>
-        Promise.resolve(reference === "pi_reservation_deposit"),
+      await expectSettledReservationRefundFailure(
+        ctx,
+        (request) =>
+          request.paymentReference === "pi_reservation_deposit"
+            ? refundCompletes(request)
+            : refundIsRejected(request),
+        t("error.refund_not_recorded"),
       );
 
       await expectSingleRefundIssued(ctx, (mockRefund) => {
-        expect(mockRefund.calls.map((call) => call.args[0])).toEqual([
-          "pi_reservation_balance",
-        ]);
+        expect(
+          mockRefund.calls.map((call) => call.args[0].paymentReference),
+        ).toEqual(["pi_reservation_balance"]);
       });
     });
   });
@@ -201,15 +215,15 @@ describeWithEnv("server (admin balance-payment refunds)", { db: true }, () => {
     test("bulk refund includes a balance-paid attendee with no legacy payment id", async () => {
       const ctx = await setupBalancePaidRefundTest();
 
-      await withRefundMock(true, async (mockRefund) => {
+      await withRefundMock(refundCompletes, async (mockRefund) => {
         const response = await postRefundAll(ctx.listing);
         await expectFlashRedirect(
           `/admin/listing/${ctx.listing.id}`,
           "All attendees refunded",
         )(response);
-        expect(mockRefund.calls.map((call) => call.args[0])).toEqual([
-          "pi_balance_refund",
-        ]);
+        expect(
+          mockRefund.calls.map((call) => call.args[0].paymentReference),
+        ).toEqual(["pi_balance_refund"]);
       });
     });
 

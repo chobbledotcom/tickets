@@ -3,7 +3,7 @@ import { stub } from "@std/testing/mock";
 import type { CheckoutIntent, CheckoutItem } from "#shared/payments.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { submitTicketForm } from "./csrf.ts";
-import { stubRetrieveCheckoutSession } from "./webhooks.ts";
+import { stubRetrieveCheckoutSession } from "./webhooks/stripe.ts";
 
 /** A checkout line item with sensible defaults; override any field. */
 export const checkoutItem = (

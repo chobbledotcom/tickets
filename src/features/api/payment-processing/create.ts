@@ -46,6 +46,7 @@ import {
   saveAttendeeAnswers,
 } from "#shared/db/questions/attendee-answers/save.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import { paymentReferenceOf } from "#shared/payment/validated-session.ts";
 import type {
   CheckoutIntent,
   ModifierSpec,
@@ -304,7 +305,10 @@ export const createAttendeeForSession = async (
         occurredAt: businessTime(session),
         pricedOrder,
       },
-      { paymentReference: session.paymentReference, sessionId: session.id },
+      {
+        paymentReference: paymentReferenceOf(session),
+        sessionId: session.id,
+      },
     );
     prepared = {
       attendeeInput: {
@@ -318,7 +322,9 @@ export const createAttendeeForSession = async (
     };
   } catch (error) {
     return {
-      detail: `Unexpected error preparing session ${session.id}: ${String(error)}`,
+      detail: `Unexpected error preparing session ${session.id}: ${String(
+        error,
+      )}`,
       ok: false,
       reason: "unexpected_error",
     };

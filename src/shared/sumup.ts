@@ -15,9 +15,9 @@
  * tells an authoritative not-found apart from SumUp being unreachable.
  */
 
-/* jscpd:ignore-start */
 import type { Currency } from "@sumup/sdk";
-import { APIError, SumUp } from "@sumup/sdk";
+import { SumUp } from "@sumup/sdk";
+/* jscpd:ignore-start */
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { toMajorUnits } from "#shared/currency.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -37,6 +37,19 @@ import { providerCurrencyBlock } from "#shared/payment-providers.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import {
+  type SumupRefundSubmission,
+  sumupReadFailure,
+  sumupRefundFailure,
+} from "#shared/sumup/failures.ts";
+import {
+  readSumupTransaction,
+  type SumupTransactionMoney,
+} from "#shared/sumup/transaction.ts";
+import {
+  createSumupTransport,
+  type SumupTransport,
+} from "#shared/sumup/transport.ts";
+import {
   classifySumupCheckout,
   type SumupCheckout,
 } from "#shared/sumup-observation.ts";
@@ -46,21 +59,6 @@ import {
 /** Result of creating a hosted checkout. */
 export type SumupCheckoutResult = { reference: string; url: string } | null;
 
-/**
- * What one transaction says about its money, straight from SumUp: amounts are
- * in major units here, as SumUp states them, and are converted where they are
- * turned into money. A missing amount, currency, or event status stays missing
- * rather than becoming a zero.
- */
-export type SumupTransactionMoney = {
-  amount: number | undefined;
-  currency: string | undefined;
-  refundEvents: {
-    amount: number | undefined;
-    status: string | undefined;
-  }[];
-};
-
 /** Result of testing the SumUp connection. */
 export type SumupConnectionTestResult = {
   ok: boolean;
@@ -69,14 +67,24 @@ export type SumupConnectionTestResult = {
   currency: { code: string; supported: boolean };
 };
 
+type SumupClient = {
+  createCheckout: SumUp["checkouts"]["create"];
+  getMerchant: SumUp["merchants"]["get"];
+} & SumupTransport;
+
 /** Internal getSumupClient implementation — reads the current API key. */
-const getClientImpl = (): SumUp | null => {
+const getClientImpl = (): SumupClient | null => {
   const apiKey = settings.sumup.apiKey;
   if (!apiKey) {
     logDebug("SumUp", "No API key configured, cannot create client");
     return null;
   }
-  return new SumUp({ apiKey });
+  const sdk = new SumUp({ apiKey });
+  return {
+    createCheckout: sdk.checkouts.create.bind(sdk.checkouts),
+    getMerchant: sdk.merchants.get.bind(sdk.merchants),
+    ...createSumupTransport(apiKey),
+  };
 };
 
 /** Run an operation with the SumUp client, returning null if unavailable. */
@@ -91,6 +99,32 @@ const getMerchantCode = (): string | null => {
   }
   return merchantCode;
 };
+
+type SumupAccount = { client: SumupClient; merchantCode: string };
+
+/** Resolve the two account facts every authenticated SumUp call needs. */
+const configuredSumupAccount = (): SumupAccount | null => {
+  const client = sumupApi.getSumupClient();
+  const merchantCode = getMerchantCode();
+  return client === null || merchantCode === null
+    ? null
+    : { client, merchantCode };
+};
+
+/** Run one authenticated account operation, choosing the caller's exact
+ * no-configuration result before any provider request can leave the process. */
+const withSumupAccount = async <Result>(
+  whenMissing: () => Result,
+  run: (account: SumupAccount) => Promise<Result>,
+): Promise<Result> => {
+  const account = configuredSumupAccount();
+  return account === null ? whenMissing() : await run(account);
+};
+
+const sumupNotConfiguredRead = <Resource>(): ProviderRead<Resource> => ({
+  reason: "not_configured",
+  status: "unavailable",
+});
 
 /**
  * Turn a failed merchant lookup into an actionable connection-test message.
@@ -111,18 +145,20 @@ const sumupKeyError = (err: unknown): string => {
     : message;
 };
 
-/** Turn a failed checkout fetch into the read it proves. The SDK's APIError
- *  carries the HTTP status, so an authoritative not-found is told apart from
- *  SumUp being unreachable; the status code is safe to log, the body is not. */
-const sumupReadFailure = (err: unknown): ProviderRead<SumupCheckout> => {
-  if (err instanceof APIError) {
-    logDebug("SumUp", `Checkout read answered ${err.status}`);
-    return err.status === 404
-      ? { status: "missing" }
-      : { reason: "provider_error", status: "unavailable" };
+/** Fetch and classify one SumUp resource. Only the fetch is caught: a bug in a
+ * classifier remains an internal error rather than becoming a network answer. */
+const readSumupResource = async <Resource>(
+  resourceName: string,
+  load: () => Promise<unknown>,
+  classify: (body: unknown) => ProviderRead<Resource>,
+): Promise<ProviderRead<Resource>> => {
+  let body: unknown;
+  try {
+    body = await load();
+  } catch (err) {
+    return sumupReadFailure(resourceName, err);
   }
-  logDebug("SumUp", "Checkout read failed before SumUp answered");
-  return { reason: "network_error", status: "unavailable" };
+  return classify(body);
 };
 
 /**
@@ -130,16 +166,16 @@ const sumupReadFailure = (err: unknown): ProviderRead<SumupCheckout> => {
  * adapter and tests can mock these methods directly.
  */
 export const sumupApi: {
-  getSumupClient: () => SumUp | null;
+  getSumupClient: () => SumupClient | null;
   createCheckout: (
     intent: CheckoutIntent,
     baseUrl: string,
   ) => Promise<SumupCheckoutResult>;
   readCheckoutById: (id: string) => Promise<ProviderRead<SumupCheckout>>;
-  refundTransaction: (transactionId: string) => Promise<boolean>;
+  refundTransaction: (transactionId: string) => Promise<SumupRefundSubmission>;
   readTransactionMoney: (
     transactionId: string,
-  ) => Promise<SumupTransactionMoney | null>;
+  ) => Promise<ProviderRead<SumupTransactionMoney>>;
   testSumupConnection: () => Promise<SumupConnectionTestResult>;
 } = {
   /** Create a hosted checkout and persist booking metadata under its reference. */
@@ -167,7 +203,7 @@ export const sumupApi: {
     );
 
     return withClient(async (client) => {
-      const checkout = await client.checkouts.create({
+      const checkout = await client.createCheckout({
         amount: Number(toMajorUnits(totalMinor)),
         checkout_reference: reference,
         currency: settings.currency.toUpperCase() as Currency,
@@ -199,29 +235,21 @@ export const sumupApi: {
   getSumupClient: getClientImpl,
 
   /** Read a checkout by its SumUp id and check it against our facts. */
-  readCheckoutById: async (
-    id: string,
-  ): Promise<ProviderRead<SumupCheckout>> => {
-    const client = sumupApi.getSumupClient();
-    const merchantCode = getMerchantCode();
-    if (!client || !merchantCode) {
-      return { reason: "not_configured", status: "unavailable" };
-    }
-    // Only the fetch is guarded: the classifier is pure, so anything it
-    // throws (Intl refusing a misconfigured site currency) is our own fault
-    // and must surface loudly, never dress up as SumUp being unreachable.
-    let body: unknown;
-    try {
-      body = await client.checkouts.get(id);
-    } catch (err) {
-      return sumupReadFailure(err);
-    }
-    return classifySumupCheckout(body, {
-      merchantCode,
-      requestedId: id,
-      siteCurrency: settings.currency,
-    });
-  },
+  readCheckoutById: (id: string): Promise<ProviderRead<SumupCheckout>> =>
+    withSumupAccount(
+      () => sumupNotConfiguredRead<SumupCheckout>(),
+      (account) =>
+        readSumupResource(
+          "Checkout",
+          () => account.client.readCheckout(id),
+          (body) =>
+            classifySumupCheckout(body, {
+              merchantCode: account.merchantCode,
+              requestedId: id,
+              siteCurrency: settings.currency,
+            }),
+        ),
+    ),
 
   /**
    * Read what a transaction says about its money: the total it took, and every
@@ -231,37 +259,40 @@ export const sumupApi: {
    */
   readTransactionMoney: (
     transactionId: string,
-  ): Promise<SumupTransactionMoney | null> => {
-    const merchantCode = getMerchantCode();
-    if (!merchantCode) return Promise.resolve(null);
-    return withClient(async (client) => {
-      const txn = await client.transactions.get(merchantCode, {
-        id: transactionId,
-      });
-      const refundEvents = (txn.transaction_events ?? []).filter(
-        (event) => event.event_type === "REFUND",
-      );
-      return {
-        amount: txn.amount,
-        currency: txn.currency,
-        refundEvents: refundEvents.map((event) => ({
-          amount: event.amount,
-          status: event.status,
-        })),
-      };
-    }, ErrorCode.PAYMENT_SESSION);
-  },
+  ): Promise<ProviderRead<SumupTransactionMoney>> =>
+    withSumupAccount(
+      () => sumupNotConfiguredRead<SumupTransactionMoney>(),
+      (account) =>
+        readSumupResource(
+          "Transaction",
+          () =>
+            account.client.readTransaction(account.merchantCode, {
+              id: transactionId,
+            }),
+          (body) =>
+            readSumupTransaction(body, {
+              merchantCode: account.merchantCode,
+              transactionId,
+            }),
+        ),
+    ),
 
-  /** Refund a transaction in full. */
-  refundTransaction: async (transactionId: string): Promise<boolean> => {
-    const merchantCode = getMerchantCode();
-    if (!merchantCode) return false;
-    const result = await withClient(async (client) => {
-      await client.transactions.refund(merchantCode, transactionId);
-      return true;
-    }, ErrorCode.PAYMENT_REFUND);
-    return result ?? false;
-  },
+  /** Submit a full refund without overstating SumUp's empty success body. */
+  refundTransaction: (transactionId: string): Promise<SumupRefundSubmission> =>
+    withSumupAccount(
+      () => ({ kind: "not_sent", reason: "not_configured" }),
+      async (account) => {
+        try {
+          await account.client.refundTransaction(
+            account.merchantCode,
+            transactionId,
+          );
+          return { kind: "sent" };
+        } catch (err) {
+          return sumupRefundFailure(err);
+        }
+      },
+    ),
 
   /** Test connection: verify API key + merchant code + currency support. */
   testSumupConnection: async (): Promise<SumupConnectionTestResult> => {
@@ -287,10 +318,12 @@ export const sumupApi: {
       return result;
     }
 
-    // Non-null: the API key was verified present just above
-    const client = sumupApi.getSumupClient()!;
+    const client = sumupApi.getSumupClient();
+    if (client === null) {
+      throw new Error("Configured SumUp API key did not create a client");
+    }
     try {
-      await client.merchants.get(merchantCode);
+      await client.getMerchant(merchantCode);
       result.apiKey = {
         mode: settings.sumup.keyMode ?? "unknown",
         valid: true,

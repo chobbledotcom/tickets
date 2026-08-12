@@ -28,6 +28,7 @@ import type {
 } from "#shared/crypto/sealed.ts";
 import {
   executeBatchWithResults,
+  queryAll,
   queryBatch,
   resultRows,
   type TxScope,
@@ -263,6 +264,22 @@ export const getAttendeeActivityLog = async (
       { attendee_id: attendeeId },
       { ...NEWEST_FIRST, limit },
     ),
+  );
+
+/** Every decrypted activity message for one attendee, for durable replay checks. */
+export const getAttendeeActivityMessages = async (
+  attendeeId: number,
+  privateKey: CryptoKey,
+): Promise<string[]> =>
+  await Promise.all(
+    (
+      await queryAll<{ message: StoredLogMessage }>(
+        `SELECT activity.message
+           FROM activity_log AS activity
+          WHERE activity.attendee_id = ?`,
+        [attendeeId],
+      )
+    ).map(({ message }) => decryptLogMessage(message, privateKey)),
   );
 
 /** Result type for listing + activity log batch query */

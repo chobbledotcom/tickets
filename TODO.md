@@ -2169,44 +2169,6 @@ Found by Codex on #2065. Starting point: `PROVIDER_REFUND_CONCURRENCY`, the
 budget rules in `PR4_PLAN.md`, and the subrequest guard in
 `src/shared/db/client.ts`.
 
-## Two pending refunds throw, and the throw escapes into a 500
-
-`refundOutcome` in `src/shared/payment/diagnose.ts` throws when a reading holds
-two refunds in flight, on the contract's reasoning that an M4 observation can
-only carry the answer to its own single attempt. That was deliberate — broken
-evidence should be loud rather than pass as settled — but two things are wrong
-with it.
-
-It is reachable with real data. SumUp maps both PENDING and SCHEDULED to
-"pending", so one transaction carrying two such REFUND events — overlapping
-partial refunds, or historical attempts — produces two pending observations.
-
-And the throw escapes. `admitProviderRefund` calls `refundOutcomeOf` OUTSIDE
-`chargeOrNothing`'s catch, which wraps only the provider read. So the
-refresh-payment route and the refund callbacks answer 500 and retry for ever,
-and an admin run reads the same evidence as an unanswered call.
-
-Loud and safe are not in conflict here. Two pending refunds are conclusive
-evidence NOT to send more money, so the honest answer is a withholding conflict
-that reports itself: `PaymentConflict` gains the kind, and `admit-refund.ts`
-maps every conflict to `refused` already. Catching the exception upstream would
-be the wrong fix. Changing it contradicts a decision recorded in `PR4_PLAN.md`,
-so the document and the code want changing together.
-
-Found by Codex on #2065.
-
-## Balance settlement can grow a reference set that is already claimed
-
-Law 1's writer exclusivity is not built. `balanceFinalizeStatements` checks only
-the unresolved reservation and the balance guard, so a balance callback can add
-a new charged reference to an attendee whose set an admin refund has already
-claimed and judged. The refund then covers only its earlier snapshot and its
-ledger post sees an uncovered payment group.
-
-The fix the contract names: the balance finalize reads the attendee's claim
-inside its own transaction and answers RETRYABLY without writing while a fresh
-claim is live, so the provider redelivers after the claim resolves.
-
 ## A merge can delete the source before the answers and PII are saved
 
 `applyAttendeeMerge` (`src/shared/merge/attendee-merge.ts`) commits the source
@@ -2233,64 +2195,69 @@ regression coverage that fails each post-batch write and checks the source
 attendee, payment rows, ledger rows, answers, and PII are all still as they
 were.
 
-## A malformed provider reply reads as "the provider said nothing"
+## Give shared and merged charges authoritative bookkeeping
 
-`chargeOrNothing` in `src/shared/payment/admit-refund.ts` wraps the charge read
-in a bare `catch { return null; }`, and a null read becomes an `unreadable`
-admission — the refund is withheld with only a debug line.
+`claimAttendeeRows` expands a claim to every row carrying the reference, and
+`runRefundReadiness` writes an exact `shared_reference` review marker and stops
+before provider or ledger I/O. One payout cannot be reversed once per holder.
+The current owner action is only an acknowledgement: it clears the marker but
+records no allocation, so an unchanged shared representation parks again on the
+next refund attempt.
 
-That is right for the failure it was written for: a network blip or a provider
-timeout genuinely is "no answer", and a bulk wave should not die on one. It is
-wrong for the failure it also swallows. Stripe's request boundary raises
-`StripeProtocolError` (`src/shared/stripe/request.ts`) when a 200 response
-carries invalid JSON or is missing a documented money field, and
-`stripeClientRuntime` deliberately preserves it. Caught here, a provider
-protocol failure — exactly the kind of thing an operator has to be told about —
-is indistinguishable from a slow network, and every refund behind it is quietly
-withheld.
+Build the approved closure from `PR4_PLAN.md`: stable booking obligations plus a
+revision-fenced allocation whose positive Money parts share the charge currency
+and sum exactly to the capture, or an explicit owner rejection. Merge must
+preserve those facts and must not turn source and target copies of one reference
+into two payouts or two reversals. Partially returned obligations need their
+required owner choice in the same model. Until that choice exists, they remain
+unrecorded with a durable `partially_returned_obligation` marker rather than
+cancelling a sale they did not fully fund.
 
-The fix is not a bigger catch in this module: `admit-refund.ts` is provider
-agnostic and should not learn Stripe's error names. It belongs one layer down,
-where each adapter's `readChargeMoneyOrNull` decides what its own null means —
-return null only for genuine transport unavailability, and let protocol and
-validation errors through — after which this catch can go entirely. That is a
-change to all three adapters (Stripe, Square, SumUp) plus their tests, on the
-path that decides whether money moves.
+Start at `sharedRepresentations` in `src/shared/db/payment-claim/take.ts`,
+`runRefundReadiness` in `src/features/admin/refunds/readiness-run.ts`, the
+payment-row repoint in `src/shared/merge/attendee-merge.ts`, and the exact
+result sets in `src/shared/refund-ledger/{plan,result}.ts`. Test a shared charge
+across two attendees, a merge that creates two representations on one attendee,
+rejection, an exact multi-obligation allocation, and every partial-obligation
+owner choice.
 
-Out of scope where it was found: that slice was the merge/delete admissions and
-the prune's orphan rule. Found by Codex on #2065.
+## Repair or attest historical returned-payment markers
 
-## Two attendees on one charge each get their own reversal
+An untagged legacy row with `provider_refunded_at` predates the provider-aware
+evidence rules. `prepareRefundReadiness` and `bindPaymentReferenceProviders`
+correctly return `historical_marker` before tagging or moving money: the old
+marker does not prove which provider returned the charge or whether the full
+capture came back. There is deliberately no `historical_refund_unverified`
+review kind or writer pretending otherwise.
 
-`refundClaimedBatch` in `src/features/admin/refunds/provider.ts` asks the
-provider once per reference (`answeredOnce`), which is right — one charge, one
-payout. But every candidate carrying that reference is then tallied as refunded
-and handed to `recordAttendeeRefundsBatch`, so each posts its own `refund_cash`
-reversal.
+Add an owner-visible repair flow. Prefer a fresh provider read that proves the
+provider identity, amount, currency, and returned total; where that is
+impossible, require an explicit audited attestation after external correction.
+Fence the decision on the exact held rows and propagate the provider-aware
+identity to every matching representation while preserving returned dates and
+other row state. A provider-read decision must persist the judged evidence
+fingerprint or revision and re-read and re-judge if it changes before the write.
+An external attestation needs an immutable decision revision, and its write must
+compare that revision with the current decision. Never select a provider from
+configuration order or silently upgrade the historical marker. Tests must cover
+shared old rows, a claim race, one validating provider, incomplete discovery,
+changing provider evidence, and the attestation audit record.
 
-Whether that is correct depends on something the code does not currently
-establish: if the one charge genuinely paid for both attendees' bookings, two
-reversals summing to the payout are exactly right. If the two attendees each
-have their own paid booking and merely share a reference — the legacy shape the
-claim layer already guards against, see `readClaimableRows`, which deliberately
-claims other rows on the same reference "so two attendees who share one legacy
-reference [do not] each claim their own row and race two payouts against one
-charge" — then one payout is reversed twice and the money history is wrong.
+## Let the owner resolve an ambiguous legacy provider
 
-The owner chose the ledger direction for the sibling case, and the ledger can
-now reverse part of an account — but that does not settle this one, because each
-attendee's reversal is computed against their OWN account. If the charge really
-did pay for both bookings, two reversals summing to the payout are right; if it
-paid for one and the other merely shares a legacy reference, one payout is
-reversed twice, and no amount of per-group precision inside one account can tell
-those apart.
+An untagged legacy reference that validates at more than one configured provider
+stays unresolved as `multiple_validating_providers`. This correctly prevents a
+guess, but the refund message currently asks the owner to choose a provider
+without giving them an action that can record the choice.
 
-What is needed first is a read of `computeAttendeeRefund` against a real
-shared-charge row, to establish which shape actually occurs in stored data.
-Until then the two ways out are unchanged: refuse a run whose reference is
-shared, or make the reversal proportional across the attendees sharing it.
-
-Found by Codex on #2065.
+Add an owner-only, per-reference choice over only the providers whose validated
+reads found the exact charge. Re-read every candidate before saving, require the
+owner's explicit selection, then bind the chosen provider identity and its retry
+capability to every exact held representation in one revision-fenced write. If
+the evidence or held rows change, refuse the decision and show the new choices.
+Test two validating providers, a provider disappearing before submit, a claim
+race, shared representations, and a successful retry using only the chosen
+provider.
 
 ## The whole-reading cluster returns with the sweeps
 
@@ -2345,72 +2312,85 @@ against the same fake clock it ticks, rather than against `Date.now()`, so the
 margin is deterministic. Out of scope where it was found — that session was
 closing the M4 coverage gaps and this file is mutation-run tooling.
 
-## A refund run whose attendee vanished still asks the provider
+## Claim callback refunds and make keyless recovery finite
 
-`anchorLegacyCharges` no longer mints a row for an attendee who has been deleted
-since the run loaded its candidates — the INSERT now carries an EXISTS on
-`attendees`, so no orphan row is created and no claim can be taken on one. That
-closes the concrete harm Codex named on PR #2065: a row naming nobody, protected
-from the purge by its own claim, with money sent against a booking and ledger
-target that had already gone.
+Admin single, bulk, and refresh work uses exact attendee-set claims, including
+per-reference `keyed`/`keyless` capability. Buyer-facing callback paths still
+call `tryRefund` or `refundRejectedCharge` without a callback-scope claim. A
+SumUp refund has no idempotency key, so a lost response cannot safely be resent
+merely because a later read has not caught up; conversely, acknowledging it as
+failed can leave the buyer charged.
 
-What it does not close: the run itself. Its candidate list was read before the
-delete, so it can still reach the provider for that charge and send the money
-back. Nothing records it afterwards, because the attendee account it would post
-to no longer exists.
+Stage one durable callback claim before every callback refund send, naming the
+exact charge identity, capability, amount, currency, scope, and deterministic
+key where one exists. A fresh duplicate must make no second call. A stale keyed
+claim may resume the same request; a stale keyless claim may only observe. A
+claimed admin refresh may complete stale keyless callback work only after a
+fresh provider read proves settlement; otherwise it stays in doubt until fresh
+evidence or explicit owner resolution decides it. Missing provider callbacks are
+never failure evidence.
 
-Whether that is even wrong is an owner's call. The buyer getting their money
-back after their booking was deleted may be exactly right; what is certainly
-wrong is that the ledger cannot say it happened. Codex's suggestion was to
-validate inside the claim transaction and refuse the run when the attendee has
-gone — that is the fuller fix, and it changes the claim contract, so it is not
-being taken unilaterally on a money path.
+Use one claimed reconciliation function. Before a provider call, one transaction
+must stage the claim, unique replay identity, exact charge identity, request
+facts, due time, and revision. Each reconciliation transaction must then persist
+provider evidence, refund state, due time, the next revision, and case changes
+together. Enforce uniqueness for replay and charge identities so redelivery
+cannot create a second placeholder, and leave no partial local state when either
+transaction fails.
 
-Found by Codex on #2065.
+Start at `tryRefund` and `refundRejectedCharge` in
+`src/features/api/payment-processing/refunds.ts`, `storeRefundedBooking` in
+`store-refund.ts`, and the scope rules in `src/shared/payment/claim.ts`. Test a
+worker death before and after the SumUp send, a lagging returned-money read,
+concurrent redelivery, a keyed retry, a keyless observation-only retry, and an
+operator finish. The separate bounded task in "Recover paid SumUp checkouts
+without a webhook or redirect" must feed the same completion/replay mechanism
+rather than create another lifecycle.
 
-## SumUp's malformed charge still has no way back
+## Make global refund-reference preparation bounded and resumable
 
-The malformed-charge recovery was repaired for Stripe and Square by letting the
-guard send when it cannot read the charge. That allowance is gated on the
-provider being `keyed`, because a keyed provider rejects a second full refund
-itself. SumUp declares `keyless`, so its malformed charges are still refused:
-the callback answers 503 for ever and the buyer stays charged.
+Before a refund snapshot, `prepareRefundReferenceHolders` decrypts every stored
+reference, fills every old blind index, and creates a deterministic anchor for
+every row-less legacy `payment_id`. The selected attendee can see every other
+holder of the same charge, and shared work parks before provider I/O.
 
-Be clear about what that means. Before this branch the path attempted the refund
-for every provider. It now attempts it for two of three. The regression is
-narrowed, not gone.
+The pass currently loads every payment row and attendee, decrypts every entry,
+and batches every missing write inside one authenticated request transaction. A
+large site can exhaust edge CPU, memory, statement, or request-time budgets; a
+failure restarts the whole scan. Replace it with fixed-size authenticated pages
+and durable progress. Persist a deterministic keyset cursor ordered by stable
+reference identity and advance it only after each page commits; never use an
+offset cursor. Refund admission must remain closed until that cursor completes
+an epoch. Concurrent payment or PII inserts and reference changes must join or
+invalidate the same epoch so no row can be skipped or repeated. The owner
+private key is needed to derive indexes, so an unauthenticated maintenance job
+cannot silently do the work.
 
-The gate is not wrong — sending unguarded to a keyless provider on a callback
-that retries is how one buyer is paid twice, which is the whole reason the guard
-exists. What is missing is the thing that would make a single keyless send safe:
-a durable claim on the callback path, which is PR B's `callback` claim scope and
-is already listed as deferred in this PR's description.
+Preparation completion alone is not refund admission. Every row-less legacy
+reference must have its anchor and blind index persisted, and the following
+claim must report success only after it has persisted a held-row state for every
+exact reference. Any missing anchor, index, or held state keeps admission
+closed.
 
-So this is not a fix waiting to be written; it is a fix waiting on that scope.
-Until it lands, a SumUp checkout whose amount or currency comes back unreadable
-cannot be refunded automatically and needs an operator to return it by hand.
-That should be said out loud somewhere an operator will see it, rather than
-being left as a 503 nobody can explain.
+Start at `src/shared/db/payment-reference-holders.ts` and its call from
+`getRefundPaymentReferences`. Test several pages, interruption and resume,
+concurrent row insertion and PII change, a shared row-less charge split across
+pages, and refusal before the epoch or exact held-row claim completes.
 
-Found by Codex on #2065.
+## Make refund confirmation replay checks bounded
 
-## Legacy sibling rows can go unindexed until it is too late
+`confirmRefund` currently calls `getAttendeeActivityMessages`, which loads and
+decrypts every activity message for the attendee to decide whether one exact
+refund confirmation was already logged. A long-lived attendee record can exhaust
+an edge request after the provider and ledger work have already succeeded.
 
-The claim's sibling lookup finds rows by `payment_reference_index`, and
-`getRefundPaymentReferences` repairs that index only for the attendee it is
-loading. On an upgraded database where attendees A and B hold old rows sharing
-one SumUp reference, a refund for A cannot mark B's still-unindexed row. After
-A's ledger refund, ordinary payment pruning can delete A's row — and with it the
-only marker saying that money already went back. When B is loaded later its
-index is repaired, but there is no marked sibling left to find, so lagging SumUp
-evidence can admit a second keyless payout for the same charge.
-
-Every step is ordinary: an upgrade, a shared legacy reference, a refund, a
-prune, a slow provider. The fix is to backfill every legacy reference index
-before claims and marker fan-out depend on the lookup, rather than repairing one
-attendee at a time on read.
-
-Both found by Codex on #2065.
+Give refund confirmations a structured, indexed replay identity derived from the
+attendee and sorted provider-aware references. Persist that identity atomically
+with the activity entry and exact held-row check, reject duplicates by a
+database constraint, and stop scanning message prose. Preserve the activity text
+as an operator display, not as the state machine. Test a duplicate confirmation,
+a large unrelated history, concurrent confirmations, and rollback when the
+activity write fails.
 
 ## Refunded status cannot tell two orders on ONE listing apart
 
@@ -2493,111 +2473,6 @@ Pruning has to establish that each ROW's own charge was returned before deleting
 it, rather than reading one attendee-wide leg. Note this shares the correlation
 problem above — a reversal leg cannot currently be traced to the charge it
 reversed — so the two are likely one piece of work.
-
-## Refund-all counts booking lines, not people
-
-_Origin: Codex on PR #2065, review of 774d1949 (P2)._
-
-`withListingAttendeesAuth` hands `getRefundCandidates`
-(`src/features/admin/refunds/candidates.ts`) one `Attendee` entry per
-`listing_attendees` row, so somebody holding two rows on one listing — a
-standalone booking beside a package one — becomes two candidates carrying the
-same complete reference set.
-
-`answeredOnce` still stops the provider being asked twice, so no money moves
-twice. What goes wrong is downstream: the ledger batch receives duplicate
-reversal groups and logs a false batch failure before falling back to the
-per-attendee path, `refundedCount` counts the person once per row, and each
-duplicate eats a `BULK_REFUND_LIMIT` slot.
-
-The fix is small — collapse by attendee id (`uniqueBy((a) => a.id)` from `#fp`)
-before building candidates, so refund-all processes people rather than lines.
-What it needs is a regression that actually builds an attendee with two rows on
-one listing (the package + standalone shape), which is why it is here rather
-than done inline.
-
-## A returned deposit reverses the whole sale it only part-paid
-
-_Origin: Codex on PR #2065, review of 05b0bba6 (P1). Reproduced._
-
-Partial reversal picks whole ORDER GROUPS, which is right when each charge backs
-its own group — the merged-attendee shape it was built for. A deposit-backed
-booking is not that shape: the sale lives in the booking group, and TWO charges
-pay for it, the deposit in that same group and the balance in its own
-`balanceEventGroup`.
-
-Reproduced on a 3000 sale with a 1000 deposit and a 2000 balance. Refund only
-the deposit and `returnedRefundGroups` selects the booking group, so `mapRefund`
-writes `refund_sale 3000` beside `refund_cash 1000`. The whole sale is cancelled
-though only a third of the money came back, and the attendee's account reads
-+2000 — the balance we still hold and have not returned. Revenue is reversed for
-a booking whose other charge the provider refused.
-
-Codex proposes reversing only the returned cash leg and holding the non-cash
-reversal until every charge is back. That has the opposite flaw: with the sale
-left standing at 3000 and 1000 returned, the account reads -1000, so the
-attendee appears to OWE money they never got back. Neither reading is right on
-its own, which is why this is recorded rather than patched.
-
-The shape of a real fix: only reverse a group when every provider payment that
-paid for its sale has returned. That means knowing which charges back which
-sale, across groups — related to the correlation gap recorded above, and likely
-the same piece of work. Until then a deposit-backed booking should probably fall
-back to all-or-nothing, accepting the stranding partial reversal was built to
-end, for the shape where partial reversal misreports the books.
-
-**This one needs an owner decision**: it changes what the money history says
-about real bookings, and the partial-reversal direction was an owner call.
-
-## A refund run can spend its subrequest budget mid-flight
-
-_Origin: Codex on PR #2065, `refunds/provider.ts:369`._
-
-`packByReferenceCount(PROVIDER_REFUND_CONCURRENCY)` bounds how many references
-are asked about AT ONCE, not how many a run asks about in total. Every
-non-settled reference now costs TWO external calls — the evidence read this PR
-added, then the refund — on top of the claim transaction, the returned-marker
-write, the ledger post and the release. A merged attendee carrying roughly two
-dozen refundable charges therefore crosses Bunny's hard 50 mid-run.
-
-What happens then is not money lost, and that is why this is recorded rather
-than rushed: the budget guard throws, `underAttendeeClaim`'s catch settles every
-attendee it holds (keyless holds stay standing, keyed ones release, and anything
-already learnt about returned-but-unrecorded money is marked), and the charges
-that did come back carry `provider_refunded_at`, so a re-run picks up only the
-rest. The claim machinery is built for exactly this.
-
-What is missing is refusing BEFORE the first payout rather than stopping after
-some. Compute the worst case from the candidate set — references × 2, plus the
-fixed writes — and refuse the whole run with an operator-readable reason when it
-will not fit, the way `BULK_REFUND_LIMIT` bounds the attendee count. Start at
-`src/shared/subrequest-budget.ts` (the request-scoped counter and its limits)
-and `packByReferenceCount` in `src/features/admin/refunds/waves.ts`.
-
-## A malformed provider answer is treated as an unreachable provider
-
-_Origin: Codex on PR #2065, `admit-refund.ts:92`. Needs an owner decision._
-
-`chargeOrNothing` catches everything the read throws and answers `null`, which
-`admitProviderRefund` turns into `unreadable`. That folds two different things
-into one: a provider we could not reach, and a provider that answered with JSON
-its own documented shape does not fit. The first is ordinary and transient. The
-second is a provider-contract failure that no amount of retrying fixes, and
-under it admin refunds are quietly withheld with a debug line while callbacks
-keep declining.
-
-The tension is real and both sides are written down. AGENTS.md says a missing
-expected field from structured external data is a hard no to default away. The
-module's own docstring says the opposite for this specific case, deliberately:
-"unreadable evidence and 'already back' look identical from here, and only one
-is safe to send money against" — and letting the parse error propagate turns a
-provider hiccup into a 500 on an operator's refund page.
-
-A middle path exists — keep withholding the refund, but report a malformed
-answer at incident volume instead of debug, so it reaches somebody — and that is
-probably the right answer. It is a judgement call about how loudly the system
-should shout at an operator, so it wants a human. Start at `chargeOrNothing` in
-`src/shared/payment/admit-refund.ts` and `reportWithheldRefund`.
 
 ## The stripe-mock start-count test races its own subprocesses
 

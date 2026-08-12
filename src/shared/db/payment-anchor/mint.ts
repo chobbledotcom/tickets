@@ -9,12 +9,10 @@
  * reference and blind index as a checkout row.
  */
 
-import { executeBatch, type SqlStatement } from "#shared/db/client.ts";
+import type { SqlStatement } from "#shared/db/client.ts";
 import { anchorSessionId } from "#shared/db/payment-anchor/session.ts";
-import {
-  encryptPaymentReference,
-  type RefundPaymentReference,
-} from "#shared/db/payment-references.ts";
+import { storePaymentReference } from "#shared/db/payment-reference-store.ts";
+import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import { nowIso } from "#shared/now.ts";
 
 /** An attendee and the charges a run is about to act on for them. */
@@ -34,48 +32,44 @@ const needsAnchor = (reference: RefundPaymentReference): boolean =>
 const anchorStatement = async (
   attendeeId: number,
   reference: RefundPaymentReference,
-): Promise<SqlStatement> => ({
-  args: [
-    anchorSessionId(attendeeId, reference.index),
-    attendeeId,
-    nowIso(),
-    await encryptPaymentReference(reference.reference),
-    reference.index,
-    attendeeId,
-  ],
-  // Passing over a clash is right only because the session id names the
-  // attendee AND the charge, so a row already under it is this person's row
-  // for this money. Naming the column keeps that to the clash: a NOT NULL or
-  // future constraint failure still raises.
-  //
-  // The EXISTS stops this minting a row for somebody no longer there. A delete
-  // can land between loading candidates and anchoring — it refuses on payment
-  // rows, and a `payment_id`-only charge has none for it to see — and the
-  // table holds no foreign key, so the claim would then succeed and the run
-  // would send money with no booking or ledger left to record it against.
-  sql: `INSERT INTO processed_payments
-        (payment_session_id, attendee_id, processed_at, payment_reference,
-         payment_reference_index)
-        SELECT ?, ?, ?, ?, ?
-         WHERE EXISTS (SELECT 1 FROM attendees AS attendee
-                        WHERE attendee.id = ?)
-            ON CONFLICT (payment_session_id) DO NOTHING`,
-});
+): Promise<SqlStatement> => {
+  const stored = await storePaymentReference(reference);
+  if (stored.index !== reference.index) {
+    throw new Error(
+      `Payment reference index changed for attendee ${attendeeId}`,
+    );
+  }
+  return {
+    args: [
+      anchorSessionId(attendeeId, reference.index),
+      attendeeId,
+      nowIso(),
+      stored.encrypted,
+      stored.index,
+      attendeeId,
+    ],
+    // A session-id conflict is already this attendee's row for this charge.
+    // EXISTS prevents an orphan anchor if the attendee was just deleted.
+    sql: `INSERT INTO processed_payments
+          (payment_session_id, attendee_id, processed_at, payment_reference,
+           payment_reference_index)
+          SELECT ?, ?, ?, ?, ?
+           WHERE EXISTS (SELECT 1 FROM attendees AS attendee
+                          WHERE attendee.id = ?)
+              ON CONFLICT (payment_session_id) DO NOTHING`,
+  };
+};
 
-/** Make sure every charge these attendees carry has a row to be held by. Runs
- *  before the claim, so the claim finds these rows the way it finds any
- *  others: two runs arriving together both write, the second is ignored, and
- *  the claim decides which may move the money. Costs nothing in the normal
- *  case, where every charge already has a row. */
-export const anchorLegacyCharges = async (
+/** The writes that give every row-less charge a deterministic row. The claim
+ *  runs them inside its own transaction, so the new row and its hold become
+ *  visible together. The normal case returns no writes. */
+export const legacyAnchorStatements = async (
   attendees: readonly AnchoredAttendee[],
-): Promise<void> => {
-  const statements = await Promise.all(
+): Promise<SqlStatement[]> =>
+  await Promise.all(
     attendees.flatMap((attendee) =>
       attendee.references
         .filter(needsAnchor)
         .map((reference) => anchorStatement(attendee.attendeeId, reference)),
     ),
   );
-  if (statements.length > 0) await executeBatch(statements);
-};

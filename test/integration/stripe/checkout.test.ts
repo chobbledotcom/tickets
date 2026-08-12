@@ -109,23 +109,6 @@ describeStripe("stripe", () => {
     });
   });
 
-  describe("refundPayment - non-Error exception", () => {
-    test("handles non-Error thrown value in refund", async () => {
-      const client = await stripeClient();
-      // Throw a non-Error value to exercise the shared string conversion path.
-      await withMocks(
-        () =>
-          stub(client.refunds, "create", () =>
-            Promise.reject("network failure string"),
-          ),
-        async () => {
-          const result = await stripeApi.refundPayment("pi_test_123");
-          expect(result).toBeNull();
-        },
-      );
-    });
-  });
-
   describe("testStripeConnection - non-Error exception", () => {
     test("handles non-Error thrown value in balance check", async () => {
       const client = await stripeClient();

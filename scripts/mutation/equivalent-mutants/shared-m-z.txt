@@ -17,11 +17,6 @@ src/features/api/webhooks.ts::processSessionAndRedirect.explicitThankYou~14utous
 src/features/api/webhooks.ts::getWebhookSignatureHeader~09vhuo6  ?? → ||   # find(Boolean) → undefined|truthy; never ""
 src/features/api/webhooks.ts::authenticateWebhook.signature~0pl7bfz  ?? → ||   # getWebhookSignatureHeader → null|truthy; never ""
 
-# require-provider.ts: getPaymentProviderForExistingPayments() returns
-# Promise<ExistingPaymentProvider>; its awaited PaymentProvider|null value is
-# always truthy when present.
-src/features/admin/require-provider.ts::requirePaymentProvider~0y5apey  ?? → ||   # PaymentProvider|null; never falsy-but-non-null
-
 # request-scoped ambient fallback: scope.current() is T|undefined where T is
 # always a truthy container object (never a falsy-non-null value), so
 # `?? fallback` and `|| fallback` always agree. (createScopedValue's ?? is NOT

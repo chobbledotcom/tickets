@@ -1,3 +1,4 @@
+import { expect } from "@std/expect";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -52,8 +53,14 @@ export const setupRefundTest = async (
 
 /** Mark a paid test attendee as refunded through the production ledger path. */
 export const markAsRefunded = async (attendeeId: number): Promise<void> => {
-  const { recordAttendeeRefund } = await import("#shared/refund-ledger.ts");
-  await recordAttendeeRefund(attendeeId, [{ sessionIds: [] }]);
+  const { recordAttendeeRefund } = await import(
+    "#shared/refund-ledger/record.ts"
+  );
+  const index = `legacy-refund-${attendeeId}`;
+  const result = await recordAttendeeRefund(attendeeId, [
+    { index, sessionIds: [] },
+  ]);
+  expect(result.recorded).toEqual(new Set([index]));
 };
 
 export const setBookingLineQuantity = async (

@@ -6,6 +6,7 @@ import { PaymentConflictSchema } from "#shared/payment/conflict.ts";
 describe("what can be wrong with a payment", () => {
   test("validates every payment conflict", () => {
     const conflicts = [
+      { kind: "multiple_pending_refunds" },
       { kind: "refund_exceeds_capture" },
       { kind: "partial_refund" },
     ] as const;
@@ -21,9 +22,9 @@ describe("what can be wrong with a payment", () => {
 
   // Nothing can report these yet, so nothing may store one either. The first
   // eight need a whole reading of the checkout to compare money against what
-  // was owed; the last four belong to later milestones — the read-level pair
-  // to M5's stored-answer re-validation, the refund-shape pair to M7's
-  // per-refund records.
+  // was owed; the last three belong to later milestones — two read-level
+  // failures for M5's stored-answer validation and a refund-shape failure for
+  // M7's per-refund records.
   for (const kind of [
     "resource_mismatch",
     "currency_mismatch",
@@ -36,7 +37,6 @@ describe("what can be wrong with a payment", () => {
     "invalid_provider_data",
     "missing_resource",
     "duplicate_refund",
-    "multiple_pending_refunds",
   ] as const) {
     test(`does not yet know ${kind}`, () => {
       expect(v.is(PaymentConflictSchema, { kind })).toBe(false);

@@ -65,7 +65,8 @@ const createCheckoutWebhook = (
   });
 
 const isEndpointLimitError = (error: unknown): boolean => {
-  const message = (error as Error).message.toLowerCase();
+  if (!(error instanceof Error)) return false;
+  const message = error.message.toLowerCase();
   return (
     message.includes("webhook") &&
     (message.includes("limit") || message.includes("maximum"))

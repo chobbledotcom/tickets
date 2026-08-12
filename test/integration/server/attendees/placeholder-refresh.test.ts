@@ -20,7 +20,10 @@ import {
   rowStateSlot,
   UNRECORDED_MIRROR,
 } from "#test-utils/payment-claim.ts";
-import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
+import {
+  finalizeReservedPayment,
+  taggedPaymentReference,
+} from "#test-utils/processed-payments.ts";
 import { withRefreshPaymentProbe } from "#test-utils/refund-routes.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
@@ -73,7 +76,7 @@ const setupPlaceholderForRefresh = async (
     sessionId,
     attendee.id,
     "tok-placeholder",
-    paymentReference,
+    taggedPaymentReference(paymentReference),
   );
   if (beforeRefresh) await beforeRefresh(listing.id);
   return attendee;
@@ -169,15 +172,16 @@ describeWithEnv(
           name: "Unrecorded",
           paymentId: "pi_unrecorded_refresh",
         });
-        if (!created.success)
+        if (!created.success) {
           throw new Error(`setup failed: ${created.reason}`);
+        }
         const attendee = created.attendees[0]!;
         await reserveSession("unrecorded-refresh-session");
         await finalizeReservedPayment(
           "unrecorded-refresh-session",
           attendee.id,
           "tok-unrecorded",
-          "pi_unrecorded_refresh",
+          taggedPaymentReference("pi_unrecorded_refresh"),
         );
 
         // The account carries no ledgered order, so the reversal has nothing
@@ -232,11 +236,11 @@ describeWithEnv(
         await refreshAndVerifyRefundCash(attendee);
         await createSystemNote(
           attendeeNotes(attendee.id),
-          "This booking was kept at quantity 0 but its payment could NOT be refunded.",
+          "This booking was kept at quantity 0 but its payment could NOT be refunded. Payment reference: pi_placeholder_retry.",
         );
 
-        // Second refresh: attendee.refunded is now true (the ledger has the
-        // refund_cash leg), but the stale note must still be cleaned up.
+        // The ledger already has the refund_cash leg, but the stale note must
+        // still be cleaned up without duplicating the confirmation.
         await submitRefreshPayment(
           attendee,
           () => Promise.resolve(true),

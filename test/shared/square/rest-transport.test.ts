@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
-import { squareApi } from "#shared/square.ts";
+import { squareApi } from "#shared/square/api.ts";
 import {
   type FetchCall,
   installMockFetch,
@@ -289,7 +289,7 @@ describeSquare(() => {
       expect(result.payment!.refundedMoney).toBeUndefined();
     });
 
-    test("payments.get returns null payment when API returns none", async () => {
+    test("payments.get preserves a success response with no payment", async () => {
       mockFetch = installMockFetch(() => Promise.resolve(jsonResponse({})));
 
       const client = await squareApi.getSquareClient();

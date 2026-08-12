@@ -6,7 +6,7 @@ import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { getDb, insert } from "#shared/db/client.ts";
 import { SCHEMA } from "#shared/db/migrations/schema/index.ts";
 import { createTableSql } from "#shared/db/migrations/schema-sync.ts";
-import { paymentReferenceIndex } from "#shared/db/payment-references.ts";
+import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import {
   clearSessionTokens,
   decryptSessionTokens,
@@ -24,11 +24,16 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
-import { referenceIndexOf } from "#test-utils/payment-claim.ts";
 import {
+  claimCurrentAttendeeRows,
+  referenceIndexOf,
+} from "#test-utils/payment-claim.ts";
+import {
+  bookedWithPayment,
   expectProcessedPaymentReference,
   finalizeReservedPayment,
   getProcessedPayment,
+  taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
@@ -269,7 +274,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
     test("stamps attendee_id on an unresolved reservation, leaving tokens untouched", async () => {
       await reserveSession("sess_heal");
 
-      await finalizeSessionIfUnresolved("sess_heal", 42);
+      await finalizeSessionIfUnresolved("sess_heal", 42, null);
 
       const row = (await getProcessedPayment("sess_heal"))!;
       expect(row.attendee_id).toBe(42);
@@ -280,19 +285,45 @@ describeWithEnv("db > processed payments", { db: true }, () => {
 
     test("stores a supplied payment reference while healing", async () => {
       await reserveSession("sess_heal_reference");
-      await finalizeSessionIfUnresolved("sess_heal_reference", 42, "pi_healed");
+      const paymentReference = taggedPaymentReference("pi_healed", "square");
+      await finalizeSessionIfUnresolved(
+        "sess_heal_reference",
+        42,
+        paymentReference,
+      );
       // Read the stored column before anything else looks at this attendee:
       // the refund read repairs a missing index, so asserting through it would
       // pass whether or not this write put one there.
       expect(await referenceIndexOf("sess_heal_reference")).toBe(
-        await paymentReferenceIndex("pi_healed"),
+        await paymentReferenceIndex(paymentReference),
       );
       await expectProcessedPaymentReference(
         42,
         "sess_heal_reference",
-        "pi_healed",
+        paymentReference,
         await getTestPrivateKey(),
       );
+    });
+
+    test("refuses to heal an equivalent reference under a refund claim", async () => {
+      const reference = "pi_heal_held";
+      const attendeeId = await bookedWithPayment("sess_heal_holder", reference);
+      const held = await claimCurrentAttendeeRows([attendeeId], "keyed");
+      if (held.kind !== "claimed") throw new Error("the claim was refused");
+      await reserveSession("sess_heal_blocked");
+
+      await expect(
+        finalizeSessionIfUnresolved(
+          "sess_heal_blocked",
+          42,
+          taggedPaymentReference(reference),
+        ),
+      ).rejects.toThrow(
+        "Payment sess_heal_blocked cannot finalize while its reference is held",
+      );
+      expect(
+        (await getProcessedPayment("sess_heal_blocked"))?.attendee_id,
+      ).toBe(null);
     });
 
     test("is a no-op once resolved — preserves a racing delivery's attendee and tokens", async () => {
@@ -303,7 +334,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       // The replaying delivery tries to heal it to a different attendee; the
       // unresolved guard must make it a no-op so it never clobbers the winner's
       // ticket_tokens (which would render the success page without the ticket).
-      await finalizeSessionIfUnresolved("sess_raced", 99);
+      await finalizeSessionIfUnresolved("sess_raced", 99, null);
 
       const row = (await getProcessedPayment("sess_raced"))!;
       expect(row.attendee_id).toBe(7);
@@ -311,7 +342,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
     });
 
     test("is a no-op if the session was pruned", async () => {
-      await finalizeSessionIfUnresolved("sess_gone", 1);
+      await finalizeSessionIfUnresolved("sess_gone", 1, null);
     });
 
     test("clears stored ticket tokens", async () => {

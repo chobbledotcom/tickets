@@ -7,10 +7,10 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { singleModifierMeta } from "#test-utils/factories.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { expectWebhookKeptAndRefunded } from "#test-utils/webhooks/stripe.ts";
 import {
   checkoutSessionEvent,
   expectKeptAsQuantityZeroAndRefunded,
-  expectWebhookKeptAndRefunded,
 } from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end

@@ -6,7 +6,8 @@ import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { legReference } from "#shared/accounting/refs.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
-import { recordPlaceholderRefund } from "#shared/refund-ledger.ts";
+import { recordPlaceholderRefund } from "#shared/refund-ledger/placeholder.ts";
+import { isPaymentOnlyAccount } from "#shared/refund-ledger/plan.ts";
 import { BOOKING_AT } from "#test/shared/refund-ledger/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
@@ -53,6 +54,11 @@ describeWithEnv("refund-ledger > recordPlaceholderRefund", { db: true }, () => {
     expect(
       await recordPlaceholderRefund(PLACEHOLDER, "price_changed", true),
     ).toEqual({ posted: true });
+    expect(
+      isPaymentOnlyAccount(
+        await transfersByAccount(attendeeAccount(PLACEHOLDER.attendeeId)),
+      ),
+    ).toBe(true);
     const legs = await transfersByAccount(
       attendeeAccount(PLACEHOLDER.attendeeId),
     );
@@ -90,6 +96,9 @@ describeWithEnv("refund-ledger > recordPlaceholderRefund", { db: true }, () => {
       await transfersByAccount(attendeeAccount(PLACEHOLDER.attendeeId)),
     ).toEqual([]);
     expect(errors.lastMessage()).toContain("E_LEDGER_POST");
+    expect(errors.lastMessage()).toContain(
+      "placeholder refund ledger post failed for attendee 7:",
+    );
   });
 
   test("logs and does not throw when the payment reference conflicts", async () => {

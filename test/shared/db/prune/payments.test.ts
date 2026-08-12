@@ -1,17 +1,27 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#shared/db/client.ts";
-import { claimAttendeeRows } from "#shared/db/payment-claim.ts";
 import { runDatabasePruning } from "#shared/db/prune.ts";
 import { PRUNE_PAYMENTS_RETENTION_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { staleClaimSlot } from "#test-utils/payment-claim.ts";
+import {
+  bookAttendee,
+  bookedAttendee,
+} from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  claimCurrentAttendeeRows,
+  staleClaimSlot,
+} from "#test-utils/payment-claim.ts";
+import {
+  finalizeProcessedPayment,
+  taggedPaymentReference,
+} from "#test-utils/processed-payments.ts";
 import {
   insertClaimedPayment,
   insertFailedPayment,
   insertFinalizedPayment,
-  insertOrphanAttendee,
   insertUnfinalizedPayment,
   paymentExists,
   postRefundCash,
@@ -21,13 +31,22 @@ const oldEnoughToPrune = () =>
   new Date(nowMs() - PRUNE_PAYMENTS_RETENTION_MS - 60_000).toISOString();
 
 const insertOldReferencedPayment = async (sessionId: string) => {
-  const attendeeId = await insertOrphanAttendee(
-    new Date(nowMs()).toISOString(),
-  );
-  await insertFinalizedPayment(sessionId, oldEnoughToPrune(), {
+  const attendeeId = bookedAttendee(
+    await bookAttendee(await createTestListing(), {
+      email: `${sessionId}@example.com`,
+      name: sessionId,
+    }),
+  ).id;
+  await finalizeProcessedPayment(
+    sessionId,
     attendeeId,
-    paymentReference: "encrypted-reference",
-  });
+    "tok",
+    taggedPaymentReference(`pi_${sessionId}`),
+  );
+  await execute(
+    "UPDATE processed_payments SET processed_at = ? WHERE payment_session_id = ?",
+    [oldEnoughToPrune(), sessionId],
+  );
   return attendeeId;
 };
 
@@ -108,7 +127,7 @@ describeWithEnv(
   () => {
     test("keeps the row a lost keyless answer is still holding", async () => {
       const attendeeId = await insertOldReferencedPayment("sess_claim_stale");
-      const held = await claimAttendeeRows([attendeeId], "keyless");
+      const held = await claimCurrentAttendeeRows([attendeeId], "keyless");
       if (held.kind !== "claimed") throw new Error("the claim was refused");
       // A keyless refund whose answer went missing keeps its claim on purpose,
       // so the claim ages past the point where a live run could still hold it.

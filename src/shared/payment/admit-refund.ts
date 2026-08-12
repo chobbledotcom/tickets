@@ -9,6 +9,11 @@
 import type { PaymentConflict } from "#shared/payment/conflict.ts";
 import type { ObservationOutcome } from "#shared/payment/diagnose.ts";
 import { refundOutcomeOf } from "#shared/payment/diagnose.ts";
+import type { ProviderRead } from "#shared/payment/provider-read.ts";
+import type {
+  RefundActionResult,
+  RefundRequest,
+} from "#shared/payment/refund-attempt.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { PaymentProvider } from "#shared/payments.ts";
 
@@ -18,8 +23,22 @@ export type RefundAdmission =
   | { issue: PaymentConflict; kind: "refused" }
   | { kind: "already_returned" }
   | { kind: "in_flight" }
-  | { kind: "send" }
-  | { kind: "unreadable" };
+  | { kind: "send" };
+
+/** Admission from charge facts that were already validated at the provider
+ * boundary. It cannot carry a read failure because no read happens here. */
+export type ObservedRefundAdmission =
+  | Exclude<RefundAdmission, { kind: "send" }>
+  | { kind: "send"; request: RefundRequest };
+
+/** A provider read either supplies the observed admission or keeps its exact
+ * failure. Missing, unavailable, and invalid evidence need different repair. */
+export type ProviderRefundAdmission =
+  | ObservedRefundAdmission
+  | {
+      kind: "read_failed";
+      read: Exclude<ProviderRead<ChargeMoney>, { status: "found" }>;
+    };
 
 /** The answer for each way a reading can come out settled, listed
  *  exhaustively so a new outcome must say what it does about refunds. */
@@ -41,93 +60,77 @@ export const admitRefund = (outcome: ObservationOutcome): RefundAdmission =>
     : ADMISSION_BY_OUTCOME[outcome.kind];
 
 /** An answer that sends no money. */
-export type WithheldRefund = Exclude<RefundAdmission, { kind: "send" }>;
+export type WithheldRefund = Exclude<ProviderRefundAdmission, { kind: "send" }>;
 
 /** Why no money was sent, in words for a log line. Only the refusal needs the
  *  problem's name, so the rest read the same wherever they are reported. */
 export const admissionReason = (admission: WithheldRefund): string =>
-  admission.kind === "refused"
-    ? `needs the owner to look at it (${admission.issue.kind})`
-    : ADMISSION_REASONS[admission.kind];
+  admission.kind === "read_failed"
+    ? providerReadReason(admission.read)
+    : admission.kind === "refused"
+      ? `needs the owner to look at it (${admission.issue.kind})`
+      : ADMISSION_REASONS[admission.kind];
+
+const PROVIDER_READ_REASONS = {
+  invalid: "the provider returned invalid data",
+  missing: "the provider says the charge does not exist",
+  unavailable: "the provider could not answer",
+} as const satisfies Record<
+  Exclude<ProviderRead<never>, { status: "found" }>["status"],
+  string
+>;
+
+const providerReadReason = (
+  read: Exclude<ProviderRead<never>, { status: "found" }>,
+): string =>
+  `${PROVIDER_READ_REASONS[read.status]}${
+    "reason" in read ? ` (${read.reason})` : ""
+  }`;
 
 const ADMISSION_REASONS = {
   already_returned: "the money is already back",
   in_flight: "a refund is already on its way",
-  unreadable: "the provider could not say what the money has done",
 } as const satisfies Record<
   Exclude<RefundAdmission, { kind: "refused" } | { kind: "send" }>["kind"],
   string
 >;
+
+/** Decide from one already-validated provider reading without reading again. */
+export const admitObservedRefund = (
+  paymentReference: string,
+  charge: ChargeMoney,
+): ObservedRefundAdmission => {
+  const admission = admitRefund(refundOutcomeOf([charge]));
+  return admission.kind === "send"
+    ? { kind: "send", request: { charge, paymentReference } }
+    : admission;
+};
 
 /**
  * Ask the provider what has become of this charge's money, and answer whether
  * a refund may be sent. A charge it cannot state is never refunded on the hope
  * that it was fine: unreadable evidence and "already back" look identical from
  * here, and only one is safe to send money against.
- *
- * A read that throws is the same answer as one that comes back empty. Catching
- * it here keeps it distinct from a refund CALL that failed — no money was
- * asked for, so the caller may simply try again.
  */
 export const admitProviderRefund = async (
-  provider: Pick<PaymentProvider, "readChargeMoneyOrNull">,
+  provider: Pick<PaymentProvider, "readCharge">,
   paymentReference: string,
-): Promise<RefundAdmission> => {
-  const charge = await chargeOrNothing(() =>
-    provider.readChargeMoneyOrNull(paymentReference),
-  );
-  return charge === null
-    ? { kind: "unreadable" }
-    : admitRefund(refundOutcomeOf([charge]));
-};
-
-/** A read that fails is a read that said nothing. Takes the read rather than
- *  the provider so a reader that throws before it returns is caught too. */
-const chargeOrNothing = async (
-  read: () => Promise<ChargeMoney | null>,
-): Promise<ChargeMoney | null> => {
-  try {
-    return await read();
-  } catch {
-    return null;
-  }
+): Promise<ProviderRefundAdmission> => {
+  const read = await provider.readCharge(paymentReference);
+  if (read.status !== "found") return { kind: "read_failed", read };
+  return admitObservedRefund(paymentReference, read.resource);
 };
 
 /** The whole refund mechanism: ask what the money has already done, send more
  *  only if it may be sent, hand back whichever answer fits. The routes phrase
  *  their endings differently but must never differ on WHEN money leaves, so
  *  every step up to the provider call lives here once. */
-export const sendRefundIfAdmitted = async <TAnswer>(
-  provider: Pick<
-    PaymentProvider,
-    "readChargeMoneyOrNull" | "refundCapability" | "refundPayment"
-  >,
+export const sendRefundIfAdmitted = async (
+  provider: Pick<PaymentProvider, "readCharge" | "refundCharge">,
   paymentReference: string,
-  answer: {
-    sent: () => TAnswer;
-    failed: () => TAnswer;
-    withhold: (admission: WithheldRefund) => TAnswer;
-  },
-  /**
-   * Whether a charge the provider cannot state may still be sent back. Only
-   * the rejected-charge recovery sets this, and only it can: that path exists
-   * BECAUSE the charge's numbers came back unusable, so asking the guard to
-   * read them asks the question that already failed.
-   *
-   * It still only sends where a repeat is harmless — a keyed provider rejects
-   * a second full refund itself, a keyless one would pay twice.
-   */
-  sendWhenUnreadable = false,
-): Promise<TAnswer> => {
+): Promise<RefundActionResult<WithheldRefund>> => {
   const admission = await admitProviderRefund(provider, paymentReference);
-  if (admission.kind !== "send") {
-    const repeatIsHarmless =
-      sendWhenUnreadable &&
-      admission.kind === "unreadable" &&
-      provider.refundCapability === "keyed";
-    if (!repeatIsHarmless) return answer.withhold(admission);
-  }
-  return (await provider.refundPayment(paymentReference))
-    ? answer.sent()
-    : answer.failed();
+  return admission.kind === "send"
+    ? await provider.refundCharge(admission.request)
+    : { admission, kind: "withheld" };
 };

@@ -1,4 +1,6 @@
-import { filter } from "#fp";
+import { filter, requiredMapValue, uniqueBy } from "#fp";
+import { anchorSessionId } from "#shared/db/payment-anchor/session.ts";
+import type { LoadedRefundAttendee } from "#shared/db/payment-claim/take.ts";
 import {
   getRefundPaymentReferences,
   type RefundPaymentReference,
@@ -12,6 +14,24 @@ export type RefundCandidate = {
   attendee: Attendee;
   references: RefundPaymentReference[];
 };
+
+/** The durable rows that carry one attendee's copy of a reference. */
+export const referenceRowIds = (
+  attendeeId: number,
+  reference: RefundPaymentReference,
+): readonly string[] =>
+  reference.rowSessionIds.length > 0
+    ? reference.rowSessionIds
+    : [anchorSessionId(attendeeId, reference.index)];
+
+/** The exact attendee revision and payment rows the claim must verify. */
+export const loadedRefundAttendee = (
+  candidate: RefundCandidate,
+): LoadedRefundAttendee => ({
+  attendeeId: candidate.attendee.id,
+  loadedPiiBlob: candidate.attendee.pii_blob,
+  references: candidate.references,
+});
 
 /**
  * Whether a refund run still has work for this attendee.
@@ -39,19 +59,25 @@ export const getRefundCandidates = async (
   attendees: Attendee[],
   privateKey: CryptoKey,
 ): Promise<RefundCandidate[]> => {
+  const ticketHolders = uniqueBy((attendee: Attendee) => attendee.id)(
+    filter<Attendee>(hasTicketQuantity)(attendees),
+  );
   const referencesByAttendee = await getRefundPaymentReferences(
-    attendees,
+    ticketHolders,
     privateKey,
   );
   return filter(
     (candidate: RefundCandidate) =>
       candidate.references.length > 0 &&
-      refundWorkRemains(candidate.attendee, candidate.references) &&
-      hasTicketQuantity(candidate.attendee),
+      refundWorkRemains(candidate.attendee, candidate.references),
   )(
-    attendees.map((attendee) => ({
+    ticketHolders.map((attendee) => ({
       attendee,
-      references: referencesByAttendee.get(attendee.id)!,
+      references: requiredMapValue(
+        referencesByAttendee,
+        attendee.id,
+        `Refund references omitted attendee ${attendee.id}`,
+      ),
     })),
   );
 };

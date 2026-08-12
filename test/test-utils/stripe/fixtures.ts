@@ -1,11 +1,20 @@
 import { assertExists } from "@std/assert";
 import { stub } from "@std/testing/mock";
 import { settings } from "#shared/db/settings.ts";
+import type { Currency } from "#shared/payment/money.ts";
+import type {
+  RefundAttemptResult,
+  RefundRequest,
+} from "#shared/payment/refund-attempt.ts";
+import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { CheckoutItem, WebhookEvent } from "#shared/payments.ts";
 import type { StripeClient } from "#shared/stripe/client.ts";
-import { STRIPE_API_VERSION } from "#shared/stripe/request.ts";
+import { STRIPE_API_VERSION, StripeApiError } from "#shared/stripe/request.ts";
 import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
-import type { StripeCheckoutSession } from "#shared/stripe/schemas.ts";
+import type {
+  StripeCheckoutSession,
+  StripeRefund,
+} from "#shared/stripe/schemas.ts";
 import type { Listing } from "#shared/types.ts";
 import { checkoutItem } from "#test-utils/checkout.ts";
 import { withMocks } from "#test-utils/mocks.ts";
@@ -38,6 +47,81 @@ export const stripeCheckoutSession = (
   url: "https://checkout.stripe.com/c/pay/cs_test",
   ...overrides,
 });
+
+/** A complete Stripe refund answer with per-test fields overridden. */
+export const stripeRefund = (
+  overrides: Partial<StripeRefund> = {},
+): StripeRefund => ({
+  amount: 1000,
+  currency: "gbp",
+  id: "re_1",
+  payment_intent: "pi_1",
+  status: "succeeded",
+  ...overrides,
+});
+
+/** Stripe charge money after the provider boundary has normalised it. */
+export const stripeChargeMoney = (
+  amount = 1000,
+  returned = 0,
+  currency: Currency = "GBP",
+): ChargeMoney => ({
+  captured: { amount, currency },
+  confirmedRefunded: { amount: returned, currency },
+  refunds: [],
+});
+
+/** The independently read charge facts passed into a Stripe refund. */
+export const stripeRefundRequest = (
+  paymentReference = "pi_1",
+  amount = 1000,
+  currency: Currency = "GBP",
+): RefundRequest => ({
+  charge: stripeChargeMoney(amount, 0, currency),
+  paymentReference,
+});
+
+/** A completed Stripe refund answer for route tests that stub the adapter. */
+export const completedStripeRefund = (
+  paymentReference = "pi_1",
+  refundId = "re_1",
+  amount = 1000,
+  currency: Currency = "GBP",
+): Extract<RefundAttemptResult, { kind: "completed" }> => ({
+  amount: { amount, currency },
+  kind: "completed",
+  proof: {
+    kind: "named_refund",
+    refund: {
+      id: refundId,
+      kind: "stripe_refund",
+      parentId: paymentReference,
+      provider: "stripe",
+    },
+  },
+});
+
+/** Stub behaviour that completes exactly the Stripe refund it was asked for. */
+export const answerCompletedStripeRefund =
+  (refundId = "re_1") =>
+  (request: RefundRequest): Promise<RefundAttemptResult> =>
+    Promise.resolve(
+      completedStripeRefund(
+        request.paymentReference,
+        refundId,
+        request.charge.captured.amount,
+        request.charge.captured.currency,
+      ),
+    );
+
+/** A typed Stripe API refusal with no private provider details. */
+export const stripeApiError = (statusCode: number): StripeApiError =>
+  new StripeApiError("Stripe refused the request", {
+    code: undefined,
+    requestId: undefined,
+    statusCode,
+    type: undefined,
+  });
 
 /** A checkout line that mirrors a listing's id, name, slug, and price. */
 export const lineFor = (listing: Listing, quantity = 1): CheckoutItem =>

@@ -11,10 +11,15 @@ import type {
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
 import { runWithPendingWork } from "#shared/pending-work.ts";
+import {
+  answerCompletedStripeRefund,
+  stripeRefundRequest,
+} from "#test/test-utils/stripe/fixtures.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { foundStripeIntent } from "#test-utils/stripe/responses.ts";
 
 /** Makes the provider answer with this checkout — or with nothing, for a
  *  checkout it has never heard of — for as long as the test runs. */
@@ -51,6 +56,7 @@ const paidSession = (
   },
   paymentReference: "pi_classify",
   paymentStatus: "paid",
+  provider: "stripe",
 });
 
 describeWithEnv("telling whether a checkout is ours", { db: true }, () => {
@@ -207,13 +213,17 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
         500,
       ),
       paymentReference: "pi_refunded",
+      provider: "stripe",
       reason: "malformed_charge",
       refundable: true,
     });
-    using refundStub = stub(stripeApi, "refundPayment", () =>
-      Promise.resolve({ id: "re_1", status: "succeeded" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >),
+    using refundStub = stub(
+      stripeApi,
+      "refundCharge",
+      answerCompletedStripeRefund(),
+    );
+    using _read = stub(stripeApi, "readPaymentIntent", (reference) =>
+      Promise.resolve(foundStripeIntent(reference, 500)),
     );
 
     const result = await runWithPendingWork(() =>
@@ -227,7 +237,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
     const page = await result.response.text();
     expect(page).toContain("We have sent your money back");
     expect(refundStub.calls.map((call) => call.args)).toEqual([
-      ["pi_refunded"],
+      [stripeRefundRequest("pi_refunded", 500)],
     ]);
     expect(page).not.toContain("We could not find this payment session.");
     expect(
@@ -253,6 +263,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
       }),
       paymentReference: "",
       paymentStatus: "failed" as const,
+      provider: "stripe" as const,
     });
 
     const result = await validatePaidSession("cs_failed");
@@ -272,6 +283,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
       metadata: webhookMeta({ name: "Still Going" }),
       paymentReference: "",
       paymentStatus: "unpaid" as const,
+      provider: "stripe" as const,
     });
 
     const result = await runWithPendingWork(() =>

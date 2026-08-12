@@ -11,25 +11,28 @@ import {
   refundedNoteText,
   refundSpec,
   refuseMismatch,
-  tryRefund,
   validationFailure,
 } from "#routes/api/payment-processing/refunds.ts";
 import type { PaymentFailureResult } from "#routes/api/webhook-types.ts";
-import type { ValidatedPaymentSession } from "#shared/payments.ts";
+import type { RefundRequest } from "#shared/payment/refund-attempt.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
-import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
+import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
-import { chargeMoney, fullyRefundedMoney } from "#test-utils/payment-state.ts";
-import { setupStripe } from "#test-utils/settings.ts";
+import { paidSession } from "#test-utils/payment-session.ts";
 import {
-  stubRefundPayment,
-  stubRetrieveCheckoutSession,
-} from "#test-utils/webhooks.ts";
+  chargeMoney,
+  completedRefund,
+  foundCharge,
+  fullyRefundedMoney,
+} from "#test-utils/payment-state.ts";
+import { refundCompletes, withRefundMock } from "#test-utils/refund-routes.ts";
+import { setupStripe } from "#test-utils/settings.ts";
+import { stubRetrieveCheckoutSession } from "#test-utils/webhooks/stripe.ts";
 // jscpd:ignore-end
 
 import {
@@ -69,11 +72,20 @@ const withRefundRedirect = async (
   await setupStripe();
   const listing = await deactivatedListing();
   const { stripePaymentProvider } = await import("#shared/stripe-provider.ts");
-  using _refund = stub(stripePaymentProvider, "refundPayment", () =>
-    Promise.resolve(refundSucceeds),
+  using _refund = stub(
+    stripePaymentProvider,
+    "refundCharge",
+    (request: RefundRequest) =>
+      Promise.resolve(
+        refundSucceeds
+          ? completedRefund(request.charge)
+          : ({ kind: "rejected", reason: "failed" } as const),
+      ),
   );
-  using _refunded = stub(stripePaymentProvider, "readChargeMoneyOrNull", () =>
-    Promise.resolve(alreadyRefunded ? fullyRefundedMoney() : chargeMoney()),
+  using _refunded = stub(stripePaymentProvider, "readCharge", () =>
+    Promise.resolve(
+      foundCharge(alreadyRefunded ? fullyRefundedMoney() : chargeMoney()),
+    ),
   );
   const mockRetrieve = stubRetrieveCheckoutSession({
     amountTotal: 1000,
@@ -93,40 +105,12 @@ const withRefundRedirect = async (
   }
 };
 
-const mockSession = (id: string): ValidatedPaymentSession => ({
-  amountTotal: 1000,
-  currency: "GBP",
-  id,
-  metadata: webhookMeta({ name: "Buyer" }),
-  paymentReference: `pi_${id}`,
-  paymentStatus: "paid",
-});
-
-const stubStripeRefund = async (
-  refundSucceeds: boolean,
-  alreadyRefunded: boolean,
-): Promise<() => void> => {
-  const { stripePaymentProvider } = await import("#shared/stripe-provider.ts");
-  const refund = stub(stripePaymentProvider, "refundPayment", () =>
-    Promise.resolve(refundSucceeds),
-  );
-  const refunded = stub(stripePaymentProvider, "readChargeMoneyOrNull", () =>
-    Promise.resolve(alreadyRefunded ? fullyRefundedMoney() : chargeMoney()),
-  );
-  return () => {
-    refund.restore();
-    refunded.restore();
-  };
-};
-
 describeWithEnv("server (refund helper mutations)", { db: true }, () => {
   const debugSpy = useDebugLogSpy();
   const errorSpy = useErrorLogSpy();
 
   test("refund logs debug when issued", async () => {
-    await setupStripe();
     const listing = await deactivatedListing();
-    const mockRefund = stubRefundPayment();
     const mockRetrieve = stubRetrieveCheckoutSession({
       amountTotal: 1000,
       email: "r@e.com",
@@ -136,13 +120,14 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
       sessionId: "cs_refund_log",
     });
     try {
-      const res = await handleRequest(
-        mockRequest("/payment/success?session_id=cs_refund_log"),
-      );
-      await expectHtmlResponse(res, 410, "no longer accepting", "refunded");
-      expect(debugLogged(debugSpy, "Refund issued")).toBe(true);
+      await withRefundMock(refundCompletes, async () => {
+        const res = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_refund_log"),
+        );
+        await expectHtmlResponse(res, 410, "no longer accepting", "refunded");
+        expect(debugLogged(debugSpy, "Refund completed")).toBe(true);
+      });
     } finally {
-      mockRefund.restore();
       mockRetrieve.restore();
     }
   });
@@ -169,7 +154,7 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
       "r3@e.com",
       "R3",
       async () =>
-        expect(errorLogged(errorSpy, "Failed to refund payment")).toBe(true),
+        expect(errorLogged(errorSpy, "Refund rejected for payment")).toBe(true),
     );
   });
 
@@ -242,11 +227,11 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
   });
 
   test("chargeMismatchSpec and deletedListingSpec select their code and detail", () => {
-    const mismatch = chargeMismatchSpec(mockSession("cs_charge"), 1000);
+    const mismatch = chargeMismatchSpec(paidSession("cs_charge"), 1000);
     expect(mismatch.code).toBe("charge_mismatch");
     expect(mismatch.detail).toContain("1000");
     expect(mismatch.reason).toContain("did not match the agreed total");
-    const removed = deletedListingSpec(mockSession("cs_deleted"));
+    const removed = deletedListingSpec(paidSession("cs_deleted"));
     expect(removed.code).toBe("listing_removed");
     expect(removed.detail).toContain("cs_deleted");
     expect(removed.reason).toContain("was removed while they were paying");
@@ -265,71 +250,9 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
     expect(notRefunded).not.toContain("payment was refunded because");
   });
 
-  test("tryRefund returns false for an empty payment reference", async () => {
-    expect(await tryRefund("")).toBe(false);
-  });
-
-  test("tryRefund logs the provider-missing detail when no provider is configured", async () => {
-    expect(await tryRefund("pi_no_provider")).toBe(false);
-    expect(
-      errorLogged(errorSpy, "No payment provider configured for refund"),
-    ).toBe(true);
-  });
-
-  /** Direct `tryRefund` return-value pins the redirect tests do not own. */
-  const tryRefundOutcomes: [string, boolean, boolean, boolean][] = [
-    ["refund succeeds", true, false, true],
-    ["already refunded", false, true, true],
-    ["refund fails", false, false, false],
-  ];
-  for (const [
-    name,
-    refundSucceeds,
-    alreadyRefunded,
-    expected,
-  ] of tryRefundOutcomes) {
-    test(`tryRefund returns ${expected} when ${name}`, async () => {
-      await setupStripe();
-      const restore = await stubStripeRefund(refundSucceeds, alreadyRefunded);
-      try {
-        expect(await tryRefund(`pi_${name.replace(/\s/g, "_")}`)).toBe(
-          expected,
-        );
-      } finally {
-        restore();
-      }
-    });
-  }
-
-  test("tryRefund reports a charge only partly returned", async () => {
-    await setupStripe();
-    const { stripePaymentProvider } = await import(
-      "#shared/stripe-provider.ts"
-    );
-    const refund = stub(stripePaymentProvider, "refundPayment", () =>
-      Promise.resolve(true),
-    );
-    // Some of the money went back, but not all of it: the provider's records
-    // and this booking disagree, and only a person can settle that.
-    const read = stub(stripePaymentProvider, "readChargeMoneyOrNull", () =>
-      Promise.resolve(chargeMoney(1000, 400)),
-    );
-    try {
-      expect(await tryRefund("pi_partly_back")).toBe(false);
-      expect(refund.calls).toHaveLength(0);
-    } finally {
-      refund.restore();
-      read.restore();
-    }
-
-    // It used to go to a debug line, which reaches nobody.
-    expect(errorLogged(errorSpy, "partial_refund")).toBe(true);
-    expect(errorLogged(errorSpy, "an owner needs to look at it")).toBe(true);
-  });
-
   test("validationFailure short-circuits 404 without refunding", () => {
     const result = validationFailure(
-      mockSession("cs_404"),
+      paidSession("cs_404"),
       { error: "Listing not found", status: 404 },
       1,
     ) as PaymentFailureResult;
@@ -342,35 +265,27 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
   });
 
   test("validationFailure refunds for non-404 statuses", async () => {
-    await setupStripe();
-    const restore = await stubStripeRefund(true, false);
-    try {
+    await withRefundMock(refundCompletes, async () => {
       const result = await validationFailure(
-        mockSession("cs_410"),
+        paidSession("cs_410"),
         { error: "no longer accepting", status: 410 },
         1,
       );
       expect(result.status).toBe(410);
       expect(result.refunded).toBe(true);
-    } finally {
-      restore();
-    }
+    });
   });
 
   test("refuseMismatch returns the price-changed message at 409 and refunds", async () => {
-    await setupStripe();
-    const restore = await stubStripeRefund(true, false);
-    try {
-      const result = await refuseMismatch(mockSession("cs_price"), 1000, 1);
+    await withRefundMock(refundCompletes, async () => {
+      const result = await refuseMismatch(paidSession("cs_price"), 1000, 1);
       expect(result.success).toBe(false);
       if (result.success) throw new Error("expected a failure result");
       expect(result.refunded).toBe(true);
       expect(result.status).toBe(409);
       expect(result.error.toLowerCase()).toContain("price");
       expect(result.detail).toContain("1000");
-    } finally {
-      restore();
-    }
+    });
   });
 
   test("failureDetail uses detail when present and non-empty", () => {

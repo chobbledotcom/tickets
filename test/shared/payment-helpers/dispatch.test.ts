@@ -253,6 +253,7 @@ describe("payment-helpers", () => {
       metadata: { items: "[]", name: "Alice" } as SessionMetadata,
       paymentReference: "payment-1",
       paymentStatus: "paid",
+      provider: "stripe",
     });
 
     expect(build).toEqual(expect.objectContaining({ createdAt }));

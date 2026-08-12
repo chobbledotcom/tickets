@@ -38,6 +38,7 @@ import {
   defineEntityPage,
   type EntityPage,
   type PageCtx,
+  prepareOwnerFields,
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
 import { writeFormTab } from "#routes/admin/entity-write-tab.ts";
@@ -47,6 +48,10 @@ import { getEffectiveDomain } from "#shared/config.ts";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { getNotesFor } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
+import {
+  getPaymentReviewStatus,
+  type PaymentReviewStatus,
+} from "#shared/db/payment-review.ts";
 import { settings } from "#shared/db/settings.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -64,28 +69,64 @@ import {
 } from "#templates/admin/attendee-page.tsx";
 import { PaymentDetails } from "#templates/admin/attendees.tsx";
 
+type AttendeePageEntity = LoadedAttendee & {
+  readonly paymentReviewStatus: PaymentReviewStatus | "not_loaded";
+};
+
+/** Load payment review state only for the Actions tab. */
+const loadAttendeePageEntity = async (
+  id: number,
+): Promise<AttendeePageEntity | null> => {
+  const entity = await loadAttendeeForEdit(id);
+  return entity === null
+    ? null
+    : { ...entity, paymentReviewStatus: "not_loaded" };
+};
+
 /** The attendee-scoped action routes live under the entity's own base. */
-const actionBase = ({ attendee }: LoadedAttendee): string =>
+const actionBase = ({ attendee }: AttendeePageEntity): string =>
   `/admin/attendees/${attendee.id}`;
 
 /** Thread the current tab back through a sub-action's confirm page. */
 const withReturn = (href: string, ctx: PageCtx): string =>
   `${href}?return_url=${encodeURIComponent(ctx.returnUrl)}`;
 
+/** Gate owner payment actions on one named durable row state. */
+const ownerPaymentWhen =
+  (
+    status: PaymentReviewStatus,
+    allowed: (entity: AttendeePageEntity) => boolean = () => true,
+  ): NonNullable<ActionDef<AttendeePageEntity>["visible"]> =>
+  (entity, session) =>
+    isOwnerRole(session.adminLevel) &&
+    entity.paymentReviewStatus === status &&
+    allowed(entity);
+
+/** Build one attendee-scoped confirmation action. */
+const attendeeAction = (
+  segment: string,
+  config: Omit<ActionDef<AttendeePageEntity>, "href">,
+): ActionDef<AttendeePageEntity> => ({
+  ...config,
+  href: (entity, ctx) => withReturn(`${actionBase(entity)}/${segment}`, ctx),
+});
+
 /** The Actions tab entries. Every `visible` mirrors its target's own gate. */
-const ATTENDEE_ACTIONS: readonly ActionDef<LoadedAttendee>[] = [
-  {
-    href: (entity, ctx) => withReturn(`${actionBase(entity)}/refund`, ctx),
+const ATTENDEE_ACTIONS: readonly ActionDef<AttendeePageEntity>[] = [
+  attendeeAction("refund", {
     icon: "credit-card",
     labelKey: "attendee_form.action_refund",
-    visible: ({ canRefund }) => canRefund,
-  },
-  {
-    href: (entity, ctx) =>
-      withReturn(`${actionBase(entity)}/resend-notification`, ctx),
+    visible: ownerPaymentWhen("none", ({ canRefund }) => canRefund),
+  }),
+  attendeeAction("payment-review", {
+    icon: "check",
+    labelKey: "attendee_form.action_payment_review",
+    visible: ownerPaymentWhen("available"),
+  }),
+  attendeeAction("resend-notification", {
     icon: "rotate-ccw",
     labelKey: "attendee_form.action_resend",
-  },
+  }),
   {
     href: ({ attendee }) =>
       `/admin/sms?listing=${attendee.listing_id}&attendee=${attendee.id}`,
@@ -125,7 +166,7 @@ const loadEditPanel = async (
 };
 
 /** The Overview tab's sections. */
-const overviewTab: TabDef<LoadedAttendee> = {
+const overviewTab: TabDef<AttendeePageEntity> = {
   labelKey: "entity.tab.overview",
   sections: [
     {
@@ -197,7 +238,7 @@ const overviewTab: TabDef<LoadedAttendee> = {
 };
 
 /** The tabbed attendee page. */
-export const attendeePage: EntityPage<LoadedAttendee> = defineEntityPage({
+export const attendeePage: EntityPage<AttendeePageEntity> = defineEntityPage({
   banner: async ({ attendee }, ctx) =>
     attendeeBanner({
       attendee,
@@ -210,7 +251,7 @@ export const attendeePage: EntityPage<LoadedAttendee> = defineEntityPage({
     }),
   basePath: (id) => `/admin/attendees/${id}`,
   guard: requireSessionOr,
-  load: (id) => loadAttendeeForEdit(id),
+  load: (id) => loadAttendeePageEntity(id),
   // A single attendee is a page *within* the Attendees section: highlight the
   // top-level link, but never re-open the section's "Add" sub-nav beside it.
   navActive: { section: "/admin/attendees" },
@@ -220,8 +261,12 @@ export const attendeePage: EntityPage<LoadedAttendee> = defineEntityPage({
     ),
   tabs: [
     overviewTab,
-    writeFormTab("edit", "entity.tab.edit", loadEditPanel),
-    writeFormTab("logistics", "entity.tab.logistics", loadLogisticsPanel),
+    writeFormTab<AttendeePageEntity>("edit", "entity.tab.edit", loadEditPanel),
+    writeFormTab<AttendeePageEntity>(
+      "logistics",
+      "entity.tab.logistics",
+      loadLogisticsPanel,
+    ),
     {
       labelKey: "entity.tab.ledger",
       sections: [
@@ -258,6 +303,11 @@ export const attendeePage: EntityPage<LoadedAttendee> = defineEntityPage({
         {
           actions: ATTENDEE_ACTIONS,
           kind: "actions",
+          prepare: prepareOwnerFields<AttendeePageEntity>(async (entity) => ({
+            paymentReviewStatus: await getPaymentReviewStatus(
+              entity.attendee.id,
+            ),
+          })),
           titleKey: "entity.tab.actions",
         },
         {

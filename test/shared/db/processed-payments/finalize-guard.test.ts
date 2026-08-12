@@ -8,14 +8,47 @@ import {
 } from "#shared/db/processed-payments.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import {
+  bookAttendee,
+  bookedAttendee,
+} from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   expectProcessedPaymentReference,
   getProcessedPayment,
+  taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
 
+/** One reserved payment belonging to a fresh attendee. */
+const reserveAttendeePayment = async (sessionId: string): Promise<number> => {
+  const listing = await createTestListing({ maxAttendees: 5 });
+  const attendeeId = bookedAttendee(await bookAttendee(listing)).id;
+  await reserveSession(sessionId);
+  return attendeeId;
+};
+
 describeWithEnv("db > processed payment finalize guard", { db: true }, () => {
+  test("finalizes a free session without storing a charge reference", async () => {
+    const attendeeId = await reserveAttendeePayment("free-finalize");
+
+    await executeBatch(
+      await batchFinalizeStatements(
+        "free-finalize",
+        "?",
+        attendeeId,
+        null,
+        "free-token",
+      ),
+    );
+
+    const finalized = await getProcessedPayment("free-finalize");
+    expect(finalized?.attendee_id).toBe(attendeeId);
+    expect(finalized?.payment_reference).toBe("");
+    expect(await decryptSessionTokens(finalized!.ticket_tokens)).toBe(
+      "free-token",
+    );
+  });
+
   test("rejects a missing session", async () => {
     await expect(
       executeBatch(
@@ -23,7 +56,7 @@ describeWithEnv("db > processed payment finalize guard", { db: true }, () => {
           "missing-finalize",
           "?",
           10,
-          "pi_missing",
+          taggedPaymentReference("pi_missing"),
           "stable-token",
         ),
       ),
@@ -31,17 +64,13 @@ describeWithEnv("db > processed payment finalize guard", { db: true }, () => {
   });
 
   test("rejects an already-finalized session without changing it", async () => {
-    const listing = await createTestListing({ maxAttendees: 5 });
-    const attendee = await bookAttendee(listing);
-    if (!attendee.success) throw new Error("attendee setup failed");
-    const attendeeId = attendee.attendees[0]!.id;
-    await reserveSession("already-finalized");
+    const attendeeId = await reserveAttendeePayment("already-finalized");
     await executeBatch(
       await batchFinalizeStatements(
         "already-finalized",
         "?",
         attendeeId,
-        "pi_first",
+        taggedPaymentReference("pi_first"),
         "first-token",
       ),
     );
@@ -53,7 +82,7 @@ describeWithEnv("db > processed payment finalize guard", { db: true }, () => {
     await expectProcessedPaymentReference(
       attendeeId,
       "already-finalized",
-      "pi_first",
+      taggedPaymentReference("pi_first"),
       await getTestPrivateKey(),
     );
 
@@ -63,7 +92,7 @@ describeWithEnv("db > processed payment finalize guard", { db: true }, () => {
           "already-finalized",
           "?",
           attendeeId + 1,
-          "pi_second",
+          taggedPaymentReference("pi_second"),
           "second-token",
         ),
       ),
@@ -74,7 +103,7 @@ describeWithEnv("db > processed payment finalize guard", { db: true }, () => {
     await expectProcessedPaymentReference(
       attendeeId,
       "already-finalized",
-      "pi_first",
+      taggedPaymentReference("pi_first"),
       await getTestPrivateKey(),
     );
   });

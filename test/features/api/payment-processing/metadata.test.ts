@@ -44,6 +44,7 @@ const session = (
   metadata: { ...bareMetadata, ...metadata },
   paymentReference: "pi_1",
   paymentStatus: "paid",
+  provider: "stripe",
 });
 
 describe("the time a payment counts as happening", () => {

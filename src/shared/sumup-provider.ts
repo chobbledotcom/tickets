@@ -12,20 +12,16 @@
  * - No webhook endpoint to set up (return_url is set per checkout)
  */
 
-import type { EventStatus } from "@sumup/sdk";
-import { toMinorUnits } from "#shared/currency.ts";
 import {
   getSealedSumupCheckout,
   getSumupCheckout,
   openSumupCheckout,
 } from "#shared/db/sumup-checkouts.ts";
 import { logDebug } from "#shared/logger.ts";
-import { money } from "#shared/payment/money.ts";
 import type {
-  ChargeMoney,
-  RefundObservation,
-} from "#shared/payment/resources.ts";
-import { chargeMoneyOrNull } from "#shared/payment/resources.ts";
+  RefundAttemptResult,
+  RefundRequest,
+} from "#shared/payment/refund-attempt.ts";
 import {
   isSessionRejection,
   type SessionRejection,
@@ -46,7 +42,7 @@ import type {
   WebhookSetupResult,
   WebhookVerifyResult,
 } from "#shared/payments.ts";
-import type { SumupTransactionMoney } from "#shared/sumup.ts";
+import { readSumupCharge, sumupRefundOutcome } from "#shared/sumup/money.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import type {
   SumupCheckout,
@@ -67,59 +63,6 @@ const MAX_SUMUP_ID_BYTES = 255;
 
 const isUsableSumupId = (id: string): boolean =>
   id !== "" && new TextEncoder().encode(id).byteLength <= MAX_SUMUP_ID_BYTES;
-
-/** What each SumUp event status means for a refund. Every status the API
- *  documents is listed, so one arriving on a refund event is never quietly
- *  ignored; the payout-side ones say nothing about money going back, and a
- *  refund event carrying one is evidence we cannot read. */
-const REFUND_STATUS_MEANING = {
-  FAILED: "failed",
-  PAID_OUT: null,
-  PENDING: "pending",
-  RECONCILED: null,
-  REFUNDED: "completed",
-  SCHEDULED: "pending",
-  SUCCESSFUL: "completed",
-} as const satisfies Record<EventStatus, RefundObservation["status"] | null>;
-
-const isKnownEventStatus = (
-  status: string | undefined,
-): status is keyof typeof REFUND_STATUS_MEANING =>
-  status !== undefined && status in REFUND_STATUS_MEANING;
-
-/** SumUp states money in major units ("10.50"), in the currency the charge was
- *  taken in — never today's site currency, which may have changed since. */
-const sumupMinorUnits = (
-  amount: number | undefined,
-  currency: string,
-): number | undefined =>
-  amount === undefined ? undefined : toMinorUnits(amount, currency);
-
-/**
- * Turn SumUp's refund events into refunds we can judge, or nothing when one of
- * them cannot be read. Refusing the whole reading is deliberate: a refund event
- * we cannot account for might be money already returned, and dropping it would
- * let the guard send that money a second time.
- */
-const sumupRefundsOrNull = (
-  events: SumupTransactionMoney["refundEvents"],
-  currency: string,
-): RefundObservation[] | null => {
-  const refunds: RefundObservation[] = [];
-  for (const event of events) {
-    if (!isKnownEventStatus(event.status)) return null;
-    const status = REFUND_STATUS_MEANING[event.status];
-    if (status === null) return null;
-    const amount = money(sumupMinorUnits(event.amount, currency), currency);
-    if (amount === null) return null;
-    refunds.push(
-      status === "failed"
-        ? { amount, reason: "provider_failed", status }
-        : { amount, status },
-    );
-  }
-  return refunds;
-};
 
 /** Refuse a callback retryably with a value-free console line. Forged and
  * unreadable callbacks must not spend alert subrequests, and the fixed words
@@ -146,6 +89,7 @@ const buildValidatedSession = (
     metadata: metadata as SessionMetadata,
     paymentReference: checkout.transactionId,
     paymentStatus: toPaymentStatus(checkout.status),
+    provider: "sumup",
   });
 
 /** SumUp's checkout-session builder (see {@link makeCreateCheckoutSession}). */
@@ -162,28 +106,23 @@ export const sumupPaymentProvider: PaymentProvider = {
   checkoutCompletedEventType: "CHECKOUT_STATUS_CHANGED",
   createCheckoutSession: createSumupCheckoutSession,
 
-  async readChargeMoneyOrNull(
-    paymentReference: string,
-  ): Promise<ChargeMoney | null> {
-    const transaction = await sumupApi.readTransactionMoney(paymentReference);
-    if (!transaction) return null;
-    const { currency } = transaction;
-    if (currency === undefined) return null;
-    const refunds = sumupRefundsOrNull(transaction.refundEvents, currency);
-    if (refunds === null) return null;
-    // SumUp keeps no cumulative refunded total, so the events are the whole
-    // account of what has gone back and nothing stands in for one.
-    return chargeMoneyOrNull(
-      sumupMinorUnits(transaction.amount, currency),
-      currency,
-      0,
-      refunds,
-    );
-  },
+  readCharge: readSumupCharge,
   refundCapability: "keyless",
 
-  refundPayment(paymentReference: string): Promise<boolean> {
-    return sumupApi.refundTransaction(paymentReference);
+  async refundCharge(request: RefundRequest): Promise<RefundAttemptResult> {
+    const submission = await sumupApi.refundTransaction(
+      request.paymentReference,
+    );
+    if (submission.kind === "not_sent" || submission.kind === "rejected") {
+      return submission;
+    }
+
+    // A successful response has no refund facts, and an uncertain call may have
+    // landed. Only fresh transaction evidence can settle either one.
+    const freshRead = await sumupPaymentProvider.readCharge(
+      request.paymentReference,
+    );
+    return sumupRefundOutcome(submission, request, freshRead);
   },
   requiresWebhookSignature: false,
 

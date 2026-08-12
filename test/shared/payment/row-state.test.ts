@@ -73,6 +73,18 @@ describe("readRowState", () => {
     expect(() => readRowState(rogue, CONTEXT)).toThrow(CONTEXT);
   });
 
+  test("round-trips every operational owner-review reason", () => {
+    const reasons = [
+      "shared_reference",
+      "partially_returned_obligation",
+    ] as const;
+    expect(
+      reasons.map((kind) =>
+        readRowState(writeRowState({ review: { kind } }, CONTEXT), CONTEXT),
+      ),
+    ).toEqual(reasons.map((kind) => ({ review: { kind } })));
+  });
+
   test("refuses a claim with no written-at time", () => {
     const rogue = JSON.stringify({
       claim: { attendeeId: 7, capability: "keyed", scope: "attendee_set" },
