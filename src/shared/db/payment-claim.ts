@@ -5,7 +5,7 @@
 
 /* jscpd:ignore-start -- imports */
 import type { InValue } from "@libsql/client";
-import { mapNotNullish } from "#fp";
+import { mapNotNullish, requiredMapValue } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
@@ -118,14 +118,13 @@ export const assertRefundRowsHeld = async (
   tx: TxScope,
   claim: { heldSince: string; sessionIds: readonly string[] },
 ): Promise<void> => {
-  const stored =
-    claim.sessionIds.length === 0
-      ? []
-      : await readPaymentClaimRows(
-          tx,
-          `payment_session_id IN (${inPlaceholders(claim.sessionIds)})`,
-          [...claim.sessionIds],
-        );
+  const stored = claim.sessionIds.length === 0
+    ? []
+    : await readPaymentClaimRows(
+      tx,
+      `payment_session_id IN (${inPlaceholders(claim.sessionIds)})`,
+      [...claim.sessionIds],
+    );
   const rows = await Promise.all(stored.map(asPaymentRowRecord));
   if (
     rows.length !== claim.sessionIds.length ||
@@ -157,9 +156,9 @@ export const paymentRowStateStatement = async (
 export type PaymentReviewChange =
   | { readonly kind: "review"; readonly reason: PaymentReviewReason }
   | {
-      readonly kind: "resolved";
-      readonly reason: PaymentReviewReason["kind"];
-    };
+    readonly kind: "resolved";
+    readonly reason: PaymentReviewReason["kind"];
+  };
 
 export type PaymentBooksChange = "recorded" | "unrecorded";
 
@@ -229,10 +228,9 @@ const withBooksChange = (
   if (change === "recorded") return kept;
   return {
     ...kept,
-    unrecorded:
-      state.unrecorded === undefined
-        ? { returnedAt: nowIso() }
-        : state.unrecorded,
+    unrecorded: state.unrecorded === undefined
+      ? { returnedAt: nowIso() }
+      : state.unrecorded,
   };
 };
 
@@ -265,8 +263,11 @@ export const settleAttendeeRows = ({
 }: RowSettlement): Promise<void> =>
   rewriteRows([...rows.keys()], (row) => {
     if (row.state.claim?.writtenAt !== heldSince) return null;
-    const change = rows.get(row.sessionId);
-    if (change === undefined) return null;
+    const change = requiredMapValue(
+      rows,
+      row.sessionId,
+      `Refund settlement lost payment row ${row.sessionId}`,
+    );
     return withClaimChange(
       withReviewChange(withBooksChange(row.state, change.books), change.review),
       change.claim,

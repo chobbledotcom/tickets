@@ -3,6 +3,7 @@
 /* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { resetI18nForTest } from "#i18n";
 import { handleRequest } from "#routes";
 import { nowIso } from "#shared/now.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
@@ -15,6 +16,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import {
   CLAIM_MIRROR,
@@ -36,7 +38,7 @@ import {
 const ACTION = "payment-review";
 const NAME = "Review Person";
 const SUCCESS = "Payment marked reviewed";
-const NOTHING = "This payment no longer needs review";
+const NOTHING = "This payment no longer needs review.";
 const CLAIMED =
   "A refund for this payment is still in progress. Finish or re-run it before marking the payment reviewed.";
 
@@ -119,9 +121,10 @@ describeWithEnv("admin payment review action", { db: true }, () => {
       await expectHtmlResponse(
         response,
         200,
-        "Mark Payment Reviewed",
+        "Mark payment reviewed",
         NAME,
         "type their name",
+        "does not contact the provider or change money.",
         'name="return_url"',
         returnUrl,
       );
@@ -150,6 +153,25 @@ describeWithEnv("admin payment review action", { db: true }, () => {
       });
 
       await expectHtmlResponse(response, 400, NOTHING);
+    });
+
+    test("translates guard errors inside the current request", async () => {
+      const context = await setupReview(false);
+      using _env = withEnv({ I18N_REPLACEMENTS: "review|inspection" });
+      resetI18nForTest();
+      try {
+        const response = await awaitTestRequest(reviewUrl(context.attendeeId), {
+          cookie: context.cookie,
+        });
+
+        await expectHtmlResponse(
+          response,
+          400,
+          "This payment no longer needs inspection.",
+        );
+      } finally {
+        resetI18nForTest();
+      }
     });
   });
 
@@ -196,6 +218,7 @@ describeWithEnv("admin payment review action", { db: true }, () => {
       );
 
       expect(await protectedStateOf(context.sessionId)).toBe("");
+      expect(await storedRecordOf(context.sessionId)).toBe("");
       expect(await paymentReviewActivity(context.attendeeId)).toEqual([
         expect.objectContaining({
           attendee_id: context.attendeeId,

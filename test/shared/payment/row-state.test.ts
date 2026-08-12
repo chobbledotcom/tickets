@@ -77,11 +77,10 @@ describe("readRowState", () => {
     const reasons = [
       "shared_reference",
       "partially_returned_obligation",
-      "historical_refund_unverified",
     ] as const;
     expect(
       reasons.map((kind) =>
-        readRowState(writeRowState({ review: { kind } }, CONTEXT), CONTEXT),
+        readRowState(writeRowState({ review: { kind } }, CONTEXT), CONTEXT)
       ),
     ).toEqual(reasons.map((kind) => ({ review: { kind } })));
   });

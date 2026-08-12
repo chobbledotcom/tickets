@@ -37,11 +37,9 @@ type Claimed = Extract<
 >;
 type TaggedReference = Extract<RefundPaymentReference, { kind: "tagged" }>;
 type UntaggedReference = Extract<RefundPaymentReference, { kind: "untagged" }>;
-
 type RecordingProvider = ReadyRefundProvider & {
   readonly requests: RefundRequest[];
 };
-
 const recordingProvider = (
   type: PaymentProviderType,
   refundCapability: ResolvedRefundCapability = "keyed",
@@ -108,13 +106,8 @@ const readyCandidate = (
   references: ReadyRefundReference[],
 ): ReadyRefundCandidate => ({ attendee: source.attendee, references });
 
-const readyPreparation =
-  (
-    candidates: ReadyRefundCandidate[],
-    capability: ResolvedRefundCapability = "keyed",
-  ): Prepare =>
-  () =>
-    Promise.resolve({ candidates, capability, kind: "ready" });
+const readyPreparation = (candidates: ReadyRefundCandidate[]): Prepare => () =>
+  Promise.resolve({ candidates, kind: "ready" });
 
 const noValidatingProvider = (
   reference: RefundPaymentReference,
@@ -141,8 +134,9 @@ const rowClaimHarness = (
     inherited = new Map(),
     returned = new Set(),
     shared = new Map(),
-  }: Pick<Claimed, "held"> &
-    Partial<Pick<Claimed, "inherited" | "returned" | "shared">>,
+  }:
+    & Pick<Claimed, "held">
+    & Partial<Pick<Claimed, "inherited" | "returned" | "shared">>,
   events: string[] = [],
 ) => {
   const capabilities: RefundCapability[] = [];
@@ -178,7 +172,7 @@ const releasedRows = (settlements: readonly RowSettlement[]): string[][] =>
   settlements.map(({ rows }) =>
     [...rows]
       .filter(([, change]) => change.claim === "release")
-      .map(([sessionId]) => sessionId),
+      .map(([sessionId]) => sessionId)
   );
 
 const recordingWrites = (): {
@@ -355,21 +349,18 @@ describe("admin refund provider readiness integration", () => {
         [32, sharingRef.rowSessionIds],
         [33, stripeRef.rowSessionIds],
       ]),
-      inherited: new Map([[31, "keyless"]]),
+      inherited: new Map([[31, new Map([[staleRef.index, "keyless"]])]]),
     });
     const writes = recordingWrites();
 
     const counts = finishedCounts(
       await processRefundBatch([stale, sharing, independent], LISTING_ID, {
         claim: claim.rowClaim,
-        prepare: readyPreparation(
-          [
-            readyCandidate(stale, [observed(staleRef, sumup)]),
-            readyCandidate(sharing, [observed(sharingRef, sumup)]),
-            readyCandidate(independent, [observed(stripeRef, stripe)]),
-          ],
-          "keyless",
-        ),
+        prepare: readyPreparation([
+          readyCandidate(stale, [observed(staleRef, sumup)]),
+          readyCandidate(sharing, [observed(sharingRef, sumup)]),
+          readyCandidate(independent, [observed(stripeRef, stripe)]),
+        ]),
         ...writes.dependencies,
       }),
     );
@@ -391,7 +382,7 @@ describe("admin refund provider readiness integration", () => {
     const batch = [candidate(41, [reference])];
     const claim = rowClaimHarness({
       held: new Map([[41, reference.rowSessionIds]]),
-      inherited: new Map([[41, "keyless"]]),
+      inherited: new Map([[41, new Map([[reference.index, "keyless"]])]]),
     });
     const writes = recordingWrites();
 

@@ -30,7 +30,7 @@ import {
   foundCharge,
   fullyRefundedMoney,
 } from "#test-utils/payment-state.ts";
-import { withRefundMock } from "#test-utils/refund-routes.ts";
+import { refundCompletes, withRefundMock } from "#test-utils/refund-routes.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks/stripe.ts";
 // jscpd:ignore-end
@@ -120,7 +120,7 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
       sessionId: "cs_refund_log",
     });
     try {
-      await withRefundMock(true, async () => {
+      await withRefundMock(refundCompletes, async () => {
         const res = await handleRequest(
           mockRequest("/payment/success?session_id=cs_refund_log"),
         );
@@ -265,7 +265,7 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
   });
 
   test("validationFailure refunds for non-404 statuses", async () => {
-    await withRefundMock(true, async () => {
+    await withRefundMock(refundCompletes, async () => {
       const result = await validationFailure(
         paidSession("cs_410"),
         { error: "no longer accepting", status: 410 },
@@ -277,7 +277,7 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
   });
 
   test("refuseMismatch returns the price-changed message at 409 and refunds", async () => {
-    await withRefundMock(true, async () => {
+    await withRefundMock(refundCompletes, async () => {
       const result = await refuseMismatch(paidSession("cs_price"), 1000, 1);
       expect(result.success).toBe(false);
       if (result.success) throw new Error("expected a failure result");

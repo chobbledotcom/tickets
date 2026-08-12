@@ -55,9 +55,13 @@ export const markAsRefunded = async (attendeeId: number): Promise<void> => {
   const { recordAttendeeRefund } = await import(
     "#shared/refund-ledger/record.ts"
   );
-  await recordAttendeeRefund(attendeeId, [
-    { index: `legacy-refund-${attendeeId}`, sessionIds: [] },
+  const index = `legacy-refund-${attendeeId}`;
+  const result = await recordAttendeeRefund(attendeeId, [
+    { index, sessionIds: [] },
   ]);
+  if (!result.recorded.has(index)) {
+    throw new Error(`The refund ledger did not record ${index}`);
+  }
 };
 
 export const setBookingLineQuantity = async (

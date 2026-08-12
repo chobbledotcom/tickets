@@ -37,7 +37,7 @@ import {
   refundCashAmounts,
   refundLegsOf,
   sessionReference,
-} from "./refund-ledger/helpers.ts";
+} from "../helpers.ts";
 
 // -- recordAttendeeRefund (integration) ---------------------------------- //
 
@@ -139,6 +139,25 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     expect(await accountBalance(modifierAccount(7))).toBe(0);
     expect(await accountBalance(attendeeAccount(ATTENDEE))).toBe(0);
     await expectSingleRefundCash(500);
+  });
+
+  test("recognises only a nonempty provider-payment account", async () => {
+    expect(isPaymentOnlyAccount([])).toBe(false);
+    await postTransfers([
+      {
+        amount: 500,
+        destination: attendeeAccount(ATTENDEE),
+        eventGroup: "provider-payment",
+        kind: KIND.payment,
+        occurredAt: BOOKING_AT,
+        reference: "provider-payment",
+        source: WORLD,
+      },
+    ]);
+
+    expect(
+      isPaymentOnlyAccount(await transfersByAccount(attendeeAccount(ATTENDEE))),
+    ).toBe(true);
   });
 
   test("reverses a balance-settled reservation as one whole account", async () => {

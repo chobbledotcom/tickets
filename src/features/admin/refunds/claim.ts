@@ -1,7 +1,8 @@
 import { compact } from "#fp";
 import {
-  type ClaimResult,
   claimAttendeeRows,
+  type ClaimResult,
+  type InheritedRefundCapabilities,
   type LoadedRefundAttendee,
 } from "#shared/db/payment-claim/take.ts";
 import {
@@ -16,10 +17,7 @@ import {
   mayReleaseClaim,
 } from "#shared/payment/claim.ts";
 import type { PaymentReviewReason } from "#shared/payment/review.ts";
-import type {
-  RefundCapability,
-  ResolvedRefundCapability,
-} from "#shared/payment/row-state.ts";
+import type { RefundCapability } from "#shared/payment/row-state.ts";
 import { reportRefundProblem } from "./report.ts";
 
 /** Taking and letting go of the hold on an attendee's payment rows. Injected
@@ -63,7 +61,7 @@ export interface HeldRefundWork {
   readonly alreadyReturned: ReadonlySet<string>;
   readonly claim: HeldRefundClaim;
   readonly findings: RunFindings;
-  readonly inherited: ReadonlyMap<number, ResolvedRefundCapability>;
+  readonly inherited: InheritedRefundCapabilities;
   readonly reviews: ReadonlyMap<string, PaymentReviewReason>;
   readonly shared: Extract<ClaimResult, { kind: "claimed" }>["shared"];
   readonly unrecorded: ReadonlyMap<number, readonly string[]>;
@@ -153,7 +151,7 @@ const settlementRows = (
         mayLetGo(
           findings.doubts.get(attendeeId),
           claim.inherited.has(attendeeId),
-        ),
+        )
       )
       .map(([attendeeId]) => attendeeId),
   );
@@ -167,7 +165,7 @@ const settlementRows = (
           lettingAttendees,
           unrecorded,
           findings,
-        ),
+        )
       ),
     ),
   );

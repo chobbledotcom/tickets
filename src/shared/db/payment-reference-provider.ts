@@ -1,6 +1,6 @@
 /** Atomically bind provider evidence to the payment rows a refund run holds. */
 
-import { compact, unique } from "#fp";
+import { compact, requiredMapValue, unique } from "#fp";
 import {
   inPlaceholders,
   type SqlStatement,
@@ -25,12 +25,16 @@ import type {
   ResolvedRefundCapability,
 } from "#shared/payment/row-state.ts";
 
-/** The exact claim snapshot and validated provider identities being stored. */
-export type PaymentReferenceProviderBindingRequest = {
-  /** Every held reference uses the safest capability among its providers. */
+/** One reference's validated provider identity and retry capability. */
+export type PaymentReferenceProviderBinding = {
   readonly capability: ResolvedRefundCapability;
-  /** Current blind index to the provider identity proved for that reference. */
-  readonly bindings: ReadonlyMap<string, TaggedPaymentReference>;
+  readonly identity: TaggedPaymentReference;
+};
+
+/** The exact claim snapshot and validated provider facts being stored. */
+export type PaymentReferenceProviderBindingRequest = {
+  /** Current blind index to the provider facts proved for that reference. */
+  readonly bindings: ReadonlyMap<string, PaymentReferenceProviderBinding>;
   readonly held: ReadonlyMap<number, readonly string[]>;
   readonly heldSince: string;
 };
@@ -39,13 +43,13 @@ export type PaymentReferenceProviderBindingRequest = {
 export type PaymentReferenceProviderBindingResult =
   | { readonly kind: "claim_changed" }
   | {
-      readonly indexes: readonly string[];
-      readonly kind: "historical_marker";
-    }
+    readonly indexes: readonly string[];
+    readonly kind: "historical_marker";
+  }
   | {
-      readonly indexes: ReadonlyMap<string, string>;
-      readonly kind: "bound";
-    };
+    readonly indexes: ReadonlyMap<string, string>;
+    readonly kind: "bound";
+  };
 
 type PreparedBinding = {
   newIndex: string;
@@ -72,18 +76,18 @@ const requireDistinctHeldSessions = (
 };
 
 const prepareBindings = (
-  bindings: ReadonlyMap<string, TaggedPaymentReference>,
+  bindings: ReadonlyMap<string, PaymentReferenceProviderBinding>,
 ): Promise<PreparedBinding[]> =>
   Promise.all(
-    [...bindings].map(async ([oldIndex, reference]) => {
-      const stored = await storePaymentReference(reference);
+    [...bindings].map(async ([oldIndex, { identity }]) => {
+      const stored = await storePaymentReference(identity);
       const untaggedIndex = await paymentReferenceIndex({
         kind: "untagged",
-        reference: reference.reference,
+        reference: identity.reference,
       });
       if (oldIndex !== stored.index && oldIndex !== untaggedIndex) {
         throw new Error(
-          `Payment reference binding ${oldIndex} does not match ${reference.reference}`,
+          `Payment reference binding ${oldIndex} does not match ${identity.reference}`,
         );
       }
       return { newIndex: stored.index, oldIndex, stored };
@@ -95,8 +99,7 @@ const rowsForBinding = (
   oldIndexes: readonly string[],
 ): { args: string[]; where: string } => ({
   args: [...sessionIds, ...oldIndexes],
-  where:
-    `payment_session_id IN (${inPlaceholders(sessionIds)})` +
+  where: `payment_session_id IN (${inPlaceholders(sessionIds)})` +
     (oldIndexes.length === 0
       ? ""
       : ` OR payment_reference_index IN (${inPlaceholders(oldIndexes)})`),
@@ -105,7 +108,7 @@ const rowsForBinding = (
 const checkedHeldRows = async (
   rows: readonly StoredPaymentClaimRow[],
   sessions: readonly HeldPaymentRow[],
-  bindings: ReadonlyMap<string, TaggedPaymentReference>,
+  bindings: ReadonlyMap<string, PaymentReferenceProviderBinding>,
   heldSince: string,
 ): Promise<CheckedHeldRow[] | null> => {
   const bySession = new Map(rows.map((row) => [row.payment_session_id, row]));
@@ -119,9 +122,9 @@ const checkedHeldRows = async (
       const record = await asPaymentRowRecord(row);
       const claim = record.state.claim;
       return claim !== undefined &&
-        claim.attendeeId === attendeeId &&
-        claim.scope === "attendee_set" &&
-        claim.writtenAt === heldSince
+          claim.attendeeId === attendeeId &&
+          claim.scope === "attendee_set" &&
+          claim.writtenAt === heldSince
         ? { claim, index: row.payment_reference_index, record }
         : null;
     }),
@@ -130,7 +133,7 @@ const checkedHeldRows = async (
   if (complete.length !== checked.length) return null;
   const heldIndexes = new Set(complete.map(({ index }) => index));
   return heldIndexes.size === bindings.size &&
-    [...bindings.keys()].every((index) => heldIndexes.has(index))
+      [...bindings.keys()].every((index) => heldIndexes.has(index))
     ? complete
     : null;
 };
@@ -146,7 +149,7 @@ const markedChangingIndexes = (
         (row) =>
           row.payment_reference_index === oldIndex &&
           row.provider_refunded_at !== "",
-      ),
+      )
     )
     .map(({ oldIndex }) => oldIndex);
 
@@ -163,11 +166,18 @@ const referenceRewrite = ({
 
 const claimCapabilityRewrite = (
   row: CheckedHeldRow,
-  capability: ResolvedRefundCapability,
+  bindings: ReadonlyMap<string, PaymentReferenceProviderBinding>,
 ): Promise<SqlStatement> =>
   paymentRowStateStatement(row.record, {
     ...row.record.state,
-    claim: { ...row.claim, capability },
+    claim: {
+      ...row.claim,
+      capability: requiredMapValue(
+        bindings,
+        row.index,
+        `Provider binding lost payment reference ${row.index}`,
+      ).capability,
+    },
   });
 
 const boundIndexes = (
@@ -212,7 +222,7 @@ export const bindPaymentReferenceProviders = async (
       .filter(({ newIndex, oldIndex }) => newIndex !== oldIndex)
       .map(referenceRewrite);
     const claimWrites = await Promise.all(
-      heldRows.map((row) => claimCapabilityRewrite(row, request.capability)),
+      heldRows.map((row) => claimCapabilityRewrite(row, request.bindings)),
     );
     await tx.batch([...referenceWrites, ...claimWrites]);
     return { indexes: boundIndexes(prepared), kind: "bound" };

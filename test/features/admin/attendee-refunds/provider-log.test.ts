@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { getPaymentReviewStatus } from "#shared/db/payment-review.ts";
 import {
   createPaidListing,
   setupRefundTest,
@@ -7,8 +8,11 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { partlyRefundedCharge } from "#test-utils/payment-state.ts";
 import {
   postRefundAll,
+  refundCompletes,
+  refundIsRejected,
   submitRefund,
   withRefundMock,
 } from "#test-utils/refund-routes.ts";
@@ -21,7 +25,7 @@ describeWithEnv("server (admin refund provider logging)", { db: true }, () => {
 
     test("a single refund the provider rejects is logged", async () => {
       const ctx = await setupRefundTest("pi_logfail_single");
-      await withRefundMock(false, async () => {
+      await withRefundMock(refundIsRejected, async () => {
         await submitRefund(ctx);
       });
       expect(
@@ -37,7 +41,7 @@ describeWithEnv("server (admin refund provider logging)", { db: true }, () => {
         "bulkfail@example.com",
         "pi_logfail_bulk",
       );
-      await withRefundMock(false, async () => {
+      await withRefundMock(refundIsRejected, async () => {
         await postRefundAll(listing);
       });
       expect(
@@ -66,6 +70,20 @@ describeWithEnv("server (admin refund provider logging)", { db: true }, () => {
       expect(
         loggedDetails().some((s) => s.includes("Admin bulk refund errored")),
       ).toBe(true);
+    });
+
+    test("a refused provider observation becomes durable owner work", async () => {
+      const ctx = await setupRefundTest("pi_review_single");
+      await withRefundMock(
+        refundCompletes,
+        async (mockRefund) => {
+          await submitRefund(ctx);
+          expect(mockRefund.calls).toEqual([]);
+        },
+        { charge: partlyRefundedCharge() },
+      );
+
+      expect(await getPaymentReviewStatus(ctx.attendee.id)).toBe("available");
     });
   });
 });

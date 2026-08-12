@@ -9,7 +9,7 @@ import { reportWithheldRefund } from "#shared/payment-review.ts";
 import { isPaymentOnlyAccount } from "#shared/refund-ledger/plan.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
 import type { RefundLedgerResult } from "#shared/refund-ledger/result.ts";
-import { type RefundCandidate, referenceRowIds } from "./candidates.ts";
+import { referenceRowIds, type RefundCandidate } from "./candidates.ts";
 import {
   durableRowClaim,
   type HeldRefundClaim,
@@ -23,6 +23,10 @@ import {
   type RefundConfirmation,
 } from "./confirmation.ts";
 import { applyRefundLedgerFindings } from "./ledger-findings.ts";
+import {
+  type ProviderReviewFinding,
+  recordProviderReviewFindings,
+} from "./provider-reviews.ts";
 import {
   prepareRefundReadiness,
   type ReadyRefundCandidate,
@@ -72,10 +76,10 @@ const paymentOnlyBeforeRefund = async (
 type RefreshedReference =
   | { kind: "returned"; reference: TaggedRefundReference }
   | {
-      admission: Exclude<ObservedRefundAdmission, { kind: "already_returned" }>;
-      kind: "unreturned";
-      reference: TaggedRefundReference;
-    };
+    admission: Exclude<ObservedRefundAdmission, { kind: "already_returned" }>;
+    kind: "unreturned";
+    reference: TaggedRefundReference;
+  };
 
 type UnreturnedReference = Extract<RefreshedReference, { kind: "unreturned" }>;
 
@@ -119,29 +123,15 @@ const returnedReference = (
 ): TaggedRefundReference | null =>
   observed.kind === "returned" ? observed.reference : null;
 
-/** Persist each provider disagreement on the exact rows that carried it. */
-const recordProviderReviews = (
+/** Keep only provider disagreements that need an owner's decision. */
+const providerReviewFindings = (
   observed: readonly RefreshedReference[],
-  attendeeId: number,
-  findings: RunFindings,
-): boolean => {
-  const refused = observed.filter(
-    (
-      result,
-    ): result is Extract<RefreshedReference, { kind: "unreturned" }> & {
-      admission: Extract<ObservedRefundAdmission, { kind: "refused" }>;
-    } => result.kind === "unreturned" && result.admission.kind === "refused",
+): ProviderReviewFinding[] =>
+  observed.flatMap((result): ProviderReviewFinding[] =>
+    result.kind === "unreturned" && result.admission.kind === "refused"
+      ? [{ reason: result.admission.issue, reference: result.reference }]
+      : []
   );
-  for (const { admission, reference } of refused) {
-    for (const sessionId of referenceRowIds(attendeeId, reference)) {
-      findings.reviews.set(sessionId, {
-        kind: "review",
-        reason: admission.issue,
-      });
-    }
-  }
-  return refused.length > 0;
-};
 
 type CompletedRefundReview = Extract<
   PaymentReviewReason,
@@ -162,7 +152,7 @@ const retireCompletedRefundReviews = (
   findings: RunFindings,
 ): void => {
   const returnedRows = returned.flatMap((reference) =>
-    referenceRowIds(attendeeId, reference),
+    referenceRowIds(attendeeId, reference)
   );
   for (const sessionId of returnedRows) {
     const reason = heldReviews.get(sessionId);
@@ -178,7 +168,7 @@ const retireCompletedRefundReviews = (
 const refreshReadyCandidate = async (
   candidate: ReadyRefundCandidate,
   listingId: number,
-  inheritedKeyless: boolean,
+  inheritedKeyless: ReadonlySet<string>,
   findings: RunFindings,
   claim: HeldRefundClaim,
   heldReviews: HeldRefundWork["reviews"],
@@ -190,31 +180,32 @@ const refreshReadyCandidate = async (
   >,
 ): Promise<RefreshPaymentResult> => {
   const observed = candidate.references.map((reference) =>
-    observedReference(reference, candidate.attendee.id, listingId),
+    observedReference(reference, candidate.attendee.id, listingId)
   );
   const returned = compact(observed.map(returnedReference));
   const hasUnreturned = returned.length !== candidate.references.length;
-  const providerNeedsReview = recordProviderReviews(
-    observed,
-    candidate.attendee.id,
+  const providerNeedsReview = recordProviderReviewFindings(
     findings,
+    candidate.attendee.id,
+    providerReviewFindings(observed),
   );
-  const keepsClaim =
-    hasAdmission(observed, "in_flight") ||
-    (inheritedKeyless && hasAdmission(observed, "send"));
+  const keepsClaim = hasAdmission(observed, "in_flight") ||
+    observed.some(
+      (reference) =>
+        reference.kind === "unreturned" &&
+        reference.admission.kind === "send" &&
+        inheritedKeyless.has(reference.reference.index),
+    );
   if (keepsClaim) {
     findings.doubts.set(candidate.attendee.id, "in_doubt");
   }
   await dependencies.markReturned(returned);
-  const ledger =
-    returned.length === 0
-      ? undefined
-      : applyRefundLedgerFindings(
-          findings,
-          candidate.attendee.id,
-          returned,
-          await dependencies.record(candidate.attendee.id, returned),
-        );
+  const ledger = returned.length === 0 ? undefined : applyRefundLedgerFindings(
+    findings,
+    candidate.attendee.id,
+    returned,
+    await dependencies.record(candidate.attendee.id, returned),
+  );
   const needsReview = providerNeedsReview || ledger?.needsReview === true;
   if (hasUnreturned) {
     if (keepsClaim) return { kind: "blocked", reason: "refund_in_progress" };
@@ -279,7 +270,11 @@ export const refreshClaimedPayment = async (
       refreshReadyCandidate(
         oneReadyCandidate(candidates),
         listingId,
-        inherited.get(candidate.attendee.id) === "keyless",
+        new Set(
+          [...(inherited.get(candidate.attendee.id) ?? new Map())].flatMap(
+            ([index, capability]) => (capability === "keyless" ? [index] : []),
+          ),
+        ),
         findings,
         heldClaim,
         reviews,

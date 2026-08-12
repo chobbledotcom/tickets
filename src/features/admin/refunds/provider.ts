@@ -13,9 +13,15 @@ import {
   refundReadyCandidate,
 } from "./attempt.ts";
 import type { RefundCandidate } from "./candidates.ts";
-import { durableRowClaim, type RowClaim, type RunFindings } from "./claim.ts";
+import {
+  durableRowClaim,
+  type HeldRefundWork,
+  type RowClaim,
+  type RunFindings,
+} from "./claim.ts";
 import { applyRefundLedgerFindings } from "./ledger-findings.ts";
 import { PROVIDER_REFUND_CONCURRENCY } from "./provider-requests.ts";
+import { recordProviderReviewFindings } from "./provider-reviews.ts";
 import {
   prepareRefundReadiness,
   type ReadyRefundCandidate,
@@ -79,7 +85,8 @@ const logBulkRefundProblem = (
     .join(", ");
   logError({
     code: ErrorCode.PAYMENT_REFUND,
-    detail: `Admin bulk refund ${outcome} for attendee ${candidate.attendee.id}, payments ${refs}`,
+    detail:
+      `Admin bulk refund ${outcome} for attendee ${candidate.attendee.id}, payments ${refs}`,
     listingId,
   });
 };
@@ -158,8 +165,8 @@ export const processRefundBatch = async (
   listingId: number,
   {
     claim: rowClaim = durableRowClaim,
-    markReturned:
-      markReturnedReferences = markPaymentReferencesProviderRefunded,
+    markReturned: markReturnedReferences =
+      markPaymentReferencesProviderRefunded,
     prepare = prepareRefundReadiness,
     record = recordAttendeeRefundsBatch,
   }: RefundRunDependencies = {},
@@ -190,25 +197,22 @@ const refundClaimedBatch = async (
   listingId: number,
   writes: { markReturned: MarkReturnedReferences; record: RecordRefunds },
   findings: RunFindings,
-  inherited: ReadonlyMap<number, ResolvedRefundCapability>,
+  inherited: HeldRefundWork["inherited"],
 ): Promise<RefundCounts> => {
   const inFlight = new Map<string, Promise<PreparedReferenceRefund>>();
   const observeOnly = new Set(
-    batch
-      .filter((candidate) => {
-        const capability = inherited.get(candidate.attendee.id);
-        return (
-          capability !== undefined && !MAY_RETRY_INHERITED_CALL[capability]
-        );
-      })
-      .flatMap((candidate) =>
-        candidate.references.map(({ reference }) => reference.index),
-      ),
+    [...inherited.values()].flatMap((references) =>
+      [...references].flatMap(([index, capability]) =>
+        MAY_RETRY_INHERITED_CALL[capability] ? [] : [index]
+      )
+    ),
   );
   const counts = noRefunds();
-  for (const group of packByReferenceCount(PROVIDER_REFUND_CONCURRENCY)(
-    batch,
-  )) {
+  for (
+    const group of packByReferenceCount(PROVIDER_REFUND_CONCURRENCY)(
+      batch,
+    )
+  ) {
     const results = await Promise.all(
       group.map((candidate) =>
         refundReadyCandidate(
@@ -217,7 +221,7 @@ const refundClaimedBatch = async (
           writes.markReturned,
           inFlight,
           observeOnly,
-        ),
+        )
       ),
     );
     const postings: LedgerPosting[] = [];
@@ -225,6 +229,11 @@ const refundClaimedBatch = async (
       if (result.doubt !== undefined) {
         findings.doubts.set(result.candidate.attendee.id, result.doubt);
       }
+      recordProviderReviewFindings(
+        findings,
+        result.candidate.attendee.id,
+        result.reviews,
+      );
       tallyProviderRefund(counts, result, listingId, postings);
     }
     await recordWave(writes.record, counts, postings, findings, listingId);

@@ -23,14 +23,16 @@ const ACTION = "payment-review";
 
 const REVIEW_GUARD = {
   available: null,
-  blocked: t("admin.attendees.payment_review_in_progress"),
-  none: t("admin.attendees.payment_review_none"),
+  blocked: "admin.attendees.payment_review_in_progress",
+  none: "admin.attendees.payment_review_none",
 } satisfies Record<PaymentReviewStatus, string | null>;
 
 const handlePaymentReviewGet = attendeeActionPage(
   adminPaymentReviewPage,
-  async ({ attendee }) =>
-    REVIEW_GUARD[await getPaymentReviewStatus(attendee.id)],
+  async ({ attendee }) => {
+    const messageKey = REVIEW_GUARD[await getPaymentReviewStatus(attendee.id)];
+    return messageKey === null ? null : t(messageKey);
+  },
   requireOwnerOr,
 );
 

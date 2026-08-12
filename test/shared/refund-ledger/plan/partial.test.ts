@@ -26,7 +26,7 @@ import {
   refundLegsOf,
   returnedReference,
   sessionReference,
-} from "./helpers.ts";
+} from "../helpers.ts";
 
 const postBalancePayment = async (): Promise<void> => {
   await postTransfers([

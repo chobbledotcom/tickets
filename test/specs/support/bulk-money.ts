@@ -19,6 +19,10 @@ import {
   theListing,
 } from "#test/specs/support/world.ts";
 import { singleItem } from "#test-utils/factories.ts";
+import {
+  refundCompletes,
+  refundIsRejected,
+} from "#test-utils/refund-routes.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
@@ -64,7 +68,10 @@ export const everyoneRefunded = async (world: TicketsWorld): Promise<void> => {
       page: `/admin/listing/${theListing(world)}/refund-all`,
       typed: requiredWorldValue(world.confirmName, "the listing name to type"),
     },
-    (paymentId: string) => Promise.resolve(paymentId !== DECLINED_PAYMENT),
+    (request) =>
+      request.paymentReference === DECLINED_PAYMENT
+        ? refundIsRejected(request)
+        : refundCompletes(request),
   );
   world.bulkRefundMessage = browser.pageText;
 };

@@ -2,6 +2,10 @@
 import { stub } from "@std/testing/mock";
 import { requiredMapValue } from "#fp";
 import { handleRequest } from "#routes";
+import type {
+  RefundAttemptResult,
+  RefundRequest,
+} from "#shared/payment/refund-attempt.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import { paymentsApi } from "#shared/payments.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -157,7 +161,7 @@ export const withStripeAsProvider = async (
 export const refundByTyping = async (
   world: TicketsWorld,
   where: { buttonText: string; page: string; typed: string },
-  provider: boolean | ((paymentId: string) => Promise<boolean>),
+  provider: (request: RefundRequest) => Promise<RefundAttemptResult>,
 ): Promise<TestBrowser> => {
   const { openAdminPage } = await import("#test/specs/support/browser.ts");
   const { fillInAndSend } = await import(

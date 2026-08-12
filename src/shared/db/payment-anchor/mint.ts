@@ -48,16 +48,8 @@ const anchorStatement = async (
       stored.index,
       attendeeId,
     ],
-    // Passing over a clash is right only because the session id names the
-    // attendee AND the charge, so a row already under it is this person's row
-    // for this money. Naming the column keeps that to the clash: a NOT NULL or
-    // future constraint failure still raises.
-    //
-    // The EXISTS stops this minting a row for somebody no longer there. A delete
-    // can land between loading candidates and anchoring — it refuses on payment
-    // rows, and a `payment_id`-only charge has none for it to see — and the
-    // table holds no foreign key, so the claim would then succeed and the run
-    // would send money with no booking or ledger left to record it against.
+    // A session-id conflict is already this attendee's row for this charge.
+    // EXISTS prevents an orphan anchor if the attendee was just deleted.
     sql: `INSERT INTO processed_payments
           (payment_session_id, attendee_id, processed_at, payment_reference,
            payment_reference_index)
@@ -78,6 +70,6 @@ export const legacyAnchorStatements = async (
     attendees.flatMap((attendee) =>
       attendee.references
         .filter(needsAnchor)
-        .map((reference) => anchorStatement(attendee.attendeeId, reference)),
+        .map((reference) => anchorStatement(attendee.attendeeId, reference))
     ),
   );

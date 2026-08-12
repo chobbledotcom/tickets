@@ -33,7 +33,10 @@ type TaggedPaymentReferenceFailure = PaymentReferenceEvidenceBase & {
 } & Exclude<ProviderRead<ChargeMoney>, { status: "found" }>;
 
 type UnresolvedPaymentReferenceEvidence = PaymentReferenceEvidenceBase & {
-  reason: "multiple_validating_providers" | "no_validating_provider";
+  reason:
+    | "multiple_validating_providers"
+    | "no_validating_provider"
+    | "provider_search_incomplete";
   source: "untagged";
   status: "unresolved";
 };
@@ -51,6 +54,9 @@ type FoundProviderReadAttempt = ProviderReadAttempt & {
 const foundAttempt = (
   attempt: ProviderReadAttempt,
 ): attempt is FoundProviderReadAttempt => attempt.result.status === "found";
+
+const unavailableAttempt = (attempt: ProviderReadAttempt): boolean =>
+  attempt.result.status === "unavailable";
 
 const readAtProvider = async (
   provider: PaymentProviderType,
@@ -90,20 +96,20 @@ const taggedEvidence = async (
   const attempt = await readAtProvider(provider, reference.reference);
   return attempt.result.status === "found"
     ? {
-        attempts: [attempt],
-        charge: attempt.result.resource,
-        provider,
-        reference: reference.reference,
-        source: "tagged",
-        status: "found",
-      }
+      attempts: [attempt],
+      charge: attempt.result.resource,
+      provider,
+      reference: reference.reference,
+      source: "tagged",
+      status: "found",
+    }
     : {
-        ...attempt.result,
-        attempts: [attempt],
-        provider,
-        reference: reference.reference,
-        source: "tagged",
-      };
+      ...attempt.result,
+      attempts: [attempt],
+      provider,
+      reference: reference.reference,
+      source: "tagged",
+    };
 };
 
 const discoveredEvidence = async (
@@ -114,19 +120,28 @@ const discoveredEvidence = async (
     reference.reference,
   );
   const [proof, ...otherProofs] = attempts.filter(foundAttempt);
-  if (proof === undefined) {
+  if (otherProofs.length > 0) {
     return {
       attempts,
-      reason: "no_validating_provider",
+      reason: "multiple_validating_providers",
       reference: reference.reference,
       source: "untagged",
       status: "unresolved",
     };
   }
-  if (otherProofs.length > 0) {
+  if (attempts.some(unavailableAttempt)) {
     return {
       attempts,
-      reason: "multiple_validating_providers",
+      reason: "provider_search_incomplete",
+      reference: reference.reference,
+      source: "untagged",
+      status: "unresolved",
+    };
+  }
+  if (proof === undefined) {
+    return {
+      attempts,
+      reason: "no_validating_provider",
       reference: reference.reference,
       source: "untagged",
       status: "unresolved",

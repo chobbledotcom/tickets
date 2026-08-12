@@ -10,10 +10,13 @@ import {
   requireOne,
 } from "#shared/db/client.ts";
 import {
-  type ClaimResult,
   claimAttendeeRows,
+  type ClaimResult,
 } from "#shared/db/payment-claim/take.ts";
-import { settleAttendeeRows } from "#shared/db/payment-claim.ts";
+import {
+  type PaymentRowSettlement,
+  settleAttendeeRows,
+} from "#shared/db/payment-claim.ts";
 import { getRefundPaymentReferences } from "#shared/db/payment-references.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
@@ -99,8 +102,7 @@ export const UNRECORDED_MIRROR = mirrorFor({
  *  `requireOne` names the failed query rather than handing back a null for the
  *  assertion to trip over further along. */
 const paymentRowColumn =
-  (column: string) =>
-  async (sessionId: string): Promise<string> =>
+  (column: string) => async (sessionId: string): Promise<string> =>
     (
       await requireOne<{ v: string }>(
         `SELECT payment.${column} AS v
@@ -128,20 +130,19 @@ export const rowStateSlot = (state: PaymentRowState): Promise<string> =>
 /** One `attendee_set` claim's record, written the given number of milliseconds
  *  ago. Curried so "a run holding this now" and "a crashed worker's" are the
  *  same record differing only in age. */
-const claimSlotWritten =
-  (msAgo: number) =>
-  (
-    attendeeId: number,
-    capability: RefundCapability = "keyless",
-  ): Promise<string> =>
-    rowStateSlot({
-      claim: {
-        attendeeId,
-        capability,
-        scope: "attendee_set",
-        writtenAt: new Date(nowMs() - msAgo).toISOString(),
-      },
-    });
+const claimSlotWritten = (msAgo: number) =>
+(
+  attendeeId: number,
+  capability: RefundCapability = "keyless",
+): Promise<string> =>
+  rowStateSlot({
+    claim: {
+      attendeeId,
+      capability,
+      scope: "attendee_set",
+      writtenAt: new Date(nowMs() - msAgo).toISOString(),
+    },
+  });
 
 /** The stored record for a claim a run is holding right now. */
 export const freshClaimSlot = claimSlotWritten(0);
@@ -176,10 +177,14 @@ export const heldSessionIds = (claim: {
 export const releaseClaimRows = (
   claim: { heldSince: string },
   sessionIds: readonly string[],
+  changes: ReadonlyMap<string, Omit<PaymentRowSettlement, "claim">> = new Map(),
 ): Promise<void> =>
   settleAttendeeRows({
     heldSince: claim.heldSince,
     rows: new Map(
-      sessionIds.map((sessionId) => [sessionId, { claim: "release" } as const]),
+      sessionIds.map((sessionId) => [
+        sessionId,
+        { ...changes.get(sessionId), claim: "release" } as const,
+      ]),
     ),
   });

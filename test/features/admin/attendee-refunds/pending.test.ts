@@ -10,10 +10,12 @@ import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { claimCurrentAttendeeRows } from "#test-utils/payment-claim.ts";
-import { acceptedRefund } from "#test-utils/payment-state.ts";
 import {
   postRefundAll,
   refundAllUrl,
+  refundCompletes,
+  refundIsRejected,
+  refundStaysPending,
   withRefundMock,
 } from "#test-utils/refund-routes.ts";
 
@@ -49,7 +51,7 @@ describeWithEnv("server (admin refunds still settling)", { db: true }, () => {
       "pi_bulk_pending",
     );
 
-    await withRefundMock(acceptedRefund(), async () => {
+    await withRefundMock(refundStaysPending, async () => {
       await expectFlashRedirect(
         refundAllUrl(listing.id),
         "0 refunds succeeded. 1 refund is still settling. Do not send it again.",
@@ -81,8 +83,10 @@ describeWithEnv("server (admin refunds still settling)", { db: true }, () => {
     );
 
     await withRefundMock(
-      async (reference) =>
-        reference === "pi_pending_side" ? acceptedRefund() : false,
+      (request) =>
+        request.paymentReference === "pi_pending_side"
+          ? refundStaysPending(request)
+          : refundIsRejected(request),
       async () => {
         await expectFlashRedirect(
           refundAllUrl(listing.id),
@@ -106,7 +110,7 @@ describeWithEnv("server (admin refunds still settling)", { db: true }, () => {
       BULK_REFUND_LIMIT + 1,
     );
 
-    await withRefundMock(acceptedRefund(), async () => {
+    await withRefundMock(refundStaysPending, async () => {
       await expectFlashRedirect(
         refundAllUrl(listing.id),
         `0 refunds succeeded. ${BULK_REFUND_LIMIT} refunds are still settling. Do not send them again. 1 refund remains. Submit again to continue.`,
@@ -143,7 +147,7 @@ describeWithEnv("server (admin refunds still settling)", { db: true }, () => {
     );
     await holdLegacyPayment(held.id, "pi_bulk_held");
 
-    await withRefundMock(true, async (mockRefund) => {
+    await withRefundMock(refundCompletes, async (mockRefund) => {
       await expectFlashRedirect(
         refundAllUrl(listing.id),
         "A refund for this payment is still settling. Try again after it completes. 3 refunds remain. Submit again to continue.",

@@ -7,7 +7,7 @@ import {
 } from "#test/features/admin/refunds-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
-import { withRefundMock } from "#test-utils/refund-routes.ts";
+import { refundCompletes, withRefundMock } from "#test-utils/refund-routes.ts";
 import { createTestManagerSession } from "#test-utils/session.ts";
 
 type RefundSurface = {
@@ -72,7 +72,7 @@ describeWithEnv("refund authorization", { db: true }, () => {
           .status,
       ).toBe(200);
 
-      await withRefundMock(true, async (refundCharge) => {
+      await withRefundMock(refundCompletes, async (refundCharge) => {
         expect((await refundPost(surface, ctx, managerCookie)).status).toBe(
           403,
         );
@@ -93,13 +93,17 @@ describeWithEnv("refund authorization", { db: true }, () => {
 
     for (const surface of REFUND_SURFACES) {
       const url = surface.url(ctx);
-      const ownerHtml = await (
-        await awaitTestRequest(surface.page(ctx), { cookie: ctx.cookie })
-      ).text();
-      const managerHtml = await (
-        await awaitTestRequest(surface.page(ctx), { cookie: managerCookie })
-      ).text();
+      const ownerResponse = await awaitTestRequest(surface.page(ctx), {
+        cookie: ctx.cookie,
+      });
+      const managerResponse = await awaitTestRequest(surface.page(ctx), {
+        cookie: managerCookie,
+      });
 
+      expect(ownerResponse.status).toBe(200);
+      expect(managerResponse.status).toBe(200);
+      const ownerHtml = await ownerResponse.text();
+      const managerHtml = await managerResponse.text();
       expect(ownerHtml).toContain(url);
       expect(managerHtml).not.toContain(url);
     }

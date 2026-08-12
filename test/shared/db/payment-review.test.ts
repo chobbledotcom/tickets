@@ -48,8 +48,7 @@ const stateBySession = async (
 const claimState = (
   attendeeId: number,
   capability: RefundCapability,
-  stale: boolean,
-  review = false,
+  { review = false, stale = false }: { review?: boolean; stale?: boolean } = {},
 ): PaymentRowState => ({
   claim: {
     attendeeId,
@@ -83,14 +82,18 @@ describeWithEnv(
 
       await putRowState(
         "sess-status",
-        await rowStateSlot(claimState(attendeeId, "keyed", false, true)),
+        await rowStateSlot(
+          claimState(attendeeId, "keyed", { review: true }),
+        ),
         CLAIM_MIRROR,
       );
       expect(await getPaymentReviewStatus(attendeeId)).toBe("blocked");
 
       await putRowState(
         "sess-status",
-        await rowStateSlot(claimState(attendeeId, "unresolved", true)),
+        await rowStateSlot(
+          claimState(attendeeId, "unresolved", { stale: true }),
+        ),
         CLAIM_MIRROR,
       );
       expect(await getPaymentReviewStatus(attendeeId)).toBe("available");
@@ -139,7 +142,12 @@ describeWithEnv(
       const attendeeId = await bookedWithPayment("sess-stale", "pi_stale");
       await putRowState(
         "sess-stale",
-        await rowStateSlot(claimState(attendeeId, "unresolved", true, true)),
+        await rowStateSlot(
+          claimState(attendeeId, "unresolved", {
+            review: true,
+            stale: true,
+          }),
+        ),
         CLAIM_MIRROR,
       );
 
@@ -158,7 +166,7 @@ describeWithEnv(
       await putRowState(
         "sess-stale-outcome",
         await rowStateSlot({
-          ...claimState(attendeeId, "unresolved", true),
+          ...claimState(attendeeId, "unresolved", { stale: true }),
           outcome: { error: "First outcome", status: 400 },
         }),
         CLAIM_MIRROR,
@@ -191,7 +199,9 @@ describeWithEnv(
         );
         await putRowState(
           sessionId,
-          await rowStateSlot(claimState(attendeeId, capability, stale, true)),
+          await rowStateSlot(
+            claimState(attendeeId, capability, { review: true, stale }),
+          ),
           CLAIM_MIRROR,
         );
         const before = await storedRecordOf(sessionId);
@@ -221,7 +231,7 @@ describeWithEnv(
       );
       await putRowState(
         "sess-sibling-claim",
-        await rowStateSlot(claimState(attendeeId, "keyed", false)),
+        await rowStateSlot(claimState(attendeeId, "keyed")),
         CLAIM_MIRROR,
       );
 

@@ -58,24 +58,27 @@ export const stubCompletedSession = async (object: {
   metadata: Record<string, string>;
 }) => {
   const { stripePaymentProvider } = await import("#shared/stripe-provider.ts");
-  return stub(stripePaymentProvider, "verifyWebhookSignature", () =>
-    Promise.resolve({
-      listing: {
-        data: {
-          object: {
-            ...object,
-            created: 1_700_000_000,
-            currency: "gbp",
-            payment_intent: `pi_${object.id}`,
-            payment_status: "paid",
-            url: null,
+  return stub(
+    stripePaymentProvider,
+    "verifyWebhookSignature",
+    () =>
+      Promise.resolve({
+        listing: {
+          data: {
+            object: {
+              ...object,
+              created: 1_700_000_000,
+              currency: "gbp",
+              payment_intent: `pi_${object.id}`,
+              payment_status: "paid",
+              url: null,
+            },
           },
+          id: `evt_${object.id}`,
+          type: "checkout.session.completed",
         },
-        id: `evt_${object.id}`,
-        type: "checkout.session.completed",
-      },
-      valid: true as const,
-    }),
+        valid: true as const,
+      }),
   );
 };
 
@@ -86,8 +89,9 @@ export const redirectRequest = (id: string) =>
   handleRequest(mockRequest(`/payment/success?session_id=${id}`));
 
 /** Stub the provider refund to succeed (deterministic — no network). */
-export const stubRefundOk = (amount = 1000) =>
-  stubRefundPayment("re_ok", amount);
+export const stubRefundOk = (
+  amount = 1000,
+): ReturnType<typeof stubRefundPayment> => stubRefundPayment("re_ok", amount);
 
 /** setupStripe + a 50-seat listing priced at 1000. */
 export const setupWithListing = async () => {
@@ -96,7 +100,7 @@ export const setupWithListing = async () => {
 };
 
 /** Drive a completed (paid) session through the webhook with a refund stub
- *  installed; `body` receives the refund spy. All stubs are restored after. */
+ *  installed; `body` receives that stub. All stubs are restored after. */
 export const runWebhook = async (
   session: {
     id: string;
@@ -120,27 +124,30 @@ export const runWebhook = async (
 };
 
 /** Drive a mismatch (charged 1200, signed 1000) whose refund is rejected, with
- *  the payment intent's refunded state stubbed; `body` receives the refund spy. */
+ *  the payment intent's refunded state stubbed; `body` receives the refund stub. */
 export const runFailedRefund = async (
   id: string,
   intentRefunded: boolean,
   listingId: number,
   body: (refund: ReturnType<typeof stubRefundOk>) => Promise<void>,
 ): Promise<void> => {
-  const refund = stub(stripeApi, "refundCharge", () =>
-    Promise.resolve({ kind: "rejected", reason: "rejected" } as const),
+  const refund = stub(
+    stripeApi,
+    "refundCharge",
+    () => Promise.resolve({ kind: "rejected", reason: "rejected" } as const),
   );
   // The refund asks what the money has already done first, so the charge must
   // state it: a refunded one has every penny back, an unrefunded one none.
   const intent = stub(stripeApi, "readPaymentIntent", () =>
-    Promise.resolve({
-      resource: {
-        ...stripeIntentWithCharge(intentRefunded ? 1200 : 0, 1200),
-        id: `pi_${id}`,
-      },
-      status: "found",
-    } as const),
-  );
+    Promise.resolve(
+      {
+        resource: {
+          ...stripeIntentWithCharge(intentRefunded ? 1200 : 0, 1200),
+          id: `pi_${id}`,
+        },
+        status: "found",
+      } as const,
+    ));
   const mockVerify = await stubCompletedSession({
     amount_total: 1200,
     id,

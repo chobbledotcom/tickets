@@ -279,9 +279,6 @@ export const computeAttendeeRefund = async (
     indexesWhollyInGroups(returned.placements, alreadyRecorded),
     reviewReferenceIndexes,
   );
-  if (eligible.length > 0 && toRecord.length === 0) {
-    return computedRefund([], result);
-  }
   if (toRecord.length === 0) return computedRefund([], result);
   const occurredAt = nowIso();
   return computedRefund(

@@ -4,6 +4,7 @@ import { execute } from "#shared/db/client.ts";
 import { anchorSessionId } from "#shared/db/payment-anchor/session.ts";
 import {
   paymentReferenceIndex,
+  type StoredPaymentReference,
   storePaymentReference,
 } from "#shared/db/payment-reference-store.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -18,6 +19,18 @@ import {
   finalizeProcessedPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
+
+const repointPaymentRow = async (
+  sessionId: string,
+  stored: StoredPaymentReference,
+): Promise<void> => {
+  await execute(
+    `UPDATE processed_payments
+        SET payment_reference = ?, payment_reference_index = ?
+      WHERE payment_session_id = ?`,
+    [stored.encrypted, stored.index, sessionId],
+  );
+};
 
 const sharedSessions = (claim: {
   shared: ReadonlyMap<string, readonly { sessionId: string }[]>;
@@ -59,12 +72,7 @@ describeWithEnv(
         kind: "untagged",
         reference: "pi_alias",
       });
-      await execute(
-        `UPDATE processed_payments
-            SET payment_reference = ?, payment_reference_index = ?
-          WHERE payment_session_id = ?`,
-        [old.encrypted, old.index, "sess-alias-untagged"],
-      );
+      await repointPaymentRow("sess-alias-untagged", old);
 
       const held = await claimCurrentAttendeeRows([tagged], "keyless");
 
@@ -91,12 +99,7 @@ describeWithEnv(
       const storedSquare = await storePaymentReference(
         taggedPaymentReference("same_provider_text", "square"),
       );
-      await execute(
-        `UPDATE processed_payments
-            SET payment_reference = ?, payment_reference_index = ?
-          WHERE payment_session_id = ?`,
-        [storedSquare.encrypted, storedSquare.index, "sess-provider-square"],
-      );
+      await repointPaymentRow("sess-provider-square", storedSquare);
 
       const stripeHeld = await claimCurrentAttendeeRows([stripe], "keyless");
       const squareHeld = await claimCurrentAttendeeRows([square], "keyless");

@@ -117,7 +117,7 @@ describeWithEnv("payment reference provider evidence", { db: true }, () => {
     expect(stripeRead.calls.length).toBe(1);
   });
 
-  test("keeps every failed discovery read exact", async () => {
+  test("keeps an interrupted provider search unresolved", async () => {
     await settings.update.square.accessToken("square_unresolved");
     await settings.update.stripe.secretKey("sk_test_unresolved");
     await settings.update.sumup.apiKey("sumup_unresolved");
@@ -148,7 +148,7 @@ describeWithEnv("payment reference provider evidence", { db: true }, () => {
           result: { reason: "timeout", status: "unavailable" },
         },
       ],
-      reason: "no_validating_provider",
+      reason: "provider_search_incomplete",
       reference: "not_at_any_provider",
       source: "untagged",
       status: "unresolved",
@@ -156,6 +156,69 @@ describeWithEnv("payment reference provider evidence", { db: true }, () => {
     expect(squareRead.calls.length).toBe(1);
     expect(stripeRead.calls.length).toBe(1);
     expect(sumupRead.calls.length).toBe(1);
+  });
+
+  test("does not bind one proof while another provider cannot answer", async () => {
+    await settings.update.square.accessToken("square_partial_proof");
+    await settings.update.stripe.secretKey("sk_test_partial_proof");
+    const charge = chargeMoney();
+    using squareRead = readStub(squarePaymentProvider, {
+      resource: charge,
+      status: "found",
+    });
+    using stripeRead = readStub(stripePaymentProvider, {
+      reason: "timeout",
+      status: "unavailable",
+    });
+
+    const answer = await readPaymentReferenceEvidence({
+      kind: "untagged",
+      reference: "incomplete_identity",
+    });
+
+    expect(answer).toEqual({
+      attempts: [
+        { provider: "square", result: { resource: charge, status: "found" } },
+        {
+          provider: "stripe",
+          result: { reason: "timeout", status: "unavailable" },
+        },
+      ],
+      reason: "provider_search_incomplete",
+      reference: "incomplete_identity",
+      source: "untagged",
+      status: "unresolved",
+    });
+    expect(squareRead.calls.length).toBe(1);
+    expect(stripeRead.calls.length).toBe(1);
+  });
+
+  test("binds one proof when every other provider answers definitively", async () => {
+    await settings.update.square.accessToken("square_complete_proof");
+    await settings.update.stripe.secretKey("sk_test_complete_proof");
+    const charge = chargeMoney();
+    using squareRead = readStub(squarePaymentProvider, {
+      resource: charge,
+      status: "found",
+    });
+    using stripeRead = readStub(stripePaymentProvider, {
+      reason: "mismatched_id",
+      status: "invalid",
+    });
+
+    expect(
+      await readPaymentReferenceEvidence({
+        kind: "untagged",
+        reference: "complete_identity",
+      }),
+    ).toMatchObject({
+      charge,
+      provider: "square",
+      source: "discovered",
+      status: "found",
+    });
+    expect(squareRead.calls.length).toBe(1);
+    expect(stripeRead.calls.length).toBe(1);
   });
 
   test("refuses to choose when more than one provider validates the reference", async () => {
@@ -207,11 +270,13 @@ describeWithEnv("payment reference provider evidence", { db: true }, () => {
   test("preserves a tagged provider's missing, invalid, and unavailable answers", async () => {
     await settings.update.stripe.secretKey("sk_test_exact_failures");
 
-    for (const result of [
-      { status: "missing" },
-      { reason: "mismatched_parent", status: "invalid" },
-      { reason: "rate_limited", status: "unavailable" },
-    ] as const satisfies readonly ProviderRead<ChargeMoney>[]) {
+    for (
+      const result of [
+        { status: "missing" },
+        { reason: "mismatched_parent", status: "invalid" },
+        { reason: "rate_limited", status: "unavailable" },
+      ] as const satisfies readonly ProviderRead<ChargeMoney>[]
+    ) {
       using read = readStub(stripePaymentProvider, result);
       const answer = await readPaymentReferenceEvidence({
         kind: "tagged",

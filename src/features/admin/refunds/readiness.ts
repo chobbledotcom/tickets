@@ -2,6 +2,7 @@ import { requiredMapValue, unique, uniqueBy } from "#fp";
 import { anchorSessionId } from "#shared/db/payment-anchor/session.ts";
 import {
   bindPaymentReferenceProviders,
+  type PaymentReferenceProviderBinding,
   type PaymentReferenceProviderBindingResult,
 } from "#shared/db/payment-reference-provider.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
@@ -11,7 +12,6 @@ import {
 } from "#shared/payment/provider-discovery.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
-import type { ResolvedRefundCapability } from "#shared/payment/row-state.ts";
 import { loadPaymentProvider, type PaymentProvider } from "#shared/payments.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 import type { RefundCandidate } from "./candidates.ts";
@@ -37,9 +37,9 @@ type ReadyRefundReferenceBase = {
 /** One reference after every provider read and provider binding has finished. */
 export type ReadyRefundReference =
   | (ReadyRefundReferenceBase & {
-      charge: ChargeMoney;
-      kind: "observed";
-    })
+    charge: ChargeMoney;
+    kind: "observed";
+  })
   | (ReadyRefundReferenceBase & { kind: "already_returned" });
 
 export type ReadyRefundCandidate = Omit<RefundCandidate, "references"> & {
@@ -58,21 +58,20 @@ export type RefundReadinessRead = {
 
 export type RefundReadinessResult =
   | {
-      capability: ResolvedRefundCapability;
-      candidates: ReadyRefundCandidate[];
-      kind: "ready";
-    }
+    candidates: ReadyRefundCandidate[];
+    kind: "ready";
+  }
   | {
-      kind: "not_ready";
-      reads: RefundReadinessRead[];
-      reason: "provider_evidence";
-    }
+    kind: "not_ready";
+    reads: RefundReadinessRead[];
+    reason: "provider_evidence";
+  }
   | { kind: "not_ready"; reason: "claim_changed" }
   | {
-      indexes: readonly string[];
-      kind: "not_ready";
-      reason: "historical_marker";
-    };
+    indexes: readonly string[];
+    kind: "not_ready";
+    reason: "historical_marker";
+  };
 
 export type RefundReadinessDependencies = {
   bindProviders: typeof bindPaymentReferenceProviders;
@@ -116,9 +115,9 @@ type PreparedReferenceBase = {
 type PreparedReference =
   | (PreparedReferenceBase & { charge: ChargeMoney; kind: "observed" })
   | (PreparedReferenceBase & {
-      kind: "already_returned";
-      original: TaggedRefundPaymentReference;
-    });
+    kind: "already_returned";
+    original: TaggedRefundPaymentReference;
+  });
 
 type PreparedEvidence =
   | { kind: "failed"; read: RefundReadinessRead }
@@ -135,22 +134,24 @@ const prepareEvidence = (
 ): PreparedEvidence =>
   evidence.status === "found"
     ? {
-        kind: "prepared",
-        reference: {
-          charge: evidence.charge,
-          identity: providerIdentity(original, evidence.provider),
-          kind: "observed",
-          original,
-        },
-      }
+      kind: "prepared",
+      reference: {
+        charge: evidence.charge,
+        identity: providerIdentity(original, evidence.provider),
+        kind: "observed",
+        original,
+      },
+    }
     : { kind: "failed", read: { evidence, index: original.index } };
 
 const readReferences = (
   references: readonly RefundPaymentReference[],
   readEvidence: RefundReadinessDependencies["readEvidence"],
 ): Promise<PreparedEvidence[]> =>
-  mapProviderRequests(references, async (reference) =>
-    prepareEvidence(reference, await readEvidence(reference)),
+  mapProviderRequests(
+    references,
+    async (reference) =>
+      prepareEvidence(reference, await readEvidence(reference)),
   );
 
 const alreadyReturnedReference = (
@@ -160,13 +161,6 @@ const alreadyReturnedReference = (
   kind: "already_returned",
   original: reference,
 });
-
-const capabilitiesOf = (
-  providers: readonly ReadyRefundProvider[],
-): ResolvedRefundCapability =>
-  providers.some(({ refundCapability }) => refundCapability === "keyless")
-    ? "keyless"
-    : "keyed";
 
 const loadProviders = async (
   references: readonly PreparedReference[],
@@ -198,10 +192,9 @@ const taggedReference = (
   index,
   // A row-less legacy reference was anchored under its old index when this
   // claim began. Provider binding changes the index, never that row identity.
-  rowSessionIds:
-    original.rowSessionIds.length === 0
-      ? [anchorSessionId(attendeeId, original.index)]
-      : original.rowSessionIds,
+  rowSessionIds: original.rowSessionIds.length === 0
+    ? [anchorSessionId(attendeeId, original.index)]
+    : original.rowSessionIds,
 });
 
 const readyReference = (
@@ -215,11 +208,11 @@ const readyReference = (
   return prepared.kind === "already_returned"
     ? { kind: "already_returned", provider, reference }
     : {
-        charge: prepared.charge,
-        kind: "observed",
-        provider,
-        reference,
-      };
+      charge: prepared.charge,
+      kind: "observed",
+      provider,
+      reference,
+    };
 };
 
 const readyCandidates = (
@@ -259,7 +252,6 @@ const bindingResult = (
   candidates: readonly RefundCandidate[],
   prepared: readonly PreparedReference[],
   providers: ReadonlyMap<PaymentProviderType, ReadyRefundProvider>,
-  capability: ResolvedRefundCapability,
 ): RefundReadinessResult => {
   switch (result.kind) {
     case "claim_changed":
@@ -278,7 +270,6 @@ const bindingResult = (
           providers,
           result.indexes,
         ),
-        capability,
         kind: "ready",
       };
   }
@@ -334,13 +325,21 @@ export const prepareRefundReadiness = async (
     ...marked.map(alreadyReturnedReference),
   ];
   const providers = await loadProviders(prepared, loadProvider);
-  const capability = capabilitiesOf([...providers.values()]);
   const result = await bindProviders({
     bindings: new Map(
-      prepared.map(({ identity, original }) => [original.index, identity]),
+      prepared.map(({ identity, original }) => [
+        original.index,
+        {
+          capability: requiredMapValue(
+            providers,
+            identity.provider,
+            `Refund readiness lost provider ${identity.provider}`,
+          ).refundCapability,
+          identity,
+        } satisfies PaymentReferenceProviderBinding,
+      ]),
     ),
-    capability,
     ...claim,
   });
-  return bindingResult(result, candidates, prepared, providers, capability);
+  return bindingResult(result, candidates, prepared, providers);
 };

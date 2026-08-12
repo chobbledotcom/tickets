@@ -10,9 +10,7 @@ import {
 } from "#test/features/admin/refunds-helpers.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import {
-  assertAdminHtml,
   expectFlashRedirect,
-  expectHtmlResponse,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -20,121 +18,20 @@ import { createPaidAttendeeWithoutLedger } from "#test-utils/db-helpers/attendee
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
-import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
+import { mockFormRequest } from "#test-utils/mocks.ts";
 import { claimCurrentAttendeeRows } from "#test-utils/payment-claim.ts";
+import { chargeMoney, fullyRefundedMoney } from "#test-utils/payment-state.ts";
 import {
-  acceptedRefund,
-  fullyRefundedMoney,
-} from "#test-utils/payment-state.ts";
-import {
-  expectSingleRefundIssued,
+  refundCompletes,
+  refundIsRejected,
+  refundStaysPending,
   refundUrl,
   submitRefund,
   withRefundMock,
 } from "#test-utils/refund-routes.ts";
-import {
-  setupListingAndLogin,
-  testCookie,
-  testCsrfToken,
-} from "#test-utils/session.ts";
-
-// -- Tests ---------------------------------------------------------------- //
+import { testCookie, testCsrfToken } from "#test-utils/session.ts";
 
 describeWithEnv("server (admin refunds)", { db: true }, () => {
-  describe("GET /admin/listing/:listingId/attendee/:attendeeId/refund", () => {
-    testRequiresAuth("/admin/attendees/1/refund", {
-      setup: async () => {
-        const listing = await createPaidListing();
-        await createTestAttendee(
-          listing.id,
-          listing.slug,
-          "John Doe",
-          "john@example.com",
-        );
-      },
-    });
-
-    test("returns 404 for non-existent attendee", async () => {
-      const { cookie } = await setupListingAndLogin({ maxAttendees: 100 });
-      const response = await awaitTestRequest(refundUrl(999), { cookie });
-      expect(response.status).toBe(404);
-    });
-
-    test("returns 404 for an orphan attendee with no home listing", async () => {
-      // The attendee-scoped route loads the attendee's home listing; an
-      // attendee whose bookings are all gone has none, so the action 404s.
-      const listing = await createTestListing({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "John Doe",
-        "john@example.com",
-      );
-      const { getDb } = await import("#shared/db/client.ts");
-      await getDb().execute(
-        "DELETE FROM listing_attendees WHERE attendee_id = ?",
-        [attendee.id],
-      );
-      const response = await awaitTestRequest(refundUrl(attendee.id), {
-        cookie: await testCookie(),
-      });
-      expect(response.status).toBe(404);
-    });
-
-    test("shows error when attendee has no payment", async () => {
-      const listing = await createTestListing({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "John Doe",
-        "john@example.com",
-      );
-
-      const response = await awaitTestRequest(refundUrl(attendee.id), {
-        cookie: await testCookie(),
-      });
-      await expectHtmlResponse(response, 400, "no payment to refund");
-    });
-
-    test("shows refund confirmation page for paid attendee", async () => {
-      const ctx = await setupRefundTest("pi_test_123");
-      const response = await awaitTestRequest(refundUrl(ctx.attendee.id), {
-        cookie: ctx.cookie,
-      });
-      await expectHtmlResponse(
-        response,
-        200,
-        "Refund Attendee",
-        "John Doe",
-        "type their name",
-        "£5",
-      );
-    });
-
-    test("shows no-payment error when the attendee has no active booking line", async () => {
-      const ctx = await setupRefundTest("pi_no_quantity_get");
-      await setBookingLineQuantity(ctx.attendee.id, ctx.listing.id, 0);
-
-      const response = await awaitTestRequest(refundUrl(ctx.attendee.id), {
-        cookie: ctx.cookie,
-      });
-
-      await expectHtmlResponse(response, 400, "no payment to refund");
-    });
-
-    test("includes return_url as hidden field when provided", async () => {
-      const ctx = await setupRefundTest("pi_test_return");
-      const url = `${refundUrl(ctx.attendee.id)}?return_url=${encodeURIComponent(
-        "/admin/calendar#attendees",
-      )}`;
-      await assertAdminHtml(
-        url,
-        'name="return_url"',
-        "/admin/calendar#attendees",
-      );
-    });
-  });
-
   describe("POST /admin/listing/:listingId/attendee/:attendeeId/refund", () => {
     testRequiresAuth("/admin/attendees/1/refund", {
       body: {
@@ -217,8 +114,22 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
 
     test("successfully refunds attendee payment", async () => {
       const ctx = await setupRefundTest("pi_test_success");
+      const observed = chargeMoney(731, 0, "USD");
 
-      await expectSingleRefundIssued(ctx);
+      await withRefundMock(
+        refundCompletes,
+        async (mockRefund) => {
+          await expectFlashRedirect(
+            `/admin/attendees/${ctx.attendee.id}/actions`,
+            "Refund issued",
+          )(await submitRefund(ctx));
+          expect(mockRefund.calls[0]?.args[0]).toEqual({
+            charge: observed,
+            paymentReference: "pi_test_success",
+          });
+        },
+        { charge: observed },
+      );
       expect(
         (await getAttendeeActivityLog(ctx.attendee.id)).map(
           (entry) => entry.message,
@@ -233,7 +144,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       const ctx = await setupRefundTest("pi_test_provider_done");
 
       await withRefundMock(
-        false,
+        refundIsRejected,
         async (mockRefund) => {
           const response = await submitRefund(ctx);
           await expectFlashRedirect(
@@ -255,7 +166,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       const ctx = await setupRefundTest("pi_test_return");
       const returnUrl = `/admin/attendees/${ctx.attendee.id}/actions`;
 
-      await withRefundMock(true, async () => {
+      await withRefundMock(refundCompletes, async () => {
         const response = await submitRefund(ctx, { return_url: returnUrl });
         await expectFlashRedirect(returnUrl, "Refund issued")(response);
       });
@@ -265,12 +176,14 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       const ctx = await setupRefundTest("pi_test_return_err");
       const returnUrl = `/admin/attendees/${ctx.attendee.id}/actions`;
 
-      await withRefundMock(false, async () => {
+      await withRefundMock(refundIsRejected, async () => {
         const response = await submitRefund(ctx, { return_url: returnUrl });
         await expectFlashRedirect(
-          `/admin/attendees/${ctx.attendee.id}/refund?return_url=${encodeURIComponent(
-            returnUrl,
-          )}`,
+          `/admin/attendees/${ctx.attendee.id}/refund?return_url=${
+            encodeURIComponent(
+              returnUrl,
+            )
+          }`,
           expect.stringContaining("failed"),
           false,
         )(response);
@@ -280,7 +193,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
     test("shows error when refund fails", async () => {
       const ctx = await setupRefundTest("pi_test_fail");
 
-      await withRefundMock(false, async () => {
+      await withRefundMock(refundIsRejected, async () => {
         const response = await submitRefund(ctx);
         await expectFlashRedirect(
           `/admin/attendees/${ctx.attendee.id}/refund`,
@@ -293,7 +206,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
     test("reports an accepted refund as still settling, not failed", async () => {
       const ctx = await setupRefundTest("pi_test_pending");
 
-      await withRefundMock(acceptedRefund(), async () => {
+      await withRefundMock(refundStaysPending, async () => {
         const response = await submitRefund(ctx);
         await expectFlashRedirect(
           `/admin/attendees/${ctx.attendee.id}/refund`,
@@ -311,7 +224,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
         new Map([[ctx.attendee.id, "pi_claimed_elsewhere"]]),
       );
 
-      await withRefundMock(true, async (mockRefund) => {
+      await withRefundMock(refundCompletes, async (mockRefund) => {
         await expectFlashRedirect(
           `/admin/attendees/${ctx.attendee.id}/refund`,
           "A refund for this payment is still settling. Try again after it completes.",
@@ -362,7 +275,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
           csrfToken: await testCsrfToken(),
           listing,
         };
-        await withRefundMock(true, async (mockRefund) => {
+        await withRefundMock(refundCompletes, async (mockRefund) => {
           const response = await submitRefund(ctx);
           await expectFlashRedirect(
             `/admin/attendees/${attendee.id}/refund`,

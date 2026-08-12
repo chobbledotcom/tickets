@@ -7,13 +7,11 @@ import {
 } from "#routes/admin/refunds/claim.ts";
 import type {
   ClaimResult,
+  InheritedRefundCapabilities,
   LoadedRefundAttendee,
 } from "#shared/db/payment-claim/take.ts";
 import type { RowSettlement } from "#shared/db/payment-claim.ts";
-import type {
-  RefundCapability,
-  ResolvedRefundCapability,
-} from "#shared/payment/row-state.ts";
+import type { RefundCapability } from "#shared/payment/row-state.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 
 type ClaimedRows = Extract<ClaimResult, { kind: "claimed" }>;
@@ -45,7 +43,7 @@ const claimResult = (
 
 const claimedRows = (
   held: ReadonlyMap<number, readonly string[]>,
-  inherited: ReadonlyMap<number, ResolvedRefundCapability> = new Map(),
+  inherited: InheritedRefundCapabilities = new Map(),
   unrecorded: ReadonlyMap<number, readonly string[]> = new Map(),
 ): ClaimedRows => ({
   held,
@@ -109,8 +107,8 @@ describe("admin refunds > attendee claim", () => {
   });
 
   test("releases only attendees whose provider answer is settled", async () => {
-    const inherited = new Map<number, ResolvedRefundCapability>([
-      [4, "keyless"],
+    const inherited: InheritedRefundCapabilities = new Map([
+      [4, new Map([["pi-four", "keyless"]])],
     ]);
     const unrecorded = new Map<number, readonly string[]>([
       [3, ["sess-three"]],
@@ -233,8 +231,9 @@ describe("admin refunds > attendee claim", () => {
   });
 
   test("reports a release failure without losing the run result", async () => {
-    const claim = claimResult(claimedRows(new Map([[1, ["sess-one"]]])), () =>
-      Promise.reject(new Error("the row would not let go")),
+    const claim = claimResult(
+      claimedRows(new Map([[1, ["sess-one"]]])),
+      () => Promise.reject(new Error("the row would not let go")),
     );
 
     const result = await underAttendeeClaim(claim, [], "keyed", 11, {

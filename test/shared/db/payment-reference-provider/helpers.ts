@@ -6,8 +6,14 @@ import {
   loadPaymentReference,
   storePaymentReference,
 } from "#shared/db/payment-reference-store.ts";
-import type { PaymentReference } from "#shared/payment/provider-reference.ts";
-import { readRowState } from "#shared/payment/row-state.ts";
+import type {
+  PaymentReference,
+  TaggedPaymentReference,
+} from "#shared/payment/provider-reference.ts";
+import {
+  readRowState,
+  type ResolvedRefundCapability,
+} from "#shared/payment/row-state.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import {
   bookAttendee,
@@ -71,11 +77,17 @@ export const bindingRequest = (
     Awaited<ReturnType<typeof claimCurrentAttendeeRows>>,
     { kind: "claimed" }
   >,
-  bindings: PaymentReferenceProviderBindingRequest["bindings"],
-  capability: PaymentReferenceProviderBindingRequest["capability"] = "keyed",
+  identities: ReadonlyMap<string, TaggedPaymentReference>,
+  capabilityOf: (
+    identity: TaggedPaymentReference,
+  ) => ResolvedRefundCapability = () => "keyed",
 ): PaymentReferenceProviderBindingRequest => ({
-  bindings,
-  capability,
+  bindings: new Map(
+    [...identities].map(([index, identity]) => [
+      index,
+      { capability: capabilityOf(identity), identity },
+    ]),
+  ),
   held: held.held,
   heldSince: held.heldSince,
 });

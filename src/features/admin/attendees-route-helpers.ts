@@ -128,11 +128,8 @@ type AttendeeActionRenderer = (
 
 type AttendeeActionRoute = ParamsRoute<AttendeeIdRouteParams>;
 
-/** GET handler for an attendee-action confirm page: auth, load the attendee +
- * home listing, render with the flashed error and threaded return_url. An
- * optional guard can block the action up front — its message renders in the
- * page at HTTP 400 (the refund page's no-payment/already-refunded states).
- * Callers may also supply a stricter session gate. */
+/** Render an attendee confirmation. A guard answers HTTP 400; callers may also
+ * supply a stricter session gate. */
 export const attendeeActionPage = (
   render: AttendeeActionRenderer,
   guard?: (data: AttendeeWithListing) => Promise<string | null>,
@@ -181,7 +178,7 @@ type AttendeeIdRouteParams = { attendeeId: number };
  * the parsed form. Shared by the note and logistics POSTs. */
 export const attendeeFormPost = (
   handle: IdFormHandler,
-): ((request: Request, params: AttendeeIdRouteParams) => Promise<Response>) =>
+): (request: Request, params: AttendeeIdRouteParams) => Promise<Response> =>
   createAuthedHandler<AttendeeIdRouteParams>({
     handle: ({ form, params, session }) =>
       handle(params.attendeeId, session, form),
@@ -205,7 +202,7 @@ type AttendeeFormAction = ResponseHandler<
 /** Create an attendee form handler with typed IDs */
 export const attendeeFormAction = (
   handler: AttendeeFormAction,
-): ((request: Request, params: AttendeeRouteParams) => Promise<Response>) =>
+): (request: Request, params: AttendeeRouteParams) => Promise<Response> =>
   createAuthedHandler<AttendeeRouteParams, AttendeeWithListing>({
     handle: ({ context, form, params, session }) =>
       handler(context, session, form, params.listingId, params.attendeeId),

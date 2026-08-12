@@ -6,10 +6,7 @@ import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { getDb, insert } from "#shared/db/client.ts";
 import { SCHEMA } from "#shared/db/migrations/schema/index.ts";
 import { createTableSql } from "#shared/db/migrations/schema-sync.ts";
-import {
-  paymentReferenceIndex,
-  storePaymentReference,
-} from "#shared/db/payment-reference-store.ts";
+import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import {
   clearSessionTokens,
   decryptSessionTokens,
@@ -27,8 +24,12 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
-import { referenceIndexOf } from "#test-utils/payment-claim.ts";
 import {
+  claimCurrentAttendeeRows,
+  referenceIndexOf,
+} from "#test-utils/payment-claim.ts";
+import {
+  bookedWithPayment,
   expectProcessedPaymentReference,
   finalizeReservedPayment,
   getProcessedPayment,
@@ -250,8 +251,10 @@ describeWithEnv("db > processed payments", { db: true }, () => {
 
   test("throws when the atomic lookup does not return the session", async () => {
     const client = getDb();
-    using batchStub = stub(client, "batch", () =>
-      Promise.resolve([emptyResultSet(), emptyResultSet()]),
+    using batchStub = stub(
+      client,
+      "batch",
+      () => Promise.resolve([emptyResultSet(), emptyResultSet()]),
     );
     await expect(reserveSession("missing-lookup")).rejects.toThrow(
       "Reserved payment session is missing: missing-lookup",
@@ -306,18 +309,12 @@ describeWithEnv("db > processed payments", { db: true }, () => {
 
     test("refuses to heal an equivalent reference under a refund claim", async () => {
       const reference = "pi_heal_held";
-      const held = await storePaymentReference({
-        kind: "untagged",
+      const attendeeId = await bookedWithPayment(
+        "sess_heal_holder",
         reference,
-      });
-      await reserveSession("sess_heal_holder");
-      await getDb().execute({
-        args: [7, held.encrypted, held.index, "sess_heal_holder"],
-        sql: `UPDATE processed_payments
-                 SET attendee_id = ?, payment_reference = ?,
-                     payment_reference_index = ?, protected_state = 'claim'
-               WHERE payment_session_id = ?`,
-      });
+      );
+      const held = await claimCurrentAttendeeRows([attendeeId], "keyed");
+      if (held.kind !== "claimed") throw new Error("the claim was refused");
       await reserveSession("sess_heal_blocked");
 
       await expect(

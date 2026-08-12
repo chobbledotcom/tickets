@@ -22,22 +22,24 @@ describe("what can be wrong with a payment", () => {
 
   // Nothing can report these yet, so nothing may store one either. The first
   // eight need a whole reading of the checkout to compare money against what
-  // was owed; the last four belong to later milestones — the read-level pair
-  // to M5's stored-answer re-validation, the refund-shape pair to M7's
-  // per-refund records.
-  for (const kind of [
-    "resource_mismatch",
-    "currency_mismatch",
-    "provider_total_mismatch",
-    "partial_charge",
-    "capture_total_mismatch",
-    "duplicate_charge",
-    "multiple_charges",
-    "paid_without_charge",
-    "invalid_provider_data",
-    "missing_resource",
-    "duplicate_refund",
-  ] as const) {
+  // was owed; the last three belong to later milestones — two read-level
+  // failures for M5's stored-answer validation and a refund-shape failure for
+  // M7's per-refund records.
+  for (
+    const kind of [
+      "resource_mismatch",
+      "currency_mismatch",
+      "provider_total_mismatch",
+      "partial_charge",
+      "capture_total_mismatch",
+      "duplicate_charge",
+      "multiple_charges",
+      "paid_without_charge",
+      "invalid_provider_data",
+      "missing_resource",
+      "duplicate_refund",
+    ] as const
+  ) {
     test(`does not yet know ${kind}`, () => {
       expect(v.is(PaymentConflictSchema, { kind })).toBe(false);
     });

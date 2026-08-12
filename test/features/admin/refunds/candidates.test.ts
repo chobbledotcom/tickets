@@ -17,7 +17,10 @@ import {
 import type { Attendee } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import {
+  bookAttendee,
+  bookedAttendee,
+} from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   CLAIM_MIRROR,
@@ -71,6 +74,26 @@ const candidateIds = async (attendees: Attendee[]): Promise<number[]> =>
     (candidate) => candidate.attendee.id,
   );
 
+const refundableAttendee = async (
+  sessionId: string,
+  reference: string,
+): Promise<Attendee> => {
+  const listing = await createTestListing({ maxAttendees: 50 });
+  const attendee = bookedAttendee(
+    await bookAttendee(listing, {
+      email: `${sessionId}@example.com`,
+      name: sessionId,
+    }),
+  );
+  await finalizeProcessedPayment(
+    sessionId,
+    attendee.id,
+    "",
+    taggedPaymentReference(reference),
+  );
+  return attendee;
+};
+
 describeWithEnv("admin refunds > who a run picks up", { db: true }, () => {
   test("leaves an attendee whose money is all back and settled", async () => {
     const settled = await alreadyReturned("sess_settled", "pi_settled");
@@ -88,5 +111,25 @@ describeWithEnv("admin refunds > who a run picks up", { db: true }, () => {
     await holdRow("sess_stuck", stuck.id);
 
     expect(await candidateIds([stuck])).toEqual([stuck.id]);
+  });
+
+  test("chooses each ticket holder once after dropping no-quantity rows", async () => {
+    const repeated = await refundableAttendee(
+      "sess_repeated_candidate",
+      "pi_repeated_candidate",
+    );
+    const peer = await refundableAttendee(
+      "sess_peer_candidate",
+      "pi_peer_candidate",
+    );
+
+    expect(
+      await candidateIds([
+        { ...repeated, quantity: 0 },
+        repeated,
+        { ...repeated },
+        peer,
+      ]),
+    ).toEqual([repeated.id, peer.id]);
   });
 });

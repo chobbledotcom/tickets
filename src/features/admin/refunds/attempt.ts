@@ -11,6 +11,7 @@ import type {
 } from "./readiness.ts";
 import { readyRefundAdmission } from "./ready-admission.ts";
 import { reportRefundProblem } from "./report.ts";
+import type { ProviderReviewFinding } from "./provider-reviews.ts";
 import { combineRefundOutcomes, type RefundOutcome } from "./waves.ts";
 
 type TaggedRefundReference = ReadyRefundReference["reference"];
@@ -32,6 +33,7 @@ const refusedRefund = (detail: string, listingId: number): RefundOutcome => {
 export type ReferenceRefund = {
   doubt?: "in_doubt";
   outcome: RefundOutcome;
+  review?: ProviderReviewFinding["reason"];
 };
 
 /** A readiness answer shared by every attendee carrying the same reference. */
@@ -55,7 +57,7 @@ const answeredOnce = <TAnswer>(
 /** Start one provider request even when several attendees share its charge. */
 const sendOnce = <TAnswer>(
   send: () => Promise<TAnswer>,
-): (() => Promise<TAnswer>) => {
+): () => Promise<TAnswer> => {
   let running: Promise<TAnswer> | undefined;
   return () => {
     running ??= send();
@@ -77,6 +79,9 @@ const withheldResult = (
     listingId,
     paymentReference,
   });
+  if (admission.kind === "refused") {
+    return { outcome: "withheld", review: admission.issue };
+  }
   return admission.kind === "in_flight"
     ? { doubt: "in_doubt", outcome: "pending" }
     : { outcome: "withheld" };
@@ -143,7 +148,7 @@ const prepareReferenceRefund = async (
         candidate.attendee.id,
         listingId,
         admission.request,
-      ),
+      )
     ),
   };
 };
@@ -152,6 +157,8 @@ const prepareReferenceRefund = async (
 export type CandidateRefund = {
   candidate: ReadyRefundCandidate;
   outcome: RefundOutcome;
+  /** Provider conflicts that must remain visible after this request. */
+  reviews: readonly ProviderReviewFinding[];
   /** The provider-tagged charges that actually went back. */
   returned: readonly TaggedRefundReference[];
   doubt?: "in_doubt";
@@ -161,20 +168,24 @@ export type CandidateRefund = {
 export const refundReadyCandidate = async (
   candidate: ReadyRefundCandidate,
   listingId: number,
-  markReturnedReferences: MarkReturnedReferences = markPaymentReferencesProviderRefunded,
+  markReturnedReferences: MarkReturnedReferences =
+    markPaymentReferencesProviderRefunded,
   inFlight: Map<string, Promise<PreparedReferenceRefund>> = new Map(),
   observeOnly: ReadonlySet<string> = new Set(),
 ): Promise<CandidateRefund> => {
   const prepared = await mapProviderRequests(
     candidate.references,
     async (ready) => ({
-      ...(await answeredOnce(inFlight, ready.reference.index, () =>
-        prepareReferenceRefund(
-          candidate,
-          listingId,
-          ready,
-          observeOnly.has(ready.reference.index),
-        ),
+      ...(await answeredOnce(
+        inFlight,
+        ready.reference.index,
+        () =>
+          prepareReferenceRefund(
+            candidate,
+            listingId,
+            ready,
+            observeOnly.has(ready.reference.index),
+          ),
       )),
       reference: ready.reference,
     }),
@@ -199,27 +210,25 @@ export const refundReadyCandidate = async (
   const returnedReferences = results
     .filter((result) => result.outcome === "refunded")
     .map((result) => result.reference);
+  const reviews = results.flatMap(({ reference, review }) =>
+    review === undefined ? [] : [{ reason: review, reference }]
+  );
   try {
     await markReturnedReferences(returnedReferences);
   } catch (error) {
     reportRefundProblem(
-      `Admin refund could not record returned payments for attendee ${candidate.attendee.id}: ${String(
-        error,
-      )}`,
+      `Admin refund could not record returned payments for attendee ${candidate.attendee.id}: ${
+        String(
+          error,
+        )
+      }`,
       listingId,
     );
-    if (outcome !== "refunded") {
-      return {
-        candidate,
-        doubt: "in_doubt",
-        outcome: "errored",
-        returned: returnedReferences,
-      };
-    }
     return {
       candidate,
       doubt: "in_doubt",
-      outcome,
+      outcome: outcome === "refunded" ? outcome : "errored",
+      reviews,
       returned: returnedReferences,
     };
   }
@@ -229,7 +238,8 @@ export const refundReadyCandidate = async (
   ) {
     logError({
       code: ErrorCode.PAYMENT_REFUND,
-      detail: `Admin refund did not complete every payment for attendee ${candidate.attendee.id}`,
+      detail:
+        `Admin refund did not complete every payment for attendee ${candidate.attendee.id}`,
       listingId,
     });
   }
@@ -237,6 +247,7 @@ export const refundReadyCandidate = async (
     candidate,
     ...(doubt !== undefined ? { doubt } : {}),
     outcome,
+    reviews,
     returned: returnedReferences,
   };
 };

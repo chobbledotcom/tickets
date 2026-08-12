@@ -17,7 +17,12 @@ import {
 } from "#test-utils/db-helpers/attendee-payments.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
-import { postRefundAll, withRefundMock } from "#test-utils/refund-routes.ts";
+import {
+  postRefundAll,
+  refundCompletes,
+  refundIsRejected,
+  withRefundMock,
+} from "#test-utils/refund-routes.ts";
 
 // jscpd:ignore-end
 
@@ -45,7 +50,7 @@ describeWithEnv("server (admin refund-all results)", { db: true }, () => {
         "unledgered@example.com",
         "pi_mixed_unledgered",
       );
-      await withRefundMock(true, async (mockRefund) => {
+      await withRefundMock(refundCompletes, async (mockRefund) => {
         const response = await postRefundAll(listing);
         expect(mockRefund.calls.length).toBe(2);
         await expectFlashRedirect(
@@ -69,7 +74,7 @@ describeWithEnv("server (admin refund-all results)", { db: true }, () => {
   test("caps refunds to preserve the edge subrequest budget", async () => {
     const listing = await createPaidListing({ maxAttendees: 500 });
     await seedBatchAttendees(listing, "pi_batch_", BULK_REFUND_LIMIT + 1);
-    await withRefundMock(true, async (mockRefund) => {
+    await withRefundMock(refundCompletes, async (mockRefund) => {
       const response = await postRefundAll(listing);
       expect(mockRefund.calls.length).toBe(BULK_REFUND_LIMIT);
       await expectFlashRedirect(
@@ -106,7 +111,7 @@ describeWithEnv("server (admin refund-all results)", { db: true }, () => {
         `pi_batchfail_${count}_`,
         BULK_REFUND_LIMIT + count,
       );
-      await withRefundMock(false, async () => {
+      await withRefundMock(refundIsRejected, async () => {
         await expectFlashRedirect(
           `/admin/listing/${listing.id}/refund-all`,
           expected,
@@ -135,7 +140,8 @@ describeWithEnv("server (admin refund-all results)", { db: true }, () => {
     resetI18nForTest();
     try {
       await withRefundMock(
-        () => Promise.resolve(++callNum <= 1),
+        (request) =>
+          ++callNum <= 1 ? refundCompletes(request) : refundIsRejected(request),
         async () => {
           await expectFlashRedirect(
             `/admin/listing/${listing.id}/refund-all`,
@@ -170,9 +176,9 @@ describeWithEnv("server (admin refund-all results)", { db: true }, () => {
     );
     let callNum = 0;
     await withRefundMock(
-      () => {
+      (request) => {
         callNum++;
-        if (callNum === 1) return Promise.resolve(true);
+        if (callNum === 1) return refundCompletes(request);
         return Promise.resolve({
           kind: "uncertain",
           reason: "network_error",
@@ -204,7 +210,7 @@ describeWithEnv("server (admin refund-all results)", { db: true }, () => {
       "pi_throw_two",
     );
     await withRefundMock(
-      () =>
+      (_request) =>
         Promise.resolve({
           kind: "uncertain",
           reason: "network_error",

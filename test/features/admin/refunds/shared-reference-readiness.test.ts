@@ -77,7 +77,6 @@ describe("admin refund shared-reference readiness", () => {
         prepared = true;
         return Promise.resolve({
           candidates: [],
-          capability: "keyed",
           kind: "ready",
         });
       },

@@ -147,9 +147,7 @@ type RefundLogContext = {
   paymentReference: string;
 };
 
-/** Finish the current boolean callback contract without losing which provider
- * answer made the choice. Accepted means the provider took responsibility for
- * the request; the durable lifecycle records that distinction in its layer. */
+/** Accepted means the provider took responsibility, not that money returned. */
 const refundResultSucceeded = (
   result: RefundActionResult<Parameters<typeof reportWithheldRefund>[0]>,
   { listingId, paymentReference }: RefundLogContext,

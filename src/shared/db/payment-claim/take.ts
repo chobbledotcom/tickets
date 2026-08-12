@@ -14,6 +14,7 @@ import {
 import { anchorSessionId } from "#shared/db/payment-anchor/session.ts";
 import {
   asPaymentRowRecord,
+  type PaymentRowRecord,
   paymentRowStateStatement,
   readPaymentClaimRows,
   type StoredPaymentClaimRow,
@@ -38,24 +39,24 @@ export type ClaimResult =
   | { blockedBy: ClaimDecision; kind: "blocked" }
   | { kind: "changed" }
   | {
-      /** Each attendee's claimed rows, kept apart so a run can let one
-       *  attendee go while another's answer is still in doubt. */
-      held: ReadonlyMap<number, readonly string[]>;
-      heldSince: string;
-      kind: "claimed";
-      /** Attendees inheriting a crashed run's doubt, under that run's own
-       *  provider capability. */
-      inherited: ReadonlyMap<number, ResolvedRefundCapability>;
-      /** References a claimed or sharing row already says came back. */
-      returned: ReadonlySet<string>;
-      /** Owner-review reasons carried by each claimed row. */
-      reviews: ReadonlyMap<string, PaymentReviewReason>;
-      /** References represented by more than one exact payment row. */
-      shared: ReadonlyMap<string, readonly PaymentReferenceRepresentation[]>;
-      /** Claimed rows that already say returned money is missing from the
-       *  books. A failed readiness check must not erase this repair target. */
-      unrecorded: ReadonlyMap<number, readonly string[]>;
-    };
+    /** Each attendee's claimed rows, kept apart so a run can let one
+     *  attendee go while another's answer is still in doubt. */
+    held: ReadonlyMap<number, readonly string[]>;
+    heldSince: string;
+    kind: "claimed";
+    /** References inheriting a crashed run's doubt, under that reference's
+     *  own provider capability and grouped for attendee-wide settlement. */
+    inherited: InheritedRefundCapabilities;
+    /** References a claimed or sharing row already says came back. */
+    returned: ReadonlySet<string>;
+    /** Owner-review reasons carried by each claimed row. */
+    reviews: ReadonlyMap<string, PaymentReviewReason>;
+    /** References represented by more than one exact payment row. */
+    shared: ReadonlyMap<string, readonly PaymentReferenceRepresentation[]>;
+    /** Claimed rows that already say returned money is missing from the
+     *  books. A failed readiness check must not erase this repair target. */
+    unrecorded: ReadonlyMap<number, readonly string[]>;
+  };
 
 /** The exact attendee and payment-reference snapshot an admin run loaded.
  *  `loadedPiiBlob` is the attendee revision: payment_id lives inside it, so a
@@ -70,6 +71,12 @@ export type PaymentReferenceRepresentation = {
   readonly index: string;
   readonly sessionId: string;
 };
+
+/** Provider retry facts inherited by each attendee and exact reference. */
+export type InheritedRefundCapabilities = ReadonlyMap<
+  number,
+  ReadonlyMap<string, ResolvedRefundCapability>
+>;
 
 type StoredAttendee = {
   id: number;
@@ -93,9 +100,11 @@ const readClaimableRows = async (
 }> => {
   const own = await readPaymentClaimRows(
     tx,
-    `attendee_id IN (${inPlaceholders(
-      attendeeIds,
-    )}) AND payment_reference != ''`,
+    `attendee_id IN (${
+      inPlaceholders(
+        attendeeIds,
+      )
+    }) AND payment_reference != ''`,
     [...attendeeIds],
   );
   const indexes = [...new Set(matchingIndexes)].filter((index) => index !== "");
@@ -113,7 +122,7 @@ const matchingIndexesOf = (
   attendees: readonly LoadedRefundAttendee[],
 ): string[] =>
   attendees.flatMap(({ references }) =>
-    references.flatMap(({ matchingIndexes }) => matchingIndexes),
+    references.flatMap(({ matchingIndexes }) => matchingIndexes)
   );
 
 /** Row identities the loaded snapshot says the run must hold. A row-less
@@ -124,10 +133,9 @@ const expectedRowsBySession = (
   new Map(
     attendees.flatMap((attendee) =>
       attendee.references.flatMap((reference) => {
-        const sessionIds =
-          reference.rowSessionIds.length > 0
-            ? reference.rowSessionIds
-            : [anchorSessionId(attendee.attendeeId, reference.index)];
+        const sessionIds = reference.rowSessionIds.length > 0
+          ? reference.rowSessionIds
+          : [anchorSessionId(attendee.attendeeId, reference.index)];
         return sessionIds.map(
           (sessionId) =>
             [
@@ -138,7 +146,7 @@ const expectedRowsBySession = (
               },
             ] as const,
         );
-      }),
+      })
     ),
   );
 
@@ -172,13 +180,56 @@ const rowsMatch = (
 };
 
 const claimCapability = (
-  inherited: ReadonlyMap<number, ResolvedRefundCapability>,
+  inherited: InheritedRefundCapabilities,
   attendeeId: number,
+  referenceIndex: string,
   current: RefundCapability,
 ): RefundCapability => {
-  const original = inherited.get(attendeeId);
+  const original = inherited.get(attendeeId)?.get(referenceIndex);
   return original === undefined ? current : original;
 };
+
+type JudgedPaymentRow = {
+  decision: ClaimDecision;
+  row: PaymentClaimRow;
+};
+
+type PaymentClaimRow = PaymentRowRecord & { readonly referenceIndex: string };
+
+const asPaymentClaimRow = async (
+  stored: StoredPaymentClaimRow,
+): Promise<PaymentClaimRow> => ({
+  ...(await asPaymentRowRecord(stored)),
+  referenceIndex: stored.payment_reference_index,
+});
+
+const inheritedCapabilities = (
+  judged: readonly JudgedPaymentRow[],
+): InheritedRefundCapabilities =>
+  new Map(
+    [
+      ...Map.groupBy(
+        judged.flatMap(({ decision, row }) =>
+          decision.kind === "resume" &&
+            decision.resuming.capability !== "unresolved"
+            ? [
+              {
+                attendeeId: row.attendeeId,
+                capability: decision.resuming.capability,
+                index: row.referenceIndex,
+              },
+            ]
+            : []
+        ),
+        ({ attendeeId }) => attendeeId,
+      ),
+    ].map(([attendeeId, references]) => [
+      attendeeId,
+      new Map(
+        references.map(({ capability, index }) => [index, capability] as const),
+      ),
+    ]),
+  );
 
 const representationOf = (
   row: StoredPaymentClaimRow,
@@ -196,13 +247,13 @@ const sharedRepresentations = (
     [
       ...new Map(
         attendees.flatMap(({ references }) =>
-          references.map((reference) => [reference.index, reference] as const),
+          references.map((reference) => [reference.index, reference] as const)
         ),
       ).values(),
     ].flatMap((reference) => {
       const matching = rows
         .filter((row) =>
-          reference.matchingIndexes.includes(row.payment_reference_index),
+          reference.matchingIndexes.includes(row.payment_reference_index)
         )
         .map(representationOf);
       return matching.length > 1 ? [[reference.index, matching] as const] : [];
@@ -215,7 +266,8 @@ export const claimAttendeeRows = async (
   attendees: readonly LoadedRefundAttendee[],
   capability: RefundCapability,
 ): Promise<ClaimResult> => {
-  if (attendees.length === 0) {
+  const [claimOwner] = attendees;
+  if (claimOwner === undefined) {
     return {
       held: new Map(),
       heldSince: nowIso(),
@@ -250,7 +302,7 @@ export const claimAttendeeRows = async (
     );
     if (!rowsMatch(expected, stored.own)) return { kind: "changed" };
     const storedRows = [...stored.own, ...stored.sharing];
-    const rows = await Promise.all(storedRows.map(asPaymentRowRecord));
+    const rows = await Promise.all(storedRows.map(asPaymentClaimRow));
     const ownSessions = new Set(
       stored.own.map((row) => row.payment_session_id),
     );
@@ -262,7 +314,7 @@ export const claimAttendeeRows = async (
         {
           attendeeId: ownSessions.has(row.sessionId)
             ? row.attendeeId
-            : attendeeIds[0]!,
+            : claimOwner.attendeeId,
           scope: "attendee_set",
         },
         staleBefore,
@@ -273,14 +325,7 @@ export const claimAttendeeRows = async (
     if (refused !== undefined) {
       return { blockedBy: refused.decision, kind: "blocked" };
     }
-    const inherited = new Map<number, ResolvedRefundCapability>(
-      judged.flatMap(({ decision, row }) =>
-        decision.kind === "resume" &&
-        decision.resuming.capability !== "unresolved"
-          ? [[row.attendeeId, decision.resuming.capability] as const]
-          : [],
-      ),
-    );
+    const inherited = inheritedCapabilities(judged);
     await tx.batch(
       await Promise.all(
         rows.map((row) =>
@@ -291,12 +336,13 @@ export const claimAttendeeRows = async (
               capability: claimCapability(
                 inherited,
                 row.attendeeId,
+                row.referenceIndex,
                 capability,
               ),
               scope: "attendee_set",
               writtenAt,
             },
-          }),
+          })
         ),
       ),
     );
@@ -321,7 +367,7 @@ export const claimAttendeeRows = async (
         rows.flatMap((row) =>
           row.state.review === undefined
             ? []
-            : [[row.sessionId, row.state.review] as const],
+            : [[row.sessionId, row.state.review] as const]
         ),
       ),
       shared: sharedRepresentations(attendees, storedRows),

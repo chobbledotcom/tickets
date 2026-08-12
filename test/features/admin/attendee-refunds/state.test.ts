@@ -34,6 +34,7 @@ import {
 import {
   postRefundAll,
   refundAllUrl,
+  refundCompletes,
   refundUrl,
   submitRefund,
   withRefundMock,
@@ -125,7 +126,7 @@ describeWithEnv("server (admin refund state)", { db: true }, () => {
         CLAIM_MIRROR,
       );
 
-      await withRefundMock(true, async () => {
+      await withRefundMock(refundCompletes, async () => {
         await postRefundAll(listing);
       });
 
@@ -173,7 +174,7 @@ describeWithEnv("server (admin refund state)", { db: true }, () => {
     test("marks attendee as refunded after successful refund", async () => {
       const ctx = await setupRefundTest("pi_mark_refund");
 
-      await withRefundMock(true, async () => {
+      await withRefundMock(refundCompletes, async () => {
         const response = await submitRefund(ctx);
         expect(response.status).toBe(302);
 

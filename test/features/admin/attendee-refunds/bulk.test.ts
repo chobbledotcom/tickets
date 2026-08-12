@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { execute } from "#shared/db/client.ts";
 import { setN1GuardNotifyOnly } from "#shared/db/query-log.ts";
 import {
   createPaidListing,
@@ -20,6 +21,7 @@ import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import {
   postRefundAll,
   refundAllUrl,
+  refundCompletes,
   submitRefundAll,
   withRefundMock,
 } from "#test-utils/refund-routes.ts";
@@ -195,7 +197,7 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
         "two@example.com",
         "pi_all_2",
       );
-      await withRefundMock(true, async (mockRefund) => {
+      await withRefundMock(refundCompletes, async (mockRefund) => {
         const response = await postRefundAll(listing);
         await expectFlashRedirect(
           `/admin/listing/${listing.id}`,
@@ -208,6 +210,37 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
         entry.message.includes("Bulk refund: all"),
       );
       expect(log?.message).toContain("all 2 attendee(s) refunded");
+    });
+
+    test("refunds each attendee once when one has two booking rows", async () => {
+      const listing = await createPaidListing();
+      const repeated = await createPaidTestAttendee(
+        listing.id,
+        "Repeated booking",
+        "repeated@example.com",
+        "pi_repeated_booking",
+      );
+      await createPaidTestAttendee(
+        listing.id,
+        "Independent peer",
+        "peer@example.com",
+        "pi_independent_peer",
+      );
+      await execute(
+        `INSERT INTO listing_attendees
+          (listing_id, attendee_id, quantity, parent_listing_id)
+         VALUES (?, ?, 1, ?)`,
+        [listing.id, repeated.id, listing.id + 1000],
+      );
+
+      await withRefundMock(refundCompletes, async (mockRefund) => {
+        await postRefundAll(listing);
+        expect(
+          mockRefund.calls
+            .map((call) => call.args[0].paymentReference)
+            .toSorted(),
+        ).toEqual(["pi_independent_peer", "pi_repeated_booking"]);
+      });
     });
   });
 });

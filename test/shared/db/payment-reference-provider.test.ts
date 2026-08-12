@@ -59,7 +59,7 @@ describeWithEnv(
       expect(await claimCapability("bind_shared_b")).toBe("keyed");
     });
 
-    test("uses one conservative capability for every held row", async () => {
+    test("stores each reference provider's own capability", async () => {
       const attendeeId = await legacyBooking("bind_mixed_a", "legacy_stripe");
       await finalizeProcessedPayment("bind_mixed_b", attendeeId, "tok", {
         kind: "untagged",
@@ -98,11 +98,11 @@ describeWithEnv(
                 },
               ],
             ]),
-            "keyless",
+            ({ provider }) => (provider === "sumup" ? "keyless" : "keyed"),
           ),
         ),
       ).toMatchObject({ kind: "bound" });
-      expect(await claimCapability("bind_mixed_a")).toBe("keyless");
+      expect(await claimCapability("bind_mixed_a")).toBe("keyed");
       expect(await claimCapability("bind_mixed_b")).toBe("keyless");
     });
 
@@ -265,7 +265,6 @@ describeWithEnv(
       expect(
         await bindPaymentReferenceProviders({
           bindings: new Map(),
-          capability: "keyed",
           held: new Map(),
           heldSince: "2026-08-11T12:00:00.000Z",
         }),
@@ -278,8 +277,12 @@ describeWithEnv(
       } as const;
       expect(
         await bindPaymentReferenceProviders({
-          bindings: new Map([[await paymentReferenceIndex(tagged), tagged]]),
-          capability: "keyed",
+          bindings: new Map([
+            [
+              await paymentReferenceIndex(tagged),
+              { capability: "keyed", identity: tagged },
+            ],
+          ]),
           held: new Map(),
           heldSince: "2026-08-11T12:00:00.000Z",
         }),
@@ -290,7 +293,6 @@ describeWithEnv(
       await expect(
         bindPaymentReferenceProviders({
           bindings: new Map(),
-          capability: "keyed",
           held: new Map([
             [1, ["duplicate_session"]],
             [2, ["duplicate_session"]],

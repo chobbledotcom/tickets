@@ -8,6 +8,8 @@ const UNRESOLVED_EVIDENCE_REASON = {
     "More than one configured payment provider recognizes this payment. Choose its provider before retrying.",
   no_validating_provider:
     "No configured payment provider recognizes this payment. Add the provider it was taken with, or refund it from that provider's dashboard.",
+  provider_search_incomplete:
+    "A configured payment provider could not answer. Try this refund again before choosing the payment's provider.",
 } as const satisfies Record<
   Extract<RefundReadinessRead["evidence"], { status: "unresolved" }>["reason"],
   string

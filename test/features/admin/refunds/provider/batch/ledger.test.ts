@@ -15,6 +15,7 @@ import {
   provider,
   readyCandidate,
   refundedCandidate,
+  rowBackedCandidate,
   unreadableProvider,
 } from "#test/features/admin/refunds/provider/helpers.ts";
 import {
@@ -39,10 +40,7 @@ const returnedAndStuckCandidate = (attendeeId: number): RefundCandidate => ({
   attendee: { id: attendeeId } as RefundCandidate["attendee"],
   references: [
     sessionReference("sess-back"),
-    refundReference("pi_stuck", {
-      rowSessionIds: ["sess-stuck"],
-      sessionIds: ["sess-stuck"],
-    }),
+    ...rowBackedCandidate(attendeeId, "sess-stuck", "pi_stuck").references,
   ],
 });
 
@@ -241,10 +239,7 @@ describeWithEnv(
               attendee: { id: 25 } as RefundCandidate["attendee"],
               references: [
                 sessionReference("sess-came"),
-                refundReference("pi_dark", {
-                  rowSessionIds: ["sess-dark"],
-                  sessionIds: ["sess-dark"],
-                }),
+                ...rowBackedCandidate(25, "sess-dark", "pi_dark").references,
               ],
             },
           ],
@@ -253,7 +248,7 @@ describeWithEnv(
         ),
       );
 
-      expect(provider.sent).toEqual([]);
+      expect(provider.refunds).toEqual([]);
       expect(counts).toEqual(oneFailedRefundCounts);
       expect(claim.released).toEqual([["sess-came", "sess-dark"]]);
       expect(claim.unrecorded).toEqual([[]]);

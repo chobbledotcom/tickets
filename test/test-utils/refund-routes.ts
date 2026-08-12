@@ -1,6 +1,7 @@
 import { type Spy, spy, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import type { RowClaim } from "#routes/admin/refunds/claim.ts";
+import type { InheritedRefundCapabilities } from "#shared/db/payment-claim/take.ts";
 import type { PaymentReviewChange } from "#shared/db/payment-claim.ts";
 import { settings } from "#shared/db/settings.ts";
 import type {
@@ -9,7 +10,6 @@ import type {
 } from "#shared/payment/refund-attempt.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { PaymentReviewReason } from "#shared/payment/review.ts";
-import type { ResolvedRefundCapability } from "#shared/payment/row-state.ts";
 import { paymentsApi } from "#shared/payments.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
@@ -19,6 +19,7 @@ import {
   withMocks,
 } from "#test-utils/mocks.ts";
 import {
+  acceptedRefund,
   chargeMoney,
   completedRefund,
   foundCharge,
@@ -43,11 +44,9 @@ type RefundRouteCtx = {
   listing: Pick<Listing, "id" | "name">;
 };
 
-type RefundCheck = (mockRefund: Spy) => Promise<void> | void;
-type RefundAnswer = boolean | RefundAttemptResult;
-type RefundBehavior =
-  | RefundAnswer
-  | ((reference: string) => Promise<RefundAnswer>);
+type RefundBehavior = (request: RefundRequest) => Promise<RefundAttemptResult>;
+type RefundSpy = Spy<unknown, [RefundRequest], Promise<RefundAttemptResult>>;
+type RefundCheck = (mockRefund: RefundSpy) => Promise<void> | void;
 type ChargeBehavior =
   | ChargeMoney
   | ((reference: string) => Promise<ChargeMoney>);
@@ -55,15 +54,28 @@ type RefundMockOptions = {
   charge?: ChargeBehavior;
 };
 
-const refundResult = (
-  behavior: RefundBehavior,
-): ((reference: string) => Promise<RefundAnswer>) =>
-  typeof behavior === "function" ? behavior : () => Promise.resolve(behavior);
-
 const chargeResult = (
   behavior: ChargeBehavior,
 ): ((reference: string) => Promise<ChargeMoney>) =>
   typeof behavior === "function" ? behavior : () => Promise.resolve(behavior);
+
+/** A provider that completes the exact refund it was asked to send. */
+export const refundCompletes = (
+  request: RefundRequest,
+): Promise<RefundAttemptResult> =>
+  Promise.resolve(completedRefund(request.charge));
+
+/** A provider that accepts the exact refund but has not settled it yet. */
+export const refundStaysPending = (
+  request: RefundRequest,
+): Promise<RefundAttemptResult> =>
+  Promise.resolve(acceptedRefund(request.charge));
+
+/** A provider that refuses the refund without moving money. */
+export const refundIsRejected = (
+  _request: RefundRequest,
+): Promise<RefundAttemptResult> =>
+  Promise.resolve({ kind: "rejected", reason: "failed" });
 
 /** POST the refund-all confirmation form for a listing as the owner. */
 export const postRefundAll = async (listing: {
@@ -108,7 +120,7 @@ export const expectSingleRefundIssued = async (
   ctx: RefundRouteCtx,
   checkRefund: RefundCheck = () => {},
 ): Promise<void> => {
-  await withRefundMock(true, async (mockRefund) => {
+  await withRefundMock(refundCompletes, async (mockRefund) => {
     const response = await submitRefund(ctx);
     await expectFlashRedirect(
       `/admin/attendees/${ctx.attendee.id}/actions`,
@@ -179,22 +191,16 @@ export const withRefreshPaymentProbe = <T>(
 
 export const withRefundMock = async (
   refundBehavior: RefundBehavior,
-  fn: (mockRefund: Spy) => Promise<void>,
+  fn: (mockRefund: RefundSpy) => Promise<void>,
   options: RefundMockOptions = {},
 ): Promise<void> => {
   await withStripeProvider(async (provider) => {
-    const mockRefund = spy(refundResult(refundBehavior));
+    const mockRefund = spy(refundBehavior);
     const refundCharge = stub(
       provider,
       "refundCharge",
-      async (request: RefundRequest): Promise<RefundAttemptResult> => {
-        const answer = await mockRefund(request.paymentReference);
-        return typeof answer === "boolean"
-          ? answer
-            ? completedRefund(request.charge)
-            : { kind: "rejected", reason: "failed" }
-          : answer;
-      },
+      (request: RefundRequest): Promise<RefundAttemptResult> =>
+        mockRefund(request),
     );
     const readMoney = chargeResult(options.charge ?? chargeMoney());
     const readCharge = stub(provider, "readCharge", async (reference) =>
@@ -215,7 +221,7 @@ export const withRefundMock = async (
  *  `test/shared/db/payment-claim.test.ts`. */
 export const grantingRowClaim = (
   held: ReadonlyMap<number, readonly string[]> = new Map(),
-  inherited: ReadonlyMap<number, ResolvedRefundCapability> = new Map(),
+  inherited: InheritedRefundCapabilities = new Map(),
   existingUnrecorded: ReadonlyMap<number, readonly string[]> = new Map(),
   existingReviews: ReadonlyMap<string, PaymentReviewReason> = new Map(),
 ): RowClaim & {

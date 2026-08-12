@@ -1,4 +1,4 @@
-import { filter } from "#fp";
+import { filter, requiredMapValue, uniqueBy } from "#fp";
 import { anchorSessionId } from "#shared/db/payment-anchor/session.ts";
 import type { LoadedRefundAttendee } from "#shared/db/payment-claim/take.ts";
 import {
@@ -59,19 +59,25 @@ export const getRefundCandidates = async (
   attendees: Attendee[],
   privateKey: CryptoKey,
 ): Promise<RefundCandidate[]> => {
+  const ticketHolders = uniqueBy((attendee: Attendee) => attendee.id)(
+    filter<Attendee>(hasTicketQuantity)(attendees),
+  );
   const referencesByAttendee = await getRefundPaymentReferences(
-    attendees,
+    ticketHolders,
     privateKey,
   );
   return filter(
     (candidate: RefundCandidate) =>
       candidate.references.length > 0 &&
-      refundWorkRemains(candidate.attendee, candidate.references) &&
-      hasTicketQuantity(candidate.attendee),
+      refundWorkRemains(candidate.attendee, candidate.references),
   )(
-    attendees.map((attendee) => ({
+    ticketHolders.map((attendee) => ({
       attendee,
-      references: referencesByAttendee.get(attendee.id)!,
+      references: requiredMapValue(
+        referencesByAttendee,
+        attendee.id,
+        `Refund references omitted attendee ${attendee.id}`,
+      ),
     })),
   );
 };

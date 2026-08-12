@@ -24,6 +24,10 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+import {
+  refundCompletes,
+  refundIsRejected,
+} from "#test-utils/refund-routes.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 // jscpd:ignore-end
 
@@ -139,7 +143,7 @@ export const askForRefund = async (
       page: bookingPagePath(world, "refund"),
       typed: requiredWorldValue(world.attendeeName, "attendee name"),
     },
-    succeeds,
+    succeeds ? refundCompletes : refundIsRejected,
   );
 };
 

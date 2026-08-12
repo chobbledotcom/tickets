@@ -7,9 +7,15 @@ import {
   failingProvider,
   finishedCounts,
   processRefundBatchAt,
+  provider,
 } from "#test/features/admin/refunds/provider/helpers.ts";
 import { sessionReference } from "#test/shared/refund-ledger/helpers.ts";
 import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
+import {
+  chargeMoney,
+  partlyRefundedCharge,
+  refundReference,
+} from "#test-utils/payment-state.ts";
 import { grantingRowClaim } from "#test-utils/refund-routes.ts";
 
 const LISTING = 7;
@@ -38,6 +44,49 @@ const observingClaim = (
 };
 
 describe("admin refund provider > exact ledger findings", () => {
+  test("records a provider conflict on only the row that reported it", async () => {
+    const attendeeId = 50;
+    const cleanSession = "sess-clean";
+    const reviewSession = "sess-partial";
+    const claim = grantingRowClaim(
+      new Map([[attendeeId, [cleanSession, reviewSession]]]),
+    );
+    const candidate: RefundCandidate = {
+      attendee: { id: attendeeId } as RefundCandidate["attendee"],
+      references: [
+        refundReference("pi_clean", {
+          rowSessionIds: [cleanSession],
+          sessionIds: [cleanSession],
+        }),
+        refundReference("pi_partial", {
+          rowSessionIds: [reviewSession],
+          sessionIds: [reviewSession],
+        }),
+      ],
+    };
+    const source = provider({
+      read: (reference) =>
+        Promise.resolve(
+          reference === "pi_partial" ? partlyRefundedCharge() : chargeMoney(),
+        ),
+    });
+
+    const counts = finishedCounts(
+      await processRefundBatchAt(source, [candidate], LISTING, { claim }),
+    );
+
+    expect(source.refunds).toEqual([]);
+    expect(counts.failedCount).toBe(1);
+    expect(claim.reviewChanges).toEqual([
+      new Map([
+        [
+          reviewSession,
+          { kind: "review", reason: { kind: "partial_refund" } },
+        ],
+      ]),
+    ]);
+  });
+
   test("settles each returned reference from its own ledger result", async () => {
     const attendeeId = 51;
     const recordedSession = "sess-recorded";

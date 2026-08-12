@@ -190,7 +190,7 @@ describe("admin refund provider > a refund still settling", () => {
   test("retries an inherited keyed claim when no refund is visible", async () => {
     const rowClaim = grantingRowClaim(
       new Map([[42, ["sess_pi_keyed_retry"]]]),
-      new Map([[42, "keyed"]]),
+      new Map([[42, new Map([["index_of_stripe_pi_keyed_retry", "keyed"]])]]),
     );
     const retryable = provider({
       refundCapability: "keyed",
@@ -218,7 +218,7 @@ describe("admin refund provider > a refund still settling", () => {
   test("only observes an inherited keyless claim when no refund is visible", async () => {
     const rowClaim = grantingRowClaim(
       new Map([[42, ["sess_pi_invisible"]]]),
-      new Map([[42, "keyless"]]),
+      new Map([[42, new Map([["index_of_stripe_pi_invisible", "keyless"]])]]),
     );
     const invisible = provider({ refundCapability: "keyless" });
 
@@ -243,7 +243,9 @@ describe("admin refund provider > a refund still settling", () => {
         [41, ["sess_pi_shared_41"]],
         [42, ["sess_pi_shared_42"]],
       ]),
-      new Map([[42, "keyless"]]),
+      new Map([
+        [42, new Map([["index_of_stripe_pi_shared_invisible", "keyless"]])],
+      ]),
     );
     const shared = provider({ refundCapability: "keyless" });
 
@@ -268,7 +270,7 @@ describe("admin refund provider > a refund still settling", () => {
   test("keeps an inherited keyless claim while the provider says pending", async () => {
     const rowClaim = grantingRowClaim(
       new Map([[42, ["sess_pi_pending"]]]),
-      new Map([[42, "keyless"]]),
+      new Map([[42, new Map([["index_of_stripe_pi_pending", "keyless"]])]]),
     );
     const pending = provider({
       read: () =>
@@ -299,14 +301,19 @@ describe("admin refund provider > a refund still settling", () => {
     expect(rowClaim.released).toEqual([]);
   });
 
-  for (const [name, read] of [
-    ["missing", { status: "missing" }],
-    ["invalid", { reason: "malformed_response", status: "invalid" }],
-  ] as const satisfies readonly [string, ProviderRead<ChargeMoney>][]) {
+  for (
+    const [name, read] of [
+      ["missing", { status: "missing" }],
+      ["invalid", { reason: "malformed_response", status: "invalid" }],
+    ] as const satisfies readonly (readonly [
+      string,
+      ProviderRead<ChargeMoney>,
+    ])[]
+  ) {
     test(`keeps an inherited keyless claim when the provider read is ${name}`, async () => {
       const rowClaim = grantingRowClaim(
         new Map([[42, ["sess_pi_unproved"]]]),
-        new Map([[42, "keyless"]]),
+        new Map([[42, new Map([["index_of_stripe_pi_unproved", "keyless"]])]]),
       );
       const unproved = provider({ refundCapability: "keyed" });
       unproved.readCharge = () => Promise.resolve(read);

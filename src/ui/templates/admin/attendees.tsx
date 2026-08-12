@@ -201,10 +201,9 @@ export const adminRefundAttendeePage = attendeeRouteConfirm("refund", {
 export const adminPaymentReviewPage = attendeeRouteConfirm("payment-review", {
   buttonText: t("admin.attendees.payment_review_submit"),
   confirmKey: "admin.attendees.payment_review_confirm",
-  titleAction: "Mark Payment Reviewed",
-  warningPrefix: "Note",
-  warningText:
-    "This clears the payment's review hold. It does not contact the provider or change Money.",
+  titleAction: t("admin.attendees.payment_review_title"),
+  warningPrefix: t("admin.attendees.payment_review_warning_prefix"),
+  warningText: t("admin.attendees.payment_review_warning"),
 });
 
 /**

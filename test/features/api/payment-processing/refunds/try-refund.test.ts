@@ -3,11 +3,17 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { tryRefund } from "#routes/api/payment-processing/refunds.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
-import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
+import type {
+  RefundAttemptResult,
+  RefundRequest,
+} from "#shared/payment/refund-attempt.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { errorLogged, useErrorLogSpy } from "#test-utils/debug-log.ts";
 import { chargeMoney, fullyRefundedMoney } from "#test-utils/payment-state.ts";
 import {
+  refundCompletes,
+  refundIsRejected,
+  refundStaysPending,
   withRefreshPaymentMoney,
   withRefundMock,
 } from "#test-utils/refund-routes.ts";
@@ -22,14 +28,14 @@ describeWithEnv("tryRefund", { db: true }, () => {
     reference,
   });
 
-  for (const [name, refundSucceeds, alreadyRefunded, expected] of [
-    ["refund succeeds", true, false, true],
-    ["already refunded", false, true, true],
-    ["refund fails", false, false, false],
+  for (const [name, refund, alreadyRefunded, expected] of [
+    ["refund succeeds", refundCompletes, false, true],
+    ["already refunded", refundIsRejected, true, true],
+    ["refund fails", refundIsRejected, false, false],
   ] as const) {
     test(`returns ${expected} when ${name}`, async () => {
       await withRefundMock(
-        refundSucceeds,
+        refund,
         async () => {
           expect(
             await tryRefund(stripeReference(`pi_${name.replace(/\s/g, "_")}`)),
@@ -42,26 +48,22 @@ describeWithEnv("tryRefund", { db: true }, () => {
     });
   }
 
-  for (const [name, result] of [
-    [
-      "accepted",
-      {
-        amount: { amount: 1000, currency: "GBP" },
-        kind: "accepted",
-        proof: {
-          charge: chargeMoney(),
-          kind: "charge_observation",
-        },
-      },
-    ],
-    ["not sent", { kind: "not_sent", reason: "not_configured" }],
-    ["uncertain", { kind: "uncertain", reason: "timeout" }],
-  ] as const satisfies readonly (readonly [string, RefundAttemptResult])[]) {
+  const refundNotSent = (
+    _request: RefundRequest,
+  ): Promise<RefundAttemptResult> =>
+    Promise.resolve({ kind: "not_sent", reason: "not_configured" });
+  const refundUncertain = (
+    _request: RefundRequest,
+  ): Promise<RefundAttemptResult> =>
+    Promise.resolve({ kind: "uncertain", reason: "timeout" });
+  for (const [name, kind, refund] of [
+    ["accepted", "accepted", refundStaysPending],
+    ["not sent", "not_sent", refundNotSent],
+    ["uncertain", "uncertain", refundUncertain],
+  ] as const) {
     test(`does not call an ${name} refund completed`, async () => {
-      await withRefundMock(result, async () => {
-        expect(await tryRefund(stripeReference(`pi_${result.kind}`))).toBe(
-          false,
-        );
+      await withRefundMock(refund, async () => {
+        expect(await tryRefund(stripeReference(`pi_${kind}`))).toBe(false);
       });
     });
   }

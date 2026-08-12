@@ -79,7 +79,6 @@ describe("admin refund readiness", () => {
 
     expect(result.kind).toBe("ready");
     if (result.kind !== "ready") return;
-    expect(result.capability).toBe("keyed");
     expect(reads).toEqual(["shared"]);
     expect(loads).toEqual(["square", "stripe"]);
     expect(bindings).toHaveLength(1);
@@ -87,14 +86,27 @@ describe("admin refund readiness", () => {
       bindings: new Map([
         [
           "old_shared",
-          { kind: "tagged", provider: "square", reference: "shared" },
+          {
+            capability: "keyed",
+            identity: {
+              kind: "tagged",
+              provider: "square",
+              reference: "shared",
+            },
+          },
         ],
         [
           "tagged_returned",
-          { kind: "tagged", provider: "stripe", reference: "returned" },
+          {
+            capability: "keyed",
+            identity: {
+              kind: "tagged",
+              provider: "stripe",
+              reference: "returned",
+            },
+          },
         ],
       ]),
-      capability: "keyed",
       ...exactClaim,
     });
     const [first, second] = result.candidates;
@@ -126,62 +138,20 @@ describe("admin refund readiness", () => {
     expect(returnedFirst.reference.index).toBe("bound_tagged_returned");
   });
 
-  test("uses keyless capability when any resolved provider is keyless", async () => {
-    const stripe = provider("stripe");
-    const sumup = provider("sumup", "keyless");
-    const references = [
-      tagged("stripe_charge", "stripe"),
-      untagged("sumup_charge"),
-    ];
-    const bindingRequests: PaymentReferenceProviderBindingRequest[] = [];
-
-    const result = await prepareRefundReadiness(
-      [candidate(1, references)],
-      {
-        held: new Map([[1, references.map(({ index }) => `session_${index}`)]]),
-        heldSince: heldClaim.heldSince,
-      },
-      new Set(),
-      {
-        bindProviders: (request) => {
-          bindingRequests.push(request);
-          return Promise.resolve({
-            indexes: boundIndexes(request.bindings),
-            kind: "bound",
-          });
-        },
-        loadProvider: (type) =>
-          Promise.resolve(type === "sumup" ? sumup : stripe),
-        readEvidence: (reference) =>
-          Promise.resolve(
-            found(
-              reference,
-              reference.reference.startsWith("sumup") ? "sumup" : "stripe",
-              charge(),
-            ),
-          ),
-      },
-    );
-
-    expect(result.kind === "ready" && result.capability).toBe("keyless");
-    expect(
-      result.kind === "ready" && result.candidates[0]?.references[0]?.kind,
-    ).toBe("observed");
-    expect(bindingRequests[0]?.capability).toBe("keyless");
-  });
-
-  for (const [name, returned, alreadyReturned] of [
-    [
-      "returned by the held claim",
-      untagged("legacy_claim"),
-      new Set(["old_legacy_claim"]),
-    ],
-    [
-      "marked returned on its row",
-      untagged("legacy_marker", undefined, "completed"),
-      new Set<string>(),
-    ],
-  ] as const) {
+  for (
+    const [name, returned, alreadyReturned] of [
+      [
+        "returned by the held claim",
+        untagged("legacy_claim"),
+        new Set(["old_legacy_claim"]),
+      ],
+      [
+        "marked returned on its row",
+        untagged("legacy_marker", undefined, "completed"),
+        new Set<string>(),
+      ],
+    ] as const
+  ) {
     test(`quarantines an untagged reference ${name} without provider calls`, async () => {
       let called = false;
       const result = await prepareRefundReadiness(
@@ -266,14 +236,32 @@ describe("admin refund readiness", () => {
         status: "unresolved",
       },
     ],
+    [
+      "incomplete discovery",
+      {
+        attempts: [
+          {
+            provider: "square",
+            result: { resource: charge(), status: "found" },
+          },
+          {
+            provider: "stripe",
+            result: { reason: "timeout", status: "unavailable" },
+          },
+        ],
+        reason: "provider_search_incomplete",
+        reference: "unread",
+        source: "untagged",
+        status: "unresolved",
+      },
+    ],
   ] as const satisfies readonly (readonly [string, PaymentReferenceEvidence])[];
 
   for (const [name, evidence] of unreadCases) {
     test(`keeps ${name} evidence and does not bind`, async () => {
-      const reference =
-        evidence.source === "tagged"
-          ? tagged("unread", "stripe", "old_unread")
-          : untagged("unread", "old_unread");
+      const reference = evidence.source === "tagged"
+        ? tagged("unread", "stripe", "old_unread")
+        : untagged("unread", "old_unread");
       let bindCount = 0;
       let loadCount = 0;
       const result = await prepareRefundReadiness(
@@ -304,8 +292,9 @@ describe("admin refund readiness", () => {
   }
 
   test("keeps at most five provider evidence reads in flight", async () => {
-    const references = Array.from({ length: 6 }, (_, index) =>
-      untagged(`charge_${index}`),
+    const references = Array.from(
+      { length: 6 },
+      (_, index) => untagged(`charge_${index}`),
     );
     const gate = Promise.withResolvers<void>();
     const firstWave = Promise.withResolvers<void>();
@@ -336,10 +325,12 @@ describe("admin refund readiness", () => {
     expect(highest).toBe(5);
   });
 
-  for (const bindingResult of [
-    { kind: "claim_changed" },
-    { indexes: ["old_raced_marker"], kind: "historical_marker" },
-  ] as const satisfies readonly PaymentReferenceProviderBindingResult[]) {
+  for (
+    const bindingResult of [
+      { kind: "claim_changed" },
+      { indexes: ["old_raced_marker"], kind: "historical_marker" },
+    ] as const satisfies readonly PaymentReferenceProviderBindingResult[]
+  ) {
     test(`maps the binding result ${bindingResult.kind}`, async () => {
       const reference = untagged("binding_result");
       const result = await prepareRefundReadiness(
@@ -358,10 +349,10 @@ describe("admin refund readiness", () => {
         bindingResult.kind === "claim_changed"
           ? { kind: "not_ready", reason: "claim_changed" }
           : {
-              indexes: bindingResult.indexes,
-              kind: "not_ready",
-              reason: "historical_marker",
-            },
+            indexes: bindingResult.indexes,
+            kind: "not_ready",
+            reason: "historical_marker",
+          },
       );
     });
   }

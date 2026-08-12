@@ -11,7 +11,6 @@ import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import { execute } from "#shared/db/client.ts";
 import { getPaymentReviewStatus } from "#shared/db/payment-review.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
-import { t } from "#shared/i18n.ts";
 import type { Attendee } from "#shared/types.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import { expectErrorFlash, expectFlash } from "#test-utils/assertions.ts";
@@ -113,10 +112,12 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
         "pi_refresh_balance",
       );
 
-      const queried = await submitRefreshPayment(attendee, (reference) =>
-        Promise.resolve(
-          ["pi_refresh_balance", "pi_refresh_deposit"].includes(reference),
-        ),
+      const queried = await submitRefreshPayment(
+        attendee,
+        (reference) =>
+          Promise.resolve(
+            ["pi_refresh_balance", "pi_refresh_deposit"].includes(reference),
+          ),
       );
 
       expect([...queried].sort()).toEqual([
@@ -185,12 +186,11 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
 
       await submitRefreshPayment(attendee, () => Promise.resolve(true));
 
-      const message = "Payment marked as refunded for attendee 'First Real'";
+      const message = "Payment marked as refunded for attendee 'First Real'; " +
+        'payment references ["pi_refresh_first_real"]';
       expect(
         pipe(
-          filter((entry: ActivityLogEntry) =>
-            entry.message.startsWith(message),
-          ),
+          filter((entry: ActivityLogEntry) => entry.message === message),
           map(({ attendee_id, listing_id }) => ({ attendee_id, listing_id })),
         )(await getAttendeeActivityLog(attendee.id)),
       ).toEqual([{ attendee_id: attendee.id, listing_id: firstReal.id }]);
@@ -208,8 +208,9 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
         ["2026-07-01T00:01:00.000Z", "refresh-balance-already-refunded"],
       );
 
-      const queried = await submitRefreshPayment(attendee, (reference) =>
-        Promise.resolve(reference === "pi_refresh_deposit"),
+      const queried = await submitRefreshPayment(
+        attendee,
+        (reference) => Promise.resolve(reference === "pi_refresh_deposit"),
       );
 
       expect(queried).toEqual(["pi_refresh_deposit"]);
