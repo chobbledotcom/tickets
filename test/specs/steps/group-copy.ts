@@ -3,15 +3,19 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
-import { getListingsByGroupId, groups } from "#shared/db/groups.ts";
+import { getListingsByGroupId } from "#shared/db/groups.ts";
 import { ORGANISER, openAdminPage } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
+import {
+  bulkActionPath,
+  findOrCreateGroup,
+  groupNamed,
+} from "#test/specs/support/groups.ts";
 import { rememberListing } from "#test/specs/support/listings.ts";
 import {
   keepWhatTheyWereTold,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
@@ -20,24 +24,12 @@ import type { TestBrowser } from "#test-utils/test-browser.ts";
 /** The duplicate form's URL, built from the group's id. The form's fields are
  * read off the served page in `fillInAndSend`, so a form that stopped rendering
  * any field fails there instead of the send going through. */
-const DUPLICATE_PATH = (groupId: number): string =>
-  `/admin/groups/${groupId}/bulk-actions/duplicate`;
+const DUPLICATE_PATH = bulkActionPath("duplicate");
 
 /** The submit button the duplicate form carries — the production i18n key, not
  * a copied wording, so a rename in the catalog reaches the story too. Looked up
  * at call time, because the catalog is not loaded at module-import time. */
 const duplicateButton = (): string => t("bulk_actions.submit_duplicate");
-
-/** A group the story is talking about, kept under the name the story calls it.
- * Searches the live group set rather than remembering an id at set-up, because a
- * later step may have taken a group away and the story still needs to find the
- * one it has now — not one an earlier step held onto. */
-const groupNamed = async (name: string) => {
-  const all = await groups.cache.getAll();
-  const found = all.find((g) => g.name === name);
-  if (!found) throw new Error(`No group called "${name}" exists`);
-  return found;
-};
 
 /** Set up a group with one member, both remembered by the names the story uses.
  * The member's date is what the form will shift; storing the listing under its
@@ -50,7 +42,7 @@ Given(
     memberName: string,
     date: string,
   ): Promise<void> {
-    const group = await createTestGroup({ name: groupName });
+    const group = await findOrCreateGroup(groupName);
     rememberListing(
       this,
       memberName,
@@ -72,7 +64,7 @@ Given(
     groupName: string,
     memberName: string,
   ): Promise<void> {
-    const group = await createTestGroup({ name: groupName });
+    const group = await findOrCreateGroup(groupName);
     rememberListing(
       this,
       memberName,

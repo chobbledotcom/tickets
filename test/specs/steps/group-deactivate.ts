@@ -4,26 +4,26 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
-import { groups } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { ORGANISER, openAdminPage } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
+import {
+  bulkActionPath,
+  findOrCreateGroup,
+  groupNamed,
+  memberIdsOf,
+  memberNamesOf,
+  rememberGroupMember,
+} from "#test/specs/support/groups.ts";
 import { listingNamed, rememberListing } from "#test/specs/support/listings.ts";
 import {
   keepWhatTheyWereTold,
   type TicketsWorld,
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 // jscpd:ignore-end
-
-/** The listing names each group was set up with, recorded at Given time so the
- * `Then` steps assert on the exact listing ids the story created — not a
- * post-action membership re-query that could silently drop a listing whose
- * `group_listings` row a regression deleted alongside flipping `active`. */
-const groupMembers = new WeakMap<TicketsWorld, Map<string, string[]>>();
 
 /** The deactivate form's page text, captured before the submit button is sent,
  * so a `Then` can assert the rendered impact count. `TestBrowser.pageText`
@@ -31,49 +31,10 @@ const groupMembers = new WeakMap<TicketsWorld, Map<string, string[]>>();
  * pre-submission snapshot must be kept separately. */
 const formSnapshots = new WeakMap<TicketsWorld, string>();
 
-const rememberGroupMember = (
-  world: TicketsWorld,
-  groupName: string,
-  listingName: string,
-): void => {
-  let members = groupMembers.get(world);
-  if (!members) {
-    members = new Map();
-    groupMembers.set(world, members);
-  }
-  const names = members.get(groupName) ?? [];
-  names.push(listingName);
-  members.set(groupName, names);
-};
-
-const memberNamesOfGroup = (
-  world: TicketsWorld,
-  groupName: string,
-): string[] => {
-  const names = groupMembers.get(world)?.get(groupName);
-  if (!names || names.length === 0) {
-    throw new Error(`No listings were set up for the "${groupName}" group`);
-  }
-  return names;
-};
-
-const DEACTIVATE_PATH = (groupId: number): string =>
-  `/admin/groups/${groupId}/bulk-actions/deactivate`;
+const DEACTIVATE_PATH = bulkActionPath("deactivate");
 
 const deactivateButton = (): string =>
   t("bulk_actions.deactivate_confirm_button");
-
-const findGroup = async (name: string) =>
-  (await groups.cache.getAll()).find((g) => g.name === name);
-
-const findOrCreateGroup = async (name: string) =>
-  (await findGroup(name)) ?? (await createTestGroup({ name }));
-
-const groupNamed = async (name: string) => {
-  const found = await findGroup(name);
-  if (!found) throw new Error(`No group called "${name}" exists`);
-  return found;
-};
 
 Given(
   "the site has a group called {string} with {string} on sale",
@@ -154,13 +115,8 @@ const assertActive = async (
   }
 };
 
-const memberIdsOfGroup = (world: TicketsWorld, groupName: string): number[] =>
-  memberNamesOfGroup(world, groupName).map(
-    (name) => listingNamed(world, name).id,
-  );
-
 const outsiderIdsOf = (world: TicketsWorld, groupName: string): number[] => {
-  const inGroup = new Set(memberNamesOfGroup(world, groupName));
+  const inGroup = new Set(memberNamesOf(world, groupName));
   return world.things
     .names("listing")
     .filter((name) => !inGroup.has(name))
@@ -170,8 +126,9 @@ const outsiderIdsOf = (world: TicketsWorld, groupName: string): number[] => {
 Then(
   "the organiser is told the group name does not match",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, ORGANISER))
-      .toContain("Group name does not match");
+    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+      "Group name does not match",
+    );
   },
 );
 
@@ -195,14 +152,14 @@ Then(
 Then(
   "every listing in the {string} group is off sale",
   async function (this: TicketsWorld, groupName: string): Promise<void> {
-    await assertActive(memberIdsOfGroup(this, groupName), false);
+    await assertActive(memberIdsOf(this, groupName), false);
   },
 );
 
 Then(
   "every listing in the {string} group is still on sale",
   async function (this: TicketsWorld, groupName: string): Promise<void> {
-    await assertActive(memberIdsOfGroup(this, groupName), true);
+    await assertActive(memberIdsOf(this, groupName), true);
   },
 );
 
