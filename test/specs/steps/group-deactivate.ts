@@ -217,6 +217,19 @@ Then(
   },
 );
 
+/** Assert the organiser's browser landed on the expected path for the named
+ * group. Shared by the success-redirect and wrong-name-retry `Then` steps so
+ * the URL-check logic is not duplicated (jscpd 0% gate). */
+const assertOnGroupPath = async (
+  world: TicketsWorld,
+  groupName: string,
+  pathFor: (groupId: number) => string,
+): Promise<void> => {
+  const group = await groupNamed(groupName);
+  const browser = world.things.require("browser", ORGANISER);
+  expect(browser.currentUrl).toBe(pathFor(group.id));
+};
+
 /** After a confirmed deactivation the site redirects to the group's own page
  * with a flash message — so a regression that updates the rows but fails
  * before the final redirect (leaving the organiser on a broken page) is
@@ -224,9 +237,7 @@ Then(
 Then(
   "the organiser is sent to the {string} group's page",
   async function (this: TicketsWorld, groupName: string): Promise<void> {
-    const group = await groupNamed(groupName);
-    const browser = this.things.require("browser", ORGANISER);
-    expect(browser.currentUrl).toBe(`/admin/groups/${group.id}`);
+    await assertOnGroupPath(this, groupName, (id) => `/admin/groups/${id}`);
   },
 );
 
@@ -271,8 +282,6 @@ Then(
 Then(
   "the organiser is still on the {string} group's deactivate form",
   async function (this: TicketsWorld, groupName: string): Promise<void> {
-    const group = await groupNamed(groupName);
-    const browser = this.things.require("browser", ORGANISER);
-    expect(browser.currentUrl).toBe(DEACTIVATE_PATH(group.id));
+    await assertOnGroupPath(this, groupName, DEACTIVATE_PATH);
   },
 );
