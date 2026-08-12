@@ -24,7 +24,8 @@ Feature: The organiser takes a whole group of listings off sale at once
       Given the site has a group called "Workshops" with "Spring Workshop" on sale
       And the site has a group called "Workshops" with "Autumn Workshop" on sale
       When the organiser takes the "Workshops" group off sale, typing its name to confirm
-      Then every listing in the "Workshops" group is off sale
+      Then the organiser is sent to the "Workshops" group's page
+      And every listing in the "Workshops" group is off sale
 
   @rule:catalogue.deactivate-refuses-a-wrong-name
   Rule: A wrong name is refused and nothing changes
@@ -53,5 +54,6 @@ Feature: The organiser takes a whole group of listings off sale at once
       And the site has a group called "Other" with "Outsider Listing" on sale
       And the site has a listing called "Ungrouped Listing" on sale with no group
       When the organiser takes the "Target" group off sale, typing its name to confirm
-      Then every listing in the "Target" group is off sale
+      Then the organiser is sent to the "Target" group's page
+      And every listing in the "Target" group is off sale
       And listings outside the "Target" group are still on sale
