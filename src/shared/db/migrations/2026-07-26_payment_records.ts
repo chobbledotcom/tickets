@@ -27,6 +27,8 @@ export default schemaMigration(
       "idx_payment_sessions_reconcile",
       "idx_payment_sessions_redaction",
       "idx_payment_sessions_reference",
+      "idx_refund_confirmation_references_unique",
+      "idx_refund_confirmations_attendee",
     ],
     newTables: [
       "payment_sessions",
@@ -36,6 +38,7 @@ export default schemaMigration(
       "payment_cases",
       "payment_case_decisions",
       "refund_confirmations",
+      "refund_confirmation_references",
     ],
   },
 );

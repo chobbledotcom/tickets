@@ -7,6 +7,7 @@
  * note. A balance session settles the existing attendee instead of creating one.
  */
 
+/* jscpd:ignore-start -- imports */
 import {
   attendeeBaseFields,
   bookingSlot,
@@ -16,11 +17,7 @@ import {
 import { businessTime } from "#routes/api/payment-processing/metadata.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import {
-  type RefundCode,
-  type RefundSpec,
   refundAndFail,
-  refundedNoteText,
-  refundSpec,
   tryRefund,
 } from "#routes/api/payment-processing/refunds.ts";
 import type {
@@ -39,12 +36,21 @@ import {
 import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
 import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
-import { ErrorCode, logError } from "#shared/logger.ts";
+import { ErrorCode, type ErrorCodeType, logError } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
+import {
+  type PlaceholderRefund,
+  placeholderRefund,
+  placeholderRefundNote,
+  type RefundAlert,
+  type RefundCode,
+} from "#shared/payment/placeholder-refund.ts";
 import { paidPaymentReferenceOf } from "#shared/payment/validated-session.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 import { recordPlaceholderRefund } from "#shared/refund-ledger/placeholder.ts";
+
+/* jscpd:ignore-end */
 
 /** User-facing message when the outstanding balance changed mid-payment. */
 const BALANCE_CHANGED_MESSAGE =
@@ -58,6 +64,11 @@ const BALANCE_CHANGED_MESSAGE =
  */
 const BOOKING_SAVED_MESSAGE =
   "We couldn't complete your booking, so we've saved your details and a member of our team can help you rebook.";
+
+const REFUND_ALERT_CODES: Record<RefundAlert, ErrorCodeType> = {
+  payment_session: ErrorCode.PAYMENT_SESSION,
+  webhook_price_signature: ErrorCode.WEBHOOK_PRICE_SIGNATURE,
+};
 
 /** The quantity-0, money-free booking lines for a stored-but-refunded placeholder
  *  — one per validated item, carrying the listing's current date range so the
@@ -161,10 +172,10 @@ export const storeRefundedBooking = async (
   session: ValidatedPaymentSession,
   intent: BookingIntent,
   bookings: PlaceholderBookings,
-  spec: RefundSpec,
+  spec: PlaceholderRefund,
   publicStatusId: number,
 ): Promise<PaymentFailureResult> => {
-  if (spec.notify) addPendingWork(sendNtfyError(spec.notify));
+  if (spec.alert) addPendingWork(sendNtfyError(REFUND_ALERT_CODES[spec.alert]));
   const listingId = bookings[0]!.listingId;
   // A quantity-0 overbook insert has no capacity gate and consumes no modifier
   // stock, so it always writes the row — trust it. (If the PII can't encrypt the
@@ -202,7 +213,7 @@ export const storeRefundedBooking = async (
     });
   }
   const noteTarget = attendeeNotes(attendeeId);
-  const noteText = refundedNoteText(
+  const noteText = placeholderRefundNote(
     attendeeId,
     spec,
     refunded,
@@ -244,5 +255,5 @@ const FAILURE_REFUND_CODES: Record<
 /** The placeholder refund reason for a booking we tried but couldn't honour. */
 export const specForFailure = (
   failure: Extract<HonourResult, { ok: false }>,
-): RefundSpec =>
-  refundSpec(FAILURE_REFUND_CODES[failure.reason])(failure.detail);
+): PlaceholderRefund =>
+  placeholderRefund(FAILURE_REFUND_CODES[failure.reason])(failure.detail);

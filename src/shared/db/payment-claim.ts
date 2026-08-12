@@ -49,6 +49,16 @@ export type PaymentRowRecord = {
   readonly state: PaymentRowState;
 };
 
+/** Keep only rows carrying one named piece of payment work. */
+export const paymentRowsWith = <T>(
+  rows: readonly PaymentRowRecord[],
+  value: (state: PaymentRowState) => T | undefined,
+): { readonly row: PaymentRowRecord; readonly value: T }[] =>
+  mapNotNullish((row: PaymentRowRecord) => {
+    const found = value(row.state);
+    return found === undefined ? null : { row, value: found };
+  })(rows);
+
 export type StoredPaymentClaimRow = {
   attendee_id: number | null;
   failure_data: EnvKeyEncrypted | "";
@@ -331,8 +341,9 @@ export const settleAttendeeRows = ({
       claim.commandId !== commandId ||
       claim.writtenAt !== heldSince ||
       claim.phase !== change.phase
-    )
+    ) {
       return null;
+    }
     return withClaimChange(
       withReviewChange(withBooksChange(row.state, change.books), change.review),
       change.claim,

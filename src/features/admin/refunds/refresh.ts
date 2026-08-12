@@ -4,7 +4,7 @@ import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { markPaymentReferencesProviderRefunded } from "#shared/db/payment-references.ts";
 import type { ObservedRefundAdmission } from "#shared/payment/admit-refund.ts";
-import type { PaymentReviewReason } from "#shared/payment/review.ts";
+import { PAYMENT_REVIEW_RETIREMENT } from "#shared/payment/review.ts";
 import { reportWithheldRefund } from "#shared/payment-review.ts";
 import { isPaymentOnlyAccount } from "#shared/refund-ledger/plan.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
@@ -24,8 +24,10 @@ import {
 } from "./confirmation.ts";
 import { applyRefundLedgerFindings } from "./ledger-findings.ts";
 import {
+  currentPaymentReviews,
   type ProviderReviewFinding,
   reconcileProviderReviewFindings,
+  resolvePaymentReview,
 } from "./provider-reviews.ts";
 import {
   prepareRefundReadiness,
@@ -152,23 +154,6 @@ const providerReviewFindings = (
           : [],
   );
 
-type CompletedRefundReview = Extract<
-  PaymentReviewReason,
-  {
-    kind:
-      | "partial_refund"
-      | "partially_returned_obligation"
-      | "uncertain_keyless_refund";
-  }
->;
-
-const completedRefundReview = (
-  reason: PaymentReviewReason | undefined,
-): reason is CompletedRefundReview =>
-  reason?.kind === "partial_refund" ||
-  reason?.kind === "partially_returned_obligation" ||
-  reason?.kind === "uncertain_keyless_refund";
-
 /** Retire only refund markers that a complete ledger post disproves. */
 const retireCompletedRefundReviews = (
   returned: readonly TaggedRefundReference[],
@@ -178,11 +163,11 @@ const retireCompletedRefundReviews = (
   const returnedRows = returned.flatMap((reference) => reference.rowSessionIds);
   for (const sessionId of returnedRows) {
     const reason = heldReviews.get(sessionId);
-    if (completedRefundReview(reason)) {
-      findings.reviews.set(sessionId, {
-        kind: "resolved",
-        reason: reason.kind,
-      });
+    if (
+      reason !== undefined &&
+      PAYMENT_REVIEW_RETIREMENT[reason.kind] === "all_returned_and_recorded"
+    ) {
+      resolvePaymentReview(findings, sessionId, reason);
     }
   }
 };
@@ -210,7 +195,7 @@ const refreshReadyCandidate = async (
     observed,
     uncertainKeyless,
   );
-  const providerNeedsReview = reconcileProviderReviewFindings(
+  reconcileProviderReviewFindings(
     findings,
     heldReviews,
     candidate.references.map(({ reference }) => reference),
@@ -230,7 +215,7 @@ const refreshReadyCandidate = async (
           returned,
           await dependencies.record(candidate.attendee.id, returned),
         );
-  const needsReview = providerNeedsReview || ledger?.needsReview === true;
+  const needsReview = currentPaymentReviews(heldReviews, findings).size > 0;
   if (hasUnreturned) {
     if (keepsClaim) return { kind: "blocked", reason: "refund_in_progress" };
     return needsReview
@@ -282,6 +267,7 @@ export const refreshClaimedPayment = async (
     changedMessage:
       "The attendee or payment set changed while this refresh was starting. Try again.",
     claim,
+    executionLimit: 1,
     label: "Admin payment refresh",
     listingId,
     notReady: (message) => ({ kind: "not_ready", message }),

@@ -1,7 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { type RunFindings } from "#routes/admin/refunds/claim.ts";
+import type { RunFindings } from "#routes/admin/refunds/claim.ts";
 import {
+  currentPaymentReviews,
   type ProviderReviewFinding,
   reconcileProviderReviewFindings,
 } from "#routes/admin/refunds/provider-reviews.ts";
@@ -11,11 +12,7 @@ import { tagged } from "#test/features/admin/refunds/readiness/helpers.ts";
 const OBSERVED_ROW = "session_observed";
 const UNOBSERVED_ROW = "session_unobserved";
 
-const observedReference = tagged(
-  "pi_observed",
-  "stripe",
-  "observed",
-);
+const observedReference = tagged("pi_observed", "stripe", "observed");
 
 const emptyFindings = (): RunFindings => ({
   claimPhases: new Map(),
@@ -44,21 +41,17 @@ describe("admin refunds > provider review findings", () => {
         [UNOBSERVED_ROW, reason],
       ]);
 
-      expect(
-        reconcileProviderReviewFindings(
-          findings,
-          heldReviews,
-          [observedReference],
-          [],
-        ),
-      ).toBe(false);
+      reconcileProviderReviewFindings(
+        findings,
+        heldReviews,
+        [observedReference],
+        [],
+      );
+      expect(currentPaymentReviews(heldReviews, findings)).toEqual(
+        new Map([[UNOBSERVED_ROW, reason]]),
+      );
       expect(findings.reviews).toEqual(
-        new Map([
-          [
-            OBSERVED_ROW,
-            { kind: "resolved", reason: reason.kind },
-          ],
-        ]),
+        new Map([[OBSERVED_ROW, { kind: "resolved", reason: reason.kind }]]),
       );
     }
   });
@@ -67,20 +60,20 @@ describe("admin refunds > provider review findings", () => {
     const findings = emptyFindings();
     const currentReason = { kind: "partial_refund" } as const;
 
-    expect(
-      reconcileProviderReviewFindings(
-        findings,
-        new Map([
-          [OBSERVED_ROW, { kind: "multiple_pending_refunds" } as const],
-        ]),
-        [observedReference],
-        [providerReview(currentReason)],
-      ),
-    ).toBe(true);
+    const heldReviews = new Map([
+      [OBSERVED_ROW, { kind: "multiple_pending_refunds" } as const],
+    ]);
+    reconcileProviderReviewFindings(
+      findings,
+      heldReviews,
+      [observedReference],
+      [providerReview(currentReason)],
+    );
+    expect(currentPaymentReviews(heldReviews, findings)).toEqual(
+      new Map([[OBSERVED_ROW, currentReason]]),
+    );
     expect(findings.reviews).toEqual(
-      new Map([
-        [OBSERVED_ROW, { kind: "review", reason: currentReason }],
-      ]),
+      new Map([[OBSERVED_ROW, { kind: "review", reason: currentReason }]]),
     );
   });
 
@@ -94,47 +87,41 @@ describe("admin refunds > provider review findings", () => {
 
     for (const reason of preservedReasons) {
       const findings = emptyFindings();
+      const heldReviews = new Map([[OBSERVED_ROW, reason]]);
 
-      expect(
-        reconcileProviderReviewFindings(
-          findings,
-          new Map([[OBSERVED_ROW, reason]]),
-          [observedReference],
-          [],
-        ),
-      ).toBe(false);
+      reconcileProviderReviewFindings(
+        findings,
+        heldReviews,
+        [observedReference],
+        [],
+      );
+      expect(currentPaymentReviews(heldReviews, findings)).toEqual(heldReviews);
       expect(findings.reviews).toEqual(new Map());
     }
   });
 
   test("writes every current finding onto the rows that supplied it", () => {
     const findings = emptyFindings();
-    const siblingReference = tagged(
-      "pi_sibling",
-      "stripe",
-      "sibling",
-    );
+    const siblingReference = tagged("pi_sibling", "stripe", "sibling");
 
-    expect(
-      reconcileProviderReviewFindings(
-        findings,
-        new Map(),
-        [observedReference, siblingReference],
-        [
-          providerReview({ kind: "partial_refund" }),
-          providerReview(
-            { kind: "refund_exceeds_capture" },
-            siblingReference,
-          ),
-        ],
-      ),
-    ).toBe(true);
+    reconcileProviderReviewFindings(
+      findings,
+      new Map(),
+      [observedReference, siblingReference],
+      [
+        providerReview({ kind: "partial_refund" }),
+        providerReview({ kind: "refund_exceeds_capture" }, siblingReference),
+      ],
+    );
+    expect(currentPaymentReviews(new Map(), findings)).toEqual(
+      new Map([
+        [OBSERVED_ROW, { kind: "partial_refund" }],
+        ["session_sibling", { kind: "refund_exceeds_capture" }],
+      ]),
+    );
     expect(findings.reviews).toEqual(
       new Map([
-        [
-          OBSERVED_ROW,
-          { kind: "review", reason: { kind: "partial_refund" } },
-        ],
+        [OBSERVED_ROW, { kind: "review", reason: { kind: "partial_refund" } }],
         [
           "session_sibling",
           {

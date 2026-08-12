@@ -7,7 +7,7 @@ import { jsonHash } from "#test-utils/hash.ts";
 
 test("keeps the complete payment aggregate schema declaration exact", async () => {
   expect(await jsonHash(paymentTables)).toBe(
-    "3b89d2408f96a887758b73faa3e63d06c6f4ca06c10d4d798ede912a21c911cb",
+    "3c0427382e768ec5db525cd0e6b3d877d7530fd059058f8ad47ce9dbbb74bfcb",
   );
 });
 
@@ -18,7 +18,8 @@ describeWithEnv("db > payment aggregate indexes", { db: true }, () => {
         WHERE type = 'index'
           AND tbl_name IN ('payment_sessions', 'payment_charges', 'payment_cases',
                             'payment_case_decisions', 'payment_completion_effects',
-                            'payment_completion_deliveries')
+                            'payment_completion_deliveries', 'refund_confirmations',
+                            'refund_confirmation_references')
           AND name NOT LIKE 'sqlite_autoindex%'
         ORDER BY name`,
     );
@@ -40,6 +41,8 @@ describeWithEnv("db > payment aggregate indexes", { db: true }, () => {
       "idx_payment_sessions_reconcile",
       "idx_payment_sessions_redaction",
       "idx_payment_sessions_reference",
+      "idx_refund_confirmation_references_unique",
+      "idx_refund_confirmations_attendee",
     ]);
   });
 });

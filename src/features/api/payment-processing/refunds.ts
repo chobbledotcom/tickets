@@ -3,7 +3,7 @@
  * signed-by-us payment must be refunded.
  *
  * `tryRefund` and friends issue the money-back call and turn it into a handled
- * {@link PaymentFailureResult}; {@link RefundSpec} names *why* a booking we
+ * {@link PaymentFailureResult}; {@link PlaceholderRefund} names *why* a booking we
  * kept had to be refunded, stamped PII-free into the ledger reversal and the
  * attendee's system note.
  */
@@ -23,6 +23,10 @@ import {
 } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { sendRefundIfAdmitted } from "#shared/payment/admit-refund.ts";
+import {
+  type PlaceholderRefund,
+  placeholderRefund,
+} from "#shared/payment/placeholder-refund.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 import type { RefundActionResult } from "#shared/payment/refund-attempt.ts";
 import {
@@ -262,95 +266,19 @@ export const refuseMismatch = (
   );
 };
 
-/**
- * Why a signed-by-us payment must be refunded even though we can't just drop it.
- * `code` is a PII-free reason stamped into the ledger reversal and the system
- * note; `reason` is the operator-facing phrase for the note; `detail` is the
- * internal log line (ids/prices, never PII); `notify` optionally pages an alert.
- */
-export type RefundSpec = {
-  code: string;
-  reason: string;
-  detail: string;
-  notify?: ErrorCodeType;
-};
-
-/**
- * Every reason we keep-and-refund a signed booking, as one table: the
- * operator-facing phrase for the system note, plus (where the failure means a
- * broken promise rather than plain bad luck) the alert to page. Unexpected
- * errors and removed listings page because someone should look; a full event
- * or a sold-out extra is normal operation.
- */
-const REFUND_REASONS = {
-  capacity_full: { reason: "the event filled up while they were paying" },
-  charge_mismatch: {
-    notify: ErrorCode.WEBHOOK_PRICE_SIGNATURE,
-    reason: "the amount charged did not match the agreed total",
-  },
-  listing_removed: {
-    notify: ErrorCode.PAYMENT_SESSION,
-    reason: "the listing was removed while they were paying",
-  },
-  price_changed: {
-    reason: "the listing price changed while they were paying",
-  },
-  sold_out: {
-    reason: "an add-on or extra they chose sold out while they were paying",
-  },
-  unexpected_error: {
-    notify: ErrorCode.PAYMENT_SESSION,
-    reason: "an unexpected error stopped the booking being completed",
-  },
-} as const satisfies Record<string, { reason: string; notify?: ErrorCodeType }>;
-
-export type RefundCode = keyof typeof REFUND_REASONS;
-
-/** Build the RefundSpec for a reason code: the table supplies the note phrase
- *  and any alert, the caller supplies the internal log line (ids/prices, never
- *  PII). */
-export const refundSpec =
-  (code: RefundCode) =>
-  (detail: string): RefundSpec => ({
-    code,
-    detail,
-    ...REFUND_REASONS[code],
-  });
-
 /** A payment the provider charged for a different amount than our signed total. */
 export const chargeMismatchSpec = (
   session: ValidatedPaymentSession,
   agreed: number,
-): RefundSpec =>
-  refundSpec("charge_mismatch")(chargedVsSigned(session, agreed));
+): PlaceholderRefund =>
+  placeholderRefund("charge_mismatch")(chargedVsSigned(session, agreed));
 
 /** A signed booking whose listing was deleted between checkout and payment:
  *  nothing left to honour, but we keep a quantity-0 ghost so the customer (and
  *  their refund) is never lost. */
 export const deletedListingSpec = (
   session: ValidatedPaymentSession,
-): RefundSpec =>
-  refundSpec("listing_removed")(
+): PlaceholderRefund =>
+  placeholderRefund("listing_removed")(
     `Listing not found for a signed session (session=${session.id})`,
   );
-
-/**
- * The PII-free system note for a stored-but-refunded booking. Explains in plain
- * language what happened, carries the provider's payment reference and our reason
- * code so the charge/refund can be reconciled in the provider dashboard, and
- * links the operator to the attendee's ledger statement. No names or emails.
- */
-export const refundedNoteText = (
-  attendeeId: number,
-  spec: RefundSpec,
-  refunded: boolean,
-  paymentReference: string,
-): string => {
-  const ledger = `[ledger](/admin/ledger/attendee/${attendeeId})`;
-  // PII-free: the provider's payment reference lets the operator reconcile the
-  // charge/refund in the provider dashboard; the reason code names why.
-  const ref = ` Payment reference: ${paymentReference} (code: ${spec.code}).`;
-  return refunded
-    ? `This booking was kept at quantity 0 but its payment was refunded because ${spec.reason}.${ref} Please check the ${ledger}.`
-    : `This booking was kept at quantity 0 but its payment could NOT be refunded automatically because ${spec.reason}.${ref} Please refund it manually and check the ${ledger}.`;
-};

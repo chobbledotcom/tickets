@@ -1,4 +1,4 @@
-/** Owner confirmation for retiring durable payment-review work. */
+/** Owner acknowledgement of the exact durable payment-review work they saw. */
 
 /* jscpd:ignore-start -- imports */
 import { t } from "#i18n";
@@ -26,13 +26,26 @@ const REVIEW_GUARD = {
   needs_review: null,
 } satisfies Record<PaymentWorkStatus, string | null>;
 
+const reviewError = (
+  attendeeId: number,
+  returnUrl: string,
+  messageKey: string,
+): Response =>
+  errorRedirect(
+    attendeeActionUrlWithReturn(attendeeId, ACTION, returnUrl),
+    t(messageKey),
+  );
+
 const handlePaymentReviewGet = attendeeActions[ACTION].page(
   ({ attendee, paymentReview }, session, returnUrl, error) =>
     adminPaymentReviewPage(
-      attendee,
-      paymentReview.status === "needs_review"
-        ? paymentReview.identity
-        : null,
+      {
+        attendee,
+        reviewIdentity:
+          paymentReview.status === "needs_review"
+            ? paymentReview.identity
+            : null,
+      },
       session,
       returnUrl,
       error,
@@ -53,6 +66,7 @@ const handlePaymentReviewPost = attendeeActions[ACTION].verified(
       reviewIdentity: form.getString("review_identity"),
     });
     const actionsUrl = `/admin/attendees/${attendee.id}/actions`;
+    const returnUrl = form.getString("return_url");
     switch (result.kind) {
       case "acknowledged":
         return redirect(actionsUrl, t("success.payment_reviewed"), true, {
@@ -66,13 +80,10 @@ const handlePaymentReviewPost = attendeeActions[ACTION].verified(
           { form, level: "info" },
         );
       case "review_changed":
-        return errorRedirect(
-          attendeeActionUrlWithReturn(
-            attendee.id,
-            ACTION,
-            form.getString("return_url"),
-          ),
-          t("admin.attendees.payment_review_changed"),
+        return reviewError(
+          attendee.id,
+          returnUrl,
+          "admin.attendees.payment_review_changed",
         );
       case "nothing_to_review":
         return redirect(
@@ -82,13 +93,10 @@ const handlePaymentReviewPost = attendeeActions[ACTION].verified(
           { form, level: "info" },
         );
       case "claim_in_progress":
-        return errorRedirect(
-          attendeeActionUrlWithReturn(
-            attendee.id,
-            ACTION,
-            form.getString("return_url"),
-          ),
-          t("admin.attendees.payment_review_in_progress"),
+        return reviewError(
+          attendee.id,
+          returnUrl,
+          "admin.attendees.payment_review_in_progress",
         );
     }
   },

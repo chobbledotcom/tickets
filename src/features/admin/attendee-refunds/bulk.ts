@@ -220,9 +220,11 @@ const processRefundAll = async (
     return fail(refundAllUrl, t("error.no_attendees_to_refund"));
   }
 
-  const batch = refundable.slice(0, BULK_REFUND_LIMIT);
-  const remaining = refundable.length - batch.length;
-  const result: RefundBatchResult = await processRefundBatch(batch, listing.id);
+  const remaining = Math.max(0, refundable.length - BULK_REFUND_LIMIT);
+  const result: RefundBatchResult = await processRefundBatch(
+    refundable,
+    listing.id,
+  );
   if (result.kind === "blocked") {
     return buildBlockedRefundResponse(listing, refundAllUrl, refundable.length);
   }

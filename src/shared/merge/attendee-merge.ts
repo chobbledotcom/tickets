@@ -16,7 +16,10 @@ import { KIND } from "#shared/accounting/kinds.ts";
 import { transfersByEventGroup } from "#shared/accounting/queries.ts";
 import { repointAttendeeStatements } from "#shared/accounting/repoint.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
-import { checkoutStageDeleteStatement } from "#shared/db/attendees/delete.ts";
+import {
+  attendeeDependentDeleteStatements,
+  checkoutStageDeleteStatement,
+} from "#shared/db/attendees/delete.ts";
 import {
   insert,
   type SqlStatement,
@@ -820,8 +823,8 @@ export const applyAttendeeMerge = async (
     ...insertStatements,
     ...(sourceLegacyPaymentStatement ? [sourceLegacyPaymentStatement] : []),
     checkoutStageDeleteStatement({
-      args: [targetId, sourceId],
-      sql: "?, ?",
+      args: [targetId],
+      sql: "?",
     }),
     // Move source-owned payment references before deleting the source attendee,
     // so refunds on the merged person can return every charge whose ledger rows
@@ -830,14 +833,10 @@ export const applyAttendeeMerge = async (
       args: [targetId, sourceId],
       sql: "UPDATE processed_payments SET attendee_id = ? WHERE attendee_id = ?",
     },
-    {
-      args: [sourceId],
-      sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
-    },
-    {
-      args: [sourceId],
-      sql: "DELETE FROM listing_attendees WHERE attendee_id = ?",
-    },
+    // The source is going away, so clear every row whose identity belongs to
+    // it through the same schema as ordinary deletion. Payment rows survive:
+    // the statement above has already moved them to the target.
+    ...attendeeDependentDeleteStatements({ args: [sourceId], sql: "?" }),
     { args: [sourceId], sql: "DELETE FROM attendees WHERE id = ?" },
     // Move the source's ledger rows onto the target — the sole sanctioned
     // account-id mutation — so its financial history follows the merged person

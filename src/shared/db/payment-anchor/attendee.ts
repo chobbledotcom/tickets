@@ -1,6 +1,7 @@
 /** Durable refund identity materialized when an old attendee is saved. */
 
 import { inPlaceholders, type SqlStatement } from "#shared/db/client.ts";
+import { legacyRefundWarningSaveStatements } from "#shared/db/notes/queries.ts";
 import {
   matchingPaymentReferenceIndexes,
   storePaymentReference,
@@ -13,17 +14,17 @@ import { anchorSessionId } from "./session.ts";
  * checkout row with any provider spelling of the same reference wins, so a
  * routine attendee save never adds a second representation of current money.
  */
-export const attendeePaymentAnchorStatement = async (
+export const attendeePaymentAnchorStatements = async (
   attendeeId: number,
   paymentId: string,
-): Promise<SqlStatement | null> => {
-  if (paymentId === "") return null;
+): Promise<SqlStatement[]> => {
+  if (paymentId === "") return [];
   const payment = { kind: "untagged", reference: paymentId } as const;
   const [stored, matchingIndexes] = await Promise.all([
     storePaymentReference(payment),
     matchingPaymentReferenceIndexes(payment),
   ]);
-  return {
+  const anchor = {
     args: [
       anchorSessionId(attendeeId, stored.index),
       attendeeId,
@@ -49,4 +50,12 @@ export const attendeePaymentAnchorStatement = async (
                   )})
              )`,
   };
+  return [
+    anchor,
+    ...(await legacyRefundWarningSaveStatements(attendeeId, {
+      index: stored.index,
+      matchingIndexes,
+      reference: paymentId,
+    })),
+  ];
 };

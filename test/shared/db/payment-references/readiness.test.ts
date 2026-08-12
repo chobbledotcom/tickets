@@ -6,7 +6,13 @@ import {
 } from "#shared/db/attendees/atomic-update.ts";
 import { updateAttendeePII } from "#shared/db/attendees/update.ts";
 import { execute, queryAll } from "#shared/db/client.ts";
+import { createSystemNote } from "#shared/db/notes/queries.ts";
+import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { getRefundPaymentReferences } from "#shared/db/payment-references.ts";
+import {
+  placeholderRefund,
+  placeholderRefundNote,
+} from "#shared/payment/placeholder-refund.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -15,6 +21,11 @@ import {
   resaveAttendee,
 } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  claimCurrentAttendeeRows,
+  heldSessionIds,
+  protectedStateOf,
+} from "#test-utils/payment-claim.ts";
 import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
 
@@ -83,6 +94,39 @@ describeWithEnv("db > payment reference readiness", { db: true }, () => {
     ]);
   });
 
+  test("an unindexed old row cannot block a newer indexed payment", async () => {
+    const listing = await createTestListing();
+    const attendee = bookedAttendee(
+      await bookAttendee(listing, {
+        email: "mixed-readiness@example.com",
+        name: "Mixed Readiness",
+        paymentId: "pi_pii_only_old",
+      }),
+    );
+    await finalizeProcessedPayment("old_unindexed", attendee.id, "", {
+      kind: "untagged",
+      reference: "pi_unindexed_old",
+    });
+    await execute(
+      `UPDATE processed_payments
+          SET payment_reference_index = ''
+        WHERE payment_session_id = ?`,
+      ["old_unindexed"],
+    );
+    await finalizeProcessedPayment("new_indexed", attendee.id, "", {
+      kind: "tagged",
+      provider: "stripe",
+      reference: "pi_indexed_new",
+    });
+
+    const claimed = await claimCurrentAttendeeRows([attendee.id]);
+
+    expect(claimed.kind).toBe("claimed");
+    if (claimed.kind !== "claimed") throw new Error("indexed row was refused");
+    expect(heldSessionIds(claimed)).toEqual(["new_indexed"]);
+    expect(await protectedStateOf("old_unindexed")).toBe("");
+  });
+
   test("re-saving one old attendee creates one append-only indexed anchor", async () => {
     const listing = await createTestListing();
     const attendee = bookedAttendee(
@@ -109,6 +153,46 @@ describeWithEnv("db > payment reference readiness", { db: true }, () => {
         .get(attendee.id)
         ?.map((reference) => reference.reference),
     ).toEqual(["resaved_legacy_payment"]);
+  });
+
+  test("rolls an old warning name and its payment anchor back together", async () => {
+    const listing = await createTestListing();
+    const attendee = bookedAttendee(
+      await bookAttendee(listing, {
+        email: "atomic-warning@example.com",
+        name: "Atomic Warning",
+        paymentId: "pi_atomic_warning",
+      }),
+    );
+    await createSystemNote(
+      attendeeNotes(attendee.id),
+      placeholderRefundNote(
+        attendee.id,
+        placeholderRefund("capacity_full")("legacy detail"),
+        false,
+        attendee.payment_id,
+      ),
+    );
+    await execute(
+      `CREATE TRIGGER fail_legacy_warning_name
+       BEFORE UPDATE OF system_name ON system_notes
+       BEGIN
+         SELECT RAISE(ABORT, 'warning name failed');
+       END`,
+    );
+
+    await expect(resaveAttendee(attendee)).rejects.toThrow(
+      "warning name failed",
+    );
+
+    expect(await paymentRowsFor(attendee.id)).toEqual([]);
+    const warning = await queryAll<{ system_name: string | null }>(
+      `SELECT system_name
+         FROM system_notes AS note
+        WHERE note.entity_type = 'attendee' AND note.entity_id = ?`,
+      [attendee.id],
+    );
+    expect(warning).toEqual([{ system_name: null }]);
   });
 
   test("an atomic attendee edit materializes its existing legacy payment", async () => {

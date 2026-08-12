@@ -1,5 +1,5 @@
 /* jscpd:ignore-start -- imports */
-import { requiredMapValue } from "#fp";
+import { groupToMap, requiredMapValue, uniqueBy } from "#fp";
 import {
   markPaymentReferencesProviderRefunded,
   type RefundPaymentReference,
@@ -11,9 +11,9 @@ import {
 import { reportRefundNotRecorded } from "#shared/invariant-errors.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { recordAttendeeRefundsBatch } from "#shared/refund-ledger/record.ts";
+import { BULK_REFUND_LIMIT } from "#shared/subrequest-budget.ts";
 import {
   type CandidateRefund,
-  type MarkReturnedReferences,
   type PreparedReferenceRefund,
   refundReadyCandidate,
 } from "./attempt.ts";
@@ -32,11 +32,16 @@ import {
   type ReadyRefundCandidate,
 } from "./readiness.ts";
 import { runRefundReadiness } from "./readiness-run.ts";
+import { reportRefundProblem } from "./report.ts";
 import { packByReferenceCount, type RefundOutcome } from "./waves.ts";
 
 /* jscpd:ignore-end */
 
 type RecordRefunds = typeof recordAttendeeRefundsBatch;
+type ReturnedReference = CandidateRefund["returned"][number];
+type MarkReturnedReferences = (
+  references: readonly ReturnedReference[],
+) => Promise<void>;
 
 export type RefundCounts = {
   refundedCount: number;
@@ -154,6 +159,43 @@ const recordWave = async (
   }
 };
 
+const markerFailure = (
+  result: CandidateRefund,
+  error: unknown,
+  listingId: number,
+): CandidateRefund => {
+  if (result.returned.length === 0) return result;
+  reportRefundProblem(
+    `Admin refund could not record returned payments for attendee ${result.candidate.attendee.id}: ${String(
+      error,
+    )}`,
+    listingId,
+  );
+  return {
+    ...result,
+    doubt: "in_doubt",
+    outcome: result.outcome === "refunded" ? result.outcome : "errored",
+  };
+};
+
+/** Mark all returned references from one provider wave in one ordered write. */
+const markReturnedWave = async (
+  markReturned: MarkReturnedReferences,
+  results: readonly CandidateRefund[],
+  listingId: number,
+): Promise<CandidateRefund[]> => {
+  const references = uniqueBy(
+    (reference: ReturnedReference) => reference.index,
+  )(results.flatMap(({ returned }) => [...returned]));
+  if (references.length === 0) return [...results];
+  try {
+    await markReturned(references);
+    return [...results];
+  } catch (error) {
+    return results.map((result) => markerFailure(result, error, listingId));
+  }
+};
+
 /** Boundaries a refund run crosses after its candidate list is loaded. */
 export type RefundRunDependencies = {
   arm?: typeof armRefundDispatch;
@@ -163,8 +205,33 @@ export type RefundRunDependencies = {
   record?: RecordRefunds;
 };
 
+type RefundStateWrites = {
+  arm: typeof armRefundDispatch;
+  markReturned: MarkReturnedReferences;
+};
+
+/** Keep local payment-state writes in order while provider calls overlap. */
+const orderedRefundStateWrites = (
+  writes: RefundStateWrites,
+): RefundStateWrites => {
+  const queue: { tail: Promise<void> } = { tail: Promise.resolve() };
+  const afterPrevious = <T>(write: () => Promise<T>): Promise<T> => {
+    const running = queue.tail.then(write);
+    queue.tail = running.then(
+      () => undefined,
+      () => undefined,
+    );
+    return running;
+  };
+  return {
+    arm: (request) => afterPrevious(() => writes.arm(request)),
+    markReturned: (references) =>
+      afterPrevious(() => writes.markReturned(references)),
+  };
+};
+
 export const processRefundBatch = async (
-  batch: RefundCandidate[],
+  candidates: RefundCandidate[],
   listingId: number,
   {
     arm = armRefundDispatch,
@@ -177,13 +244,18 @@ export const processRefundBatch = async (
 ): Promise<RefundBatchResult> =>
   await runRefundReadiness<RefundBatchResult>({
     action: "refund",
-    candidates: batch,
+    candidates,
     changedMessage:
       "The attendee or payment set changed while this refund was starting. Try again.",
     claim: rowClaim,
+    executionLimit: BULK_REFUND_LIMIT,
     label: "Admin bulk refund",
     listingId,
-    notReady: (message) => notReady(noRefunds(batch.length), message),
+    notReady: (message) =>
+      notReady(
+        noRefunds(Math.min(candidates.length, BULK_REFUND_LIMIT)),
+        message,
+      ),
     prepare,
     ready: async (candidates, { claim, findings }) =>
       finished(
@@ -206,14 +278,38 @@ const refundClaimedBatch = async (
   claim: HeldRefundWork["claim"],
   arm: typeof armRefundDispatch,
 ): Promise<RefundCounts> => {
+  const stateWrites = orderedRefundStateWrites({
+    arm,
+    markReturned: writes.markReturned,
+  });
   const inFlight = new Map<string, Promise<PreparedReferenceRefund>>();
+  const attendeesByReference = groupToMap(
+    (entry: { attendeeId: number; index: string }) => entry.index,
+    (entry) => entry.attendeeId,
+  )(
+    batch.flatMap((candidate) =>
+      candidate.references.map(({ reference }) => ({
+        attendeeId: candidate.attendee.id,
+        index: reference.index,
+      })),
+    ),
+  );
   const authorize = async (
     indexes: readonly string[],
   ): Promise<ArmRefundDispatchResult> => {
-    const result = await arm({ ...claim, indexes });
+    const result = await stateWrites.arm({ ...claim, indexes });
     if (result.kind === "armed") {
       for (const [sessionId, phase] of result.phases) {
         findings.claimPhases.set(sessionId, phase);
+      }
+      for (const index of indexes) {
+        for (const attendeeId of requiredMapValue(
+          attendeesByReference,
+          index,
+          `Refund dispatch lost payment ${index}'s attendees`,
+        )) {
+          findings.doubts.set(attendeeId, "in_doubt");
+        }
       }
     }
     return result;
@@ -222,21 +318,22 @@ const refundClaimedBatch = async (
   for (const group of packByReferenceCount(PROVIDER_REFUND_CONCURRENCY)(
     batch,
   )) {
-    const results = await Promise.all(
+    const providerResults = await Promise.all(
       group.map((candidate) =>
-        refundReadyCandidate(
-          candidate,
-          listingId,
-          writes.markReturned,
-          authorize,
-          inFlight,
-        ),
+        refundReadyCandidate(candidate, listingId, authorize, inFlight),
       ),
+    );
+    const results = await markReturnedWave(
+      stateWrites.markReturned,
+      providerResults,
+      listingId,
     );
     const postings: LedgerPosting[] = [];
     for (const result of results) {
       if (result.doubt !== undefined) {
         findings.doubts.set(result.candidate.attendee.id, result.doubt);
+      } else {
+        findings.doubts.delete(result.candidate.attendee.id);
       }
       recordProviderReviewFindings(findings, result.reviews);
       tallyProviderRefund(counts, result, listingId, postings);

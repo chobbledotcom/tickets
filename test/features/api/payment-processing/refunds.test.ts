@@ -7,13 +7,15 @@ import {
   chargeMismatchSpec,
   deletedListingSpec,
   failureDetail,
-  type RefundCode,
-  refundedNoteText,
-  refundSpec,
   refuseMismatch,
   validationFailure,
 } from "#routes/api/payment-processing/refunds.ts";
 import type { PaymentFailureResult } from "#routes/api/webhook-types.ts";
+import {
+  placeholderRefund,
+  placeholderRefundNote,
+  type RefundCode,
+} from "#shared/payment/placeholder-refund.ts";
 import type { RefundRequest } from "#shared/payment/refund-attempt.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -217,9 +219,9 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
     ["unexpected_error", "an unexpected error stopped"],
   ];
 
-  test("refundSpec carries each reason code's operator-facing phrase", () => {
+  test("placeholderRefund carries each reason code's operator-facing phrase", () => {
     for (const [code, expected] of REASON_EXPECTATIONS) {
-      const spec = refundSpec(code)("internal detail line");
+      const spec = placeholderRefund(code)("internal detail line");
       expect(spec.code).toBe(code);
       expect(spec.reason).toContain(expected);
       expect(spec.detail).toBe("internal detail line");
@@ -237,15 +239,15 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
     expect(removed.reason).toContain("was removed while they were paying");
   });
 
-  test("refundedNoteText distinguishes refunded vs could-not-refund", () => {
-    const spec = refundSpec("price_changed")("detail line");
-    const refunded = refundedNoteText(7, spec, true, "pi_ref");
+  test("placeholderRefundNote distinguishes refunded vs could-not-refund", () => {
+    const spec = placeholderRefund("price_changed")("detail line");
+    const refunded = placeholderRefundNote(7, spec, true, "pi_ref");
     expect(refunded).toContain("payment was refunded because");
     expect(refunded).toContain("code: price_changed)");
     expect(refunded).toContain("Payment reference: pi_ref");
     expect(refunded).toContain("/admin/ledger/attendee/7");
     expect(refunded).not.toContain("could NOT be refunded");
-    const notRefunded = refundedNoteText(7, spec, false, "pi_ref");
+    const notRefunded = placeholderRefundNote(7, spec, false, "pi_ref");
     expect(notRefunded).toContain("could NOT be refunded automatically");
     expect(notRefunded).not.toContain("payment was refunded because");
   });

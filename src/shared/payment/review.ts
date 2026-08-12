@@ -18,6 +18,19 @@ export type PaymentReviewReason = v.InferOutput<
   typeof PaymentReviewReasonSchema
 >;
 
+/** Evidence that is allowed to retire each kind of payment review. */
+export const PAYMENT_REVIEW_RETIREMENT = {
+  multiple_pending_refunds: "clean_provider_evidence",
+  partial_refund: "all_returned_and_recorded",
+  partially_returned_obligation: "all_returned_and_recorded",
+  refund_exceeds_capture: "clean_provider_evidence",
+  shared_reference: "unique_reference",
+  uncertain_keyless_refund: "all_returned_and_recorded",
+} as const satisfies Record<
+  PaymentReviewReason["kind"],
+  "all_returned_and_recorded" | "clean_provider_evidence" | "unique_reference"
+>;
+
 /** One exact disagreement, kept after acknowledgement until evidence retires
  * it. A later disagreement receives a new id, so an old form cannot act on it. */
 export const PaymentReviewCaseSchema = v.strictObject({
@@ -25,9 +38,7 @@ export const PaymentReviewCaseSchema = v.strictObject({
   caseId: v.pipe(v.string(), v.minLength(1)),
   reason: PaymentReviewReasonSchema,
 });
-export type PaymentReviewCase = v.InferOutput<
-  typeof PaymentReviewCaseSchema
->;
+export type PaymentReviewCase = v.InferOutput<typeof PaymentReviewCaseSchema>;
 
 /** Open a new review case only when fresh evidence introduces one. */
 export const openPaymentReview = (
@@ -39,6 +50,4 @@ export const acknowledgePaymentReview = (
   review: PaymentReviewCase,
   acknowledgedAt: string,
 ): PaymentReviewCase =>
-  review.acknowledgedAt === undefined
-    ? { ...review, acknowledgedAt }
-    : review;
+  review.acknowledgedAt === undefined ? { ...review, acknowledgedAt } : review;

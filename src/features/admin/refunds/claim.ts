@@ -219,20 +219,22 @@ export const underAttendeeClaim = async <TResult>(
       listingId,
     );
   };
-  const result = await run.work({
-    alreadyReturned: claim.returned,
-    claim: {
-      commandId: claim.commandId,
-      held: claim.held,
-      heldSince: claim.heldSince,
-      phases: findings.claimPhases,
-    },
-    findings,
-    inherited: claim.inherited,
-    reviews: claim.reviews,
-    shared: claim.shared,
-    unrecorded: claim.unrecorded,
-  });
-  await settle();
-  return result;
+  try {
+    return await run.work({
+      alreadyReturned: claim.returned,
+      claim: {
+        commandId: claim.commandId,
+        held: claim.held,
+        heldSince: claim.heldSince,
+        phases: findings.claimPhases,
+      },
+      findings,
+      inherited: claim.inherited,
+      reviews: claim.reviews,
+      shared: claim.shared,
+      unrecorded: claim.unrecorded,
+    });
+  } finally {
+    await settle();
+  }
 };

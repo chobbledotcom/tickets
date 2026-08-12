@@ -1,7 +1,11 @@
 /** Durable owner-review findings from provider money observations. */
 
+import type { PaymentReviewChange } from "#shared/db/payment-claim.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
-import type { PaymentReviewReason } from "#shared/payment/review.ts";
+import {
+  PAYMENT_REVIEW_RETIREMENT,
+  type PaymentReviewReason,
+} from "#shared/payment/review.ts";
 import type { HeldRefundWork, RunFindings } from "./claim.ts";
 
 export type ProviderReviewFinding = {
@@ -9,14 +13,16 @@ export type ProviderReviewFinding = {
   readonly reference: RefundPaymentReference;
 };
 
-const RETIRES_ON_CLEAN_PROVIDER_EVIDENCE = {
-  multiple_pending_refunds: true,
-  partially_returned_obligation: false,
-  partial_refund: false,
-  refund_exceeds_capture: true,
-  shared_reference: false,
-  uncertain_keyless_refund: false,
-} as const satisfies Record<PaymentReviewReason["kind"], boolean>;
+export const resolvePaymentReview = (
+  findings: RunFindings,
+  sessionId: string,
+  reason: PaymentReviewReason,
+): void => {
+  findings.reviews.set(sessionId, {
+    kind: "resolved",
+    reason: reason.kind,
+  });
+};
 
 const findingRows = (
   reviews: readonly ProviderReviewFinding[],
@@ -27,14 +33,32 @@ const findingRows = (
 export const recordProviderReviewFindings = (
   findings: RunFindings,
   reviews: readonly ProviderReviewFinding[],
-): boolean => {
+): void => {
   for (const { reason, reference } of reviews) {
     for (const sessionId of reference.rowSessionIds) {
       findings.reviews.set(sessionId, { kind: "review", reason });
     }
   }
-  return reviews.length > 0;
 };
+
+const applyReviewChange = (
+  current: Map<string, PaymentReviewReason>,
+  [sessionId, change]: readonly [string, PaymentReviewChange],
+): Map<string, PaymentReviewReason> => {
+  if (change.kind === "review") {
+    current.set(sessionId, change.reason);
+  } else if (current.get(sessionId)?.kind === change.reason) {
+    current.delete(sessionId);
+  }
+  return current;
+};
+
+/** Apply this run's exact decisions to the review cases it started with. */
+export const currentPaymentReviews = (
+  heldReviews: HeldRefundWork["reviews"],
+  findings: RunFindings,
+): ReadonlyMap<string, PaymentReviewReason> =>
+  [...findings.reviews].reduce(applyReviewChange, new Map(heldReviews));
 
 /** Replace current conflicts and retire only old conflicts this complete read
  * disproved. A different current issue wins over any retirement. */
@@ -43,7 +67,7 @@ export const reconcileProviderReviewFindings = (
   heldReviews: HeldRefundWork["reviews"],
   references: readonly RefundPaymentReference[],
   reviews: readonly ProviderReviewFinding[],
-): boolean => {
+): void => {
   const currentlyReviewed = findingRows(reviews);
   recordProviderReviewFindings(findings, reviews);
   const observedRows = new Set(
@@ -53,13 +77,9 @@ export const reconcileProviderReviewFindings = (
     if (
       observedRows.has(sessionId) &&
       !currentlyReviewed.has(sessionId) &&
-      RETIRES_ON_CLEAN_PROVIDER_EVIDENCE[reason.kind]
+      PAYMENT_REVIEW_RETIREMENT[reason.kind] === "clean_provider_evidence"
     ) {
-      findings.reviews.set(sessionId, {
-        kind: "resolved",
-        reason: reason.kind,
-      });
+      resolvePaymentReview(findings, sessionId, reason);
     }
   }
-  return reviews.length > 0;
 };

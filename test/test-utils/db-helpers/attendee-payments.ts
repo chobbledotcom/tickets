@@ -2,6 +2,7 @@ import { beforeEach } from "@std/testing/bdd";
 import type {
   CreateAttendeeResult,
   ListingBooking,
+  UpdateAttendeePIIInput,
 } from "#shared/db/attendee-types.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { updateAttendeePII } from "#shared/db/attendees/update.ts";
@@ -29,19 +30,22 @@ export const bookedAttendee = (result: CreateAttendeeResult): Attendee => {
   return result.attendees[0]!;
 };
 
+/** The editable contact fields from a loaded attendee. */
+export const attendeePiiOf = (attendee: Attendee): UpdateAttendeePIIInput => ({
+  address: attendee.address,
+  email: attendee.email,
+  lat: attendee.lat,
+  lng: attendee.lng,
+  name: attendee.name,
+  payment_id: attendee.payment_id,
+  phone: attendee.phone,
+  special_instructions: attendee.special_instructions,
+  ticket_token: attendee.ticket_token,
+});
+
 /** Save the same contact details through the real attendee-edit write path. */
 export const resaveAttendee = async (attendee: Attendee): Promise<void> => {
-  await updateAttendeePII(attendee.id, {
-    address: attendee.address,
-    email: attendee.email,
-    lat: attendee.lat,
-    lng: attendee.lng,
-    name: attendee.name,
-    payment_id: attendee.payment_id,
-    phone: attendee.phone,
-    special_instructions: attendee.special_instructions,
-    ticket_token: attendee.ticket_token,
-  });
+  await updateAttendeePII(attendee.id, attendeePiiOf(attendee));
 };
 
 /**

@@ -244,17 +244,18 @@ describe("admin refunds > attendee claim", () => {
     expect(claim.settlements).toEqual([]);
   });
 
-  test("reports a release failure without losing the run result", async () => {
+  test("reports a settlement failure without replacing the work failure", async () => {
     const claim = claimResult(claimedRows(new Map([[1, ["sess-one"]]])), () =>
       Promise.reject(new Error("the row would not let go")),
     );
 
-    const result = await underAttendeeClaim(claim, [], 11, {
-      blocked: () => "blocked",
-      work: () => Promise.resolve("worked"),
-    });
+    await expect(
+      underAttendeeClaim(claim, [], 11, {
+        blocked: () => "blocked",
+        work: () => Promise.reject(new Error("the provider fell over")),
+      }),
+    ).rejects.toThrow("the provider fell over");
 
-    expect(result).toBe("worked");
     expect(claim.settlements).toHaveLength(1);
     expect(
       errors.contains(
@@ -263,13 +264,10 @@ describe("admin refunds > attendee claim", () => {
     ).toBe(true);
   });
 
-  test("keeps every held attendee when work raises", async () => {
+  test("settles discovered facts and keeps uncertain claims when work raises", async () => {
     const claim = claimResult(
       claimedRows(
-        new Map([
-          [1, ["sess-one"]],
-          [2, ["sess-two"]],
-        ]),
+        new Map([[1, ["sess-unrecorded", "sess-review", "sess-uncertain"]]]),
       ),
     );
 
@@ -277,13 +275,44 @@ describe("admin refunds > attendee claim", () => {
       underAttendeeClaim(claim, [], 12, {
         blocked: () => "blocked",
         work: ({ findings }) => {
-          findings.unrecorded.set(1, ["missed-one"]);
+          findings.unrecorded.set(1, ["sess-unrecorded"]);
+          findings.reviews.set("sess-review", {
+            kind: "review",
+            reason: { kind: "partially_returned_obligation" },
+          });
+          findings.doubts.set(1, "in_doubt");
           return Promise.reject(new Error("the ledger fell over"));
         },
       }),
     ).rejects.toThrow("the ledger fell over");
 
-    expect(claim.settlements).toEqual([]);
+    expect(claim.settlements).toEqual([
+      {
+        commandId: "test-command",
+        heldSince: "2026-08-11T12:00:00.000Z",
+        rows: new Map([
+          [
+            "sess-unrecorded",
+            {
+              books: "unrecorded",
+              claim: "keep",
+              phase: "checking",
+            },
+          ],
+          [
+            "sess-review",
+            {
+              claim: "keep",
+              phase: "checking",
+              review: {
+                kind: "review",
+                reason: { kind: "partially_returned_obligation" },
+              },
+            },
+          ],
+        ]),
+      },
+    ]);
   });
 
   test("rejects a row reported as both recorded and unrecorded", async () => {

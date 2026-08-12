@@ -73,6 +73,21 @@ describe("refresh payment under an attendee claim", () => {
     expect(run.claim.released).toEqual([run.reference.rowSessionIds]);
   });
 
+  test("still requires review when clean provider evidence cannot retire the held case", async () => {
+    const run = runHarness({
+      existingReview: { kind: "partial_refund" },
+      observed: chargeMoney(),
+    });
+
+    expect(await refresh(run)).toEqual({
+      kind: "needs_review",
+      message:
+        "This payment needs an owner review before another refund can be attempted.",
+    });
+    expect(run.claim.reviewChanges).toEqual([new Map()]);
+    expect(run.claim.released).toEqual([run.reference.rowSessionIds]);
+  });
+
   test("a completed refresh retires reviews disproved by exact evidence", async () => {
     const completedReviewReasons = [
       { kind: "partial_refund" },

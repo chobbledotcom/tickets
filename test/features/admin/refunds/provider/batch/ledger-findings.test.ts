@@ -155,7 +155,7 @@ describe("admin refund provider > exact ledger findings", () => {
     });
   });
 
-  test("keeps the claim and fails when the ledger omits an attendee", async () => {
+  test("settles the provider answer and fails when the ledger omits an attendee", async () => {
     const attendeeId = 52;
     const sessionId = "sess-omitted";
     const claim = grantingRowClaim(new Map([[attendeeId, [sessionId]]]));
@@ -172,6 +172,6 @@ describe("admin refund provider > exact ledger findings", () => {
         },
       ),
     ).rejects.toThrow("Refund ledger omitted attendee 52");
-    expect(claim.released).toEqual([]);
+    expect(claim.released).toEqual([[sessionId]]);
   });
 });

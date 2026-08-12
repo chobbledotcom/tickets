@@ -24,6 +24,7 @@ import {
   getProcessedPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
+import { insertRefundConfirmationFixture } from "#test-utils/refund-confirmations.ts";
 
 describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
   test("removes attendee", async () => {
@@ -235,6 +236,34 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
     await deleteAttendee(attendee.id);
 
     expect(await getNoteRows("attendee", [attendee.id])).toEqual([]);
+  });
+
+  test("removes the attendee's refund confirmations", async () => {
+    const listing = await createTestListing({ maxAttendees: 50 });
+    const attendee = await createTestAttendee(
+      listing.id,
+      listing.slug,
+      "Confirmed Attendee",
+      "confirmed@example.com",
+    );
+    const confirmation = await insertRefundConfirmationFixture(attendee.id);
+
+    await deleteAttendee(attendee.id);
+
+    const remaining = await queryOne<{ count: number }>(
+      `SELECT COUNT(*) AS count
+         FROM refund_confirmations AS confirmation
+        WHERE confirmation.attendee_id = ?`,
+      [attendee.id],
+    );
+    expect(remaining?.count).toBe(0);
+    const remainingReferences = await queryOne<{ count: number }>(
+      `SELECT COUNT(*) AS count
+         FROM refund_confirmation_references AS reference
+        WHERE reference.confirmation_identity = ?`,
+      [confirmation.identity],
+    );
+    expect(remainingReferences?.count).toBe(0);
   });
 
   test("succeeds when the attendee has no modifier usage", async () => {

@@ -7,6 +7,7 @@ import {
 } from "#test/shared/merge/attendee-merge/helpers.ts";
 import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { insertRefundConfirmationFixture } from "#test-utils/refund-confirmations.ts";
 
 describeWithEnv("attendee merge cleanup", { db: true }, () => {
   test("removes checkout stages for both merged attendees", async () => {
@@ -23,5 +24,30 @@ describeWithEnv("attendee merge cleanup", { db: true }, () => {
         [target.id, source.id],
       ),
     ).toEqual([]);
+  });
+
+  test("removes source confirmation identities without touching the target", async () => {
+    const { source, target } = await createMergePair();
+    const sourceConfirmation = await insertRefundConfirmationFixture(source.id);
+    const targetConfirmation = await insertRefundConfirmationFixture(target.id);
+
+    const { result } = await runMerge({ source, target });
+
+    expect(result.success).toBe(true);
+    expect(
+      await queryAll<{ attendee_id: number }>(
+        `SELECT attendee_id
+           FROM refund_confirmations AS confirmation
+          ORDER BY confirmation.attendee_id`,
+      ),
+    ).toEqual([{ attendee_id: target.id }]);
+    expect(
+      await queryAll<{ confirmation_identity: string }>(
+        `SELECT confirmation_identity
+           FROM refund_confirmation_references AS reference
+          ORDER BY confirmation_identity`,
+      ),
+    ).toEqual([{ confirmation_identity: targetConfirmation.identity }]);
+    expect(sourceConfirmation.identity).not.toBe(targetConfirmation.identity);
   });
 });

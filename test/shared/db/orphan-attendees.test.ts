@@ -28,6 +28,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { CLAIM_MIRROR } from "#test-utils/payment-claim.ts";
+import { insertRefundConfirmationFixture } from "#test-utils/refund-confirmations.ts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -157,11 +158,20 @@ describeWithEnv("db > orphan-attendees", { db: true }, () => {
         }),
       );
       await createSystemNote(attendeeNotes(id), "orphan note");
+      const confirmation = await insertRefundConfirmationFixture(id);
 
       await purgeOrphanedAttendees(nowIso());
 
       expect(await childCount("attendee_answers", id)).toBe(0);
       expect(await childCount("processed_payments", id)).toBe(0);
+      expect(await childCount("refund_confirmations", id)).toBe(0);
+      const remainingReferences = await queryOne<{ count: number }>(
+        `SELECT COUNT(*) AS count
+           FROM refund_confirmation_references AS reference
+          WHERE reference.confirmation_identity = ?`,
+        [confirmation.identity],
+      );
+      expect(remainingReferences?.count).toBe(0);
       expect(await getNoteRows("attendee", [id])).toEqual([]);
     });
 

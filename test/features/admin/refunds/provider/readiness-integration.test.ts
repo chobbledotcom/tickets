@@ -210,11 +210,11 @@ describe("admin refund provider readiness integration", () => {
 
     expect(claim.claims()).toBe(1);
     expect(events).toEqual(["claim", "prepare", "settle"]);
-    expect(preparedBatch).toBe(batch);
-    expect(preparedClaim?.held).toBe(held);
+    expect(preparedBatch).toEqual(batch);
+    expect(preparedClaim?.held).toEqual(held);
     expect(preparedClaim?.commandId).toBe("test-command");
     expect(preparedClaim?.heldSince).toBe(HELD_SINCE);
-    expect(preparedReturned).toBe(returned);
+    expect(preparedReturned).toEqual(returned);
     expect(releasedRows(claim.settlements)).toEqual([reference.rowSessionIds]);
     expect(counts.failedCount).toBe(1);
     expect(writes.marked).toEqual([]);

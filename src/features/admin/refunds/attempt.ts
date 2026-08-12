@@ -1,5 +1,4 @@
 import { requiredMapValue } from "#fp";
-import { markPaymentReferencesProviderRefunded } from "#shared/db/payment-references.ts";
 import type {
   ArmRefundDispatchResult,
   RefundDispatchPermit,
@@ -24,10 +23,6 @@ type ObservedWithheldRefund = Exclude<
   ObservedRefundAdmission,
   { kind: "send" }
 >;
-
-export type MarkReturnedReferences = (
-  references: readonly TaggedRefundReference[],
-) => Promise<void>;
 
 const refusedRefund = (detail: string, listingId: number): RefundOutcome => {
   reportRefundProblem(detail, listingId);
@@ -214,7 +209,6 @@ export type CandidateRefund = {
 export const refundReadyCandidate = async (
   candidate: ReadyRefundCandidate,
   listingId: number,
-  markReturnedReferences: MarkReturnedReferences = markPaymentReferencesProviderRefunded,
   authorize: AuthorizeRefundDispatch = missingAuthorization,
   inFlight: Map<string, Promise<PreparedReferenceRefund>> = new Map(),
 ): Promise<CandidateRefund> => {
@@ -257,23 +251,6 @@ export const refundReadyCandidate = async (
   const reviews = results.flatMap(({ reference, review }) =>
     review === undefined ? [] : [{ reason: review, reference }],
   );
-  try {
-    await markReturnedReferences(returnedReferences);
-  } catch (error) {
-    reportRefundProblem(
-      `Admin refund could not record returned payments for attendee ${candidate.attendee.id}: ${String(
-        error,
-      )}`,
-      listingId,
-    );
-    return {
-      candidate,
-      doubt: "in_doubt",
-      outcome: outcome === "refunded" ? outcome : "errored",
-      returned: returnedReferences,
-      reviews,
-    };
-  }
   if (
     (outcome === "failed" || outcome === "errored") &&
     candidate.references.length > 1

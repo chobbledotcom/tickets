@@ -96,23 +96,31 @@ export type UnrecordedRefund = v.InferOutput<typeof UnrecordedRefundSchema>;
 /** The whole record. Every field is optional because a row carries only the
  *  concerns it has reached: a claim without an outcome while a run works, an
  *  outcome without a claim once one finishes. */
-const PaymentRowStateSchema = v.strictObject({
+const paymentRowStateFields = {
   claim: v.optional(RefundClaimSchema),
   outcome: v.optional(StoredPaymentFailureSchema),
-  review: v.optional(PaymentReviewCaseSchema),
   unrecorded: v.optional(UnrecordedRefundSchema),
-});
+};
+
+const paymentRowStateSchemaWith = <
+  TReview extends v.BaseSchema<unknown, unknown, v.BaseIssue<unknown>>,
+>(
+  review: TReview,
+) =>
+  v.strictObject({
+    ...paymentRowStateFields,
+    review: v.optional(review),
+  });
+
+const PaymentRowStateSchema = paymentRowStateSchemaWith(
+  PaymentReviewCaseSchema,
+);
 export type PaymentRowState = v.InferOutput<typeof PaymentRowStateSchema>;
 
-const LegacyPaymentRowStateSchema = v.strictObject({
-  claim: v.optional(RefundClaimSchema),
-  outcome: v.optional(StoredPaymentFailureSchema),
-  review: v.optional(PaymentReviewReasonSchema),
-  unrecorded: v.optional(UnrecordedRefundSchema),
-});
-type LegacyPaymentRowState = v.InferOutput<
-  typeof LegacyPaymentRowStateSchema
->;
+const LegacyPaymentRowStateSchema = paymentRowStateSchemaWith(
+  PaymentReviewReasonSchema,
+);
+type LegacyPaymentRowState = v.InferOutput<typeof LegacyPaymentRowStateSchema>;
 
 /** A row carrying nothing yet. */
 export const EMPTY_ROW_STATE: PaymentRowState = {};
@@ -121,9 +129,7 @@ const rowStateJson = defineStoredJson(PaymentRowStateSchema);
 const legacyRowStateJson = defineStoredJson(LegacyPaymentRowStateSchema);
 const legacyFailureJson = defineStoredJson(StoredPaymentFailureSchema);
 
-const upgradeLegacyReview = (
-  state: LegacyPaymentRowState,
-): PaymentRowState => {
+const upgradeLegacyReview = (state: LegacyPaymentRowState): PaymentRowState => {
   const { review, ...kept } = state;
   return review === undefined
     ? kept

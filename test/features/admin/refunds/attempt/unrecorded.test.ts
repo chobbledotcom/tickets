@@ -20,17 +20,11 @@ import {
 import { grantingRowClaim } from "#test-utils/refund-routes.ts";
 
 describe("admin refund provider > an unrecorded refund", () => {
-  const keyless = provider({
-    refundCapability: "keyless",
-    refunded: new Set(["pi_unrecorded", "pi_recorded"]),
-  });
-
   test("a refund the provider rejected leaves no doubt", async () => {
     const source = provider({ refundCapability: "keyless" });
     const result = await refundReadyCandidate(
       readyCandidateWithReferences(["pi_unanswered"], source),
       7,
-      () => Promise.resolve(),
       authorizeEveryRefund("keyless"),
     );
 
@@ -46,50 +40,10 @@ describe("admin refund provider > an unrecorded refund", () => {
         source,
       ),
       7,
-      () => Promise.resolve(),
       authorizeEveryRefund("keyless"),
     );
 
     expect(source.refunds).toEqual([]);
-    expect(result.outcome).toBe("refunded");
-    expect(result.doubt).toBeUndefined();
-  });
-
-  test("a refund whose returned-marker write fails leaves a lost answer", async () => {
-    const result = await refundReadyCandidate(
-      readyCandidateWithReferences(["pi_unrecorded"], keyless),
-      7,
-      () => Promise.reject(new Error("the marker could not be written")),
-      authorizeEveryRefund("keyless"),
-    );
-
-    expect(result.outcome).toBe("refunded");
-    expect(result.doubt).toBe("in_doubt");
-  });
-
-  test("a marker write that fails beside a refused sibling keeps the doubt", async () => {
-    const result = await refundReadyCandidate(
-      readyCandidateWithReferences(["pi_recorded", "pi_refused"], keyless),
-      7,
-      () => Promise.reject(new Error("the marker could not be written")),
-      authorizeEveryRefund("keyless"),
-    );
-
-    expect(result.outcome).toBe("errored");
-    expect(result.returned.map(({ reference }) => reference)).toEqual([
-      "pi_recorded",
-    ]);
-    expect(result.doubt).toBe("in_doubt");
-  });
-
-  test("a refund whose marker write succeeds is settled", async () => {
-    const result = await refundReadyCandidate(
-      readyCandidateWithReferences(["pi_recorded"], keyless),
-      7,
-      () => Promise.resolve(),
-      authorizeEveryRefund("keyless"),
-    );
-
     expect(result.outcome).toBe("refunded");
     expect(result.doubt).toBeUndefined();
   });

@@ -4,28 +4,32 @@
  * whose customers may pay more than it asks.
  */
 
+import { expect } from "@std/expect";
+import { getRefundCandidates } from "#routes/admin/refunds/candidates.ts";
 // jscpd:ignore-start
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
-import { expect } from "@std/expect";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { BULK_REFUND_LIMIT } from "#shared/subrequest-budget.ts";
+import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import { sellSomethingAt } from "#test/specs/support/listings.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import {
   refundByTyping,
   runStripeSuccess,
 } from "#test/specs/support/money-drivers.ts";
-import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
   type ActOnSomeMoney,
   requiredWorldValue,
-  theListing,
   type TicketsWorld,
+  theListing,
 } from "#test/specs/support/world.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { singleItem } from "#test-utils/factories.ts";
+import { chargeMoney, refundObservation } from "#test-utils/payment-state.ts";
 import {
   refundCompletes,
   refundIsRejected,
 } from "#test-utils/refund-routes.ts";
-import { chargeMoney, refundObservation } from "#test-utils/payment-state.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
@@ -36,6 +40,36 @@ const DECLINED_PAYMENT = "pi_bulk_2";
 const FIRST_PAYMENT = "pi_bulk_1";
 
 type RefundAnswer = Parameters<typeof refundByTyping>[2];
+type RefundFormTarget = "attendee" | "listing";
+
+const REFUND_FORM_BY_TARGET = {
+  attendee: {
+    buttonText: "Refund Attendee",
+    page: (id: number) => `/admin/attendees/${id}/refund`,
+  },
+  listing: {
+    buttonText: "Refund All Attendees",
+    page: (id: number) => `/admin/listing/${id}/refund-all`,
+  },
+} satisfies Record<
+  RefundFormTarget,
+  { buttonText: string; page: (id: number) => string }
+>;
+
+const sendRefundForm = (
+  world: TicketsWorld,
+  target: RefundFormTarget,
+  id: number,
+  typed: string,
+  answer: RefundAnswer,
+) => {
+  const form = REFUND_FORM_BY_TARGET[target];
+  return refundByTyping(
+    world,
+    { buttonText: form.buttonText, page: form.page(id), typed },
+    answer,
+  );
+};
 
 const firstAttendeeId = (world: TicketsWorld): number => {
   const first = requiredWorldValue(world.attendeeIds, "the people who paid")[0];
@@ -83,13 +117,11 @@ const refundEveryone = async (
   world: TicketsWorld,
   answer: RefundAnswer,
 ): Promise<void> => {
-  const browser = await refundByTyping(
+  const browser = await sendRefundForm(
     world,
-    {
-      buttonText: "Refund All Attendees",
-      page: `/admin/listing/${theListing(world)}/refund-all`,
-      typed: requiredWorldValue(world.confirmName, "the listing name to type"),
-    },
+    "listing",
+    theListing(world),
+    requiredWorldValue(world.confirmName, "the listing name to type"),
     answer,
   );
   world.bulkRefundMessage = browser.pageText;
@@ -97,17 +129,29 @@ const refundEveryone = async (
 
 /** The provider turns down the middle payment while the others complete. */
 export const everyoneRefunded = (world: TicketsWorld): Promise<void> =>
-  refundEveryone(
-    world,
-    (request) =>
-      request.paymentReference === DECLINED_PAYMENT
-        ? refundIsRejected(request)
-        : refundCompletes(request),
+  refundEveryone(world, (request) =>
+    request.paymentReference === DECLINED_PAYMENT
+      ? refundIsRejected(request)
+      : refundCompletes(request),
   );
 
 /** Try Refund All with a provider that would return every payment it receives. */
 export const tryToRefundEveryone = (world: TicketsWorld): Promise<void> =>
   refundEveryone(world, refundCompletes);
+
+/** Prove the review fixture sits outside the provider work this request may do. */
+export const firstPaymentIsOutsideFirstRefundBatch = async (
+  world: TicketsWorld,
+): Promise<void> => {
+  const candidates = await getRefundCandidates(
+    await getAttendeesRaw(theListing(world)),
+    await getTestPrivateKey(),
+  );
+  expect(candidates).toHaveLength(BULK_REFUND_LIMIT + 1);
+  expect(candidates[BULK_REFUND_LIMIT]?.attendee.id).toBe(
+    firstAttendeeId(world),
+  );
+};
 
 /** Give the first charge a provider report that cannot be true. */
 export const contradictFirstPayment = (world: TicketsWorld): void => {
@@ -137,13 +181,11 @@ export const contradictFirstPayment = (world: TicketsWorld): void => {
 export const acknowledgeFirstPaymentReview = async (
   world: TicketsWorld,
 ): Promise<void> => {
-  const browser = await refundByTyping(
+  const browser = await sendRefundForm(
     world,
-    {
-      buttonText: "Refund Attendee",
-      page: `/admin/attendees/${firstAttendeeId(world)}/refund`,
-      typed: "One",
-    },
+    "attendee",
+    firstAttendeeId(world),
+    "One",
     refundCompletes,
   );
   expect(requiredWorldValue(world.refundCalls, "first refund calls")()).toBe(0);

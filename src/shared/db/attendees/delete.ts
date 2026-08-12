@@ -62,6 +62,7 @@ const CHECKOUT_STAGE_ROWS = {
 
 const DEPENDENT_ROW_TARGETS = [
   CHECKOUT_STAGE_ROWS,
+  { field: "attendee_id", table: "refund_confirmations" },
   { field: "attendee_id", table: "processed_payments" },
   { field: "attendee_id", table: "attendee_answers" },
   { field: "attendee_id", table: "listing_attendees" },
@@ -76,6 +77,18 @@ const dependentDeleteStatement = (
   sql: `DELETE FROM ${table} WHERE ${field} IN (${attendeeIds.sql})`,
 });
 
+const refundConfirmationReferenceDeleteStatement = (
+  attendeeIds: SqlStatement,
+): SqlStatement => ({
+  args: attendeeIds.args,
+  sql: `DELETE FROM refund_confirmation_references
+         WHERE confirmation_identity IN (
+           SELECT confirmation.identity
+             FROM refund_confirmations AS confirmation
+            WHERE confirmation.attendee_id IN (${attendeeIds.sql})
+         )`,
+});
+
 /** Delete checkout stages for one or many attendee ids. */
 export const checkoutStageDeleteStatement = (
   attendeeIds: SqlStatement,
@@ -85,6 +98,7 @@ export const checkoutStageDeleteStatement = (
 export const attendeeDependentDeleteStatements = (
   attendeeIds: SqlStatement,
 ): SqlStatement[] => [
+  refundConfirmationReferenceDeleteStatement(attendeeIds),
   ...DEPENDENT_ROW_TARGETS.map((target) =>
     dependentDeleteStatement(target, attendeeIds),
   ),

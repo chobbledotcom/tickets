@@ -13,6 +13,11 @@ type ReadinessRunResult =
   | { kind: "not_ready"; message: string }
   | { kind: "ready"; message: string };
 
+type ReadinessWork = Pick<
+  Parameters<typeof runRefundReadiness<ReadinessRunResult>>[0],
+  "prepare" | "ready"
+>;
+
 type Claimed = Extract<
   Awaited<ReturnType<RowClaim["claim"]>>,
   { kind: "claimed" }
@@ -27,20 +32,19 @@ const recordingClaim = (
       claim: () =>
         Promise.resolve({
           commandId: "test-command",
+          held: facts.held,
           heldSince: HELD_SINCE,
           inherited: new Map(),
           kind: "claimed",
           phases: new Map(
-            [...facts.held.values()].flat().map((sessionId) => [
-              sessionId,
-              "checking" as const,
-            ]),
+            [...facts.held.values()]
+              .flat()
+              .map((sessionId) => [sessionId, "checking" as const]),
           ),
           returned: new Set<string>(),
           reviews: facts.reviews,
           shared: facts.shared,
           unrecorded: new Map(),
-          held: facts.held,
         }),
       settle: (settlement) => {
         settlements.push(settlement);
@@ -50,6 +54,23 @@ const recordingClaim = (
     settlements,
   };
 };
+
+const runRefund = (
+  candidate: RefundCandidate,
+  claim: RowClaim,
+  work: ReadinessWork,
+) =>
+  runRefundReadiness<ReadinessRunResult>({
+    action: "refund",
+    candidates: [candidate],
+    changedMessage: "changed",
+    claim,
+    executionLimit: 1,
+    label: "Refund",
+    listingId: 7,
+    notReady: (message) => ({ kind: "not_ready", message }),
+    ...work,
+  });
 
 describe("admin refund shared-reference readiness", () => {
   const errors = setupErrorSpy();
@@ -91,14 +112,7 @@ describe("admin refund shared-reference readiness", () => {
     let prepared = false;
     let ran = false;
 
-    const result = await runRefundReadiness<ReadinessRunResult>({
-      action: "refund",
-      candidates: [candidate],
-      changedMessage: "changed",
-      claim: runClaim.claim,
-      label: "Refund",
-      listingId: 7,
-      notReady: (message) => ({ kind: "not_ready" as const, message }),
+    const result = await runRefund(candidate, runClaim.claim, {
       prepare: () => {
         prepared = true;
         return Promise.resolve({
@@ -108,7 +122,7 @@ describe("admin refund shared-reference readiness", () => {
       },
       ready: () => {
         ran = true;
-        return Promise.resolve({ kind: "ready" as const, message: "" });
+        return Promise.resolve({ kind: "ready", message: "" });
       },
     });
 
@@ -162,14 +176,7 @@ describe("admin refund shared-reference readiness", () => {
       shared: new Map(),
     });
 
-    const result = await runRefundReadiness<ReadinessRunResult>({
-      action: "refund",
-      candidates: [candidate],
-      changedMessage: "changed",
-      claim: runClaim.claim,
-      label: "Refund",
-      listingId: 7,
-      notReady: (message) => ({ kind: "not_ready", message }),
+    const result = await runRefund(candidate, runClaim.claim, {
       prepare: () =>
         Promise.resolve({
           indexes: [reference.index],

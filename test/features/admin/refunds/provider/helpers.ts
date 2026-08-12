@@ -1,5 +1,4 @@
 import { requiredMapValue, uniqueBy } from "#fp";
-import type { MarkReturnedReferences } from "#routes/admin/refunds/attempt.ts";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import {
   processRefundBatch,
@@ -37,10 +36,6 @@ export type RecordingProvider = ReadyRefundProvider & {
   reads: string[];
   refunds: string[];
   requests: RefundRequest[];
-};
-type Marker = {
-  mark: MarkReturnedReferences;
-  marked: string[];
 };
 export const finishedCounts = (result: RefundBatchResult): RefundCounts => {
   if (result.kind === "blocked") {
@@ -328,21 +323,6 @@ export const rowBackedCandidate = (
   attendee: { id: attendeeId } as RefundCandidate["attendee"],
   references: [rowBackedReference(reference, sessionId)],
 });
-
-export const collectingMarker = (): Marker => {
-  const marked: string[] = [];
-  return {
-    mark: (references: readonly RefundPaymentReference[]) => {
-      marked.push(...references.map((reference) => reference.reference));
-      return Promise.resolve();
-    },
-    marked,
-  };
-};
-
-export const throwMarker = (): never => {
-  throw new Error("marker write failed");
-};
 
 export const refs = (id: string, count: number): RefundCandidate =>
   candidate(

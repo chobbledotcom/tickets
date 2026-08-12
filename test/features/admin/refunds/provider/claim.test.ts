@@ -135,7 +135,6 @@ describe("admin refund provider > a reference already sent back", () => {
         untouched,
       ),
       7,
-      () => Promise.resolve(),
       authorizeEveryRefund("keyless"),
     );
 
@@ -414,8 +413,8 @@ describe("admin refund provider > one charge two attendees carry", () => {
   });
 });
 
-describe("admin refund provider > a run that dies holding money", () => {
-  test("keeps the hold and raises the failure, rather than swallowing it", async () => {
+describe("admin refund provider > a run that dies after a settled answer", () => {
+  test("releases the settled hold and raises the failure", async () => {
     const releases: string[] = [];
     const recordsRelease = holdingClaim(() => {
       releases.push("released");
@@ -435,6 +434,6 @@ describe("admin refund provider > a run that dies holding money", () => {
       ),
     ).rejects.toThrow("the ledger fell over");
 
-    expect(releases).toEqual([]);
+    expect(releases).toEqual(["released"]);
   });
 });

@@ -15,7 +15,7 @@ Feature: An organiser refunds everyone on a listing
 
     @case:bulk-refund.one-fails-the-rest-succeed
     Scenario: The provider turns down one of three refunds
-      Given three people each paid 50.00 for a Tour place
+      Given 3 people each paid 50.00 for a Tour place
       When the organiser refunds everyone and the provider turns down the second
       Then the organiser is told 2 refunds worked and 1 failed
       And the two who were refunded have their money back
@@ -29,13 +29,14 @@ Feature: An organiser refunds everyone on a listing
     review to be resolved through the payment refresh process before sending
     any money.
 
-    @case:bulk-refund.acknowledged-review-stops-every-send
-    Scenario: A corrected provider report does not bypass an acknowledged review
-      Given three people each paid 50.00 for a Tour place
+    @case:bulk-refund.review-beyond-first-batch-stops-every-send
+    Scenario: A reviewed payment beyond the first batch stops every send
+      Given 6 people each paid 50.00 for a Tour place
+      And the first payment is beyond Refund All's first group of refunds
       And the provider reports returning more than it took on the first payment
       And the owner tried the first refund and acknowledged its review
       And the provider corrects the first payment to show no refund
       When the organiser tries to refund everyone
       Then Refund All stops before asking the provider to return money
-      And all three people still have their payments
-      And the Tour has earned 150.00
+      And all 6 people still have their payments
+      And the Tour has earned 300.00

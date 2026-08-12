@@ -50,6 +50,11 @@ export const confirmRefund = async (
     refund.references,
     ({ index }) => index,
   );
+  const warningIndexes = sortStrings(
+    unique(
+      refund.references.flatMap((reference) => [...reference.matchingIndexes]),
+    ),
+  );
   const target = attendeeNotes(refund.attendee.id);
   const tag = activityTag(references);
   const confirmation = t("note.placeholder_refund_confirmed");
@@ -79,17 +84,12 @@ export const confirmRefund = async (
       attendeeId: refund.attendee.id,
       referenceIndexes,
     });
+    await deleteNamedSystemNotes(target, "refund_warning", warningIndexes, tx);
     if (written.kind === "current") return "current";
     await logActivity(
       `Payment marked as refunded for attendee '${refund.attendee.name}'; ${tag}`,
       refund.listingId,
       refund.attendee.id,
-      tx,
-    );
-    await deleteNamedSystemNotes(
-      target,
-      "refund_warning",
-      referenceIndexes,
       tx,
     );
     if (refund.paymentOnly) {

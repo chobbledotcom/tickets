@@ -106,7 +106,7 @@ describe("db > migrations > schema change guard", () => {
         "2026-08-10_payment_state_columns",
         "2026-08-12_refund_confirmations",
       ],
-      schemaHash: "t7upy6",
+      schemaHash: "9qzksm",
     });
   });
 

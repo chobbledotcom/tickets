@@ -1,129 +1,22 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { confirmRefund } from "#routes/admin/refunds/confirmation.ts";
-import { execute, queryOne } from "#shared/db/client.ts";
+import { execute, queryAll, queryOne } from "#shared/db/client.ts";
 import {
   createNamedSystemNote,
   createSystemNote,
   getNotesFor,
 } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
-import { bindPaymentReferenceProviders } from "#shared/db/payment-reference-provider.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
-import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import {
-  claimCurrentAttendeeRows,
-  releaseClaimRows,
-} from "#test-utils/payment-claim.ts";
-import {
-  bookedWithPayment,
-  finalizeProcessedPayment,
-  refundReferencesFor,
-  taggedPaymentReference,
-} from "#test-utils/processed-payments.ts";
+import { releaseClaimRows } from "#test-utils/payment-claim.ts";
 import { withTestSession } from "#test-utils/session.ts";
-
-type PaymentFixture = { paymentReference: string; sessionId: string };
-
-const DEFAULT_PAYMENT: PaymentFixture = {
-  paymentReference: "pi_confirm_refund",
-  sessionId: "sess-confirm-refund",
-};
-
-const setup = async (
-  payments: readonly PaymentFixture[] = [DEFAULT_PAYMENT],
-) => {
-  const [first, ...later] = payments;
-  if (first === undefined) {
-    throw new Error("confirmation setup needs a payment");
-  }
-  const attendeeId = await bookedWithPayment(
-    first.sessionId,
-    first.paymentReference,
-  );
-  await Promise.all(
-    later.map((payment) =>
-      finalizeProcessedPayment(
-        payment.sessionId,
-        attendeeId,
-        `tok-${payment.sessionId}`,
-        taggedPaymentReference(payment.paymentReference),
-      ),
-    ),
-  );
-  const privateKey = await getTestPrivateKey();
-  const loaded = await refundReferencesFor(attendeeId, privateKey);
-  if (loaded === undefined) throw new Error("payment references were omitted");
-  const references = loaded.map((reference) => {
-    if (reference.kind !== "tagged") {
-      throw new Error("an untagged payment reference was loaded");
-    }
-    return reference;
-  });
-  const [reference] = references;
-  if (reference === undefined) {
-    throw new Error("no payment reference was found");
-  }
-  const claimed = await claimCurrentAttendeeRows([attendeeId]);
-  if (claimed.kind !== "claimed") throw new Error("the claim was refused");
-  const claim = {
-    commandId: claimed.commandId,
-    held: claimed.held,
-    heldSince: claimed.heldSince,
-    phases: new Map(
-      [...claimed.phases].map(([sessionId]) => [
-        sessionId,
-        "ready" as const,
-      ]),
-    ),
-  };
-  const bound = await bindPaymentReferenceProviders({
-    bindings: new Map(
-      references.map((boundReference) => [
-        boundReference.index,
-        {
-          capability: "keyed" as const,
-          identity: {
-            kind: "tagged" as const,
-            provider: boundReference.provider,
-            reference: boundReference.reference,
-          },
-        },
-      ]),
-    ),
-    ...claim,
-  });
-  if (bound.kind !== "bound") throw new Error("the provider was not bound");
-  const booking = await queryOne<{ listing_id: number }>(
-    `SELECT listingAttendee.listing_id
-       FROM listing_attendees AS listingAttendee
-      WHERE listingAttendee.attendee_id = ?`,
-    [attendeeId],
-  );
-  if (booking === null) throw new Error("the attendee booking was not found");
-  return {
-    attendee: { id: attendeeId, name: "Buyer" },
-    claim,
-    listingId: booking.listing_id,
-    paymentOnly: true,
-    privateKey,
-    reference,
-    references,
-    sessionId: first.sessionId,
-  };
-};
-
-const confirmationCount = async (attendeeId: number): Promise<number> => {
-  const row = await queryOne<{ count: number }>(
-    `SELECT COUNT(*) AS count
-       FROM refund_confirmations AS confirmation
-      WHERE confirmation.attendee_id = ?`,
-    [attendeeId],
-  );
-  if (row === null) throw new Error("refund confirmation count was not found");
-  return row.count;
-};
+import {
+  confirmationCount,
+  DEFAULT_PAYMENT,
+  setupConfirmation as setup,
+} from "./confirmation-fixture.ts";
 
 describeWithEnv("admin refunds > confirmation", { db: true }, () => {
   test("rejects a confirmation with no returned payment", async () => {
@@ -227,6 +120,25 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
     expect(results.sort()).toEqual(["current", "new"]);
     expect(await confirmationCount(refund.attendee.id)).toBe(1);
     expect(
+      await queryAll<{ reference_index: string }>(
+        `SELECT reference.reference_index
+           FROM refund_confirmation_references AS reference
+           JOIN refund_confirmations AS confirmation
+             ON confirmation.identity = reference.confirmation_identity
+          WHERE confirmation.attendee_id = ?
+          ORDER BY reference.reference_index`,
+        [refund.attendee.id],
+      ),
+    ).toEqual(
+      refund.references
+        .map((reference) => ({
+          reference_index: reference.index,
+        }))
+        .sort((left, right) =>
+          left.reference_index.localeCompare(right.reference_index),
+        ),
+    );
+    expect(
       (await getAttendeeActivityLog(refund.attendee.id)).filter((entry) =>
         entry.message.includes("Payment marked as refunded"),
       ),
@@ -236,6 +148,32 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
         await getNotesFor(attendeeNotes(refund.attendee.id), refund.privateKey)
       ).filter((note) => note.note.includes("Refund confirmed")),
     ).toHaveLength(1);
+  });
+
+  test("a replay retires a warning that appeared after confirmation", async () => {
+    const refund = await setup();
+    const target = attendeeNotes(refund.attendee.id);
+    expect(
+      await withTestSession(() =>
+        confirmRefund({ ...refund, references: [refund.reference] }),
+      ),
+    ).toBe("new");
+    await createNamedSystemNote(
+      target,
+      "This payment could NOT be refunded automatically.",
+      { key: refund.reference.index, purpose: "refund_warning" },
+    );
+
+    expect(
+      await withTestSession(() =>
+        confirmRefund({ ...refund, references: [refund.reference] }),
+      ),
+    ).toBe("current");
+    expect(
+      (await getNotesFor(target, refund.privateKey)).some((note) =>
+        note.note.includes("could NOT be refunded"),
+      ),
+    ).toBe(false);
   });
 
   test("rolls the replay identity and every visible effect back together", async () => {
@@ -261,6 +199,11 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
     ).rejects.toThrow("activity write failed");
 
     expect(await confirmationCount(refund.attendee.id)).toBe(0);
+    expect(
+      await queryOne<{ count: number }>(
+        "SELECT COUNT(*) AS count FROM refund_confirmation_references",
+      ),
+    ).toEqual({ count: 0 });
     expect(await getAttendeeActivityLog(refund.attendee.id)).toEqual([]);
     expect(
       (await getNotesFor(target, refund.privateKey)).map((note) => note.note),

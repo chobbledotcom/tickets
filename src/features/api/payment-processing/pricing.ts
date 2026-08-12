@@ -2,20 +2,21 @@
  * Turn validated items into a checkout intent, re-price it, and decide whether a
  * trusted session's *current* prices still match what was charged — the last
  * gate before a signed order is honoured. A mismatch here (a listing, modifier,
- * or answer price edited between checkout and now) yields a {@link RefundSpec},
+ * or answer price edited between checkout and now) yields a
+ * {@link PlaceholderRefund},
  * so the booking is stored and refunded rather than completed.
  */
 
 import { sumOf } from "#fp";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
-import {
-  type RefundSpec,
-  refundSpec,
-} from "#routes/api/payment-processing/refunds.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import { contactFields } from "#shared/db/attendees/pii.ts";
+import {
+  type PlaceholderRefund,
+  placeholderRefund,
+} from "#shared/payment/placeholder-refund.ts";
 import type {
   CheckoutIntent,
   CheckoutItem,
@@ -104,14 +105,14 @@ export const paidPricingRefund = (
   validatedItems: ValidatedItem[],
   pricedOrder: PricedOrder,
   agreed: number,
-): RefundSpec | null => {
+): PlaceholderRefund | null => {
   // Fail closed first: a `null` expected price means a package line is no longer
   // a valid member (package deleted/unflagged or the listing removed). This is
   // checked for every item regardless of price, so even a free package member
   // refunds rather than completing.
   for (const { listing, expectedPrice } of validatedItems) {
     if (expectedPrice === null) {
-      return refundSpec("price_changed")(
+      return placeholderRefund("price_changed")(
         `Package member listing ${listing.id} is no longer part of its package`,
       );
     }
@@ -126,13 +127,13 @@ export const paidPricingRefund = (
   // mismatches. expectedPrice is non-null by the fail-closed loop above.
   for (const { item, listing, expectedPrice } of validatedItems) {
     if (hasPriceMismatch(item.p, expectedPrice!, listing, 0, item.q)) {
-      return refundSpec("price_changed")(
+      return placeholderRefund("price_changed")(
         `Per-item price mismatch for listing ${listing.id}: metadata p=${item.p} but expected ${expectedPrice} (can_pay_more=${listing.can_pay_more})`,
       );
     }
   }
   if (pricedOrder.total !== agreed) {
-    return refundSpec("price_changed")(
+    return placeholderRefund("price_changed")(
       `Re-derived total ${pricedOrder.total} differs from signed total ${agreed}`,
     );
   }

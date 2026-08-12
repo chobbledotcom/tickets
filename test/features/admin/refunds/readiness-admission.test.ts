@@ -4,11 +4,11 @@ import type { RowClaim } from "#routes/admin/refunds/claim.ts";
 import { runRefundReadiness } from "#routes/admin/refunds/readiness-run.ts";
 import type { RowSettlement } from "#shared/db/payment-claim.ts";
 import type { PaymentReviewReason } from "#shared/payment/review.ts";
-import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import {
   candidate,
   untagged,
 } from "#test/features/admin/refunds/readiness/helpers.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 
 const ATTENDEE_ID = 23;
 const COMMAND_ID = "admission-command";
@@ -29,9 +29,7 @@ const SAFETY_STATES = [
     name: "owner review",
     refundMessage:
       "This payment still needs owner review. Refresh or correct the payment evidence before another refund.",
-    reviews: new Map([
-      [ROW_SESSION_ID, { kind: "partial_refund" } as const],
-    ]),
+    reviews: new Map([[ROW_SESSION_ID, { kind: "partial_refund" } as const]]),
     unrecorded: new Map(),
   },
   {
@@ -80,10 +78,12 @@ const runFor = async (
   state: SafetyState,
 ): Promise<{
   readonly calls: { readonly prepare: number; readonly ready: number };
-  readonly result: RunResult | {
-    kind: "blocked";
-    reason: "refund_in_progress";
-  };
+  readonly result:
+    | RunResult
+    | {
+        kind: "blocked";
+        reason: "refund_in_progress";
+      };
   readonly settlements: RowSettlement[];
 }> => {
   const recorded = recordingClaim(state);
@@ -93,6 +93,7 @@ const runFor = async (
     candidates: [CANDIDATE],
     changedMessage: "the loaded payment changed",
     claim: recorded.claim,
+    executionLimit: 1,
     label: action === "refund" ? "Refund" : "Refresh",
     listingId: 7,
     notReady: (message) => ({ kind: "not_ready", message }),
@@ -116,15 +117,13 @@ const releasedWithoutChangingSafetyState = (
 ): RowSettlement => ({
   commandId: COMMAND_ID,
   heldSince: HELD_SINCE,
-  rows: new Map([
-    [ROW_SESSION_ID, { claim: "release", phase }],
-  ]),
+  rows: new Map([[ROW_SESSION_ID, { claim: "release", phase }]]),
 });
 
 describe("refund readiness action admission", () => {
   const errors = setupErrorSpy();
 
-  SAFETY_STATES.forEach((state) => {
+  for (const state of SAFETY_STATES) {
     test(`a refund stops before preparation for ${state.name}`, async () => {
       const run = await runFor("refund", state);
 
@@ -156,5 +155,5 @@ describe("refund readiness action admission", () => {
       ]);
       expect(errors.calls).toEqual([]);
     });
-  });
+  }
 });

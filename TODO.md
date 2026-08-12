@@ -2200,9 +2200,11 @@ were.
 `claimAttendeeRows` expands a claim to every row carrying the reference, and
 `runRefundReadiness` writes an exact `shared_reference` review marker and stops
 before provider or ledger I/O. One payout cannot be reversed once per holder.
-The current owner action is only an acknowledgement: it clears the marker but
-records no allocation, so an unchanged shared representation parks again on the
-next refund attempt.
+The current owner action is only an acknowledgement: it stamps `acknowledgedAt`
+on the exact review case while preserving the marker and its safety hold. It
+records no allocation, so an unchanged shared representation stays blocked; the
+marker retires only when a later indexed claim proves the representation is
+unique.
 
 Build the approved closure from `PR4_PLAN.md`: stable booking obligations plus a
 revision-fenced allocation whose positive Money parts share the charge currency

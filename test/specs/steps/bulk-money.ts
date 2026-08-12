@@ -8,6 +8,7 @@ import {
   contradictFirstPayment,
   correctFirstPayment,
   everyoneRefunded,
+  firstPaymentIsOutsideFirstRefundBatch,
   paidPlaceEach,
   payMoreListing,
   payYourOwnPrice,
@@ -32,17 +33,30 @@ import {
 // jscpd:ignore-end
 
 Given(
-  "three people each paid {word} for a {word} place",
+  "{int} people each paid {word} for a {word} place",
   async function (
     this: TicketsWorld,
+    count: number,
     price: string,
     listing: string,
   ): Promise<void> {
-    await paidPlaceEach(this, listing, price, ["One", "Two", "Three"]);
-    // The premise the rest of the story rests on: all three sales counted.
-    expect(await incomeOf(listingIdNamed(this, listing))).toBe(
-      3 * minorUnits(price),
+    const people = ["One", "Two", "Three", "Four", "Five", "Six"].slice(
+      0,
+      count,
     );
+    expect(people).toHaveLength(count);
+    await paidPlaceEach(this, listing, price, people);
+    // The premise the rest of the story rests on: every sale counted.
+    expect(await incomeOf(listingIdNamed(this, listing))).toBe(
+      count * minorUnits(price),
+    );
+  },
+);
+
+Given(
+  "the first payment is beyond Refund All's first group of refunds",
+  function (this: TicketsWorld): Promise<void> {
+    return firstPaymentIsOutsideFirstRefundBatch(this);
   },
 );
 
@@ -92,13 +106,13 @@ Then(
 );
 
 Then(
-  "all three people still have their payments",
-  async function (this: TicketsWorld): Promise<void> {
+  "all {int} people still have their payments",
+  async function (this: TicketsWorld, count: number): Promise<void> {
     const attendeeIds = requiredWorldValue(
       this.attendeeIds,
       "the people who paid",
     );
-    expect(attendeeIds).toHaveLength(3);
+    expect(attendeeIds).toHaveLength(count);
     for (const attendeeId of attendeeIds) {
       expect(await attendeeLegsOfKind(attendeeId, "payment")).toHaveLength(1);
       expect(await attendeeLegsOfKind(attendeeId, "refund_cash")).toEqual([]);

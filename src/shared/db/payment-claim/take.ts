@@ -15,6 +15,7 @@ import {
   asPaymentRowRecord,
   type PaymentRowRecord,
   paymentRowStateStatement,
+  paymentRowsWith,
   readPaymentClaimRows,
   type StoredPaymentClaimRow,
 } from "#shared/db/payment-claim.ts";
@@ -106,9 +107,9 @@ const readClaimableRows = async (
 }> => {
   const own = await readPaymentClaimRows(
     tx,
-    `attendee_id IN (${inPlaceholders(
-      attendeeIds,
-    )}) AND payment_reference != ''`,
+    `attendee_id IN (${inPlaceholders(attendeeIds)})
+       AND payment_reference != ''
+       AND payment_reference_index != ''`,
     [...attendeeIds],
   );
   const indexes = [...new Set(matchingIndexes)].filter((index) => index !== "");
@@ -337,11 +338,10 @@ export const claimAttendeeRows = async (
           .map((row) => row.payment_reference_index),
       ),
       reviews: new Map(
-        rows.flatMap((row) =>
-          row.state.review === undefined
-            ? []
-            : [[row.sessionId, row.state.review.reason] as const],
-        ),
+        paymentRowsWith(rows, ({ review }) => review).map(({ row, value }) => [
+          row.sessionId,
+          value.reason,
+        ]),
       ),
       shared: sharedRepresentations(attendees, storedRows),
       unrecorded: new Map(

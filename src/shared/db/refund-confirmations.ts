@@ -38,21 +38,33 @@ export const insertRefundConfirmation = async (
   transaction: TxScope,
   input: RefundConfirmationInput,
 ): Promise<RefundConfirmationWrite> => {
+  const referenceIndexes = canonicalReferenceIndexes(input.referenceIndexes);
   const identity = await confirmationIdentity(
     input.attendeeId,
-    input.referenceIndexes,
+    referenceIndexes,
   );
-  const result = await transaction.execute({
-    args: [identity, input.attendeeId, nowIso()],
-    sql: `INSERT OR IGNORE INTO refund_confirmations
-            (identity, attendee_id, created)
-          VALUES (?, ?, ?)
-          RETURNING identity`,
-  });
+  const [confirmationResult] = await transaction.batch([
+    {
+      args: [identity, input.attendeeId, nowIso()],
+      sql: `INSERT OR IGNORE INTO refund_confirmations
+              (identity, attendee_id, created)
+            VALUES (?, ?, ?)
+            RETURNING identity`,
+    },
+    ...referenceIndexes.map((referenceIndex) => ({
+      args: [identity, referenceIndex],
+      sql: `INSERT OR IGNORE INTO refund_confirmation_references
+              (confirmation_identity, reference_index)
+            VALUES (?, ?)`,
+    })),
+  ]);
+  if (confirmationResult === undefined) {
+    throw new Error("Refund confirmation write returned no result");
+  }
   return {
     identity,
     kind:
-      resultRows<RefundConfirmationRow>(result).length === 0
+      resultRows<RefundConfirmationRow>(confirmationResult).length === 0
         ? "current"
         : "new",
   };

@@ -84,15 +84,6 @@ const AttendeeDetails = ({
   );
 };
 
-/** Shared ConfirmPage shell for attendee action pages: each wraps an
- *  {@link AttendeeDetails} body in a ConfirmPage with
- *  the same active/label/name/returnUrl/warning structure. Only the action,
- *  title, button text, confirm message, and body children differ — those are
- *  passed via the config. The `warning` paragraph wraps a `<strong>` prefix
- *  (e.g. "Warning:") followed by the caller's text. */
-/** Config object passed to {@link attendeeConfirmPage} (and built by
- *  {@link attendeeRouteConfirm}). The caller supplies everything except the
- *  `action` URL — the route factory injects that from its `segment` arg. */
 type AttendeeConfirmConfig = {
   action: string;
   body?: JSX.Element;
@@ -107,8 +98,6 @@ type AttendeeConfirmConfig = {
   warningText: string;
 };
 
-// Calls ConfirmPage directly: the extra returnUrl argument doesn't fit the
-// (entity, session, error?) shape entityDeletePage builds.
 const attendeeConfirmPage = (
   attendee: Attendee,
   session: AdminSession,
@@ -146,24 +135,34 @@ const attendeeConfirmPage = (
       </p>
     ),
   });
-/** Build an attendee confirm-page renderer for a single action. The action
- *  pages share this signature, differing only in
- *  the route `segment` and the {@link attendeeConfirmPage} config. The
- *  wrapping `({ attendee }: {...}, session, returnUrl?, error?) => attendeeConfirmPage(...)`
- *  boilerplate was duplicated enough to trip jscpd; this factory keeps it in
- *  one place. */
+type AttendeeConfirmData = { attendee: Attendee };
+
+type AttendeeConfirmChanges<Data extends AttendeeConfirmData> = (
+  data: Data,
+) => Partial<Omit<AttendeeConfirmConfig, "action">>;
+
+const noAttendeeConfirmChanges = (): Record<never, never> => ({});
+
+/** Build every attendee confirmation from its fixed facts and current data. */
 const attendeeRouteConfirm =
-  (segment: string, config: Omit<AttendeeConfirmConfig, "action">) =>
+  <Data extends AttendeeConfirmData = AttendeeConfirmData>(
+    segment: string,
+    config: Omit<AttendeeConfirmConfig, "action">,
+    changes: AttendeeConfirmChanges<Data> = noAttendeeConfirmChanges,
+  ) =>
   (
-    { attendee }: { attendee: Attendee },
+    data: Data,
     session: AdminSession,
     returnUrl?: string,
     error?: string,
-  ): string =>
-    attendeeConfirmPage(attendee, session, error, returnUrl, {
+  ): string => {
+    const { attendee } = data;
+    return attendeeConfirmPage(attendee, session, error, returnUrl, {
       ...config,
+      ...changes(data),
       action: `/admin/attendees/${attendee.id}/${segment}`,
     });
+  };
 
 /**
  * Admin delete attendee confirmation page
@@ -223,22 +222,22 @@ const paymentReviewConfirm = {
   warningText: t("admin.attendees.payment_review_warning"),
 } satisfies Omit<AttendeeConfirmConfig, "action">;
 
+type PaymentReviewConfirmData = AttendeeConfirmData & {
+  reviewIdentity: string | null;
+};
+
 /** Render the exact review case loaded with the attendee action. */
-export const adminPaymentReviewPage = (
-  attendee: Attendee,
-  reviewIdentity: string | null,
-  session: AdminSession,
-  returnUrl?: string,
-  error?: string,
-): string =>
-  attendeeConfirmPage(attendee, session, error, returnUrl, {
-    ...paymentReviewConfirm,
-    action: `/admin/attendees/${attendee.id}/payment-review`,
-    disabled: reviewIdentity === null,
-    ...(reviewIdentity === null
-      ? {}
-      : { hiddenFields: { review_identity: reviewIdentity } }),
-  });
+export const adminPaymentReviewPage =
+  attendeeRouteConfirm<PaymentReviewConfirmData>(
+    "payment-review",
+    paymentReviewConfirm,
+    ({ reviewIdentity }) => ({
+      disabled: reviewIdentity === null,
+      ...(reviewIdentity === null
+        ? {}
+        : { hiddenFields: { review_identity: reviewIdentity } }),
+    }),
+  );
 
 /**
  * Admin re-send notification confirmation page

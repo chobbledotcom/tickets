@@ -9,6 +9,7 @@ import {
   loadAttendeeRowStates,
   type PaymentRowRecord,
   paymentRowStateStatement,
+  paymentRowsWith,
   readAttendeeRowStates,
 } from "#shared/db/payment-claim.ts";
 import { nowIso } from "#shared/now.ts";
@@ -83,11 +84,10 @@ type ReviewRow = {
 };
 
 const reviewRows = (rows: readonly PaymentRowRecord[]): ReviewRow[] =>
-  rows.flatMap((row) =>
-    row.state.review === undefined
-      ? []
-      : [{ review: row.state.review, row }],
-  );
+  paymentRowsWith(rows, ({ review }) => review).map(({ row, value }) => ({
+    review: value,
+    row,
+  }));
 
 /** The form names the complete exact review set, without exposing its facts. */
 const reviewIdentity = (reviews: readonly ReviewRow[]): Promise<string> => {
@@ -96,7 +96,7 @@ const reviewIdentity = (reviews: readonly ReviewRow[]): Promise<string> => {
   }
   const facts = sortStrings(
     reviews.map(({ review, row }) =>
-      JSON.stringify([row.sessionId, review.caseId, review.reason])
+      JSON.stringify([row.sessionId, review.caseId, review.reason]),
     ),
   );
   return hmacHash(`payment-review:1:${JSON.stringify(facts)}`);
@@ -134,7 +134,9 @@ const acknowledgedState = (
   acknowledgedAt: string,
 ): PaymentRowState => {
   if (row.state.review === undefined) {
-    throw new Error(`Payment row ${row.sessionId} has no review to acknowledge`);
+    throw new Error(
+      `Payment row ${row.sessionId} has no review to acknowledge`,
+    );
   }
   return {
     ...row.state,
@@ -183,11 +185,6 @@ export const acknowledgeCurrentPaymentReview = (
       changing.map(({ row }) => row),
       results.map((result) => result.rowsAffected),
     );
-    await logActivity(
-      REVIEW_ACTIVITY,
-      input.listingId,
-      input.attendeeId,
-      tx,
-    );
+    await logActivity(REVIEW_ACTIVITY, input.listingId, input.attendeeId, tx);
     return { kind: "acknowledged" };
   });

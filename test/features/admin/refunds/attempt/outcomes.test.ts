@@ -7,12 +7,10 @@ import {
 import { PROVIDER_REFUND_CONCURRENCY } from "#routes/admin/refunds/provider-requests.ts";
 import { authorizeEveryRefund } from "#test/features/admin/refunds/provider/dispatch-helpers.ts";
 import {
-  collectingMarker,
   completedRefund,
   provider,
   readyCandidate,
   readyCandidateWithReferences,
-  throwMarker,
 } from "#test/features/admin/refunds/provider/helpers.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import {
@@ -29,12 +27,10 @@ describe("admin refund provider", () => {
   test("sends the exact charge readiness already observed", async () => {
     const source = provider({ refunded: new Set(["pi_exact"]) });
     const observed = chargeMoney(731, 0, "GBP");
-    const marker = collectingMarker();
 
     const result = await refundReadyCandidate(
       readyCandidate([{ charge: observed, reference: "pi_exact" }], source),
       7,
-      marker.mark,
       authorizeEveryRefund(),
     );
 
@@ -42,7 +38,6 @@ describe("admin refund provider", () => {
     expect(source.requests).toHaveLength(1);
     expect(source.requests[0]?.charge).toBe(observed);
     expect(result.outcome).toBe("refunded");
-    expect(marker.marked).toEqual(["pi_exact"]);
     expect(result.returned[0]).toMatchObject({
       kind: "tagged",
       provider: "stripe",
@@ -52,18 +47,16 @@ describe("admin refund provider", () => {
 
   test("reports an accepted refund as pending, not failed", async () => {
     const source = provider({ accepted: new Set(["pi_pending"]) });
-    const marker = collectingMarker();
 
     const result = await refundReadyCandidate(
       readyCandidateWithReferences(["pi_pending"], source),
       7,
-      marker.mark,
       authorizeEveryRefund(),
     );
 
     expect(result.outcome).toBe("pending");
     expect(result.doubt).toBe("in_doubt");
-    expect(marker.marked).toEqual([]);
+    expect(result.returned).toEqual([]);
     expect(errors.calls).toHaveLength(0);
   });
 
@@ -81,7 +74,6 @@ describe("admin refund provider", () => {
       const source = provider({
         refunded: new Set(["pi_clean_a", "pi_clean_b"]),
       });
-      const marker = collectingMarker();
       const result = await refundReadyCandidate(
         readyCandidate(
           [
@@ -92,50 +84,49 @@ describe("admin refund provider", () => {
           source,
         ),
         7,
-        marker.mark,
         authorizeEveryRefund(),
       );
 
       expect(source.refunds).toEqual([]);
-      expect(marker.marked).toEqual([]);
+      expect(result.returned).toEqual([]);
       expect(result.outcome).toBe(outcome);
     });
   }
 
   test("answers an already-returned reference without provider IO", async () => {
     const source = provider();
-    const marker = collectingMarker();
     const result = await refundReadyCandidate(
       readyCandidate(
         [{ kind: "already_returned", reference: "pi_pre" }],
         source,
       ),
       7,
-      marker.mark,
       authorizeEveryRefund(),
     );
 
     expect([...source.reads, ...source.refunds]).toEqual([]);
     expect(result.outcome).toBe("refunded");
-    expect(marker.marked).toEqual(["pi_pre"]);
+    expect(result.returned.map(({ reference }) => reference)).toEqual([
+      "pi_pre",
+    ]);
   });
 
   test("does not send when the exact observation says money is back", async () => {
     const source = provider();
-    const marker = collectingMarker();
     const result = await refundReadyCandidate(
       readyCandidate(
         [{ charge: fullyRefundedMoney(), reference: "pi_seen" }],
         source,
       ),
       7,
-      marker.mark,
       authorizeEveryRefund(),
     );
 
     expect(source.refunds).toEqual([]);
     expect(result.outcome).toBe("refunded");
-    expect(marker.marked).toEqual(["pi_seen"]);
+    expect(result.returned.map(({ reference }) => reference)).toEqual([
+      "pi_seen",
+    ]);
   });
 
   test("fails and logs when the provider rejects the refund", async () => {
@@ -143,7 +134,6 @@ describe("admin refund provider", () => {
     const result = await refundReadyCandidate(
       readyCandidateWithReferences(["pi_no"], source),
       7,
-      collectingMarker().mark,
       authorizeEveryRefund(),
     );
 
@@ -158,17 +148,15 @@ describe("admin refund provider", () => {
       refund: () =>
         Promise.resolve({ kind: "not_sent", reason: "not_configured" }),
     });
-    const marker = collectingMarker();
     const result = await refundReadyCandidate(
       readyCandidateWithReferences(["pi_not_sent"], source),
       7,
-      marker.mark,
       authorizeEveryRefund(),
     );
 
     expect(result.outcome).toBe("withheld");
     expect(result.doubt).toBeUndefined();
-    expect(marker.marked).toEqual([]);
+    expect(result.returned).toEqual([]);
     expect(errors.calls).toHaveLength(0);
   });
 
@@ -177,7 +165,6 @@ describe("admin refund provider", () => {
     const result = await refundReadyCandidate(
       readyCandidateWithReferences(["pi_boom"], source),
       7,
-      collectingMarker().mark,
       authorizeEveryRefund(),
     );
 
@@ -187,18 +174,18 @@ describe("admin refund provider", () => {
     );
   });
 
-  test("marks only the references whose provider refund completed", async () => {
+  test("returns only the references whose provider refund completed", async () => {
     const source = provider({ refunded: new Set(["pi_ok"]) });
-    const marker = collectingMarker();
     const result = await refundReadyCandidate(
       readyCandidateWithReferences(["pi_ok", "pi_bad"], source),
       7,
-      marker.mark,
       authorizeEveryRefund(),
     );
 
     expect(result.outcome).toBe("failed");
-    expect(marker.marked).toEqual(["pi_ok"]);
+    expect(result.returned.map(({ reference }) => reference)).toEqual([
+      "pi_ok",
+    ]);
     expect(
       errors.contains(
         "Admin refund did not complete every payment for attendee 42",
@@ -211,7 +198,6 @@ describe("admin refund provider", () => {
     const result = await refundReadyCandidate(
       readyCandidateWithReferences(["pi_solo"], source),
       7,
-      collectingMarker().mark,
       authorizeEveryRefund(),
     );
 
@@ -226,16 +212,16 @@ describe("admin refund provider", () => {
   test("refunds every reference across concurrency chunks", async () => {
     const references = Array.from({ length: 7 }, (_, index) => `pi_${index}`);
     const source = provider({ refunded: new Set(references) });
-    const marker = collectingMarker();
     const result = await refundReadyCandidate(
       readyCandidateWithReferences(references, source),
       7,
-      marker.mark,
       authorizeEveryRefund(),
     );
 
     expect(result.outcome).toBe("refunded");
-    expect(marker.marked.sort()).toEqual([...references].sort());
+    expect(result.returned.map(({ reference }) => reference).sort()).toEqual(
+      [...references].sort(),
+    );
     expect(
       errors.contains(
         "Admin refund did not complete every payment for attendee 42",
@@ -263,7 +249,6 @@ describe("admin refund provider", () => {
     const refund = refundReadyCandidate(
       readyCandidateWithReferences(references, source),
       7,
-      collectingMarker().mark,
       authorizeEveryRefund(),
     );
     await firstWaveStarted.promise;
@@ -281,7 +266,6 @@ describe("admin refund provider", () => {
         refundReadyCandidate(
           readyCandidateWithReferences(["pi_shared"], source, attendeeId),
           7,
-          () => Promise.resolve(),
           authorizeEveryRefund(),
           inFlight,
         ),
@@ -311,7 +295,6 @@ describe("admin refund provider", () => {
         stripe,
       ),
       7,
-      collectingMarker().mark,
       authorizeEveryRefund(),
     );
 
@@ -330,16 +313,12 @@ describe("admin refund provider", () => {
     const index = candidate.references[0]?.reference.index;
     if (index === undefined) throw new Error("the ready reference was missing");
 
-    const observed = await refundReadyCandidate(
-      candidate,
-      7,
-      collectingMarker().mark,
-      () =>
-        Promise.resolve({
-          indexes: [index],
-          kind: "owner_review",
-          reason: "uncertain_keyless_refund",
-        }),
+    const observed = await refundReadyCandidate(candidate, 7, () =>
+      Promise.resolve({
+        indexes: [index],
+        kind: "owner_review",
+        reason: "uncertain_keyless_refund",
+      }),
     );
     expect(observed).toMatchObject({
       outcome: "withheld",
@@ -350,31 +329,9 @@ describe("admin refund provider", () => {
     const sent = await refundReadyCandidate(
       candidate,
       7,
-      collectingMarker().mark,
       authorizeEveryRefund(),
     );
     expect(sent.outcome).toBe("refunded");
     expect(source.refunds).toEqual(["pi_observe"]);
   });
-
-  for (const [name, references, expected] of [
-    ["complete", ["pi_done"], "refunded"],
-    ["partial", ["pi_done", "pi_failed"], "errored"],
-  ] as const) {
-    test(`keeps a ${name} result when recording its marker fails`, async () => {
-      const source = provider({ refunded: new Set(["pi_done"]) });
-      const result = await refundReadyCandidate(
-        readyCandidateWithReferences([...references], source),
-        7,
-        throwMarker,
-        authorizeEveryRefund(),
-      );
-
-      expect(result.outcome).toBe(expected);
-      expect(result.doubt).toBe("in_doubt");
-      expect(errors.lastMessage()).toContain(
-        "could not record returned payments for attendee 42",
-      );
-    });
-  }
 });
