@@ -45,6 +45,22 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
 
       expect(html).toContain("This group has no listings");
     });
+
+    test("renders the duplicate form with listing preview data", async () => {
+      // Sits beside the Cucumber story `catalogue.copy-a-group-of-listings`,
+      // which opens the form and submits it. The story exercises the GET route
+      // indirectly, but `fillInAndSend` reads fields by name — so a regression
+      // that stopped rendering the preview section (while the form fields still
+      // sent) would pass the story. This GET test pins the route's duty to load
+      // the group's members and pass them to the template.
+      const group = await createTestGroup({ name: "Original" });
+      await createTestListing({ groupId: group.id, name: "Spring Workshop" });
+
+      const html = await getDuplicateForm(group.id);
+
+      expect(html).toContain("Spring Workshop");
+      expect(html).toContain("Original (copy)");
+    });
   });
 
   describe("POST /admin/groups/:id/bulk-actions/duplicate", () => {
@@ -143,6 +159,44 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       expect(newListings[0]!.date).toBe(sourceListing.date);
     });
 
+    test("shifts cloned listing dates by the given day offset", async () => {
+      // The Cucumber story `catalogue.copy-creates-independent-group` proves the
+      // actor-facing claim through the rendered form, but Cucumber runs do not
+      // feed the deterministic coverage gate. This direct test pins the
+      // non-empty `date_find`/`date_replace` branch of
+      // `handleDuplicateGroupPost` — `computeDayOffset` → `shiftUtcIsoByDays`
+      // — so a regression that ignored the submitted date shift would fail here.
+      const group = await createTestGroup({ name: "Shift Src" });
+      const source = await createTestListing({
+        date: "2026-04-16T09:00",
+        groupId: group.id,
+        name: "Shift Me",
+      });
+
+      const { response } = await adminFormPost(
+        `/admin/groups/${group.id}/bulk-actions/duplicate`,
+        {
+          date_find: "2026-04-16",
+          date_replace: "2026-04-23",
+          name_find: "Shift",
+          name_replace: "Moved",
+          new_name: "Shift Copy",
+        },
+      );
+
+      expect(response.status).toBe(302);
+      const newGroup = (await groups.cache.getAll()).find(
+        (g) => g.name === "Shift Copy",
+      );
+      expect(newGroup).toBeDefined();
+      const clone = (await getListingsByGroupId(newGroup!.id))[0]!;
+      expect(clone.name).toBe("Moved Me");
+      // 7 days forward, same time-of-day — the stored date is the shifted
+      // UTC ISO, not the source's unchanged value.
+      expect(clone.date).toBe("2026-04-23T09:00:00.000Z");
+      expect(clone.date).not.toBe(source.date);
+    });
+
     test("rejects a new group name already used by another entity", async () => {
       // Sits beside the Cucumber story `catalogue.copy-a-group-of-listings`
       // (case `catalogue.copy-refuses-a-clashing-name`), which proves the
@@ -176,6 +230,20 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
         name_replace: "Shared Name",
         new_name: "Shared Name",
       });
+    });
+
+    test("rejects a clone name that collides with an existing listing", async () => {
+      // Sits beside the Cucumber story `catalogue.copy-a-group-of-listings`
+      // (case `catalogue.copy-refuses-a-clashing-name`), which proves the
+      // clone-name-clash refusal through the rendered form. Cucumber runs do
+      // not feed the deterministic coverage gate, so this direct test pins the
+      // `firstDuplicateNameError` → `isNameTakenAnywhere` branch for a clone
+      // name that collides with a pre-existing listing (the source itself).
+      const group = await createTestGroup({ name: "Clashy" });
+      await createTestListing({ groupId: group.id, name: "Only Member" });
+      // A blank find/replace clones the source name verbatim, which collides
+      // with the still-existing source listing.
+      await expectDuplicateRejected(group.id, { new_name: "Clashy Copy" });
     });
 
     test("duplicates a large group without tripping the transaction round-trip guard", async () => {
