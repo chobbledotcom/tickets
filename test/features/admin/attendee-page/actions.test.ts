@@ -3,6 +3,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeePage } from "#routes/admin/attendee-page.ts";
+import { deleteListing } from "#shared/db/listings/delete.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -26,7 +27,7 @@ import { bookAttendee, MANAGER, OWNER, tabHtml } from "./helpers.ts";
 /** One paid attendee whose modern payment row can carry review work. */
 const paidPagePayment = async (
   suffix: string,
-): Promise<{ attendeeId: number; sessionId: string }> => {
+): Promise<{ attendeeId: number; listingId: number; sessionId: string }> => {
   const listing = await createTestListing({});
   const paymentId = `pi_page_${suffix}`;
   const attendee = await createPaidTestAttendee(
@@ -42,7 +43,7 @@ const paidPagePayment = async (
     `tok-page-${suffix}`,
     taggedPaymentReference(paymentId),
   );
-  return { attendeeId: attendee.id, sessionId };
+  return { attendeeId: attendee.id, listingId: listing.id, sessionId };
 };
 
 describeWithEnv("the attendee Actions tab", { db: true }, () => {
@@ -124,6 +125,26 @@ describeWithEnv("the attendee Actions tab", { db: true }, () => {
       const managerHtml = await tabHtml(attendeeId, "actions", MANAGER);
       expect(managerHtml).not.toContain("payment-review");
       expect(managerHtml).not.toContain("Mark payment reviewed");
+    });
+
+    test("keeps attendee work reachable after the final listing is deleted", async () => {
+      const { attendeeId, listingId, sessionId } =
+        await paidPagePayment("orphan-review");
+      await putRowState(
+        sessionId,
+        await rowStateSlot({ review: { kind: "partial_refund" } }),
+        REVIEW_MIRROR,
+      );
+      await deleteListing(listingId);
+
+      const html = await tabHtml(attendeeId, "actions");
+      expect(html).toContain(`/admin/attendees/${attendeeId}/payment-review`);
+      expect(html).toContain(`/admin/attendees/${attendeeId}/delete`);
+      expect(html).not.toContain(`/admin/attendees/${attendeeId}/refund`);
+      expect(html).not.toContain(
+        `/admin/attendees/${attendeeId}/resend-notification`,
+      );
+      expect(html).not.toContain("/admin/sms?listing=");
     });
 
     test("offers no refund while Money still has to record a returned payment", async () => {

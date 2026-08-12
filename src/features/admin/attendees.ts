@@ -62,15 +62,14 @@ import {
 import { handleMergePost } from "./attendees-merge.ts";
 import {
   type AttendeeWithListing,
-  attendeeActionPage,
+  attendeeActions,
   attendeeFormAction,
-  verifiedAttendeeAction,
 } from "./attendees-route-helpers.ts";
 
 /* jscpd:ignore-end */
 
 /** Handle GET /admin/attendees/:attendeeId/delete */
-const handleAdminAttendeeDeleteGet = attendeeActionPage(
+const handleAdminAttendeeDeleteGet = attendeeActions.delete.page(
   adminAttendeeDeletePage,
 );
 
@@ -79,7 +78,7 @@ const handleAdminAttendeeDeleteGet = attendeeActionPage(
  *  told which of those it is. */
 const deleteAttendeeAndRedirect = (
   attendeeId: number,
-  listingId: number,
+  listingId: number | null,
   redirectTo: string,
   activityMessage: string,
   flashMessage: string,
@@ -98,19 +97,22 @@ const deleteAttendeeAndRedirect = (
 /** Handle POST /admin/attendees/:attendeeId/delete. The deleted attendee's
  * pages are gone, so the fallback landing is the attendees roster (a
  * submitted return_url still wins via the redirect's form option). */
-const handleAttendeeDelete = verifiedAttendeeAction(
-  "delete",
+const handleAttendeeDelete = attendeeActions.delete.verified(
   "deletion",
-  (data, form) =>
-    deleteAttendeeAndRedirect(
-      data.attendee.id,
-      data.listing.id,
+  async ({ attendee }, form) => {
+    const listing = await getListingWithCount(attendee.listing_id);
+    return deleteAttendeeAndRedirect(
+      attendee.id,
+      listing?.id ?? null,
       "/admin/attendees",
-      `Attendee deleted from '${data.listing.name}'`,
+      listing
+        ? `Attendee deleted from '${listing.name}'`
+        : `Attendee '${attendee.name}' deleted`,
       t("success.attendee_deleted"),
       { form },
       form.getFlag("release_bookings"),
-    ),
+    );
+  },
 );
 
 /**
@@ -293,9 +295,9 @@ const handleAddAttendee: TypedRouteHandler<"POST /admin/listing/:listingId/atten
   });
 
 /** Handle GET /admin/attendees/:attendeeId/resend-notification */
-const handleAdminResendNotificationGet = attendeeActionPage(
-  adminResendNotificationPage,
-);
+const handleAdminResendNotificationGet = attendeeActions[
+  "resend-notification"
+].page(adminResendNotificationPage);
 
 /** The entries a resend notifies. A standalone line notifies alone; a line
  * belonging to a package rehydrates EVERY line of that attendee's package, so
@@ -353,11 +355,9 @@ const resendNotification = async (
 };
 
 /** Handle POST /admin/attendees/:attendeeId/resend-notification */
-const handleResendNotification = verifiedAttendeeAction(
-  "resend-notification",
-  undefined,
-  resendNotification,
-);
+const handleResendNotification = attendeeActions[
+  "resend-notification"
+].verified(undefined, resendNotification);
 
 /**
  * Attendee routes

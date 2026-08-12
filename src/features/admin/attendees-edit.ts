@@ -13,10 +13,8 @@ import { AUTH_FORM, withAuth } from "#routes/auth.ts";
 /* jscpd:ignore-start */
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
+import { getFirstBookingListingId } from "#shared/db/attendees/queries.ts";
 /* jscpd:ignore-end */
-import { decryptAttendeeOrNull } from "#shared/db/attendees/pii.ts";
-import { getAttendeeRaw } from "#shared/db/attendees/queries.ts";
-import { queryOne } from "#shared/db/client.ts";
 import {
   getRefundPaymentReferencesForAttendee,
   type RefundPaymentReference,
@@ -27,6 +25,7 @@ import { reportRefundNotRecorded } from "#shared/invariant-errors.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee } from "#shared/types.ts";
 /* jscpd:ignore-end */
+import { attendeeActions } from "./attendees-route-helpers.ts";
 import {
   type RefreshPaymentResult,
   refreshClaimedPayment,
@@ -35,33 +34,19 @@ import {
 /** Minimal context needed by the refresh-payment flow. */
 type RefreshPaymentContext = {
   attendee: Attendee;
-  /** Listing id for the activity log — from the booking row, so it works even
-   * for a quantity-0 placeholder whose listing was since deleted. */
+  /** The attendee keeps its original listing id even after listing deletion. */
   listingId: number;
 };
 
-/** Load the attendee + its first listing id for the refresh-payment flow.
- * Prefers a real booking (quantity > 0) but falls back to a quantity-0
- * placeholder, so a stored-but-unrefunded placeholder can be refreshed when
- * its Square refund later settles. */
+/** Load the attendee without requiring a surviving booking. */
 const loadRefreshContext = async (
   attendeeId: number,
 ): Promise<RefreshPaymentContext | null> => {
-  const pk = await requireRequestPrivateKey();
-  const attendeeRaw = await getAttendeeRaw(attendeeId);
-  if (!attendeeRaw) return null;
-  const attendee = (await decryptAttendeeOrNull(attendeeRaw, pk))!;
-  const firstBooking = await queryOne<{ listing_id: number }>(
-    `SELECT listingAttendee.listing_id
-       FROM listing_attendees AS listingAttendee
-      WHERE listingAttendee.attendee_id = ?
-      ORDER BY (listingAttendee.quantity > 0) DESC,
-               listingAttendee.start_at, listingAttendee.listing_id
-      LIMIT 1`,
-    [attendeeId],
-  );
-  if (!firstBooking) return null;
-  return { attendee, listingId: firstBooking.listing_id };
+  const data = await attendeeActions["refresh-payment"].load(attendeeId);
+  if (data === null) return null;
+  const { attendee } = data;
+  const firstBookingId = await getFirstBookingListingId(attendee.id);
+  return { attendee, listingId: firstBookingId ?? attendee.listing_id };
 };
 
 /** Load the attendee, listing, and payment references for a refresh. Returns

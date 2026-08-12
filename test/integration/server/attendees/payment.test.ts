@@ -194,7 +194,7 @@ describeWithEnv(
         expect(response.status).toBe(404);
       });
 
-      test("returns 404 when attendee has no bookings", async () => {
+      test("keeps refresh reachable when attendee has no bookings", async () => {
         const { attendee } = await setupListingAndAttendee();
         const { getDb: getDbFn } = await import("#shared/db/client.ts");
         const db = getDbFn();
@@ -205,7 +205,11 @@ describeWithEnv(
         const { response } = await adminFormPost(
           `/admin/attendees/${attendee.id}/refresh-payment`,
         );
-        expect(response.status).toBe(404);
+        await expectFlashRedirect(
+          `/admin/attendees/${attendee.id}`,
+          "No payment to refresh",
+          false,
+        )(response);
       });
 
       test("returns error when no payment provider configured", async () => {

@@ -4,7 +4,7 @@ import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { execute } from "#shared/db/client.ts";
+import { deleteListing } from "#shared/db/listings/delete.ts";
 import { createSystemNote, getNotesFor } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
@@ -149,9 +149,7 @@ describeWithEnv(
           "deleted-listing@example.com",
           "placeholder-deleted-listing-session",
           "pi_placeholder_deleted",
-          async (listingId) => {
-            await execute("DELETE FROM listings WHERE id = ?", [listingId]);
-          },
+          deleteListing,
         );
         await refreshAndVerifyRefundCash(attendee);
       });

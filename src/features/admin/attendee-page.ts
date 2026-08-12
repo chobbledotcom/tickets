@@ -32,6 +32,7 @@ import {
   loadQuestionsForExisting,
 } from "#routes/admin/attendee-page-data.ts";
 import { loadMergePanel } from "#routes/admin/attendees-merge.ts";
+import { attendeeActions } from "#routes/admin/attendees-route-helpers.ts";
 import {
   type ActionDef,
   customSection,
@@ -91,16 +92,38 @@ const actionBase = ({ attendee }: AttendeePageEntity): string =>
 const withReturn = (href: string, ctx: PageCtx): string =>
   `${href}?return_url=${encodeURIComponent(ctx.returnUrl)}`;
 
-/** Gate owner payment actions on one named durable row state. */
-const ownerPaymentWhen =
+type AttendeeActionName = keyof typeof attendeeActions;
+const alwaysAllow = (): boolean => true;
+
+/** Whether this attendee still has a real booking target. */
+const hasBooking = ({ existing }: AttendeePageEntity): boolean =>
+  existing.some(({ booking }) => booking.quantity > 0);
+
+/** Gate a rendered link with the same scope schema as its target route. */
+const actionWhen =
   (
-    status: PaymentWorkStatus,
-    allowed: (entity: AttendeePageEntity) => boolean = () => true,
+    action: AttendeeActionName,
+    allowed: NonNullable<
+      ActionDef<AttendeePageEntity>["visible"]
+    > = alwaysAllow,
   ): NonNullable<ActionDef<AttendeePageEntity>["visible"]> =>
   (entity, session) =>
-    isOwnerRole(session.adminLevel) &&
-    entity.paymentWorkStatus === status &&
-    allowed(entity);
+    attendeeActions[action].isAvailable(hasBooking(entity)) &&
+    allowed(entity, session);
+
+/** Gate owner payment actions on one named durable row state. */
+const ownerPaymentWhen = (
+  action: AttendeeActionName,
+  status: PaymentWorkStatus,
+  allowed: (entity: AttendeePageEntity) => boolean = alwaysAllow,
+): NonNullable<ActionDef<AttendeePageEntity>["visible"]> =>
+  actionWhen(
+    action,
+    (entity, session) =>
+      isOwnerRole(session.adminLevel) &&
+      entity.paymentWorkStatus === status &&
+      allowed(entity),
+  );
 
 /** Build one attendee-scoped confirmation action. */
 const attendeeAction = (
@@ -116,28 +139,31 @@ const ATTENDEE_ACTIONS: readonly ActionDef<AttendeePageEntity>[] = [
   attendeeAction("refund", {
     icon: "credit-card",
     labelKey: "attendee_form.action_refund",
-    visible: ownerPaymentWhen("clear", ({ canRefund }) => canRefund),
+    visible: ownerPaymentWhen("refund", "clear", ({ canRefund }) => canRefund),
   }),
   attendeeAction("payment-review", {
     icon: "check",
     labelKey: "attendee_form.action_payment_review",
-    visible: ownerPaymentWhen("needs_review"),
+    visible: ownerPaymentWhen("payment-review", "needs_review"),
   }),
   attendeeAction("resend-notification", {
     icon: "rotate-ccw",
     labelKey: "attendee_form.action_resend",
+    visible: actionWhen("resend-notification"),
   }),
   {
     href: ({ attendee }) =>
       `/admin/sms?listing=${attendee.listing_id}&attendee=${attendee.id}`,
     icon: "arrow-right",
     labelKey: "attendee_form.action_send_text",
+    visible: actionWhen("send-text"),
   },
   {
     danger: true,
     href: (entity) => `${actionBase(entity)}/delete`,
     icon: "trash-2",
     labelKey: "attendee_form.action_delete",
+    visible: actionWhen("delete"),
   },
 ];
 

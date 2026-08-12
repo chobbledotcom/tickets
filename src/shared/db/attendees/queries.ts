@@ -42,7 +42,9 @@ import { guardFor } from "#shared/validation/guard.ts";
  */
 export const listingAttendeeRowColumnsFrom = (sourceName: string): string => {
   const column = columnFrom(sourceName);
-  return `${column("listing_id")}, ${column("start_at")}, ${column("end_at")}, ${column("quantity")}, ${column("checked_in")}, ${refundedFromLedger(
+  return `${column("listing_id")}, ${column("start_at")}, ${column(
+    "end_at",
+  )}, ${column("quantity")}, ${column("checked_in")}, ${refundedFromLedger(
     column("attendee_id"),
     column("listing_id"),
     `${column("quantity")} = 0`,
@@ -51,7 +53,9 @@ export const listingAttendeeRowColumnsFrom = (sourceName: string): string => {
     column("listing_id"),
     column("ledger_event_group"),
     column("id"),
-  )}, ${column("ledger_event_group")}, ${column("attachment_downloads")}, ${column("order_token")}, ${column("parent_listing_id")}, ${column("package_group_id")}`;
+  )}, ${column("ledger_event_group")}, ${column("attachment_downloads")}, ${column(
+    "order_token",
+  )}, ${column("parent_listing_id")}, ${column("package_group_id")}`;
 };
 
 export const LISTING_ATTENDEE_ROW_COLS =
@@ -355,6 +359,23 @@ export const hasActiveBookingLine = (
      WHERE attendee_id = ? AND listing_id = ? AND quantity > 0 LIMIT 1`,
     [attendeeId, listingId],
   );
+
+/** The first real booking, or a no-quantity placeholder when no real one
+ * remains. Missing is expected for an orphan attendee. */
+export const getFirstBookingListingId = async (
+  attendeeId: number,
+): Promise<number | null> =>
+  (
+    await queryOne<{ listing_id: number }>(
+      `SELECT listingAttendee.listing_id
+         FROM listing_attendees AS listingAttendee
+        WHERE listingAttendee.attendee_id = ?
+        ORDER BY (listingAttendee.quantity > 0) DESC,
+                 listingAttendee.start_at, listingAttendee.listing_id
+        LIMIT 1`,
+      [attendeeId],
+    )
+  )?.listing_id ?? null;
 
 /**
  * True when any of the listings has a paid line for this attendee — a gross

@@ -4,8 +4,8 @@
 import { requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import {
-  attendeeActionPage,
-  verifiedAttendeeAction,
+  type AttendeeWithListing,
+  attendeeActions,
 } from "#routes/admin/attendees-route-helpers.ts";
 import { refundWorkRemains } from "#routes/admin/refunds/candidates.ts";
 import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
@@ -75,7 +75,7 @@ interface RefundPageState {
 }
 
 const getRefundPageState = async (
-  data: Parameters<typeof adminRefundAttendeePage>[0],
+  data: AttendeeWithListing,
 ): Promise<RefundPageState> => {
   if (!(await hasActiveBookingLine(data.attendee.id, data.listing.id))) {
     return {
@@ -93,14 +93,13 @@ const getRefundPageState = async (
   };
 };
 
-const handleAdminAttendeeRefundGet = attendeeActionPage(
+const handleAdminAttendeeRefundGet = attendeeActions.refund.page(
   async (data, ...args) => (await getRefundPageState(data)).page(data, ...args),
   async (data) => (await getRefundPageState(data)).reason,
   requireOwnerOr,
 );
 
-const handleAttendeeRefund = verifiedAttendeeAction(
-  "refund",
+const handleAttendeeRefund = attendeeActions.refund.verified(
   "refund",
   async (data, form) => {
     const attendeeId = data.attendee.id;

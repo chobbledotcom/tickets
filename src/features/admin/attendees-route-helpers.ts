@@ -19,9 +19,12 @@ import { htmlResponse } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import { decryptAttendeeOrNull } from "#shared/db/attendees/pii.ts";
-import { getAttendeeOrNull } from "#shared/db/attendees/queries.ts";
+import {
+  getAttendeeOrNull,
+  getFirstBookingListingId,
+} from "#shared/db/attendees/queries.ts";
 import { getListingWithAttendeeRaw } from "#shared/db/listings/attendees.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
+import { requireListingWithCount } from "#shared/db/listings/records.ts";
 import { findByIdThen } from "#shared/find-by-id.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ParamsRoute, ResponseHandler } from "#shared/response-steps.ts";
@@ -74,19 +77,23 @@ export const withDecryptedAttendee =
   (attendeeId: number): Promise<T | null> =>
     findByIdThen(getDecryptedAttendee)(attendeeId, complete);
 
-/**
- * Load an attendee (by id alone) plus its HOME listing — the attendee-scoped
- * counterpart of {@link loadAttendeeForListing} for the action routes under
- * /admin/attendees/:id/* (delete, refund, payment review, notification). The home
- * listing is the attendee's first booking, exactly what the Actions tab keys
- * its links on; an orphan attendee (no bookings) 404s, as it always has.
- */
-export const loadAttendeeWithHomeListing: (
+/** One attendee-scoped action needs no booking to remain reachable. */
+type AttendeeActionData = { attendee: Attendee };
+
+const loadAttendeeActionData: (
+  attendeeId: number,
+) => Promise<AttendeeActionData | null> = withDecryptedAttendee((attendee) =>
+  Promise.resolve({ attendee }),
+);
+
+/** Load the first stored booking and its live listing for a booking action. */
+const loadAttendeeWithBooking: (
   attendeeId: number,
 ) => Promise<AttendeeWithListing | null> = withDecryptedAttendee(
   async (attendee) => {
-    const listing = await getListingWithCount(attendee.listing_id);
-    return listing ? { attendee, listing } : null;
+    const listingId = await getFirstBookingListingId(attendee.id);
+    if (listingId === null) return null;
+    return { attendee, listing: await requireListingWithCount(listingId) };
   },
 );
 
@@ -95,12 +102,6 @@ export type ListingRouteParams = { id: number };
 
 /** Route params for listing-scoped attendee routes */
 type AttendeeRouteParams = { listingId: number; attendeeId: number };
-
-/** Shared loader for attendee-scoped GET and POST action handlers. */
-const attendeeActionHandler = createEntityHandler<
-  AttendeeIdRouteParams,
-  AttendeeWithListing
->(({ attendeeId }) => loadAttendeeWithHomeListing(attendeeId));
 
 /** The canonical URL of an attendee-scoped action (confirm page + POST). */
 export const attendeeActionUrl = (attendeeId: number, action: string): string =>
@@ -119,8 +120,8 @@ export const attendeeActionUrlWithReturn = (
   }`;
 
 /** An attendee-action confirm page renderer's shape. */
-type AttendeeActionRenderer = (
-  data: AttendeeWithListing,
+type AttendeeActionRenderer<Data> = (
+  data: Data,
   session: AdminSession,
   returnUrl?: string,
   error?: string,
@@ -128,47 +129,97 @@ type AttendeeActionRenderer = (
 
 type AttendeeActionRoute = ParamsRoute<AttendeeIdRouteParams>;
 
-/** Render an attendee confirmation. A guard answers HTTP 400; callers may also
- * supply a stricter session gate. */
-export const attendeeActionPage = (
-  render: AttendeeActionRenderer,
-  guard?: (data: AttendeeWithListing) => Promise<string | null>,
-  requireSession: SessionGuard<AuthSession> = requireSessionOr,
-): AttendeeActionRoute =>
-  attendeeActionHandler(requireSession)(async (data, session, request) => {
-    const returnUrl = getReturnUrl(request);
-    const blocked = guard ? await guard(data) : null;
-    if (blocked !== null) {
-      return htmlResponse(await render(data, session, returnUrl, blocked), 400);
-    }
-    const flash = applyFlash(request);
-    return htmlResponse(await render(data, session, returnUrl, flash.error));
-  });
+type AttendeeActionDefinition<Data extends AttendeeActionData> = {
+  /** A rendered action has a reachable target exactly when its scope exists. */
+  isAvailable: (hasBooking: boolean) => boolean;
+  load: (attendeeId: number) => Promise<Data | null>;
+  page: (
+    render: AttendeeActionRenderer<Data>,
+    guard?: (data: Data) => Promise<string | null>,
+    requireSession?: SessionGuard<AuthSession>,
+  ) => AttendeeActionRoute;
+  verified: (
+    actionLabel: string | undefined,
+    handler: ResponseHandler<[data: Data, form: FormParams]>,
+    auth?: AuthPolicy<"form">,
+  ) => AttendeeActionRoute;
+};
 
-/** POST handler for an attendee-scoped action that first verifies the typed
- * attendee name, bouncing back to the action's own confirm page on mismatch.
- * Its form policy can narrow the role allowed to submit. */
-export const verifiedAttendeeAction = (
+/** Give every attendee action the same loader, visibility, GET, and POST
+ * interface. Its scope decides all four together, so a link cannot promise a
+ * booking that the route then fails to load. */
+const defineAttendeeAction = <Data extends AttendeeActionData>(
   action: string,
-  actionLabel: string | undefined,
-  handler: ResponseHandler<[data: AttendeeWithListing, form: FormParams]>,
-  auth: AuthPolicy<"form"> = AUTH_FORM,
-): AttendeeActionRoute =>
-  attendeeActionHandler(formGuard(auth))((data, _session, form) => {
-    const error = verifyOrRedirect(
-      form,
-      data.attendee.name,
-      attendeeActionUrlWithReturn(
-        data.attendee.id,
-        action,
-        form.getString("return_url"),
-      ),
-      "Attendee name",
-      actionLabel,
-    );
-    if (error) return error;
-    return handler(data, form);
-  });
+  scope: "attendee" | "booking",
+  load: (attendeeId: number) => Promise<Data | null>,
+): AttendeeActionDefinition<Data> => {
+  const actionHandler = createEntityHandler<AttendeeIdRouteParams, Data>(
+    ({ attendeeId }) => load(attendeeId),
+  );
+  return {
+    isAvailable: (hasBooking) => scope === "attendee" || hasBooking,
+    load,
+    page: (
+      render,
+      guard,
+      requireSession: SessionGuard<AuthSession> = requireSessionOr,
+    ) =>
+      actionHandler(requireSession)(async (data, session, request) => {
+        const returnUrl = getReturnUrl(request);
+        const blocked = guard ? await guard(data) : null;
+        if (blocked !== null) {
+          return htmlResponse(
+            await render(data, session, returnUrl, blocked),
+            400,
+          );
+        }
+        const flash = applyFlash(request);
+        return htmlResponse(
+          await render(data, session, returnUrl, flash.error),
+        );
+      }),
+    verified: (actionLabel, handler, auth: AuthPolicy<"form"> = AUTH_FORM) =>
+      actionHandler(formGuard(auth))((data, _session, form) => {
+        const error = verifyOrRedirect(
+          form,
+          data.attendee.name,
+          attendeeActionUrlWithReturn(
+            data.attendee.id,
+            action,
+            form.getString("return_url"),
+          ),
+          "Attendee name",
+          actionLabel,
+        );
+        if (error) return error;
+        return handler(data, form);
+      }),
+  };
+};
+
+const attendeeAction = (action: string) =>
+  defineAttendeeAction<AttendeeActionData>(
+    action,
+    "attendee",
+    loadAttendeeActionData,
+  );
+const bookingAction = (action: string) =>
+  defineAttendeeAction<AttendeeWithListing>(
+    action,
+    "booking",
+    loadAttendeeWithBooking,
+  );
+
+/** The complete action schema. Adding an action means choosing its scope once;
+ * its route loader and page visibility then share that decision. */
+export const attendeeActions = {
+  delete: attendeeAction("delete"),
+  "payment-review": attendeeAction("payment-review"),
+  "refresh-payment": attendeeAction("refresh-payment"),
+  refund: bookingAction("refund"),
+  "resend-notification": bookingAction("resend-notification"),
+  "send-text": bookingAction("send-text"),
+} as const;
 
 /** Route params for a POST scoped to one attendee by its id alone. */
 type AttendeeIdRouteParams = { attendeeId: number };

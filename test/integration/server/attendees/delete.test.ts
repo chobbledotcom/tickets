@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { queryOne } from "#shared/db/client.ts";
+import { deleteListing } from "#shared/db/listings/delete.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 // jscpd:ignore-end
 import { setupListingAndAttendee } from "#test/test-utils/attendees/helpers.ts";
@@ -77,9 +78,7 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
       expect(response.status).toBe(404);
     });
 
-    test("returns 404 for an orphan attendee with no home listing", async () => {
-      // The attendee-scoped action loads the attendee's home listing; an
-      // attendee whose bookings are all gone has none, so the page 404s.
+    test("keeps delete reachable for an orphan attendee", async () => {
       const { attendee } = await setupListingAndAttendee({
         listing: {
           maxAttendees: 100,
@@ -94,7 +93,7 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
       );
 
       const response = await adminGet(`/admin/attendees/${attendee.id}/delete`);
-      expect(response.status).toBe(404);
+      await expectHtmlResponse(response, 200, "Delete Attendee", "John Doe");
     });
 
     test("shows delete confirmation page when authenticated", async () => {
@@ -250,6 +249,22 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
         income: 1200,
         tickets_count: 1,
       });
+    });
+
+    test("deletes an orphan after its final listing is gone", async () => {
+      const { attendee, listing } = await setupDeleteListingAndAttendee();
+      await deleteListing(listing.id);
+
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}/delete`,
+        { confirm_identifier: "John Doe" },
+      );
+
+      await expectFlashRedirect(
+        "/admin/attendees",
+        "Attendee deleted",
+      )(response);
+      expect(await attendeeExists(attendee.id)).toBe(false);
     });
   });
 

@@ -153,7 +153,7 @@ const attendeeConfirmPage = (
 const attendeeRouteConfirm =
   (segment: string, config: Omit<AttendeeConfirmConfig, "action">) =>
   (
-    { attendee }: { listing: ListingWithCount; attendee: Attendee },
+    { attendee }: { attendee: Attendee },
     session: AdminSession,
     returnUrl?: string,
     error?: string,

@@ -305,7 +305,7 @@ describe("starting stripe-mock", () => {
     await withTempStripeMockPaths(async (paths) => {
       // Serves its port for a while and then stops itself, so walking away from
       // it here does not leave a listener behind for the rest of the machine.
-      await writeShortLivedMock(paths);
+      await writeShortLivedMock(paths, 20);
 
       const finished = await runsToCompletion(
         `
@@ -317,7 +317,7 @@ describe("starting stripe-mock", () => {
           port: ${await freePort()},
         });
       `,
-        4_000,
+        10_000,
       );
 
       // A mock still counted as work to wait for would hold this open until the

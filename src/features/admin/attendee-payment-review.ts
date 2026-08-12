@@ -12,9 +12,8 @@ import {
 } from "#shared/db/payment-review.ts";
 import { adminPaymentReviewPage } from "#templates/admin/attendees.tsx";
 import {
-  attendeeActionPage,
+  attendeeActions,
   attendeeActionUrlWithReturn,
-  verifiedAttendeeAction,
 } from "./attendees-route-helpers.ts";
 
 /* jscpd:ignore-end */
@@ -28,7 +27,7 @@ const REVIEW_GUARD = {
   needs_review: null,
 } satisfies Record<PaymentWorkStatus, string | null>;
 
-const handlePaymentReviewGet = attendeeActionPage(
+const handlePaymentReviewGet = attendeeActions[ACTION].page(
   adminPaymentReviewPage,
   async ({ attendee }) => {
     const messageKey = REVIEW_GUARD[await getPaymentWorkStatus(attendee.id)];
@@ -37,13 +36,12 @@ const handlePaymentReviewGet = attendeeActionPage(
   requireOwnerOr,
 );
 
-const handlePaymentReviewPost = verifiedAttendeeAction(
-  ACTION,
+const handlePaymentReviewPost = attendeeActions[ACTION].verified(
   "payment review",
-  async ({ attendee, listing }, form) => {
+  async ({ attendee }, form) => {
     const result = await resolvePaymentReview({
       attendeeId: attendee.id,
-      listingId: listing.id,
+      listingId: attendee.listing_id,
     });
     const actionsUrl = `/admin/attendees/${attendee.id}/actions`;
     switch (result.kind) {
