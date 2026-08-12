@@ -193,7 +193,7 @@ describeWithEnv("payment reference provider evidence", { db: true }, () => {
     expect(stripeRead.calls.length).toBe(1);
   });
 
-  test("binds one proof when every other provider answers definitively", async () => {
+  test("keeps discovery incomplete when another provider answers invalid", async () => {
     await settings.update.square.accessToken("square_complete_proof");
     await settings.update.stripe.secretKey("sk_test_complete_proof");
     const charge = chargeMoney();
@@ -211,11 +211,18 @@ describeWithEnv("payment reference provider evidence", { db: true }, () => {
         kind: "untagged",
         reference: "complete_identity",
       }),
-    ).toMatchObject({
-      charge,
-      provider: "square",
-      source: "discovered",
-      status: "found",
+    ).toEqual({
+      attempts: [
+        { provider: "square", result: { resource: charge, status: "found" } },
+        {
+          provider: "stripe",
+          result: { reason: "mismatched_id", status: "invalid" },
+        },
+      ],
+      reason: "provider_search_incomplete",
+      reference: "complete_identity",
+      source: "untagged",
+      status: "unresolved",
     });
     expect(squareRead.calls.length).toBe(1);
     expect(stripeRead.calls.length).toBe(1);

@@ -117,7 +117,7 @@ const refundAfterRead = async (
     async (mocks) => {
       result = await provider.refundCharge(request);
       expect(mocks.read.calls).toHaveLength(
-        attempt.kind === "uncertain" ? 1 : 0,
+        attempt.kind === "uncertain" || attempt.kind === "rejected" ? 1 : 0,
       );
     },
   );
@@ -144,12 +144,60 @@ for (const adapter of [
       });
     });
 
-    test("does not reread a definitive provider answer", async () => {
+    test("completes when a rejected send is visible in one immediate read", async () => {
+      const charge = chargeMoney(1000, 1000);
+      const rejected = { kind: "rejected", reason: "rejected" } as const;
+      expect(await refundAfterRead(adapter, charge, rejected)).toEqual({
+        calls: ["send", "read"],
+        result: completedAfter(charge),
+      });
+    });
+
+    test("preserves a rejected send after one non-covering read", async () => {
       const rejected = { kind: "rejected", reason: "rejected" } as const;
       expect(await refundAfterRead(adapter, chargeMoney(), rejected)).toEqual({
-        calls: ["send"],
+        calls: ["send", "read"],
         result: rejected,
       });
     });
+
+    for (const [state, charge] of [
+      [
+        "pending",
+        chargeMoneyWith({
+          captured: gbp(1000),
+          refunds: [
+            refundObservation({ amount: gbp(1000), status: "pending" }),
+          ],
+        }),
+      ],
+      ["partial", chargeMoney(1000, 400)],
+    ] as const) {
+      test(`protects a rejected send after observing a ${state} refund`, async () => {
+        const rejected = { kind: "rejected", reason: "rejected" } as const;
+        expect(await refundAfterRead(adapter, charge, rejected)).toEqual({
+          calls: ["send", "read"],
+          result: { kind: "uncertain", reason: "observed_refund" },
+        });
+      });
+    }
+
+    const completed = completedAfter(chargeMoney(1000, 1000));
+    if (completed.kind !== "completed") {
+      throw new Error("Completed refund fixture was not completed");
+    }
+    const accepted: RefundAttemptResult = { ...completed, kind: "accepted" };
+    for (const [state, answer] of [
+      ["accepted", accepted],
+      ["completed", completed],
+      ["not sent", { kind: "not_sent", reason: "not_configured" }],
+    ] as const satisfies readonly (readonly [string, RefundAttemptResult])[]) {
+      test(`does not reread a provider answer that was ${state}`, async () => {
+        expect(await refundAfterRead(adapter, chargeMoney(), answer)).toEqual({
+          calls: ["send"],
+          result: answer,
+        });
+      });
+    }
   });
 }

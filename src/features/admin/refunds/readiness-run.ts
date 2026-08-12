@@ -2,10 +2,12 @@ import type { LoadedRefundAttendee } from "#shared/db/payment-claim/take.ts";
 import { PAYMENT_REVIEW_RETIREMENT } from "#shared/payment/review.ts";
 import { getSubrequestRemaining } from "#shared/subrequest-budget.ts";
 import {
+  REFRESH_BUDGET_MESSAGE,
   REFUND_BUDGET_MESSAGES,
   type RefundBudgetAudience,
+  type RefundReadinessAction,
   type RefundReadinessBudgetCheckpoint,
-  refundSubrequestCost,
+  refundReadinessSubrequestCost,
   subrequestCostFits,
 } from "./budget.ts";
 import type { RefundCandidate } from "./candidates.ts";
@@ -31,8 +33,6 @@ type BlockedRefundRun = { kind: "blocked"; reason: "refund_in_progress" };
 
 const SHARED_REFERENCE_MESSAGE =
   "This payment reference is attached to more than one payment row. An owner must review it before any automatic refund can continue.";
-
-type RefundReadinessAction = "refund" | "refresh";
 
 type RefundReadinessRunBase<TResult> = {
   candidates: readonly RefundCandidate[];
@@ -63,11 +63,6 @@ type RefundReadinessRun<TResult> = RefundReadinessRunBase<TResult> &
         budgetAudience?: never;
       }
   );
-
-type BudgetedRefundReadinessRun<TResult> = Extract<
-  RefundReadinessRun<TResult>,
-  { action: "refund" }
->;
 
 const REVIEW_REQUIRED_MESSAGE =
   "This payment still needs owner review. Refresh or correct the payment evidence before another refund.";
@@ -187,11 +182,17 @@ const protectProviderReads = (
 };
 
 const budgetFits = (
+  action: RefundReadinessAction,
   candidates: readonly LoadedRefundAttendee[],
   returned: ReadonlySet<string>,
   checkpoint: RefundReadinessBudgetCheckpoint,
 ): boolean => {
-  const cost = refundSubrequestCost(candidates, returned, checkpoint);
+  const cost = refundReadinessSubrequestCost(
+    action,
+    candidates,
+    returned,
+    checkpoint,
+  );
   const remaining = getSubrequestRemaining();
   return subrequestCostFits(cost, remaining);
 };
@@ -201,9 +202,12 @@ const loadedBudgetCandidates = (
 ): LoadedRefundAttendee[] => candidates.map(loadedRefundAttendee);
 
 const refuseForBudget = <TResult>(
-  run: BudgetedRefundReadinessRun<TResult>,
+  run: RefundReadinessRun<TResult>,
 ): TResult => {
-  const message = REFUND_BUDGET_MESSAGES[run.budgetAudience];
+  const message =
+    run.action === "refresh"
+      ? REFRESH_BUDGET_MESSAGE
+      : REFUND_BUDGET_MESSAGES[run.budgetAudience];
   return run.notReady(message, "subrequest_budget");
 };
 
@@ -212,8 +216,8 @@ export const runRefundReadiness = async <TResult>(
   run: RefundReadinessRun<TResult>,
 ): Promise<TResult | BlockedRefundRun> => {
   if (
-    run.action === "refund" &&
     !budgetFits(
+      run.action,
       loadedBudgetCandidates(run.candidates),
       new Set(),
       "before_claim",
@@ -226,13 +230,9 @@ export const runRefundReadiness = async <TResult>(
     loadedBudgetCandidates(run.candidates),
     run.listingId,
     {
-      ...(run.action === "refresh"
-        ? {}
-        : {
-            admissionRefused: () => refuseForBudget(run),
-            admit: ({ attendees, returned }) =>
-              budgetFits(attendees, returned, "inside_claim"),
-          }),
+      admissionRefused: () => refuseForBudget(run),
+      admit: ({ attendees, returned }) =>
+        budgetFits(run.action, attendees, returned, "inside_claim"),
       blocked: (block) => {
         if (block.kind === "claim_held") {
           return { kind: "blocked", reason: "refund_in_progress" };
@@ -251,8 +251,8 @@ export const runRefundReadiness = async <TResult>(
           return run.notReady(admissionProblem);
         }
         if (
-          run.action === "refund" &&
           !budgetFits(
+            run.action,
             loadedBudgetCandidates(run.candidates),
             held.alreadyReturned,
             "before_provider_read",

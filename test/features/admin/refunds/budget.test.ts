@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   refundPreparedSubrequestCost,
-  refundSubrequestCost,
+  refundReadinessSubrequestCost,
 } from "#routes/admin/refunds/budget.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import { PAYMENT_PROVIDER_IDS } from "#shared/payment-providers.ts";
@@ -36,7 +36,8 @@ const externalCost = (
   reference: RefundPaymentReference,
   providers: readonly PaymentProviderType[],
 ): number =>
-  refundSubrequestCost(
+  refundReadinessSubrequestCost(
+    "refund",
     [{ references: [reference] }],
     new Set(),
     "before_claim",
@@ -44,6 +45,14 @@ const externalCost = (
   ).external;
 
 describe("admin refund subrequest budget", () => {
+  test("prices no work when there are no candidates", () => {
+    expect(
+      refundReadinessSubrequestCost("refresh", [], new Set(), "before_claim", [
+        "stripe",
+      ]),
+    ).toEqual({ database: 0, external: 0, total: 0 });
+  });
+
   test("gives every safe refusal checkpoint its remaining envelope", () => {
     const reference = taggedReference("stripe");
     const candidates = [{ references: [reference] }];
@@ -51,11 +60,17 @@ describe("admin refund subrequest budget", () => {
     expect(
       (["before_claim", "inside_claim", "before_provider_read"] as const).map(
         (checkpoint) =>
-          refundSubrequestCost(candidates, new Set(), checkpoint, ["stripe"]),
+          refundReadinessSubrequestCost(
+            "refund",
+            candidates,
+            new Set(),
+            checkpoint,
+            ["stripe"],
+          ),
       ),
     ).toEqual([
-      { database: 20, external: 3, total: 23 },
-      { database: 16, external: 3, total: 19 },
+      { database: 28, external: 3, total: 31 },
+      { database: 24, external: 3, total: 27 },
       { database: 5, external: 1, total: 6 },
     ]);
     const prepared = {
@@ -80,10 +95,14 @@ describe("admin refund subrequest budget", () => {
       taggedReference("stripe", "stripe_balance"),
     ];
     expect(
-      refundSubrequestCost([{ references }], new Set(), "before_claim", [
-        "stripe",
-      ]),
-    ).toEqual({ database: 20, external: 6, total: 26 });
+      refundReadinessSubrequestCost(
+        "refund",
+        [{ references }],
+        new Set(),
+        "before_claim",
+        ["stripe"],
+      ),
+    ).toEqual({ database: 28, external: 6, total: 34 });
   });
 
   test("reserves the five local calls even when the provider already returned the money", () => {
@@ -93,6 +112,22 @@ describe("admin refund subrequest budget", () => {
         "before_dispatch_arm",
       ),
     ).toEqual({ database: 5, external: 0, total: 5 });
+  });
+
+  test("reserves completed-only refresh persistence with no provider reads", () => {
+    const completed = {
+      ...taggedReference("stripe"),
+      refundState: "completed" as const,
+    };
+    expect(
+      refundReadinessSubrequestCost(
+        "refresh",
+        [{ references: [completed] }],
+        new Set(),
+        "before_claim",
+        ["stripe"],
+      ),
+    ).toEqual({ database: 33, external: 0, total: 33 });
   });
 
   test("prices no late work when preparation can neither send nor return money", () => {

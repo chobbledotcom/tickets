@@ -55,8 +55,16 @@ const foundAttempt = (
   attempt: ProviderReadAttempt,
 ): attempt is FoundProviderReadAttempt => attempt.result.status === "found";
 
-const unavailableAttempt = (attempt: ProviderReadAttempt): boolean =>
-  attempt.result.status === "unavailable";
+/** Only a validated charge or a definite miss completes one discovery leg. */
+const PROVIDER_READ_COMPLETES_DISCOVERY = {
+  found: true,
+  invalid: false,
+  missing: true,
+  unavailable: false,
+} satisfies Record<ProviderRead<ChargeMoney>["status"], boolean>;
+
+const incompleteAttempt = (attempt: ProviderReadAttempt): boolean =>
+  !PROVIDER_READ_COMPLETES_DISCOVERY[attempt.result.status];
 
 const readAtProvider = async (
   provider: PaymentProviderType,
@@ -139,7 +147,7 @@ const discoveredEvidence = async (
       "multiple_validating_providers",
     );
   }
-  if (attempts.some(unavailableAttempt)) {
+  if (attempts.some(incompleteAttempt)) {
     return unresolvedEvidence(
       reference.reference,
       attempts,

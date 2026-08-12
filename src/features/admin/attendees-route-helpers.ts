@@ -24,7 +24,7 @@ import {
   getFirstBookingListingId,
 } from "#shared/db/attendees/queries.ts";
 import { getListingWithAttendeeRaw } from "#shared/db/listings/attendees.ts";
-import { requireListingWithCount } from "#shared/db/listings/records.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import {
   getPaymentReviewState,
   type PaymentReviewState,
@@ -113,7 +113,8 @@ const loadAttendeeWithBooking: (
   async (attendee) => {
     const listingId = await getFirstBookingListingId(attendee.id);
     if (listingId === null) return null;
-    return { attendee, listing: await requireListingWithCount(listingId) };
+    const listing = await getListingWithCount(listingId);
+    return listing === null ? null : { attendee, listing };
   },
 );
 

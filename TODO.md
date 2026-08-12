@@ -2124,12 +2124,21 @@ batch without sending, derives its exact tagged send set, checks before arming
 it, advances that set once, and checks again immediately before provider I/O.
 
 An oversized single or bulk command therefore refuses whole with its plain
-operator message and zero fresh provider sends. `PROVIDER_REFUND_CONCURRENCY`
-still limits overlap to five; it is no longer mistaken for the total ceiling.
-The budget and batch tests pin the pre-send refusal, physical retry accounting,
-remaining-budget checks, inherited-work priority, and reserved cleanup tail.
-Arbitrarily large resumable refund jobs remain M7/F53 work, not an open safety
-hole in this request-sized command.
+operator message and zero fresh provider sends. Payment refresh uses the same
+admission before its claim and provider reads. It preserves any existing claim,
+review, or unrecorded marker when the complete history cannot fit, and tells the
+owner that automatic refresh is unavailable for that payment set.
+`PROVIDER_REFUND_CONCURRENCY` still limits overlap to five; it is no longer
+mistaken for the total ceiling. The budget and batch tests pin the pre-send
+refusal, physical retry accounting, remaining-budget checks, inherited-work
+priority, and reserved cleanup tail.
+
+Request-sized refusal is the safe M4 boundary, not a retirement path for an
+arbitrarily large protected history. Later checkouts, merges, saved legacy
+anchors, and provider-credential changes can all grow that history after its
+state was created. M7/F53's persisted, resumable refund engine is the named
+automatic path that will process and retire those histories in bounded pages; a
+generic clear action would discard unresolved money facts.
 
 ## A merge can delete the source before the answers and PII are saved
 

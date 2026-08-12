@@ -56,7 +56,7 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
       success: false,
     });
     expect(refund.calls).toHaveLength(2);
-    expect(refundState.calls).toHaveLength(2);
+    expect(refundState.calls).toHaveLength(4);
   });
 
   test("keeps a price-changed booking as a refunded placeholder", async () => {
