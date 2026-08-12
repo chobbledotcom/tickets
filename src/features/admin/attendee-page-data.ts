@@ -10,8 +10,8 @@
 import { compact, filter, identity, mapById, unique } from "#fp";
 import { t } from "#i18n";
 import {
-  attendeeBalanceNotice,
   type AttendeeFormLine,
+  attendeeBalanceNotice,
   isBookedLine,
   type ParsedAttendeeForm,
   resolveSharedDates,
@@ -85,7 +85,8 @@ const attendeePaymentFacts = async (
     await attendeeIdsWithIndexedPaymentReferences([attendee.id])
   ).has(attendee.id);
   return {
-    canRefund: !attendee.refunded &&
+    canRefund:
+      !attendee.refunded &&
       hasIndexedPaymentReference &&
       (await hasActiveBookingLine(attendee.id, attendee.listing_id)),
     hasIndexedPaymentReference,
@@ -166,8 +167,8 @@ export const packagesByListingIdFrom = (
   const byListing = new Map<number, Map<number, number | null>>();
   for (const path of paths) {
     for (const listingId of path.memberListingIds) {
-      const groups = byListing.get(listingId) ??
-        new Map<number, number | null>();
+      const groups =
+        byListing.get(listingId) ?? new Map<number, number | null>();
       groups.set(path.groupId, path.memberPrices.get(listingId) ?? null);
       byListing.set(listingId, groups);
     }
@@ -238,7 +239,7 @@ const buildFormLines = (
       row,
       listingsById,
       priceOfPath(row.booking.listing_id, row.booking.package_group_id),
-    )
+    ),
   );
   const slotTaken = new Set(
     existing.map(
@@ -248,7 +249,7 @@ const buildFormLines = (
   const standaloneBlanks = renderListings
     .filter((listing) => !slotTaken.has(`${listing.id}|0`))
     .map((listing) =>
-      blankLine(listing, 0, null, preselectedQty.get(listing.id) ?? 0)
+      blankLine(listing, 0, null, preselectedQty.get(listing.id) ?? 0),
     );
   const packageBlanks = packagePaths.flatMap((path) =>
     path.memberListingIds
@@ -257,15 +258,15 @@ const buildFormLines = (
         const listing = listingsById.get(listingId);
         return listing
           ? [
-            blankLine(
-              listing,
-              path.groupId,
-              priceOfPath(listingId, path.groupId),
-              0,
-            ),
-          ]
+              blankLine(
+                listing,
+                path.groupId,
+                priceOfPath(listingId, path.groupId),
+                0,
+              ),
+            ]
           : [];
-      })
+      }),
   );
   return [...rowLines, ...standaloneBlanks, ...packageBlanks];
 };
@@ -397,7 +398,7 @@ const overbookedListingIds = async (
   const perListing = [...firstLineByListing.values()];
   const fits = await checkLinesCapacity(
     perListing.map((line) =>
-      listingBookingFor(line, totalByListing.get(line.listingId)!, parsed)
+      listingBookingFor(line, totalByListing.get(line.listingId)!, parsed),
     ),
     excludeAttendeeId,
   );
@@ -538,8 +539,8 @@ const loadTemplateParts = async (
   const summary = attendee
     ? getAttendeeOrderSummary(attendee.id)
     : Promise.resolve(null);
-  const [statuses, orderSummary, warnings, logistics, pathNames] = await Promise
-    .all([
+  const [statuses, orderSummary, warnings, logistics, pathNames] =
+    await Promise.all([
       attendeeStatuses.getAll(),
       summary,
       computeWarnings(parsed, attendee?.id),

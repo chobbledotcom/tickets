@@ -13,9 +13,9 @@ import {
   claimCurrentAttendeeRows,
   protectedStateOf,
   putRowState,
-  reviewCase,
   REVIEW_MIRROR,
   releaseClaimRows,
+  reviewCase,
   rowStateSlot,
   UNRECORDED_MIRROR,
 } from "#test-utils/payment-claim.ts";
@@ -214,9 +214,14 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
         await releaseClaimRows(
           held,
           ["sess-review-case"],
-          new Map([["sess-review-case", {
-            review: { kind: "review", reason: { kind } },
-          }]]),
+          new Map([
+            [
+              "sess-review-case",
+              {
+                review: { kind: "review", reason: { kind } },
+              },
+            ],
+          ]),
         );
       };
 

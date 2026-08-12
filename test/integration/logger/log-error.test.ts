@@ -169,7 +169,7 @@ describe("log-error", () => {
         const match = entries.find(
           (e) =>
             e.message ===
-              "Error: Stripe checkout failed (session creation failed)",
+            "Error: Stripe checkout failed (session creation failed)",
         );
         expect(match).toBeDefined();
         expect(match!.listing_id).toBeNull();
@@ -236,19 +236,20 @@ describe("log-error", () => {
               }
               settings.invalidateCache();
               logError({ code: ErrorCode.DB_CONNECTION });
-            })
+            }),
           );
         } finally {
           setN1GuardNotifyOnly(null);
         }
 
         await settings.loadKeys([CONFIG_KEYS.WRAPPED_PRIVATE_KEY]);
-        const messages = (await getAllActivityLog()).map(({ message }) =>
-          message
+        const messages = (await getAllActivityLog()).map(
+          ({ message }) => message,
         );
         expect(messages).toContain("Error: Database connection failed");
-        expect(messages.some((message) => message.includes("N+1 query")))
-          .toBe(false);
+        expect(messages.some((message) => message.includes("N+1 query"))).toBe(
+          false,
+        );
       });
 
       test("flushes every deferred error when critical work throws", async () => {
@@ -260,15 +261,15 @@ describe("log-error", () => {
               logError({ code: ErrorCode.DB_CONNECTION });
               logError({ code: ErrorCode.DB_QUERY });
               throw failure;
-            })
+            }),
           );
         } catch (error) {
           caught = error;
         }
 
         expect(caught).toBe(failure);
-        const messages = (await getAllActivityLog()).map(({ message }) =>
-          message
+        const messages = (await getAllActivityLog()).map(
+          ({ message }) => message,
         );
         expect(messages).toContain("Error: Database connection failed");
         expect(messages).toContain("Error: Database query failed");

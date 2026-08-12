@@ -179,8 +179,8 @@ const ERROR_DEFS = {
 type ErrorDefs = typeof ERROR_DEFS;
 
 /** Error code strings for use in logError calls */
-export const ErrorCode: { [K in keyof ErrorDefs]: ErrorDefs[K][0] } = Object
-  .fromEntries(
+export const ErrorCode: { [K in keyof ErrorDefs]: ErrorDefs[K][0] } =
+  Object.fromEntries(
     Object.entries(ERROR_DEFS).map(([k, [code]]) => [k, code]),
   ) as { [K in keyof ErrorDefs]: ErrorDefs[K][0] };
 
@@ -393,7 +393,7 @@ export const bestEffort = async (
 /**
  * Create a request timer for measuring duration
  */
-export const createRequestTimer = (): () => number => {
+export const createRequestTimer = (): (() => number) => {
   const start = performance.now();
   return () => Math.round(performance.now() - start);
 };

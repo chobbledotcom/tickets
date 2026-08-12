@@ -132,15 +132,13 @@ export const openOwnerAction = async (
   return browser;
 };
 
-const submitOwnerAction = (
-  action: string,
-  button: string,
-): OwnerJourney =>
-async (world, who) => {
-  const browser = await openOwnerAction(world, who, action);
-  await fillInAndSend(browser, { confirm_identifier: who }, button);
-  return browser;
-};
+const submitOwnerAction =
+  (action: string, button: string): OwnerJourney =>
+  async (world, who) => {
+    const browser = await openOwnerAction(world, who, action);
+    await fillInAndSend(browser, { confirm_identifier: who }, button);
+    return browser;
+  };
 
 /** Submit the rendered owner refund form and keep the page it leads to. */
 export const ownerRefunds: OwnerJourney = submitOwnerAction(

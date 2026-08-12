@@ -10,8 +10,8 @@ import {
   CLAIM_MIRROR,
   freshClaimSlot,
   putRowState,
-  reviewCase,
   REVIEW_MIRROR,
+  reviewCase,
   rowStateSlot,
 } from "#test-utils/payment-claim.ts";
 import {

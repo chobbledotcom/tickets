@@ -143,12 +143,9 @@ describe("combined subrequest budget", () => {
       let ran = false;
 
       expect(() =>
-        withSubrequestReserve(
-          { database: 2, external: 0, total: 2 },
-          () => {
-            ran = true;
-          },
-        )
+        withSubrequestReserve({ database: 2, external: 0, total: 2 }, () => {
+          ran = true;
+        }),
       ).toThrow("Subrequest reserve unavailable");
       expect(ran).toBe(false);
       expect(getSubrequestRemaining()).toEqual({

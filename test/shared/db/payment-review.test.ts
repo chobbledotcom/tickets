@@ -62,11 +62,8 @@ const currentReviewIdentity = async (attendeeId: number): Promise<string> => {
   return state.identity;
 };
 
-const acknowledge = async (
-  attendeeId: number,
-  reviewIdentity?: string,
-) => {
-  const identity = reviewIdentity ?? await currentReviewIdentity(attendeeId);
+const acknowledge = async (attendeeId: number, reviewIdentity?: string) => {
+  const identity = reviewIdentity ?? (await currentReviewIdentity(attendeeId));
   return acknowledgeCurrentPaymentReview({
     attendeeId,
     listingId: LISTING_ID,
@@ -106,9 +103,7 @@ describeWithEnv(
         }),
         UNRECORDED_MIRROR,
       );
-      expect(await getPaymentWorkStatus(attendeeId)).toBe(
-        "needs_money_record",
-      );
+      expect(await getPaymentWorkStatus(attendeeId)).toBe("needs_money_record");
 
       await putRowState(
         "sess-status",
@@ -253,8 +248,8 @@ describeWithEnv(
       ]);
       expect(await getPaymentWorkStatus(attendeeId)).toBe("needs_review");
       expect(
-        (await getAttendeeActivityLog(attendeeId)).map(({ message }) =>
-          message
+        (await getAttendeeActivityLog(attendeeId)).map(
+          ({ message }) => message,
         ),
       ).toEqual([REVIEW_ACTIVITY]);
     });
@@ -279,8 +274,9 @@ describeWithEnv(
       expect((await reviewOf(attendeeId, "sess-first")).acknowledgedAt).toBe(
         earlier,
       );
-      expect((await reviewOf(attendeeId, "sess-second")).acknowledgedAt)
-        .toEqual(expect.any(String));
+      expect(
+        (await reviewOf(attendeeId, "sess-second")).acknowledgedAt,
+      ).toEqual(expect.any(String));
     });
 
     test("a missed row write rolls the whole acknowledgement back", async () => {
@@ -298,10 +294,12 @@ describeWithEnv(
       await expect(acknowledge(attendeeId)).rejects.toThrow(
         "Payment review no longer owns payment row sess-cas-lost",
       );
-      expect((await reviewOf(attendeeId, "sess-cas-first")).acknowledgedAt)
-        .toBeUndefined();
-      expect((await reviewOf(attendeeId, "sess-cas-lost")).acknowledgedAt)
-        .toBeUndefined();
+      expect(
+        (await reviewOf(attendeeId, "sess-cas-first")).acknowledgedAt,
+      ).toBeUndefined();
+      expect(
+        (await reviewOf(attendeeId, "sess-cas-lost")).acknowledgedAt,
+      ).toBeUndefined();
       expect(await getAttendeeActivityLog(attendeeId)).toEqual([]);
     });
 
@@ -317,8 +315,9 @@ describeWithEnv(
       await expect(acknowledge(attendeeId)).rejects.toThrow(
         "activity unavailable",
       );
-      expect((await reviewOf(attendeeId, "sess-log")).acknowledgedAt)
-        .toBeUndefined();
+      expect(
+        (await reviewOf(attendeeId, "sess-log")).acknowledgedAt,
+      ).toBeUndefined();
     });
 
     test("changes only the named attendee's exact review", async () => {
@@ -331,8 +330,9 @@ describeWithEnv(
       expect((await reviewOf(named, "sess-named")).acknowledgedAt).toEqual(
         expect.any(String),
       );
-      expect((await reviewOf(other, "sess-other")).acknowledgedAt)
-        .toBeUndefined();
+      expect(
+        (await reviewOf(other, "sess-other")).acknowledgedAt,
+      ).toBeUndefined();
       expect(await getAttendeeActivityLog(other)).toEqual([]);
     });
   },

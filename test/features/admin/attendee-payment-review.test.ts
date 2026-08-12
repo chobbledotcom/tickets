@@ -24,8 +24,8 @@ import {
   CLAIM_MIRROR,
   protectedStateOf,
   putRowState,
-  reviewCase,
   REVIEW_MIRROR,
+  reviewCase,
   rowStateSlot,
   storedRecordOf,
 } from "#test-utils/payment-claim.ts";
@@ -103,8 +103,7 @@ const submitReview = async (
   cookie = context.cookie,
 ): Promise<Response> => {
   const state = await getPaymentReviewState(context.attendeeId);
-  const reviewIdentity =
-    state.status === "needs_review" ? state.identity : "";
+  const reviewIdentity = state.status === "needs_review" ? state.identity : "";
   return handleRequest(
     mockFormRequest(
       reviewUrl(context.attendeeId),
@@ -290,16 +289,15 @@ describeWithEnv("admin payment review action", { db: true }, () => {
     test("rejects a stale form after a newer review case opens", async () => {
       const context = await setupReview();
       const first = await getPaymentReviewState(context.attendeeId);
-      if (first.status !== "needs_review") throw new Error("review was omitted");
+      if (first.status !== "needs_review")
+        throw new Error("review was omitted");
       await setReview(context.sessionId, "new-route-case");
 
       await expectFlashRedirect(
         reviewUrl(context.attendeeId),
         "The payment review changed. Check the current details and confirm again.",
         false,
-      )(
-        await submitReview(context, { review_identity: first.identity }),
-      );
+      )(await submitReview(context, { review_identity: first.identity }));
       expect(await paymentReviewActivity(context.attendeeId)).toEqual([]);
     });
 

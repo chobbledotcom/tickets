@@ -66,22 +66,18 @@ export const createSumupTransport = (apiKey: string): SumupTransport => ({
     await parseJson(
       await sumupRequest(
         apiKey,
-        `/v2.1/merchants/${encodeURIComponent(merchantCode)}/transactions?id=${
-          encodeURIComponent(
-            id,
-          )
-        }`,
+        `/v2.1/merchants/${encodeURIComponent(merchantCode)}/transactions?id=${encodeURIComponent(
+          id,
+        )}`,
         "GET",
       ),
     ),
   refundTransaction: async (merchantCode, transactionId) => {
     const body = await sumupRequest(
       apiKey,
-      `/v1.0/merchants/${encodeURIComponent(merchantCode)}/payments/${
-        encodeURIComponent(
-          transactionId,
-        )
-      }/refunds`,
+      `/v1.0/merchants/${encodeURIComponent(merchantCode)}/payments/${encodeURIComponent(
+        transactionId,
+      )}/refunds`,
       "POST",
     );
     // The documented answer is empty. If SumUp adds a JSON envelope, it still

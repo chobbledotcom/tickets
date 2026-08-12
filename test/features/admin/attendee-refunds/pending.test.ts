@@ -17,7 +17,7 @@ import {
 
 const bulkRefundActivity = async (listingId: number): Promise<string> => {
   const log = (await getListingActivityLog(listingId)).find((entry) =>
-    entry.message.includes("Bulk refund:")
+    entry.message.includes("Bulk refund:"),
   );
   if (!log) throw new Error("Bulk refund activity was not recorded");
   return log.message;

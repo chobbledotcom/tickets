@@ -24,13 +24,13 @@ const directAttendeeFields = APP_SCHEMA.flatMap(([table, definition]) =>
   definition.columns
     .map(([field]) => field)
     .filter((field) => /attendee_id$/.test(field))
-    .map((field) => `${table}.${field}`)
+    .map((field) => `${table}.${field}`),
 ).sort();
 
 describe("attendee dependent data", () => {
   test("classifies every schema column that names an attendee", () => {
     const classified = ATTENDEE_DATA_RULES.flatMap((rule) =>
-      rule.kind === "direct" ? [`${rule.table}.${rule.field}`] : []
+      rule.kind === "direct" ? [`${rule.table}.${rule.field}`] : [],
     ).sort();
 
     expect(classified).toEqual(directAttendeeFields);
@@ -40,7 +40,7 @@ describe("attendee dependent data", () => {
     const paymentTableNames = paymentTables.map(([name]) => name).sort();
     const paymentNames = new Set(paymentTableNames);
     const classified = ATTENDEE_DATA_RULES.filter((rule) =>
-      paymentNames.has(rule.table)
+      paymentNames.has(rule.table),
     )
       .map((rule) => rule.table)
       .sort();

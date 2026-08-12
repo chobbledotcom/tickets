@@ -24,11 +24,11 @@ import {
   getFirstBookingListingId,
 } from "#shared/db/attendees/queries.ts";
 import { getListingWithAttendeeRaw } from "#shared/db/listings/attendees.ts";
+import { requireListingWithCount } from "#shared/db/listings/records.ts";
 import {
   getPaymentReviewState,
   type PaymentReviewState,
 } from "#shared/db/payment-review.ts";
-import { requireListingWithCount } from "#shared/db/listings/records.ts";
 import { findByIdThen } from "#shared/find-by-id.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { PaymentRecoveryAction } from "#shared/payment/admit-move.ts";
@@ -93,7 +93,7 @@ type PaymentReviewActionData = AttendeeActionData & {
 const loadAttendeeActionData: (
   attendeeId: number,
 ) => Promise<AttendeeActionData | null> = withDecryptedAttendee((attendee) =>
-  Promise.resolve({ attendee })
+  Promise.resolve({ attendee }),
 );
 
 const loadPaymentReviewActionData: (
@@ -211,6 +211,7 @@ const defineAttendeeAction = <
           await render(data, session, returnUrl, flash.error),
         );
       }),
+    url: (attendeeId) => attendeeActionUrl(attendeeId, action),
     verified: (actionLabel, handler, auth: AuthPolicy<"form"> = AUTH_FORM) =>
       actionHandler(formGuard(auth))((data, _session, form) => {
         const error = verifyOrRedirect(
@@ -227,7 +228,6 @@ const defineAttendeeAction = <
         if (error) return error;
         return handler(data, form);
       }),
-    url: (attendeeId) => attendeeActionUrl(attendeeId, action),
   };
 };
 
@@ -262,11 +262,7 @@ export const attendeeActions = defineAttendeeActions({
   "payment-review": defineAttendeeAction<
     PaymentReviewActionData,
     "payment-review"
-  >(
-    "payment-review",
-    "attendee",
-    loadPaymentReviewActionData,
-  ),
+  >("payment-review", "attendee", loadPaymentReviewActionData),
   "refresh-payment": attendeeAction("refresh-payment"),
   refund: bookingAction("refund"),
   "resend-notification": bookingAction("resend-notification"),
@@ -286,7 +282,7 @@ type AttendeeIdRouteParams = { attendeeId: number };
  * the parsed form. Shared by the note and logistics POSTs. */
 export const attendeeFormPost = (
   handle: IdFormHandler,
-): (request: Request, params: AttendeeIdRouteParams) => Promise<Response> =>
+): ((request: Request, params: AttendeeIdRouteParams) => Promise<Response>) =>
   createAuthedHandler<AttendeeIdRouteParams>({
     handle: ({ form, params, session }) =>
       handle(params.attendeeId, session, form),
@@ -310,7 +306,7 @@ type AttendeeFormAction = ResponseHandler<
 /** Create an attendee form handler with typed IDs */
 export const attendeeFormAction = (
   handler: AttendeeFormAction,
-): (request: Request, params: AttendeeRouteParams) => Promise<Response> =>
+): ((request: Request, params: AttendeeRouteParams) => Promise<Response>) =>
   createAuthedHandler<AttendeeRouteParams, AttendeeWithListing>({
     handle: ({ context, form, params, session }) =>
       handler(context, session, form, params.listingId, params.attendeeId),

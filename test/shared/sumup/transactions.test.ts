@@ -135,14 +135,12 @@ describe("sumup transactions", () => {
       );
     });
 
-    for (
-      const [name, fields, reason] of [
-        ["another transaction", { id: "txn_other" }, "mismatched_id"],
-        ["another account", { merchant_code: "OTHER" }, "mismatched_account"],
-        ["a pending transaction", { status: "PENDING" }, "unsupported_status"],
-        ["a failed transaction", { status: "FAILED" }, "unsupported_status"],
-      ] as const
-    ) {
+    for (const [name, fields, reason] of [
+      ["another transaction", { id: "txn_other" }, "mismatched_id"],
+      ["another account", { merchant_code: "OTHER" }, "mismatched_account"],
+      ["a pending transaction", { status: "PENDING" }, "unsupported_status"],
+      ["a failed transaction", { status: "FAILED" }, "unsupported_status"],
+    ] as const) {
       test(`refuses ${name}`, async () => {
         const client = makeSumupClient({
           txnGet: () => Promise.resolve(transactionWire(fields)),

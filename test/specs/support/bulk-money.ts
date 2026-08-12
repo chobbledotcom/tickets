@@ -19,8 +19,8 @@ import {
 import {
   type ActOnSomeMoney,
   requiredWorldValue,
-  theListing,
   type TicketsWorld,
+  theListing,
 } from "#test/specs/support/world.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { singleItem } from "#test-utils/factories.ts";
@@ -127,12 +127,10 @@ const refundEveryone = async (
 
 /** The provider turns down the first payment while the next one completes. */
 export const everyoneRefunded = (world: TicketsWorld): Promise<void> =>
-  refundEveryone(
-    world,
-    (request) =>
-      request.paymentReference === DECLINED_PAYMENT
-        ? refundIsRejected(request)
-        : refundCompletes(request),
+  refundEveryone(world, (request) =>
+    request.paymentReference === DECLINED_PAYMENT
+      ? refundIsRejected(request)
+      : refundCompletes(request),
   );
 
 /** Try Refund All with a provider that would return every payment it receives. */
@@ -150,9 +148,7 @@ export const firstPaymentIsLastRefundCandidate = async (
   expect(candidates).toHaveLength(
     requiredWorldValue(world.attendeeIds, "the people who paid").length,
   );
-  expect(candidates.at(-1)?.attendee.id).toBe(
-    firstAttendeeId(world),
-  );
+  expect(candidates.at(-1)?.attendee.id).toBe(firstAttendeeId(world));
 };
 
 /** Give the first charge a provider report that cannot be true. */

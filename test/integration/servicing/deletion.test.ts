@@ -53,8 +53,9 @@ describeWithEnv("servicing §15 — deletion & orphan purge", { db: true }, () =
   test("orphan purge sweeps a servicing event with no bookings past the cutoff", async () => {
     const { id } = await createServicingHold();
     await orphanServicingEvent(id);
-    expect(await countPurgeableOrphanedAttendees(nowIso()))
-      .toBeGreaterThanOrEqual(1);
+    expect(
+      await countPurgeableOrphanedAttendees(nowIso()),
+    ).toBeGreaterThanOrEqual(1);
     await purgeOrphanedAttendees(nowIso());
     expect(await attendeeExists(id)).toBe(false);
   });
@@ -71,8 +72,9 @@ describeWithEnv("servicing §15 — deletion & orphan purge", { db: true }, () =
     const { id } = await createServicingHold();
     await orphanServicingEvent(id);
     expect(await kindOf(id)).toBe(SERVICING_KIND);
-    expect(await countPurgeableOrphanedAttendees(nowIso()))
-      .toBeGreaterThanOrEqual(1);
+    expect(
+      await countPurgeableOrphanedAttendees(nowIso()),
+    ).toBeGreaterThanOrEqual(1);
   });
 
   test("deleting a servicing event also clears its service_costs rows", async () => {
@@ -86,15 +88,13 @@ describeWithEnv("servicing §15 — deletion & orphan purge", { db: true }, () =
     });
     const before = await getDb().execute({
       args: [id],
-      sql:
-        "SELECT COUNT(*) AS n FROM service_costs WHERE servicing_attendee_id = ?",
+      sql: "SELECT COUNT(*) AS n FROM service_costs WHERE servicing_attendee_id = ?",
     });
     expect(Number(before.rows[0]?.n ?? 0)).toBe(1);
     await deleteServicingEvent(id);
     const after = await getDb().execute({
       args: [id],
-      sql:
-        "SELECT COUNT(*) AS n FROM service_costs WHERE servicing_attendee_id = ?",
+      sql: "SELECT COUNT(*) AS n FROM service_costs WHERE servicing_attendee_id = ?",
     });
     expect(Number(after.rows[0]?.n ?? 0)).toBe(0);
   });

@@ -58,15 +58,13 @@ describeWithEnv("the attendee page", { db: true }, () => {
     test("offers every tab the owner may open", async () => {
       const id = await bookAttendee();
       const html = await tabHtml(id, "");
-      for (
-        const slug of [
-          "edit",
-          "logistics",
-          "ledger",
-          "activity",
-          "actions",
-        ]
-      ) {
+      for (const slug of [
+        "edit",
+        "logistics",
+        "ledger",
+        "activity",
+        "actions",
+      ]) {
         expect(html).toContain(`/admin/attendees/${id}/${slug}`);
       }
     });
@@ -110,7 +108,7 @@ describeWithEnv("the attendee page", { db: true }, () => {
       const response = await withTestSession(() =>
         attendeePage.renderPage(OWNER, id, "edit", {
           query: new URLSearchParams({ return_url: "/admin/calendar" }),
-        })
+        }),
       );
       // The hidden field itself — the admin nav also links /admin/calendar,
       // so a looser check would pass without the value ever being carried.

@@ -55,11 +55,7 @@ describeWithEnv(
 
     test("a review on the last payment stops every provider send", async () => {
       const listing = await createPaidListing({ maxAttendees: 500 });
-      await seedBatchAttendees(
-        listing,
-        "pi_review_last_",
-        REVIEWED_SET_SIZE,
-      );
+      await seedBatchAttendees(listing, "pi_review_last_", REVIEWED_SET_SIZE);
       await putReviewOnLastPayment(listing.id);
 
       await withRefundMock(refundIsRejected, async (mockRefund) => {

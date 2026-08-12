@@ -55,8 +55,9 @@ describeWithEnv("servicing edge cases — purge", { db: true }, () => {
       args: [cutoff, edgeId],
       sql: "UPDATE attendees SET created = ? WHERE id = ?",
     });
-    expect(await countPurgeableOrphanedAttendees(cutoff))
-      .toBeGreaterThanOrEqual(1);
+    expect(
+      await countPurgeableOrphanedAttendees(cutoff),
+    ).toBeGreaterThanOrEqual(1);
     await purgeOrphanedAttendees(cutoff);
     expect(await attendeeExists(oldId)).toBe(false);
     // The boundary row survives — the purge predicate is `created < cutoff`.
@@ -70,8 +71,7 @@ describeWithEnv("servicing edge cases — purge", { db: true }, () => {
     const { getDb: db } = await import("#shared/db/client.ts");
     await db().execute({
       args: [id, 1, 1],
-      sql:
-        "INSERT INTO attendee_answers (attendee_id, question_id, answer_id) VALUES (?, ?, ?)",
+      sql: "INSERT INTO attendee_answers (attendee_id, question_id, answer_id) VALUES (?, ?, ?)",
     });
     expect(await childRowCount("attendee_answers", id)).toBe(1);
     await purgeOrphanedAttendees(nowIso());
@@ -102,8 +102,9 @@ describeWithEnv("servicing edge cases — purge", { db: true }, () => {
       args: [daysAgoIso(30), real.id],
       sql: "UPDATE attendees SET created = ? WHERE id = ?",
     });
-    expect(await countPurgeableOrphanedAttendees(nowIso()))
-      .toBeGreaterThanOrEqual(2);
+    expect(
+      await countPurgeableOrphanedAttendees(nowIso()),
+    ).toBeGreaterThanOrEqual(2);
     await purgeOrphanedAttendees(nowIso());
     expect(await attendeeExists(servicingId)).toBe(false);
     expect(await attendeeExists(real.id)).toBe(false);

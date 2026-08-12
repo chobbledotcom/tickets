@@ -30,16 +30,14 @@ const handleAdminRefundAllGet = (
   request: Request,
   { id }: ListingRouteParams,
 ): Promise<Response> =>
-  requireOwnerOr(
-    request,
-    (session) =>
-      withDecryptedAttendees(session, id, async (listing, attendees) => {
-        const flash = applyFlash(request);
-        const count = (
-          await getRefundCandidates(attendees, await requireRequestPrivateKey())
-        ).length;
-        return count === 0
-          ? htmlResponse(
+  requireOwnerOr(request, (session) =>
+    withDecryptedAttendees(session, id, async (listing, attendees) => {
+      const flash = applyFlash(request);
+      const count = (
+        await getRefundCandidates(attendees, await requireRequestPrivateKey())
+      ).length;
+      return count === 0
+        ? htmlResponse(
             adminRefundAllAttendeesPage(
               listing,
               0,
@@ -48,10 +46,10 @@ const handleAdminRefundAllGet = (
             ),
             400,
           )
-          : htmlResponse(
+        : htmlResponse(
             adminRefundAllAttendeesPage(listing, count, session, flash.error),
           );
-      }),
+    }),
   );
 
 interface RefundResponseContext {
@@ -105,8 +103,8 @@ const buildRefundProblemResponse = async (
     }),
     pendingCount > 0
       ? t("admin.attendees.refund_all_result_pending", {
-        count: pendingCount,
-      })
+          count: pendingCount,
+        })
       : null,
     t("admin.attendees.refund_all_result_failures", {
       count: problemCount,
@@ -117,12 +115,10 @@ const buildRefundProblemResponse = async (
     t("admin.attendees.refund_all_result_complete"),
   ]).join(" ");
   await logActivity(
-    `Bulk refund: ${
-      refundActivityCounts(
-        counts,
-        problemCount,
-      )
-    } for '${listing.name}'`,
+    `Bulk refund: ${refundActivityCounts(
+      counts,
+      problemCount,
+    )} for '${listing.name}'`,
     listing.id,
   );
   return fail(refundAllUrl, msg);
@@ -212,11 +208,9 @@ const processRefundAll = async (
 };
 
 const handleAdminRefundAllPost = ownerFormById((id, session, form) =>
-  withDecryptedAttendees(
-    session,
-    id,
-    (listing, attendees) => processRefundAll(listing, attendees, session, form),
-  )
+  withDecryptedAttendees(session, id, (listing, attendees) =>
+    processRefundAll(listing, attendees, session, form),
+  ),
 );
 
 /** Routes that refund every eligible attendee on a listing. */

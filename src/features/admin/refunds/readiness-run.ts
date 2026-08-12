@@ -75,7 +75,7 @@ const reportCandidateProblems = (
 const sharedRowSessionIds = (held: HeldRefundWork): Set<string> =>
   new Set(
     [...held.shared.values()].flatMap((representations) =>
-      representations.map(({ sessionId }) => sessionId)
+      representations.map(({ sessionId }) => sessionId),
     ),
   );
 
@@ -166,7 +166,7 @@ const protectProviderReads = (
       (reference) =>
         reference.refundState !== "completed" &&
         !held.alreadyReturned.has(reference.index),
-    )
+    ),
   );
   rememberRefundDoubts(needingProtection, held, "in_doubt");
 };
@@ -215,14 +215,12 @@ export const runRefundReadiness = async <TResult>(
     loadedBudgetCandidates(run.candidates),
     run.listingId,
     {
-      ...(run.budgetAudience === undefined ? {} : {
-        admit: ({ attendees, returned }) =>
-          budgetFits(
-            attendees,
-            returned,
-            "inside_claim",
-          ),
-      }),
+      ...(run.budgetAudience === undefined
+        ? {}
+        : {
+            admit: ({ attendees, returned }) =>
+              budgetFits(attendees, returned, "inside_claim"),
+          }),
       blocked: (block) => {
         if (block.kind === "claim_held") {
           return { kind: "blocked", reason: "refund_in_progress" };

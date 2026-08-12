@@ -75,8 +75,7 @@ const dependentDeleteStatement = (
   }
   return {
     args: attendeeIds.args,
-    sql:
-      `DELETE FROM ${rule.table} WHERE ${rule.field} IN (${attendeeIds.sql})`,
+    sql: `DELETE FROM ${rule.table} WHERE ${rule.field} IN (${attendeeIds.sql})`,
   };
 };
 
@@ -93,8 +92,7 @@ const clearAssignmentStatement = (
   attendeeIds: SqlStatement,
 ): SqlStatement => ({
   args: attendeeIds.args,
-  sql:
-    `UPDATE ${rule.table} SET ${rule.field} = NULL WHERE ${rule.field} IN (${attendeeIds.sql})`,
+  sql: `UPDATE ${rule.table} SET ${rule.field} = NULL WHERE ${rule.field} IN (${attendeeIds.sql})`,
 });
 
 /** Remove or detach every dependent row for one or many attendee ids. */
@@ -125,12 +123,13 @@ export const repointAttendeeDependents = (
 ): SqlStatement[] =>
   ATTENDEE_DATA_RULES.flatMap((rule) =>
     rule.action === "repoint"
-      ? [{
-        args: [targetId, sourceId],
-        sql:
-          `UPDATE ${rule.table} SET ${rule.field} = ? WHERE ${rule.field} = ?`,
-      }]
-      : []
+      ? [
+          {
+            args: [targetId, sourceId],
+            sql: `UPDATE ${rule.table} SET ${rule.field} = ? WHERE ${rule.field} = ?`,
+          },
+        ]
+      : [],
   );
 
 /**

@@ -81,9 +81,9 @@ const runFor = async (
   readonly result:
     | RunResult
     | {
-      kind: "blocked";
-      reason: "refund_in_progress";
-    };
+        kind: "blocked";
+        reason: "refund_in_progress";
+      };
   readonly settlements: RowSettlement[];
 }> => {
   const recorded = recordingClaim(state);

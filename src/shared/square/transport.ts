@@ -15,9 +15,8 @@ export const SQUARE_MAX_NETWORK_RETRIES = 0;
 export type SquareRequestOptions = { method?: string; body?: unknown };
 
 const jsonStringify = (value: unknown): string =>
-  JSON.stringify(
-    value,
-    (_, field) => typeof field === "bigint" ? Number(field) : field,
+  JSON.stringify(value, (_, field) =>
+    typeof field === "bigint" ? Number(field) : field,
   );
 
 /** Build the auth headers and JSON body used by Square REST calls. */
@@ -67,11 +66,11 @@ const squareConnectionReason = (
   error: unknown,
 ): SquareConnectionError["reason"] | undefined =>
   error instanceof DOMException &&
-    (error.name === "AbortError" || error.name === "TimeoutError")
+  (error.name === "AbortError" || error.name === "TimeoutError")
     ? "timeout"
     : error instanceof TypeError
-    ? "network_error"
-    : undefined;
+      ? "network_error"
+      : undefined;
 
 const fetchSquareResponse = async (
   url: string,

@@ -82,10 +82,10 @@ const paymentOnlyBeforeRefund = async (
 type RefreshedReference =
   | { kind: "returned"; reference: TaggedRefundReference }
   | {
-    admission: Exclude<ObservedRefundAdmission, { kind: "already_returned" }>;
-    kind: "unreturned";
-    reference: TaggedRefundReference;
-  };
+      admission: Exclude<ObservedRefundAdmission, { kind: "already_returned" }>;
+      kind: "unreturned";
+      reference: TaggedRefundReference;
+    };
 
 type UnreturnedReference = Extract<RefreshedReference, { kind: "unreturned" }>;
 
@@ -156,16 +156,16 @@ const providerReviewFindings = (
     result.kind !== "unreturned"
       ? []
       : result.admission.kind === "refused"
-      ? [{ reason: result.admission.issue, reference: result.reference }]
-      : result.admission.kind === "send" &&
-          uncertainKeyless.has(result.reference.index)
-      ? [
-        {
-          reason: { kind: "uncertain_keyless_refund" },
-          reference: result.reference,
-        },
-      ]
-      : []
+        ? [{ reason: result.admission.issue, reference: result.reference }]
+        : result.admission.kind === "send" &&
+            uncertainKeyless.has(result.reference.index)
+          ? [
+              {
+                reason: { kind: "uncertain_keyless_refund" },
+                reference: result.reference,
+              },
+            ]
+          : [],
   );
 
 /** Retire only refund markers that a complete ledger post disproves. */
@@ -287,7 +287,7 @@ const refreshReadyCandidate = async (
   >,
 ): Promise<RefreshPaymentResult> => {
   const observed = candidate.references.map((reference) =>
-    observedReference(reference, candidate.attendee.id, listingId)
+    observedReference(reference, candidate.attendee.id, listingId),
   );
   const returned = compact(observed.map(returnedReference));
   const hasUnreturned = returned.length !== candidate.references.length;
@@ -295,7 +295,7 @@ const refreshReadyCandidate = async (
     observed,
     new Set(
       [...inherited].flatMap(([index, capability]) =>
-        capability === "keyless" ? [index] : []
+        capability === "keyless" ? [index] : [],
       ),
     ),
   );
@@ -307,7 +307,8 @@ const refreshReadyCandidate = async (
   );
   const attendeeId = candidate.attendee.id;
   // The complete observation now replaces protection taken before provider IO.
-  const keepsClaim = hasAdmission(observed, "in_flight") ||
+  const keepsClaim =
+    hasAdmission(observed, "in_flight") ||
     resumedKeyedSendRemains(observed, inherited);
   setClaimProtection(findings, attendeeId, keepsClaim);
   const ledger = await persistReturnedReferences(

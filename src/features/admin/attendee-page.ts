@@ -23,11 +23,11 @@ import {
   buildEditFormFromAttendee,
   buildTemplateData,
   getRenderListings,
+  type LoadedAttendee,
   loadAttendeeActivity,
   loadAttendeeActivityPreview,
   loadAttendeeForEdit,
   loadContactRecords,
-  type LoadedAttendee,
   loadPackagePaths,
   loadQuestionsForExisting,
 } from "#routes/admin/attendee-page-data.ts";
@@ -103,15 +103,16 @@ const hasBooking = ({ existing }: AttendeePageEntity): boolean =>
   existing.some(({ booking }) => booking.quantity > 0);
 
 /** Gate a rendered link with the same scope schema as its target route. */
-const actionWhen = (
-  action: AttendeeActionName,
-  allowed: NonNullable<
-    ActionDef<AttendeePageEntity>["visible"]
-  > = alwaysAllow,
-): NonNullable<ActionDef<AttendeePageEntity>["visible"]> =>
-(entity, session) =>
-  attendeeActions[action].isAvailable(hasBooking(entity)) &&
-  allowed(entity, session);
+const actionWhen =
+  (
+    action: AttendeeActionName,
+    allowed: NonNullable<
+      ActionDef<AttendeePageEntity>["visible"]
+    > = alwaysAllow,
+  ): NonNullable<ActionDef<AttendeePageEntity>["visible"]> =>
+  (entity, session) =>
+    attendeeActions[action].isAvailable(hasBooking(entity)) &&
+    allowed(entity, session);
 
 /** Gate owner payment actions on one named durable row state. */
 const ownerPaymentWhen = (

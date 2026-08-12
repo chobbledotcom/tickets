@@ -120,7 +120,7 @@ describeWithEnv("server (admin refund-all results)", { db: true }, () => {
     }
 
     const log = (await getListingActivityLog(listing.id)).find((entry) =>
-      entry.message.includes("Bulk refund: 1 succeeded")
+      entry.message.includes("Bulk refund: 1 succeeded"),
     );
     expect(log?.message).toContain("1 succeeded, 1 failed");
   });
@@ -144,12 +144,10 @@ describeWithEnv("server (admin refund-all results)", { db: true }, () => {
       (request) => {
         callNum++;
         if (callNum === 1) return refundCompletes(request);
-        return Promise.resolve(
-          {
-            kind: "uncertain",
-            reason: "network_error",
-          } as const,
-        );
+        return Promise.resolve({
+          kind: "uncertain",
+          reason: "network_error",
+        } as const);
       },
       async () => {
         const response = await postRefundAll(listing);
@@ -178,12 +176,10 @@ describeWithEnv("server (admin refund-all results)", { db: true }, () => {
     );
     await withRefundMock(
       (_request) =>
-        Promise.resolve(
-          {
-            kind: "uncertain",
-            reason: "network_error",
-          } as const,
-        ),
+        Promise.resolve({
+          kind: "uncertain",
+          reason: "network_error",
+        } as const),
       async () => {
         await expectFlashRedirect(
           `/admin/listing/${listing.id}/refund-all`,

@@ -9,6 +9,7 @@
 import { assertExists } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { assignBuiltSite, insertBuiltSite } from "#shared/db/built-sites.ts";
 import {
   execute,
   getDb,
@@ -18,7 +19,6 @@ import {
 } from "#shared/db/client.ts";
 import { createSystemNote, getNoteRows } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
-import { assignBuiltSite, insertBuiltSite } from "#shared/db/built-sites.ts";
 import {
   countPurgeableOrphanedAttendees,
   getOrphanAttendeeIdsWithPaymentWork,

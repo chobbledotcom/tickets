@@ -75,12 +75,13 @@ export const readSumupTransaction = (
     return { reason: "unsupported_status", status: "invalid" };
   }
   const refundEvents = events.filter((event) => event.event_type === "REFUND");
-  const returned = transaction.status === "REFUNDED"
-    ? [{ amount: transaction.amount, status: "REFUNDED" }]
-    : refundEvents.map((event) => ({
-      amount: event.amount,
-      status: event.status,
-    }));
+  const returned =
+    transaction.status === "REFUNDED"
+      ? [{ amount: transaction.amount, status: "REFUNDED" }]
+      : refundEvents.map((event) => ({
+          amount: event.amount,
+          status: event.status,
+        }));
   return {
     resource: {
       amount: transaction.amount,

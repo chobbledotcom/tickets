@@ -35,14 +35,12 @@ import { SaveForm } from "#templates/components/save-form.tsx";
 
 /** The "Amount paid: £X" paragraph, rendered when the attendee paid > 0. */
 const amountPaidPara = (attendee: Attendee): JSX.Element | null =>
-  Number.parseInt(attendee.price_paid, 10) > 0
-    ? (
-      <p>
-        <strong>{t("admin.attendees.amount_paid")}</strong>{" "}
-        {formatCurrency(attendee.price_paid)}
-      </p>
-    )
-    : null;
+  Number.parseInt(attendee.price_paid, 10) > 0 ? (
+    <p>
+      <strong>{t("admin.attendees.amount_paid")}</strong>{" "}
+      {formatCurrency(attendee.price_paid)}
+    </p>
+  ) : null;
 
 /**
  * The prose "attendee details" block shared by attendee confirmation pages:
@@ -63,9 +61,9 @@ const AttendeeDetails = ({
   const amountPaidLine: LabelledLine | null =
     showAmountPaid && Number.parseInt(attendee.price_paid, 10) > 0
       ? {
-        label: t("admin.attendees.amount_paid"),
-        value: formatCurrency(attendee.price_paid),
-      }
+          label: t("admin.attendees.amount_paid"),
+          value: formatCurrency(attendee.price_paid),
+        }
       : null;
   return (
     <ProseSection title={t("admin.attendees.details")}>
@@ -229,18 +227,17 @@ type PaymentReviewConfirmData = AttendeeConfirmData & {
 };
 
 /** Render the exact review case loaded with the attendee action. */
-export const adminPaymentReviewPage = attendeeRouteConfirm<
-  PaymentReviewConfirmData
->(
-  "payment-review",
-  paymentReviewConfirm,
-  ({ reviewIdentity }) => ({
-    disabled: reviewIdentity === null,
-    ...(reviewIdentity === null
-      ? {}
-      : { hiddenFields: { review_identity: reviewIdentity } }),
-  }),
-);
+export const adminPaymentReviewPage =
+  attendeeRouteConfirm<PaymentReviewConfirmData>(
+    "payment-review",
+    paymentReviewConfirm,
+    ({ reviewIdentity }) => ({
+      disabled: reviewIdentity === null,
+      ...(reviewIdentity === null
+        ? {}
+        : { hiddenFields: { review_identity: reviewIdentity } }),
+    }),
+  );
 
 /**
  * Admin re-send notification confirmation page
@@ -315,24 +312,24 @@ export const PaymentDetails = ({
         <h3>{t("admin.attendees.payment_details")}</h3>
         {attendee.payment_id && (
           <p>
-            <strong>{t("admin.attendees.payment_id")}</strong> {dashboardUrl
-              ? (
-                <a href={dashboardUrl} rel="noopener" target="_blank">
-                  {attendee.payment_id}
-                </a>
-              )
-              : (
-                attendee.payment_id
-              )}
+            <strong>{t("admin.attendees.payment_id")}</strong>{" "}
+            {dashboardUrl ? (
+              <a href={dashboardUrl} rel="noopener" target="_blank">
+                {attendee.payment_id}
+              </a>
+            ) : (
+              attendee.payment_id
+            )}
           </p>
         )}
         {amountPaidPara(attendee)}
         <p>
-          <strong>{t("admin.attendees.refund_status")}</strong> {isRefunded
-            ? <Badge variant="alert">{t("admin.attendees.refunded")}</Badge>
-            : (
-              t("admin.attendees.not_refunded")
-            )}
+          <strong>{t("admin.attendees.refund_status")}</strong>{" "}
+          {isRefunded ? (
+            <Badge variant="alert">{t("admin.attendees.refunded")}</Badge>
+          ) : (
+            t("admin.attendees.not_refunded")
+          )}
         </p>
         {attendee.remaining_balance > 0 && (
           <p>
@@ -385,7 +382,7 @@ export const EditQuestions = ({
         placeholder: t("attendee_form.no_answer"),
         // A saved free-text answer may legitimately not exist yet.
         textValue: selectedTextAnswers.get(q.id) ?? "",
-      })
+      }),
     )}
   </>
 );

@@ -352,10 +352,10 @@ describe("admin refund readiness", () => {
       expect(result).toEqual(
         bindingResult.kind === "claim_changed"
           ? {
-            kind: "not_ready",
-            observations: [{ charge: charge(), reference }],
-            reason: "claim_changed",
-          }
+              kind: "not_ready",
+              observations: [{ charge: charge(), reference }],
+              reason: "claim_changed",
+            }
           : {
               indexes: bindingResult.indexes,
               kind: "not_ready",

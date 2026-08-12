@@ -92,7 +92,7 @@ export const withSubrequestAllowance = <T>(
   const parent = budgetScope.current();
   if (!parent) {
     return runWithSubrequestBudget(() =>
-      withSubrequestAllowance(allowance, fn)
+      withSubrequestAllowance(allowance, fn),
     );
   }
   const usage = usageOf(parent.counts);

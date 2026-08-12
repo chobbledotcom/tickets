@@ -2,42 +2,42 @@
 
 export type AttendeeDataRule =
   | {
-    action: "delete";
-    field: string;
-    kind: "direct";
-    table: string;
-  }
+      action: "delete";
+      field: string;
+      kind: "direct";
+      table: string;
+    }
   | {
-    action: "repoint";
-    field: string;
-    kind: "direct";
-    table: string;
-  }
+      action: "repoint";
+      field: string;
+      kind: "direct";
+      table: string;
+    }
   | {
-    action: "retain";
-    field: string;
-    kind: "direct";
-    table: string;
-  }
+      action: "retain";
+      field: string;
+      kind: "direct";
+      table: string;
+    }
   | {
-    action: "delete";
-    attendeeField: string;
-    joinedField: string;
-    joinedTable: string;
-    kind: "through";
-    table: string;
-    tableField: string;
-  }
+      action: "delete";
+      attendeeField: string;
+      joinedField: string;
+      joinedTable: string;
+      kind: "through";
+      table: string;
+      tableField: string;
+    }
   | {
-    action: "delete";
-    kind: "notes";
-    table: "system_notes";
-  }
+      action: "delete";
+      kind: "notes";
+      table: "system_notes";
+    }
   | {
-    action: "retain";
-    kind: "payment_history";
-    table: string;
-  };
+      action: "retain";
+      kind: "payment_history";
+      table: string;
+    };
 
 /**
  * Every direct attendee-id column, plus dependent rows reached through another

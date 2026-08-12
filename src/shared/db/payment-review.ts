@@ -14,13 +14,13 @@ import {
 } from "#shared/db/payment-claim.ts";
 import { nowIso } from "#shared/now.ts";
 import {
+  type PaymentWorkStatus,
+  paymentWorkFor,
+} from "#shared/payment/admit-move.ts";
+import {
   acknowledgePaymentReview,
   type PaymentReviewCase,
 } from "#shared/payment/review.ts";
-import {
-  paymentWorkFor,
-  type PaymentWorkStatus,
-} from "#shared/payment/admit-move.ts";
 import type { PaymentRowState } from "#shared/payment/row-state.ts";
 /* jscpd:ignore-end */
 
@@ -39,13 +39,13 @@ export type AcknowledgePaymentReviewResult =
 
 export type PaymentReviewState =
   | {
-    readonly allAcknowledged: boolean;
-    readonly identity: string;
-    readonly status: "needs_review";
-  }
+      readonly allAcknowledged: boolean;
+      readonly identity: string;
+      readonly status: "needs_review";
+    }
   | {
-    readonly status: Exclude<PaymentWorkStatus, "needs_review">;
-  };
+      readonly status: Exclude<PaymentWorkStatus, "needs_review">;
+    };
 
 const REVIEW_ACTIVITY = "Payment review acknowledged by owner";
 
@@ -71,7 +71,7 @@ const reviewIdentity = (reviews: readonly ReviewRow[]): Promise<string> => {
   }
   const facts = sortStrings(
     reviews.map(({ review, row }) =>
-      JSON.stringify([row.sessionId, review.caseId, review.reason])
+      JSON.stringify([row.sessionId, review.caseId, review.reason]),
     ),
   );
   return hmacHash(`payment-review:1:${JSON.stringify(facts)}`);
@@ -152,7 +152,7 @@ export const acknowledgeCurrentPaymentReview = (
     const results = await tx.batch(
       await Promise.all(
         changing.map(({ row }) =>
-          paymentRowStateStatement(row, acknowledgedState(row, acknowledgedAt))
+          paymentRowStateStatement(row, acknowledgedState(row, acknowledgedAt)),
         ),
       ),
     );
