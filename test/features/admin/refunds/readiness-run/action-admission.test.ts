@@ -129,6 +129,37 @@ const releasedWithoutChangingSafetyState = (
 describe("refund readiness action admission", () => {
   const errors = setupErrorSpy();
 
+  test("reports every attendee when the claimed payment set changed", async () => {
+    const result = await runRefundReadiness<RunResult>({
+      action: "refresh",
+      candidates: [CANDIDATE],
+      changedMessage: "the loaded payment changed",
+      claim: {
+        claim: () => Promise.resolve({ kind: "changed" }),
+        settle: () => Promise.reject(new Error("No rows were claimed")),
+      },
+      label: "Refresh",
+      listingId: 7,
+      notReady: (message) => ({ kind: "not_ready", message }),
+      prepare: () => {
+        throw new Error("Changed rows reached provider preparation");
+      },
+      ready: () => {
+        throw new Error("Changed rows reached ready work");
+      },
+    });
+
+    expect(result).toEqual({
+      kind: "not_ready",
+      message: "the loaded payment changed",
+    });
+    expect(
+      errors.contains(
+        `Refresh not started for attendee ${ATTENDEE_ID}: the attendee or payment set changed while this refund was starting`,
+      ),
+    ).toBe(true);
+  });
+
   for (const state of SAFETY_STATES) {
     test(`a refund stops before preparation for ${state.name}`, async () => {
       const run = await runFor("refund", state);

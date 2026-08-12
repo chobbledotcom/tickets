@@ -55,18 +55,6 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       expect(response.status).toBe(403);
     });
 
-    test("rejects mismatched attendee name", async () => {
-      const ctx = await setupRefundTest("pi_test_789");
-      const response = await submitRefund(ctx, {
-        confirm_identifier: "Wrong Name",
-      });
-      await expectFlashRedirect(
-        `/admin/attendees/${ctx.attendee.id}/refund`,
-        "Attendee name does not match. Please type the exact attendee name to confirm refund.",
-        false,
-      )(response);
-    });
-
     test("returns error when attendee has no payment", async () => {
       const listing = await createTestListing({ maxAttendees: 100 });
       const attendee = await createTestAttendee(

@@ -332,7 +332,10 @@ export const refundReadinessSubrequestCost = (
   providers?: readonly PaymentProviderType[],
 ): SubrequestCounts => {
   if (candidates.length === 0) return zeroSubrequests();
-  const configured = providers ?? orderedCredentialedPaymentProviderTypes();
+  const configured =
+    providers === undefined
+      ? orderedCredentialedPaymentProviderTypes()
+      : providers;
   const references = refundReferences(candidates);
   const active = activeReferences(references, returned);
   return referenceSetSubrequestCost(action, active, checkpoint, configured);

@@ -1,8 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  REFUND_CALLER_SUBREQUEST_RESERVE,
+  REFUND_SETTLEMENT_SUBREQUEST_RESERVE,
   refundPreparedSubrequestCost,
   refundReadinessSubrequestCost,
+  subrequestCostFits,
 } from "#routes/admin/refunds/budget.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import { PAYMENT_PROVIDER_IDS } from "#shared/payment-providers.ts";
@@ -51,6 +54,31 @@ describe("admin refund subrequest budget", () => {
         "stripe",
       ]),
     ).toEqual({ database: 0, external: 0, total: 0 });
+  });
+
+  test("fits only when every provider and database allowance fits", () => {
+    const cost = { database: 2, external: 3, total: 5 };
+    expect(subrequestCostFits(cost, cost)).toBe(true);
+    expect(
+      [
+        { database: 1, external: 3, total: 5 },
+        { database: 2, external: 2, total: 5 },
+        { database: 2, external: 3, total: 4 },
+      ].map((remaining) => subrequestCostFits(cost, remaining)),
+    ).toEqual([false, false, false]);
+  });
+
+  test("reserves database calls without inventing provider calls", () => {
+    expect(REFUND_SETTLEMENT_SUBREQUEST_RESERVE).toEqual({
+      database: 8,
+      external: 0,
+      total: 8,
+    });
+    expect(REFUND_CALLER_SUBREQUEST_RESERVE).toEqual({
+      database: 4,
+      external: 0,
+      total: 4,
+    });
   });
 
   test("gives every safe refusal checkpoint its remaining envelope", () => {
