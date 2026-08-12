@@ -5,13 +5,8 @@ import {
   getGroupPackagePrices,
   getListingsByGroupId,
   groups,
-  listingGroups,
 } from "#shared/db/groups.ts";
-import {
-  getAllListings,
-  getListingWithCount,
-  getStoredListingWithCount,
-} from "#shared/db/listings/records.ts";
+import { getStoredListingWithCount } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -43,19 +38,6 @@ const expectDuplicateRejected = async (
 
 describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
   describe("GET /admin/groups/:id/bulk-actions/duplicate", () => {
-    test("renders the duplicate form with listing preview data", async () => {
-      const group = await createTestGroup({ name: "Original" });
-      await createTestListing({ groupId: group.id, name: "Spring Workshop" });
-
-      const html = await getDuplicateForm(group.id);
-
-      expect(html).toContain("Duplicate Group");
-      expect(html).toContain("Spring Workshop");
-      expect(html).toContain('id="duplicate-preview-listings"');
-      // The default "new group name" suggestion is pre-filled.
-      expect(html).toContain("Original (copy)");
-    });
-
     test("shows an empty-state message when the group has no listings", async () => {
       const group = await createTestGroup({ name: "Empty" });
 
@@ -66,62 +48,6 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
   });
 
   describe("POST /admin/groups/:id/bulk-actions/duplicate", () => {
-    test("creates a new group and clones every listing with replacements applied", async () => {
-      const group = await createTestGroup({ name: "Source" });
-      const sourceListing = await createTestListing({
-        date: "2026-04-16T09:00",
-        groupId: group.id,
-        name: "Spring Workshop",
-      });
-
-      const groupCountBefore = (await groups.cache.getAll()).length;
-      const listingCountBefore = (await getAllListings()).length;
-
-      const { response } = await adminFormPost(
-        `/admin/groups/${group.id}/bulk-actions/duplicate`,
-        {
-          date_find: "2026-04-16",
-          date_replace: "2026-04-23",
-          name_find: "Spring",
-          name_replace: "Autumn",
-          new_name: "Duplicated Source",
-        },
-      );
-
-      expect(response.status).toBe(302);
-
-      const groupsAfter = await groups.cache.getAll();
-      expect(groupsAfter.length).toBe(groupCountBefore + 1);
-      const newGroup = groupsAfter.find((g) => g.name === "Duplicated Source");
-      expect(newGroup).toBeDefined();
-      expect(newGroup!.slug).not.toBe(group.slug);
-
-      // The redirect points at the new group's detail page
-      expect(response.headers.get("location")).toContain(
-        `/admin/groups/${newGroup!.id}`,
-      );
-
-      const listingsAfter = await getAllListings();
-      expect(listingsAfter.length).toBe(listingCountBefore + 1);
-      const newListings = await getListingsByGroupId(newGroup!.id);
-      expect(newListings.length).toBe(1);
-      const duplicate = newListings[0]!;
-      expect(duplicate.id).not.toBe(sourceListing.id);
-      expect(duplicate.name).toBe("Autumn Workshop");
-
-      // The original date is shifted by 7 days; the time-of-day is preserved
-      // (the exact hour in UTC depends on the configured timezone and DST).
-      const originalMs = Date.parse(sourceListing.date);
-      const newMs = Date.parse(duplicate.date);
-      expect(Math.round((newMs - originalMs) / 86_400_000)).toBe(7);
-
-      // Source listing should still exist and be unchanged.
-      const original = await getListingWithCount(sourceListing.id);
-      expect(original?.name).toBe("Spring Workshop");
-      expect(original?.date).toBe(sourceListing.date);
-      expect(await listingGroups.getIds(sourceListing.id)).toContain(group.id);
-    });
-
     test("syncs listing_prices for cloned listings", async () => {
       // Clones are inserted via insertStatement in a batch (bypassing the
       // listingsTable wrapper), so the duplicate flow must sync their price rows.
@@ -180,6 +106,12 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
     });
 
     test("copies dates verbatim when no date replacement is given", async () => {
+      // The Cucumber story `catalogue.copy-keeps-name-and-date-when-no-replacements`
+      // proves the actor-facing claim through the rendered form. This direct
+      // test stays for the date-arithmetic contract: the empty-date-replacement
+      // branch must leave the stored ISO unchanged, byte for byte — a property
+      // a story asserting only the day cannot pin down (the time-of-day depends
+      // on timezone/DST).
       const group = await createTestGroup({ name: "Verbatim" });
       const sourceListing = await createTestListing({
         date: "2026-05-01T10:00",
@@ -211,16 +143,14 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       expect(newListings[0]!.date).toBe(sourceListing.date);
     });
 
-    test("rejects a duplicate whose clone name would collide", async () => {
-      // A blank find/replace clones the source name verbatim, which would
-      // collide with the still-existing source listing — the name invariant
-      // rejects it before any write.
-      const group = await createTestGroup({ name: "Clashy" });
-      await createTestListing({ groupId: group.id, name: "Only Member" });
-      await expectDuplicateRejected(group.id, { new_name: "Clashy Copy" });
-    });
-
     test("rejects a new group name already used by another entity", async () => {
+      // Sits beside the Cucumber story `catalogue.copy-a-group-of-listings`
+      // (case `catalogue.copy-refuses-a-clashing-name`), which proves the
+      // clone-name-clash refusal through the rendered form. This direct test
+      // covers a different branch of the same name invariant: the new group
+      // name itself clashing with an existing listing. That branch is not
+      // reachable as a separate observable from the rendered form, so it stays
+      // here rather than being folded into the story.
       const group = await createTestGroup({ name: "Dup Src" });
       await createTestListing({ groupId: group.id, name: "A Member" });
       await createTestListing({ name: "Taken Name" });
@@ -232,8 +162,12 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
     });
 
     test("rejects when a clone name would equal the new group name", async () => {
-      // The new group name and a clone name collide within the batch (both
-      // brand-new), which no create-path validator would see — caught up front.
+      // Sits beside the Cucumber story `catalogue.copy-a-group-of-listings`.
+      // The story proves the cross-entity name clash through the rendered form;
+      // this direct test covers the within-batch clash (the new group name and
+      // a clone name colliding inside the same batch, which no create-path
+      // validator would see — caught up front by the `firstDuplicateNameError`
+      // Set check), a branch the story's case does not exercise.
       const group = await createTestGroup({ name: "Collapse" });
       await createTestListing({ groupId: group.id, name: "Sole Member" });
       // The clone is renamed to exactly the new group name.
@@ -274,6 +208,13 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
     });
 
     test("rejects an empty new group name with an error flash", async () => {
+      // Sits beside the Cucumber story `catalogue.copy-a-group-of-listings`.
+      // The story refuses a name clash through the real rendered form, but the
+      // `new_name` field is `required` on that form, so the form-controls net
+      // (and a real browser's own validation) blocks an empty value before it
+      // is sent. This server-side guard catches a form-bypassing POST that
+      // submits an empty `new_name` directly — a branch the rendered form
+      // cannot reach, so it stays as a direct technical contract.
       const group = await createTestGroup({ name: "Needs Name" });
       await createTestListing({ groupId: group.id, name: "E" });
 
