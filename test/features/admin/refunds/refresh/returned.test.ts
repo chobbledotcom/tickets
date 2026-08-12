@@ -13,12 +13,17 @@ describe("refresh payment under an attendee claim", () => {
   });
 
   test("marks the exact returned rows while releasing a missed ledger post", async () => {
-    const run = runHarness({ observed: fullyRefundedMoney(), posted: false });
+    const run = runHarness({
+      existingReview: { kind: "uncertain_keyless_refund" },
+      observed: fullyRefundedMoney(),
+      posted: false,
+    });
 
     expect(await refresh(run)).toEqual({ kind: "returned", posted: false });
     expect(run.calls.confirm).toBe(0);
     expect(run.claim.released).toEqual([run.reference.rowSessionIds]);
     expect(run.claim.unrecorded).toEqual([run.reference.rowSessionIds]);
+    expect(run.claim.reviewChanges).toEqual([new Map()]);
   });
 
   test("reuses a completed marker without a provider read or send", async () => {

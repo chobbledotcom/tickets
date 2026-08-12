@@ -10,6 +10,7 @@ import {
   CLAIM_MIRROR,
   freshClaimSlot,
   putRowState,
+  reviewCase,
   REVIEW_MIRROR,
   rowStateSlot,
 } from "#test-utils/payment-claim.ts";
@@ -96,7 +97,9 @@ describeWithEnv(
           await pairWithSourcePayment("sess-merge-review");
         await putRowState(
           "sess-merge-review",
-          await rowStateSlot({ review: { kind: "partial_refund" } }),
+          await rowStateSlot({
+            review: reviewCase({ kind: "partial_refund" }),
+          }),
           REVIEW_MIRROR,
         );
 
@@ -113,7 +116,9 @@ describeWithEnv(
         );
         await putRowState(
           "sess-merge-review-moves",
-          await rowStateSlot({ review: { kind: "partial_refund" } }),
+          await rowStateSlot({
+            review: reviewCase({ kind: "partial_refund" }),
+          }),
           REVIEW_MIRROR,
         );
 

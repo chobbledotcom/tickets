@@ -13,10 +13,47 @@ type ReadinessRunResult =
   | { kind: "not_ready"; message: string }
   | { kind: "ready"; message: string };
 
+type Claimed = Extract<
+  Awaited<ReturnType<RowClaim["claim"]>>,
+  { kind: "claimed" }
+>;
+
+const recordingClaim = (
+  facts: Pick<Claimed, "held" | "reviews" | "shared">,
+): { readonly claim: RowClaim; readonly settlements: RowSettlement[] } => {
+  const settlements: RowSettlement[] = [];
+  return {
+    claim: {
+      claim: () =>
+        Promise.resolve({
+          commandId: "test-command",
+          heldSince: HELD_SINCE,
+          inherited: new Map(),
+          kind: "claimed",
+          phases: new Map(
+            [...facts.held.values()].flat().map((sessionId) => [
+              sessionId,
+              "checking" as const,
+            ]),
+          ),
+          returned: new Set<string>(),
+          reviews: facts.reviews,
+          shared: facts.shared,
+          unrecorded: new Map(),
+          held: facts.held,
+        }),
+      settle: (settlement) => {
+        settlements.push(settlement);
+        return Promise.resolve();
+      },
+    },
+    settlements,
+  };
+};
+
 describe("admin refund shared-reference readiness", () => {
   const errors = setupErrorSpy();
   test("parks every exact row before preparation", async () => {
-    const settlements: RowSettlement[] = [];
     const reference = refundReference("shared_charge", {
       index: "shared_index",
       matchingIndexes: ["shared_index"],
@@ -27,54 +64,38 @@ describe("admin refund shared-reference readiness", () => {
       attendee: { id: 13, pii_blob: "sealed" },
       references: [reference],
     } as RefundCandidate;
-    const claim: RowClaim = {
-      claim: () =>
-        Promise.resolve({
-          commandId: "test-command",
-          held: new Map([
-            [13, ["shared_first"]],
-            [14, ["shared_second"]],
-          ]),
-          heldSince: HELD_SINCE,
-          inherited: new Map(),
-          kind: "claimed",
-          phases: new Map([
-            ["shared_first", "checking"],
-            ["shared_second", "checking"],
-          ]),
-          returned: new Set<string>(),
-          reviews: new Map(),
-          shared: new Map([
-            [
-              reference.index,
-              [
-                {
-                  attendeeId: 13,
-                  index: reference.index,
-                  sessionId: "shared_first",
-                },
-                {
-                  attendeeId: 14,
-                  index: reference.index,
-                  sessionId: "shared_second",
-                },
-              ],
-            ],
-          ]),
-          unrecorded: new Map(),
-        }),
-      settle: (settlement) => {
-        settlements.push(settlement);
-        return Promise.resolve();
-      },
-    };
+    const runClaim = recordingClaim({
+      held: new Map([
+        [13, ["shared_first"]],
+        [14, ["shared_second"]],
+      ]),
+      reviews: new Map(),
+      shared: new Map([
+        [
+          reference.index,
+          [
+            {
+              attendeeId: 13,
+              index: reference.index,
+              sessionId: "shared_first",
+            },
+            {
+              attendeeId: 14,
+              index: reference.index,
+              sessionId: "shared_second",
+            },
+          ],
+        ],
+      ]),
+    });
     let prepared = false;
     let ran = false;
 
     const result = await runRefundReadiness<ReadinessRunResult>({
+      action: "refund",
       candidates: [candidate],
       changedMessage: "changed",
-      claim,
+      claim: runClaim.claim,
       label: "Refund",
       listingId: 7,
       notReady: (message) => ({ kind: "not_ready" as const, message }),
@@ -98,7 +119,7 @@ describe("admin refund shared-reference readiness", () => {
     });
     expect(prepared).toBe(false);
     expect(ran).toBe(false);
-    expect(settlements).toEqual([
+    expect(runClaim.settlements).toEqual([
       {
         commandId: "test-command",
         heldSince: HELD_SINCE,
@@ -122,5 +143,58 @@ describe("admin refund shared-reference readiness", () => {
         "This payment reference is attached to more than one payment row",
       ),
     ).toBe(true);
+  });
+
+  test("retires a shared-reference review once the exact index is unique", async () => {
+    const reference = refundReference("unique_charge", {
+      index: "unique_index",
+      matchingIndexes: ["unique_index"],
+      rowSessionIds: ["unique_row"],
+      sessionIds: ["unique_row"],
+    });
+    const candidate = {
+      attendee: { id: 15, pii_blob: "sealed" },
+      references: [reference],
+    } as RefundCandidate;
+    const runClaim = recordingClaim({
+      held: new Map([[15, ["unique_row"]]]),
+      reviews: new Map([["unique_row", { kind: "shared_reference" }]]),
+      shared: new Map(),
+    });
+
+    const result = await runRefundReadiness<ReadinessRunResult>({
+      action: "refund",
+      candidates: [candidate],
+      changedMessage: "changed",
+      claim: runClaim.claim,
+      label: "Refund",
+      listingId: 7,
+      notReady: (message) => ({ kind: "not_ready", message }),
+      prepare: () =>
+        Promise.resolve({
+          indexes: [reference.index],
+          kind: "not_ready",
+          reason: "historical_marker",
+        }),
+      ready: () => Promise.resolve({ kind: "ready", message: "" }),
+    });
+
+    expect(result.kind).toBe("not_ready");
+    expect(runClaim.settlements).toEqual([
+      {
+        commandId: "test-command",
+        heldSince: HELD_SINCE,
+        rows: new Map([
+          [
+            "unique_row",
+            {
+              claim: "release",
+              phase: "checking",
+              review: { kind: "resolved", reason: "shared_reference" },
+            },
+          ],
+        ]),
+      },
+    ]);
   });
 });

@@ -6,23 +6,26 @@
 
 // jscpd:ignore-start
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
+import { expect } from "@std/expect";
 import { sellSomethingAt } from "#test/specs/support/listings.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import {
   refundByTyping,
   runStripeSuccess,
 } from "#test/specs/support/money-drivers.ts";
+import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
   type ActOnSomeMoney,
   requiredWorldValue,
-  type TicketsWorld,
   theListing,
+  type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { singleItem } from "#test-utils/factories.ts";
 import {
   refundCompletes,
   refundIsRejected,
 } from "#test-utils/refund-routes.ts";
+import { chargeMoney, refundObservation } from "#test-utils/payment-state.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
@@ -30,6 +33,23 @@ import { setupStripe } from "#test-utils/settings.ts";
 /** The payment the provider will turn down — the middle one, so the story
  * proves the refunds after it still run. */
 const DECLINED_PAYMENT = "pi_bulk_2";
+const FIRST_PAYMENT = "pi_bulk_1";
+
+type RefundAnswer = Parameters<typeof refundByTyping>[2];
+
+const firstAttendeeId = (world: TicketsWorld): number => {
+  const first = requiredWorldValue(world.attendeeIds, "the people who paid")[0];
+  if (first === undefined) throw new Error("No first paid attendee");
+  return first;
+};
+
+const firstProviderCharge = (world: TicketsWorld) => {
+  const charge = world.providerCharges.get(FIRST_PAYMENT);
+  if (charge === undefined) {
+    throw new Error(`The provider has no charge ${FIRST_PAYMENT}`);
+  }
+  return charge;
+};
 
 /** One listing, one paid place each for the named people. */
 export const paidPlaceEach = async (
@@ -58,9 +78,11 @@ export const paidPlaceEach = async (
   }
 };
 
-/** The organiser refunds everyone from the listing's own refund-everyone page,
- * typing the listing name it asks for. The provider turns one payment down. */
-export const everyoneRefunded = async (world: TicketsWorld): Promise<void> => {
+/** Submit the listing's served Refund All form with one provider behaviour. */
+const refundEveryone = async (
+  world: TicketsWorld,
+  answer: RefundAnswer,
+): Promise<void> => {
   const browser = await refundByTyping(
     world,
     {
@@ -68,12 +90,79 @@ export const everyoneRefunded = async (world: TicketsWorld): Promise<void> => {
       page: `/admin/listing/${theListing(world)}/refund-all`,
       typed: requiredWorldValue(world.confirmName, "the listing name to type"),
     },
+    answer,
+  );
+  world.bulkRefundMessage = browser.pageText;
+};
+
+/** The provider turns down the middle payment while the others complete. */
+export const everyoneRefunded = (world: TicketsWorld): Promise<void> =>
+  refundEveryone(
+    world,
     (request) =>
       request.paymentReference === DECLINED_PAYMENT
         ? refundIsRejected(request)
         : refundCompletes(request),
   );
-  world.bulkRefundMessage = browser.pageText;
+
+/** Try Refund All with a provider that would return every payment it receives. */
+export const tryToRefundEveryone = (world: TicketsWorld): Promise<void> =>
+  refundEveryone(world, refundCompletes);
+
+/** Give the first charge a provider report that cannot be true. */
+export const contradictFirstPayment = (world: TicketsWorld): void => {
+  const charge = firstProviderCharge(world);
+  const returned = {
+    amount: charge.captured.amount + 1,
+    currency: charge.captured.currency,
+  };
+  world.providerCharges.set(FIRST_PAYMENT, {
+    ...charge,
+    confirmedRefunded: returned,
+    refunds: [
+      refundObservation({
+        amount: returned,
+        refund: {
+          id: "re_bulk_contradiction",
+          kind: "stripe_refund",
+          parentId: FIRST_PAYMENT,
+          provider: "stripe",
+        },
+      }),
+    ],
+  });
+};
+
+/** Use the real single-refund and review forms for the first paid attendee. */
+export const acknowledgeFirstPaymentReview = async (
+  world: TicketsWorld,
+): Promise<void> => {
+  const browser = await refundByTyping(
+    world,
+    {
+      buttonText: "Refund Attendee",
+      page: `/admin/attendees/${firstAttendeeId(world)}/refund`,
+      typed: "One",
+    },
+    refundCompletes,
+  );
+  expect(requiredWorldValue(world.refundCalls, "first refund calls")()).toBe(0);
+  await browser.clickLink("Mark payment reviewed");
+  await fillInAndSend(
+    browser,
+    { confirm_identifier: "One" },
+    "Mark payment reviewed",
+  );
+  expect(browser.containsText("Payment review acknowledged")).toBe(true);
+};
+
+/** Replace the contradictory report with an untouched charge. */
+export const correctFirstPayment = (world: TicketsWorld): void => {
+  const charge = firstProviderCharge(world);
+  world.providerCharges.set(
+    FIRST_PAYMENT,
+    chargeMoney(charge.captured.amount, 0, charge.captured.currency),
+  );
 };
 
 /** Who got their money back, and who the provider turned down. */

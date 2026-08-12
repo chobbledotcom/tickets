@@ -6,21 +6,21 @@ import {
   readAttendeeRowStates,
 } from "#shared/db/payment-claim.ts";
 import {
+  acknowledgeCurrentPaymentReview,
+  getPaymentReviewState,
   getPaymentWorkStatus,
-  resolvePaymentReview,
 } from "#shared/db/payment-review.ts";
-import { STALE_RESERVATION_MS } from "#shared/limits.ts";
-import { nowMs } from "#shared/now.ts";
+import { nowIso } from "#shared/now.ts";
+import type { PaymentReviewCase } from "#shared/payment/review.ts";
 import type { PaymentRowState } from "#shared/payment/row-state.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   CLAIM_MIRROR,
-  type ClaimFixturePhase,
   protectedStateOf,
   putRowState,
+  reviewCase,
   REVIEW_MIRROR,
-  refundClaimFixture,
   rowStateSlot,
   storedRecordOf,
   UNRECORDED_MIRROR,
@@ -31,8 +31,7 @@ import {
 } from "#test-utils/processed-payments.ts";
 
 const LISTING_ID = 1;
-const REVIEW_ACTIVITY = "Payment marked reviewed by owner";
-const OWNER_RESOLVED_ERROR = "Payment review resolved by the owner";
+const REVIEW_ACTIVITY = "Payment review acknowledged by owner";
 
 const stateRows = (attendeeId: number): Promise<PaymentRowRecord[]> =>
   withTransaction((tx) => readAttendeeRowStates(tx, [attendeeId]));
@@ -44,88 +43,98 @@ const stateBySession = async (
     (await stateRows(attendeeId)).map((row) => [row.sessionId, row.state]),
   );
 
-const claimState = (
+const reviewOf = async (
   attendeeId: number,
-  phase: ClaimFixturePhase,
-  { review = false, stale = false }: { review?: boolean; stale?: boolean } = {},
-): PaymentRowState => {
-  const claim = refundClaimFixture(
-    attendeeId,
-    phase,
-    new Date(nowMs() - (stale ? STALE_RESERVATION_MS + 1000 : 0)).toISOString(),
-  );
-  return {
-    claim,
-    ...(review ? { review: { kind: "partial_refund" } as const } : {}),
-  };
+  sessionId: string,
+): Promise<PaymentReviewCase> => {
+  const state = (await stateBySession(attendeeId)).get(sessionId);
+  if (state?.review === undefined) {
+    throw new Error(`Payment row ${sessionId} has no review`);
+  }
+  return state.review;
 };
 
-const resolve = (attendeeId: number) =>
-  resolvePaymentReview({ attendeeId, listingId: LISTING_ID });
+const currentReviewIdentity = async (attendeeId: number): Promise<string> => {
+  const state = await getPaymentReviewState(attendeeId);
+  if (state.status !== "needs_review") {
+    throw new Error(`Attendee ${attendeeId} has no current payment review`);
+  }
+  return state.identity;
+};
+
+const acknowledge = async (
+  attendeeId: number,
+  reviewIdentity?: string,
+) => {
+  const identity = reviewIdentity ?? await currentReviewIdentity(attendeeId);
+  return acknowledgeCurrentPaymentReview({
+    attendeeId,
+    listingId: LISTING_ID,
+    reviewIdentity: identity,
+  });
+};
+
+const putReview = async (
+  sessionId: string,
+  caseId = `case-${sessionId}`,
+): Promise<void> => {
+  await putRowState(
+    sessionId,
+    await rowStateSlot({
+      review: reviewCase({ kind: "partial_refund" }, caseId),
+    }),
+    REVIEW_MIRROR,
+  );
+};
 
 describeWithEnv(
-  "db > resolving a payment review",
+  "db > acknowledging a payment review",
   { db: true, encryptionKey: true },
   () => {
-    test("summarizes whether owner-review work is actionable", async () => {
+    test("summarizes the one payment-work state by safety priority", async () => {
       const attendeeId = await bookedWithPayment("sess-status", "pi_status");
-
       expect(await getPaymentWorkStatus(attendeeId)).toBe("clear");
 
-      await putRowState(
-        "sess-status",
-        await rowStateSlot({ review: { kind: "partial_refund" } }),
-        REVIEW_MIRROR,
-      );
+      await putReview("sess-status");
       expect(await getPaymentWorkStatus(attendeeId)).toBe("needs_review");
 
       await putRowState(
         "sess-status",
-        await rowStateSlot(
-          claimState(attendeeId, "send_armed_keyed", { review: true }),
-        ),
+        await rowStateSlot({
+          claim: {
+            attendeeIds: [attendeeId],
+            commandId: "review-status-command",
+            phase: "checking",
+            scope: "attendee_set",
+            writtenAt: nowIso(),
+          },
+          review: reviewCase({ kind: "partial_refund" }),
+          unrecorded: { returnedAt: "2026-08-11T10:00:00.000Z" },
+        }),
         CLAIM_MIRROR,
       );
       expect(await getPaymentWorkStatus(attendeeId)).toBe("moving");
-
-      await putRowState(
-        "sess-status",
-        await rowStateSlot(claimState(attendeeId, "checking", { stale: true })),
-        CLAIM_MIRROR,
-      );
-      expect(await getPaymentWorkStatus(attendeeId)).toBe("needs_review");
     });
 
-    test("retires reviews while preserving terminal and unrecorded facts", async () => {
+    test("records acknowledgement without retiring any payment fact", async () => {
       const attendeeId = await bookedWithPayment("sess-review", "pi_review");
+      const review = reviewCase({ kind: "partial_refund" }, "exact-review");
       await putRowState(
         "sess-review",
         await rowStateSlot({
           outcome: { error: "Existing outcome", refunded: true, status: 409 },
-          review: { kind: "partial_refund" },
+          review,
           unrecorded: { returnedAt: "2026-08-11T10:00:00.000Z" },
         }),
         REVIEW_MIRROR,
       );
 
-      expect(await resolve(attendeeId)).toEqual({ kind: "resolved" });
-      expect(await getPaymentWorkStatus(attendeeId)).toBe("needs_money_record");
-
-      expect(await stateBySession(attendeeId)).toEqual(
-        new Map([
-          [
-            "sess-review",
-            {
-              outcome: {
-                error: "Existing outcome",
-                refunded: true,
-                status: 409,
-              },
-              unrecorded: { returnedAt: "2026-08-11T10:00:00.000Z" },
-            },
-          ],
-        ]),
-      );
+      expect(await acknowledge(attendeeId)).toEqual({ kind: "acknowledged" });
+      expect(await getPaymentWorkStatus(attendeeId)).toBe("needs_review");
+      expect(await reviewOf(attendeeId, "sess-review")).toEqual({
+        ...review,
+        acknowledgedAt: expect.any(String),
+      });
       expect(await protectedStateOf("sess-review")).toBe(UNRECORDED_MIRROR);
       expect(await getAttendeeActivityLog(attendeeId)).toEqual([
         expect.objectContaining({
@@ -136,161 +145,112 @@ describeWithEnv(
       ]);
     });
 
-    test("turns a stale unresolved claim into a terminal owner outcome", async () => {
-      const attendeeId = await bookedWithPayment("sess-stale", "pi_stale");
+    test("a claim blocks acknowledgement without changing or logging", async () => {
+      const attendeeId = await bookedWithPayment("sess-block", "pi-block");
       await putRowState(
-        "sess-stale",
-        await rowStateSlot(
-          claimState(attendeeId, "checking", {
-            review: true,
-            stale: true,
-          }),
-        ),
-        CLAIM_MIRROR,
-      );
-
-      expect(await resolve(attendeeId)).toEqual({ kind: "resolved" });
-      expect(await stateBySession(attendeeId)).toEqual(
-        new Map([["sess-stale", { outcome: { error: OWNER_RESOLVED_ERROR } }]]),
-      );
-      expect(await protectedStateOf("sess-stale")).toBe("");
-    });
-
-    test("does not overwrite an outcome while abandoning stale ready work", async () => {
-      const attendeeId = await bookedWithPayment(
-        "sess-stale-outcome",
-        "pi_stale_outcome",
-      );
-      await putRowState(
-        "sess-stale-outcome",
+        "sess-block",
         await rowStateSlot({
-          ...claimState(attendeeId, "ready_keyless", { stale: true }),
-          outcome: { error: "First outcome", status: 400 },
+          claim: {
+            attendeeIds: [attendeeId],
+            capability: "keyless",
+            commandId: "review-block-command",
+            phase: "send_armed",
+            scope: "attendee_set",
+            writtenAt: nowIso(),
+          },
+          review: reviewCase({ kind: "uncertain_keyless_refund" }),
         }),
         CLAIM_MIRROR,
       );
+      const before = await storedRecordOf("sess-block");
 
-      expect(await resolve(attendeeId)).toEqual({ kind: "resolved" });
-      expect(await stateBySession(attendeeId)).toEqual(
-        new Map([
-          [
-            "sess-stale-outcome",
-            { outcome: { error: "First outcome", status: 400 } },
-          ],
-        ]),
-      );
-    });
-
-    const blockedClaims: readonly [string, ClaimFixturePhase, boolean][] = [
-      ["fresh checking", "checking", false],
-      ["fresh ready keyed", "ready_keyed", false],
-      ["fresh ready keyless", "ready_keyless", false],
-      ["fresh armed keyed", "send_armed_keyed", false],
-      ["fresh armed keyless", "send_armed_keyless", false],
-      ["stale armed keyed", "send_armed_keyed", true],
-      ["stale armed keyless", "send_armed_keyless", true],
-    ];
-    for (const [name, phase, stale] of blockedClaims) {
-      test(`refuses a ${name} claim without changing or logging`, async () => {
-        const sessionId = `sess-block-${phase}-${stale}`;
-        const attendeeId = await bookedWithPayment(
-          sessionId,
-          `pi-block-${phase}-${stale}`,
-        );
-        await putRowState(
-          sessionId,
-          await rowStateSlot(
-            claimState(attendeeId, phase, { review: true, stale }),
-          ),
-          CLAIM_MIRROR,
-        );
-        const before = await storedRecordOf(sessionId);
-
-        expect(await resolve(attendeeId)).toEqual({
-          kind: "claim_in_progress",
-        });
-        expect(await storedRecordOf(sessionId)).toBe(before);
-        expect(await getAttendeeActivityLog(attendeeId)).toEqual([]);
-      });
-    }
-
-    test("a blocked sibling leaves the attendee's review untouched", async () => {
-      const attendeeId = await bookedWithPayment(
-        "sess-sibling-review",
-        "pi_sibling_review",
-      );
-      await finalizeProcessedPayment(
-        "sess-sibling-claim",
-        attendeeId,
-        "tok-sibling",
-      );
-      await putRowState(
-        "sess-sibling-review",
-        await rowStateSlot({ review: { kind: "partial_refund" } }),
-        REVIEW_MIRROR,
-      );
-      await putRowState(
-        "sess-sibling-claim",
-        await rowStateSlot(claimState(attendeeId, "send_armed_keyed")),
-        CLAIM_MIRROR,
-      );
-
-      expect(await resolve(attendeeId)).toEqual({
-        kind: "claim_in_progress",
-      });
-      expect(await protectedStateOf("sess-sibling-review")).toBe(REVIEW_MIRROR);
-    });
-
-    test("returns nothing to review without writing an activity", async () => {
-      const attendeeId = await bookedWithPayment("sess-none", "pi_none");
-
-      expect(await resolve(attendeeId)).toEqual({
-        kind: "nothing_to_review",
-      });
+      expect(
+        await acknowledgeCurrentPaymentReview({
+          attendeeId,
+          listingId: LISTING_ID,
+          reviewIdentity: "stale-form",
+        }),
+      ).toEqual({ kind: "claim_in_progress" });
+      expect(await storedRecordOf("sess-block")).toBe(before);
       expect(await getAttendeeActivityLog(attendeeId)).toEqual([]);
     });
 
-    test("two concurrent confirmations resolve and log exactly once", async () => {
-      const attendeeId = await bookedWithPayment("sess-race", "pi_race");
-      await putRowState(
-        "sess-race",
-        await rowStateSlot({ review: { kind: "partial_refund" } }),
-        REVIEW_MIRROR,
+    test("returns nothing to review without writing activity", async () => {
+      const attendeeId = await bookedWithPayment("sess-none", "pi-none");
+      expect(
+        await acknowledgeCurrentPaymentReview({
+          attendeeId,
+          listingId: LISTING_ID,
+          reviewIdentity: "old-form",
+        }),
+      ).toEqual({ kind: "nothing_to_review" });
+      expect(await getAttendeeActivityLog(attendeeId)).toEqual([]);
+    });
+
+    test("a stale form cannot acknowledge a newer instance of the same reason", async () => {
+      const attendeeId = await bookedWithPayment("sess-changed", "pi-changed");
+      await putReview("sess-changed", "first-case");
+      const oldIdentity = await currentReviewIdentity(attendeeId);
+      await putReview("sess-changed", "new-case");
+
+      expect(await acknowledge(attendeeId, oldIdentity)).toEqual({
+        kind: "review_changed",
+      });
+      expect(await reviewOf(attendeeId, "sess-changed")).toEqual(
+        reviewCase({ kind: "partial_refund" }, "new-case"),
       );
+      expect(await getAttendeeActivityLog(attendeeId)).toEqual([]);
+    });
+
+    test("concurrent replay acknowledges and logs exactly once", async () => {
+      const attendeeId = await bookedWithPayment("sess-race", "pi-race");
+      await putReview("sess-race");
+      const identity = await currentReviewIdentity(attendeeId);
 
       const results = await Promise.all([
-        resolve(attendeeId),
-        resolve(attendeeId),
+        acknowledge(attendeeId, identity),
+        acknowledge(attendeeId, identity),
       ]);
 
-      expect(results.map((result) => result.kind).sort()).toEqual([
-        "nothing_to_review",
-        "resolved",
+      expect(results.map(({ kind }) => kind).sort()).toEqual([
+        "acknowledged",
+        "already_acknowledged",
       ]);
+      expect(await getPaymentWorkStatus(attendeeId)).toBe("needs_review");
       expect(
-        (await getAttendeeActivityLog(attendeeId)).map(
-          (entry) => entry.message,
-        ),
+        (await getAttendeeActivityLog(attendeeId)).map(({ message }) => message),
       ).toEqual([REVIEW_ACTIVITY]);
     });
 
-    test("a missed row write rolls the whole resolution back", async () => {
-      const attendeeId = await bookedWithPayment(
-        "sess-cas-first",
-        "pi_cas_first",
+    test("acknowledges every unacknowledged row and preserves an earlier time", async () => {
+      const attendeeId = await bookedWithPayment("sess-first", "pi-first");
+      await finalizeProcessedPayment("sess-second", attendeeId, "tok-second");
+      const earlier = "2026-08-11T09:00:00.000Z";
+      await putRowState(
+        "sess-first",
+        await rowStateSlot({
+          review: {
+            ...reviewCase({ kind: "partial_refund" }, "first-case"),
+            acknowledgedAt: earlier,
+          },
+        }),
+        REVIEW_MIRROR,
       );
-      await finalizeProcessedPayment(
-        "sess-cas-lost",
-        attendeeId,
-        "tok-cas-lost",
+      await putReview("sess-second", "second-case");
+
+      expect(await acknowledge(attendeeId)).toEqual({ kind: "acknowledged" });
+      expect((await reviewOf(attendeeId, "sess-first")).acknowledgedAt).toBe(
+        earlier,
       );
-      for (const sessionId of ["sess-cas-first", "sess-cas-lost"]) {
-        await putRowState(
-          sessionId,
-          await rowStateSlot({ review: { kind: "partial_refund" } }),
-          REVIEW_MIRROR,
-        );
-      }
+      expect((await reviewOf(attendeeId, "sess-second")).acknowledgedAt)
+        .toEqual(expect.any(String));
+    });
+
+    test("a missed row write rolls the whole acknowledgement back", async () => {
+      const attendeeId = await bookedWithPayment("sess-cas-first", "pi-cas");
+      await finalizeProcessedPayment("sess-cas-lost", attendeeId, "tok-cas");
+      await putReview("sess-cas-first");
+      await putReview("sess-cas-lost");
       await execute(
         `CREATE TRIGGER ignore_payment_review
           BEFORE UPDATE ON processed_payments
@@ -298,54 +258,44 @@ describeWithEnv(
           BEGIN SELECT RAISE(IGNORE); END`,
       );
 
-      await expect(resolve(attendeeId)).rejects.toThrow(
+      await expect(acknowledge(attendeeId)).rejects.toThrow(
         "Payment review no longer owns payment row sess-cas-lost",
       );
-
-      expect(await protectedStateOf("sess-cas-first")).toBe(REVIEW_MIRROR);
-      expect(await protectedStateOf("sess-cas-lost")).toBe(REVIEW_MIRROR);
+      expect((await reviewOf(attendeeId, "sess-cas-first")).acknowledgedAt)
+        .toBeUndefined();
+      expect((await reviewOf(attendeeId, "sess-cas-lost")).acknowledgedAt)
+        .toBeUndefined();
       expect(await getAttendeeActivityLog(attendeeId)).toEqual([]);
     });
 
-    test("an activity-log failure leaves the review in place", async () => {
-      const attendeeId = await bookedWithPayment(
-        "sess-log-failure",
-        "pi_log_failure",
-      );
-      await putRowState(
-        "sess-log-failure",
-        await rowStateSlot({ review: { kind: "partial_refund" } }),
-        REVIEW_MIRROR,
-      );
+    test("an activity failure leaves acknowledgement undone", async () => {
+      const attendeeId = await bookedWithPayment("sess-log", "pi-log");
+      await putReview("sess-log");
       await execute(
         `CREATE TRIGGER refuse_payment_review_activity
           BEFORE INSERT ON activity_log
           BEGIN SELECT RAISE(ABORT, 'activity unavailable'); END`,
       );
 
-      await expect(resolve(attendeeId)).rejects.toThrow("activity unavailable");
-
-      expect(await protectedStateOf("sess-log-failure")).toBe(REVIEW_MIRROR);
+      await expect(acknowledge(attendeeId)).rejects.toThrow(
+        "activity unavailable",
+      );
+      expect((await reviewOf(attendeeId, "sess-log")).acknowledgedAt)
+        .toBeUndefined();
     });
 
-    test("changes only the named attendee's exact payment rows", async () => {
-      const named = await bookedWithPayment("sess-named", "pi_named");
-      const other = await bookedWithPayment("sess-other", "pi_other");
-      await putRowState(
-        "sess-named",
-        await rowStateSlot({ review: { kind: "partial_refund" } }),
-        REVIEW_MIRROR,
-      );
-      await putRowState(
-        "sess-other",
-        await rowStateSlot({ review: { kind: "partial_refund" } }),
-        REVIEW_MIRROR,
-      );
+    test("changes only the named attendee's exact review", async () => {
+      const named = await bookedWithPayment("sess-named", "pi-named");
+      const other = await bookedWithPayment("sess-other", "pi-other");
+      await putReview("sess-named");
+      await putReview("sess-other");
 
-      expect(await resolve(named)).toEqual({ kind: "resolved" });
-
-      expect(await protectedStateOf("sess-named")).toBe("");
-      expect(await protectedStateOf("sess-other")).toBe(REVIEW_MIRROR);
+      expect(await acknowledge(named)).toEqual({ kind: "acknowledged" });
+      expect((await reviewOf(named, "sess-named")).acknowledgedAt).toEqual(
+        expect.any(String),
+      );
+      expect((await reviewOf(other, "sess-other")).acknowledgedAt)
+        .toBeUndefined();
       expect(await getAttendeeActivityLog(other)).toEqual([]);
     });
   },

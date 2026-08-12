@@ -38,6 +38,7 @@ export type ConfirmPageProps = {
   label: string;
   /** The ConfirmForm identifier shown as the "type this to confirm" target. */
   name: string;
+  hiddenFields?: Record<string, string> | undefined;
   returnUrl?: string | undefined;
   /** Whether to render the form with `danger` styling. */
   danger?: boolean | undefined;
@@ -144,6 +145,7 @@ export const ConfirmPage = ({
   buttonText,
   label,
   name,
+  hiddenFields,
   returnUrl,
   danger,
   confirmName,
@@ -170,6 +172,7 @@ export const ConfirmPage = ({
           buttonText={buttonText}
           {...(danger !== undefined ? { danger } : {})}
           {...(confirmName !== undefined ? { confirmName } : {})}
+          {...(hiddenFields === undefined ? {} : { hiddenFields })}
           label={label}
           name={name}
           returnUrl={returnUrl}

@@ -176,6 +176,7 @@ export const processRefundBatch = async (
   }: RefundRunDependencies = {},
 ): Promise<RefundBatchResult> =>
   await runRefundReadiness<RefundBatchResult>({
+    action: "refund",
     candidates: batch,
     changedMessage:
       "The attendee or payment set changed while this refund was starting. Try again.",

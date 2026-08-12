@@ -100,6 +100,7 @@ type AttendeeConfirmConfig = {
   confirmKey: string;
   danger?: boolean;
   disabled?: boolean;
+  hiddenFields?: Record<string, string>;
   showAmountPaid?: boolean;
   titleAction: string;
   warningPrefix: string;
@@ -133,6 +134,7 @@ const attendeeConfirmPage = (
     danger: config.danger,
     disabled: config.disabled,
     error,
+    hiddenFields: config.hiddenFields,
     label: t("admin.attendees.delete_label"),
     name: attendee.name,
     returnUrl,
@@ -213,13 +215,30 @@ export const adminBlockedRefundAttendeePage = attendeeRouteConfirm("refund", {
 });
 
 /** Record that the owner has handled an ambiguous payment outcome. */
-export const adminPaymentReviewPage = attendeeRouteConfirm("payment-review", {
+const paymentReviewConfirm = {
   buttonText: t("admin.attendees.payment_review_submit"),
   confirmKey: "admin.attendees.payment_review_confirm",
   titleAction: t("admin.attendees.payment_review_title"),
   warningPrefix: t("admin.attendees.payment_review_warning_prefix"),
   warningText: t("admin.attendees.payment_review_warning"),
-});
+} satisfies Omit<AttendeeConfirmConfig, "action">;
+
+/** Render the exact review case loaded with the attendee action. */
+export const adminPaymentReviewPage = (
+  attendee: Attendee,
+  reviewIdentity: string | null,
+  session: AdminSession,
+  returnUrl?: string,
+  error?: string,
+): string =>
+  attendeeConfirmPage(attendee, session, error, returnUrl, {
+    ...paymentReviewConfirm,
+    action: `/admin/attendees/${attendee.id}/payment-review`,
+    disabled: reviewIdentity === null,
+    ...(reviewIdentity === null
+      ? {}
+      : { hiddenFields: { review_identity: reviewIdentity } }),
+  });
 
 /**
  * Admin re-send notification confirmation page

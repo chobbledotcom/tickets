@@ -79,6 +79,7 @@ Feature: The site checks an old payment before refunding it
       Then the owner is told the payment was marked reviewed
       And the provider has not been contacted again
       And Money still shows Alice's 45.00 payment
-      When the owner retries the refund with the provider evidence unchanged
+      And Alice's Actions page still offers Mark payment reviewed to the owner
+      When the owner checks Alice's Actions page again
       Then no provider is asked to return any more money
       And Alice's Actions page offers Mark payment reviewed again

@@ -6,9 +6,8 @@ import { OWNER_FORM, requireOwnerOr } from "#routes/auth.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
-  getPaymentWorkStatus,
+  acknowledgeCurrentPaymentReview,
   type PaymentWorkStatus,
-  resolvePaymentReview,
 } from "#shared/db/payment-review.ts";
 import { adminPaymentReviewPage } from "#templates/admin/attendees.tsx";
 import {
@@ -28,27 +27,53 @@ const REVIEW_GUARD = {
 } satisfies Record<PaymentWorkStatus, string | null>;
 
 const handlePaymentReviewGet = attendeeActions[ACTION].page(
-  adminPaymentReviewPage,
-  async ({ attendee }) => {
-    const messageKey = REVIEW_GUARD[await getPaymentWorkStatus(attendee.id)];
-    return messageKey === null ? null : t(messageKey);
+  ({ attendee, paymentReview }, session, returnUrl, error) =>
+    adminPaymentReviewPage(
+      attendee,
+      paymentReview.status === "needs_review"
+        ? paymentReview.identity
+        : null,
+      session,
+      returnUrl,
+      error,
+    ),
+  async ({ paymentReview }) => {
+    const messageKey = REVIEW_GUARD[paymentReview.status];
+    return Promise.resolve(messageKey === null ? null : t(messageKey));
   },
   requireOwnerOr,
 );
 
 const handlePaymentReviewPost = attendeeActions[ACTION].verified(
   "payment review",
-  async ({ attendee }, form) => {
-    const result = await resolvePaymentReview({
+  async ({ attendee, listingId }, form) => {
+    const result = await acknowledgeCurrentPaymentReview({
       attendeeId: attendee.id,
-      listingId: attendee.listing_id,
+      listingId,
+      reviewIdentity: form.getString("review_identity"),
     });
     const actionsUrl = `/admin/attendees/${attendee.id}/actions`;
     switch (result.kind) {
-      case "resolved":
+      case "acknowledged":
         return redirect(actionsUrl, t("success.payment_reviewed"), true, {
           form,
         });
+      case "already_acknowledged":
+        return redirect(
+          actionsUrl,
+          t("admin.attendees.payment_review_already_acknowledged"),
+          true,
+          { form, level: "info" },
+        );
+      case "review_changed":
+        return errorRedirect(
+          attendeeActionUrlWithReturn(
+            attendee.id,
+            ACTION,
+            form.getString("return_url"),
+          ),
+          t("admin.attendees.payment_review_changed"),
+        );
       case "nothing_to_review":
         return redirect(
           actionsUrl,

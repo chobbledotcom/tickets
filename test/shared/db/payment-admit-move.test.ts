@@ -11,6 +11,7 @@ import {
   CLAIM_MIRROR,
   freshClaimSlot,
   putRowState,
+  reviewCase,
   REVIEW_MIRROR,
   rowStateSlot,
   staleClaimSlot,
@@ -20,7 +21,7 @@ import { bookedWithPayment } from "#test-utils/processed-payments.ts";
 const CLAIM_REFUSAL =
   "A refund for this person is still in progress. Finish or re-run the refund, then try again.";
 const REVIEW_REFUSAL =
-  "The owner still has to check a payment for this person. Mark it reviewed, then try again.";
+  "The owner still has to resolve a payment problem for this person. Refresh or correct the payment evidence, then try again.";
 
 /** What a refused delete says, or null when it went through. */
 const deleteRefusal = async (attendeeId: number): Promise<string | null> => {
@@ -88,7 +89,9 @@ describeWithEnv(
       const attendeeId = await bookedWithPayment("sess-busy-4", "pi_busy_4");
       await putRowState(
         "sess-busy-4",
-        await rowStateSlot({ review: { kind: "partial_refund" } }),
+        await rowStateSlot({
+          review: reviewCase({ kind: "partial_refund" }),
+        }),
         REVIEW_MIRROR,
       );
       expect(await deleteRefusal(attendeeId)).toBe(REVIEW_REFUSAL);

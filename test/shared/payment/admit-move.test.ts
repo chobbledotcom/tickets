@@ -6,6 +6,7 @@ import {
   type RowMove,
 } from "#shared/payment/admit-move.ts";
 import type { PaymentRowState } from "#shared/payment/row-state.ts";
+import { reviewCase } from "#test-utils/payment-claim.ts";
 
 /** What the operator is told, word for word. Pinned here because these
  *  sentences are the whole point of refusing: they have to name the thing that
@@ -13,7 +14,7 @@ import type { PaymentRowState } from "#shared/payment/row-state.ts";
 const CLAIM_REFUSAL =
   "A refund for this person is still in progress. Finish or re-run the refund, then try again.";
 const REVIEW_REFUSAL =
-  "The owner still has to check a payment for this person. Mark it reviewed, then try again.";
+  "The owner still has to resolve a payment problem for this person. Refresh or correct the payment evidence, then try again.";
 const UNRECORDED_REFUSAL =
   "This person's money went back, but the accounts do not show it. Record it, then try again.";
 
@@ -27,7 +28,9 @@ const CLAIMED: PaymentRowState = {
     writtenAt: "2026-01-01T00:00:00.000Z",
   },
 };
-const UNDER_REVIEW: PaymentRowState = { review: { kind: "partial_refund" } };
+const UNDER_REVIEW: PaymentRowState = {
+  review: reviewCase({ kind: "partial_refund" }),
+};
 const UNRECORDED: PaymentRowState = {
   unrecorded: { returnedAt: "2026-01-01T00:00:00.000Z" },
 };

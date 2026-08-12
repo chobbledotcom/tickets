@@ -6,12 +6,14 @@ import {
   readAttendeeRowStates,
   settleAttendeeRows,
 } from "#shared/db/payment-claim.ts";
+import type { PaymentReviewReason } from "#shared/payment/review.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   CLAIM_MIRROR,
   claimCurrentAttendeeRows,
   protectedStateOf,
   putRowState,
+  reviewCase,
   REVIEW_MIRROR,
   releaseClaimRows,
   rowStateSlot,
@@ -43,6 +45,10 @@ const putUnrecordedRow = async (sessionId: string): Promise<void> => {
     UNRECORDED_MIRROR,
   );
 };
+
+const reviewOf = async (attendeeId: number) =>
+  (await withTransaction((tx) => readAttendeeRowStates(tx, [attendeeId])))[0]
+    ?.state.review;
 
 describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
   describe("releasing", () => {
@@ -102,7 +108,9 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
       const attendeeId = await bookedWithPayment("sess-rev", "pi_rev");
       await putRowState(
         "sess-rev",
-        await rowStateSlot({ review: { kind: "partial_refund" } }),
+        await rowStateSlot({
+          review: reviewCase({ kind: "partial_refund" }),
+        }),
         REVIEW_MIRROR,
       );
       const held = await claimCurrentAttendeeRows([attendeeId]);
@@ -161,7 +169,9 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
       );
       await putRowState(
         "sess-changed-review",
-        await rowStateSlot({ review: { kind: "shared_reference" } }),
+        await rowStateSlot({
+          review: reviewCase({ kind: "shared_reference" }),
+        }),
         REVIEW_MIRROR,
       );
       const held = await claimCurrentAttendeeRows([attendeeId]);
@@ -185,6 +195,38 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
       expect(reclaimed.reviews.get("sess-changed-review")).toEqual({
         kind: "shared_reference",
       });
+    });
+
+    test("keeps acknowledgement for the same issue and reopens a changed issue", async () => {
+      const attendeeId = await bookedWithPayment("sess-review-case", "pi_case");
+      const acknowledged = {
+        ...reviewCase({ kind: "partial_refund" }, "acknowledged-case"),
+        acknowledgedAt: "2026-08-12T13:00:00.000Z",
+      };
+      await putRowState(
+        "sess-review-case",
+        await rowStateSlot({ review: acknowledged }),
+        REVIEW_MIRROR,
+      );
+      const settleWith = async (kind: PaymentReviewReason["kind"]) => {
+        const held = await claimCurrentAttendeeRows([attendeeId]);
+        if (held.kind !== "claimed") throw new Error("review row was refused");
+        await releaseClaimRows(
+          held,
+          ["sess-review-case"],
+          new Map([["sess-review-case", {
+            review: { kind: "review", reason: { kind } },
+          }]]),
+        );
+      };
+
+      await settleWith("partial_refund");
+      expect(await reviewOf(attendeeId)).toEqual(acknowledged);
+      await settleWith("shared_reference");
+      const reopened = await reviewOf(attendeeId);
+      expect(reopened?.reason).toEqual({ kind: "shared_reference" });
+      expect(reopened?.caseId).not.toBe("acknowledged-case");
+      expect(reopened?.acknowledgedAt).toBeUndefined();
     });
 
     test("money the ledger missed is marked as the hold comes off", async () => {

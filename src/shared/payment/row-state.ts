@@ -10,7 +10,10 @@
  */
 
 import * as v from "valibot";
-import { PaymentReviewReasonSchema } from "#shared/payment/review.ts";
+import {
+  PaymentReviewCaseSchema,
+  PaymentReviewReasonSchema,
+} from "#shared/payment/review.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
@@ -96,16 +99,42 @@ export type UnrecordedRefund = v.InferOutput<typeof UnrecordedRefundSchema>;
 const PaymentRowStateSchema = v.strictObject({
   claim: v.optional(RefundClaimSchema),
   outcome: v.optional(StoredPaymentFailureSchema),
-  review: v.optional(PaymentReviewReasonSchema),
+  review: v.optional(PaymentReviewCaseSchema),
   unrecorded: v.optional(UnrecordedRefundSchema),
 });
 export type PaymentRowState = v.InferOutput<typeof PaymentRowStateSchema>;
+
+const LegacyPaymentRowStateSchema = v.strictObject({
+  claim: v.optional(RefundClaimSchema),
+  outcome: v.optional(StoredPaymentFailureSchema),
+  review: v.optional(PaymentReviewReasonSchema),
+  unrecorded: v.optional(UnrecordedRefundSchema),
+});
+type LegacyPaymentRowState = v.InferOutput<
+  typeof LegacyPaymentRowStateSchema
+>;
 
 /** A row carrying nothing yet. */
 export const EMPTY_ROW_STATE: PaymentRowState = {};
 
 const rowStateJson = defineStoredJson(PaymentRowStateSchema);
+const legacyRowStateJson = defineStoredJson(LegacyPaymentRowStateSchema);
 const legacyFailureJson = defineStoredJson(StoredPaymentFailureSchema);
+
+const upgradeLegacyReview = (
+  state: LegacyPaymentRowState,
+): PaymentRowState => {
+  const { review, ...kept } = state;
+  return review === undefined
+    ? kept
+    : {
+        ...kept,
+        review: {
+          caseId: `legacy:${review.kind}`,
+          reason: review,
+        },
+      };
+};
 
 /** Read the record out of a decrypted slot. Rows written before it existed
  *  hold a bare terminal failure, read as an outcome-only record — a
@@ -115,9 +144,12 @@ export const readRowState = (
   context: string,
 ): PaymentRowState => {
   const parsed: unknown = JSON.parse(stored);
-  return v.is(StoredPaymentFailureSchema, parsed)
-    ? { outcome: legacyFailureJson.read(stored, context) }
-    : rowStateJson.read(stored, context);
+  if (v.is(StoredPaymentFailureSchema, parsed)) {
+    return { outcome: legacyFailureJson.read(stored, context) };
+  }
+  return v.is(PaymentRowStateSchema, parsed)
+    ? rowStateJson.read(stored, context)
+    : upgradeLegacyReview(legacyRowStateJson.read(stored, context));
 };
 
 /** Write the record back out. */

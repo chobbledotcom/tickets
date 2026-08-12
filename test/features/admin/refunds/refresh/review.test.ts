@@ -73,10 +73,11 @@ describe("refresh payment under an attendee claim", () => {
     expect(run.claim.released).toEqual([run.reference.rowSessionIds]);
   });
 
-  test("a completed refresh retires only its earlier partial-refund review", async () => {
+  test("a completed refresh retires reviews disproved by exact evidence", async () => {
     const completedReviewReasons = [
       { kind: "partial_refund" },
       { kind: "partially_returned_obligation" },
+      { kind: "uncertain_keyless_refund" },
     ] as const satisfies readonly PaymentReviewReason[];
     for (const existingReview of completedReviewReasons) {
       const completed = runHarness({
@@ -103,6 +104,11 @@ describe("refresh payment under an attendee claim", () => {
       kind: "returned",
       posted: true,
     });
-    expect(unrelated.claim.reviewChanges).toEqual([new Map()]);
+    expect(unrelated.claim.reviewChanges).toEqual([
+      reviewChange(unrelated, {
+        kind: "resolved",
+        reason: "shared_reference",
+      }),
+    ]);
   });
 });

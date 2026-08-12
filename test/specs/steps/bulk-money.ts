@@ -4,11 +4,15 @@ import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import {
+  acknowledgeFirstPaymentReview,
+  contradictFirstPayment,
+  correctFirstPayment,
   everyoneRefunded,
   paidPlaceEach,
   payMoreListing,
   payYourOwnPrice,
   refundedPeople,
+  tryToRefundEveryone,
 } from "#test/specs/support/bulk-money.ts";
 import { listingIdNamed } from "#test/specs/support/listings.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
@@ -42,10 +46,63 @@ Given(
   },
 );
 
+Given(
+  "the provider reports returning more than it took on the first payment",
+  function (this: TicketsWorld): void {
+    contradictFirstPayment(this);
+  },
+);
+
+Given(
+  "the owner tried the first refund and acknowledged its review",
+  function (this: TicketsWorld): Promise<void> {
+    return acknowledgeFirstPaymentReview(this);
+  },
+);
+
+Given(
+  "the provider corrects the first payment to show no refund",
+  function (this: TicketsWorld): void {
+    correctFirstPayment(this);
+  },
+);
+
 When(
   "the organiser refunds everyone and the provider turns down the second",
   function (this: TicketsWorld): Promise<void> {
     return everyoneRefunded(this);
+  },
+);
+
+When(
+  "the organiser tries to refund everyone",
+  function (this: TicketsWorld): Promise<void> {
+    return tryToRefundEveryone(this);
+  },
+);
+
+Then(
+  "Refund All stops before asking the provider to return money",
+  function (this: TicketsWorld): void {
+    expect(
+      requiredWorldValue(this.bulkRefundMessage, "what the organiser was told"),
+    ).toContain("still needs owner review");
+    expect(requiredWorldValue(this.refundCalls, "refund calls")()).toBe(0);
+  },
+);
+
+Then(
+  "all three people still have their payments",
+  async function (this: TicketsWorld): Promise<void> {
+    const attendeeIds = requiredWorldValue(
+      this.attendeeIds,
+      "the people who paid",
+    );
+    expect(attendeeIds).toHaveLength(3);
+    for (const attendeeId of attendeeIds) {
+      expect(await attendeeLegsOfKind(attendeeId, "payment")).toHaveLength(1);
+      expect(await attendeeLegsOfKind(attendeeId, "refund_cash")).toEqual([]);
+    }
   },
 );
 

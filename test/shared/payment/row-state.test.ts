@@ -7,6 +7,7 @@ import {
   readRowState,
   writeRowState,
 } from "#shared/payment/row-state.ts";
+import { reviewCase } from "#test-utils/payment-claim.ts";
 
 const CONTEXT = "processed_payments.failure_data";
 
@@ -20,7 +21,7 @@ const FULL: PaymentRowState = {
     writtenAt: "2026-08-10T12:00:00.000Z",
   },
   outcome: { error: "Sold out", refunded: true, status: 409 },
-  review: { kind: "partial_refund" },
+  review: reviewCase({ kind: "partial_refund" }),
 };
 
 describe("readRowState", () => {
@@ -42,6 +43,20 @@ describe("readRowState", () => {
   test("reads a legacy row carrying only the message", () => {
     expect(readRowState(JSON.stringify({ error: "Gone" }), CONTEXT)).toEqual({
       outcome: { error: "Gone" },
+    });
+  });
+
+  test("upgrades a legacy review reason into one stable review case", () => {
+    expect(
+      readRowState(
+        JSON.stringify({ review: { kind: "partial_refund" } }),
+        CONTEXT,
+      ),
+    ).toEqual({
+      review: {
+        caseId: "legacy:partial_refund",
+        reason: { kind: "partial_refund" },
+      },
     });
   });
 
@@ -87,9 +102,16 @@ describe("readRowState", () => {
     ] as const;
     expect(
       reasons.map((kind) =>
-        readRowState(writeRowState({ review: { kind } }, CONTEXT), CONTEXT),
+        readRowState(
+          writeRowState({ review: reviewCase({ kind }) }, CONTEXT),
+          CONTEXT,
+        ),
       ),
-    ).toEqual(reasons.map((kind) => ({ review: { kind } })));
+    ).toEqual(
+      reasons.map((kind) => ({
+        review: reviewCase({ kind }),
+      })),
+    );
   });
 
   test("refuses a claim with no written-at time", () => {

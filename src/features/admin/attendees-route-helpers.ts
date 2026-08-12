@@ -24,6 +24,10 @@ import {
   getFirstBookingListingId,
 } from "#shared/db/attendees/queries.ts";
 import { getListingWithAttendeeRaw } from "#shared/db/listings/attendees.ts";
+import {
+  getPaymentReviewState,
+  type PaymentReviewState,
+} from "#shared/db/payment-review.ts";
 import { requireListingWithCount } from "#shared/db/listings/records.ts";
 import { findByIdThen } from "#shared/find-by-id.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -80,10 +84,25 @@ export const withDecryptedAttendee =
 /** One attendee-scoped action needs no booking to remain reachable. */
 type AttendeeActionData = { attendee: Attendee };
 
+type PaymentReviewActionData = AttendeeActionData & {
+  listingId: number | null;
+  paymentReview: PaymentReviewState;
+};
+
 const loadAttendeeActionData: (
   attendeeId: number,
 ) => Promise<AttendeeActionData | null> = withDecryptedAttendee((attendee) =>
   Promise.resolve({ attendee }),
+);
+
+const loadPaymentReviewActionData: (
+  attendeeId: number,
+) => Promise<PaymentReviewActionData | null> = withDecryptedAttendee(
+  async (attendee) => ({
+    attendee,
+    listingId: await getFirstBookingListingId(attendee.id),
+    paymentReview: await getPaymentReviewState(attendee.id),
+  }),
 );
 
 /** Load the first stored booking and its live listing for a booking action. */
@@ -214,7 +233,11 @@ const bookingAction = (action: string) =>
  * its route loader and page visibility then share that decision. */
 export const attendeeActions = {
   delete: attendeeAction("delete"),
-  "payment-review": attendeeAction("payment-review"),
+  "payment-review": defineAttendeeAction(
+    "payment-review",
+    "attendee",
+    loadPaymentReviewActionData,
+  ),
   "refresh-payment": attendeeAction("refresh-payment"),
   refund: bookingAction("refund"),
   "resend-notification": bookingAction("resend-notification"),

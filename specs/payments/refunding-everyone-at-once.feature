@@ -20,3 +20,22 @@ Feature: An organiser refunds everyone on a listing
       Then the organiser is told 2 refunds worked and 1 failed
       And the two who were refunded have their money back
       And the one who was not still has their place, and the Tour has earned 50.00
+
+  @rule:payments.refund-all-respects-owner-review
+  @surface:admin
+  Rule: Refund All cannot bypass a payment that still needs owner review
+    Acknowledging a contradictory provider report records that the owner saw
+    it. Even if the provider's next report looks safe, Refund All waits for the
+    review to be resolved through the payment refresh process before sending
+    any money.
+
+    @case:bulk-refund.acknowledged-review-stops-every-send
+    Scenario: A corrected provider report does not bypass an acknowledged review
+      Given three people each paid 50.00 for a Tour place
+      And the provider reports returning more than it took on the first payment
+      And the owner tried the first refund and acknowledged its review
+      And the provider corrects the first payment to show no refund
+      When the organiser tries to refund everyone
+      Then Refund All stops before asking the provider to return money
+      And all three people still have their payments
+      And the Tour has earned 150.00

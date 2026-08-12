@@ -22,7 +22,10 @@ import {
   type HeldRefundCommand,
   holdsExactRefundCommand,
 } from "#shared/payment/claim.ts";
-import type { PaymentReviewReason } from "#shared/payment/review.ts";
+import {
+  openPaymentReview,
+  type PaymentReviewReason,
+} from "#shared/payment/review.ts";
 import {
   EMPTY_ROW_STATE,
   isEmptyRowState,
@@ -284,11 +287,22 @@ const withReviewChange = (
   change: PaymentReviewChange | undefined,
 ): PaymentRowState => {
   if (change === undefined) return state;
-  if (change.kind === "resolved" && state.review?.kind !== change.reason) {
+  if (
+    change.kind === "resolved" &&
+    state.review?.reason.kind !== change.reason
+  ) {
+    return state;
+  }
+  if (
+    change.kind === "review" &&
+    state.review?.reason.kind === change.reason.kind
+  ) {
     return state;
   }
   const { review: _was, ...kept } = state;
-  return change.kind === "resolved" ? kept : { ...kept, review: change.reason };
+  return change.kind === "resolved"
+    ? kept
+    : { ...kept, review: openPaymentReview(change.reason) };
 };
 
 const withClaimChange = (

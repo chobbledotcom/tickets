@@ -5,6 +5,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { resetI18nForTest } from "#i18n";
 import { handleRequest } from "#routes";
+import { deleteListing } from "#shared/db/listings/delete.ts";
+import { getPaymentReviewState } from "#shared/db/payment-review.ts";
 import { nowIso } from "#shared/now.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import {
@@ -22,6 +24,7 @@ import {
   CLAIM_MIRROR,
   protectedStateOf,
   putRowState,
+  reviewCase,
   REVIEW_MIRROR,
   rowStateSlot,
   storedRecordOf,
@@ -37,7 +40,7 @@ import {
 
 const ACTION = "payment-review";
 const NAME = "Review Person";
-const SUCCESS = "Payment marked reviewed";
+const SUCCESS = "Payment review acknowledged";
 const NOTHING = "This payment no longer needs review.";
 const CLAIMED =
   "A refund for this payment is still in progress. Finish or re-run it before marking the payment reviewed.";
@@ -58,13 +61,18 @@ const actionsUrl = (attendeeId: number): string =>
 
 const paymentReviewActivity = async (attendeeId: number) =>
   (await getAttendeeActivityLog(attendeeId)).filter(
-    ({ message }) => message === "Payment marked reviewed by owner",
+    ({ message }) => message === "Payment review acknowledged by owner",
   );
 
-const setReview = async (sessionId: string): Promise<void> => {
+const setReview = async (
+  sessionId: string,
+  caseId = `route-case-${sessionId}`,
+): Promise<void> => {
   await putRowState(
     sessionId,
-    await rowStateSlot({ review: { kind: "partial_refund" } }),
+    await rowStateSlot({
+      review: reviewCase({ kind: "partial_refund" }, caseId),
+    }),
     REVIEW_MIRROR,
   );
 };
@@ -89,22 +97,27 @@ const setupReview = async (review = true): Promise<ReviewContext> => {
   };
 };
 
-const submitReview = (
+const submitReview = async (
   context: ReviewContext,
   values: Record<string, string> = {},
   cookie = context.cookie,
-): Promise<Response> =>
-  handleRequest(
+): Promise<Response> => {
+  const state = await getPaymentReviewState(context.attendeeId);
+  const reviewIdentity =
+    state.status === "needs_review" ? state.identity : "";
+  return handleRequest(
     mockFormRequest(
       reviewUrl(context.attendeeId),
       {
         confirm_identifier: NAME,
         csrf_token: context.csrfToken,
+        review_identity: reviewIdentity,
         ...values,
       },
       cookie,
     ),
   );
+};
 
 describeWithEnv("admin payment review action", { db: true }, () => {
   describe("GET confirmation", () => {
@@ -124,7 +137,9 @@ describeWithEnv("admin payment review action", { db: true }, () => {
         "Mark payment reviewed",
         NAME,
         "type their name",
+        "The safety hold stays in place",
         "does not contact the provider or change money.",
+        'name="review_identity"',
         'name="return_url"',
         returnUrl,
       );
@@ -217,13 +232,33 @@ describeWithEnv("admin payment review action", { db: true }, () => {
         }),
       );
 
-      expect(await protectedStateOf(context.sessionId)).toBe("");
-      expect(await storedRecordOf(context.sessionId)).toBe("");
+      expect(await protectedStateOf(context.sessionId)).toBe(REVIEW_MIRROR);
+      expect(await storedRecordOf(context.sessionId)).not.toBe("");
+      expect(await getPaymentReviewState(context.attendeeId)).toMatchObject({
+        allAcknowledged: true,
+        status: "needs_review",
+      });
       expect(await paymentReviewActivity(context.attendeeId)).toEqual([
         expect.objectContaining({
           attendee_id: context.attendeeId,
           listing_id: context.listingId,
-          message: "Payment marked reviewed by owner",
+          message: "Payment review acknowledged by owner",
+        }),
+      ]);
+    });
+
+    test("acknowledges an orphan attendee without inventing a listing", async () => {
+      const context = await setupReview();
+      await deleteListing(context.listingId);
+
+      await expectFlashRedirect(
+        actionsUrl(context.attendeeId),
+        SUCCESS,
+      )(await submitReview(context));
+      expect(await paymentReviewActivity(context.attendeeId)).toEqual([
+        expect.objectContaining({
+          attendee_id: context.attendeeId,
+          listing_id: null,
         }),
       ]);
     });
@@ -236,6 +271,35 @@ describeWithEnv("admin payment review action", { db: true }, () => {
       const flash = parseFlashCookie(response);
       expect(flash.info).toBe(NOTHING);
       expect(flash.formToken).toBeUndefined();
+      expect(await paymentReviewActivity(context.attendeeId)).toEqual([]);
+    });
+
+    test("treats acknowledgement replay as current and logs only once", async () => {
+      const context = await setupReview();
+      await submitReview(context);
+      const replay = await submitReview(context);
+
+      expectRedirect(replay, actionsUrl(context.attendeeId));
+      expect(parseFlashCookie(replay).info).toBe(
+        "This payment review was already acknowledged.",
+      );
+      expect(await paymentReviewActivity(context.attendeeId)).toHaveLength(1);
+      expect(await protectedStateOf(context.sessionId)).toBe(REVIEW_MIRROR);
+    });
+
+    test("rejects a stale form after a newer review case opens", async () => {
+      const context = await setupReview();
+      const first = await getPaymentReviewState(context.attendeeId);
+      if (first.status !== "needs_review") throw new Error("review was omitted");
+      await setReview(context.sessionId, "new-route-case");
+
+      await expectFlashRedirect(
+        reviewUrl(context.attendeeId),
+        "The payment review changed. Check the current details and confirm again.",
+        false,
+      )(
+        await submitReview(context, { review_identity: first.identity }),
+      );
       expect(await paymentReviewActivity(context.attendeeId)).toEqual([]);
     });
 
@@ -252,7 +316,7 @@ describeWithEnv("admin payment review action", { db: true }, () => {
             scope: "attendee_set",
             writtenAt: nowIso(),
           },
-          review: { kind: "partial_refund" },
+          review: reviewCase({ kind: "partial_refund" }),
         }),
         CLAIM_MIRROR,
       );
@@ -277,7 +341,7 @@ describeWithEnv("admin payment review action", { db: true }, () => {
       expect(await paymentReviewActivity(context.attendeeId)).toEqual([]);
     });
 
-    test("managers receive 403 and cannot retire the review", async () => {
+    test("managers receive 403 and cannot acknowledge the review", async () => {
       const context = await setupReview();
       const before = await storedRecordOf(context.sessionId);
       const manager = await createTestManagerSession(

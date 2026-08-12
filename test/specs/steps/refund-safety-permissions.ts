@@ -275,7 +275,7 @@ Then(
   "the owner is told the payment was marked reviewed",
   function (this: TicketsWorld): void {
     const browser = scenarioBrowser(this);
-    expect(browser.containsText("Payment marked reviewed")).toBe(true);
+    expect(browser.containsText("Payment review acknowledged")).toBe(true);
   },
 );
 
@@ -287,9 +287,8 @@ Then(
 );
 
 When(
-  "the owner retries the refund with the provider evidence unchanged",
-  async function (this: TicketsWorld): Promise<void> {
-    const who = requiredWorldValue(this.attendeeName, "the attendee name");
-    await ownerRefunds(this, who);
+  "the owner checks {word}'s Actions page again",
+  async function (this: TicketsWorld, who: string): Promise<void> {
+    await openActionsAsOwner(this, who);
   },
 );

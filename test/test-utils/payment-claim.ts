@@ -23,6 +23,10 @@ import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 import { mirrorFor } from "#shared/payment/admit-move.ts";
 import type {
+  PaymentReviewCase,
+  PaymentReviewReason,
+} from "#shared/payment/review.ts";
+import type {
   PaymentRowState,
   RefundClaim,
   RefundProviderCapability,
@@ -94,7 +98,14 @@ export const CLAIM_MIRROR = mirrorFor({
     writtenAt: "",
   },
 });
-export const REVIEW_MIRROR = mirrorFor({ review: { kind: "partial_refund" } });
+export const reviewCase = (
+  reason: PaymentReviewReason,
+  caseId = `case-${reason.kind}`,
+): PaymentReviewCase => ({ caseId, reason });
+
+export const REVIEW_MIRROR = mirrorFor({
+  review: reviewCase({ kind: "partial_refund" }),
+});
 export const UNRECORDED_MIRROR = mirrorFor({
   unrecorded: { returnedAt: "" },
 });

@@ -25,7 +25,7 @@ import {
 import { applyRefundLedgerFindings } from "./ledger-findings.ts";
 import {
   type ProviderReviewFinding,
-  recordProviderReviewFindings,
+  reconcileProviderReviewFindings,
 } from "./provider-reviews.ts";
 import {
   prepareRefundReadiness,
@@ -154,14 +154,20 @@ const providerReviewFindings = (
 
 type CompletedRefundReview = Extract<
   PaymentReviewReason,
-  { kind: "partial_refund" | "partially_returned_obligation" }
+  {
+    kind:
+      | "partial_refund"
+      | "partially_returned_obligation"
+      | "uncertain_keyless_refund";
+  }
 >;
 
 const completedRefundReview = (
   reason: PaymentReviewReason | undefined,
 ): reason is CompletedRefundReview =>
   reason?.kind === "partial_refund" ||
-  reason?.kind === "partially_returned_obligation";
+  reason?.kind === "partially_returned_obligation" ||
+  reason?.kind === "uncertain_keyless_refund";
 
 /** Retire only refund markers that a complete ledger post disproves. */
 const retireCompletedRefundReviews = (
@@ -200,9 +206,15 @@ const refreshReadyCandidate = async (
   );
   const returned = compact(observed.map(returnedReference));
   const hasUnreturned = returned.length !== candidate.references.length;
-  const providerNeedsReview = recordProviderReviewFindings(
+  const currentProviderReviews = providerReviewFindings(
+    observed,
+    uncertainKeyless,
+  );
+  const providerNeedsReview = reconcileProviderReviewFindings(
     findings,
-    providerReviewFindings(observed, uncertainKeyless),
+    heldReviews,
+    candidate.references.map(({ reference }) => reference),
+    currentProviderReviews,
   );
   const keepsClaim = hasAdmission(observed, "in_flight");
   if (keepsClaim) {
@@ -265,6 +277,7 @@ export const refreshClaimedPayment = async (
     record = recordAttendeeRefund,
   } = dependencies;
   return await runRefundReadiness<RefreshPaymentResult>({
+    action: "refresh",
     candidates: [candidate],
     changedMessage:
       "The attendee or payment set changed while this refresh was starting. Try again.",

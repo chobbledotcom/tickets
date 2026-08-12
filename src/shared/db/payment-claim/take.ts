@@ -340,7 +340,7 @@ export const claimAttendeeRows = async (
         rows.flatMap((row) =>
           row.state.review === undefined
             ? []
-            : [[row.sessionId, row.state.review] as const],
+            : [[row.sessionId, row.state.review.reason] as const],
         ),
       ),
       shared: sharedRepresentations(attendees, storedRows),

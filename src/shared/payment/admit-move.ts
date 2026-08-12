@@ -62,7 +62,7 @@ const LIVE_WORK = {
     found: (state: PaymentRowState) => state.review !== undefined,
     mirror: "review",
     refusal:
-      "The owner still has to check a payment for this person. Mark it reviewed, then try again.",
+      "The owner still has to resolve a payment problem for this person. Refresh or correct the payment evidence, then try again.",
     saidFirst: 2,
     stops: { delete: true, merge: false },
   },

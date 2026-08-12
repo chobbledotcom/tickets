@@ -81,3 +81,4 @@ Feature: Only an owner decides what happens to refunds needing attention
       Then the owner is told the payment was marked reviewed
       And the provider has not been contacted again
       And Money still shows Alice's 45.00 payment
+      And Alice's Actions page still offers Mark payment reviewed to the owner

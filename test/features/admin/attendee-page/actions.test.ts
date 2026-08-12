@@ -12,6 +12,7 @@ import {
   CLAIM_MIRROR,
   freshClaimSlot,
   putRowState,
+  reviewCase,
   REVIEW_MIRROR,
   rowStateSlot,
   staleClaimSlot,
@@ -111,7 +112,9 @@ describeWithEnv("the attendee Actions tab", { db: true }, () => {
       const { attendeeId, sessionId } = await paidPagePayment("review");
       await putRowState(
         sessionId,
-        await rowStateSlot({ review: { kind: "partial_refund" } }),
+        await rowStateSlot({
+          review: reviewCase({ kind: "partial_refund" }),
+        }),
         REVIEW_MIRROR,
       );
 
@@ -132,7 +135,9 @@ describeWithEnv("the attendee Actions tab", { db: true }, () => {
         await paidPagePayment("orphan-review");
       await putRowState(
         sessionId,
-        await rowStateSlot({ review: { kind: "partial_refund" } }),
+        await rowStateSlot({
+          review: reviewCase({ kind: "partial_refund" }),
+        }),
         REVIEW_MIRROR,
       );
       await deleteListing(listingId);
@@ -180,7 +185,7 @@ describeWithEnv("the attendee Actions tab", { db: true }, () => {
       );
       const stale = await tabHtml(attendeeId, "actions");
       expect(stale).not.toContain(refundUrl);
-      expect(stale).toContain(reviewUrl);
+      expect(stale).not.toContain(reviewUrl);
 
       await putRowState(
         sessionId,
