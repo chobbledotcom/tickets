@@ -221,7 +221,7 @@
       <h1>Refunds prove what happened before trying again.</h1>
       <p class="lede">A visual guide to every change in <code>src/</code> introduced on <strong>claude/m4-pr-a</strong> since it diverged from <strong>main</strong>. The short version: each charge is identified, observed, claimed, and accounted for—and doubt becomes durable work instead of permission to try again.</p>
       <div class="hashes" aria-label="Pinned comparison revisions">
-        <span class="hash"><strong>snapshot</strong> c9cb72dfe405</span>
+        <span class="hash"><strong>snapshot</strong> f63fac0d3d91</span>
         <span class="hash"><strong>main</strong> 470b47efef08</span>
         <span class="hash"><strong>merge base</strong> 470b47efef08</span>
         <span class="hash"><strong>status</strong> exact merged snapshot</span>
@@ -231,7 +231,7 @@
         <div class="metric"><b>74</b><span>files added</span></div>
         <div class="metric"><b>78</b><span>files modified</span></div>
         <div class="metric"><b>3</b><span>files deleted</span></div>
-        <div class="metric"><b>+9,061</b><span>net source lines</span></div>
+        <div class="metric"><b>+9,064</b><span>net source lines</span></div>
       </div>
     </header>
 
@@ -246,7 +246,7 @@
       </div>
       <h3 style="margin-top:2rem">Where the 155 files moved</h3>
       <div class="bars" aria-label="Changed files and lines by subsystem">
-        <div class="bar-row"><strong>Admin &amp; UI</strong><div class="bar-track"><div class="bar-fill" style="--size:100%"></div></div><span>43 files · +3,325 net</span></div>
+        <div class="bar-row"><strong>Admin &amp; UI</strong><div class="bar-track"><div class="bar-fill" style="--size:100%"></div></div><span>43 files · +3,328 net</span></div>
         <div class="bar-row"><strong>API &amp; checkout</strong><div class="bar-track"><div class="bar-fill" style="--size:1%"></div></div><span>9 files · −27 net</span></div>
         <div class="bar-row"><strong>DB &amp; ledger</strong><div class="bar-track"><div class="bar-fill" style="--size:89%"></div></div><span>52 files · +2,957 net</span></div>
         <div class="bar-row"><strong>Shared rules</strong><div class="bar-track"><div class="bar-fill" style="--size:57%"></div></div><span>26 files · +1,887 net</span></div>
@@ -511,11 +511,11 @@
       <div class="atlas-controls" aria-label="File atlas controls">
         <label><span class="sr-only">Search changed files</span><input id="file-search" type="search" placeholder="Search path or purpose…" autocomplete="off"></label>
         <div class="filters" aria-label="Filter by change status"><button class="filter" type="button" data-filter="all" aria-pressed="true">All</button><button class="filter" type="button" data-filter="added" aria-pressed="false">Added</button><button class="filter" type="button" data-filter="modified" aria-pressed="false">Modified</button><button class="filter" type="button" data-filter="deleted" aria-pressed="false">Deleted</button></div>
-        <div id="inventory-status" class="inventory-status" aria-live="polite">155 files · +12,238 / −3,177</div>
+        <div id="inventory-status" class="inventory-status" aria-live="polite">155 files · +12,241 / −3,177</div>
       </div>
       <p id="empty-atlas" class="empty">No changed source files match that search and status.</p>
       <details class="file-group" data-area="admin_ui" open>
-        <summary>Admin &amp; UI · 43 files · +4,279 / −954</summary>
+        <summary>Admin &amp; UI · 43 files · +4,282 / −954</summary>
         <ol class="file-list">
           <li class="file-row" data-status="modified" data-area="admin_ui" data-adds="12" data-dels="16"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/features/admin/attendee-form-routes.ts</code><span class="file-delta">+12 −16</span><p class="file-why">Passes plain attendee facts into the atomic save boundary so PII encryption and any old-payment anchor are inseparable.</p></li>
           <li class="file-row" data-status="modified" data-area="admin_ui" data-adds="24" data-dels="10"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/features/admin/attendee-page-data.ts</code><span class="file-delta">+24 −10</span><p class="file-why">Loads the authoritative indexed-payment fact once, uses it with active-booking and returned-money state to decide whether a refund is allowed, and exposes that same fact to the page.</p></li>
@@ -533,7 +533,7 @@
           <li class="file-row" data-status="modified" data-area="admin_ui" data-adds="12" data-dels="15"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/features/admin/listing-page.ts</code><span class="file-delta">+12 −15</span><p class="file-why">Makes Refund All owner-only and reuses the shared owner-field preparation helper.</p></li>
           <li class="file-row" data-status="modified" data-area="admin_ui" data-adds="8" data-dels="3"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/features/admin/privacy.ts</code><span class="file-delta">+8 −3</span><p class="file-why">Loads the ordinary orphan-cleanup count separately from orphan attendee IDs protected by unfinished payment work, so the owner can see both groups.</p></li>
           <li class="file-row" data-status="added" data-area="admin_ui" data-adds="307" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/features/admin/refunds/attempt.ts</code><span class="file-delta">+307 −0</span><p class="file-why">Performs one admitted reference refund, memoizes shared work, preserves doubt, and marks exactly the charges proved returned.</p></li>
-          <li class="file-row" data-status="added" data-area="admin_ui" data-adds="393" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/features/admin/refunds/budget.ts</code><span class="file-delta">+393 −0</span><p class="file-why">Prices the worst-case database and physical provider calls at every checkpoint, always reserving returned-money recording plus retry-safe settlement and route-tail work.</p></li>
+          <li class="file-row" data-status="added" data-area="admin_ui" data-adds="396" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/features/admin/refunds/budget.ts</code><span class="file-delta">+396 −0</span><p class="file-why">Prices the worst-case database and physical provider calls at every checkpoint, always reserving returned-money recording plus retry-safe settlement and route-tail work.</p></li>
           <li class="file-row" data-status="modified" data-area="admin_ui" data-adds="46" data-dels="8"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/features/admin/refunds/candidates.ts</code><span class="file-delta">+46 −8</span><p class="file-why">Builds exact claim inputs, deduplicates ticket holders, and keeps part-refunds or abandoned holds in the work list.</p></li>
           <li class="file-row" data-status="added" data-area="admin_ui" data-adds="292" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/features/admin/refunds/claim.ts</code><span class="file-delta">+292 −0</span><p class="file-why">Wraps work under an all-or-none row claim, pairs any admission gate with its refusal result, starts known returns as books-behind, and settles only from accumulated evidence.</p></li>
           <li class="file-row" data-status="added" data-area="admin_ui" data-adds="105" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/features/admin/refunds/confirmation.ts</code><span class="file-delta">+105 −0</span><p class="file-why">Confirms one exact returned reference set in a single transaction, with a structured replay identity rather than decrypted activity or note scans.</p></li>
@@ -696,7 +696,7 @@
       </details>
     </section>
 
-    <footer><strong>Exact merged source snapshot.</strong> Commit <code>c9cb72dfe405</code> is compared with merge base <code>470b47efef08</code>, the same commit as <code>origin/main</code> when generated. Every <code>src/</code> row and line count below comes directly from that merge-base diff, so the atlas attributes only work introduced by this branch.</footer>
+    <footer><strong>Exact merged source snapshot.</strong> Commit <code>f63fac0d3d91</code> is compared with merge base <code>470b47efef08</code>, the same commit as <code>origin/main</code> when generated. Every <code>src/</code> row and line count below comes directly from that merge-base diff, so the atlas attributes only work introduced by this branch.</footer>
   </main>
   <script>
     (() => {
@@ -729,7 +729,7 @@
       };
       const expected = {
         files: 155,
-        adds: 12238,
+        adds: 12241,
         dels: 3177,
         statuses: { added: 74, modified: 78, deleted: 3 },
         areas: {
