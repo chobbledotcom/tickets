@@ -1,0 +1,705 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#102a43">
+  <title>m4-pr-a compared with main — source change map</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #102a43;
+      --muted: #526777;
+      --paper: #f7f5ef;
+      --card: #fffdf8;
+      --line: #cbd5dc;
+      --navy: #102a43;
+      --blue: #167d9a;
+      --cyan: #58d5dc;
+      --green: #168567;
+      --green-soft: #ddf4e9;
+      --amber: #c87400;
+      --amber-soft: #fff0cf;
+      --red: #b73c3c;
+      --red-soft: #fde4df;
+      --violet: #7257a8;
+      --violet-soft: #eee7fb;
+      --shadow: 0 18px 50px rgb(16 42 67 / 10%);
+      --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.55; }
+    a { color: inherit; }
+    code, .mono { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; overflow-wrap: anywhere; }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    :focus-visible { outline: 3px solid var(--amber); outline-offset: 3px; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+    .skip { position: fixed; z-index: 30; top: 8px; left: 8px; padding: .7rem 1rem; transform: translateY(-150%); border-radius: 8px; background: white; color: var(--ink); }
+    .skip:focus { transform: none; }
+    #read-progress { position: fixed; z-index: 40; top: 0; left: 0; width: 0; height: 4px; background: linear-gradient(90deg, var(--cyan), #ffd166); }
+    .topnav { position: sticky; z-index: 20; top: 0; display: flex; gap: .45rem; padding: .65rem max(1rem, calc((100vw - 1200px) / 2)); overflow-x: auto; border-bottom: 1px solid rgb(255 255 255 / 14%); background: rgb(16 42 67 / 96%); color: white; backdrop-filter: blur(10px); }
+    .topnav a { flex: 0 0 auto; padding: .38rem .7rem; border-radius: 999px; color: #d9e9ef; font-size: .82rem; text-decoration: none; }
+    .topnav a:hover { background: rgb(255 255 255 / 10%); color: white; }
+    main { width: min(1200px, calc(100% - 2rem)); margin: 0 auto; }
+    .hero { position: relative; isolation: isolate; margin: 1.4rem auto 4rem; padding: clamp(2rem, 7vw, 5.5rem); overflow: hidden; border-radius: 30px; background: var(--navy); color: white; box-shadow: var(--shadow); }
+    .hero::before { position: absolute; z-index: -2; inset: 0; background-image: radial-gradient(circle at 1px 1px, rgb(88 213 220 / 24%) 1px, transparent 0); background-size: 28px 28px; content: ""; mask-image: linear-gradient(to right, black, transparent 72%); }
+    .hero::after { position: absolute; z-index: -1; width: 420px; height: 420px; right: -90px; top: -160px; border: 60px solid rgb(88 213 220 / 14%); border-radius: 50%; content: ""; }
+    .eyebrow, .kicker { margin: 0 0 .65rem; color: var(--blue); font-size: .76rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+    .hero .eyebrow { color: var(--cyan); }
+    h1 { max-width: 900px; margin: 0; font-size: clamp(2.5rem, 7vw, 5.9rem); line-height: .96; letter-spacing: -.055em; }
+    .hero .lede { max-width: 800px; margin: 1.4rem 0 2rem; color: #d5e8ef; font-size: clamp(1.05rem, 2vw, 1.35rem); }
+    .hashes { display: flex; flex-wrap: wrap; gap: .65rem; margin-bottom: 2rem; }
+    .hash { padding: .5rem .7rem; border: 1px solid rgb(255 255 255 / 18%); border-radius: 9px; background: rgb(255 255 255 / 7%); color: #d5e8ef; font-size: .76rem; }
+    .hash strong { color: white; }
+    .metrics { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .75rem; }
+    .metric { min-height: 112px; padding: 1rem; border: 1px solid rgb(255 255 255 / 15%); border-radius: 14px; background: rgb(255 255 255 / 7%); }
+    .metric b { display: block; color: white; font-size: clamp(1.7rem, 3vw, 2.6rem); line-height: 1; }
+    .metric span { display: block; margin-top: .55rem; color: #bcd2dc; font-size: .78rem; }
+    section { scroll-margin-top: 70px; margin: 0 0 5.5rem; }
+    h2 { max-width: 900px; margin: 0 0 1rem; font-size: clamp(2rem, 4.2vw, 3.8rem); line-height: 1; letter-spacing: -.045em; }
+    h3 { margin: 0 0 .65rem; font-size: 1.15rem; line-height: 1.2; }
+    .section-lede { max-width: 860px; margin: 0 0 2rem; color: var(--muted); font-size: 1.08rem; }
+    .callout { display: grid; grid-template-columns: auto 1fr; gap: 1rem; align-items: start; margin: 2rem 0; padding: 1.25rem; border-left: 6px solid var(--blue); border-radius: 0 var(--radius) var(--radius) 0; background: #e7f4f5; }
+    .callout .mark { display: grid; width: 2rem; height: 2rem; place-items: center; border-radius: 50%; background: var(--navy); color: white; font-weight: 900; }
+    .callout p { margin: 0; }
+    .split, .cards-2, .cards-3, .cards-4 { display: grid; gap: 1rem; }
+    .split, .cards-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .cards-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .cards-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .card { padding: 1.35rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); box-shadow: 0 8px 24px rgb(16 42 67 / 5%); }
+    .card p:last-child, .card ul:last-child { margin-bottom: 0; }
+    .before { border-top: 6px solid var(--red); }
+    .after { border-top: 6px solid var(--green); }
+    .label { display: inline-block; margin-bottom: .8rem; padding: .25rem .55rem; border-radius: 6px; font-size: .72rem; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+    .before .label { background: var(--red-soft); color: var(--red); }
+    .after .label { background: var(--green-soft); color: var(--green); }
+    .plain-list { margin: .5rem 0; padding-left: 1.1rem; }
+    .plain-list li + li { margin-top: .5rem; }
+    .bars { display: grid; gap: .85rem; }
+    .bar-row { display: grid; grid-template-columns: 140px 1fr auto; gap: .75rem; align-items: center; }
+    .bar-row strong { font-size: .82rem; }
+    .bar-track { height: 14px; overflow: hidden; border-radius: 999px; background: #dde4e7; }
+    .bar-fill { width: var(--size); height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--blue), var(--cyan)); }
+    .bar-row span { min-width: 88px; color: var(--muted); font-size: .75rem; text-align: right; }
+    .system-map { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .7rem; margin-top: 1.5rem; }
+    .system { position: relative; padding: 1rem; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
+    .system:not(:last-child)::after { position: absolute; z-index: 2; right: -.68rem; top: 50%; width: .68rem; border-top: 3px solid var(--blue); content: ""; }
+    .system b { display: block; margin-bottom: .4rem; color: var(--blue); }
+    .system small { color: var(--muted); }
+    .journey { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin: 2rem 0; padding: 0; list-style: none; counter-reset: stage; }
+    .journey li { position: relative; min-height: 215px; padding: 1.25rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); counter-increment: stage; }
+    .journey li::before { display: grid; width: 2.2rem; height: 2.2rem; margin-bottom: .85rem; place-items: center; border-radius: 50%; background: var(--navy); color: white; content: counter(stage, decimal-leading-zero); font-size: .75rem; font-weight: 900; }
+    .journey li::after { position: absolute; right: 1rem; top: 1.1rem; color: var(--line); content: "→"; font-size: 1.5rem; font-weight: 900; }
+    .journey p { margin: .35rem 0; color: var(--muted); font-size: .9rem; }
+    .journey .output { margin-top: .8rem; padding-top: .7rem; border-top: 1px dashed var(--line); color: var(--ink); font-size: .82rem; }
+    .stop { color: var(--red); font-weight: 750; }
+    .go { color: var(--green); font-weight: 750; }
+    .state-card { padding: 1rem; border-radius: 14px; }
+    .state-card b { display: block; margin-bottom: .35rem; }
+    .found { border: 1px solid #8bcdb7; background: var(--green-soft); }
+    .missing { border: 1px solid #bdc9cf; background: #eef1f2; }
+    .unavailable { border: 1px solid #e8bd6e; background: var(--amber-soft); }
+    .invalid { border: 1px solid #e5a099; background: var(--red-soft); }
+    .attempts { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .65rem; margin-top: 1rem; }
+    .attempt { padding: .85rem; border-radius: 12px; background: var(--navy); color: white; }
+    .attempt small { display: block; margin-top: .35rem; color: #c9dbe3; }
+    .equation { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; gap: .7rem; align-items: center; margin: 1.4rem 0; }
+    .equation .term { min-height: 122px; padding: 1rem; border: 1px solid var(--line); border-radius: 14px; background: white; }
+    .equation .op { color: var(--blue); font-size: 2rem; font-weight: 900; }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
+    table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+    th, td { padding: .85rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: #e8eef1; color: var(--ink); font-size: .74rem; letter-spacing: .07em; text-transform: uppercase; }
+    tr:last-child td { border-bottom: 0; }
+    .yes { color: var(--green); font-weight: 850; }
+    .no { color: var(--red); font-weight: 850; }
+    .wait { color: var(--amber); font-weight: 850; }
+    .discovery { display: grid; grid-template-columns: 1fr auto 1.4fr auto 1fr; gap: .8rem; align-items: stretch; margin-top: 1.5rem; }
+    .discovery > div:not(.arrow) { padding: 1rem; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
+    .arrow { align-self: center; color: var(--blue); font-size: 1.8rem; font-weight: 900; }
+    .claim-flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: .8rem; }
+    .claim-state { padding: 1rem; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
+    .claim-state strong { display: block; font-size: 1.2rem; }
+    .claim-state.grant { border-top: 6px solid var(--green); }
+    .claim-state.held, .claim-state.foreign { border-top: 6px solid var(--red); }
+    .claim-state.resume { border-top: 6px solid var(--amber); }
+    .passport { display: grid; grid-template-columns: 1.2fr 2fr; gap: 1.2rem; align-items: center; margin: 1.5rem 0; }
+    .row-shell { overflow: hidden; border: 3px solid var(--navy); border-radius: 18px; background: white; box-shadow: var(--shadow); }
+    .row-head { padding: 1rem; background: var(--navy); color: white; }
+    .row-field { display: grid; grid-template-columns: 110px 1fr; gap: .8rem; padding: .8rem 1rem; border-top: 1px solid var(--line); }
+    .row-field b { color: var(--blue); }
+    .passport-notes { display: grid; gap: .65rem; }
+    .passport-note { padding: .85rem; border-left: 4px solid var(--blue); background: white; }
+    .race-grid { display: grid; grid-template-columns: 1fr auto 1fr; gap: 1rem; align-items: center; }
+    .race-lane { padding: 1.2rem; border-radius: var(--radius); background: var(--navy); color: white; }
+    .race-lane ol { margin: .7rem 0 0; padding-left: 1.2rem; color: #d3e1e7; }
+    .race-lock { display: grid; width: 70px; height: 70px; place-items: center; border: 3px solid var(--amber); border-radius: 50%; background: var(--amber-soft); color: var(--amber); }
+    .race-lock svg { width: 30px; height: 30px; fill: currentColor; }
+    .ledger-flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: .7rem; margin: 1.5rem 0; }
+    .ledger-step { padding: 1rem; border: 1px solid var(--line); border-radius: 14px; background: white; }
+    .ledger-step b { display: block; margin-bottom: .35rem; color: var(--violet); }
+    .result-chip { display: inline-block; margin: .2rem; padding: .3rem .55rem; border-radius: 999px; font-size: .76rem; font-weight: 800; }
+    .recorded { background: var(--green-soft); color: var(--green); }
+    .review { background: var(--violet-soft); color: var(--violet); }
+    .unrecorded { background: var(--red-soft); color: var(--red); }
+    .folder-map { display: grid; grid-template-columns: .8fr auto 2fr; gap: 1rem; align-items: center; }
+    .monolith { padding: 1.5rem; border: 3px solid var(--red); border-radius: var(--radius); background: var(--red-soft); text-align: center; }
+    .modules { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .55rem; }
+    .module { padding: .65rem; border: 1px solid var(--line); border-radius: 10px; background: white; font-size: .77rem; }
+    .boundary { border-top: 6px solid var(--amber); }
+    .atlas-controls { position: sticky; z-index: 10; top: 52px; display: grid; grid-template-columns: minmax(220px, 1fr) auto auto; gap: .65rem; padding: .85rem; border: 1px solid var(--line); border-radius: 14px; background: rgb(247 245 239 / 96%); backdrop-filter: blur(8px); }
+    .atlas-controls input { width: 100%; padding: .65rem .8rem; border: 1px solid #9cabb3; border-radius: 9px; background: white; color: var(--ink); }
+    .filters { display: flex; gap: .35rem; flex-wrap: wrap; }
+    .filter { padding: .55rem .7rem; border: 1px solid #9cabb3; border-radius: 9px; background: white; color: var(--ink); }
+    .filter[aria-pressed="true"] { border-color: var(--navy); background: var(--navy); color: white; }
+    .inventory-status { align-self: center; color: var(--muted); font-size: .76rem; text-align: right; }
+    .inventory-status.bad { max-width: 340px; padding: .45rem .6rem; border-radius: 8px; background: var(--red-soft); color: var(--red); font-weight: 800; }
+    details.file-group { margin-top: 1rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
+    details.file-group > summary { padding: 1rem 1.2rem; cursor: pointer; font-weight: 850; }
+    .file-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+    .file-row { display: grid; grid-template-columns: 32px minmax(260px, .95fr) 80px minmax(280px, 1.6fr); gap: .75rem; align-items: start; padding: .75rem 1.2rem; border-top: 1px solid #e0e6e8; }
+    .file-row[hidden] { display: none; }
+    .file-status { display: grid; width: 25px; height: 25px; place-items: center; border-radius: 6px; font-size: .7rem; font-weight: 900; }
+    .file-status.added { background: var(--green-soft); color: var(--green); }
+    .file-status.modified { background: #dceef5; color: var(--blue); }
+    .file-status.deleted { background: var(--red-soft); color: var(--red); }
+    .file-path { font-size: .78rem; font-weight: 700; }
+    .file-delta { color: var(--muted); font-size: .72rem; white-space: nowrap; }
+    .file-why { margin: 0; color: var(--muted); font-size: .8rem; }
+    .empty { display: none; margin: 1rem 0 0; padding: 1rem; border-radius: 12px; background: var(--amber-soft); }
+    footer { margin-top: 4rem; padding: 2rem 0 4rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .82rem; }
+    @media (max-width: 900px) {
+      .metrics { grid-template-columns: repeat(2, 1fr); }
+      .cards-4, .attempts { grid-template-columns: repeat(2, 1fr); }
+      .cards-3, .journey { grid-template-columns: repeat(2, 1fr); }
+      .system-map, .claim-flow, .ledger-flow { grid-template-columns: 1fr 1fr; }
+      .system::after { display: none; }
+      .passport, .folder-map { grid-template-columns: 1fr; }
+      .folder-map > .arrow { transform: rotate(90deg); text-align: center; }
+      .file-row { grid-template-columns: 30px 1fr 70px; }
+      .file-why { grid-column: 2 / -1; }
+    }
+    @media (max-width: 640px) {
+      main { width: min(100% - 1rem, 1200px); }
+      .hero { margin-top: .5rem; padding: 1.6rem; border-radius: 20px; }
+      .metrics, .split, .cards-2, .cards-3, .cards-4, .journey, .system-map, .attempts, .claim-flow, .ledger-flow { grid-template-columns: 1fr; }
+      .bar-row { grid-template-columns: 105px 1fr; }
+      .bar-row span { grid-column: 2; text-align: left; }
+      .equation, .discovery, .race-grid { grid-template-columns: 1fr; }
+      .equation .op, .discovery .arrow { transform: rotate(90deg); text-align: center; }
+      .atlas-controls { position: static; grid-template-columns: 1fr; }
+      .inventory-status { text-align: left; }
+      .file-row { grid-template-columns: 28px 1fr; }
+      .file-delta, .file-why { grid-column: 2; }
+      .modules { grid-template-columns: 1fr 1fr; }
+    }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+    @media print {
+      :root { --paper: white; --card: white; }
+      .topnav, #read-progress, .atlas-controls, .skip { display: none !important; }
+      body { font-size: 10pt; }
+      main { width: 100%; }
+      .hero { margin: 0 0 1.5rem; padding: 1.5rem; border-radius: 0; box-shadow: none; print-color-adjust: exact; }
+      section { margin-bottom: 2rem; break-inside: avoid-page; }
+      .card, .journey li, .file-row { break-inside: avoid; box-shadow: none; }
+      details.file-group { break-before: page; }
+      details.file-group > * { display: block !important; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#content">Skip to the change map</a>
+  <div id="read-progress" aria-hidden="true"></div>
+  <nav class="topnav" aria-label="Infographic sections">
+    <a href="#overview">Overview</a><a href="#journey">Money journey</a><a href="#evidence">Evidence</a><a href="#providers">Providers</a><a href="#durability">Durability</a><a href="#operator">Operator</a><a href="#boundaries">Boundaries</a><a href="#atlas">117-file atlas</a>
+  </nav>
+  <main id="content">
+    <header class="hero">
+      <p class="eyebrow">Deep-dive source comparison · 12 August 2026</p>
+      <h1>Refunds become evidence-led, retry-safe work.</h1>
+      <p class="lede">A visual guide to every change in <code>src/</code> introduced on <strong>claude/m4-pr-a</strong> since it diverged from <strong>main</strong>. The short version: the system stops treating an unclear provider answer as permission to try again.</p>
+      <div class="hashes" aria-label="Pinned comparison revisions">
+        <span class="hash"><strong>branch</strong> 44604f4c2f39</span>
+        <span class="hash"><strong>main</strong> f838dd899ef3</span>
+        <span class="hash"><strong>merge base</strong> c5c9331dd0c8</span>
+        <span class="hash"><strong>diff</strong> main...claude/m4-pr-a</span>
+      </div>
+      <div class="metrics" aria-label="Source change totals">
+        <div class="metric"><b>117</b><span>changed source files</span></div>
+        <div class="metric"><b>58</b><span>files added</span></div>
+        <div class="metric"><b>56</b><span>files modified</span></div>
+        <div class="metric"><b>3</b><span>files deleted</span></div>
+        <div class="metric"><b>+6,224</b><span>net source lines</span></div>
+      </div>
+    </header>
+
+    <section id="overview">
+      <p class="kicker">01 · What changed</p>
+      <h2>From two vague booleans to one accountable pipeline.</h2>
+      <p class="section-lede">The old flow mainly asked “is it refunded?” and “did the refund work?”. The new flow keeps the evidence, decision, provider action, and accounting result separate—because each can succeed while another is still unknown.</p>
+      <div class="callout"><span class="mark">!</span><p><strong>This does not promise that every refund succeeds.</strong> It promises something more useful: uncertainty cannot masquerade as failure, success, or a safe retry. If the system cannot prove what happened, it parks the work and preserves why.</p></div>
+      <div class="split">
+        <article class="card before"><span class="label">Before</span><h3>Call first, infer afterward</h3><ul class="plain-list"><li>Choose one globally configured provider.</li><li>Reduce provider reads and refund calls to true/false or null.</li><li>Record accounting only when the whole attendee looked successful.</li><li>Let refresh, single refund, and bulk refund make similar decisions separately.</li><li>Rely heavily on provider rejection to reveal an earlier refund.</li></ul></article>
+        <article class="card after"><span class="label">Now</span><h3>Observe, claim, decide, then act</h3><ul class="plain-list"><li>Resolve the exact provider for every charge.</li><li>Validate captured money, returned money, currency, statuses, and identities.</li><li>Claim the exact rows before provider I/O and keep the claim through accounting.</li><li>Use one admission rule across automatic and admin refund paths.</li><li>Record exact returned references—even when a sibling charge does not finish.</li></ul></article>
+      </div>
+      <h3 style="margin-top:2rem">Where the 117 files moved</h3>
+      <div class="bars" aria-label="Changed files and lines by subsystem">
+        <div class="bar-row"><strong>Admin &amp; UI</strong><div class="bar-track"><div class="bar-fill" style="--size:85%"></div></div><span>29 files · +1,711 net</span></div>
+        <div class="bar-row"><strong>API &amp; checkout</strong><div class="bar-track"><div class="bar-fill" style="--size:12%"></div></div><span>7 files · +18 net</span></div>
+        <div class="bar-row"><strong>DB &amp; ledger</strong><div class="bar-track"><div class="bar-fill" style="--size:100%"></div></div><span>34 files · +2,107 net</span></div>
+        <div class="bar-row"><strong>Providers</strong><div class="bar-track"><div class="bar-fill" style="--size:58%"></div></div><span>25 files · +891 net</span></div>
+        <div class="bar-row"><strong>Shared rules</strong><div class="bar-track"><div class="bar-fill" style="--size:73%"></div></div><span>22 files · +1,497 net</span></div>
+      </div>
+      <div class="system-map" aria-label="New system layers">
+        <div class="system"><b>Operator</b><small>single, bulk, refresh, review</small></div>
+        <div class="system"><b>Readiness</b><small>claim every row; identify every provider</small></div>
+        <div class="system"><b>Rules</b><small>validated evidence → one admission</small></div>
+        <div class="system"><b>Providers</b><small>Stripe, Square, SumUp share outcomes</small></div>
+        <div class="system"><b>Books</b><small>exact references recorded or retained</small></div>
+      </div>
+    </section>
+
+    <section id="journey">
+      <p class="kicker">02 · End-to-end money journey</p>
+      <h2>Nine gates between a click and a completed refund.</h2>
+      <p class="section-lede">The crucial ordering is visible here: all references become ready before any provider send. A single attendee is simply a batch of one, so single and bulk refunds cannot drift apart.</p>
+      <ol class="journey">
+        <li><h3>Choose candidates</h3><p>Keep real ticket holders with at least one stored charge and work still remaining.</p><p class="output"><strong>Output:</strong> attendee revision + complete charge list.</p></li>
+        <li><h3>Prepare old holders</h3><p>Fill missing blind indexes and mint deterministic rows for legacy <code>payment_id</code> values that had no row.</p><p class="output"><strong>Output:</strong> every charge has a durable place to hold.</p></li>
+        <li><h3>Claim the snapshot</h3><p>In one transaction, recheck the attendee revision, exact row set, and every other row sharing a charge.</p><p class="output"><span class="stop">Changed or already held → stop all.</span></p></li>
+        <li><h3>Read every provider</h3><p>Tagged charges go to their named provider. Old untagged charges are tried at all credentialed providers.</p><p class="output"><span class="stop">Missing, unavailable, invalid, or ambiguous → send nothing.</span></p></li>
+        <li><h3>Bind identity &amp; retry rule</h3><p>While the claim is held, store the proven provider and whether repeats are keyed or keyless.</p><p class="output"><strong>Output:</strong> stable charge identity + retry capability.</p></li>
+        <li><h3>Admit or withhold</h3><p>Shared money rules decide: already returned, in flight, owner conflict, or safe to send.</p><p class="output"><span class="go">Only “ready” reaches a refund API.</span></p></li>
+        <li><h3>Send once</h3><p>The adapter refunds the exact observed capture. Shared references reuse one in-flight promise.</p><p class="output"><strong>Output:</strong> completed, accepted, rejected, not sent, or uncertain.</p></li>
+        <li><h3>Record exact money</h3><p>Mark each returned charge across all holders, then reverse only the ledger groups that charge safely explains.</p><p class="output"><strong>Output:</strong> recorded / review / unrecorded sets.</p></li>
+        <li><h3>Settle each row</h3><p>Release rows whose answer is known. Keep claims where money may still move; preserve review and books-behind markers.</p><p class="output"><strong>Output:</strong> durable truth for the next request.</p></li>
+      </ol>
+      <div class="cards-3">
+        <article class="card"><h3>Whole-run readiness</h3><p>One bad sibling blocks sends for that attendee. A clean charge cannot move while another charge is part-refunded or unreadable.</p></article>
+        <article class="card"><h3>Five-request budget</h3><p>Work is packed by charge-reference count, not just attendee count. A merged attendee with many charges still stays within the same provider budget.</p></article>
+        <article class="card"><h3>Worst result wins</h3><p><code>errored → failed → withheld → pending → refunded</code>. A good reference never hides a bad one beside it.</p></article>
+      </div>
+    </section>
+
+    <section id="evidence">
+      <p class="kicker">03 · Shared evidence vocabulary</p>
+      <h2>“No answer” is no longer one state.</h2>
+      <p class="section-lede">The types force every caller to distinguish an authoritative absence, a temporary outage, an answer that contradicts trusted facts, and a validated charge.</p>
+      <div class="cards-4">
+        <div class="state-card found"><b>found</b>Validated captured money, cumulative returned money, and refund observations.</div>
+        <div class="state-card missing"><b>missing</b>The provider authoritatively says the charge does not exist—normally a real 404.</div>
+        <div class="state-card unavailable"><b>unavailable</b>Network, timeout, rate limit, configuration, or provider trouble. A later read may help.</div>
+        <div class="state-card invalid"><b>invalid</b>The provider answered, but the shape, identity, account, status, money, or currency cannot be trusted.</div>
+      </div>
+      <h3 style="margin-top:2rem">A refund call also keeps its exact meaning</h3>
+      <div class="attempts">
+        <div class="attempt"><b>completed</b><small>Money is proved back.</small></div>
+        <div class="attempt"><b>accepted</b><small>Provider owns work still in progress.</small></div>
+        <div class="attempt"><b>rejected</b><small>Definitely refused; no money moved.</small></div>
+        <div class="attempt"><b>not_sent</b><small>The request never left this process.</small></div>
+        <div class="attempt"><b>uncertain</b><small>It may have landed; keep the claim.</small></div>
+      </div>
+      <div class="callout"><span class="mark">≠</span><p><strong>Accepted is not completed.</strong> The provider taking responsibility for a refund is visibly different from the buyer having the money. The UI says “still settling” and tells the operator not to send it again.</p></div>
+      <h3>How the money is counted</h3>
+      <div class="equation" aria-label="Refund money arithmetic">
+        <div class="term"><b>Returned</b><p>the larger of the provider’s cumulative total or its named completed refunds</p></div><div class="op">+</div>
+        <div class="term"><b>Pending</b><p>refund money explicitly still in flight</p></div><div class="op">≤</div>
+        <div class="term"><b>Captured</b><p>positive money actually taken, in the same currency</p></div>
+      </div>
+      <div class="table-wrap"><table><thead><tr><th>Observed outcome</th><th>Admission</th><th>Provider call?</th><th>Why</th></tr></thead><tbody>
+        <tr><td>Fully refunded</td><td class="yes">Already returned</td><td>No</td><td>Sending again would double-pay.</td></tr>
+        <tr><td>Refund pending</td><td class="wait">In flight</td><td>No</td><td>The provider already owns the work.</td></tr>
+        <tr><td>Clean captured charge</td><td class="yes">Send</td><td>Yes</td><td>No money is back or on its way.</td></tr>
+        <tr><td>Part refund, excess return, or two pending refunds</td><td class="no">Owner review</td><td>No</td><td>The system cannot safely choose an interpretation.</td></tr>
+        <tr><td>Read missing, unavailable, or invalid</td><td class="no">Read failed</td><td>No</td><td>Absence of proof is not proof that another payout is safe.</td></tr>
+      </tbody></table></div>
+    </section>
+
+    <section id="providers">
+      <p class="kicker">04 · Provider adapters</p>
+      <h2>Three providers, one contract, three honest differences.</h2>
+      <div class="table-wrap"><table><thead><tr><th></th><th>Stripe</th><th>Square</th><th>SumUp</th></tr></thead><tbody>
+        <tr><th>Charge evidence</th><td>Latest successful captured charge and cumulative returned amount</td><td>Completed payment with captured and refunded money</td><td>Captured transaction plus typed refund events</td></tr>
+        <tr><th>Repeat safety</th><td><strong>Keyed.</strong> Deterministic idempotency key.</td><td><strong>Keyed.</strong> Deterministic idempotency key.</td><td><strong>Keyless.</strong> A repeated POST may pay twice.</td></tr>
+        <tr><th>Proof after send</th><td>Named refund resource, or one confirming reread</td><td>Named refund resource, or one confirming reread</td><td>Fresh charge observation; response body proves nothing by itself</td></tr>
+        <tr><th>Webhook trust</th><td>Signed</td><td>Signed over URL + original bytes</td><td>Unsigned; local staging prefilter + authoritative API reread</td></tr>
+        <tr><th>Uncertain result</th><td>Exactly one fresh charge read</td><td>Exactly one fresh charge read</td><td>Every sent/uncertain submission gets one fresh transaction read</td></tr>
+        <tr><th>Stale claimed retry</th><td class="yes">May repeat the deterministic request</td><td class="yes">May repeat the deterministic request</td><td class="no">Observe only; never blindly repeat</td></tr>
+      </tbody></table></div>
+      <h3 style="margin-top:2rem">Old references are discovered, never guessed</h3>
+      <div class="discovery">
+        <div><b>Legacy untagged reference</b><p>No provider was stored with this old charge.</p></div><div class="arrow">→</div>
+        <div><b>Read every credentialed provider</b><p>Preferred existing-payment provider first, then every other usable credential.</p></div><div class="arrow">→</div>
+        <div><b>Exactly one proof, no outage</b><p class="yes">Bind it.</p><p class="no">Otherwise park it.</p></div>
+      </div>
+      <div class="cards-3" style="margin-top:1rem">
+        <article class="card"><h3>Two providers validate</h3><p><code>multiple_validating_providers</code>. An owner must resolve the ambiguity.</p></article>
+        <article class="card"><h3>One provider is down</h3><p><code>provider_search_incomplete</code>. Even another apparent match is not enough.</p></article>
+        <article class="card"><h3>Nobody validates</h3><p><code>no_validating_provider</code>. No adapter receives a refund request.</p></article>
+      </div>
+      <h3 style="margin-top:2rem">Square’s 956-line monolith is exploded by responsibility</h3>
+      <div class="folder-map">
+        <div class="monolith"><b>deleted</b><br><code>src/shared/square.ts</code><br><strong>956 lines</strong></div><div class="arrow">→</div>
+        <div class="modules" aria-label="New Square modules"><div class="module">api.ts<br>one facade</div><div class="module">client.ts<br>REST client</div><div class="module">transport.ts<br>HTTP + JSON</div><div class="module">checkout.ts<br>payment links</div><div class="module">order.ts<br>order reads</div><div class="module">connection.ts<br>credentials</div><div class="module">payment-outcomes.ts<br>money + refunds</div><div class="module">outcomes.ts<br>failure meanings</div><div class="module">webhook.ts<br>signature</div></div>
+      </div>
+      <p class="section-lede" style="margin-top:1rem">This is decomposition, not nine competing implementations: <code>square/api.ts</code> remains the single stubbable surface used by the provider adapter.</p>
+    </section>
+
+    <section id="durability">
+      <p class="kicker">05 · Claims, rows, races, and books</p>
+      <h2>The database becomes the referee between requests.</h2>
+      <p class="section-lede">Provider idempotency alone is not enough—especially for SumUp. The branch adds an all-or-none claim around the exact row set and keeps it from before the first provider read until after the ledger result is recorded.</p>
+      <div class="claim-flow">
+        <div class="claim-state grant"><strong>grant</strong><p>No claim exists. This run may hold the row.</p></div>
+        <div class="claim-state held"><strong>held</strong><p>A fresh run owns it. Send nothing.</p></div>
+        <div class="claim-state resume"><strong>resume</strong><p>A stale claim belongs to this same attendee set. Re-read all evidence.</p></div>
+        <div class="claim-state foreign"><strong>foreign</strong><p>Stale work belongs to another owner/scope. Send nothing.</p></div>
+      </div>
+      <div class="callout"><span class="mark">5m</span><p><strong>The lease never falls below five minutes.</strong> It is the larger of the reservation cleanup setting and one request-lifetime floor. Turning cleanup down cannot make a still-running worker look dead.</p></div>
+      <div class="passport">
+        <div class="row-shell" aria-label="Processed payment row record">
+          <div class="row-head"><strong>processed_payments row</strong><br><small>one durable holder of provider money</small></div>
+          <div class="row-field"><b>reference</b><span>owner-key encrypted provider + id</span></div>
+          <div class="row-field"><b>blind index</b><span>HMAC lookup; non-unique by design</span></div>
+          <div class="row-field"><b>claim</b><span>owner, capability, written time</span></div>
+          <div class="row-field"><b>review</b><span>the owner must decide</span></div>
+          <div class="row-field"><b>unrecorded</b><span>money back, books behind</span></div>
+          <div class="row-field"><b>outcome</b><span>settled terminal replay data</span></div>
+        </div>
+        <div class="passport-notes">
+          <div class="passport-note"><strong>Encrypted detail:</strong> <code>failure_data</code> stores the structured row record. Older bare failure JSON is read only at this storage boundary.</div>
+          <div class="passport-note"><strong>Plain mirror:</strong> <code>protected_state</code> says only the worst live word—claim, unrecorded, or review—so SQL-only maintenance can protect the row.</div>
+          <div class="passport-note"><strong>Compare-and-swap:</strong> every rewrite requires the encrypted slot to still equal the value originally read, preventing a late writer from erasing newer work.</div>
+          <div class="passport-note"><strong>Blind identity:</strong> <code>payment_reference_index</code> finds every row holding the same money without exposing the charge reference.</div>
+        </div>
+      </div>
+      <h3>What happens when refund and another writer race?</h3>
+      <div class="race-grid">
+        <div class="race-lane"><b>Refund transaction</b><ol><li>verify attendee + exact rows</li><li>write claim to every holder</li><li>commit</li><li>read / send / record under claim</li></ol></div>
+        <div class="race-lock" aria-label="serialized database write">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 9h-1V7a4 4 0 0 0-8 0v2H7a2 2 0 0 0-2 2v9h14v-9a2 2 0 0 0-2-2Zm-7-2a2 2 0 1 1 4 0v2h-4V7Zm3 8.73V18h-2v-2.27a2 2 0 1 1 2 0Z"/></svg>
+        </div>
+        <div class="race-lane"><b>Delete, merge, callback, or finalize</b><ol><li>read live work in its own transaction</li><li>if claim landed first: refuse or retry</li><li>if this write landed first: refund sees the new world</li><li>no check-then-write gap</li></ol></div>
+      </div>
+      <div class="cards-4" style="margin-top:1rem">
+        <article class="card"><h3>Delete</h3><p>Stops for claim, review, or unrecorded money because it would destroy the repair target.</p></article>
+        <article class="card"><h3>Merge</h3><p>Stops for a claim; review and unrecorded markers can travel with rows because merge relocates them.</p></article>
+        <article class="card"><h3>Finalize</h3><p>Cannot add or rewrite a matching charge underneath a claimed snapshot.</p></article>
+        <article class="card"><h3>Prune / orphan purge</h3><p>Reads the plain mirror and retains rows or attendees with live payment work.</p></article>
+      </div>
+      <h3 style="margin-top:2rem">The ledger now answers per charge, not just per attendee</h3>
+      <div class="ledger-flow">
+        <div class="ledger-step"><b>1 · Place</b>Map each returned reference to its booking or balance event groups.</div>
+        <div class="ledger-step"><b>2 · Judge</b>Reject operator/manual money and unsettled obligations that need a choice.</div>
+        <div class="ledger-step"><b>3 · Reverse</b>Reuse deterministic refund group ids so an earlier reversal is a no-op.</div>
+        <div class="ledger-step"><b>4 · Report</b><span class="result-chip recorded">recorded</span><span class="result-chip review">review</span><span class="result-chip unrecorded">unrecorded</span></div>
+      </div>
+      <div class="split">
+        <article class="card before"><span class="label">Deleted monolith</span><h3><code>shared/refund-ledger.ts</code></h3><p>One 339-line file answered mainly <code>{posted: boolean}</code> for a whole attendee account.</p></article>
+        <article class="card after"><span class="label">Focused folder</span><h3><code>shared/refund-ledger/</code></h3><p><code>plan</code> computes, <code>result</code> names exact reference outcomes, <code>record</code> posts, <code>placeholder</code> handles quantity-zero cash, and <code>log</code> reports failure.</p></article>
+      </div>
+    </section>
+
+    <section id="operator">
+      <p class="kicker">06 · Operator and API surfaces</p>
+      <h2>The UI says what the system knows—and what the human must do.</h2>
+      <div class="table-wrap"><table><thead><tr><th>Durable payment state</th><th>Refund action</th><th>Mark reviewed</th><th>Delete</th><th>Merge</th></tr></thead><tbody>
+        <tr><td>No live work; refundable</td><td class="yes">Shown to owner</td><td>Hidden</td><td>Allowed</td><td>Allowed</td></tr>
+        <tr><td>Fresh or capable claim</td><td class="no">Hidden / blocked</td><td class="no">Blocked</td><td class="no">Blocked</td><td class="no">Blocked</td></tr>
+        <tr><td>Owner-review marker</td><td class="no">Hidden</td><td class="yes">Shown to owner</td><td class="no">Blocked</td><td>Allowed; marker moves</td></tr>
+        <tr><td>Money back, books behind</td><td class="no">Do not resend</td><td>Not the correction</td><td class="no">Blocked</td><td>Allowed; marker moves</td></tr>
+      </tbody></table></div>
+      <div class="cards-3" style="margin-top:1rem">
+        <article class="card"><h3>Owner-only money actions</h3><p>Single refund, refund-all, refresh handling, and payment-review controls use the same owner gates their target routes enforce.</p></article>
+        <article class="card"><h3>Review is acknowledgement</h3><p>The new typed-confirmation action clears a review hold. It explicitly does not contact a provider, move money, or invent an accounting correction.</p></article>
+        <article class="card"><h3>Refresh shares the fence</h3><p>Refresh claims and reads exactly like refund but branches to observe-only. Confirmed records, activity, and notes land while the same claim is still held.</p></article>
+      </div>
+      <h3 style="margin-top:2rem">Messages become operational instructions</h3>
+      <div class="cards-3">
+        <article class="card"><span class="result-chip review">still settling</span><p>Try again after it completes. Do not send another refund.</p></article>
+        <article class="card"><span class="result-chip unrecorded">not recorded</span><p>The provider sent the refund; Money did not record it. Add a correction. Do not send again.</p></article>
+        <article class="card"><span class="result-chip recorded">reviewed</span><p>The owner acknowledged the ambiguous payment work; no provider call occurred.</p></article>
+      </div>
+      <h3 style="margin-top:2rem">Payment-processing paths also carry exact provider identity</h3>
+      <div class="system-map">
+        <div class="system"><b>Validated session</b><small>now includes provider</small></div>
+        <div class="system"><b>Tagged reference</b><small>provider + resource id</small></div>
+        <div class="system"><b>Finalize</b><small>ciphertext + blind index together</small></div>
+        <div class="system"><b>Automatic refund</b><small>same read → admit → send rule</small></div>
+        <div class="system"><b>Replay</b><small>typed reference, not an empty-string guess</small></div>
+      </div>
+    </section>
+
+    <section id="boundaries">
+      <p class="kicker">07 · Honest Part A boundary</p>
+      <h2>What this branch deliberately parks instead of guessing.</h2>
+      <div class="cards-3">
+        <article class="card boundary"><h3>Shared obligations</h3><p>Several rows can legitimately point at one provider charge. Part A detects and parks that situation; it does not yet allocate one charge authoritatively across people.</p></article>
+        <article class="card boundary"><h3>Ambiguous legacy providers</h3><p>Two validating providers, an incomplete search, or no validation receives no automatic provider choice. Repair and re-attestation are later work.</p></article>
+        <article class="card boundary"><h3>Keyless uncertainty</h3><p>A stale SumUp claim stays observe-only until fresh evidence settles it. Retaining the row is intentional because it may be the only sign money moved.</p></article>
+        <article class="card boundary"><h3>Global legacy preparation</h3><p>The authenticated holder pass currently scans all payment-reference rows and attendee PII to close row-less legacy holes. Bounded keyset preparation is deferred.</p></article>
+        <article class="card boundary"><h3>Provider evidence depth</h3><p>Stripe’s charge read uses the cumulative returned total rather than an expanded refund list. Square’s strongest schemas cover the payment/refund money boundary, not every endpoint equally.</p></article>
+        <article class="card boundary"><h3>Owner review is not repair</h3><p>“Mark reviewed” retires the marker. It does not decide a ledger allocation, correct missing books, or resolve a shared provider reference permanently.</p></article>
+      </div>
+    </section>
+
+    <section id="atlas">
+      <p class="kicker">08 · Complete source atlas</p>
+      <h2>Every changed <code>src/</code> file, accounted for.</h2>
+      <p class="section-lede">The inventory below is embedded from the pinned three-dot diff. Search by path or explanation, or filter by Git status. With JavaScript disabled, every row remains visible.</p>
+      <div class="atlas-controls" aria-label="File atlas controls">
+        <label><span class="sr-only">Search changed files</span><input id="file-search" type="search" placeholder="Search path or purpose…" autocomplete="off"></label>
+        <div class="filters" role="group" aria-label="Filter by status"><button class="filter" type="button" data-filter="all" aria-pressed="true">All 117</button><button class="filter" type="button" data-filter="added" aria-pressed="false">Added 58</button><button class="filter" type="button" data-filter="modified" aria-pressed="false">Modified 56</button><button class="filter" type="button" data-filter="deleted" aria-pressed="false">Deleted 3</button></div>
+        <div id="inventory-status" class="inventory-status" aria-live="polite">117 files · +8,563 / −2,339</div>
+      </div>
+      <p id="empty-atlas" class="empty">No changed source files match that search and status.</p>
+      <details class="file-group" data-area="admin_ui" open>
+        <summary>Admin &amp; UI · 29 files · +2,240 / −529</summary>
+        <ol class="file-list">
+          <li class="file-row" data-status="modified" data-area="admin_ui" data-adds="65" data-dels="15"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/features/admin/attendee-page.ts</code><span class="file-delta">+65 −15</span><p class="file-why">Loads payment-review state only for the owner’s Actions tab and makes Refund versus Mark reviewed mutually exclusive.</p></li>
+          <li class="file-row" data-status="added" data-area="admin_ui" data-adds="77" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/features/admin/attendee-payment-review.ts</code><span class="file-delta">+77 −0</span><p class="file-why">Adds owner-only GET and POST routes for acknowledging durable payment-review work without moving money.</p></li>
+          <li class="file-row" data-status="modified" data-area="admin_ui" data-adds="176" data-dels="97"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/features/admin/attendee-refunds.ts</code><span class="file-delta">+176 −97</span><p class="file-why">Routes both single and bulk refunds through the claimed batch mechanism, adds owner gates, and reports settling and unrecorded outcomes.</p></li>
+          <li class="file-row" data-status="modified" data-area="admin_ui" data-adds="45" data-dels="170"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/features/admin/attendees-edit.ts</code><span class="file-delta">+45 −170</span><p class="file-why">Deletes the ad-hoc refresh implementation and delegates to the shared claim, readiness, observation, and confirmation path.</p></li>
+          <li class="file-row" data-status="modified" data-area="admin_ui" data-adds="12" data-dels="9"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/features/admin/attendees-merge.ts</code><span class="file-delta">+12 −9</span><p class="file-why">Turns a payment-row busy error into a useful merge-panel refusal instead of racing a live refund.</p></li>
+          <li class="file-row" data-status="modified" data-area="admin_ui" data-adds="17" data-dels="19"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/features/admin/attendees-route-helpers.ts</code><span class="file-delta">+17 −19</span><p class="file-why">Lets attendee confirmation routes supply the exact GET and POST authorization they need and preserves return destinations.</p></li>
+          <li class="file-row" data-status="modified" data-area="admin_ui" data-adds="17" data-dels="7"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/features/admin/attendees.ts</code><span class="file-delta">+17 −7</span><p class="file-why">Registers the payment-review routes and surfaces durable payment refusals during attendee deletion.</p></li>
+          <li class="file-row" data-status="modified" data-area="admin_ui" data-adds="11" data-dels="0"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/features/admin/entity-pages.ts</code><span class="file-delta">+11 −0</span><p class="file-why">Adds a reusable owner-only lazy field loader so restricted action data is fetched only for viewers who may use it.</p></li>
+          <li class="file-row" data-status="modified" data-area="admin_ui" data-adds="12" data-dels="15"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/features/admin/listing-page.ts</code><span class="file-delta">+12 −15</span><p class="file-why">Makes Refund All owner-only and reuses the shared owner-field preparation helper.</p></li>
+          <li class="file-row" data-status="added" data-area="admin_ui" data-adds="244" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/features/admin/refunds/attempt.ts</code><span class="file-delta">+244 −0</span><p class="file-why">Performs one admitted reference refund, memoizes shared work, preserves doubt, and marks exactly the charges proved returned.</p></li>
+          <li class="file-row" data-status="modified" data-area="admin_ui" data-adds="56" data-dels="8"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/features/admin/refunds/candidates.ts</code><span class="file-delta">+56 −8</span><p class="file-why">Builds exact claim inputs, deduplicates ticket holders, and keeps part-refunds or abandoned holds in the work list.</p></li>
+          <li class="file-row" data-status="added" data-area="admin_ui" data-adds="226" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/features/admin/refunds/claim.ts</code><span class="file-delta">+226 −0</span><p class="file-why">Wraps work under an all-or-none row claim and derives which rows release, retain doubt, need review, or remain books-behind.</p></li>
+          <li class="file-row" data-status="added" data-area="admin_ui" data-adds="100" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/features/admin/refunds/confirmation.ts</code><span class="file-delta">+100 −0</span><p class="file-why">Atomically confirms a returned payment in activity and notes while proving the same refund claim still owns every row.</p></li>
+          <li class="file-row" data-status="added" data-area="admin_ui" data-adds="64" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/features/admin/refunds/ledger-findings.ts</code><span class="file-delta">+64 −0</span><p class="file-why">Maps recorded, review, and unrecorded ledger reference sets back onto the exact durable payment rows.</p></li>
+          <li class="file-row" data-status="added" data-area="admin_ui" data-adds="16" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/features/admin/refunds/provider-requests.ts</code><span class="file-delta">+16 −0</span><p class="file-why">Runs provider subrequests in bounded chunks of five through one shared helper.</p></li>
+          <li class="file-row" data-status="added" data-area="admin_ui" data-adds="25" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/features/admin/refunds/provider-reviews.ts</code><span class="file-delta">+25 −0</span><p class="file-why">Attaches a provider conflict to every exact row representing the charge that needs owner review.</p></li>
+          <li class="file-row" data-status="modified" data-area="admin_ui" data-adds="181" data-dels="153"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/features/admin/refunds/provider.ts</code><span class="file-delta">+181 −153</span><p class="file-why">Rebuilds bulk orchestration around claims, readiness, keyed/keyless recovery, partial ledger posts, and five explicit counters.</p></li>
+          <li class="file-row" data-status="added" data-area="admin_ui" data-adds="56" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/features/admin/refunds/readiness-problem.ts</code><span class="file-delta">+56 −0</span><p class="file-why">Turns exact provider-read and legacy-readiness failures into plain operator-facing explanations.</p></li>
+          <li class="file-row" data-status="added" data-area="admin_ui" data-adds="119" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/features/admin/refunds/readiness-run.ts</code><span class="file-delta">+119 −0</span><p class="file-why">Provides the shared claim → shared-reference check → provider readiness skeleton used by refund and refresh.</p></li>
+          <li class="file-row" data-status="added" data-area="admin_ui" data-adds="344" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/features/admin/refunds/readiness.ts</code><span class="file-delta">+344 −0</span><p class="file-why">Reads every unique charge, discovers old providers, loads adapters, and atomically binds provider identity and retry capability.</p></li>
+          <li class="file-row" data-status="added" data-area="admin_ui" data-adds="13" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/features/admin/refunds/ready-admission.ts</code><span class="file-delta">+13 −0</span><p class="file-why">Applies the shared admission decision to an already-read ready reference without another provider call.</p></li>
+          <li class="file-row" data-status="added" data-area="admin_ui" data-adds="296" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/features/admin/refunds/refresh.ts</code><span class="file-delta">+296 −0</span><p class="file-why">Implements observe-only refresh under the same claim, provider evidence, review, ledger, and confirmation rules.</p></li>
+          <li class="file-row" data-status="added" data-area="admin_ui" data-adds="5" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/features/admin/refunds/report.ts</code><span class="file-delta">+5 −0</span><p class="file-why">Centralizes classified admin-refund error reporting.</p></li>
+          <li class="file-row" data-status="modified" data-area="admin_ui" data-adds="28" data-dels="16"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/features/admin/refunds/waves.ts</code><span class="file-delta">+28 −16</span><p class="file-why">Packs work by reference count and adds pending/withheld to the exhaustive worst-result ordering.</p></li>
+          <li class="file-row" data-status="deleted" data-area="admin_ui" data-adds="0" data-dels="12"><span class="file-status deleted" title="Deleted">D</span><code class="file-path">src/features/admin/require-provider.ts</code><span class="file-delta">+0 −12</span><p class="file-why">Removes the obsolete global-provider guard; each stored charge now resolves its own provider.</p></li>
+          <li class="file-row" data-status="modified" data-area="admin_ui" data-adds="1" data-dels="1"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/features/admin/settings-square.ts</code><span class="file-delta">+1 −1</span><p class="file-why">Points Square settings at the new focused API facade after the monolith split.</p></li>
+          <li class="file-row" data-status="modified" data-area="admin_ui" data-adds="11" data-dels="0"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/locales/en/attendees.json</code><span class="file-delta">+11 −0</span><p class="file-why">Adds plain copy for review acknowledgement, settling refunds, books-behind warnings, and completed review.</p></li>
+          <li class="file-row" data-status="modified" data-area="admin_ui" data-adds="7" data-dels="0"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/admin-surface/write-routes-a-m.ts</code><span class="file-delta">+7 −0</span><p class="file-why">Declares the new payment-review POST surface and its owner-level authorization.</p></li>
+          <li class="file-row" data-status="modified" data-area="admin_ui" data-adds="16" data-dels="7"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/ui/templates/admin/attendees.tsx</code><span class="file-delta">+16 −7</span><p class="file-why">Adds the Mark payment reviewed confirmation page using the shared attendee confirmation shell.</p></li>
+        </ol>
+      </details>
+      <details class="file-group" data-area="api_checkout" open>
+        <summary>API &amp; checkout · 7 files · +94 / −76</summary>
+        <ol class="file-list">
+          <li class="file-row" data-status="modified" data-area="api_checkout" data-adds="8" data-dels="2"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/features/api/payment-processing/create.ts</code><span class="file-delta">+8 −2</span><p class="file-why">Converts a validated checkout into a provider-tagged payment reference before building the booking finalize plan.</p></li>
+          <li class="file-row" data-status="modified" data-area="api_checkout" data-adds="13" data-dels="27"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/features/api/payment-processing/index.ts</code><span class="file-delta">+13 −27</span><p class="file-why">Threads typed tagged-or-null references through booking, balance, replay, and finalization instead of using empty strings.</p></li>
+          <li class="file-row" data-status="modified" data-area="api_checkout" data-adds="49" data-dels="36"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/features/api/payment-processing/refunds.ts</code><span class="file-delta">+49 −36</span><p class="file-why">Replaces attempt-then-boolean-check logic with exact-provider read, shared admission, explicit attempt results, and owner-level conflict reporting.</p></li>
+          <li class="file-row" data-status="modified" data-area="api_checkout" data-adds="4" data-dels="3"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/features/api/payment-processing/store-refund.ts</code><span class="file-delta">+4 −3</span><p class="file-why">Passes provider-tagged references into balance settlement and placeholder-refund storage paths.</p></li>
+          <li class="file-row" data-status="modified" data-area="api_checkout" data-adds="3" data-dels="7"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/features/read-json-body.ts</code><span class="file-delta">+3 −7</span><p class="file-why">Delegates JSON parsing to a response-neutral helper while keeping this route boundary responsible for its HTTP response.</p></li>
+          <li class="file-row" data-status="modified" data-area="api_checkout" data-adds="2" data-dels="1"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/checkout-complete.ts</code><span class="file-delta">+2 −1</span><p class="file-why">Makes booking finalization accept the typed provider reference or null carried by the validated session.</p></li>
+          <li class="file-row" data-status="added" data-area="api_checkout" data-adds="15" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/read-json.ts</code><span class="file-delta">+15 −0</span><p class="file-why">Adds one small reusable raw-text JSON parser shared by HTTP request bodies and provider transports.</p></li>
+        </ol>
+      </details>
+      <details class="file-group" data-area="db_ledger" open>
+        <summary>Database, accounting &amp; ledger · 34 files · +2,645 / −538</summary>
+        <ol class="file-list">
+          <li class="file-row" data-status="modified" data-area="db_ledger" data-adds="1" data-dels="1"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/accounting/backfill.ts</code><span class="file-delta">+1 −1</span><p class="file-why">Follows the refund-ledger split by importing placeholder recording from its focused module.</p></li>
+          <li class="file-row" data-status="modified" data-area="db_ledger" data-adds="9" data-dels="1"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/accounting/mappers.ts</code><span class="file-delta">+9 −1</span><p class="file-why">Exports the deterministic refund event-group identity so planning can recognize an existing reversal without rebuilding it.</p></li>
+          <li class="file-row" data-status="modified" data-area="db_ledger" data-adds="17" data-dels="0"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/db/activity-log.ts</code><span class="file-delta">+17 −0</span><p class="file-why">Adds attendee activity-message reads used to make refund confirmation replay-safe.</p></li>
+          <li class="file-row" data-status="modified" data-area="db_ledger" data-adds="2" data-dels="1"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/db/attendees/create-batch.ts</code><span class="file-delta">+2 −1</span><p class="file-why">Supplies the typed payment reference shape expected by the new finalize boundary.</p></li>
+          <li class="file-row" data-status="modified" data-area="db_ledger" data-adds="26" data-dels="11"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/db/attendees/delete.ts</code><span class="file-delta">+26 −11</span><p class="file-why">Moves row-state admission and dependent deletion into the same transaction so live refund or repair work cannot disappear.</p></li>
+          <li class="file-row" data-status="modified" data-area="db_ledger" data-adds="2" data-dels="0"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/db/attendees/queries.ts</code><span class="file-delta">+2 −0</span><p class="file-why">Adds the exact active booking-line lookup used to prevent refunding a quantity-zero ghost line.</p></li>
+          <li class="file-row" data-status="modified" data-area="db_ledger" data-adds="59" data-dels="13"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/db/attendees/select.ts</code><span class="file-delta">+59 −13</span><p class="file-why">Includes durable payment-reference and live-work facts in attendee selection without broad unneeded row loading.</p></li>
+          <li class="file-row" data-status="modified" data-area="db_ledger" data-adds="23" data-dels="9"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/db/listing-overview-stats.ts</code><span class="file-delta">+23 −9</span><p class="file-why">Counts refundable payments from retained reference rows so listing summaries match the hardened candidate rules.</p></li>
+          <li class="file-row" data-status="added" data-area="db_ledger" data-adds="12" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/db/migrations/2026-08-10_payment_state_columns.ts</code><span class="file-delta">+12 −0</span><p class="file-why">Declares the live-work mirror, blind payment-reference index, and supporting database index migration.</p></li>
+          <li class="file-row" data-status="modified" data-area="db_ledger" data-adds="4" data-dels="0"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/db/migrations/registry.ts</code><span class="file-delta">+4 −0</span><p class="file-why">Registers the new payment-state migration in order.</p></li>
+          <li class="file-row" data-status="modified" data-area="db_ledger" data-adds="17" data-dels="0"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/db/migrations/schema/tables-attendees.ts</code><span class="file-delta">+17 −0</span><p class="file-why">Adds <code>protected_state</code>, non-unique <code>payment_reference_index</code>, and its schema index to processed payments.</p></li>
+          <li class="file-row" data-status="modified" data-area="db_ledger" data-adds="1" data-dels="1"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/db/migrations/schema/version.ts</code><span class="file-delta">+1 −1</span><p class="file-why">Updates the operator-visible latest schema description for durable payment state.</p></li>
+          <li class="file-row" data-status="modified" data-area="db_ledger" data-adds="24" data-dels="7"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/db/notes/queries.ts</code><span class="file-delta">+24 −7</span><p class="file-why">Adds transaction-aware note reads and deletes used by atomic refund confirmation cleanup.</p></li>
+          <li class="file-row" data-status="modified" data-area="db_ledger" data-adds="23" data-dels="1"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/db/orphan-attendees.ts</code><span class="file-delta">+23 −1</span><p class="file-why">Excludes attendees with protected payment work and shares one orphan-selection rule between operator and maintenance purges.</p></li>
+          <li class="file-row" data-status="added" data-area="db_ledger" data-adds="52" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/db/payment-admit-move.ts</code><span class="file-delta">+52 −0</span><p class="file-why">Reads row state inside a writer’s own transaction and fails closed before a merge or delete can move protected rows.</p></li>
+          <li class="file-row" data-status="added" data-area="db_ledger" data-adds="75" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/db/payment-anchor/mint.ts</code><span class="file-delta">+75 −0</span><p class="file-why">Builds deterministic anchor-row inserts for legacy attendee payment ids, guarded by the exact attendee revision.</p></li>
+          <li class="file-row" data-status="added" data-area="db_ledger" data-adds="30" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/db/payment-anchor/session.ts</code><span class="file-delta">+30 −0</span><p class="file-why">Defines and recognizes stable session ids for legacy anchors and merge-created reference rows.</p></li>
+          <li class="file-row" data-status="added" data-area="db_ledger" data-adds="277" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/db/payment-claim.ts</code><span class="file-delta">+277 −0</span><p class="file-why">Owns encrypted row-state reads, compare-and-swap writes, mirror derivation, exact hold assertions, and per-row settlement.</p></li>
+          <li class="file-row" data-status="added" data-area="db_ledger" data-adds="386" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/db/payment-claim/take.ts</code><span class="file-delta">+386 −0</span><p class="file-why">Takes the all-or-none attendee-set claim, verifies revisions and row sets, expands shared references, and preserves inherited capability.</p></li>
+          <li class="file-row" data-status="modified" data-area="db_ledger" data-adds="49" data-dels="19"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/db/payment-finalize.ts</code><span class="file-delta">+49 −19</span><p class="file-why">Writes reference ciphertext and blind index together and blocks a callback/finalize from growing a claimed payment world.</p></li>
+          <li class="file-row" data-status="added" data-area="db_ledger" data-adds="189" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/db/payment-reference-holders.ts</code><span class="file-delta">+189 −0</span><p class="file-why">Authentically prepares every durable reference holder by filling old indexes and minting missing legacy anchors.</p></li>
+          <li class="file-row" data-status="added" data-area="db_ledger" data-adds="231" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/db/payment-reference-provider.ts</code><span class="file-delta">+231 −0</span><p class="file-why">Atomically binds validated provider identity and keyed/keyless capability while proving the exact claim is unchanged.</p></li>
+          <li class="file-row" data-status="added" data-area="db_ledger" data-adds="145" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/db/payment-reference-store.ts</code><span class="file-delta">+145 −0</span><p class="file-why">Centralizes encrypted reference storage, HMAC indexes, legacy matching identities, and live-claim SQL guards.</p></li>
+          <li class="file-row" data-status="modified" data-area="db_ledger" data-adds="210" data-dels="93"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/db/payment-references.ts</code><span class="file-delta">+210 −93</span><p class="file-why">Loads rich tagged/untagged refund references with indexes, holders, sessions, hold state, and per-charge returned state.</p></li>
+          <li class="file-row" data-status="added" data-area="db_ledger" data-adds="166" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/db/payment-review.ts</code><span class="file-delta">+166 −0</span><p class="file-why">Computes one review status and atomically retires owner-resolved markers or stale unresolved claims while preserving settled facts.</p></li>
+          <li class="file-row" data-status="modified" data-area="db_ledger" data-adds="50" data-dels="29"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/db/processed-payments.ts</code><span class="file-delta">+50 −29</span><p class="file-why">Uses the shared row-state format and keeps reference ciphertext, index, reservation, and reset behavior consistent.</p></li>
+          <li class="file-row" data-status="modified" data-area="db_ledger" data-adds="19" data-dels="11"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/db/prune.ts</code><span class="file-delta">+19 −11</span><p class="file-why">Protects rows and orphan attendees through the plaintext live-work mirror and shared bounded orphan query.</p></li>
+          <li class="file-row" data-status="modified" data-area="db_ledger" data-adds="14" data-dels="2"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/merge/attendee-merge.ts</code><span class="file-delta">+14 −2</span><p class="file-why">Checks both people’s payment rows inside the same transaction that relocates them, closing the merge/refund race.</p></li>
+          <li class="file-row" data-status="deleted" data-area="db_ledger" data-adds="0" data-dels="339"><span class="file-status deleted" title="Deleted">D</span><code class="file-path">src/shared/refund-ledger.ts</code><span class="file-delta">+0 −339</span><p class="file-why">Deletes the whole-account, mostly boolean refund-ledger monolith in favor of exact planning and result modules.</p></li>
+          <li class="file-row" data-status="added" data-area="db_ledger" data-adds="6" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/refund-ledger/log.ts</code><span class="file-delta">+6 −0</span><p class="file-why">Names the one classified error path for ledger failures that cannot undo provider money.</p></li>
+          <li class="file-row" data-status="added" data-area="db_ledger" data-adds="71" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/refund-ledger/placeholder.ts</code><span class="file-delta">+71 −0</span><p class="file-why">Records the payment and optional refund cash round-trip for an unhonoured quantity-zero placeholder.</p></li>
+          <li class="file-row" data-status="added" data-area="db_ledger" data-adds="293" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/refund-ledger/plan.ts</code><span class="file-delta">+293 −0</span><p class="file-why">Places returned references onto ledger groups and computes only safe exact reversals, owner-review obligations, and failure truth.</p></li>
+          <li class="file-row" data-status="added" data-area="db_ledger" data-adds="127" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/refund-ledger/record.ts</code><span class="file-delta">+127 −0</span><p class="file-why">Posts exact plans, falls back from bulk to per attendee, and returns conservative per-reference results instead of throwing.</p></li>
+          <li class="file-row" data-status="added" data-area="db_ledger" data-adds="35" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/refund-ledger/result.ts</code><span class="file-delta">+35 −0</span><p class="file-why">Defines the three exact reference sets: recorded, review required, and unrecorded.</p></li>
+        </ol>
+      </details>
+      <details class="file-group" data-area="shared_rules" open>
+        <summary>Shared payment rules · 22 files · +1,593 / −96</summary>
+        <ol class="file-list">
+          <li class="file-row" data-status="modified" data-area="shared_rules" data-adds="23" data-dels="2"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/existing-payment-provider.ts</code><span class="file-delta">+23 −2</span><p class="file-why">Exposes credential checks and an ordered provider list for honest discovery of legacy payment references.</p></li>
+          <li class="file-row" data-status="modified" data-area="shared_rules" data-adds="0" data-dels="16"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/payment-helpers.ts</code><span class="file-delta">+0 −16</span><p class="file-why">Removes money and timestamp helpers that moved to the shared payment boundary or focused provider modules.</p></li>
+          <li class="file-row" data-status="added" data-area="shared_rules" data-adds="48" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/payment-review.ts</code><span class="file-delta">+48 −0</span><p class="file-why">Reports a withheld refund at debug or owner-alert level according to whether retry, absence, or human judgment fits.</p></li>
+          <li class="file-row" data-status="added" data-area="shared_rules" data-adds="110" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/payment/admit-move.ts</code><span class="file-delta">+110 −0</span><p class="file-why">Declares which row-state fields block delete or merge and derives the ordered plaintext live-work mirror.</p></li>
+          <li class="file-row" data-status="added" data-area="shared_rules" data-adds="136" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/payment/admit-refund.ts</code><span class="file-delta">+136 −0</span><p class="file-why">Maps validated observations to send, already returned, in flight, refused, or exact read-failure outcomes.</p></li>
+          <li class="file-row" data-status="added" data-area="shared_rules" data-adds="127" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/payment/claim.ts</code><span class="file-delta">+127 −0</span><p class="file-why">Defines grant/held/resume/foreign claim decisions, the five-minute lease floor, refusal text, and safe release rules.</p></li>
+          <li class="file-row" data-status="added" data-area="shared_rules" data-adds="19" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/payment/conflict.ts</code><span class="file-delta">+19 −0</span><p class="file-why">Schemas the three owner conflicts this charge-level evidence can prove: partial, excess, and multiple pending refunds.</p></li>
+          <li class="file-row" data-status="added" data-area="shared_rules" data-adds="70" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/payment/diagnose.ts</code><span class="file-delta">+70 −0</span><p class="file-why">Reduces a set of validated charge-money readings to ready, fully refunded, pending, or a named conflict.</p></li>
+          <li class="file-row" data-status="modified" data-area="shared_rules" data-adds="12" data-dels="6"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/payment/money.ts</code><span class="file-delta">+12 −6</span><p class="file-why">Accepts safely convertible BigInt provider amounts and exposes the reusable strict money schema and exact comparison.</p></li>
+          <li class="file-row" data-status="added" data-area="shared_rules" data-adds="172" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/payment/provider-discovery.ts</code><span class="file-delta">+172 −0</span><p class="file-why">Reads tagged references at one provider and discovers legacy references only when exactly one complete provider search validates.</p></li>
+          <li class="file-row" data-status="added" data-area="shared_rules" data-adds="116" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/payment/provider-failures.ts</code><span class="file-delta">+116 −0</span><p class="file-why">Translates known HTTP, connection, and malformed provider failures into different read and refund meanings.</p></li>
+          <li class="file-row" data-status="modified" data-area="shared_rules" data-adds="30" data-dels="8"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/payment/provider-read.ts</code><span class="file-delta">+30 −8</span><p class="file-why">Expands the shared found/missing/unavailable/invalid vocabulary and provides a mapper that preserves every failure exactly.</p></li>
+          <li class="file-row" data-status="added" data-area="shared_rules" data-adds="93" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/payment/provider-reference.ts</code><span class="file-delta">+93 −0</span><p class="file-why">Defines tagged and legacy reference identities plus a versioned canonical storage format used by encryption and HMAC.</p></li>
+          <li class="file-row" data-status="added" data-area="shared_rules" data-adds="97" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/payment/refund-attempt.ts</code><span class="file-delta">+97 −0</span><p class="file-why">Defines completed/accepted/rejected/not-sent/uncertain results, their proof, exact request facts, and one bounded reread.</p></li>
+          <li class="file-row" data-status="added" data-area="shared_rules" data-adds="94" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/payment/refund.ts</code><span class="file-delta">+94 −0</span><p class="file-why">Resolves one charge’s refund observations without double-counting totals or hiding failed and partial money movement.</p></li>
+          <li class="file-row" data-status="modified" data-area="shared_rules" data-adds="2" data-dels="2"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/payment/resource-id.ts</code><span class="file-delta">+2 −2</span><p class="file-why">Exports the strict non-whitespace resource-id schema so every provider resource shares the same boundary.</p></li>
+          <li class="file-row" data-status="added" data-area="shared_rules" data-adds="201" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/payment/resources.ts</code><span class="file-delta">+201 −0</span><p class="file-why">Schemas charge money and refund observations and centralizes returned, pending, capture, currency, and overlap arithmetic.</p></li>
+          <li class="file-row" data-status="added" data-area="shared_rules" data-adds="18" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/payment/review.ts</code><span class="file-delta">+18 −0</span><p class="file-why">Combines provider-money conflicts with operation-level shared-reference and unsettled-obligation review reasons.</p></li>
+          <li class="file-row" data-status="added" data-area="shared_rules" data-adds="120" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/payment/row-state.ts</code><span class="file-delta">+120 −0</span><p class="file-why">Schemas the one encrypted record holding claim, outcome, owner review, and unrecorded-refund facts with legacy read support.</p></li>
+          <li class="file-row" data-status="modified" data-area="shared_rules" data-adds="53" data-dels="4"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/payment/validated-session.ts</code><span class="file-delta">+53 −4</span><p class="file-why">Carries provider identity through session validation and turns paid sessions into strict tagged charge references.</p></li>
+          <li class="file-row" data-status="modified" data-area="shared_rules" data-adds="41" data-dels="58"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/payments.ts</code><span class="file-delta">+41 −58</span><p class="file-why">Replaces provider refund booleans with <code>readCharge</code>, declared retry capability, and exact <code>refundCharge</code> results.</p></li>
+          <li class="file-row" data-status="added" data-area="shared_rules" data-adds="11" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/validation/kind.ts</code><span class="file-delta">+11 −0</span><p class="file-why">Adds the small shared builder for strict discriminated kind-only schema entries.</p></li>
+        </ol>
+      </details>
+      <details class="file-group" data-area="providers" open>
+        <summary>Stripe, Square &amp; SumUp · 25 files · +1,991 / −1,100</summary>
+        <ol class="file-list">
+          <li class="file-row" data-status="modified" data-area="providers" data-adds="68" data-dels="18"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/square-provider.ts</code><span class="file-delta">+68 −18</span><p class="file-why">Maps completed Square payments into shared charge money and exposes keyed exact refund attempts with one bounded reread.</p></li>
+          <li class="file-row" data-status="deleted" data-area="providers" data-adds="0" data-dels="956"><span class="file-status deleted" title="Deleted">D</span><code class="file-path">src/shared/square.ts</code><span class="file-delta">+0 −956</span><p class="file-why">Deletes the 956-line Square transport, checkout, order, refund, connection, and webhook monolith.</p></li>
+          <li class="file-row" data-status="added" data-area="providers" data-adds="57" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/square/api.ts</code><span class="file-delta">+57 −0</span><p class="file-why">Keeps one small, stubbable Square facade while focused modules own the actual responsibilities.</p></li>
+          <li class="file-row" data-status="added" data-area="providers" data-adds="198" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/square/checkout.ts</code><span class="file-delta">+198 −0</span><p class="file-why">Builds Square payment links and packs/unpacks the provider’s constrained checkout metadata shape.</p></li>
+          <li class="file-row" data-status="added" data-area="providers" data-adds="206" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/square/client.ts</code><span class="file-delta">+206 −0</span><p class="file-why">Implements the compact REST client surface for locations, links, orders, payments, and refunds.</p></li>
+          <li class="file-row" data-status="added" data-area="providers" data-adds="84" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/square/connection.ts</code><span class="file-delta">+84 −0</span><p class="file-why">Owns Square credential mode, client caching, connection tests, and reset behavior.</p></li>
+          <li class="file-row" data-status="added" data-area="providers" data-adds="48" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/square/order.ts</code><span class="file-delta">+48 −0</span><p class="file-why">Retrieves and extracts the Square order facts used to rebuild validated checkout sessions.</p></li>
+          <li class="file-row" data-status="added" data-area="providers" data-adds="51" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/square/outcomes.ts</code><span class="file-delta">+51 −0</span><p class="file-why">Translates known Square failures and named refund resources into the provider-neutral evidence vocabulary.</p></li>
+          <li class="file-row" data-status="added" data-area="providers" data-adds="253" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/square/payment-outcomes.ts</code><span class="file-delta">+253 −0</span><p class="file-why">Runtime-parses Square payment/refund money, validates status, id, parent, amount, and currency, and sends exact keyed refunds.</p></li>
+          <li class="file-row" data-status="added" data-area="providers" data-adds="104" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/square/transport.ts</code><span class="file-delta">+104 −0</span><p class="file-why">Preserves Square HTTP status, timeout/connection, and malformed-success-JSON failures as named transport errors.</p></li>
+          <li class="file-row" data-status="added" data-area="providers" data-adds="68" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/square/webhook.ts</code><span class="file-delta">+68 −0</span><p class="file-why">Isolates Square’s HMAC verification over notification URL and original request bytes.</p></li>
+          <li class="file-row" data-status="modified" data-area="providers" data-adds="38" data-dels="8"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/stripe-provider.ts</code><span class="file-delta">+38 −8</span><p class="file-why">Reads Stripe capture/refund money into the shared charge shape and declares deterministic keyed refund capability.</p></li>
+          <li class="file-row" data-status="modified" data-area="providers" data-adds="142" data-dels="17"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/stripe.ts</code><span class="file-delta">+142 −17</span><p class="file-why">Validates exact refund parent, money, status, and proof; maps Stripe’s full response and known failures without boolean collapse.</p></li>
+          <li class="file-row" data-status="modified" data-area="providers" data-adds="7" data-dels="1"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/stripe/client.ts</code><span class="file-delta">+7 −1</span><p class="file-why">Preserves protocol and status facts needed to distinguish Stripe transport failure from an internal programming error.</p></li>
+          <li class="file-row" data-status="modified" data-area="providers" data-adds="2" data-dels="1"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/stripe/endpoints.ts</code><span class="file-delta">+2 −1</span><p class="file-why">Requests the expanded charge/refund fields needed by the new evidence boundary.</p></li>
+          <li class="file-row" data-status="modified" data-area="providers" data-adds="35" data-dels="8"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/stripe/request.ts</code><span class="file-delta">+35 −8</span><p class="file-why">Retries only genuine transport failures and retains exact Stripe protocol information for outcome translation.</p></li>
+          <li class="file-row" data-status="modified" data-area="providers" data-adds="35" data-dels="4"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/stripe/schemas.ts</code><span class="file-delta">+35 −4</span><p class="file-why">Requires captured and refunded charge money plus refund identity, parent, amount, currency, and documented status.</p></li>
+          <li class="file-row" data-status="modified" data-area="providers" data-adds="7" data-dels="14"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/sumup-observation.ts</code><span class="file-delta">+7 −14</span><p class="file-why">Narrows checkout observation to its job while transaction money and refund-event interpretation move into focused modules.</p></li>
+          <li class="file-row" data-status="modified" data-area="providers" data-adds="21" data-dels="6"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/sumup-provider.ts</code><span class="file-delta">+21 −6</span><p class="file-why">Declares SumUp keyless, reads full charge evidence, and always reconciles a sent submission with one fresh transaction read.</p></li>
+          <li class="file-row" data-status="modified" data-area="providers" data-adds="134" data-dels="67"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/sumup.ts</code><span class="file-delta">+134 −67</span><p class="file-why">Connects SDK and direct transport reads to typed checkout/transaction classifications and exact submission outcomes.</p></li>
+          <li class="file-row" data-status="added" data-area="providers" data-adds="66" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/sumup/failures.ts</code><span class="file-delta">+66 −0</span><p class="file-why">Preserves SDK/direct HTTP failure facts and distinguishes a definitely rejected send from keyless uncertainty.</p></li>
+          <li class="file-row" data-status="added" data-area="providers" data-adds="180" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/sumup/money.ts</code><span class="file-delta">+180 −0</span><p class="file-why">Converts major units safely, maps every refund-event status, builds charge money, and judges the mandatory post-send reread.</p></li>
+          <li class="file-row" data-status="added" data-area="providers" data-adds="89" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/sumup/transaction.ts</code><span class="file-delta">+89 −0</span><p class="file-why">Validates transaction id, merchant, capture lifecycle, allowed event types, chargebacks, and raw refund events.</p></li>
+          <li class="file-row" data-status="added" data-area="providers" data-adds="85" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/sumup/transport.ts</code><span class="file-delta">+85 −0</span><p class="file-why">Adds direct checkout, transaction, and refund HTTP operations so response status survives an empty or malformed body.</p></li>
+          <li class="file-row" data-status="added" data-area="providers" data-adds="13" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/sumup/wire.ts</code><span class="file-delta">+13 −0</span><p class="file-why">Defines the shared optional wire fields from which strict checkout and transaction readers select trusted facts.</p></li>
+        </ol>
+      </details>
+    </section>
+
+    <footer><strong>Snapshot, not a moving dashboard.</strong> Facts are pinned to branch <code>44604f4c2f39</code>, main <code>f838dd899ef3</code>, and merge base <code>c5c9331dd0c8</code>. Main’s one post-base commit changed no <code>src/</code> files, so this three-dot view isolates the source work introduced by the branch.</footer>
+  </main>
+  <script>
+    (() => {
+      const rows = [...document.querySelectorAll(".file-row")];
+      const groups = [...document.querySelectorAll(".file-group")];
+      const search = document.querySelector("#file-search");
+      const filters = [...document.querySelectorAll(".filter")];
+      const status = document.querySelector("#inventory-status");
+      const empty = document.querySelector("#empty-atlas");
+      const progress = document.querySelector("#read-progress");
+      const number = new Intl.NumberFormat("en-GB");
+      let selectedStatus = "all";
+
+      const total = (items, key) => items.reduce(
+        (sum, item) => sum + Number(item.dataset[key]),
+        0,
+      );
+      const countBy = (key) => rows.reduce((counts, row) => {
+        const value = row.dataset[key];
+        counts[value] = (counts[value] ?? 0) + 1;
+        return counts;
+      }, {});
+
+      const actual = {
+        files: rows.length,
+        adds: total(rows, "adds"),
+        dels: total(rows, "dels"),
+        statuses: countBy("status"),
+        areas: countBy("area"),
+      };
+      const expected = {
+        files: 117,
+        adds: 8563,
+        dels: 2339,
+        statuses: { added: 58, modified: 56, deleted: 3 },
+        areas: {
+          admin_ui: 29,
+          api_checkout: 7,
+          db_ledger: 34,
+          shared_rules: 22,
+          providers: 25,
+        },
+      };
+      const sameCounts = (left, right) => Object.entries(right).every(
+        ([key, value]) => left[key] === value,
+      );
+      const inventoryIsExact = actual.files === expected.files &&
+        actual.adds === expected.adds && actual.dels === expected.dels &&
+        sameCounts(actual.statuses, expected.statuses) &&
+        sameCounts(actual.areas, expected.areas);
+
+      const updateAtlas = () => {
+        const query = search.value.trim().toLocaleLowerCase();
+        const visible = rows.filter((row) => {
+          const matchesStatus = selectedStatus === "all" ||
+            row.dataset.status === selectedStatus;
+          const matchesQuery = row.textContent.toLocaleLowerCase().includes(query);
+          row.hidden = !(matchesStatus && matchesQuery);
+          return !row.hidden;
+        });
+
+        groups.forEach((group) => {
+          group.hidden = !group.querySelector(".file-row:not([hidden])");
+        });
+        empty.style.display = visible.length === 0 ? "block" : "none";
+
+        if (!inventoryIsExact) {
+          status.classList.add("bad");
+          status.textContent = `Inventory mismatch: embedded ${actual.files} files, +${number.format(actual.adds)} / −${number.format(actual.dels)}.`;
+          return;
+        }
+
+        status.textContent = `${visible.length} of ${actual.files} files · +${number.format(total(visible, "adds"))} / −${number.format(total(visible, "dels"))}`;
+      };
+
+      filters.forEach((filter) => filter.addEventListener("click", () => {
+        selectedStatus = filter.dataset.filter;
+        filters.forEach((candidate) => candidate.setAttribute(
+          "aria-pressed",
+          String(candidate === filter),
+        ));
+        updateAtlas();
+      }));
+      search.addEventListener("input", updateAtlas);
+
+      let progressFrame;
+      const updateProgress = () => {
+        cancelAnimationFrame(progressFrame);
+        progressFrame = requestAnimationFrame(() => {
+          const remaining = document.documentElement.scrollHeight - innerHeight;
+          const percentage = remaining > 0 ? scrollY / remaining * 100 : 100;
+          progress.style.width = `${Math.min(100, Math.max(0, percentage))}%`;
+        });
+      };
+      addEventListener("scroll", updateProgress, { passive: true });
+      addEventListener("resize", updateProgress);
+
+      updateAtlas();
+      updateProgress();
+    })();
+  </script>
+</body>
+</html>
