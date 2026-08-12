@@ -6,8 +6,10 @@ import {
 } from "#routes/admin/refunds/budget.ts";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import type { RowClaim } from "#routes/admin/refunds/claim.ts";
+import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import { settings } from "#shared/db/settings.ts";
+import { SQUARE_MAX_NETWORK_RETRIES } from "#shared/square/transport.ts";
 import { STRIPE_MAX_NETWORK_RETRIES } from "#shared/stripe/request.ts";
 import {
   countSubrequest,
@@ -16,6 +18,7 @@ import {
 } from "#shared/subrequest-budget.ts";
 import { armEveryRefund } from "#test/features/admin/refunds/provider/dispatch-helpers.ts";
 import {
+  prepareAtProvider,
   processRefundBatchAt,
   provider,
 } from "#test/features/admin/refunds/provider/helpers.ts";
@@ -52,9 +55,8 @@ const candidate = (
   refundState: RefundPaymentReference["refundState"] = "none",
 ) => ({
   attendee: { id: attendeeId } as RefundCandidate["attendee"],
-  references: Array.from(
-    { length: referenceCount },
-    (_, offset) => stripeReference(attendeeId, offset, refundState),
+  references: Array.from({ length: referenceCount }, (_, offset) =>
+    stripeReference(attendeeId, offset, refundState),
   ),
 });
 
@@ -86,6 +88,13 @@ const expectRefusedBeforeClaim = async (
   expect(source.refunds).toEqual([]);
 };
 
+const expectBudgetRefusal = (result: unknown): void => {
+  expect(result).toMatchObject({
+    kind: "not_ready",
+    reason: "subrequest_budget",
+  });
+};
+
 describeWithEnv(
   "admin refund provider > whole-command budget",
   { db: true },
@@ -94,10 +103,9 @@ describeWithEnv(
       await expectRefusedBeforeClaim([candidate(11, 6)]);
     });
 
-    test("an oversized bulk command refuses every attendee before provider work", async () => {
-      const candidates = Array.from(
-        { length: 6 },
-        (_, offset) => candidate(20 + offset, 1),
+    test("a provider set beyond Bunny's total limit refuses before its first send", async () => {
+      const candidates = Array.from({ length: 6 }, (_, offset) =>
+        candidate(20 + offset, 1),
       );
       await expectRefusedBeforeClaim(candidates);
     });
@@ -136,10 +144,10 @@ describeWithEnv(
           ];
           return Promise.resolve(
             admit({
-                attendees: raced,
-                inherited: new Map(),
-                returned: new Set(),
-              })
+              attendees: raced,
+              inherited: new Map(),
+              returned: new Set(),
+            })
               ? { kind: "changed" as const }
               : { kind: "not_admitted" as const },
           );
@@ -154,10 +162,7 @@ describeWithEnv(
         claim: raceClaim,
       });
 
-      expect(result).toMatchObject({
-        kind: "not_ready",
-        reason: "subrequest_budget",
-      });
+      expectBudgetRefusal(result);
       expect(settlements).toBe(0);
       expect(source.reads).toEqual([]);
       expect(source.refunds).toEqual([]);
@@ -168,7 +173,7 @@ describeWithEnv(
       const source = provider();
       const attendeeIds = Array.from({ length: 6 }, (_, offset) => 60 + offset);
       const candidates = attendeeIds.map((attendeeId) =>
-        candidate(attendeeId, 1, "completed")
+        candidate(attendeeId, 1, "completed"),
       );
       const claim = grantingRowClaim(
         new Map(
@@ -225,10 +230,7 @@ describeWithEnv(
         record: recordEveryRefund,
       });
 
-      expect(result).toMatchObject({
-        kind: "not_ready",
-        reason: "subrequest_budget",
-      });
+      expectBudgetRefusal(result);
       expect(source.reads).toEqual([]);
       expect(source.refunds).toEqual([]);
       expect(granted.released).toHaveLength(1);
@@ -257,14 +259,79 @@ describeWithEnv(
         record: recordEveryRefund,
       });
 
-      expect(result).toMatchObject({
-        kind: "not_ready",
-        reason: "subrequest_budget",
-      });
+      expectBudgetRefusal(result);
       expect(source.reads).toEqual(["pi_budget_71_0"]);
       expect(armCalls).toBe(1);
       expect(source.refunds).toEqual([]);
       expect(granted.released).toEqual([["session_pi_budget_71_0"]]);
+    });
+
+    test("refuses after arming when the five-call result tail no longer fits", async () => {
+      await settings.update.stripe.secretKey("sk_test_budget");
+      const source = provider({ paymentProvider: "square" });
+      const granted = grantingRowClaim(
+        new Map([[72, ["session_pi_budget_72_0"]]]),
+      );
+      const armRefunds = armEveryRefund();
+      let armCalls = 0;
+
+      const result = await processRefundBatchAt(source, [candidate(72, 1)], 7, {
+        arm: async (request) => {
+          armCalls++;
+          const armed = await armRefunds(request);
+          while (getSubrequestRemaining().database > 4) {
+            countSubrequest("database", "work racing the dispatch arm");
+          }
+          const remaining = getSubrequestRemaining();
+          const squareSendEnvelope = 2 * (SQUARE_MAX_NETWORK_RETRIES + 1);
+          expect(remaining.external).toBeGreaterThanOrEqual(squareSendEnvelope);
+          expect(remaining.total).toBeGreaterThanOrEqual(squareSendEnvelope);
+          return armed;
+        },
+        claim: granted,
+        record: recordEveryRefund,
+      });
+
+      expectBudgetRefusal(result);
+      expect(armCalls).toBe(1);
+      expect(source.refunds).toEqual([]);
+    });
+
+    test("refuses returned no-send work before its ledger when only four calls remain", async () => {
+      const attendeeId = 73;
+      const sessionId = "session_pi_budget_73_0";
+      const source = provider({ paymentProvider: "square" });
+      const granted = grantingRowClaim(new Map([[attendeeId, [sessionId]]]));
+      let ledgerCalls = 0;
+      const prepare = prepareAtProvider(source);
+
+      const result = await processRefundBatch(
+        [candidate(attendeeId, 1, "completed")],
+        7,
+        {
+          claim: granted,
+          prepare: async (candidates, claim, returned) => {
+            const prepared = await prepare(candidates, claim, returned);
+            while (getSubrequestRemaining().database > 4) {
+              countSubrequest(
+                "database",
+                "work racing returned-payment recording",
+              );
+            }
+            return prepared;
+          },
+          record: (postings) => {
+            ledgerCalls++;
+            return recordEveryRefund(postings);
+          },
+        },
+      );
+
+      expectBudgetRefusal(result);
+      expect(source.reads).toEqual([]);
+      expect(source.refunds).toEqual([]);
+      expect(ledgerCalls).toBe(0);
+      expect(granted.unrecorded).toEqual([[sessionId]]);
     });
 
     test("settlement and caller reserves survive a work allowance failure", async () => {

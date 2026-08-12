@@ -53,22 +53,42 @@ describe("admin refund subrequest budget", () => {
           refundSubrequestCost(candidates, new Set(), checkpoint, ["stripe"]),
       ),
     ).toEqual([
-      { database: 15, external: 9, total: 24 },
-      { database: 11, external: 9, total: 20 },
+      { database: 20, external: 9, total: 29 },
+      { database: 16, external: 9, total: 25 },
       { database: 5, external: 3, total: 8 },
     ]);
+    const prepared = {
+      mayRecordReturns: true,
+      sendReferences: [
+        { index: reference.index, provider: reference.provider },
+      ],
+    };
     expect(
       (["before_dispatch_arm", "before_provider_send"] as const).map(
-        (checkpoint) =>
-          refundPreparedSubrequestCost(
-            [{ index: reference.index, provider: reference.provider }],
-            checkpoint,
-          ),
+        (checkpoint) => refundPreparedSubrequestCost(prepared, checkpoint),
       ),
     ).toEqual([
-      { database: 5, external: 0, total: 5 },
-      { database: 0, external: 6, total: 6 },
+      { database: 10, external: 0, total: 10 },
+      { database: 5, external: 6, total: 11 },
     ]);
+  });
+
+  test("reserves the five local calls even when the provider already returned the money", () => {
+    expect(
+      refundPreparedSubrequestCost(
+        { mayRecordReturns: true, sendReferences: [] },
+        "before_dispatch_arm",
+      ),
+    ).toEqual({ database: 5, external: 0, total: 5 });
+  });
+
+  test("prices no late work when preparation can neither send nor return money", () => {
+    expect(
+      refundPreparedSubrequestCost(
+        { mayRecordReturns: false, sendReferences: [] },
+        "before_dispatch_arm",
+      ),
+    ).toEqual({ database: 0, external: 0, total: 0 });
   });
 
   for (const [provider, calls] of [

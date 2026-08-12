@@ -274,13 +274,13 @@
         <li><h3>Bind identity &amp; retry rule</h3><p>While the claim is held, store the proven provider and whether a repeated request is keyed or keyless.</p><p class="output"><strong>Output:</strong> stable charge identity + retry capability.</p></li>
         <li><h3>Judge the money</h3><p>Shared rules decide: already returned, in flight, owner conflict, or safe to send.</p><p class="output"><span class="go">Only “ready” can request a dispatch permit.</span></p></li>
         <li><h3>Arm, then send</h3><p>The database moves every exact holder from <code>ready</code> to <code>send_armed</code> for this command before issuing the only permit accepted by provider code.</p><p class="output"><strong>Crash boundary:</strong> a possibly sent command stays visible.</p></li>
-        <li><h3>Record exact money</h3><p>Mark each returned charge across all indexed holders, then reverse only the ledger groups that charge safely explains.</p><p class="output"><strong>Output:</strong> recorded / review / unrecorded sets.</p></li>
+        <li><h3>Record exact money</h3><p>Mark each returned charge across all indexed holders, then ask the existing ledger which named groups it can reverse and park every unclear result.</p><p class="output"><strong>Output:</strong> recorded / review / unrecorded sets for each charge.</p></li>
         <li><h3>Settle each row</h3><p>Release rows whose answer is known. Keep claims where money may still move; preserve review cases and books-behind markers.</p><p class="output"><strong>Output:</strong> durable truth for the next request.</p></li>
       </ol>
       <div class="cards-4">
         <article class="card"><h3>Whole-command safety</h3><p>Refund All admits the complete listing-wide command or refuses it. It never silently narrows the safety decision to a convenient first batch, so no later review or books-behind marker can be skipped.</p></article>
         <article class="card"><h3>Calls are priced, not guessed</h3><p>Before money moves, the complete command must afford every provider retry, discovery read, recovery read, bounded bulk database operation, rollback, settlement, and route tail. Five controls network overlap only.</p></article>
-        <article class="card"><h3>Parallel network, one write lane</h3><p>Slow provider calls may overlap, but local “arm” and “money returned” writes line up in order. SQLite never has several refund workers fighting to write at once.</p></article>
+        <article class="card"><h3>Parallel network, bounded books</h3><p>Provider calls overlap five at a time. After every wave finishes, the complete command shares one returned-marker write and one ledger call; recording uses four database round trips even for 30 people.</p></article>
         <article class="card"><h3>Worst result wins</h3><p><code>errored → failed → withheld → pending → refunded</code>. A good reference never hides a bad one beside it.</p></article>
       </div>
       <div class="callout"><span class="mark">1</span><p><strong>Saving an old attendee is the migration boundary.</strong> The PII update and a deterministic indexed anchor are one atomic batch. Until then, that old payment simply has less refund functionality; it cannot slow every request by forcing a decrypt-all search.</p></div>
@@ -399,6 +399,7 @@
         <tr><td><code>review</code></td><td><code>needs_review</code></td><td><code>payment-review</code></td><td>Blocks delete; moves with merge</td></tr>
       </tbody></table></div>
       <p class="section-lede" style="margin-top:1rem">These are not separate UI and database lists. One exhaustive <code>LIVE_WORK</code> record owns detection, plain mirror, priority, status, next action, refusal copy, and delete/merge rules. Adding a new live field cannot compile until all of those choices exist; the chosen action must also exist in the checked attendee-route schema.</p>
+      <div class="callout"><span class="mark">UI</span><p><strong>A registered route is necessary, but it is not reachable by itself.</strong> The authoritative indexed payment/work state must also render a usable recovery control. The Cucumber journey proves the composition: protected rows move onto a target whose legacy <code>payment_id</code> is blank, the real Refresh form still appears, the owner submits it without another provider send, and deletion becomes safe.</p></div>
       <h3>What happens when refund and another writer race?</h3>
       <div class="race-grid">
         <div class="race-lane"><b>Refund transaction</b><ol><li>verify attendee + exact rows</li><li>write claim to every holder</li><li>commit</li><li>read / send / record under claim</li></ol></div>
@@ -413,13 +414,14 @@
         <article class="card"><h3>Finalize</h3><p>Cannot add or rewrite a matching charge underneath a claimed snapshot.</p></article>
         <article class="card"><h3>Prune / orphan purge</h3><p>Reads the plain mirror and retains rows or attendees with live payment work.</p></article>
       </div>
-      <h3 style="margin-top:2rem">The ledger now answers per charge, not just per attendee</h3>
+      <h3 style="margin-top:2rem">The ledger now reports each returned charge separately</h3>
       <div class="ledger-flow">
         <div class="ledger-step"><b>1 · Place</b>Map each returned reference to its booking or balance event groups.</div>
         <div class="ledger-step"><b>2 · Judge</b>Reject operator/manual money and unsettled obligations that need a choice.</div>
         <div class="ledger-step"><b>3 · Reverse</b>Reuse deterministic refund group ids so an earlier reversal is a no-op.</div>
         <div class="ledger-step"><b>4 · Report</b><span class="result-chip recorded">recorded</span><span class="result-chip review">review</span><span class="result-chip unrecorded">unrecorded</span></div>
       </div>
+      <div class="callout"><span class="mark">4</span><p><strong>Database cost does not grow one attendee at a time.</strong> One query loads all requested attendee accounts; two shared snapshot reads validate event groups and references; one batched write posts every clean plan. Refund plans need no reversal-id read. A stored conflict can park one attendee while clean neighbours still post, and an infrastructure failure returns exact books-behind results instead of entering a per-attendee retry loop.</p></div>
       <div class="split">
         <article class="card before"><span class="label">Deleted monolith</span><h3><code>shared/refund-ledger.ts</code></h3><p>One 339-line file answered mainly <code>{posted: boolean}</code> for a whole attendee account.</p></article>
         <article class="card after"><span class="label">Focused folder</span><h3><code>shared/refund-ledger/</code></h3><p><code>plan</code> computes, <code>result</code> names exact reference outcomes, <code>record</code> posts, <code>placeholder</code> handles quantity-zero cash, and <code>log</code> reports failure.</p></article>
@@ -468,7 +470,7 @@
       <h3 style="margin-top:2rem">Messages become operational instructions</h3>
       <div class="cards-3">
         <article class="card"><span class="result-chip review">still settling</span><p>Try again after it completes. Do not send another refund.</p></article>
-        <article class="card"><span class="result-chip unrecorded">not recorded</span><p>The provider sent the refund; Money did not record it. Add a correction. Do not send again.</p></article>
+        <article class="card"><span class="result-chip unrecorded">not recorded</span><p>The provider sent the refund; Money did not record it. Fix Money, then use Refresh payment status. Do not send again.</p></article>
         <article class="card"><span class="result-chip recorded">acknowledged</span><p>The owner recorded that they saw the exact ambiguous work. The safety hold remains and no provider call occurred.</p></article>
       </div>
       <h3 style="margin-top:2rem">Payment-processing paths also carry exact provider identity</h3>

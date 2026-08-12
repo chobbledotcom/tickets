@@ -60,11 +60,11 @@ export type RefundBatchResult =
   | { kind: "blocked"; reason: "refund_in_progress" }
   | { counts: RefundCounts; kind: "finished" }
   | {
-    counts: RefundCounts;
-    kind: "not_ready";
-    message: string;
-    reason?: "subrequest_budget";
-  };
+      counts: RefundCounts;
+      kind: "not_ready";
+      message: string;
+      reason?: "subrequest_budget";
+    };
 
 const noRefunds = (failedCount = 0): RefundCounts => ({
   errorCount: 0,
@@ -100,8 +100,7 @@ const logBulkRefundProblem = (
     .join(", ");
   logError({
     code: ErrorCode.PAYMENT_REFUND,
-    detail:
-      `Admin bulk refund ${outcome} for attendee ${candidate.attendee.id}, payments ${refs}`,
+    detail: `Admin bulk refund ${outcome} for attendee ${candidate.attendee.id}, payments ${refs}`,
     listingId,
   });
 };
@@ -186,11 +185,9 @@ const markerFailure = (
 ): CandidateRefund => {
   if (result.returned.length === 0) return result;
   reportRefundProblem(
-    `Admin refund could not record returned payments for attendee ${result.candidate.attendee.id}: ${
-      String(
-        error,
-      )
-    }`,
+    `Admin refund could not record returned payments for attendee ${result.candidate.attendee.id}: ${String(
+      error,
+    )}`,
     listingId,
   );
   return {
@@ -235,57 +232,51 @@ export const processRefundBatch = async (
     arm = armRefundDispatch,
     audience = "bulk",
     claim: rowClaim = durableRowClaim,
-    markReturned: markReturnedReferences =
-      markPaymentReferencesProviderRefunded,
+    markReturned:
+      markReturnedReferences = markPaymentReferencesProviderRefunded,
     prepare = prepareRefundReadiness,
     record = recordAttendeeRefundsBatch,
   }: RefundRunDependencies = {},
 ): Promise<RefundBatchResult> =>
-  await withSubrequestReserve(
-    REFUND_CALLER_SUBREQUEST_RESERVE,
-    () =>
-      withDeferredErrorReports(() =>
-        runRefundReadiness<RefundBatchResult>({
-          action: "refund",
-          budgetAudience: audience,
-          candidates,
-          changedMessage:
-            "The attendee or payment set changed while this refund was starting. Try again.",
-          claim: rowClaim,
-          label: "Admin bulk refund",
-          listingId,
-          notReady: (message, reason) =>
-            notReady(
+  await withSubrequestReserve(REFUND_CALLER_SUBREQUEST_RESERVE, () =>
+    withDeferredErrorReports(() =>
+      runRefundReadiness<RefundBatchResult>({
+        action: "refund",
+        budgetAudience: audience,
+        candidates,
+        changedMessage:
+          "The attendee or payment set changed while this refund was starting. Try again.",
+        claim: rowClaim,
+        label: "Admin bulk refund",
+        listingId,
+        notReady: (message, reason) =>
+          notReady(noRefunds(candidates.length), message, reason),
+        prepare,
+        ready: async (readyCandidates, held) => {
+          const dispatched = await dispatchRefundBatch(
+            readyCandidates,
+            listingId,
+            held,
+            arm,
+          );
+          if (dispatched.kind === "budget_refused") {
+            return notReady(
               noRefunds(candidates.length),
-              message,
-              reason,
-            ),
-          prepare,
-          ready: async (readyCandidates, held) => {
-            const dispatched = await dispatchRefundBatch(
-              readyCandidates,
+              REFUND_BUDGET_MESSAGES[audience],
+              "subrequest_budget",
+            );
+          }
+          return finished(
+            await recordDispatchedBatch(
+              dispatched.waves,
               listingId,
-              held,
-              arm,
-            );
-            if (dispatched.kind === "budget_refused") {
-              return notReady(
-                noRefunds(candidates.length),
-                REFUND_BUDGET_MESSAGES[audience],
-                "subrequest_budget",
-              );
-            }
-            return finished(
-              await recordDispatchedBatch(
-                dispatched.waves,
-                listingId,
-                { markReturned: markReturnedReferences, record },
-                held.findings,
-              ),
-            );
-          },
-        })
-      ),
+              { markReturned: markReturnedReferences, record },
+              held.findings,
+            ),
+          );
+        },
+      }),
+    ),
   );
 
 const recordDispatchedBatch = async (
@@ -297,19 +288,18 @@ const recordDispatchedBatch = async (
   const counts = noRefunds();
   const remember = (result: CandidateRefund): void =>
     rememberCandidateFindings(findings, result, { doubt: "replace" });
-  waves.flat().forEach(remember);
-  for (const providerResults of waves) {
-    const results = await markReturnedWave(
-      writes.markReturned,
-      providerResults,
-      listingId,
-    );
-    const postings: LedgerPosting[] = [];
-    for (const result of results) {
-      remember(result);
-      tallyProviderRefund(counts, result, listingId, postings);
-    }
-    await recordWave(writes.record, counts, postings, findings, listingId);
+  const providerResults = waves.flat();
+  providerResults.forEach(remember);
+  const results = await markReturnedWave(
+    writes.markReturned,
+    providerResults,
+    listingId,
+  );
+  const postings: LedgerPosting[] = [];
+  for (const result of results) {
+    remember(result);
+    tallyProviderRefund(counts, result, listingId, postings);
   }
+  await recordWave(writes.record, counts, postings, findings, listingId);
   return counts;
 };

@@ -11,6 +11,7 @@
  */
 
 import type { InValue } from "@libsql/client";
+import { uniqueBy } from "#fp";
 import {
   ATTENDEE,
   COST,
@@ -48,6 +49,7 @@ import {
   type WhereClause,
   whereSql,
 } from "#shared/db/where-clauses.ts";
+import { accountKey } from "#shared/ledger/account.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 
 /** Newest first by business time, ties broken by id so the order is stable. */
@@ -59,16 +61,60 @@ const NEWEST_FIRST = "occurred_at DESC, id DESC";
 const legMatchesAccount = (role: "source" | "dest"): string =>
   `${LEG_COLUMNS[role].type} = ? AND ${LEG_COLUMNS[role].id} = ?`;
 
-/** Every transfer touching `account`, as source or destination. */
-export const transfersByAccount = (acct: AccountRef): Promise<Transfer[]> =>
-  selectTransfers(fromDb, {
-    where: [
-      {
-        args: [acct.type, acct.id, acct.type, acct.id],
-        clause: `(${legMatchesAccount("source")}) OR (${legMatchesAccount("dest")})`,
-      },
-    ],
+const accountsScope = (accounts: readonly AccountRef[]): WhereClause => {
+  const parts = [...Map.groupBy(accounts, ({ type }) => type)].map(
+    ([type, sameType]) => {
+      const ids = sameType.map(({ id }) => id);
+      const placeholders = inPlaceholders(ids);
+      return {
+        args: [type, ...ids, type, ...ids],
+        clause:
+          `(${LEG_COLUMNS.source.type} = ? AND ${LEG_COLUMNS.source.id} IN (${placeholders})) OR ` +
+          `(${LEG_COLUMNS.dest.type} = ? AND ${LEG_COLUMNS.dest.id} IN (${placeholders}))`,
+      };
+    },
+  );
+  return {
+    args: parts.flatMap(({ args }) => args),
+    clause: parts.map(({ clause }) => `(${clause})`).join(" OR "),
+  };
+};
+
+/** Every transfer touching any requested account, grouped by account key. */
+export const transfersByAccounts = async (
+  accounts: readonly AccountRef[],
+): Promise<ReadonlyMap<string, Transfer[]>> => {
+  const requested = uniqueBy(accountKey)([...accounts]);
+  if (requested.length === 0) return new Map();
+  const wanted = new Set(requested.map(accountKey));
+  const transfers = await selectTransfers(fromDb, {
+    where: [accountsScope(requested)],
   });
+  const touching = transfers.flatMap((transfer) =>
+    uniqueBy(accountKey)([transfer.source, transfer.destination])
+      .filter((account) => wanted.has(accountKey(account)))
+      .map((account) => ({ key: accountKey(account), transfer })),
+  );
+  const byAccount = Map.groupBy(touching, ({ key }) => key);
+  return new Map(
+    requested.map((account) => {
+      const key = accountKey(account);
+      return [key, (byAccount.get(key) ?? []).map(({ transfer }) => transfer)];
+    }),
+  );
+};
+
+/** Every transfer touching `account`, as source or destination. */
+export const transfersByAccount = async (
+  account: AccountRef,
+): Promise<Transfer[]> => {
+  const key = accountKey(account);
+  const transfers = (await transfersByAccounts([account])).get(key);
+  if (transfers === undefined) {
+    throw new Error(`Transfer read omitted requested account ${key}`);
+  }
+  return transfers;
+};
 
 /** Every leg of one business event (booking, refund, …). */
 export const transfersByEventGroup = (
@@ -125,10 +171,18 @@ const listingLegScope = (
         .fill(listingIds.map((id) => String(id)))
         .flat(),
       clause:
-        `(dest_type = '${REVENUE}' AND dest_id IN (${inPlaceholders(listingIds)})` +
-        ` OR source_type = '${REVENUE}' AND source_id IN (${inPlaceholders(listingIds)})` +
-        ` OR source_type = '${COST}' AND source_id IN (${inPlaceholders(listingIds)})` +
-        ` OR dest_type = '${COST}' AND dest_id IN (${inPlaceholders(listingIds)}))`,
+        `(dest_type = '${REVENUE}' AND dest_id IN (${inPlaceholders(
+          listingIds,
+        )})` +
+        ` OR source_type = '${REVENUE}' AND source_id IN (${inPlaceholders(
+          listingIds,
+        )})` +
+        ` OR source_type = '${COST}' AND source_id IN (${inPlaceholders(
+          listingIds,
+        )})` +
+        ` OR dest_type = '${COST}' AND dest_id IN (${inPlaceholders(
+          listingIds,
+        )}))`,
     },
   ];
 };
@@ -217,9 +271,15 @@ export const ledgerTotals = async (
          WHEN kind = '${KIND.adjustment}' AND dest_type = '${REVENUE}' AND source_type = '${WRITEOFF_TYPE}' THEN amount
          WHEN kind = '${KIND.adjustment}' AND source_type = '${REVENUE}' AND dest_type = '${WRITEOFF_TYPE}' THEN -amount
          ELSE 0 END), 0) AS income,
-       ${signedSumCase(`source_type = '${ATTENDEE}'`, `dest_type = '${ATTENDEE}'`)} AS due,
+       ${signedSumCase(
+         `source_type = '${ATTENDEE}'`,
+         `dest_type = '${ATTENDEE}'`,
+       )} AS due,
        COALESCE(SUM(CASE WHEN kind = '${KIND.refundCash}' THEN amount ELSE 0 END), 0) AS refunded,
-       ${signedSumCase(`dest_type = '${FEE_INCOME}'`, `source_type = '${FEE_INCOME}'`)} AS fees
+       ${signedSumCase(
+         `dest_type = '${FEE_INCOME}'`,
+         `source_type = '${FEE_INCOME}'`,
+       )} AS fees
      FROM transfers${whereSql(parts)}`,
     clauseArgs(parts),
   );

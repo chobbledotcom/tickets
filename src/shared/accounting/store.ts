@@ -48,12 +48,23 @@ export type PostResult = {
   readonly skipped: number;
 };
 
+/** One independently postable set of event groups. */
+export type PostTransferBatchResult =
+  | { readonly kind: "posted"; readonly results: PostResult[] }
+  | { readonly error: LedgerConflictError; readonly kind: "conflict" };
+
 /** A {@link PostResult} for a no-op post — nothing inserted, nothing skipped. */
 const EMPTY_RESULT: PostResult = { inserted: 0, skipped: 0 };
 
 /** Every leg's reference across a set of event groups, flattened in order. */
 const allReferences = (groups: TransferInput[][]): string[] =>
   groups.flatMap((inputs) => inputs.map((t) => t.reference));
+
+const eventGroupOf = (inputs: TransferInput[]): string => {
+  const first = inputs[0];
+  if (first === undefined) throw new Error("Ledger event cannot be empty");
+  return first.eventGroup;
+};
 
 /** Every leg of one event must agree on `label`; name the offending values if not. */
 const assertShared = (label: string, values: string[]): void => {
@@ -127,7 +138,12 @@ export const postTransfersTx = async (
  */
 export const postTransfers = async (
   inputs: TransferInput[],
-): Promise<PostResult> => (await postTransferGroups([inputs]))[0]!;
+): Promise<PostResult> => {
+  const results = await postTransferGroups([inputs]);
+  const result = results[0];
+  if (result === undefined) throw new Error("Ledger post omitted its event");
+  return result;
+};
 
 /**
  * The slice of the ledger a whole batch validates itself against, read up front
@@ -162,7 +178,7 @@ const loadBatchSnapshot = async (
   groups: TransferInput[][],
   read: RowReader,
 ): Promise<BatchSnapshot> => {
-  const eventGroups = unique(groups.map((inputs) => inputs[0]!.eventGroup));
+  const eventGroups = unique(groups.map(eventGroupOf));
   const references = allReferences(groups);
   const reversesIds = unique(
     mapNotNullish((t: TransferInput) => t.reversesId)(groups.flat()),
@@ -194,7 +210,7 @@ const planGroup = (
   recordedAt: string,
   render: (statement: SqlStatement) => SqlStatement = (statement) => statement,
 ): { inserts: SqlStatement[]; result: PostResult } => {
-  const eventGroup = inputs[0]!.eventGroup;
+  const eventGroup = eventGroupOf(inputs);
   const existing = snapshot.existingByGroup.get(eventGroup) ?? [];
   if (existing.length > 0) {
     // Already posted: the whole leg set must still match (a mapper/pricing change
@@ -245,22 +261,10 @@ const planGroup = (
  * repost of a changed event is caught, while a sub-millisecond concurrent race on
  * the same deterministic references is absorbed by INSERT OR IGNORE.
  */
-export const postTransferGroups = async (
-  groups: TransferInput[][],
-): Promise<PostResult[]> => {
+const assertUniqueGroups = (groups: TransferInput[][]): void => {
   const nonEmpty = groups.filter((inputs) => inputs.length > 0);
-  if (nonEmpty.length === 0) return groups.map(() => EMPTY_RESULT);
-  // No-DB checks for the whole batch first, so a malformed batch never reads or
-  // writes: each group valid on its own, and across the batch no repeated
-  // reference (which would silently under-post or collide two events).
   for (const inputs of nonEmpty) assertPostable(inputs);
-  // Each element of `groups` must be ONE event — distinct event groups. Two
-  // elements sharing an eventGroup would both plan against the same pre-write
-  // snapshot (neither sees the other), both insert, and the event would end up
-  // holding the UNION of their legs — after which an idempotent replay of either
-  // original fails `assertEventMatches`. Reject up front (chunks for one event
-  // must be combined into a single group before calling this).
-  const eventGroups = nonEmpty.map((inputs) => inputs[0]!.eventGroup);
+  const eventGroups = nonEmpty.map(eventGroupOf);
   if (new Set(eventGroups).size !== eventGroups.length) {
     throw new Error(
       "postTransferGroups: duplicate eventGroup across the batch",
@@ -270,30 +274,76 @@ export const postTransferGroups = async (
   if (new Set(allRefs).size !== allRefs.length) {
     throw new Error("postTransferGroups: duplicate reference across the batch");
   }
+};
+
+type PlannedTransferBatch =
+  | {
+      readonly inserts: SqlStatement[];
+      readonly kind: "posted";
+      readonly results: PostResult[];
+    }
+  | { readonly error: LedgerConflictError; readonly kind: "conflict" };
+
+const planTransferBatch = (
+  groups: TransferInput[][],
+  snapshot: BatchSnapshot,
+  recordedAt: string,
+): PlannedTransferBatch => {
+  const inserts: SqlStatement[] = [];
+  try {
+    const results = groups.map((inputs) => {
+      if (inputs.length === 0) return EMPTY_RESULT;
+      const planned = planGroup(inputs, snapshot, recordedAt, orIgnore);
+      inserts.push(...planned.inserts);
+      return planned.result;
+    });
+    return { inserts, kind: "posted", results };
+  } catch (error) {
+    if (!(error instanceof LedgerConflictError)) throw error;
+    return { error, kind: "conflict" };
+  }
+};
+
+/**
+ * Post several independent sets of event groups from one ledger snapshot and
+ * one write. A stored-data conflict rejects only its own set; malformed input
+ * and database failures still reject the whole call.
+ */
+export const postTransferGroupBatches = async (
+  batches: TransferInput[][][],
+): Promise<PostTransferBatchResult[]> => {
+  const groups = batches.flat();
+  const nonEmpty = groups.filter((inputs) => inputs.length > 0);
+  if (nonEmpty.length === 0) {
+    return batches.map((batch) => ({
+      kind: "posted",
+      results: batch.map(() => EMPTY_RESULT),
+    }));
+  }
+  assertUniqueGroups(groups);
   const snapshot = await loadBatchSnapshot(nonEmpty, fromDb);
   const recordedAt = nowIso();
-  const inserts: SqlStatement[] = [];
-  const planned = nonEmpty.map((inputs) => {
-    // INSERT OR IGNORE so a leg a concurrent poster committed between the
-    // snapshot read and this write is skipped rather than violating the unique
-    // reference (the same idempotent-insert approach the backfill uses);
-    // references are deterministic, so an ignored row is byte-identical to the
-    // one already there. Only this pre-write-snapshot path needs it — the
-    // in-transaction path reads under the write lock and inserts plain.
-    const { inserts: groupInserts, result } = planGroup(
-      inputs,
-      snapshot,
-      recordedAt,
-      orIgnore,
-    );
-    inserts.push(...groupInserts);
-    return result;
-  });
-  if (inserts.length > 0) await executeBatch(inserts);
-  // Re-expand to match the caller's groups, slotting EMPTY_RESULT for the empties
-  // that were filtered out before planning.
-  let next = 0;
-  return groups.map((inputs) =>
-    inputs.length > 0 ? planned[next++]! : EMPTY_RESULT,
+  const planned = batches.map((batch) =>
+    planTransferBatch(batch, snapshot, recordedAt),
   );
+  const inserts = planned.flatMap((batch) =>
+    batch.kind === "posted" ? batch.inserts : [],
+  );
+  if (inserts.length > 0) await executeBatch(inserts);
+  return planned.map((batch) =>
+    batch.kind === "conflict"
+      ? batch
+      : { kind: batch.kind, results: batch.results },
+  );
+};
+
+export const postTransferGroups = async (
+  groups: TransferInput[][],
+): Promise<PostResult[]> => {
+  const result = (await postTransferGroupBatches([groups]))[0];
+  if (result === undefined) {
+    throw new Error("Ledger post omitted its transfer batch");
+  }
+  if (result.kind === "conflict") throw result.error;
+  return result.results;
 };

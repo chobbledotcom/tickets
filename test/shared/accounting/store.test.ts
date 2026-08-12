@@ -7,6 +7,7 @@ import {
   transfersByEventGroup,
 } from "#shared/accounting/queries.ts";
 import {
+  postTransferGroupBatches,
   postTransferGroups,
   postTransfers,
   postTransfersTx,
@@ -323,6 +324,18 @@ describe("db > accounting > store", () => {
       expect(error).toBeInstanceOf(LedgerConflictError);
       expect(error.message).toContain("different event");
       expect((await allTransfers()).length).toBe(1);
+    });
+
+    test("posts clean batches while returning a stored conflict beside them", async () => {
+      await postTransfers([tx({ eventGroup: "evt-a", reference: "shared" })]);
+      const results = await postTransferGroupBatches([
+        [event("evt-clean", 2)],
+        [[tx({ eventGroup: "evt-conflict", reference: "shared" })]],
+      ]);
+
+      expect(results[0]).toMatchObject({ kind: "posted" });
+      expect(results[1]).toMatchObject({ kind: "conflict" });
+      expect((await allTransfers()).length).toBe(3);
     });
 
     test("rejects a duplicate reference across two groups in the batch", async () => {

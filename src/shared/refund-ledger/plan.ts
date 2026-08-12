@@ -8,8 +8,9 @@ import {
   mapRefund,
   refundEventGroup,
 } from "#shared/accounting/mappers.ts";
-import { transfersByAccount } from "#shared/accounting/queries.ts";
+import { transfersByAccounts } from "#shared/accounting/queries.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
+import { accountKey } from "#shared/ledger/account.ts";
 import { legMatches } from "#shared/ledger/legs.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
@@ -34,7 +35,7 @@ const computedRefund = (
   postFailureResult: RefundLedgerResult = result,
 ): ComputedRefund => ({ groups, postFailureResult, result });
 
-type RefundPlanInput = {
+export type RefundPlanInput = {
   readonly attendeeId: number;
   readonly memo?: string;
   readonly references: RefundReferences;
@@ -236,13 +237,12 @@ const canReverseReturnedGroup = (facts: RefundGroupFacts): boolean =>
 const hasUnsettledObligation = (facts: RefundGroupFacts): boolean =>
   facts.hasProviderPayment && !facts.paymentOnly && !facts.settled;
 
-/** Compute the exact reversals and reference outcomes without posting them. */
-export const computeAttendeeRefund = async (
+const computeAttendeeRefundFromLegs = async (
   input: RefundPlanInput,
+  legs: Transfer[],
 ): Promise<ComputedRefund> => {
   const { attendeeId, memo, references } = input;
   const account = attendeeAccount(attendeeId);
-  const legs = await transfersByAccount(account);
   const groups = accountRefundGroups(legs);
   const returned = await returnedRefundGroups(groups, references);
   const factsFor = (group: AccountRefundGroup): RefundGroupFacts =>
@@ -290,4 +290,36 @@ export const computeAttendeeRefund = async (
     result,
     postFailureResult,
   );
+};
+
+/** Compute exact reversals for every attendee after one shared ledger read. */
+export const computeAttendeeRefunds = async (
+  inputs: readonly RefundPlanInput[],
+): Promise<ComputedRefund[]> => {
+  const accounts = inputs.map(({ attendeeId }) => attendeeAccount(attendeeId));
+  const transfers = await transfersByAccounts(accounts);
+  return await Promise.all(
+    inputs.map((input) => {
+      const account = attendeeAccount(input.attendeeId);
+      const legs = transfers.get(accountKey(account));
+      if (legs === undefined) {
+        throw new Error(
+          `Refund ledger read omitted attendee ${input.attendeeId}`,
+        );
+      }
+      return computeAttendeeRefundFromLegs(input, legs);
+    }),
+  );
+};
+
+/** Compute the exact reversals and reference outcomes without posting them. */
+export const computeAttendeeRefund = async (
+  input: RefundPlanInput,
+): Promise<ComputedRefund> => {
+  const computed = await computeAttendeeRefunds([input]);
+  const result = computed[0];
+  if (result === undefined) {
+    throw new Error(`Refund ledger omitted attendee ${input.attendeeId}`);
+  }
+  return result;
 };

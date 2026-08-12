@@ -13,6 +13,7 @@ import {
   standDownPreparedCandidate,
 } from "./attempt.ts";
 import {
+  type PreparedRefundBudget,
   type RefundDispatchBudgetCheckpoint,
   type RefundSendBudgetReference,
   refundPreparedSubrequestCost,
@@ -67,12 +68,26 @@ const sendReferencesOf = (
     ),
   );
 
+const preparedBudgetOf = (
+  waves: readonly (readonly PreparedCandidateRefund[])[],
+): PreparedRefundBudget => ({
+  mayRecordReturns: waves.some((wave) =>
+    wave.some(({ attempts }) =>
+      attempts.some(
+        (attempt) =>
+          attempt.kind === "ready" || attempt.result.outcome === "refunded",
+      ),
+    ),
+  ),
+  sendReferences: sendReferencesOf(waves),
+});
+
 const budgetFits = (
-  references: readonly RefundSendBudgetReference[],
+  prepared: PreparedRefundBudget,
   checkpoint: RefundDispatchBudgetCheckpoint,
 ): boolean =>
   subrequestCostFits(
-    refundPreparedSubrequestCost(references, checkpoint),
+    refundPreparedSubrequestCost(prepared, checkpoint),
     getSubrequestRemaining(),
   );
 
@@ -177,12 +192,13 @@ export const dispatchRefundBatch = async (
 ): Promise<RefundDispatchBatchResult> => {
   const waves = await prepareWaves(candidates, listingId);
   rememberPreparedEvidence(waves, held.findings);
-  const references = sendReferencesOf(waves);
+  const budget = preparedBudgetOf(waves);
+  const references = budget.sendReferences;
   const refuseForBudget = (): RefundDispatchBatchResult => {
     rememberStandDown(waves, held.findings, new Set(held.inherited.keys()));
     return { kind: "budget_refused" };
   };
-  if (!budgetFits(references, "before_dispatch_arm")) {
+  if (!budgetFits(budget, "before_dispatch_arm")) {
     return refuseForBudget();
   }
 
@@ -200,7 +216,7 @@ export const dispatchRefundBatch = async (
       attendeesByReference(candidates),
       held.findings,
     );
-    if (!budgetFits(references, "before_provider_send")) {
+    if (!budgetFits(budget, "before_provider_send")) {
       return refuseForBudget();
     }
   }

@@ -7,6 +7,7 @@ import {
   type RefundPaymentReference,
 } from "#shared/db/payment-references.ts";
 import { orderedCredentialedPaymentProviderTypes } from "#shared/existing-payment-provider.ts";
+import { REFUND_LEDGER_BATCH_DATABASE_CALLS } from "#shared/refund-ledger/record.ts";
 import { SQUARE_MAX_NETWORK_RETRIES } from "#shared/square/transport.ts";
 import { STRIPE_MAX_NETWORK_RETRIES } from "#shared/stripe/request.ts";
 import type { SubrequestCounts } from "#shared/subrequest-budget.ts";
@@ -16,8 +17,7 @@ import type { PaymentProviderType } from "#shared/types.ts";
 export type RefundBudgetAudience = "bulk" | "single";
 
 export const REFUND_BUDGET_MESSAGES = {
-  bulk:
-    "This run has too many payments to refund at once. Refund fewer attendees at a time.",
+  bulk: "This run has too many payments to refund at once. Refund fewer attendees at a time.",
   single:
     "This attendee has too many payments to refund in one go. Refund them from the provider dashboard.",
 } satisfies Record<RefundBudgetAudience, string>;
@@ -75,7 +75,7 @@ const PROVIDER_CALL_STAGES = {
 
 const logicalCallsAt = (
   stage: ProviderCallStage,
-): (plan: ProviderCallPlan) => number => {
+): ((plan: ProviderCallPlan) => number) => {
   const calls = {
     complete: ({ judgmentReads, recoveryReads, sends }: ProviderCallPlan) =>
       judgmentReads + recoveryReads + sends,
@@ -106,19 +106,21 @@ const untaggedReferenceCalls = ({
 }: ReadinessProviderCalls): number =>
   sum(
     providers.map((provider) =>
-      physicalCalls(provider, ({ judgmentReads }) => judgmentReads)
+      physicalCalls(provider, ({ judgmentReads }) => judgmentReads),
     ),
   ) +
-  (stage === "judgment" ? 0 : Math.max(
-    0,
-    ...providers.map((provider) =>
-      physicalCalls(provider, logicalCallsAt("send"))
-    ),
-  ));
+  (stage === "judgment"
+    ? 0
+    : Math.max(
+        0,
+        ...providers.map((provider) =>
+          physicalCalls(provider, logicalCallsAt("send")),
+        ),
+      ));
 
 const referenceCalls = (
   calls: ReadinessProviderCalls,
-): (reference: RefundPaymentReference) => number => {
+): ((reference: RefundPaymentReference) => number) => {
   const { providers, stage } = calls;
   const configured = new Set(providers);
   return (reference) =>
@@ -127,11 +129,17 @@ const referenceCalls = (
       : untaggedReferenceCalls(calls);
 };
 
-const activeReferences = (
+const refundReferences = (
   candidates: readonly RefundBudgetCandidate[],
+): RefundPaymentReference[] => [
+  ...paymentReferencesByIndex(candidates).values(),
+];
+
+const activeReferences = (
+  references: readonly RefundPaymentReference[],
   returned: ReadonlySet<string>,
 ): RefundPaymentReference[] =>
-  [...paymentReferencesByIndex(candidates).values()].filter(
+  references.filter(
     (reference) =>
       reference.refundState !== "completed" && !returned.has(reference.index),
   );
@@ -154,43 +162,71 @@ export type RefundDispatchBudgetCheckpoint = Extract<
 >;
 
 type DatabaseCallPlan = {
-  readonly always: number;
-  readonly transactionHeadroom: number;
-  readonly whenSending: number;
+  readonly fixed: number;
+  readonly whenArming: number;
+  readonly whenRecordingReturns: number;
 };
 
+const CLAIM_DATABASE_CALLS = 6;
+const CLAIM_DATABASE_CALLS_AFTER_ADMISSION = 2;
+const PROVIDER_BINDING_DATABASE_CALLS = 4;
+const DISPATCH_ARM_DATABASE_CALLS = 4;
+const TRANSACTION_ROLLBACK_HEADROOM = 1;
+const RETURNED_MARKER_DATABASE_CALLS = 1;
+const RETURNED_PAYMENT_DATABASE_CALLS =
+  RETURNED_MARKER_DATABASE_CALLS + REFUND_LEDGER_BATCH_DATABASE_CALLS;
+
 /**
- * Each checkpoint owns only the database boundary that must finish before the
- * next safe refusal. A following transaction also needs one untouched rollback
- * call while it runs. Settlement and the caller tail have nested reserves.
+ * Each checkpoint prices only work before its next safe refusal. Arming is its
+ * own transaction; recording a return is one marker write plus the fixed refund
+ * ledger batch. Settlement and the caller tail have separate nested reserves.
  */
 const DATABASE_CALL_PLANS = {
   before_claim: {
-    always: 6 + 4,
-    transactionHeadroom: 1,
-    whenSending: 4,
+    fixed:
+      CLAIM_DATABASE_CALLS +
+      PROVIDER_BINDING_DATABASE_CALLS +
+      TRANSACTION_ROLLBACK_HEADROOM,
+    whenArming: DISPATCH_ARM_DATABASE_CALLS,
+    whenRecordingReturns: RETURNED_PAYMENT_DATABASE_CALLS,
   },
   before_dispatch_arm: {
-    always: 0,
-    transactionHeadroom: 1,
-    whenSending: 4,
+    fixed: 0,
+    whenArming: DISPATCH_ARM_DATABASE_CALLS + TRANSACTION_ROLLBACK_HEADROOM,
+    whenRecordingReturns: RETURNED_PAYMENT_DATABASE_CALLS,
   },
   before_provider_read: {
-    always: 4,
-    transactionHeadroom: 1,
-    whenSending: 0,
+    fixed: PROVIDER_BINDING_DATABASE_CALLS + TRANSACTION_ROLLBACK_HEADROOM,
+    whenArming: 0,
+    whenRecordingReturns: 0,
   },
   before_provider_send: {
-    always: 0,
-    transactionHeadroom: 0,
-    whenSending: 0,
+    fixed: 0,
+    whenArming: 0,
+    whenRecordingReturns: RETURNED_PAYMENT_DATABASE_CALLS,
   },
   inside_claim: {
-    always: 2 + 4,
-    transactionHeadroom: 1,
-    whenSending: 4,
+    fixed:
+      CLAIM_DATABASE_CALLS_AFTER_ADMISSION +
+      PROVIDER_BINDING_DATABASE_CALLS +
+      TRANSACTION_ROLLBACK_HEADROOM,
+    whenArming: DISPATCH_ARM_DATABASE_CALLS,
+    whenRecordingReturns: RETURNED_PAYMENT_DATABASE_CALLS,
   },
 } satisfies Record<RefundBudgetCheckpoint, DatabaseCallPlan>;
+
+type DatabaseCallFacts = {
+  readonly mayArm: boolean;
+  readonly mayRecordReturns: boolean;
+};
+
+const databaseCallsAt = (
+  plan: DatabaseCallPlan,
+  facts: DatabaseCallFacts,
+): number =>
+  plan.fixed +
+  (facts.mayArm ? plan.whenArming : 0) +
+  (facts.mayRecordReturns ? plan.whenRecordingReturns : 0);
 
 const zeroSubrequests = (): SubrequestCounts => ({
   database: 0,
@@ -214,13 +250,15 @@ export const refundSubrequestCost = (
   if (candidates.length === 0) return zeroSubrequests();
   const configured = providers ?? orderedCredentialedPaymentProviderTypes();
   const databasePlan = DATABASE_CALL_PLANS[checkpoint];
-  const references = activeReferences(candidates, returned);
-  const database = databasePlan.always +
-    databasePlan.transactionHeadroom +
-    (references.length === 0 ? 0 : databasePlan.whenSending);
+  const references = refundReferences(candidates);
+  const active = activeReferences(references, returned);
+  const database = databaseCallsAt(databasePlan, {
+    mayArm: active.length > 0,
+    mayRecordReturns: references.length > 0,
+  });
   const stage = PROVIDER_CALL_STAGES[checkpoint];
   const external = sum(
-    references.map(referenceCalls({ providers: configured, stage })),
+    active.map(referenceCalls({ providers: configured, stage })),
   );
   return withDatabaseCalls(database, external);
 };
@@ -230,20 +268,29 @@ export type RefundSendBudgetReference = {
   readonly provider: PaymentProviderType;
 };
 
+export type PreparedRefundBudget = {
+  readonly mayRecordReturns: boolean;
+  readonly sendReferences: readonly RefundSendBudgetReference[];
+};
+
 /** The late gates use the exact provider-tagged plans that preparation proved. */
 export const refundPreparedSubrequestCost = (
-  references: readonly RefundSendBudgetReference[],
+  prepared: PreparedRefundBudget,
   checkpoint: RefundDispatchBudgetCheckpoint,
 ): SubrequestCounts => {
-  if (references.length === 0) return zeroSubrequests();
+  const { mayRecordReturns, sendReferences } = prepared;
+  if (sendReferences.length === 0 && !mayRecordReturns) {
+    return zeroSubrequests();
+  }
   const databasePlan = DATABASE_CALL_PLANS[checkpoint];
-  const database = databasePlan.always +
-    databasePlan.transactionHeadroom +
-    databasePlan.whenSending;
+  const database = databaseCallsAt(databasePlan, {
+    mayArm: sendReferences.length > 0,
+    mayRecordReturns,
+  });
   const stage = PROVIDER_CALL_STAGES[checkpoint];
   const external = sum(
-    references.map(({ provider }) =>
-      physicalCalls(provider, logicalCallsAt(stage))
+    sendReferences.map(({ provider }) =>
+      physicalCalls(provider, logicalCallsAt(stage)),
     ),
   );
   return withDatabaseCalls(database, external);

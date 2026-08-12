@@ -13,7 +13,9 @@ import {
 import { legReference } from "#shared/accounting/refs.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
+import { runWithQueryLogContext } from "#shared/db/query-log.ts";
 import {
+  REFUND_LEDGER_BATCH_DATABASE_CALLS,
   recordAttendeeRefund,
   recordAttendeeRefundsBatch,
 } from "#shared/refund-ledger/record.ts";
@@ -29,6 +31,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
+import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 describeWithEnv(
   "refund-ledger > recordAttendeeRefundsBatch",
@@ -58,6 +61,33 @@ describeWithEnv(
           ).length,
         ).toBe(1);
       }
+    });
+
+    test("keeps ledger work fixed for a listing-wide returned set", async () => {
+      const attendeeIds = Array.from({ length: 30 }, (_, index) => 30 + index);
+      for (const attendeeId of attendeeIds) {
+        await postBooking({
+          attendeeId,
+          eventId: `sess-${attendeeId}`,
+        });
+      }
+
+      const calls = await runWithQueryLogContext(() =>
+        countDatabaseCalls(REFUND_LEDGER_BATCH_DATABASE_CALLS, () =>
+          recordAttendeeRefundsBatch(
+            attendeeIds.map((attendeeId) =>
+              refundTarget(attendeeId, `sess-${attendeeId}`),
+            ),
+          ),
+        ),
+      );
+
+      expect(calls).toBe(REFUND_LEDGER_BATCH_DATABASE_CALLS);
+      expect(
+        refundLegsOf(await allTransfers()).filter(
+          (leg) => leg.kind === "refund_cash",
+        ).length,
+      ).toBe(attendeeIds.length);
     });
 
     test("reports false for guard-skipped attendees and posts nothing", async () => {
@@ -171,10 +201,6 @@ describeWithEnv(
       expect(
         refundLegsOf(await transfersByAccount(attendeeAccount(18))).length,
       ).toBe(0);
-      const logged = errors.calls.map((call) => String(call.args[0]));
-      expect(
-        logged.some((message) => message.includes("bulk refund batch failed")),
-      ).toBe(true);
       expect(errors.lastMessage()).toContain("E_LEDGER_POST");
       expect(errors.lastMessage()).toContain(
         "refund ledger post failed for attendee 18:",

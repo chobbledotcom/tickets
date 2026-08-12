@@ -103,6 +103,7 @@ describe("admin refund provider > provider wave writes", () => {
       "pi_second_c",
     ];
     const source = provider({
+      paymentProvider: "square",
       refund: async (request) => {
         events.push(`send:start:${request.paymentReference}`);
         await Promise.resolve();
@@ -151,7 +152,7 @@ describe("admin refund provider > provider wave writes", () => {
     expect(armedIndexes).toHaveLength(1);
     expect(new Set(armedIndexes[0])).toEqual(
       new Set(
-        liveReferences.map((reference) => `index_of_stripe_${reference}`),
+        liveReferences.map((reference) => `index_of_square_${reference}`),
       ),
     );
     expect(new Set(source.refunds)).toEqual(new Set(liveReferences));
@@ -197,7 +198,7 @@ describe("admin refund provider > provider wave writes", () => {
     expect(claim.released).toEqual([[]]);
   });
 
-  test("preserves a later returned row when the first wave ledger fails", async () => {
+  test("preserves every returned row when the combined ledger write fails", async () => {
     const activeReferences = Array.from(
       { length: 5 },
       (_, index) => `pi_active_${index}`,
@@ -222,20 +223,23 @@ describe("admin refund provider > provider wave writes", () => {
     const claim = grantingRowClaim(held);
     const source = provider({ refunded: new Set(activeReferences) });
     let ledgerCalls = 0;
+    let postedAttendees: number[] = [];
 
     await expect(
       processRefundBatchAt(source, attendees, 7, {
         claim,
         markReturned: () => Promise.resolve(),
-        record: () => {
+        record: (postings) => {
           ledgerCalls++;
-          return Promise.reject(new Error("the first wave ledger failed"));
+          postedAttendees = postings.map(({ attendeeId }) => attendeeId);
+          return Promise.reject(new Error("the combined ledger write failed"));
         },
       }),
-    ).rejects.toThrow("the first wave ledger failed");
+    ).rejects.toThrow("the combined ledger write failed");
 
     expect(new Set(source.refunds)).toEqual(new Set(activeReferences));
     expect(ledgerCalls).toBe(1);
+    expect(postedAttendees).toEqual([11, 12]);
     expect(claim.unrecorded).toHaveLength(1);
     expect(claim.unrecorded[0]).toContain(`sess_${returnedReference}`);
   });

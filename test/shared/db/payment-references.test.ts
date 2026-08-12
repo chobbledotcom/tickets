@@ -25,6 +25,7 @@ import {
   refundReferencesFor,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
+import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 describeWithEnv("db > payment references", { db: true }, () => {
   test("PII-only payment ids are not refund references", async () => {
@@ -66,7 +67,9 @@ describeWithEnv("db > payment references", { db: true }, () => {
     expect(before[0]!.kind).toBe("tagged");
     expect(before[0]!.refundState).toBe("none");
 
-    await markPaymentReferencesProviderRefunded(before);
+    const markerCalls = await countDatabaseCalls(1, () =>
+      markPaymentReferencesProviderRefunded(before),
+    );
 
     const after = (
       await getRefundPaymentReferences(
@@ -76,6 +79,7 @@ describeWithEnv("db > payment references", { db: true }, () => {
     ).get(attendeeId)!;
     expect(after[0]!.kind).toBe("tagged");
     expect(after[0]!.refundState).toBe("completed");
+    expect(markerCalls).toBe(1);
   });
 
   test("a legacy merge with no payment id needs no statement", async () => {
@@ -257,7 +261,7 @@ describeWithEnv(
 describe("db > payment references > still with the provider", () => {
   const withStates = (...states: RefundState[]) =>
     states.map((refundState, index) =>
-      refundReference(`pi_${index}`, { refundState })
+      refundReference(`pi_${index}`, { refundState }),
     );
 
   test("a watched charge not seen back is still out", () => {
