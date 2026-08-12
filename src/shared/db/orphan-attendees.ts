@@ -16,8 +16,27 @@
  * the ledger UI labels the missing row "Deleted listing".
  */
 
-import { attendeeDependentDeleteStatements } from "#shared/db/attendees/delete.ts";
-import { executeBatchWithResults, requireOne } from "#shared/db/client.ts";
+import { attendeeRemovalStatements } from "#shared/db/attendees/delete.ts";
+import {
+  executeBatchWithResults,
+  queryIdColumn,
+  requireOne,
+} from "#shared/db/client.ts";
+
+/** The shared database fact behind both kinds of orphan: no booking points at
+ * the attendee. Keep it separate from age and payment state so cleanup and the
+ * recovery queue cannot disagree about whether an attendee is an orphan. */
+const HAS_NO_BOOKINGS = `NOT EXISTS (
+        SELECT 1 FROM listing_attendees AS booking
+         WHERE booking.attendee_id = attendee.id
+      )`;
+
+/** A payment row whose plaintext mirror says work still blocks deletion. */
+const HAS_PAYMENT_WORK = `EXISTS (
+        SELECT 1 FROM processed_payments AS payment
+         WHERE payment.attendee_id = attendee.id
+           AND payment.protected_state != ''
+      )`;
 
 /**
  * Selects the ids of orphaned attendees older than the bound cut-off. Defined
@@ -33,15 +52,23 @@ import { executeBatchWithResults, requireOne } from "#shared/db/client.ts";
 export const ORPHAN_IDS = `SELECT attendee.id
      FROM attendees AS attendee
     WHERE attendee.created < ?
-      AND NOT EXISTS (
-        SELECT 1 FROM listing_attendees AS booking
-         WHERE booking.attendee_id = attendee.id
-      )
-      AND NOT EXISTS (
-        SELECT 1 FROM processed_payments AS payment
-         WHERE payment.attendee_id = attendee.id
-           AND payment.protected_state != ''
-      )`;
+      AND ${HAS_NO_BOOKINGS}
+      AND NOT ${HAS_PAYMENT_WORK}`;
+
+/**
+ * Find every orphan kept alive by refund or payment-review work. Only ids and
+ * the plaintext payment-state mirror are read; attendee PII is never loaded or
+ * decrypted. These records stay visible regardless of age until their work is
+ * resolved and ordinary orphan cleanup can take them.
+ */
+export const getOrphanAttendeeIdsWithPaymentWork = (): Promise<number[]> =>
+  queryIdColumn(
+    `SELECT attendee.id
+       FROM attendees AS attendee
+      WHERE ${HAS_NO_BOOKINGS}
+        AND ${HAS_PAYMENT_WORK}
+      ORDER BY attendee.id`,
+  );
 
 /**
  * The same orphans, bounded for one scheduled maintenance batch.
@@ -54,8 +81,8 @@ export const ORPHAN_IDS = `SELECT attendee.id
 export const orphanIdsBatch = (): string =>
   `${ORPHAN_IDS}\n ORDER BY attendee.id LIMIT ?`;
 
-/** Count orphaned attendees whose `created` is before `cutoffIso`. */
-export const countOrphanedAttendees = async (
+/** Count purgeable orphans whose `created` is before `cutoffIso`. */
+export const countPurgeableOrphanedAttendees = async (
   cutoffIso: string,
 ): Promise<number> => {
   // COUNT(*) always returns exactly one row, so the result is never null.
@@ -76,7 +103,7 @@ export const purgeOrphanedAttendees = async (
   cutoffIso: string,
 ): Promise<number> => {
   const statements = [
-    ...attendeeDependentDeleteStatements({
+    ...attendeeRemovalStatements({
       args: [cutoffIso],
       sql: ORPHAN_IDS,
     }),

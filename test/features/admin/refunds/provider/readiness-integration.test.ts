@@ -251,6 +251,22 @@ describe("admin refund provider readiness integration", () => {
     expect(counts.failedCount).toBe(1);
     expect(writes.marked).toEqual([]);
     expect(writes.recorded).toEqual([]);
+    expect(claim.settlements).toEqual([
+      {
+        commandId: "test-command",
+        heldSince: HELD_SINCE,
+        rows: new Map([
+          [
+            reference.rowSessionIds[0],
+            {
+              books: "unrecorded",
+              claim: "release",
+              phase: "checking",
+            },
+          ],
+        ]),
+      },
+    ]);
     expect(
       errors.contains(
         "an older returned-payment marker needs its provider recorded before this refund can continue",
@@ -312,7 +328,7 @@ describe("admin refund provider readiness integration", () => {
     expect(counts.refundedCount).toBe(1);
   });
 
-  test("turns exact inherited keyless indexes into owner review", async () => {
+  test("stands an exact batch down when an inherited keyless index needs review", async () => {
     const sumup = recordingProvider("sumup", "keyless");
     const stripe = recordingProvider("stripe");
     const staleRef = taggedReference("sumup", "collision", "s", "row_1");
@@ -356,12 +372,10 @@ describe("admin refund provider readiness integration", () => {
     expect(sumup.requests).toEqual([]);
     expect(
       stripe.requests.map(({ paymentReference }) => paymentReference),
-    ).toEqual(["collision"]);
-    expect(counts.failedCount).toBe(2);
-    expect(counts.refundedCount).toBe(1);
-    expect(writes.marked.flat().map(({ index }) => index)).toEqual([
-      stripeRef.index,
-    ]);
+    ).toEqual([]);
+    expect(counts.failedCount).toBe(3);
+    expect(counts.refundedCount).toBe(0);
+    expect(writes.marked).toEqual([]);
     expect(releasedRows(claim.settlements)).toEqual([
       ["row_1", "row_2", "row_3"],
     ]);

@@ -56,14 +56,14 @@ describeWithEnv(
           }),
         );
         const response = await adminGet(`/admin/attendees/${attendee.id}`);
-        await expectHtmlResponse(
+        const html = await expectHtmlResponse(
           response,
           200,
           "Payment Details",
           "pi_test_123",
           "Not refunded",
-          "Refresh payment status",
         );
+        expect(html).not.toContain("Refresh payment status");
       });
 
       test("links the payment id to the configured provider dashboard", async () => {

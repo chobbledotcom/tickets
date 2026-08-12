@@ -19,7 +19,8 @@ import {
   isContactChannel,
 } from "#shared/db/contact-preferences.ts";
 import {
-  countOrphanedAttendees,
+  countPurgeableOrphanedAttendees,
+  getOrphanAttendeeIdsWithPaymentWork,
   purgeOrphanedAttendees,
 } from "#shared/db/orphan-attendees.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -35,14 +36,18 @@ const PRIVACY_PATH = "/admin/privacy";
 
 /** GET /admin/privacy — explainer plus the orphan-purge and erasure forms. */
 const handlePrivacyGet = ownerPage(async (session) => {
-  const orphanCount = await countOrphanedAttendees(nowIso());
+  const [purgeableOrphanCount, paymentWorkAttendeeIds] = await Promise.all([
+    countPurgeableOrphanedAttendees(nowIso()),
+    getOrphanAttendeeIdsWithPaymentWork(),
+  ]);
   const flash = getFlash();
   return adminPrivacyPage(session, {
     autoPurgeOrphans: settings.autoPurgeOrphans,
     error: flash.error,
     info: flash.info,
-    orphanCount,
     orphanRetention: settings.orphanPurgeRetention,
+    paymentWorkAttendeeIds,
+    purgeableOrphanCount,
     success: flash.success,
   });
 });

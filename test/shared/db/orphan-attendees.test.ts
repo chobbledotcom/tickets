@@ -18,8 +18,10 @@ import {
 } from "#shared/db/client.ts";
 import { createSystemNote, getNoteRows } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
+import { assignBuiltSite, insertBuiltSite } from "#shared/db/built-sites.ts";
 import {
-  countOrphanedAttendees,
+  countPurgeableOrphanedAttendees,
+  getOrphanAttendeeIdsWithPaymentWork,
   purgeOrphanedAttendees,
 } from "#shared/db/orphan-attendees.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
@@ -27,7 +29,11 @@ import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { CLAIM_MIRROR } from "#test-utils/payment-claim.ts";
+import {
+  CLAIM_MIRROR,
+  REVIEW_MIRROR,
+  UNRECORDED_MIRROR,
+} from "#test-utils/payment-claim.ts";
 import { insertRefundConfirmationFixture } from "#test-utils/refund-confirmations.ts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -57,6 +63,21 @@ const attendeeExists = async (id: number): Promise<boolean> => {
   return row !== null;
 };
 
+/** Give an attendee one payment row carrying the named blocking mirror. */
+const addPaymentWork = async (
+  attendeeId: number,
+  protectedState: string,
+): Promise<void> => {
+  await getDb().execute(
+    insert("processed_payments", {
+      attendee_id: attendeeId,
+      payment_session_id: `ps-held-${attendeeId}`,
+      processed_at: nowIso(),
+      protected_state: protectedState,
+    }),
+  );
+};
+
 /** Count rows in a child table for the given attendee. */
 const childCount = async (
   table: string,
@@ -71,10 +92,10 @@ const childCount = async (
 };
 
 describeWithEnv("db > orphan-attendees", { db: true }, () => {
-  describe("countOrphanedAttendees", () => {
+  describe("countPurgeableOrphanedAttendees", () => {
     test("counts an attendee with no listing booking", async () => {
       await insertOrphan(daysAgoIso(365));
-      expect(await countOrphanedAttendees(nowIso())).toBe(1);
+      expect(await countPurgeableOrphanedAttendees(nowIso())).toBe(1);
     });
 
     test("ignores an attendee that still has a booking", async () => {
@@ -84,13 +105,13 @@ describeWithEnv("db > orphan-attendees", { db: true }, () => {
         "Booked",
         "booked@example.com",
       );
-      expect(await countOrphanedAttendees(nowIso())).toBe(0);
+      expect(await countPurgeableOrphanedAttendees(nowIso())).toBe(0);
     });
 
     test("ignores orphans newer than the cut-off", async () => {
       await insertOrphan(nowIso());
       const cutoff = new Date(nowMs() - 60_000).toISOString();
-      expect(await countOrphanedAttendees(cutoff)).toBe(0);
+      expect(await countPurgeableOrphanedAttendees(cutoff)).toBe(0);
     });
   });
 
@@ -183,6 +204,27 @@ describeWithEnv("db > orphan-attendees", { db: true }, () => {
 
       expect(await childCount("checkout_stages", id)).toBe(0);
     });
+
+    test("detaches a built site from an orphan before purging it", async () => {
+      const id = await insertOrphan(daysAgoIso(365));
+      const site = await insertBuiltSite(
+        "Orphan site",
+        "orphan-site.example.test",
+        "",
+        "",
+        true,
+      );
+      await assignBuiltSite(site.id, id, 99);
+
+      await purgeOrphanedAttendees(nowIso());
+
+      expect(
+        await queryOne<{ assigned_attendee_id: number | null }>(
+          "SELECT assigned_attendee_id FROM built_sites WHERE id = ?",
+          [site.id],
+        ),
+      ).toEqual({ assigned_attendee_id: null });
+    });
   });
 
   describe("an orphan whose payment is still being worked on", () => {
@@ -191,22 +233,43 @@ describeWithEnv("db > orphan-attendees", { db: true }, () => {
      *  orphan than the prune can, so this plaintext word is all it reads. */
     const heldOrphan = async (): Promise<number> => {
       const id = await insertOrphan(daysAgoIso(365));
-      await getDb().execute(
-        insert("processed_payments", {
-          attendee_id: id,
-          payment_session_id: `ps-held-${id}`,
-          processed_at: nowIso(),
-          protected_state: CLAIM_MIRROR,
-        }),
-      );
+      await addPaymentWork(id, CLAIM_MIRROR);
       return id;
     };
+
+    test("lists each kind of blocking work in the owner recovery queue", async () => {
+      const claimId = await insertOrphan(nowIso());
+      await addPaymentWork(claimId, CLAIM_MIRROR);
+      const reviewId = await insertOrphan(nowIso());
+      await addPaymentWork(reviewId, REVIEW_MIRROR);
+      const unrecordedId = await insertOrphan(nowIso());
+      await addPaymentWork(unrecordedId, UNRECORDED_MIRROR);
+
+      expect(await getOrphanAttendeeIdsWithPaymentWork()).toEqual([
+        claimId,
+        reviewId,
+        unrecordedId,
+      ]);
+    });
+
+    test("does not call a booked attendee or finished payment an orphan", async () => {
+      await insertOrphan(daysAgoIso(365));
+      const listing = await createTestListing();
+      const { attendee } = await createTestAttendeeDirect(
+        listing.id,
+        "Booked",
+        "booked@example.com",
+      );
+      await addPaymentWork(attendee.id, CLAIM_MIRROR);
+
+      expect(await getOrphanAttendeeIdsWithPaymentWork()).toEqual([]);
+    });
 
     test("is not offered up for purging", async () => {
       const id = await heldOrphan();
       // The count and the delete share one clause, so a page that offered to
       // remove this orphan would promise something the purge then refuses.
-      expect(await countOrphanedAttendees(nowIso())).toBe(0);
+      expect(await countPurgeableOrphanedAttendees(nowIso())).toBe(0);
       expect(await attendeeExists(id)).toBe(true);
     });
 

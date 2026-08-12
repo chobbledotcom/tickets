@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { deleteAttendee } from "#shared/db/attendees/delete.ts";
 import { getAttendeeOrNull } from "#shared/db/attendees/queries.ts";
+import { assignBuiltSite, insertBuiltSite } from "#shared/db/built-sites.ts";
 import { getDb, queryOne } from "#shared/db/client.ts";
 import {
   getListingWithCount,
@@ -89,6 +90,33 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
       [attendee.id],
     );
     expect(stage?.count).toBe(0);
+  });
+
+  test("detaches a built site before removing its attendee", async () => {
+    const listing = await createTestListing({ maxAttendees: 50 });
+    const attendee = await createTestAttendee(
+      listing.id,
+      listing.slug,
+      "Built Site Owner",
+      "built-site-owner@example.com",
+    );
+    const site = await insertBuiltSite(
+      "Attendee site",
+      "attendee-site.example.test",
+      "",
+      "",
+      true,
+    );
+    await assignBuiltSite(site.id, attendee.id, listing.id);
+
+    await deleteAttendee(attendee.id);
+
+    expect(
+      await queryOne<{ assigned_attendee_id: number | null }>(
+        "SELECT assigned_attendee_id FROM built_sites WHERE id = ?",
+        [site.id],
+      ),
+    ).toEqual({ assigned_attendee_id: null });
   });
 
   test("releases listing aggregate totals by default", async () => {

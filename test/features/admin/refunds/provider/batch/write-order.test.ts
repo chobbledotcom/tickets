@@ -92,6 +92,79 @@ describe("admin refund provider > provider wave writes", () => {
     expect(counts.refundedCount).toBe(3);
   });
 
+  test("arms one exact send set before all provider calls and local writes", async () => {
+    const events: string[] = [];
+    const liveReferences = [
+      "pi_first_a",
+      "pi_first_b",
+      "pi_first_c",
+      "pi_second_a",
+      "pi_second_b",
+      "pi_second_c",
+    ];
+    const source = provider({
+      refund: async (request) => {
+        events.push(`send:start:${request.paymentReference}`);
+        await Promise.resolve();
+        events.push(`send:end:${request.paymentReference}`);
+        return completedRefund(request);
+      },
+    });
+    const armRefunds = armEveryRefund();
+    const armedIndexes: string[][] = [];
+
+    const counts = finishedCounts(
+      await processRefundBatchAt(
+        source,
+        [
+          candidate(
+            [
+              ...liveReferences.slice(0, 3).map((reference) => ({ reference })),
+              { reference: "pi_already_returned", refundState: "completed" },
+            ],
+            11,
+          ),
+          candidate(
+            liveReferences.slice(3).map((reference) => ({ reference })),
+            12,
+          ),
+        ],
+        7,
+        {
+          arm: (request) => {
+            armedIndexes.push([...request.indexes]);
+            return armRefunds(request);
+          },
+          claim: grantingRowClaim(),
+          markReturned: () => {
+            events.push("marker");
+            return Promise.resolve();
+          },
+          record: (postings) => {
+            events.push("ledger");
+            return recordEveryRefund(postings);
+          },
+        },
+      ),
+    );
+
+    expect(armedIndexes).toHaveLength(1);
+    expect(new Set(armedIndexes[0])).toEqual(
+      new Set(
+        liveReferences.map((reference) => `index_of_stripe_${reference}`),
+      ),
+    );
+    expect(new Set(source.refunds)).toEqual(new Set(liveReferences));
+    const firstLocalWrite = events.findIndex(
+      (event) => event === "marker" || event === "ledger",
+    );
+    const lastProviderAnswer = events.findLastIndex((event) =>
+      event.startsWith("send:end:"),
+    );
+    expect(firstLocalWrite).toBeGreaterThan(lastProviderAnswer);
+    expect(counts.refundedCount).toBe(2);
+  });
+
   test("one failed wave marker leaves every contributing attendee in doubt", async () => {
     const claim = grantingRowClaim(
       new Map([
@@ -122,6 +195,49 @@ describe("admin refund provider > provider wave writes", () => {
 
     expect(counts.refundedCount).toBe(2);
     expect(claim.released).toEqual([[]]);
+  });
+
+  test("preserves a later returned row when the first wave ledger fails", async () => {
+    const activeReferences = Array.from(
+      { length: 5 },
+      (_, index) => `pi_active_${index}`,
+    );
+    const returnedReference = "pi_later_returned";
+    const attendees = [
+      candidate(
+        activeReferences.map((reference) => ({ reference })),
+        11,
+      ),
+      candidate(
+        [{ reference: returnedReference, refundState: "completed" }],
+        12,
+      ),
+    ];
+    const held = new Map(
+      attendees.map(({ attendee, references }) => [
+        attendee.id,
+        references.flatMap(({ rowSessionIds }) => rowSessionIds),
+      ]),
+    );
+    const claim = grantingRowClaim(held);
+    const source = provider({ refunded: new Set(activeReferences) });
+    let ledgerCalls = 0;
+
+    await expect(
+      processRefundBatchAt(source, attendees, 7, {
+        claim,
+        markReturned: () => Promise.resolve(),
+        record: () => {
+          ledgerCalls++;
+          return Promise.reject(new Error("the first wave ledger failed"));
+        },
+      }),
+    ).rejects.toThrow("the first wave ledger failed");
+
+    expect(new Set(source.refunds)).toEqual(new Set(activeReferences));
+    expect(ledgerCalls).toBe(1);
+    expect(claim.unrecorded).toHaveLength(1);
+    expect(claim.unrecorded[0]).toContain(`sess_${returnedReference}`);
   });
 
   test("a provider throw keeps every attendee whose send was armed", async () => {
@@ -156,6 +272,49 @@ describe("admin refund provider > provider wave writes", () => {
 
     expect(new Set(source.refunds)).toEqual(new Set(["pi_first", "pi_second"]));
     expect(claim.released).toEqual([]);
+  });
+
+  test("a provider throw preserves returned evidence in a later wave", async () => {
+    const activeReferences = Array.from(
+      { length: 5 },
+      (_, index) => `pi_throw_${index}`,
+    );
+    const returnedReference = "pi_returned_after_throw";
+    const returnedSession = `sess_${returnedReference}`;
+    const claim = grantingRowClaim(
+      new Map([
+        [11, activeReferences.map((reference) => `sess_${reference}`)],
+        [12, [returnedSession]],
+      ]),
+    );
+    const source = provider({
+      refund: (request) =>
+        request.paymentReference === activeReferences[0]
+          ? Promise.reject(new Error("the provider call broke"))
+          : Promise.resolve(completedRefund(request)),
+    });
+
+    await expect(
+      processRefundBatchAt(
+        source,
+        [
+          candidate(
+            activeReferences.map((reference) => ({ reference })),
+            11,
+          ),
+          candidate(
+            [{ reference: returnedReference, refundState: "completed" }],
+            12,
+          ),
+        ],
+        7,
+        { claim, markReturned: () => Promise.resolve() },
+      ),
+    ).rejects.toThrow("the provider call broke");
+
+    expect(new Set(source.refunds)).toEqual(new Set(activeReferences));
+    expect(claim.unrecorded).toEqual([[returnedSession]]);
+    expect(claim.released).toEqual([[returnedSession]]);
   });
 
   test("a shared armed payment keeps every holder when its provider throws", async () => {

@@ -11,6 +11,7 @@ import type { PaymentProviderType } from "#shared/types.ts";
 import { scenarioBrowser } from "#test/specs/support/browser.ts";
 import {
   openActionsAsOwner,
+  ownerDeletesAttendee,
   ownerRefunds,
 } from "#test/specs/support/refund-safety/journeys.ts";
 import {
@@ -205,6 +206,14 @@ Then(
   "the owner is warned not to send the refund again",
   function (this: TicketsWorld): void {
     expectOwnerWasTold(this, "Do not send the refund again");
+  },
+);
+
+Then(
+  "the owner can delete {word} now that the payment work is finished",
+  async function (this: TicketsWorld, who: string): Promise<void> {
+    const browser = await ownerDeletesAttendee(this, who);
+    expect(browser.pageText).toContain("Attendee deleted");
   },
 );
 

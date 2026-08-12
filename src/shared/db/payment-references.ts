@@ -94,17 +94,15 @@ const queryProcessedReferences = <Row>(
   select: string,
   suffix = "",
 ): Promise<Row[]> =>
-  attendeeIds.length === 0
-    ? Promise.resolve([])
-    : queryAll<Row>(
-        `SELECT ${select}
+  attendeeIds.length === 0 ? Promise.resolve([]) : queryAll<Row>(
+    `SELECT ${select}
            FROM processed_payments
           WHERE attendee_id IN (${inPlaceholders(attendeeIds)})
             AND payment_reference != ''
             AND payment_reference_index != ''
           ${suffix}`,
-        [...attendeeIds],
-      );
+    [...attendeeIds],
+  );
 
 const paymentReferencesForIds = (
   attendeeIds: readonly number[],
@@ -116,10 +114,18 @@ const paymentReferencesForIds = (
     "ORDER BY attendee_id, processed_at, payment_session_id",
   );
 
-const attendeeIdsWithProcessedReferences = (
+/** Attendees that have a durable indexed provider-payment row. */
+export const attendeeIdsWithIndexedPaymentReferences = async (
   attendeeIds: readonly number[],
-): Promise<PaymentReferenceAttendeeRow[]> =>
-  queryProcessedReferences(attendeeIds, "DISTINCT attendee_id");
+): Promise<Set<number>> =>
+  new Set(
+    (
+      await queryProcessedReferences<PaymentReferenceAttendeeRow>(
+        attendeeIds,
+        "DISTINCT attendee_id",
+      )
+    ).map((row) => Number(row.attendee_id)),
+  );
 
 const realSessionIds = (row: PaymentReferenceRow): string[] =>
   isAnchorSession(row.payment_session_id) ? [] : [row.payment_session_id];
@@ -188,9 +194,11 @@ export const getRefundPaymentReferences = async (
       new Map<string, ReferenceProgress>(),
     ]),
   );
-  for (const row of await paymentReferencesForIds(
-    attendees.map((attendee) => attendee.id),
-  )) {
+  for (
+    const row of await paymentReferencesForIds(
+      attendees.map((attendee) => attendee.id),
+    )
+  ) {
     const { index, payment } = await loadIndexedPaymentReference(
       row,
       privateKey,
@@ -266,7 +274,7 @@ export const hasRefundPaymentReference = async (
   privateKey: CryptoKey,
 ): Promise<boolean> =>
   (await getRefundPaymentReferencesForAttendee(attendee, privateKey)).length >
-  0;
+    0;
 
 export const getAttendeeIdsWithPaymentReference = async (
   attendees: readonly RefundPaymentReferenceSource[],
@@ -276,10 +284,12 @@ export const getAttendeeIdsWithPaymentReference = async (
       .filter((attendee) => attendee.payment_id !== "")
       .map((attendee) => attendee.id),
   );
-  for (const row of await attendeeIdsWithProcessedReferences(
-    attendees.map((attendee) => attendee.id),
-  )) {
-    ids.add(Number(row.attendee_id));
+  for (
+    const attendeeId of await attendeeIdsWithIndexedPaymentReferences(
+      attendees.map((attendee) => attendee.id),
+    )
+  ) {
+    ids.add(attendeeId);
   }
   return ids;
 };

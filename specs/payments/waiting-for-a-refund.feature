@@ -28,6 +28,7 @@ Feature: A refund in progress is checked, never sent again
       And the owner presses Refresh payment status from Alice's attendee page
       Then Money shows one refund for Alice
       And Stripe has received one request to return Alice's money
+      And the owner can delete Alice now that the payment work is finished
 
   @rule:payments.a-lost-keyless-answer-is-observed-not-repeated
   @surface:admin
@@ -50,3 +51,4 @@ Feature: A refund in progress is checked, never sent again
       And the owner presses Refresh payment status from Alice's attendee page
       Then Money shows one refund for Alice
       And SumUp has received one request to return Alice's money
+      And the owner can delete Alice now that the payment work is finished

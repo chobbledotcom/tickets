@@ -222,7 +222,7 @@ describeWithEnv(
       expect(claim.unrecorded).toEqual([["sess-back"]]);
     });
 
-    test("starts no ledger work when sibling evidence cannot be read", async () => {
+    test("preserves returned money when sibling evidence cannot be read", async () => {
       const claim = grantingRowClaim(
         new Map([[25, ["sess-came", "sess-dark"]]]),
       );
@@ -248,7 +248,7 @@ describeWithEnv(
       expect(provider.refunds).toEqual([]);
       expect(counts).toEqual(oneFailedRefundCounts);
       expect(claim.released).toEqual([["sess-came", "sess-dark"]]);
-      expect(claim.unrecorded).toEqual([[]]);
+      expect(claim.unrecorded).toEqual([["sess-came"]]);
     });
 
     test("a keyed run lets go after its settled answer", async () => {

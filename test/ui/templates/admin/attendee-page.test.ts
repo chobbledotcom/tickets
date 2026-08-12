@@ -133,8 +133,36 @@ describe("attendee page blocks", () => {
     expect(
       PaymentDetails({
         attendee: testAttendee({ payment_id: "" }),
+        hasIndexedPaymentReference: false,
         showBalanceLink: true,
       }),
     ).toBeNull();
+  });
+
+  test("shows indexed payment recovery without a legacy payment id", () => {
+    const html = String(
+      PaymentDetails({
+        attendee: testAttendee({ id: 7, payment_id: "" }),
+        hasIndexedPaymentReference: true,
+        showBalanceLink: true,
+      }),
+    );
+
+    expect(html).toContain("Payment Details");
+    expect(html).toContain('action="/admin/attendees/7/refresh-payment"');
+    expect(html).not.toContain("Payment ID:");
+  });
+
+  test("does not promise refresh for an unindexed legacy payment", () => {
+    const html = String(
+      PaymentDetails({
+        attendee: testAttendee({ id: 8, payment_id: "pi_legacy" }),
+        hasIndexedPaymentReference: false,
+        showBalanceLink: true,
+      }),
+    );
+
+    expect(html).toContain("pi_legacy");
+    expect(html).not.toContain("/refresh-payment");
   });
 });

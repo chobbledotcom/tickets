@@ -83,3 +83,7 @@ Feature: The site checks an old payment before refunding it
       When the owner checks Alice's Actions page again
       Then no provider is asked to return any more money
       And Alice's Actions page offers Mark payment reviewed again
+      When Stripe finishes returning Alice's 45.00
+      And the owner presses Refresh payment status from Alice's attendee page
+      Then Money shows one refund for Alice
+      And the owner can delete Alice now that the payment work is finished

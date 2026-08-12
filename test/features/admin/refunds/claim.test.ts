@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { REFUND_SETTLEMENT_SUBREQUEST_RESERVE } from "#routes/admin/refunds/budget.ts";
 import {
   type RefundRunBlock,
   type RowClaim,
@@ -11,6 +12,11 @@ import type {
   LoadedRefundAttendee,
 } from "#shared/db/payment-claim/take.ts";
 import type { RowSettlement } from "#shared/db/payment-claim.ts";
+import {
+  BUNNY_SUBREQUEST_LIMIT,
+  countSubrequest,
+  runWithSubrequestBudget,
+} from "#shared/subrequest-budget.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 
 type ClaimedRows = Extract<ClaimResult, { kind: "claimed" }>;
@@ -147,7 +153,7 @@ describe("admin refunds > attendee claim", () => {
             ["sess-three", "checking"],
             ["sess-four", "checking"],
           ]),
-          doubts: new Map(),
+          doubts: new Map([[4, "unread"]]),
           recorded: new Set(),
           reviews: new Map(),
           unrecorded: new Map(),
@@ -243,6 +249,45 @@ describe("admin refunds > attendee claim", () => {
     expect(result).toBe("worked");
     expect(claim.settlements).toEqual([]);
   });
+
+  for (const capability of ["keyed", "keyless"] as const) {
+    test(`keeps an inherited ${capability} hold when cleanup reserve is unavailable`, async () => {
+      const attendeeId = 5;
+      const sessionId = `sess-${capability}`;
+      const loadedClaim = claimedRows(
+        new Map([[attendeeId, [sessionId]]]),
+        new Map([[attendeeId, new Map([[`index-${capability}`, capability]])]]),
+      );
+      const claimed: ClaimedRows = {
+        ...loadedClaim,
+        phases: new Map([[sessionId, "send_armed"]]),
+      };
+      const claim = claimResult(claimed);
+      let worked = false;
+
+      await runWithSubrequestBudget(async () => {
+        const callsBeforeReserveRefusal =
+          BUNNY_SUBREQUEST_LIMIT -
+          REFUND_SETTLEMENT_SUBREQUEST_RESERVE.total +
+          1;
+        for (let call = 0; call < callsBeforeReserveRefusal; call++) {
+          countSubrequest("database", "earlier refund work");
+        }
+        await expect(
+          underAttendeeClaim(claim, [], 10, {
+            blocked: () => "blocked",
+            work: () => {
+              worked = true;
+              return Promise.resolve("worked");
+            },
+          }),
+        ).rejects.toThrow("Subrequest reserve unavailable");
+      });
+
+      expect(worked).toBe(false);
+      expect(claim.settlements).toEqual([]);
+    });
+  }
 
   test("reports a settlement failure without replacing the work failure", async () => {
     const claim = claimResult(claimedRows(new Map([[1, ["sess-one"]]])), () =>

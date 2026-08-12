@@ -2,7 +2,7 @@
 
 import { decrypt } from "#shared/crypto/encryption.ts";
 import { addressCachePruneStatement } from "#shared/db/address-cache.ts";
-import { attendeeDependentDeleteStatements } from "#shared/db/attendees/delete.ts";
+import { attendeeRemovalStatements } from "#shared/db/attendees/delete.ts";
 import {
   executeBatchWithResults,
   queryAll,
@@ -131,7 +131,7 @@ const orphanStatements = (): PruneStatement[] => {
     MAINTENANCE_PRUNE_BATCH,
   ];
   return [
-    ...attendeeDependentDeleteStatements({ args, sql: orphanIdsBatch() }),
+    ...attendeeRemovalStatements({ args, sql: orphanIdsBatch() }),
     {
       args,
       sql: `DELETE FROM attendees WHERE id IN (${orphanIdsBatch()})`,

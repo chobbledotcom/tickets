@@ -575,16 +575,16 @@ concurrent activation cannot land between the read and the write.
 The seven accepted safety rules are recorded as acceptance constraints in
 [`docs/payment-aggregate-acceptance.md`](docs/payment-aggregate-acceptance.md).
 
-- **Track the provider each charge was captured with.** `main` stores only the
-  opaque `payment_reference` per processed payment, not which provider captured
-  it. So after an operator switches providers (Stripe → Square) and then selects
-  "none", the last-active fallback resolves every payment through Square, and an
-  older Stripe charge cannot be refunded or reconciled against the provider that
-  captured it. This predates PR 1 and is future aggregate work. Fix direction:
-  store the provider type on each `processed_payments` row at capture time and
-  dispatch existing-payment work from that per-charge provider instead of one
-  global fallback. Referenced from `docs/payment-aggregate-acceptance.md`
-  rule 2.
+- ~~**Track the provider each charge was captured with.**~~ **Done in M4 Part
+  A.** New payment references are stored with a provider tag. An older indexed
+  reference is read against each credentialed provider and tagged only when
+  exactly one validates it and none was unavailable; configuration may order
+  that search but never decide the answer. Refund dispatch then uses the
+  per-reference provider. PII-only legacy payments remain unavailable until that
+  attendee is re-saved and gains an indexed anchor, deliberately avoiding a
+  decrypt-every-attendee migration or request-time scan. The later aggregate may
+  store the same fact in its own charge rows, but the live admin refund gap
+  recorded here is closed.
 
 - **Split payment-provider persistence out of `src/shared/db/settings.ts`.**
   Review of PR 1 correctly noted that the settings assembly is already over the
@@ -731,12 +731,13 @@ the percentage-surcharge cap noted below, which is a latent correctness bug
   paired controls client-side with a one-line "why", turning a save-time error
   into an obvious affordance.
 
-- **"Refund processed but not recorded" reads like a failure.**
-  `src/shared/refund-ledger.ts` only auto-reverses a fully-paid clean account;
-  on a partial/credit/mixed account the provider refund fires but the operator
-  sees `error.refund_not_recorded` ("do not re-refund") with no next step. Fix:
-  link the manual-adjustment page straight from that flash and frame it as "one
-  more step", not an error.
+- ~~**"Refund processed but not recorded" has no recovery path.**~~ **Done in M4
+  Part A.** A returned charge whose ledger posting did not land receives an
+  exact durable `unrecorded` fact. It blocks another refund and deletion while
+  preserving merge, the owner is told to fix Money and refresh the payment, and
+  the real Refresh route retires it only after the ledger records the returned
+  references. `specs/payments/recovering-the-money-record.feature` exercises
+  that visitor journey through the rendered controls.
 
 - ~~**A multi-item cart with no shared date/length dies silently.**~~ **Done.**
   `src/shared/booking/cart-conflicts.ts` names the clashing items on the ticket
@@ -1055,18 +1056,18 @@ they were left out of that PR's scope.
 
 _Origin: Codex review on PR #1822 (atomic placeholder payment + refund ledger)._
 
-`recordPlaceholderRefund` (`src/shared/refund-ledger.ts`) posts the payment and
-completed-refund legs as one atomic `postTransferGroups` batch, so a refund-leg
-conflict rolls the payment back too (the PR's core requirement). When that batch
-fails outright, NO ledger legs land for the booking event group. The payment
-flow's durable replay guard is the ledger preflight (`replaySessionFromLedger` →
-`bookingLedgerDisposition`: `unrecorded` when no legs exist), and the primary
-guard (`markSessionFailed`'s `failure_data` row) is pruned by `prunePayments`
-once it ages past retention. So after pruning, a late webhook/redirect for the
-same already-refunded session re-enters `processReservedSession`, sees
-`unrecorded`, and re-creates a placeholder attendee + re-calls `tryRefund`
-(idempotent, so no double payout) instead of acknowledging the session as
-already handled.
+`recordPlaceholderRefund` (`src/shared/refund-ledger/placeholder.ts`) posts the
+payment and completed-refund legs as one atomic `postTransferGroups` batch, so a
+refund-leg conflict rolls the payment back too (the PR's core requirement). When
+that batch fails outright, NO ledger legs land for the booking event group. The
+payment flow's durable replay guard is the ledger preflight
+(`replaySessionFromLedger` → `bookingLedgerDisposition`: `unrecorded` when no
+legs exist), and the primary guard (`markSessionFailed`'s `failure_data` row) is
+pruned by `prunePayments` once it ages past retention. So after pruning, a late
+webhook/redirect for the same already-refunded session re-enters
+`processReservedSession`, sees `unrecorded`, and re-creates a placeholder
+attendee + re-calls `tryRefund` (idempotent, so no double payout) instead of
+acknowledging the session as already handled.
 
 This is NOT fully new: on main before PR #1822 the same gap existed for a
 payment-post failure (the first `postTransfers` threw → no legs). PR #1822
@@ -1081,17 +1082,24 @@ staged-checkout runtime (deferred foundations item 6 in `PR_SPLIT_PLAN.md`)
 carries the proper replay/activation machinery to resolve this. Starting point:
 the preflight in `src/features/api/payment-processing/index.ts`
 (`replaySessionFromLedger`), the pruner in `src/shared/db/prune.ts`
-(`prunePayments`), and the classification in `src/shared/session-ledger.ts`.
+(`prunePayments`), the placeholder vocabulary in
+`src/shared/payment/placeholder-refund.ts`, and the classification in
+`src/shared/session-ledger.ts`. Design the durable replay identity together with
+"Claim callback refunds and make keyless recovery finite" below; the admin
+attendee-set claim does not close this callback-only gap.
 
 ## Bunny subrequest budget follow-ups
 
 _Origin: request-fan-out audit for PR #1820._
 
-Bunny stops an edge request after 50 subrequests. PR #1820 adds a request-scoped
-database guard that blocks libsql call 51 and fixes the concrete failures found
-in fresh setup, group duplication, ordinary backups, reset/restore, and bulk
-refunds. The paths below still have data-dependent fan-out. The guard makes the
-database-only cases fail loudly, but it cannot count provider or storage calls.
+Bunny stops an edge request after 50 subrequests. The request-scoped guard now
+counts database calls and external fetch/storage calls separately and together;
+nested allowances reserve mandatory cleanup, and each interactive transaction
+keeps one rollback call outside its working allowance. M4 Part A also gives
+admin refunds a whole-command preflight over their physical provider retry worst
+case and database tail. The paths below still have data-dependent fan-out or
+need resumable work; counting them makes an overrun loud, but does not itself
+make a large operation finish.
 
 - ~~**Package carts and payment completion.**~~ Done. `resolveCartSlugs` now
   resolves every package slug through `loadCartPackagesBySlugs`
@@ -1326,71 +1334,44 @@ proves they create the attendee and ledger rows exactly once.
 
 ---
 
-## Square PENDING refunds — propagate a pending result, not a plain false
+## Square PENDING refunds — admin fixed; callback persistence remains
 
-_Origin: Codex review of PR #1911 (confirmed Square refund outcomes), thread on
-`squareApi.refundPayment` (`src/shared/square.ts`). This PR deliberately does
-NOT address it; recorded so the follow-on work can pick it up._
+_Origin: Codex review of PR #1911 (confirmed Square refund outcomes)._
 
-`squareApi.refundPayment` returns `false` for a Square refund that is still
-`PENDING` (an accepted-but-unsettled refund). That is the honest current-main
-boolean contract this PR ships, but it has a real downstream cost the reviewer
-flagged: the webhook/admin refund flow reads `refunded === false` as a failed
-refund, so a pending Square refund releases the reservation, returns 503, and —
-because each call mints a fresh `crypto.randomUUID()` idempotency key — a
-redelivery posts another full-refund attempt instead of waiting on the existing
-refund id. A PENDING Square refund is documented as a normal accepted
-`RefundPayment` response, so collapsing it into `false` loses the "accepted, not
-yet settled" signal.
+M4 Part A replaced the provider boolean with `RefundAttemptResult`. Square maps
+`PENDING` to `accepted` with its named refund proof, and the admin
+single/bulk/refresh path reports pending work, keeps the exact claim, and
+reconciles it through Refresh rather than treating it as a failed refund. Stable
+idempotency keys remain a second guard for Stripe and Square.
 
-Update: PR #1912 (stable Stripe and Square refund idempotency keys) has since
-landed on `main`; the Square refund idempotency key is now the stable
-`refundIdempotencyKey("square", paymentId)` rather than a fresh
-`crypto.randomUUID()`, so a redelivery re-posts with the SAME key and Square
-dedupes it — the double-pay half of the risk above is now mitigated. The
-PENDING-still-returns-false behaviour itself (a retryable re-attempt that waits
-on `isPaymentRefunded` rather than holding the refund id) remains, so the
-pending-result union below is still the real fix; the stale-key concern is
-resolved.
-
-The fix is the staged-checkout pending-result union / callback resolution this
-PR was explicitly told not to introduce: surface a pending outcome (carrying the
-refund id) separately from a plain false, and have the webhook/admin refund
-paths hold/redeliver against that id instead of re-posting. That is the same
-machinery planned for #1853 (`split/staged-checkout-runtime` — "Finish and
-recover paid checkouts safely") and overlaps #1905
-(`split/authoritative-payment-callbacks` — provider-neutral webhook retry
-resolution), so it must be designed with those branches, not duplicated here.
-Starting points: `squareApi.refundPayment` in `src/shared/square.ts` (where the
-boolean contract lives), the idempotency key in its `withClient` callback, and
-the downstream `tryRefund` in `src/features/api/payment-processing/refunds.ts`
-plus `refundReferenceAtProvider` in `src/features/admin/refunds/provider.ts`
-(both treat `false` as failed and fall back to `isPaymentRefunded`, which a
-still-pending refund also fails).
+The buyer-facing callback path is not cut over to that lifecycle. Its
+`refundResultSucceeded` boundary still reduces provider outcomes to a boolean,
+and it has no callback-scope claim or durable accepted-refund identity. Do not
+build a second Square-only solution here: the remaining work is the
+provider-neutral callback claim and reconciliation described under "Claim
+callback refunds and make keyless recovery finite" below. Current starting
+points are `src/shared/square/payment-outcomes.ts`,
+`src/features/api/payment-processing/refunds.ts`, and the callback-claim section
+below; the old `src/shared/square.ts`, `refundPayment` boolean, and admin
+fallback paths no longer exist.
 
 ---
 
-## Validate Square orders/payments responses with Valibot schemas
+## Validate Square order responses with a Valibot schema
 
-_Origin: CodeRabbit review of PR #1911. The refund response validation is done
-(`SquareRefundResponseSchema` in `src/shared/square.ts`), and the test file
-splits are complete (`refund-payment.test.ts`, `refund-transport.test.ts`, and
-the shared `mock-fetch.ts` helper all exist; `retrieve-refund.test.ts` is 240
-lines and `rest-transport.test.ts` is 372). What remains is extending the same
-boundary-validation pattern to the orders and payments client methods._
+_Origin: CodeRabbit review of PR #1911. Refund and payment response validation
+is now done in `src/shared/square/payment-outcomes.ts`; the split refund and
+transport tests are complete. Only the order half of the original finding
+remains._
 
-The Square REST client still maps order and payment responses with type casts
-(`get<T>` for orders and payments). `squareFetch` returns
-`JSON.parse(response.text)` cast as `<T>`, so a malformed order or payment
-object — wrong field types, an unexpected shape — passes through unvalidated.
-The refund path now has a Valibot schema (`SquareRefundSchema` /
-`SquareRefundResponseSchema`) parsed with `v.parse` OUTSIDE `withClient`, so a
-malformed refund response fails loudly. Doing the same for orders and payments
-means defining `SquareOrderSchema` and `SquarePaymentSchema` and parsing in
-their respective `squareApi` methods, so a malformed response throws rather than
-being silently cast. Starting point: `squareFetch` and the `SquareOrderResponse`
-/ `SquarePaymentResponse` types in `src/shared/square.ts`; mirror the refund
-schema shape that already exists.
+`src/shared/square/client.ts` still reads an order through
+`get<SquareOrderResponse>` and maps that unchecked cast. `squareFetch` returns
+parsed JSON as `unknown`, so a malformed order — wrong field types or an
+unexpected tender/money shape — can pass through this boundary. Define the
+wire-order schema beside the Square order domain code, parse before mapping, and
+fail loudly on malformed documented fields. Start at `SquareOrderResponse` and
+`client.orders.get` in `src/shared/square/client.ts`; use the payment/refund
+parsers in `src/shared/square/payment-outcomes.ts` as the local pattern.
 
 ---
 
@@ -2131,43 +2112,24 @@ instead of pinning copied wording. Out of scope for the migration, which does
 not touch `src/`.
 ## Cap the whole run's provider calls, not just how many run at once
 ## The whole run's provider calls have no ceiling, only its concurrency
+## ~~The whole run's provider calls have no ceiling~~ — done in M4 Part A
 
-`refundCandidateAtProvider` (`src/features/admin/refunds/provider.ts`) chunks a
-candidate's references by `PROVIDER_REFUND_CONCURRENCY`, which bounds how many
-provider calls run at once and not how many the request makes in total. Bunny
-stops a request at 50 subrequests, and since this branch each reference costs an
-evidence read AND usually a refund — so a merged attendee carrying around
-twenty-five charges needs more than the whole allowance, before the claim and
-ledger database calls are counted at all.
+`src/features/admin/refunds/budget.ts` now prices the complete admin execution
+set against the remaining database, external, and combined Bunny allowance. It
+uses each adapter's physical network-retry bound, includes discovery and
+post-send recovery reads, and protects rollback, settlement, and caller tails
+with nested reserves. `runRefundReadiness` checks before and inside the exact
+claim and before provider reads. `dispatchRefundBatch` then prepares the whole
+batch without sending, derives its exact tagged send set, checks before arming
+it, advances that set once, and checks again immediately before provider I/O.
 
-The worst of it is closed: the references are refunded as the loop goes, and run
-out partway and the later ones fail after the earlier ones have already sent
-money — but the ledger now reverses the groups whose money came back rather than
-nothing at all, so the accounting is no longer lost with it. What remains is the
-cut-off itself: the operator is told the refund failed, and the rest of the
-buyer's money is still with the provider until somebody runs it again.
-
-Codex's suggestion is the safe shape, and is the admission reserve the M4
-contract already describes under "Budgets" (`PR4_PLAN.md`, `SIBLING_READ_CAP`
-and the per-reference call counts): work out the worst case for the whole run up
-front and refuse it whole before ANY provider call. Refusing to start moves no
-money, so it needs no owner decision — but two things about it do:
-
-- What the ceiling is. AGENTS.md puts the hard limit at fifty subrequests and
-  tells routes that also call providers to target at most forty database calls,
-  so the per-reference worst case has to be counted honestly against that.
-- What the operator sees. A merged attendee past the ceiling becomes
-  un-refundable through this route, and being told "too many charges to do at
-  once" is only acceptable if something else can still finish the job.
-
-Note the guard did not create the worst case — a reference cost two calls before
-this change too (refund, then the already-refunded check) — but it did add a
-second call to the NORMAL path, so the typical run is nearer the cap than it
-was.
-
-Found by Codex on #2065. Starting point: `PROVIDER_REFUND_CONCURRENCY`, the
-budget rules in `PR4_PLAN.md`, and the subrequest guard in
-`src/shared/db/client.ts`.
+An oversized single or bulk command therefore refuses whole with its plain
+operator message and zero fresh provider sends. `PROVIDER_REFUND_CONCURRENCY`
+still limits overlap to five; it is no longer mistaken for the total ceiling.
+The budget and batch tests pin the pre-send refusal, physical retry accounting,
+remaining-budget checks, inherited-work priority, and reserved cleanup tail.
+Arbitrarily large resumable refund jobs remain M7/F53 work, not an open safety
+hole in this request-sized command.
 
 ## A merge can delete the source before the answers and PII are saved
 

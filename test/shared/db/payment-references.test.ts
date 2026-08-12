@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { execute } from "#shared/db/client.ts";
 import { storePaymentReference } from "#shared/db/payment-reference-store.ts";
 import {
+  attendeeIdsWithIndexedPaymentReferences,
   getAttendeeIdsWithPaymentReference,
   getRefundPaymentReferences,
   hasAnyPaymentReference,
@@ -81,7 +82,11 @@ describeWithEnv("db > payment references", { db: true }, () => {
     expect(await legacyMergePaymentReferenceStatement(1, 2, "")).toBe(null);
   });
 
-  test("finds processed references when the legacy payment id is empty", async () => {
+  test("finds indexed references without loading their encrypted values", async () => {
+    expect(await attendeeIdsWithIndexedPaymentReferences([])).toEqual(
+      new Set(),
+    );
+
     const listing = await createTestListing({ maxAttendees: 50 });
     const created = await bookAttendee(listing, {
       email: "hasref@example.com",
@@ -95,6 +100,12 @@ describeWithEnv("db > payment references", { db: true }, () => {
       "",
       taggedPaymentReference("pi_has_ref"),
     );
+
+    const indexedIds = await attendeeIdsWithIndexedPaymentReferences([
+      attendeeId,
+      9999,
+    ]);
+    expect(indexedIds).toEqual(new Set([attendeeId]));
 
     const ids = await getAttendeeIdsWithPaymentReference([
       { id: attendeeId, payment_id: "" },
@@ -246,7 +257,7 @@ describeWithEnv(
 describe("db > payment references > still with the provider", () => {
   const withStates = (...states: RefundState[]) =>
     states.map((refundState, index) =>
-      refundReference(`pi_${index}`, { refundState }),
+      refundReference(`pi_${index}`, { refundState })
     );
 
   test("a watched charge not seen back is still out", () => {

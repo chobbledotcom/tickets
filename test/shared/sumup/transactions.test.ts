@@ -91,6 +91,17 @@ describe("sumup transactions", () => {
       });
     });
 
+    test("treats a refunded transaction as fully returned without event history", async () => {
+      await expectTransactionBody(transactionWire({ status: "REFUNDED" }), {
+        resource: {
+          amount: 10,
+          currency: "GBP",
+          refundEvents: [{ amount: 10, status: "REFUNDED" }],
+        },
+        status: "found",
+      });
+    });
+
     // Missing money stays missing for the money adapter to name precisely.
     test("passes a missing amount and currency through untouched", async () => {
       const client = makeSumupClient({
@@ -124,12 +135,14 @@ describe("sumup transactions", () => {
       );
     });
 
-    for (const [name, fields, reason] of [
-      ["another transaction", { id: "txn_other" }, "mismatched_id"],
-      ["another account", { merchant_code: "OTHER" }, "mismatched_account"],
-      ["a pending transaction", { status: "PENDING" }, "unsupported_status"],
-      ["a failed transaction", { status: "FAILED" }, "unsupported_status"],
-    ] as const) {
+    for (
+      const [name, fields, reason] of [
+        ["another transaction", { id: "txn_other" }, "mismatched_id"],
+        ["another account", { merchant_code: "OTHER" }, "mismatched_account"],
+        ["a pending transaction", { status: "PENDING" }, "unsupported_status"],
+        ["a failed transaction", { status: "FAILED" }, "unsupported_status"],
+      ] as const
+    ) {
       test(`refuses ${name}`, async () => {
         const client = makeSumupClient({
           txnGet: () => Promise.resolve(transactionWire(fields)),

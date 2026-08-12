@@ -4,8 +4,8 @@
 import { requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import {
-  type AttendeeWithListing,
   attendeeActions,
+  type AttendeeWithListing,
 } from "#routes/admin/attendees-route-helpers.ts";
 import { refundWorkRemains } from "#routes/admin/refunds/candidates.ts";
 import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
@@ -85,10 +85,9 @@ const getRefundPageState = async (
   }
   const left = await whatIsLeftToRefund(data.attendee);
   return {
-    page:
-      left.kind === "unsafe"
-        ? adminBlockedRefundAttendeePage
-        : adminRefundAttendeePage,
+    page: left.kind === "unsafe"
+      ? adminBlockedRefundAttendeePage
+      : adminRefundAttendeePage,
     reason: left.kind === "refundable" ? null : left.reason,
   };
 };
@@ -126,6 +125,7 @@ const handleAttendeeRefund = attendeeActions.refund.verified(
     const result = await processRefundBatch(
       [{ attendee: data.attendee, references: left.references }],
       listingId,
+      { audience: "single" },
     );
     const resultError = await singleRefundResultError(
       result,

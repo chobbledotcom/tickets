@@ -44,9 +44,15 @@ export type PreparedReferenceRefund =
       send: (permit: RefundDispatchPermit) => Promise<ReferenceRefund>;
     };
 
-export type AuthorizeRefundDispatch = (
-  indexes: readonly string[],
-) => Promise<ArmRefundDispatchResult>;
+export type PreparedRefundAttempt = PreparedReferenceRefund & {
+  readonly reference: TaggedRefundReference;
+};
+
+/** One attendee after every send/no-send decision is known but none has run. */
+export type PreparedCandidateRefund = {
+  readonly attempts: readonly PreparedRefundAttempt[];
+  readonly candidate: ReadyRefundCandidate;
+};
 
 /** Do the work at most once per stable provider-aware identity. */
 const answeredOnce = <TAnswer>(
@@ -129,14 +135,14 @@ const sendReferenceRefund = async (
   return { doubt: "in_doubt", outcome: "errored" };
 };
 
-const prepareReferenceRefund = async (
+const prepareReferenceRefund = (
   candidate: ReadyRefundCandidate,
   listingId: number,
   ready: ReadyRefundReference,
 ): Promise<PreparedReferenceRefund> => {
   const admission = readyRefundAdmission(ready);
   if (admission.kind !== "send") {
-    return {
+    return Promise.resolve({
       kind: "answered",
       result: withheldResult(
         admission,
@@ -144,9 +150,9 @@ const prepareReferenceRefund = async (
         listingId,
         ready.reference.reference,
       ),
-    };
+    });
   }
-  return {
+  return Promise.resolve({
     kind: "ready",
     send: sendOnce((permit) =>
       sendReferenceRefund(
@@ -158,11 +164,8 @@ const prepareReferenceRefund = async (
         permit,
       ),
     ),
-  };
+  });
 };
-
-const missingAuthorization: AuthorizeRefundDispatch = () =>
-  Promise.resolve({ kind: "claim_changed" });
 
 const authorizedResult = (
   authorization: ArmRefundDispatchResult | undefined,
@@ -205,16 +208,15 @@ export type CandidateRefund = {
   doubt?: "in_doubt";
 };
 
-/** Refund one readiness-qualified attendee without doing another provider read. */
-export const refundReadyCandidate = async (
+/** Decide every reference without authorizing or starting a provider send. */
+export const prepareReadyCandidate = async (
   candidate: ReadyRefundCandidate,
   listingId: number,
-  authorize: AuthorizeRefundDispatch = missingAuthorization,
   inFlight: Map<string, Promise<PreparedReferenceRefund>> = new Map(),
-): Promise<CandidateRefund> => {
+): Promise<PreparedCandidateRefund> => {
   const prepared = await mapProviderRequests(
     candidate.references,
-    async (ready) => ({
+    async (ready): Promise<PreparedRefundAttempt> => ({
       ...(await answeredOnce(inFlight, ready.reference.index, () =>
         prepareReferenceRefund(candidate, listingId, ready),
       )),
@@ -228,17 +230,18 @@ export const refundReadyCandidate = async (
   const attempts = blocked
     ? prepared.filter((attempt) => attempt.kind === "answered")
     : prepared;
-  const readyIndexes = attempts.flatMap((attempt) =>
-    attempt.kind === "ready" ? [attempt.reference.index] : [],
-  );
-  const authorization =
-    readyIndexes.length === 0 ? undefined : await authorize(readyIndexes);
-  const results = await mapProviderRequests(attempts, async (attempt) => ({
-    ...(attempt.kind === "ready"
-      ? await authorizedResult(authorization, attempt, attempt.reference)
-      : attempt.result),
-    reference: attempt.reference,
-  }));
+  return { attempts, candidate };
+};
+
+type ReferenceRefundResult = ReferenceRefund & {
+  readonly reference: TaggedRefundReference;
+};
+
+const candidateResult = (
+  prepared: PreparedCandidateRefund,
+  results: readonly ReferenceRefundResult[],
+  incompleteListingId?: number,
+): CandidateRefund => {
   const outcome = combineRefundOutcomes(
     results.map((result) => result.outcome),
   );
@@ -252,20 +255,53 @@ export const refundReadyCandidate = async (
     review === undefined ? [] : [{ reason: review, reference }],
   );
   if (
+    incompleteListingId !== undefined &&
     (outcome === "failed" || outcome === "errored") &&
-    candidate.references.length > 1
+    prepared.candidate.references.length > 1
   ) {
     logError({
       code: ErrorCode.PAYMENT_REFUND,
-      detail: `Admin refund did not complete every payment for attendee ${candidate.attendee.id}`,
-      listingId,
+      detail: `Admin refund did not complete every payment for attendee ${prepared.candidate.attendee.id}`,
+      listingId: incompleteListingId,
     });
   }
   return {
-    candidate,
+    candidate: prepared.candidate,
     ...(doubt !== undefined ? { doubt } : {}),
     outcome,
     returned: returnedReferences,
     reviews,
   };
 };
+
+/** Finish one prepared attendee under the batch-wide dispatch decision. */
+export const finishPreparedCandidate = async (
+  prepared: PreparedCandidateRefund,
+  listingId: number,
+  authorization: ArmRefundDispatchResult | undefined,
+): Promise<CandidateRefund> => {
+  const results = await mapProviderRequests(
+    prepared.attempts,
+    async (attempt): Promise<ReferenceRefundResult> => ({
+      ...(attempt.kind === "ready"
+        ? await authorizedResult(authorization, attempt, attempt.reference)
+        : attempt.result),
+      reference: attempt.reference,
+    }),
+  );
+  return candidateResult(prepared, results, listingId);
+};
+
+/** Preserve non-send safety findings when a prepared batch stands down. */
+export const standDownPreparedCandidate = (
+  prepared: PreparedCandidateRefund,
+): CandidateRefund =>
+  candidateResult(
+    prepared,
+    prepared.attempts.map((attempt) => ({
+      ...(attempt.kind === "ready"
+        ? { outcome: "failed" as const }
+        : attempt.result),
+      reference: attempt.reference,
+    })),
+  );

@@ -1,5 +1,8 @@
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
-import type { RefundLedgerResult } from "#shared/refund-ledger/result.ts";
+import {
+  type RefundLedgerResult,
+  refundLedgerResult,
+} from "#shared/refund-ledger/result.ts";
 import type { RunFindings } from "./claim.ts";
 
 export type AppliedRefundLedgerFindings = {
@@ -18,15 +21,17 @@ const referenceRows = (
   references: readonly RefundPaymentReference[],
 ): string[] => references.flatMap((reference) => reference.rowSessionIds);
 
-const addUnrecordedRows = (
+const updateUnrecordedRows = (
   findings: RunFindings,
   attendeeId: number,
-  rows: readonly string[],
+  update: (current: readonly string[]) => readonly string[],
 ): void => {
-  if (rows.length === 0) return;
-  findings.unrecorded.set(attendeeId, [
-    ...new Set([...(findings.unrecorded.get(attendeeId) ?? []), ...rows]),
-  ]);
+  const updated = update(findings.unrecorded.get(attendeeId) ?? []);
+  if (updated.length === 0) {
+    findings.unrecorded.delete(attendeeId);
+  } else {
+    findings.unrecorded.set(attendeeId, updated);
+  }
 };
 
 /** Put one exact ledger result onto the rows that carried each reference. */
@@ -39,11 +44,20 @@ export const applyRefundLedgerFindings = (
   const recorded = matchingReferences(references, result.recorded);
   const unrecorded = matchingReferences(references, result.unrecorded);
   const review = matchingReferences(references, result.reviewReferenceIndexes);
-  for (const sessionId of referenceRows(recorded)) {
+  const recordedRows = referenceRows(recorded);
+  const reviewRows = referenceRows(review);
+  const clearing = new Set([...recordedRows, ...reviewRows]);
+  updateUnrecordedRows(findings, attendeeId, (current) =>
+    current.filter((sessionId) => !clearing.has(sessionId)),
+  );
+  for (const sessionId of recordedRows) {
     findings.recorded.add(sessionId);
   }
-  addUnrecordedRows(findings, attendeeId, referenceRows(unrecorded));
-  for (const sessionId of referenceRows(review)) {
+  const missedRows = referenceRows(unrecorded);
+  updateUnrecordedRows(findings, attendeeId, (current) => [
+    ...new Set([...current, ...missedRows]),
+  ]);
+  for (const sessionId of reviewRows) {
     findings.reviews.set(sessionId, {
       kind: "review",
       reason: { kind: "partially_returned_obligation" },
@@ -54,4 +68,18 @@ export const applyRefundLedgerFindings = (
     hasUnrecorded: unrecorded.length > 0,
     needsReview: review.length > 0,
   };
+};
+
+/** Preserve every returned row when the ledger produced no usable answer. */
+export const rememberFailedRefundLedger = (
+  findings: RunFindings,
+  attendeeId: number,
+  references: readonly RefundPaymentReference[],
+): void => {
+  applyRefundLedgerFindings(
+    findings,
+    attendeeId,
+    references,
+    refundLedgerResult(references),
+  );
 };

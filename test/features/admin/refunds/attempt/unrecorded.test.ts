@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { refundReadyCandidate } from "#routes/admin/refunds/attempt.ts";
 import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
 import {
   armEveryRefund,
   authorizeEveryRefund,
+  refundReadyCandidate,
 } from "#test/features/admin/refunds/provider/dispatch-helpers.ts";
 import {
   candidate,

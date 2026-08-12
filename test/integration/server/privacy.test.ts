@@ -21,8 +21,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { parseFlashValue } from "#shared/cookies.ts";
-import { queryOne } from "#shared/db/client.ts";
+import { getDb, insert, queryOne } from "#shared/db/client.ts";
 import { hashEmail } from "#shared/db/contact-preferences.ts";
+import { deleteListing } from "#shared/db/listings/delete.ts";
 import { settings } from "#shared/db/settings.ts";
 import { nowMs } from "#shared/now.ts";
 import {
@@ -35,11 +36,19 @@ import { setContactVisits } from "#test-utils/contact-preferences.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   attendeeExists as attendeeExistsHelper,
+  createTestAttendeeDirect,
   insertOrphanAttendee,
 } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
+  CLAIM_MIRROR,
+  freshClaimSlot,
+  putRowState,
+} from "#test-utils/payment-claim.ts";
+import {
   adminFormPost,
+  adminGet,
   createTestManagerSession,
 } from "#test-utils/session.ts";
 
@@ -101,6 +110,46 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
 
     test("says contact details stay in the encrypted booking, not just the code", async () => {
       await page("stay with the booking, kept encrypted");
+    });
+
+    test("does not show an empty payment-work queue", async () => {
+      expect(await page()).not.toContain("Outstanding payment work");
+    });
+
+    test("keeps payment work reachable after its last listing is deleted", async () => {
+      const listing = await createTestListing();
+      const { attendee } = await createTestAttendeeDirect(
+        listing.id,
+        "Refund recovery",
+        "refund-recovery@example.com",
+      );
+      const paymentSessionId = `privacy-recovery-${attendee.id}`;
+      await getDb().execute(
+        insert("processed_payments", {
+          attendee_id: attendee.id,
+          payment_session_id: paymentSessionId,
+          processed_at: oldIso(),
+        }),
+      );
+      await putRowState(
+        paymentSessionId,
+        await freshClaimSlot(attendee.id),
+        CLAIM_MIRROR,
+      );
+
+      await deleteListing(listing.id);
+
+      const response = await adminGet("/admin/privacy");
+      const html = await response.text();
+      expect(response.status).toBe(200);
+      expect(html).toContain("The normal cleanup queue is empty right now.");
+      expect(html).not.toContain("There are no orphaned records right now.");
+      expect(html).toContain("Outstanding payment work");
+      expect(html).toContain(`href="/admin/attendees/${attendee.id}"`);
+      expect(html).toContain(`Open attendee ${attendee.id}`);
+      expect((await adminGet(`/admin/attendees/${attendee.id}`)).status).toBe(
+        200,
+      );
     });
   });
 

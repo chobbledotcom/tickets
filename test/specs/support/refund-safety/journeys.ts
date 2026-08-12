@@ -132,12 +132,27 @@ export const openOwnerAction = async (
   return browser;
 };
 
-/** Submit the rendered owner refund form and keep the page it leads to. */
-export const ownerRefunds: OwnerJourney = async (world, who) => {
-  const browser = await openOwnerAction(world, who, "Refund");
-  await fillInAndSend(browser, { confirm_identifier: who }, "Refund Attendee");
+const submitOwnerAction = (
+  action: string,
+  button: string,
+): OwnerJourney =>
+async (world, who) => {
+  const browser = await openOwnerAction(world, who, action);
+  await fillInAndSend(browser, { confirm_identifier: who }, button);
   return browser;
 };
+
+/** Submit the rendered owner refund form and keep the page it leads to. */
+export const ownerRefunds: OwnerJourney = submitOwnerAction(
+  "Refund",
+  "Refund Attendee",
+);
+
+/** Submit the real attendee deletion form after payment work has finished. */
+export const ownerDeletesAttendee: OwnerJourney = submitOwnerAction(
+  "Delete",
+  "Delete Attendee",
+);
 
 /** Press the attendee overview's rendered provider refresh button. */
 export const ownerRefreshesPayment: OwnerJourney = continueFromAttendee(

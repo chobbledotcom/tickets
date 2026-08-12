@@ -4,6 +4,7 @@ import {
   claimAttendeeRows,
   type InheritedArmedRefunds,
   type LoadedRefundAttendee,
+  type RefundClaimAdmission,
 } from "#shared/db/payment-claim/take.ts";
 import {
   type PaymentReviewChange,
@@ -18,12 +19,17 @@ import {
 } from "#shared/payment/claim.ts";
 import type { PaymentReviewReason } from "#shared/payment/review.ts";
 import type { RefundClaimPhase } from "#shared/payment/row-state.ts";
+import { withSubrequestReserve } from "#shared/subrequest-budget.ts";
+import { REFUND_SETTLEMENT_SUBREQUEST_RESERVE } from "./budget.ts";
 import { reportRefundProblem } from "./report.ts";
 
 /** Taking and letting go of the hold on an attendee's payment rows. Injected
  *  so the tally and ordering rules can be tested without a database. */
 export type RowClaim = {
-  claim: (attendees: readonly LoadedRefundAttendee[]) => Promise<ClaimResult>;
+  claim: (
+    attendees: readonly LoadedRefundAttendee[],
+    admit?: RefundClaimAdmission,
+  ) => Promise<ClaimResult>;
   settle: (settlement: RowSettlement) => Promise<void>;
 };
 
@@ -47,6 +53,7 @@ export type RunFindings = {
 /** Why a run could not take the complete set it loaded. */
 export type RefundRunBlock =
   | { kind: "claim_held"; reason: string }
+  | { kind: "not_admitted" }
   | { kind: "payment_set_changed"; reason: string };
 
 /** The exact durable hold provider preparation must bind before any send. */
@@ -183,11 +190,12 @@ export const underAttendeeClaim = async <TResult>(
   held: readonly LoadedRefundAttendee[],
   listingId: number,
   run: {
+    admit?: RefundClaimAdmission;
     blocked: (block: RefundRunBlock) => TResult;
     work: (heldWork: HeldRefundWork) => Promise<TResult>;
   },
 ): Promise<TResult> => {
-  const claim = await rowClaim.claim(held);
+  const claim = await rowClaim.claim(held, run.admit);
   if (claim.kind === "changed") {
     return run.blocked({
       kind: "payment_set_changed",
@@ -201,9 +209,14 @@ export const underAttendeeClaim = async <TResult>(
       reason: claimRefusal(claim.blockedBy),
     });
   }
+  if (claim.kind === "not_admitted") {
+    return run.blocked({ kind: "not_admitted" });
+  }
   const findings: RunFindings = {
     claimPhases: new Map(claim.phases),
-    doubts: new Map(),
+    doubts: new Map(
+      [...claim.inherited.keys()].map((attendeeId) => [attendeeId, "unread"]),
+    ),
     recorded: new Set(),
     reviews: new Map(),
     unrecorded: new Map(),
@@ -220,20 +233,24 @@ export const underAttendeeClaim = async <TResult>(
     );
   };
   try {
-    return await run.work({
-      alreadyReturned: claim.returned,
-      claim: {
-        commandId: claim.commandId,
-        held: claim.held,
-        heldSince: claim.heldSince,
-        phases: findings.claimPhases,
-      },
-      findings,
-      inherited: claim.inherited,
-      reviews: claim.reviews,
-      shared: claim.shared,
-      unrecorded: claim.unrecorded,
-    });
+    return await withSubrequestReserve(
+      REFUND_SETTLEMENT_SUBREQUEST_RESERVE,
+      () =>
+        run.work({
+          alreadyReturned: claim.returned,
+          claim: {
+            commandId: claim.commandId,
+            held: claim.held,
+            heldSince: claim.heldSince,
+            phases: findings.claimPhases,
+          },
+          findings,
+          inherited: claim.inherited,
+          reviews: claim.reviews,
+          shared: claim.shared,
+          unrecorded: claim.unrecorded,
+        }),
+    );
   } finally {
     await settle();
   }

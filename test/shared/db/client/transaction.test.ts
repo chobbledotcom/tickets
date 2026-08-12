@@ -12,6 +12,12 @@ import {
   setN1GuardNotifyOnly,
   TRANSACTION_ROUNDTRIP_THRESHOLD,
 } from "#shared/db/query-log.ts";
+import {
+  getSubrequestRemaining,
+  runWithSubrequestBudget,
+  withSubrequestAllowance,
+  withSubrequestReserve,
+} from "#shared/subrequest-budget.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { stubTransaction } from "#test-utils/db-helpers/stub-transaction.ts";
@@ -41,7 +47,7 @@ describeWithEnv("db > client transaction", { db: true }, () => {
           await tx.execute(`SELECT ${i}`);
         }
         await tx.batch(["SELECT 100", "SELECT 101"]);
-      }),
+      })
     );
 
   test("a transaction may use the full statement budget", async () => {
@@ -57,7 +63,7 @@ describeWithEnv("db > client transaction", { db: true }, () => {
           for (let i = 0; i <= TRANSACTION_ROUNDTRIP_THRESHOLD; i++) {
             await tx.execute(`SELECT ${i}`);
           }
-        }),
+        })
       ),
     ).rejects.toThrow("Interactive transaction too chatty");
   });
@@ -82,6 +88,32 @@ describeWithEnv("db > client transaction", { db: true }, () => {
       }),
     ).rejects.toThrow("work failed");
     expect(rollback.calls.length).toBe(1);
+  });
+
+  test("a rollback cannot consume its caller's reserved tail", async () => {
+    await runWithSubrequestBudget(() =>
+      withSubrequestAllowance(
+        { database: 5, external: 0, total: 5 },
+        () =>
+          withSubrequestReserve(
+            { database: 2, external: 0, total: 2 },
+            async () => {
+              await expect(
+                withTransaction(async (tx) => {
+                  await tx.execute("SELECT 1");
+                  await tx.execute("SELECT 2");
+                }),
+              ).rejects.toThrow("Subrequest allowance exceeded");
+            },
+          ),
+      ).then(() => {
+        expect(getSubrequestRemaining()).toEqual({
+          database: 47,
+          external: 50,
+          total: 47,
+        });
+      })
+    );
   });
 
   test("a rollback failure after a commit failure still surfaces the commit error", async () => {

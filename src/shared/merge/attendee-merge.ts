@@ -17,8 +17,9 @@ import { transfersByEventGroup } from "#shared/accounting/queries.ts";
 import { repointAttendeeStatements } from "#shared/accounting/repoint.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import {
-  attendeeDependentDeleteStatements,
-  checkoutStageDeleteStatement,
+  attendeeRemovalStatements,
+  checkoutStageDeleteStatements,
+  repointAttendeeDependents,
 } from "#shared/db/attendees/delete.ts";
 import {
   insert,
@@ -136,17 +137,15 @@ export const nonConflictAnswerLabel = (
 // ---------------------------------------------------------------------------
 
 /** Join mapped values with commas */
-const joinMapped =
-  <T>(fn: (item: T) => string) =>
-  (items: T[]): string =>
-    map(fn)(items).join(",");
+const joinMapped = <T>(fn: (item: T) => string) => (items: T[]): string =>
+  map(fn)(items).join(",");
 
 const joinAnswerEntries = joinMapped(
   (e: [number, { answerId: number }]) => `${e[0]}=${e[1].answerId}`,
 );
 
 const joinBookingKeys = joinMapped((b: ListingAttendeeRow) =>
-  bookingKey(b.listing_id, b.start_at, b.parent_listing_id, b.package_group_id),
+  bookingKey(b.listing_id, b.start_at, b.parent_listing_id, b.package_group_id)
 );
 
 /** Compute a simple version string from diff inputs for stale-preview detection */
@@ -190,10 +189,10 @@ export const buildAttendeeMergeDiff = async (
   // --- PII fields ---
   const piiFields: AttendeeMergeDiffPiiField[] = map(
     (def: { field: string; label: string; multiline: boolean }) => {
-      const targetValue =
-        (targetPii as Record<string, string>)[def.field] || "";
-      const sourceValue =
-        (sourcePii as Record<string, string>)[def.field] || "";
+      const targetValue = (targetPii as Record<string, string>)[def.field] ||
+        "";
+      const sourceValue = (sourcePii as Record<string, string>)[def.field] ||
+        "";
       return {
         ...def,
         same: targetValue === sourceValue,
@@ -337,34 +336,29 @@ const buildBookingDiffItems = (
 
   return mapParallel(
     async (sb: ListingAttendeeRow): Promise<AttendeeMergeDiffBookingItem> => {
-      const tb =
-        targetByKey.get(
-          bookingKey(
-            sb.listing_id,
-            sb.start_at,
-            sb.parent_listing_id,
-            sb.package_group_id,
-          ),
-        ) ?? null;
+      const tb = targetByKey.get(
+        bookingKey(
+          sb.listing_id,
+          sb.start_at,
+          sb.parent_listing_id,
+          sb.package_group_id,
+        ),
+      ) ?? null;
       const conflictClass = classifyBooking(sb, tb);
       // A moveable booking moves with its own money (no decision, no
       // double-count); only a conflict needs the amounts at stake.
-      const sourceSaleAmount =
-        conflictClass === "moveable"
-          ? 0
-          : await bookingSaleAmount(
-              sourceId,
-              sb.listing_id,
-              sb.ledger_event_group,
-            );
-      const targetSaleAmount =
-        tb === null
-          ? 0
-          : await bookingSaleAmount(
-              targetId,
-              tb.listing_id,
-              tb.ledger_event_group,
-            );
+      const sourceSaleAmount = conflictClass === "moveable"
+        ? 0
+        : await bookingSaleAmount(
+          sourceId,
+          sb.listing_id,
+          sb.ledger_event_group,
+        );
+      const targetSaleAmount = tb === null ? 0 : await bookingSaleAmount(
+        targetId,
+        tb.listing_id,
+        tb.ledger_event_group,
+      );
       return {
         conflictClass,
         listingId: sb.listing_id,
@@ -403,7 +397,7 @@ const answerDecisionErrors = (
   mapNotNullish((item: AttendeeMergeDiffAnswerItem) =>
     item.conflict && !decision.answers[String(item.questionId)]
       ? `Missing decision for question: ${item.questionText}`
-      : null,
+      : null
   )(diff.answerItems);
 
 type ConflictBookingEntry = ReturnType<typeof conflictBookingEntries>[number];
@@ -822,21 +816,20 @@ export const applyAttendeeMerge = async (
     // Insert moved/replaced source bookings
     ...insertStatements,
     ...(sourceLegacyPaymentStatement ? [sourceLegacyPaymentStatement] : []),
-    checkoutStageDeleteStatement({
-      args: [targetId],
-      sql: "?",
-    }),
+    ...checkoutStageDeleteStatements({ args: [targetId], sql: "?" }),
     // Move source-owned payment references before deleting the source attendee,
     // so refunds on the merged person can return every charge whose ledger rows
     // now live on the target account.
     {
       args: [targetId, sourceId],
-      sql: "UPDATE processed_payments SET attendee_id = ? WHERE attendee_id = ?",
+      sql:
+        "UPDATE processed_payments SET attendee_id = ? WHERE attendee_id = ?",
     },
+    ...repointAttendeeDependents(sourceId, targetId),
     // The source is going away, so clear every row whose identity belongs to
     // it through the same schema as ordinary deletion. Payment rows survive:
     // the statement above has already moved them to the target.
-    ...attendeeDependentDeleteStatements({ args: [sourceId], sql: "?" }),
+    ...attendeeRemovalStatements({ args: [sourceId], sql: "?" }),
     { args: [sourceId], sql: "DELETE FROM attendees WHERE id = ?" },
     // Move the source's ledger rows onto the target — the sole sanctioned
     // account-id mutation — so its financial history follows the merged person

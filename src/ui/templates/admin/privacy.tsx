@@ -28,8 +28,10 @@ import {
 /* jscpd:ignore-end */
 
 export type PrivacyPageData = {
-  /** Total orphaned attendee records currently in the database. */
-  orphanCount: number;
+  /** Orphans available to ordinary cleanup, excluding protected payment work. */
+  purgeableOrphanCount: number;
+  /** Orphans retained because a payment still needs owner attention. */
+  paymentWorkAttendeeIds: number[];
   /** Currently saved retention age (whole days, as a string). */
   orphanRetention: string;
   /** Whether automatic orphan purging is enabled. */
@@ -50,18 +52,41 @@ const RetentionSelect = ({ selected }: { selected: string }): JSX.Element => (
 
 /** Tidy-up-orphans form: age + auto-purge toggle, with Save / Delete-now. */
 const OrphansForm = ({
-  orphanCount,
   orphanRetention,
   autoPurgeOrphans,
+  paymentWorkAttendeeIds,
+  purgeableOrphanCount,
 }: Pick<
   PrivacyPageData,
-  "orphanCount" | "orphanRetention" | "autoPurgeOrphans"
+  | "orphanRetention"
+  | "autoPurgeOrphans"
+  | "paymentWorkAttendeeIds"
+  | "purgeableOrphanCount"
 >): JSX.Element => (
   <CsrfForm action="/admin/privacy/orphans" id="privacy-orphans">
     <div class="prose">
       <h2>{t("privacy.orphans.heading")}</h2>
       <Raw html={t("privacy.orphans.intro_html")} />
-      <p>{t("privacy.orphans.count", { count: orphanCount })}</p>
+      <p>
+        {t("privacy.orphans.purgeable_count", {
+          count: purgeableOrphanCount,
+        })}
+      </p>
+      {paymentWorkAttendeeIds.length > 0 && (
+        <section>
+          <h3>{t("privacy.orphans.payment_work_heading")}</h3>
+          <p>{t("privacy.orphans.payment_work_intro")}</p>
+          <ul>
+            {paymentWorkAttendeeIds.map((attendeeId) => (
+              <li>
+                <a href={`/admin/attendees/${attendeeId}`}>
+                  {t("privacy.orphans.payment_work_link", { id: attendeeId })}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
     <RetentionSelect selected={orphanRetention} />
     <label class="checkbox">
@@ -132,8 +157,9 @@ export const adminPrivacyPage = (
 
       <OrphansForm
         autoPurgeOrphans={data.autoPurgeOrphans}
-        orphanCount={data.orphanCount}
         orphanRetention={data.orphanRetention}
+        paymentWorkAttendeeIds={data.paymentWorkAttendeeIds}
+        purgeableOrphanCount={data.purgeableOrphanCount}
       />
 
       <EraseForm />

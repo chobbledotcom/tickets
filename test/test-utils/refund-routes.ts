@@ -56,7 +56,7 @@ type RefundMockOptions = {
 
 const chargeResult = (
   behavior: ChargeBehavior,
-): ((reference: string) => Promise<ChargeMoney>) =>
+): (reference: string) => Promise<ChargeMoney> =>
   typeof behavior === "function" ? behavior : () => Promise.resolve(behavior);
 
 /** A provider that completes the exact refund it was asked to send. */
@@ -143,8 +143,10 @@ const withStripeProvider = async (
   await settings.update.stripe.secretKey("sk_test_refund_routes");
   await withMocks(
     () =>
-      stub(paymentsApi, "getConfiguredProvider", () =>
-        mockProviderType("stripe"),
+      stub(
+        paymentsApi,
+        "getConfiguredProvider",
+        () => mockProviderType("stripe"),
       ),
     async () => {
       const { stripePaymentProvider } = await import(
@@ -165,8 +167,10 @@ export const withRefreshPaymentMoney = async <T>(
   let result!: T;
   await withStripeProvider(async (provider) => {
     const mockRefunded = spy(probe);
-    const readCharge = stub(provider, "readCharge", async (reference) =>
-      foundCharge(await mockRefunded(reference)),
+    const readCharge = stub(
+      provider,
+      "readCharge",
+      async (reference) => foundCharge(await mockRefunded(reference)),
     );
     try {
       result = await body(mockRefunded);
@@ -203,8 +207,10 @@ export const withRefundMock = async (
         mockRefund(request),
     );
     const readMoney = chargeResult(options.charge ?? chargeMoney());
-    const readCharge = stub(provider, "readCharge", async (reference) =>
-      foundCharge(await readMoney(reference)),
+    const readCharge = stub(
+      provider,
+      "readCharge",
+      async (reference) => foundCharge(await readMoney(reference)),
     );
     try {
       await fn(mockRefund);
@@ -235,8 +241,12 @@ export const grantingRowClaim = (
   const reviewChanges: ReadonlyMap<string, PaymentReviewChange>[] = [];
   const unrecorded: string[][] = [];
   return {
-    claim: () =>
-      Promise.resolve({
+    claim: (attendees, admit) => {
+      const returned = new Set<string>();
+      if (admit !== undefined && !admit({ attendees, inherited, returned })) {
+        return Promise.resolve({ kind: "not_admitted" as const });
+      }
+      return Promise.resolve({
         commandId: "test-command",
         held,
         heldSince: "2026-08-10T12:00:00.000Z",
@@ -248,18 +258,19 @@ export const grantingRowClaim = (
             .map((sessionId) => [
               sessionId,
               [...held].some(
-                ([attendeeId, sessions]) =>
-                  sessions.includes(sessionId) && inherited.has(attendeeId),
-              )
+                  ([attendeeId, sessions]) =>
+                    sessions.includes(sessionId) && inherited.has(attendeeId),
+                )
                 ? ("send_armed" as const)
                 : ("checking" as const),
             ]),
         ),
-        returned: new Set<string>(),
+        returned,
         reviews: existingReviews,
         shared: new Map(),
         unrecorded: existingUnrecorded,
-      }),
+      });
+    },
     recorded,
     released,
     reviewChanges,
@@ -274,7 +285,7 @@ export const grantingRowClaim = (
           [...rows].flatMap(([sessionId, change]) =>
             change.review === undefined
               ? []
-              : [[sessionId, change.review] as const],
+              : [[sessionId, change.review] as const]
           ),
         ),
       );

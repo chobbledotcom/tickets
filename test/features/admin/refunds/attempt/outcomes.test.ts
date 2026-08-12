@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  type PreparedReferenceRefund,
-  refundReadyCandidate,
-} from "#routes/admin/refunds/attempt.ts";
+import type { PreparedReferenceRefund } from "#routes/admin/refunds/attempt.ts";
 import { PROVIDER_REFUND_CONCURRENCY } from "#routes/admin/refunds/provider-requests.ts";
-import { authorizeEveryRefund } from "#test/features/admin/refunds/provider/dispatch-helpers.ts";
+import {
+  authorizeEveryRefund,
+  refundReadyCandidate,
+} from "#test/features/admin/refunds/provider/dispatch-helpers.ts";
 import {
   completedRefund,
   provider,

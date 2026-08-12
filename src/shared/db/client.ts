@@ -32,6 +32,7 @@ import { getEnv } from "#shared/env.ts";
 import { namedError } from "#shared/named-error.ts";
 import { proxyMembers } from "#shared/proxy-members.ts";
 import { retryWithBackoff } from "#shared/retry.ts";
+import { withSubrequestReserve } from "#shared/subrequest-budget.ts";
 
 /**
  * Match the target table of a mutating statement (INSERT/UPDATE/DELETE/REPLACE),
@@ -151,10 +152,12 @@ const createDbClient = (): Client => {
   // exactOptionalPropertyTypes rejects an explicit `undefined`. A no-token
   // client is valid at runtime, so assert the type rather than branch on it
   // (a branch here would leave one side uncovered).
-  return createClient({
-    authToken: getEnv("DB_TOKEN"),
-    url,
-  } as Parameters<typeof createClient>[0]);
+  return createClient(
+    {
+      authToken: getEnv("DB_TOKEN"),
+      url,
+    } as Parameters<typeof createClient>[0],
+  );
 };
 
 const GUARDED_CLIENT = Symbol("guarded-db-client");
@@ -173,12 +176,14 @@ type AroundExecute = Parameters<typeof wrapExecute>[1];
 const executeWithRoundTrip =
   (around: AroundExecute) =>
   (target: Pick<Client, "execute">, operation: string) =>
-    wrapExecute(target, (statement, execute) =>
-      around(statement, () => databaseRoundTrip(operation, execute)),
+    wrapExecute(
+      target,
+      (statement, execute) =>
+        around(statement, () => databaseRoundTrip(operation, execute)),
     );
 
 const executeWithRoundTripGuard = executeWithRoundTrip((_statement, execute) =>
-  execute(),
+  execute()
 );
 
 /** Count and retry a bare client statement. Transaction statements use only the
@@ -186,21 +191,23 @@ const executeWithRoundTripGuard = executeWithRoundTrip((_statement, execute) =>
 const executeWithTransientRetry = executeWithRoundTrip((statement, execute) =>
   retryOnTransientDatabaseError(execute, {
     retryUpstream: isReadSql(sqlOf(statement)),
-  }),
+  })
 );
 
 const transactionWithRoundTripGuard = (transaction: Transaction): Transaction =>
   proxyMembers(transaction, {
     batch: (statements: InStatement[]) =>
-      databaseRoundTrip("transaction batch", () =>
-        transaction.batch(statements),
+      databaseRoundTrip(
+        "transaction batch",
+        () => transaction.batch(statements),
       ),
     commit: (): Promise<void> =>
       databaseRoundTrip("transaction commit", () => transaction.commit()),
     execute: executeWithRoundTripGuard(transaction, "transaction statement"),
     executeMultiple: (sql: string): Promise<void> =>
-      databaseRoundTrip("transaction script", () =>
-        transaction.executeMultiple(sql),
+      databaseRoundTrip(
+        "transaction script",
+        () => transaction.executeMultiple(sql),
       ),
     // Rollback is mandatory cleanup: an interactive transaction left open (its
     // rollback blocked) poisons the shared write connection for the rest of the
@@ -234,8 +241,9 @@ const withRoundTripGuard = (client: Client): Client => {
     sync: () => databaseRoundTrip("replica sync", () => client.sync()),
     transaction: async (mode?: TransactionMode): Promise<Transaction> =>
       transactionWithRoundTripGuard(
-        await databaseRoundTrip("transaction begin", () =>
-          beginTransaction(client, mode),
+        await databaseRoundTrip(
+          "transaction begin",
+          () => beginTransaction(client, mode),
         ),
       ),
   });
@@ -272,6 +280,9 @@ export class DatabaseBusyError extends namedError("DatabaseBusyError") {
  *  write lock on any statement, or a fleeting upstream gateway error on a read;
  *  its length is the number of retries, so four attempts in total. */
 const TRANSIENT_ERROR_BACKOFF_MS = [50, 150, 350] as const;
+
+/** Most physical database attempts made for one retryable operation. */
+export const DATABASE_MAX_ATTEMPTS = TRANSIENT_ERROR_BACKOFF_MS.length + 1;
 
 /** SQLite has a single writer, so a contended write surfaces as SQLITE_BUSY —
  *  thrown immediately by the local driver as "database is locked" when a bare
@@ -341,8 +352,9 @@ const retryOnTransientDatabaseError = <T>(
 type StatementRunner<T> = (sql: string, args?: InValue[]) => Promise<T>;
 
 const executeTrackedStatement: StatementRunner<ResultSet> = (sql, args) =>
-  trackSql(sql, () =>
-    args ? getDb().execute({ args, sql }) : getDb().execute(sql),
+  trackSql(
+    sql,
+    () => args ? getDb().execute({ args, sql }) : getDb().execute(sql),
   );
 
 /** A SQL statement and its optional bound args — the shared parameters of the
@@ -402,8 +414,9 @@ const requireQueryRow = async <T>(
   label: string,
 ): Promise<T> => {
   const found = await row;
-  if (found === null)
+  if (found === null) {
     throw new Error(`${label} query returned no rows: ${sql}`);
+  }
   return found;
 };
 
@@ -520,9 +533,11 @@ export const resetAggregates = async <T extends string>(
   resetSql: Record<T, string>,
 ): Promise<void> => {
   if (fields.length === 0) return;
-  const sql = `UPDATE ${table} SET ${fields
-    .map((field) => resetSql[field])
-    .join(", ")} WHERE id = ?`;
+  const sql = `UPDATE ${table} SET ${
+    fields
+      .map((field) => resetSql[field])
+      .join(", ")
+  } WHERE id = ?`;
   await execute(sql, fields.map(() => entityId).concat(entityId));
 };
 
@@ -569,10 +584,12 @@ const runBatch = async (
   retryUpstream: boolean,
 ): Promise<ResultSet[]> => {
   const sqls = statements.map(({ sql }) => sql);
-  const results = await trackSql(sqls, () =>
-    retryOnTransientDatabaseError(() => getDb().batch(statements, mode), {
-      retryUpstream,
-    }),
+  const results = await trackSql(
+    sqls,
+    () =>
+      retryOnTransientDatabaseError(() => getDb().batch(statements, mode), {
+        retryUpstream,
+      }),
   );
   for (const stmt of statements) {
     if (invalidate) invalidateForSql(stmt.sql);
@@ -613,20 +630,19 @@ const requireReadStatements = (statements: SqlStatement[]): void => {
  *  executors ({@link queryBatch}, {@link queryBatchPrimary}) always retry a
  *  fleeting recognized upstream failure (their statements are validated SELECTs — no side
  *  effects to double-apply); the write executors never do. */
-const batchFor =
-  (
-    mode: TransactionMode | (() => TransactionMode),
-    retryUpstream: boolean,
-  ): BatchExecutor =>
-  async (statements) => {
-    if (retryUpstream) requireReadStatements(statements);
-    return runBatch(
-      statements,
-      typeof mode === "function" ? mode() : mode,
-      true,
-      retryUpstream,
-    );
-  };
+const batchFor = (
+  mode: TransactionMode | (() => TransactionMode),
+  retryUpstream: boolean,
+): BatchExecutor =>
+async (statements) => {
+  if (retryUpstream) requireReadStatements(statements);
+  return runBatch(
+    statements,
+    typeof mode === "function" ? mode() : mode,
+    true,
+    retryUpstream,
+  );
+};
 
 /** Local SQLite has no replica and write mode would only take a needless lock. */
 const primaryReadMode = (): TransactionMode => {
@@ -741,6 +757,13 @@ const runWriteTransactionOnce = async <T>(
  *  A `const` holder (not a module-level `let`) carries the mutable tail. */
 const writeQueue: { tail: Promise<unknown> } = { tail: Promise.resolve() };
 
+/** A write transaction never starts without room to close itself on failure. */
+const TRANSACTION_ROLLBACK_SUBREQUEST_RESERVE = {
+  database: 1,
+  external: 0,
+  total: 1,
+};
+
 /**
  * Run `work` inside one interactive write transaction, committing on success
  * and rolling back (then rethrowing) on any error. Use this rather than a plain
@@ -766,12 +789,19 @@ export const withTransaction = <T>(work: TransactionWork<T>): Promise<T> => {
   // own caller's concern), then run, retrying a contended lock on a fresh tx.
   const run = (async (): Promise<T> => {
     await writeQueue.tail.catch(() => undefined);
-    return retryOnTransientDatabaseError(() => runWriteTransactionOnce(work), {
-      // A transaction holds writes: an upstream failure at begin or commit may
-      // arrive after they landed, so a retried transaction would replay them.
-      // Only retry lock contention, which never ran anything.
-      retryUpstream: false,
-    });
+    return retryOnTransientDatabaseError(
+      () =>
+        withSubrequestReserve(
+          TRANSACTION_ROLLBACK_SUBREQUEST_RESERVE,
+          () => runWriteTransactionOnce(work),
+        ),
+      {
+        // A transaction holds writes: an upstream failure at begin or commit
+        // may arrive after they landed, so a retried transaction would replay
+        // them. Only retry lock contention, which never ran anything.
+        retryUpstream: false,
+      },
+    );
   })();
   writeQueue.tail = run;
   return run;
@@ -811,7 +841,9 @@ export const insertedRowId = (
   const id = resultRows<Record<string, unknown>>(result)[0]?.[primaryKey];
   if (typeof id === "number" && Number.isInteger(id) && id > 0) return id;
   throw new Error(
-    `INSERT did not return the ${primaryKey} of the row it wrote (got ${JSON.stringify(id)})`,
+    `INSERT did not return the ${primaryKey} of the row it wrote (got ${
+      JSON.stringify(id)
+    })`,
   );
 };
 
@@ -829,8 +861,9 @@ export const writeRowInTransaction = <State = never>(
   readState?: TransactionStateReader<State>,
 ): Promise<number> =>
   withTransaction(async (tx) => {
-    const state =
-      existingId !== null && readState ? await readState(tx, existingId) : null;
+    const state = existingId !== null && readState
+      ? await readState(tx, existingId)
+      : null;
     const res = await tx.execute(statement);
     const id = existingId ?? insertedRowId(res);
     await persist(tx, id, state);
@@ -890,9 +923,11 @@ export const insert = (
   const returning = returningColumns ? ` RETURNING ${returningColumns}` : "";
   return {
     args,
-    sql: `INSERT INTO ${table} (${columns.join(", ")}) VALUES (${placeholders.join(
-      ", ",
-    )})${returning}`,
+    sql: `INSERT INTO ${table} (${columns.join(", ")}) VALUES (${
+      placeholders.join(
+        ", ",
+      )
+    })${returning}`,
   };
 };
 
@@ -932,9 +967,11 @@ export const update = (
   const whereClauses = equalityClauses(where, args);
   return {
     args,
-    sql: `UPDATE ${table} SET ${setClauses.join(", ")} WHERE ${whereClauses.join(
-      " AND ",
-    )}`,
+    sql: `UPDATE ${table} SET ${setClauses.join(", ")} WHERE ${
+      whereClauses.join(
+        " AND ",
+      )
+    }`,
   };
 };
 

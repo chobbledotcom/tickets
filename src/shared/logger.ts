@@ -18,11 +18,18 @@ import {
   hasPendingWorkScope,
   runWithPendingWork,
 } from "#shared/pending-work.ts";
-import { createScopedValue, type ScopeRunner } from "#shared/request-scoped.ts";
+import {
+  createScope,
+  createScopedValue,
+  type ScopeRunner,
+} from "#shared/request-scoped.ts";
 import { captureServerError } from "#shared/sentry.ts";
 
 /** Request-scoped random ID for correlating log entries ("" outside a request). */
 const requestId = createScopedValue(() => "");
+
+/** Error fan-out held until a critical command has completely unwound. */
+const deferredErrorReports = createScope<ErrorContext[]>();
 
 /**
  * Module-level override for request log suppression.
@@ -172,8 +179,8 @@ const ERROR_DEFS = {
 type ErrorDefs = typeof ERROR_DEFS;
 
 /** Error code strings for use in logError calls */
-export const ErrorCode: { [K in keyof ErrorDefs]: ErrorDefs[K][0] } =
-  Object.fromEntries(
+export const ErrorCode: { [K in keyof ErrorDefs]: ErrorDefs[K][0] } = Object
+  .fromEntries(
     Object.entries(ERROR_DEFS).map(([k, [code]]) => [k, code]),
   ) as { [K in keyof ErrorDefs]: ErrorDefs[K][0] };
 
@@ -285,27 +292,27 @@ export const formatErrorMessage = (context: ErrorContext): string => {
     : `Error: ${label}`;
 };
 
-/** Guard against recursive logError→logActivity→logError loops */
-const errorPersistGuard = { active: false };
+/** Only logging raised by the persistence itself is recursive. Independent
+ * reports each receive their own scope, even when they overlap. */
+const errorPersistence = createScope<Record<never, never>>();
 
 /** Persist error to activity log, swallowing failures to prevent cascading errors */
 const persistErrorToActivityLog = async (
   context: ErrorContext,
 ): Promise<void> => {
-  if (errorPersistGuard.active) return;
-  errorPersistGuard.active = true;
-  try {
-    // Imported on first error rather than at module load: the logger sits in
-    // every module's import graph (via env.ts), and a static import here would
-    // drag the activity-log table — and the listing helpers it queries with —
-    // into every page's graph.
-    const { logActivity } = await import("#shared/db/activity-log.ts");
-    await logActivity(formatErrorMessage(context), context.listingId ?? null);
-  } catch {
-    // Swallow DB errors to avoid cascading failures
-  } finally {
-    errorPersistGuard.active = false;
-  }
+  if (errorPersistence.current() !== undefined) return;
+  await errorPersistence.run({}, async () => {
+    try {
+      // Imported on first error rather than at module load: the logger sits in
+      // every module's import graph (via env.ts), and a static import here would
+      // drag the activity-log table — and the listing helpers it queries with —
+      // into every page's graph.
+      const { logActivity } = await import("#shared/db/activity-log.ts");
+      await logActivity(formatErrorMessage(context), context.listingId ?? null);
+    } catch {
+      // An error log cannot recover when its own durable log is unavailable.
+    }
+  });
 };
 
 /**
@@ -323,6 +330,13 @@ export const logErrorLocal = (context: ErrorContext): void => {
   console.error(`${getLogPrefix()}${parts.join(" ")}`);
 };
 
+const fanOutError = (context: ErrorContext): void => {
+  if (!hasPendingWorkScope()) return;
+  addPendingWork(sendNtfyError(context.code));
+  addPendingWork(persistErrorToActivityLog(context));
+  addPendingWork(captureServerError(context));
+};
+
 /**
  * Log a classified error to console.error and persist to the activity log.
  * Console output uses error codes and safe metadata (never PII).
@@ -330,12 +344,26 @@ export const logErrorLocal = (context: ErrorContext): void => {
  */
 export const logError = (context: ErrorContext): void => {
   logErrorLocal(context);
-
-  if (hasPendingWorkScope()) {
-    addPendingWork(sendNtfyError(context.code));
-    addPendingWork(persistErrorToActivityLog(context));
-    addPendingWork(captureServerError(context));
+  const deferred = deferredErrorReports.current();
+  if (deferred !== undefined) {
+    deferred.push(context);
+    return;
   }
+  fanOutError(context);
+};
+
+/** Keep non-critical error notifications behind a command's critical work.
+ * Nested callers join the outer queue so only the outermost boundary flushes. */
+export const withDeferredErrorReports: ScopeRunner = (fn) => {
+  if (deferredErrorReports.current() !== undefined) return fn();
+  const reports: ErrorContext[] = [];
+  return deferredErrorReports.run(reports, async () => {
+    try {
+      return await fn();
+    } finally {
+      for (const report of reports) fanOutError(report);
+    }
+  });
 };
 
 /**
@@ -365,7 +393,7 @@ export const bestEffort = async (
 /**
  * Create a request timer for measuring duration
  */
-export const createRequestTimer = (): (() => number) => {
+export const createRequestTimer = (): () => number => {
   const start = performance.now();
   return () => Math.round(performance.now() - start);
 };

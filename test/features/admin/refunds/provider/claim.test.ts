@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { refundReadyCandidate } from "#routes/admin/refunds/attempt.ts";
 import type { RowClaim } from "#routes/admin/refunds/claim.ts";
 import type { ProviderRead } from "#shared/payment/provider-read.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
@@ -13,6 +12,7 @@ import { grantingRowClaim } from "#test-utils/refund-routes.ts";
 import {
   authorizeEveryRefund,
   holdingClaim,
+  refundReadyCandidate,
   reviewEveryArmedKeylessRefund,
 } from "./dispatch-helpers.ts";
 import {
@@ -381,59 +381,4 @@ describe("admin refund provider > a refund still settling", () => {
       expect(rowClaim.released).toEqual([]);
     });
   }
-});
-
-describe("admin refund provider > one charge two attendees carry", () => {
-  test("is asked about once in a run, not once per attendee", async () => {
-    const shared = provider({
-      refundCapability: "keyless",
-      refunded: new Set(["pi_both"]),
-    });
-
-    const counts = finishedCounts(
-      await processRefundBatchAt(
-        shared,
-        [
-          candidate([{ reference: "pi_both", refundState: "none" }], 11),
-          candidate([{ reference: "pi_both", refundState: "none" }], 12),
-        ],
-        7,
-        { claim: grantingRowClaim(), markReturned: () => Promise.resolve() },
-      ),
-    );
-
-    expect(shared.refunds).toEqual(["pi_both"]);
-    expect(counts).toEqual({
-      errorCount: 0,
-      failedCount: 0,
-      notRecordedCount: 2,
-      pendingCount: 0,
-      refundedCount: 0,
-    });
-  });
-});
-
-describe("admin refund provider > a run that dies after a settled answer", () => {
-  test("releases the settled hold and raises the failure", async () => {
-    const releases: string[] = [];
-    const recordsRelease = holdingClaim(() => {
-      releases.push("released");
-      return Promise.resolve();
-    }, ["sess_pi_held"]);
-
-    await expect(
-      processRefundBatchAt(
-        provider({ refunded: new Set(["pi_held"]) }),
-        [candidate([{ reference: "pi_held" }], 11)],
-        7,
-        {
-          claim: recordsRelease,
-          markReturned: () => Promise.resolve(),
-          record: () => Promise.reject(new Error("the ledger fell over")),
-        },
-      ),
-    ).rejects.toThrow("the ledger fell over");
-
-    expect(releases).toEqual(["released"]);
-  });
 });

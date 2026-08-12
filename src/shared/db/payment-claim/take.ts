@@ -40,37 +40,52 @@ import type {
 export type ClaimResult =
   | { blockedBy: ClaimDecision; kind: "blocked" }
   | { kind: "changed" }
+  | { kind: "not_admitted" }
   | {
-      /** Each attendee's claimed rows, kept apart so a run can let one
-       *  attendee go while another's answer is still in doubt. */
-      held: ReadonlyMap<number, readonly string[]>;
-      commandId: string;
-      heldSince: string;
-      kind: "claimed";
-      /** References inheriting a crashed run's doubt, under that reference's
-       *  own provider capability and grouped for attendee-wide settlement. */
-      inherited: InheritedArmedRefunds;
-      /** The exact phase each row must still hold when this run settles it. */
-      phases: ReadonlyMap<string, RefundClaimPhase>;
-      /** References a claimed or sharing row already says came back. */
-      returned: ReadonlySet<string>;
-      /** Owner-review reasons carried by each claimed row. */
-      reviews: ReadonlyMap<string, PaymentReviewReason>;
-      /** References represented by more than one exact payment row. */
-      shared: ReadonlyMap<string, readonly PaymentReferenceRepresentation[]>;
-      /** Claimed rows that already say returned money is missing from the
-       *  books. A failed readiness check must not erase this repair target. */
-      unrecorded: ReadonlyMap<number, readonly string[]>;
-    };
+    /** Each attendee's claimed rows, kept apart so a run can let one
+     *  attendee go while another's answer is still in doubt. */
+    held: ReadonlyMap<number, readonly string[]>;
+    commandId: string;
+    heldSince: string;
+    kind: "claimed";
+    /** References inheriting a crashed run's doubt, under that reference's
+     *  own provider capability and grouped for attendee-wide settlement. */
+    inherited: InheritedArmedRefunds;
+    /** The exact phase each row must still hold when this run settles it. */
+    phases: ReadonlyMap<string, RefundClaimPhase>;
+    /** References a claimed or sharing row already says came back. */
+    returned: ReadonlySet<string>;
+    /** Owner-review reasons carried by each claimed row. */
+    reviews: ReadonlyMap<string, PaymentReviewReason>;
+    /** References represented by more than one exact payment row. */
+    shared: ReadonlyMap<string, readonly PaymentReferenceRepresentation[]>;
+    /** Claimed rows that already say returned money is missing from the
+     *  books. A failed readiness check must not erase this repair target. */
+    unrecorded: ReadonlyMap<number, readonly string[]>;
+  };
 
 /** The exact attendee and payment-reference snapshot an admin run loaded.
  *  `loadedPiiBlob` is the attendee revision, so a concurrent save cannot
  *  change the indexed payment set beneath the claim. */
 export type LoadedRefundAttendee = {
   readonly attendeeId: number;
+  /** The loaded rows already carried a claim mirror. */
+  readonly held?: boolean;
   readonly loadedPiiBlob: string;
   readonly references: readonly RefundPaymentReference[];
 };
+
+/** Exact row-backed facts a pure pre-claim gate may recheck under the lock. */
+export type RefundClaimAdmissionFacts = {
+  readonly attendees: readonly LoadedRefundAttendee[];
+  /** Holds inherited from the authoritative rows read inside this claim. */
+  readonly inherited: InheritedArmedRefunds;
+  readonly returned: ReadonlySet<string>;
+};
+
+export type RefundClaimAdmission = (
+  facts: RefundClaimAdmissionFacts,
+) => boolean;
 
 /** One exact durable row that represents a provider charge. */
 export type PaymentReferenceRepresentation = {
@@ -127,7 +142,7 @@ const matchingIndexesOf = (
   attendees: readonly LoadedRefundAttendee[],
 ): string[] =>
   attendees.flatMap(({ references }) =>
-    references.flatMap(({ matchingIndexes }) => matchingIndexes),
+    references.flatMap(({ matchingIndexes }) => matchingIndexes)
   );
 
 /** Row identities the loaded snapshot says the run must hold. */
@@ -146,8 +161,8 @@ const expectedRowsBySession = (
                 referenceIndex: reference.index,
               },
             ] as const,
-        ),
-      ),
+        )
+      )
     ),
   );
 
@@ -204,13 +219,13 @@ const inheritedArmedRefunds = (
         judged.flatMap(({ decision, row }) =>
           decision.kind === "resume" && decision.resuming.phase === "send_armed"
             ? [
-                {
-                  attendeeId: row.attendeeId,
-                  capability: decision.resuming.capability,
-                  index: row.referenceIndex,
-                },
-              ]
-            : [],
+              {
+                attendeeId: row.attendeeId,
+                capability: decision.resuming.capability,
+                index: row.referenceIndex,
+              },
+            ]
+            : []
         ),
         ({ attendeeId }) => attendeeId,
       ),
@@ -238,13 +253,13 @@ const sharedRepresentations = (
     [
       ...new Map(
         attendees.flatMap(({ references }) =>
-          references.map((reference) => [reference.index, reference] as const),
+          references.map((reference) => [reference.index, reference] as const)
         ),
       ).values(),
     ].flatMap((reference) => {
       const matching = rows
         .filter((row) =>
-          reference.matchingIndexes.includes(row.payment_reference_index),
+          reference.matchingIndexes.includes(row.payment_reference_index)
         )
         .map(representationOf);
       return matching.length > 1 ? [[reference.index, matching] as const] : [];
@@ -255,9 +270,16 @@ const sharedRepresentations = (
  * row-set checks, and holds share one write transaction. */
 export const claimAttendeeRows = async (
   attendees: readonly LoadedRefundAttendee[],
+  admit?: RefundClaimAdmission,
 ): Promise<ClaimResult> => {
   const commandId = crypto.randomUUID();
   if (attendees.length === 0) {
+    if (
+      admit !== undefined &&
+      !admit({ attendees, inherited: new Map(), returned: new Set() })
+    ) {
+      return { kind: "not_admitted" };
+    }
     return {
       commandId,
       held: new Map(),
@@ -309,10 +331,18 @@ export const claimAttendeeRows = async (
       return { blockedBy: refused.decision, kind: "blocked" };
     }
     const inherited = inheritedArmedRefunds(judged);
+    const returned = new Set(
+      storedRows
+        .filter((row) => row.provider_refunded_at !== "")
+        .map((row) => row.payment_reference_index),
+    );
+    if (admit !== undefined && !admit({ attendees, inherited, returned })) {
+      return { kind: "not_admitted" };
+    }
     await tx.batch(
       await Promise.all(
         judged.map(({ nextClaim, row }) =>
-          paymentRowStateStatement(row, { ...row.state, claim: nextClaim }),
+          paymentRowStateStatement(row, { ...row.state, claim: nextClaim })
         ),
       ),
     );
@@ -332,11 +362,7 @@ export const claimAttendeeRows = async (
       phases: new Map(
         judged.map(({ nextClaim, row }) => [row.sessionId, nextClaim.phase]),
       ),
-      returned: new Set(
-        storedRows
-          .filter((row) => row.provider_refunded_at !== "")
-          .map((row) => row.payment_reference_index),
-      ),
+      returned,
       reviews: new Map(
         paymentRowsWith(rows, ({ review }) => review).map(({ row, value }) => [
           row.sessionId,

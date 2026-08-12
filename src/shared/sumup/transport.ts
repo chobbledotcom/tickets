@@ -3,6 +3,9 @@ import { readJson } from "#shared/read-json.ts";
 
 const SUMUP_API_BASE = "https://api.sumup.com";
 
+/** SumUp transport currently makes one physical fetch per logical call. */
+export const SUMUP_MAX_NETWORK_RETRIES = 0;
+
 /** SumUp answered with an HTTP status that carries the provider's verdict. */
 export class SumupApiError extends Error {
   constructor(readonly statusCode: number) {
@@ -63,18 +66,22 @@ export const createSumupTransport = (apiKey: string): SumupTransport => ({
     await parseJson(
       await sumupRequest(
         apiKey,
-        `/v2.1/merchants/${encodeURIComponent(merchantCode)}/transactions?id=${encodeURIComponent(
-          id,
-        )}`,
+        `/v2.1/merchants/${encodeURIComponent(merchantCode)}/transactions?id=${
+          encodeURIComponent(
+            id,
+          )
+        }`,
         "GET",
       ),
     ),
   refundTransaction: async (merchantCode, transactionId) => {
     const body = await sumupRequest(
       apiKey,
-      `/v1.0/merchants/${encodeURIComponent(merchantCode)}/payments/${encodeURIComponent(
-        transactionId,
-      )}/refunds`,
+      `/v1.0/merchants/${encodeURIComponent(merchantCode)}/payments/${
+        encodeURIComponent(
+          transactionId,
+        )
+      }/refunds`,
       "POST",
     );
     // The documented answer is empty. If SumUp adds a JSON envelope, it still

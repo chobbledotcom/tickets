@@ -1,7 +1,21 @@
-import type { AuthorizeRefundDispatch } from "#routes/admin/refunds/attempt.ts";
+import { unique } from "#fp";
+import {
+  type CandidateRefund,
+  finishPreparedCandidate,
+  type PreparedReferenceRefund,
+  prepareReadyCandidate,
+} from "#routes/admin/refunds/attempt.ts";
 import type { RowClaim } from "#routes/admin/refunds/claim.ts";
-import type { armRefundDispatch } from "#shared/db/payment-refund-dispatch.ts";
+import type { ReadyRefundCandidate } from "#routes/admin/refunds/readiness.ts";
+import type {
+  ArmRefundDispatchResult,
+  armRefundDispatch,
+} from "#shared/db/payment-refund-dispatch.ts";
 import type { RefundProviderCapability } from "#shared/payment/row-state.ts";
+
+type AuthorizeRefundDispatch = (
+  indexes: readonly string[],
+) => Promise<ArmRefundDispatchResult>;
 
 export const authorizeEveryRefund =
   (capability: RefundProviderCapability = "keyed"): AuthorizeRefundDispatch =>
@@ -22,6 +36,24 @@ export const authorizeEveryRefund =
       phases: new Map(),
     });
 
+/** Exercise one attendee through the production prepare/finish mechanism. */
+export const refundReadyCandidate = async (
+  candidate: ReadyRefundCandidate,
+  listingId: number,
+  authorize: AuthorizeRefundDispatch,
+  inFlight: Map<string, Promise<PreparedReferenceRefund>> = new Map(),
+): Promise<CandidateRefund> => {
+  const prepared = await prepareReadyCandidate(candidate, listingId, inFlight);
+  const indexes = unique(
+    prepared.attempts.flatMap((attempt) =>
+      attempt.kind === "ready" ? [attempt.reference.index] : [],
+    ),
+  );
+  const authorization =
+    indexes.length === 0 ? undefined : await authorize(indexes);
+  return await finishPreparedCandidate(prepared, listingId, authorization);
+};
+
 export const armEveryRefund =
   (capability: RefundProviderCapability = "keyed"): typeof armRefundDispatch =>
   async ({ held, indexes }) => {
@@ -39,11 +71,12 @@ export const armEveryRefund =
 
 export const reviewEveryArmedKeylessRefund =
   (): typeof armRefundDispatch =>
-  async ({ indexes }) => ({
-    indexes,
-    kind: "owner_review",
-    reason: "uncertain_keyless_refund",
-  });
+  ({ indexes }) =>
+    Promise.resolve({
+      indexes,
+      kind: "owner_review",
+      reason: "uncertain_keyless_refund",
+    });
 
 export const holdingClaim = (
   settle: RowClaim["settle"],

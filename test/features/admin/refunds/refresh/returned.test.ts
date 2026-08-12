@@ -35,7 +35,7 @@ describe("refresh payment under an attendee claim", () => {
     expect(run.calls.confirm).toBe(1);
   });
 
-  test("keeps the claim when operator-visible confirmation fails", async () => {
+  test("releases after durable money facts even when confirmation fails", async () => {
     const run = runHarness({
       confirmationError: new Error("activity unavailable"),
       observed: fullyRefundedMoney(),
@@ -43,15 +43,58 @@ describe("refresh payment under an attendee claim", () => {
 
     await expect(refresh(run)).rejects.toThrow("activity unavailable");
     expect(run.calls.confirm).toBe(1);
+    expect(run.claim.recorded).toEqual([run.reference.rowSessionIds]);
+    expect(run.claim.released).toEqual([run.reference.rowSessionIds]);
+  });
+
+  test("keeps a resumed keyed refund protected when no return is visible yet", async () => {
+    const run = runHarness({ inherited: "keyed" });
+
+    expect(await refresh(run)).toEqual({
+      kind: "blocked",
+      reason: "refund_in_progress",
+    });
+    expect(run.marked).toEqual([[]]);
+    expect(run.calls.record).toBe(0);
     expect(run.claim.released).toEqual([]);
   });
 
-  test("releases a keyed claim when fresh evidence says nothing returned", async () => {
-    const run = runHarness({ inherited: "keyed" });
+  test("keeps the claim when returned evidence cannot be marked", async () => {
+    const run = runHarness({ observed: fullyRefundedMoney() });
 
-    expect(await refresh(run)).toEqual({ kind: "current" });
-    expect(run.marked).toEqual([[]]);
+    await expect(
+      refresh(run, {
+        ...run.dependencies,
+        markReturned: () => Promise.reject(new Error("marker unavailable")),
+      }),
+    ).rejects.toThrow("marker unavailable");
+
     expect(run.calls.record).toBe(0);
+    expect(run.claim.released).toEqual([]);
+  });
+
+  test("records the returned row before raising a ledger failure", async () => {
+    const run = runHarness({ observed: fullyRefundedMoney() });
+
+    await expect(
+      refresh(run, {
+        ...run.dependencies,
+        record: () => Promise.reject(new Error("ledger unavailable")),
+      }),
+    ).rejects.toThrow("ledger unavailable");
+
+    expect(run.claim.unrecorded).toEqual([run.reference.rowSessionIds]);
+    expect(run.claim.released).toEqual([run.reference.rowSessionIds]);
+  });
+
+  test("releases a resumed claim after returned money is durable", async () => {
+    const run = runHarness({
+      inherited: "keyed",
+      observed: fullyRefundedMoney(),
+    });
+
+    await expectNewCompletedRefresh(run);
+    expect(run.claim.recorded).toEqual([run.reference.rowSessionIds]);
     expect(run.claim.released).toEqual([run.reference.rowSessionIds]);
   });
 

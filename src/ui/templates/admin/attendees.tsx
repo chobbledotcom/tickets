@@ -35,12 +35,14 @@ import { SaveForm } from "#templates/components/save-form.tsx";
 
 /** The "Amount paid: £X" paragraph, rendered when the attendee paid > 0. */
 const amountPaidPara = (attendee: Attendee): JSX.Element | null =>
-  Number.parseInt(attendee.price_paid, 10) > 0 ? (
-    <p>
-      <strong>{t("admin.attendees.amount_paid")}</strong>{" "}
-      {formatCurrency(attendee.price_paid)}
-    </p>
-  ) : null;
+  Number.parseInt(attendee.price_paid, 10) > 0
+    ? (
+      <p>
+        <strong>{t("admin.attendees.amount_paid")}</strong>{" "}
+        {formatCurrency(attendee.price_paid)}
+      </p>
+    )
+    : null;
 
 /**
  * The prose "attendee details" block shared by attendee confirmation pages:
@@ -61,9 +63,9 @@ const AttendeeDetails = ({
   const amountPaidLine: LabelledLine | null =
     showAmountPaid && Number.parseInt(attendee.price_paid, 10) > 0
       ? {
-          label: t("admin.attendees.amount_paid"),
-          value: formatCurrency(attendee.price_paid),
-        }
+        label: t("admin.attendees.amount_paid"),
+        value: formatCurrency(attendee.price_paid),
+      }
       : null;
   return (
     <ProseSection title={t("admin.attendees.details")}>
@@ -227,17 +229,18 @@ type PaymentReviewConfirmData = AttendeeConfirmData & {
 };
 
 /** Render the exact review case loaded with the attendee action. */
-export const adminPaymentReviewPage =
-  attendeeRouteConfirm<PaymentReviewConfirmData>(
-    "payment-review",
-    paymentReviewConfirm,
-    ({ reviewIdentity }) => ({
-      disabled: reviewIdentity === null,
-      ...(reviewIdentity === null
-        ? {}
-        : { hiddenFields: { review_identity: reviewIdentity } }),
-    }),
-  );
+export const adminPaymentReviewPage = attendeeRouteConfirm<
+  PaymentReviewConfirmData
+>(
+  "payment-review",
+  paymentReviewConfirm,
+  ({ reviewIdentity }) => ({
+    disabled: reviewIdentity === null,
+    ...(reviewIdentity === null
+      ? {}
+      : { hiddenFields: { review_identity: reviewIdentity } }),
+  }),
+);
 
 /**
  * Admin re-send notification confirmation page
@@ -292,14 +295,17 @@ export const adminRefundAllAttendeesPage = (
  * add/edit attendee form. */
 export const PaymentDetails = ({
   attendee,
+  hasIndexedPaymentReference,
   showBalanceLink,
 }: {
   attendee: Attendee;
+  /** Only an indexed row gives refresh a reference it can safely load. */
+  hasIndexedPaymentReference: boolean;
   /** The balance link targets the owner-only Ledger tab, so callers gate it
    * on the viewer's role (never render a forbidden link). */
   showBalanceLink: boolean;
 }): JSX.Element | null => {
-  if (!attendee.payment_id) return null;
+  if (!attendee.payment_id && !hasIndexedPaymentReference) return null;
   const isRefunded = attendee.refunded;
   const dashboardUrl = paymentDashboardUrl(attendee.payment_id);
 
@@ -307,24 +313,26 @@ export const PaymentDetails = ({
     <PageBlock>
       <div class="prose">
         <h3>{t("admin.attendees.payment_details")}</h3>
-        <p>
-          <strong>{t("admin.attendees.payment_id")}</strong>{" "}
-          {dashboardUrl ? (
-            <a href={dashboardUrl} rel="noopener" target="_blank">
-              {attendee.payment_id}
-            </a>
-          ) : (
-            attendee.payment_id
-          )}
-        </p>
+        {attendee.payment_id && (
+          <p>
+            <strong>{t("admin.attendees.payment_id")}</strong> {dashboardUrl
+              ? (
+                <a href={dashboardUrl} rel="noopener" target="_blank">
+                  {attendee.payment_id}
+                </a>
+              )
+              : (
+                attendee.payment_id
+              )}
+          </p>
+        )}
         {amountPaidPara(attendee)}
         <p>
-          <strong>{t("admin.attendees.refund_status")}</strong>{" "}
-          {isRefunded ? (
-            <Badge variant="alert">{t("admin.attendees.refunded")}</Badge>
-          ) : (
-            t("admin.attendees.not_refunded")
-          )}
+          <strong>{t("admin.attendees.refund_status")}</strong> {isRefunded
+            ? <Badge variant="alert">{t("admin.attendees.refunded")}</Badge>
+            : (
+              t("admin.attendees.not_refunded")
+            )}
         </p>
         {attendee.remaining_balance > 0 && (
           <p>
@@ -341,12 +349,14 @@ export const PaymentDetails = ({
           </p>
         )}
       </div>
-      <SaveForm
-        action={`/admin/attendees/${attendee.id}/refresh-payment`}
-        class="inline"
-        submitIcon="rotate-ccw"
-        submitLabel={t("admin.attendees.refresh_payment")}
-      />
+      {hasIndexedPaymentReference && (
+        <SaveForm
+          action={`/admin/attendees/${attendee.id}/refresh-payment`}
+          class="inline"
+          submitIcon="rotate-ccw"
+          submitLabel={t("admin.attendees.refresh_payment")}
+        />
+      )}
     </PageBlock>
   );
 };
@@ -375,7 +385,7 @@ export const EditQuestions = ({
         placeholder: t("attendee_form.no_answer"),
         // A saved free-text answer may legitimately not exist yet.
         textValue: selectedTextAnswers.get(q.id) ?? "",
-      }),
+      })
     )}
   </>
 );

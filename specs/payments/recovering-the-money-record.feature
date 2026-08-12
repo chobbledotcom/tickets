@@ -29,3 +29,4 @@ Feature: The books catch up when a returned payment could not be recorded
       Then Money shows one refund for Alice
       And Alice's booking says the 45.00 was refunded
       And Stripe received one request to return Alice's money
+      And the owner can delete Alice now that the payment work is finished

@@ -181,7 +181,7 @@ describeWithEnv(
         stale.reference,
         ...fresh.map(({ reference }) => reference),
       ]);
-      expect(source.refunds).toEqual(fresh.map(({ reference }) => reference));
+      expect(source.refunds).toEqual([]);
       expect(claim.reviewChanges).toEqual([
         new Map([
           [

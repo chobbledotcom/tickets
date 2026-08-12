@@ -19,6 +19,11 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import {
+  putRowState,
+  rowStateSlot,
+  UNRECORDED_MIRROR,
+} from "#test-utils/payment-claim.ts";
+import {
   finalizeReservedPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
@@ -184,7 +189,7 @@ describeWithEnv("server (admin balance-payment refunds)", { db: true }, () => {
         errors.calls
           .map((call) => String(call.args[0]))
           .some((message) =>
-            message.includes("did not complete every payment"),
+            message.includes("did not complete every payment")
           ),
       ).toBe(true);
     });
@@ -237,6 +242,38 @@ describeWithEnv("server (admin balance-payment refunds)", { db: true }, () => {
       );
       const html = await expectHtmlResponse(response, 200);
       expect(html).toContain(`/admin/attendees/${ctx.attendee.id}/refund`);
+    });
+
+    test("keeps refresh reachable when a balance-only refund needs Money", async () => {
+      const ctx = await setupBalancePaidRefundTest();
+      expect(ctx.attendee.payment_id).toBe("");
+      await putRowState(
+        "balance_refund_session",
+        await rowStateSlot({
+          unrecorded: { returnedAt: "2026-08-12T10:00:00.000Z" },
+        }),
+        UNRECORDED_MIRROR,
+      );
+
+      const actions = await expectHtmlResponse(
+        await adminGet(`/admin/attendees/${ctx.attendee.id}/actions`),
+        200,
+      );
+      expect(actions).not.toContain(
+        `/admin/attendees/${ctx.attendee.id}/refund`,
+      );
+      expect(actions).not.toContain(
+        `/admin/attendees/${ctx.attendee.id}/payment-review`,
+      );
+
+      const overview = await expectHtmlResponse(
+        await adminGet(`/admin/attendees/${ctx.attendee.id}`),
+        200,
+      );
+      expect(overview).toContain(
+        `action="/admin/attendees/${ctx.attendee.id}/refresh-payment"`,
+      );
+      expect(overview).toContain("Refresh payment status");
     });
   });
 });
