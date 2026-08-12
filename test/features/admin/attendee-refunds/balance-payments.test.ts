@@ -194,7 +194,7 @@ describeWithEnv("server (admin balance-payment refunds)", { db: true }, () => {
       ).toBe(true);
     });
 
-    test("blocks another send when one charge returned and the other failed", async () => {
+    test("offers the highest-priority recovery when one charge returned and the other failed", async () => {
       const ctx = await setupSettledReservationRefundTest();
 
       await expectSettledReservationRefundFailure(
@@ -207,14 +207,26 @@ describeWithEnv("server (admin balance-payment refunds)", { db: true }, () => {
         `/admin/attendees/${ctx.attendee.id}/actions`,
       );
 
-      expect(await getPaymentWorkStatus(ctx.attendee.id)).toBe("needs_review");
+      expect(await getPaymentWorkStatus(ctx.attendee.id)).toBe(
+        "needs_money_record",
+      );
       const actions = await expectHtmlResponse(
         await adminGet(`/admin/attendees/${ctx.attendee.id}/actions`),
         200,
-        "Mark payment reviewed",
+        "Actions",
       );
       expect(actions).not.toContain(
         `/admin/attendees/${ctx.attendee.id}/refund`,
+      );
+      expect(actions).not.toContain("Mark payment reviewed");
+
+      const overview = await expectHtmlResponse(
+        await adminGet(`/admin/attendees/${ctx.attendee.id}`),
+        200,
+        "Refresh payment status",
+      );
+      expect(overview).toContain(
+        `action="/admin/attendees/${ctx.attendee.id}/refresh-payment"`,
       );
     });
   });

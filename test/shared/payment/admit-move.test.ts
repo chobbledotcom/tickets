@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   mirrorFor,
   moveRefusalOrNull,
+  paymentWorkFor,
   type RowMove,
 } from "#shared/payment/admit-move.ts";
 import type { PaymentRowState } from "#shared/payment/row-state.ts";
@@ -111,6 +112,41 @@ describe("payment > admit move", () => {
     expect(moveRefusalOrNull([SETTLED, UNDER_REVIEW], "delete")).toBe(
       REVIEW_REFUSAL,
     );
+  });
+
+  describe("the operator-facing work", () => {
+    test("clear rows need no recovery action", () => {
+      expect(paymentWorkFor([FREE, SETTLED])).toEqual({
+        recoveryAction: null,
+        status: "clear",
+      });
+    });
+
+    test("every live state names its status and reachable recovery action", () => {
+      expect(paymentWorkFor([UNDER_REVIEW])).toEqual({
+        recoveryAction: "payment-review",
+        status: "needs_review",
+      });
+      expect(paymentWorkFor([UNRECORDED])).toEqual({
+        recoveryAction: "refresh-payment",
+        status: "needs_money_record",
+      });
+      expect(paymentWorkFor([CLAIMED])).toEqual({
+        recoveryAction: "refresh-payment",
+        status: "moving",
+      });
+    });
+
+    test("claim, unrecorded money, then review is the one shared priority", () => {
+      expect(paymentWorkFor([UNDER_REVIEW, UNRECORDED])).toEqual({
+        recoveryAction: "refresh-payment",
+        status: "needs_money_record",
+      });
+      expect(paymentWorkFor([UNDER_REVIEW, UNRECORDED, CLAIMED])).toEqual({
+        recoveryAction: "refresh-payment",
+        status: "moving",
+      });
+    });
   });
 
   describe("the word the consumers that cannot decrypt see", () => {

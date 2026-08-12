@@ -5,10 +5,8 @@ import { t } from "#i18n";
 import { OWNER_FORM, requireOwnerOr } from "#routes/auth.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
-import {
-  acknowledgeCurrentPaymentReview,
-  type PaymentWorkStatus,
-} from "#shared/db/payment-review.ts";
+import { acknowledgeCurrentPaymentReview } from "#shared/db/payment-review.ts";
+import type { PaymentWorkStatus } from "#shared/payment/admit-move.ts";
 import { adminPaymentReviewPage } from "#templates/admin/attendees.tsx";
 import {
   attendeeActions,
@@ -41,10 +39,9 @@ const handlePaymentReviewGet = attendeeActions[ACTION].page(
     adminPaymentReviewPage(
       {
         attendee,
-        reviewIdentity:
-          paymentReview.status === "needs_review"
-            ? paymentReview.identity
-            : null,
+        reviewIdentity: paymentReview.status === "needs_review"
+          ? paymentReview.identity
+          : null,
       },
       session,
       returnUrl,

@@ -133,7 +133,7 @@ describe("attendee page blocks", () => {
     expect(
       PaymentDetails({
         attendee: testAttendee({ payment_id: "" }),
-        hasIndexedPaymentReference: false,
+        refreshPaymentUrl: null,
         showBalanceLink: true,
       }),
     ).toBeNull();
@@ -143,7 +143,7 @@ describe("attendee page blocks", () => {
     const html = String(
       PaymentDetails({
         attendee: testAttendee({ id: 7, payment_id: "" }),
-        hasIndexedPaymentReference: true,
+        refreshPaymentUrl: "/admin/attendees/7/refresh-payment",
         showBalanceLink: true,
       }),
     );
@@ -157,7 +157,7 @@ describe("attendee page blocks", () => {
     const html = String(
       PaymentDetails({
         attendee: testAttendee({ id: 8, payment_id: "pi_legacy" }),
-        hasIndexedPaymentReference: false,
+        refreshPaymentUrl: null,
         showBalanceLink: true,
       }),
     );

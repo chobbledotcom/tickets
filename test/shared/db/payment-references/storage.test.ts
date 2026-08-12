@@ -171,6 +171,43 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
     });
   });
 
+  test("does not anchor a merged payment already held by a checkout row", async () => {
+    const listing = await createTestListing({ maxAttendees: 50 });
+    const target = await bookAttendee(listing, {
+      email: "merge-anchor-target@example.com",
+      name: "Merge Anchor Target",
+    });
+    const source = await bookAttendee(listing, {
+      email: "merge-anchor-source@example.com",
+      name: "Merge Anchor Source",
+    });
+    if (!target.success || !source.success) throw new Error("setup failed");
+    const [targetAttendee] = target.attendees;
+    const [sourceAttendee] = source.attendees;
+    if (targetAttendee === undefined || sourceAttendee === undefined) {
+      throw new Error("setup created no attendees");
+    }
+    const targetId = targetAttendee.id;
+    const sourceId = sourceAttendee.id;
+    const reference = "pi_merge_current";
+    await finalizeProcessedPayment(
+      "sess_merge_current",
+      sourceId,
+      "",
+      taggedPaymentReference(reference),
+    );
+
+    const statement = await legacyMergePaymentReferenceStatement(
+      targetId,
+      sourceId,
+      reference,
+    );
+    if (!statement) throw new Error("setup failed");
+    await execute(statement.sql, statement.args);
+
+    expect(await indexOf(`legacy-merge:${sourceId}`)).toBeNull();
+  });
+
   test("leaves an unindexed plaintext reference unavailable", async () => {
     const listing = await createTestListing({ maxAttendees: 50 });
     const created = await bookAttendee(listing, {

@@ -147,6 +147,3 @@ export const countSubrequest = (
 
 export const countExternalSubrequest = (operation: string): void =>
   countSubrequest("external", operation);
-
-/** A refund uses several database calls plus one payment-provider request. */
-export const BULK_REFUND_LIMIT = 5;

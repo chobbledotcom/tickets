@@ -8,6 +8,7 @@ import { choicesForQuestion } from "#test/specs/support/form-controls/reading.ts
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import { buyFreePlaceThroughPublicPage } from "#test/specs/support/refund-safety/journeys.ts";
 import {
+  refundSafety,
   type SafetyBooking,
   safetyBooking,
 } from "#test/specs/support/refund-safety/state.ts";
@@ -153,6 +154,41 @@ interface BookingRow {
   readonly attendee_id: number;
   readonly listing_id: number;
 }
+
+interface MovedPaymentRow {
+  readonly attendee_id: number;
+  readonly protected_state: string;
+}
+
+/** Confirm a successful merge moved the dangerous payment row onto the free
+ * attendee without copying the source's legacy payment field, then remember
+ * that attendee as the one the rest of the visitor journey must open. */
+export const rememberMovedPaymentWork: ActsOnPaidBooking<[], void> =
+  withPaidBooking(async (world, paid) => {
+    const targetId = requiredFreeAttendeeId(world);
+    const privateKey = await getTestPrivateKey();
+    const [source, target, paymentRows] = await Promise.all([
+      getAttendeeOrNull(paid.attendeeId, privateKey),
+      getAttendeeOrNull(targetId, privateKey),
+      queryAll<MovedPaymentRow>(
+        `SELECT attendee_id, protected_state
+           FROM processed_payments
+          WHERE payment_session_id = ?`,
+        [paid.sessionId],
+      ),
+    ]);
+    expect(source).toBeNull();
+    if (target === null) throw new Error("The free merge target disappeared");
+    expect(target.payment_id).toBe("");
+    expect(paymentRows).toEqual([
+      { attendee_id: targetId, protected_state: "unrecorded" },
+    ]);
+    refundSafety(world).bookings.set(paid.who, {
+      ...paid,
+      attendeeId: targetId,
+    });
+    world.attendeeId = targetId;
+  });
 
 /** Both attendee records and their original booking rows survived the race. */
 export const expectBothBookingsPresent: ActsOnPaidBooking<[], void> =

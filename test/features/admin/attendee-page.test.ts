@@ -7,6 +7,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeePage } from "#routes/admin/attendee-page.ts";
+import { paymentRecoveryAction } from "#routes/admin/attendees-route-helpers.ts";
 import { setBookingLineQuantity } from "#test/features/admin/refunds-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -30,6 +31,15 @@ describeWithEnv("the attendee page", { db: true }, () => {
         "/admin/attendees/7/actions",
       );
     });
+
+    test("selects payment recovery URLs from the attendee action schema", () => {
+      const refresh = paymentRecoveryAction("refresh-payment");
+      const review = paymentRecoveryAction("payment-review");
+      expect(refresh.action).toBe("refresh-payment");
+      expect(refresh.url(7)).toBe("/admin/attendees/7/refresh-payment");
+      expect(review.action).toBe("payment-review");
+      expect(review.url(7)).toBe("/admin/attendees/7/payment-review");
+    });
   });
 
   describe("an attendee that is not there", () => {
@@ -48,13 +58,15 @@ describeWithEnv("the attendee page", { db: true }, () => {
     test("offers every tab the owner may open", async () => {
       const id = await bookAttendee();
       const html = await tabHtml(id, "");
-      for (const slug of [
-        "edit",
-        "logistics",
-        "ledger",
-        "activity",
-        "actions",
-      ]) {
+      for (
+        const slug of [
+          "edit",
+          "logistics",
+          "ledger",
+          "activity",
+          "actions",
+        ]
+      ) {
         expect(html).toContain(`/admin/attendees/${id}/${slug}`);
       }
     });
@@ -98,7 +110,7 @@ describeWithEnv("the attendee page", { db: true }, () => {
       const response = await withTestSession(() =>
         attendeePage.renderPage(OWNER, id, "edit", {
           query: new URLSearchParams({ return_url: "/admin/calendar" }),
-        }),
+        })
       );
       // The hidden field itself — the admin nav also links /admin/calendar,
       // so a looser check would pass without the value ever being carried.

@@ -19,7 +19,10 @@ import {
   readPaymentClaimRows,
   type StoredPaymentClaimRow,
 } from "#shared/db/payment-claim.ts";
-import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
+import {
+  paymentReferencesByIndex,
+  type RefundPaymentReference,
+} from "#shared/db/payment-references.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { isoBefore, nowIso } from "#shared/now.ts";
 import {
@@ -42,27 +45,27 @@ export type ClaimResult =
   | { kind: "changed" }
   | { kind: "not_admitted" }
   | {
-    /** Each attendee's claimed rows, kept apart so a run can let one
-     *  attendee go while another's answer is still in doubt. */
-    held: ReadonlyMap<number, readonly string[]>;
-    commandId: string;
-    heldSince: string;
-    kind: "claimed";
-    /** References inheriting a crashed run's doubt, under that reference's
-     *  own provider capability and grouped for attendee-wide settlement. */
-    inherited: InheritedArmedRefunds;
-    /** The exact phase each row must still hold when this run settles it. */
-    phases: ReadonlyMap<string, RefundClaimPhase>;
-    /** References a claimed or sharing row already says came back. */
-    returned: ReadonlySet<string>;
-    /** Owner-review reasons carried by each claimed row. */
-    reviews: ReadonlyMap<string, PaymentReviewReason>;
-    /** References represented by more than one exact payment row. */
-    shared: ReadonlyMap<string, readonly PaymentReferenceRepresentation[]>;
-    /** Claimed rows that already say returned money is missing from the
-     *  books. A failed readiness check must not erase this repair target. */
-    unrecorded: ReadonlyMap<number, readonly string[]>;
-  };
+      /** Each attendee's claimed rows, kept apart so a run can let one
+       *  attendee go while another's answer is still in doubt. */
+      held: ReadonlyMap<number, readonly string[]>;
+      commandId: string;
+      heldSince: string;
+      kind: "claimed";
+      /** References inheriting a crashed run's doubt, under that reference's
+       *  own provider capability and grouped for attendee-wide settlement. */
+      inherited: InheritedArmedRefunds;
+      /** The exact phase each row must still hold when this run settles it. */
+      phases: ReadonlyMap<string, RefundClaimPhase>;
+      /** References a claimed or sharing row already says came back. */
+      returned: ReadonlySet<string>;
+      /** Owner-review reasons carried by each claimed row. */
+      reviews: ReadonlyMap<string, PaymentReviewReason>;
+      /** References represented by more than one exact payment row. */
+      shared: ReadonlyMap<string, readonly PaymentReferenceRepresentation[]>;
+      /** Claimed rows that already say returned money is missing from the
+       *  books. A failed readiness check must not erase this repair target. */
+      unrecorded: ReadonlyMap<number, readonly string[]>;
+    };
 
 /** The exact attendee and payment-reference snapshot an admin run loaded.
  *  `loadedPiiBlob` is the attendee revision, so a concurrent save cannot
@@ -93,6 +96,20 @@ export type PaymentReferenceRepresentation = {
   readonly index: string;
   readonly sessionId: string;
 };
+
+/** Exact payment rows represented by a loaded attendee snapshot. */
+export const paymentReferenceRepresentations = (
+  attendees: readonly LoadedRefundAttendee[],
+): PaymentReferenceRepresentation[] =>
+  attendees.flatMap((attendee) =>
+    attendee.references.flatMap((reference) =>
+      reference.rowSessionIds.map((sessionId) => ({
+        attendeeId: attendee.attendeeId,
+        index: reference.index,
+        sessionId,
+      })),
+    ),
+  );
 
 /** Provider retry facts inherited by each attendee and exact reference. */
 export type InheritedArmedRefunds = ReadonlyMap<
@@ -142,7 +159,7 @@ const matchingIndexesOf = (
   attendees: readonly LoadedRefundAttendee[],
 ): string[] =>
   attendees.flatMap(({ references }) =>
-    references.flatMap(({ matchingIndexes }) => matchingIndexes)
+    references.flatMap(({ matchingIndexes }) => matchingIndexes),
   );
 
 /** Row identities the loaded snapshot says the run must hold. */
@@ -150,19 +167,9 @@ const expectedRowsBySession = (
   attendees: readonly LoadedRefundAttendee[],
 ): ReadonlyMap<string, ExpectedPaymentRow> =>
   new Map(
-    attendees.flatMap((attendee) =>
-      attendee.references.flatMap((reference) =>
-        reference.rowSessionIds.map(
-          (sessionId) =>
-            [
-              sessionId,
-              {
-                attendeeId: attendee.attendeeId,
-                referenceIndex: reference.index,
-              },
-            ] as const,
-        )
-      )
+    paymentReferenceRepresentations(attendees).map(
+      ({ attendeeId, index, sessionId }) =>
+        [sessionId, { attendeeId, referenceIndex: index }] as const,
     ),
   );
 
@@ -219,13 +226,13 @@ const inheritedArmedRefunds = (
         judged.flatMap(({ decision, row }) =>
           decision.kind === "resume" && decision.resuming.phase === "send_armed"
             ? [
-              {
-                attendeeId: row.attendeeId,
-                capability: decision.resuming.capability,
-                index: row.referenceIndex,
-              },
-            ]
-            : []
+                {
+                  attendeeId: row.attendeeId,
+                  capability: decision.resuming.capability,
+                  index: row.referenceIndex,
+                },
+              ]
+            : [],
         ),
         ({ attendeeId }) => attendeeId,
       ),
@@ -250,16 +257,10 @@ const sharedRepresentations = (
   rows: readonly StoredPaymentClaimRow[],
 ): ReadonlyMap<string, readonly PaymentReferenceRepresentation[]> =>
   new Map(
-    [
-      ...new Map(
-        attendees.flatMap(({ references }) =>
-          references.map((reference) => [reference.index, reference] as const)
-        ),
-      ).values(),
-    ].flatMap((reference) => {
+    [...paymentReferencesByIndex(attendees).values()].flatMap((reference) => {
       const matching = rows
         .filter((row) =>
-          reference.matchingIndexes.includes(row.payment_reference_index)
+          reference.matchingIndexes.includes(row.payment_reference_index),
         )
         .map(representationOf);
       return matching.length > 1 ? [[reference.index, matching] as const] : [];
@@ -342,7 +343,7 @@ export const claimAttendeeRows = async (
     await tx.batch(
       await Promise.all(
         judged.map(({ nextClaim, row }) =>
-          paymentRowStateStatement(row, { ...row.state, claim: nextClaim })
+          paymentRowStateStatement(row, { ...row.state, claim: nextClaim }),
         ),
       ),
     );

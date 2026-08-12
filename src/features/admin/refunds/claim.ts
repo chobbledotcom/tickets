@@ -4,6 +4,7 @@ import {
   claimAttendeeRows,
   type InheritedArmedRefunds,
   type LoadedRefundAttendee,
+  paymentReferenceRepresentations,
   type RefundClaimAdmission,
 } from "#shared/db/payment-claim/take.ts";
 import {
@@ -184,10 +185,36 @@ const settlementRows = (
   );
 };
 
+/** Treat every authoritative returned marker as unposted until ledger work
+ * proves otherwise. This is the safe starting fact for every exit path. */
+const initialUnrecorded = (
+  attendees: readonly LoadedRefundAttendee[],
+  claim: Extract<ClaimResult, { kind: "claimed" }>,
+): Map<number, readonly string[]> => {
+  const loaded = paymentReferenceRepresentations(attendees);
+  const represented = new Map(
+    [...loaded, ...[...claim.shared.values()].flat()].map((row) => [
+      row.sessionId,
+      row,
+    ]),
+  );
+  const returned = [...represented.values()].filter(({ index }) =>
+    claim.returned.has(index),
+  );
+  return new Map(
+    [...Map.groupBy(returned, ({ attendeeId }) => attendeeId)].map(
+      ([attendeeId, rows]) => [
+        attendeeId,
+        rows.map(({ sessionId }) => sessionId),
+      ],
+    ),
+  );
+};
+
 /** Hold every attendee this run will touch, do the work, then let go. */
 export const underAttendeeClaim = async <TResult>(
   rowClaim: RowClaim,
-  held: readonly LoadedRefundAttendee[],
+  attendees: readonly LoadedRefundAttendee[],
   listingId: number,
   run: {
     admit?: RefundClaimAdmission;
@@ -195,7 +222,7 @@ export const underAttendeeClaim = async <TResult>(
     work: (heldWork: HeldRefundWork) => Promise<TResult>;
   },
 ): Promise<TResult> => {
-  const claim = await rowClaim.claim(held, run.admit);
+  const claim = await rowClaim.claim(attendees, run.admit);
   if (claim.kind === "changed") {
     return run.blocked({
       kind: "payment_set_changed",
@@ -219,7 +246,7 @@ export const underAttendeeClaim = async <TResult>(
     ),
     recorded: new Set(),
     reviews: new Map(),
-    unrecorded: new Map(),
+    unrecorded: initialUnrecorded(attendees, claim),
   };
   const settle = async (): Promise<void> => {
     await settleHold(

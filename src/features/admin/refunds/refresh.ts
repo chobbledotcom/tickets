@@ -82,10 +82,10 @@ const paymentOnlyBeforeRefund = async (
 type RefreshedReference =
   | { kind: "returned"; reference: TaggedRefundReference }
   | {
-      admission: Exclude<ObservedRefundAdmission, { kind: "already_returned" }>;
-      kind: "unreturned";
-      reference: TaggedRefundReference;
-    };
+    admission: Exclude<ObservedRefundAdmission, { kind: "already_returned" }>;
+    kind: "unreturned";
+    reference: TaggedRefundReference;
+  };
 
 type UnreturnedReference = Extract<RefreshedReference, { kind: "unreturned" }>;
 
@@ -156,16 +156,16 @@ const providerReviewFindings = (
     result.kind !== "unreturned"
       ? []
       : result.admission.kind === "refused"
-        ? [{ reason: result.admission.issue, reference: result.reference }]
-        : result.admission.kind === "send" &&
-            uncertainKeyless.has(result.reference.index)
-          ? [
-              {
-                reason: { kind: "uncertain_keyless_refund" },
-                reference: result.reference,
-              },
-            ]
-          : [],
+      ? [{ reason: result.admission.issue, reference: result.reference }]
+      : result.admission.kind === "send" &&
+          uncertainKeyless.has(result.reference.index)
+      ? [
+        {
+          reason: { kind: "uncertain_keyless_refund" },
+          reference: result.reference,
+        },
+      ]
+      : []
   );
 
 /** Retire only refund markers that a complete ledger post disproves. */
@@ -191,6 +191,16 @@ type RefreshPersistence = Required<
   Pick<RefreshPaymentDependencies, "markReturned" | "record">
 >;
 
+/** Keep or clear the safety hold for one attendee as a single transition. */
+const setClaimProtection = (
+  findings: RunFindings,
+  attendeeId: number,
+  keepsClaim: boolean,
+): void => {
+  if (keepsClaim) findings.doubts.set(attendeeId, "in_doubt");
+  else findings.doubts.delete(attendeeId);
+};
+
 /** Mark and post returned money before the claim may be retired. */
 const persistReturnedReferences = async (
   attendeeId: number,
@@ -199,7 +209,7 @@ const persistReturnedReferences = async (
   findings: RunFindings,
   dependencies: RefreshPersistence,
 ): Promise<AppliedRefundLedger | undefined> => {
-  if (returned.length > 0) findings.doubts.set(attendeeId, "in_doubt");
+  if (returned.length > 0) setClaimProtection(findings, attendeeId, true);
   await dependencies.markReturned(returned);
   if (returned.length === 0) return;
 
@@ -208,7 +218,7 @@ const persistReturnedReferences = async (
     result = await dependencies.record(attendeeId, returned);
   } catch (error) {
     rememberFailedRefundLedger(findings, attendeeId, returned);
-    if (!keepsClaim) findings.doubts.delete(attendeeId);
+    setClaimProtection(findings, attendeeId, keepsClaim);
     throw error;
   }
   const ledger = applyRefundLedgerFindings(
@@ -217,8 +227,7 @@ const persistReturnedReferences = async (
     returned,
     result,
   );
-  if (keepsClaim) findings.doubts.set(attendeeId, "in_doubt");
-  else findings.doubts.delete(attendeeId);
+  setClaimProtection(findings, attendeeId, keepsClaim);
   return ledger;
 };
 
@@ -232,7 +241,7 @@ const unreturnedResult = (
     return { kind: "blocked", reason: "refund_in_progress" };
   }
   if (needsReview) {
-    findings.doubts.delete(attendeeId);
+    setClaimProtection(findings, attendeeId, false);
     return { kind: "needs_review", message: REVIEW_REQUIRED_MESSAGE };
   }
   return findings.doubts.has(attendeeId)
@@ -251,7 +260,7 @@ const completedRefresh = async (
   >,
 ): Promise<RefreshPaymentResult> => {
   const attendeeId = candidate.attendee.id;
-  findings.doubts.delete(attendeeId);
+  setClaimProtection(findings, attendeeId, false);
   const paymentOnly = await dependencies.paymentOnly(attendeeId);
   retireCompletedRefundReviews(returned, heldReviews, findings);
   const confirmation = await dependencies.confirm({
@@ -278,7 +287,7 @@ const refreshReadyCandidate = async (
   >,
 ): Promise<RefreshPaymentResult> => {
   const observed = candidate.references.map((reference) =>
-    observedReference(reference, candidate.attendee.id, listingId),
+    observedReference(reference, candidate.attendee.id, listingId)
   );
   const returned = compact(observed.map(returnedReference));
   const hasUnreturned = returned.length !== candidate.references.length;
@@ -286,7 +295,7 @@ const refreshReadyCandidate = async (
     observed,
     new Set(
       [...inherited].flatMap(([index, capability]) =>
-        capability === "keyless" ? [index] : [],
+        capability === "keyless" ? [index] : []
       ),
     ),
   );
@@ -297,12 +306,10 @@ const refreshReadyCandidate = async (
     currentProviderReviews,
   );
   const attendeeId = candidate.attendee.id;
-  const keepsClaim =
-    hasAdmission(observed, "in_flight") ||
+  // The complete observation now replaces protection taken before provider IO.
+  const keepsClaim = hasAdmission(observed, "in_flight") ||
     resumedKeyedSendRemains(observed, inherited);
-  if (keepsClaim) {
-    findings.doubts.set(attendeeId, "in_doubt");
-  }
+  setClaimProtection(findings, attendeeId, keepsClaim);
   const ledger = await persistReturnedReferences(
     attendeeId,
     returned,
@@ -316,7 +323,7 @@ const refreshReadyCandidate = async (
   }
 
   if (ledger === undefined || !ledger.allRecorded) {
-    findings.doubts.delete(attendeeId);
+    setClaimProtection(findings, attendeeId, false);
     return { kind: "returned", posted: false };
   }
   return await completedRefresh(
@@ -359,7 +366,6 @@ export const refreshClaimedPayment = async (
     changedMessage:
       "The attendee or payment set changed while this refresh was starting. Try again.",
     claim,
-    executionLimit: 1,
     label: "Admin payment refresh",
     listingId,
     notReady: (message) => ({ kind: "not_ready", message }),

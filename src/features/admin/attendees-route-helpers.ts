@@ -31,6 +31,7 @@ import {
 import { requireListingWithCount } from "#shared/db/listings/records.ts";
 import { findByIdThen } from "#shared/find-by-id.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import type { PaymentRecoveryAction } from "#shared/payment/admit-move.ts";
 import type { ParamsRoute, ResponseHandler } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type {
@@ -92,7 +93,7 @@ type PaymentReviewActionData = AttendeeActionData & {
 const loadAttendeeActionData: (
   attendeeId: number,
 ) => Promise<AttendeeActionData | null> = withDecryptedAttendee((attendee) =>
-  Promise.resolve({ attendee }),
+  Promise.resolve({ attendee })
 );
 
 const loadPaymentReviewActionData: (
@@ -123,8 +124,10 @@ export type ListingRouteParams = { id: number };
 type AttendeeRouteParams = { listingId: number; attendeeId: number };
 
 /** The canonical URL of an attendee-scoped action (confirm page + POST). */
-export const attendeeActionUrl = (attendeeId: number, action: string): string =>
-  `/admin/attendees/${attendeeId}/${action}`;
+export const attendeeActionUrl = <Action extends string>(
+  attendeeId: number,
+  action: Action,
+): string => `/admin/attendees/${attendeeId}/${action}`;
 
 /** The action URL with the caller's return_url threaded on, so bouncing back
  *  to the confirm page keeps its "return here when done" link (and hidden
@@ -148,7 +151,10 @@ type AttendeeActionRenderer<Data> = (
 
 type AttendeeActionRoute = ParamsRoute<AttendeeIdRouteParams>;
 
-type AttendeeActionDefinition<Data extends AttendeeActionData> = {
+type AttendeeActionDefinition<
+  Data extends AttendeeActionData,
+  Action extends string,
+> = {
   /** A rendered action has a reachable target exactly when its scope exists. */
   isAvailable: (hasBooking: boolean) => boolean;
   load: (attendeeId: number) => Promise<Data | null>;
@@ -162,20 +168,28 @@ type AttendeeActionDefinition<Data extends AttendeeActionData> = {
     handler: ResponseHandler<[data: Data, form: FormParams]>,
     auth?: AuthPolicy<"form">,
   ) => AttendeeActionRoute;
+  /** The real route owned by this action. */
+  url: (attendeeId: number) => string;
+  /** The action segment this definition owns. */
+  readonly action: Action;
 };
 
 /** Give every attendee action the same loader, visibility, GET, and POST
  * interface. Its scope decides all four together, so a link cannot promise a
  * booking that the route then fails to load. */
-const defineAttendeeAction = <Data extends AttendeeActionData>(
-  action: string,
+const defineAttendeeAction = <
+  Data extends AttendeeActionData,
+  Action extends string,
+>(
+  action: Action,
   scope: "attendee" | "booking",
   load: (attendeeId: number) => Promise<Data | null>,
-): AttendeeActionDefinition<Data> => {
+): AttendeeActionDefinition<Data, Action> => {
   const actionHandler = createEntityHandler<AttendeeIdRouteParams, Data>(
     ({ attendeeId }) => load(attendeeId),
   );
   return {
+    action,
     isAvailable: (hasBooking) => scope === "attendee" || hasBooking,
     load,
     page: (
@@ -213,27 +227,42 @@ const defineAttendeeAction = <Data extends AttendeeActionData>(
         if (error) return error;
         return handler(data, form);
       }),
+    url: (attendeeId) => attendeeActionUrl(attendeeId, action),
   };
 };
 
-const attendeeAction = (action: string) =>
-  defineAttendeeAction<AttendeeActionData>(
+const attendeeAction = <Action extends string>(action: Action) =>
+  defineAttendeeAction<AttendeeActionData, Action>(
     action,
     "attendee",
     loadAttendeeActionData,
   );
-const bookingAction = (action: string) =>
-  defineAttendeeAction<AttendeeWithListing>(
+const bookingAction = <Action extends string>(action: Action) =>
+  defineAttendeeAction<AttendeeWithListing, Action>(
     action,
     "booking",
     loadAttendeeWithBooking,
   );
 
+/** Keep each action's map key and real route segment identical. */
+const defineAttendeeActions = <
+  const Actions extends Record<string, { readonly action: string }>,
+>(
+  actions: Actions & {
+    [Action in keyof Actions]: {
+      readonly action: Extract<Action, string>;
+    };
+  },
+): Actions => actions;
+
 /** The complete action schema. Adding an action means choosing its scope once;
  * its route loader and page visibility then share that decision. */
-export const attendeeActions = {
+export const attendeeActions = defineAttendeeActions({
   delete: attendeeAction("delete"),
-  "payment-review": defineAttendeeAction(
+  "payment-review": defineAttendeeAction<
+    PaymentReviewActionData,
+    "payment-review"
+  >(
     "payment-review",
     "attendee",
     loadPaymentReviewActionData,
@@ -242,7 +271,12 @@ export const attendeeActions = {
   refund: bookingAction("refund"),
   "resend-notification": bookingAction("resend-notification"),
   "send-text": bookingAction("send-text"),
-} as const;
+});
+
+/** Select a lifecycle action from the complete attendee-action schema. */
+export const paymentRecoveryAction = (
+  action: PaymentRecoveryAction,
+): (typeof attendeeActions)[PaymentRecoveryAction] => attendeeActions[action];
 
 /** Route params for a POST scoped to one attendee by its id alone. */
 type AttendeeIdRouteParams = { attendeeId: number };
@@ -252,7 +286,7 @@ type AttendeeIdRouteParams = { attendeeId: number };
  * the parsed form. Shared by the note and logistics POSTs. */
 export const attendeeFormPost = (
   handle: IdFormHandler,
-): ((request: Request, params: AttendeeIdRouteParams) => Promise<Response>) =>
+): (request: Request, params: AttendeeIdRouteParams) => Promise<Response> =>
   createAuthedHandler<AttendeeIdRouteParams>({
     handle: ({ form, params, session }) =>
       handle(params.attendeeId, session, form),
@@ -276,7 +310,7 @@ type AttendeeFormAction = ResponseHandler<
 /** Create an attendee form handler with typed IDs */
 export const attendeeFormAction = (
   handler: AttendeeFormAction,
-): ((request: Request, params: AttendeeRouteParams) => Promise<Response>) =>
+): (request: Request, params: AttendeeRouteParams) => Promise<Response> =>
   createAuthedHandler<AttendeeRouteParams, AttendeeWithListing>({
     handle: ({ context, form, params, session }) =>
       handler(context, session, form, params.listingId, params.attendeeId),

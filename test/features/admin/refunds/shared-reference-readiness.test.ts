@@ -65,7 +65,6 @@ const runRefund = (
     candidates: [candidate],
     changedMessage: "changed",
     claim,
-    executionLimit: 1,
     label: "Refund",
     listingId: 7,
     notReady: (message) => ({ kind: "not_ready", message }),
@@ -181,6 +180,7 @@ describe("admin refund shared-reference readiness", () => {
         Promise.resolve({
           indexes: [reference.index],
           kind: "not_ready",
+          observations: [],
           reason: "historical_marker",
         }),
       ready: () => Promise.resolve({ kind: "ready", message: "" }),
@@ -195,6 +195,7 @@ describe("admin refund shared-reference readiness", () => {
           [
             "unique_row",
             {
+              books: "unrecorded",
               claim: "release",
               phase: "checking",
               review: { kind: "resolved", reason: "shared_reference" },

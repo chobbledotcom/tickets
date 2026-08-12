@@ -295,17 +295,17 @@ export const adminRefundAllAttendeesPage = (
  * add/edit attendee form. */
 export const PaymentDetails = ({
   attendee,
-  hasIndexedPaymentReference,
+  refreshPaymentUrl,
   showBalanceLink,
 }: {
   attendee: Attendee;
-  /** Only an indexed row gives refresh a reference it can safely load. */
-  hasIndexedPaymentReference: boolean;
+  /** Only an indexed row supplies the reachable refresh action. */
+  refreshPaymentUrl: string | null;
   /** The balance link targets the owner-only Ledger tab, so callers gate it
    * on the viewer's role (never render a forbidden link). */
   showBalanceLink: boolean;
 }): JSX.Element | null => {
-  if (!attendee.payment_id && !hasIndexedPaymentReference) return null;
+  if (!attendee.payment_id && refreshPaymentUrl === null) return null;
   const isRefunded = attendee.refunded;
   const dashboardUrl = paymentDashboardUrl(attendee.payment_id);
 
@@ -349,9 +349,9 @@ export const PaymentDetails = ({
           </p>
         )}
       </div>
-      {hasIndexedPaymentReference && (
+      {refreshPaymentUrl !== null && (
         <SaveForm
-          action={`/admin/attendees/${attendee.id}/refresh-payment`}
+          action={refreshPaymentUrl}
           class="inline"
           submitIcon="rotate-ccw"
           submitLabel={t("admin.attendees.refresh_payment")}

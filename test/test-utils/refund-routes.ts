@@ -242,7 +242,13 @@ export const grantingRowClaim = (
   const unrecorded: string[][] = [];
   return {
     claim: (attendees, admit) => {
-      const returned = new Set<string>();
+      const returned = new Set(
+        attendees.flatMap(({ references }) =>
+          references.flatMap((reference) =>
+            reference.refundState === "completed" ? [reference.index] : []
+          )
+        ),
+      );
       if (admit !== undefined && !admit({ attendees, inherited, returned })) {
         return Promise.resolve({ kind: "not_admitted" as const });
       }

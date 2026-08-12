@@ -81,9 +81,9 @@ const runFor = async (
   readonly result:
     | RunResult
     | {
-        kind: "blocked";
-        reason: "refund_in_progress";
-      };
+      kind: "blocked";
+      reason: "refund_in_progress";
+    };
   readonly settlements: RowSettlement[];
 }> => {
   const recorded = recordingClaim(state);
@@ -93,7 +93,6 @@ const runFor = async (
     candidates: [CANDIDATE],
     changedMessage: "the loaded payment changed",
     claim: recorded.claim,
-    executionLimit: 1,
     label: action === "refund" ? "Refund" : "Refresh",
     listingId: 7,
     notReady: (message) => ({ kind: "not_ready", message }),

@@ -8,7 +8,7 @@ import {
   contradictFirstPayment,
   correctFirstPayment,
   everyoneRefunded,
-  firstPaymentIsOutsideFirstRefundBatch,
+  firstPaymentIsLastRefundCandidate,
   paidPlaceEach,
   payMoreListing,
   payYourOwnPrice,
@@ -54,9 +54,9 @@ Given(
 );
 
 Given(
-  "the first payment is beyond Refund All's first group of refunds",
+  "the first payment is last in Refund All's payment set",
   function (this: TicketsWorld): Promise<void> {
-    return firstPaymentIsOutsideFirstRefundBatch(this);
+    return firstPaymentIsLastRefundCandidate(this);
   },
 );
 
@@ -82,7 +82,7 @@ Given(
 );
 
 When(
-  "the organiser refunds everyone and the provider turns down the second",
+  "the organiser refunds everyone and the provider turns down the first",
   function (this: TicketsWorld): Promise<void> {
     return everyoneRefunded(this);
   },
@@ -121,13 +121,15 @@ Then(
 );
 
 Then(
-  "the organiser is told {int} refunds worked and {int} failed",
+  "the organiser is told {int} refund(s) worked and {int} failed",
   function (this: TicketsWorld, worked: number, failed: number): void {
     const told = requiredWorldValue(
       this.bulkRefundMessage,
       "what they were told",
     );
-    expect(told).toContain(`${worked} refunds succeeded`);
+    expect(told).toContain(
+      `${worked} refund${worked === 1 ? "" : "s"} succeeded`,
+    );
     expect(told).toContain(`There was ${failed} failure`);
     // Every booking was tried, not just the ones before the failure.
     expect(requiredWorldValue(this.refundCalls, "refund calls")()).toBe(
@@ -137,7 +139,7 @@ Then(
 );
 
 Then(
-  "the two who were refunded have their money back",
+  "the person who was refunded has their money back",
   async function (this: TicketsWorld): Promise<void> {
     const { refunded } = refundedPeople(this);
     for (const id of refunded) {

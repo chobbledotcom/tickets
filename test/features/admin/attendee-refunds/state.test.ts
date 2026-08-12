@@ -122,7 +122,7 @@ describeWithEnv("server (admin refund state)", { db: true }, () => {
       await markAsRefunded(attendee.id);
       await putRowState(
         sessionId,
-        await staleClaimSlot(attendee.id),
+        await staleClaimSlot(attendee.id, "send_armed_keyed"),
         CLAIM_MIRROR,
       );
 

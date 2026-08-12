@@ -2,11 +2,8 @@
 
 import { inPlaceholders, type SqlStatement } from "#shared/db/client.ts";
 import { legacyRefundWarningSaveStatements } from "#shared/db/notes/queries.ts";
-import {
-  matchingPaymentReferenceIndexes,
-  storePaymentReference,
-} from "#shared/db/payment-reference-store.ts";
 import { nowIso } from "#shared/now.ts";
+import { paymentAnchorReference } from "./reference.ts";
 import { anchorSessionId } from "./session.ts";
 
 /**
@@ -19,11 +16,8 @@ export const attendeePaymentAnchorStatements = async (
   paymentId: string,
 ): Promise<SqlStatement[]> => {
   if (paymentId === "") return [];
-  const payment = { kind: "untagged", reference: paymentId } as const;
-  const [stored, matchingIndexes] = await Promise.all([
-    storePaymentReference(payment),
-    matchingPaymentReferenceIndexes(payment),
-  ]);
+  const { matchingIndexes, stored } = await paymentAnchorReference(paymentId);
+  const matchingIndexSlots = inPlaceholders(matchingIndexes);
   const anchor = {
     args: [
       anchorSessionId(attendeeId, stored.index),
@@ -45,9 +39,7 @@ export const attendeePaymentAnchorStatements = async (
              AND NOT EXISTS (
                SELECT 1 FROM processed_payments AS payment
                 WHERE payment.attendee_id = ?
-                  AND payment.payment_reference_index IN (${inPlaceholders(
-                    matchingIndexes,
-                  )})
+                  AND payment.payment_reference_index IN (${matchingIndexSlots})
              )`,
   };
   return [

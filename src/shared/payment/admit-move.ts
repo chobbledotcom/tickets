@@ -9,6 +9,16 @@
 
 import type { PaymentRowState } from "#shared/payment/row-state.ts";
 
+/** The attendee actions that can advance durable payment work. */
+export type PaymentRecoveryAction = "payment-review" | "refresh-payment";
+
+/** The one operator-facing state of an attendee's payment work. */
+export type PaymentWorkStatus =
+  | "clear"
+  | "moving"
+  | "needs_money_record"
+  | "needs_review";
+
 /** What the operator is trying to do to the rows. */
 export type RowMove = "delete" | "merge";
 
@@ -25,6 +35,8 @@ type LiveWork = {
   found: (state: PaymentRowState) => boolean;
   /** The plain word for it, for the consumers that cannot decrypt. */
   mirror: string;
+  /** The attendee action that gives the operator their next useful step. */
+  recoveryAction: PaymentRecoveryAction;
   /** What to tell the operator, naming what to do next. */
   refusal: string;
   /** Where this comes in the order things are said when a row carries more
@@ -32,6 +44,8 @@ type LiveWork = {
    *  are written in belongs to the formatter, which sorts them alphabetically
    *  — so a rename could otherwise reorder what an operator is told. */
   saidFirst: number;
+  /** The one operator-facing summary of this work. */
+  status: Exclude<PaymentWorkStatus, "clear">;
   /** Which operations this work stops. */
   stops: Record<RowMove, boolean>;
 };
@@ -53,28 +67,42 @@ const LIVE_WORK = {
   claim: {
     found: (state: PaymentRowState) => state.claim !== undefined,
     mirror: "claim",
+    recoveryAction: "refresh-payment",
     refusal:
       "A refund for this person is still in progress. Finish or re-run the refund, then try again.",
     saidFirst: 0,
+    status: "moving",
     stops: { delete: true, merge: true },
   },
   review: {
     found: (state: PaymentRowState) => state.review !== undefined,
     mirror: "review",
+    recoveryAction: "payment-review",
     refusal:
       "The owner still has to resolve a payment problem for this person. Refresh or correct the payment evidence, then try again.",
     saidFirst: 2,
+    status: "needs_review",
     stops: { delete: true, merge: false },
   },
   unrecorded: {
     found: (state: PaymentRowState) => state.unrecorded !== undefined,
     mirror: "unrecorded",
+    recoveryAction: "refresh-payment",
     refusal:
       "This person's money went back, but the accounts do not show it. Record it, then try again.",
     saidFirst: 1,
+    status: "needs_money_record",
     stops: { delete: true, merge: false },
   },
-} satisfies Record<LiveWorkField, LiveWork>;
+} as const satisfies Record<LiveWorkField, LiveWork>;
+
+type LiveWorkEntry = (typeof LIVE_WORK)[LiveWorkField];
+
+/** The status and its action are selected together from the live-work table. */
+export type PaymentWork = {
+  readonly recoveryAction: PaymentRecoveryAction | null;
+  readonly status: PaymentWorkStatus;
+};
 
 /** The word a row a refund run is holding shows in `protected_state`. Named
  *  here because this is where the word is decided, and read by the SQL guards
@@ -84,9 +112,24 @@ export const CLAIM_MIRROR: string = LIVE_WORK.claim.mirror;
 /** Every kind of live work, most urgent first. Built once from the table's own
  *  `saidFirst`, so both readers below agree and neither depends on the order
  *  the fields happen to be written in. */
-const WORST_FIRST: readonly LiveWork[] = Object.values(LIVE_WORK).sort(
+const WORST_FIRST: readonly LiveWorkEntry[] = Object.values(LIVE_WORK).sort(
   (one, other) => one.saidFirst - other.saidFirst,
 );
+
+const firstLiveWork = (
+  states: readonly PaymentRowState[],
+): LiveWorkEntry | undefined =>
+  WORST_FIRST.find((work) => states.some(work.found));
+
+/** Summarize any number of rows using the same priority as every row guard. */
+export const paymentWorkFor = (
+  states: readonly PaymentRowState[],
+): PaymentWork => {
+  const work = firstLiveWork(states);
+  return work === undefined
+    ? { recoveryAction: null, status: "clear" }
+    : { recoveryAction: work.recoveryAction, status: work.status };
+};
 
 /** Why this move must not go ahead, or null when the rows are free. Most rows
  *  are in the middle of nothing, so that is an ordinary answer. */
@@ -105,6 +148,6 @@ export const moveRefusalOrNull = (
  *  from the record it stores, so a row whose claim is let go but whose review
  *  remains still reads as protected. Empty when nothing is live. */
 export const mirrorFor = (state: PaymentRowState): string => {
-  const work = WORST_FIRST.find((entry) => entry.found(state));
+  const work = firstLiveWork([state]);
   return work === undefined ? "" : work.mirror;
 };

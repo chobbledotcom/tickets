@@ -221,10 +221,10 @@
       <h1>Refunds prove what happened before trying again.</h1>
       <p class="lede">A visual guide to every change in <code>src/</code> introduced on <strong>claude/m4-pr-a</strong> since it diverged from <strong>main</strong>. The short version: each charge is identified, observed, claimed, and accounted for—and doubt becomes durable work instead of permission to try again.</p>
       <div class="hashes" aria-label="Pinned comparison revisions">
-        <span class="hash"><strong>snapshot parent</strong> 3f3d1755835a</span>
+        <span class="hash"><strong>snapshot parent</strong> 4715373679aa</span>
         <span class="hash"><strong>main</strong> f04cd3cb721c</span>
         <span class="hash"><strong>merge base</strong> c5c9331dd0c8</span>
-        <span class="hash"><strong>status</strong> final reviewed source worktree</span>
+        <span class="hash"><strong>status</strong> current Part A worktree</span>
       </div>
       <div class="metrics" aria-label="Source change totals">
         <div class="metric"><b>135</b><span>changed source files</span></div>
@@ -253,7 +253,7 @@
         <div class="bar-row"><strong>Shared rules</strong><div class="bar-track"><div class="bar-fill" style="--size:71%"></div></div><span>22 files · +1,651 net</span></div>
       </div>
       <div class="system-map" aria-label="New system layers">
-        <div class="system"><b>Operator</b><small>owner-only single, bulk, refresh, acknowledge</small></div>
+        <div class="system"><b>Operator</b><small>owner-only refunds and review; reachable refresh</small></div>
         <div class="system"><b>Claim</b><small>exact indexed rows + command identity</small></div>
         <div class="system"><b>Evidence</b><small>provider facts → exhaustive admission</small></div>
         <div class="system"><b>Dispatch</b><small>durable permit → one provider request</small></div>
@@ -264,12 +264,12 @@
     <section id="journey">
       <p class="kicker">02 · End-to-end money journey</p>
       <h2>Ten gates between a click and a completed refund.</h2>
-      <p class="section-lede">The crucial ordering is visible here: the current indexed row set is claimed, existing safety work is checked, and every reference becomes ready before any provider send. A single attendee is simply a batch of one, so single and bulk refunds cannot drift apart.</p>
+      <p class="section-lede">The crucial ordering is visible here: the current indexed row set is claimed, existing safety work across the whole submitted command is checked, and every reference in that command becomes ready before any provider send. A single attendee is simply an array of one, so single and bulk refunds cannot drift apart.</p>
       <ol class="journey">
         <li><h3>Choose candidates</h3><p>Keep real ticket holders with at least one stored charge and work still remaining.</p><p class="output"><strong>Output:</strong> attendee revision + complete charge list.</p></li>
         <li><h3>Require an indexed holder</h3><p>Refund work sees only rows with a blind reference index. Old PII-only or unindexed payments stay unavailable until that attendee is saved.</p><p class="output"><strong>No global scan:</strong> unrelated attendees are never decrypted.</p></li>
         <li><h3>Claim the snapshot</h3><p>In one transaction, recheck attendee revisions, the exact indexed row set, and every indexed representation of the same charge.</p><p class="output"><span class="stop">Changed or already held → stop all.</span></p></li>
-        <li><h3>Admit the action</h3><p>An exhaustive action table lets refresh reconcile old work, but a refund cannot enter while review or unrecorded money remains.</p><p class="output"><span class="stop">Safety hold → zero provider preparation and zero sends.</span></p></li>
+        <li><h3>Admit the action</h3><p>An exhaustive action table checks every candidate and prices the complete command. Refresh may reconcile old work; refund cannot enter while any candidate carries review or unrecorded money.</p><p class="output"><span class="stop">Too much work or one blocked person → zero sends for everyone.</span></p></li>
         <li><h3>Read every provider</h3><p>Tagged charges go to their named provider. Indexed, untagged legacy charges are tried at all credentialed providers.</p><p class="output"><span class="stop">Missing, unavailable, invalid, or ambiguous → send nothing.</span></p></li>
         <li><h3>Bind identity &amp; retry rule</h3><p>While the claim is held, store the proven provider and whether a repeated request is keyed or keyless.</p><p class="output"><strong>Output:</strong> stable charge identity + retry capability.</p></li>
         <li><h3>Judge the money</h3><p>Shared rules decide: already returned, in flight, owner conflict, or safe to send.</p><p class="output"><span class="go">Only “ready” can request a dispatch permit.</span></p></li>
@@ -278,8 +278,8 @@
         <li><h3>Settle each row</h3><p>Release rows whose answer is known. Keep claims where money may still move; preserve review cases and books-behind markers.</p><p class="output"><strong>Output:</strong> durable truth for the next request.</p></li>
       </ol>
       <div class="cards-4">
-        <article class="card"><h3>Whole-attendee readiness</h3><p>One bad sibling blocks sends for that attendee. A clean charge cannot move while another charge is part-refunded, unreadable, under review, or waiting for the books.</p></article>
-        <article class="card"><h3>Five-request budget</h3><p>Work is packed by charge-reference count, not just attendee count. A merged attendee with many charges still stays within the same provider budget.</p></article>
+        <article class="card"><h3>Whole-command safety</h3><p>Refund All admits the complete listing-wide command or refuses it. It never silently narrows the safety decision to a convenient first batch, so no later review or books-behind marker can be skipped.</p></article>
+        <article class="card"><h3>Calls are priced, not guessed</h3><p>Before money moves, the complete command must afford every provider retry, discovery read, recovery read, bounded bulk database operation, rollback, settlement, and route tail. Five controls network overlap only.</p></article>
         <article class="card"><h3>Parallel network, one write lane</h3><p>Slow provider calls may overlap, but local “arm” and “money returned” writes line up in order. SQLite never has several refund workers fighting to write at once.</p></article>
         <article class="card"><h3>Worst result wins</h3><p><code>errored → failed → withheld → pending → refunded</code>. A good reference never hides a bad one beside it.</p></article>
       </div>
@@ -318,19 +318,24 @@
         <tr><td>Part refund, excess return, or two pending refunds</td><td class="no">Owner review</td><td>No</td><td>The system cannot safely choose an interpretation.</td></tr>
         <tr><td>Read missing, unavailable, or invalid</td><td class="no">Read failed</td><td>No</td><td>Absence of proof is not proof that another payout is safe.</td></tr>
       </tbody></table></div>
+      <div class="split" style="margin-top:1rem">
+        <article class="card after"><span class="label">Evidence survives</span><h3>One failed read does not erase its successful siblings</h3><p>A readiness refusal carries every charge it did read. A proved return becomes exact books-behind work, a pending refund keeps the claim, and a money contradiction becomes owner review. An unexpected preparation error keeps every still-unproved row held.</p></article>
+        <article class="card after"><span class="label">Safe starting point</span><h3>A returned marker begins as unrecorded</h3><p>The claim treats every authoritative local return marker as money the books have not yet proved. Only a successful ledger result clears that starting fact. Settlement always runs, but it releases rows from accumulated evidence—not from happy-path assumptions.</p></article>
+      </div>
     </section>
 
     <section id="providers">
       <p class="kicker">04 · Provider adapters</p>
       <h2>Three providers, one contract, three honest differences.</h2>
       <div class="table-wrap"><table><thead><tr><th></th><th>Stripe</th><th>Square</th><th>SumUp</th></tr></thead><tbody>
-        <tr><th>Charge evidence</th><td>Latest successful captured charge and cumulative returned amount</td><td>Completed payment with captured and refunded money</td><td>Captured transaction plus typed refund events</td></tr>
+        <tr><th>Charge evidence</th><td>Latest successful captured charge and cumulative returned amount</td><td>Completed payment with captured and refunded money</td><td>Captured transaction plus typed refund events; top-level <code>REFUNDED</code> proves the full amount returned even when event history is absent</td></tr>
         <tr><th>Repeat safety</th><td><strong>Keyed.</strong> Deterministic idempotency key.</td><td><strong>Keyed.</strong> Deterministic idempotency key.</td><td><strong>Keyless.</strong> A repeated POST may pay twice.</td></tr>
         <tr><th>Proof after send</th><td>Named refund resource, or one confirming reread</td><td>Named refund resource, or one confirming reread</td><td>Fresh charge observation; response body proves nothing by itself</td></tr>
         <tr><th>Webhook trust</th><td>Signed</td><td>Signed over URL + original bytes</td><td>Unsigned; local staging prefilter + authoritative API reread</td></tr>
         <tr><th>Uncertain result</th><td>Exactly one fresh charge read</td><td>Exactly one fresh charge read</td><td>Every sent/uncertain submission gets one fresh transaction read</td></tr>
         <tr><th>Stale claimed retry</th><td class="yes">May repeat the deterministic request</td><td class="yes">May repeat the deterministic request</td><td class="no">Observe only; never blindly repeat</td></tr>
       </tbody></table></div>
+      <div class="callout"><span class="mark">Σ</span><p><strong>SumUp does not default missing history to zero.</strong> A <code>SUCCESSFUL</code> transaction still needs refund-event evidence. A top-level <code>REFUNDED</code> transaction is different: SumUp itself says the transaction is fully returned, so the adapter records one full-amount returned event even when <code>transaction_events</code> is absent.</p></div>
       <h3 style="margin-top:2rem">Indexed old references are discovered, never guessed</h3>
       <div class="discovery">
         <div><b>Indexed, untagged reference</b><p>The row can be claimed, but no provider was stored with this old charge.</p></div><div class="arrow">→</div>
@@ -362,7 +367,7 @@
         <div class="claim-state foreign"><strong>foreign</strong><p>Stale work belongs to another owner/scope. Send nothing.</p></div>
       </div>
       <div class="callout"><span class="mark">5m</span><p><strong>The lease never falls below five minutes.</strong> It is the larger of the reservation cleanup setting and one request-lifetime floor. Turning cleanup down cannot make a still-running worker look dead.</p></div>
-      <div class="callout"><span class="mark">1×</span><p><strong>Only local state writes queue.</strong> Every dispatch-arm and returned-money marker waits for the previous local write to finish; a failed write does not jam later work. Provider requests still overlap within the five-reference budget, so correctness does not cost network throughput.</p></div>
+      <div class="callout"><span class="mark">1×</span><p><strong>Only local state writes queue.</strong> Every dispatch-arm and returned-money marker waits for the previous local write to finish; a failed write does not jam later work. Provider requests still overlap within a five-at-once concurrency window; the separate admission budget limits their total physical calls.</p></div>
       <h3>One command crosses named durable phases</h3>
       <div class="claim-flow" style="margin-bottom:1.5rem">
         <div class="claim-state"><strong>checking</strong><p>The row set is owned while provider evidence is assembled.</p></div>
@@ -387,6 +392,13 @@
           <div class="passport-note"><strong>Blind identity:</strong> <code>payment_reference_index</code> finds every indexed row holding the same money without exposing the charge reference. Empty legacy indexes are deliberately outside the claim.</div>
         </div>
       </div>
+      <h3>Every blocking state owns its visible next step</h3>
+      <div class="table-wrap"><table><thead><tr><th>Live row field</th><th>Operator status</th><th>Recovery action</th><th>Writer rule</th></tr></thead><tbody>
+        <tr><td><code>claim</code></td><td><code>moving</code></td><td><code>refresh-payment</code></td><td>Blocks delete and merge</td></tr>
+        <tr><td><code>unrecorded</code></td><td><code>needs_money_record</code></td><td><code>refresh-payment</code></td><td>Blocks delete; moves with merge</td></tr>
+        <tr><td><code>review</code></td><td><code>needs_review</code></td><td><code>payment-review</code></td><td>Blocks delete; moves with merge</td></tr>
+      </tbody></table></div>
+      <p class="section-lede" style="margin-top:1rem">These are not separate UI and database lists. One exhaustive <code>LIVE_WORK</code> record owns detection, plain mirror, priority, status, next action, refusal copy, and delete/merge rules. Adding a new live field cannot compile until all of those choices exist; the chosen action must also exist in the checked attendee-route schema.</p>
       <h3>What happens when refund and another writer race?</h3>
       <div class="race-grid">
         <div class="race-lane"><b>Refund transaction</b><ol><li>verify attendee + exact rows</li><li>write claim to every holder</li><li>commit</li><li>read / send / record under claim</li></ol></div>
@@ -431,10 +443,14 @@
         <tr><td>Money back, books behind</td><td class="no">Do not resend</td><td>Not the correction</td><td class="no">Blocked</td><td>Allowed; marker moves</td></tr>
       </tbody></table></div>
       <div class="cards-4" style="margin-top:1rem">
-        <article class="card"><h3>Owner means owner</h3><p>Single refund, Refund All, refresh, and review acknowledgement are owner-only at both link and route. Managers cannot view, submit, or replay either money or acknowledgement actions.</p></article>
+        <article class="card"><h3>Owner means owner</h3><p>Single refund, Refund All, and review acknowledgement are owner-only at both link and route. Managers cannot view, submit, or replay a refund or an owner-review acknowledgement. Refresh remains a non-sending recovery action for authenticated staff.</p></article>
         <article class="card"><h3>Acknowledgement is a receipt</h3><p>It timestamps the exact case set the owner saw. It does not clear the reason, lift the safety hold, contact a provider, move money, or invent an accounting correction.</p></article>
         <article class="card"><h3>Refresh is the repair entrance</h3><p>Refresh takes the same exact claim but is explicitly allowed to reconcile existing work without sending. A refund is rejected at claim time while unresolved review or unrecorded money exists.</p></article>
         <article class="card"><h3>Deleted listing, live work</h3><p>A review route can still open and log against the attendee when its old listing is gone. The repair target does not become a dead link just because surrounding booking data was removed.</p></article>
+      </div>
+      <div class="split" style="margin-top:1rem">
+        <article class="card after"><span class="label">Reachable after merge</span><h3>The durable row—not old contact PII—shows Refresh</h3><p>A merge may move books-behind payment rows onto a free attendee whose legacy <code>payment_id</code> is blank. Payment Details still renders the real Refresh form because an indexed payment row exists. The visitor journey merges that exact state, refreshes it without another Stripe send, records Money, and then deletes the attendee.</p></article>
+        <article class="card after"><span class="label">One anchor identity</span><h3>Save and merge cannot spell the same charge differently</h3><p>Both paths derive the same encrypted legacy reference and every provider-aware blind index. Before rows move, merge adds an anchor only when no matching current source row already exists, avoiding a synthetic duplicate that would falsely park the payment as shared.</p></article>
       </div>
       <h3 style="margin-top:2rem">A stale review form cannot acknowledge a different problem</h3>
       <div class="system-map" aria-label="Exact review acknowledgement lifecycle">
@@ -476,6 +492,7 @@
         <article class="card boundary"><h3>Historical completion markers</h3><p>An old untagged “refunded” marker is not treated as provider proof. It stays parked for later repair or audited re-attestation instead of silently reversing the books.</p></article>
         <article class="card boundary"><h3>Callback claim scope</h3><p>Admin single, bulk, and refresh now share the exact claim. Payment callback refunds still lack that same callback-scope claim; finalization does stand down when an admin claim is live.</p></article>
         <article class="card boundary"><h3>Acknowledgement is not repair</h3><p>It cannot allocate a shared charge, correct missing books, or settle provider uncertainty. It records owner awareness while the exact typed case remains the safety authority.</p></article>
+        <article class="card boundary"><h3>Booking identity is later work</h3><p>Part A identifies provider charges and their rows; it does not add the stable booking-obligation identity the ledger still lacks. Separate orders on one attendee, free package members, and safe pruning of an unreturned sibling remain open. Provider markers are not used to invent that missing relationship.</p></article>
       </div>
     </section>
 

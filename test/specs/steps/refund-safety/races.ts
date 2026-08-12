@@ -9,6 +9,7 @@ import {
   choosePaidDetails,
   expectBothBookingsPresent,
   openMergeChoicesInSecondWindow,
+  rememberMovedPaymentWork,
   submitKeptMerge,
 } from "#test/specs/support/refund-safety/merge-window.ts";
 import {
@@ -240,6 +241,13 @@ Then(
   "both {word}s and both bookings are still present",
   function (this: TicketsWorld, who: string): Promise<void> {
     return expectBothBookingsPresent(this, who);
+  },
+);
+
+Then(
+  "the returned payment work moves onto the free {word} without a legacy payment ID",
+  function (this: TicketsWorld, who: string): Promise<void> {
+    return rememberMovedPaymentWork(this, who);
   },
 );
 

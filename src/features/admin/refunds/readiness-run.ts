@@ -1,14 +1,11 @@
-import { requiredMapValue } from "#fp";
 import type { LoadedRefundAttendee } from "#shared/db/payment-claim/take.ts";
 import { PAYMENT_REVIEW_RETIREMENT } from "#shared/payment/review.ts";
 import { getSubrequestRemaining } from "#shared/subrequest-budget.ts";
 import {
-  carriesHeldRefundRows,
   REFUND_BUDGET_MESSAGES,
   type RefundBudgetAudience,
   type RefundReadinessBudgetCheckpoint,
   refundSubrequestCost,
-  selectRefundExecutionCandidates,
   subrequestCostFits,
 } from "./budget.ts";
 import type { RefundCandidate } from "./candidates.ts";
@@ -22,6 +19,10 @@ import type {
   ReadyRefundCandidate,
   RefundReadinessResult,
 } from "./readiness.ts";
+import {
+  rememberReadinessFailureFindings,
+  rememberRefundDoubts,
+} from "./readiness-findings.ts";
 import { refundReadinessMessage } from "./readiness-problem.ts";
 import { reportRefundProblem } from "./report.ts";
 
@@ -39,7 +40,6 @@ type RefundReadinessRun<TResult> = {
   candidates: readonly RefundCandidate[];
   changedMessage: string;
   claim: RowClaim;
-  executionLimit: number;
   label: string;
   listingId: number;
   notReady: (message: string, reason?: "subrequest_budget") => TResult;
@@ -75,7 +75,7 @@ const reportCandidateProblems = (
 const sharedRowSessionIds = (held: HeldRefundWork): Set<string> =>
   new Set(
     [...held.shared.values()].flatMap((representations) =>
-      representations.map(({ sessionId }) => sessionId),
+      representations.map(({ sessionId }) => sessionId)
     ),
   );
 
@@ -87,12 +87,7 @@ const reportReadinessFailure = (
   held: HeldRefundWork,
 ): string => {
   const message = refundReadinessMessage(readiness);
-  for (const candidate of candidates) {
-    const attendeeId = candidate.attendee.id;
-    if (readiness.reason !== "historical_marker") {
-      held.findings.doubts.set(attendeeId, "unread");
-    }
-  }
+  rememberReadinessFailureFindings(candidates, readiness, held);
   reportCandidateProblems(run, candidates, message);
   return message;
 };
@@ -148,36 +143,6 @@ const ADMISSION_BY_ACTION = {
   (held: HeldRefundWork) => string | null
 >;
 
-const claimForExecution = (
-  claim: HeldRefundWork["claim"],
-  candidates: readonly RefundCandidate[],
-): HeldRefundWork["claim"] => {
-  const attendeeIds = new Set(candidates.map(({ attendee }) => attendee.id));
-  const held = new Map(
-    [...claim.held].filter(([attendeeId]) => attendeeIds.has(attendeeId)),
-  );
-  const sessionIds = [...held.values()].flat();
-  return {
-    ...claim,
-    held,
-    phases: new Map(
-      sessionIds.map((sessionId) => [
-        sessionId,
-        requiredMapValue(
-          claim.phases,
-          sessionId,
-          `Refund admission omitted payment row ${sessionId}`,
-        ),
-      ]),
-    ),
-  };
-};
-
-type RefundExecution = {
-  readonly candidates: readonly RefundCandidate[];
-  readonly claim: HeldRefundWork["claim"];
-};
-
 /** Readiness retires checking, never the protection around a resumed send.
  *  Each action removes that protection only after its own durable outcome. */
 const rememberCheckedPhases = (
@@ -189,6 +154,21 @@ const rememberCheckedPhases = (
       held.findings.claimPhases.set(sessionId, "ready");
     }
   }
+};
+
+/** Keep the claim when provider preparation ends without a complete answer. */
+const protectProviderReads = (
+  candidates: readonly RefundCandidate[],
+  held: HeldRefundWork,
+): void => {
+  const needingProtection = candidates.filter((candidate) =>
+    candidate.references.some(
+      (reference) =>
+        reference.refundState !== "completed" &&
+        !held.alreadyReturned.has(reference.index),
+    )
+  );
+  rememberRefundDoubts(needingProtection, held, "in_doubt");
 };
 
 const budgetFits = (
@@ -203,26 +183,7 @@ const budgetFits = (
 
 const loadedBudgetCandidates = (
   candidates: readonly RefundCandidate[],
-): LoadedRefundAttendee[] =>
-  candidates.map((candidate) => ({
-    ...loadedRefundAttendee(candidate),
-    held: carriesHeldRefundRows(candidate),
-  }));
-
-const executionCandidatesFor = (
-  candidates: readonly RefundCandidate[],
-  limit: number,
-  inherited?: ReadonlySet<number>,
-): RefundCandidate[] =>
-  selectRefundExecutionCandidates(
-    candidates.map((candidate) => ({
-      attendeeId: candidate.attendee.id,
-      candidate,
-      references: candidate.references,
-    })),
-    limit,
-    inherited,
-  ).map(({ candidate }) => candidate);
+): LoadedRefundAttendee[] => candidates.map(loadedRefundAttendee);
 
 const refuseForBudget = <TResult>(
   run: RefundReadinessRun<TResult>,
@@ -239,14 +200,10 @@ const refuseForBudget = <TResult>(
 export const runRefundReadiness = async <TResult>(
   run: RefundReadinessRun<TResult>,
 ): Promise<TResult | BlockedRefundRun> => {
-  const executionCandidates = executionCandidatesFor(
-    run.candidates,
-    run.executionLimit,
-  );
   if (
     run.budgetAudience !== undefined &&
     !budgetFits(
-      loadedBudgetCandidates(executionCandidates),
+      loadedBudgetCandidates(run.candidates),
       new Set(),
       "before_claim",
     )
@@ -258,20 +215,14 @@ export const runRefundReadiness = async <TResult>(
     loadedBudgetCandidates(run.candidates),
     run.listingId,
     {
-      ...(run.budgetAudience === undefined
-        ? {}
-        : {
-            admit: ({ attendees, inherited, returned }) =>
-              budgetFits(
-                selectRefundExecutionCandidates(
-                  attendees,
-                  run.executionLimit,
-                  new Set(inherited.keys()),
-                ),
-                returned,
-                "inside_claim",
-              ),
-          }),
+      ...(run.budgetAudience === undefined ? {} : {
+        admit: ({ attendees, returned }) =>
+          budgetFits(
+            attendees,
+            returned,
+            "inside_claim",
+          ),
+      }),
       blocked: (block) => {
         if (block.kind === "claim_held") {
           return { kind: "blocked", reason: "refund_in_progress" };
@@ -290,36 +241,33 @@ export const runRefundReadiness = async <TResult>(
           reportCandidateProblems(run, run.candidates, admissionProblem);
           return run.notReady(admissionProblem);
         }
-        const exactExecutionCandidates = executionCandidatesFor(
-          run.candidates,
-          run.executionLimit,
-          new Set(held.inherited.keys()),
-        );
         if (
           run.budgetAudience !== undefined &&
           !budgetFits(
-            loadedBudgetCandidates(exactExecutionCandidates),
+            loadedBudgetCandidates(run.candidates),
             held.alreadyReturned,
             "before_provider_read",
           )
         ) {
           return refuseForBudget(run);
         }
-        const execution: RefundExecution = {
-          candidates: exactExecutionCandidates,
-          claim: claimForExecution(held.claim, exactExecutionCandidates),
-        };
-        const readiness = await run.prepare(
-          execution.candidates,
-          execution.claim,
-          held.alreadyReturned,
-        );
+        let readiness: RefundReadinessResult;
+        try {
+          readiness = await run.prepare(
+            run.candidates,
+            held.claim,
+            held.alreadyReturned,
+          );
+        } catch (error) {
+          protectProviderReads(run.candidates, held);
+          throw error;
+        }
         if (readiness.kind === "not_ready") {
           return run.notReady(
-            reportReadinessFailure(run, execution.candidates, readiness, held),
+            reportReadinessFailure(run, run.candidates, readiness, held),
           );
         }
-        rememberCheckedPhases(held, execution.claim);
+        rememberCheckedPhases(held, held.claim);
         return await run.ready(readiness.candidates, held);
       },
     },

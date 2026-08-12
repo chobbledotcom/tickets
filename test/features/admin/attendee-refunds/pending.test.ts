@@ -1,10 +1,6 @@
 import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
 import { setN1GuardNotifyOnly } from "#shared/db/query-log.ts";
-import { BULK_REFUND_LIMIT } from "#shared/subrequest-budget.ts";
-import {
-  createPaidListing,
-  seedBatchAttendees,
-} from "#test/features/admin/refunds-helpers.ts";
+import { createPaidListing } from "#test/features/admin/refunds-helpers.ts";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -21,7 +17,7 @@ import {
 
 const bulkRefundActivity = async (listingId: number): Promise<string> => {
   const log = (await getListingActivityLog(listingId)).find((entry) =>
-    entry.message.includes("Bulk refund:"),
+    entry.message.includes("Bulk refund:")
   );
   if (!log) throw new Error("Bulk refund activity was not recorded");
   return log.message;
@@ -95,29 +91,6 @@ describeWithEnv("server (admin refunds still settling)", { db: true }, () => {
     }
   });
 
-  test("reports settling refunds before the next capped batch", async () => {
-    const listing = await createPaidListing({ maxAttendees: 500 });
-    await seedBatchAttendees(
-      listing,
-      "pi_pending_batch_",
-      BULK_REFUND_LIMIT + 1,
-    );
-
-    await withRefundMock(refundStaysPending, async () => {
-      await expectFlashRedirect(
-        refundAllUrl(listing.id),
-        `0 refunds succeeded. ${BULK_REFUND_LIMIT} refunds are still settling. Do not send them again. 1 refund remains. Submit again to continue.`,
-      )(await postRefundAll(listing));
-    });
-
-    const activity = await bulkRefundActivity(listing.id);
-    if (!activity.includes(`${BULK_REFUND_LIMIT} still settling`)) {
-      throw new Error(
-        `Capped pending batch was logged incorrectly: ${activity}`,
-      );
-    }
-  });
-
   test("a blocked bulk run says every untouched refund remains", async () => {
     const listing = await createPaidListing();
     const held = await createPaidTestAttendee(
@@ -132,18 +105,12 @@ describeWithEnv("server (admin refunds still settling)", { db: true }, () => {
       "untouched-one@example.com",
       "pi_bulk_untouched_one",
     );
-    await createPaidTestAttendee(
-      listing.id,
-      "Untouched Two",
-      "untouched-two@example.com",
-      "pi_bulk_untouched_two",
-    );
     await holdPayment(held.id);
 
     await withRefundMock(refundCompletes, async (mockRefund) => {
       await expectFlashRedirect(
         refundAllUrl(listing.id),
-        "A refund for this payment is still settling. Refresh payment status after it completes. 3 refunds remain. Submit again to continue.",
+        "A refund for this payment is still settling. Refresh payment status after it completes. 2 refunds remain. Submit again to continue.",
         false,
       )(await postRefundAll(listing));
       if (mockRefund.calls.length !== 0) {

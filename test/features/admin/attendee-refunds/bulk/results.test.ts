@@ -2,8 +2,8 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { resetI18nForTest } from "#i18n";
+import { REFUND_BUDGET_MESSAGES } from "#routes/admin/refunds/budget.ts";
 import { setN1GuardNotifyOnly } from "#shared/db/query-log.ts";
-import { BULK_REFUND_LIMIT } from "#shared/subrequest-budget.ts";
 import {
   createPaidListing,
   seedBatchAttendees,
@@ -28,6 +28,7 @@ import {
 
 const SINGLE_ERROR_RESULT =
   "1 refund succeeded. There was 1 failure. There was 1 error. Check the activity log for details. Some payments may have already been refunded.";
+const OVERSIZED_REFUND_COUNT = 6;
 
 describeWithEnv("server (admin refund-all results)", { db: true }, () => {
   beforeEach(() => setN1GuardNotifyOnly(true));
@@ -71,55 +72,19 @@ describeWithEnv("server (admin refund-all results)", { db: true }, () => {
     });
   });
 
-  test("caps refunds to preserve the edge subrequest budget", async () => {
+  test("refuses an oversized command whole before any refund", async () => {
     const listing = await createPaidListing({ maxAttendees: 500 });
-    await seedBatchAttendees(listing, "pi_batch_", BULK_REFUND_LIMIT + 1);
+    await seedBatchAttendees(listing, "pi_batch_", OVERSIZED_REFUND_COUNT);
     await withRefundMock(refundCompletes, async (mockRefund) => {
       const response = await postRefundAll(listing);
-      expect(mockRefund.calls.length).toBe(BULK_REFUND_LIMIT);
+      expect(mockRefund.calls).toEqual([]);
       await expectFlashRedirect(
         `/admin/listing/${listing.id}/refund-all`,
-        `${BULK_REFUND_LIMIT} refunds succeeded. 1 refund remains. Submit again to continue.`,
+        REFUND_BUDGET_MESSAGES.bulk,
+        false,
       )(response);
     });
-
-    const log = (await getListingActivityLog(listing.id)).find((entry) =>
-      entry.message.includes(`Bulk refund: ${BULK_REFUND_LIMIT} of`),
-    );
-    expect(log?.message).toContain(
-      `Bulk refund: ${BULK_REFUND_LIMIT} of ${BULK_REFUND_LIMIT + 1} refunded`,
-    );
   });
-
-  const remainingFailureCases = [
-    {
-      count: 1,
-      expected: `0 refunds succeeded. There were ${BULK_REFUND_LIMIT} failures. 1 refund remains. Submit again to continue.`,
-      label: "one refund remaining",
-    },
-    {
-      count: 2,
-      expected: `0 refunds succeeded. There were ${BULK_REFUND_LIMIT} failures. 2 refunds remain. Submit again to continue.`,
-      label: "multiple refunds remaining",
-    },
-  ];
-  for (const { count, expected, label } of remainingFailureCases) {
-    test(`reports failures with ${label}`, async () => {
-      const listing = await createPaidListing({ maxAttendees: 500 });
-      await seedBatchAttendees(
-        listing,
-        `pi_batchfail_${count}_`,
-        BULK_REFUND_LIMIT + count,
-      );
-      await withRefundMock(refundIsRejected, async () => {
-        await expectFlashRedirect(
-          `/admin/listing/${listing.id}/refund-all`,
-          expected,
-          false,
-        )(await postRefundAll(listing));
-      });
-    });
-  }
 
   test("applies copy replacements to a completed partial-refund result", async () => {
     const listing = await createPaidListing();
@@ -155,7 +120,7 @@ describeWithEnv("server (admin refund-all results)", { db: true }, () => {
     }
 
     const log = (await getListingActivityLog(listing.id)).find((entry) =>
-      entry.message.includes("Bulk refund: 1 succeeded"),
+      entry.message.includes("Bulk refund: 1 succeeded")
     );
     expect(log?.message).toContain("1 succeeded, 1 failed");
   });
@@ -179,10 +144,12 @@ describeWithEnv("server (admin refund-all results)", { db: true }, () => {
       (request) => {
         callNum++;
         if (callNum === 1) return refundCompletes(request);
-        return Promise.resolve({
-          kind: "uncertain",
-          reason: "network_error",
-        } as const);
+        return Promise.resolve(
+          {
+            kind: "uncertain",
+            reason: "network_error",
+          } as const,
+        );
       },
       async () => {
         const response = await postRefundAll(listing);
@@ -211,10 +178,12 @@ describeWithEnv("server (admin refund-all results)", { db: true }, () => {
     );
     await withRefundMock(
       (_request) =>
-        Promise.resolve({
-          kind: "uncertain",
-          reason: "network_error",
-        } as const),
+        Promise.resolve(
+          {
+            kind: "uncertain",
+            reason: "network_error",
+          } as const,
+        ),
       async () => {
         await expectFlashRedirect(
           `/admin/listing/${listing.id}/refund-all`,

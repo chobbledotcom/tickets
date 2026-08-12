@@ -17,6 +17,10 @@ import {
   acknowledgePaymentReview,
   type PaymentReviewCase,
 } from "#shared/payment/review.ts";
+import {
+  paymentWorkFor,
+  type PaymentWorkStatus,
+} from "#shared/payment/admit-move.ts";
 import type { PaymentRowState } from "#shared/payment/row-state.ts";
 /* jscpd:ignore-end */
 
@@ -33,50 +37,21 @@ export type AcknowledgePaymentReviewResult =
   | { readonly kind: "nothing_to_review" }
   | { readonly kind: "review_changed" };
 
-/** The one operator-facing state of an attendee's payment work. */
-export type PaymentWorkStatus =
-  | "clear"
-  | "moving"
-  | "needs_money_record"
-  | "needs_review";
-
 export type PaymentReviewState =
   | {
-      readonly allAcknowledged: boolean;
-      readonly identity: string;
-      readonly status: "needs_review";
-    }
+    readonly allAcknowledged: boolean;
+    readonly identity: string;
+    readonly status: "needs_review";
+  }
   | {
-      readonly status: Exclude<PaymentWorkStatus, "needs_review">;
-    };
+    readonly status: Exclude<PaymentWorkStatus, "needs_review">;
+  };
 
 const REVIEW_ACTIVITY = "Payment review acknowledged by owner";
 
-const WORK_PRIORITY = {
-  clear: 0,
-  moving: 3,
-  needs_money_record: 1,
-  needs_review: 2,
-} as const satisfies Record<PaymentWorkStatus, number>;
-
-const rowWorkStatus = (row: PaymentRowRecord): PaymentWorkStatus =>
-  row.state.claim !== undefined
-    ? "moving"
-    : row.state.review !== undefined
-      ? "needs_review"
-      : row.state.unrecorded !== undefined
-        ? "needs_money_record"
-        : "clear";
-
 const paymentWorkStatus = (
   rows: readonly PaymentRowRecord[],
-): PaymentWorkStatus =>
-  rows.reduce<PaymentWorkStatus>((chosen, row) => {
-    const candidate = rowWorkStatus(row);
-    return WORK_PRIORITY[candidate] > WORK_PRIORITY[chosen]
-      ? candidate
-      : chosen;
-  }, "clear");
+): PaymentWorkStatus => paymentWorkFor(rows.map(({ state }) => state)).status;
 
 type ReviewRow = {
   readonly review: PaymentReviewCase;
@@ -96,7 +71,7 @@ const reviewIdentity = (reviews: readonly ReviewRow[]): Promise<string> => {
   }
   const facts = sortStrings(
     reviews.map(({ review, row }) =>
-      JSON.stringify([row.sessionId, review.caseId, review.reason]),
+      JSON.stringify([row.sessionId, review.caseId, review.reason])
     ),
   );
   return hmacHash(`payment-review:1:${JSON.stringify(facts)}`);
@@ -177,7 +152,7 @@ export const acknowledgeCurrentPaymentReview = (
     const results = await tx.batch(
       await Promise.all(
         changing.map(({ row }) =>
-          paymentRowStateStatement(row, acknowledgedState(row, acknowledgedAt)),
+          paymentRowStateStatement(row, acknowledgedState(row, acknowledgedAt))
         ),
       ),
     );

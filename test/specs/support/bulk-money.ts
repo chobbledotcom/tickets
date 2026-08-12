@@ -9,7 +9,6 @@ import { getRefundCandidates } from "#routes/admin/refunds/candidates.ts";
 // jscpd:ignore-start
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { BULK_REFUND_LIMIT } from "#shared/subrequest-budget.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import { sellSomethingAt } from "#test/specs/support/listings.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
@@ -20,8 +19,8 @@ import {
 import {
   type ActOnSomeMoney,
   requiredWorldValue,
-  type TicketsWorld,
   theListing,
+  type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { singleItem } from "#test-utils/factories.ts";
@@ -34,9 +33,8 @@ import { setupStripe } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
-/** The payment the provider will turn down — the middle one, so the story
- * proves the refunds after it still run. */
-const DECLINED_PAYMENT = "pi_bulk_2";
+/** The first payment is refused so the next one proves the command continues. */
+const DECLINED_PAYMENT = "pi_bulk_1";
 const FIRST_PAYMENT = "pi_bulk_1";
 
 type RefundAnswer = Parameters<typeof refundByTyping>[2];
@@ -127,28 +125,32 @@ const refundEveryone = async (
   world.bulkRefundMessage = browser.pageText;
 };
 
-/** The provider turns down the middle payment while the others complete. */
+/** The provider turns down the first payment while the next one completes. */
 export const everyoneRefunded = (world: TicketsWorld): Promise<void> =>
-  refundEveryone(world, (request) =>
-    request.paymentReference === DECLINED_PAYMENT
-      ? refundIsRejected(request)
-      : refundCompletes(request),
+  refundEveryone(
+    world,
+    (request) =>
+      request.paymentReference === DECLINED_PAYMENT
+        ? refundIsRejected(request)
+        : refundCompletes(request),
   );
 
 /** Try Refund All with a provider that would return every payment it receives. */
 export const tryToRefundEveryone = (world: TicketsWorld): Promise<void> =>
   refundEveryone(world, refundCompletes);
 
-/** Prove the review fixture sits outside the provider work this request may do. */
-export const firstPaymentIsOutsideFirstRefundBatch = async (
+/** Prove the reviewed payment is the final member of the complete command. */
+export const firstPaymentIsLastRefundCandidate = async (
   world: TicketsWorld,
 ): Promise<void> => {
   const candidates = await getRefundCandidates(
     await getAttendeesRaw(theListing(world)),
     await getTestPrivateKey(),
   );
-  expect(candidates).toHaveLength(BULK_REFUND_LIMIT + 1);
-  expect(candidates[BULK_REFUND_LIMIT]?.attendee.id).toBe(
+  expect(candidates).toHaveLength(
+    requiredWorldValue(world.attendeeIds, "the people who paid").length,
+  );
+  expect(candidates.at(-1)?.attendee.id).toBe(
     firstAttendeeId(world),
   );
 };
@@ -212,11 +214,11 @@ export const refundedPeople = (
   world: TicketsWorld,
 ): { refunded: number[]; turnedDown: number } => {
   const paid = requiredWorldValue(world.attendeeIds, "the people who paid");
-  if (paid.length !== 3) {
-    throw new Error(`Expected three people to have paid, found ${paid.length}`);
+  if (paid.length !== 2) {
+    throw new Error(`Expected two people to have paid, found ${paid.length}`);
   }
-  const [first, second, third] = paid as [number, number, number];
-  return { refunded: [first, third], turnedDown: second };
+  const [first, second] = paid as [number, number];
+  return { refunded: [second], turnedDown: first };
 };
 
 /** A listing that asks one price but lets a customer pay more. */

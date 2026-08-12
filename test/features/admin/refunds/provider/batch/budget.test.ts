@@ -46,10 +46,15 @@ const stripeReference = (
   };
 };
 
-const candidate = (attendeeId: number, referenceCount: number) => ({
+const candidate = (
+  attendeeId: number,
+  referenceCount: number,
+  refundState: RefundPaymentReference["refundState"] = "none",
+) => ({
   attendee: { id: attendeeId } as RefundCandidate["attendee"],
-  references: Array.from({ length: referenceCount }, (_, offset) =>
-    stripeReference(attendeeId, offset),
+  references: Array.from(
+    { length: referenceCount },
+    (_, offset) => stripeReference(attendeeId, offset, refundState),
   ),
 });
 
@@ -90,8 +95,9 @@ describeWithEnv(
     });
 
     test("an oversized bulk command refuses every attendee before provider work", async () => {
-      const candidates = Array.from({ length: 6 }, (_, offset) =>
-        candidate(20 + offset, 1),
+      const candidates = Array.from(
+        { length: 6 },
+        (_, offset) => candidate(20 + offset, 1),
       );
       await expectRefusedBeforeClaim(candidates);
     });
@@ -130,10 +136,10 @@ describeWithEnv(
           ];
           return Promise.resolve(
             admit({
-              attendees: raced,
-              inherited: new Map(),
-              returned: new Set(),
-            })
+                attendees: raced,
+                inherited: new Map(),
+                returned: new Set(),
+              })
               ? { kind: "changed" as const }
               : { kind: "not_admitted" as const },
           );
@@ -157,47 +163,38 @@ describeWithEnv(
       expect(source.refunds).toEqual([]);
     });
 
-    test("the claim chooses resumed work from authoritative rows", async () => {
+    test("executes every cheap returned payment in an admitted command", async () => {
       await settings.update.stripe.secretKey("sk_test_budget");
       const source = provider();
-      const candidates = Array.from({ length: 6 }, (_, offset) => ({
-        attendee: { id: 60 + offset } as RefundCandidate["attendee"],
-        references:
-          offset === 5
-            ? Array.from({ length: 6 }, (_, referenceOffset) =>
-                stripeReference(65, referenceOffset),
-              )
-            : [stripeReference(60 + offset, 0, "completed")],
-      }));
-      let claims = 0;
-      const claim: RowClaim = {
-        claim: (attendees, admit) => {
-          claims++;
-          if (admit === undefined) throw new Error("No exact budget admission");
-          const inherited = new Map([
-            [
-              65,
-              new Map([[attendees[5]!.references[0]!.index, "keyed" as const]]),
-            ],
-          ]);
-          return Promise.resolve(
-            admit({ attendees, inherited, returned: new Set() })
-              ? { kind: "changed" as const }
-              : { kind: "not_admitted" as const },
-          );
-        },
-        settle: () => Promise.resolve(),
-      };
+      const attendeeIds = Array.from({ length: 6 }, (_, offset) => 60 + offset);
+      const candidates = attendeeIds.map((attendeeId) =>
+        candidate(attendeeId, 1, "completed")
+      );
+      const claim = grantingRowClaim(
+        new Map(
+          attendeeIds.map((attendeeId) => [
+            attendeeId,
+            [`session_pi_budget_${attendeeId}_0`],
+          ]),
+        ),
+      );
+      const recordedAttendees: number[] = [];
 
       const result = await processRefundBatchAt(source, candidates, 7, {
         claim,
+        record: (postings) => {
+          recordedAttendees.push(
+            ...postings.map(({ attendeeId }) => attendeeId),
+          );
+          return recordEveryRefund(postings);
+        },
       });
 
       expect(result).toMatchObject({
-        kind: "not_ready",
-        reason: "subrequest_budget",
+        counts: { refundedCount: attendeeIds.length },
+        kind: "finished",
       });
-      expect(claims).toBe(1);
+      expect(recordedAttendees.sort()).toEqual(attendeeIds);
       expect(source.reads).toEqual([]);
       expect(source.refunds).toEqual([]);
     });

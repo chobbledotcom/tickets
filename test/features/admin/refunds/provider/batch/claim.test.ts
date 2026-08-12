@@ -2,8 +2,6 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import type { RefundProviderCapability } from "#shared/payment/row-state.ts";
-import { BULK_REFUND_LIMIT } from "#shared/subrequest-budget.ts";
-import { armEveryRefund } from "#test/features/admin/refunds/provider/dispatch-helpers.ts";
 import {
   finishedCounts,
   pendingCandidate,
@@ -28,7 +26,7 @@ type BatchEntry = {
 };
 
 const candidateBatch = (name: string): BatchEntry[] =>
-  Array.from({ length: BULK_REFUND_LIMIT + 1 }, (_, offset) => {
+  Array.from({ length: 2 }, (_, offset) => {
     const id = 100 + offset;
     const reference = `pi_${name}_${id}`;
     const sessionId = `sess_${name}_${id}`;
@@ -148,53 +146,6 @@ describeWithEnv(
       expect(claim.released).toEqual([]);
     });
 
-    test("reconciles inherited work beyond the fresh execution limit first", async () => {
-      const entries = candidateBatch("inherited_priority");
-      const stale = entries[BULK_REFUND_LIMIT];
-      if (stale === undefined) throw new Error("No inherited overflow fixture");
-      const claim = grantingRowClaim(
-        heldRows(entries),
-        inheritedRows([stale], "keyless"),
-      );
-      const source = provider();
-      const armFreshRefund = armEveryRefund();
-
-      await processRefundBatchAt(
-        source,
-        entries.map(({ candidate }) => candidate),
-        LISTING,
-        {
-          arm: (request) =>
-            request.indexes.includes(stale.index)
-              ? Promise.resolve({
-                  indexes: [stale.index],
-                  kind: "owner_review",
-                  reason: "uncertain_keyless_refund",
-                })
-              : armFreshRefund(request),
-          claim,
-        },
-      );
-
-      const fresh = entries.slice(0, BULK_REFUND_LIMIT - 1);
-      expect(source.reads).toEqual([
-        stale.reference,
-        ...fresh.map(({ reference }) => reference),
-      ]);
-      expect(source.refunds).toEqual([]);
-      expect(claim.reviewChanges).toEqual([
-        new Map([
-          [
-            stale.sessionId,
-            {
-              kind: "review",
-              reason: { kind: "uncertain_keyless_refund" },
-            },
-          ],
-        ]),
-      ]);
-    });
-
     test("keeps inherited work when another attendee blocks admission", async () => {
       const entries = candidateBatch("blocked_inherited").slice(0, 2);
       const [stale, reviewed] = entries;
@@ -218,31 +169,6 @@ describeWithEnv(
 
       expect([...source.reads, ...source.refunds]).toEqual([]);
       expect(claim.released).toEqual([[reviewed.sessionId]]);
-    });
-
-    test("keeps inherited work that cannot fit in the execution limit", async () => {
-      const entries = candidateBatch("inherited_overflow");
-      const claim = grantingRowClaim(
-        heldRows(entries),
-        inheritedRows(entries, "keyed"),
-      );
-      const source = provider();
-
-      await processRefundBatchAt(
-        source,
-        entries.map(({ candidate }) => candidate),
-        LISTING,
-        { claim },
-      );
-
-      const executed = entries.slice(0, BULK_REFUND_LIMIT);
-      expect(source.reads).toEqual(executed.map(({ reference }) => reference));
-      expect(source.refunds).toEqual(
-        executed.map(({ reference }) => reference),
-      );
-      expect(claim.released).toEqual([
-        executed.map(({ sessionId }) => sessionId),
-      ]);
     });
   },
 );

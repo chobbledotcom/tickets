@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { singleRefundResultError } from "#routes/admin/attendee-refunds/single-result.ts";
 import type { RefundBatchResult } from "#routes/admin/refunds/provider.ts";
-import type { PaymentWorkStatus } from "#shared/db/payment-review.ts";
+import type { PaymentWorkStatus } from "#shared/payment/admit-move.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
 
 const ATTENDEE_ID = 42;

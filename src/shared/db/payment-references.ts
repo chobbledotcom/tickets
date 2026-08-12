@@ -14,6 +14,7 @@ import {
   queryAll,
   type SqlStatement,
 } from "#shared/db/client.ts";
+import { paymentAnchorReference } from "#shared/db/payment-anchor/reference.ts";
 import {
   isAnchorSession,
   legacyMergeSessionId,
@@ -21,7 +22,6 @@ import {
 import {
   loadIndexedPaymentReference,
   matchingPaymentReferenceIndexes,
-  storePaymentReference,
 } from "#shared/db/payment-reference-store.ts";
 import { nowIso } from "#shared/now.ts";
 import { CLAIM_MIRROR } from "#shared/payment/admit-move.ts";
@@ -61,6 +61,18 @@ export type RefundPaymentReference =
   | (RefundPaymentReferenceFacts & TaggedPaymentReference)
   | (RefundPaymentReferenceFacts & UntaggedPaymentReference);
 
+/** Keep the final loaded facts for each stable payment identity. */
+export const paymentReferencesByIndex = <
+  Reference extends { readonly index: string },
+>(
+  owners: readonly { readonly references: readonly Reference[] }[],
+): ReadonlyMap<string, Reference> =>
+  new Map(
+    owners
+      .flatMap(({ references }) => references)
+      .map((reference) => [reference.index, reference]),
+  );
+
 type PaymentReferenceRow = {
   attendee_id: number;
   payment_reference: string;
@@ -93,8 +105,9 @@ const queryProcessedReferences = <Row>(
   attendeeIds: readonly number[],
   select: string,
   suffix = "",
-): Promise<Row[]> =>
-  attendeeIds.length === 0 ? Promise.resolve([]) : queryAll<Row>(
+): Promise<Row[]> => {
+  if (attendeeIds.length === 0) return Promise.resolve([]);
+  return queryAll<Row>(
     `SELECT ${select}
            FROM processed_payments
           WHERE attendee_id IN (${inPlaceholders(attendeeIds)})
@@ -103,6 +116,7 @@ const queryProcessedReferences = <Row>(
           ${suffix}`,
     [...attendeeIds],
   );
+};
 
 const paymentReferencesForIds = (
   attendeeIds: readonly number[],
@@ -113,6 +127,10 @@ const paymentReferencesForIds = (
      payment_reference_index, protected_state, provider_refunded_at`,
     "ORDER BY attendee_id, processed_at, payment_session_id",
   );
+
+const attendeeIdsOf = (
+  attendees: readonly RefundPaymentReferenceSource[],
+): number[] => attendees.map((attendee) => attendee.id);
 
 /** Attendees that have a durable indexed provider-payment row. */
 export const attendeeIdsWithIndexedPaymentReferences = async (
@@ -194,11 +212,8 @@ export const getRefundPaymentReferences = async (
       new Map<string, ReferenceProgress>(),
     ]),
   );
-  for (
-    const row of await paymentReferencesForIds(
-      attendees.map((attendee) => attendee.id),
-    )
-  ) {
+  const rows = await paymentReferencesForIds(attendeeIdsOf(attendees));
+  for (const row of rows) {
     const { index, payment } = await loadIndexedPaymentReference(
       row,
       privateKey,
@@ -272,9 +287,13 @@ export const stillWithTheProvider = (
 export const hasRefundPaymentReference = async (
   attendee: RefundPaymentReferenceSource,
   privateKey: CryptoKey,
-): Promise<boolean> =>
-  (await getRefundPaymentReferencesForAttendee(attendee, privateKey)).length >
-    0;
+): Promise<boolean> => {
+  const references = await getRefundPaymentReferencesForAttendee(
+    attendee,
+    privateKey,
+  );
+  return references.length > 0;
+};
 
 export const getAttendeeIdsWithPaymentReference = async (
   attendees: readonly RefundPaymentReferenceSource[],
@@ -284,11 +303,10 @@ export const getAttendeeIdsWithPaymentReference = async (
       .filter((attendee) => attendee.payment_id !== "")
       .map((attendee) => attendee.id),
   );
-  for (
-    const attendeeId of await attendeeIdsWithIndexedPaymentReferences(
-      attendees.map((attendee) => attendee.id),
-    )
-  ) {
+  const indexedIds = await attendeeIdsWithIndexedPaymentReferences(
+    attendeeIdsOf(attendees),
+  );
+  for (const attendeeId of indexedIds) {
     ids.add(attendeeId);
   }
   return ids;
@@ -305,10 +323,9 @@ export const legacyMergePaymentReferenceStatement = async (
   sourcePaymentId: string,
 ): Promise<SqlStatement | null> => {
   if (sourcePaymentId === "") return null;
-  const stored = await storePaymentReference({
-    kind: "untagged",
-    reference: sourcePaymentId,
-  });
+  const anchorReference = await paymentAnchorReference(sourcePaymentId);
+  const { matchingIndexes, stored } = anchorReference;
+  const matchingIndexSlots = inPlaceholders(matchingIndexes);
   return {
     args: [
       legacyMergeSessionId(sourceId),
@@ -316,14 +333,21 @@ export const legacyMergePaymentReferenceStatement = async (
       nowIso(),
       stored.encrypted,
       stored.index,
+      sourceId,
+      ...matchingIndexes,
     ],
-    // The index goes in with the reference, as everywhere else: a refund
-    // claim finds another row holding the same money by this column alone,
-    // so an anchor written without one is money no claim can see.
+    // A current checkout row already carries this charge and will move in the
+    // same transaction. The anchor exists only for PII-only legacy payments.
     sql: `INSERT OR IGNORE INTO processed_payments
           (payment_session_id, attendee_id, processed_at, payment_reference,
            payment_reference_index)
-          VALUES (?, ?, ?, ?, ?)`,
+          SELECT ?, ?, ?, ?, ?
+           WHERE NOT EXISTS (
+             SELECT 1 FROM processed_payments AS payment
+              WHERE payment.attendee_id = ?
+                AND payment.payment_reference != ''
+                AND payment.payment_reference_index IN (${matchingIndexSlots})
+           )`,
   };
 };
 

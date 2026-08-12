@@ -32,7 +32,10 @@ import {
   loadQuestionsForExisting,
 } from "#routes/admin/attendee-page-data.ts";
 import { loadMergePanel } from "#routes/admin/attendees-merge.ts";
-import { attendeeActions } from "#routes/admin/attendees-route-helpers.ts";
+import {
+  attendeeActions,
+  paymentRecoveryAction,
+} from "#routes/admin/attendees-route-helpers.ts";
 import {
   type ActionDef,
   customSection,
@@ -49,12 +52,10 @@ import { getEffectiveDomain } from "#shared/config.ts";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { getNotesFor } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
-import {
-  getPaymentWorkStatus,
-  type PaymentWorkStatus,
-} from "#shared/db/payment-review.ts";
+import { getPaymentWorkStatus } from "#shared/db/payment-review.ts";
 import { settings } from "#shared/db/settings.ts";
 import { isReadOnly } from "#shared/env.ts";
+import type { PaymentWorkStatus } from "#shared/payment/admit-move.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { isOwnerRole } from "#shared/types.ts";
 import {
@@ -73,6 +74,8 @@ import { PaymentDetails } from "#templates/admin/attendees.tsx";
 type AttendeePageEntity = LoadedAttendee & {
   readonly paymentWorkStatus: PaymentWorkStatus | "not_loaded";
 };
+
+const refreshPaymentAction = paymentRecoveryAction("refresh-payment");
 
 /** Load payment review state only for the Actions tab. */
 const loadAttendeePageEntity = async (
@@ -232,7 +235,9 @@ const overviewTab: TabDef<AttendeePageEntity> = {
         Promise.resolve(
           PaymentDetails({
             attendee,
-            hasIndexedPaymentReference,
+            refreshPaymentUrl: hasIndexedPaymentReference
+              ? refreshPaymentAction.url(attendee.id)
+              : null,
             // The balance link targets the owner-only Ledger tab, so it
             // must only render for owners (never render a forbidden link).
             showBalanceLink: ctx.session.adminLevel === "owner",

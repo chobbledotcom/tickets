@@ -43,6 +43,7 @@ describe("refresh payment under an attendee claim", () => {
     const run = runHarness({
       readiness: {
         kind: "not_ready",
+        observations: [],
         reads: [
           {
             evidence: {
@@ -74,6 +75,7 @@ describe("refresh payment under an attendee claim", () => {
       readiness: {
         indexes: ["old_pi_refresh"],
         kind: "not_ready",
+        observations: [],
         reason: "historical_marker",
       },
     });
@@ -85,7 +87,11 @@ describe("refresh payment under an attendee claim", () => {
   test("retains an inherited claim when provider evidence cannot answer", async () => {
     const run = runHarness({
       inherited: "keyed",
-      readiness: { kind: "not_ready", reason: "claim_changed" },
+      readiness: {
+        kind: "not_ready",
+        observations: [],
+        reason: "claim_changed",
+      },
     });
 
     expect(await refresh(run)).toEqual({
@@ -136,10 +142,12 @@ describe("refresh payment under an attendee claim", () => {
     expect(run.calls.prepare).toBe(0);
   });
 
-  for (const [name, count] of [
-    ["no attendee", 0],
-    ["more than one attendee", 2],
-  ] as const) {
+  for (
+    const [name, count] of [
+      ["no attendee", 0],
+      ["more than one attendee", 2],
+    ] as const
+  ) {
     test(`fails when readiness returns ${name}`, async () => {
       const run = runHarness();
       const candidates = Array.from({ length: count }).flatMap(

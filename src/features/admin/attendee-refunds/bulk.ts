@@ -21,7 +21,6 @@ import { logActivity } from "#shared/db/activity-log.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { fail, ok } from "#shared/response.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import { BULK_REFUND_LIMIT } from "#shared/subrequest-budget.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import { adminRefundAllAttendeesPage } from "#templates/admin/attendees.tsx";
 
@@ -59,7 +58,6 @@ interface RefundResponseContext {
   counts: RefundCounts;
   listing: ListingWithCount;
   refundAllUrl: string;
-  remaining: number;
 }
 
 const buildBlockedRefundResponse = async (
@@ -96,7 +94,7 @@ const refundActivityCounts = (
 const buildRefundProblemResponse = async (
   context: RefundResponseContext,
 ): Promise<Response> => {
-  const { listing, refundAllUrl, counts, remaining } = context;
+  const { listing, refundAllUrl, counts } = context;
   const { refundedCount, failedCount, notRecordedCount, pendingCount } = counts;
   // An unrecorded refund is operator work, so count it as an error.
   const errorCount = counts.errorCount + notRecordedCount;
@@ -116,12 +114,7 @@ const buildRefundProblemResponse = async (
     errorCount > 0
       ? t("admin.attendees.refund_all_result_errors", { count: errorCount })
       : null,
-    t(
-      remaining > 0
-        ? "admin.attendees.refund_all_result_remaining"
-        : "admin.attendees.refund_all_result_complete",
-      { count: remaining },
-    ),
+    t("admin.attendees.refund_all_result_complete"),
   ]).join(" ");
   await logActivity(
     `Bulk refund: ${
@@ -137,9 +130,9 @@ const buildRefundProblemResponse = async (
 
 /** Build the final response for a bulk refund. */
 const buildRefundAllResponse = async (
-  context: RefundResponseContext & { totalRefundable: number },
+  context: RefundResponseContext,
 ): Promise<Response> => {
-  const { counts, listing, refundAllUrl, totalRefundable, remaining } = context;
+  const { counts, listing, refundAllUrl } = context;
   const refundedCount = counts.refundedCount;
   const hasProblems =
     counts.failedCount + counts.errorCount + counts.notRecordedCount > 0;
@@ -149,7 +142,6 @@ const buildRefundAllResponse = async (
       counts,
       listing,
       refundAllUrl,
-      remaining,
     });
   }
 
@@ -160,35 +152,12 @@ const buildRefundAllResponse = async (
     );
     return ok(
       refundAllUrl,
-      compact([
+      [
         t("admin.attendees.refund_all_result_refunds", {
           count: refundedCount,
         }),
         t("admin.attendees.refund_all_result_pending", {
           count: counts.pendingCount,
-        }),
-        remaining > 0
-          ? t("admin.attendees.refund_all_result_remaining", {
-            count: remaining,
-          })
-          : null,
-      ]).join(" "),
-    );
-  }
-
-  if (remaining > 0) {
-    await logActivity(
-      `Bulk refund: ${refundedCount} of ${totalRefundable} refunded for '${listing.name}'`,
-      listing.id,
-    );
-    return ok(
-      refundAllUrl,
-      [
-        t("admin.attendees.refund_all_result_refunds", {
-          count: refundedCount,
-        }),
-        t("admin.attendees.refund_all_result_remaining", {
-          count: remaining,
         }),
       ].join(" "),
     );
@@ -224,7 +193,6 @@ const processRefundAll = async (
     return fail(refundAllUrl, t("error.no_attendees_to_refund"));
   }
 
-  const remaining = Math.max(0, refundable.length - BULK_REFUND_LIMIT);
   const result: RefundBatchResult = await processRefundBatch(
     refundable,
     listing.id,
@@ -240,8 +208,6 @@ const processRefundAll = async (
     counts: result.counts,
     listing,
     refundAllUrl,
-    remaining,
-    totalRefundable: refundable.length,
   });
 };
 
