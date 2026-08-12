@@ -1,7 +1,9 @@
 /* jscpd:ignore-start -- imports */
 import { requiredMapValue } from "#fp";
-import type { AnchoredAttendee } from "#shared/db/payment-anchor/mint.ts";
-import { markPaymentReferencesProviderRefunded } from "#shared/db/payment-references.ts";
+import {
+  markPaymentReferencesProviderRefunded,
+  type RefundPaymentReference,
+} from "#shared/db/payment-references.ts";
 import { reportRefundNotRecorded } from "#shared/invariant-errors.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import type { ResolvedRefundCapability } from "#shared/payment/row-state.ts";
@@ -91,7 +93,11 @@ const logBulkRefundProblem = (
 };
 
 /** An attendee's charges that came back, and whether that was all of them. */
-type LedgerPosting = AnchoredAttendee & { whole: boolean };
+type LedgerPosting = {
+  readonly attendeeId: number;
+  readonly references: readonly RefundPaymentReference[];
+  readonly whole: boolean;
+};
 
 const tallyProviderRefund = (
   counts: RefundCounts,
@@ -226,11 +232,7 @@ const refundClaimedBatch = async (
       if (result.doubt !== undefined) {
         findings.doubts.set(result.candidate.attendee.id, result.doubt);
       }
-      recordProviderReviewFindings(
-        findings,
-        result.candidate.attendee.id,
-        result.reviews,
-      );
+      recordProviderReviewFindings(findings, result.reviews);
       tallyProviderRefund(counts, result, listingId, postings);
     }
     await recordWave(writes.record, counts, postings, findings, listingId);

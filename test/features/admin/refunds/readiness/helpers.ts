@@ -21,7 +21,15 @@ export const charge = (): ChargeMoney => ({
 const referenceFacts = (
   index: string,
   refundState: RefundPaymentReference["refundState"] = "none",
-) => ({
+): Pick<
+  RefundPaymentReference,
+  | "heldRowSessionIds"
+  | "index"
+  | "matchingIndexes"
+  | "refundState"
+  | "rowSessionIds"
+  | "sessionIds"
+> => ({
   heldRowSessionIds: [`session_${index}`],
   index,
   matchingIndexes: [index],

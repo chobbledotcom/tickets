@@ -2347,36 +2347,6 @@ operator finish. The separate bounded task in "Recover paid SumUp checkouts
 without a webhook or redirect" must feed the same completion/replay mechanism
 rather than create another lifecycle.
 
-## Make global refund-reference preparation bounded and resumable
-
-Before a refund snapshot, `prepareRefundReferenceHolders` decrypts every stored
-reference, fills every old blind index, and creates a deterministic anchor for
-every row-less legacy `payment_id`. The selected attendee can see every other
-holder of the same charge, and shared work parks before provider I/O.
-
-The pass currently loads every payment row and attendee, decrypts every entry,
-and batches every missing write inside one authenticated request transaction. A
-large site can exhaust edge CPU, memory, statement, or request-time budgets; a
-failure restarts the whole scan. Replace it with fixed-size authenticated pages
-and durable progress. Persist a deterministic keyset cursor ordered by stable
-reference identity and advance it only after each page commits; never use an
-offset cursor. Refund admission must remain closed until that cursor completes
-an epoch. Concurrent payment or PII inserts and reference changes must join or
-invalidate the same epoch so no row can be skipped or repeated. The owner
-private key is needed to derive indexes, so an unauthenticated maintenance job
-cannot silently do the work.
-
-Preparation completion alone is not refund admission. Every row-less legacy
-reference must have its anchor and blind index persisted, and the following
-claim must report success only after it has persisted a held-row state for every
-exact reference. Any missing anchor, index, or held state keeps admission
-closed.
-
-Start at `src/shared/db/payment-reference-holders.ts` and its call from
-`getRefundPaymentReferences`. Test several pages, interruption and resume,
-concurrent row insertion and PII change, a shared row-less charge split across
-pages, and refusal before the epoch or exact held-row claim completes.
-
 ## Refunded status cannot tell two orders on ONE listing apart
 
 _Origin: Codex and CodeRabbit, both on PR #2065 (partial ledger reversal)._

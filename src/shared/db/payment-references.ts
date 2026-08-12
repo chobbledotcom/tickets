@@ -18,11 +18,9 @@ import {
   isAnchorSession,
   legacyMergeSessionId,
 } from "#shared/db/payment-anchor/session.ts";
-import { prepareRefundReferenceHolders } from "#shared/db/payment-reference-holders.ts";
 import {
   loadIndexedPaymentReference,
   matchingPaymentReferenceIndexes,
-  paymentReferenceIndex,
   storePaymentReference,
 } from "#shared/db/payment-reference-store.ts";
 import { nowIso } from "#shared/now.ts";
@@ -53,9 +51,8 @@ type RefundPaymentReferenceFacts = {
    *  provider charge. Known providers with the same raw id stay distinct. */
   readonly matchingIndexes: readonly string[];
   readonly refundState: RefundState;
-  /** Every payment row carrying this charge, anchors included. Empty means the
-   *  charge has no row at all — it is on the attendee's own `payment_id`. */
-  readonly rowSessionIds: readonly string[];
+  /** Every indexed payment row carrying this charge, anchors included. */
+  readonly rowSessionIds: readonly [string, ...string[]];
   /** Non-legacy sessions ordered by processing time, then session ID. */
   readonly sessionIds: readonly string[];
 };
@@ -85,7 +82,7 @@ type ReferenceProgress = {
   index: string;
   payment: PaymentReference;
   refunded: boolean;
-  rowSessionIds: string[];
+  rowSessionIds: [string, ...string[]];
   sessionIds: string[];
 };
 
@@ -104,6 +101,7 @@ const queryProcessedReferences = <Row>(
            FROM processed_payments
           WHERE attendee_id IN (${inPlaceholders(attendeeIds)})
             AND payment_reference != ''
+            AND payment_reference_index != ''
           ${suffix}`,
         [...attendeeIds],
       );
@@ -122,34 +120,6 @@ const attendeeIdsWithProcessedReferences = (
   attendeeIds: readonly number[],
 ): Promise<PaymentReferenceAttendeeRow[]> =>
   queryProcessedReferences(attendeeIds, "DISTINCT attendee_id");
-
-const legacyReference = async (
-  reference: string,
-): Promise<RefundPaymentReference> => {
-  const payment = { kind: "untagged", reference } as const;
-  const index = await paymentReferenceIndex(payment);
-  return {
-    // No row at all, so no row of it can be held.
-    heldRowSessionIds: [],
-    index,
-    kind: "untagged",
-    matchingIndexes: await matchingPaymentReferenceIndexes(payment),
-    reference,
-    // A legacy charge was never watched, so it may have come back already.
-    refundState: refundStateOf({ legacy: true, refunded: false }),
-    rowSessionIds: [],
-    sessionIds: [],
-  };
-};
-
-const withLegacyReference = async (
-  references: RefundPaymentReference[],
-  legacyPaymentId: string,
-): Promise<RefundPaymentReference[]> =>
-  legacyPaymentId !== "" &&
-  !references.some((entry) => entry.reference === legacyPaymentId)
-    ? [...references, await legacyReference(legacyPaymentId)]
-    : references;
 
 const realSessionIds = (row: PaymentReferenceRow): string[] =>
   isAnchorSession(row.payment_session_id) ? [] : [row.payment_session_id];
@@ -204,15 +174,14 @@ const asRefundReferences = async (
 
 /**
  * Refundable provider references for each attendee. New processed_payments rows
- * carry per-session references; old single-charge bookings may still only have
- * attendees' legacy payment_id, so include it when it is not already present.
+ * carry per-session references. Old PII-only references become refundable only
+ * after an attendee save materializes their durable indexed anchor.
  */
 export const getRefundPaymentReferences = async (
   attendees: readonly RefundPaymentReferenceSource[],
   privateKey: CryptoKey,
 ): Promise<Map<number, RefundPaymentReference[]>> => {
   if (attendees.length === 0) return new Map();
-  await prepareRefundReferenceHolders(privateKey);
   const byAttendee = new Map(
     attendees.map((attendee) => [
       attendee.id,
@@ -242,15 +211,12 @@ export const getRefundPaymentReferences = async (
       attendees.map(
         async (attendee): Promise<[number, RefundPaymentReference[]]> => [
           attendee.id,
-          await withLegacyReference(
-            await asRefundReferences(
-              requiredMapValue(
-                byAttendee,
-                attendee.id,
-                `Refund references for attendee ${attendee.id} were not loaded`,
-              ),
+          await asRefundReferences(
+            requiredMapValue(
+              byAttendee,
+              attendee.id,
+              `Refund references for attendee ${attendee.id} were not loaded`,
             ),
-            attendee.payment_id,
           ),
         ],
       ),
@@ -270,14 +236,6 @@ export const getRefundPaymentReferencesForAttendee = async (
   );
 
 /**
- * Whether any of these charges may still be with the provider.
- *
- * A "none" charge was watched and has not come back. A legacy "unknown" one was
- * never watched, so it stays open only when a "completed" sibling already
- * explains the attendee's refunded flag; on its own it is what that flag is
- * most likely describing.
- */
-/**
  * Whether a refund run is still holding any of these charges' rows.
  *
  * Its hold refuses the attendee's delete and their merge, and only another run
@@ -289,6 +247,7 @@ export const underRefundClaim = (
 ): boolean =>
   references.some((reference) => reference.heldRowSessionIds.length > 0);
 
+/** Whether any of these charges may still be with the provider. */
 export const stillWithTheProvider = (
   references: readonly RefundPaymentReference[],
 ): boolean => {

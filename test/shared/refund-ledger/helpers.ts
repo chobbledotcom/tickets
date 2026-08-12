@@ -38,7 +38,7 @@ export const postBooking = async (
 /** A reference the provider has already returned, on the rows it names. */
 export const returnedReference = (
   reference: string,
-  sessionIds: readonly string[],
+  sessionIds: readonly [string, ...string[]],
 ): RefundPaymentReference =>
   refundReference(reference, {
     refundState: "completed",
@@ -50,7 +50,11 @@ export const sessionReference = (sessionId: string): RefundPaymentReference =>
   returnedReference(`pi-${sessionId}`, [sessionId]);
 
 export const legacyReference = (reference: string): RefundPaymentReference =>
-  returnedReference(reference, []);
+  refundReference(reference, {
+    refundState: "completed",
+    rowSessionIds: [`legacy:test:${reference}`],
+    sessionIds: [],
+  });
 
 export const refundTarget = (
   attendeeId: number,

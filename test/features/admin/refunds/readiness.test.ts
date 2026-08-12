@@ -25,13 +25,13 @@ describe("admin refund readiness", () => {
     const square = provider("square");
     const stripe = provider("stripe");
     const shared = untagged("shared");
-    const firstShared = {
+    const firstShared: typeof shared = {
       ...shared,
       heldRowSessionIds: ["session_first"],
       rowSessionIds: ["session_first"],
       sessionIds: ["session_first"],
     };
-    const secondShared = {
+    const secondShared: typeof shared = {
       ...shared,
       heldRowSessionIds: ["session_second"],
       rowSessionIds: ["session_second"],

@@ -9,7 +9,7 @@ import { reportWithheldRefund } from "#shared/payment-review.ts";
 import { isPaymentOnlyAccount } from "#shared/refund-ledger/plan.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
 import type { RefundLedgerResult } from "#shared/refund-ledger/result.ts";
-import { type RefundCandidate, referenceRowIds } from "./candidates.ts";
+import type { RefundCandidate } from "./candidates.ts";
 import {
   durableRowClaim,
   type HeldRefundClaim,
@@ -155,13 +155,10 @@ const completedRefundReview = (
 /** Retire only refund markers that a complete ledger post disproves. */
 const retireCompletedRefundReviews = (
   returned: readonly TaggedRefundReference[],
-  attendeeId: number,
   heldReviews: HeldRefundWork["reviews"],
   findings: RunFindings,
 ): void => {
-  const returnedRows = returned.flatMap((reference) =>
-    referenceRowIds(attendeeId, reference),
-  );
+  const returnedRows = returned.flatMap((reference) => reference.rowSessionIds);
   for (const sessionId of returnedRows) {
     const reason = heldReviews.get(sessionId);
     if (completedRefundReview(reason)) {
@@ -194,7 +191,6 @@ const refreshReadyCandidate = async (
   const hasUnreturned = returned.length !== candidate.references.length;
   const providerNeedsReview = recordProviderReviewFindings(
     findings,
-    candidate.attendee.id,
     providerReviewFindings(observed),
   );
   const keepsClaim =
@@ -230,12 +226,7 @@ const refreshReadyCandidate = async (
     return { kind: "returned", posted: false };
   }
   const paymentOnly = await dependencies.paymentOnly(candidate.attendee.id);
-  retireCompletedRefundReviews(
-    returned,
-    candidate.attendee.id,
-    heldReviews,
-    findings,
-  );
+  retireCompletedRefundReviews(returned, heldReviews, findings);
   const confirmation = await dependencies.confirm({
     attendee: candidate.attendee,
     claim,

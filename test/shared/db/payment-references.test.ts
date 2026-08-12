@@ -26,13 +26,13 @@ import {
 } from "#test-utils/processed-payments.ts";
 
 describeWithEnv("db > payment references", { db: true }, () => {
-  test("checks whether a single attendee has any refund reference", async () => {
+  test("PII-only payment ids are not refund references", async () => {
     expect(
       await hasRefundPaymentReference(
         { id: 1234, payment_id: "pi_legacy" },
         await getTestPrivateKey(),
       ),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       await hasRefundPaymentReference(
         { id: 5678, payment_id: "" },
@@ -145,7 +145,7 @@ describeWithEnv("db > payment references", { db: true }, () => {
       ],
     );
 
-    const inProcessedOrder = [
+    const inProcessedOrder: [string, ...string[]] = [
       "sess_shared_b_earlier",
       "sess_shared_d_earlier",
       "sess_shared_a_middle",

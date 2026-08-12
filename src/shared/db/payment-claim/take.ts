@@ -8,17 +8,13 @@ import {
   withTransaction,
 } from "#shared/db/client.ts";
 import {
-  type AnchoredAttendee,
-  legacyAnchorStatements,
-} from "#shared/db/payment-anchor/mint.ts";
-import { anchorSessionId } from "#shared/db/payment-anchor/session.ts";
-import {
   asPaymentRowRecord,
   type PaymentRowRecord,
   paymentRowStateStatement,
   readPaymentClaimRows,
   type StoredPaymentClaimRow,
 } from "#shared/db/payment-claim.ts";
+import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { isoBefore, nowIso } from "#shared/now.ts";
 import {
@@ -61,8 +57,10 @@ export type ClaimResult =
 /** The exact attendee and payment-reference snapshot an admin run loaded.
  *  `loadedPiiBlob` is the attendee revision: payment_id lives inside it, so a
  *  concurrent edit cannot make a legacy anchor preserve a stale charge. */
-export type LoadedRefundAttendee = AnchoredAttendee & {
+export type LoadedRefundAttendee = {
+  readonly attendeeId: number;
   readonly loadedPiiBlob: string;
+  readonly references: readonly RefundPaymentReference[];
 };
 
 /** One exact durable row that represents a provider charge. */
@@ -123,19 +121,14 @@ const matchingIndexesOf = (
     references.flatMap(({ matchingIndexes }) => matchingIndexes),
   );
 
-/** Row identities the loaded snapshot says the run must hold. A row-less
- *  charge names the deterministic anchor this transaction will mint. */
+/** Row identities the loaded snapshot says the run must hold. */
 const expectedRowsBySession = (
   attendees: readonly LoadedRefundAttendee[],
 ): ReadonlyMap<string, ExpectedPaymentRow> =>
   new Map(
     attendees.flatMap((attendee) =>
-      attendee.references.flatMap((reference) => {
-        const sessionIds =
-          reference.rowSessionIds.length > 0
-            ? reference.rowSessionIds
-            : [anchorSessionId(attendee.attendeeId, reference.index)];
-        return sessionIds.map(
+      attendee.references.flatMap((reference) =>
+        reference.rowSessionIds.map(
           (sessionId) =>
             [
               sessionId,
@@ -144,8 +137,8 @@ const expectedRowsBySession = (
                 referenceIndex: reference.index,
               },
             ] as const,
-        );
-      }),
+        ),
+      ),
     ),
   );
 
@@ -259,8 +252,8 @@ const sharedRepresentations = (
     }),
   );
 
-/** Claim every row in the loaded snapshot, or none. Legacy anchors, attendee
- *  revision checks, row-set checks, and holds share one write transaction. */
+/** Claim every row in the loaded snapshot, or none. Attendee revision checks,
+ * row-set checks, and holds share one write transaction. */
 export const claimAttendeeRows = async (
   attendees: readonly LoadedRefundAttendee[],
   capability: RefundCapability,
@@ -280,7 +273,6 @@ export const claimAttendeeRows = async (
   }
   const attendeeIds = attendees.map((attendee) => attendee.attendeeId);
   const expected = expectedRowsBySession(attendees);
-  const anchors = await legacyAnchorStatements(attendees);
   const writtenAt = nowIso();
   const staleBefore = isoBefore(claimLeaseMs(STALE_RESERVATION_MS));
   return await withTransaction(async (tx) => {
@@ -293,7 +285,6 @@ export const claimAttendeeRows = async (
     if (!attendeesMatch(attendees, resultRows<StoredAttendee>(attendeeRead))) {
       return { kind: "changed" };
     }
-    if (anchors.length > 0) await tx.batch(anchors);
     const stored = await readClaimableRows(
       tx,
       attendeeIds,

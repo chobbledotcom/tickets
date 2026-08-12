@@ -86,13 +86,13 @@ export const storePaymentReference = async (
   index: await paymentReferenceIndex(reference),
 });
 
-const paymentReferencePlaintextFrom = (
+const paymentReferencePlaintextFrom = async (
   stored: string,
   privateKey: CryptoKey,
-): Promise<string> | string =>
-  stored.startsWith(HYBRID_PREFIX)
-    ? decryptWithOwnerKey(stored as OwnerKeyEncrypted, privateKey)
-    : stored;
+): Promise<string> => {
+  if (!stored.startsWith(HYBRID_PREFIX)) return stored;
+  return await decryptWithOwnerKey(stored as OwnerKeyEncrypted, privateKey);
+};
 
 /** Decrypt the stored value and parse its tagged or legacy format. */
 export const loadPaymentReference = async (

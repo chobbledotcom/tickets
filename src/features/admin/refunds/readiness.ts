@@ -1,5 +1,4 @@
 import { requiredMapValue, unique, uniqueBy } from "#fp";
-import { anchorSessionId } from "#shared/db/payment-anchor/session.ts";
 import {
   bindPaymentReferenceProviders,
   type PaymentReferenceProviderBinding,
@@ -183,17 +182,10 @@ const taggedReference = (
   original: RefundPaymentReference,
   prepared: PreparedReference,
   index: string,
-  attendeeId: number,
 ): TaggedRefundPaymentReference => ({
   ...original,
   ...prepared.identity,
   index,
-  // A row-less legacy reference was anchored under its old index when this
-  // claim began. Provider binding changes the index, never that row identity.
-  rowSessionIds:
-    original.rowSessionIds.length === 0
-      ? [anchorSessionId(attendeeId, original.index)]
-      : original.rowSessionIds,
 });
 
 const readyReference = (
@@ -201,9 +193,8 @@ const readyReference = (
   prepared: PreparedReference,
   provider: ReadyRefundProvider,
   index: string,
-  attendeeId: number,
 ): ReadyRefundReference => {
-  const reference = taggedReference(original, prepared, index, attendeeId);
+  const reference = taggedReference(original, prepared, index);
   return prepared.kind === "already_returned"
     ? { kind: "already_returned", provider, reference }
     : {
@@ -241,7 +232,6 @@ const readyCandidates = (
           reference.index,
           `Provider binding lost payment reference ${reference.index}`,
         ),
-        candidate.attendee.id,
       );
     }),
   }));

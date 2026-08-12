@@ -1,15 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#shared/db/client.ts";
-import { anchorSessionId } from "#shared/db/payment-anchor/session.ts";
 import {
-  paymentReferenceIndex,
   type StoredPaymentReference,
   storePaymentReference,
 } from "#shared/db/payment-reference-store.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createPaidAttendeeWithoutLedger } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   claimCurrentAttendeeRows,
   heldSessionIds,
@@ -111,41 +107,6 @@ describeWithEnv(
       expect(heldSessionIds(squareHeld)).toEqual(["sess-provider-square"]);
       expect(stripeHeld.shared).toEqual(new Map());
       expect(squareHeld.shared).toEqual(new Map());
-    });
-
-    test("an authenticated read anchors every rowless legacy holder", async () => {
-      const listing = await createTestListing();
-      const reference = "pi_global_legacy_holder";
-      const first = await createPaidAttendeeWithoutLedger(
-        listing.id,
-        "Global Legacy First",
-        "global-legacy-first@example.com",
-        reference,
-      );
-      const second = await createPaidAttendeeWithoutLedger(
-        listing.id,
-        "Global Legacy Second",
-        "global-legacy-second@example.com",
-        reference,
-      );
-      const index = await paymentReferenceIndex({
-        kind: "untagged",
-        reference,
-      });
-
-      const held = await claimCurrentAttendeeRows(
-        [first.id],
-        "keyless",
-        new Map([[first.id, reference]]),
-      );
-
-      if (held.kind !== "claimed") throw new Error("the claim was refused");
-      const expected = [
-        anchorSessionId(first.id, index),
-        anchorSessionId(second.id, index),
-      ].sort();
-      expect(heldSessionIds(held).sort()).toEqual(expected);
-      expect(sharedSessions(held)).toEqual(expected);
     });
   },
 );

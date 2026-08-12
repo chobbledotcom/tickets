@@ -1,6 +1,5 @@
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import type { RefundLedgerResult } from "#shared/refund-ledger/result.ts";
-import { referenceRowIds } from "./candidates.ts";
 import type { RunFindings } from "./claim.ts";
 
 export type AppliedRefundLedgerFindings = {
@@ -16,10 +15,8 @@ const matchingReferences = (
   references.filter(({ index }) => indexes.has(index));
 
 const referenceRows = (
-  attendeeId: number,
   references: readonly RefundPaymentReference[],
-): string[] =>
-  references.flatMap((reference) => referenceRowIds(attendeeId, reference));
+): string[] => references.flatMap((reference) => reference.rowSessionIds);
 
 const addUnrecordedRows = (
   findings: RunFindings,
@@ -42,15 +39,11 @@ export const applyRefundLedgerFindings = (
   const recorded = matchingReferences(references, result.recorded);
   const unrecorded = matchingReferences(references, result.unrecorded);
   const review = matchingReferences(references, result.reviewReferenceIndexes);
-  for (const sessionId of referenceRows(attendeeId, recorded)) {
+  for (const sessionId of referenceRows(recorded)) {
     findings.recorded.add(sessionId);
   }
-  addUnrecordedRows(
-    findings,
-    attendeeId,
-    referenceRows(attendeeId, unrecorded),
-  );
-  for (const sessionId of referenceRows(attendeeId, review)) {
+  addUnrecordedRows(findings, attendeeId, referenceRows(unrecorded));
+  for (const sessionId of referenceRows(review)) {
     findings.reviews.set(sessionId, {
       kind: "review",
       reason: { kind: "partially_returned_obligation" },

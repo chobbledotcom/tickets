@@ -1,9 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { requiredMapValue } from "#fp";
 import { execute, queryOne } from "#shared/db/client.ts";
 import {
-  matchingPaymentReferenceIndexes,
+  loadPaymentReference,
   paymentReferenceIndex,
   storePaymentReference,
 } from "#shared/db/payment-reference-store.ts";
@@ -11,14 +10,10 @@ import {
   getRefundPaymentReferences,
   legacyMergePaymentReferenceStatement,
 } from "#shared/db/payment-references.ts";
-import { reserveSession } from "#shared/db/processed-payments.ts";
 import type { UntaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import {
-  bookAttendee,
-  bookedAttendee,
-} from "#test-utils/db-helpers/attendee-payments.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   finalizeProcessedPayment,
@@ -47,6 +42,13 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
 
     expect(stored.encrypted).not.toContain(payment.reference);
     expect(stored.index).toBe(await paymentReferenceIndex(payment));
+    expect(
+      await loadPaymentReference(
+        stored.encrypted,
+        await getTestPrivateKey(),
+        "stored test payment reference",
+      ),
+    ).toEqual(payment);
   });
 
   test("returns an empty map for no attendees", async () => {
@@ -55,7 +57,7 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
     ).toEqual(new Map());
   });
 
-  test("includes a legacy payment id beside tagged payment rows", async () => {
+  test("ignores PII-only payment ids beside indexed rows", async () => {
     const listing = await createTestListing({ maxAttendees: 50 });
     const first = await bookAttendee(listing, {
       email: "refs1@example.com",
@@ -82,32 +84,13 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
       await getTestPrivateKey(),
     );
 
-    const firstRefs = requiredMapValue(
-      references,
-      firstId,
-      `Refund references omitted attendee ${firstId}`,
-    );
     expect(
-      firstRefs.map(({ kind, reference }) => ({ kind, reference })),
-    ).toEqual([
-      { kind: "tagged", reference: "pi_recorded" },
-      { kind: "untagged", reference: "pi_legacy_ignored" },
-    ]);
-    expect(firstRefs.at(-1)).toEqual({
-      heldRowSessionIds: [],
-      index: await paymentReferenceIndex(untagged("pi_legacy_ignored")),
-      kind: "untagged",
-      matchingIndexes: await matchingPaymentReferenceIndexes(
-        untagged("pi_legacy_ignored"),
-      ),
-      reference: "pi_legacy_ignored",
-      refundState: "unknown",
-      rowSessionIds: [],
-      sessionIds: [],
-    });
-    expect(references.get(secondId)?.map((entry) => entry.reference)).toEqual([
-      "pi_legacy_used",
-    ]);
+      references.get(firstId)?.map(({ kind, reference }) => ({
+        kind,
+        reference,
+      })),
+    ).toEqual([{ kind: "tagged", reference: "pi_recorded" }]);
+    expect(references.get(secondId)).toEqual([]);
     expect(references.get(9999)).toEqual([]);
   });
 
@@ -188,7 +171,7 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
     });
   });
 
-  test("keeps a legacy plaintext reference refundable", async () => {
+  test("leaves an unindexed plaintext reference unavailable", async () => {
     const listing = await createTestListing({ maxAttendees: 50 });
     const created = await bookAttendee(listing, {
       email: "plain-ref@example.com",
@@ -197,16 +180,15 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
     if (!created.success) throw new Error("setup failed");
     const attendeeId = created.attendees[0]!.id;
 
-    await reserveSession("sess_plain_ref");
     await execute(
-      `UPDATE processed_payments
-          SET attendee_id = ?, payment_reference = ?, processed_at = ?
-        WHERE payment_session_id = ?`,
+      `INSERT INTO processed_payments
+          (payment_session_id, attendee_id, processed_at, payment_reference)
+        VALUES (?, ?, ?, ?)`,
       [
-        attendeeId,
-        "pi_plain_legacy",
-        "2026-06-21T00:00:00.000Z",
         "sess_plain_ref",
+        attendeeId,
+        "2026-06-21T00:00:00.000Z",
+        "pi_plain_legacy",
       ],
     );
 
@@ -220,10 +202,46 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
         kind,
         reference,
       })),
-    ).toEqual([{ kind: "untagged", reference: "pi_plain_legacy" }]);
+    ).toEqual([]);
+    expect(await indexOf("sess_plain_ref")).toEqual({ value: "" });
   });
 
-  test("fills the provider-aware index on a row predating the column", async () => {
+  test("reads a durable indexed plaintext reference", async () => {
+    const listing = await createTestListing({ maxAttendees: 50 });
+    const created = await bookAttendee(listing, {
+      email: "indexed-plain-ref@example.com",
+      name: "Indexed Plain Ref",
+    });
+    if (!created.success) throw new Error("setup failed");
+    const attendeeId = created.attendees[0]!.id;
+    const payment = untagged("pi_plain_indexed");
+    const sessionId = "sess_plain_indexed";
+
+    await execute(
+      `INSERT INTO processed_payments
+          (payment_session_id, attendee_id, processed_at, payment_reference,
+           payment_reference_index)
+        VALUES (?, ?, ?, ?, ?)`,
+      [
+        sessionId,
+        attendeeId,
+        "2026-06-21T00:00:00.000Z",
+        payment.reference,
+        await paymentReferenceIndex(payment),
+      ],
+    );
+
+    expect(
+      await refundReferencesFor(attendeeId, await getTestPrivateKey()),
+    ).toEqual([
+      await readReference(payment, {
+        rowSessionIds: [sessionId],
+        sessionIds: [sessionId],
+      }),
+    ]);
+  });
+
+  test("does not repair a row predating the provider-aware index", async () => {
     const listing = await createTestListing({ maxAttendees: 50 });
     const created = await bookAttendee(listing, {
       email: "unindexed@example.com",
@@ -243,11 +261,8 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
       await getTestPrivateKey(),
     );
 
-    const expected = await paymentReferenceIndex(payment);
-    expect(references.get(attendeeId)?.map((entry) => entry.index)).toEqual([
-      expected,
-    ]);
-    expect(await indexOf("sess_unindexed")).toEqual({ value: expected });
+    expect(references.get(attendeeId)).toEqual([]);
+    expect(await indexOf("sess_unindexed")).toEqual({ value: "" });
   });
 
   test("refuses a stored row whose reference index does not match", async () => {
@@ -279,33 +294,5 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
       ),
     ).rejects.toThrow(`Payment reference index does not match ${sessionId}`);
     expect(await indexOf(sessionId)).toEqual({ value: "wrong-index" });
-  });
-
-  test("refuses a stored reference that has no attendee", async () => {
-    const listing = await createTestListing();
-    const created = await bookAttendee(listing, {
-      email: "orphan-reference@example.com",
-      name: "Orphan Reference",
-    });
-    const attendeeId = bookedAttendee(created).id;
-    const stored = await storePaymentReference(
-      taggedPaymentReference("pi_orphan_reference"),
-    );
-    await reserveSession("sess_orphan_reference");
-    await execute(
-      `UPDATE processed_payments
-          SET payment_reference = ?, payment_reference_index = ?
-        WHERE payment_session_id = ?`,
-      [stored.encrypted, stored.index, "sess_orphan_reference"],
-    );
-
-    await expect(
-      getRefundPaymentReferences(
-        [{ id: attendeeId, payment_id: "" }],
-        await getTestPrivateKey(),
-      ),
-    ).rejects.toThrow(
-      "Payment reference sess_orphan_reference has no attendee",
-    );
   });
 });

@@ -1,11 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
-import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
-import { anchorSessionId } from "#shared/db/payment-anchor/session.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
 import {
-  candidate,
   completedRefund,
   failingProvider,
   finishedCounts,
@@ -13,14 +10,12 @@ import {
   pendingCandidate,
   processRefundBatchAt,
   provider,
-  readyCandidate,
   refundedCandidate,
   rowBackedCandidate,
   unreadableProvider,
 } from "#test/features/admin/refunds/provider/helpers.ts";
 import { recordNoRefunds } from "#test/features/admin/refunds/provider/ledger-results.ts";
 import {
-  legacyReference,
   postBooking,
   refundCashAmounts,
   sessionReference,
@@ -252,72 +247,6 @@ describeWithEnv(
       expect(counts).toEqual(oneFailedRefundCounts);
       expect(claim.released).toEqual([["sess-came", "sess-dark"]]);
       expect(claim.unrecorded).toEqual([[]]);
-    });
-
-    test("marks the anchor row a returned legacy charge is held by", async () => {
-      const anchor = anchorSessionId(26, "index_of_pi_legacy");
-      const claim = grantingRowClaim(new Map([[26, [anchor]]]));
-
-      const counts = finishedCounts(
-        await processRefundBatchAt(
-          failingProvider(new Set()),
-          [
-            {
-              attendee: { id: 26 } as RefundCandidate["attendee"],
-              references: [legacyReference("pi_legacy")],
-            },
-          ],
-          LISTING,
-          { claim },
-        ),
-      );
-
-      expect(counts.notRecordedCount).toBe(1);
-      expect(claim.released).toEqual([[anchor]]);
-      expect(claim.unrecorded).toEqual([[anchor]]);
-    });
-
-    test("derives a missing returned row from its attendee and index", async () => {
-      const attendeeId = 35;
-      const input = candidate([{ reference: "pi_rowless" }], attendeeId);
-      const source = provider({ refunded: new Set(["pi_rowless"]) });
-      const prepared = readyCandidate(
-        [{ index: "index_of_pi_rowless", reference: "pi_rowless" }],
-        source,
-        attendeeId,
-      );
-      const observed = prepared.references[0];
-      if (observed === undefined) {
-        throw new Error("Expected one prepared refund reference");
-      }
-      const ready = {
-        ...prepared,
-        references: [
-          {
-            ...observed,
-            reference: { ...observed.reference, rowSessionIds: [] },
-          },
-        ],
-      };
-      const anchor = anchorSessionId(attendeeId, observed.reference.index);
-      const claim = grantingRowClaim(new Map([[attendeeId, [anchor]]]));
-
-      const counts = finishedCounts(
-        await processRefundBatch([input], LISTING, {
-          claim,
-          markReturned: () => Promise.resolve(),
-          prepare: () =>
-            Promise.resolve({
-              candidates: [ready],
-              capability: "keyed",
-              kind: "ready",
-            }),
-          record: recordNoRefunds,
-        }),
-      );
-
-      expect(counts.notRecordedCount).toBe(1);
-      expect(claim.unrecorded).toEqual([[anchor]]);
     });
 
     test("a keyed run lets go after its settled answer", async () => {

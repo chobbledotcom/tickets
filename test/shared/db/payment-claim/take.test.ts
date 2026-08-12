@@ -146,6 +146,26 @@ describeWithEnv(
           "Attendee -1 was not found before the claim",
         );
       });
+
+      test("an attendee deleted after loading changes the whole claim", async () => {
+        const first = await bookedWithPayment("sess-deleted-first", "pi_first");
+        const deleted = await bookedWithPayment(
+          "sess-deleted-second",
+          "pi_second",
+        );
+
+        const result = await claimCurrentAttendeeRows(
+          [first, deleted],
+          "keyless",
+          new Map(),
+          async () => {
+            await execute("DELETE FROM attendees WHERE id = ?", [deleted]);
+          },
+        );
+
+        expect(result).toEqual({ kind: "changed" });
+        expect(await protectedStateOf("sess-deleted-first")).toBe("");
+      });
     });
 
     describe("the reference index", () => {

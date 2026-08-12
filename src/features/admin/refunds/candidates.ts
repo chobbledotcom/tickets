@@ -1,5 +1,4 @@
 import { filter, requiredMapValue, uniqueBy } from "#fp";
-import { anchorSessionId } from "#shared/db/payment-anchor/session.ts";
 import type { LoadedRefundAttendee } from "#shared/db/payment-claim/take.ts";
 import {
   getRefundPaymentReferences,
@@ -14,15 +13,6 @@ export type RefundCandidate = {
   attendee: Attendee;
   references: RefundPaymentReference[];
 };
-
-/** The durable rows that carry one attendee's copy of a reference. */
-export const referenceRowIds = (
-  attendeeId: number,
-  reference: RefundPaymentReference,
-): readonly string[] =>
-  reference.rowSessionIds.length > 0
-    ? reference.rowSessionIds
-    : [anchorSessionId(attendeeId, reference.index)];
 
 /** The exact attendee revision and payment rows the claim must verify. */
 export const loadedRefundAttendee = (

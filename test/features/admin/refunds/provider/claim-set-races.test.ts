@@ -37,6 +37,19 @@ const withStoredRevision = async (
   ),
 });
 
+const resave = (attendee: Attendee, name = attendee.name): Promise<void> =>
+  updateAttendeePII(attendee.id, {
+    address: attendee.address,
+    email: attendee.email,
+    lat: attendee.lat,
+    lng: attendee.lng,
+    name,
+    payment_id: attendee.payment_id,
+    phone: attendee.phone,
+    special_instructions: attendee.special_instructions,
+    ticket_token: attendee.ticket_token,
+  });
+
 const expectRunStandsDown = async (
   candidate: RefundCandidate,
   listingId: number,
@@ -119,20 +132,6 @@ describeWithEnv(
       await expectRunStandsDown(candidate, 7);
     });
 
-    test("does not refund a row-less charge after its attendee disappears", async () => {
-      const listing = await createTestListing();
-      const attendee = await createPaidTestAttendee(
-        listing.id,
-        "Gone Buyer",
-        "gone-before-claim@example.com",
-        "pi_gone_before_claim",
-      );
-      const candidate = await withStoredRevision(attendee);
-      await execute("DELETE FROM attendees WHERE id = ?", [attendee.id]);
-
-      await expectRunStandsDown(candidate, listing.id);
-    });
-
     test("does not refund a legacy anchor deleted after it was loaded", async () => {
       const listing = await createTestListing();
       const attendee = await createPaidTestAttendee(
@@ -141,6 +140,7 @@ describeWithEnv(
         "anchor-gone@example.com",
         "pi_anchor_gone",
       );
+      await resave(attendee);
       const first = await withStoredRevision(attendee);
       const claim = await claimAttendeeRows(
         [
@@ -176,17 +176,7 @@ describeWithEnv(
         "pi_edited_before_claim",
       );
       const candidate = await withStoredRevision(attendee);
-      await updateAttendeePII(attendee.id, {
-        address: attendee.address,
-        email: attendee.email,
-        lat: attendee.lat,
-        lng: attendee.lng,
-        name: "Edited Buyer",
-        payment_id: attendee.payment_id,
-        phone: attendee.phone,
-        special_instructions: attendee.special_instructions,
-        ticket_token: attendee.ticket_token,
-      });
+      await resave(attendee, "Edited Buyer");
 
       await expectRunStandsDown(candidate, listing.id);
     });

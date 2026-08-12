@@ -14,7 +14,6 @@ import type {
   ReadyRefundReference,
   RefundReadinessRead,
 } from "#routes/admin/refunds/readiness.ts";
-import { anchorSessionId } from "#shared/db/payment-anchor/session.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import type { ProviderRead } from "#shared/payment/provider-read.ts";
 import type {
@@ -171,17 +170,13 @@ const readyReferenceFrom = (
   reference: RefundPaymentReference,
   prepared: Exclude<PreparedProviderReference, RefundReadinessRead>,
   source: RecordingProvider,
-  attendeeId: number,
 ): ReadyRefundReference => {
   const tagged = {
     ...reference,
     index: `index_of_${source.type}_${reference.reference}`,
     kind: "tagged" as const,
     provider: source.type,
-    rowSessionIds:
-      reference.rowSessionIds.length === 0
-        ? [anchorSessionId(attendeeId, reference.index)]
-        : reference.rowSessionIds,
+    rowSessionIds: reference.rowSessionIds,
   };
   return prepared.kind === "already_returned"
     ? { kind: "already_returned", provider: source, reference: tagged }
@@ -234,12 +229,7 @@ export const prepareAtProvider =
                 reference.index,
                 `Test readiness lost payment reference ${reference.index}`,
               );
-              return readyReferenceFrom(
-                reference,
-                prepared,
-                source,
-                candidate.attendee.id,
-              );
+              return readyReferenceFrom(reference, prepared, source);
             }),
           })),
           kind: "ready",

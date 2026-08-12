@@ -42,6 +42,7 @@ export const claimCurrentAttendeeRows = async (
   attendeeIds: readonly number[],
   capability: RefundCapability,
   legacyPaymentIds: ReadonlyMap<number, string> = new Map(),
+  beforeClaim: () => Promise<void> = () => Promise.resolve(),
 ): Promise<ClaimResult> => {
   if (attendeeIds.length === 0) return claimAttendeeRows([], capability);
   const stored = await queryAll<StoredClaimAttendee>(
@@ -59,26 +60,25 @@ export const claimCurrentAttendeeRows = async (
     sources,
     await getTestPrivateKey(),
   );
-  return await claimAttendeeRows(
-    sources.map(({ id }) => {
-      const attendee = requiredMapValue(
-        storedById,
-        id,
-        `Attendee ${id} was not found before the claim`,
-      );
-      const loaded = requiredMapValue(
-        references,
-        id,
-        `Attendee ${id}'s payment references were not loaded`,
-      );
-      return {
-        attendeeId: id,
-        loadedPiiBlob: attendee.pii_blob,
-        references: loaded,
-      };
-    }),
-    capability,
-  );
+  const loadedAttendees = sources.map(({ id }) => {
+    const attendee = requiredMapValue(
+      storedById,
+      id,
+      `Attendee ${id} was not found before the claim`,
+    );
+    const loaded = requiredMapValue(
+      references,
+      id,
+      `Attendee ${id}'s payment references were not loaded`,
+    );
+    return {
+      attendeeId: id,
+      loadedPiiBlob: attendee.pii_blob,
+      references: loaded,
+    };
+  });
+  await beforeClaim();
+  return await claimAttendeeRows(loadedAttendees, capability);
 };
 
 /** The plain words the prune and the orphan purge see, read back out of the

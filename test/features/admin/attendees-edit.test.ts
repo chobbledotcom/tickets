@@ -15,7 +15,10 @@ import type { Attendee } from "#shared/types.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import { expectErrorFlash, expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createPaidAttendeeWithoutLedger } from "#test-utils/db-helpers/attendee-payments.ts";
+import {
+  createPaidAttendeeWithoutLedger,
+  resaveAttendee,
+} from "#test-utils/db-helpers/attendee-payments.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postPaymentLeg } from "#test-utils/db-helpers/payment-leg.ts";
@@ -168,6 +171,7 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
       });
       if (!created.success) throw new Error(`setup failed: ${created.reason}`);
       const attendee = created.attendees[0]!;
+      await resaveAttendee(attendee);
       await postTransfers(
         await mapBooking({
           amountPaid: 500,
