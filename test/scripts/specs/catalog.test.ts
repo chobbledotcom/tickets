@@ -37,6 +37,7 @@ describe("Cucumber story catalog", () => {
       "bookings.taking-a-holiday",
       "bookings.volunteer-sign-up",
       "catalogue.asking-buyers-a-question",
+      "catalogue.copy-a-group-of-listings",
       "catalogue.describing-what-is-on-offer",
       "catalogue.narrowing-a-long-list-down",
       "pages.hearing-from-a-visitor",
