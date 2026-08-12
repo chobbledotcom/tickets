@@ -49,5 +49,4 @@ export const openPaymentReview = (
 export const acknowledgePaymentReview = (
   review: PaymentReviewCase,
   acknowledgedAt: string,
-): PaymentReviewCase =>
-  review.acknowledgedAt === undefined ? { ...review, acknowledgedAt } : review;
+): PaymentReviewCase => ({ ...review, acknowledgedAt });

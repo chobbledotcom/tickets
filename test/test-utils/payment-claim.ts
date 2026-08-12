@@ -1,6 +1,7 @@
 /** Building the stored records a refund claim reads, for tests that need a row
  *  to already be in a particular state. */
 
+import { assert } from "@std/assert";
 import { requiredMapValue } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
@@ -149,9 +150,10 @@ export const makeClaimsStale = async (
       [sessionId],
     );
     const state = readRowState(await decrypt(stored.failure_data), SLOT);
-    if (state.claim === undefined) {
-      throw new Error(`Payment row ${sessionId} has no claim to age`);
-    }
+    assert(
+      state.claim !== undefined,
+      `Payment row ${sessionId} has no claim to age`,
+    );
     await putRowState(
       sessionId,
       await rowStateSlot({

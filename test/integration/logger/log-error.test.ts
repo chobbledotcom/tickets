@@ -236,6 +236,7 @@ describe("log-error", () => {
               }
               settings.invalidateCache();
               logError({ code: ErrorCode.DB_CONNECTION });
+              await flushPendingWork();
             }),
           );
         } finally {

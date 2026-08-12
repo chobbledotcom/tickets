@@ -1,6 +1,7 @@
 /** Decide which ledger groups an observed provider refund may reverse. */
 
 /* jscpd:ignore-start -- imports */
+import { requiredMapValue } from "#fp";
 import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import {
@@ -15,6 +16,7 @@ import { legMatches } from "#shared/ledger/legs.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import { nowIso } from "#shared/now.ts";
+import { requireValue } from "#shared/required-value.ts";
 import {
   type RefundLedgerResult,
   type RefundReferences,
@@ -301,12 +303,11 @@ export const computeAttendeeRefunds = async (
   return await Promise.all(
     inputs.map((input) => {
       const account = attendeeAccount(input.attendeeId);
-      const legs = transfers.get(accountKey(account));
-      if (legs === undefined) {
-        throw new Error(
-          `Refund ledger read omitted attendee ${input.attendeeId}`,
-        );
-      }
+      const legs = requiredMapValue(
+        transfers,
+        accountKey(account),
+        `Refund ledger read omitted attendee ${input.attendeeId}`,
+      );
       return computeAttendeeRefundFromLegs(input, legs);
     }),
   );
@@ -315,11 +316,8 @@ export const computeAttendeeRefunds = async (
 /** Compute the exact reversals and reference outcomes without posting them. */
 export const computeAttendeeRefund = async (
   input: RefundPlanInput,
-): Promise<ComputedRefund> => {
-  const computed = await computeAttendeeRefunds([input]);
-  const result = computed[0];
-  if (result === undefined) {
-    throw new Error(`Refund ledger omitted attendee ${input.attendeeId}`);
-  }
-  return result;
-};
+): Promise<ComputedRefund> =>
+  requireValue(
+    (await computeAttendeeRefunds([input]))[0],
+    `Refund ledger omitted attendee ${input.attendeeId}`,
+  );

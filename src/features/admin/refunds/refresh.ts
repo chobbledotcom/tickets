@@ -244,9 +244,7 @@ const unreturnedResult = (
     setClaimProtection(findings, attendeeId, false);
     return { kind: "needs_review", message: REVIEW_REQUIRED_MESSAGE };
   }
-  return findings.doubts.has(attendeeId)
-    ? { kind: "blocked", reason: "refund_in_progress" }
-    : { kind: "current" };
+  return { kind: "current" };
 };
 
 const completedRefresh = async (

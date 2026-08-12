@@ -13,7 +13,9 @@ import {
 import { legReference } from "#shared/accounting/refs.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
+import { getDb, setDb } from "#shared/db/client.ts";
 import { runWithQueryLogContext } from "#shared/db/query-log.ts";
+import { proxyMembers } from "#shared/proxy-members.ts";
 import {
   REFUND_LEDGER_BATCH_DATABASE_CALLS,
   recordAttendeeRefund,
@@ -263,6 +265,47 @@ describeWithEnv(
 
     test("treats an empty attendee list as a no-op", async () => {
       expect(await recordAttendeeRefundsBatch([])).toEqual(new Map());
+    });
+
+    test("keeps every returned reference unrecorded when the shared read fails", async () => {
+      const target = refundTarget(21, "sess-21");
+      const real = getDb();
+      setDb(
+        proxyMembers(real, {
+          execute: () => Promise.reject(new Error("ledger read failed")),
+        }),
+      );
+      try {
+        expect(await recordAttendeeRefundsBatch([target])).toEqual(
+          new Map([[21, refundLedgerResult([], target.references)]]),
+        );
+      } finally {
+        setDb(real);
+      }
+      expect(errors.lastMessage()).toContain(
+        "bulk refund ledger preparation failed (1): Error: ledger read failed",
+      );
+    });
+
+    test("keeps every returned reference unrecorded when the shared write fails", async () => {
+      await postBooking({ attendeeId: 22, eventId: "sess-22" });
+      const target = refundTarget(22, "sess-22");
+      const real = getDb();
+      setDb(
+        proxyMembers(real, {
+          batch: () => Promise.reject(new Error("ledger write failed")),
+        }),
+      );
+      try {
+        expect(await recordAttendeeRefundsBatch([target])).toEqual(
+          new Map([[22, refundLedgerResult([], target.references)]]),
+        );
+      } finally {
+        setDb(real);
+      }
+      expect(errors.lastMessage()).toContain(
+        "bulk refund ledger post failed (1): Error: ledger write failed",
+      );
     });
   },
 );

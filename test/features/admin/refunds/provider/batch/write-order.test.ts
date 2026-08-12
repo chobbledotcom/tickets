@@ -198,6 +198,37 @@ describe("admin refund provider > provider wave writes", () => {
     expect(claim.released).toEqual([[]]);
   });
 
+  test("a failed marker does not hold an attendee whose money did not return", async () => {
+    const returnedSession = "sess_pi_returned";
+    const rejectedSession = "sess_pi_rejected";
+    const claim = grantingRowClaim(
+      new Map([
+        [11, [returnedSession]],
+        [12, [rejectedSession]],
+      ]),
+    );
+    const source = provider({ refunded: new Set(["pi_returned"]) });
+
+    const counts = finishedCounts(
+      await processRefundBatchAt(
+        source,
+        [
+          candidate([{ reference: "pi_returned" }], 11),
+          candidate([{ reference: "pi_rejected" }], 12),
+        ],
+        7,
+        {
+          claim,
+          markReturned: () => Promise.reject(new Error("the marker failed")),
+          record: recordEveryRefund,
+        },
+      ),
+    );
+
+    expect(counts).toMatchObject({ failedCount: 1, refundedCount: 1 });
+    expect(claim.released).toEqual([[rejectedSession]]);
+  });
+
   test("preserves every returned row when the combined ledger write fails", async () => {
     const activeReferences = Array.from(
       { length: 5 },

@@ -154,6 +154,16 @@ const isReadinessFailure = (
   reference: PreparedProviderReference,
 ): reference is RefundReadinessRead => "evidence" in reference;
 
+const preparationObservations = (
+  prepared: PreparedProviderReference,
+  reference: RefundPaymentReference,
+): { charge: ChargeMoney; reference: RefundPaymentReference }[] => {
+  if (isReadinessFailure(prepared) || prepared.kind === "already_returned") {
+    return [];
+  }
+  return [{ charge: prepared.charge, reference }];
+};
+
 const readyReferenceFrom = (
   reference: RefundPaymentReference,
   prepared: Exclude<PreparedProviderReference, RefundReadinessRead>,
@@ -210,9 +220,7 @@ export const prepareAtProvider =
       ? {
           kind: "not_ready",
           observations: preparedReferences.flatMap(({ prepared, reference }) =>
-            !isReadinessFailure(prepared) && prepared.kind === "observed"
-              ? [{ charge: prepared.charge, reference }]
-              : [],
+            preparationObservations(prepared, reference),
           ),
           reads: failures,
           reason: "provider_evidence",

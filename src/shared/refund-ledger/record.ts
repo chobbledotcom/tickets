@@ -5,6 +5,7 @@ import {
   postTransferGroupBatches,
   postTransferGroups,
 } from "#shared/accounting/store.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { logRefundLedgerError } from "./log.ts";
 import {
   type ComputedRefund,
@@ -92,20 +93,14 @@ const failureResults = (
 const pairedPlans = (
   targets: readonly RefundLedgerTarget[],
   computed: readonly ComputedRefund[],
-): readonly { attendeeId: number; computed: ComputedRefund }[] => {
-  if (computed.length !== targets.length) {
-    throw new Error(
-      `Refund ledger prepared ${computed.length} plans for ${targets.length} attendees`,
-    );
-  }
-  return targets.map(({ attendeeId }, index) => {
-    const plan = computed[index];
-    if (plan === undefined) {
-      throw new Error(`Refund ledger omitted attendee ${attendeeId}`);
-    }
-    return { attendeeId, computed: plan };
-  });
-};
+): readonly { attendeeId: number; computed: ComputedRefund }[] =>
+  targets.map(({ attendeeId }, index) => ({
+    attendeeId,
+    computed: requireValue(
+      computed[index],
+      `Refund ledger omitted attendee ${attendeeId}`,
+    ),
+  }));
 
 /** Record many attendees from one read snapshot and one bounded write. */
 export const recordAttendeeRefundsBatch = async (
@@ -145,18 +140,12 @@ export const recordAttendeeRefundsBatch = async (
       ]),
     );
   }
-  if (posted.length !== plans.length) {
-    throw new Error(
-      `Refund ledger posted ${posted.length} plans for ${plans.length} attendees`,
-    );
-  }
-
   return new Map(
     plans.map(({ attendeeId, computed }, index) => {
-      const result = posted[index];
-      if (result === undefined) {
-        throw new Error(`Refund ledger omitted attendee ${attendeeId}`);
-      }
+      const result = requireValue(
+        posted[index],
+        `Refund ledger omitted attendee ${attendeeId}`,
+      );
       if (result.kind === "conflict") {
         logRefundLedgerError(
           `refund ledger post failed for attendee ${attendeeId}: ${result.error}`,

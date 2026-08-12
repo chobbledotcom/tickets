@@ -117,9 +117,10 @@ const PaymentRowStateSchema = paymentRowStateSchemaWith(
 );
 export type PaymentRowState = v.InferOutput<typeof PaymentRowStateSchema>;
 
-const LegacyPaymentRowStateSchema = paymentRowStateSchemaWith(
-  PaymentReviewReasonSchema,
-);
+const LegacyPaymentRowStateSchema = v.strictObject({
+  ...paymentRowStateFields,
+  review: PaymentReviewReasonSchema,
+});
 type LegacyPaymentRowState = v.InferOutput<typeof LegacyPaymentRowStateSchema>;
 
 /** A row carrying nothing yet. */
@@ -131,15 +132,13 @@ const legacyFailureJson = defineStoredJson(StoredPaymentFailureSchema);
 
 const upgradeLegacyReview = (state: LegacyPaymentRowState): PaymentRowState => {
   const { review, ...kept } = state;
-  return review === undefined
-    ? kept
-    : {
-        ...kept,
-        review: {
-          caseId: `legacy:${review.kind}`,
-          reason: review,
-        },
-      };
+  return {
+    ...kept,
+    review: {
+      caseId: `legacy:${review.kind}`,
+      reason: review,
+    },
+  };
 };
 
 /** Read the record out of a decrypted slot. Rows written before it existed

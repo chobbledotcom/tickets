@@ -129,6 +129,7 @@ describeWithEnv(
     test("the claim transaction rejects an exact set that became too large", async () => {
       await settings.update.stripe.secretKey("sk_test_budget");
       const source = provider();
+      const grant = grantingRowClaim();
       let settlements = 0;
       const raceClaim: RowClaim = {
         claim: (attendees, admit) => {
@@ -141,15 +142,7 @@ describeWithEnv(
               references: [stripeReference(41 + offset, 0)],
             })),
           ];
-          return Promise.resolve(
-            admit({
-              attendees: raced,
-              inherited: new Map(),
-              returned: new Set(),
-            })
-              ? { kind: "changed" as const }
-              : { kind: "not_admitted" as const },
-          );
+          return grant.claim(raced, admit);
         },
         settle: () => {
           settlements++;

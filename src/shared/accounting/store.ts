@@ -20,9 +20,9 @@
 import type { InValue } from "@libsql/client";
 import { identity, mapById, mapNotNullish, unique } from "#fp";
 import {
-  assertEventMatches,
-  assertReversesAgainst,
+  eventMatchConflict,
   LedgerConflictError,
+  reversalConflict,
 } from "#shared/accounting/conflicts.ts";
 import {
   fromDb,
@@ -41,6 +41,7 @@ import { inList } from "#shared/db/where-clauses.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import { assertValidTransfer } from "#shared/ledger/validate.ts";
 import { nowIso } from "#shared/now.ts";
+import { requireValue } from "#shared/required-value.ts";
 
 /** Outcome of {@link postTransfers}: rows newly written vs idempotent replays. */
 export type PostResult = {
@@ -60,11 +61,8 @@ const EMPTY_RESULT: PostResult = { inserted: 0, skipped: 0 };
 const allReferences = (groups: TransferInput[][]): string[] =>
   groups.flatMap((inputs) => inputs.map((t) => t.reference));
 
-const eventGroupOf = (inputs: TransferInput[]): string => {
-  const first = inputs[0];
-  if (first === undefined) throw new Error("Ledger event cannot be empty");
-  return first.eventGroup;
-};
+const eventGroupOf = (inputs: TransferInput[]): string =>
+  requireValue(inputs[0], "Ledger event cannot be empty").eventGroup;
 
 /** Every leg of one event must agree on `label`; name the offending values if not. */
 const assertShared = (label: string, values: string[]): void => {
@@ -122,7 +120,9 @@ export const postTransfersTx = async (
   if (inputs.length === 0) return EMPTY_RESULT;
   assertPostable(inputs);
   const snapshot = await loadBatchSnapshot([inputs], fromTx(tx));
-  const { inserts, result } = planGroup(inputs, snapshot, nowIso());
+  const planned = planGroup(inputs, snapshot, nowIso());
+  if (planned.kind === "conflict") throw planned.error;
+  const { inserts, result } = planned;
   for (const statement of inserts) await tx.execute(statement);
   return result;
 };
@@ -138,12 +138,11 @@ export const postTransfersTx = async (
  */
 export const postTransfers = async (
   inputs: TransferInput[],
-): Promise<PostResult> => {
-  const results = await postTransferGroups([inputs]);
-  const result = results[0];
-  if (result === undefined) throw new Error("Ledger post omitted its event");
-  return result;
-};
+): Promise<PostResult> =>
+  requireValue(
+    (await postTransferGroups([inputs]))[0],
+    "Ledger post omitted its event",
+  );
 
 /**
  * The slice of the ledger a whole batch validates itself against, read up front
@@ -200,45 +199,74 @@ const loadBatchSnapshot = async (
  * for an idempotent replay of an already-stored event) and the would-be
  * {@link PostResult}. Pure — every conflict is detected *here*, before any write,
  * so the batch's transaction body is a plain list of inserts that commits without
- * interleaved reads. Throws {@link LedgerConflictError} on a real conflict: a
- * changed leg on an already-stored event, a reference owned by another event, or
- * a bad reversal link.
+ * interleaved reads. A real conflict is a named result: a changed leg on an
+ * already-stored event, a reference owned by another event, or a bad reversal
+ * link. Unexpected failures still escape instead of being misclassified.
  */
+type PlannedGroup =
+  | {
+      readonly inserts: SqlStatement[];
+      readonly kind: "posted";
+      readonly result: PostResult;
+    }
+  | { readonly error: LedgerConflictError; readonly kind: "conflict" };
+
+const replayPlan = (
+  eventGroup: string,
+  existing: Transfer[],
+  inputs: TransferInput[],
+): PlannedGroup | null => {
+  if (existing.length === 0) return null;
+  const error = eventMatchConflict(eventGroup, existing, inputs);
+  return error === null
+    ? {
+        inserts: [],
+        kind: "posted",
+        result: { inserted: 0, skipped: inputs.length },
+      }
+    : { error, kind: "conflict" };
+};
+
+const newLegConflict = (
+  input: TransferInput,
+  eventGroup: string,
+  snapshot: BatchSnapshot,
+): LedgerConflictError | null => {
+  const collision = snapshot.storedByReference.get(input.reference);
+  if (collision && collision.eventGroup !== eventGroup) {
+    return new LedgerConflictError(
+      input.reference,
+      "reference already belongs to a different event",
+    );
+  }
+  const id = input.reversesId;
+  return reversalConflict(
+    input,
+    id === undefined || id === null
+      ? null
+      : (snapshot.originalsById.get(id) ?? null),
+  );
+};
+
 const planGroup = (
   inputs: TransferInput[],
   snapshot: BatchSnapshot,
   recordedAt: string,
   render: (statement: SqlStatement) => SqlStatement = (statement) => statement,
-): { inserts: SqlStatement[]; result: PostResult } => {
+): PlannedGroup => {
   const eventGroup = eventGroupOf(inputs);
   const existing = snapshot.existingByGroup.get(eventGroup) ?? [];
-  if (existing.length > 0) {
-    // Already posted: the whole leg set must still match (a mapper/pricing change
-    // can't quietly rewrite a stored charge), then this group writes nothing.
-    assertEventMatches(eventGroup, existing, inputs);
-    return { inserts: [], result: { inserted: 0, skipped: inputs.length } };
-  }
-  const inserts: SqlStatement[] = [];
-  for (const input of inputs) {
-    // A stored leg holding our reference but belonging to a different event owns
-    // that reference already — reject before inserting (naming the reference).
-    const collision = snapshot.storedByReference.get(input.reference);
-    if (collision && collision.eventGroup !== eventGroup) {
-      throw new LedgerConflictError(
-        input.reference,
-        "reference already belongs to a different event",
-      );
-    }
-    const id = input.reversesId;
-    assertReversesAgainst(
-      input,
-      id === undefined || id === null
-        ? null
-        : (snapshot.originalsById.get(id) ?? null),
-    );
-    inserts.push(render(insertStatement(input, recordedAt)));
-  }
-  return { inserts, result: { inserted: inputs.length, skipped: 0 } };
+  const replay = replayPlan(eventGroup, existing, inputs);
+  if (replay !== null) return replay;
+  const error = inputs
+    .map((input) => newLegConflict(input, eventGroup, snapshot))
+    .find((conflict) => conflict !== null);
+  if (error !== undefined) return { error, kind: "conflict" };
+  return {
+    inserts: inputs.map((input) => render(insertStatement(input, recordedAt))),
+    kind: "posted",
+    result: { inserted: inputs.length, skipped: 0 },
+  };
 };
 
 /**
@@ -290,18 +318,18 @@ const planTransferBatch = (
   recordedAt: string,
 ): PlannedTransferBatch => {
   const inserts: SqlStatement[] = [];
-  try {
-    const results = groups.map((inputs) => {
-      if (inputs.length === 0) return EMPTY_RESULT;
-      const planned = planGroup(inputs, snapshot, recordedAt, orIgnore);
-      inserts.push(...planned.inserts);
-      return planned.result;
-    });
-    return { inserts, kind: "posted", results };
-  } catch (error) {
-    if (!(error instanceof LedgerConflictError)) throw error;
-    return { error, kind: "conflict" };
+  const results: PostResult[] = [];
+  for (const inputs of groups) {
+    if (inputs.length === 0) {
+      results.push(EMPTY_RESULT);
+      continue;
+    }
+    const planned = planGroup(inputs, snapshot, recordedAt, orIgnore);
+    if (planned.kind === "conflict") return planned;
+    inserts.push(...planned.inserts);
+    results.push(planned.result);
   }
+  return { inserts, kind: "posted", results };
 };
 
 /**
@@ -340,10 +368,10 @@ export const postTransferGroupBatches = async (
 export const postTransferGroups = async (
   groups: TransferInput[][],
 ): Promise<PostResult[]> => {
-  const result = (await postTransferGroupBatches([groups]))[0];
-  if (result === undefined) {
-    throw new Error("Ledger post omitted its transfer batch");
-  }
+  const result = requireValue(
+    (await postTransferGroupBatches([groups]))[0],
+    "Ledger post omitted its transfer batch",
+  );
   if (result.kind === "conflict") throw result.error;
   return result.results;
 };

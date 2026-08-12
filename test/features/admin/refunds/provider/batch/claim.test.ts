@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import type { RefundProviderCapability } from "#shared/payment/row-state.ts";
 import {
+  candidate,
   finishedCounts,
   pendingCandidate,
   processRefundBatchAt,
@@ -13,6 +14,7 @@ import {
 import { oneFailedRefundCounts } from "#test/features/admin/refunds/provider/ledger-results.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { chargeMoney } from "#test-utils/payment-state.ts";
 import { grantingRowClaim } from "#test-utils/refund-routes.ts";
 
 const LISTING = 7;
@@ -75,6 +77,40 @@ describeWithEnv(
             "provider's dashboard.",
         ),
       ).toBe(true);
+    });
+
+    test("does not report an already-returned sibling as a fresh observation", async () => {
+      const source = provider({
+        read: (reference) =>
+          Promise.resolve(
+            reference === "pi_unreadable_sibling" ? null : chargeMoney(),
+          ),
+      });
+
+      const counts = finishedCounts(
+        await processRefundBatchAt(
+          source,
+          [
+            candidate(
+              [
+                { reference: "pi_already_back", refundState: "completed" },
+                { reference: "pi_unreadable_sibling" },
+                { reference: "pi_observed_sibling" },
+              ],
+              22,
+            ),
+          ],
+          LISTING,
+          { claim: grantingRowClaim() },
+        ),
+      );
+
+      expect(counts).toEqual(oneFailedRefundCounts);
+      expect(source.reads).toEqual([
+        "pi_unreadable_sibling",
+        "pi_observed_sibling",
+      ]);
+      expect(source.refunds).toEqual([]);
     });
 
     test("keeps a resumed keyless hold when the provider cannot be read", async () => {

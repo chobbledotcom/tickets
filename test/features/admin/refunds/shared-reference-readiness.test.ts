@@ -62,6 +62,7 @@ const runRefund = (
 ) =>
   runRefundReadiness<ReadinessRunResult>({
     action: "refund",
+    budgetAudience: "bulk",
     candidates: [candidate],
     changedMessage: "changed",
     claim,

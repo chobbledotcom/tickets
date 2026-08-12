@@ -11,7 +11,7 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { uniqueBy } from "#fp";
+import { requiredMapValue, uniqueBy } from "#fp";
 import {
   ATTENDEE,
   COST,
@@ -107,14 +107,12 @@ export const transfersByAccounts = async (
 /** Every transfer touching `account`, as source or destination. */
 export const transfersByAccount = async (
   account: AccountRef,
-): Promise<Transfer[]> => {
-  const key = accountKey(account);
-  const transfers = (await transfersByAccounts([account])).get(key);
-  if (transfers === undefined) {
-    throw new Error(`Transfer read omitted requested account ${key}`);
-  }
-  return transfers;
-};
+): Promise<Transfer[]> =>
+  requiredMapValue(
+    await transfersByAccounts([account]),
+    accountKey(account),
+    `Transfer read omitted requested account ${accountKey(account)}`,
+  );
 
 /** Every leg of one business event (booking, refund, …). */
 export const transfersByEventGroup = (

@@ -140,6 +140,25 @@ describe("readRowState", () => {
     });
     expect(() => readRowState(rogue, CONTEXT)).toThrow(CONTEXT);
   });
+
+  for (const attendeeIds of [
+    [7, 7],
+    [9, 7],
+  ]) {
+    test(`refuses claim attendee ids ${attendeeIds.join(", ")}`, () => {
+      const rogue = JSON.stringify({
+        claim: {
+          attendeeIds,
+          commandId: "unordered-attendees-command",
+          phase: "checking",
+          scope: "attendee_set",
+          writtenAt: "2026-08-10T12:00:00.000Z",
+        },
+      });
+
+      expect(() => readRowState(rogue, CONTEXT)).toThrow(CONTEXT);
+    });
+  }
 });
 
 describe("writeRowState", () => {
@@ -176,6 +195,10 @@ describe("isEmptyRowState", () => {
     ["a claim", { claim: FULL.claim }],
     ["an outcome", { outcome: FULL.outcome }],
     ["a review marker", { review: FULL.review }],
+    [
+      "an unrecorded refund",
+      { unrecorded: { returnedAt: "2026-08-10T12:00:00.000Z" } },
+    ],
   ];
   for (const [what, state] of CARRIED) {
     test(`a record carrying ${what} is not empty`, () => {

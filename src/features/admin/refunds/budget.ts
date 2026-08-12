@@ -215,16 +215,15 @@ const DATABASE_CALL_PLANS = {
 
 type DatabaseCallFacts = {
   readonly mayArm: boolean;
-  readonly mayRecordReturns: boolean;
 };
 
 const databaseCallsAt = (
   plan: DatabaseCallPlan,
   facts: DatabaseCallFacts,
 ): number =>
-  plan.fixed +
-  (facts.mayArm ? plan.whenArming : 0) +
-  (facts.mayRecordReturns ? plan.whenRecordingReturns : 0);
+  // A non-empty refund plan may discover returned money, so every safe gate
+  // reserves the full recording tail.
+  plan.fixed + (facts.mayArm ? plan.whenArming : 0) + plan.whenRecordingReturns;
 
 const zeroSubrequests = (): SubrequestCounts => ({
   database: 0,
@@ -237,6 +236,16 @@ const withDatabaseCalls = (
   external: number,
 ): SubrequestCounts => ({ database, external, total: database + external });
 
+const subrequestCostAt = (
+  checkpoint: RefundBudgetCheckpoint,
+  mayArm: boolean,
+  external: number,
+): SubrequestCounts =>
+  withDatabaseCalls(
+    databaseCallsAt(DATABASE_CALL_PLANS[checkpoint], { mayArm }),
+    external,
+  );
+
 /** Physical worst-case provider calls plus current nominal DB work. Cleanup
  * and route-tail retry reserves are enforced by nested allowances instead. */
 export const refundSubrequestCost = (
@@ -247,18 +256,13 @@ export const refundSubrequestCost = (
 ): SubrequestCounts => {
   if (candidates.length === 0) return zeroSubrequests();
   const configured = providers ?? orderedCredentialedPaymentProviderTypes();
-  const databasePlan = DATABASE_CALL_PLANS[checkpoint];
   const references = refundReferences(candidates);
   const active = activeReferences(references, returned);
-  const database = databaseCallsAt(databasePlan, {
-    mayArm: active.length > 0,
-    mayRecordReturns: references.length > 0,
-  });
   const stage = PROVIDER_CALL_STAGES[checkpoint];
   const external = sum(
     active.map(referenceCalls({ providers: configured, stage })),
   );
-  return withDatabaseCalls(database, external);
+  return subrequestCostAt(checkpoint, active.length > 0, external);
 };
 
 export type RefundSendBudgetReference = {
@@ -280,18 +284,13 @@ export const refundPreparedSubrequestCost = (
   if (sendReferences.length === 0 && !mayRecordReturns) {
     return zeroSubrequests();
   }
-  const databasePlan = DATABASE_CALL_PLANS[checkpoint];
-  const database = databaseCallsAt(databasePlan, {
-    mayArm: sendReferences.length > 0,
-    mayRecordReturns,
-  });
   const stage = PROVIDER_CALL_STAGES[checkpoint];
   const external = sum(
     sendReferences.map(({ provider }) =>
       physicalCalls(provider, logicalCallsAt(stage)),
     ),
   );
-  return withDatabaseCalls(database, external);
+  return subrequestCostAt(checkpoint, sendReferences.length > 0, external);
 };
 
 export const subrequestCostFits = (

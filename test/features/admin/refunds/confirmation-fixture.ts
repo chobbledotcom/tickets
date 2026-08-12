@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import type { ConfirmedRefund } from "#routes/admin/refunds/confirmation.ts";
 import { queryOne } from "#shared/db/client.ts";
 import { bindPaymentReferenceProviders } from "#shared/db/payment-reference-provider.ts";
@@ -43,9 +44,7 @@ export const setupConfirmation = async (
   } = {},
 ): Promise<ConfirmationFixture> => {
   const [first, ...later] = payments;
-  if (first === undefined) {
-    throw new Error("confirmation setup needs a payment");
-  }
+  assert(first !== undefined, "confirmation setup needs a payment");
   const listing = await createTestListing();
   const attendee = bookedAttendee(
     await bookAttendee(listing, {
@@ -75,19 +74,18 @@ export const setupConfirmation = async (
   if (options.beforeClaim) await options.beforeClaim(attendee);
   const privateKey = await getTestPrivateKey();
   const loaded = await refundReferencesFor(attendee.id, privateKey);
-  if (loaded === undefined) throw new Error("payment references were omitted");
+  assert(loaded !== undefined, "payment references were omitted");
   const references = loaded.map((reference) => {
-    if (reference.kind !== "tagged") {
-      throw new Error("an untagged payment reference was loaded");
-    }
+    assert(
+      reference.kind === "tagged",
+      "an untagged payment reference was loaded",
+    );
     return reference;
   });
   const [reference] = references;
-  if (reference === undefined) {
-    throw new Error("no payment reference was found");
-  }
+  assert(reference !== undefined, "no payment reference was found");
   const claimed = await claimCurrentAttendeeRows([attendee.id]);
-  if (claimed.kind !== "claimed") throw new Error("the claim was refused");
+  assert(claimed.kind === "claimed", "the claim was refused");
   const claim = {
     commandId: claimed.commandId,
     held: claimed.held,
@@ -112,7 +110,7 @@ export const setupConfirmation = async (
     ),
     ...claim,
   });
-  if (bound.kind !== "bound") throw new Error("the provider was not bound");
+  assert(bound.kind === "bound", "the provider was not bound");
   return {
     attendee: { id: attendee.id, name: attendee.name },
     claim,
@@ -134,6 +132,6 @@ export const confirmationCount = async (
       WHERE confirmation.attendee_id = ?`,
     [attendeeId],
   );
-  if (row === null) throw new Error("refund confirmation count was not found");
+  assert(row !== null, "refund confirmation count was not found");
   return row.count;
 };

@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { unique } from "#fp";
 import {
   type CandidateRefund,
@@ -58,7 +59,7 @@ export const armEveryRefund =
   (capability: RefundProviderCapability = "keyed"): typeof armRefundDispatch =>
   async ({ held, indexes }) => {
     const result = await authorizeEveryRefund(capability)(indexes);
-    if (result.kind !== "armed") throw new Error("test dispatch was refused");
+    assert(result.kind === "armed", "test dispatch was refused");
     return {
       ...result,
       phases: new Map(

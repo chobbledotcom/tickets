@@ -20,6 +20,7 @@ import {
 } from "#shared/payment/claim.ts";
 import type { PaymentReviewReason } from "#shared/payment/review.ts";
 import type { RefundClaimPhase } from "#shared/payment/row-state.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { withSubrequestReserve } from "#shared/subrequest-budget.ts";
 import { REFUND_SETTLEMENT_SUBREQUEST_RESERVE } from "./budget.ts";
 import { reportRefundProblem } from "./report.ts";
@@ -54,7 +55,6 @@ export type RunFindings = {
 /** Why a run could not take the complete set it loaded. */
 export type RefundRunBlock =
   | { kind: "claim_held"; reason: string }
-  | { kind: "not_admitted" }
   | { kind: "payment_set_changed"; reason: string };
 
 /** The exact durable hold provider preparation must bind before any send. */
@@ -217,10 +217,15 @@ export const underAttendeeClaim = async <TResult>(
   attendees: readonly LoadedRefundAttendee[],
   listingId: number,
   run: {
-    admit?: RefundClaimAdmission;
     blocked: (block: RefundRunBlock) => TResult;
     work: (heldWork: HeldRefundWork) => Promise<TResult>;
-  },
+  } & (
+    | {
+        admit: RefundClaimAdmission;
+        admissionRefused: () => TResult;
+      }
+    | { admit?: undefined; admissionRefused?: never }
+  ),
 ): Promise<TResult> => {
   const claim = await rowClaim.claim(attendees, run.admit);
   if (claim.kind === "changed") {
@@ -237,7 +242,10 @@ export const underAttendeeClaim = async <TResult>(
     });
   }
   if (claim.kind === "not_admitted") {
-    return run.blocked({ kind: "not_admitted" });
+    return requireValue(
+      run.admissionRefused,
+      "Refund claim refused without an admission gate",
+    )();
   }
   const findings: RunFindings = {
     claimPhases: new Map(claim.phases),

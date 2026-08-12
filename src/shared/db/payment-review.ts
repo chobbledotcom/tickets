@@ -66,9 +66,6 @@ const reviewRows = (rows: readonly PaymentRowRecord[]): ReviewRow[] =>
 
 /** The form names the complete exact review set, without exposing its facts. */
 const reviewIdentity = (reviews: readonly ReviewRow[]): Promise<string> => {
-  if (reviews.length === 0) {
-    throw new Error("A payment review identity needs at least one review");
-  }
   const facts = sortStrings(
     reviews.map(({ review, row }) =>
       JSON.stringify([row.sessionId, review.caseId, review.reason]),
@@ -105,19 +102,12 @@ export const getPaymentWorkStatus = async (
   (await getPaymentReviewState(attendeeId)).status;
 
 const acknowledgedState = (
-  row: PaymentRowRecord,
+  { review, row }: ReviewRow,
   acknowledgedAt: string,
-): PaymentRowState => {
-  if (row.state.review === undefined) {
-    throw new Error(
-      `Payment row ${row.sessionId} has no review to acknowledge`,
-    );
-  }
-  return {
-    ...row.state,
-    review: acknowledgePaymentReview(row.state.review, acknowledgedAt),
-  };
-};
+): PaymentRowState => ({
+  ...row.state,
+  review: acknowledgePaymentReview(review, acknowledgedAt),
+});
 
 const assertEveryRowChanged = (
   rows: readonly PaymentRowRecord[],
@@ -151,8 +141,11 @@ export const acknowledgeCurrentPaymentReview = (
     const acknowledgedAt = nowIso();
     const results = await tx.batch(
       await Promise.all(
-        changing.map(({ row }) =>
-          paymentRowStateStatement(row, acknowledgedState(row, acknowledgedAt)),
+        changing.map((review) =>
+          paymentRowStateStatement(
+            review.row,
+            acknowledgedState(review, acknowledgedAt),
+          ),
         ),
       ),
     );

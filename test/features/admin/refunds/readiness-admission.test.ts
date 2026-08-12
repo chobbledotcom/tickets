@@ -88,26 +88,33 @@ const runFor = async (
 }> => {
   const recorded = recordingClaim(state);
   const calls = { prepare: 0, ready: 0 };
-  const result = await runRefundReadiness<RunResult>({
-    action,
+  const common = {
     candidates: [CANDIDATE],
     changedMessage: "the loaded payment changed",
     claim: recorded.claim,
     label: action === "refund" ? "Refund" : "Refresh",
     listingId: 7,
-    notReady: (message) => ({ kind: "not_ready", message }),
+    notReady: (message: string): RunResult => ({
+      kind: "not_ready",
+      message,
+    }),
     prepare: () => {
       calls.prepare++;
-      return Promise.resolve({ candidates: [], kind: "ready" });
+      return Promise.resolve({ candidates: [], kind: "ready" as const });
     },
-    ready: () => {
+    ready: (): Promise<RunResult> => {
       calls.ready++;
       return Promise.resolve({
         kind: "ready",
         message: `Refresh prepared ${state.name}`,
       });
     },
-  });
+  };
+  const run =
+    action === "refund"
+      ? { ...common, action, budgetAudience: "bulk" as const }
+      : { ...common, action };
+  const result = await runRefundReadiness<RunResult>(run);
   return { calls, result, settlements: recorded.settlements };
 };
 

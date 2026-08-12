@@ -34,9 +34,7 @@ const SHARED_REFERENCE_MESSAGE =
 
 type RefundReadinessAction = "refund" | "refresh";
 
-type RefundReadinessRun<TResult> = {
-  action: RefundReadinessAction;
-  budgetAudience?: RefundBudgetAudience;
+type RefundReadinessRunBase<TResult> = {
   candidates: readonly RefundCandidate[];
   changedMessage: string;
   claim: RowClaim;
@@ -53,6 +51,23 @@ type RefundReadinessRun<TResult> = {
     held: HeldRefundWork,
   ) => Promise<TResult>;
 };
+
+type RefundReadinessRun<TResult> = RefundReadinessRunBase<TResult> &
+  (
+    | {
+        action: Extract<RefundReadinessAction, "refund">;
+        budgetAudience: RefundBudgetAudience;
+      }
+    | {
+        action: Extract<RefundReadinessAction, "refresh">;
+        budgetAudience?: never;
+      }
+  );
+
+type BudgetedRefundReadinessRun<TResult> = Extract<
+  RefundReadinessRun<TResult>,
+  { action: "refund" }
+>;
 
 const REVIEW_REQUIRED_MESSAGE =
   "This payment still needs owner review. Refresh or correct the payment evidence before another refund.";
@@ -186,13 +201,9 @@ const loadedBudgetCandidates = (
 ): LoadedRefundAttendee[] => candidates.map(loadedRefundAttendee);
 
 const refuseForBudget = <TResult>(
-  run: RefundReadinessRun<TResult>,
+  run: BudgetedRefundReadinessRun<TResult>,
 ): TResult => {
-  const audience = run.budgetAudience;
-  if (audience === undefined) {
-    throw new Error("A refund budget refusal had no audience");
-  }
-  const message = REFUND_BUDGET_MESSAGES[audience];
+  const message = REFUND_BUDGET_MESSAGES[run.budgetAudience];
   return run.notReady(message, "subrequest_budget");
 };
 
@@ -201,7 +212,7 @@ export const runRefundReadiness = async <TResult>(
   run: RefundReadinessRun<TResult>,
 ): Promise<TResult | BlockedRefundRun> => {
   if (
-    run.budgetAudience !== undefined &&
+    run.action === "refund" &&
     !budgetFits(
       loadedBudgetCandidates(run.candidates),
       new Set(),
@@ -215,9 +226,10 @@ export const runRefundReadiness = async <TResult>(
     loadedBudgetCandidates(run.candidates),
     run.listingId,
     {
-      ...(run.budgetAudience === undefined
+      ...(run.action === "refresh"
         ? {}
         : {
+            admissionRefused: () => refuseForBudget(run),
             admit: ({ attendees, returned }) =>
               budgetFits(attendees, returned, "inside_claim"),
           }),
@@ -225,7 +237,6 @@ export const runRefundReadiness = async <TResult>(
         if (block.kind === "claim_held") {
           return { kind: "blocked", reason: "refund_in_progress" };
         }
-        if (block.kind === "not_admitted") return refuseForBudget(run);
         reportCandidateProblems(run, run.candidates, block.reason);
         return run.notReady(run.changedMessage);
       },
@@ -240,7 +251,7 @@ export const runRefundReadiness = async <TResult>(
           return run.notReady(admissionProblem);
         }
         if (
-          run.budgetAudience !== undefined &&
+          run.action === "refund" &&
           !budgetFits(
             loadedBudgetCandidates(run.candidates),
             held.alreadyReturned,
