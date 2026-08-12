@@ -7,7 +7,7 @@
   "guide.sections.login_security": "Login & Security",
   "guide.sections.login_sessions": "Login & Sessions",
   "guide.q.owner_vs_manager": "What's the difference between an owner and a manager?",
-  "guide.a.owner_vs_manager": "<p><strong>Owners</strong> have full access: listings, calendar, groups, questions, holidays, users, site pages, settings, API keys, sessions, and the activity log. <strong>Managers</strong> can manage listings, view the calendar, manage groups, issue refunds, and view the activity log. They cannot change settings, manage users, manage questions or holidays, create API keys, edit site pages, or view sessions.</p>",
+  "guide.a.owner_vs_manager": "<p><strong>Owners</strong> have full access, including issuing refunds and acknowledging payment reviews. <strong>Managers</strong> can manage listings and groups, view the calendar and activity log, and refresh payment status. They cannot issue refunds, acknowledge payment reviews, change settings, manage users, questions or holidays, create API keys, edit site pages, or view sessions.</p>",
   "guide.q.editor_role": "What can an Editor do?",
   "guide.a.editor_role": "<p><strong>Editors</strong> are content-only collaborators. They can create and edit listings and groups. They can also edit public site pages when Site is enabled.</p><p>Editors cannot view attendees, income, costs, or Money. They cannot change settings, manage users, or use the API. An editor has no key for reading attendee details. This protects personal data even if someone bypasses the hidden pages.</p>",
   "guide.q.agent_role": "What can a Delivery agent do?",

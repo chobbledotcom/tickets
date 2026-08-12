@@ -49,8 +49,8 @@ import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { getNotesFor } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
 import {
-  getPaymentReviewStatus,
-  type PaymentReviewStatus,
+  getPaymentWorkStatus,
+  type PaymentWorkStatus,
 } from "#shared/db/payment-review.ts";
 import { settings } from "#shared/db/settings.ts";
 import { isReadOnly } from "#shared/env.ts";
@@ -70,7 +70,7 @@ import {
 import { PaymentDetails } from "#templates/admin/attendees.tsx";
 
 type AttendeePageEntity = LoadedAttendee & {
-  readonly paymentReviewStatus: PaymentReviewStatus | "not_loaded";
+  readonly paymentWorkStatus: PaymentWorkStatus | "not_loaded";
 };
 
 /** Load payment review state only for the Actions tab. */
@@ -80,7 +80,7 @@ const loadAttendeePageEntity = async (
   const entity = await loadAttendeeForEdit(id);
   return entity === null
     ? null
-    : { ...entity, paymentReviewStatus: "not_loaded" };
+    : { ...entity, paymentWorkStatus: "not_loaded" };
 };
 
 /** The attendee-scoped action routes live under the entity's own base. */
@@ -94,12 +94,12 @@ const withReturn = (href: string, ctx: PageCtx): string =>
 /** Gate owner payment actions on one named durable row state. */
 const ownerPaymentWhen =
   (
-    status: PaymentReviewStatus,
+    status: PaymentWorkStatus,
     allowed: (entity: AttendeePageEntity) => boolean = () => true,
   ): NonNullable<ActionDef<AttendeePageEntity>["visible"]> =>
   (entity, session) =>
     isOwnerRole(session.adminLevel) &&
-    entity.paymentReviewStatus === status &&
+    entity.paymentWorkStatus === status &&
     allowed(entity);
 
 /** Build one attendee-scoped confirmation action. */
@@ -116,12 +116,12 @@ const ATTENDEE_ACTIONS: readonly ActionDef<AttendeePageEntity>[] = [
   attendeeAction("refund", {
     icon: "credit-card",
     labelKey: "attendee_form.action_refund",
-    visible: ownerPaymentWhen("none", ({ canRefund }) => canRefund),
+    visible: ownerPaymentWhen("clear", ({ canRefund }) => canRefund),
   }),
   attendeeAction("payment-review", {
     icon: "check",
     labelKey: "attendee_form.action_payment_review",
-    visible: ownerPaymentWhen("available"),
+    visible: ownerPaymentWhen("needs_review"),
   }),
   attendeeAction("resend-notification", {
     icon: "rotate-ccw",
@@ -304,9 +304,7 @@ export const attendeePage: EntityPage<AttendeePageEntity> = defineEntityPage({
           actions: ATTENDEE_ACTIONS,
           kind: "actions",
           prepare: prepareOwnerFields<AttendeePageEntity>(async (entity) => ({
-            paymentReviewStatus: await getPaymentReviewStatus(
-              entity.attendee.id,
-            ),
+            paymentWorkStatus: await getPaymentWorkStatus(entity.attendee.id),
           })),
           titleKey: "entity.tab.actions",
         },

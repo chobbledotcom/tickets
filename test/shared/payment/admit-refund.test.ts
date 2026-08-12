@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import {
+  admissionReason,
   admitObservedRefund,
   admitProviderRefund,
   admitRefund,
@@ -104,6 +105,55 @@ describe("whether a refund may be sent", () => {
   ])[]) {
     test(`answers ${expected} for ${name}`, () => {
       expect(admitRefund(refundOutcomeOf([...charges])).kind).toBe(expected);
+    });
+  }
+});
+
+describe("why money was not sent", () => {
+  for (const [name, admission, expected] of [
+    [
+      "money already returned",
+      { kind: "already_returned" },
+      "the money is already back",
+    ],
+    [
+      "a refund underway",
+      { kind: "in_flight" },
+      "a refund is already on its way",
+    ],
+    [
+      "a missing provider charge",
+      { kind: "read_failed", read: { status: "missing" } },
+      "the provider says the charge does not exist",
+    ],
+    [
+      "an unavailable provider",
+      {
+        kind: "read_failed",
+        read: { reason: "timeout", status: "unavailable" },
+      },
+      "the provider could not answer (timeout)",
+    ],
+    [
+      "invalid provider data",
+      {
+        kind: "read_failed",
+        read: { reason: "malformed_money", status: "invalid" },
+      },
+      "the provider returned invalid data (malformed_money)",
+    ],
+    [
+      "a conflict needing owner review",
+      { issue: { kind: "partial_refund" }, kind: "refused" },
+      "needs the owner to look at it (partial_refund)",
+    ],
+  ] as const satisfies readonly (readonly [
+    string,
+    Parameters<typeof admissionReason>[0],
+    string,
+  ])[]) {
+    test(`explains ${name}`, () => {
+      expect(admissionReason(admission)).toBe(expected);
     });
   }
 });

@@ -4,6 +4,7 @@ import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
+import { getPaymentWorkStatus } from "#shared/db/payment-review.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
 import { t } from "#shared/i18n.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
@@ -42,14 +43,11 @@ const expectSettledReservationRefundFailure = async (
   message: Parameters<typeof expectFlashRedirect>[1] = expect.stringContaining(
     "Refund failed",
   ),
+  destination = `/admin/attendees/${ctx.attendee.id}/refund`,
 ) => {
   await withRefundMock(refundBehavior, async (mockRefund) => {
     const response = await submitRefund(ctx);
-    await expectFlashRedirect(
-      `/admin/attendees/${ctx.attendee.id}/refund`,
-      message,
-      false,
-    )(response);
+    await expectFlashRedirect(destination, message, false)(response);
     expect(
       mockRefund.calls.map((call) => call.args[0].paymentReference).sort(),
     ).toEqual(SETTLED_RESERVATION_REFERENCES);
@@ -191,7 +189,7 @@ describeWithEnv("server (admin balance-payment refunds)", { db: true }, () => {
       ).toBe(true);
     });
 
-    test("records a returned charge when the other charge fails", async () => {
+    test("blocks another send when one charge returned and the other failed", async () => {
       const ctx = await setupSettledReservationRefundTest();
 
       await expectSettledReservationRefundFailure(
@@ -201,13 +199,18 @@ describeWithEnv("server (admin balance-payment refunds)", { db: true }, () => {
             ? refundCompletes(request)
             : refundIsRejected(request),
         t("error.refund_not_recorded"),
+        `/admin/attendees/${ctx.attendee.id}/actions`,
       );
 
-      await expectSingleRefundIssued(ctx, (mockRefund) => {
-        expect(
-          mockRefund.calls.map((call) => call.args[0].paymentReference),
-        ).toEqual(["pi_reservation_balance"]);
-      });
+      expect(await getPaymentWorkStatus(ctx.attendee.id)).toBe("needs_review");
+      const actions = await expectHtmlResponse(
+        await adminGet(`/admin/attendees/${ctx.attendee.id}/actions`),
+        200,
+        "Mark payment reviewed",
+      );
+      expect(actions).not.toContain(
+        `/admin/attendees/${ctx.attendee.id}/refund`,
+      );
     });
   });
 

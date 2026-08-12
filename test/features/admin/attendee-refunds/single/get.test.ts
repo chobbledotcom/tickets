@@ -14,6 +14,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { claimCurrentAttendeeRows } from "#test-utils/payment-claim.ts";
 import { refundUrl } from "#test-utils/refund-routes.ts";
 import { setupListingAndLogin, testCookie } from "#test-utils/session.ts";
 
@@ -86,6 +87,21 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
         "type their name",
         "£5",
       );
+    });
+
+    test("shows moving-payment guidance without a refund form", async () => {
+      const ctx = await setupRefundTest("pi_moving_get");
+      await claimCurrentAttendeeRows([ctx.attendee.id], "keyed");
+
+      const response = await awaitTestRequest(refundUrl(ctx.attendee.id), {
+        cookie: ctx.cookie,
+      });
+      const html = await response.text();
+
+      expect(response.status).toBe(400);
+      expect(html).toContain("Refresh payment status");
+      expect(html).not.toContain("Refund Attendee</button>");
+      expect(html).not.toContain('name="confirm_identifier"');
     });
 
     test("shows no-payment error when the attendee has no active booking line", async () => {

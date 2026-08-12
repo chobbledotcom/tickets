@@ -124,7 +124,7 @@ type AttendeeActionRenderer = (
   session: AdminSession,
   returnUrl?: string,
   error?: string,
-) => string;
+) => string | Promise<string>;
 
 type AttendeeActionRoute = ParamsRoute<AttendeeIdRouteParams>;
 
@@ -139,10 +139,10 @@ export const attendeeActionPage = (
     const returnUrl = getReturnUrl(request);
     const blocked = guard ? await guard(data) : null;
     if (blocked !== null) {
-      return htmlResponse(render(data, session, returnUrl, blocked), 400);
+      return htmlResponse(await render(data, session, returnUrl, blocked), 400);
     }
     const flash = applyFlash(request);
-    return htmlResponse(render(data, session, returnUrl, flash.error));
+    return htmlResponse(await render(data, session, returnUrl, flash.error));
   });
 
 /** POST handler for an attendee-scoped action that first verifies the typed

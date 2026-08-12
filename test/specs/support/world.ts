@@ -13,6 +13,7 @@ import type {
   ThingsByKind,
 } from "#test/specs/support/memory.ts";
 import type { BookingAttempt } from "#test/specs/support/public-booking.ts";
+import type { RefundSafetyState } from "#test/specs/support/refund-safety/state.ts";
 import type {
   CodeOnScreen,
   WhereTheCodeLed,
@@ -153,6 +154,7 @@ export interface TicketsWorld extends World, EvidencePages {
   raceLoser?: BookingAttempt;
   raceWinners?: number;
   refundCalls?: () => number;
+  refundSafety?: RefundSafetyState;
   secondBody?: string;
   secondStatus?: number;
   servicingEventId?: number;

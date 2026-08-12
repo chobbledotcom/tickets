@@ -9,7 +9,7 @@ import type { ActivityLogEntry } from "#shared/db/activity-log.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import { execute } from "#shared/db/client.ts";
-import { getPaymentReviewStatus } from "#shared/db/payment-review.ts";
+import { getPaymentWorkStatus } from "#shared/db/payment-review.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
 import type { Attendee } from "#shared/types.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
@@ -283,7 +283,7 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
 
       expectErrorFlash(
         response,
-        "A refund for this payment is still settling. Try again after it completes.",
+        "A refund for this payment is still settling. Refresh payment status after it completes.",
       );
     });
 
@@ -306,7 +306,7 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
         await submitRefreshPayment(
           attendee,
           () => Promise.resolve(true),
-          "The payment provider sent the refund. It could not be recorded in Money. Add a correction. Do not send the refund again.",
+          "The payment provider sent the refund. It could not be recorded in Money. Fix Money, then refresh payment status. Do not send the refund again.",
           false,
         );
         // Money moved without a ledger record: the flash alone is not enough,
@@ -352,7 +352,7 @@ describeWithEnv(
 
       expect(errors.contains("partial_refund")).toBe(true);
       expect(errors.contains("an owner needs to look at it")).toBe(true);
-      expect(await getPaymentReviewStatus(attendee.id)).toBe("available");
+      expect(await getPaymentWorkStatus(attendee.id)).toBe("needs_review");
     });
   },
 );

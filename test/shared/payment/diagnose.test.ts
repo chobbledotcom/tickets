@@ -101,6 +101,24 @@ describe("what charges alone come to, with no agreed total", () => {
       ],
       "partial_refund",
     ],
+    [
+      // Even the smallest amount back must stop a second send. Provider
+      // failures can still report money they returned before failing.
+      "a failed refund that still returned one penny",
+      [
+        chargeMoneyWith({
+          confirmedRefunded: gbp(1),
+          refunds: [
+            refundObservation({
+              amount: gbp(1),
+              reason: "provider_failed",
+              status: "failed",
+            }),
+          ],
+        }),
+      ],
+      "partial_refund",
+    ],
     // The rules comparing what was owed against what was observed cannot run
     // without an agreed total, so a reference carrying none is judged on the
     // provider's own numbers rather than against a stand-in nobody agreed.

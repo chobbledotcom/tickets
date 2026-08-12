@@ -63,9 +63,6 @@ src/features/admin/catalog-transfer/import.ts::importGroup.specs~0u7qcwn  ?? →
 src/features/admin/catalog-transfer/schema.ts::formatTransferIssues.parts~0f9t11y  ?? → ||   # formatTransferIssues flat.root: string[]|undefined — an array is always truthy
 src/features/admin/catalog-transfer/schema.ts::formatTransferIssues.parts~19zbaq1  ?? → ||   # formatTransferIssues flat.nested: object|undefined — an object is always truthy
 
-# attendee merge/refund route: mutants with no observable effect.
-src/features/admin/attendee-refunds.ts::handleAdminRefundAllGet~0mgteeu  ?? → ||   # flash.error: string|undefined from applyFlash; a refund error flash is always a non-empty message, so the only falsy-non-null value "" never occurs and ?? / || agree
-
 # middleware.ts's Content-Type fallback already equals the only falsy string.
 # Once a tracking key is found, continuing instead of breaking can only
 # rediscover more tracking keys without changing the final boolean.

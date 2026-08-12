@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getPaymentReviewStatus } from "#shared/db/payment-review.ts";
+import { getPaymentWorkStatus } from "#shared/db/payment-review.ts";
 import {
   createPaidListing,
   setupRefundTest,
@@ -83,7 +83,7 @@ describeWithEnv("server (admin refund provider logging)", { db: true }, () => {
         { charge: partlyRefundedCharge() },
       );
 
-      expect(await getPaymentReviewStatus(ctx.attendee.id)).toBe("available");
+      expect(await getPaymentWorkStatus(ctx.attendee.id)).toBe("needs_review");
     });
   });
 });

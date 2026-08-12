@@ -99,6 +99,7 @@ type AttendeeConfirmConfig = {
   buttonText: string;
   confirmKey: string;
   danger?: boolean;
+  disabled?: boolean;
   showAmountPaid?: boolean;
   titleAction: string;
   warningPrefix: string;
@@ -123,11 +124,14 @@ const attendeeConfirmPage = (
         attendee={attendee}
         {...(config.showAmountPaid ? { showAmountPaid: true } : {})}
       >
-        <p>{t(config.confirmKey, { name: attendee.name })}</p>
+        {!config.disabled && (
+          <p>{t(config.confirmKey, { name: attendee.name })}</p>
+        )}
         {config.body}
       </AttendeeDetails>
     ),
     danger: config.danger,
+    disabled: config.disabled,
     error,
     label: t("admin.attendees.delete_label"),
     name: attendee.name,
@@ -187,7 +191,7 @@ export const adminAttendeeDeletePage = attendeeRouteConfirm("delete", {
 /**
  * Admin refund attendee confirmation page
  */
-export const adminRefundAttendeePage = attendeeRouteConfirm("refund", {
+const refundConfirm: Omit<AttendeeConfirmConfig, "action"> = {
   buttonText: t("admin.attendees.refund_submit"),
   confirmKey: "admin.attendees.refund_confirm",
   showAmountPaid: true,
@@ -195,6 +199,17 @@ export const adminRefundAttendeePage = attendeeRouteConfirm("refund", {
   warningPrefix: "Warning",
   warningText:
     "This will issue a full refund for this attendee's payment. The attendee will remain registered.",
+};
+
+export const adminRefundAttendeePage = attendeeRouteConfirm(
+  "refund",
+  refundConfirm,
+);
+
+/** Explain why a refund is blocked without leaving a send form on the page. */
+export const adminBlockedRefundAttendeePage = attendeeRouteConfirm("refund", {
+  ...refundConfirm,
+  disabled: true,
 });
 
 /** Record that the owner has handled an ambiguous payment outcome. */

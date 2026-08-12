@@ -6,7 +6,7 @@ import {
   readAttendeeRowStates,
 } from "#shared/db/payment-claim.ts";
 import {
-  getPaymentReviewStatus,
+  getPaymentWorkStatus,
   resolvePaymentReview,
 } from "#shared/db/payment-review.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
@@ -71,21 +71,21 @@ describeWithEnv(
     test("summarizes whether owner-review work is actionable", async () => {
       const attendeeId = await bookedWithPayment("sess-status", "pi_status");
 
-      expect(await getPaymentReviewStatus(attendeeId)).toBe("none");
+      expect(await getPaymentWorkStatus(attendeeId)).toBe("clear");
 
       await putRowState(
         "sess-status",
         await rowStateSlot({ review: { kind: "partial_refund" } }),
         REVIEW_MIRROR,
       );
-      expect(await getPaymentReviewStatus(attendeeId)).toBe("available");
+      expect(await getPaymentWorkStatus(attendeeId)).toBe("needs_review");
 
       await putRowState(
         "sess-status",
         await rowStateSlot(claimState(attendeeId, "keyed", { review: true })),
         CLAIM_MIRROR,
       );
-      expect(await getPaymentReviewStatus(attendeeId)).toBe("blocked");
+      expect(await getPaymentWorkStatus(attendeeId)).toBe("moving");
 
       await putRowState(
         "sess-status",
@@ -94,7 +94,7 @@ describeWithEnv(
         ),
         CLAIM_MIRROR,
       );
-      expect(await getPaymentReviewStatus(attendeeId)).toBe("available");
+      expect(await getPaymentWorkStatus(attendeeId)).toBe("needs_review");
     });
 
     test("retires reviews while preserving terminal and unrecorded facts", async () => {
@@ -110,6 +110,7 @@ describeWithEnv(
       );
 
       expect(await resolve(attendeeId)).toEqual({ kind: "resolved" });
+      expect(await getPaymentWorkStatus(attendeeId)).toBe("needs_money_record");
 
       expect(await stateBySession(attendeeId)).toEqual(
         new Map([

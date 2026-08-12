@@ -278,7 +278,7 @@ describeWithEnv(
         expect(response.status).toBe(302);
         expectFlash(
           response,
-          "The payment provider sent the refund. It could not be recorded in Money. Add a correction. Do not send the refund again.",
+          "The payment provider sent the refund. It could not be recorded in Money. Fix Money, then refresh payment status. Do not send the refund again.",
           false,
         );
         // The error must not silently flip the payment to refunded: with no

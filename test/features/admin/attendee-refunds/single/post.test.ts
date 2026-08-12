@@ -207,14 +207,14 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       await withRefundMock(refundStaysPending, async () => {
         const response = await submitRefund(ctx);
         await expectFlashRedirect(
-          `/admin/attendees/${ctx.attendee.id}/refund`,
-          "A refund for this payment is still settling. Try again after it completes.",
+          `/admin/attendees/${ctx.attendee.id}/actions`,
+          "A refund for this payment is still settling. Refresh payment status after it completes.",
           false,
         )(response);
       });
     });
 
-    test("a refund run that loses the claim race reports settling without a provider call", async () => {
+    test("a stale form sees the refund already owned by another run", async () => {
       const ctx = await setupRefundTest("pi_claimed_elsewhere");
       await claimCurrentAttendeeRows(
         [ctx.attendee.id],
@@ -224,18 +224,18 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
 
       await withRefundMock(refundCompletes, async (mockRefund) => {
         await expectFlashRedirect(
-          `/admin/attendees/${ctx.attendee.id}/refund`,
-          "A refund for this payment is still settling. Try again after it completes.",
+          `/admin/attendees/${ctx.attendee.id}/actions`,
+          "A refund for this payment is still settling. Refresh payment status after it completes.",
           false,
         )(await submitRefund(ctx));
         expect(mockRefund.calls).toEqual([]);
       });
     });
 
-    test("a provider that never answered is not reported as money sent", async () => {
+    test("a provider that never answered is checked instead of sent again", async () => {
       // The call died before the provider said anything, so nobody knows
-      // whether the money moved. Telling the operator to correct the books and
-      // never resend would strand a buyer whose refund was never sent.
+      // whether the money moved. The retained claim sends the owner to refresh
+      // rather than exposing a second provider call.
       const ctx = await setupRefundTest("pi_uncertain");
 
       await withRefundMock(
@@ -245,8 +245,8 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
         }),
         async () => {
           await expectFlashRedirect(
-            `/admin/attendees/${ctx.attendee.id}/refund`,
-            expect.stringContaining("Refund failed"),
+            `/admin/attendees/${ctx.attendee.id}/actions`,
+            "The payment provider did not give a clear answer. Do not send the refund again. Refresh payment status to check what happened.",
             false,
           )(await submitRefund(ctx));
         },
@@ -276,8 +276,8 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
         await withRefundMock(refundCompletes, async (mockRefund) => {
           const response = await submitRefund(ctx);
           await expectFlashRedirect(
-            `/admin/attendees/${attendee.id}/refund`,
-            "The payment provider sent the refund. It could not be recorded in Money. Add a correction. Do not send the refund again.",
+            `/admin/attendees/${attendee.id}/actions`,
+            "The payment provider sent the refund. It could not be recorded in Money. Fix Money, then refresh payment status. Do not send the refund again.",
             false,
           )(response);
           expect(mockRefund.calls.length).toBeGreaterThan(0);

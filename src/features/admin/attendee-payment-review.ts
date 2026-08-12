@@ -6,8 +6,8 @@ import { OWNER_FORM, requireOwnerOr } from "#routes/auth.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
-  getPaymentReviewStatus,
-  type PaymentReviewStatus,
+  getPaymentWorkStatus,
+  type PaymentWorkStatus,
   resolvePaymentReview,
 } from "#shared/db/payment-review.ts";
 import { adminPaymentReviewPage } from "#templates/admin/attendees.tsx";
@@ -22,15 +22,16 @@ import {
 const ACTION = "payment-review";
 
 const REVIEW_GUARD = {
-  available: null,
-  blocked: "admin.attendees.payment_review_in_progress",
-  none: "admin.attendees.payment_review_none",
-} satisfies Record<PaymentReviewStatus, string | null>;
+  clear: "admin.attendees.payment_review_none",
+  moving: "admin.attendees.payment_review_in_progress",
+  needs_money_record: "admin.attendees.payment_review_none",
+  needs_review: null,
+} satisfies Record<PaymentWorkStatus, string | null>;
 
 const handlePaymentReviewGet = attendeeActionPage(
   adminPaymentReviewPage,
   async ({ attendee }) => {
-    const messageKey = REVIEW_GUARD[await getPaymentReviewStatus(attendee.id)];
+    const messageKey = REVIEW_GUARD[await getPaymentWorkStatus(attendee.id)];
     return messageKey === null ? null : t(messageKey);
   },
   requireOwnerOr,

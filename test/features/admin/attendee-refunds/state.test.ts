@@ -133,11 +133,9 @@ describeWithEnv("server (admin refund state)", { db: true }, () => {
       expect(await protectedStateOf(sessionId)).toBe("");
     });
 
-    // The fault this closes: the single page carried its own copy of the
-    // "anything left to do?" rule, so it still refused a held attendee after
-    // the bulk list learned to pick them up. The delete refusal tells the
-    // operator to re-run the refund, and this is the page they would use.
-    test("the refund page opens for an attendee a crashed run is still holding", async () => {
+    // A provider-capable claim may have sent money before its worker crashed.
+    // Recovery must observe it through refresh, never expose another send form.
+    test("a crashed provider claim leaves no refund form to send again", async () => {
       const listing = await createPaidListing();
       const attendee = await createPaidTestAttendee(
         listing.id,
@@ -168,7 +166,8 @@ describeWithEnv("server (admin refund state)", { db: true }, () => {
         cookie: await testCookie(),
       });
 
-      expect(response.status).toBe(200);
+      const html = await expectHtmlResponse(response, 400, "still settling");
+      expect(html).not.toContain("Refund Attendee</button>");
     });
 
     test("marks attendee as refunded after successful refund", async () => {

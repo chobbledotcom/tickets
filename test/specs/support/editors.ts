@@ -7,7 +7,6 @@
  */
 
 // jscpd:ignore-start
-import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { toMinorUnits } from "#shared/currency.ts";
 import {
@@ -20,12 +19,9 @@ import {
   EDITOR,
   type OpensAPage,
   openAdminPage,
-  openAsNewcomer,
   opensPagesAs,
-  rememberBrowser,
 } from "#test/specs/support/browser.ts";
 import { expectCanReallySend } from "#test/specs/support/form-controls/rules.ts";
-import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
   listingIdNamed,
   listingNamed,
@@ -33,6 +29,11 @@ import {
   rememberListing,
   saveListingEdit,
 } from "#test/specs/support/listings.ts";
+import {
+  createStaffInvite,
+  logStaffIn,
+  rememberAcceptedStaffInvite,
+} from "#test/specs/support/staff-accounts.ts";
 
 import {
   type ActOnOnePerson,
@@ -51,9 +52,6 @@ import type { TestBrowser } from "#test-utils/test-browser.ts";
 /** Where a listing forwards each booking, names and all. */
 export const OWNERS_ADDRESS = "https://owner.example/bookings";
 export const SOMEWHERE_ELSE = "https://elsewhere.example/bookings";
-
-/** The password an invited person chooses for themselves. */
-const CHOSEN_PASSWORD = "a-good-long-password";
 
 /** The pages the story talks about, by the words it uses for them. Each is a
  * page an editor must never open. */
@@ -91,20 +89,7 @@ export const pagesOfferedTo = async (
  * The role is chosen from the roles the form itself offers, so a form that
  * stopped offering "editor" fails here. */
 export const ownerInvitesEditor: ActOnOnePerson = async (world, who) => {
-  const browser = await openAdminPage(world, "/admin/user/new");
-  // Both of the owner's choices have to be ones they could really make on the
-  // page, or an invite could be crafted that no owner can send.
-  expect(browser.pageText).toContain(t("fields.user.editor"));
-  await fillInAndSend(
-    browser,
-    { admin_level: "editor", username: who },
-    t("users.invite.submit"),
-  );
-  // The owner reads the link off the page and passes it on, which is the only
-  // way the invited person ever hears about it.
-  const link = browser.pageText.match(/\/join\/[A-Za-z0-9_-]+/);
-  if (!link) throw new Error(`The owner was given no link to send ${who}`);
-  world.editorInvite = link[0];
+  world.editorInvite = await createStaffInvite(world, who, "editor");
 };
 
 /** The invited person opens their link, chooses a password, and is now an
@@ -112,27 +97,17 @@ export const ownerInvitesEditor: ActOnOnePerson = async (world, who) => {
 export const editorFollowsInvite = async (
   world: TicketsWorld,
 ): Promise<void> => {
-  const browser = await openAsNewcomer(
+  await rememberAcceptedStaffInvite(
+    world,
+    EDITOR,
     requiredWorldValue(world.editorInvite, "the invite"),
   );
-  await fillInAndSend(
-    browser,
-    { password: CHOSEN_PASSWORD, password_confirm: CHOSEN_PASSWORD },
-    t("join.set_password.submit"),
-  );
-  rememberBrowser(world, EDITOR, browser);
 };
 
 /** The editor logs in the ordinary way, and stays logged in for the rest of
  * the story. */
 export const editorLogsIn: ActOnOnePerson = async (world, who) => {
-  const browser = await openAsNewcomer("/admin/");
-  await fillInAndSend(
-    browser,
-    { password: CHOSEN_PASSWORD, username: who },
-    t("login.submit"),
-  );
-  rememberBrowser(world, EDITOR, browser);
+  await logStaffIn(world, who, EDITOR);
 };
 
 /** Somebody who is already an editor and already logged in. Saying it twice of
