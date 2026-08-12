@@ -104,8 +104,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-07-26_payment_records",
         "2026-08-04_login_attempt_stamp",
         "2026-08-10_payment_state_columns",
+        "2026-08-12_refund_confirmations",
       ],
-      schemaHash: "uiclvs",
+      schemaHash: "t7upy6",
     });
   });
 
@@ -120,7 +121,7 @@ describe("db > migrations > schema change guard", () => {
       dbSchemaHash: "db_schema_hash",
       latestDbUpdate: "latest_db_update",
       latestUpdate:
-        "Record each payment's settled state: its evidence fingerprint, the live work protecting it, and a one-way index of the provider reference it names.",
+        "Record each returned payment set once without opening note or activity history.",
       migrationLock: "migration_lock",
       schemaMigrations: "schema_migrations",
     });

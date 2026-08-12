@@ -7,7 +7,7 @@ import { jsonHash } from "#test-utils/hash.ts";
 
 test("keeps the complete payment aggregate schema declaration exact", async () => {
   expect(await jsonHash(paymentTables)).toBe(
-    "7bdc4cfcfa73b6d61729f66e768278c46c0c64daf3f92e1efa0fcc5d90a7d07e",
+    "3b89d2408f96a887758b73faa3e63d06c6f4ca06c10d4d798ede912a21c911cb",
   );
 });
 

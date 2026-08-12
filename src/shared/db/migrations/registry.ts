@@ -405,6 +405,10 @@ export const MIGRATION_REGISTRY: MigrationRegistryEntry[] = [
     "2026-08-10_payment_state_columns",
     () => import("./2026-08-10_payment_state_columns.ts"),
   ),
+  entry(
+    "2026-08-12_refund_confirmations",
+    () => import("./2026-08-12_refund_confirmations.ts"),
+  ),
 ];
 /* jscpd:ignore-end */
 

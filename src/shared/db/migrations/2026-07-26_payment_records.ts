@@ -35,6 +35,7 @@ export default schemaMigration(
       "payment_charges",
       "payment_cases",
       "payment_case_decisions",
+      "refund_confirmations",
     ],
   },
 );

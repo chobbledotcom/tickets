@@ -32,9 +32,13 @@ import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
 import { logActivity } from "#shared/db/activity-log.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
-import { createSystemNote } from "#shared/db/notes/queries.ts";
+import {
+  createNamedSystemNote,
+  createSystemNote,
+} from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
+import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { paidPaymentReferenceOf } from "#shared/payment/validated-session.ts";
@@ -197,10 +201,21 @@ export const storeRefundedBooking = async (
       listingId,
     });
   }
-  await createSystemNote(
-    attendeeNotes(attendeeId),
-    refundedNoteText(attendeeId, spec, refunded, session.paymentReference),
+  const noteTarget = attendeeNotes(attendeeId);
+  const noteText = refundedNoteText(
+    attendeeId,
+    spec,
+    refunded,
+    session.paymentReference,
   );
+  if (refunded) {
+    await createSystemNote(noteTarget, noteText);
+  } else {
+    await createNamedSystemNote(noteTarget, noteText, {
+      key: await paymentReferenceIndex(paidPaymentReferenceOf(session)),
+      purpose: "refund_warning",
+    });
+  }
   // Status 200: a fully-handled terminal outcome (booking kept, money returned or
   // flagged). The webhook acks it (never the 409 transient-lock retry nor a 503
   // refund retry — the booking exists, so a retry can't re-create it), and the

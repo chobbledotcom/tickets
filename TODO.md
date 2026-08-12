@@ -2377,21 +2377,6 @@ Start at `src/shared/db/payment-reference-holders.ts` and its call from
 concurrent row insertion and PII change, a shared row-less charge split across
 pages, and refusal before the epoch or exact held-row claim completes.
 
-## Make refund confirmation replay checks bounded
-
-`confirmRefund` currently calls `getAttendeeActivityMessages`, which loads and
-decrypts every activity message for the attendee to decide whether one exact
-refund confirmation was already logged. A long-lived attendee record can exhaust
-an edge request after the provider and ledger work have already succeeded.
-
-Give refund confirmations a structured, indexed replay identity derived from the
-attendee and sorted provider-aware references. Persist that identity atomically
-with the activity entry and exact held-row check, reject duplicates by a
-database constraint, and stop scanning message prose. Preserve the activity text
-as an operator display, not as the state machine. Test a duplicate confirmation,
-a large unrelated history, concurrent confirmations, and rollback when the
-activity write fails.
-
 ## Refunded status cannot tell two orders on ONE listing apart
 
 _Origin: Codex and CodeRabbit, both on PR #2065 (partial ledger reversal)._

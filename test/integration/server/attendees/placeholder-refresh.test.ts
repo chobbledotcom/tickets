@@ -5,8 +5,13 @@ import { KIND } from "#shared/accounting/kinds.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { deleteListing } from "#shared/db/listings/delete.ts";
-import { createSystemNote, getNotesFor } from "#shared/db/notes/queries.ts";
+import {
+  createNamedSystemNote,
+  createSystemNote,
+  getNotesFor,
+} from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
+import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
 import type { Attendee } from "#shared/types.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
@@ -92,6 +97,16 @@ const refreshAndVerifyRefundCash = async (
   expect(legs.some((leg) => leg.kind === KIND.refundCash)).toBe(true);
 };
 
+const createRefundWarning = async (
+  attendeeId: number,
+  reference: string,
+  note: string,
+): Promise<void> =>
+  createNamedSystemNote(attendeeNotes(attendeeId), note, {
+    key: await paymentReferenceIndex(taggedPaymentReference(reference)),
+    purpose: "refund_warning",
+  });
+
 describeWithEnv(
   "server (admin placeholder refresh payment)",
   { db: true },
@@ -115,8 +130,9 @@ describeWithEnv(
           "pi_stale_note",
         );
         const privateKey = await getTestPrivateKey();
-        await createSystemNote(
-          attendeeNotes(attendee.id),
+        await createRefundWarning(
+          attendee.id,
+          "pi_stale_note",
           "This booking was kept at quantity 0 but its payment could NOT be refunded automatically because the event filled up while they were paying. Payment reference: pi_stale_note (code: capacity_full). Please refund it manually and check the [ledger](/admin/ledger/attendee/" +
             attendee.id +
             ").",
@@ -218,37 +234,6 @@ describeWithEnv(
         await refreshAndVerifyRefundCash(attendee);
 
         expect(await protectedStateOf("caught-up-session")).toBe("");
-      });
-
-      test("cleans up a stale note on retry even when the ledger is already posted", async () => {
-        // First refresh: posts the refund_cash leg + deletes the stale note.
-        const attendee = await setupPlaceholderForRefresh(
-          "Retry Cleanup",
-          "retry@example.com",
-          "placeholder-retry-session",
-          "pi_placeholder_retry",
-        );
-        const privateKey = await getTestPrivateKey();
-        // Simulate the initial refresh that posted the ledger but whose
-        // note cleanup failed — re-create the stale note afterward.
-        await refreshAndVerifyRefundCash(attendee);
-        await createSystemNote(
-          attendeeNotes(attendee.id),
-          "This booking was kept at quantity 0 but its payment could NOT be refunded. Payment reference: pi_placeholder_retry.",
-        );
-
-        // The ledger already has the refund_cash leg, but the stale note must
-        // still be cleaned up without duplicating the confirmation.
-        await submitRefreshPayment(
-          attendee,
-          () => Promise.resolve(true),
-          expect.stringContaining("up to date"),
-        );
-
-        const notes = await getNotesFor(attendeeNotes(attendee.id), privateKey);
-        expect(
-          notes.some((note) => note.note.includes("could NOT be refunded")),
-        ).toBe(false);
       });
     });
   },

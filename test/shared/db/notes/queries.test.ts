@@ -3,8 +3,10 @@ import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { queryOne } from "#shared/db/client.ts";
 import {
+  createNamedSystemNote,
   createOwnerNote,
   createSystemNote,
+  deleteNamedSystemNotes,
   deleteNotes,
   getNote,
   getNoteRows,
@@ -139,6 +141,64 @@ describeWithEnv("db > notes", { db: true }, () => {
     expect(ownerStored?.note).not.toContain("owner secret");
   });
 
+  test("manages app-written notes by exact indexed name, never their text", async () => {
+    const attendeeId = await makeAttendee();
+    const target = attendeeNotes(attendeeId);
+    await createNamedSystemNote(target, "warning to remove", {
+      key: "reference-one",
+      purpose: "refund_warning",
+    });
+    await createNamedSystemNote(target, "same key, different purpose", {
+      key: "reference-one",
+      purpose: "refund_confirmation",
+    });
+    await createNamedSystemNote(target, "different warning", {
+      key: "reference-two",
+      purpose: "refund_warning",
+    });
+    await createSystemNote(target, "warning to remove");
+
+    await deleteNamedSystemNotes(target, "refund_warning", [
+      "reference-one",
+      "reference-one",
+    ]);
+
+    expect(
+      (await getNotesFor(target, await getTestPrivateKey())).map(
+        (note) => note.note,
+      ),
+    ).toEqual([
+      "same key, different purpose",
+      "different warning",
+      "warning to remove",
+    ]);
+  });
+
+  test("refuses a second app-written note with the same indexed name", async () => {
+    const target = attendeeNotes(await makeAttendee());
+    const name = {
+      key: "one-confirmation",
+      purpose: "refund_confirmation",
+    } as const;
+    await createNamedSystemNote(target, "first", name);
+
+    await expect(
+      createNamedSystemNote(target, "duplicate", name),
+    ).rejects.toThrow();
+  });
+
+  test("refuses an app-written note whose indexed name is empty", async () => {
+    const target = attendeeNotes(await makeAttendee());
+
+    await expect(
+      createNamedSystemNote(target, "unreachable", {
+        key: "",
+        purpose: "refund_warning",
+      }),
+    ).rejects.toThrow("A named system note needs a key");
+    expect(await getNoteRows("attendee", [target.id])).toEqual([]);
+  });
+
   test("returns an attendee's notes oldest first", async () => {
     const attendeeId = await makeAttendee();
     await createSystemNote(attendeeNotes(attendeeId), "first");
@@ -232,7 +292,10 @@ describeWithEnv("db > notes", { db: true }, () => {
     // The stale-note cleanup runs on every refresh, almost always with nothing
     // to remove, so this path must not cost a round trip.
     const { roundTrips } = await runAndCountRoundTrips(() =>
-      deleteNotes(attendeeNotes(owner), []),
+      Promise.all([
+        deleteNotes(attendeeNotes(owner), []),
+        deleteNamedSystemNotes(attendeeNotes(owner), "refund_warning", []),
+      ]),
     );
 
     expect(roundTrips).toBe(0);

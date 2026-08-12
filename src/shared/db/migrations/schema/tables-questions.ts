@@ -238,12 +238,21 @@ export const questionTables: [name: string, table: Table][] = [
           "TEXT NOT NULL DEFAULT 'system' CHECK (type IN ('system', 'owner'))",
         ],
         ["note", "TEXT NOT NULL"],
+        [
+          "system_name",
+          "TEXT CHECK (system_name IS NULL OR (type = 'system' AND system_name GLOB 'system-note:1:?*'))",
+        ],
         createdColumn,
       ],
       indexes: [
         {
           columns: ["entity_type", "entity_id"],
           name: "idx_system_notes_entity",
+        },
+        {
+          columns: ["entity_type", "entity_id", "system_name"],
+          name: "idx_system_notes_named_unique",
+          unique: true,
         },
       ],
     },

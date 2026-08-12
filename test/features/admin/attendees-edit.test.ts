@@ -125,7 +125,7 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
       ]);
     });
 
-    test("logs a refreshed refund against the first real booking", async () => {
+    test("logs a repeated refund refresh once against the first real booking", async () => {
       const ghost = await createTestListing({
         listingType: "daily",
         maxAttendees: 100,
@@ -184,6 +184,11 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
       );
 
       await submitRefreshPayment(attendee, () => Promise.resolve(true));
+      await submitRefreshPayment(
+        attendee,
+        () => Promise.resolve(true),
+        expect.stringContaining("up to date"),
+      );
 
       const message =
         "Payment marked as refunded for attendee 'First Real'; " +

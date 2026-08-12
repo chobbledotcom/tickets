@@ -1,7 +1,7 @@
 /** Schema version label and the migrations bookkeeping table name. */
 
 export const LATEST_UPDATE =
-  "Record each payment's settled state: its evidence fingerprint, the live work protecting it, and a one-way index of the provider reference it names.";
+  "Record each returned payment set once without opening note or activity history.";
 
 export const SCHEMA_MIGRATIONS_TABLE = "schema_migrations";
 export const LATEST_DB_UPDATE_KEY = "latest_db_update";

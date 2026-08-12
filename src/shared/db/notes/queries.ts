@@ -5,6 +5,7 @@
  * serves every kind of record: see ./target.ts.
  */
 
+import { unique } from "#fp";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import {
   execute,
@@ -17,14 +18,22 @@ import { readOneRow, readRows } from "#shared/db/read.ts";
 import {
   deleteWhere,
   equals,
+  inList,
   type WhereClause,
 } from "#shared/db/where-clauses.ts";
 import { nowIso } from "#shared/now.ts";
 import { openNote, openNotes, sealNote } from "./sealing.ts";
 import { type NoteEntity, type NoteTarget, noteTargets } from "./target.ts";
-import type { SystemNote, SystemNoteRow, SystemNoteType } from "./types.ts";
+import type {
+  SystemNote,
+  SystemNoteName,
+  SystemNotePurpose,
+  SystemNoteRow,
+  SystemNoteType,
+} from "./types.ts";
 
-const NOTE_COLUMNS = "id, entity_type, entity_id, type, note, created";
+const NOTE_COLUMNS =
+  "id, entity_type, entity_id, type, note, system_name, created";
 
 /** Build a "record a note" function for one kind of note: it seals the text the
  *  way that kind is sealed, then stores it against the record it is about. */
@@ -34,22 +43,36 @@ type NoteWriter = (
   transaction?: TxScope,
 ) => Promise<void>;
 
+const storedSystemNoteName = ({ key, purpose }: SystemNoteName): string =>
+  `system-note:1:${JSON.stringify([purpose, key])}`;
+
+const writeNote = async (
+  type: SystemNoteType,
+  target: NoteTarget,
+  note: string,
+  name: SystemNoteName | null,
+  transaction?: TxScope,
+): Promise<void> => {
+  if (name?.key === "") throw new Error("A named system note needs a key");
+  const { sql, args } = insert("system_notes", {
+    created: nowIso(),
+    entity_id: target.id,
+    entity_type: target.kind,
+    note: await sealNote(type, note),
+    system_name: name === null ? null : storedSystemNoteName(name),
+    type,
+  });
+  if (transaction === undefined) {
+    await execute(sql, args);
+  } else {
+    await transaction.execute({ args, sql });
+  }
+};
+
 const noteWriterOf =
   (type: SystemNoteType): NoteWriter =>
-  async (target, note, transaction) => {
-    const { sql, args } = insert("system_notes", {
-      created: nowIso(),
-      entity_id: target.id,
-      entity_type: target.kind,
-      note: await sealNote(type, note),
-      type,
-    });
-    if (transaction === undefined) {
-      await execute(sql, args);
-    } else {
-      await transaction.execute({ args, sql });
-    }
-  };
+  (target, note, transaction) =>
+    writeNote(type, target, note, null, transaction);
 
 /**
  * Record a note the app wrote itself. The text MUST be free of personal
@@ -57,6 +80,15 @@ const noteWriterOf =
  * dump plus that key), and exists so a path with no owner session can write it.
  */
 export const createSystemNote = noteWriterOf("system");
+
+/** Record an app-written note with an indexed purpose and opaque identity.
+ * Its lifecycle can then be managed without opening any note text. */
+export const createNamedSystemNote = (
+  target: NoteTarget,
+  note: string,
+  name: SystemNoteName,
+  transaction?: TxScope,
+): Promise<void> => writeNote("system", target, note, name, transaction);
 
 /** Record an operator's note, sealed with the owner public key. */
 export const createOwnerNote = noteWriterOf("owner");
@@ -176,17 +208,37 @@ export const getNote = async (
 export const deleteNotes = async (
   target: NoteTarget,
   noteIds: number[],
-  transaction?: TxScope,
 ): Promise<void> => {
   if (noteIds.length === 0) return;
   const statements = noteIds.map((noteId) =>
     deleteNotesWhere(noteOfTarget(target, noteId)),
   );
+  await executeBatch(statements);
+};
+
+/** Delete exact app-written notes by their indexed names. One reference or
+ * many takes one statement; ordinary notes and other purposes cannot match. */
+export const deleteNamedSystemNotes = async (
+  target: NoteTarget,
+  purpose: SystemNotePurpose,
+  keys: readonly string[],
+  transaction?: TxScope,
+): Promise<void> => {
+  const distinctKeys = unique([...keys]);
+  if (distinctKeys.length === 0) return;
+  const statement = deleteNotesWhere([
+    ...noteTargets.where(target),
+    ...equals("type", "system"),
+    ...inList(
+      "system_name",
+      distinctKeys.map((key) => storedSystemNoteName({ key, purpose })),
+    ),
+  ]);
   if (transaction === undefined) {
-    await executeBatch(statements);
-    return;
+    await execute(statement.sql, statement.args);
+  } else {
+    await transaction.execute(statement);
   }
-  await transaction.batch(statements);
 };
 
 /** Delete the notes of records chosen by a subquery — for a delete path that
