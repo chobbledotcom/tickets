@@ -51,6 +51,7 @@ Feature: The organiser takes a whole group of listings off sale at once
     Scenario: The organiser deactivates one group while another stays on sale
       Given the site has a group called "Target" with "Target Listing" on sale
       And the site has a group called "Other" with "Outsider Listing" on sale
+      And the site has a listing called "Ungrouped Listing" on sale with no group
       When the organiser takes the "Target" group off sale, typing its name to confirm
       Then every listing in the "Target" group is off sale
       And listings outside the "Target" group are still on sale

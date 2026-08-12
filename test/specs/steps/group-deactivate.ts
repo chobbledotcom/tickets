@@ -7,7 +7,7 @@ import { getListingsByGroupId, groups } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { ORGANISER, openAdminPage } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
-import { rememberListing } from "#test/specs/support/listings.ts";
+import { listingNamed, rememberListing } from "#test/specs/support/listings.ts";
 import {
   keepWhatTheyWereTold,
   type TicketsWorld,
@@ -43,6 +43,15 @@ const groupNamed = async (name: string) => {
   return found;
 };
 
+/** Find a group by name, or create it if it does not exist yet. A scenario
+ * that adds a second member to the same group reuses the one already made,
+ * rather than creating a duplicate (which the production create path would
+ * reject). */
+const findOrCreateGroup = async (name: string) => {
+  const existing = (await groups.cache.getAll()).find((g) => g.name === name);
+  return existing ?? (await createTestGroup({ name }));
+};
+
 /** Set up a group with one member on sale, both remembered by the names the
  * story uses. */
 Given(
@@ -52,7 +61,7 @@ Given(
     groupName: string,
     memberName: string,
   ): Promise<void> {
-    const group = await createTestGroup({ name: groupName });
+    const group = await findOrCreateGroup(groupName);
     rememberListing(
       this,
       memberName,
@@ -60,6 +69,18 @@ Given(
         groupId: group.id,
         name: memberName,
       }),
+    );
+  },
+);
+
+/** A listing with no group, on sale. */
+Given(
+  "the site has a listing called {string} on sale with no group",
+  async function (this: TicketsWorld, memberName: string): Promise<void> {
+    rememberListing(
+      this,
+      memberName,
+      await createTestListing({ name: memberName }),
     );
   },
 );
@@ -108,15 +129,52 @@ When(
 /** The `active` flag is what deactivation flips, and there is no user-facing
  * form that surfaces it as a rendered claim — so a direct read is the right way
  * to check it (per E2E_TESTS.md: "pure data-in/data-out rules with no
- * user-facing form action may read state directly"). */
-const assertMembersActive = async (
-  groupId: number,
+ * user-facing form action may read state directly"). Asserts by the listing
+ * ids the story set up, cross-referenced with the group's live member set, so
+ * a regression that deleted membership rows (leaving the re-query empty)
+ * cannot pass these steps vacuously. */
+const assertActive = async (
+  listingIds: number[],
   expected: boolean,
 ): Promise<void> => {
-  const members = await getListingsByGroupId(groupId);
-  for (const member of members) {
-    expect((await getListingWithCount(member.id))?.active).toBe(expected);
+  expect(listingIds.length).toBeGreaterThan(0);
+  for (const id of listingIds) {
+    expect((await getListingWithCount(id))?.active).toBe(expected);
   }
+};
+
+/** Remembered listing ids that are members of the named group, cross-referenced
+ * with the group's live member set. A listing that lost its membership row
+ * would be missing from the live set — the `memberIdsOfGroup` call returns
+ * fewer ids than expected, and the assertion catches the discrepancy through
+ * the story's own remembered names. */
+const memberIdsOfGroup = async (
+  world: TicketsWorld,
+  groupName: string,
+): Promise<number[]> => {
+  const target = await groupNamed(groupName);
+  const liveMemberIds = new Set(
+    (await getListingsByGroupId(target.id)).map((l) => l.id),
+  );
+  return world.things
+    .names("listing")
+    .map((name) => listingNamed(world, name))
+    .filter((listing) => liveMemberIds.has(listing.id))
+    .map((listing) => listing.id);
+};
+
+/** Remembered listing ids that are NOT in the named group — including
+ * ungrouped ones. */
+const outsiderIdsOf = async (
+  world: TicketsWorld,
+  groupName: string,
+): Promise<number[]> => {
+  const memberIds = new Set(await memberIdsOfGroup(world, groupName));
+  return world.things
+    .names("listing")
+    .map((name) => listingNamed(world, name))
+    .filter((listing) => !memberIds.has(listing.id))
+    .map((listing) => listing.id);
 };
 
 Then(
@@ -131,25 +189,20 @@ Then(
 Then(
   "every listing in the {string} group is off sale",
   async function (this: TicketsWorld, groupName: string): Promise<void> {
-    await assertMembersActive((await groupNamed(groupName)).id, false);
+    await assertActive(await memberIdsOfGroup(this, groupName), false);
   },
 );
 
 Then(
   "every listing in the {string} group is still on sale",
   async function (this: TicketsWorld, groupName: string): Promise<void> {
-    await assertMembersActive((await groupNamed(groupName)).id, true);
+    await assertActive(await memberIdsOfGroup(this, groupName), true);
   },
 );
 
 Then(
   "listings outside the {string} group are still on sale",
   async function (this: TicketsWorld, groupName: string): Promise<void> {
-    const target = await groupNamed(groupName);
-    for (const other of (await groups.cache.getAll()).filter(
-      (g) => g.id !== target.id,
-    )) {
-      await assertMembersActive(other.id, true);
-    }
+    await assertActive(await outsiderIdsOf(this, groupName), true);
   },
 );
