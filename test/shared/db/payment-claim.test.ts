@@ -37,6 +37,16 @@ const releaseRows = (
     ),
   });
 
+const putUnrecordedRow = async (sessionId: string): Promise<void> => {
+  await putRowState(
+    sessionId,
+    await rowStateSlot({
+      unrecorded: { returnedAt: "2026-01-01T00:00:00.000Z" },
+    }),
+    UNRECORDED_MIRROR,
+  );
+};
+
 describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
   describe("releasing", () => {
     test("confirmation accepts only the exact claim still holding every row", async () => {
@@ -195,13 +205,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
 
     test("a later run that records the money takes the mark off", async () => {
       const attendeeId = await bookedWithPayment("sess-on", "pi_on");
-      await putRowState(
-        "sess-on",
-        await rowStateSlot({
-          unrecorded: { returnedAt: "2026-01-01T00:00:00.000Z" },
-        }),
-        UNRECORDED_MIRROR,
-      );
+      await putUnrecordedRow("sess-on");
       const held = await claimCurrentAttendeeRows([attendeeId], "keyless");
       if (held.kind !== "claimed") throw new Error("the claim was refused");
 
@@ -226,13 +230,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
         attendeeId,
         "tok-new",
       );
-      await putRowState(
-        "sess-still-behind",
-        await rowStateSlot({
-          unrecorded: { returnedAt: "2026-01-01T00:00:00.000Z" },
-        }),
-        UNRECORDED_MIRROR,
-      );
+      await putUnrecordedRow("sess-still-behind");
       const held = await claimCurrentAttendeeRows([attendeeId], "keyless");
       if (held.kind !== "claimed") throw new Error("the claim was refused");
 

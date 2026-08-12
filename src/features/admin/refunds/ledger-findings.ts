@@ -1,5 +1,5 @@
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
-import type { RefundLedgerResult } from "#shared/refund-ledger.ts";
+import type { RefundLedgerResult } from "#shared/refund-ledger/result.ts";
 import { referenceRowIds } from "./candidates.ts";
 import type { RunFindings } from "./claim.ts";
 
@@ -27,10 +27,9 @@ const addUnrecordedRows = (
   rows: readonly string[],
 ): void => {
   if (rows.length === 0) return;
-  findings.unrecorded.set(
-    attendeeId,
-    [...new Set([...(findings.unrecorded.get(attendeeId) ?? []), ...rows])],
-  );
+  findings.unrecorded.set(attendeeId, [
+    ...new Set([...(findings.unrecorded.get(attendeeId) ?? []), ...rows]),
+  ]);
 };
 
 /** Put one exact ledger result onto the rows that carried each reference. */
@@ -42,10 +41,7 @@ export const applyRefundLedgerFindings = (
 ): AppliedRefundLedgerFindings => {
   const recorded = matchingReferences(references, result.recorded);
   const unrecorded = matchingReferences(references, result.unrecorded);
-  const review = matchingReferences(
-    references,
-    result.reviewReferenceIndexes,
-  );
+  const review = matchingReferences(references, result.reviewReferenceIndexes);
   for (const sessionId of referenceRows(attendeeId, recorded)) {
     findings.recorded.add(sessionId);
   }

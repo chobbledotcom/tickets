@@ -6,10 +6,8 @@ import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { legReference } from "#shared/accounting/refs.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
-import {
-  isPaymentOnlyAccount,
-  recordPlaceholderRefund,
-} from "#shared/refund-ledger.ts";
+import { recordPlaceholderRefund } from "#shared/refund-ledger/placeholder.ts";
+import { isPaymentOnlyAccount } from "#shared/refund-ledger/plan.ts";
 import { BOOKING_AT } from "#test/shared/refund-ledger/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";

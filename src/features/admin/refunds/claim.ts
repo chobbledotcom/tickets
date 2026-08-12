@@ -10,7 +10,11 @@ import {
   type RowSettlement,
   settleAttendeeRows,
 } from "#shared/db/payment-claim.ts";
-import { claimRefusal, mayReleaseClaim } from "#shared/payment/claim.ts";
+import {
+  claimRefusal,
+  heldPaymentRows,
+  mayReleaseClaim,
+} from "#shared/payment/claim.ts";
 import type { PaymentReviewReason } from "#shared/payment/review.ts";
 import type {
   RefundCapability,
@@ -156,15 +160,13 @@ const settlementRows = (
   const unrecorded = new Set([...findings.unrecorded.values()].flat());
   return new Map(
     compact(
-      [...claim.held].flatMap(([attendeeId, sessionIds]) =>
-        sessionIds.map((sessionId) =>
-          settlementEntry(
-            attendeeId,
-            sessionId,
-            lettingAttendees,
-            unrecorded,
-            findings,
-          ),
+      heldPaymentRows(claim.held).map(({ attendeeId, sessionId }) =>
+        settlementEntry(
+          attendeeId,
+          sessionId,
+          lettingAttendees,
+          unrecorded,
+          findings,
         ),
       ),
     ),

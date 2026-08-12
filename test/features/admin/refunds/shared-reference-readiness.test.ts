@@ -9,6 +9,10 @@ import { refundReference } from "#test-utils/payment-state.ts";
 
 const HELD_SINCE = "2026-08-11T12:00:00.000Z";
 
+type ReadinessRunResult =
+  | { kind: "not_ready"; message: string }
+  | { kind: "ready"; message: string };
+
 describe("admin refund shared-reference readiness", () => {
   const errors = setupErrorSpy();
   test("parks every exact row before preparation", async () => {
@@ -62,7 +66,7 @@ describe("admin refund shared-reference readiness", () => {
     let prepared = false;
     let ran = false;
 
-    const result = await runRefundReadiness({
+    const result = await runRefundReadiness<ReadinessRunResult>({
       candidates: [candidate],
       changedMessage: "changed",
       claim,

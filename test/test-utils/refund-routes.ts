@@ -57,12 +57,12 @@ type RefundMockOptions = {
 
 const refundResult = (
   behavior: RefundBehavior,
-): (reference: string) => Promise<RefundAnswer> =>
+): ((reference: string) => Promise<RefundAnswer>) =>
   typeof behavior === "function" ? behavior : () => Promise.resolve(behavior);
 
 const chargeResult = (
   behavior: ChargeBehavior,
-): (reference: string) => Promise<ChargeMoney> =>
+): ((reference: string) => Promise<ChargeMoney>) =>
   typeof behavior === "function" ? behavior : () => Promise.resolve(behavior);
 
 /** POST the refund-all confirmation form for a listing as the owner. */
@@ -131,10 +131,8 @@ const withStripeProvider = async (
   await settings.update.stripe.secretKey("sk_test_refund_routes");
   await withMocks(
     () =>
-      stub(
-        paymentsApi,
-        "getConfiguredProvider",
-        () => mockProviderType("stripe"),
+      stub(paymentsApi, "getConfiguredProvider", () =>
+        mockProviderType("stripe"),
       ),
     async () => {
       const { stripePaymentProvider } = await import(
@@ -155,10 +153,8 @@ export const withRefreshPaymentMoney = async <T>(
   let result!: T;
   await withStripeProvider(async (provider) => {
     const mockRefunded = spy(probe);
-    const readCharge = stub(
-      provider,
-      "readCharge",
-      async (reference) => foundCharge(await mockRefunded(reference)),
+    const readCharge = stub(provider, "readCharge", async (reference) =>
+      foundCharge(await mockRefunded(reference)),
     );
     try {
       result = await body(mockRefunded);
@@ -201,10 +197,8 @@ export const withRefundMock = async (
       },
     );
     const readMoney = chargeResult(options.charge ?? chargeMoney());
-    const readCharge = stub(
-      provider,
-      "readCharge",
-      async (reference) => foundCharge(await readMoney(reference)),
+    const readCharge = stub(provider, "readCharge", async (reference) =>
+      foundCharge(await readMoney(reference)),
     );
     try {
       await fn(mockRefund);
@@ -260,7 +254,7 @@ export const grantingRowClaim = (
           [...rows].flatMap(([sessionId, change]) =>
             change.review === undefined
               ? []
-              : [[sessionId, change.review] as const]
+              : [[sessionId, change.review] as const],
           ),
         ),
       );

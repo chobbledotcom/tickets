@@ -53,6 +53,7 @@ import {
 } from "./attendee-form-routes.ts";
 import { handleAttendeeLogisticsPost } from "./attendee-logistics-routes.ts";
 import { attendeePage } from "./attendee-page.ts";
+import { paymentReviewHandlers } from "./attendee-payment-review.ts";
 import { handleRefreshPayment } from "./attendees-edit.ts";
 import {
   handleAttendeesCsvExport,
@@ -365,10 +366,12 @@ const handleResendNotification = verifiedAttendeeAction(
  * Paginated attendees browser: attendees-list.ts
  * Refresh payment: attendees-edit.ts
  * Merge: attendees-merge.ts
+ * Payment review: attendee-payment-review.ts
  * Refunds: attendee-refunds.ts
  */
 export const adminHandlers = defineRoutes({
   ...entityTabRoutes("/admin/attendees", attendeePage, "attendeeId"),
+  ...paymentReviewHandlers,
   "DELETE /admin/attendees/:attendeeId/delete": handleAttendeeDelete,
   "GET /admin/attendees": handleAttendeesListGet,
   "GET /admin/attendees/:attendeeId/delete": handleAdminAttendeeDeleteGet,

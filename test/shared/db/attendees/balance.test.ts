@@ -25,7 +25,7 @@ import {
   getQueryLog,
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
-import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
+import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import {
   createNonReservationAttendee,

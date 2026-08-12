@@ -233,9 +233,8 @@ describe("admin refunds > attendee claim", () => {
   });
 
   test("reports a release failure without losing the run result", async () => {
-    const claim = claimResult(
-      claimedRows(new Map([[1, ["sess-one"]]])),
-      () => Promise.reject(new Error("the row would not let go")),
+    const claim = claimResult(claimedRows(new Map([[1, ["sess-one"]]])), () =>
+      Promise.reject(new Error("the row would not let go")),
     );
 
     const result = await underAttendeeClaim(claim, [], "keyed", 11, {

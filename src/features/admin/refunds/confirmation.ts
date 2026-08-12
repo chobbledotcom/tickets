@@ -1,3 +1,4 @@
+/* jscpd:ignore-start -- imports */
 import { requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import {
@@ -16,6 +17,8 @@ import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee } from "#shared/types.ts";
 import type { HeldRefundClaim } from "./claim.ts";
 import type { ReadyRefundReference } from "./readiness.ts";
+
+/* jscpd:ignore-end */
 
 type ConfirmedReference = ReadyRefundReference["reference"];
 export type RefundConfirmation = "current" | "new";

@@ -11,9 +11,9 @@ import {
 import { postTransfers } from "#shared/accounting/store.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
-import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
-import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
+import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
 import { refundReference } from "#test-utils/payment-state.ts";
+import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
 
 export const ATTENDEE = 3;
 export const BOOKING_AT = "2026-06-21T00:00:00.000Z";
@@ -93,16 +93,3 @@ export const expectRecordedRefundClearsAttendeeAndRevenue = async (
   expect(await accountBalance(attendeeAccount(attendeeId))).toBe(0);
   expect(await accountBalance(revenueAccount(listingId))).toBe(0);
 };
-
-export const leg = (overrides: Partial<Transfer>): Transfer => ({
-  amount: 5000,
-  destination: revenueAccount(1),
-  eventGroup: "g1",
-  id: 1,
-  kind: "sale",
-  occurredAt: BOOKING_AT,
-  recordedAt: BOOKING_AT,
-  reference: "r1",
-  source: attendeeAccount(ATTENDEE),
-  ...overrides,
-});

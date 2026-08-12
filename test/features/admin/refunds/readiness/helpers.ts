@@ -24,6 +24,7 @@ const referenceFacts = (
 ) => ({
   heldRowSessionIds: [`session_${index}`],
   index,
+  matchingIndexes: [index],
   refundState,
   rowSessionIds: [`session_${index}`],
   sessionIds: [`session_${index}`],

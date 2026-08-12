@@ -16,7 +16,7 @@ import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import {
   recordAttendeeRefund,
   recordAttendeeRefundsBatch,
-} from "#shared/refund-ledger.ts";
+} from "#shared/refund-ledger/record.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
@@ -77,7 +77,14 @@ describeWithEnv(
       expect(posted).toEqual(
         new Map([
           [13, refundLedgerResult([], [sessionReference("sess-13")])],
-          [14, refundLedgerResult([], [sessionReference("sess-14")])],
+          [
+            14,
+            refundLedgerResult(
+              [],
+              [sessionReference("sess-14")],
+              [sessionReference("sess-14")],
+            ),
+          ],
         ]),
       );
       expect((await allTransfers()).length).toBe(before);
@@ -208,9 +215,7 @@ describeWithEnv(
         sessionReference("sess-19"),
         returnedReference("pi-balance-19", ["balance-19"]),
       ];
-      expect(posted).toEqual(
-        new Map([[19, refundLedgerResult(references)]]),
-      );
+      expect(posted).toEqual(new Map([[19, refundLedgerResult(references)]]));
       expect(await accountBalance(attendeeAccount(19))).toBe(0);
       expect(await refundCashAmounts(19)).toEqual([1000, 2000]);
     });
@@ -255,9 +260,9 @@ describeWithEnv(
 
       const placed = sessionReference("sess-placed");
       const missing = sessionReference("sess-missing");
-      expect(
-        await recordAttendeeRefund(attendeeId, [placed, missing]),
-      ).toEqual(refundLedgerResult([placed], [missing]));
+      expect(await recordAttendeeRefund(attendeeId, [placed, missing])).toEqual(
+        refundLedgerResult([placed], [missing]),
+      );
       expect(await refundCashAmounts(attendeeId)).toEqual([5000]);
     });
 

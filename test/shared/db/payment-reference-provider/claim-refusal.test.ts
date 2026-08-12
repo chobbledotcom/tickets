@@ -1,3 +1,4 @@
+/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { test } from "@std/testing/bdd";
 import { execute } from "#shared/db/client.ts";
@@ -12,6 +13,7 @@ import {
   legacyBooking,
   rowFor,
 } from "../payment-reference-provider/helpers.ts";
+/* jscpd:ignore-end */
 
 const bindingsFor = async (
   references: readonly string[],

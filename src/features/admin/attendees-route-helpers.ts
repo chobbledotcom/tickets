@@ -77,7 +77,7 @@ export const withDecryptedAttendee =
 /**
  * Load an attendee (by id alone) plus its HOME listing — the attendee-scoped
  * counterpart of {@link loadAttendeeForListing} for the action routes under
- * /admin/attendees/:id/* (delete, refund, resend-notification). The home
+ * /admin/attendees/:id/* (delete, refund, payment review, notification). The home
  * listing is the attendee's first booking, exactly what the Actions tab keys
  * its links on; an orphan attendee (no bookings) 404s, as it always has.
  */
@@ -181,7 +181,7 @@ type AttendeeIdRouteParams = { attendeeId: number };
  * the parsed form. Shared by the note and logistics POSTs. */
 export const attendeeFormPost = (
   handle: IdFormHandler,
-): (request: Request, params: AttendeeIdRouteParams) => Promise<Response> =>
+): ((request: Request, params: AttendeeIdRouteParams) => Promise<Response>) =>
   createAuthedHandler<AttendeeIdRouteParams>({
     handle: ({ form, params, session }) =>
       handle(params.attendeeId, session, form),
@@ -205,7 +205,7 @@ type AttendeeFormAction = ResponseHandler<
 /** Create an attendee form handler with typed IDs */
 export const attendeeFormAction = (
   handler: AttendeeFormAction,
-): (request: Request, params: AttendeeRouteParams) => Promise<Response> =>
+): ((request: Request, params: AttendeeRouteParams) => Promise<Response>) =>
   createAuthedHandler<AttendeeRouteParams, AttendeeWithListing>({
     handle: ({ context, form, params, session }) =>
       handler(context, session, form, params.listingId, params.attendeeId),

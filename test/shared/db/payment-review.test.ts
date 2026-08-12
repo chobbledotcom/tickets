@@ -5,7 +5,10 @@ import {
   type PaymentRowRecord,
   readAttendeeRowStates,
 } from "#shared/db/payment-claim.ts";
-import { resolvePaymentReview } from "#shared/db/payment-review.ts";
+import {
+  getPaymentReviewStatus,
+  resolvePaymentReview,
+} from "#shared/db/payment-review.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 import type {
@@ -66,6 +69,33 @@ describeWithEnv(
   "db > resolving a payment review",
   { db: true, encryptionKey: true },
   () => {
+    test("summarizes whether owner-review work is actionable", async () => {
+      const attendeeId = await bookedWithPayment("sess-status", "pi_status");
+
+      expect(await getPaymentReviewStatus(attendeeId)).toBe("none");
+
+      await putRowState(
+        "sess-status",
+        await rowStateSlot({ review: { kind: "partial_refund" } }),
+        REVIEW_MIRROR,
+      );
+      expect(await getPaymentReviewStatus(attendeeId)).toBe("available");
+
+      await putRowState(
+        "sess-status",
+        await rowStateSlot(claimState(attendeeId, "keyed", false, true)),
+        CLAIM_MIRROR,
+      );
+      expect(await getPaymentReviewStatus(attendeeId)).toBe("blocked");
+
+      await putRowState(
+        "sess-status",
+        await rowStateSlot(claimState(attendeeId, "unresolved", true)),
+        CLAIM_MIRROR,
+      );
+      expect(await getPaymentReviewStatus(attendeeId)).toBe("available");
+    });
+
     test("retires reviews while preserving terminal and unrecorded facts", async () => {
       const attendeeId = await bookedWithPayment("sess-review", "pi_review");
       await putRowState(

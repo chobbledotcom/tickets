@@ -22,6 +22,7 @@ import {
   type ActionDef,
   defineEntityPage,
   type EntityPage,
+  prepareOwnerFields,
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
 import { panelTab, writeFormTab } from "#routes/admin/entity-write-tab.ts";
@@ -38,8 +39,8 @@ import {
 } from "#shared/types.ts";
 import { ListingDeactivatedBanner } from "#templates/admin/listings/overview.tsx";
 import {
-  listingHasEmailableAttendees,
   type LoadedListing,
+  listingHasEmailableAttendees,
   loadListingActivity,
   loadListingActivityPreview,
   loadListingForPage,
@@ -71,8 +72,10 @@ const actionUrl = ({ listing }: LoadedListing, action: string): string =>
   `/admin/listing/${listing.id}/${action}`;
 
 /** An action entry's href builder for a named sub-action on this listing. */
-const subAction = (action: string) => (entity: LoadedListing): string =>
-  actionUrl(entity, action);
+const subAction =
+  (action: string) =>
+  (entity: LoadedListing): string =>
+    actionUrl(entity, action);
 
 /** The Actions tab entries. Each `visible` mirrors the gate its old
  * {@link ListingActionNav} entry used, so no dead or forbidden link renders.
@@ -212,16 +215,11 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
     // global guard redirects the edit route to /read-only. Hide the tab then
     // rather than render a link that immediately bounces (and so an editor's
     // bare-URL default can't resolve onto an un-editable form).
-    writeFormTab(
-      "edit",
-      "entity.tab.edit",
-      (entity, ctx) => loadListingEditPanel(entity, ctx),
+    writeFormTab("edit", "entity.tab.edit", (entity, ctx) =>
+      loadListingEditPanel(entity, ctx),
     ),
-    writeFormTab(
-      "images",
-      "entity.tab.images",
-      loadListingImagesPanel,
-      () => isStorageEnabled(),
+    writeFormTab("images", "entity.tab.images", loadListingImagesPanel, () =>
+      isStorageEnabled(),
     ),
     ownerFeatureWriteTab(
       "attributes",
@@ -262,15 +260,11 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
           // and its recipient check decrypts PII — so resolve it here, when the
           // Actions tab renders, instead of on every tab's page load. Owner-only
           // (the sole role that sees Email); other staff skip the decrypt.
-          prepare: async (entity, ctx) =>
-            isOwnerRole(ctx.session.adminLevel)
-              ? {
-                ...entity,
-                hasEmailableAttendees: await listingHasEmailableAttendees(
-                  entity.listing.id,
-                ),
-              }
-              : entity,
+          prepare: prepareOwnerFields<LoadedListing>(async (entity) => ({
+            hasEmailableAttendees: await listingHasEmailableAttendees(
+              entity.listing.id,
+            ),
+          })),
           titleKey: "entity.tab.actions",
         },
       ],

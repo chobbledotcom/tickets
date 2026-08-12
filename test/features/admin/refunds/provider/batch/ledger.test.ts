@@ -3,7 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
 import { anchorSessionId } from "#shared/db/payment-anchor/session.ts";
-import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
+import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
 import {
   candidate,
   completedRefund,

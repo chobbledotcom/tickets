@@ -119,7 +119,7 @@ describe("admin refund provider > an unrecorded refund", () => {
           record: (attendees) => {
             recordedSessions.push(
               ...attendees.flatMap(({ references }) =>
-                references.flatMap(({ sessionIds }) => sessionIds)
+                references.flatMap(({ sessionIds }) => sessionIds),
               ),
             );
             return recordNoRefunds(attendees);

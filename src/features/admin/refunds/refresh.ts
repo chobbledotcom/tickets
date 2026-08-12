@@ -4,13 +4,12 @@ import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { markPaymentReferencesProviderRefunded } from "#shared/db/payment-references.ts";
 import type { ObservedRefundAdmission } from "#shared/payment/admit-refund.ts";
+import type { PaymentReviewReason } from "#shared/payment/review.ts";
 import { reportWithheldRefund } from "#shared/payment-review.ts";
-import {
-  isPaymentOnlyAccount,
-  recordAttendeeRefund,
-  type RefundLedgerResult,
-} from "#shared/refund-ledger.ts";
-import { referenceRowIds, type RefundCandidate } from "./candidates.ts";
+import { isPaymentOnlyAccount } from "#shared/refund-ledger/plan.ts";
+import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
+import type { RefundLedgerResult } from "#shared/refund-ledger/result.ts";
+import { type RefundCandidate, referenceRowIds } from "./candidates.ts";
 import {
   durableRowClaim,
   type HeldRefundClaim,
@@ -23,6 +22,7 @@ import {
   confirmRefund,
   type RefundConfirmation,
 } from "./confirmation.ts";
+import { applyRefundLedgerFindings } from "./ledger-findings.ts";
 import {
   prepareRefundReadiness,
   type ReadyRefundCandidate,
@@ -30,7 +30,6 @@ import {
 } from "./readiness.ts";
 import { runRefundReadiness } from "./readiness-run.ts";
 import { readyRefundAdmission } from "./ready-admission.ts";
-import { applyRefundLedgerFindings } from "./ledger-findings.ts";
 
 /* jscpd:ignore-end */
 
@@ -73,10 +72,21 @@ const paymentOnlyBeforeRefund = async (
 type RefreshedReference =
   | { kind: "returned"; reference: TaggedRefundReference }
   | {
-    admission: Exclude<ObservedRefundAdmission, { kind: "already_returned" }>;
-    kind: "unreturned";
-    reference: TaggedRefundReference;
-  };
+      admission: Exclude<ObservedRefundAdmission, { kind: "already_returned" }>;
+      kind: "unreturned";
+      reference: TaggedRefundReference;
+    };
+
+type UnreturnedReference = Extract<RefreshedReference, { kind: "unreturned" }>;
+
+const hasAdmission = (
+  observed: readonly RefreshedReference[],
+  kind: UnreturnedReference["admission"]["kind"],
+): boolean =>
+  observed.some(
+    (reference) =>
+      reference.kind === "unreturned" && reference.admission.kind === kind,
+  );
 
 const REVIEW_REQUIRED_MESSAGE =
   "This payment needs an owner review before another refund can be attempted.";
@@ -152,7 +162,7 @@ const retireCompletedRefundReviews = (
   findings: RunFindings,
 ): void => {
   const returnedRows = returned.flatMap((reference) =>
-    referenceRowIds(attendeeId, reference)
+    referenceRowIds(attendeeId, reference),
   );
   for (const sessionId of returnedRows) {
     const reason = heldReviews.get(sessionId);
@@ -180,7 +190,7 @@ const refreshReadyCandidate = async (
   >,
 ): Promise<RefreshPaymentResult> => {
   const observed = candidate.references.map((reference) =>
-    observedReference(reference, candidate.attendee.id, listingId)
+    observedReference(reference, candidate.attendee.id, listingId),
   );
   const returned = compact(observed.map(returnedReference));
   const hasUnreturned = returned.length !== candidate.references.length;
@@ -189,27 +199,22 @@ const refreshReadyCandidate = async (
     candidate.attendee.id,
     findings,
   );
-  const keepsClaim = observed.some(
-    (reference) =>
-      reference.kind === "unreturned" &&
-      reference.admission.kind === "in_flight",
-  ) ||
-    (inheritedKeyless &&
-      observed.some(
-        (reference) =>
-          reference.kind === "unreturned" &&
-          reference.admission.kind === "send",
-      ));
+  const keepsClaim =
+    hasAdmission(observed, "in_flight") ||
+    (inheritedKeyless && hasAdmission(observed, "send"));
   if (keepsClaim) {
     findings.doubts.set(candidate.attendee.id, "in_doubt");
   }
   await dependencies.markReturned(returned);
-  const ledger = returned.length === 0 ? undefined : applyRefundLedgerFindings(
-    findings,
-    candidate.attendee.id,
-    returned,
-    await dependencies.record(candidate.attendee.id, returned),
-  );
+  const ledger =
+    returned.length === 0
+      ? undefined
+      : applyRefundLedgerFindings(
+          findings,
+          candidate.attendee.id,
+          returned,
+          await dependencies.record(candidate.attendee.id, returned),
+        );
   const needsReview = providerNeedsReview || ledger?.needsReview === true;
   if (hasUnreturned) {
     if (keepsClaim) return { kind: "blocked", reason: "refund_in_progress" };

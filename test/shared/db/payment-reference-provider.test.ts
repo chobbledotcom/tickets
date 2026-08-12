@@ -1,3 +1,4 @@
+/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { test } from "@std/testing/bdd";
 import { execute } from "#shared/db/client.ts";
@@ -18,6 +19,7 @@ import {
   rowFor,
   taggedBooking,
 } from "./payment-reference-provider/helpers.ts";
+/* jscpd:ignore-end */
 
 describeWithEnv(
   "db > binding payment references to providers",
@@ -53,7 +55,7 @@ describeWithEnv(
       expect(await referenceIndexOf("bind_shared_a")).toBe(newIndex);
       expect(await referenceIndexOf("bind_shared_b")).toBe(newIndex);
       expect(await claimCapability("bind_shared_a")).toBe("keyed");
-      expect((await rowFor("bind_shared_b")).failure_data).toBe("");
+      expect(await claimCapability("bind_shared_b")).toBe("keyed");
     });
 
     test("uses one conservative capability for every held row", async () => {

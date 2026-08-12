@@ -18,6 +18,7 @@ import {
   type StoredPaymentReference,
   storePaymentReference,
 } from "#shared/db/payment-reference-store.ts";
+import { type HeldPaymentRow, heldPaymentRows } from "#shared/payment/claim.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 import type {
   RefundClaim,
@@ -46,11 +47,6 @@ export type PaymentReferenceProviderBindingResult =
       readonly kind: "bound";
     };
 
-type HeldSession = {
-  attendeeId: number;
-  sessionId: string;
-};
-
 type PreparedBinding = {
   newIndex: string;
   oldIndex: string;
@@ -63,15 +59,8 @@ type CheckedHeldRow = {
   record: PaymentRowRecord;
 };
 
-const heldSessionsFrom = (
-  held: ReadonlyMap<number, readonly string[]>,
-): HeldSession[] =>
-  [...held].flatMap(([attendeeId, sessionIds]) =>
-    sessionIds.map((sessionId) => ({ attendeeId, sessionId })),
-  );
-
 const requireDistinctHeldSessions = (
-  sessions: readonly HeldSession[],
+  sessions: readonly HeldPaymentRow[],
 ): void => {
   if (
     new Set(sessions.map(({ sessionId }) => sessionId)).size !== sessions.length
@@ -115,7 +104,7 @@ const rowsForBinding = (
 
 const checkedHeldRows = async (
   rows: readonly StoredPaymentClaimRow[],
-  sessions: readonly HeldSession[],
+  sessions: readonly HeldPaymentRow[],
   bindings: ReadonlyMap<string, TaggedPaymentReference>,
   heldSince: string,
 ): Promise<CheckedHeldRow[] | null> => {
@@ -194,7 +183,7 @@ const boundIndexes = (
 export const bindPaymentReferenceProviders = async (
   request: PaymentReferenceProviderBindingRequest,
 ): Promise<PaymentReferenceProviderBindingResult> => {
-  const sessions = heldSessionsFrom(request.held);
+  const sessions = heldPaymentRows(request.held);
   requireDistinctHeldSessions(sessions);
   const prepared = await prepareBindings(request.bindings);
   if (sessions.length === 0) {

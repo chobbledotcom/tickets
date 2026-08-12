@@ -40,7 +40,7 @@ import { sendNtfyError } from "#shared/ntfy.ts";
 import { paidPaymentReferenceOf } from "#shared/payment/validated-session.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
-import { recordPlaceholderRefund } from "#shared/refund-ledger.ts";
+import { recordPlaceholderRefund } from "#shared/refund-ledger/placeholder.ts";
 
 /** User-facing message when the outstanding balance changed mid-payment. */
 const BALANCE_CHANGED_MESSAGE =

@@ -9,11 +9,12 @@ import {
   refreshClaimedPayment,
   type RefreshPaymentDependencies,
 } from "#routes/admin/refunds/refresh.ts";
+import type { PaymentReviewChange } from "#shared/db/payment-claim.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { PaymentReviewReason } from "#shared/payment/review.ts";
 import type { ResolvedRefundCapability } from "#shared/payment/row-state.ts";
-import type { RefundLedgerResult } from "#shared/refund-ledger.ts";
+import type { RefundLedgerResult } from "#shared/refund-ledger/result.ts";
 import {
   candidate,
   tagged,
@@ -91,10 +92,12 @@ const runHarness = (values: HarnessValues = {}) => {
       observed: values.observed === undefined ? chargeMoney() : values.observed,
       reference,
     },
-    ...(values.siblingObserved === undefined ? [] : [{
-      observed: values.siblingObserved,
-      reference: tagged("pi_refresh_sibling", "stripe"),
-    }]),
+    ...(values.siblingObserved === undefined ? [] : [
+      {
+        observed: values.siblingObserved,
+        reference: tagged("pi_refresh_sibling", "stripe"),
+      },
+    ]),
   ];
   const references = observations.map(({ reference }) => reference);
   const source = candidate(ATTENDEE_ID, references);
@@ -102,18 +105,23 @@ const runHarness = (values: HarnessValues = {}) => {
   const inherited = values.inherited === undefined
     ? new Map<number, ResolvedRefundCapability>()
     : new Map([[ATTENDEE_ID, values.inherited]]);
+  const existingReviews = new Map<string, PaymentReviewReason>();
+  if (values.existingReview !== undefined) {
+    const [sessionId] = reference.rowSessionIds;
+    if (sessionId === undefined) {
+      throw new Error("The test reference has no row");
+    }
+    existingReviews.set(sessionId, values.existingReview);
+  }
   const claim = grantingRowClaim(
-    new Map([[
-      ATTENDEE_ID,
-      references.flatMap(({ rowSessionIds }) => rowSessionIds),
-    ]]),
+    new Map([
+      [ATTENDEE_ID, references.flatMap(({ rowSessionIds }) => rowSessionIds)],
+    ]),
     inherited,
     values.existingUnrecorded === undefined
       ? new Map()
       : new Map([[ATTENDEE_ID, values.existingUnrecorded]]),
-    values.existingReview === undefined
-      ? new Map()
-      : new Map([[reference.rowSessionIds[0]!, values.existingReview]]),
+    existingReviews,
   );
   const marked: (readonly RefundPaymentReference[])[] = [];
   const recorded: (readonly RefundPaymentReference[])[] = [];
@@ -138,8 +146,7 @@ const runHarness = (values: HarnessValues = {}) => {
     prepare: () => {
       calls.prepare++;
       return Promise.resolve(
-        values.readiness ??
-          readyResult(observations, provider),
+        values.readiness ?? readyResult(observations, provider),
       );
     },
     record: (_attendeeId, references) => {
@@ -166,15 +173,57 @@ const runHarness = (values: HarnessValues = {}) => {
   };
 };
 
+type RefreshHarness = ReturnType<typeof runHarness>;
+
+const refresh = (
+  run: RefreshHarness,
+  dependencies: RefreshPaymentDependencies = run.dependencies,
+) => refreshClaimedPayment(run.source, LISTING_ID, dependencies);
+
+const firstReferenceRow = (run: RefreshHarness): string => {
+  const [sessionId] = run.reference.rowSessionIds;
+  if (sessionId === undefined) throw new Error("The test reference has no row");
+  return sessionId;
+};
+
+const reviewChange = (
+  run: RefreshHarness,
+  change: PaymentReviewChange,
+): ReadonlyMap<string, PaymentReviewChange> =>
+  new Map([[firstReferenceRow(run), change]]);
+
+const pendingRefundMoney = (): ChargeMoney =>
+  chargeMoneyWith({
+    refunds: [refundObservation({ amount: gbp(100), status: "pending" })],
+  });
+
+const expectNewCompletedRefresh = async (
+  run: RefreshHarness,
+): Promise<void> => {
+  expect(await refresh(run)).toEqual({
+    confirmation: "new",
+    kind: "returned",
+    posted: true,
+  });
+  expect(run.provider.sends).toBe(0);
+  expect(run.marked).toEqual([[run.reference]]);
+};
+
+const expectObligationReview = (run: RefreshHarness): void => {
+  expect(run.claim.unrecorded).toEqual([run.reference.rowSessionIds]);
+  expect(run.claim.reviewChanges).toEqual([
+    reviewChange(run, {
+      kind: "review",
+      reason: { kind: "partially_returned_obligation" },
+    }),
+  ]);
+};
+
 describe("refresh payment under an attendee claim", () => {
   test("records exact returned evidence without asking the provider to send", async () => {
     const run = runHarness({ observed: fullyRefundedMoney() });
 
-    expect(
-      await refreshClaimedPayment(run.source, LISTING_ID, run.dependencies),
-    ).toEqual({ confirmation: "new", kind: "returned", posted: true });
-    expect(run.provider.sends).toBe(0);
-    expect(run.marked).toEqual([[run.reference]]);
+    await expectNewCompletedRefresh(run);
     expect(run.recorded).toEqual([[run.reference]]);
     expect(run.claim.released).toEqual([run.reference.rowSessionIds]);
   });
@@ -183,7 +232,7 @@ describe("refresh payment under an attendee claim", () => {
     const run = runHarness({ observed: fullyRefundedMoney(), posted: false });
 
     expect(
-      await refreshClaimedPayment(run.source, LISTING_ID, run.dependencies),
+      await refresh(run),
     ).toEqual({ kind: "returned", posted: false });
     expect(run.calls.confirm).toBe(0);
     expect(run.claim.released).toEqual([run.reference.rowSessionIds]);
@@ -193,11 +242,7 @@ describe("refresh payment under an attendee claim", () => {
   test("reuses a completed marker without a provider read or send", async () => {
     const run = runHarness({ observed: null, paymentOnly: false });
 
-    expect(
-      await refreshClaimedPayment(run.source, LISTING_ID, run.dependencies),
-    ).toEqual({ confirmation: "new", kind: "returned", posted: true });
-    expect(run.provider.sends).toBe(0);
-    expect(run.marked).toEqual([[run.reference]]);
+    await expectNewCompletedRefresh(run);
     expect(run.calls.confirm).toBe(1);
   });
 
@@ -208,7 +253,7 @@ describe("refresh payment under an attendee claim", () => {
     });
 
     await expect(
-      refreshClaimedPayment(run.source, LISTING_ID, run.dependencies),
+      refresh(run),
     ).rejects.toThrow("activity unavailable");
     expect(run.calls.confirm).toBe(1);
     expect(run.claim.released).toEqual([]);
@@ -218,7 +263,7 @@ describe("refresh payment under an attendee claim", () => {
     const run = runHarness({ inherited: "keyed" });
 
     expect(
-      await refreshClaimedPayment(run.source, LISTING_ID, run.dependencies),
+      await refresh(run),
     ).toEqual({ kind: "current" });
     expect(run.marked).toEqual([[]]);
     expect(run.calls.record).toBe(0);
@@ -232,7 +277,7 @@ describe("refresh payment under an attendee claim", () => {
     });
 
     expect(
-      await refreshClaimedPayment(run.source, LISTING_ID, run.dependencies),
+      await refresh(run),
     ).toEqual({ kind: "current" });
     expect(run.recorded).toEqual([[run.reference]]);
     expect(run.claim.recorded).toEqual([run.reference.rowSessionIds]);
@@ -251,25 +296,14 @@ describe("refresh payment under an attendee claim", () => {
     });
 
     expect(
-      await refreshClaimedPayment(run.source, LISTING_ID, run.dependencies),
+      await refresh(run),
     ).toEqual({
       kind: "needs_review",
       message:
         "This payment needs an owner review before another refund can be attempted.",
     });
     expect(run.recorded).toEqual([[run.reference]]);
-    expect(run.claim.unrecorded).toEqual([run.reference.rowSessionIds]);
-    expect(run.claim.reviewChanges).toEqual([
-      new Map([
-        [
-          run.reference.rowSessionIds[0]!,
-          {
-            kind: "review",
-            reason: { kind: "partially_returned_obligation" },
-          },
-        ],
-      ]),
-    ]);
+    expectObligationReview(run);
     expect(run.claim.released).toEqual([
       run.references.flatMap(({ rowSessionIds }) => rowSessionIds),
     ]);
@@ -279,26 +313,13 @@ describe("refresh payment under an attendee claim", () => {
     const run = runHarness({
       ledger: (references) => refundLedgerResult([], references, references),
       observed: fullyRefundedMoney(),
-      siblingObserved: chargeMoneyWith({
-        refunds: [refundObservation({ amount: gbp(100), status: "pending" })],
-      }),
+      siblingObserved: pendingRefundMoney(),
     });
 
     expect(
-      await refreshClaimedPayment(run.source, LISTING_ID, run.dependencies),
+      await refresh(run),
     ).toEqual({ kind: "blocked", reason: "refund_in_progress" });
-    expect(run.claim.unrecorded).toEqual([run.reference.rowSessionIds]);
-    expect(run.claim.reviewChanges).toEqual([
-      new Map([
-        [
-          run.reference.rowSessionIds[0]!,
-          {
-            kind: "review",
-            reason: { kind: "partially_returned_obligation" },
-          },
-        ],
-      ]),
-    ]);
+    expectObligationReview(run);
     expect(run.claim.released).toEqual([[]]);
   });
 
@@ -309,20 +330,16 @@ describe("refresh payment under an attendee claim", () => {
       }),
     });
 
-    expect(
-      await refreshClaimedPayment(run.source, LISTING_ID, run.dependencies),
-    ).toEqual({
+    expect(await refresh(run)).toEqual({
       kind: "needs_review",
       message:
         "This payment needs an owner review before another refund can be attempted.",
     });
     expect(run.claim.reviewChanges).toEqual([
-      new Map([
-        [
-          run.reference.rowSessionIds[0]!,
-          { kind: "review", reason: { kind: "partial_refund" } },
-        ],
-      ]),
+      reviewChange(run, {
+        kind: "review",
+        reason: { kind: "partial_refund" },
+      }),
     ]);
     expect(run.claim.released).toEqual([run.reference.rowSessionIds]);
   });
@@ -337,20 +354,15 @@ describe("refresh payment under an attendee claim", () => {
         existingReview,
         observed: fullyRefundedMoney(),
       });
-      expect(
-        await refreshClaimedPayment(
-          completed.source,
-          LISTING_ID,
-          completed.dependencies,
-        ),
-      ).toMatchObject({ kind: "returned", posted: true });
+      expect(await refresh(completed)).toMatchObject({
+        kind: "returned",
+        posted: true,
+      });
       expect(completed.claim.reviewChanges).toEqual([
-        new Map([
-          [
-            completed.reference.rowSessionIds[0]!,
-            { kind: "resolved", reason: existingReview.kind },
-          ],
-        ]),
+        reviewChange(completed, {
+          kind: "resolved",
+          reason: existingReview.kind,
+        }),
       ]);
     }
 
@@ -358,36 +370,33 @@ describe("refresh payment under an attendee claim", () => {
       existingReview: { kind: "shared_reference" },
       observed: fullyRefundedMoney(),
     });
-    expect(
-      await refreshClaimedPayment(
-        unrelated.source,
-        LISTING_ID,
-        unrelated.dependencies,
-      ),
-    ).toMatchObject({ kind: "returned", posted: true });
+    expect(await refresh(unrelated)).toMatchObject({
+      kind: "returned",
+      posted: true,
+    });
     expect(unrelated.claim.reviewChanges).toEqual([new Map()]);
   });
 
   test("retains an inherited keyless claim when no refund is visible", async () => {
     const run = runHarness({ inherited: "keyless" });
 
-    expect(
-      await refreshClaimedPayment(run.source, LISTING_ID, run.dependencies),
-    ).toEqual({ kind: "blocked", reason: "refund_in_progress" });
+    expect(await refresh(run)).toEqual({
+      kind: "blocked",
+      reason: "refund_in_progress",
+    });
     expect(run.provider.sends).toBe(0);
     expect(run.claim.released).toEqual([]);
   });
 
   test("retains the claim while an observed refund is still settling", async () => {
     const run = runHarness({
-      observed: chargeMoneyWith({
-        refunds: [refundObservation({ amount: gbp(100), status: "pending" })],
-      }),
+      observed: pendingRefundMoney(),
     });
 
-    expect(
-      await refreshClaimedPayment(run.source, LISTING_ID, run.dependencies),
-    ).toEqual({ kind: "blocked", reason: "refund_in_progress" });
+    expect(await refresh(run)).toEqual({
+      kind: "blocked",
+      reason: "refund_in_progress",
+    });
     expect(run.claim.released).toEqual([]);
   });
 
@@ -412,7 +421,7 @@ describe("refresh payment under an attendee claim", () => {
     });
 
     expect(
-      await refreshClaimedPayment(run.source, LISTING_ID, run.dependencies),
+      await refresh(run),
     ).toEqual({
       kind: "not_ready",
       message:
@@ -433,7 +442,7 @@ describe("refresh payment under an attendee claim", () => {
     });
 
     expect(
-      await refreshClaimedPayment(run.source, LISTING_ID, run.dependencies),
+      await refresh(run),
     ).toMatchObject({ kind: "not_ready" });
     expect(run.claim.unrecorded).toEqual([[]]);
   });
@@ -445,7 +454,7 @@ describe("refresh payment under an attendee claim", () => {
     });
 
     expect(
-      await refreshClaimedPayment(run.source, LISTING_ID, run.dependencies),
+      await refresh(run),
     ).toEqual({
       kind: "not_ready",
       message:
@@ -469,7 +478,7 @@ describe("refresh payment under an attendee claim", () => {
     });
 
     expect(
-      await refreshClaimedPayment(run.source, LISTING_ID, {
+      await refresh(run, {
         ...run.dependencies,
         claim,
       }),
@@ -482,7 +491,7 @@ describe("refresh payment under an attendee claim", () => {
     const claim = refusingClaim({ kind: "changed" });
 
     expect(
-      await refreshClaimedPayment(run.source, LISTING_ID, {
+      await refresh(run, {
         ...run.dependencies,
         claim,
       }),

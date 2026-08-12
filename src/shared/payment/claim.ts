@@ -13,6 +13,19 @@ import type { RefundClaim } from "#shared/payment/row-state.ts";
  *  only a run taking that same whole set again may resume a crashed one. */
 export type ClaimRequest = { attendeeId: number; scope: "attendee_set" };
 
+export type HeldPaymentRow = {
+  readonly attendeeId: number;
+  readonly sessionId: string;
+};
+
+/** Name every exact payment row in an attendee-keyed claim. */
+export const heldPaymentRows = (
+  held: ReadonlyMap<number, readonly string[]>,
+): HeldPaymentRow[] =>
+  [...held].flatMap(([attendeeId, sessionIds]) =>
+    sessionIds.map((sessionId) => ({ attendeeId, sessionId })),
+  );
+
 /** What a run may do with the row it just read. `grant` and `resume` both end
  *  holding the claim, kept apart because resuming means a previous run died
  *  mid-flight and must be re-judged behind fresh evidence. `held` and

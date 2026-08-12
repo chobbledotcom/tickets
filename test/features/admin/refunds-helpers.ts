@@ -52,7 +52,9 @@ export const setupRefundTest = async (
 
 /** Mark a paid test attendee as refunded through the production ledger path. */
 export const markAsRefunded = async (attendeeId: number): Promise<void> => {
-  const { recordAttendeeRefund } = await import("#shared/refund-ledger.ts");
+  const { recordAttendeeRefund } = await import(
+    "#shared/refund-ledger/record.ts"
+  );
   await recordAttendeeRefund(attendeeId, [
     { index: `legacy-refund-${attendeeId}`, sessionIds: [] },
   ]);

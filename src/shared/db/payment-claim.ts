@@ -77,6 +77,11 @@ export const asPaymentRowRecord = async (
     : EMPTY_ROW_STATE,
 });
 
+/** Decode the row-state slots returned by either payment-row reader. */
+const asPaymentRowRecords = (
+  rows: readonly StoredPaymentClaimRow[],
+): Promise<PaymentRowRecord[]> => Promise.all(rows.map(asPaymentRowRecord));
+
 /** Every payment row these attendees own, with its record. Unlike the claim's
  *  read this does not filter by reference: a row that no longer names a charge
  *  can still carry work someone has to finish. Takes the caller's own write
@@ -85,28 +90,42 @@ export const readAttendeeRowStates = async (
   tx: TxScope,
   attendeeIds: readonly number[],
 ): Promise<PaymentRowRecord[]> =>
-  await Promise.all(
-    (
-      await readPaymentClaimRows(
-        tx,
-        `attendee_id IN (${inPlaceholders(attendeeIds)})`,
-        [...attendeeIds],
-      )
-    ).map(asPaymentRowRecord),
+  await asPaymentRowRecords(
+    await readPaymentClaimRows(
+      tx,
+      `attendee_id IN (${inPlaceholders(attendeeIds)})`,
+      [...attendeeIds],
+    ),
   );
+
+/** Read payment-row work from the primary without opening a write transaction. */
+export const loadAttendeeRowStates = async (
+  attendeeIds: readonly number[],
+): Promise<PaymentRowRecord[]> => {
+  const [read] = await queryBatchPrimary([
+    {
+      args: [...attendeeIds],
+      sql: paymentClaimRowsSql(
+        `attendee_id IN (${inPlaceholders(attendeeIds)})`,
+      ),
+    },
+  ]);
+  return asPaymentRowRecords(resultRows<StoredPaymentClaimRow>(read!));
+};
 
 /** Fail when a confirmer no longer owns every payment row it started with. */
 export const assertRefundRowsHeld = async (
   tx: TxScope,
   claim: { heldSince: string; sessionIds: readonly string[] },
 ): Promise<void> => {
-  const stored = claim.sessionIds.length === 0
-    ? []
-    : await readPaymentClaimRows(
-      tx,
-      `payment_session_id IN (${inPlaceholders(claim.sessionIds)})`,
-      [...claim.sessionIds],
-    );
+  const stored =
+    claim.sessionIds.length === 0
+      ? []
+      : await readPaymentClaimRows(
+          tx,
+          `payment_session_id IN (${inPlaceholders(claim.sessionIds)})`,
+          [...claim.sessionIds],
+        );
   const rows = await Promise.all(stored.map(asPaymentRowRecord));
   if (
     rows.length !== claim.sessionIds.length ||
@@ -138,9 +157,9 @@ export const paymentRowStateStatement = async (
 export type PaymentReviewChange =
   | { readonly kind: "review"; readonly reason: PaymentReviewReason }
   | {
-    readonly kind: "resolved";
-    readonly reason: PaymentReviewReason["kind"];
-  };
+      readonly kind: "resolved";
+      readonly reason: PaymentReviewReason["kind"];
+    };
 
 export type PaymentBooksChange = "recorded" | "unrecorded";
 
@@ -187,8 +206,8 @@ const rewriteRows = async (
       ),
     },
   ]);
-  const rows = await Promise.all(
-    resultRows<StoredPaymentClaimRow>(read!).map(asPaymentRowRecord),
+  const rows = await asPaymentRowRecords(
+    resultRows<StoredPaymentClaimRow>(read!),
   );
   const writes = await Promise.all(
     mapNotNullish((row: PaymentRowRecord) => {
@@ -210,9 +229,10 @@ const withBooksChange = (
   if (change === "recorded") return kept;
   return {
     ...kept,
-    unrecorded: state.unrecorded === undefined
-      ? { returnedAt: nowIso() }
-      : state.unrecorded,
+    unrecorded:
+      state.unrecorded === undefined
+        ? { returnedAt: nowIso() }
+        : state.unrecorded,
   };
 };
 

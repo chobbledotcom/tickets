@@ -22,12 +22,11 @@ import {
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
-import {
-  isPaymentOnlyAccount,
-  recordAttendeeRefund,
-} from "#shared/refund-ledger.ts";
+import { isPaymentOnlyAccount } from "#shared/refund-ledger/plan.ts";
+import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
 import {
   ATTENDEE,
   BOOKING_AT,
@@ -37,10 +36,8 @@ import {
   postBooking,
   refundCashAmounts,
   refundLegsOf,
-  returnedReference,
   sessionReference,
 } from "./refund-ledger/helpers.ts";
-import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
 
 // -- recordAttendeeRefund (integration) ---------------------------------- //
 
@@ -49,13 +46,19 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
 
   const expectRefundNeedsManualAdjustment = async (
     references = [sessionReference("sess-1")],
+    review: typeof references = [],
   ): Promise<void> => {
     expect(await recordAttendeeRefund(ATTENDEE, references)).toEqual(
-      refundLedgerResult([], references),
+      refundLedgerResult([], references, review),
     );
     expect(
       refundLegsOf(await transfersByAccount(attendeeAccount(ATTENDEE))),
     ).toEqual([]);
+  };
+
+  const expectRefundNeedsObligationReview = (): Promise<void> => {
+    const reference = sessionReference("sess-1");
+    return expectRefundNeedsManualAdjustment([reference], [reference]);
   };
 
   const postPartPaidBookingWithManualCredit = async ({
@@ -113,9 +116,7 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
       const result = await recordAttendeeRefund(ATTENDEE, [
         sessionReference("sess-1"),
       ]);
-      expect(result).toEqual(
-        refundLedgerResult([sessionReference("sess-1")]),
-      );
+      expect(result).toEqual(refundLedgerResult([sessionReference("sess-1")]));
       // Distinct round-trip start times: a prepared batch shares one window, while
       // a per-leg interactive transaction would show ~legs distinct round-trips
       // (and trip the transaction guard well before reaching them).
@@ -198,70 +199,7 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     // A guard-skip reports posted:false: the ledger does NOT record a refund, so
     // the caller must surface it (manual adjustment) rather than let the payment
     // read as refunded.
-    await expectRefundNeedsManualAdjustment();
-  });
-
-  test("does not cancel an underfunded booking when only its deposit came back", async () => {
-    await postBooking({
-      amountPaid: 1000,
-      eventId: "deposit-session",
-      lines: [{ gross: 3000, listingId: 1 }],
-    });
-    await postTransfers([
-      {
-        amount: 2000,
-        destination: attendeeAccount(ATTENDEE),
-        eventGroup: await balanceEventGroup("balance-session"),
-        kind: KIND.payment,
-        occurredAt: BOOKING_AT,
-        reference: "balance-pay",
-        source: WORLD,
-      },
-    ]);
-
-    const deposit = sessionReference("deposit-session");
-    expect(await recordAttendeeRefund(ATTENDEE, [deposit])).toEqual(
-      refundLedgerResult([], [deposit], [deposit]),
-    );
-    expect(
-      refundLegsOf(await transfersByAccount(attendeeAccount(ATTENDEE))),
-    ).toEqual([]);
-    expect(await accountBalance(revenueAccount(1))).toBe(3000);
-  });
-
-  test("keeps a multi-booking reference unrecorded until every named group is safe", async () => {
-    await postBooking({
-      amountPaid: 1000,
-      eventId: "safe-session",
-      lines: [{ gross: 1000, listingId: 1 }],
-    });
-    await postBooking({
-      amountPaid: 1000,
-      eventId: "unsafe-session",
-      lines: [{ gross: 3000, listingId: 2 }],
-    });
-    await postTransfers([
-      {
-        amount: 2000,
-        destination: attendeeAccount(ATTENDEE),
-        eventGroup: await balanceEventGroup("balance-session"),
-        kind: KIND.payment,
-        occurredAt: BOOKING_AT,
-        reference: "balance-pay",
-        source: WORLD,
-      },
-    ]);
-    const returned = returnedReference("pi-multi", [
-      "safe-session",
-      "unsafe-session",
-    ]);
-
-    expect(await recordAttendeeRefund(ATTENDEE, [returned])).toEqual(
-      refundLedgerResult([], [returned], [returned]),
-    );
-    expect(await refundCashAmounts()).toEqual([1000]);
-    expect(await accountBalance(revenueAccount(1))).toBe(0);
-    expect(await accountBalance(revenueAccount(2))).toBe(3000);
+    await expectRefundNeedsObligationReview();
   });
 
   test("is idempotent — a second refund writes nothing but still reports posted", async () => {
@@ -286,10 +224,7 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
   test("reverses an attendee carrying more than one fully-paid booking order", async () => {
     await postBooking({ eventId: "sess-1" });
     await postBooking({ eventId: "sess-2" });
-    const references = [
-      sessionReference("sess-1"),
-      sessionReference("sess-2"),
-    ];
+    const references = [sessionReference("sess-1"), sessionReference("sess-2")];
     expect(await recordAttendeeRefund(ATTENDEE, references)).toEqual(
       refundLedgerResult(references),
     );
@@ -320,7 +255,7 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
       source: WORLD,
     });
 
-    await expectRefundNeedsManualAdjustment();
+    await expectRefundNeedsObligationReview();
   });
 
   test("fails closed when a fully paid account includes a write-off correction", async () => {
@@ -330,7 +265,7 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
       source: WRITEOFF,
     });
 
-    await expectRefundNeedsManualAdjustment();
+    await expectRefundNeedsObligationReview();
   });
 
   test("logs and does not throw when the refund post conflicts", async () => {

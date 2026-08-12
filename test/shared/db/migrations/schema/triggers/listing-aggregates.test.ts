@@ -21,7 +21,7 @@ import {
 import { TRIGGERS } from "#shared/db/migrations/schema/triggers.ts";
 import { BACKFILL_LISTING_AGGREGATES_SQL } from "#shared/db/migrations/schema-sync.ts";
 
-import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
+import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
 import { readListingAggregates as aggregates } from "#test/test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -61,7 +61,7 @@ describe("tickets_count shared predicate guard", () => {
   // recalculation and reset behavior are covered through their public methods.
   const ticketCountSites: [name: string, sql: string][] = [
     ...TRIGGERS.filter((t) =>
-      t.name.startsWith("trg_listing_attendees_aggregates_")
+      t.name.startsWith("trg_listing_attendees_aggregates_"),
     ).map((t): [string, string] => [t.name, t.sql]),
     ["backfillListingAggregates", BACKFILL_LISTING_AGGREGATES_SQL],
     ["attendeeListingContributions", ATTENDEE_LISTING_CONTRIBUTIONS_SQL],
@@ -100,8 +100,7 @@ describeWithEnv(
     ): Promise<unknown> =>
       getDb().execute({
         args: [listingId, attendeeId, quantity],
-        sql:
-          "INSERT INTO listing_attendees (listing_id, attendee_id, quantity) VALUES (?, ?, ?)",
+        sql: "INSERT INTO listing_attendees (listing_id, attendee_id, quantity) VALUES (?, ?, ?)",
       });
 
     const incomeOf = async (listingId: number): Promise<number> => {
@@ -158,8 +157,7 @@ describeWithEnv(
       // 0 -> n: the UPDATE trigger adds the ticket and the quantity.
       await getDb().execute({
         args: [listing.id, 1],
-        sql:
-          "UPDATE listing_attendees SET quantity = 4 WHERE listing_id = ? AND attendee_id = ?",
+        sql: "UPDATE listing_attendees SET quantity = 4 WHERE listing_id = ? AND attendee_id = ?",
       });
       expect(await aggregates(listing.id)).toEqual({
         booked_quantity: 4,
@@ -169,8 +167,7 @@ describeWithEnv(
       // n -> 0: and removes them again.
       await getDb().execute({
         args: [listing.id, 1],
-        sql:
-          "UPDATE listing_attendees SET quantity = 0 WHERE listing_id = ? AND attendee_id = ?",
+        sql: "UPDATE listing_attendees SET quantity = 0 WHERE listing_id = ? AND attendee_id = ?",
       });
       expect(await aggregates(listing.id)).toEqual({
         booked_quantity: 0,
@@ -209,8 +206,7 @@ describeWithEnv(
       await insertAttendee(listing.id, 2, 0);
       await getDb().execute({
         args: [listing.id, 2],
-        sql:
-          "DELETE FROM listing_attendees WHERE listing_id = ? AND attendee_id = ?",
+        sql: "DELETE FROM listing_attendees WHERE listing_id = ? AND attendee_id = ?",
       });
       expect(await aggregates(listing.id)).toEqual({
         booked_quantity: 2,
@@ -224,8 +220,7 @@ describeWithEnv(
       await insertAttendee(listing.id, 2, 2);
       await getDb().execute({
         args: [listing.id, 1],
-        sql:
-          "DELETE FROM listing_attendees WHERE listing_id = ? AND attendee_id = ?",
+        sql: "DELETE FROM listing_attendees WHERE listing_id = ? AND attendee_id = ?",
       });
       expect(await aggregates(listing.id)).toEqual({
         booked_quantity: 2,
@@ -238,8 +233,7 @@ describeWithEnv(
       await insertAttendee(listing.id, 1, 3);
       await getDb().execute({
         args: [listing.id, 1],
-        sql:
-          "UPDATE listing_attendees SET quantity = 5 WHERE listing_id = ? AND attendee_id = ?",
+        sql: "UPDATE listing_attendees SET quantity = 5 WHERE listing_id = ? AND attendee_id = ?",
       });
       expect(await aggregates(listing.id)).toEqual({
         booked_quantity: 5,
@@ -254,8 +248,7 @@ describeWithEnv(
 
       await getDb().execute({
         args: [to.id, from.id, 1],
-        sql:
-          "UPDATE listing_attendees SET listing_id = ? WHERE listing_id = ? AND attendee_id = ?",
+        sql: "UPDATE listing_attendees SET listing_id = ? WHERE listing_id = ? AND attendee_id = ?",
       });
 
       expect(await aggregates(from.id)).toEqual({
@@ -276,8 +269,7 @@ describeWithEnv(
       // checked_in is not in the trigger's UPDATE OF list, so this must not fire.
       await getDb().execute({
         args: [listing.id, 1],
-        sql:
-          "UPDATE listing_attendees SET checked_in = 1 WHERE listing_id = ? AND attendee_id = ?",
+        sql: "UPDATE listing_attendees SET checked_in = 1 WHERE listing_id = ? AND attendee_id = ?",
       });
 
       expect(await aggregates(listing.id)).toEqual(before);

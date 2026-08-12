@@ -10,7 +10,6 @@ import {
   refundObservation,
 } from "#test-utils/payment-state.ts";
 import { grantingRowClaim } from "#test-utils/refund-routes.ts";
-import { recordEveryRefund } from "./ledger-results.ts";
 import {
   candidate,
   finishedCounts,
@@ -19,6 +18,7 @@ import {
   provider,
   readyCandidate,
 } from "./helpers.ts";
+import { recordEveryRefund } from "./ledger-results.ts";
 
 describe("admin refund provider > the claim", () => {
   const errors = setupErrorSpy();
@@ -299,12 +299,10 @@ describe("admin refund provider > a refund still settling", () => {
     expect(rowClaim.released).toEqual([]);
   });
 
-  for (
-    const [name, read] of [
-      ["missing", { status: "missing" }],
-      ["invalid", { reason: "malformed_response", status: "invalid" }],
-    ] as const satisfies readonly [string, ProviderRead<ChargeMoney>][]
-  ) {
+  for (const [name, read] of [
+    ["missing", { status: "missing" }],
+    ["invalid", { reason: "malformed_response", status: "invalid" }],
+  ] as const satisfies readonly [string, ProviderRead<ChargeMoney>][]) {
     test(`keeps an inherited keyless claim when the provider read is ${name}`, async () => {
       const rowClaim = grantingRowClaim(
         new Map([[42, ["sess_pi_unproved"]]]),

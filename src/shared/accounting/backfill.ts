@@ -8,7 +8,7 @@
  * also gets the matching reversal. One event group per attendee
  * (`backfill:att:<id>`) mirrors the live booking flow — a multi-listing booking
  * is one order — so a later admin refund still finds a single booking order via
- * {@link file://../refund-ledger.ts}.
+ * the refund-ledger plan.
  *
  * It reuses the live mappers, so references and validation match the dual-write
  * path exactly. Each attendee's legs are written with `INSERT OR IGNORE` keyed

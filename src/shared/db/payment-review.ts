@@ -4,6 +4,7 @@
 import { logActivity } from "#shared/db/activity-log.ts";
 import { withTransaction } from "#shared/db/client.ts";
 import {
+  loadAttendeeRowStates,
   type PaymentRowRecord,
   paymentRowStateStatement,
   readAttendeeRowStates,
@@ -27,6 +28,8 @@ export type ResolvePaymentReviewResult =
   | { readonly kind: "nothing_to_review" }
   | { readonly kind: "resolved" };
 
+export type PaymentReviewStatus = "available" | "blocked" | "none";
+
 const OWNER_RESOLVED_OUTCOME: StoredPaymentFailure = {
   error: "Payment review resolved by the owner",
 };
@@ -37,6 +40,23 @@ type RowReviewDecision =
   | { readonly kind: "blocked" }
   | { readonly kind: "current" }
   | { readonly claim: "none" | "release"; readonly kind: "resolve" };
+
+type JudgedPaymentRow = {
+  readonly decision: RowReviewDecision;
+  readonly row: PaymentRowRecord;
+};
+
+const STATUS_BY_DECISION = {
+  blocked: "blocked",
+  current: "none",
+  resolve: "available",
+} as const satisfies Record<RowReviewDecision["kind"], PaymentReviewStatus>;
+
+const STATUS_PRIORITY = {
+  available: 1,
+  blocked: 2,
+  none: 0,
+} as const satisfies Record<PaymentReviewStatus, number>;
 
 const reviewDecision = (
   row: PaymentRowRecord,
@@ -52,6 +72,34 @@ const reviewDecision = (
     ? { claim: "release", kind: "resolve" }
     : { kind: "blocked" };
 };
+
+const judgePaymentRows = (
+  rows: readonly PaymentRowRecord[],
+  staleBefore: string,
+): JudgedPaymentRow[] =>
+  rows.map((row) => ({ decision: reviewDecision(row, staleBefore), row }));
+
+/** One aggregate state drives both action visibility and POST decisions. */
+const paymentReviewStatus = (
+  judged: readonly JudgedPaymentRow[],
+): PaymentReviewStatus =>
+  judged.reduce<PaymentReviewStatus>((chosen, { decision }) => {
+    const candidate = STATUS_BY_DECISION[decision.kind];
+    return STATUS_PRIORITY[candidate] > STATUS_PRIORITY[chosen]
+      ? candidate
+      : chosen;
+  }, "none");
+
+/** Read whether an attendee has owner-review work that can be retired now. */
+export const getPaymentReviewStatus = async (
+  attendeeId: number,
+): Promise<PaymentReviewStatus> =>
+  paymentReviewStatus(
+    judgePaymentRows(
+      await loadAttendeeRowStates([attendeeId]),
+      isoBefore(claimLeaseMs(STALE_RESERVATION_MS)),
+    ),
+  );
 
 /** Remove the work the owner resolved while preserving every settled fact. */
 const resolvedState = (
@@ -91,17 +139,15 @@ export const resolvePaymentReview = (
   const staleBefore = isoBefore(claimLeaseMs(STALE_RESERVATION_MS));
   return withTransaction(async (tx) => {
     const rows = await readAttendeeRowStates(tx, [input.attendeeId]);
-    const judged = rows.map((row) => ({
-      decision: reviewDecision(row, staleBefore),
-      row,
-    }));
-    if (judged.some(({ decision }) => decision.kind === "blocked")) {
+    const judged = judgePaymentRows(rows, staleBefore);
+    const status = paymentReviewStatus(judged);
+    if (status === "blocked") {
       return { kind: "claim_in_progress" };
     }
     const changing = judged.flatMap(({ decision, row }) =>
       decision.kind === "resolve" ? [{ decision, row }] : [],
     );
-    if (changing.length === 0) return { kind: "nothing_to_review" };
+    if (status === "none") return { kind: "nothing_to_review" };
 
     const results = await tx.batch(
       await Promise.all(

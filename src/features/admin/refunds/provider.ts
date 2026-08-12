@@ -5,7 +5,7 @@ import { markPaymentReferencesProviderRefunded } from "#shared/db/payment-refere
 import { reportRefundNotRecorded } from "#shared/invariant-errors.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import type { ResolvedRefundCapability } from "#shared/payment/row-state.ts";
-import { recordAttendeeRefundsBatch } from "#shared/refund-ledger.ts";
+import { recordAttendeeRefundsBatch } from "#shared/refund-ledger/record.ts";
 import {
   type CandidateRefund,
   type MarkReturnedReferences,
@@ -79,8 +79,7 @@ const logBulkRefundProblem = (
     .join(", ");
   logError({
     code: ErrorCode.PAYMENT_REFUND,
-    detail:
-      `Admin bulk refund ${outcome} for attendee ${candidate.attendee.id}, payments ${refs}`,
+    detail: `Admin bulk refund ${outcome} for attendee ${candidate.attendee.id}, payments ${refs}`,
     listingId,
   });
 };
@@ -159,8 +158,8 @@ export const processRefundBatch = async (
   listingId: number,
   {
     claim: rowClaim = durableRowClaim,
-    markReturned: markReturnedReferences =
-      markPaymentReferencesProviderRefunded,
+    markReturned:
+      markReturnedReferences = markPaymentReferencesProviderRefunded,
     prepare = prepareRefundReadiness,
     record = recordAttendeeRefundsBatch,
   }: RefundRunDependencies = {},
@@ -203,15 +202,13 @@ const refundClaimedBatch = async (
         );
       })
       .flatMap((candidate) =>
-        candidate.references.map(({ reference }) => reference.index)
+        candidate.references.map(({ reference }) => reference.index),
       ),
   );
   const counts = noRefunds();
-  for (
-    const group of packByReferenceCount(PROVIDER_REFUND_CONCURRENCY)(
-      batch,
-    )
-  ) {
+  for (const group of packByReferenceCount(PROVIDER_REFUND_CONCURRENCY)(
+    batch,
+  )) {
     const results = await Promise.all(
       group.map((candidate) =>
         refundReadyCandidate(
@@ -220,7 +217,7 @@ const refundClaimedBatch = async (
           writes.markReturned,
           inFlight,
           observeOnly,
-        )
+        ),
       ),
     );
     const postings: LedgerPosting[] = [];
