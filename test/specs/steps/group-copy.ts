@@ -17,9 +17,9 @@ import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
 
-/** The form the organiser fills in to copy a group, by the path the site gave
- * it. Read off the served page rather than constructed, so a duplicate form that
- * stopped rendering any field fails here instead of the send going through. */
+/** The duplicate form's URL, built from the group's id. The form's fields are
+ * read off the served page in `fillInAndSend`, so a form that stopped rendering
+ * any field fails there instead of the send going through. */
 const DUPLICATE_PATH = (groupId: number): string =>
   `/admin/groups/${groupId}/bulk-actions/duplicate`;
 
@@ -186,13 +186,13 @@ Then(
 );
 
 /** A group is offered on the organiser's list when its name is the link text of
- * a row — reading the rendered page, not the store, so a list that stopped
- * showing a group fails here rather than the story reporting one nobody can see. */
+ * a row — asserting a followable link, not just visible text, so a regression
+ * that rendered the name as plain text would fail here. */
 Then(
   "the organiser's list offers the {string} group",
   async function (this: TicketsWorld, name: string): Promise<void> {
     const browser = await openAdminPage(this, GROUPS_LIST_PATH);
-    expect(browser.pageText).toContain(name);
+    expect(browser.links.map(({ text }) => text)).toContain(name);
   },
 );
 
