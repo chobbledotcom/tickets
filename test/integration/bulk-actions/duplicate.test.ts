@@ -6,7 +6,10 @@ import {
   getListingsByGroupId,
   groups,
 } from "#shared/db/groups.ts";
-import { getStoredListingWithCount } from "#shared/db/listings/records.ts";
+import {
+  getAllListings,
+  getStoredListingWithCount,
+} from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -19,12 +22,15 @@ import { adminFormPost, getBulkActionForm } from "#test-utils/session.ts";
 const getDuplicateForm = getBulkActionForm("duplicate");
 
 /** POST a duplicate that must be rejected on name uniqueness: assert it
- * redirects back to the form and creates no new group. */
+ * redirects back to the form, creates no new group, and creates no new
+ * listing rows (a regression that wrote an orphan before rejecting would
+ * pass a group-count-only check). */
 const expectDuplicateRejected = async (
   groupId: number,
   body: Record<string, string>,
 ): Promise<void> => {
-  const before = (await groups.cache.getAll()).length;
+  const groupsBefore = (await groups.cache.getAll()).length;
+  const listingsBefore = (await getAllListings()).length;
   const { response } = await adminFormPost(
     `/admin/groups/${groupId}/bulk-actions/duplicate`,
     body,
@@ -33,7 +39,8 @@ const expectDuplicateRejected = async (
   expect(response.headers.get("location")).toContain(
     `/admin/groups/${groupId}/bulk-actions/duplicate`,
   );
-  expect((await groups.cache.getAll()).length).toBe(before);
+  expect((await groups.cache.getAll()).length).toBe(groupsBefore);
+  expect((await getAllListings()).length).toBe(listingsBefore);
 };
 
 describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
