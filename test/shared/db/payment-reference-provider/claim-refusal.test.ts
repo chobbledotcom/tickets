@@ -12,7 +12,8 @@ import {
   bindingRequest,
   legacyBooking,
   rowFor,
-} from "../payment-reference-provider/helpers.ts";
+} from "#test/shared/db/payment-reference-provider/helpers.ts";
+
 /* jscpd:ignore-end */
 
 const bindingsFor = async (

@@ -15,10 +15,10 @@ import { balanceOf } from "#shared/ledger/project.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import { nowIso } from "#shared/now.ts";
 import {
-  referenceIndexesOutside,
   type RefundLedgerResult,
-  refundLedgerResult,
   type RefundReferences,
+  referenceIndexesOutside,
+  refundLedgerResult,
 } from "./result.ts";
 /* jscpd:ignore-end */
 
@@ -89,7 +89,7 @@ const referencePlacements = (
             Promise.all([
               bookingEventGroup(sessionId),
               balanceEventGroup(sessionId),
-            ])
+            ]),
           ),
         )
       ).flat(),
@@ -123,7 +123,7 @@ const returnedRefundGroups = async (
     (placement) => ({
       ...placement,
       eventGroups: placement.eventGroups.filter((eventGroup) =>
-        providerGroups.has(eventGroup)
+        providerGroups.has(eventGroup),
       ),
     }),
   );
@@ -173,7 +173,7 @@ const reversalGroups = async (
   );
   const alreadyRecorded = await Promise.all(
     groups.map(async (group) =>
-      reversed.has(await refundEventGroup(eventGroupOf(group)))
+      reversed.has(await refundEventGroup(eventGroupOf(group))),
     ),
   );
   return {
@@ -187,21 +187,22 @@ type PlacementMatch = (
   groupIds: ReadonlySet<string>,
 ) => boolean;
 
-const indexesMatchingGroups = (matches: PlacementMatch) =>
-(
-  placements: readonly ReferencePlacement[],
-  groups: readonly Transfer[][],
-): ReadonlySet<string> => {
-  const ids = new Set(groups.map(eventGroupOf));
-  return new Set(
-    placements
-      .filter(({ eventGroups }) => matches(eventGroups, ids))
-      .map(({ index }) => index),
-  );
-};
+const indexesMatchingGroups =
+  (matches: PlacementMatch) =>
+  (
+    placements: readonly ReferencePlacement[],
+    groups: readonly Transfer[][],
+  ): ReadonlySet<string> => {
+    const ids = new Set(groups.map(eventGroupOf));
+    return new Set(
+      placements
+        .filter(({ eventGroups }) => matches(eventGroups, ids))
+        .map(({ index }) => index),
+    );
+  };
 
 const indexesNamedByGroups = indexesMatchingGroups((eventGroups, groupIds) =>
-  eventGroups.some((eventGroup) => groupIds.has(eventGroup))
+  eventGroups.some((eventGroup) => groupIds.has(eventGroup)),
 );
 
 const indexesWhollyInGroups = indexesMatchingGroups(
@@ -246,19 +247,20 @@ export const computeAttendeeRefund = async (
   const returned = await returnedRefundGroups(groups, references);
   const factsFor = (group: Transfer[]): RefundGroupFacts =>
     refundGroupFacts(account, group);
-  const reversesWholeAccount = returned.kind === "whole_account" &&
+  const reversesWholeAccount =
+    returned.kind === "whole_account" &&
     !groups.some(hasOperatorMoney) &&
     (isPaymentOnlyAccount(legs) || balanceOf(account)(legs) === 0);
   const reviewGroups = reversesWholeAccount
     ? []
     : returned.groups.filter((group) =>
-      hasUnsettledObligation(factsFor(group))
-    );
+        hasUnsettledObligation(factsFor(group)),
+      );
   const eligible = reversesWholeAccount
     ? returned.groups
     : returned.groups.filter((group) =>
-      canReverseReturnedGroup(factsFor(group))
-    );
+        canReverseReturnedGroup(factsFor(group)),
+      );
   const reviewReferenceIndexes = indexesNamedByGroups(
     returned.placements,
     reviewGroups,
@@ -285,7 +287,7 @@ export const computeAttendeeRefund = async (
   return computedRefund(
     await Promise.all(
       toRecord.map((order) =>
-        mapRefund({ memo, occurredAt, orderLegs: order })
+        mapRefund({ memo, occurredAt, orderLegs: order }),
       ),
     ),
     result,

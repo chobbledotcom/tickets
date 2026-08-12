@@ -70,15 +70,17 @@ import {
 import { PaymentDetails } from "#templates/admin/attendees.tsx";
 
 type AttendeePageEntity = LoadedAttendee & {
-  readonly paymentReviewStatus: PaymentReviewStatus;
+  readonly paymentReviewStatus: PaymentReviewStatus | "not_loaded";
 };
 
-/** Leave payment state out of every tab except Actions, where it is needed. */
+/** Load payment review state only for the Actions tab. */
 const loadAttendeePageEntity = async (
   id: number,
 ): Promise<AttendeePageEntity | null> => {
   const entity = await loadAttendeeForEdit(id);
-  return entity === null ? null : { ...entity, paymentReviewStatus: "none" };
+  return entity === null
+    ? null
+    : { ...entity, paymentReviewStatus: "not_loaded" };
 };
 
 /** The attendee-scoped action routes live under the entity's own base. */
@@ -236,92 +238,87 @@ const overviewTab: TabDef<AttendeePageEntity> = {
 };
 
 /** The tabbed attendee page. */
-export const attendeePage: EntityPage<AttendeePageEntity> =
-  defineEntityPage<AttendeePageEntity>({
-    banner: async ({ attendee }, ctx) =>
-      attendeeBanner({
-        attendee,
-        isOwner: ctx.session.adminLevel === "owner",
-        notes: await getNotesFor(
-          attendeeNotes(attendee.id),
-          await requireRequestPrivateKey(),
-        ),
-        statuses: await attendeeStatuses.getAll(),
-      }),
-    basePath: (id) => `/admin/attendees/${id}`,
-    guard: requireSessionOr,
-    load: (id) => loadAttendeePageEntity(id),
-    // A single attendee is a page *within* the Attendees section: highlight the
-    // top-level link, but never re-open the section's "Add" sub-nav beside it.
-    navActive: { section: "/admin/attendees" },
-    proseExtra: ({ attendee }) =>
-      Promise.resolve(
-        isReadOnly() ? null : AddNoteLink({ attendeeId: attendee.id }),
+export const attendeePage: EntityPage<AttendeePageEntity> = defineEntityPage({
+  banner: async ({ attendee }, ctx) =>
+    attendeeBanner({
+      attendee,
+      isOwner: ctx.session.adminLevel === "owner",
+      notes: await getNotesFor(
+        attendeeNotes(attendee.id),
+        await requireRequestPrivateKey(),
       ),
-    tabs: [
-      overviewTab,
-      writeFormTab<AttendeePageEntity>(
-        "edit",
-        "entity.tab.edit",
-        loadEditPanel,
-      ),
-      writeFormTab<AttendeePageEntity>(
-        "logistics",
-        "entity.tab.logistics",
-        loadLogisticsPanel,
-      ),
-      {
-        labelKey: "entity.tab.ledger",
-        sections: [
-          {
-            kind: "custom",
-            load: ({ attendee }, ctx) =>
-              loadAttendeeLedgerPanel(
-                attendee.id,
-                ctx.baseUrl,
-                ctx.returnUrl,
-                ctx.tabHref("activity"),
-              ),
-          },
-        ],
-        slug: "ledger",
-        // The ledger exposes money movements and the customer pay link, so it is
-        // owner-only — matching the standalone /admin/ledger* routes.
-        visible: (_entity, session) => session.adminLevel === "owner",
-      },
-      {
-        labelKey: "entity.tab.activity",
-        sections: [
-          {
-            kind: "activity",
-            load: ({ attendee }) => loadAttendeeActivity(attendee.id),
-          },
-        ],
-        slug: "activity",
-      },
-      {
-        intent: "write-form",
-        labelKey: "entity.tab.actions",
-        sections: [
-          {
-            actions: ATTENDEE_ACTIONS,
-            kind: "actions",
-            prepare: prepareOwnerFields<AttendeePageEntity>(async (entity) => ({
-              paymentReviewStatus: await getPaymentReviewStatus(
-                entity.attendee.id,
-              ),
-            })),
-            titleKey: "entity.tab.actions",
-          },
-          {
-            kind: "custom",
-            load: ({ attendee }, ctx) =>
-              loadMergePanel(attendee, ctx.query.get("token") ?? ""),
-          },
-        ],
-        slug: "actions",
-      },
-    ],
-    titleOf: ({ attendee }) =>
-      t("attendee_form.title_edit", { value: attendee.name }),
-  });
+      statuses: await attendeeStatuses.getAll(),
+    }),
+  basePath: (id) => `/admin/attendees/${id}`,
+  guard: requireSessionOr,
+  load: (id) => loadAttendeePageEntity(id),
+  // A single attendee is a page *within* the Attendees section: highlight the
+  // top-level link, but never re-open the section's "Add" sub-nav beside it.
+  navActive: { section: "/admin/attendees" },
+  proseExtra: ({ attendee }) =>
+    Promise.resolve(
+      isReadOnly() ? null : AddNoteLink({ attendeeId: attendee.id }),
+    ),
+  tabs: [
+    overviewTab,
+    writeFormTab<AttendeePageEntity>("edit", "entity.tab.edit", loadEditPanel),
+    writeFormTab<AttendeePageEntity>(
+      "logistics",
+      "entity.tab.logistics",
+      loadLogisticsPanel,
+    ),
+    {
+      labelKey: "entity.tab.ledger",
+      sections: [
+        {
+          kind: "custom",
+          load: ({ attendee }, ctx) =>
+            loadAttendeeLedgerPanel(
+              attendee.id,
+              ctx.baseUrl,
+              ctx.returnUrl,
+              ctx.tabHref("activity"),
+            ),
+        },
+      ],
+      slug: "ledger",
+      // The ledger exposes money movements and the customer pay link, so it is
+      // owner-only — matching the standalone /admin/ledger* routes.
+      visible: (_entity, session) => session.adminLevel === "owner",
+    },
+    {
+      labelKey: "entity.tab.activity",
+      sections: [
+        {
+          kind: "activity",
+          load: ({ attendee }) => loadAttendeeActivity(attendee.id),
+        },
+      ],
+      slug: "activity",
+    },
+    {
+      intent: "write-form",
+      labelKey: "entity.tab.actions",
+      sections: [
+        {
+          actions: ATTENDEE_ACTIONS,
+          kind: "actions",
+          prepare: prepareOwnerFields<AttendeePageEntity>(async (entity) => ({
+            paymentReviewStatus: await getPaymentReviewStatus(
+              entity.attendee.id,
+            ),
+          })),
+          titleKey: "entity.tab.actions",
+        },
+        {
+          kind: "custom",
+          load: ({ attendee }, ctx) =>
+            loadMergePanel(attendee, ctx.query.get("token") ?? ""),
+        },
+      ],
+      slug: "actions",
+    },
+  ],
+  titleOf: ({ attendee }) =>
+    t("attendee_form.title_edit", { value: attendee.name }),
+});

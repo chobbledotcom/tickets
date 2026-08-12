@@ -58,7 +58,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
         assertRefundRowsHeld(tx, {
           heldSince: claimed.heldSince,
           sessionIds: ["sess-confirm"],
-        })
+        }),
       );
       await releaseRows(claimed.heldSince, ["sess-confirm"]);
 
@@ -67,7 +67,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
           assertRefundRowsHeld(tx, {
             heldSince: claimed.heldSince,
             sessionIds: ["sess-confirm"],
-          })
+          }),
         ),
       ).rejects.toThrow("Refund confirmation no longer owns every payment row");
     });

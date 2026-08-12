@@ -239,14 +239,18 @@ describeWithEnv("db > attendee create rollback", { db: true }, () => {
       unitPrice: 500,
     });
     const sessionId = "stable-token-finalize";
+    const paymentId = `pi_${sessionId}`;
     const ticketToken = "stable-contact-token";
     await reserveSession(sessionId);
 
     const result = await attendeesApi.createBookingAtomic(
-      input(
-        [{ listingId: listing.id, pricePaid: 500, quantity: 1 }],
-        ticketToken,
-      ),
+      {
+        ...input(
+          [{ listingId: listing.id, pricePaid: 500, quantity: 1 }],
+          ticketToken,
+        ),
+        paymentId,
+      },
       await paidPlan(listing.id, sessionId),
     );
     if (result === "sold-out" || !result.success) {
@@ -255,7 +259,7 @@ describeWithEnv("db > attendee create rollback", { db: true }, () => {
     expect(result.attendees).toHaveLength(1);
     const created = result.attendees[0]!;
     expect(created.ticket_token).toBe(ticketToken);
-    expect(created.payment_id).toBe("pi_atomic");
+    expect(created.payment_id).toBe(paymentId);
 
     const session = await getProcessedPayment(sessionId);
     expect(session!.attendee_id).toBe(created.id);
@@ -275,7 +279,7 @@ describeWithEnv("db > attendee create rollback", { db: true }, () => {
       id: decrypted!.id,
       paymentId: decrypted!.payment_id,
       ticketToken: decrypted!.ticket_token,
-    }).toEqual({ id: created.id, paymentId: "pi_atomic", ticketToken });
+    }).toEqual({ id: created.id, paymentId, ticketToken });
     const contactHash = await hashEmail("atomic@example.com");
     const beforeReplay = await getContactRecord(contactHash, privateKey);
     expect(beforeReplay.visits).toBe(1);

@@ -135,7 +135,8 @@ export const readReference = async (
     ...refundReference(payment.reference, values),
     ...payment,
     index,
-    matchingIndexes: values.matchingIndexes ??
+    matchingIndexes:
+      values.matchingIndexes ??
       (await matchingPaymentReferenceIndexes(payment)),
   };
 };

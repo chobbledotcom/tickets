@@ -9,6 +9,7 @@ import type { ActivityLogEntry } from "#shared/db/activity-log.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import { execute } from "#shared/db/client.ts";
+import { getPaymentReviewStatus } from "#shared/db/payment-review.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
 import { t } from "#shared/i18n.ts";
 import type { Attendee } from "#shared/types.ts";
@@ -317,18 +318,17 @@ describeWithEnv(
           const { response } = await adminFormPost(
             `/admin/attendees/${attendee.id}/refresh-payment`,
           );
-          // The route still says "nothing changed" — the charge is not
-          // refunded, which stays true. What must not happen is the
-          // disagreement disappearing.
-          expectFlash(response, t("success.payment_status_current"), true);
+          expectFlash(
+            response,
+            "This payment needs an owner review before another refund can be attempted.",
+            false,
+          );
         },
       );
 
-      // Before this, every answer but "fully refunded" was written down as a
-      // definite "none" and the disagreement went to a debug line nobody
-      // reads.
       expect(errors.contains("partial_refund")).toBe(true);
       expect(errors.contains("an owner needs to look at it")).toBe(true);
+      expect(await getPaymentReviewStatus(attendee.id)).toBe("available");
     });
   },
 );

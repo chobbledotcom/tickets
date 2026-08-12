@@ -6,14 +6,22 @@ import { PRUNE_PAYMENTS_RETENTION_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
+  bookAttendee,
+  bookedAttendee,
+} from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
   claimCurrentAttendeeRows,
   staleClaimSlot,
 } from "#test-utils/payment-claim.ts";
 import {
+  finalizeProcessedPayment,
+  taggedPaymentReference,
+} from "#test-utils/processed-payments.ts";
+import {
   insertClaimedPayment,
   insertFailedPayment,
   insertFinalizedPayment,
-  insertOrphanAttendee,
   insertUnfinalizedPayment,
   paymentExists,
   postRefundCash,
@@ -23,13 +31,22 @@ const oldEnoughToPrune = () =>
   new Date(nowMs() - PRUNE_PAYMENTS_RETENTION_MS - 60_000).toISOString();
 
 const insertOldReferencedPayment = async (sessionId: string) => {
-  const attendeeId = await insertOrphanAttendee(
-    new Date(nowMs()).toISOString(),
-  );
-  await insertFinalizedPayment(sessionId, oldEnoughToPrune(), {
+  const attendeeId = bookedAttendee(
+    await bookAttendee(await createTestListing(), {
+      email: `${sessionId}@example.com`,
+      name: sessionId,
+    }),
+  ).id;
+  await finalizeProcessedPayment(
+    sessionId,
     attendeeId,
-    paymentReference: "encrypted-reference",
-  });
+    "tok",
+    taggedPaymentReference(`pi_${sessionId}`),
+  );
+  await execute(
+    "UPDATE processed_payments SET processed_at = ? WHERE payment_session_id = ?",
+    [oldEnoughToPrune(), sessionId],
+  );
   return attendeeId;
 };
 

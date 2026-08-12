@@ -182,7 +182,7 @@ describeWithEnv("admin payment review action", { db: true }, () => {
 
     test("uses trusted attendee and listing context and honors return_url", async () => {
       const context = await setupReview();
-      const returnUrl = actionsUrl(context.attendeeId);
+      const returnUrl = `/admin/attendees/${context.attendeeId}/activity`;
 
       await expectFlashRedirect(
         returnUrl,

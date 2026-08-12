@@ -61,9 +61,11 @@ describeWithEnv("refund authorization", { db: true }, () => {
       );
 
       expect(
-        (await awaitTestRequest(surface.url(ctx), {
-          cookie: managerCookie,
-        })).status,
+        (
+          await awaitTestRequest(surface.url(ctx), {
+            cookie: managerCookie,
+          })
+        ).status,
       ).toBe(403);
       expect(
         (await awaitTestRequest(surface.url(ctx), { cookie: ctx.cookie }))

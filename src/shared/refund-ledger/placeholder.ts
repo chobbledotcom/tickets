@@ -57,13 +57,13 @@ export const recordPlaceholderRefund = (
       });
       const groups = refunded
         ? [
-          payment,
-          await mapRefund({
-            memo,
-            occurredAt: facts.occurredAt,
-            orderLegs: asOrderLegs(payment, facts.occurredAt),
-          }),
-        ]
+            payment,
+            await mapRefund({
+              memo,
+              occurredAt: facts.occurredAt,
+              orderLegs: asOrderLegs(payment, facts.occurredAt),
+            }),
+          ]
         : [payment];
       await postTransferGroups(groups);
       return true;

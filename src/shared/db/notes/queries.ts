@@ -173,18 +173,20 @@ export const getNote = async (
  * Delete notes, tied to their record so a stray id can't reach another's. They
  * go in one batch: several stale notes cost one round trip, not one each.
  */
-export const deleteNotes = (
+export const deleteNotes = async (
   target: NoteTarget,
   noteIds: number[],
   transaction?: TxScope,
 ): Promise<void> => {
-  if (noteIds.length === 0) return Promise.resolve();
+  if (noteIds.length === 0) return;
   const statements = noteIds.map((noteId) =>
     deleteNotesWhere(noteOfTarget(target, noteId)),
   );
-  return transaction === undefined
-    ? executeBatch(statements)
-    : transaction.batch(statements).then(() => undefined);
+  if (transaction === undefined) {
+    await executeBatch(statements);
+    return;
+  }
+  await transaction.batch(statements);
 };
 
 /** Delete the notes of records chosen by a subquery — for a delete path that

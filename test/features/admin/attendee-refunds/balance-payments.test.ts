@@ -5,6 +5,7 @@ import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
+import { t } from "#shared/i18n.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import type { RefundCtx } from "#test/features/admin/refunds-helpers.ts";
 import {
@@ -36,12 +37,15 @@ const SETTLED_RESERVATION_REFERENCES = [
 const expectSettledReservationRefundFailure = async (
   ctx: RefundCtx,
   refundBehavior: Parameters<typeof withRefundMock>[0],
+  message: Parameters<typeof expectFlashRedirect>[1] = expect.stringContaining(
+    "Refund failed",
+  ),
 ) => {
   await withRefundMock(refundBehavior, async (mockRefund) => {
     const response = await submitRefund(ctx);
     await expectFlashRedirect(
       `/admin/attendees/${ctx.attendee.id}/refund`,
-      expect.stringContaining("Refund failed"),
+      message,
       false,
     )(response);
     expect(mockRefund.calls.map((call) => call.args[0]).sort()).toEqual(
@@ -188,8 +192,11 @@ describeWithEnv("server (admin balance-payment refunds)", { db: true }, () => {
     test("records a returned charge when the other charge fails", async () => {
       const ctx = await setupSettledReservationRefundTest();
 
-      await expectSettledReservationRefundFailure(ctx, (reference) =>
-        Promise.resolve(reference === "pi_reservation_deposit"),
+      await expectSettledReservationRefundFailure(
+        ctx,
+        (reference) =>
+          Promise.resolve(reference === "pi_reservation_deposit"),
+        t("error.refund_not_recorded"),
       );
 
       await expectSingleRefundIssued(ctx, (mockRefund) => {
