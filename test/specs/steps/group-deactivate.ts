@@ -266,13 +266,18 @@ Then(
  * active listing(s)" — so the organiser knows what they are about to do. A
  * regression that omits or wrongly pluralizes this copy would no longer fail
  * any test; this step reads the pre-submission form text captured when the
- * organiser opened the page. */
+ * organiser opened the page. Because the singular phrase is a substring of
+ * the plural, a negative lookahead `(?!s)` is used for count = 1 so a
+ * regression to "deactivate 1 active listings" is caught. */
 Then(
   "the confirmation form says it will deactivate {int} active listings",
   function (this: TicketsWorld, count: number): void {
     const formText = this.things.require("told", `${ORGANISER} form`);
-    const noun = count === 1 ? "listing" : "listings";
-    expect(formText).toContain(`deactivate ${count} active ${noun}`);
+    const phrase =
+      count === 1
+        ? `deactivate 1 active listing(?!s)`
+        : `deactivate ${count} active listings`;
+    expect(new RegExp(phrase).test(formText)).toBe(true);
   },
 );
 

@@ -18,9 +18,61 @@ describeWithEnv("Admin bulk actions — deactivate", { db: true }, () => {
       );
       expect(response.status).toBe(404);
     });
+
+    test("renders the confirmation form with singular listing count", async () => {
+      // Sits beside the Cucumber story `catalogue.taking-a-group-off-sale`,
+      // which opens the form and submits it. The story reads fields by name,
+      // so a regression that stopped rendering the impact count (while the
+      // form fields still sent) would pass the story. This GET test pins the
+      // route's duty to render the singular count copy.
+      const group = await createTestGroup({ name: "Solo Deact" });
+      await createTestListing({ groupId: group.id, name: "Only" });
+
+      const html = await adminGet(
+        `/admin/groups/${group.id}/bulk-actions/deactivate`,
+      ).then((r) => r.text());
+
+      expect(html).toContain("deactivate 1 active listing");
+      expect(html).not.toContain("deactivate 1 active listings");
+    });
+
+    test("renders the confirmation form with plural listing count", async () => {
+      const group = await createTestGroup({ name: "Multi Deact" });
+      await createTestListing({ groupId: group.id, name: "A" });
+      await createTestListing({ groupId: group.id, name: "B" });
+
+      const html = await adminGet(
+        `/admin/groups/${group.id}/bulk-actions/deactivate`,
+      ).then((r) => r.text());
+
+      expect(html).toContain("deactivate 2 active listings");
+    });
   });
 
   describe("POST /admin/groups/:id/bulk-actions/deactivate", () => {
+    test("deactivates every listing in the group and redirects to the group page on success", async () => {
+      // Sits beside the Cucumber story `catalogue.taking-a-group-off-sale`.
+      // The story proves the actor-facing claims, but story execution is kept
+      // out of the direct suite's coverage gate. This direct test pins the
+      // success branch: `setGroupListingsActive(..., false)` runs and the
+      // 302 redirect to the group page is returned.
+      const group = await createTestGroup({ name: "Shutdown" });
+      const a = await createTestListing({ groupId: group.id, name: "A" });
+      const b = await createTestListing({ groupId: group.id, name: "B" });
+
+      const { response } = await adminFormPost(
+        `/admin/groups/${group.id}/bulk-actions/deactivate`,
+        { confirm_identifier: "Shutdown" },
+      );
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toContain(
+        `/admin/groups/${group.id}`,
+      );
+      expect((await getListingWithCount(a.id))?.active).toBe(false);
+      expect((await getListingWithCount(b.id))?.active).toBe(false);
+    });
+
     test("rejects deactivating a group that holds the only rescuing page of a child add-on, leaving every listing active", async () => {
       // Sits beside the Cucumber story `catalogue.taking-a-group-off-sale`.
       // The story proves the actor-facing claims (confirms by name, refuses a
