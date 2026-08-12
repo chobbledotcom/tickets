@@ -11,17 +11,16 @@ import {
 } from "#shared/db/payment-review.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
-import type {
-  PaymentRowState,
-  RefundCapability,
-} from "#shared/payment/row-state.ts";
+import type { PaymentRowState } from "#shared/payment/row-state.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   CLAIM_MIRROR,
+  type ClaimFixturePhase,
   protectedStateOf,
   putRowState,
   REVIEW_MIRROR,
+  refundClaimFixture,
   rowStateSlot,
   storedRecordOf,
   UNRECORDED_MIRROR,
@@ -47,19 +46,19 @@ const stateBySession = async (
 
 const claimState = (
   attendeeId: number,
-  capability: RefundCapability,
+  phase: ClaimFixturePhase,
   { review = false, stale = false }: { review?: boolean; stale?: boolean } = {},
-): PaymentRowState => ({
-  claim: {
+): PaymentRowState => {
+  const claim = refundClaimFixture(
     attendeeId,
-    capability,
-    scope: "attendee_set",
-    writtenAt: new Date(
-      nowMs() - (stale ? STALE_RESERVATION_MS + 1000 : 0),
-    ).toISOString(),
-  },
-  ...(review ? { review: { kind: "partial_refund" } as const } : {}),
-});
+    phase,
+    new Date(nowMs() - (stale ? STALE_RESERVATION_MS + 1000 : 0)).toISOString(),
+  );
+  return {
+    claim,
+    ...(review ? { review: { kind: "partial_refund" } as const } : {}),
+  };
+};
 
 const resolve = (attendeeId: number) =>
   resolvePaymentReview({ attendeeId, listingId: LISTING_ID });
@@ -82,16 +81,16 @@ describeWithEnv(
 
       await putRowState(
         "sess-status",
-        await rowStateSlot(claimState(attendeeId, "keyed", { review: true })),
+        await rowStateSlot(
+          claimState(attendeeId, "send_armed_keyed", { review: true }),
+        ),
         CLAIM_MIRROR,
       );
       expect(await getPaymentWorkStatus(attendeeId)).toBe("moving");
 
       await putRowState(
         "sess-status",
-        await rowStateSlot(
-          claimState(attendeeId, "unresolved", { stale: true }),
-        ),
+        await rowStateSlot(claimState(attendeeId, "checking", { stale: true })),
         CLAIM_MIRROR,
       );
       expect(await getPaymentWorkStatus(attendeeId)).toBe("needs_review");
@@ -142,7 +141,7 @@ describeWithEnv(
       await putRowState(
         "sess-stale",
         await rowStateSlot(
-          claimState(attendeeId, "unresolved", {
+          claimState(attendeeId, "checking", {
             review: true,
             stale: true,
           }),
@@ -157,7 +156,7 @@ describeWithEnv(
       expect(await protectedStateOf("sess-stale")).toBe("");
     });
 
-    test("does not overwrite an existing outcome on a stale unresolved claim", async () => {
+    test("does not overwrite an outcome while abandoning stale ready work", async () => {
       const attendeeId = await bookedWithPayment(
         "sess-stale-outcome",
         "pi_stale_outcome",
@@ -165,7 +164,7 @@ describeWithEnv(
       await putRowState(
         "sess-stale-outcome",
         await rowStateSlot({
-          ...claimState(attendeeId, "unresolved", { stale: true }),
+          ...claimState(attendeeId, "ready_keyless", { stale: true }),
           outcome: { error: "First outcome", status: 400 },
         }),
         CLAIM_MIRROR,
@@ -182,24 +181,26 @@ describeWithEnv(
       );
     });
 
-    const blockedClaims: readonly [string, RefundCapability, boolean][] = [
-      ["fresh unresolved", "unresolved", false],
-      ["fresh keyed", "keyed", false],
-      ["fresh keyless", "keyless", false],
-      ["stale keyed", "keyed", true],
-      ["stale keyless", "keyless", true],
+    const blockedClaims: readonly [string, ClaimFixturePhase, boolean][] = [
+      ["fresh checking", "checking", false],
+      ["fresh ready keyed", "ready_keyed", false],
+      ["fresh ready keyless", "ready_keyless", false],
+      ["fresh armed keyed", "send_armed_keyed", false],
+      ["fresh armed keyless", "send_armed_keyless", false],
+      ["stale armed keyed", "send_armed_keyed", true],
+      ["stale armed keyless", "send_armed_keyless", true],
     ];
-    for (const [name, capability, stale] of blockedClaims) {
+    for (const [name, phase, stale] of blockedClaims) {
       test(`refuses a ${name} claim without changing or logging`, async () => {
-        const sessionId = `sess-block-${capability}-${stale}`;
+        const sessionId = `sess-block-${phase}-${stale}`;
         const attendeeId = await bookedWithPayment(
           sessionId,
-          `pi-block-${capability}-${stale}`,
+          `pi-block-${phase}-${stale}`,
         );
         await putRowState(
           sessionId,
           await rowStateSlot(
-            claimState(attendeeId, capability, { review: true, stale }),
+            claimState(attendeeId, phase, { review: true, stale }),
           ),
           CLAIM_MIRROR,
         );
@@ -230,7 +231,7 @@ describeWithEnv(
       );
       await putRowState(
         "sess-sibling-claim",
-        await rowStateSlot(claimState(attendeeId, "keyed")),
+        await rowStateSlot(claimState(attendeeId, "send_armed_keyed")),
         CLAIM_MIRROR,
       );
 

@@ -27,15 +27,8 @@ const bulkRefundActivity = async (listingId: number): Promise<string> => {
   return log.message;
 };
 
-const holdLegacyPayment = async (
-  attendeeId: number,
-  reference: string,
-): Promise<void> => {
-  await claimCurrentAttendeeRows(
-    [attendeeId],
-    "keyless",
-    new Map([[attendeeId, reference]]),
-  );
+const holdPayment = async (attendeeId: number): Promise<void> => {
+  await claimCurrentAttendeeRows([attendeeId]);
 };
 
 describeWithEnv("server (admin refunds still settling)", { db: true }, () => {
@@ -145,7 +138,7 @@ describeWithEnv("server (admin refunds still settling)", { db: true }, () => {
       "untouched-two@example.com",
       "pi_bulk_untouched_two",
     );
-    await holdLegacyPayment(held.id, "pi_bulk_held");
+    await holdPayment(held.id);
 
     await withRefundMock(refundCompletes, async (mockRefund) => {
       await expectFlashRedirect(

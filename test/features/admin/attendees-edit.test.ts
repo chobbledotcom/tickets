@@ -284,7 +284,7 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
         "pi_already_refreshing",
         500,
       );
-      await claimCurrentAttendeeRows([attendee.id], "keyed");
+      await claimCurrentAttendeeRows([attendee.id]);
 
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}/refresh-payment`,

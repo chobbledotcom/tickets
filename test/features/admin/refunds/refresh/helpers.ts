@@ -13,7 +13,7 @@ import type { PaymentReviewChange } from "#shared/db/payment-claim.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { PaymentReviewReason } from "#shared/payment/review.ts";
-import type { ResolvedRefundCapability } from "#shared/payment/row-state.ts";
+import type { RefundProviderCapability } from "#shared/payment/row-state.ts";
 import type { RefundLedgerResult } from "#shared/refund-ledger/result.ts";
 import {
   type RecordingProvider,
@@ -62,7 +62,7 @@ type HarnessValues = {
   confirmationError?: Error;
   existingUnrecorded?: readonly string[];
   existingReview?: PaymentReviewReason;
-  inherited?: ResolvedRefundCapability;
+  inherited?: RefundProviderCapability;
   ledger?: (
     references: readonly RefundPaymentReference[],
   ) => RefundLedgerResult;
@@ -119,7 +119,7 @@ export const runHarness = (values: HarnessValues = {}): RefreshHarness => {
   const ready = readyResult(observations, provider);
   const inherited =
     values.inherited === undefined
-      ? new Map<number, ReadonlyMap<string, ResolvedRefundCapability>>()
+      ? new Map<number, ReadonlyMap<string, RefundProviderCapability>>()
       : new Map([
           [ATTENDEE_ID, new Map([[reference.index, values.inherited]])],
         ]);

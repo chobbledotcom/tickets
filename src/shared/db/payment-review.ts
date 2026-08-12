@@ -74,7 +74,7 @@ const reviewDecision = (
       ? { kind: "current" }
       : { claim: "none", kind: "resolve" };
   }
-  return claim.capability === "unresolved" && isClaimStale(claim, staleBefore)
+  return claim.phase !== "send_armed" && isClaimStale(claim, staleBefore)
     ? { claim: "release", kind: "resolve" }
     : { kind: "blocked" };
 };
@@ -144,8 +144,8 @@ const assertEveryRowChanged = (
  * Retire one attendee's owner-review work and its mirrors atomically.
  *
  * A fresh claim may still be moving money. A stale claim is owner-resolvable
- * only while it remains `unresolved`, proving no provider capability was ever
- * bound to it; stale keyed and keyless calls may have sent money and stay put.
+ * only before dispatch was armed, proving no provider call may have escaped.
+ * An armed keyed or keyless command stays put until fresh evidence settles it.
  */
 export const resolvePaymentReview = (
   input: ResolvePaymentReviewInput,

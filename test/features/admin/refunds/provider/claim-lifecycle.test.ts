@@ -118,7 +118,7 @@ describeWithEnv(
 
       await putRowState(
         SESSION_ID,
-        await staleClaimSlot(attendee.id, "keyed"),
+        await staleClaimSlot(attendee.id, "send_armed_keyed"),
         CLAIM_MIRROR,
       );
       let retrySends = 0;

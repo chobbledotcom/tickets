@@ -175,7 +175,7 @@ describeWithEnv("the attendee Actions tab", { db: true }, () => {
 
       await putRowState(
         sessionId,
-        await staleClaimSlot(attendeeId, "unresolved"),
+        await staleClaimSlot(attendeeId, "checking"),
         CLAIM_MIRROR,
       );
       const stale = await tabHtml(attendeeId, "actions");
@@ -184,7 +184,7 @@ describeWithEnv("the attendee Actions tab", { db: true }, () => {
 
       await putRowState(
         sessionId,
-        await freshClaimSlot(attendeeId, "keyed"),
+        await freshClaimSlot(attendeeId, "send_armed_keyed"),
         CLAIM_MIRROR,
       );
       const inProgress = await tabHtml(attendeeId, "actions");

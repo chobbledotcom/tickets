@@ -1,14 +1,15 @@
 /** Atomically bind provider evidence to the payment rows a refund run holds. */
 
-import { compact, requiredMapValue, unique } from "#fp";
+/* jscpd:ignore-start -- imports */
+import { requiredMapValue, unique } from "#fp";
 import {
   inPlaceholders,
   type SqlStatement,
   withTransaction,
 } from "#shared/db/client.ts";
 import {
-  asPaymentRowRecord,
   type PaymentRowRecord,
+  paymentRowHeldBy,
   paymentRowStateStatement,
   readPaymentClaimRows,
   type StoredPaymentClaimRow,
@@ -18,34 +19,38 @@ import {
   type StoredPaymentReference,
   storePaymentReference,
 } from "#shared/db/payment-reference-store.ts";
-import { type HeldPaymentRow, heldPaymentRows } from "#shared/payment/claim.ts";
+import {
+  completeExactReferenceRows,
+  distinctHeldPaymentRows,
+  type HeldPaymentRow,
+  type HeldRefundCommand,
+  type IndexedRefundClaimDecision,
+  type RefundClaimChanged,
+} from "#shared/payment/claim.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 import type {
   RefundClaim,
-  ResolvedRefundCapability,
+  RefundProviderCapability,
 } from "#shared/payment/row-state.ts";
+/* jscpd:ignore-end */
 
 /** One reference's validated provider identity and retry capability. */
 export type PaymentReferenceProviderBinding = {
-  readonly capability: ResolvedRefundCapability;
+  readonly capability: RefundProviderCapability;
   readonly identity: TaggedPaymentReference;
 };
 
 /** The exact claim snapshot and validated provider facts being stored. */
-export type PaymentReferenceProviderBindingRequest = {
+export interface PaymentReferenceProviderBindingRequest
+  extends HeldRefundCommand {
   /** Current blind index to the provider facts proved for that reference. */
   readonly bindings: ReadonlyMap<string, PaymentReferenceProviderBinding>;
-  readonly held: ReadonlyMap<number, readonly string[]>;
-  readonly heldSince: string;
-};
+}
 
 /** Expected refusals write nothing; success names every resulting identity. */
 export type PaymentReferenceProviderBindingResult =
-  | { readonly kind: "claim_changed" }
-  | {
-      readonly indexes: readonly string[];
-      readonly kind: "historical_marker";
-    }
+  | RefundClaimChanged
+  | IndexedRefundClaimDecision<"historical_marker">
   | {
       readonly indexes: ReadonlyMap<string, string>;
       readonly kind: "bound";
@@ -61,18 +66,6 @@ type CheckedHeldRow = {
   claim: RefundClaim;
   index: string;
   record: PaymentRowRecord;
-};
-
-const requireDistinctHeldSessions = (
-  sessions: readonly HeldPaymentRow[],
-): void => {
-  if (
-    new Set(sessions.map(({ sessionId }) => sessionId)).size !== sessions.length
-  ) {
-    throw new Error(
-      "A payment reference provider binding repeated a held session",
-    );
-  }
 };
 
 const prepareBindings = (
@@ -110,6 +103,7 @@ const checkedHeldRows = async (
   rows: readonly StoredPaymentClaimRow[],
   sessions: readonly HeldPaymentRow[],
   bindings: ReadonlyMap<string, PaymentReferenceProviderBinding>,
+  commandId: string,
   heldSince: string,
 ): Promise<CheckedHeldRow[] | null> => {
   const bySession = new Map(rows.map((row) => [row.payment_session_id, row]));
@@ -120,23 +114,16 @@ const checkedHeldRows = async (
         return null;
       }
       if (!bindings.has(row.payment_reference_index)) return null;
-      const record = await asPaymentRowRecord(row);
-      const claim = record.state.claim;
-      return claim !== undefined &&
-        claim.attendeeId === attendeeId &&
-        claim.scope === "attendee_set" &&
-        claim.writtenAt === heldSince
-        ? { claim, index: row.payment_reference_index, record }
-        : null;
+      const held = await paymentRowHeldBy(row, { commandId, heldSince });
+      if (
+        held === null ||
+        (held.claim.phase !== "checking" && held.claim.phase !== "send_armed")
+      )
+        return null;
+      return { ...held, index: row.payment_reference_index };
     }),
   );
-  const complete = compact(checked);
-  if (complete.length !== checked.length) return null;
-  const heldIndexes = new Set(complete.map(({ index }) => index));
-  return heldIndexes.size === bindings.size &&
-    [...bindings.keys()].every((index) => heldIndexes.has(index))
-    ? complete
-    : null;
+  return completeExactReferenceRows(checked, [...bindings.keys()]);
 };
 
 const markedChangingIndexes = (
@@ -168,18 +155,25 @@ const referenceRewrite = ({
 const claimCapabilityRewrite = (
   row: CheckedHeldRow,
   bindings: ReadonlyMap<string, PaymentReferenceProviderBinding>,
-): Promise<SqlStatement> =>
-  paymentRowStateStatement(row.record, {
+): Promise<SqlStatement> => {
+  const capability = requiredMapValue(
+    bindings,
+    row.index,
+    `Provider binding lost payment reference ${row.index}`,
+  ).capability;
+  if (row.claim.phase === "send_armed" && row.claim.capability !== capability) {
+    throw new Error(
+      `Provider capability changed for armed payment ${row.index}`,
+    );
+  }
+  return paymentRowStateStatement(row.record, {
     ...row.record.state,
-    claim: {
-      ...row.claim,
-      capability: requiredMapValue(
-        bindings,
-        row.index,
-        `Provider binding lost payment reference ${row.index}`,
-      ).capability,
-    },
+    claim:
+      row.claim.phase === "send_armed"
+        ? row.claim
+        : { ...row.claim, capability, phase: "ready" },
   });
+};
 
 const boundIndexes = (
   bindings: readonly PreparedBinding[],
@@ -194,8 +188,7 @@ const boundIndexes = (
 export const bindPaymentReferenceProviders = async (
   request: PaymentReferenceProviderBindingRequest,
 ): Promise<PaymentReferenceProviderBindingResult> => {
-  const sessions = heldPaymentRows(request.held);
-  requireDistinctHeldSessions(sessions);
+  const sessions = distinctHeldPaymentRows(request.held);
   const prepared = await prepareBindings(request.bindings);
   if (sessions.length === 0) {
     return prepared.length === 0
@@ -212,6 +205,7 @@ export const bindPaymentReferenceProviders = async (
       rows,
       sessions,
       request.bindings,
+      request.commandId,
       request.heldSince,
     );
     if (heldRows === null) return { kind: "claim_changed" };
@@ -226,6 +220,9 @@ export const bindPaymentReferenceProviders = async (
       heldRows.map((row) => claimCapabilityRewrite(row, request.bindings)),
     );
     await tx.batch([...referenceWrites, ...claimWrites]);
-    return { indexes: boundIndexes(prepared), kind: "bound" };
+    return {
+      indexes: boundIndexes(prepared),
+      kind: "bound",
+    };
   });
 };

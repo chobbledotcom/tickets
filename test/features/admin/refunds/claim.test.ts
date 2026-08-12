@@ -7,18 +7,17 @@ import {
 } from "#routes/admin/refunds/claim.ts";
 import type {
   ClaimResult,
-  InheritedRefundCapabilities,
+  InheritedArmedRefunds,
   LoadedRefundAttendee,
 } from "#shared/db/payment-claim/take.ts";
 import type { RowSettlement } from "#shared/db/payment-claim.ts";
-import type { RefundCapability } from "#shared/payment/row-state.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 
 type ClaimedRows = Extract<ClaimResult, { kind: "claimed" }>;
 
 type RecordingClaim = RowClaim & {
   settlements: RowSettlement[];
-  requests: [readonly LoadedRefundAttendee[], RefundCapability][];
+  requests: (readonly LoadedRefundAttendee[])[];
 };
 
 const claimResult = (
@@ -28,8 +27,8 @@ const claimResult = (
   const settlements: RowSettlement[] = [];
   const requests: RecordingClaim["requests"] = [];
   return {
-    claim: (attendees, capability) => {
-      requests.push([attendees, capability]);
+    claim: (attendees) => {
+      requests.push(attendees);
       return Promise.resolve(result);
     },
     requests,
@@ -43,13 +42,17 @@ const claimResult = (
 
 const claimedRows = (
   held: ReadonlyMap<number, readonly string[]>,
-  inherited: InheritedRefundCapabilities = new Map(),
+  inherited: InheritedArmedRefunds = new Map(),
   unrecorded: ReadonlyMap<number, readonly string[]> = new Map(),
 ): ClaimedRows => ({
+  commandId: "test-command",
   held,
   heldSince: "2026-08-11T12:00:00.000Z",
   inherited,
   kind: "claimed",
+  phases: new Map(
+    [...held.values()].flat().map((sessionId) => [sessionId, "checking"]),
+  ),
   returned: new Set(["pi_returned"]),
   reviews: new Map(),
   shared: new Map(),
@@ -69,7 +72,7 @@ describe("admin refunds > attendee claim", () => {
 
     const result = await underAttendeeClaim<
       RefundRunBlock | { readonly kind: "work" }
-    >(claim, LOADED, "keyed", 7, {
+    >(claim, LOADED, 7, {
       blocked: (block) => block,
       work: () => {
         worked = true;
@@ -83,7 +86,7 @@ describe("admin refunds > attendee claim", () => {
         "the attendee or payment set changed while this refund was starting",
     });
     expect(worked).toBe(false);
-    expect(claim.requests).toEqual([[LOADED, "keyed"]]);
+    expect(claim.requests).toEqual([LOADED]);
     expect(claim.settlements).toEqual([]);
   });
 
@@ -93,7 +96,7 @@ describe("admin refunds > attendee claim", () => {
       kind: "blocked",
     });
 
-    const result = await underAttendeeClaim(claim, LOADED, "keyless", 8, {
+    const result = await underAttendeeClaim(claim, LOADED, 8, {
       blocked: (block: RefundRunBlock) => block,
       work: () => Promise.reject(new Error("work must not start")),
     });
@@ -102,12 +105,12 @@ describe("admin refunds > attendee claim", () => {
       kind: "claim_held",
       reason: "a refund for this payment is already in progress",
     });
-    expect(claim.requests).toEqual([[LOADED, "keyless"]]);
+    expect(claim.requests).toEqual([LOADED]);
     expect(claim.settlements).toEqual([]);
   });
 
   test("releases only attendees whose provider answer is settled", async () => {
-    const inherited: InheritedRefundCapabilities = new Map([
+    const inherited: InheritedArmedRefunds = new Map([
       [4, new Map([["pi-four", "keyless"]])],
     ]);
     const unrecorded = new Map<number, readonly string[]>([
@@ -126,7 +129,7 @@ describe("admin refunds > attendee claim", () => {
       ),
     );
 
-    const result = await underAttendeeClaim(claim, LOADED, "keyed", 9, {
+    const result = await underAttendeeClaim(claim, LOADED, 9, {
       blocked: () => "blocked",
       work: ({
         alreadyReturned,
@@ -138,6 +141,12 @@ describe("admin refunds > attendee claim", () => {
         expect(inheritedClaims).toBe(inherited);
         expect(existingUnrecorded).toBe(unrecorded);
         expect(findings).toEqual({
+          claimPhases: new Map([
+            ["sess-one", "checking"],
+            ["sess-two", "checking"],
+            ["sess-three", "checking"],
+            ["sess-four", "checking"],
+          ]),
           doubts: new Map(),
           recorded: new Set(),
           reviews: new Map(),
@@ -173,6 +182,7 @@ describe("admin refunds > attendee claim", () => {
     expect(result).toBe("worked");
     expect(claim.settlements).toEqual([
       {
+        commandId: "test-command",
         heldSince: "2026-08-11T12:00:00.000Z",
         rows: new Map([
           [
@@ -180,6 +190,7 @@ describe("admin refunds > attendee claim", () => {
             {
               books: "unrecorded",
               claim: "release",
+              phase: "checking",
               review: {
                 kind: "review",
                 reason: { kind: "partial_refund" },
@@ -191,6 +202,7 @@ describe("admin refunds > attendee claim", () => {
             {
               books: "unrecorded",
               claim: "keep",
+              phase: "checking",
               review: { kind: "resolved", reason: "partial_refund" },
             },
           ],
@@ -199,6 +211,7 @@ describe("admin refunds > attendee claim", () => {
             {
               books: "unrecorded",
               claim: "release",
+              phase: "checking",
               review: {
                 kind: "review",
                 reason: { kind: "shared_reference" },
@@ -210,6 +223,7 @@ describe("admin refunds > attendee claim", () => {
             {
               books: "unrecorded",
               claim: "keep",
+              phase: "checking",
               review: { kind: "resolved", reason: "shared_reference" },
             },
           ],
@@ -221,7 +235,7 @@ describe("admin refunds > attendee claim", () => {
   test("does not ask the database to release an empty row set", async () => {
     const claim = claimResult(claimedRows(new Map([[1, []]])));
 
-    const result = await underAttendeeClaim(claim, [], "keyed", 10, {
+    const result = await underAttendeeClaim(claim, [], 10, {
       blocked: () => "blocked",
       work: () => Promise.resolve("worked"),
     });
@@ -235,7 +249,7 @@ describe("admin refunds > attendee claim", () => {
       Promise.reject(new Error("the row would not let go")),
     );
 
-    const result = await underAttendeeClaim(claim, [], "keyed", 11, {
+    const result = await underAttendeeClaim(claim, [], 11, {
       blocked: () => "blocked",
       work: () => Promise.resolve("worked"),
     });
@@ -260,7 +274,7 @@ describe("admin refunds > attendee claim", () => {
     );
 
     await expect(
-      underAttendeeClaim(claim, [], "keyed", 12, {
+      underAttendeeClaim(claim, [], 12, {
         blocked: () => "blocked",
         work: ({ findings }) => {
           findings.unrecorded.set(1, ["missed-one"]);
@@ -278,7 +292,7 @@ describe("admin refunds > attendee claim", () => {
     );
 
     await expect(
-      underAttendeeClaim(claim, [], "keyed", 13, {
+      underAttendeeClaim(claim, [], 13, {
         blocked: () => "blocked",
         work: ({ findings }) => {
           findings.recorded.add("sess-contradictory");

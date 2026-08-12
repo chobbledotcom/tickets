@@ -216,11 +216,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
 
     test("a stale form sees the refund already owned by another run", async () => {
       const ctx = await setupRefundTest("pi_claimed_elsewhere");
-      await claimCurrentAttendeeRows(
-        [ctx.attendee.id],
-        "keyless",
-        new Map([[ctx.attendee.id, "pi_claimed_elsewhere"]]),
-      );
+      await claimCurrentAttendeeRows([ctx.attendee.id]);
 
       await withRefundMock(refundCompletes, async (mockRefund) => {
         await expectFlashRedirect(

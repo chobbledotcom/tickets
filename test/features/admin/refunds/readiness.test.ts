@@ -47,11 +47,17 @@ describe("admin refund readiness", () => {
     const loads: PaymentProviderType[] = [];
     const bindings: PaymentReferenceProviderBindingRequest[] = [];
     const exactClaim = {
+      commandId: heldClaim.commandId,
       held: new Map([
         [1, ["session_first", "session_tagged_returned"]],
         [2, ["session_second"]],
       ]),
       heldSince: heldClaim.heldSince,
+      phases: new Map([
+        ["session_first", "checking" as const],
+        ["session_tagged_returned", "checking" as const],
+        ["session_second", "checking" as const],
+      ]),
     };
 
     const result = await prepareRefundReadiness(

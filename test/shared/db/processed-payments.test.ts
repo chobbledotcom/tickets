@@ -308,7 +308,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
     test("refuses to heal an equivalent reference under a refund claim", async () => {
       const reference = "pi_heal_held";
       const attendeeId = await bookedWithPayment("sess_heal_holder", reference);
-      const held = await claimCurrentAttendeeRows([attendeeId], "keyed");
+      const held = await claimCurrentAttendeeRows([attendeeId]);
       if (held.kind !== "claimed") throw new Error("the claim was refused");
       await reserveSession("sess_heal_blocked");
 

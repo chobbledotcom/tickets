@@ -4,9 +4,12 @@ import {
   markPaymentReferencesProviderRefunded,
   type RefundPaymentReference,
 } from "#shared/db/payment-references.ts";
+import {
+  type ArmRefundDispatchResult,
+  armRefundDispatch,
+} from "#shared/db/payment-refund-dispatch.ts";
 import { reportRefundNotRecorded } from "#shared/invariant-errors.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import type { ResolvedRefundCapability } from "#shared/payment/row-state.ts";
 import { recordAttendeeRefundsBatch } from "#shared/refund-ledger/record.ts";
 import {
   type CandidateRefund,
@@ -34,12 +37,6 @@ import { packByReferenceCount, type RefundOutcome } from "./waves.ts";
 /* jscpd:ignore-end */
 
 type RecordRefunds = typeof recordAttendeeRefundsBatch;
-
-/** Whether a stale run can safely repeat the provider call it inherited. */
-const MAY_RETRY_INHERITED_CALL = {
-  keyed: true,
-  keyless: false,
-} as const satisfies Record<ResolvedRefundCapability, boolean>;
 
 export type RefundCounts = {
   refundedCount: number;
@@ -159,6 +156,7 @@ const recordWave = async (
 
 /** Boundaries a refund run crosses after its candidate list is loaded. */
 export type RefundRunDependencies = {
+  arm?: typeof armRefundDispatch;
   claim?: RowClaim;
   markReturned?: MarkReturnedReferences;
   prepare?: typeof prepareRefundReadiness;
@@ -169,6 +167,7 @@ export const processRefundBatch = async (
   batch: RefundCandidate[],
   listingId: number,
   {
+    arm = armRefundDispatch,
     claim: rowClaim = durableRowClaim,
     markReturned:
       markReturnedReferences = markPaymentReferencesProviderRefunded,
@@ -185,14 +184,15 @@ export const processRefundBatch = async (
     listingId,
     notReady: (message) => notReady(noRefunds(batch.length), message),
     prepare,
-    ready: async (candidates, { findings, inherited }) =>
+    ready: async (candidates, { claim, findings }) =>
       finished(
         await refundClaimedBatch(
           candidates,
           listingId,
           { markReturned: markReturnedReferences, record },
           findings,
-          inherited,
+          claim,
+          arm,
         ),
       ),
   });
@@ -202,16 +202,21 @@ const refundClaimedBatch = async (
   listingId: number,
   writes: { markReturned: MarkReturnedReferences; record: RecordRefunds },
   findings: RunFindings,
-  inherited: HeldRefundWork["inherited"],
+  claim: HeldRefundWork["claim"],
+  arm: typeof armRefundDispatch,
 ): Promise<RefundCounts> => {
   const inFlight = new Map<string, Promise<PreparedReferenceRefund>>();
-  const observeOnly = new Set(
-    [...inherited.values()].flatMap((references) =>
-      [...references].flatMap(([index, capability]) =>
-        MAY_RETRY_INHERITED_CALL[capability] ? [] : [index],
-      ),
-    ),
-  );
+  const authorize = async (
+    indexes: readonly string[],
+  ): Promise<ArmRefundDispatchResult> => {
+    const result = await arm({ ...claim, indexes });
+    if (result.kind === "armed") {
+      for (const [sessionId, phase] of result.phases) {
+        findings.claimPhases.set(sessionId, phase);
+      }
+    }
+    return result;
+  };
   const counts = noRefunds();
   for (const group of packByReferenceCount(PROVIDER_REFUND_CONCURRENCY)(
     batch,
@@ -222,8 +227,8 @@ const refundClaimedBatch = async (
           candidate,
           listingId,
           writes.markReturned,
+          authorize,
           inFlight,
-          observeOnly,
         ),
       ),
     );

@@ -1,9 +1,20 @@
-import type { RefundRunDependencies } from "#routes/admin/refunds/provider.ts";
+import type {
+  RefundCounts,
+  RefundRunDependencies,
+} from "#routes/admin/refunds/provider.ts";
 import type { RefundLedgerResult } from "#shared/refund-ledger/result.ts";
 import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
 
 type RecordRefunds = NonNullable<RefundRunDependencies["record"]>;
 type RefundReferences = Parameters<RecordRefunds>[0][number]["references"];
+
+export const oneFailedRefundCounts: RefundCounts = {
+  errorCount: 0,
+  failedCount: 1,
+  notRecordedCount: 0,
+  pendingCount: 0,
+  refundedCount: 0,
+};
 
 const recordWith =
   (

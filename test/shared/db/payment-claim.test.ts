@@ -23,6 +23,17 @@ import {
 } from "#test-utils/processed-payments.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
+const claimedPhase = (
+  claim: { phases: ReadonlyMap<string, "checking" | "ready" | "send_armed"> },
+  sessionId: string,
+): "checking" | "ready" | "send_armed" => {
+  const phase = claim.phases.get(sessionId);
+  if (phase === undefined) {
+    throw new Error(`Claim did not include payment row ${sessionId}`);
+  }
+  return phase;
+};
+
 const putUnrecordedRow = async (sessionId: string): Promise<void> => {
   await putRowState(
     sessionId,
@@ -37,13 +48,16 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
   describe("releasing", () => {
     test("confirmation accepts only the exact claim still holding every row", async () => {
       const attendeeId = await bookedWithPayment("sess-confirm", "pi_confirm");
-      const claimed = await claimCurrentAttendeeRows([attendeeId], "keyless");
+      const claimed = await claimCurrentAttendeeRows([attendeeId]);
       if (claimed.kind !== "claimed") throw new Error("the claim was refused");
 
       await withTransaction((tx) =>
         assertRefundRowsHeld(tx, {
+          commandId: claimed.commandId,
           heldSince: claimed.heldSince,
-          sessionIds: ["sess-confirm"],
+          phases: new Map([
+            ["sess-confirm", claimedPhase(claimed, "sess-confirm")],
+          ]),
         }),
       );
       await releaseClaimRows(claimed, ["sess-confirm"]);
@@ -51,8 +65,11 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
       await expect(
         withTransaction((tx) =>
           assertRefundRowsHeld(tx, {
+            commandId: claimed.commandId,
             heldSince: claimed.heldSince,
-            sessionIds: ["sess-confirm"],
+            phases: new Map([
+              ["sess-confirm", claimedPhase(claimed, "sess-confirm")],
+            ]),
           }),
         ),
       ).rejects.toThrow("Refund confirmation no longer owns every payment row");
@@ -61,20 +78,19 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
     test("confirmation accepts an empty held set", async () => {
       await withTransaction((tx) =>
         assertRefundRowsHeld(tx, {
+          commandId: "empty-command",
           heldSince: "2026-08-11T12:00:00.000Z",
-          sessionIds: [],
+          phases: new Map(),
         }),
       );
     });
 
     test("a released row can be claimed again", async () => {
       const attendeeId = await bookedWithPayment("sess-l", "pi_l");
-      const claimed = await claimCurrentAttendeeRows([attendeeId], "keyless");
+      const claimed = await claimCurrentAttendeeRows([attendeeId]);
       if (claimed.kind !== "claimed") throw new Error("the claim was refused");
       await releaseClaimRows(claimed, ["sess-l"]);
-      expect(
-        await claimCurrentAttendeeRows([attendeeId], "keyless"),
-      ).toMatchObject({
+      expect(await claimCurrentAttendeeRows([attendeeId])).toMatchObject({
         kind: "claimed",
       });
     });
@@ -89,7 +105,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
         await rowStateSlot({ review: { kind: "partial_refund" } }),
         REVIEW_MIRROR,
       );
-      const held = await claimCurrentAttendeeRows([attendeeId], "keyless");
+      const held = await claimCurrentAttendeeRows([attendeeId]);
       if (held.kind !== "claimed") throw new Error("the claim was refused");
       expect(await protectedStateOf("sess-rev")).toBe(CLAIM_MIRROR);
 
@@ -103,7 +119,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
         "sess-new-review",
         "pi_new_review",
       );
-      const first = await claimCurrentAttendeeRows([attendeeId], "keyed");
+      const first = await claimCurrentAttendeeRows([attendeeId]);
       if (first.kind !== "claimed") throw new Error("the claim was refused");
 
       await releaseClaimRows(
@@ -123,7 +139,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
       );
       expect(await protectedStateOf("sess-new-review")).toBe(REVIEW_MIRROR);
 
-      const second = await claimCurrentAttendeeRows([attendeeId], "keyed");
+      const second = await claimCurrentAttendeeRows([attendeeId]);
       if (second.kind !== "claimed") throw new Error("the claim was refused");
       await releaseClaimRows(
         second,
@@ -148,7 +164,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
         await rowStateSlot({ review: { kind: "shared_reference" } }),
         REVIEW_MIRROR,
       );
-      const held = await claimCurrentAttendeeRows([attendeeId], "keyed");
+      const held = await claimCurrentAttendeeRows([attendeeId]);
       if (held.kind !== "claimed") throw new Error("the claim was refused");
 
       await releaseClaimRows(
@@ -162,7 +178,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
         ]),
       );
 
-      const reclaimed = await claimCurrentAttendeeRows([attendeeId], "keyed");
+      const reclaimed = await claimCurrentAttendeeRows([attendeeId]);
       if (reclaimed.kind !== "claimed") {
         throw new Error("the reviewed row could not be reclaimed");
       }
@@ -179,7 +195,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
       // one without the other, and lands in the same write as the release so
       // there is no moment where neither holds.
       const attendeeId = await bookedWithPayment("sess-off", "pi_off");
-      const held = await claimCurrentAttendeeRows([attendeeId], "keyless");
+      const held = await claimCurrentAttendeeRows([attendeeId]);
       if (held.kind !== "claimed") throw new Error("the claim was refused");
 
       await releaseClaimRows(
@@ -191,21 +207,29 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
       expect(await protectedStateOf("sess-off")).toBe(UNRECORDED_MIRROR);
       // And it really is free to be claimed again, which is what lets a later
       // run post the ledger entry that retires it.
-      expect(
-        await claimCurrentAttendeeRows([attendeeId], "keyless"),
-      ).toMatchObject({
+      expect(await claimCurrentAttendeeRows([attendeeId])).toMatchObject({
         kind: "claimed",
       });
     });
 
     test("recording missed books can keep the exact claim in place", async () => {
       const attendeeId = await bookedWithPayment("sess-kept", "pi_kept");
-      const held = await claimCurrentAttendeeRows([attendeeId], "keyless");
+      const held = await claimCurrentAttendeeRows([attendeeId]);
       if (held.kind !== "claimed") throw new Error("the claim was refused");
 
       await settleAttendeeRows({
+        commandId: held.commandId,
         heldSince: held.heldSince,
-        rows: new Map([["sess-kept", { books: "unrecorded", claim: "keep" }]]),
+        rows: new Map([
+          [
+            "sess-kept",
+            {
+              books: "unrecorded",
+              claim: "keep",
+              phase: claimedPhase(held, "sess-kept"),
+            },
+          ],
+        ]),
       });
 
       expect(await protectedStateOf("sess-kept")).toBe(CLAIM_MIRROR);
@@ -227,7 +251,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
     test("a later run that records the money takes the mark off", async () => {
       const attendeeId = await bookedWithPayment("sess-on", "pi_on");
       await putUnrecordedRow("sess-on");
-      const held = await claimCurrentAttendeeRows([attendeeId], "keyless");
+      const held = await claimCurrentAttendeeRows([attendeeId]);
       if (held.kind !== "claimed") throw new Error("the claim was refused");
 
       // Letting go without naming it is how the state retires: the run that
@@ -252,7 +276,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
         "tok-new",
       );
       await putUnrecordedRow("sess-still-behind");
-      const held = await claimCurrentAttendeeRows([attendeeId], "keyless");
+      const held = await claimCurrentAttendeeRows([attendeeId]);
       if (held.kind !== "claimed") throw new Error("the claim was refused");
 
       await releaseClaimRows(
@@ -281,7 +305,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
 
     test("releasing clears the mirror the prune reads", async () => {
       const attendeeId = await bookedWithPayment("sess-m", "pi_m");
-      const held = await claimCurrentAttendeeRows([attendeeId], "keyless");
+      const held = await claimCurrentAttendeeRows([attendeeId]);
       if (held.kind !== "claimed") throw new Error("the claim was refused");
       await releaseClaimRows(held, ["sess-m"]);
       expect(await protectedStateOf("sess-m")).toBe("");
@@ -289,16 +313,28 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
 
     test("releasing nothing reaches no database at all", async () => {
       const calls = await countDatabaseCalls(0, async () => {
-        await releaseClaimRows({ heldSince: "2026-08-10T12:00:00.000Z" }, []);
+        await releaseClaimRows(
+          {
+            commandId: "empty-command",
+            heldSince: "2026-08-10T12:00:00.000Z",
+            phases: new Map(),
+          },
+          [],
+        );
       });
       expect(calls).toBe(0);
     });
 
     test("releasing an unclaimed row leaves it alone", async () => {
       await bookedWithPayment("sess-n", "pi_n");
-      await releaseClaimRows({ heldSince: "2026-08-10T12:00:00.000Z" }, [
-        "sess-n",
-      ]);
+      await releaseClaimRows(
+        {
+          commandId: "missing-command",
+          heldSince: "2026-08-10T12:00:00.000Z",
+          phases: new Map([["sess-n", "checking"]]),
+        },
+        ["sess-n"],
+      );
       expect(await protectedStateOf("sess-n")).toBe("");
     });
   });

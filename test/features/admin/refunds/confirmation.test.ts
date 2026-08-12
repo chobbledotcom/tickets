@@ -8,6 +8,7 @@ import {
   getNotesFor,
 } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
+import { bindPaymentReferenceProviders } from "#shared/db/payment-reference-provider.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -64,8 +65,36 @@ const setup = async (
   if (reference === undefined) {
     throw new Error("no payment reference was found");
   }
-  const claimed = await claimCurrentAttendeeRows([attendeeId], "keyed");
+  const claimed = await claimCurrentAttendeeRows([attendeeId]);
   if (claimed.kind !== "claimed") throw new Error("the claim was refused");
+  const claim = {
+    commandId: claimed.commandId,
+    held: claimed.held,
+    heldSince: claimed.heldSince,
+    phases: new Map(
+      [...claimed.phases].map(([sessionId]) => [
+        sessionId,
+        "ready" as const,
+      ]),
+    ),
+  };
+  const bound = await bindPaymentReferenceProviders({
+    bindings: new Map(
+      references.map((boundReference) => [
+        boundReference.index,
+        {
+          capability: "keyed" as const,
+          identity: {
+            kind: "tagged" as const,
+            provider: boundReference.provider,
+            reference: boundReference.reference,
+          },
+        },
+      ]),
+    ),
+    ...claim,
+  });
+  if (bound.kind !== "bound") throw new Error("the provider was not bound");
   const booking = await queryOne<{ listing_id: number }>(
     `SELECT listingAttendee.listing_id
        FROM listing_attendees AS listingAttendee
@@ -75,7 +104,7 @@ const setup = async (
   if (booking === null) throw new Error("the attendee booking was not found");
   return {
     attendee: { id: attendeeId, name: "Buyer" },
-    claim: { held: claimed.held, heldSince: claimed.heldSince },
+    claim,
     listingId: booking.listing_id,
     paymentOnly: true,
     privateKey,

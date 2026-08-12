@@ -9,9 +9,28 @@
 
 import type { RefundClaim } from "#shared/payment/row-state.ts";
 
-/** A run asking to work on a row. An admin run names its attendee, because
- *  only a run taking that same whole set again may resume a crashed one. */
-export type ClaimRequest = { attendeeId: number; scope: "attendee_set" };
+/** A run asking to work on one reference group. Only the same sorted set of
+ *  initiating attendees may resume its crashed command. */
+export type ClaimRequest = {
+  attendeeIds: readonly number[];
+  scope: "attendee_set";
+};
+
+/** The exact command and lease guarding a refund run's physical rows. */
+export interface HeldRefundCommand {
+  readonly commandId: string;
+  readonly held: ReadonlyMap<number, readonly string[]>;
+  readonly heldSince: string;
+}
+
+/** A command boundary observed that its exact hold no longer exists. */
+export type RefundClaimChanged = { readonly kind: "claim_changed" };
+
+/** A decision attached to exact provider-aware payment-reference indexes. */
+export interface IndexedRefundClaimDecision<TKind extends string> {
+  readonly indexes: readonly string[];
+  readonly kind: TKind;
+}
 
 export type HeldPaymentRow = {
   readonly attendeeId: number;
@@ -25,6 +44,55 @@ export const heldPaymentRows = (
   [...held].flatMap(([attendeeId, sessionIds]) =>
     sessionIds.map((sessionId) => ({ attendeeId, sessionId })),
   );
+
+/** Name held rows once, failing when one physical row was repeated. */
+export const distinctHeldPaymentRows = (
+  held: HeldRefundCommand["held"],
+): HeldPaymentRow[] => {
+  const rows = heldPaymentRows(held);
+  if (new Set(rows.map(({ sessionId }) => sessionId)).size !== rows.length) {
+    throw new Error("A refund command repeated a held session");
+  }
+  return rows;
+};
+
+/** Whether a row still carries this exact command and lease. */
+export const holdsExactRefundCommand = (
+  claim: RefundClaim | undefined,
+  command: Pick<HeldRefundCommand, "commandId" | "heldSince">,
+): claim is RefundClaim =>
+  claim !== undefined &&
+  claim.commandId === command.commandId &&
+  claim.writtenAt === command.heldSince;
+
+/** Whether the observed reference groups are exactly the requested groups. */
+export const coversExactReferenceIndexes = (
+  observed: readonly string[],
+  requested: readonly string[],
+): boolean => {
+  const found = new Set(observed);
+  return (
+    found.size === requested.length &&
+    requested.every((index) => found.has(index))
+  );
+};
+
+/** Keep a complete checked reference set, or refuse the whole set. */
+export const completeExactReferenceRows = <
+  TRow extends { readonly index: string },
+>(
+  rows: readonly (TRow | null)[],
+  requested: readonly string[],
+): TRow[] | null => {
+  const complete = rows.filter((row): row is TRow => row !== null);
+  return complete.length === rows.length &&
+    coversExactReferenceIndexes(
+      complete.map(({ index }) => index),
+      requested,
+    )
+    ? complete
+    : null;
+};
 
 /** What a run may do with the row it just read. `grant` and `resume` both end
  *  holding the claim, kept apart because resuming means a previous run died
@@ -78,8 +146,9 @@ export const isClaimStale = (
   staleBefore: string,
 ): boolean => claim.writtenAt < staleBefore;
 
-const sameAttendee = (claim: RefundClaim, request: ClaimRequest): boolean =>
-  claim.attendeeId === request.attendeeId;
+const sameAttendees = (claim: RefundClaim, request: ClaimRequest): boolean =>
+  claim.attendeeIds.length === request.attendeeIds.length &&
+  claim.attendeeIds.every((id, index) => id === request.attendeeIds[index]);
 
 /** Decide what this run may do with a row. A stale claim is resumable only by
  *  a run taking the same attendee again — recovering somebody else's work
@@ -91,7 +160,7 @@ export const decideClaim = (
 ): ClaimDecision => {
   if (existing === undefined) return { kind: "grant" };
   if (!isClaimStale(existing, staleBefore)) return { kind: "held" };
-  return sameAttendee(existing, request)
+  return sameAttendees(existing, request)
     ? { kind: "resume", resuming: existing }
     : { kind: "foreign" };
 };

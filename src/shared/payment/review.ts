@@ -7,6 +7,7 @@ import { kindObject } from "#shared/validation/kind.ts";
 const PaymentOperationReviewSchema = v.variant("kind", [
   kindObject("shared_reference"),
   kindObject("partially_returned_obligation"),
+  kindObject("uncertain_keyless_refund"),
 ]);
 
 export const PaymentReviewReasonSchema = v.union([

@@ -85,6 +85,14 @@ const reportSharedReference = (
   return SHARED_REFERENCE_MESSAGE;
 };
 
+const rememberProviderReadiness = (held: HeldRefundWork): void => {
+  for (const [sessionId, phase] of held.findings.claimPhases) {
+    if (phase === "checking") {
+      held.findings.claimPhases.set(sessionId, "ready");
+    }
+  }
+};
+
 /** Claim the exact loaded rows, establish provider readiness, then run them. */
 export const runRefundReadiness = async <TResult>(
   run: RefundReadinessRun<TResult>,
@@ -92,7 +100,6 @@ export const runRefundReadiness = async <TResult>(
   await underAttendeeClaim(
     run.claim,
     run.candidates.map(loadedRefundAttendee),
-    "unresolved",
     run.listingId,
     {
       blocked: ({ kind, reason }) => {
@@ -111,9 +118,11 @@ export const runRefundReadiness = async <TResult>(
           held.claim,
           held.alreadyReturned,
         );
-        return readiness.kind === "not_ready"
-          ? run.notReady(reportReadinessFailure(run, readiness, held))
-          : await run.ready(readiness.candidates, held);
+        if (readiness.kind === "not_ready") {
+          return run.notReady(reportReadinessFailure(run, readiness, held));
+        }
+        rememberProviderReadiness(held);
+        return await run.ready(readiness.candidates, held);
       },
     },
   );

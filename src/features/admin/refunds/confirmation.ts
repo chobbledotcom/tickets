@@ -58,11 +58,22 @@ export const confirmRefund = async (
     refund.attendee.id,
     `Refund confirmation lost attendee ${refund.attendee.id}'s claim`,
   );
+  const phases = new Map(
+    sessionIds.map((sessionId) => [
+      sessionId,
+      requiredMapValue(
+        refund.claim.phases,
+        sessionId,
+        `Refund confirmation lost payment-row phase ${sessionId}`,
+      ),
+    ]),
+  );
 
   return await withTransaction(async (tx) => {
     await assertRefundRowsHeld(tx, {
+      commandId: refund.claim.commandId,
       heldSince: refund.claim.heldSince,
-      sessionIds,
+      phases,
     });
     const written = await insertRefundConfirmation(tx, {
       attendeeId: refund.attendee.id,

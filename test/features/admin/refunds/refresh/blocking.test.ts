@@ -1,18 +1,30 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { RowClaim } from "#routes/admin/refunds/claim.ts";
-import { pendingRefundMoney, refresh, runHarness } from "./helpers.ts";
+import {
+  pendingRefundMoney,
+  refresh,
+  reviewChange,
+  runHarness,
+} from "./helpers.ts";
 
 describe("refresh payment under an attendee claim", () => {
-  test("retains an inherited keyless claim when no refund is visible", async () => {
+  test("parks an inherited keyless claim when no refund is visible", async () => {
     const run = runHarness({ inherited: "keyless" });
 
     expect(await refresh(run)).toEqual({
-      kind: "blocked",
-      reason: "refund_in_progress",
+      kind: "needs_review",
+      message:
+        "This payment needs an owner review before another refund can be attempted.",
     });
     expect(run.provider.refunds).toEqual([]);
-    expect(run.claim.released).toEqual([]);
+    expect(run.claim.released).toEqual([[run.rowSessionId]]);
+    expect(run.claim.reviewChanges).toEqual([
+      reviewChange(run, {
+        kind: "review",
+        reason: { kind: "uncertain_keyless_refund" },
+      }),
+    ]);
   });
 
   test("retains the claim while an observed refund is still settling", async () => {

@@ -30,6 +30,7 @@ describe("admin refund shared-reference readiness", () => {
     const claim: RowClaim = {
       claim: () =>
         Promise.resolve({
+          commandId: "test-command",
           held: new Map([
             [13, ["shared_first"]],
             [14, ["shared_second"]],
@@ -37,6 +38,10 @@ describe("admin refund shared-reference readiness", () => {
           heldSince: HELD_SINCE,
           inherited: new Map(),
           kind: "claimed",
+          phases: new Map([
+            ["shared_first", "checking"],
+            ["shared_second", "checking"],
+          ]),
           returned: new Set<string>(),
           reviews: new Map(),
           shared: new Map([
@@ -95,12 +100,14 @@ describe("admin refund shared-reference readiness", () => {
     expect(ran).toBe(false);
     expect(settlements).toEqual([
       {
+        commandId: "test-command",
         heldSince: HELD_SINCE,
         rows: new Map(
           ["shared_first", "shared_second"].map((sessionId) => [
             sessionId,
             {
               claim: "release",
+              phase: "checking",
               review: {
                 kind: "review",
                 reason: { kind: "shared_reference" },

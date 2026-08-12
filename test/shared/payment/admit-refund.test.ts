@@ -12,7 +12,7 @@ import type { ObservationOutcome } from "#shared/payment/diagnose.ts";
 import { refundOutcomeOf } from "#shared/payment/diagnose.ts";
 import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
-import type { ResolvedRefundCapability } from "#shared/payment/row-state.ts";
+import type { RefundProviderCapability } from "#shared/payment/row-state.ts";
 import type { PaymentProvider } from "#shared/payments.ts";
 import {
   chargeMoneyWith,
@@ -175,7 +175,7 @@ describe("provider evidence before a refund", () => {
 
   const provider = (
     readCharge: PaymentProvider["readCharge"],
-    refundCapability: ResolvedRefundCapability = "keyed",
+    refundCapability: RefundProviderCapability = "keyed",
     result: RefundAttemptResult = completed,
   ) => {
     const refundCharge = spy(() => Promise.resolve(result));

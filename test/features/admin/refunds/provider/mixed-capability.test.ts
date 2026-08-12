@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
 import { grantingRowClaim } from "#test-utils/refund-routes.ts";
+import { armEveryRefund } from "./dispatch-helpers.ts";
 import {
   candidate,
   finishedCounts,
@@ -40,6 +41,7 @@ test("retries only the keyed reference in one mixed inherited claim", async () =
 
   const counts = finishedCounts(
     await processRefundBatch([source], 7, {
+      arm: armEveryRefund(),
       claim: rowClaim,
       markReturned: () => Promise.resolve(),
       prepare: () =>

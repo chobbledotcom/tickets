@@ -134,11 +134,22 @@ const returnedReference = (
 /** Keep only provider disagreements that need an owner's decision. */
 const providerReviewFindings = (
   observed: readonly RefreshedReference[],
+  uncertainKeyless: ReadonlySet<string>,
 ): ProviderReviewFinding[] =>
   observed.flatMap((result): ProviderReviewFinding[] =>
-    result.kind === "unreturned" && result.admission.kind === "refused"
-      ? [{ reason: result.admission.issue, reference: result.reference }]
-      : [],
+    result.kind !== "unreturned"
+      ? []
+      : result.admission.kind === "refused"
+        ? [{ reason: result.admission.issue, reference: result.reference }]
+        : result.admission.kind === "send" &&
+            uncertainKeyless.has(result.reference.index)
+          ? [
+              {
+                reason: { kind: "uncertain_keyless_refund" },
+                reference: result.reference,
+              },
+            ]
+          : [],
   );
 
 type CompletedRefundReview = Extract<
@@ -173,7 +184,7 @@ const retireCompletedRefundReviews = (
 const refreshReadyCandidate = async (
   candidate: ReadyRefundCandidate,
   listingId: number,
-  inheritedKeyless: ReadonlySet<string>,
+  uncertainKeyless: ReadonlySet<string>,
   findings: RunFindings,
   claim: HeldRefundClaim,
   heldReviews: HeldRefundWork["reviews"],
@@ -191,16 +202,9 @@ const refreshReadyCandidate = async (
   const hasUnreturned = returned.length !== candidate.references.length;
   const providerNeedsReview = recordProviderReviewFindings(
     findings,
-    providerReviewFindings(observed),
+    providerReviewFindings(observed, uncertainKeyless),
   );
-  const keepsClaim =
-    hasAdmission(observed, "in_flight") ||
-    hasUnreturnedReference(
-      observed,
-      (reference) =>
-        reference.admission.kind === "send" &&
-        inheritedKeyless.has(reference.reference.index),
-    );
+  const keepsClaim = hasAdmission(observed, "in_flight");
   if (keepsClaim) {
     findings.doubts.set(candidate.attendee.id, "in_doubt");
   }

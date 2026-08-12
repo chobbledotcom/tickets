@@ -69,11 +69,16 @@ export const candidate = (
 });
 
 export const heldClaim: HeldRefundClaim = {
+  commandId: "test-command",
   held: new Map([
     [1, ["session_old_shared", "session_tagged_returned"]],
     [2, ["session_old_shared"]],
   ]),
   heldSince: "2026-08-11T12:00:00.000Z",
+  phases: new Map([
+    ["session_old_shared", "checking"],
+    ["session_tagged_returned", "checking"],
+  ]),
 };
 
 export const provider = (

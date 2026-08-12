@@ -142,10 +142,12 @@ describe("admin refund provider > exact ledger findings", () => {
     expect(settlements[0]!.rows.get(recordedSession)).toEqual({
       books: "recorded",
       claim: "release",
+      phase: "ready",
     });
     expect(settlements[0]!.rows.get(reviewSession)).toEqual({
       books: "unrecorded",
       claim: "release",
+      phase: "ready",
       review: {
         kind: "review",
         reason: { kind: "partially_returned_obligation" },

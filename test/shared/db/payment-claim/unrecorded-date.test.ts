@@ -29,11 +29,16 @@ const claimAndReleaseUnrecorded = async (
   attendeeId: number,
   sessionId: string,
 ): Promise<void> => {
-  const claim = await claimCurrentAttendeeRows([attendeeId], "keyless");
+  const claim = await claimCurrentAttendeeRows([attendeeId]);
   if (claim.kind !== "claimed") throw new Error("The claim was refused");
+  const phase = claim.phases.get(sessionId);
+  if (phase === undefined) throw new Error("The payment row was not claimed");
   await settleAttendeeRows({
+    commandId: claim.commandId,
     heldSince: claim.heldSince,
-    rows: new Map([[sessionId, { books: "unrecorded", claim: "release" }]]),
+    rows: new Map([
+      [sessionId, { books: "unrecorded", claim: "release", phase }],
+    ]),
   });
 };
 

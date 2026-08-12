@@ -12,8 +12,10 @@ const CONTEXT = "processed_payments.failure_data";
 
 const FULL: PaymentRowState = {
   claim: {
-    attendeeId: 12,
+    attendeeIds: [12],
     capability: "keyless",
+    commandId: "full-command",
+    phase: "send_armed",
     scope: "attendee_set",
     writtenAt: "2026-08-10T12:00:00.000Z",
   },
@@ -46,8 +48,10 @@ describe("readRowState", () => {
   test("a claim-only record is not mistaken for a legacy outcome", () => {
     const claimOnly: PaymentRowState = {
       claim: {
-        attendeeId: 7,
+        attendeeIds: [7],
         capability: "keyed",
+        commandId: "claim-only-command",
+        phase: "ready",
         scope: "attendee_set",
         writtenAt: "2026-08-10T12:00:00.000Z",
       },
@@ -60,7 +64,10 @@ describe("readRowState", () => {
   test("refuses a record whose claim names an unknown scope", () => {
     const rogue = JSON.stringify({
       claim: {
+        attendeeIds: [7],
         capability: "keyed",
+        commandId: "rogue-command",
+        phase: "ready",
         scope: "sweep",
         writtenAt: "2026-08-10T12:00:00.000Z",
       },
@@ -87,7 +94,13 @@ describe("readRowState", () => {
 
   test("refuses a claim with no written-at time", () => {
     const rogue = JSON.stringify({
-      claim: { attendeeId: 7, capability: "keyed", scope: "attendee_set" },
+      claim: {
+        attendeeIds: [7],
+        capability: "keyed",
+        commandId: "no-time-command",
+        phase: "ready",
+        scope: "attendee_set",
+      },
     });
     expect(() => readRowState(rogue, CONTEXT)).toThrow(CONTEXT);
   });
@@ -95,7 +108,10 @@ describe("readRowState", () => {
   test("refuses an attendee claim that names no attendee", () => {
     const rogue = JSON.stringify({
       claim: {
+        attendeeIds: [],
         capability: "keyless",
+        commandId: "no-attendee-command",
+        phase: "send_armed",
         scope: "attendee_set",
         writtenAt: "2026-08-10T12:00:00.000Z",
       },
@@ -117,8 +133,10 @@ describe("writeRowState", () => {
   test("refuses to store a claim the reader could not trust", () => {
     const bad = {
       claim: {
-        attendeeId: 7,
+        attendeeIds: [7],
         capability: "guessed",
+        commandId: "bad-command",
+        phase: "ready",
         scope: "attendee_set",
         writtenAt: "now",
       },

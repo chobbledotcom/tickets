@@ -128,11 +128,12 @@ it is built, the code is the authority").
 | The refund-only judgment                                         | `refundOutcomeOf` and `ObservationOutcome` in `src/shared/payment/diagnose.ts` (`test/shared/payment/diagnose.test.ts`)                                                                                                                                                                                                                                                                                                                                                                      | New, not in the reference: a reference carrying no agreed total is judged on captured-vs-returned alone. The booking-tier kinds are not evaluated rather than being evaluated against a synthesized total. These two are the whole of the module — the whole-reading judge that used to sit beside them is gone (see below). A reading holding two refunds in flight returns the explicit `multiple_pending_refunds` owner conflict; it never passes as settled or throws away the evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | The money facts a refund is judged on                            | `ChargeMoney` + `chargeMoneyRead` in `src/shared/payment/resources.ts`                                                                                                                                                                                                                                                                                                                                                                                                                       | New: `ChargeLeg` split into its money and the record it came from, because a bare provider reference has no checkout to hang a charge off. `money()` now also takes the `bigint` amounts Square states                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | The overlap guard and its wiring                                 | `src/shared/payment/admit-refund.ts` (`test/shared/payment/admit-refund.test.ts`)                                                                                                                                                                                                                                                                                                                                                                                                            | `admitRefund`, `admitProviderRefund`, `sendRefundIfAdmitted`, `admissionReason`. Every refund reads the exact captured money before it sends and hands that same observation to the adapter; the attempt-then-check fallback and the separate Square reread are deleted                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| The one record a row carries                                     | `src/shared/payment/row-state.ts` (`test/shared/payment/row-state.test.ts`)                                                                                                                                                                                                                                                                                                                                                                                                                  | The claim, the owner-review marker, and the terminal outcome share one env-key-encrypted slot, each in its own field. The committed-evidence summary field is PR B's and is not declared yet. Rows written before the record existed hold a bare terminal failure and read as an outcome-only record                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| The claim's rules                                                | `src/shared/payment/claim.ts` (`test/shared/payment/claim.test.ts`)                                                                                                                                                                                                                                                                                                                                                                                                                          | Pure: scope ownership, staleness against `claimLeaseMs(STALE_RESERVATION_MS)`, and evidence-derived release. The lease is the greater of reservation staleness and a five-minute request-lifetime floor. An unanswered call never releases immediately; after the lease, each inherited keyed reference may repeat its deterministic request while each inherited keyless reference remains observation-only until evidence settles it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| The all-or-none claim                                            | `src/shared/db/payment-claim/take.ts`, release/row mechanics in `src/shared/db/payment-claim.ts` (`test/shared/db/payment-claim/take.test.ts`, `test/shared/db/payment-claim.test.ts`, `test/features/admin/refunds/provider/claim-set-races.test.ts`)                                                                                                                                                                                                                                       | `attendee_set` scope only — callback claims remain later work. A release names the claim it took and clears only that hold. The transaction verifies every attendee PII revision and exact `(attendee, session, reference index)` snapshot, expands the hold to every indexed row with a matching identity, and writes all holds or none. It never creates storage from an in-memory PII fallback. Deletion, movement, a new indexed payment row, or a vanished anchor therefore refuses the run before provider I/O. More than one representation is returned as explicit shared work and is parked by the readiness runner rather than sent                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| The one record a row carries                                     | `src/shared/payment/row-state.ts` (`test/shared/payment/row-state.test.ts`)                                                                                                                                                                                                                                                                                                                                                                                                                  | The claim, the owner-review marker, and the terminal outcome share one env-key-encrypted slot, each in its own field. A claim is a strict phase variant: `checking` cannot carry a provider capability, while `ready` and `send_armed` must carry the capability proved for that reference. Every phase also names one command id and a sorted, unique, non-empty initiating-attendee set. The committed-evidence summary field is PR B's and is not declared yet. Rows written before the record existed hold a bare terminal failure and read as an outcome-only record                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| The claim's rules                                                | `src/shared/payment/claim.ts` (`test/shared/payment/claim.test.ts`)                                                                                                                                                                                                                                                                                                                                                                                                                          | Pure: exact initiating-attendee-set ownership, staleness against `claimLeaseMs(STALE_RESERVATION_MS)`, and evidence-derived release. The lease is the greater of reservation staleness and a five-minute request-lifetime floor. A stale `checking` or `ready` command starts over from `checking`, because no send permit existed. Only stale `send_armed` work inherits possible provider doubt: keyed work may repeat its deterministic request, while keyless work is observed and sent to exact owner review if no returned money is visible                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| The all-or-none claim                                            | scope derivation in `src/shared/db/payment-claim/scope.ts`; transaction in `src/shared/db/payment-claim/take.ts`; release/row mechanics in `src/shared/db/payment-claim.ts` (`test/shared/db/payment-claim/take.test.ts`, `test/shared/db/payment-claim.test.ts`, `test/features/admin/refunds/provider/claim-set-races.test.ts`)                                                                                                                                                            | `attendee_set` scope only — callback claims remain later work. The physical row owner and command scope are separate facts: each matching reference group carries the same sorted ids of the initiating attendees, including every expanded representation, so a crashed shared command resumes from its initiator rather than `attendees[0]` or a row's current owner. The transaction verifies every attendee PII revision and exact `(attendee, session, reference index)` snapshot, expands the hold to every row with a matching prepared index, and writes all holds or none. It never mints storage from an in-memory fallback. Settlement names the exact command id, lease time, and row phase; a stalled predecessor therefore cannot clear or rewrite its successor                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | The `protected_state` mirror and its prune gate                  | written by `payment-claim.ts`; read by `paymentStatement` in `src/shared/db/prune.ts`                                                                                                                                                                                                                                                                                                                                                                                                        | The claim writes the mirror in the same statement as the record; the prune keeps every arm byte-identical for rows whose mirror is empty and never deletes a row carrying work, however long ago the claim was taken — a retained claim IS the record that money may be going back, and staleness lets the same attendee set resume it but never makes it pruneable                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| Each provider's refund capability                                | `refundCapability` on `PaymentProvider` and its three adapters; binding in `src/shared/db/payment-reference-provider.ts`                                                                                                                                                                                                                                                                                                                                                                     | Stripe and Square declare `keyed`; SumUp declares `keyless`. Readiness binds that proved capability to each exact reference's held rows. A stale claim returns `Map<attendeeId, Map<referenceIndex, capability>>`, so a mixed-provider attendee retries only inherited keyed references and observes inherited keyless references                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Each provider's refund capability                                | `refundCapability` on `PaymentProvider` and its three adapters; binding in `src/shared/db/payment-reference-provider.ts`                                                                                                                                                                                                                                                                                                                                                                     | Stripe and Square declare `keyed`; SumUp declares `keyless`. Readiness binds that proved capability to every exact representation by advancing the exact command from `checking` to `ready`; binding never claims that a provider send happened. A stale run inherits capability only from `send_armed`, so pre-send keyless work can safely restart while a mixed-provider attendee retries only armed keyed references and observes armed keyless references                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| The provider-send boundary                                       | `armRefundDispatch` and `RefundDispatchPermit` in `src/shared/db/payment-refund-dispatch.ts`; consumption in `src/features/admin/refunds/{attempt,provider}.ts` (`test/shared/db/payment-refund-dispatch.test.ts`, `test/features/admin/refunds/provider/readiness-integration.test.ts`)                                                                                                                                                                                                     | Immediately before any provider call, one transaction verifies every requested reference representation still belongs to the exact command and lease and is `ready`, then advances the whole requested set to `send_armed` or none. Only that transition yields typed, per-reference permits accepted by the send path. A repeated armed keyed command receives the same logical permission; armed keyless work receives an exact `uncertain_keyless_refund` owner-review decision. If any requested sibling is uncertain, no fresh sibling is armed and no provider call begins                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | Legacy reference materialization                                 | `src/shared/db/payment-anchor/attendee.ts`, `src/shared/db/attendees/pii-write.ts`, and indexed-only reads in `src/shared/db/payment-references.ts` (`test/shared/db/payment-references/readiness.test.ts`)                                                                                                                                                                                                                                                                                  | The historical invariant is one payment id per attendee. Saving one attendee atomically and idempotently writes their PII plus a deterministic indexed anchor unless a current indexed payment row already represents it. Old identities remain as rows when PII changes. Untouched PII-only payments and old unindexed payment rows are unavailable; no refund read scans attendees or repairs storage                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | Provider discovery, tagging, and readiness                       | `src/shared/payment/provider-discovery.ts`, `src/shared/db/payment-reference-provider.ts`, `src/features/admin/refunds/readiness.ts` (`test/shared/payment/provider-discovery.test.ts`, `test/shared/db/payment-reference-provider.test.ts`, `test/features/admin/refunds/readiness.test.ts`)                                                                                                                                                                                                | A tagged reference reads only its named provider. An untagged reference reads every credentialed provider and binds only when exactly one validates and none was unavailable; one match beside an unavailable provider is `provider_search_incomplete`, not a guess. Binding rechecks the exact claim, atomically rewrites every matching old identity and its per-reference capability, and refuses a returned legacy marker as `historical_marker` instead of inventing an attestation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | Shared-reference admission                                       | `sharedRepresentations` in `src/shared/db/payment-claim/take.ts`; `runRefundReadiness` in `src/features/admin/refunds/readiness-run.ts` (`test/features/admin/refunds/shared-reference-readiness.test.ts`)                                                                                                                                                                                                                                                                                   | More than one durable row for one reference is parked before provider discovery, sends, or ledger work. Every exact representation receives a durable `shared_reference` review marker. Marking it reviewed acknowledges and clears the marker only; it does not allocate the charge, so the unchanged shared representation parks again on a later refund attempt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
@@ -1031,18 +1032,18 @@ authoritative wherever this target uses present tense.
 In the completed target a row holds four durable facts: its RESOLUTION (open
 reservation → booked success or terminal failure — `attendee_id` plus the
 terminal outcome data), its CLAIM (none, or one live claim: owner scope
-`callback`/`attendee_set`, the claiming batch's written-at time, and whether the
-claimed call carries a provider idempotency key), its OWNER-REVIEW MARKER (none,
-or the conflict kind), and its COMMITTED EVIDENCE (the fingerprint plus the
-coded canonical summary). All but the resolution live as distinct fields of the
-ONE env-key-encrypted `failure_data` record described above, and the row's LIVE
-WORK STATE — claim, staged refund, or owner-review marker, else empty — is
-mirrored in the plaintext `protected_state` column, written by the same
-statement that writes the record it mirrors, so a consumer that cannot decrypt
-still routes on the real state machine. Six laws — PLAN.md's data laws
-instantiated for this row — bind every consumer, current and future; the rules
-in this section and the failure table are instances of them, and a new consumer
-or state must say which law admits it:
+`callback`/`attendee_set`, command id, written-at time, initiating owner ids,
+phase, and the proved provider capability where that phase requires one), its
+OWNER-REVIEW MARKER (none, or the conflict kind), and its COMMITTED EVIDENCE
+(the fingerprint plus the coded canonical summary). All but the resolution live
+as distinct fields of the ONE env-key-encrypted `failure_data` record described
+above, and the row's LIVE WORK STATE — claim, staged refund, or owner-review
+marker, else empty — is mirrored in the plaintext `protected_state` column,
+written by the same statement that writes the record it mirrors, so a consumer
+that cannot decrypt still routes on the real state machine. Six laws — PLAN.md's
+data laws instantiated for this row — bind every consumer, current and future;
+the rules in this section and the failure table are instances of them, and a new
+consumer or state must say which law admits it:
 
 1. **Total routing — readers and writers alike.** Every reader routes on the
    same precedence — a claim in the reader's OWN scope first, then the
@@ -1092,27 +1093,24 @@ or state must say which law admits it:
    the merge of committed and observed, never the raw observation (the merge is
    defined under Retry and replay). No consumer can ever read a summary that
    lost a leg or regressed a refund cumulative.
-3. **Capability-derived claim release.** What releases a claim depends on the
-   provider capability the claim recorded, never on a per-provider arm. A claim
-   records the capability its reference's provider tag proves; an UNTAGGED
-   reference's claim starts capability-UNRESOLVED, and no release rule applies
-   to it — only staleness — until discovery's validated read binds the provider
-   and its capability onto the claim, before any refund call (a guessed
-   capability would either reopen SumUp's duplicate-refund window or strand a
-   keyed claim in doubt). A discovery that fails outright — every credentialed
-   read erroring or refusing — is itself a bounded outcome: the claim releases
-   with the recorded unresolved answer and zero refund calls, since nothing was
-   sent under it, and a later retry re-claims behind fresh validated reads
-   (regressions: a lost answer on a claim whose capability never bound stays
-   claimed, and the stale resume re-runs discovery; a discovery that exhausts
-   every provider releases the claim with the honest unresolved answer). A KEYED
-   claim (Stripe/Square — deterministic idempotency key) releases on any
-   recorded outcome, because a re-run lands on the same key; a KEYLESS claim
-   (SumUp) releases only on a validated verdict or covering evidence — a sent
-   call whose answer was lost keeps the claim standing in doubt (failure table,
-   lost-answer row), and a crashed worker's claim resolves by the same
-   staleness-plus-fresh-read rule either way. A future provider adapter declares
-   the capability and inherits the discipline.
+3. **Phase-and-capability-derived claim release.** The durable phase says what
+   could have happened; provider capability says which recovery is safe. A new
+   claim starts `checking` with no capability. A validated discovery binds the
+   exact provider capability and advances every representation to `ready`, which
+   means no send is armed and therefore no provider call can have escaped. One
+   final transaction, immediately before the provider boundary, compare-and-sets
+   the exact command, lease, and complete reference representations from `ready`
+   to `send_armed`; only that write returns a permit the send path accepts. A
+   stale `checking` or `ready` command restarts from `checking`, including
+   keyless work, because binding alone never implies a send. A stale
+   `send_armed` KEYED command may repeat its deterministic request. A stale
+   `send_armed` KEYLESS command is observation-only: returned or in-flight
+   evidence settles it normally, while fresh evidence showing no return parks
+   `uncertain_keyless_refund` on the exact rows for the owner and releases the
+   command instead of retaining an endless moving state. If one requested
+   sibling has that uncertainty, the arm transaction advances no fresh sibling
+   and the run sends nothing. A future provider adapter declares its capability
+   and inherits the same phase machine.
 4. **Frozen facts.** Every fact a judgment consumes is signed, stored, or proven
    — never ambient. A stored reference carries every fact its future judgment
    needs — its provider identity above all (trusted facts; the legacy-references
@@ -1200,99 +1198,100 @@ buyer record and its staged state, a retirement and its completion — change in
 ONE statement, batch, or interactive transaction, and the only fences that exist
 (the claim's staleness rule, the judged- fingerprint condition on money writes)
 each span a gap atomicity cannot close: a provider call or a concurrent request
-in the middle. Before ANY provider refund call, every entry point — the callback
-arm, the admin single route, a bulk wave — claims the reference's
-`processed_payments` row by compare-and-set: the staged field written where the
-record it read carried NO live claim, with the batch's written-at time and the
-claim's OWNER SCOPE — the callback rejection arm claims `callback` scope for its
-own session; the admin single route and a bulk wave claim `attendee_set` scope
-naming the claiming run's attendee — affected-rows deciding the winner. The
-claim is per ATTENDEE REQUEST and all-or-none: a route refunding an attendee
-claims the attendee's complete reference set in one interactive transaction —
-every row claimed or the transaction rolls back whole — so two concurrent
-requests can never split a merged attendee's references between them, each
-winning some rows and moving only part of the money; admission (the subrequest
-pre-flight) runs BEFORE the claim, since it is pure arithmetic with no writes,
-so a refused request never leaves claims behind, and a request that dies after
-claiming recovers via the stale rule. The claim transaction RE-RUNS that
-arithmetic against the exact rows it reads (pure, zero calls, inside the
-transaction — law 8): if the set differs from the pre-flight's snapshot (a
-balance settlement landed between count and claim, before writer exclusivity
-could apply), the in-transaction decision is the binding one — refuse whole if
-the current set exceeds the budget, else claim the current set — so the claimed
-set and the admitted set are the same set by construction (regression: a
-reference landing between pre-flight and claim is either claimed within the
-re-checked budget or the whole run refuses; never a partial-attendee refund,
-never an over-budget run). The run's ORDER is fixed and total: admission, then
-the claim transaction over the stored reference set (known from our rows alone —
-no provider call decides membership), then every provider read — discovery and
-the order/checkout sweeps run UNDER the claim, so the identity and evidence a
-run acts on cannot be re-resolved by a concurrent run mid-flight — then the
-whole-set judgment, and only then any refund call; a park-shaped verdict
-releases the claim with the recorded answer and zero refund calls. A capture a
-sweep reveals beyond the stored references is DETECTION-ONLY: it has no row, no
-route ever refunds it (multi-charge is owner review), and its detection and
-marker land under the claim on rows the run holds — nothing a sweep discovers is
-claimable or dispatchable by a concurrent run. The verdict a run acts on is
-FENCED to the evidence it judged: the claim records the fingerprint the judgment
-ran against, and both the provider call and the finalize are conditioned — the
-same compare-and-set shape — on the row's `evidence_index` still equal to it.
-Under law 1's writer exclusivity no fresh claim can lose that condition
-mid-flight, so the fence is the BACKSTOP for the stale-claim world — a worker
-that stalled past the staleness bound while a resume re-claimed and advanced the
-row: the zombie's finalize fails its condition and re-judges from the merged
-summary before any completion, and where the zombie's refund call escaped before
-it stalled, the re-judge PARKS — the whole-attendee completion is refused, the
-returned leg's refund evidence and any sibling capture are recorded together,
-and the owner review names the partial state (one leg returned, one still
-captured) instead of a reversal the evidence no longer supports (regressions: a
-finalize whose fingerprint moved re-judges and never posts the stale completion;
-a stale-claim resume whose fresh read reveals a sibling parks its completion
-with the escaped refund recorded). The lost-answer recovery read obeys law 6
-like every money-authorizing read: it re-fetches the provider's COMPLETE
-declared observation — Square's payment plus order sweep, SumUp's transaction
-plus checkout sweep where named — never the named payment alone, so a sibling
-that became visible during the lost-answer window parks the completion instead
-of letting the named cumulative answer `fully_refunded` (regression: a
-lost-answer recovery whose re-read reveals a new captured sibling refuses the
-ledger completion and records the detection). The loser answers "a refund for
-this payment is already in progress" without touching the provider; a stale
-claim (older than the edge request lifetime bound) is a crashed worker and may
-be re-claimed — but only SCOPE-PRESERVING: a stale `callback` claim resumes on
-the callback path per the staged lifecycle, while a stale `attendee_set` claim
-is re-claimable only by an admin run that claims the attendee's complete current
-reference set again, all-or-none, re-judging the whole set before any money
-moves. A callback never consumes a claim it did not write: the staged-first
-routing in the callback handler keys on `callback` scope alone, so a session
-carrying a fresh or stale `attendee_set` claim replays its finalized answer and
-runs replay detection without touching the claim or the provider — the callback
-holds one session's context and can neither decrypt nor judge a merged
-attendee's other references (payment references are owner-key-encrypted; a
-webhook writes them, never reads them back), so letting it resume an
-attendee-set claim would refund one reference outside the whole-set judgment the
-claim exists to enforce (regression: an admin claim of a merged attendee's two
-references dies before the provider call; a redelivered callback for one
-reference replays the booked answer and moves no money; a later admin retry
-re-claims the complete set and finishes the refund). Regression: two concurrent
-single-attendee refunds of one merged attendee — one claims every reference and
-refunds, the other claims nothing and answers in-progress. A PII-only legacy
-reference has no refund capability until its attendee is re-saved. That save
-writes one deterministic anchor per `(attendee, reference index)`; the claim
-transaction checks the attendee PII revision and exact indexed-row snapshot
-before holding it, but never mints storage from an in-memory fallback. If one
-attendee carries it, the anchor gives concurrent runs one row to serialize on.
-Current indexed rows retain the shared-reference expansion and readiness park
-before provider I/O. Refresh uses the same indexed claim path, so a materialized
-legacy partial-refund finding is durable too. This claim is what makes the SumUp
-cells above real: with no idempotency parameter, two truly simultaneous refund
-calls are serialized only by the provider, and SumUp documents 409 as a state
-conflict, not a concurrency guarantee — so the local claim is the serialization,
-for every provider one mechanism (regression: two concurrent admin refunds of
-one SumUp reference make exactly one provider call; the loser answers
-in-progress). The claim also binds the operator writes that move rows between
-attendees (law 1's writer half): today `applyAttendeeMerge` moves every source
-reference row and its ledger legs unconditionally
-(`src/shared/merge/attendee-merge.ts` —
+in the middle. Before ANY provider refund call, the admin single route and each
+bulk wave first claim the complete loaded row set, validate and bind provider
+facts while that claim is `checking`, and then atomically advance the exact
+command and requested reference representations from `ready` to `send_armed`.
+The send path accepts only the permit produced by that last compare-and-set. The
+future callback arm must enter this same state machine under `callback` scope;
+Part A does not yet claim callback refunds. The attendee command scope is the
+sorted initiating-id set for each matching reference group, distinct from every
+representation's physical `attendee_id`, and all representations carry the same
+command scope. The claim is per ATTENDEE REQUEST and all-or-none: a route
+refunding an attendee claims the attendee's complete reference set in one
+interactive transaction — every row claimed or the transaction rolls back whole
+— so two concurrent requests can never split a merged attendee's references
+between them, each winning some rows and moving only part of the money;
+admission (the subrequest pre-flight) runs BEFORE the claim, since it is pure
+arithmetic with no writes, so a refused request never leaves claims behind, and
+a request that dies after claiming recovers via the stale rule. The claim
+transaction RE-RUNS that arithmetic against the exact rows it reads (pure, zero
+calls, inside the transaction — law 8): if the set differs from the pre-flight's
+snapshot (a balance settlement landed between count and claim, before writer
+exclusivity could apply), the in-transaction decision is the binding one —
+refuse whole if the current set exceeds the budget, else claim the current set —
+so the claimed set and the admitted set are the same set by construction
+(regression: a reference landing between pre-flight and claim is either claimed
+within the re-checked budget or the whole run refuses; never a partial-attendee
+refund, never an over-budget run). The run's ORDER is fixed and total:
+admission, then the claim transaction over the stored reference set (known from
+our rows alone — no provider call decides membership), then every provider read
+— discovery and the order/checkout sweeps run UNDER the claim, so the identity
+and evidence a run acts on cannot be re-resolved by a concurrent run mid-flight
+— then the whole-set judgment, and only then any refund call; a park-shaped
+verdict releases the claim with the recorded answer and zero refund calls. A
+capture a sweep reveals beyond the stored references is DETECTION-ONLY: it has
+no row, no route ever refunds it (multi-charge is owner review), and its
+detection and marker land under the claim on rows the run holds — nothing a
+sweep discovers is claimable or dispatchable by a concurrent run. The verdict a
+run acts on is FENCED to the evidence it judged: the claim records the
+fingerprint the judgment ran against, and both the provider call and the
+finalize are conditioned — the same compare-and-set shape — on the row's
+`evidence_index` still equal to it. Under law 1's writer exclusivity no fresh
+claim can lose that condition mid-flight, so the fence is the BACKSTOP for the
+stale-claim world — a worker that stalled past the staleness bound while a
+resume re-claimed and advanced the row: the zombie's finalize fails its
+condition and re-judges from the merged summary before any completion, and where
+the zombie's refund call escaped before it stalled, the re-judge PARKS — the
+whole-attendee completion is refused, the returned leg's refund evidence and any
+sibling capture are recorded together, and the owner review names the partial
+state (one leg returned, one still captured) instead of a reversal the evidence
+no longer supports (regressions: a finalize whose fingerprint moved re-judges
+and never posts the stale completion; a stale-claim resume whose fresh read
+reveals a sibling parks its completion with the escaped refund recorded). The
+lost-answer recovery read obeys law 6 like every money-authorizing read: it
+re-fetches the provider's COMPLETE declared observation — Square's payment plus
+order sweep, SumUp's transaction plus checkout sweep where named — never the
+named payment alone, so a sibling that became visible during the lost-answer
+window parks the completion instead of letting the named cumulative answer
+`fully_refunded` (regression: a lost-answer recovery whose re-read reveals a new
+captured sibling refuses the ledger completion and records the detection). The
+loser answers "a refund for this payment is already in progress" without
+touching the provider; a stale claim (older than the edge request lifetime
+bound) is a crashed worker and may be re-claimed — but only SCOPE-PRESERVING: a
+stale `callback` claim resumes on the callback path per the staged lifecycle,
+while a stale `attendee_set` claim is re-claimable only by an admin run that
+claims the attendee's complete current reference set again, all-or-none,
+re-judging the whole set before any money moves. A callback never consumes a
+claim it did not write: the staged-first routing in the callback handler keys on
+`callback` scope alone, so a session carrying a fresh or stale `attendee_set`
+claim replays its finalized answer and runs replay detection without touching
+the claim or the provider — the callback holds one session's context and can
+neither decrypt nor judge a merged attendee's other references (payment
+references are owner-key-encrypted; a webhook writes them, never reads them
+back), so letting it resume an attendee-set claim would refund one reference
+outside the whole-set judgment the claim exists to enforce (regression: an admin
+claim of a merged attendee's two references dies before the provider call; a
+redelivered callback for one reference replays the booked answer and moves no
+money; a later admin retry re-claims the complete set and finishes the refund).
+Regression: two concurrent single-attendee refunds of one merged attendee — one
+claims every reference and refunds, the other claims nothing and answers
+in-progress. A PII-only legacy reference has no refund capability until its
+attendee is re-saved. That save writes one deterministic anchor per
+`(attendee, reference index)`; the claim transaction checks the attendee PII
+revision and exact indexed-row snapshot before holding it, but never mints
+storage from an in-memory fallback. Current indexed rows retain the
+shared-reference expansion and readiness park before provider I/O. Refresh uses
+the same indexed claim path, so a materialized legacy partial-refund finding is
+durable too. This claim is what makes the SumUp cells real: with no idempotency parameter,
+two truly simultaneous refund calls are serialized only by the provider, and
+SumUp documents 409 as a state conflict, not a concurrency guarantee — so the
+local claim is the serialization, for every provider one mechanism (regression:
+two concurrent admin refunds of one SumUp reference make exactly one provider
+call; the loser answers in-progress). The claim also binds the operator writes
+that move rows between attendees (law 1's writer half): today
+`applyAttendeeMerge` moves every source reference row and its ledger legs
+unconditionally (`src/shared/merge/attendee-merge.ts` —
 `UPDATE processed_payments SET attendee_id …`) and the attendee delete removes
 the rows outright (`src/shared/db/attendees/delete.ts`), so either could
 relocate or destroy a claimed row mid-refund — provider money moving while the
@@ -1311,19 +1310,20 @@ Regressions: a merge submitted while a bulk refund's claim is live on one source
 reference moves nothing and answers the settling reason, and the refund's
 finalize lands intact; an attendee delete against a staged callback row is
 refused the same way; a merge after the claim releases succeeds and carries the
-rows' markers and terminal outcomes unchanged. Release follows law 3: a keyed
-claim releases with any DURABLY recorded outcome, but a call with no validated
-verdict has no such record on the landed admin path and retains either
-capability. After staleness, keyed work may repeat its deterministic request;
-keyless work may only observe and stays held until evidence resolves it. The
-table's "one payout" answers rest on that claim for EVERY available reference.
-PII-only legacy payments are unavailable until attendee re-save materializes
-their indexed anchor; claims never synthesize a row. SumUp's cells hold on the
-claim itself, with the provider's second-refund rejection and the fresh
-pre-attempt evidence read as the backstop a stale-reclaim resume still gets;
-Stripe/Square's hold on the idempotency key within its retention window and on
-the fresh-read guard past it, whose stale-cumulative residual is the M7 boundary
-named under Retry and replay.
+rows' markers and terminal outcomes unchanged. Release follows law 3 and names
+the exact command id, lease, and phase, so an old worker cannot settle a resumed
+command. Pre-arm `checking` and `ready` work can restart safely after staleness.
+An unanswered live call retains its `send_armed` command. After staleness, armed
+keyed work may repeat its deterministic request; armed keyless work may only
+observe, then either settles from returned/in-flight evidence or becomes exact
+owner-review work when fresh evidence shows no return. The table's "one payout"
+answers rest on that claim for EVERY available indexed reference. PII-only
+legacy payments are unavailable until attendee re-save materializes their
+indexed anchor; claims never synthesize a row. SumUp's cells hold on the claim itself, with the provider's
+second-refund rejection and the fresh pre-attempt evidence read as the backstop
+a stale-reclaim resume still gets; Stripe/Square's hold on the idempotency key
+within its retention window and on the fresh-read guard past it, whose
+stale-cumulative residual is the M7 boundary named under Retry and replay.
 
 ## Owner choices
 

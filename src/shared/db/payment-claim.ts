@@ -18,11 +18,17 @@ import {
 } from "#shared/db/client.ts";
 import { nowIso } from "#shared/now.ts";
 import { mirrorFor } from "#shared/payment/admit-move.ts";
+import {
+  type HeldRefundCommand,
+  holdsExactRefundCommand,
+} from "#shared/payment/claim.ts";
 import type { PaymentReviewReason } from "#shared/payment/review.ts";
 import {
   EMPTY_ROW_STATE,
   isEmptyRowState,
   type PaymentRowState,
+  type RefundClaim,
+  type RefundClaimPhase,
   readRowState,
   writeRowState,
 } from "#shared/payment/row-state.ts";
@@ -77,6 +83,21 @@ export const asPaymentRowRecord = async (
     : EMPTY_ROW_STATE,
 });
 
+export type HeldPaymentRowRecord = {
+  readonly claim: RefundClaim;
+  readonly record: PaymentRowRecord;
+};
+
+/** Decode a row only when it still carries the exact refund command. */
+export const paymentRowHeldBy = async (
+  row: StoredPaymentClaimRow,
+  command: Pick<HeldRefundCommand, "commandId" | "heldSince">,
+): Promise<HeldPaymentRowRecord | null> => {
+  const record = await asPaymentRowRecord(row);
+  const claim = record.state.claim;
+  return holdsExactRefundCommand(claim, command) ? { claim, record } : null;
+};
+
 /** Decode the row-state slots returned by either payment-row reader. */
 const asPaymentRowRecords = (
   rows: readonly StoredPaymentClaimRow[],
@@ -116,20 +137,38 @@ export const loadAttendeeRowStates = async (
 /** Fail when a confirmer no longer owns every payment row it started with. */
 export const assertRefundRowsHeld = async (
   tx: TxScope,
-  claim: { heldSince: string; sessionIds: readonly string[] },
+  claim: {
+    commandId: string;
+    heldSince: string;
+    phases: ReadonlyMap<string, RefundClaimPhase>;
+  },
 ): Promise<void> => {
+  const sessionIds = [...claim.phases.keys()];
   const stored =
-    claim.sessionIds.length === 0
+    sessionIds.length === 0
       ? []
       : await readPaymentClaimRows(
           tx,
-          `payment_session_id IN (${inPlaceholders(claim.sessionIds)})`,
-          [...claim.sessionIds],
+          `payment_session_id IN (${inPlaceholders(sessionIds)})`,
+          sessionIds,
         );
   const rows = await Promise.all(stored.map(asPaymentRowRecord));
   if (
-    rows.length !== claim.sessionIds.length ||
-    rows.some((row) => row.state.claim?.writtenAt !== claim.heldSince)
+    rows.length !== sessionIds.length ||
+    rows.some((row) => {
+      const stored = row.state.claim;
+      return (
+        stored === undefined ||
+        stored.commandId !== claim.commandId ||
+        stored.writtenAt !== claim.heldSince ||
+        stored.phase !==
+          requiredMapValue(
+            claim.phases,
+            row.sessionId,
+            `Refund confirmation lost payment-row phase ${row.sessionId}`,
+          )
+      );
+    })
   ) {
     throw new Error("Refund confirmation no longer owns every payment row");
   }
@@ -168,11 +207,13 @@ export type PaymentBooksChange = "recorded" | "unrecorded";
 export type PaymentRowSettlement = {
   readonly books?: PaymentBooksChange;
   readonly claim: "keep" | "release";
+  readonly phase: RefundClaimPhase;
   readonly review?: PaymentReviewChange;
 };
 
 /** The exact row transitions made under one durable claim. */
 export type RowSettlement = {
+  readonly commandId: string;
   readonly heldSince: string;
   readonly rows: ReadonlyMap<string, PaymentRowSettlement>;
 };
@@ -260,16 +301,24 @@ const withClaimChange = (
 };
 
 export const settleAttendeeRows = ({
+  commandId,
   heldSince,
   rows,
 }: RowSettlement): Promise<void> =>
   rewriteRows([...rows.keys()], (row) => {
-    if (row.state.claim?.writtenAt !== heldSince) return null;
     const change = requiredMapValue(
       rows,
       row.sessionId,
       `Refund settlement lost payment row ${row.sessionId}`,
     );
+    const claim = row.state.claim;
+    if (
+      claim === undefined ||
+      claim.commandId !== commandId ||
+      claim.writtenAt !== heldSince ||
+      claim.phase !== change.phase
+    )
+      return null;
     return withClaimChange(
       withReviewChange(withBooksChange(row.state, change.books), change.review),
       change.claim,

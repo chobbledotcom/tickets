@@ -1,4 +1,9 @@
+import { requiredMapValue } from "#fp";
 import { markPaymentReferencesProviderRefunded } from "#shared/db/payment-references.ts";
+import type {
+  ArmRefundDispatchResult,
+  RefundDispatchPermit,
+} from "#shared/db/payment-refund-dispatch.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import type { ObservedRefundAdmission } from "#shared/payment/admit-refund.ts";
 import type { RefundRequest } from "#shared/payment/refund-attempt.ts";
@@ -39,7 +44,14 @@ export type ReferenceRefund = {
 /** A readiness answer shared by every attendee carrying the same reference. */
 export type PreparedReferenceRefund =
   | { kind: "answered"; result: ReferenceRefund }
-  | { kind: "ready"; send: () => Promise<ReferenceRefund> };
+  | {
+      kind: "ready";
+      send: (permit: RefundDispatchPermit) => Promise<ReferenceRefund>;
+    };
+
+export type AuthorizeRefundDispatch = (
+  indexes: readonly string[],
+) => Promise<ArmRefundDispatchResult>;
 
 /** Do the work at most once per stable provider-aware identity. */
 const answeredOnce = <TAnswer>(
@@ -56,11 +68,11 @@ const answeredOnce = <TAnswer>(
 
 /** Start one provider request even when several attendees share its charge. */
 const sendOnce = <TAnswer>(
-  send: () => Promise<TAnswer>,
-): (() => Promise<TAnswer>) => {
+  send: (permit: RefundDispatchPermit) => Promise<TAnswer>,
+): ((permit: RefundDispatchPermit) => Promise<TAnswer>) => {
   let running: Promise<TAnswer> | undefined;
-  return () => {
-    running ??= send();
+  return (permit) => {
+    running ??= send(permit);
     return running;
   };
 };
@@ -90,7 +102,15 @@ const sendReferenceRefund = async (
   attendeeId: number,
   listingId: number,
   request: RefundRequest,
+  index: string,
+  permit: RefundDispatchPermit,
 ): Promise<ReferenceRefund> => {
+  if (
+    permit.index !== index ||
+    permit.capability !== provider.refundCapability
+  ) {
+    throw new Error(`Refund dispatch permit does not match payment ${index}`);
+  }
   const paymentReference = request.paymentReference;
   const settled = (outcome: RefundOutcome): ReferenceRefund => ({ outcome });
   const result = await provider.refundCharge(request);
@@ -118,7 +138,6 @@ const prepareReferenceRefund = async (
   candidate: ReadyRefundCandidate,
   listingId: number,
   ready: ReadyRefundReference,
-  observeOnly: boolean,
 ): Promise<PreparedReferenceRefund> => {
   const admission = readyRefundAdmission(ready);
   if (admission.kind !== "send") {
@@ -132,23 +151,52 @@ const prepareReferenceRefund = async (
       ),
     };
   }
-  if (observeOnly) {
-    return {
-      kind: "answered",
-      result: { doubt: "in_doubt", outcome: "pending" },
-    };
-  }
   return {
     kind: "ready",
-    send: sendOnce(() =>
+    send: sendOnce((permit) =>
       sendReferenceRefund(
         ready.provider,
         candidate.attendee.id,
         listingId,
         admission.request,
+        ready.reference.index,
+        permit,
       ),
     ),
   };
+};
+
+const missingAuthorization: AuthorizeRefundDispatch = () =>
+  Promise.resolve({ kind: "claim_changed" });
+
+const authorizedResult = (
+  authorization: ArmRefundDispatchResult | undefined,
+  attempt: Extract<PreparedReferenceRefund, { kind: "ready" }>,
+  reference: TaggedRefundReference,
+): Promise<ReferenceRefund> => {
+  if (authorization === undefined) {
+    throw new Error(`Refund ${reference.index} had no dispatch decision`);
+  }
+  if (authorization.kind === "claim_changed") {
+    return Promise.resolve({ outcome: "failed" });
+  }
+  if (authorization.kind === "owner_review") {
+    return Promise.resolve(
+      authorization.indexes.includes(reference.index)
+        ? {
+            outcome: "withheld",
+            review: { kind: authorization.reason },
+          }
+        : { outcome: "withheld" },
+    );
+  }
+  return attempt.send(
+    requiredMapValue(
+      authorization.permits,
+      reference.index,
+      `Refund dispatch omitted payment ${reference.index}`,
+    ),
+  );
 };
 
 /** What one attendee's refund came to. */
@@ -167,19 +215,14 @@ export const refundReadyCandidate = async (
   candidate: ReadyRefundCandidate,
   listingId: number,
   markReturnedReferences: MarkReturnedReferences = markPaymentReferencesProviderRefunded,
+  authorize: AuthorizeRefundDispatch = missingAuthorization,
   inFlight: Map<string, Promise<PreparedReferenceRefund>> = new Map(),
-  observeOnly: ReadonlySet<string> = new Set(),
 ): Promise<CandidateRefund> => {
   const prepared = await mapProviderRequests(
     candidate.references,
     async (ready) => ({
       ...(await answeredOnce(inFlight, ready.reference.index, () =>
-        prepareReferenceRefund(
-          candidate,
-          listingId,
-          ready,
-          observeOnly.has(ready.reference.index),
-        ),
+        prepareReferenceRefund(candidate, listingId, ready),
       )),
       reference: ready.reference,
     }),
@@ -191,8 +234,15 @@ export const refundReadyCandidate = async (
   const attempts = blocked
     ? prepared.filter((attempt) => attempt.kind === "answered")
     : prepared;
+  const readyIndexes = attempts.flatMap((attempt) =>
+    attempt.kind === "ready" ? [attempt.reference.index] : [],
+  );
+  const authorization =
+    readyIndexes.length === 0 ? undefined : await authorize(readyIndexes);
   const results = await mapProviderRequests(attempts, async (attempt) => ({
-    ...(attempt.kind === "ready" ? await attempt.send() : attempt.result),
+    ...(attempt.kind === "ready"
+      ? await authorizedResult(authorization, attempt, attempt.reference)
+      : attempt.result),
     reference: attempt.reference,
   }));
   const outcome = combineRefundOutcomes(

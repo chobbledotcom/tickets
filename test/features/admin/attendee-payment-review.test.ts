@@ -245,8 +245,10 @@ describeWithEnv("admin payment review action", { db: true }, () => {
         context.sessionId,
         await rowStateSlot({
           claim: {
-            attendeeId: context.attendeeId,
+            attendeeIds: [context.attendeeId],
             capability: "keyed",
+            commandId: "test-review-command",
+            phase: "send_armed",
             scope: "attendee_set",
             writtenAt: nowIso(),
           },

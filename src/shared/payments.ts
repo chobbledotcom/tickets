@@ -14,7 +14,7 @@ import type {
   RefundRequest,
 } from "#shared/payment/refund-attempt.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
-import type { ResolvedRefundCapability } from "#shared/payment/row-state.ts";
+import type { RefundProviderCapability } from "#shared/payment/row-state.ts";
 import type { SessionRejection } from "#shared/payment/validated-session.ts";
 import type { CalcKind, ModifierTrigger } from "#shared/price-modifier.ts";
 import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
@@ -273,7 +273,7 @@ export interface PaymentProvider {
    *  An idempotency key lands a repeat call on the original refund; SumUp has
    *  no such key, so asking twice pays twice. Every adapter says which kind it
    *  is rather than being assumed. */
-  readonly refundCapability: ResolvedRefundCapability;
+  readonly refundCapability: RefundProviderCapability;
 
   /** Ask for the observed charge to be refunded and preserve the provider's
    * exact completed, accepted, rejected, unsent, or uncertain answer. */

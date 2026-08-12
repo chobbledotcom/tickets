@@ -3,6 +3,10 @@ import { describe, it as test } from "@std/testing/bdd";
 import { refundReadyCandidate } from "#routes/admin/refunds/attempt.ts";
 import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
 import {
+  armEveryRefund,
+  authorizeEveryRefund,
+} from "#test/features/admin/refunds/provider/dispatch-helpers.ts";
+import {
   candidate,
   finishedCounts,
   provider,
@@ -27,6 +31,7 @@ describe("admin refund provider > an unrecorded refund", () => {
       readyCandidateWithReferences(["pi_unanswered"], source),
       7,
       () => Promise.resolve(),
+      authorizeEveryRefund("keyless"),
     );
 
     expect(result.outcome).toBe("failed");
@@ -42,6 +47,7 @@ describe("admin refund provider > an unrecorded refund", () => {
       ),
       7,
       () => Promise.resolve(),
+      authorizeEveryRefund("keyless"),
     );
 
     expect(source.refunds).toEqual([]);
@@ -54,6 +60,7 @@ describe("admin refund provider > an unrecorded refund", () => {
       readyCandidateWithReferences(["pi_unrecorded"], keyless),
       7,
       () => Promise.reject(new Error("the marker could not be written")),
+      authorizeEveryRefund("keyless"),
     );
 
     expect(result.outcome).toBe("refunded");
@@ -65,6 +72,7 @@ describe("admin refund provider > an unrecorded refund", () => {
       readyCandidateWithReferences(["pi_recorded", "pi_refused"], keyless),
       7,
       () => Promise.reject(new Error("the marker could not be written")),
+      authorizeEveryRefund("keyless"),
     );
 
     expect(result.outcome).toBe("errored");
@@ -79,6 +87,7 @@ describe("admin refund provider > an unrecorded refund", () => {
       readyCandidateWithReferences(["pi_recorded"], keyless),
       7,
       () => Promise.resolve(),
+      authorizeEveryRefund("keyless"),
     );
 
     expect(result.outcome).toBe("refunded");
@@ -101,6 +110,7 @@ describe("admin refund provider > an unrecorded refund", () => {
         ],
         7,
         {
+          arm: armEveryRefund(),
           claim,
           markReturned: () =>
             Promise.reject(new Error("the marker could not be written")),
@@ -113,7 +123,6 @@ describe("admin refund provider > an unrecorded refund", () => {
                   11,
                 ),
               ],
-              capability: "keyed",
               kind: "ready",
             }),
           record: (attendees) => {
@@ -147,12 +156,12 @@ describe("admin refund provider > an unrecorded refund", () => {
       throws: uncertain ? new Set(["pi_held"]) : new Set(),
     });
     await processRefundBatch([candidate([{ reference: "pi_held" }], 11)], 7, {
+      arm: armEveryRefund("keyless"),
       claim,
       markReturned: () => Promise.resolve(),
       prepare: () =>
         Promise.resolve({
           candidates: [readyCandidateWithReferences(["pi_held"], source, 11)],
-          capability: "keyless",
           kind: "ready",
         }),
       record: posted ? recordEveryRefund : recordNoRefunds,

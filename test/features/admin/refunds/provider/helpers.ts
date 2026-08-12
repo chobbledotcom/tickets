@@ -1,7 +1,6 @@
 import { requiredMapValue, uniqueBy } from "#fp";
 import type { MarkReturnedReferences } from "#routes/admin/refunds/attempt.ts";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
-import type { RowClaim } from "#routes/admin/refunds/claim.ts";
 import {
   processRefundBatch,
   type RefundBatchResult,
@@ -22,7 +21,7 @@ import type {
 } from "#shared/payment/refund-attempt.ts";
 import type { RefundState } from "#shared/payment/refund-state.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
-import type { ResolvedRefundCapability } from "#shared/payment/row-state.ts";
+import type { RefundProviderCapability } from "#shared/payment/row-state.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 import { sessionReference } from "#test/shared/refund-ledger/helpers.ts";
 import {
@@ -30,6 +29,7 @@ import {
   chargeMoney,
   refundReference,
 } from "#test-utils/payment-state.ts";
+import { armEveryRefund } from "./dispatch-helpers.ts";
 
 type Reference = { reference: string; refundState?: RefundState };
 export type RecordingProvider = ReadyRefundProvider & {
@@ -47,13 +47,6 @@ export const finishedCounts = (result: RefundBatchResult): RefundCounts => {
     throw new Error(`Expected the refund batch to run (${result.reason})`);
   }
   return result.counts;
-};
-export const oneFailedRefundCounts: RefundCounts = {
-  errorCount: 0,
-  failedCount: 1,
-  notRecordedCount: 0,
-  pendingCount: 0,
-  refundedCount: 0,
 };
 export const candidate = (
   references: Reference[],
@@ -244,6 +237,7 @@ export const processRefundBatchAt = (
 ): Promise<RefundBatchResult> =>
   processRefundBatch(candidates, listingId, {
     ...dependencies,
+    arm: dependencies.arm ?? armEveryRefund(source.refundCapability),
     prepare: prepareAtProvider(source),
   });
 
@@ -267,7 +261,7 @@ export const provider = ({
   accepted?: Set<string>;
   refunded?: Set<string>;
   throws?: Set<string>;
-  refundCapability?: ResolvedRefundCapability;
+  refundCapability?: RefundProviderCapability;
   paymentProvider?: PaymentProviderType;
   read?: (reference: string) => Promise<ChargeMoney | null>;
   refund?: (request: RefundRequest) => Promise<RefundAttemptResult>;
@@ -310,7 +304,7 @@ export const provider = ({
 };
 
 export const unreadableProvider = (
-  refundCapability: ResolvedRefundCapability,
+  refundCapability: RefundProviderCapability,
 ): RecordingProvider =>
   provider({
     read: () => Promise.resolve(null),
@@ -357,24 +351,6 @@ export const refs = (id: string, count: number): RefundCandidate =>
     })),
   );
 
-export const holdingClaim = (
-  settle: RowClaim["settle"],
-  sessions: readonly string[],
-): RowClaim => ({
-  claim: () =>
-    Promise.resolve({
-      held: new Map([[11, sessions]]),
-      heldSince: "2026-08-10T12:00:00.000Z",
-      inherited: new Map(),
-      kind: "claimed",
-      returned: new Set<string>(),
-      reviews: new Map(),
-      shared: new Map(),
-      unrecorded: new Map(),
-    }),
-  settle,
-});
-
 export const refundedCandidate = (
   attendeeId: number,
   sessionId: string,
@@ -396,7 +372,7 @@ export const pendingCandidate = (
 /** Provider that rejects each refund except named uncertain answers. */
 export const failingProvider = (
   uncertain: Set<string>,
-  refundCapability: ResolvedRefundCapability = "keyed",
+  refundCapability: RefundProviderCapability = "keyed",
 ): RecordingProvider => ({
   readCharge: () =>
     Promise.resolve({ resource: chargeMoney(), status: "found" } as const),

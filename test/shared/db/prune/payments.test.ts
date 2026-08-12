@@ -127,7 +127,7 @@ describeWithEnv(
   () => {
     test("keeps the row a lost keyless answer is still holding", async () => {
       const attendeeId = await insertOldReferencedPayment("sess_claim_stale");
-      const held = await claimCurrentAttendeeRows([attendeeId], "keyless");
+      const held = await claimCurrentAttendeeRows([attendeeId]);
       if (held.kind !== "claimed") throw new Error("the claim was refused");
       // A keyless refund whose answer went missing keeps its claim on purpose,
       // so the claim ages past the point where a live run could still hold it.

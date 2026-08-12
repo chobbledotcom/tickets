@@ -11,41 +11,56 @@
 
 import * as v from "valibot";
 import { PaymentReviewReasonSchema } from "#shared/payment/review.ts";
+import { integerAtLeast } from "#shared/validation/number.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
-/** Whether a stale claim may repeat a provider call that gave no answer.
- *  Every lost answer keeps the claim first. A resumed `keyed` call may safely
- *  repeat its deterministic request; `keyless` work may only observe until
- *  fresh evidence settles it. */
-export const ResolvedRefundCapabilitySchema = v.picklist(["keyed", "keyless"]);
-export type ResolvedRefundCapability = v.InferOutput<
-  typeof ResolvedRefundCapabilitySchema
+/** Whether a provider can safely repeat one exact refund request. */
+export const RefundProviderCapabilitySchema = v.picklist(["keyed", "keyless"]);
+export type RefundProviderCapability = v.InferOutput<
+  typeof RefundProviderCapabilitySchema
 >;
 
-/** A claim starts before an old reference's provider is known. It may only
- *  become retryable or observe-only after provider evidence binds every row. */
-export const RefundCapabilitySchema = v.picklist([
-  "keyed",
-  "keyless",
-  "unresolved",
-]);
-export type RefundCapability = v.InferOutput<typeof RefundCapabilitySchema>;
+const SortedAttendeeIdsSchema = v.pipe(
+  v.array(integerAtLeast(1)),
+  v.minLength(1),
+  v.check(
+    (ids) => ids.every((id, index) => index === 0 || ids[index - 1]! < id),
+    "Refund claim attendee ids must be sorted and unique",
+  ),
+);
+
+const refundClaimFields = {
+  attendeeIds: SortedAttendeeIdsSchema,
+  commandId: v.string(),
+  scope: v.literal("attendee_set"),
+  writtenAt: v.string(),
+};
+
+const providerReadyClaim = <TPhase extends "ready" | "send_armed">(
+  phase: TPhase,
+) =>
+  v.strictObject({
+    ...refundClaimFields,
+    capability: RefundProviderCapabilitySchema,
+    phase: v.literal(phase),
+  });
 
 /**
- * One refund run's hold on this row, re-claimable only by another run that
- * takes the same attendee's whole reference set again. `scope` is the
- * discriminator a second kind of run is added under; today only the admin
- * runs claim, so it has one value.
+ * One refund command's hold on this row. The attendee ids name the people who
+ * initiated this exact reference group, while the payment row itself still
+ * names the person who owns that physical row. The phase says whether a
+ * provider call definitely has not been armed or may already have escaped.
  */
-export const RefundClaimSchema = v.variant("scope", [
+export const RefundClaimSchema = v.variant("phase", [
   v.strictObject({
-    attendeeId: v.pipe(v.number(), v.safeInteger()),
-    capability: RefundCapabilitySchema,
-    scope: v.literal("attendee_set"),
-    writtenAt: v.string(),
+    ...refundClaimFields,
+    phase: v.literal("checking"),
   }),
+  providerReadyClaim("ready"),
+  providerReadyClaim("send_armed"),
 ]);
 export type RefundClaim = v.InferOutput<typeof RefundClaimSchema>;
+export type RefundClaimPhase = RefundClaim["phase"];
 
 /** The handled payment failure a later redirect or webhook retry replays —
  *  message, status, and whether a refund was already issued — without

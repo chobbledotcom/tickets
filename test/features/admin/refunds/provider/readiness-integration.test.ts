@@ -12,13 +12,11 @@ import type {
 } from "#routes/admin/refunds/readiness.ts";
 import type { RowSettlement } from "#shared/db/payment-claim.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
-import type {
-  RefundCapability,
-  ResolvedRefundCapability,
-} from "#shared/payment/row-state.ts";
+import type { RefundProviderCapability } from "#shared/payment/row-state.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { chargeMoney, completedRefund } from "#test-utils/payment-state.ts";
+import { armEveryRefund } from "./dispatch-helpers.ts";
 import {
   candidateWithReferences,
   finishedCounts,
@@ -41,7 +39,7 @@ type TaggedReference = Extract<RefundPaymentReference, { kind: "tagged" }>;
 type UntaggedReference = Extract<RefundPaymentReference, { kind: "untagged" }>;
 const recordingProvider = (
   type: PaymentProviderType,
-  refundCapability: ResolvedRefundCapability = "keyed",
+  refundCapability: RefundProviderCapability = "keyed",
 ): RecordingProvider =>
   provider({
     paymentProvider: type,
@@ -109,19 +107,31 @@ const rowClaimHarness = (
     Partial<Pick<Claimed, "inherited" | "returned" | "shared">>,
   events: string[] = [],
 ) => {
-  const capabilities: RefundCapability[] = [];
+  let claims = 0;
   const settlements: RowSettlement[] = [];
   return {
-    capabilities,
+    claims: () => claims,
     rowClaim: {
-      claim: (_attendees, capability) => {
+      claim: () => {
         events.push("claim");
-        capabilities.push(capability);
+        claims++;
         return Promise.resolve({
+          commandId: "test-command",
           held,
           heldSince: HELD_SINCE,
           inherited,
           kind: "claimed",
+          phases: new Map(
+            [...held].flatMap(([attendeeId, sessionIds]) =>
+              sessionIds.map(
+                (sessionId) =>
+                  [
+                    sessionId,
+                    inherited.has(attendeeId) ? "send_armed" : "checking",
+                  ] as const,
+              ),
+            ),
+          ),
           returned,
           reviews: new Map(),
           shared,
@@ -198,10 +208,11 @@ describe("admin refund provider readiness integration", () => {
       }),
     );
 
-    expect(claim.capabilities).toEqual(["unresolved"]);
+    expect(claim.claims()).toBe(1);
     expect(events).toEqual(["claim", "prepare", "settle"]);
     expect(preparedBatch).toBe(batch);
     expect(preparedClaim?.held).toBe(held);
+    expect(preparedClaim?.commandId).toBe("test-command");
     expect(preparedClaim?.heldSince).toBe(HELD_SINCE);
     expect(preparedReturned).toBe(returned);
     expect(releasedRows(claim.settlements)).toEqual([reference.rowSessionIds]);
@@ -269,6 +280,7 @@ describe("admin refund provider readiness integration", () => {
 
     const counts = finishedCounts(
       await processRefundBatch([source], LISTING_ID, {
+        arm: armEveryRefund(),
         claim: claim.rowClaim,
         prepare: readyPreparation([
           readyCandidateFrom(source, [
@@ -300,7 +312,7 @@ describe("admin refund provider readiness integration", () => {
     expect(counts.refundedCount).toBe(1);
   });
 
-  test("scopes inherited keyless observation to each rebound index", async () => {
+  test("turns exact inherited keyless indexes into owner review", async () => {
     const sumup = recordingProvider("sumup", "keyless");
     const stripe = recordingProvider("stripe");
     const staleRef = taggedReference("sumup", "collision", "s", "row_1");
@@ -321,6 +333,14 @@ describe("admin refund provider readiness integration", () => {
 
     const counts = finishedCounts(
       await processRefundBatch([stale, sharing, independent], LISTING_ID, {
+        arm: async (request) =>
+          request.indexes.includes(staleRef.index)
+            ? {
+                indexes: [staleRef.index],
+                kind: "owner_review",
+                reason: "uncertain_keyless_refund",
+              }
+            : await armEveryRefund()(request),
         claim: claim.rowClaim,
         prepare: readyPreparation([
           readyCandidateFrom(stale, [observedReference(staleRef, sumup)]),
@@ -337,12 +357,14 @@ describe("admin refund provider readiness integration", () => {
     expect(
       stripe.requests.map(({ paymentReference }) => paymentReference),
     ).toEqual(["collision"]);
-    expect(counts.pendingCount).toBe(2);
+    expect(counts.failedCount).toBe(2);
     expect(counts.refundedCount).toBe(1);
     expect(writes.marked.flat().map(({ index }) => index)).toEqual([
       stripeRef.index,
     ]);
-    expect(releasedRows(claim.settlements)).toEqual([["row_3"]]);
+    expect(releasedRows(claim.settlements)).toEqual([
+      ["row_1", "row_2", "row_3"],
+    ]);
   });
 
   test("retains an inherited claim when readiness cannot prove its charge", async () => {

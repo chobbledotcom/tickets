@@ -24,8 +24,12 @@ test("binds each resolved provider's capability to its reference", async () => {
   const result = await prepareRefundReadiness(
     [candidate(1, references)],
     {
+      commandId: heldClaim.commandId,
       held: new Map([[1, references.map(({ index }) => `session_${index}`)]]),
       heldSince: heldClaim.heldSince,
+      phases: new Map(
+        references.map(({ index }) => [`session_${index}`, "checking"]),
+      ),
     },
     new Set(),
     {

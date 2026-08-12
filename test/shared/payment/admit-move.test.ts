@@ -19,8 +19,10 @@ const UNRECORDED_REFUSAL =
 
 const CLAIMED: PaymentRowState = {
   claim: {
-    attendeeId: 7,
+    attendeeIds: [7],
     capability: "keyless",
+    commandId: "test-command",
+    phase: "send_armed",
     scope: "attendee_set",
     writtenAt: "2026-01-01T00:00:00.000Z",
   },

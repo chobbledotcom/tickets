@@ -11,7 +11,8 @@ import type {
   TaggedPaymentReference,
 } from "#shared/payment/provider-reference.ts";
 import {
-  type ResolvedRefundCapability,
+  type RefundClaim,
+  type RefundProviderCapability,
   readRowState,
 } from "#shared/payment/row-state.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
@@ -80,7 +81,7 @@ export const bindingRequest = (
   identities: ReadonlyMap<string, TaggedPaymentReference>,
   capabilityOf: (
     identity: TaggedPaymentReference,
-  ) => ResolvedRefundCapability = () => "keyed",
+  ) => RefundProviderCapability = () => "keyed",
 ): PaymentReferenceProviderBindingRequest => ({
   bindings: new Map(
     [...identities].map(([index, identity]) => [
@@ -88,6 +89,7 @@ export const bindingRequest = (
       { capability: capabilityOf(identity), identity },
     ]),
   ),
+  commandId: held.commandId,
   held: held.held,
   heldSince: held.heldSince,
 });
@@ -101,7 +103,7 @@ export const loadedReference = async (
     `payment row ${sessionId}`,
   );
 
-export const claimCapability = async (sessionId: string): Promise<string> => {
+export const storedClaim = async (sessionId: string): Promise<RefundClaim> => {
   const stored = (await rowFor(sessionId)).failure_data;
   if (stored === "") throw new Error("the claim slot was empty");
   const state = readRowState(
@@ -109,5 +111,5 @@ export const claimCapability = async (sessionId: string): Promise<string> => {
     "processed_payments.failure_data",
   );
   if (state.claim === undefined) throw new Error("the claim was not stored");
-  return state.claim.capability;
+  return state.claim;
 };

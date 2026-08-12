@@ -5,6 +5,7 @@ import {
   refundReadyCandidate,
 } from "#routes/admin/refunds/attempt.ts";
 import { PROVIDER_REFUND_CONCURRENCY } from "#routes/admin/refunds/provider-requests.ts";
+import { authorizeEveryRefund } from "#test/features/admin/refunds/provider/dispatch-helpers.ts";
 import {
   collectingMarker,
   completedRefund,
@@ -34,6 +35,7 @@ describe("admin refund provider", () => {
       readyCandidate([{ charge: observed, reference: "pi_exact" }], source),
       7,
       marker.mark,
+      authorizeEveryRefund(),
     );
 
     expect(source.reads).toEqual([]);
@@ -56,6 +58,7 @@ describe("admin refund provider", () => {
       readyCandidateWithReferences(["pi_pending"], source),
       7,
       marker.mark,
+      authorizeEveryRefund(),
     );
 
     expect(result.outcome).toBe("pending");
@@ -90,6 +93,7 @@ describe("admin refund provider", () => {
         ),
         7,
         marker.mark,
+        authorizeEveryRefund(),
       );
 
       expect(source.refunds).toEqual([]);
@@ -108,6 +112,7 @@ describe("admin refund provider", () => {
       ),
       7,
       marker.mark,
+      authorizeEveryRefund(),
     );
 
     expect([...source.reads, ...source.refunds]).toEqual([]);
@@ -125,6 +130,7 @@ describe("admin refund provider", () => {
       ),
       7,
       marker.mark,
+      authorizeEveryRefund(),
     );
 
     expect(source.refunds).toEqual([]);
@@ -138,6 +144,7 @@ describe("admin refund provider", () => {
       readyCandidateWithReferences(["pi_no"], source),
       7,
       collectingMarker().mark,
+      authorizeEveryRefund(),
     );
 
     expect(result.outcome).toBe("failed");
@@ -156,6 +163,7 @@ describe("admin refund provider", () => {
       readyCandidateWithReferences(["pi_not_sent"], source),
       7,
       marker.mark,
+      authorizeEveryRefund(),
     );
 
     expect(result.outcome).toBe("withheld");
@@ -170,6 +178,7 @@ describe("admin refund provider", () => {
       readyCandidateWithReferences(["pi_boom"], source),
       7,
       collectingMarker().mark,
+      authorizeEveryRefund(),
     );
 
     expect(result.outcome).toBe("errored");
@@ -185,6 +194,7 @@ describe("admin refund provider", () => {
       readyCandidateWithReferences(["pi_ok", "pi_bad"], source),
       7,
       marker.mark,
+      authorizeEveryRefund(),
     );
 
     expect(result.outcome).toBe("failed");
@@ -202,6 +212,7 @@ describe("admin refund provider", () => {
       readyCandidateWithReferences(["pi_solo"], source),
       7,
       collectingMarker().mark,
+      authorizeEveryRefund(),
     );
 
     expect(result.outcome).toBe("failed");
@@ -220,6 +231,7 @@ describe("admin refund provider", () => {
       readyCandidateWithReferences(references, source),
       7,
       marker.mark,
+      authorizeEveryRefund(),
     );
 
     expect(result.outcome).toBe("refunded");
@@ -252,6 +264,7 @@ describe("admin refund provider", () => {
       readyCandidateWithReferences(references, source),
       7,
       collectingMarker().mark,
+      authorizeEveryRefund(),
     );
     await firstWaveStarted.promise;
     releaseFirstWave.resolve();
@@ -269,6 +282,7 @@ describe("admin refund provider", () => {
           readyCandidateWithReferences(["pi_shared"], source, attendeeId),
           7,
           () => Promise.resolve(),
+          authorizeEveryRefund(),
           inFlight,
         ),
       ),
@@ -298,6 +312,7 @@ describe("admin refund provider", () => {
       ),
       7,
       collectingMarker().mark,
+      authorizeEveryRefund(),
     );
 
     expect(stripe.refunds).toEqual(["same_raw"]);
@@ -309,7 +324,7 @@ describe("admin refund provider", () => {
     expect(result.returned[0]?.index).not.toBe(result.returned[1]?.index);
   });
 
-  test("observe-only decisions use the tagged index, not raw text", async () => {
+  test("an owner-review decision uses the tagged index, not raw text", async () => {
     const source = provider({ refunded: new Set(["pi_observe"]) });
     const candidate = readyCandidateWithReferences(["pi_observe"], source);
     const index = candidate.references[0]?.reference.index;
@@ -319,18 +334,24 @@ describe("admin refund provider", () => {
       candidate,
       7,
       collectingMarker().mark,
-      new Map(),
-      new Set([index]),
+      () =>
+        Promise.resolve({
+          indexes: [index],
+          kind: "owner_review",
+          reason: "uncertain_keyless_refund",
+        }),
     );
-    expect(observed).toMatchObject({ doubt: "in_doubt", outcome: "pending" });
+    expect(observed).toMatchObject({
+      outcome: "withheld",
+      reviews: [{ reason: { kind: "uncertain_keyless_refund" } }],
+    });
     expect(source.refunds).toEqual([]);
 
     const sent = await refundReadyCandidate(
       candidate,
       7,
       collectingMarker().mark,
-      new Map(),
-      new Set(["pi_observe"]),
+      authorizeEveryRefund(),
     );
     expect(sent.outcome).toBe("refunded");
     expect(source.refunds).toEqual(["pi_observe"]);
@@ -346,6 +367,7 @@ describe("admin refund provider", () => {
         readyCandidateWithReferences([...references], source),
         7,
         throwMarker,
+        authorizeEveryRefund(),
       );
 
       expect(result.outcome).toBe(expected);

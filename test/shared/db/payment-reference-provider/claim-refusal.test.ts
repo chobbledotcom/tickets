@@ -44,7 +44,7 @@ describeWithEnv(
         kind: "untagged",
         reference: "legacy_missing_b",
       });
-      const held = await claimCurrentAttendeeRows([attendeeId], "unresolved");
+      const held = await claimCurrentAttendeeRows([attendeeId]);
       if (held.kind !== "claimed") throw new Error("the claim was refused");
       const before = await rowFor("bind_missing_b");
       await execute(
@@ -72,7 +72,7 @@ describeWithEnv(
         "bind_wrong_attendee_other",
         "legacy_wrong_attendee_other",
       );
-      const held = await claimCurrentAttendeeRows([attendeeId], "unresolved");
+      const held = await claimCurrentAttendeeRows([attendeeId]);
       if (held.kind !== "claimed") throw new Error("the claim was refused");
       const sessionIds = held.held.get(attendeeId);
       if (sessionIds === undefined) throw new Error("the held row was missing");
@@ -92,7 +92,7 @@ describeWithEnv(
         "bind_extra_reference",
         "legacy_held_reference",
       );
-      const held = await claimCurrentAttendeeRows([attendeeId], "unresolved");
+      const held = await claimCurrentAttendeeRows([attendeeId]);
       if (held.kind !== "claimed") throw new Error("the claim was refused");
       const before = await rowFor("bind_extra_reference");
 

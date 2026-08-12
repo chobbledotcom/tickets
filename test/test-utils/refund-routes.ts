@@ -1,7 +1,7 @@
 import { type Spy, spy, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import type { RowClaim } from "#routes/admin/refunds/claim.ts";
-import type { InheritedRefundCapabilities } from "#shared/db/payment-claim/take.ts";
+import type { InheritedArmedRefunds } from "#shared/db/payment-claim/take.ts";
 import type { PaymentReviewChange } from "#shared/db/payment-claim.ts";
 import { settings } from "#shared/db/settings.ts";
 import type {
@@ -221,7 +221,7 @@ export const withRefundMock = async (
  *  `test/shared/db/payment-claim.test.ts`. */
 export const grantingRowClaim = (
   held: ReadonlyMap<number, readonly string[]> = new Map(),
-  inherited: InheritedRefundCapabilities = new Map(),
+  inherited: InheritedArmedRefunds = new Map(),
   existingUnrecorded: ReadonlyMap<number, readonly string[]> = new Map(),
   existingReviews: ReadonlyMap<string, PaymentReviewReason> = new Map(),
 ): RowClaim & {
@@ -237,10 +237,24 @@ export const grantingRowClaim = (
   return {
     claim: () =>
       Promise.resolve({
+        commandId: "test-command",
         held,
         heldSince: "2026-08-10T12:00:00.000Z",
         inherited,
         kind: "claimed",
+        phases: new Map(
+          [...held.values()]
+            .flat()
+            .map((sessionId) => [
+              sessionId,
+              [...held].some(
+                ([attendeeId, sessions]) =>
+                  sessions.includes(sessionId) && inherited.has(attendeeId),
+              )
+                ? ("send_armed" as const)
+                : ("checking" as const),
+            ]),
+        ),
         returned: new Set<string>(),
         reviews: existingReviews,
         shared: new Map(),

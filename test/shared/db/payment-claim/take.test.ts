@@ -13,6 +13,7 @@ import {
   CLAIM_MIRROR,
   claimCurrentAttendeeRows,
   heldSessionIds,
+  makeClaimsStale,
   protectedStateOf,
   putRowState,
   referenceIndexOf,
@@ -35,7 +36,7 @@ describeWithEnv(
     describe("claiming", () => {
       test("an unclaimed attendee's rows are claimed", async () => {
         const attendeeId = await bookedWithPayment("sess-a", "pi_a");
-        const result = await claimCurrentAttendeeRows([attendeeId], "keyless");
+        const result = await claimCurrentAttendeeRows([attendeeId]);
         if (result.kind !== "claimed") throw new Error("the claim was refused");
         expect(heldSessionIds(result)).toEqual(["sess-a"]);
         expect([...result.held.keys()]).toEqual([attendeeId]);
@@ -43,7 +44,7 @@ describeWithEnv(
 
       test("the claim shows in the plaintext mirror", async () => {
         const attendeeId = await bookedWithPayment("sess-b", "pi_b");
-        const held = await claimCurrentAttendeeRows([attendeeId], "keyless");
+        const held = await claimCurrentAttendeeRows([attendeeId]);
         if (held.kind !== "claimed") throw new Error("the claim was refused");
         expect(held.heldSince).not.toBe("");
         expect(await protectedStateOf("sess-b")).toBe(CLAIM_MIRROR);
@@ -51,20 +52,18 @@ describeWithEnv(
 
       test("a second run is told the work is in progress", async () => {
         const attendeeId = await bookedWithPayment("sess-c", "pi_c");
-        await claimCurrentAttendeeRows([attendeeId], "keyless");
-        expect(await claimCurrentAttendeeRows([attendeeId], "keyless")).toEqual(
-          {
-            blockedBy: { kind: "held" },
-            kind: "blocked",
-          },
-        );
+        await claimCurrentAttendeeRows([attendeeId]);
+        expect(await claimCurrentAttendeeRows([attendeeId])).toEqual({
+          blockedBy: { kind: "held" },
+          kind: "blocked",
+        });
       });
 
       test("two concurrent runs on one attendee have one winner", async () => {
         const attendeeId = await bookedWithPayment("sess-d", "pi_d");
         const results = await Promise.all([
-          claimCurrentAttendeeRows([attendeeId], "keyless"),
-          claimCurrentAttendeeRows([attendeeId], "keyless"),
+          claimCurrentAttendeeRows([attendeeId]),
+          claimCurrentAttendeeRows([attendeeId]),
         ]);
         expect(
           results.filter((result) => result.kind === "claimed"),
@@ -78,7 +77,7 @@ describeWithEnv(
         const first = await bookedWithPayment("sess-e1", "pi_shared");
         const second = await bookedWithPayment("sess-e2", "pi_shared");
 
-        const held = await claimCurrentAttendeeRows([first], "keyless");
+        const held = await claimCurrentAttendeeRows([first]);
         if (held.kind !== "claimed") throw new Error("the claim was refused");
         expect(heldSessionIds(held).sort()).toEqual(["sess-e1", "sess-e2"]);
         expect(
@@ -87,7 +86,7 @@ describeWithEnv(
             .map(({ sessionId }) => sessionId)
             .sort(),
         ).toEqual(["sess-e1", "sess-e2"]);
-        expect(await claimCurrentAttendeeRows([second], "keyless")).toEqual({
+        expect(await claimCurrentAttendeeRows([second])).toEqual({
           blockedBy: { kind: "held" },
           kind: "blocked",
         });
@@ -97,8 +96,8 @@ describeWithEnv(
         const first = await bookedWithPayment("sess-f1", "pi_race");
         const second = await bookedWithPayment("sess-f2", "pi_race");
         const results = await Promise.all([
-          claimCurrentAttendeeRows([first], "keyless"),
-          claimCurrentAttendeeRows([second], "keyless"),
+          claimCurrentAttendeeRows([first]),
+          claimCurrentAttendeeRows([second]),
         ]);
         expect(
           results.filter((result) => result.kind === "claimed"),
@@ -108,8 +107,8 @@ describeWithEnv(
       test("an unrelated attendee remains free", async () => {
         const first = await bookedWithPayment("sess-g1", "pi_g1");
         const second = await bookedWithPayment("sess-g2", "pi_g2");
-        await claimCurrentAttendeeRows([first], "keyless");
-        const secondClaim = await claimCurrentAttendeeRows([second], "keyless");
+        await claimCurrentAttendeeRows([first]);
+        const secondClaim = await claimCurrentAttendeeRows([second]);
         if (secondClaim.kind !== "claimed") {
           throw new Error("the claim was refused");
         }
@@ -118,7 +117,7 @@ describeWithEnv(
 
       test("claiming nobody reaches no database", async () => {
         const calls = await countDatabaseCalls(0, async () => {
-          const nobody = await claimCurrentAttendeeRows([], "keyless");
+          const nobody = await claimCurrentAttendeeRows([]);
           if (nobody.kind !== "claimed") {
             throw new Error("the claim was refused");
           }
@@ -135,14 +134,14 @@ describeWithEnv(
         });
         const attendeeId = bookedAttendee(booked).id;
 
-        const result = await claimCurrentAttendeeRows([attendeeId], "keyless");
+        const result = await claimCurrentAttendeeRows([attendeeId]);
 
         if (result.kind !== "claimed") throw new Error("the claim was refused");
         expect(heldSessionIds(result)).toEqual([]);
       });
 
       test("a missing attendee fails at the snapshot boundary", async () => {
-        await expect(claimCurrentAttendeeRows([-1], "keyless")).rejects.toThrow(
+        await expect(claimCurrentAttendeeRows([-1])).rejects.toThrow(
           "Attendee -1 was not found before the claim",
         );
       });
@@ -156,8 +155,6 @@ describeWithEnv(
 
         const result = await claimCurrentAttendeeRows(
           [first, deleted],
-          "keyless",
-          new Map(),
           async () => {
             await execute("DELETE FROM attendees WHERE id = ?", [deleted]);
           },
@@ -206,11 +203,11 @@ describeWithEnv(
         );
         await putRowState(
           "sess-inherit",
-          await staleClaimSlot(attendeeId, "keyless"),
+          await staleClaimSlot(attendeeId, "send_armed_keyless"),
           CLAIM_MIRROR,
         );
 
-        const resumed = await claimCurrentAttendeeRows([attendeeId], "keyed");
+        const resumed = await claimCurrentAttendeeRows([attendeeId]);
         const index = await referenceIndexOf("sess-inherit");
 
         expect(resumed).toMatchObject({
@@ -232,21 +229,18 @@ describeWithEnv(
         );
         await putRowState(
           "sess-inherit-stripe",
-          await staleClaimSlot(attendeeId, "keyed"),
+          await staleClaimSlot(attendeeId, "send_armed_keyed"),
           CLAIM_MIRROR,
         );
         await putRowState(
           "sess-inherit-sumup",
-          await staleClaimSlot(attendeeId, "keyless"),
+          await staleClaimSlot(attendeeId, "send_armed_keyless"),
           CLAIM_MIRROR,
         );
         const stripeIndex = await referenceIndexOf("sess-inherit-stripe");
         const sumupIndex = await referenceIndexOf("sess-inherit-sumup");
 
-        const resumed = await claimCurrentAttendeeRows(
-          [attendeeId],
-          "unresolved",
-        );
+        const resumed = await claimCurrentAttendeeRows([attendeeId]);
 
         expect(resumed).toMatchObject({
           inherited: new Map([
@@ -262,46 +256,44 @@ describeWithEnv(
         });
       });
 
-      test("a stalled unresolved claim predates any provider send", async () => {
+      test("a stalled checking claim predates any provider send", async () => {
         const attendeeId = await bookedWithPayment(
           "sess-inherit-unresolved",
           "pi_inherit_unresolved",
         );
         await putRowState(
           "sess-inherit-unresolved",
-          await staleClaimSlot(attendeeId, "unresolved"),
+          await staleClaimSlot(attendeeId, "checking"),
           CLAIM_MIRROR,
         );
 
-        const resumed = await claimCurrentAttendeeRows(
-          [attendeeId],
-          "unresolved",
-        );
+        const resumed = await claimCurrentAttendeeRows([attendeeId]);
 
         expect(resumed).toMatchObject({
           inherited: new Map(),
           kind: "claimed",
         });
-        expect(
-          await claimCurrentAttendeeRows([attendeeId], "unresolved"),
-        ).toEqual({ blockedBy: { kind: "held" }, kind: "blocked" });
+        expect(await claimCurrentAttendeeRows([attendeeId])).toEqual({
+          blockedBy: { kind: "held" },
+          kind: "blocked",
+        });
       });
 
       test("a fresh grant has no inherited doubt", async () => {
         const attendeeId = await bookedWithPayment("sess-grant", "pi_grant");
-        expect(
-          await claimCurrentAttendeeRows([attendeeId], "keyless"),
-        ).toMatchObject({ inherited: new Map() });
+        expect(await claimCurrentAttendeeRows([attendeeId])).toMatchObject({
+          inherited: new Map(),
+        });
       });
 
       test("a stalled release does not strip its successor", async () => {
         const attendeeId = await bookedWithPayment("sess-stall", "pi_stall");
-        const stalled = await claimCurrentAttendeeRows([attendeeId], "keyless");
+        const stalled = await claimCurrentAttendeeRows([attendeeId]);
         if (stalled.kind !== "claimed") {
           throw new Error("the claim was refused");
         }
         await releaseClaimRows(stalled, heldSessionIds(stalled));
-        const resumed = await claimCurrentAttendeeRows([attendeeId], "keyless");
+        const resumed = await claimCurrentAttendeeRows([attendeeId]);
         if (resumed.kind !== "claimed") {
           throw new Error("the resume was refused");
         }
@@ -310,12 +302,10 @@ describeWithEnv(
 
         expect(resumed.heldSince).not.toBe(stalled.heldSince);
         expect(await protectedStateOf("sess-stall")).toBe(CLAIM_MIRROR);
-        expect(await claimCurrentAttendeeRows([attendeeId], "keyless")).toEqual(
-          {
-            blockedBy: { kind: "held" },
-            kind: "blocked",
-          },
-        );
+        expect(await claimCurrentAttendeeRows([attendeeId])).toEqual({
+          blockedBy: { kind: "held" },
+          kind: "blocked",
+        });
       });
 
       test("a stale hold on somebody else's row still blocks", async () => {
@@ -323,10 +313,34 @@ describeWithEnv(
         const ours = await bookedWithPayment("sess-p2", "pi_shared_stale");
         await putRowState("sess-p1", await staleClaimSlot(other), CLAIM_MIRROR);
 
-        expect(await claimCurrentAttendeeRows([ours], "keyless")).toEqual({
+        expect(await claimCurrentAttendeeRows([ours])).toEqual({
           blockedBy: { kind: "foreign" },
           kind: "blocked",
         });
+      });
+
+      test("a crashed shared claim resumes from the attendee who started it", async () => {
+        const first = await bookedWithPayment(
+          "sess-shared-owner-a",
+          "pi_shared_owner",
+        );
+        await bookedWithPayment("sess-shared-owner-b", "pi_shared_owner");
+        const started = await claimCurrentAttendeeRows([first]);
+        if (started.kind !== "claimed") {
+          throw new Error("the claim was refused");
+        }
+        await makeClaimsStale(heldSessionIds(started));
+
+        const resumed = await claimCurrentAttendeeRows([first]);
+
+        expect(resumed).toMatchObject({ kind: "claimed" });
+        if (resumed.kind !== "claimed") {
+          throw new Error("the resume was refused");
+        }
+        expect(heldSessionIds(resumed).sort()).toEqual([
+          "sess-shared-owner-a",
+          "sess-shared-owner-b",
+        ]);
       });
     });
 
@@ -344,7 +358,7 @@ describeWithEnv(
           UNRECORDED_MIRROR,
         );
 
-        const held = await claimCurrentAttendeeRows([attendeeId], "keyless");
+        const held = await claimCurrentAttendeeRows([attendeeId]);
 
         if (held.kind !== "claimed") throw new Error("the claim was refused");
         expect(held.unrecorded).toEqual(
@@ -358,7 +372,7 @@ describeWithEnv(
           "UPDATE processed_payments SET provider_refunded_at = ? WHERE payment_session_id = ?",
           [new Date(nowMs()).toISOString(), "sess-q"],
         );
-        const held = await claimCurrentAttendeeRows([attendeeId], "keyless");
+        const held = await claimCurrentAttendeeRows([attendeeId]);
         if (held.kind !== "claimed") throw new Error("the claim was refused");
         expect([...held.returned]).toEqual([
           await paymentReferenceIndex(
@@ -374,7 +388,7 @@ describeWithEnv(
           "UPDATE processed_payments SET provider_refunded_at = ? WHERE payment_session_id = ?",
           [new Date(nowMs()).toISOString(), "sess-s2"],
         );
-        const held = await claimCurrentAttendeeRows([ours], "keyless");
+        const held = await claimCurrentAttendeeRows([ours]);
         if (held.kind !== "claimed") throw new Error("the claim was refused");
         expect([...held.returned]).toEqual([
           await paymentReferenceIndex(taggedPaymentReference("pi_shared_back")),
@@ -383,7 +397,7 @@ describeWithEnv(
 
       test("names nothing while the money is still out", async () => {
         const attendeeId = await bookedWithPayment("sess-r", "pi_still_out");
-        const held = await claimCurrentAttendeeRows([attendeeId], "keyless");
+        const held = await claimCurrentAttendeeRows([attendeeId]);
         if (held.kind !== "claimed") throw new Error("the claim was refused");
         expect([...held.returned]).toEqual([]);
       });

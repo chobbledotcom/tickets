@@ -2,13 +2,13 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
   finishedCounts,
-  oneFailedRefundCounts,
   pendingCandidate,
   processRefundBatchAt,
   provider,
   rowBackedCandidate,
   unreadableProvider,
 } from "#test/features/admin/refunds/provider/helpers.ts";
+import { oneFailedRefundCounts } from "#test/features/admin/refunds/provider/ledger-results.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { grantingRowClaim } from "#test-utils/refund-routes.ts";

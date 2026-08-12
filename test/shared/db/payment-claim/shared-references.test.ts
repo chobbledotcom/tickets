@@ -52,7 +52,7 @@ describeWithEnv(
         taggedPaymentReference("pi_same_attendee"),
       );
 
-      const held = await claimCurrentAttendeeRows([attendeeId], "keyless");
+      const held = await claimCurrentAttendeeRows([attendeeId]);
 
       if (held.kind !== "claimed") throw new Error("the claim was refused");
       expect(sharedSessions(held)).toEqual([
@@ -70,7 +70,7 @@ describeWithEnv(
       });
       await repointPaymentRow("sess-alias-untagged", old);
 
-      const held = await claimCurrentAttendeeRows([tagged], "keyless");
+      const held = await claimCurrentAttendeeRows([tagged]);
 
       if (held.kind !== "claimed") throw new Error("the claim was refused");
       expect(heldSessionIds(held).sort()).toEqual([
@@ -97,8 +97,8 @@ describeWithEnv(
       );
       await repointPaymentRow("sess-provider-square", storedSquare);
 
-      const stripeHeld = await claimCurrentAttendeeRows([stripe], "keyless");
-      const squareHeld = await claimCurrentAttendeeRows([square], "keyless");
+      const stripeHeld = await claimCurrentAttendeeRows([stripe]);
+      const squareHeld = await claimCurrentAttendeeRows([square]);
 
       if (stripeHeld.kind !== "claimed" || squareHeld.kind !== "claimed") {
         throw new Error("the distinct provider claims were refused");

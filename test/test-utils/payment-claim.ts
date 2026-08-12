@@ -2,7 +2,8 @@
  *  to already be in a particular state. */
 
 import { requiredMapValue } from "#fp";
-import { encrypt } from "#shared/crypto/encryption.ts";
+import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
   execute,
   inPlaceholders,
@@ -23,9 +24,10 @@ import { nowMs } from "#shared/now.ts";
 import { mirrorFor } from "#shared/payment/admit-move.ts";
 import type {
   PaymentRowState,
-  RefundCapability,
+  RefundClaim,
+  RefundProviderCapability,
 } from "#shared/payment/row-state.ts";
-import { writeRowState } from "#shared/payment/row-state.ts";
+import { readRowState, writeRowState } from "#shared/payment/row-state.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 
 const SLOT = "processed_payments.failure_data";
@@ -40,11 +42,9 @@ type StoredClaimAttendee = {
  *  reference/index/revision boundary out of every fixture. */
 export const claimCurrentAttendeeRows = async (
   attendeeIds: readonly number[],
-  capability: RefundCapability,
-  legacyPaymentIds: ReadonlyMap<number, string> = new Map(),
   beforeClaim: () => Promise<void> = () => Promise.resolve(),
 ): Promise<ClaimResult> => {
-  if (attendeeIds.length === 0) return claimAttendeeRows([], capability);
+  if (attendeeIds.length === 0) return claimAttendeeRows([]);
   const stored = await queryAll<StoredClaimAttendee>(
     `SELECT attendee.id, attendee.pii_blob
        FROM attendees AS attendee
@@ -54,7 +54,7 @@ export const claimCurrentAttendeeRows = async (
   const storedById = new Map(stored.map((attendee) => [attendee.id, attendee]));
   const sources = attendeeIds.map((id) => ({
     id,
-    payment_id: legacyPaymentIds.get(id) ?? "",
+    payment_id: "",
   }));
   const references = await getRefundPaymentReferences(
     sources,
@@ -78,7 +78,7 @@ export const claimCurrentAttendeeRows = async (
     };
   });
   await beforeClaim();
-  return await claimAttendeeRows(loadedAttendees, capability);
+  return await claimAttendeeRows(loadedAttendees);
 };
 
 /** The plain words the prune and the orphan purge see, read back out of the
@@ -86,8 +86,10 @@ export const claimCurrentAttendeeRows = async (
  *  moves every fixture and assertion with it. */
 export const CLAIM_MIRROR = mirrorFor({
   claim: {
-    attendeeId: 0,
+    attendeeIds: [1],
     capability: "keyless",
+    commandId: "test-command",
+    phase: "send_armed",
     scope: "attendee_set",
     writtenAt: "",
   },
@@ -124,6 +126,37 @@ export const referenceIndexOf = paymentRowColumn("payment_reference_index");
  *  time and fresh ciphertext even for the same facts. */
 export const storedRecordOf = paymentRowColumn("failure_data");
 
+/** Age the exact claims a run wrote without changing who or what they name. */
+export const makeClaimsStale = async (
+  sessionIds: readonly string[],
+): Promise<void> => {
+  for (const sessionId of sessionIds) {
+    const stored = await requireOne<{ failure_data: EnvKeyEncrypted }>(
+      `SELECT payment.failure_data
+         FROM processed_payments AS payment
+        WHERE payment.payment_session_id = ?`,
+      [sessionId],
+    );
+    const state = readRowState(await decrypt(stored.failure_data), SLOT);
+    if (state.claim === undefined) {
+      throw new Error(`Payment row ${sessionId} has no claim to age`);
+    }
+    await putRowState(
+      sessionId,
+      await rowStateSlot({
+        ...state,
+        claim: {
+          ...state.claim,
+          writtenAt: new Date(
+            nowMs() - STALE_RESERVATION_MS - 1000,
+          ).toISOString(),
+        },
+      }),
+      mirrorFor(state),
+    );
+  }
+};
+
 /** Any record, encrypted the way the column stores it. */
 export const rowStateSlot = (state: PaymentRowState): Promise<string> =>
   encrypt(writeRowState(state, SLOT));
@@ -131,19 +164,51 @@ export const rowStateSlot = (state: PaymentRowState): Promise<string> =>
 /** One `attendee_set` claim's record, written the given number of milliseconds
  *  ago. Curried so "a run holding this now" and "a crashed worker's" are the
  *  same record differing only in age. */
+export type ClaimFixturePhase =
+  | "checking"
+  | `ready_${RefundProviderCapability}`
+  | `send_armed_${RefundProviderCapability}`;
+
+const CLAIM_FIXTURE_FACTS = {
+  ready_keyed: { capability: "keyed", phase: "ready" },
+  ready_keyless: { capability: "keyless", phase: "ready" },
+  send_armed_keyed: { capability: "keyed", phase: "send_armed" },
+  send_armed_keyless: { capability: "keyless", phase: "send_armed" },
+} as const satisfies Record<
+  Exclude<ClaimFixturePhase, "checking">,
+  Pick<
+    Extract<RefundClaim, { phase: "ready" | "send_armed" }>,
+    "capability" | "phase"
+  >
+>;
+
+export const refundClaimFixture = (
+  attendeeId: number,
+  phase: ClaimFixturePhase,
+  writtenAt: string,
+): RefundClaim => {
+  const common = {
+    attendeeIds: [attendeeId],
+    commandId: `test-command-${attendeeId}`,
+    scope: "attendee_set" as const,
+    writtenAt,
+  };
+  if (phase === "checking") return { ...common, phase };
+  return { ...common, ...CLAIM_FIXTURE_FACTS[phase] };
+};
+
 const claimSlotWritten =
   (msAgo: number) =>
   (
     attendeeId: number,
-    capability: RefundCapability = "keyless",
+    phase: ClaimFixturePhase = "send_armed_keyless",
   ): Promise<string> =>
     rowStateSlot({
-      claim: {
+      claim: refundClaimFixture(
         attendeeId,
-        capability,
-        scope: "attendee_set",
-        writtenAt: new Date(nowMs() - msAgo).toISOString(),
-      },
+        phase,
+        new Date(nowMs() - msAgo).toISOString(),
+      ),
     });
 
 /** The stored record for a claim a run is holding right now. */
@@ -177,16 +242,32 @@ export const heldSessionIds = (claim: {
 
 /** Release exact rows under the claim a test just took. */
 export const releaseClaimRows = (
-  claim: { heldSince: string },
+  claim: {
+    commandId: string;
+    heldSince: string;
+    phases: ReadonlyMap<string, RefundClaim["phase"]>;
+  },
   sessionIds: readonly string[],
-  changes: ReadonlyMap<string, Omit<PaymentRowSettlement, "claim">> = new Map(),
+  changes: ReadonlyMap<
+    string,
+    Omit<PaymentRowSettlement, "claim" | "phase">
+  > = new Map(),
 ): Promise<void> =>
   settleAttendeeRows({
+    commandId: claim.commandId,
     heldSince: claim.heldSince,
     rows: new Map(
       sessionIds.map((sessionId) => [
         sessionId,
-        { ...changes.get(sessionId), claim: "release" } as const,
+        {
+          ...changes.get(sessionId),
+          claim: "release",
+          phase: requiredMapValue(
+            claim.phases,
+            sessionId,
+            `Test claim lost payment-row phase ${sessionId}`,
+          ),
+        } as const,
       ]),
     ),
   });

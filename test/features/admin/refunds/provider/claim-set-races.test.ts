@@ -142,16 +142,13 @@ describeWithEnv(
       );
       await resave(attendee);
       const first = await withStoredRevision(attendee);
-      const claim = await claimAttendeeRows(
-        [
-          {
-            attendeeId: attendee.id,
-            loadedPiiBlob: first.attendee.pii_blob,
-            references: first.references,
-          },
-        ],
-        "keyless",
-      );
+      const claim = await claimAttendeeRows([
+        {
+          attendeeId: attendee.id,
+          loadedPiiBlob: first.attendee.pii_blob,
+          references: first.references,
+        },
+      ]);
       if (claim.kind !== "claimed") throw new Error("the anchor was not held");
       await releaseClaimRows(claim, [...claim.held.values()].flat());
       const candidate = await withStoredRevision(attendee);

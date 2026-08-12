@@ -1,8 +1,8 @@
-import { compact } from "#fp";
+import { compact, requiredMapValue } from "#fp";
 import {
   type ClaimResult,
   claimAttendeeRows,
-  type InheritedRefundCapabilities,
+  type InheritedArmedRefunds,
   type LoadedRefundAttendee,
 } from "#shared/db/payment-claim/take.ts";
 import {
@@ -17,16 +17,13 @@ import {
   mayReleaseClaim,
 } from "#shared/payment/claim.ts";
 import type { PaymentReviewReason } from "#shared/payment/review.ts";
-import type { RefundCapability } from "#shared/payment/row-state.ts";
+import type { RefundClaimPhase } from "#shared/payment/row-state.ts";
 import { reportRefundProblem } from "./report.ts";
 
 /** Taking and letting go of the hold on an attendee's payment rows. Injected
  *  so the tally and ordering rules can be tested without a database. */
 export type RowClaim = {
-  claim: (
-    attendees: readonly LoadedRefundAttendee[],
-    capability: RefundCapability,
-  ) => Promise<ClaimResult>;
+  claim: (attendees: readonly LoadedRefundAttendee[]) => Promise<ClaimResult>;
   settle: (settlement: RowSettlement) => Promise<void>;
 };
 
@@ -35,6 +32,8 @@ export type AttendeeDoubt = "in_doubt" | "unread";
 
 /** What a run learnt about the attendees it held. */
 export type RunFindings = {
+  /** Exact durable phase each claimed row reached in this command. */
+  claimPhases: Map<string, RefundClaimPhase>;
   /** Attendees whose money this run could not account for. */
   doubts: Map<number, AttendeeDoubt>;
   /** Rows whose returned money the books have not caught up with. */
@@ -53,7 +52,7 @@ export type RefundRunBlock =
 /** The exact durable hold provider preparation must bind before any send. */
 export type HeldRefundClaim = Pick<
   Extract<ClaimResult, { kind: "claimed" }>,
-  "held" | "heldSince"
+  "commandId" | "held" | "heldSince" | "phases"
 >;
 
 /** The facts protected by one complete attendee-row claim. */
@@ -61,7 +60,7 @@ export interface HeldRefundWork {
   readonly alreadyReturned: ReadonlySet<string>;
   readonly claim: HeldRefundClaim;
   readonly findings: RunFindings;
-  readonly inherited: InheritedRefundCapabilities;
+  readonly inherited: InheritedArmedRefunds;
   readonly reviews: ReadonlyMap<string, PaymentReviewReason>;
   readonly shared: Extract<ClaimResult, { kind: "claimed" }>["shared"];
   readonly unrecorded: ReadonlyMap<number, readonly string[]>;
@@ -124,6 +123,7 @@ const settlementEntry = (
   lettingAttendees: ReadonlySet<number>,
   unrecorded: ReadonlySet<string>,
   findings: RunFindings,
+  phases: ReadonlyMap<string, RefundClaimPhase>,
 ): SettlementEntry | null => {
   const books = booksChange(findings, unrecorded, sessionId);
   const review = findings.reviews.get(sessionId);
@@ -136,6 +136,11 @@ const settlementEntry = (
     {
       ...(books === undefined ? {} : { books }),
       claim,
+      phase: requiredMapValue(
+        phases,
+        sessionId,
+        `Refund settlement lost payment-row phase ${sessionId}`,
+      ),
       ...(review === undefined ? {} : { review }),
     },
   ];
@@ -165,6 +170,7 @@ const settlementRows = (
           lettingAttendees,
           unrecorded,
           findings,
+          findings.claimPhases,
         ),
       ),
     ),
@@ -175,14 +181,13 @@ const settlementRows = (
 export const underAttendeeClaim = async <TResult>(
   rowClaim: RowClaim,
   held: readonly LoadedRefundAttendee[],
-  capability: RefundCapability,
   listingId: number,
   run: {
     blocked: (block: RefundRunBlock) => TResult;
     work: (heldWork: HeldRefundWork) => Promise<TResult>;
   },
 ): Promise<TResult> => {
-  const claim = await rowClaim.claim(held, capability);
+  const claim = await rowClaim.claim(held);
   if (claim.kind === "changed") {
     return run.blocked({
       kind: "payment_set_changed",
@@ -197,6 +202,7 @@ export const underAttendeeClaim = async <TResult>(
     });
   }
   const findings: RunFindings = {
+    claimPhases: new Map(claim.phases),
     doubts: new Map(),
     recorded: new Set(),
     reviews: new Map(),
@@ -206,6 +212,7 @@ export const underAttendeeClaim = async <TResult>(
     await settleHold(
       rowClaim,
       {
+        commandId: claim.commandId,
         heldSince: claim.heldSince,
         rows: settlementRows(claim, findings),
       },
@@ -214,7 +221,12 @@ export const underAttendeeClaim = async <TResult>(
   };
   const result = await run.work({
     alreadyReturned: claim.returned,
-    claim: { held: claim.held, heldSince: claim.heldSince },
+    claim: {
+      commandId: claim.commandId,
+      held: claim.held,
+      heldSince: claim.heldSince,
+      phases: findings.claimPhases,
+    },
     findings,
     inherited: claim.inherited,
     reviews: claim.reviews,

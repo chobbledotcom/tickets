@@ -11,12 +11,18 @@ import {
 } from "#test-utils/payment-state.ts";
 import { grantingRowClaim } from "#test-utils/refund-routes.ts";
 import {
-  candidate,
-  finishedCounts,
+  authorizeEveryRefund,
   holdingClaim,
+  reviewEveryArmedKeylessRefund,
+} from "./dispatch-helpers.ts";
+import {
+  candidate,
+  candidateWithReferences,
+  finishedCounts,
   processRefundBatchAt,
   provider,
   readyCandidate,
+  rowBackedReference,
 } from "./helpers.ts";
 import { recordEveryRefund } from "./ledger-results.ts";
 
@@ -60,9 +66,9 @@ describe("admin refund provider > the claim", () => {
     );
     const claimed: number[][] = [];
     const counting: RowClaim = {
-      claim: (attendees, capability) => {
+      claim: (attendees) => {
         claimed.push(attendees.map((attendee) => attendee.attendeeId));
-        return rowClaim.claim(attendees, capability);
+        return rowClaim.claim(attendees);
       },
       settle: rowClaim.settle,
     };
@@ -130,6 +136,7 @@ describe("admin refund provider > a reference already sent back", () => {
       ),
       7,
       () => Promise.resolve(),
+      authorizeEveryRefund("keyless"),
     );
 
     expect(result.outcome).toBe("refunded");
@@ -215,7 +222,7 @@ describe("admin refund provider > a refund still settling", () => {
     expect(rowClaim.released).toEqual([["sess_pi_keyed_retry"]]);
   });
 
-  test("only observes an inherited keyless claim when no refund is visible", async () => {
+  test("parks an inherited keyless claim when no refund is visible", async () => {
     const rowClaim = grantingRowClaim(
       new Map([[42, ["sess_pi_invisible"]]]),
       new Map([[42, new Map([["index_of_stripe_pi_invisible", "keyless"]])]]),
@@ -225,19 +232,38 @@ describe("admin refund provider > a refund still settling", () => {
     const counts = finishedCounts(
       await processRefundBatchAt(
         invisible,
-        [candidate([{ reference: "pi_invisible" }])],
+        [
+          candidateWithReferences([
+            rowBackedReference("pi_invisible", "sess_pi_invisible"),
+          ]),
+        ],
         7,
-        { claim: rowClaim, markReturned: () => Promise.resolve() },
+        {
+          arm: reviewEveryArmedKeylessRefund(),
+          claim: rowClaim,
+          markReturned: () => Promise.resolve(),
+        },
       ),
     );
 
     expect(invisible.reads).toEqual(["pi_invisible"]);
     expect(invisible.refunds).toEqual([]);
-    expect(counts.pendingCount).toBe(1);
-    expect(rowClaim.released).toEqual([]);
+    expect(counts.failedCount).toBe(1);
+    expect(rowClaim.released).toEqual([["sess_pi_invisible"]]);
+    expect(rowClaim.reviewChanges).toEqual([
+      new Map([
+        [
+          "sess_pi_invisible",
+          {
+            kind: "review",
+            reason: { kind: "uncertain_keyless_refund" },
+          },
+        ],
+      ]),
+    ]);
   });
 
-  test("a shared keyless charge is observe-only for every holder", async () => {
+  test("a shared keyless charge is parked for every holder", async () => {
     const rowClaim = grantingRowClaim(
       new Map([
         [41, ["sess_pi_shared_41"]],
@@ -253,18 +279,48 @@ describe("admin refund provider > a refund still settling", () => {
       await processRefundBatchAt(
         shared,
         [
-          candidate([{ reference: "pi_shared_invisible" }], 41),
-          candidate([{ reference: "pi_shared_invisible" }], 42),
+          candidateWithReferences(
+            [rowBackedReference("pi_shared_invisible", "sess_pi_shared_41")],
+            41,
+          ),
+          candidateWithReferences(
+            [rowBackedReference("pi_shared_invisible", "sess_pi_shared_42")],
+            42,
+          ),
         ],
         7,
-        { claim: rowClaim, markReturned: () => Promise.resolve() },
+        {
+          arm: reviewEveryArmedKeylessRefund(),
+          claim: rowClaim,
+          markReturned: () => Promise.resolve(),
+        },
       ),
     );
 
     expect(shared.reads).toEqual(["pi_shared_invisible"]);
     expect(shared.refunds).toEqual([]);
-    expect(counts.pendingCount).toBe(2);
-    expect(rowClaim.released).toEqual([]);
+    expect(counts.failedCount).toBe(2);
+    expect(rowClaim.released).toEqual([
+      ["sess_pi_shared_41", "sess_pi_shared_42"],
+    ]);
+    expect(rowClaim.reviewChanges).toEqual([
+      new Map([
+        [
+          "sess_pi_shared_41",
+          {
+            kind: "review",
+            reason: { kind: "uncertain_keyless_refund" },
+          },
+        ],
+        [
+          "sess_pi_shared_42",
+          {
+            kind: "review",
+            reason: { kind: "uncertain_keyless_refund" },
+          },
+        ],
+      ]),
+    ]);
   });
 
   test("keeps an inherited keyless claim while the provider says pending", async () => {

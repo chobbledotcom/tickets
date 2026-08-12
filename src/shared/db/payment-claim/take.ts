@@ -8,6 +8,10 @@ import {
   withTransaction,
 } from "#shared/db/client.ts";
 import {
+  claimRequestFor,
+  nextClaimFor,
+} from "#shared/db/payment-claim/scope.ts";
+import {
   asPaymentRowRecord,
   type PaymentRowRecord,
   paymentRowStateStatement,
@@ -25,8 +29,9 @@ import {
 } from "#shared/payment/claim.ts";
 import type { PaymentReviewReason } from "#shared/payment/review.ts";
 import type {
-  RefundCapability,
-  ResolvedRefundCapability,
+  RefundClaim,
+  RefundClaimPhase,
+  RefundProviderCapability,
 } from "#shared/payment/row-state.ts";
 /* jscpd:ignore-end */
 
@@ -38,11 +43,14 @@ export type ClaimResult =
       /** Each attendee's claimed rows, kept apart so a run can let one
        *  attendee go while another's answer is still in doubt. */
       held: ReadonlyMap<number, readonly string[]>;
+      commandId: string;
       heldSince: string;
       kind: "claimed";
       /** References inheriting a crashed run's doubt, under that reference's
        *  own provider capability and grouped for attendee-wide settlement. */
-      inherited: InheritedRefundCapabilities;
+      inherited: InheritedArmedRefunds;
+      /** The exact phase each row must still hold when this run settles it. */
+      phases: ReadonlyMap<string, RefundClaimPhase>;
       /** References a claimed or sharing row already says came back. */
       returned: ReadonlySet<string>;
       /** Owner-review reasons carried by each claimed row. */
@@ -55,8 +63,8 @@ export type ClaimResult =
     };
 
 /** The exact attendee and payment-reference snapshot an admin run loaded.
- *  `loadedPiiBlob` is the attendee revision: payment_id lives inside it, so a
- *  concurrent edit cannot make a legacy anchor preserve a stale charge. */
+ *  `loadedPiiBlob` is the attendee revision, so a concurrent save cannot
+ *  change the indexed payment set beneath the claim. */
 export type LoadedRefundAttendee = {
   readonly attendeeId: number;
   readonly loadedPiiBlob: string;
@@ -71,9 +79,9 @@ export type PaymentReferenceRepresentation = {
 };
 
 /** Provider retry facts inherited by each attendee and exact reference. */
-export type InheritedRefundCapabilities = ReadonlyMap<
+export type InheritedArmedRefunds = ReadonlyMap<
   number,
-  ReadonlyMap<string, ResolvedRefundCapability>
+  ReadonlyMap<string, RefundProviderCapability>
 >;
 
 type StoredAttendee = {
@@ -171,18 +179,9 @@ const rowsMatch = (
   });
 };
 
-const claimCapability = (
-  inherited: InheritedRefundCapabilities,
-  attendeeId: number,
-  referenceIndex: string,
-  current: RefundCapability,
-): RefundCapability => {
-  const original = inherited.get(attendeeId)?.get(referenceIndex);
-  return original === undefined ? current : original;
-};
-
 type JudgedPaymentRow = {
   decision: ClaimDecision;
+  nextClaim: RefundClaim;
   row: PaymentClaimRow;
 };
 
@@ -195,15 +194,14 @@ const asPaymentClaimRow = async (
   referenceIndex: stored.payment_reference_index,
 });
 
-const inheritedCapabilities = (
+const inheritedArmedRefunds = (
   judged: readonly JudgedPaymentRow[],
-): InheritedRefundCapabilities =>
+): InheritedArmedRefunds =>
   new Map(
     [
       ...Map.groupBy(
         judged.flatMap(({ decision, row }) =>
-          decision.kind === "resume" &&
-          decision.resuming.capability !== "unresolved"
+          decision.kind === "resume" && decision.resuming.phase === "send_armed"
             ? [
                 {
                   attendeeId: row.attendeeId,
@@ -256,15 +254,16 @@ const sharedRepresentations = (
  * row-set checks, and holds share one write transaction. */
 export const claimAttendeeRows = async (
   attendees: readonly LoadedRefundAttendee[],
-  capability: RefundCapability,
 ): Promise<ClaimResult> => {
-  const [claimOwner] = attendees;
-  if (claimOwner === undefined) {
+  const commandId = crypto.randomUUID();
+  if (attendees.length === 0) {
     return {
+      commandId,
       held: new Map(),
       heldSince: nowIso(),
       inherited: new Map(),
       kind: "claimed",
+      phases: new Map(),
       returned: new Set(),
       reviews: new Map(),
       shared: new Map(),
@@ -293,50 +292,31 @@ export const claimAttendeeRows = async (
     if (!rowsMatch(expected, stored.own)) return { kind: "changed" };
     const storedRows = [...stored.own, ...stored.sharing];
     const rows = await Promise.all(storedRows.map(asPaymentClaimRow));
-    const ownSessions = new Set(
-      stored.own.map((row) => row.payment_session_id),
-    );
     // Write transactions serialize, so a rival committed before this read or
     // cannot begin until this run commits.
-    const judged = rows.map((row) => ({
-      decision: decideClaim(
-        row.state.claim,
-        {
-          attendeeId: ownSessions.has(row.sessionId)
-            ? row.attendeeId
-            : claimOwner.attendeeId,
-          scope: "attendee_set",
-        },
-        staleBefore,
-      ),
-      row,
-    }));
+    const judged = rows.map((row) => {
+      const request = claimRequestFor(attendees, row);
+      const decision = decideClaim(row.state.claim, request, staleBefore);
+      return {
+        decision,
+        nextClaim: nextClaimFor(decision, request, commandId, writtenAt),
+        row,
+      };
+    });
     const refused = judged.find(({ decision }) => !holdsTheRow(decision));
     if (refused !== undefined) {
       return { blockedBy: refused.decision, kind: "blocked" };
     }
-    const inherited = inheritedCapabilities(judged);
+    const inherited = inheritedArmedRefunds(judged);
     await tx.batch(
       await Promise.all(
-        rows.map((row) =>
-          paymentRowStateStatement(row, {
-            ...row.state,
-            claim: {
-              attendeeId: row.attendeeId,
-              capability: claimCapability(
-                inherited,
-                row.attendeeId,
-                row.referenceIndex,
-                capability,
-              ),
-              scope: "attendee_set",
-              writtenAt,
-            },
-          }),
+        judged.map(({ nextClaim, row }) =>
+          paymentRowStateStatement(row, { ...row.state, claim: nextClaim }),
         ),
       ),
     );
     return {
+      commandId,
       held: new Map(
         [...Map.groupBy(rows, (row) => row.attendeeId)].map(
           ([attendeeId, owned]) => [
@@ -348,6 +328,9 @@ export const claimAttendeeRows = async (
       heldSince: writtenAt,
       inherited,
       kind: "claimed",
+      phases: new Map(
+        judged.map(({ nextClaim, row }) => [row.sessionId, nextClaim.phase]),
+      ),
       returned: new Set(
         storedRows
           .filter((row) => row.provider_refunded_at !== "")

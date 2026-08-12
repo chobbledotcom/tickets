@@ -91,7 +91,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
 
     test("shows moving-payment guidance without a refund form", async () => {
       const ctx = await setupRefundTest("pi_moving_get");
-      await claimCurrentAttendeeRows([ctx.attendee.id], "keyed");
+      await claimCurrentAttendeeRows([ctx.attendee.id]);
 
       const response = await awaitTestRequest(refundUrl(ctx.attendee.id), {
         cookie: ctx.cookie,

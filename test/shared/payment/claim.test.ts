@@ -18,13 +18,18 @@ const FRESH = "2026-08-10T12:00:01.000Z";
 const CRASHED = "2026-08-10T11:59:59.000Z";
 
 const attendeeClaim = (writtenAt: string, attendeeId = 7): RefundClaim => ({
-  attendeeId,
+  attendeeIds: [attendeeId],
   capability: "keyless",
+  commandId: "claim-command",
+  phase: "send_armed",
   scope: "attendee_set",
   writtenAt,
 });
 
-const ADMIN_RUN: ClaimRequest = { attendeeId: 7, scope: "attendee_set" };
+const ADMIN_RUN: ClaimRequest = {
+  attendeeIds: [7],
+  scope: "attendee_set",
+};
 
 describe("isClaimStale", () => {
   test("a claim written before the cutoff is a crashed worker", () => {
