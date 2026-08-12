@@ -31,6 +31,7 @@ import {
   chargeMoney,
   refundReference,
 } from "#test-utils/payment-state.ts";
+
 type Reference = { reference: string; refundState?: RefundState };
 export type RecordingProvider = ReadyRefundProvider & {
   readCharge: (reference: string) => Promise<ProviderRead<ChargeMoney>>;
@@ -61,9 +62,14 @@ export const candidate = (
 ): RefundCandidate => ({
   attendee: { id } as RefundCandidate["attendee"],
   references: references.map(({ reference, refundState = "none" }) =>
-    refundReference(reference, { refundState })
+    refundReference(reference, { refundState }),
   ),
 });
+
+export const candidateWithReferences = (
+  references: RefundPaymentReference[],
+  id = 42,
+): RefundCandidate => ({ ...candidate([], id), references });
 type ReadyReferenceInput = {
   charge?: ChargeMoney;
   index?: string;
@@ -85,11 +91,11 @@ export const readyReference = (
   return input.kind === "already_returned"
     ? { kind: "already_returned", provider: source, reference }
     : {
-      charge: input.charge ?? chargeMoney(),
-      kind: "observed",
-      provider: source,
-      reference,
-    };
+        charge: input.charge ?? chargeMoney(),
+        kind: "observed",
+        provider: source,
+        reference,
+      };
 };
 export const readyCandidate = (
   references: ReadyReferenceInput[],
@@ -98,6 +104,22 @@ export const readyCandidate = (
 ): ReadyRefundCandidate => ({
   attendee: { id } as ReadyRefundCandidate["attendee"],
   references: references.map((reference) => readyReference(reference, source)),
+});
+
+export const readyCandidateFrom = (
+  source: RefundCandidate,
+  references: ReadyRefundReference[],
+): ReadyRefundCandidate => ({ attendee: source.attendee, references });
+
+export const observedReference = (
+  reference: Extract<RefundPaymentReference, { kind: "tagged" }>,
+  source: RecordingProvider,
+  charge: ChargeMoney = chargeMoney(),
+): ReadyRefundReference => ({
+  charge,
+  kind: "observed",
+  provider: source,
+  reference,
 });
 export const readyCandidateWithReferences = (
   references: string[],
@@ -130,15 +152,15 @@ const prepareProviderReference = async (
   return read.status === "found"
     ? { charge: read.resource, kind: "observed" }
     : {
-      evidence: {
-        attempts: [{ provider: source.type, result: read }],
-        reason: "no_validating_provider",
-        reference: reference.reference,
-        source: "untagged",
-        status: "unresolved",
-      },
-      index: reference.index,
-    };
+        evidence: {
+          attempts: [{ provider: source.type, result: read }],
+          reason: "no_validating_provider",
+          reference: reference.reference,
+          source: "untagged",
+          status: "unresolved",
+        },
+        index: reference.index,
+      };
 };
 
 const isReadinessFailure = (
@@ -156,18 +178,19 @@ const readyReferenceFrom = (
     index: `index_of_${source.type}_${reference.reference}`,
     kind: "tagged" as const,
     provider: source.type,
-    rowSessionIds: reference.rowSessionIds.length === 0
-      ? [anchorSessionId(attendeeId, reference.index)]
-      : reference.rowSessionIds,
+    rowSessionIds:
+      reference.rowSessionIds.length === 0
+        ? [anchorSessionId(attendeeId, reference.index)]
+        : reference.rowSessionIds,
   };
   return prepared.kind === "already_returned"
     ? { kind: "already_returned", provider: source, reference: tagged }
     : {
-      charge: prepared.charge,
-      kind: "observed",
-      provider: source,
-      reference: tagged,
-    };
+        charge: prepared.charge,
+        kind: "observed",
+        provider: source,
+        reference: tagged,
+      };
 };
 
 export const prepareAtProvider =
@@ -203,27 +226,26 @@ export const prepareAtProvider =
     return failures.length > 0
       ? { kind: "not_ready", reads: failures, reason: "provider_evidence" }
       : {
-        candidates: candidates.map((candidate) => ({
-          attendee: candidate.attendee,
-          references: candidate.references.map((reference) => {
-            const prepared = requiredMapValue(
-              preparedByIndex,
-              reference.index,
-              `Test readiness lost payment reference ${reference.index}`,
-            );
-            return readyReferenceFrom(
-              reference,
-              prepared,
-              source,
-              candidate.attendee.id,
-            );
-          }),
-        })),
-        kind: "ready",
-      };
+          candidates: candidates.map((candidate) => ({
+            attendee: candidate.attendee,
+            references: candidate.references.map((reference) => {
+              const prepared = requiredMapValue(
+                preparedByIndex,
+                reference.index,
+                `Test readiness lost payment reference ${reference.index}`,
+              );
+              return readyReferenceFrom(
+                reference,
+                prepared,
+                source,
+                candidate.attendee.id,
+              );
+            }),
+          })),
+          kind: "ready",
+        };
   };
 
-/** Run provider orchestration tests behind their explicit readiness fixture. */
 export const processRefundBatchAt = (
   source: RecordingProvider,
   candidates: RefundCandidate[],
@@ -287,8 +309,8 @@ export const provider = ({
         accepted.has(request.paymentReference)
           ? acceptedRefund(request.charge)
           : refunded.has(request.paymentReference)
-          ? completedRefund(request)
-          : { kind: "rejected", reason: "failed" },
+            ? completedRefund(request)
+            : { kind: "rejected", reason: "failed" },
       );
     },
     refunds,
@@ -305,18 +327,22 @@ export const unreadableProvider = (
     refundCapability,
   });
 
+export const rowBackedReference = (
+  reference: string,
+  sessionId: string,
+): RefundPaymentReference =>
+  refundReference(reference, {
+    rowSessionIds: [sessionId],
+    sessionIds: [sessionId],
+  });
+
 export const rowBackedCandidate = (
   attendeeId: number,
   sessionId: string,
   reference = `pi_${sessionId}`,
 ): RefundCandidate => ({
   attendee: { id: attendeeId } as RefundCandidate["attendee"],
-  references: [
-    refundReference(reference, {
-      rowSessionIds: [sessionId],
-      sessionIds: [sessionId],
-    }),
-  ],
+  references: [rowBackedReference(reference, sessionId)],
 });
 
 export const collectingMarker = (): Marker => {
@@ -373,7 +399,7 @@ export const pendingCandidate = (
 ): RefundCandidate => ({
   attendee: { id: attendeeId } as RefundCandidate["attendee"],
   references: references.map((reference) =>
-    refundReference(reference, { sessionIds: [] })
+    refundReference(reference, { sessionIds: [] }),
   ),
 });
 

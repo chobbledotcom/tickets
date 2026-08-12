@@ -19,7 +19,7 @@ import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 import { stripeRefundRequest } from "#test-utils/stripe/fixtures.ts";
-import { stripeIntentWithCharge } from "#test-utils/stripe/responses.ts";
+import { foundStripeIntent } from "#test-utils/stripe/responses.ts";
 import {
   checkoutSessionEvent,
   expectWebhookIgnored,
@@ -106,13 +106,7 @@ describeWithEnv(
         Promise.resolve({ kind: "rejected", reason: "rejected" } as const),
       );
       const intentStub = stub(stripeApi, "readPaymentIntent", () =>
-        Promise.resolve({
-          resource: {
-            ...stripeIntentWithCharge(0, 500),
-            id: "pi_malformed",
-          },
-          status: "found" as const,
-        }),
+        Promise.resolve(foundStripeIntent("pi_malformed", 500)),
       );
       const mockVerify = await stubWebhookVerify(
         checkoutSessionEvent({

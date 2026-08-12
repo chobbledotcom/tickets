@@ -138,20 +138,18 @@ describe("admin refund readiness", () => {
     expect(returnedFirst.reference.index).toBe("bound_tagged_returned");
   });
 
-  for (
-    const [name, returned, alreadyReturned] of [
-      [
-        "returned by the held claim",
-        untagged("legacy_claim"),
-        new Set(["old_legacy_claim"]),
-      ],
-      [
-        "marked returned on its row",
-        untagged("legacy_marker", undefined, "completed"),
-        new Set<string>(),
-      ],
-    ] as const
-  ) {
+  for (const [name, returned, alreadyReturned] of [
+    [
+      "returned by the held claim",
+      untagged("legacy_claim"),
+      new Set(["old_legacy_claim"]),
+    ],
+    [
+      "marked returned on its row",
+      untagged("legacy_marker", undefined, "completed"),
+      new Set<string>(),
+    ],
+  ] as const) {
     test(`quarantines an untagged reference ${name} without provider calls`, async () => {
       let called = false;
       const result = await prepareRefundReadiness(
@@ -259,9 +257,10 @@ describe("admin refund readiness", () => {
 
   for (const [name, evidence] of unreadCases) {
     test(`keeps ${name} evidence and does not bind`, async () => {
-      const reference = evidence.source === "tagged"
-        ? tagged("unread", "stripe", "old_unread")
-        : untagged("unread", "old_unread");
+      const reference =
+        evidence.source === "tagged"
+          ? tagged("unread", "stripe", "old_unread")
+          : untagged("unread", "old_unread");
       let bindCount = 0;
       let loadCount = 0;
       const result = await prepareRefundReadiness(
@@ -292,9 +291,8 @@ describe("admin refund readiness", () => {
   }
 
   test("keeps at most five provider evidence reads in flight", async () => {
-    const references = Array.from(
-      { length: 6 },
-      (_, index) => untagged(`charge_${index}`),
+    const references = Array.from({ length: 6 }, (_, index) =>
+      untagged(`charge_${index}`),
     );
     const gate = Promise.withResolvers<void>();
     const firstWave = Promise.withResolvers<void>();
@@ -325,12 +323,10 @@ describe("admin refund readiness", () => {
     expect(highest).toBe(5);
   });
 
-  for (
-    const bindingResult of [
-      { kind: "claim_changed" },
-      { indexes: ["old_raced_marker"], kind: "historical_marker" },
-    ] as const satisfies readonly PaymentReferenceProviderBindingResult[]
-  ) {
+  for (const bindingResult of [
+    { kind: "claim_changed" },
+    { indexes: ["old_raced_marker"], kind: "historical_marker" },
+  ] as const satisfies readonly PaymentReferenceProviderBindingResult[]) {
     test(`maps the binding result ${bindingResult.kind}`, async () => {
       const reference = untagged("binding_result");
       const result = await prepareRefundReadiness(
@@ -349,10 +345,10 @@ describe("admin refund readiness", () => {
         bindingResult.kind === "claim_changed"
           ? { kind: "not_ready", reason: "claim_changed" }
           : {
-            indexes: bindingResult.indexes,
-            kind: "not_ready",
-            reason: "historical_marker",
-          },
+              indexes: bindingResult.indexes,
+              kind: "not_ready",
+              reason: "historical_marker",
+            },
       );
     });
   }

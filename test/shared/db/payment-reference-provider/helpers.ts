@@ -11,8 +11,8 @@ import type {
   TaggedPaymentReference,
 } from "#shared/payment/provider-reference.ts";
 import {
-  readRowState,
   type ResolvedRefundCapability,
+  readRowState,
 } from "#shared/payment/row-state.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import {

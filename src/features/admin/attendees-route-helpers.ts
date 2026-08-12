@@ -178,7 +178,7 @@ type AttendeeIdRouteParams = { attendeeId: number };
  * the parsed form. Shared by the note and logistics POSTs. */
 export const attendeeFormPost = (
   handle: IdFormHandler,
-): (request: Request, params: AttendeeIdRouteParams) => Promise<Response> =>
+): ((request: Request, params: AttendeeIdRouteParams) => Promise<Response>) =>
   createAuthedHandler<AttendeeIdRouteParams>({
     handle: ({ form, params, session }) =>
       handle(params.attendeeId, session, form),
@@ -202,7 +202,7 @@ type AttendeeFormAction = ResponseHandler<
 /** Create an attendee form handler with typed IDs */
 export const attendeeFormAction = (
   handler: AttendeeFormAction,
-): (request: Request, params: AttendeeRouteParams) => Promise<Response> =>
+): ((request: Request, params: AttendeeRouteParams) => Promise<Response>) =>
   createAuthedHandler<AttendeeRouteParams, AttendeeWithListing>({
     handle: ({ context, form, params, session }) =>
       handler(context, session, form, params.listingId, params.attendeeId),

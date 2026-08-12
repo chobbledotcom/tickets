@@ -64,18 +64,16 @@ describe("admin refund provider", () => {
     expect(errors.calls).toHaveLength(0);
   });
 
-  for (
-    const [state, blockedCharge, outcome] of [
-      ["partly refunded", partlyRefundedCharge(), "withheld"],
-      [
-        "still settling",
-        chargeMoneyWith({
-          refunds: [refundObservation({ status: "pending" })],
-        }),
-        "pending",
-      ],
-    ] as const
-  ) {
+  for (const [state, blockedCharge, outcome] of [
+    ["partly refunded", partlyRefundedCharge(), "withheld"],
+    [
+      "still settling",
+      chargeMoneyWith({
+        refunds: [refundObservation({ status: "pending" })],
+      }),
+      "pending",
+    ],
+  ] as const) {
     test(`moves no sibling money when one charge is ${state}`, async () => {
       const source = provider({
         refunded: new Set(["pi_clean_a", "pi_clean_b"]),
@@ -272,7 +270,7 @@ describe("admin refund provider", () => {
           7,
           () => Promise.resolve(),
           inFlight,
-        )
+        ),
       ),
     );
 
@@ -338,12 +336,10 @@ describe("admin refund provider", () => {
     expect(source.refunds).toEqual(["pi_observe"]);
   });
 
-  for (
-    const [name, references, expected] of [
-      ["complete", ["pi_done"], "refunded"],
-      ["partial", ["pi_done", "pi_failed"], "errored"],
-    ] as const
-  ) {
+  for (const [name, references, expected] of [
+    ["complete", ["pi_done"], "refunded"],
+    ["partial", ["pi_done", "pi_failed"], "errored"],
+  ] as const) {
     test(`keeps a ${name} result when recording its marker fails`, async () => {
       const source = provider({ refunded: new Set(["pi_done"]) });
       const result = await refundReadyCandidate(

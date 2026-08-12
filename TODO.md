@@ -2157,21 +2157,21 @@ were.
 
 ## Give shared and merged charges authoritative bookkeeping
 
-PR #2074 now closes the unsafe current behavior. `claimAttendeeRows` expands a
-claim to every row carrying the reference, and `runRefundReadiness` writes an
-exact `shared_reference` review marker and stops before provider or ledger I/O.
-One payout can no longer be reversed once per holder. The owner action is only
-an acknowledgement: it clears the marker but records no allocation, so an
-unchanged shared representation parks again on the next refund attempt.
+`claimAttendeeRows` expands a claim to every row carrying the reference, and
+`runRefundReadiness` writes an exact `shared_reference` review marker and stops
+before provider or ledger I/O. One payout cannot be reversed once per holder.
+The current owner action is only an acknowledgement: it clears the marker but
+records no allocation, so an unchanged shared representation parks again on the
+next refund attempt.
 
 Build the approved closure from `PR4_PLAN.md`: stable booking obligations plus a
 revision-fenced allocation whose positive Money parts share the charge currency
 and sum exactly to the capture, or an explicit owner rejection. Merge must
 preserve those facts and must not turn source and target copies of one reference
 into two payouts or two reversals. Partially returned obligations need their
-required owner choice in the same model; Part A currently leaves them unrecorded
-with a durable `partially_returned_obligation` marker rather than cancelling a
-sale they did not fully fund.
+required owner choice in the same model. Until that choice exists, they remain
+unrecorded with a durable `partially_returned_obligation` marker rather than
+cancelling a sale they did not fully fund.
 
 Start at `sharedRepresentations` in `src/shared/db/payment-claim/take.ts`,
 `runRefundReadiness` in `src/features/admin/refunds/readiness-run.ts`, the
@@ -2195,9 +2195,29 @@ provider identity, amount, currency, and returned total; where that is
 impossible, require an explicit audited attestation after external correction.
 Fence the decision on the exact held rows and propagate the provider-aware
 identity to every matching representation while preserving returned dates and
-other row state. Never select a provider from configuration order or silently
-upgrade the historical marker. Tests must cover shared old rows, a claim race,
-one validating provider, incomplete discovery, and the attestation audit record.
+other row state. A provider-read decision must persist the judged evidence
+fingerprint or revision and re-read and re-judge if it changes before the write.
+An external attestation needs an immutable decision revision, and its write must
+compare that revision with the current decision. Never select a provider from
+configuration order or silently upgrade the historical marker. Tests must cover
+shared old rows, a claim race, one validating provider, incomplete discovery,
+changing provider evidence, and the attestation audit record.
+
+## Let the owner resolve an ambiguous legacy provider
+
+An untagged legacy reference that validates at more than one configured provider
+stays unresolved as `multiple_validating_providers`. This correctly prevents a
+guess, but the refund message currently asks the owner to choose a provider
+without giving them an action that can record the choice.
+
+Add an owner-only, per-reference choice over only the providers whose validated
+reads found the exact charge. Re-read every candidate before saving, require the
+owner's explicit selection, then bind the chosen provider identity and its retry
+capability to every exact held representation in one revision-fenced write. If
+the evidence or held rows change, refuse the decision and show the new choices.
+Test two validating providers, a provider disappearing before submit, a claim
+race, shared representations, and a successful retry using only the chosen
+provider.
 
 ## The whole-reading cluster returns with the sweeps
 
@@ -2254,21 +2274,29 @@ closing the M4 coverage gaps and this file is mutation-run tooling.
 
 ## Claim callback refunds and make keyless recovery finite
 
-Part A serializes admin single, bulk, and refresh work with exact attendee-set
-claims, including per-reference `keyed`/`keyless` capability. Buyer-facing
-callback paths still call `tryRefund` or `refundRejectedCharge` without a
-callback-scope claim. A SumUp refund has no idempotency key, so a lost response
-cannot safely be resent merely because a later read has not caught up;
-conversely, acknowledging it as failed can leave the buyer charged.
+Admin single, bulk, and refresh work uses exact attendee-set claims, including
+per-reference `keyed`/`keyless` capability. Buyer-facing callback paths still
+call `tryRefund` or `refundRejectedCharge` without a callback-scope claim. A
+SumUp refund has no idempotency key, so a lost response cannot safely be resent
+merely because a later read has not caught up; conversely, acknowledging it as
+failed can leave the buyer charged.
 
 Stage one durable callback claim before every callback refund send, naming the
 exact charge identity, capability, amount, currency, scope, and deterministic
 key where one exists. A fresh duplicate must make no second call. A stale keyed
-claim may resume the same request; a stale keyless claim may only observe until
-provider evidence proves settlement or an owner resolves it. Persist the buyer
-record/replay identity and refund state atomically enough that redelivery cannot
-create a second placeholder, and let claimed admin refresh finish stale callback
-work after provider redeliveries end.
+claim may resume the same request; a stale keyless claim may only observe. A
+claimed admin refresh may complete stale keyless callback work only after a
+fresh provider read proves settlement; otherwise it stays in doubt until fresh
+evidence or explicit owner resolution decides it. Missing provider callbacks are
+never failure evidence.
+
+Use one claimed reconciliation function. Before a provider call, one transaction
+must stage the claim, unique replay identity, exact charge identity, request
+facts, due time, and revision. Each reconciliation transaction must then persist
+provider evidence, refund state, due time, the next revision, and case changes
+together. Enforce uniqueness for replay and charge identities so redelivery
+cannot create a second placeholder, and leave no partial local state when either
+transaction fails.
 
 Start at `tryRefund` and `refundRejectedCharge` in
 `src/features/api/payment-processing/refunds.ts`, `storeRefundedBooking` in
@@ -2281,26 +2309,48 @@ rather than create another lifecycle.
 
 ## Make global refund-reference preparation bounded and resumable
 
-PR #2074 closes the legacy sibling blind spot: before a refund snapshot,
-`prepareRefundReferenceHolders` decrypts every stored reference, fills every old
-blind index, and creates a deterministic anchor for every row-less legacy
-`payment_id`. The selected attendee can now see every other holder of the same
-charge, and shared work parks before provider I/O.
+Before a refund snapshot, `prepareRefundReferenceHolders` decrypts every stored
+reference, fills every old blind index, and creates a deterministic anchor for
+every row-less legacy `payment_id`. The selected attendee can see every other
+holder of the same charge, and shared work parks before provider I/O.
 
 The pass currently loads every payment row and attendee, decrypts every entry,
 and batches every missing write inside one authenticated request transaction. A
 large site can exhaust edge CPU, memory, statement, or request-time budgets; a
 failure restarts the whole scan. Replace it with fixed-size authenticated pages
-and durable progress. Refund admission must remain closed until a complete epoch
-has prepared all holders, and concurrent payment/PII changes must either join
-that epoch or invalidate its completion marker. The owner private key is needed
-to derive indexes, so an unauthenticated maintenance job cannot silently do the
-work.
+and durable progress. Persist a deterministic keyset cursor ordered by stable
+reference identity and advance it only after each page commits; never use an
+offset cursor. Refund admission must remain closed until that cursor completes
+an epoch. Concurrent payment or PII inserts and reference changes must join or
+invalidate the same epoch so no row can be skipped or repeated. The owner
+private key is needed to derive indexes, so an unauthenticated maintenance job
+cannot silently do the work.
+
+Preparation completion alone is not refund admission. Every row-less legacy
+reference must have its anchor and blind index persisted, and the following
+claim must report success only after it has persisted a held-row state for every
+exact reference. Any missing anchor, index, or held state keeps admission
+closed.
 
 Start at `src/shared/db/payment-reference-holders.ts` and its call from
 `getRefundPaymentReferences`. Test several pages, interruption and resume,
 concurrent row insertion and PII change, a shared row-less charge split across
-pages, and refusal before the epoch completes.
+pages, and refusal before the epoch or exact held-row claim completes.
+
+## Make refund confirmation replay checks bounded
+
+`confirmRefund` currently calls `getAttendeeActivityMessages`, which loads and
+decrypts every activity message for the attendee to decide whether one exact
+refund confirmation was already logged. A long-lived attendee record can exhaust
+an edge request after the provider and ledger work have already succeeded.
+
+Give refund confirmations a structured, indexed replay identity derived from the
+attendee and sorted provider-aware references. Persist that identity atomically
+with the activity entry and exact held-row check, reject duplicates by a
+database constraint, and stop scanning message prose. Preserve the activity text
+as an operator display, not as the state machine. Test a duplicate confirmation,
+a large unrelated history, concurrent confirmations, and rollback when the
+activity write fails.
 
 ## Refunded status cannot tell two orders on ONE listing apart
 

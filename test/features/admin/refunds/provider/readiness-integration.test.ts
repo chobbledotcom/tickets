@@ -4,20 +4,14 @@ import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import type { RowClaim } from "#routes/admin/refunds/claim.ts";
 import {
   processRefundBatch,
-  type RefundBatchResult,
-  type RefundCounts,
   type RefundRunDependencies,
 } from "#routes/admin/refunds/provider.ts";
 import type {
   ReadyRefundCandidate,
-  ReadyRefundProvider,
-  ReadyRefundReference,
   RefundReadinessResult,
 } from "#routes/admin/refunds/readiness.ts";
 import type { RowSettlement } from "#shared/db/payment-claim.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
-import type { RefundRequest } from "#shared/payment/refund-attempt.ts";
-import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type {
   RefundCapability,
   ResolvedRefundCapability,
@@ -25,6 +19,14 @@ import type {
 import type { PaymentProviderType } from "#shared/types.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { chargeMoney, completedRefund } from "#test-utils/payment-state.ts";
+import {
+  candidateWithReferences,
+  finishedCounts,
+  observedReference,
+  provider,
+  type RecordingProvider,
+  readyCandidateFrom,
+} from "./helpers.ts";
 import { recordEveryRefund } from "./ledger-results.ts";
 
 const LISTING_ID = 7;
@@ -37,24 +39,15 @@ type Claimed = Extract<
 >;
 type TaggedReference = Extract<RefundPaymentReference, { kind: "tagged" }>;
 type UntaggedReference = Extract<RefundPaymentReference, { kind: "untagged" }>;
-type RecordingProvider = ReadyRefundProvider & {
-  readonly requests: RefundRequest[];
-};
 const recordingProvider = (
   type: PaymentProviderType,
   refundCapability: ResolvedRefundCapability = "keyed",
-): RecordingProvider => {
-  const requests: RefundRequest[] = [];
-  return {
+): RecordingProvider =>
+  provider({
+    paymentProvider: type,
+    refund: (request) => Promise.resolve(completedRefund(request.charge)),
     refundCapability,
-    refundCharge: (request) => {
-      requests.push(request);
-      return Promise.resolve(completedRefund(request.charge));
-    },
-    requests,
-    type,
-  };
-};
+  });
 
 const taggedReference = (
   provider: PaymentProviderType,
@@ -82,32 +75,10 @@ const untaggedReference = (
   return { ...facts, kind: "untagged", refundState: state };
 };
 
-const candidate = (
-  id: number,
-  references: RefundPaymentReference[],
-): RefundCandidate => ({
-  attendee: { id, pii_blob: "" } as RefundCandidate["attendee"],
-  references,
-});
-
-const observed = (
-  reference: TaggedReference,
-  provider: RecordingProvider,
-  charge: ChargeMoney = chargeMoney(),
-): ReadyRefundReference => ({
-  charge,
-  kind: "observed",
-  provider,
-  reference,
-});
-
-const readyCandidate = (
-  source: RefundCandidate,
-  references: ReadyRefundReference[],
-): ReadyRefundCandidate => ({ attendee: source.attendee, references });
-
-const readyPreparation = (candidates: ReadyRefundCandidate[]): Prepare => () =>
-  Promise.resolve({ candidates, kind: "ready" });
+const readyPreparation =
+  (candidates: ReadyRefundCandidate[]): Prepare =>
+  () =>
+    Promise.resolve({ candidates, kind: "ready" });
 
 const noValidatingProvider = (
   reference: RefundPaymentReference,
@@ -134,9 +105,8 @@ const rowClaimHarness = (
     inherited = new Map(),
     returned = new Set(),
     shared = new Map(),
-  }:
-    & Pick<Claimed, "held">
-    & Partial<Pick<Claimed, "inherited" | "returned" | "shared">>,
+  }: Pick<Claimed, "held"> &
+    Partial<Pick<Claimed, "inherited" | "returned" | "shared">>,
   events: string[] = [],
 ) => {
   const capabilities: RefundCapability[] = [];
@@ -172,7 +142,7 @@ const releasedRows = (settlements: readonly RowSettlement[]): string[][] =>
   settlements.map(({ rows }) =>
     [...rows]
       .filter(([, change]) => change.claim === "release")
-      .map(([sessionId]) => sessionId)
+      .map(([sessionId]) => sessionId),
   );
 
 const recordingWrites = (): {
@@ -198,19 +168,12 @@ const recordingWrites = (): {
   };
 };
 
-const finishedCounts = (result: RefundBatchResult): RefundCounts => {
-  if (result.kind === "blocked") {
-    throw new Error(`Expected a finished refund, got ${result.reason}`);
-  }
-  return result.counts;
-};
-
 describe("admin refund provider readiness integration", () => {
   const errors = setupErrorSpy();
 
   test("claims unresolved, passes exact facts, and releases a fresh unread claim", async () => {
     const reference = untaggedReference("same", "stored_same");
-    const batch = [candidate(11, [reference])];
+    const batch = [candidateWithReferences([reference], 11)];
     const held = new Map([[11, reference.rowSessionIds]]);
     const returned = new Set(["returned_by_claim"]);
     const events: string[] = [];
@@ -254,7 +217,7 @@ describe("admin refund provider readiness integration", () => {
 
   test("reports a historical marker as repair-required without executing", async () => {
     const reference = untaggedReference("returned", "old", "completed");
-    const batch = [candidate(12, [reference])];
+    const batch = [candidateWithReferences([reference], 12)];
     const claim = rowClaimHarness({
       held: new Map([[12, reference.rowSessionIds]]),
     });
@@ -293,7 +256,10 @@ describe("admin refund provider readiness integration", () => {
     const stripeRef = taggedReference("stripe", "same_raw", "stripe_same");
     const squareRef = taggedReference("square", "same_raw", "square_same");
     const returnedRef = taggedReference("sumup", "same_raw", "sumup_same");
-    const source = candidate(21, [stripeRef, squareRef, returnedRef]);
+    const source = candidateWithReferences(
+      [stripeRef, squareRef, returnedRef],
+      21,
+    );
     const claim = rowClaimHarness({
       held: new Map([
         [21, source.references.flatMap(({ rowSessionIds }) => rowSessionIds)],
@@ -305,9 +271,9 @@ describe("admin refund provider readiness integration", () => {
       await processRefundBatch([source], LISTING_ID, {
         claim: claim.rowClaim,
         prepare: readyPreparation([
-          readyCandidate(source, [
-            observed(stripeRef, stripe, stripeCharge),
-            observed(squareRef, square, squareCharge),
+          readyCandidateFrom(source, [
+            observedReference(stripeRef, stripe, stripeCharge),
+            observedReference(squareRef, square, squareCharge),
             {
               kind: "already_returned",
               provider: sumup,
@@ -340,9 +306,9 @@ describe("admin refund provider readiness integration", () => {
     const staleRef = taggedReference("sumup", "collision", "s", "row_1");
     const sharingRef = taggedReference("sumup", "collision", "s", "row_2");
     const stripeRef = taggedReference("stripe", "collision", "t", "row_3");
-    const stale = candidate(31, [staleRef]);
-    const sharing = candidate(32, [sharingRef]);
-    const independent = candidate(33, [stripeRef]);
+    const stale = candidateWithReferences([staleRef], 31);
+    const sharing = candidateWithReferences([sharingRef], 32);
+    const independent = candidateWithReferences([stripeRef], 33);
     const claim = rowClaimHarness({
       held: new Map([
         [31, staleRef.rowSessionIds],
@@ -357,9 +323,11 @@ describe("admin refund provider readiness integration", () => {
       await processRefundBatch([stale, sharing, independent], LISTING_ID, {
         claim: claim.rowClaim,
         prepare: readyPreparation([
-          readyCandidate(stale, [observed(staleRef, sumup)]),
-          readyCandidate(sharing, [observed(sharingRef, sumup)]),
-          readyCandidate(independent, [observed(stripeRef, stripe)]),
+          readyCandidateFrom(stale, [observedReference(staleRef, sumup)]),
+          readyCandidateFrom(sharing, [observedReference(sharingRef, sumup)]),
+          readyCandidateFrom(independent, [
+            observedReference(stripeRef, stripe),
+          ]),
         ]),
         ...writes.dependencies,
       }),
@@ -379,7 +347,7 @@ describe("admin refund provider readiness integration", () => {
 
   test("retains an inherited claim when readiness cannot prove its charge", async () => {
     const reference = taggedReference("sumup", "unread", "unread_ref", "row_4");
-    const batch = [candidate(41, [reference])];
+    const batch = [candidateWithReferences([reference], 41)];
     const claim = rowClaimHarness({
       held: new Map([[41, reference.rowSessionIds]]),
       inherited: new Map([[41, new Map([[reference.index, "keyless"]])]]),

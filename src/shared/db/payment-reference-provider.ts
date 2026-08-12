@@ -43,13 +43,13 @@ export type PaymentReferenceProviderBindingRequest = {
 export type PaymentReferenceProviderBindingResult =
   | { readonly kind: "claim_changed" }
   | {
-    readonly indexes: readonly string[];
-    readonly kind: "historical_marker";
-  }
+      readonly indexes: readonly string[];
+      readonly kind: "historical_marker";
+    }
   | {
-    readonly indexes: ReadonlyMap<string, string>;
-    readonly kind: "bound";
-  };
+      readonly indexes: ReadonlyMap<string, string>;
+      readonly kind: "bound";
+    };
 
 type PreparedBinding = {
   newIndex: string;
@@ -99,7 +99,8 @@ const rowsForBinding = (
   oldIndexes: readonly string[],
 ): { args: string[]; where: string } => ({
   args: [...sessionIds, ...oldIndexes],
-  where: `payment_session_id IN (${inPlaceholders(sessionIds)})` +
+  where:
+    `payment_session_id IN (${inPlaceholders(sessionIds)})` +
     (oldIndexes.length === 0
       ? ""
       : ` OR payment_reference_index IN (${inPlaceholders(oldIndexes)})`),
@@ -122,9 +123,9 @@ const checkedHeldRows = async (
       const record = await asPaymentRowRecord(row);
       const claim = record.state.claim;
       return claim !== undefined &&
-          claim.attendeeId === attendeeId &&
-          claim.scope === "attendee_set" &&
-          claim.writtenAt === heldSince
+        claim.attendeeId === attendeeId &&
+        claim.scope === "attendee_set" &&
+        claim.writtenAt === heldSince
         ? { claim, index: row.payment_reference_index, record }
         : null;
     }),
@@ -133,7 +134,7 @@ const checkedHeldRows = async (
   if (complete.length !== checked.length) return null;
   const heldIndexes = new Set(complete.map(({ index }) => index));
   return heldIndexes.size === bindings.size &&
-      [...bindings.keys()].every((index) => heldIndexes.has(index))
+    [...bindings.keys()].every((index) => heldIndexes.has(index))
     ? complete
     : null;
 };
@@ -149,7 +150,7 @@ const markedChangingIndexes = (
         (row) =>
           row.payment_reference_index === oldIndex &&
           row.provider_refunded_at !== "",
-      )
+      ),
     )
     .map(({ oldIndex }) => oldIndex);
 

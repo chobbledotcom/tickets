@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { requiredMapValue } from "#fp";
 import { execute, queryOne } from "#shared/db/client.ts";
 import {
   matchingPaymentReferenceIndexes,
@@ -14,7 +15,10 @@ import { reserveSession } from "#shared/db/processed-payments.ts";
 import type { UntaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import {
+  bookAttendee,
+  bookedAttendee,
+} from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   finalizeProcessedPayment,
@@ -78,7 +82,11 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
       await getTestPrivateKey(),
     );
 
-    const firstRefs = references.get(firstId)!;
+    const firstRefs = requiredMapValue(
+      references,
+      firstId,
+      `Refund references omitted attendee ${firstId}`,
+    );
     expect(
       firstRefs.map(({ kind, reference }) => ({ kind, reference })),
     ).toEqual([
@@ -271,5 +279,33 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
       ),
     ).rejects.toThrow(`Payment reference index does not match ${sessionId}`);
     expect(await indexOf(sessionId)).toEqual({ value: "wrong-index" });
+  });
+
+  test("refuses a stored reference that has no attendee", async () => {
+    const listing = await createTestListing();
+    const created = await bookAttendee(listing, {
+      email: "orphan-reference@example.com",
+      name: "Orphan Reference",
+    });
+    const attendeeId = bookedAttendee(created).id;
+    const stored = await storePaymentReference(
+      taggedPaymentReference("pi_orphan_reference"),
+    );
+    await reserveSession("sess_orphan_reference");
+    await execute(
+      `UPDATE processed_payments
+          SET payment_reference = ?, payment_reference_index = ?
+        WHERE payment_session_id = ?`,
+      [stored.encrypted, stored.index, "sess_orphan_reference"],
+    );
+
+    await expect(
+      getRefundPaymentReferences(
+        [{ id: attendeeId, payment_id: "" }],
+        await getTestPrivateKey(),
+      ),
+    ).rejects.toThrow(
+      "Payment reference sess_orphan_reference has no attendee",
+    );
   });
 });

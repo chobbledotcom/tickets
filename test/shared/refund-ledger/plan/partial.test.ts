@@ -15,9 +15,6 @@ import { legReference } from "#shared/accounting/refs.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { setupErrorSpy } from "#test-utils/error-spy.ts";
-import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
 import {
   ATTENDEE,
   BOOKING_AT,
@@ -26,7 +23,10 @@ import {
   refundLegsOf,
   returnedReference,
   sessionReference,
-} from "../helpers.ts";
+} from "#test/shared/refund-ledger/helpers.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
 
 const postBalancePayment = async (): Promise<void> => {
   await postTransfers([

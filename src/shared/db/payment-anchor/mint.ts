@@ -70,6 +70,6 @@ export const legacyAnchorStatements = async (
     attendees.flatMap((attendee) =>
       attendee.references
         .filter(needsAnchor)
-        .map((reference) => anchorStatement(attendee.attendeeId, reference))
+        .map((reference) => anchorStatement(attendee.attendeeId, reference)),
     ),
   );

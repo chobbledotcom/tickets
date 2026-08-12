@@ -47,6 +47,14 @@ const setup = async () => {
 };
 
 describeWithEnv("admin refunds > confirmation", { db: true }, () => {
+  test("rejects a confirmation with no returned payment", async () => {
+    const refund = await setup();
+
+    await expect(
+      withTestSession(() => confirmRefund({ ...refund, references: [] })),
+    ).rejects.toThrow("A refund confirmation needs at least one payment");
+  });
+
   test("writes activity and note cleanup once for one reference set", async () => {
     const refund = await setup();
     const target = attendeeNotes(refund.attendee.id);

@@ -13,7 +13,7 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { stripeIntentWithCharge } from "#test-utils/stripe/responses.ts";
+import { foundStripeIntent } from "#test-utils/stripe/responses.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 import {
   bookingIntent,
@@ -40,13 +40,7 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
       Promise.resolve({ kind: "rejected", reason: "rejected" } as const),
     );
     using refundState = stub(stripeApi, "readPaymentIntent", () =>
-      Promise.resolve({
-        resource: {
-          ...stripeIntentWithCharge(0, 800),
-          id: data.session.paymentReference,
-        },
-        status: "found",
-      } as const),
+      Promise.resolve(foundStripeIntent(data.session.paymentReference, 800)),
     );
 
     expect(await processPaymentSession(id, data)).toEqual({

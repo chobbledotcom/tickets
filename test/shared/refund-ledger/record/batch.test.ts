@@ -17,9 +17,6 @@ import {
   recordAttendeeRefund,
   recordAttendeeRefundsBatch,
 } from "#shared/refund-ledger/record.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { setupErrorSpy } from "#test-utils/error-spy.ts";
-import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
 import {
   BOOKING_AT,
   postBooking,
@@ -28,7 +25,10 @@ import {
   refundTarget,
   returnedReference,
   sessionReference,
-} from "../helpers.ts";
+} from "#test/shared/refund-ledger/helpers.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
 
 describeWithEnv(
   "refund-ledger > recordAttendeeRefundsBatch",

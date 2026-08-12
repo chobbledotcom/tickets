@@ -58,27 +58,24 @@ export const stubCompletedSession = async (object: {
   metadata: Record<string, string>;
 }) => {
   const { stripePaymentProvider } = await import("#shared/stripe-provider.ts");
-  return stub(
-    stripePaymentProvider,
-    "verifyWebhookSignature",
-    () =>
-      Promise.resolve({
-        listing: {
-          data: {
-            object: {
-              ...object,
-              created: 1_700_000_000,
-              currency: "gbp",
-              payment_intent: `pi_${object.id}`,
-              payment_status: "paid",
-              url: null,
-            },
+  return stub(stripePaymentProvider, "verifyWebhookSignature", () =>
+    Promise.resolve({
+      listing: {
+        data: {
+          object: {
+            ...object,
+            created: 1_700_000_000,
+            currency: "gbp",
+            payment_intent: `pi_${object.id}`,
+            payment_status: "paid",
+            url: null,
           },
-          id: `evt_${object.id}`,
-          type: "checkout.session.completed",
         },
-        valid: true as const,
-      }),
+        id: `evt_${object.id}`,
+        type: "checkout.session.completed",
+      },
+      valid: true as const,
+    }),
   );
 };
 
@@ -131,23 +128,20 @@ export const runFailedRefund = async (
   listingId: number,
   body: (refund: ReturnType<typeof stubRefundOk>) => Promise<void>,
 ): Promise<void> => {
-  const refund = stub(
-    stripeApi,
-    "refundCharge",
-    () => Promise.resolve({ kind: "rejected", reason: "rejected" } as const),
+  const refund = stub(stripeApi, "refundCharge", () =>
+    Promise.resolve({ kind: "rejected", reason: "rejected" } as const),
   );
   // The refund asks what the money has already done first, so the charge must
   // state it: a refunded one has every penny back, an unrefunded one none.
   const intent = stub(stripeApi, "readPaymentIntent", () =>
-    Promise.resolve(
-      {
-        resource: {
-          ...stripeIntentWithCharge(intentRefunded ? 1200 : 0, 1200),
-          id: `pi_${id}`,
-        },
-        status: "found",
-      } as const,
-    ));
+    Promise.resolve({
+      resource: {
+        ...stripeIntentWithCharge(intentRefunded ? 1200 : 0, 1200),
+        id: `pi_${id}`,
+      },
+      status: "found",
+    } as const),
+  );
   const mockVerify = await stubCompletedSession({
     amount_total: 1200,
     id,

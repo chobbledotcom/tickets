@@ -118,7 +118,7 @@ export const submitRefundAll = (
 
 export const expectSingleRefundIssued = async (
   ctx: RefundRouteCtx,
-  checkRefund: RefundCheck = () => {},
+  checkRefund: RefundCheck,
 ): Promise<void> => {
   await withRefundMock(refundCompletes, async (mockRefund) => {
     const response = await submitRefund(ctx);

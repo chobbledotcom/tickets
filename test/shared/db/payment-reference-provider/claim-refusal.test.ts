@@ -5,14 +5,14 @@ import { execute } from "#shared/db/client.ts";
 import { bindPaymentReferenceProviders } from "#shared/db/payment-reference-provider.ts";
 import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { claimCurrentAttendeeRows } from "#test-utils/payment-claim.ts";
-import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
 import {
   bindingRequest,
   legacyBooking,
   rowFor,
 } from "#test/shared/db/payment-reference-provider/helpers.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { claimCurrentAttendeeRows } from "#test-utils/payment-claim.ts";
+import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
 
 /* jscpd:ignore-end */
 

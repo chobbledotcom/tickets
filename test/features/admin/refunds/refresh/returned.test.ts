@@ -25,6 +25,8 @@ describe("refresh payment under an attendee claim", () => {
     const run = runHarness({ observed: null, paymentOnly: false });
 
     await expectNewCompletedRefresh(run);
+    expect(run.calls.prepare).toBe(1);
+    expect(run.provider.reads).toEqual([]);
     expect(run.calls.confirm).toBe(1);
   });
 

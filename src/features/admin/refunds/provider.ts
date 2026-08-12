@@ -85,8 +85,7 @@ const logBulkRefundProblem = (
     .join(", ");
   logError({
     code: ErrorCode.PAYMENT_REFUND,
-    detail:
-      `Admin bulk refund ${outcome} for attendee ${candidate.attendee.id}, payments ${refs}`,
+    detail: `Admin bulk refund ${outcome} for attendee ${candidate.attendee.id}, payments ${refs}`,
     listingId,
   });
 };
@@ -165,8 +164,8 @@ export const processRefundBatch = async (
   listingId: number,
   {
     claim: rowClaim = durableRowClaim,
-    markReturned: markReturnedReferences =
-      markPaymentReferencesProviderRefunded,
+    markReturned:
+      markReturnedReferences = markPaymentReferencesProviderRefunded,
     prepare = prepareRefundReadiness,
     record = recordAttendeeRefundsBatch,
   }: RefundRunDependencies = {},
@@ -203,16 +202,14 @@ const refundClaimedBatch = async (
   const observeOnly = new Set(
     [...inherited.values()].flatMap((references) =>
       [...references].flatMap(([index, capability]) =>
-        MAY_RETRY_INHERITED_CALL[capability] ? [] : [index]
-      )
+        MAY_RETRY_INHERITED_CALL[capability] ? [] : [index],
+      ),
     ),
   );
   const counts = noRefunds();
-  for (
-    const group of packByReferenceCount(PROVIDER_REFUND_CONCURRENCY)(
-      batch,
-    )
-  ) {
+  for (const group of packByReferenceCount(PROVIDER_REFUND_CONCURRENCY)(
+    batch,
+  )) {
     const results = await Promise.all(
       group.map((candidate) =>
         refundReadyCandidate(
@@ -221,7 +218,7 @@ const refundClaimedBatch = async (
           writes.markReturned,
           inFlight,
           observeOnly,
-        )
+        ),
       ),
     );
     const postings: LedgerPosting[] = [];

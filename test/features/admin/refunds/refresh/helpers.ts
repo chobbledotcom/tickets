@@ -1,20 +1,24 @@
 import { expect } from "@std/expect";
+import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import type {
   ReadyRefundProvider,
   RefundReadinessResult,
 } from "#routes/admin/refunds/readiness.ts";
 import {
-  refreshClaimedPayment,
   type RefreshPaymentDependencies,
   type RefreshPaymentResult,
+  refreshClaimedPayment,
 } from "#routes/admin/refunds/refresh.ts";
-import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import type { PaymentReviewChange } from "#shared/db/payment-claim.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { PaymentReviewReason } from "#shared/payment/review.ts";
 import type { ResolvedRefundCapability } from "#shared/payment/row-state.ts";
 import type { RefundLedgerResult } from "#shared/refund-ledger/result.ts";
+import {
+  type RecordingProvider,
+  provider as recordingProvider,
+} from "#test/features/admin/refunds/provider/helpers.ts";
 import {
   candidate,
   tagged,
@@ -30,19 +34,8 @@ import { grantingRowClaim } from "#test-utils/refund-routes.ts";
 
 const LISTING_ID = 17;
 const ATTENDEE_ID = 23;
-
-const recordingProvider = (): ReadyRefundProvider & { sends: number } => {
-  const source: ReadyRefundProvider & { sends: number } = {
-    refundCapability: "keyed",
-    refundCharge: () => {
-      source.sends++;
-      return Promise.resolve({ kind: "not_sent", reason: "not_configured" });
-    },
-    sends: 0,
-    type: "stripe",
-  };
-  return source;
-};
+const REFERENCE_INDEX = "refresh";
+const REFERENCE_ROW_ID = `session_${REFERENCE_INDEX}`;
 
 const readyResult = (
   observations: readonly {
@@ -57,7 +50,7 @@ const readyResult = (
       references: observations.map(({ observed, reference }) =>
         observed === null
           ? { kind: "already_returned", provider, reference }
-          : { charge: observed, kind: "observed", provider, reference }
+          : { charge: observed, kind: "observed", provider, reference },
       ),
     },
   ],
@@ -92,23 +85,17 @@ export interface RefreshHarness {
   readonly claim: ReturnType<typeof grantingRowClaim>;
   readonly dependencies: RefreshPaymentDependencies;
   readonly marked: (readonly RefundPaymentReference[])[];
-  readonly provider: ReadyRefundProvider & { sends: number };
+  readonly provider: RecordingProvider;
+  readonly ready: Extract<RefundReadinessResult, { kind: "ready" }>;
   readonly recorded: (readonly RefundPaymentReference[])[];
   readonly reference: TaggedReference;
   readonly references: TaggedReference[];
+  readonly rowSessionId: string;
   readonly source: RefundCandidate;
 }
 
-const firstRowOf = (
-  reference: Extract<RefundPaymentReference, { kind: "tagged" }>,
-): string => {
-  const [sessionId] = reference.rowSessionIds;
-  if (sessionId === undefined) throw new Error("The test reference has no row");
-  return sessionId;
-};
-
 export const runHarness = (values: HarnessValues = {}): RefreshHarness => {
-  const reference = tagged("pi_refresh", "stripe");
+  const reference = tagged("pi_refresh", "stripe", REFERENCE_INDEX);
   const observations: {
     observed: ChargeMoney | null;
     reference: Extract<RefundPaymentReference, { kind: "tagged" }>;
@@ -117,24 +104,28 @@ export const runHarness = (values: HarnessValues = {}): RefreshHarness => {
       observed: values.observed === undefined ? chargeMoney() : values.observed,
       reference,
     },
-    ...(values.siblingObserved === undefined ? [] : [
-      {
-        observed: values.siblingObserved,
-        reference: tagged("pi_refresh_sibling", "stripe"),
-      },
-    ]),
+    ...(values.siblingObserved === undefined
+      ? []
+      : [
+          {
+            observed: values.siblingObserved,
+            reference: tagged("pi_refresh_sibling", "stripe"),
+          },
+        ]),
   ];
   const references = observations.map(({ reference }) => reference);
   const source = candidate(ATTENDEE_ID, references);
   const provider = recordingProvider();
-  const inherited = values.inherited === undefined
-    ? new Map<number, ReadonlyMap<string, ResolvedRefundCapability>>()
-    : new Map([
-      [ATTENDEE_ID, new Map([[reference.index, values.inherited]])],
-    ]);
+  const ready = readyResult(observations, provider);
+  const inherited =
+    values.inherited === undefined
+      ? new Map<number, ReadonlyMap<string, ResolvedRefundCapability>>()
+      : new Map([
+          [ATTENDEE_ID, new Map([[reference.index, values.inherited]])],
+        ]);
   const existingReviews = new Map<string, PaymentReviewReason>();
   if (values.existingReview !== undefined) {
-    existingReviews.set(firstRowOf(reference), values.existingReview);
+    existingReviews.set(REFERENCE_ROW_ID, values.existingReview);
   }
   const claim = grantingRowClaim(
     new Map([
@@ -168,9 +159,7 @@ export const runHarness = (values: HarnessValues = {}): RefreshHarness => {
     },
     prepare: () => {
       calls.prepare++;
-      return Promise.resolve(
-        values.readiness ?? readyResult(observations, provider),
-      );
+      return Promise.resolve(values.readiness ?? ready);
     },
     record: (_attendeeId, references) => {
       calls.record++;
@@ -189,9 +178,11 @@ export const runHarness = (values: HarnessValues = {}): RefreshHarness => {
     dependencies,
     marked,
     provider,
+    ready,
     recorded,
     reference,
     references,
+    rowSessionId: REFERENCE_ROW_ID,
     source,
   };
 };
@@ -206,7 +197,7 @@ export const reviewChange = (
   run: RefreshHarness,
   change: PaymentReviewChange,
 ): ReadonlyMap<string, PaymentReviewChange> =>
-  new Map([[firstRowOf(run.reference), change]]);
+  new Map([[run.rowSessionId, change]]);
 
 export const pendingRefundMoney = (): ChargeMoney =>
   chargeMoneyWith({
@@ -221,7 +212,7 @@ export const expectNewCompletedRefresh = async (
     kind: "returned",
     posted: true,
   });
-  expect(run.provider.sends).toBe(0);
+  expect(run.provider.refunds).toEqual([]);
   expect(run.marked).toEqual([[run.reference]]);
 };
 

@@ -5,6 +5,11 @@ import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
+  bookAttendee,
+  bookedAttendee,
+} from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
   CLAIM_MIRROR,
   claimCurrentAttendeeRows,
   heldSessionIds,
@@ -120,6 +125,20 @@ describeWithEnv(
           expect(heldSessionIds(nobody)).toEqual([]);
         });
         expect(calls).toBe(0);
+      });
+
+      test("an attendee with no refundable rows claims an empty set", async () => {
+        const listing = await createTestListing();
+        const booked = await bookAttendee(listing, {
+          email: "no-payment@example.com",
+          name: "No Payment",
+        });
+        const attendeeId = bookedAttendee(booked).id;
+
+        const result = await claimCurrentAttendeeRows([attendeeId], "keyless");
+
+        if (result.kind !== "claimed") throw new Error("the claim was refused");
+        expect(heldSessionIds(result)).toEqual([]);
       });
 
       test("a missing attendee fails at the snapshot boundary", async () => {

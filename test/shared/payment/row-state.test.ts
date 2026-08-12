@@ -80,7 +80,7 @@ describe("readRowState", () => {
     ] as const;
     expect(
       reasons.map((kind) =>
-        readRowState(writeRowState({ review: { kind } }, CONTEXT), CONTEXT)
+        readRowState(writeRowState({ review: { kind } }, CONTEXT), CONTEXT),
       ),
     ).toEqual(reasons.map((kind) => ({ review: { kind } })));
   });

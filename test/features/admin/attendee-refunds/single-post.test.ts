@@ -179,11 +179,9 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       await withRefundMock(refundIsRejected, async () => {
         const response = await submitRefund(ctx, { return_url: returnUrl });
         await expectFlashRedirect(
-          `/admin/attendees/${ctx.attendee.id}/refund?return_url=${
-            encodeURIComponent(
-              returnUrl,
-            )
-          }`,
+          `/admin/attendees/${ctx.attendee.id}/refund?return_url=${encodeURIComponent(
+            returnUrl,
+          )}`,
           expect.stringContaining("failed"),
           false,
         )(response);

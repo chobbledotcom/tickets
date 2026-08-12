@@ -20,6 +20,7 @@ import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postPaymentLeg } from "#test-utils/db-helpers/payment-leg.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { claimCurrentAttendeeRows } from "#test-utils/payment-claim.ts";
 import { chargeMoney } from "#test-utils/payment-state.ts";
 import {
   finalizeReservedPayment,
@@ -112,12 +113,10 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
         "pi_refresh_balance",
       );
 
-      const queried = await submitRefreshPayment(
-        attendee,
-        (reference) =>
-          Promise.resolve(
-            ["pi_refresh_balance", "pi_refresh_deposit"].includes(reference),
-          ),
+      const queried = await submitRefreshPayment(attendee, (reference) =>
+        Promise.resolve(
+          ["pi_refresh_balance", "pi_refresh_deposit"].includes(reference),
+        ),
       );
 
       expect([...queried].sort()).toEqual([
@@ -186,7 +185,8 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
 
       await submitRefreshPayment(attendee, () => Promise.resolve(true));
 
-      const message = "Payment marked as refunded for attendee 'First Real'; " +
+      const message =
+        "Payment marked as refunded for attendee 'First Real'; " +
         'payment references ["pi_refresh_first_real"]';
       expect(
         pipe(
@@ -208,9 +208,8 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
         ["2026-07-01T00:01:00.000Z", "refresh-balance-already-refunded"],
       );
 
-      const queried = await submitRefreshPayment(
-        attendee,
-        (reference) => Promise.resolve(reference === "pi_refresh_deposit"),
+      const queried = await submitRefreshPayment(attendee, (reference) =>
+        Promise.resolve(reference === "pi_refresh_deposit"),
       );
 
       expect(queried).toEqual(["pi_refresh_deposit"]);
@@ -262,6 +261,30 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
       );
 
       expect(queried).toEqual(["pi_not_refunded"]);
+    });
+
+    test("reports a refund already in progress when another run owns the payment", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        unitPrice: 800,
+      });
+      const attendee = await createPaidAttendeeWithoutLedger(
+        listing.id,
+        "Already Refreshing",
+        "already-refreshing@example.com",
+        "pi_already_refreshing",
+        500,
+      );
+      await claimCurrentAttendeeRows([attendee.id], "keyed");
+
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}/refresh-payment`,
+      );
+
+      expectErrorFlash(
+        response,
+        "A refund for this payment is still settling. Try again after it completes.",
+      );
     });
 
     describe("a provider refund the ledger has no clean order to reverse", () => {

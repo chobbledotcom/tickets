@@ -4,6 +4,7 @@ import { withTransaction } from "#shared/db/client.ts";
 import {
   assertRefundRowsHeld,
   readAttendeeRowStates,
+  settleAttendeeRows,
 } from "#shared/db/payment-claim.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -11,8 +12,8 @@ import {
   claimCurrentAttendeeRows,
   protectedStateOf,
   putRowState,
-  releaseClaimRows,
   REVIEW_MIRROR,
+  releaseClaimRows,
   rowStateSlot,
   UNRECORDED_MIRROR,
 } from "#test-utils/payment-claim.ts";
@@ -43,7 +44,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
         assertRefundRowsHeld(tx, {
           heldSince: claimed.heldSince,
           sessionIds: ["sess-confirm"],
-        })
+        }),
       );
       await releaseClaimRows(claimed, ["sess-confirm"]);
 
@@ -52,9 +53,18 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
           assertRefundRowsHeld(tx, {
             heldSince: claimed.heldSince,
             sessionIds: ["sess-confirm"],
-          })
+          }),
         ),
       ).rejects.toThrow("Refund confirmation no longer owns every payment row");
+    });
+
+    test("confirmation accepts an empty held set", async () => {
+      await withTransaction((tx) =>
+        assertRefundRowsHeld(tx, {
+          heldSince: "2026-08-11T12:00:00.000Z",
+          sessionIds: [],
+        }),
+      );
     });
 
     test("a released row can be claimed again", async () => {
@@ -188,6 +198,32 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
       });
     });
 
+    test("recording missed books can keep the exact claim in place", async () => {
+      const attendeeId = await bookedWithPayment("sess-kept", "pi_kept");
+      const held = await claimCurrentAttendeeRows([attendeeId], "keyless");
+      if (held.kind !== "claimed") throw new Error("the claim was refused");
+
+      await settleAttendeeRows({
+        heldSince: held.heldSince,
+        rows: new Map([["sess-kept", { books: "unrecorded", claim: "keep" }]]),
+      });
+
+      expect(await protectedStateOf("sess-kept")).toBe(CLAIM_MIRROR);
+      expect(
+        await withTransaction((tx) => readAttendeeRowStates(tx, [attendeeId])),
+      ).toContainEqual(
+        expect.objectContaining({
+          sessionId: "sess-kept",
+          state: expect.objectContaining({
+            claim: expect.objectContaining({ writtenAt: held.heldSince }),
+            unrecorded: expect.objectContaining({
+              returnedAt: expect.any(String),
+            }),
+          }),
+        }),
+      );
+    });
+
     test("a later run that records the money takes the mark off", async () => {
       const attendeeId = await bookedWithPayment("sess-on", "pi_on");
       await putUnrecordedRow("sess-on");
@@ -253,20 +289,16 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
 
     test("releasing nothing reaches no database at all", async () => {
       const calls = await countDatabaseCalls(0, async () => {
-        await releaseClaimRows(
-          { heldSince: "2026-08-10T12:00:00.000Z" },
-          [],
-        );
+        await releaseClaimRows({ heldSince: "2026-08-10T12:00:00.000Z" }, []);
       });
       expect(calls).toBe(0);
     });
 
     test("releasing an unclaimed row leaves it alone", async () => {
       await bookedWithPayment("sess-n", "pi_n");
-      await releaseClaimRows(
-        { heldSince: "2026-08-10T12:00:00.000Z" },
-        ["sess-n"],
-      );
+      await releaseClaimRows({ heldSince: "2026-08-10T12:00:00.000Z" }, [
+        "sess-n",
+      ]);
       expect(await protectedStateOf("sess-n")).toBe("");
     });
   });

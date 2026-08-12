@@ -19,7 +19,7 @@ import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { stripeIntentWithCharge } from "#test-utils/stripe/responses.ts";
+import { foundStripeIntent } from "#test-utils/stripe/responses.ts";
 
 /** Makes the provider answer with this checkout — or with nothing, for a
  *  checkout it has never heard of — for as long as the test runs. */
@@ -223,10 +223,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
       answerCompletedStripeRefund(),
     );
     using _read = stub(stripeApi, "readPaymentIntent", (reference) =>
-      Promise.resolve({
-        resource: { ...stripeIntentWithCharge(0, 500), id: reference },
-        status: "found",
-      } as const),
+      Promise.resolve(foundStripeIntent(reference, 500)),
     );
 
     const result = await runWithPendingWork(() =>

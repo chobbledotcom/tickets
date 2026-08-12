@@ -8,14 +8,14 @@ import {
   finishedCounts,
   processRefundBatchAt,
   provider,
+  rowBackedReference,
 } from "#test/features/admin/refunds/provider/helpers.ts";
 import { sessionReference } from "#test/shared/refund-ledger/helpers.ts";
-import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
 import {
   chargeMoney,
   partlyRefundedCharge,
-  refundReference,
 } from "#test-utils/payment-state.ts";
+import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
 import { grantingRowClaim } from "#test-utils/refund-routes.ts";
 
 const LISTING = 7;
@@ -54,14 +54,8 @@ describe("admin refund provider > exact ledger findings", () => {
     const candidate: RefundCandidate = {
       attendee: { id: attendeeId } as RefundCandidate["attendee"],
       references: [
-        refundReference("pi_clean", {
-          rowSessionIds: [cleanSession],
-          sessionIds: [cleanSession],
-        }),
-        refundReference("pi_partial", {
-          rowSessionIds: [reviewSession],
-          sessionIds: [reviewSession],
-        }),
+        rowBackedReference("pi_clean", cleanSession),
+        rowBackedReference("pi_partial", reviewSession),
       ],
     };
     const source = provider({
@@ -79,10 +73,7 @@ describe("admin refund provider > exact ledger findings", () => {
     expect(counts.failedCount).toBe(1);
     expect(claim.reviewChanges).toEqual([
       new Map([
-        [
-          reviewSession,
-          { kind: "review", reason: { kind: "partial_refund" } },
-        ],
+        [reviewSession, { kind: "review", reason: { kind: "partial_refund" } }],
       ]),
     ]);
   });

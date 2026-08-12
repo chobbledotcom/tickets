@@ -301,15 +301,13 @@ describe("admin refund provider > a refund still settling", () => {
     expect(rowClaim.released).toEqual([]);
   });
 
-  for (
-    const [name, read] of [
-      ["missing", { status: "missing" }],
-      ["invalid", { reason: "malformed_response", status: "invalid" }],
-    ] as const satisfies readonly (readonly [
-      string,
-      ProviderRead<ChargeMoney>,
-    ])[]
-  ) {
+  for (const [name, read] of [
+    ["missing", { status: "missing" }],
+    ["invalid", { reason: "malformed_response", status: "invalid" }],
+  ] as const satisfies readonly (readonly [
+    string,
+    ProviderRead<ChargeMoney>,
+  ])[]) {
     test(`keeps an inherited keyless claim when the provider read is ${name}`, async () => {
       const rowClaim = grantingRowClaim(
         new Map([[42, ["sess_pi_unproved"]]]),

@@ -19,7 +19,7 @@ import {
 } from "#test/test-utils/stripe/fixtures.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { signedMeta, webhookMeta } from "#test-utils/factories.ts";
-import { stripeIntentWithCharge } from "#test-utils/stripe/responses.ts";
+import { foundStripeIntent } from "#test-utils/stripe/responses.ts";
 
 setupTestEncryptionKey();
 
@@ -78,13 +78,7 @@ describe("rejected session refunds", () => {
       // the charge must read as one nothing has come back on for the refund to
       // be admitted at all.
       const intentStub = stub(stripeApi, "readPaymentIntent", (reference) =>
-        Promise.resolve({
-          resource: {
-            ...stripeIntentWithCharge(0, capturedAmount),
-            id: reference,
-          },
-          status: "found",
-        }),
+        Promise.resolve(foundStripeIntent(reference, capturedAmount)),
       );
       try {
         const result = await withProviderSelected(selectedProvider, body);

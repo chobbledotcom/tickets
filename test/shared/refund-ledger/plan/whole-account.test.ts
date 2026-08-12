@@ -24,9 +24,6 @@ import {
 import type { AccountRef } from "#shared/ledger/types.ts";
 import { isPaymentOnlyAccount } from "#shared/refund-ledger/plan.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { setupErrorSpy } from "#test-utils/error-spy.ts";
-import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
 import {
   ATTENDEE,
   BOOKING_AT,
@@ -37,7 +34,10 @@ import {
   refundCashAmounts,
   refundLegsOf,
   sessionReference,
-} from "../helpers.ts";
+} from "#test/shared/refund-ledger/helpers.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
 
 // -- recordAttendeeRefund (integration) ---------------------------------- //
 
@@ -158,6 +158,23 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     expect(
       isPaymentOnlyAccount(await transfersByAccount(attendeeAccount(ATTENDEE))),
     ).toBe(true);
+  });
+
+  test("does not treat an unclassified ledger leg as provider payment", async () => {
+    await postTransfers([
+      {
+        amount: 500,
+        destination: attendeeAccount(ATTENDEE),
+        eventGroup: "unclassified",
+        occurredAt: BOOKING_AT,
+        reference: "unclassified",
+        source: WORLD,
+      },
+    ]);
+
+    expect(
+      isPaymentOnlyAccount(await transfersByAccount(attendeeAccount(ATTENDEE))),
+    ).toBe(false);
   });
 
   test("reverses a balance-settled reservation as one whole account", async () => {

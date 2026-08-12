@@ -251,10 +251,8 @@ describeWithEnv("db > processed payments", { db: true }, () => {
 
   test("throws when the atomic lookup does not return the session", async () => {
     const client = getDb();
-    using batchStub = stub(
-      client,
-      "batch",
-      () => Promise.resolve([emptyResultSet(), emptyResultSet()]),
+    using batchStub = stub(client, "batch", () =>
+      Promise.resolve([emptyResultSet(), emptyResultSet()]),
     );
     await expect(reserveSession("missing-lookup")).rejects.toThrow(
       "Reserved payment session is missing: missing-lookup",
@@ -309,10 +307,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
 
     test("refuses to heal an equivalent reference under a refund claim", async () => {
       const reference = "pi_heal_held";
-      const attendeeId = await bookedWithPayment(
-        "sess_heal_holder",
-        reference,
-      );
+      const attendeeId = await bookedWithPayment("sess_heal_holder", reference);
       const held = await claimCurrentAttendeeRows([attendeeId], "keyed");
       if (held.kind !== "claimed") throw new Error("the claim was refused");
       await reserveSession("sess_heal_blocked");

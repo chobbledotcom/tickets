@@ -1,7 +1,7 @@
 import { compact } from "#fp";
 import {
-  claimAttendeeRows,
   type ClaimResult,
+  claimAttendeeRows,
   type InheritedRefundCapabilities,
   type LoadedRefundAttendee,
 } from "#shared/db/payment-claim/take.ts";
@@ -151,7 +151,7 @@ const settlementRows = (
         mayLetGo(
           findings.doubts.get(attendeeId),
           claim.inherited.has(attendeeId),
-        )
+        ),
       )
       .map(([attendeeId]) => attendeeId),
   );
@@ -165,7 +165,7 @@ const settlementRows = (
           lettingAttendees,
           unrecorded,
           findings,
-        )
+        ),
       ),
     ),
   );

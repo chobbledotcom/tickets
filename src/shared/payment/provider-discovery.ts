@@ -96,21 +96,33 @@ const taggedEvidence = async (
   const attempt = await readAtProvider(provider, reference.reference);
   return attempt.result.status === "found"
     ? {
-      attempts: [attempt],
-      charge: attempt.result.resource,
-      provider,
-      reference: reference.reference,
-      source: "tagged",
-      status: "found",
-    }
+        attempts: [attempt],
+        charge: attempt.result.resource,
+        provider,
+        reference: reference.reference,
+        source: "tagged",
+        status: "found",
+      }
     : {
-      ...attempt.result,
-      attempts: [attempt],
-      provider,
-      reference: reference.reference,
-      source: "tagged",
-    };
+        ...attempt.result,
+        attempts: [attempt],
+        provider,
+        reference: reference.reference,
+        source: "tagged",
+      };
 };
+
+const unresolvedEvidence = (
+  reference: string,
+  attempts: ProviderReadAttempt[],
+  reason: UnresolvedPaymentReferenceEvidence["reason"],
+): UnresolvedPaymentReferenceEvidence => ({
+  attempts,
+  reason,
+  reference,
+  source: "untagged",
+  status: "unresolved",
+});
 
 const discoveredEvidence = async (
   reference: Extract<PaymentReference, { kind: "untagged" }>,
@@ -121,31 +133,25 @@ const discoveredEvidence = async (
   );
   const [proof, ...otherProofs] = attempts.filter(foundAttempt);
   if (otherProofs.length > 0) {
-    return {
+    return unresolvedEvidence(
+      reference.reference,
       attempts,
-      reason: "multiple_validating_providers",
-      reference: reference.reference,
-      source: "untagged",
-      status: "unresolved",
-    };
+      "multiple_validating_providers",
+    );
   }
   if (attempts.some(unavailableAttempt)) {
-    return {
+    return unresolvedEvidence(
+      reference.reference,
       attempts,
-      reason: "provider_search_incomplete",
-      reference: reference.reference,
-      source: "untagged",
-      status: "unresolved",
-    };
+      "provider_search_incomplete",
+    );
   }
   if (proof === undefined) {
-    return {
+    return unresolvedEvidence(
+      reference.reference,
       attempts,
-      reason: "no_validating_provider",
-      reference: reference.reference,
-      source: "untagged",
-      status: "unresolved",
-    };
+      "no_validating_provider",
+    );
   }
   return {
     attempts,

@@ -9,7 +9,7 @@ import { reportWithheldRefund } from "#shared/payment-review.ts";
 import { isPaymentOnlyAccount } from "#shared/refund-ledger/plan.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
 import type { RefundLedgerResult } from "#shared/refund-ledger/result.ts";
-import { referenceRowIds, type RefundCandidate } from "./candidates.ts";
+import { type RefundCandidate, referenceRowIds } from "./candidates.ts";
 import {
   durableRowClaim,
   type HeldRefundClaim,
@@ -76,20 +76,28 @@ const paymentOnlyBeforeRefund = async (
 type RefreshedReference =
   | { kind: "returned"; reference: TaggedRefundReference }
   | {
-    admission: Exclude<ObservedRefundAdmission, { kind: "already_returned" }>;
-    kind: "unreturned";
-    reference: TaggedRefundReference;
-  };
+      admission: Exclude<ObservedRefundAdmission, { kind: "already_returned" }>;
+      kind: "unreturned";
+      reference: TaggedRefundReference;
+    };
 
 type UnreturnedReference = Extract<RefreshedReference, { kind: "unreturned" }>;
+
+const hasUnreturnedReference = (
+  observed: readonly RefreshedReference[],
+  matches: (reference: UnreturnedReference) => boolean,
+): boolean =>
+  observed.some(
+    (reference) => reference.kind === "unreturned" && matches(reference),
+  );
 
 const hasAdmission = (
   observed: readonly RefreshedReference[],
   kind: UnreturnedReference["admission"]["kind"],
 ): boolean =>
-  observed.some(
-    (reference) =>
-      reference.kind === "unreturned" && reference.admission.kind === kind,
+  hasUnreturnedReference(
+    observed,
+    (reference) => reference.admission.kind === kind,
   );
 
 const REVIEW_REQUIRED_MESSAGE =
@@ -130,7 +138,7 @@ const providerReviewFindings = (
   observed.flatMap((result): ProviderReviewFinding[] =>
     result.kind === "unreturned" && result.admission.kind === "refused"
       ? [{ reason: result.admission.issue, reference: result.reference }]
-      : []
+      : [],
   );
 
 type CompletedRefundReview = Extract<
@@ -152,7 +160,7 @@ const retireCompletedRefundReviews = (
   findings: RunFindings,
 ): void => {
   const returnedRows = returned.flatMap((reference) =>
-    referenceRowIds(attendeeId, reference)
+    referenceRowIds(attendeeId, reference),
   );
   for (const sessionId of returnedRows) {
     const reason = heldReviews.get(sessionId);
@@ -180,7 +188,7 @@ const refreshReadyCandidate = async (
   >,
 ): Promise<RefreshPaymentResult> => {
   const observed = candidate.references.map((reference) =>
-    observedReference(reference, candidate.attendee.id, listingId)
+    observedReference(reference, candidate.attendee.id, listingId),
   );
   const returned = compact(observed.map(returnedReference));
   const hasUnreturned = returned.length !== candidate.references.length;
@@ -189,10 +197,11 @@ const refreshReadyCandidate = async (
     candidate.attendee.id,
     providerReviewFindings(observed),
   );
-  const keepsClaim = hasAdmission(observed, "in_flight") ||
-    observed.some(
+  const keepsClaim =
+    hasAdmission(observed, "in_flight") ||
+    hasUnreturnedReference(
+      observed,
       (reference) =>
-        reference.kind === "unreturned" &&
         reference.admission.kind === "send" &&
         inheritedKeyless.has(reference.reference.index),
     );
@@ -200,12 +209,15 @@ const refreshReadyCandidate = async (
     findings.doubts.set(candidate.attendee.id, "in_doubt");
   }
   await dependencies.markReturned(returned);
-  const ledger = returned.length === 0 ? undefined : applyRefundLedgerFindings(
-    findings,
-    candidate.attendee.id,
-    returned,
-    await dependencies.record(candidate.attendee.id, returned),
-  );
+  const ledger =
+    returned.length === 0
+      ? undefined
+      : applyRefundLedgerFindings(
+          findings,
+          candidate.attendee.id,
+          returned,
+          await dependencies.record(candidate.attendee.id, returned),
+        );
   const needsReview = providerNeedsReview || ledger?.needsReview === true;
   if (hasUnreturned) {
     if (keepsClaim) return { kind: "blocked", reason: "refund_in_progress" };

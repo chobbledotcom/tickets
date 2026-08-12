@@ -24,10 +24,9 @@ test("retries only the keyed reference in one mixed inherited claim", async () =
     { reference: "sumup_returned" },
   ]);
   const rowClaim = grantingRowClaim(
-    new Map([[
-      42,
-      source.references.flatMap(({ rowSessionIds }) => rowSessionIds),
-    ]]),
+    new Map([
+      [42, source.references.flatMap(({ rowSessionIds }) => rowSessionIds)],
+    ]),
     new Map([
       [
         42,

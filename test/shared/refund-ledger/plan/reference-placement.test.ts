@@ -3,14 +3,14 @@ import { it as test } from "@std/testing/bdd";
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
 import {
   legacyReference,
   postBooking,
   refundCashAmounts,
   sessionReference,
-} from "../helpers.ts";
+} from "#test/shared/refund-ledger/helpers.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
 
 describeWithEnv("refund ledger > reference placement", { db: true }, () => {
   test("posts the second charge's reversal when it comes back later", async () => {

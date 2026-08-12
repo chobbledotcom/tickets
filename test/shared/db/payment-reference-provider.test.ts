@@ -9,6 +9,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import {
   claimCurrentAttendeeRows,
   referenceIndexOf,
+  releaseClaimRows,
 } from "#test-utils/payment-claim.ts";
 import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
 import {
@@ -300,6 +301,37 @@ describeWithEnv(
           heldSince: "2026-08-11T12:00:00.000Z",
         }),
       ).rejects.toThrow("repeated a held session");
+    });
+
+    test("the capability reader requires a stored claim", async () => {
+      const attendeeId = await legacyBooking(
+        "bind_missing_claim",
+        "legacy_missing_claim",
+      );
+      await expect(claimCapability("bind_missing_claim")).rejects.toThrow(
+        "the claim slot was empty",
+      );
+      const held = await claimCurrentAttendeeRows([attendeeId], "keyed");
+      if (held.kind !== "claimed") throw new Error("the claim was refused");
+      await releaseClaimRows(
+        held,
+        ["bind_missing_claim"],
+        new Map([
+          [
+            "bind_missing_claim",
+            {
+              review: {
+                kind: "review",
+                reason: { kind: "partial_refund" },
+              },
+            },
+          ],
+        ]),
+      );
+
+      await expect(claimCapability("bind_missing_claim")).rejects.toThrow(
+        "the claim was not stored",
+      );
     });
   },
 );

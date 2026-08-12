@@ -82,9 +82,7 @@ describeWithEnv(
 
       await putRowState(
         "sess-status",
-        await rowStateSlot(
-          claimState(attendeeId, "keyed", { review: true }),
-        ),
+        await rowStateSlot(claimState(attendeeId, "keyed", { review: true })),
         CLAIM_MIRROR,
       );
       expect(await getPaymentReviewStatus(attendeeId)).toBe("blocked");

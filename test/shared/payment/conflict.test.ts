@@ -25,21 +25,19 @@ describe("what can be wrong with a payment", () => {
   // was owed; the last three belong to later milestones — two read-level
   // failures for M5's stored-answer validation and a refund-shape failure for
   // M7's per-refund records.
-  for (
-    const kind of [
-      "resource_mismatch",
-      "currency_mismatch",
-      "provider_total_mismatch",
-      "partial_charge",
-      "capture_total_mismatch",
-      "duplicate_charge",
-      "multiple_charges",
-      "paid_without_charge",
-      "invalid_provider_data",
-      "missing_resource",
-      "duplicate_refund",
-    ] as const
-  ) {
+  for (const kind of [
+    "resource_mismatch",
+    "currency_mismatch",
+    "provider_total_mismatch",
+    "partial_charge",
+    "capture_total_mismatch",
+    "duplicate_charge",
+    "multiple_charges",
+    "paid_without_charge",
+    "invalid_provider_data",
+    "missing_resource",
+    "duplicate_refund",
+  ] as const) {
     test(`does not yet know ${kind}`, () => {
       expect(v.is(PaymentConflictSchema, { kind })).toBe(false);
     });

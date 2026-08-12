@@ -1,16 +1,12 @@
 import { expect } from "@std/expect";
 import { type Stub, stub } from "@std/testing/mock";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
-import type {
-  StripeCheckoutSession,
-  StripeExpandedPaymentIntent,
-} from "#shared/stripe/schemas.ts";
+import type { StripeCheckoutSession } from "#shared/stripe/schemas.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { signedMeta } from "#test-utils/factories.ts";
 import { stubWebhookVerify } from "#test-utils/settings.ts";
 import { answerCompletedStripeRefund } from "#test-utils/stripe/fixtures.ts";
-import { stripeIntentWithCharge } from "#test-utils/stripe/responses.ts";
+import { foundStripeIntent } from "#test-utils/stripe/responses.ts";
 import { postWebhookAndAssert } from "#test-utils/webhooks.ts";
 
 type CheckoutSessionStub = Stub<
@@ -84,17 +80,8 @@ export const stubRefundPayment = (
   refundId = "re_test",
   capturedAmount = 1000,
 ): StripeRefundStub => {
-  const read = stub(
-    stripeApi,
-    "readPaymentIntent",
-    (paymentReference): Promise<ProviderRead<StripeExpandedPaymentIntent>> =>
-      Promise.resolve({
-        resource: {
-          ...stripeIntentWithCharge(0, capturedAmount),
-          id: paymentReference,
-        },
-        status: "found",
-      }),
+  const read = stub(stripeApi, "readPaymentIntent", (paymentReference) =>
+    Promise.resolve(foundStripeIntent(paymentReference, capturedAmount)),
   );
   const refund = stub(
     stripeApi,

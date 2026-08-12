@@ -1,3 +1,4 @@
+import { expect } from "@std/expect";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -59,9 +60,7 @@ export const markAsRefunded = async (attendeeId: number): Promise<void> => {
   const result = await recordAttendeeRefund(attendeeId, [
     { index, sessionIds: [] },
   ]);
-  if (!result.recorded.has(index)) {
-    throw new Error(`The refund ledger did not record ${index}`);
-  }
+  expect(result.recorded).toEqual(new Set([index]));
 };
 
 export const setBookingLineQuantity = async (

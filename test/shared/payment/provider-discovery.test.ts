@@ -270,13 +270,11 @@ describeWithEnv("payment reference provider evidence", { db: true }, () => {
   test("preserves a tagged provider's missing, invalid, and unavailable answers", async () => {
     await settings.update.stripe.secretKey("sk_test_exact_failures");
 
-    for (
-      const result of [
-        { status: "missing" },
-        { reason: "mismatched_parent", status: "invalid" },
-        { reason: "rate_limited", status: "unavailable" },
-      ] as const satisfies readonly ProviderRead<ChargeMoney>[]
-    ) {
+    for (const result of [
+      { status: "missing" },
+      { reason: "mismatched_parent", status: "invalid" },
+      { reason: "rate_limited", status: "unavailable" },
+    ] as const satisfies readonly ProviderRead<ChargeMoney>[]) {
       using read = readStub(stripePaymentProvider, result);
       const answer = await readPaymentReferenceEvidence({
         kind: "tagged",

@@ -1,3 +1,5 @@
+import type { ProviderRead } from "#shared/payment/provider-read.ts";
+import type { StripeExpandedPaymentIntent } from "#shared/stripe/schemas.ts";
 import { stripeRefund } from "#test/test-utils/stripe/fixtures.ts";
 
 const checkout = {
@@ -36,6 +38,18 @@ export const stripeIntentWithCharge = (
     paid: true,
     status: "succeeded",
   },
+});
+
+/** A provider read of one Stripe intent before any money has come back. */
+export const foundStripeIntent = (
+  paymentReference: string,
+  capturedAmount: number,
+): ProviderRead<StripeExpandedPaymentIntent> => ({
+  resource: {
+    ...stripeIntentWithCharge(0, capturedAmount),
+    id: paymentReference,
+  },
+  status: "found",
 });
 
 /** Return valid Stripe fixtures for every operation used by the application. */

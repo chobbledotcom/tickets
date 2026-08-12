@@ -48,23 +48,23 @@ const isProviderPaymentLeg = legMatches({ from: WORLD, kind: KIND.payment });
 const isOperatorMoneyLeg = (leg: Transfer): boolean =>
   leg.kind === KIND.adjustment || leg.kind?.startsWith("manual_") === true;
 
-const eventGroupOf = (group: readonly Transfer[]): string => {
-  const [leg] = group;
-  if (leg === undefined) throw new Error("A refund ledger group was empty");
-  return leg.eventGroup;
+type AccountRefundGroup = {
+  readonly eventGroup: string;
+  readonly legs: Transfer[];
 };
 
 /** A group containing provider cash and nothing else. */
-const isPaymentOnlyGroup = (group: Transfer[]): boolean =>
-  group.length > 0 && group.every(isProviderPaymentLeg);
+const isPaymentOnlyGroup = (group: AccountRefundGroup): boolean =>
+  group.legs.every(isProviderPaymentLeg);
 
 /** The original account event groups that a returned charge may reverse. */
-const accountRefundGroups = (legs: Transfer[]): Transfer[][] => [
-  ...Map.groupBy(
-    legs.filter((leg) => !isRefundLeg(leg.kind)),
-    (leg) => leg.eventGroup,
-  ).values(),
-];
+const accountRefundGroups = (legs: Transfer[]): AccountRefundGroup[] =>
+  [
+    ...Map.groupBy(
+      legs.filter((leg) => !isRefundLeg(leg.kind)),
+      (leg) => leg.eventGroup,
+    ).entries(),
+  ].map(([eventGroup, legs]) => ({ eventGroup, legs }));
 
 /** Whether every original order group contains only provider cash. */
 export const isPaymentOnlyAccount = (legs: Transfer[]): boolean => {
@@ -98,14 +98,14 @@ const referencePlacements = (
     })),
   );
 
-const hasProviderPayment = (group: Transfer[]): boolean =>
-  group.some(isProviderPaymentLeg);
+const hasProviderPayment = (group: AccountRefundGroup): boolean =>
+  group.legs.some(isProviderPaymentLeg);
 
-const hasOperatorMoney = (group: Transfer[]): boolean =>
-  group.some(isOperatorMoneyLeg);
+const hasOperatorMoney = (group: AccountRefundGroup): boolean =>
+  group.legs.some(isOperatorMoneyLeg);
 
 type ReturnedGroups = {
-  readonly groups: Transfer[][];
+  readonly groups: AccountRefundGroup[];
   readonly kind: "subset" | "whole_account";
   readonly placements: readonly ReferencePlacement[];
   readonly unplaced: ReadonlySet<string>;
@@ -113,11 +113,11 @@ type ReturnedGroups = {
 
 /** Place returned references onto the provider-funded groups they name. */
 const returnedRefundGroups = async (
-  groups: Transfer[][],
+  groups: AccountRefundGroup[],
   references: RefundReferences,
 ): Promise<ReturnedGroups> => {
   const providerGroups = new Set(
-    groups.filter(hasProviderPayment).map(eventGroupOf),
+    groups.filter(hasProviderPayment).map(({ eventGroup }) => eventGroup),
   );
   const placements = (await referencePlacements(references)).map(
     (placement) => ({
@@ -130,8 +130,8 @@ const returnedRefundGroups = async (
   const returned = new Set(
     placements.flatMap(({ eventGroups }) => eventGroups),
   );
-  const cameBack = (group: Transfer[]): boolean =>
-    returned.has(eventGroupOf(group));
+  const cameBack = (group: AccountRefundGroup): boolean =>
+    returned.has(group.eventGroup);
   const namedUnplaced = placements.filter(
     ({ eventGroups, named }) => named && eventGroups.length === 0,
   );
@@ -159,21 +159,21 @@ const returnedRefundGroups = async (
 };
 
 type ReversalGroups = {
-  readonly alreadyRecorded: Transfer[][];
-  readonly toRecord: Transfer[][];
+  readonly alreadyRecorded: AccountRefundGroup[];
+  readonly toRecord: AccountRefundGroup[];
 };
 
 /** Separate durable reversals from the groups whose reversal still must land. */
 const reversalGroups = async (
   legs: Transfer[],
-  groups: Transfer[][],
+  groups: AccountRefundGroup[],
 ): Promise<ReversalGroups> => {
   const reversed = new Set(
     legs.filter((leg) => isRefundLeg(leg.kind)).map((leg) => leg.eventGroup),
   );
   const alreadyRecorded = await Promise.all(
     groups.map(async (group) =>
-      reversed.has(await refundEventGroup(eventGroupOf(group))),
+      reversed.has(await refundEventGroup(group.eventGroup)),
     ),
   );
   return {
@@ -191,9 +191,9 @@ const indexesMatchingGroups =
   (matches: PlacementMatch) =>
   (
     placements: readonly ReferencePlacement[],
-    groups: readonly Transfer[][],
+    groups: readonly AccountRefundGroup[],
   ): ReadonlySet<string> => {
-    const ids = new Set(groups.map(eventGroupOf));
+    const ids = new Set(groups.map(({ eventGroup }) => eventGroup));
     return new Set(
       placements
         .filter(({ eventGroups }) => matches(eventGroups, ids))
@@ -220,12 +220,12 @@ type RefundGroupFacts = {
 
 const refundGroupFacts = (
   account: ReturnType<typeof attendeeAccount>,
-  group: Transfer[],
+  group: AccountRefundGroup,
 ): RefundGroupFacts => ({
   hasOperatorMoney: hasOperatorMoney(group),
   hasProviderPayment: hasProviderPayment(group),
   paymentOnly: isPaymentOnlyGroup(group),
-  settled: balanceOf(account)(group) === 0,
+  settled: balanceOf(account)(group.legs) === 0,
 });
 
 const canReverseReturnedGroup = (facts: RefundGroupFacts): boolean =>
@@ -245,7 +245,7 @@ export const computeAttendeeRefund = async (
   const legs = await transfersByAccount(account);
   const groups = accountRefundGroups(legs);
   const returned = await returnedRefundGroups(groups, references);
-  const factsFor = (group: Transfer[]): RefundGroupFacts =>
+  const factsFor = (group: AccountRefundGroup): RefundGroupFacts =>
     refundGroupFacts(account, group);
   const reversesWholeAccount =
     returned.kind === "whole_account" &&
@@ -284,7 +284,7 @@ export const computeAttendeeRefund = async (
   return computedRefund(
     await Promise.all(
       toRecord.map((order) =>
-        mapRefund({ memo, occurredAt, orderLegs: order }),
+        mapRefund({ memo, occurredAt, orderLegs: order.legs }),
       ),
     ),
     result,
