@@ -47,7 +47,7 @@ describeWithEnv("db > client transaction", { db: true }, () => {
           await tx.execute(`SELECT ${i}`);
         }
         await tx.batch(["SELECT 100", "SELECT 101"]);
-      }),
+      })
     );
 
   test("a transaction may use the full statement budget", async () => {
@@ -63,7 +63,7 @@ describeWithEnv("db > client transaction", { db: true }, () => {
           for (let i = 0; i <= TRANSACTION_ROUNDTRIP_THRESHOLD; i++) {
             await tx.execute(`SELECT ${i}`);
           }
-        }),
+        })
       ),
     ).rejects.toThrow("Interactive transaction too chatty");
   });
@@ -91,27 +91,28 @@ describeWithEnv("db > client transaction", { db: true }, () => {
   });
 
   test("a rollback cannot consume its caller's reserved tail", async () => {
-    await runWithSubrequestBudget(() =>
-      withSubrequestAllowance({ database: 5, external: 0, total: 5 }, () =>
-        withSubrequestReserve(
-          { database: 2, external: 0, total: 2 },
-          async () => {
-            await expect(
-              withTransaction(async (tx) => {
-                await tx.execute("SELECT 1");
-                await tx.execute("SELECT 2");
-              }),
-            ).rejects.toThrow("Subrequest allowance exceeded");
-          },
-        ),
-      ).then(() => {
-        expect(getSubrequestRemaining()).toEqual({
-          database: 47,
-          external: 50,
-          total: 47,
-        });
-      }),
-    );
+    await runWithSubrequestBudget(async () => {
+      await withSubrequestAllowance(
+        { database: 5, external: 0, total: 5 },
+        () =>
+          withSubrequestReserve(
+            { database: 2, external: 0, total: 2 },
+            async () => {
+              await expect(
+                withTransaction(async (tx) => {
+                  await tx.execute("SELECT 1");
+                  await tx.execute("SELECT 2");
+                }),
+              ).rejects.toThrow("Subrequest allowance exceeded");
+            },
+          ),
+      );
+      expect(getSubrequestRemaining()).toEqual({
+        database: 47,
+        external: 50,
+        total: 47,
+      });
+    });
   });
 
   test("a rollback failure after a commit failure still surfaces the commit error", async () => {

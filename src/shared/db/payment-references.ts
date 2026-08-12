@@ -284,17 +284,6 @@ export const stillWithTheProvider = (
   );
 };
 
-export const hasRefundPaymentReference = async (
-  attendee: RefundPaymentReferenceSource,
-  privateKey: CryptoKey,
-): Promise<boolean> => {
-  const references = await getRefundPaymentReferencesForAttendee(
-    attendee,
-    privateKey,
-  );
-  return references.length > 0;
-};
-
 export const getAttendeeIdsWithPaymentReference = async (
   attendees: readonly RefundPaymentReferenceSource[],
 ): Promise<Set<number>> => {

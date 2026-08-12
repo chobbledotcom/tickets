@@ -47,10 +47,8 @@ const requiredPaidToken = (world: TicketsWorld): string => {
   return world.duplicateToken;
 };
 
-const attendeeOrNull = (attendeeId: number) =>
-  getTestPrivateKey().then((privateKey) =>
-    getAttendeeOrNull(attendeeId, privateKey),
-  );
+const attendeeOrNull = async (attendeeId: number) =>
+  await getAttendeeOrNull(attendeeId, await getTestPrivateKey());
 
 const attendeePair = (paidId: number, freeId: number) =>
   Promise.all([attendeeOrNull(paidId), attendeeOrNull(freeId)]);
