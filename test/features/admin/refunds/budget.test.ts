@@ -20,8 +20,9 @@ const referenceFacts = (label: string) => ({
 
 const taggedReference = (
   provider: PaymentProviderType,
+  label: string = provider,
 ): Extract<RefundPaymentReference, { kind: "tagged" }> => ({
-  ...referenceFacts(provider),
+  ...referenceFacts(label),
   kind: "tagged",
   provider,
 });
@@ -53,9 +54,9 @@ describe("admin refund subrequest budget", () => {
           refundSubrequestCost(candidates, new Set(), checkpoint, ["stripe"]),
       ),
     ).toEqual([
-      { database: 20, external: 9, total: 29 },
-      { database: 16, external: 9, total: 25 },
-      { database: 5, external: 3, total: 8 },
+      { database: 20, external: 3, total: 23 },
+      { database: 16, external: 3, total: 19 },
+      { database: 5, external: 1, total: 6 },
     ]);
     const prepared = {
       mayRecordReturns: true,
@@ -69,8 +70,20 @@ describe("admin refund subrequest budget", () => {
       ),
     ).toEqual([
       { database: 10, external: 0, total: 10 },
-      { database: 5, external: 6, total: 11 },
+      { database: 5, external: 2, total: 7 },
     ]);
+  });
+
+  test("admits the complete physical envelope for two ordinary Stripe charges", () => {
+    const references = [
+      taggedReference("stripe", "stripe_deposit"),
+      taggedReference("stripe", "stripe_balance"),
+    ];
+    expect(
+      refundSubrequestCost([{ references }], new Set(), "before_claim", [
+        "stripe",
+      ]),
+    ).toEqual({ database: 20, external: 6, total: 26 });
   });
 
   test("reserves the five local calls even when the provider already returned the money", () => {
@@ -93,7 +106,7 @@ describe("admin refund subrequest budget", () => {
 
   for (const [provider, calls] of [
     ["square", 3],
-    ["stripe", 9],
+    ["stripe", 3],
     ["sumup", 3],
   ] as const) {
     test(`counts the full ${provider} read, send, and recovery plan`, () => {
@@ -113,9 +126,9 @@ describe("admin refund subrequest budget", () => {
   for (const [providers, calls] of [
     [[], 0],
     [["square"], 3],
-    [["stripe"], 9],
+    [["stripe"], 3],
     [["sumup"], 3],
-    [["square", "stripe", "sumup"], 11],
+    [["square", "stripe", "sumup"], 5],
   ] as const) {
     test(`counts ${calls} calls to discover an old reference through ${providers.length} providers`, () => {
       expect(externalCost(untaggedReference(), providers)).toBe(calls);

@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { REFUND_NETWORK_RETRIES } from "#shared/payment/refund-network.ts";
 import {
   createStripeClient,
   type StripeCheckoutSessionCreateParams,
@@ -83,6 +84,36 @@ describe("Stripe request transport", () => {
     expect(STRIPE_API_VERSION).toBe("2026-04-22.dahlia");
     expect(STRIPE_TIMEOUT_MS).toBe(20_000);
     expect(STRIPE_MAX_NETWORK_RETRIES).toBe(2);
+    expect(REFUND_NETWORK_RETRIES.stripe).toBe(0);
+  });
+
+  test("refund reads and sends can disable the client's automatic retries", async () => {
+    const { client, requests, waits } = recordingCheckout(
+      [
+        Response.json({ error: { message: "try again" } }, { status: 500 }),
+        Response.json(
+          { error: { message: "still unavailable" } },
+          { status: 500 },
+        ),
+      ],
+      STRIPE_MAX_NETWORK_RETRIES,
+    );
+
+    await expect(
+      client.paymentIntents.retrieveWithLatestCharge("pi_retry", {
+        maxNetworkRetries: REFUND_NETWORK_RETRIES.stripe,
+      }),
+    ).rejects.toThrow();
+    await expect(
+      client.refunds.create(
+        { amount: 1000, payment_intent: "pi_retry" },
+        "stable-key",
+        { maxNetworkRetries: REFUND_NETWORK_RETRIES.stripe },
+      ),
+    ).rejects.toThrow();
+
+    expect(requests).toHaveLength(2);
+    expect(waits).toEqual([]);
   });
 
   test("sends versioned nested form requests with bearer authentication", async () => {

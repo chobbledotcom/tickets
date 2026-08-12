@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { settings } from "#shared/db/settings.ts";
+import { REFUND_NETWORK_RETRIES } from "#shared/payment/refund-network.ts";
 import {
   extractSessionMetadata,
   hasRequiredSessionMetadata,
@@ -114,7 +115,10 @@ describeStripe("stripe", () => {
             },
             status: "found",
           });
-          expect(retrieveSpy.calls[0]?.args).toEqual(["pi_refunded"]);
+          expect(retrieveSpy.calls[0]?.args).toEqual([
+            "pi_refunded",
+            { maxNetworkRetries: REFUND_NETWORK_RETRIES.stripe },
+          ]);
         },
       );
     });

@@ -26,10 +26,12 @@ type ResponseSchema<T> = v.BaseSchema<unknown, T, v.BaseIssue<unknown>>;
  * Per-request options. `idempotencyKey` overrides the default per-POST retry
  * key so a caller can supply a stable, provider-and-payment-scoped key that
  * survives webhook redelivery (see `refundIdempotencyKey` in
- * `#shared/payment-idempotency.ts`).
+ * `#shared/payment-idempotency.ts`). `maxNetworkRetries` narrows one bounded
+ * workflow without weakening retries for unrelated Stripe calls.
  */
 export interface StripeRequestOptions {
   idempotencyKey?: string | undefined;
+  maxNetworkRetries?: 0 | undefined;
 }
 
 export interface StripeClientConfig {
@@ -289,13 +291,15 @@ export const createStripeRequest = (
     schema: ResponseSchema<T>,
     options: StripeRequestOptions = {},
   ): Promise<T> => {
+    const maxNetworkRetries =
+      options.maxNetworkRetries ?? config.maxNetworkRetries;
     const encoded = encodeStripeForm(params);
     const url = `${config.apiBase}${path}${
       method === "GET" && encoded ? `?${encoded}` : ""
     }`;
     const idempotencyKey =
       options.idempotencyKey ??
-      (method === "POST" && config.maxNetworkRetries > 0
+      (method === "POST" && maxNetworkRetries > 0
         ? `tickets-stripe-retry-${crypto.randomUUID()}`
         : undefined);
     const headers = new Headers({
@@ -308,7 +312,7 @@ export const createStripeRequest = (
 
     async function retryConnection(error: unknown, retry: number): Promise<T> {
       if (!isTransportFailure(error)) throw error;
-      if (!retriesRemain(retry, config.maxNetworkRetries)) {
+      if (!retriesRemain(retry, maxNetworkRetries)) {
         throw connectionError(error, retry, config.timeout);
       }
       await config.sleep(retryDelay(retry, null, config.random));
@@ -340,7 +344,7 @@ export const createStripeRequest = (
         return retryConnection(error, retry);
       }
       if (
-        retriesRemain(retry, config.maxNetworkRetries) &&
+        retriesRemain(retry, maxNetworkRetries) &&
         (shouldRetry(response) || (await isLockTimeoutResponse(response)))
       ) {
         await cancelResponseBody(response);

@@ -14,6 +14,7 @@ import {
   type RefundRequest,
   uncertainRefund,
 } from "#shared/payment/refund-attempt.ts";
+import { REFUND_NETWORK_RETRIES } from "#shared/payment/refund-network.ts";
 import {
   assembleCheckoutMetadata,
   buildProviderLineItems,
@@ -154,7 +155,10 @@ const readPaymentIntent = async (
   withStripeClient<ProviderRead<StripeExpandedPaymentIntent>>(
     { reason: "not_configured", status: "unavailable" },
     async (client) => {
-      const resource = await client.paymentIntents.retrieveWithLatestCharge(id);
+      const resource = await client.paymentIntents.retrieveWithLatestCharge(
+        id,
+        { maxNetworkRetries: REFUND_NETWORK_RETRIES.stripe },
+      );
       return resource.id === id
         ? { resource, status: "found" }
         : { reason: "mismatched_id", status: "invalid" };
@@ -232,6 +236,7 @@ const refundCharge = async (
           payment_intent: request.paymentReference,
         },
         idempotencyKey,
+        { maxNetworkRetries: REFUND_NETWORK_RETRIES.stripe },
       );
       return stripeRefundResult(request, refund);
     },

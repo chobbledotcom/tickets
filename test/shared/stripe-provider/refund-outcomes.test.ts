@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { REFUND_NETWORK_RETRIES } from "#shared/payment/refund-network.ts";
 import {
   StripeConnectionError,
   StripeProtocolError,
@@ -102,6 +103,7 @@ describeStripe("Stripe refund outcomes", () => {
     expect(create.calls[0]?.args).toEqual([
       { amount: 1000, payment_intent: "pi_stable" },
       "zMXoB60J9cW7f7GxpMobuLm6VM5BATENKpD_jsjvf4g",
+      { maxNetworkRetries: REFUND_NETWORK_RETRIES.stripe },
     ]);
   });
 

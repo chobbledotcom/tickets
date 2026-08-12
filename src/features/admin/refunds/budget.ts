@@ -7,11 +7,9 @@ import {
   type RefundPaymentReference,
 } from "#shared/db/payment-references.ts";
 import { orderedCredentialedPaymentProviderTypes } from "#shared/existing-payment-provider.ts";
+import { REFUND_NETWORK_RETRIES } from "#shared/payment/refund-network.ts";
 import { REFUND_LEDGER_BATCH_DATABASE_CALLS } from "#shared/refund-ledger/record.ts";
-import { SQUARE_MAX_NETWORK_RETRIES } from "#shared/square/transport.ts";
-import { STRIPE_MAX_NETWORK_RETRIES } from "#shared/stripe/request.ts";
 import type { SubrequestCounts } from "#shared/subrequest-budget.ts";
-import { SUMUP_MAX_NETWORK_RETRIES } from "#shared/sumup/transport.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 
 export type RefundBudgetAudience = "bulk" | "single";
@@ -33,19 +31,19 @@ type ProviderCallPlan = {
 const PROVIDER_CALL_PLANS = {
   square: {
     judgmentReads: 1,
-    networkAttempts: SQUARE_MAX_NETWORK_RETRIES + 1,
+    networkAttempts: REFUND_NETWORK_RETRIES.square + 1,
     recoveryReads: 1,
     sends: 1,
   },
   stripe: {
     judgmentReads: 1,
-    networkAttempts: STRIPE_MAX_NETWORK_RETRIES + 1,
+    networkAttempts: REFUND_NETWORK_RETRIES.stripe + 1,
     recoveryReads: 1,
     sends: 1,
   },
   sumup: {
     judgmentReads: 1,
-    networkAttempts: SUMUP_MAX_NETWORK_RETRIES + 1,
+    networkAttempts: REFUND_NETWORK_RETRIES.sumup + 1,
     recoveryReads: 1,
     sends: 1,
   },

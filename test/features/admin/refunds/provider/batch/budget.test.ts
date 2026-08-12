@@ -9,8 +9,7 @@ import type { RowClaim } from "#routes/admin/refunds/claim.ts";
 import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import { settings } from "#shared/db/settings.ts";
-import { SQUARE_MAX_NETWORK_RETRIES } from "#shared/square/transport.ts";
-import { STRIPE_MAX_NETWORK_RETRIES } from "#shared/stripe/request.ts";
+import { REFUND_NETWORK_RETRIES } from "#shared/payment/refund-network.ts";
 import {
   countSubrequest,
   getSubrequestRemaining,
@@ -99,12 +98,12 @@ describeWithEnv(
   "admin refund provider > whole-command budget",
   { db: true },
   () => {
-    test("six Stripe payments on one attendee make zero provider calls", async () => {
-      await expectRefusedBeforeClaim([candidate(11, 6)]);
+    test("nine Stripe payments on one attendee make zero provider calls", async () => {
+      await expectRefusedBeforeClaim([candidate(11, 9)]);
     });
 
     test("a provider set beyond Bunny's total limit refuses before its first send", async () => {
-      const candidates = Array.from({ length: 6 }, (_, offset) =>
+      const candidates = Array.from({ length: 9 }, (_, offset) =>
         candidate(20 + offset, 1),
       );
       await expectRefusedBeforeClaim(candidates);
@@ -113,7 +112,7 @@ describeWithEnv(
     test("the single-attendee surface gives its own dashboard guidance", async () => {
       await settings.update.stripe.secretKey("sk_test_budget");
       const source = provider();
-      const result = await processRefundBatchAt(source, [candidate(30, 6)], 7, {
+      const result = await processRefundBatchAt(source, [candidate(30, 9)], 7, {
         audience: "single",
         claim: grantingRowClaim(),
       });
@@ -136,7 +135,7 @@ describeWithEnv(
           if (admit === undefined) throw new Error("No exact budget admission");
           const raced = [
             ...attendees,
-            ...Array.from({ length: 5 }, (_, offset) => ({
+            ...Array.from({ length: 10 }, (_, offset) => ({
               attendeeId: 41 + offset,
               loadedPiiBlob: "",
               references: [stripeReference(41 + offset, 0)],
@@ -215,7 +214,7 @@ describeWithEnv(
           const result = await granted.claim(attendees, admit);
           if (result.kind === "claimed") {
             const remainingBeforeWork =
-              REFUND_SETTLEMENT_SUBREQUEST_RESERVE.total + 6;
+              REFUND_SETTLEMENT_SUBREQUEST_RESERVE.total + 5;
             while (getSubrequestRemaining().total > remainingBeforeWork) {
               countSubrequest("database", "concurrent command work");
             }
@@ -249,7 +248,7 @@ describeWithEnv(
         arm: async (request) => {
           armCalls++;
           const armed = await armRefunds(request);
-          const sendEnvelope = 2 * (STRIPE_MAX_NETWORK_RETRIES + 1);
+          const sendEnvelope = 2 * (REFUND_NETWORK_RETRIES.stripe + 1);
           while (getSubrequestRemaining().total >= sendEnvelope) {
             countSubrequest("database", "work racing the dispatch arm");
           }
@@ -283,7 +282,7 @@ describeWithEnv(
             countSubrequest("database", "work racing the dispatch arm");
           }
           const remaining = getSubrequestRemaining();
-          const squareSendEnvelope = 2 * (SQUARE_MAX_NETWORK_RETRIES + 1);
+          const squareSendEnvelope = 2 * (REFUND_NETWORK_RETRIES.square + 1);
           expect(remaining.external).toBeGreaterThanOrEqual(squareSendEnvelope);
           expect(remaining.total).toBeGreaterThanOrEqual(squareSendEnvelope);
           return armed;

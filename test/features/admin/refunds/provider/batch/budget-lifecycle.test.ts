@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { REFUND_BUDGET_MESSAGES } from "#routes/admin/refunds/budget.ts";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
-import { STRIPE_MAX_NETWORK_RETRIES } from "#shared/stripe/request.ts";
+import { REFUND_NETWORK_RETRIES } from "#shared/payment/refund-network.ts";
 import {
   countSubrequest,
   getSubrequestRemaining,
@@ -22,7 +22,7 @@ const postArmBudgetRace = () => {
   const arm = armEveryRefund();
   return async (request: Parameters<typeof arm>[0]) => {
     const armed = await arm(request);
-    const sendEnvelope = 2 * (STRIPE_MAX_NETWORK_RETRIES + 1);
+    const sendEnvelope = 2 * (REFUND_NETWORK_RETRIES.stripe + 1);
     while (getSubrequestRemaining().total >= sendEnvelope) {
       countSubrequest("database", "work racing the dispatch arm");
     }

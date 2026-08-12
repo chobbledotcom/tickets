@@ -47,7 +47,7 @@ describeWithEnv("db > client transaction", { db: true }, () => {
           await tx.execute(`SELECT ${i}`);
         }
         await tx.batch(["SELECT 100", "SELECT 101"]);
-      })
+      }),
     );
 
   test("a transaction may use the full statement budget", async () => {
@@ -63,7 +63,7 @@ describeWithEnv("db > client transaction", { db: true }, () => {
           for (let i = 0; i <= TRANSACTION_ROUNDTRIP_THRESHOLD; i++) {
             await tx.execute(`SELECT ${i}`);
           }
-        })
+        }),
       ),
     ).rejects.toThrow("Interactive transaction too chatty");
   });

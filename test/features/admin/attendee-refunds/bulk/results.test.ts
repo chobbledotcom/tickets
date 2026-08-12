@@ -28,7 +28,7 @@ import {
 
 const SINGLE_ERROR_RESULT =
   "1 refund succeeded. There was 1 failure. There was 1 error. Check the activity log for details. Some payments may have already been refunded.";
-const OVERSIZED_REFUND_COUNT = 6;
+const OVERSIZED_REFUND_COUNT = 9;
 
 describeWithEnv("server (admin refund-all results)", { db: true }, () => {
   beforeEach(() => setN1GuardNotifyOnly(true));
