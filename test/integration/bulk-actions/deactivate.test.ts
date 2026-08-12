@@ -16,19 +16,26 @@ const getDeactivateForm = getBulkActionForm("deactivate");
 
 describeWithEnv("Admin bulk actions — deactivate", { db: true }, () => {
   describe("GET /admin/groups/:id/bulk-actions/deactivate", () => {
-    test("renders the deactivate confirmation form with singular listing count", async () => {
-      const group = await createTestGroup({ name: "To Deactivate" });
-      await createTestListing({ groupId: group.id, name: "Listing" });
+    test("returns 404 when the group does not exist", async () => {
+      // Not-found boundary — a story cannot reach this path (it sets up a
+      // real group first), so it stays as a direct technical contract.
+      const response = await adminGet(
+        "/admin/groups/999999/bulk-actions/deactivate",
+      );
+      expect(response.status).toBe(404);
+    });
+
+    test("renders the confirmation form with singular listing count", async () => {
+      const group = await createTestGroup({ name: "Solo Deact" });
+      await createTestListing({ groupId: group.id, name: "Only" });
 
       const html = await getDeactivateForm(group.id);
 
-      expect(html).toContain("Deactivate Group");
-      expect(html).toContain('name="confirm_identifier"');
       expect(html).toContain("deactivate 1 active listing");
       expect(html).not.toContain("deactivate 1 active listings");
     });
 
-    test("renders the deactivate form with plural listing count", async () => {
+    test("renders the confirmation form with plural listing count", async () => {
       const group = await createTestGroup({ name: "Multi Deact" });
       await createTestListing({ groupId: group.id, name: "A" });
       await createTestListing({ groupId: group.id, name: "B" });
@@ -37,17 +44,13 @@ describeWithEnv("Admin bulk actions — deactivate", { db: true }, () => {
 
       expect(html).toContain("deactivate 2 active listings");
     });
-
-    test("returns 404 when the group does not exist", async () => {
-      const response = await adminGet(
-        "/admin/groups/999999/bulk-actions/deactivate",
-      );
-      expect(response.status).toBe(404);
-    });
   });
 
   describe("POST /admin/groups/:id/bulk-actions/deactivate", () => {
-    test("deactivates every listing in the group when the name is confirmed", async () => {
+    test("deactivates every listing in the group and redirects to the group page on success", async () => {
+      // Pins the success branch for the coverage gate: `setGroupListingsActive`
+      // runs, the 302 redirect to the group page is returned, and every member
+      // is inactive.
       const group = await createTestGroup({ name: "Shutdown" });
       const a = await createTestListing({ groupId: group.id, name: "A" });
       const b = await createTestListing({ groupId: group.id, name: "B" });
@@ -65,31 +68,10 @@ describeWithEnv("Admin bulk actions — deactivate", { db: true }, () => {
       expect((await getListingWithCount(b.id))?.active).toBe(false);
     });
 
-    test("rejects when the group name does not match and leaves listings active", async () => {
-      const group = await createTestGroup({ name: "Keep Active" });
-      const listing = await createTestListing({
-        groupId: group.id,
-        name: "Listing",
-      });
-
-      const { response } = await adminFormPost(
-        `/admin/groups/${group.id}/bulk-actions/deactivate`,
-        { confirm_identifier: "Wrong Name" },
-      );
-
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain(
-        `/admin/groups/${group.id}/bulk-actions/deactivate`,
-      );
-      expect((await getListingWithCount(listing.id))?.active).toBe(true);
-    });
-
     test("rejects deactivating a group that holds the only rescuing page of a child add-on, leaving every listing active", async () => {
-      // A {child, rescuingPage}-scoped opt-in add-on is reachable only via
-      // `rescuingPage` (the child is suppressed). `rescuingPage` lives in the
-      // group, so a bulk deactivate would mark it inactive together with the
-      // group and orphan the add-on. The shared guard must block the whole batch
-      // before any UPDATE, leaving every member active.
+      // Pins the orphan-prevention guard: a child-scoped opt-in add-on is
+      // reachable only via a rescuing page in the group, so a bulk deactivate
+      // would orphan it. The guard must block the whole batch before any UPDATE.
       const group = await createTestGroup({ name: "Rescue Group" });
       const rescuingPage = await createTestListing({
         groupId: group.id,
@@ -119,23 +101,6 @@ describeWithEnv("Admin bulk actions — deactivate", { db: true }, () => {
       // No listing was deactivated — the batch was blocked entirely.
       expect((await getListingWithCount(rescuingPage.id))?.active).toBe(true);
       expect((await getListingWithCount(sibling.id))?.active).toBe(true);
-    });
-
-    test("does not touch listings outside the target group", async () => {
-      const target = await createTestGroup({ name: "Target" });
-      const other = await createTestGroup({ name: "Other" });
-      await createTestListing({ groupId: target.id, name: "Target Listing" });
-      const outsider = await createTestListing({
-        groupId: other.id,
-        name: "Outsider Listing",
-      });
-
-      await adminFormPost(
-        `/admin/groups/${target.id}/bulk-actions/deactivate`,
-        { confirm_identifier: "Target" },
-      );
-
-      expect((await getListingWithCount(outsider.id))?.active).toBe(true);
     });
   });
 });
