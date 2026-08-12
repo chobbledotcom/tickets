@@ -34,11 +34,11 @@ const claimResult = (
       requests.push([attendees, capability]);
       return Promise.resolve(result);
     },
+    requests,
     settle: (settlement) => {
       settlements.push(settlement);
       return settle(settlement);
     },
-    requests,
     settlements,
   };
 };
@@ -54,6 +54,7 @@ const claimedRows = (
   kind: "claimed",
   returned: new Set(["pi_returned"]),
   reviews: new Map(),
+  shared: new Map(),
   unrecorded,
 });
 
@@ -155,12 +156,18 @@ describe("admin refunds > attendee claim", () => {
           kind: "review",
           reason: { kind: "partial_refund" },
         });
-        findings.reviews.set("sess-two", { kind: "resolved" });
+        findings.reviews.set("sess-two", {
+          kind: "resolved",
+          reason: "partial_refund",
+        });
         findings.reviews.set("sess-three", {
           kind: "review",
           reason: { kind: "shared_reference" },
         });
-        findings.reviews.set("sess-four", { kind: "resolved" });
+        findings.reviews.set("sess-four", {
+          kind: "resolved",
+          reason: "shared_reference",
+        });
         return Promise.resolve("worked");
       },
     });
@@ -170,32 +177,44 @@ describe("admin refunds > attendee claim", () => {
       {
         heldSince: "2026-08-11T12:00:00.000Z",
         rows: new Map([
-          ["sess-one", {
-            books: "unrecorded",
-            claim: "release",
-            review: {
-              kind: "review",
-              reason: { kind: "partial_refund" },
+          [
+            "sess-one",
+            {
+              books: "unrecorded",
+              claim: "release",
+              review: {
+                kind: "review",
+                reason: { kind: "partial_refund" },
+              },
             },
-          }],
-          ["sess-two", {
-            books: "unrecorded",
-            claim: "keep",
-            review: { kind: "resolved" },
-          }],
-          ["sess-three", {
-            books: "unrecorded",
-            claim: "release",
-            review: {
-              kind: "review",
-              reason: { kind: "shared_reference" },
+          ],
+          [
+            "sess-two",
+            {
+              books: "unrecorded",
+              claim: "keep",
+              review: { kind: "resolved", reason: "partial_refund" },
             },
-          }],
-          ["sess-four", {
-            books: "unrecorded",
-            claim: "keep",
-            review: { kind: "resolved" },
-          }],
+          ],
+          [
+            "sess-three",
+            {
+              books: "unrecorded",
+              claim: "release",
+              review: {
+                kind: "review",
+                reason: { kind: "shared_reference" },
+              },
+            },
+          ],
+          [
+            "sess-four",
+            {
+              books: "unrecorded",
+              claim: "keep",
+              review: { kind: "resolved", reason: "shared_reference" },
+            },
+          ],
         ]),
       },
     ]);

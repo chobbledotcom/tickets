@@ -27,7 +27,10 @@ import { reportRefundNotRecorded } from "#shared/invariant-errors.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee } from "#shared/types.ts";
 /* jscpd:ignore-end */
-import { refreshClaimedPayment } from "./refunds/refresh.ts";
+import {
+  type RefreshPaymentResult,
+  refreshClaimedPayment,
+} from "./refunds/refresh.ts";
 
 /** Minimal context needed by the refresh-payment flow. */
 type RefreshPaymentContext = {
@@ -70,10 +73,10 @@ const loadRefreshState = async (
 ): Promise<
   | Response
   | {
-    attendee: Attendee;
-    listingId: number;
-    references: readonly RefundPaymentReference[];
-  }
+      attendee: Attendee;
+      listingId: number;
+      references: readonly RefundPaymentReference[];
+    }
 > => {
   const ctx = await loadRefreshContext(attendeeId);
   if (!ctx) return htmlResponse("", 404);
@@ -94,6 +97,40 @@ const loadRefreshState = async (
   return { attendee, listingId, references };
 };
 
+const refreshPaymentResponse = (
+  attendeeId: number,
+  listingId: number,
+  form: FormParams,
+  result: RefreshPaymentResult,
+): Response => {
+  const attendeeUrl = `/admin/attendees/${attendeeId}`;
+  if (result.kind === "blocked") {
+    return errorRedirect(attendeeUrl, t("error.refund_pending"));
+  }
+  if (result.kind === "not_ready" || result.kind === "needs_review") {
+    return errorRedirect(attendeeUrl, result.message);
+  }
+  if (result.kind === "current") {
+    return redirect(attendeeUrl, t("success.payment_status_current"), true, {
+      form,
+    });
+  }
+  if (!result.posted) {
+    return errorRedirect(
+      attendeeUrl,
+      reportRefundNotRecorded({ attendeeId, listingId }),
+    );
+  }
+  return redirect(
+    attendeeUrl,
+    result.confirmation === "current"
+      ? t("success.payment_status_current")
+      : t("success.payment_status_refunded"),
+    true,
+    { form },
+  );
+};
+
 /** Handle POST /admin/attendees/:attendeeId/refresh-payment */
 export const handleRefreshPayment: TypedRouteHandler<
   "POST /admin/attendees/:attendeeId/refresh-payment"
@@ -107,38 +144,5 @@ export const handleRefreshPayment: TypedRouteHandler<
       { attendee, references: [...references] },
       listingId,
     );
-    if (result.kind === "blocked") {
-      return errorRedirect(
-        `/admin/attendees/${attendeeId}`,
-        t("error.refund_pending"),
-      );
-    }
-    if (result.kind === "not_ready" || result.kind === "needs_review") {
-      return errorRedirect(
-        `/admin/attendees/${attendeeId}`,
-        result.message,
-      );
-    }
-    if (result.kind === "returned") {
-      if (!result.posted) {
-        return errorRedirect(
-          `/admin/attendees/${attendeeId}`,
-          reportRefundNotRecorded({ attendeeId, listingId }),
-        );
-      }
-      return redirect(
-        `/admin/attendees/${attendeeId}`,
-        result.confirmation === "current"
-          ? t("success.payment_status_current")
-          : t("success.payment_status_refunded"),
-        true,
-        { form },
-      );
-    }
-    return redirect(
-      `/admin/attendees/${attendeeId}`,
-      t("success.payment_status_current"),
-      true,
-      { form },
-    );
+    return refreshPaymentResponse(attendeeId, listingId, form, result);
   });

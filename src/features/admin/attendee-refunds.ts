@@ -6,15 +6,12 @@ import { defineRoutes } from "#routes/router.ts";
 /* jscpd:ignore-start */
 import { compact, requiredMapValue } from "#fp";
 import { t } from "#i18n";
-import {
-  withDecryptedAttendees,
-  withListingAttendeesAuth,
-} from "#routes/admin/actions.ts";
+import { withDecryptedAttendees } from "#routes/admin/actions.ts";
 import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
-import type { AuthSession } from "#routes/auth.ts";
+import { type AuthSession, OWNER_FORM, requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
+import { ownerFormById } from "#routes/entity.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
-import { createAuthedHandler } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activity-log.ts";
 import { hasActiveBookingLine } from "#shared/db/attendees/queries.ts";
 import {
@@ -107,6 +104,7 @@ const handleAdminAttendeeRefundGet = attendeeActionPage(
     const left = await whatIsLeftToRefund(data.attendee);
     return left.kind === "nothing" ? left.reason : null;
   },
+  requireOwnerOr,
 );
 
 /** Handle POST /admin/attendees/:attendeeId/refund */
@@ -157,8 +155,8 @@ const handleAttendeeRefund = verifiedAttendeeAction(
         counts.notRecordedCount === 1
           ? t("error.refund_not_recorded")
           : counts.pendingCount === 1
-            ? t("error.refund_pending")
-            : t("error.refund_failed"),
+          ? t("error.refund_pending")
+          : t("error.refund_failed"),
         returnUrl,
       );
     }
@@ -176,6 +174,7 @@ const handleAttendeeRefund = verifiedAttendeeAction(
       { form },
     );
   },
+  OWNER_FORM,
 );
 
 /** Handle GET /admin/listing/:id/refund-all */
@@ -183,25 +182,29 @@ const handleAdminRefundAllGet = (
   request: Request,
   { id }: ListingRouteParams,
 ): Promise<Response> =>
-  withListingAttendeesAuth(request, id, async (listing, attendees, session) => {
-    const flash = applyFlash(request);
-    const count = (
-      await getRefundCandidates(attendees, await requireRequestPrivateKey())
-    ).length;
-    return count === 0
-      ? htmlResponse(
-          adminRefundAllAttendeesPage(
-            listing,
-            0,
-            session,
-            flash.error ?? t("error.no_attendees_to_refund"),
-          ),
-          400,
-        )
-      : htmlResponse(
-          adminRefundAllAttendeesPage(listing, count, session, flash.error),
-        );
-  });
+  requireOwnerOr(
+    request,
+    (session) =>
+      withDecryptedAttendees(session, id, async (listing, attendees) => {
+        const flash = applyFlash(request);
+        const count = (
+          await getRefundCandidates(attendees, await requireRequestPrivateKey())
+        ).length;
+        return count === 0
+          ? htmlResponse(
+            adminRefundAllAttendeesPage(
+              listing,
+              0,
+              session,
+              flash.error ?? t("error.no_attendees_to_refund"),
+            ),
+            400,
+          )
+          : htmlResponse(
+            adminRefundAllAttendeesPage(listing, count, session, flash.error),
+          );
+      }),
+  );
 
 type RefundResponseCtx = {
   listing: ListingWithCount;
@@ -256,8 +259,8 @@ const buildRefundProblemResponse = async (
     }),
     pendingCount > 0
       ? t("admin.attendees.refund_all_result_pending", {
-          count: pendingCount,
-        })
+        count: pendingCount,
+      })
       : null,
     t("admin.attendees.refund_all_result_failures", {
       count: problemCount,
@@ -273,10 +276,12 @@ const buildRefundProblemResponse = async (
     ),
   ]).join(" ");
   await logActivity(
-    `Bulk refund: ${refundActivityCounts(
-      counts,
-      problemCount,
-    )} for '${listing.name}'`,
+    `Bulk refund: ${
+      refundActivityCounts(
+        counts,
+        problemCount,
+      )
+    } for '${listing.name}'`,
     listing.id,
   );
   return fail(refundAllUrl, msg);
@@ -316,8 +321,8 @@ const buildRefundAllResponse = async (
         }),
         remaining > 0
           ? t("admin.attendees.refund_all_result_remaining", {
-              count: remaining,
-            })
+            count: remaining,
+          })
           : null,
       ]).join(" "),
     );
@@ -392,12 +397,13 @@ const processRefundAll = async (
 };
 
 /** Handle POST /admin/listing/:id/refund-all */
-const handleAdminRefundAllPost = createAuthedHandler<ListingRouteParams>({
-  handle: ({ form, params, session }) =>
-    withDecryptedAttendees(session, params.id, (listing, attendees) =>
-      processRefundAll(listing, attendees, session, form),
-    ),
-});
+const handleAdminRefundAllPost = ownerFormById((id, session, form) =>
+  withDecryptedAttendees(
+    session,
+    id,
+    (listing, attendees) => processRefundAll(listing, attendees, session, form),
+  )
+);
 
 /** Attendee refund routes */
 export const adminHandlers = defineRoutes({

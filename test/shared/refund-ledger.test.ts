@@ -37,8 +37,10 @@ import {
   postBooking,
   refundCashAmounts,
   refundLegsOf,
+  returnedReference,
   sessionReference,
 } from "./refund-ledger/helpers.ts";
+import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
 
 // -- recordAttendeeRefund (integration) ---------------------------------- //
 
@@ -48,9 +50,9 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
   const expectRefundNeedsManualAdjustment = async (
     references = [sessionReference("sess-1")],
   ): Promise<void> => {
-    expect(await recordAttendeeRefund(ATTENDEE, references)).toEqual({
-      posted: false,
-    });
+    expect(await recordAttendeeRefund(ATTENDEE, references)).toEqual(
+      refundLedgerResult([], references),
+    );
     expect(
       refundLegsOf(await transfersByAccount(attendeeAccount(ATTENDEE))),
     ).toEqual([]);
@@ -111,7 +113,9 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
       const result = await recordAttendeeRefund(ATTENDEE, [
         sessionReference("sess-1"),
       ]);
-      expect(result).toEqual({ posted: true });
+      expect(result).toEqual(
+        refundLedgerResult([sessionReference("sess-1")]),
+      );
       // Distinct round-trip start times: a prepared batch shares one window, while
       // a per-leg interactive transaction would show ~legs distinct round-trips
       // (and trip the transaction guard well before reaching them).
@@ -129,9 +133,7 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     await recordAttendeeRefund(ATTENDEE, [sessionReference("sess-1")]);
 
     expect(
-      isPaymentOnlyAccount(
-        await transfersByAccount(attendeeAccount(ATTENDEE)),
-      ),
+      isPaymentOnlyAccount(await transfersByAccount(attendeeAccount(ATTENDEE))),
     ).toBe(false);
     expect(await accountBalance(modifierAccount(7))).toBe(0);
     expect(await accountBalance(attendeeAccount(ATTENDEE))).toBe(0);
@@ -199,6 +201,69 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     await expectRefundNeedsManualAdjustment();
   });
 
+  test("does not cancel an underfunded booking when only its deposit came back", async () => {
+    await postBooking({
+      amountPaid: 1000,
+      eventId: "deposit-session",
+      lines: [{ gross: 3000, listingId: 1 }],
+    });
+    await postTransfers([
+      {
+        amount: 2000,
+        destination: attendeeAccount(ATTENDEE),
+        eventGroup: await balanceEventGroup("balance-session"),
+        kind: KIND.payment,
+        occurredAt: BOOKING_AT,
+        reference: "balance-pay",
+        source: WORLD,
+      },
+    ]);
+
+    const deposit = sessionReference("deposit-session");
+    expect(await recordAttendeeRefund(ATTENDEE, [deposit])).toEqual(
+      refundLedgerResult([], [deposit], [deposit]),
+    );
+    expect(
+      refundLegsOf(await transfersByAccount(attendeeAccount(ATTENDEE))),
+    ).toEqual([]);
+    expect(await accountBalance(revenueAccount(1))).toBe(3000);
+  });
+
+  test("keeps a multi-booking reference unrecorded until every named group is safe", async () => {
+    await postBooking({
+      amountPaid: 1000,
+      eventId: "safe-session",
+      lines: [{ gross: 1000, listingId: 1 }],
+    });
+    await postBooking({
+      amountPaid: 1000,
+      eventId: "unsafe-session",
+      lines: [{ gross: 3000, listingId: 2 }],
+    });
+    await postTransfers([
+      {
+        amount: 2000,
+        destination: attendeeAccount(ATTENDEE),
+        eventGroup: await balanceEventGroup("balance-session"),
+        kind: KIND.payment,
+        occurredAt: BOOKING_AT,
+        reference: "balance-pay",
+        source: WORLD,
+      },
+    ]);
+    const returned = returnedReference("pi-multi", [
+      "safe-session",
+      "unsafe-session",
+    ]);
+
+    expect(await recordAttendeeRefund(ATTENDEE, [returned])).toEqual(
+      refundLedgerResult([], [returned], [returned]),
+    );
+    expect(await refundCashAmounts()).toEqual([1000]);
+    expect(await accountBalance(revenueAccount(1))).toBe(0);
+    expect(await accountBalance(revenueAccount(2))).toBe(3000);
+  });
+
   test("is idempotent — a second refund writes nothing but still reports posted", async () => {
     await postBooking();
     await recordAttendeeRefund(ATTENDEE, [sessionReference("sess-1")]);
@@ -207,26 +272,27 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     // success — never a false that would prompt a needless manual adjustment.
     expect(
       await recordAttendeeRefund(ATTENDEE, [sessionReference("sess-1")]),
-    ).toEqual({ posted: true });
+    ).toEqual(refundLedgerResult([sessionReference("sess-1")]));
     expect((await allTransfers()).length).toBe(afterFirst);
   });
 
   test("skips a booking that predates the ledger (no legs to reverse)", async () => {
     expect(
       await recordAttendeeRefund(ATTENDEE, [sessionReference("sess-1")]),
-    ).toEqual({ posted: false });
+    ).toEqual(refundLedgerResult([], [sessionReference("sess-1")]));
     expect((await allTransfers()).length).toBe(0);
   });
 
   test("reverses an attendee carrying more than one fully-paid booking order", async () => {
     await postBooking({ eventId: "sess-1" });
     await postBooking({ eventId: "sess-2" });
-    expect(
-      await recordAttendeeRefund(ATTENDEE, [
-        sessionReference("sess-1"),
-        sessionReference("sess-2"),
-      ]),
-    ).toEqual({ posted: true });
+    const references = [
+      sessionReference("sess-1"),
+      sessionReference("sess-2"),
+    ];
+    expect(await recordAttendeeRefund(ATTENDEE, references)).toEqual(
+      refundLedgerResult(references),
+    );
     expect(await accountBalance(attendeeAccount(ATTENDEE))).toBe(0);
     expect(await refundCashAmounts()).toEqual([5000, 5000]);
   });

@@ -18,11 +18,12 @@ const bindingsFor = async (
 ): Promise<ReadonlyMap<string, TaggedPaymentReference>> =>
   new Map(
     await Promise.all(
-      references.map(async (reference) =>
-        [
-          await paymentReferenceIndex({ kind: "untagged", reference }),
-          { kind: "tagged", provider: "stripe", reference } as const,
-        ] as const
+      references.map(
+        async (reference) =>
+          [
+            await paymentReferenceIndex({ kind: "untagged", reference }),
+            { kind: "tagged", provider: "stripe", reference } as const,
+          ] as const,
       ),
     ),
   );
@@ -76,10 +77,7 @@ describeWithEnv(
 
       expect(
         await bindPaymentReferenceProviders({
-          ...bindingRequest(
-            held,
-            await bindingsFor(["legacy_wrong_attendee"]),
-          ),
+          ...bindingRequest(held, await bindingsFor(["legacy_wrong_attendee"])),
           held: new Map([[otherAttendeeId, sessionIds]]),
         }),
       ).toEqual({ kind: "claim_changed" });

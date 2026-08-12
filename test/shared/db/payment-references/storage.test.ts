@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, queryOne } from "#shared/db/client.ts";
 import {
+  matchingPaymentReferenceIndexes,
   paymentReferenceIndex,
   storePaymentReference,
 } from "#shared/db/payment-reference-store.ts";
@@ -88,6 +89,9 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
       heldRowSessionIds: [],
       index: await paymentReferenceIndex(untagged("pi_legacy_ignored")),
       kind: "untagged",
+      matchingIndexes: await matchingPaymentReferenceIndexes(
+        untagged("pi_legacy_ignored"),
+      ),
       reference: "pi_legacy_ignored",
       refundState: "unknown",
       rowSessionIds: [],

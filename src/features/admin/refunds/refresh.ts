@@ -8,6 +8,7 @@ import { reportWithheldRefund } from "#shared/payment-review.ts";
 import {
   isPaymentOnlyAccount,
   recordAttendeeRefund,
+  type RefundLedgerResult,
 } from "#shared/refund-ledger.ts";
 import { referenceRowIds, type RefundCandidate } from "./candidates.ts";
 import {
@@ -27,8 +28,10 @@ import {
   type ReadyRefundCandidate,
   type ReadyRefundReference,
 } from "./readiness.ts";
-import { readyRefundAdmission } from "./ready-admission.ts";
 import { runRefundReadiness } from "./readiness-run.ts";
+import { readyRefundAdmission } from "./ready-admission.ts";
+import { applyRefundLedgerFindings } from "./ledger-findings.ts";
+
 /* jscpd:ignore-end */
 
 type TaggedRefundReference = ReadyRefundReference["reference"];
@@ -38,7 +41,7 @@ type MarkReturnedReferences = (
 type RecordRefund = (
   attendeeId: number,
   references: readonly TaggedRefundReference[],
-) => Promise<{ posted: boolean }>;
+) => Promise<RefundLedgerResult>;
 type ConfirmRefund = (
   facts: Omit<ConfirmedRefund, "listingId">,
 ) => Promise<RefundConfirmation>;
@@ -119,32 +122,48 @@ const recordProviderReviews = (
       admission: Extract<ObservedRefundAdmission, { kind: "refused" }>;
     } => result.kind === "unreturned" && result.admission.kind === "refused",
   );
-  refused.forEach(({ admission, reference }) =>
-    referenceRowIds(attendeeId, reference).forEach((sessionId) =>
+  for (const { admission, reference } of refused) {
+    for (const sessionId of referenceRowIds(attendeeId, reference)) {
       findings.reviews.set(sessionId, {
         kind: "review",
         reason: admission.issue,
-      })
-    )
-  );
+      });
+    }
+  }
   return refused.length > 0;
 };
 
-/** Retire only the partial-provider marker a completed ledger post disproves. */
-const retireCompletedProviderReviews = (
+type CompletedRefundReview = Extract<
+  PaymentReviewReason,
+  { kind: "partial_refund" | "partially_returned_obligation" }
+>;
+
+const completedRefundReview = (
+  reason: PaymentReviewReason | undefined,
+): reason is CompletedRefundReview =>
+  reason?.kind === "partial_refund" ||
+  reason?.kind === "partially_returned_obligation";
+
+/** Retire only refund markers that a complete ledger post disproves. */
+const retireCompletedRefundReviews = (
   returned: readonly TaggedRefundReference[],
   attendeeId: number,
   heldReviews: HeldRefundWork["reviews"],
   findings: RunFindings,
-): void =>
-  returned
-    .flatMap((reference) => referenceRowIds(attendeeId, reference))
-    .filter((sessionId) =>
-      heldReviews.get(sessionId)?.kind === "partial_refund"
-    )
-    .forEach((sessionId) =>
-      findings.reviews.set(sessionId, { kind: "resolved" })
-    );
+): void => {
+  const returnedRows = returned.flatMap((reference) =>
+    referenceRowIds(attendeeId, reference)
+  );
+  for (const sessionId of returnedRows) {
+    const reason = heldReviews.get(sessionId);
+    if (completedRefundReview(reason)) {
+      findings.reviews.set(sessionId, {
+        kind: "resolved",
+        reason: reason.kind,
+      });
+    }
+  }
+};
 
 const refreshReadyCandidate = async (
   candidate: ReadyRefundCandidate,
@@ -161,15 +180,11 @@ const refreshReadyCandidate = async (
   >,
 ): Promise<RefreshPaymentResult> => {
   const observed = candidate.references.map((reference) =>
-    observedReference(
-      reference,
-      candidate.attendee.id,
-      listingId,
-    )
+    observedReference(reference, candidate.attendee.id, listingId)
   );
   const returned = compact(observed.map(returnedReference));
   const hasUnreturned = returned.length !== candidate.references.length;
-  const needsReview = recordProviderReviews(
+  const providerNeedsReview = recordProviderReviews(
     observed,
     candidate.attendee.id,
     findings,
@@ -189,6 +204,13 @@ const refreshReadyCandidate = async (
     findings.doubts.set(candidate.attendee.id, "in_doubt");
   }
   await dependencies.markReturned(returned);
+  const ledger = returned.length === 0 ? undefined : applyRefundLedgerFindings(
+    findings,
+    candidate.attendee.id,
+    returned,
+    await dependencies.record(candidate.attendee.id, returned),
+  );
+  const needsReview = providerNeedsReview || ledger?.needsReview === true;
   if (hasUnreturned) {
     if (keepsClaim) return { kind: "blocked", reason: "refund_in_progress" };
     return needsReview
@@ -196,24 +218,11 @@ const refreshReadyCandidate = async (
       : { kind: "current" };
   }
 
-  const paymentOnly = await dependencies.paymentOnly(candidate.attendee.id);
-  const { posted } = await dependencies.record(
-    candidate.attendee.id,
-    returned,
-  );
-  if (!posted) {
-    findings.unrecorded.set(
-      candidate.attendee.id,
-      returned.flatMap((reference) =>
-        referenceRowIds(candidate.attendee.id, reference)
-      ),
-    );
+  if (ledger === undefined || !ledger.allRecorded) {
     return { kind: "returned", posted: false };
   }
-  returned
-    .flatMap((reference) => referenceRowIds(candidate.attendee.id, reference))
-    .forEach((sessionId) => findings.recorded.add(sessionId));
-  retireCompletedProviderReviews(
+  const paymentOnly = await dependencies.paymentOnly(candidate.attendee.id);
+  retireCompletedRefundReviews(
     returned,
     candidate.attendee.id,
     heldReviews,
@@ -261,10 +270,7 @@ export const refreshClaimedPayment = async (
     listingId,
     notReady: (message) => ({ kind: "not_ready", message }),
     prepare,
-    ready: (
-      candidates,
-      { claim: heldClaim, findings, inherited, reviews },
-    ) =>
+    ready: (candidates, { claim: heldClaim, findings, inherited, reviews }) =>
       refreshReadyCandidate(
         oneReadyCandidate(candidates),
         listingId,

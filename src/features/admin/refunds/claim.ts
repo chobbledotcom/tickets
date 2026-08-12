@@ -1,6 +1,7 @@
+import { compact } from "#fp";
 import {
-  claimAttendeeRows,
   type ClaimResult,
+  claimAttendeeRows,
   type LoadedRefundAttendee,
 } from "#shared/db/payment-claim/take.ts";
 import {
@@ -10,11 +11,11 @@ import {
   settleAttendeeRows,
 } from "#shared/db/payment-claim.ts";
 import { claimRefusal, mayReleaseClaim } from "#shared/payment/claim.ts";
+import type { PaymentReviewReason } from "#shared/payment/review.ts";
 import type {
   RefundCapability,
   ResolvedRefundCapability,
 } from "#shared/payment/row-state.ts";
-import type { PaymentReviewReason } from "#shared/payment/review.ts";
 import { reportRefundProblem } from "./report.ts";
 
 /** Taking and letting go of the hold on an attendee's payment rows. Injected
@@ -60,6 +61,7 @@ export interface HeldRefundWork {
   readonly findings: RunFindings;
   readonly inherited: ReadonlyMap<number, ResolvedRefundCapability>;
   readonly reviews: ReadonlyMap<string, PaymentReviewReason>;
+  readonly shared: Extract<ClaimResult, { kind: "claimed" }>["shared"];
   readonly unrecorded: ReadonlyMap<number, readonly string[]>;
 }
 
@@ -112,6 +114,63 @@ const booksChange = (
   return missed ? "unrecorded" : recorded ? "recorded" : undefined;
 };
 
+type SettlementEntry = readonly [string, PaymentRowSettlement];
+
+const settlementEntry = (
+  attendeeId: number,
+  sessionId: string,
+  lettingAttendees: ReadonlySet<number>,
+  unrecorded: ReadonlySet<string>,
+  findings: RunFindings,
+): SettlementEntry | null => {
+  const books = booksChange(findings, unrecorded, sessionId);
+  const review = findings.reviews.get(sessionId);
+  const claim = lettingAttendees.has(attendeeId) ? "release" : "keep";
+  if (claim === "keep" && books === undefined && review === undefined) {
+    return null;
+  }
+  return [
+    sessionId,
+    {
+      ...(books === undefined ? {} : { books }),
+      claim,
+      ...(review === undefined ? {} : { review }),
+    },
+  ];
+};
+
+const settlementRows = (
+  claim: Extract<ClaimResult, { kind: "claimed" }>,
+  findings: RunFindings,
+): ReadonlyMap<string, PaymentRowSettlement> => {
+  const lettingAttendees = new Set(
+    [...claim.held]
+      .filter(([attendeeId]) =>
+        mayLetGo(
+          findings.doubts.get(attendeeId),
+          claim.inherited.has(attendeeId),
+        ),
+      )
+      .map(([attendeeId]) => attendeeId),
+  );
+  const unrecorded = new Set([...findings.unrecorded.values()].flat());
+  return new Map(
+    compact(
+      [...claim.held].flatMap(([attendeeId, sessionIds]) =>
+        sessionIds.map((sessionId) =>
+          settlementEntry(
+            attendeeId,
+            sessionId,
+            lettingAttendees,
+            unrecorded,
+            findings,
+          ),
+        ),
+      ),
+    ),
+  );
+};
+
 /** Hold every attendee this run will touch, do the work, then let go. */
 export const underAttendeeClaim = async <TResult>(
   rowClaim: RowClaim,
@@ -144,48 +203,11 @@ export const underAttendeeClaim = async <TResult>(
     unrecorded: new Map(),
   };
   const settle = async (): Promise<void> => {
-    const letting = [...claim.held].filter(([attendeeId]) =>
-      mayLetGo(
-        findings.doubts.get(attendeeId),
-        claim.inherited.has(attendeeId),
-      )
-    );
-    const lettingAttendees = new Set(
-      letting.map(([attendeeId]) => attendeeId),
-    );
-    const unrecorded = new Set(
-      [...findings.unrecorded.values()].flat(),
-    );
-    const rows = new Map(
-      [...claim.held].flatMap(([attendeeId, sessionIds]) =>
-        sessionIds.flatMap((sessionId) => {
-          const books = booksChange(findings, unrecorded, sessionId);
-          const review = findings.reviews.get(sessionId);
-          const claimChange = lettingAttendees.has(attendeeId)
-            ? "release"
-            : "keep";
-          return claimChange === "keep" &&
-              books === undefined &&
-              review === undefined
-            ? []
-            : [
-              [
-                sessionId,
-                {
-                  ...(books === undefined ? {} : { books }),
-                  claim: claimChange,
-                  ...(review === undefined ? {} : { review }),
-                },
-              ] as const,
-            ];
-        })
-      ),
-    );
     await settleHold(
       rowClaim,
       {
         heldSince: claim.heldSince,
-        rows,
+        rows: settlementRows(claim, findings),
       },
       listingId,
     );
@@ -196,6 +218,7 @@ export const underAttendeeClaim = async <TResult>(
     findings,
     inherited: claim.inherited,
     reviews: claim.reviews,
+    shared: claim.shared,
     unrecorded: claim.unrecorded,
   });
   await settle();

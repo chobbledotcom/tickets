@@ -99,10 +99,12 @@ describeWithEnv(
       if (!reference) throw new Error("setup failed");
 
       await expect(
-        legacyAnchorStatements([{
-          attendeeId,
-          references: [{ ...reference, index: "stale-index" }],
-        }]),
+        legacyAnchorStatements([
+          {
+            attendeeId,
+            references: [{ ...reference, index: "stale-index" }],
+          },
+        ]),
       ).rejects.toThrow(
         `Payment reference index changed for attendee ${attendeeId}`,
       );

@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { withTransaction } from "#shared/db/client.ts";
 import {
   assertRefundRowsHeld,
   type PaymentRowSettlement,
   settleAttendeeRows,
 } from "#shared/db/payment-claim.ts";
-import { withTransaction } from "#shared/db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   CLAIM_MIRROR,
@@ -25,10 +25,7 @@ import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 const releaseRows = (
   heldSince: string,
   sessionIds: readonly string[],
-  changes: ReadonlyMap<
-    string,
-    Omit<PaymentRowSettlement, "claim">
-  > = new Map(),
+  changes: ReadonlyMap<string, Omit<PaymentRowSettlement, "claim">> = new Map(),
 ): Promise<void> =>
   settleAttendeeRows({
     heldSince,
@@ -127,10 +124,46 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
         second.heldSince,
         ["sess-new-review"],
         new Map([
-          ["sess-new-review", { review: { kind: "resolved" } }],
+          [
+            "sess-new-review",
+            { review: { kind: "resolved", reason: "partial_refund" } },
+          ],
         ]),
       );
       expect(await protectedStateOf("sess-new-review")).toBe("");
+    });
+
+    test("does not retire a different review that replaced the expected one", async () => {
+      const attendeeId = await bookedWithPayment(
+        "sess-changed-review",
+        "pi_changed_review",
+      );
+      await putRowState(
+        "sess-changed-review",
+        await rowStateSlot({ review: { kind: "shared_reference" } }),
+        REVIEW_MIRROR,
+      );
+      const held = await claimCurrentAttendeeRows([attendeeId], "keyed");
+      if (held.kind !== "claimed") throw new Error("the claim was refused");
+
+      await releaseRows(
+        held.heldSince,
+        ["sess-changed-review"],
+        new Map([
+          [
+            "sess-changed-review",
+            { review: { kind: "resolved", reason: "partial_refund" } },
+          ],
+        ]),
+      );
+
+      const reclaimed = await claimCurrentAttendeeRows([attendeeId], "keyed");
+      if (reclaimed.kind !== "claimed") {
+        throw new Error("the reviewed row could not be reclaimed");
+      }
+      expect(reclaimed.reviews.get("sess-changed-review")).toEqual({
+        kind: "shared_reference",
+      });
     });
 
     test("money the ledger missed is marked as the hold comes off", async () => {

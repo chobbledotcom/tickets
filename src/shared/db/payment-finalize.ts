@@ -1,7 +1,7 @@
 import type { InValue } from "@libsql/client";
 import { attendeeOwedSubquery } from "#shared/accounting/projection-sql.ts";
 import type { SqlStatement } from "#shared/db/client.ts";
-import { storePaymentReference } from "#shared/db/payment-reference-store.ts";
+import { preparePaymentReferenceWrite } from "#shared/db/payment-reference-store.ts";
 import {
   encryptTicketTokens,
   UNRESOLVED_RESERVATION,
@@ -47,19 +47,17 @@ const buildFinalizeStatements = async (
   guardArgs: InValue[] = [],
   standDownWhen = "1 = 1",
 ): Promise<SqlStatement[]> => {
-  const storedReference =
-    paymentReference === null
-      ? null
-      : await storePaymentReference(paymentReference);
+  const referenceWrite = await preparePaymentReferenceWrite(paymentReference);
   return [
     {
       args: [
         ...attendeeIdArgs,
         await encryptTicketTokens(ticketTokens),
-        storedReference?.encrypted ?? "",
-        storedReference?.index ?? "",
+        referenceWrite.stored?.encrypted ?? "",
+        referenceWrite.stored?.index ?? "",
         sessionId,
         ...guardArgs,
+        ...referenceWrite.claim.args,
       ],
       // The blind index is written by the same statement as the reference it
       // indexes, so a row can never carry one without the other — a refund claim
@@ -68,7 +66,7 @@ const buildFinalizeStatements = async (
           SET attendee_id = ${attendeeIdSql}, ticket_tokens = ?, payment_reference = ?,
               payment_reference_index = ?
           WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}
-            AND ${guard} AND ${standDownWhen}`,
+            AND ${guard} AND ${referenceWrite.claim.sql} AND ${standDownWhen}`,
     },
     paymentFinalizeGuard(guard, guardArgs),
   ];

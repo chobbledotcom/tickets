@@ -18,10 +18,11 @@ import {
   isAnchorSession,
   legacyMergeSessionId,
 } from "#shared/db/payment-anchor/session.ts";
+import { prepareRefundReferenceHolders } from "#shared/db/payment-reference-holders.ts";
 import {
-  loadPaymentReference,
+  loadIndexedPaymentReference,
+  matchingPaymentReferenceIndexes,
   paymentReferenceIndex,
-  preparePaymentReferenceIndexes,
   storePaymentReference,
 } from "#shared/db/payment-reference-store.ts";
 import { nowIso } from "#shared/now.ts";
@@ -48,6 +49,9 @@ type RefundPaymentReferenceFacts = {
   /** The blind one-way index of this reference, carried from the read so no
    *  later step has to hash it again. */
   readonly index: string;
+  /** Blind identities that may be an older/newer spelling of this same
+   *  provider charge. Known providers with the same raw id stay distinct. */
+  readonly matchingIndexes: readonly string[];
   readonly refundState: RefundState;
   /** Every payment row carrying this charge, anchors included. Empty means the
    *  charge has no row at all — it is on the attendee's own `payment_id`. */
@@ -121,21 +125,22 @@ const attendeeIdsWithProcessedReferences = (
 
 const legacyReference = async (
   reference: string,
-): Promise<RefundPaymentReference> => ({
-  // No row at all, so no row of it can be held.
-  heldRowSessionIds: [],
-  index: await paymentReferenceIndex({ kind: "untagged", reference }),
-  kind: "untagged",
-  reference,
-  // A legacy charge (an old payment_id with no session) starts "unknown": this
-  // system never watched its refund, so it may or may not have been returned.
-  refundState: refundStateOf({ legacy: true, refunded: false }),
-  // No row anywhere carries this charge — it lives on the attendee's own
-  // `payment_id` column, which is what makes it need an anchor before a refund
-  // can hold it.
-  rowSessionIds: [],
-  sessionIds: [],
-});
+): Promise<RefundPaymentReference> => {
+  const payment = { kind: "untagged", reference } as const;
+  const index = await paymentReferenceIndex(payment);
+  return {
+    // No row at all, so no row of it can be held.
+    heldRowSessionIds: [],
+    index,
+    kind: "untagged",
+    matchingIndexes: await matchingPaymentReferenceIndexes(payment),
+    reference,
+    // A legacy charge was never watched, so it may have come back already.
+    refundState: refundStateOf({ legacy: true, refunded: false }),
+    rowSessionIds: [],
+    sessionIds: [],
+  };
+};
 
 const withLegacyReference = async (
   references: RefundPaymentReference[],
@@ -178,23 +183,24 @@ const addReference = (
   }
 };
 
-const asRefundReferences = (
+const asRefundReferences = async (
   byReference: ReferenceProgressByKey,
-): RefundPaymentReference[] =>
-  [...byReference.values()].map((data) => ({
-    ...data.payment,
-    heldRowSessionIds: data.heldRowSessionIds,
-    index: data.index,
-    // A reference with no live sessions is a legacy charge (its rows were all
-    // anchors), so an unconfirmed refund reads as "unknown" rather than a
-    // definite "none".
-    refundState: refundStateOf({
-      legacy: data.sessionIds.length === 0,
-      refunded: data.refunded,
-    }),
-    rowSessionIds: data.rowSessionIds,
-    sessionIds: data.sessionIds,
-  }));
+): Promise<RefundPaymentReference[]> =>
+  await Promise.all(
+    [...byReference.values()].map(async (data) => ({
+      ...data.payment,
+      heldRowSessionIds: data.heldRowSessionIds,
+      index: data.index,
+      matchingIndexes: await matchingPaymentReferenceIndexes(data.payment),
+      // An anchor-only reference predates refund observation.
+      refundState: refundStateOf({
+        legacy: data.sessionIds.length === 0,
+        refunded: data.refunded,
+      }),
+      rowSessionIds: data.rowSessionIds,
+      sessionIds: data.sessionIds,
+    })),
+  );
 
 /**
  * Refundable provider references for each attendee. New processed_payments rows
@@ -206,7 +212,7 @@ export const getRefundPaymentReferences = async (
   privateKey: CryptoKey,
 ): Promise<Map<number, RefundPaymentReference[]>> => {
   if (attendees.length === 0) return new Map();
-  await preparePaymentReferenceIndexes(privateKey);
+  await prepareRefundReferenceHolders(privateKey);
   const byAttendee = new Map(
     attendees.map((attendee) => [
       attendee.id,
@@ -216,17 +222,10 @@ export const getRefundPaymentReferences = async (
   for (const row of await paymentReferencesForIds(
     attendees.map((attendee) => attendee.id),
   )) {
-    const payment = await loadPaymentReference(
-      row.payment_reference,
+    const { index, payment } = await loadIndexedPaymentReference(
+      row,
       privateKey,
-      `processed_payments.payment_reference for ${row.payment_session_id}`,
     );
-    const index = await paymentReferenceIndex(payment);
-    if (row.payment_reference_index !== index) {
-      throw new Error(
-        `Payment reference index does not match ${row.payment_session_id}`,
-      );
-    }
     addReference(
       requiredMapValue(
         byAttendee,
@@ -244,7 +243,7 @@ export const getRefundPaymentReferences = async (
         async (attendee): Promise<[number, RefundPaymentReference[]]> => [
           attendee.id,
           await withLegacyReference(
-            asRefundReferences(
+            await asRefundReferences(
               requiredMapValue(
                 byAttendee,
                 attendee.id,

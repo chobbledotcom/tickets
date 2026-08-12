@@ -124,6 +124,7 @@ export const refundReference = (
   heldRowSessionIds: [],
   index: `index_of_${reference}`,
   kind: "untagged",
+  matchingIndexes: [`index_of_${reference}`],
   reference,
   refundState: "none",
   rowSessionIds: [`sess_${reference}`],

@@ -207,10 +207,7 @@ export const prepareAtProvider =
           (
             entry,
           ): entry is typeof entry & {
-            prepared: Exclude<
-              PreparedProviderReference,
-              RefundReadinessRead
-            >;
+            prepared: Exclude<PreparedProviderReference, RefundReadinessRead>;
           } => !isReadinessFailure(entry.prepared),
         )
         .map(({ index, prepared }) => [index, prepared]),
@@ -357,6 +354,7 @@ export const holdingClaim = (
       kind: "claimed",
       returned: new Set<string>(),
       reviews: new Map(),
+      shared: new Map(),
       unrecorded: new Map(),
     }),
   settle,

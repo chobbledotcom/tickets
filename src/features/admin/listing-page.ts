@@ -9,7 +9,7 @@
  *                add-attendee
  *   Scanner    — the check-in scanner (hidden for a "No Check-In" listing)
  *   Activity   — the full activity log
- *   Actions    — duplicate / export (open to editors too) / email /
+ *   Actions    — duplicate / export (open to editors too), owner-only email /
  *                refund-all, danger zone: deactivate|reactivate|delete
  *                (staff only)
  *
@@ -38,8 +38,8 @@ import {
 } from "#shared/types.ts";
 import { ListingDeactivatedBanner } from "#templates/admin/listings/overview.tsx";
 import {
-  type LoadedListing,
   listingHasEmailableAttendees,
+  type LoadedListing,
   loadListingActivity,
   loadListingActivityPreview,
   loadListingForPage,
@@ -71,16 +71,14 @@ const actionUrl = ({ listing }: LoadedListing, action: string): string =>
   `/admin/listing/${listing.id}/${action}`;
 
 /** An action entry's href builder for a named sub-action on this listing. */
-const subAction =
-  (action: string) =>
-  (entity: LoadedListing): string =>
-    actionUrl(entity, action);
+const subAction = (action: string) => (entity: LoadedListing): string =>
+  actionUrl(entity, action);
 
 /** The Actions tab entries. Each `visible` mirrors the gate its old
  * {@link ListingActionNav} entry used, so no dead or forbidden link renders.
  * The tab itself is open to content roles (staff + editor), so every
- * mutation-risk entry below now carries its own explicit `staffOnly` check —
- * only Duplicate and Export are safe for an editor to use unrestricted. */
+ * mutation-risk entry below now carries its own explicit role check — only
+ * Duplicate and Export are safe for an editor to use unrestricted. */
 const LISTING_ACTIONS: readonly ActionDef<LoadedListing>[] = [
   {
     href: subAction("duplicate"),
@@ -113,9 +111,9 @@ const LISTING_ACTIONS: readonly ActionDef<LoadedListing>[] = [
     icon: "credit-card",
     intent: "write-form",
     labelKey: "listings_table.refund_all",
-    // Refunds only apply to a paid listing (the same gate the action bar used),
-    // and moving money is staff-only — an editor never sees this button.
-    visible: staffAnd((entity) => isPaidListing(entity.listing)),
+    // Moving money is owner-only, and only applies to a paid listing.
+    visible: (entity, session) =>
+      isOwnerRole(session.adminLevel) && isPaidListing(entity.listing),
   },
   {
     danger: true,
@@ -214,11 +212,16 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
     // global guard redirects the edit route to /read-only. Hide the tab then
     // rather than render a link that immediately bounces (and so an editor's
     // bare-URL default can't resolve onto an un-editable form).
-    writeFormTab("edit", "entity.tab.edit", (entity, ctx) =>
-      loadListingEditPanel(entity, ctx),
+    writeFormTab(
+      "edit",
+      "entity.tab.edit",
+      (entity, ctx) => loadListingEditPanel(entity, ctx),
     ),
-    writeFormTab("images", "entity.tab.images", loadListingImagesPanel, () =>
-      isStorageEnabled(),
+    writeFormTab(
+      "images",
+      "entity.tab.images",
+      loadListingImagesPanel,
+      () => isStorageEnabled(),
     ),
     ownerFeatureWriteTab(
       "attributes",
@@ -262,11 +265,11 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
           prepare: async (entity, ctx) =>
             isOwnerRole(ctx.session.adminLevel)
               ? {
-                  ...entity,
-                  hasEmailableAttendees: await listingHasEmailableAttendees(
-                    entity.listing.id,
-                  ),
-                }
+                ...entity,
+                hasEmailableAttendees: await listingHasEmailableAttendees(
+                  entity.listing.id,
+                ),
+              }
               : entity,
           titleKey: "entity.tab.actions",
         },

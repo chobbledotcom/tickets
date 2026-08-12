@@ -66,8 +66,7 @@ export const confirmRefund = async (
   const staleNoteIds = notes
     .filter(
       (note) =>
-        note.type === "system" &&
-        namesReturnedPayment(note.note, references),
+        note.type === "system" && namesReturnedPayment(note.note, references),
     )
     .map((note) => note.id);
   const sessionIds = requiredMapValue(

@@ -139,8 +139,8 @@ const toListingId = (listing?: ListingRef | null): number | null =>
   isNullish(listing)
     ? null
     : typeof listing === "number"
-    ? listing
-    : listing.id;
+      ? listing
+      : listing.id;
 
 /** One thing to record in the log: what happened, and which listing/attendee it
  * happened to. */
@@ -177,7 +177,7 @@ export const logActivities = async (
         },
         undefined,
         ACTIVITY_LOG_COLUMNS,
-      )
+      ),
     ),
   );
   const results = transaction

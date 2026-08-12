@@ -25,6 +25,7 @@ import type {
 import type { PaymentProviderType } from "#shared/types.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { chargeMoney, completedRefund } from "#test-utils/payment-state.ts";
+import { recordEveryRefund } from "./ledger-results.ts";
 
 const LISTING_ID = 7;
 const HELD_SINCE = "2026-08-11T12:00:00.000Z";
@@ -66,6 +67,7 @@ const taggedReference = (
   heldRowSessionIds: [],
   index,
   kind: "tagged",
+  matchingIndexes: [index],
   provider,
   reference,
   refundState: "none",
@@ -106,11 +108,13 @@ const readyCandidate = (
   references: ReadyRefundReference[],
 ): ReadyRefundCandidate => ({ attendee: source.attendee, references });
 
-const readyPreparation = (
-  candidates: ReadyRefundCandidate[],
-  capability: ResolvedRefundCapability = "keyed",
-): Prepare =>
-() => Promise.resolve({ candidates, capability, kind: "ready" });
+const readyPreparation =
+  (
+    candidates: ReadyRefundCandidate[],
+    capability: ResolvedRefundCapability = "keyed",
+  ): Prepare =>
+  () =>
+    Promise.resolve({ candidates, capability, kind: "ready" });
 
 const noValidatingProvider = (
   reference: RefundPaymentReference,
@@ -136,14 +140,15 @@ const rowClaimHarness = (
     held,
     inherited = new Map(),
     returned = new Set(),
-  }: Pick<Claimed, "held"> & Partial<Pick<Claimed, "inherited" | "returned">>,
+    shared = new Map(),
+  }: Pick<Claimed, "held"> &
+    Partial<Pick<Claimed, "inherited" | "returned" | "shared">>,
   events: string[] = [],
 ) => {
   const capabilities: RefundCapability[] = [];
   const settlements: RowSettlement[] = [];
   return {
     capabilities,
-    settlements,
     rowClaim: {
       claim: (_attendees, capability) => {
         events.push("claim");
@@ -155,6 +160,7 @@ const rowClaimHarness = (
           kind: "claimed",
           returned,
           reviews: new Map(),
+          shared,
           unrecorded: new Map(),
         });
       },
@@ -164,6 +170,7 @@ const rowClaimHarness = (
         return Promise.resolve();
       },
     } satisfies RowClaim,
+    settlements,
   };
 };
 
@@ -171,7 +178,7 @@ const releasedRows = (settlements: readonly RowSettlement[]): string[][] =>
   settlements.map(({ rows }) =>
     [...rows]
       .filter(([, change]) => change.claim === "release")
-      .map(([sessionId]) => sessionId)
+      .map(([sessionId]) => sessionId),
   );
 
 const recordingWrites = (): {
@@ -189,9 +196,7 @@ const recordingWrites = (): {
       },
       record: (postings) => {
         recorded.push(postings.map(({ attendeeId }) => attendeeId));
-        return Promise.resolve(
-          new Map(postings.map(({ attendeeId }) => [attendeeId, true])),
-        );
+        return recordEveryRefund(postings);
       },
     },
     marked,
@@ -242,9 +247,7 @@ describe("admin refund provider readiness integration", () => {
     expect(preparedClaim?.held).toBe(held);
     expect(preparedClaim?.heldSince).toBe(HELD_SINCE);
     expect(preparedReturned).toBe(returned);
-    expect(releasedRows(claim.settlements)).toEqual([
-      reference.rowSessionIds,
-    ]);
+    expect(releasedRows(claim.settlements)).toEqual([reference.rowSessionIds]);
     expect(counts.failedCount).toBe(1);
     expect(writes.marked).toEqual([]);
     expect(writes.recorded).toEqual([]);
@@ -380,9 +383,7 @@ describe("admin refund provider readiness integration", () => {
     expect(writes.marked.flat().map(({ index }) => index)).toEqual([
       stripeRef.index,
     ]);
-    expect(releasedRows(claim.settlements)).toEqual([
-      ["row_3"],
-    ]);
+    expect(releasedRows(claim.settlements)).toEqual([["row_3"]]);
   });
 
   test("retains an inherited claim when readiness cannot prove its charge", async () => {

@@ -8,8 +8,8 @@ import type {
   RefundRequest,
 } from "#shared/payment/refund-attempt.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
-import type { ResolvedRefundCapability } from "#shared/payment/row-state.ts";
 import type { PaymentReviewReason } from "#shared/payment/review.ts";
+import type { ResolvedRefundCapability } from "#shared/payment/row-state.ts";
 import { paymentsApi } from "#shared/payments.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
@@ -225,10 +225,12 @@ export const grantingRowClaim = (
   existingUnrecorded: ReadonlyMap<number, readonly string[]> = new Map(),
   existingReviews: ReadonlyMap<string, PaymentReviewReason> = new Map(),
 ): RowClaim & {
+  recorded: string[][];
   released: string[][];
   reviewChanges: ReadonlyMap<string, PaymentReviewChange>[];
   unrecorded: string[][];
 } => {
+  const recorded: string[][] = [];
   const released: string[][] = [];
   const reviewChanges: ReadonlyMap<string, PaymentReviewChange>[] = [];
   const unrecorded: string[][] = [];
@@ -241,8 +243,12 @@ export const grantingRowClaim = (
         kind: "claimed",
         returned: new Set<string>(),
         reviews: existingReviews,
+        shared: new Map(),
         unrecorded: existingUnrecorded,
       }),
+    recorded,
+    released,
+    reviewChanges,
     settle: ({ rows }) => {
       released.push(
         [...rows]
@@ -258,6 +264,11 @@ export const grantingRowClaim = (
           ),
         ),
       );
+      recorded.push(
+        [...rows]
+          .filter(([, change]) => change.books === "recorded")
+          .map(([sessionId]) => sessionId),
+      );
       unrecorded.push(
         [...rows]
           .filter(([, change]) => change.books === "unrecorded")
@@ -265,8 +276,6 @@ export const grantingRowClaim = (
       );
       return Promise.resolve();
     },
-    released,
-    reviewChanges,
     unrecorded,
   };
 };

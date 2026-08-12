@@ -12,6 +12,7 @@ import { postTransfers } from "#shared/accounting/store.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
+import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
 import { refundReference } from "#test-utils/payment-state.ts";
 
 export const ATTENDEE = 3;
@@ -86,9 +87,9 @@ export const expectRecordedRefundClearsAttendeeAndRevenue = async (
   listingId = 1,
   references: readonly RefundPaymentReference[] = [sessionReference("sess-1")],
 ): Promise<void> => {
-  expect(await recordAttendeeRefund(attendeeId, references)).toEqual({
-    posted: true,
-  });
+  expect(await recordAttendeeRefund(attendeeId, references)).toEqual(
+    refundLedgerResult(references),
+  );
   expect(await accountBalance(attendeeAccount(attendeeId))).toBe(0);
   expect(await accountBalance(revenueAccount(listingId))).toBe(0);
 };

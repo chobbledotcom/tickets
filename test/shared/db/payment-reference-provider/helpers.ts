@@ -14,7 +14,7 @@ import {
   bookedAttendee,
 } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { claimCurrentAttendeeRows } from "#test-utils/payment-claim.ts";
+import type { claimCurrentAttendeeRows } from "#test-utils/payment-claim.ts";
 import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
 
 type StoredPaymentRow = {

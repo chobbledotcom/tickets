@@ -33,9 +33,7 @@ const claimAndReleaseUnrecorded = async (
   if (claim.kind !== "claimed") throw new Error("The claim was refused");
   await settleAttendeeRows({
     heldSince: claim.heldSince,
-    rows: new Map([
-      [sessionId, { books: "unrecorded", claim: "release" }],
-    ]),
+    rows: new Map([[sessionId, { books: "unrecorded", claim: "release" }]]),
   });
 };
 

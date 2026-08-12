@@ -2,7 +2,10 @@ import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { executeBatch, queryOne } from "#shared/db/client.ts";
 import { batchFinalizeStatements } from "#shared/db/payment-finalize.ts";
-import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
+import {
+  matchingPaymentReferenceIndexes,
+  paymentReferenceIndex,
+} from "#shared/db/payment-reference-store.ts";
 import {
   getRefundPaymentReferences,
   type RefundPaymentReference,
@@ -126,11 +129,16 @@ export const refundReferencesFor = async (
 export const readReference = async (
   payment: PaymentReference,
   values: Partial<RefundPaymentReference> = {},
-): Promise<RefundPaymentReference> => ({
-  ...refundReference(payment.reference, values),
-  ...payment,
-  index: await paymentReferenceIndex(payment),
-});
+): Promise<RefundPaymentReference> => {
+  const index = await paymentReferenceIndex(payment);
+  return {
+    ...refundReference(payment.reference, values),
+    ...payment,
+    index,
+    matchingIndexes: values.matchingIndexes ??
+      (await matchingPaymentReferenceIndexes(payment)),
+  };
+};
 
 /** Assert the exact decrypted provider reference attached to one attendee. */
 export const expectProcessedPaymentReference = async (

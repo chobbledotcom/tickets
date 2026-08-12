@@ -23,11 +23,11 @@ import {
   buildEditFormFromAttendee,
   buildTemplateData,
   getRenderListings,
-  type LoadedAttendee,
   loadAttendeeActivity,
   loadAttendeeActivityPreview,
   loadAttendeeForEdit,
   loadContactRecords,
+  type LoadedAttendee,
   loadPackagePaths,
   loadQuestionsForExisting,
 } from "#routes/admin/attendee-page-data.ts";
@@ -78,7 +78,8 @@ const ATTENDEE_ACTIONS: readonly ActionDef<LoadedAttendee>[] = [
     href: (entity, ctx) => withReturn(`${actionBase(entity)}/refund`, ctx),
     icon: "credit-card",
     labelKey: "attendee_form.action_refund",
-    visible: ({ canRefund }) => canRefund,
+    visible: ({ canRefund }, session) =>
+      isOwnerRole(session.adminLevel) && canRefund,
   },
   {
     href: (entity, ctx) =>

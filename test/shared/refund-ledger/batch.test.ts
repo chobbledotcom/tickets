@@ -19,6 +19,7 @@ import {
 } from "#shared/refund-ledger.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
 import {
   BOOKING_AT,
   legacyReference,
@@ -46,8 +47,8 @@ describeWithEnv(
       ]);
       expect(posted).toEqual(
         new Map([
-          [11, true],
-          [12, true],
+          [11, refundLedgerResult([sessionReference("sess-11")])],
+          [12, refundLedgerResult([sessionReference("sess-12")])],
         ]),
       );
       expect(await accountBalance(revenueAccount(1))).toBe(0);
@@ -75,8 +76,8 @@ describeWithEnv(
       ]);
       expect(posted).toEqual(
         new Map([
-          [13, false],
-          [14, false],
+          [13, refundLedgerResult([], [sessionReference("sess-13")])],
+          [14, refundLedgerResult([], [sessionReference("sess-14")])],
         ]),
       );
       expect((await allTransfers()).length).toBe(before);
@@ -113,8 +114,8 @@ describeWithEnv(
       ]);
       expect(posted).toEqual(
         new Map([
-          [15, true],
-          [16, false],
+          [15, refundLedgerResult([sessionReference("sess-15")])],
+          [16, refundLedgerResult([], [sessionReference("sess-16")])],
         ]),
       );
       expect(
@@ -152,8 +153,8 @@ describeWithEnv(
       ]);
       expect(posted).toEqual(
         new Map([
-          [17, true],
-          [18, false],
+          [17, refundLedgerResult([sessionReference("sess-17")])],
+          [18, refundLedgerResult([], [sessionReference("sess-18")])],
         ]),
       );
       expect(
@@ -203,7 +204,13 @@ describeWithEnv(
         },
       ]);
 
-      expect(posted).toEqual(new Map([[19, true]]));
+      const references = [
+        sessionReference("sess-19"),
+        returnedReference("pi-balance-19", ["balance-19"]),
+      ];
+      expect(posted).toEqual(
+        new Map([[19, refundLedgerResult(references)]]),
+      );
       expect(await accountBalance(attendeeAccount(19))).toBe(0);
       expect(await refundCashAmounts(19)).toEqual([1000, 2000]);
     });
@@ -216,12 +223,13 @@ describeWithEnv(
       await recordAttendeeRefund(attendeeId, [sessionReference("sess-first")]);
       expect(await refundCashAmounts(attendeeId)).toEqual([5000]);
 
-      expect(
-        await recordAttendeeRefund(attendeeId, [
-          sessionReference("sess-first"),
-          sessionReference("sess-second"),
-        ]),
-      ).toEqual({ posted: true });
+      const references = [
+        sessionReference("sess-first"),
+        sessionReference("sess-second"),
+      ];
+      expect(await recordAttendeeRefund(attendeeId, references)).toEqual(
+        refundLedgerResult(references),
+      );
       expect(await refundCashAmounts(attendeeId)).toEqual([5000, 5000]);
       expect(await accountBalance(attendeeAccount(attendeeId))).toBe(0);
     });
@@ -234,9 +242,9 @@ describeWithEnv(
       await recordAttendeeRefund(attendeeId, returned);
       const transferCount = (await allTransfers()).length;
 
-      expect(await recordAttendeeRefund(attendeeId, returned)).toEqual({
-        posted: true,
-      });
+      expect(await recordAttendeeRefund(attendeeId, returned)).toEqual(
+        refundLedgerResult(returned),
+      );
       expect((await allTransfers()).length).toBe(transferCount);
       expect(await refundCashAmounts(attendeeId)).toEqual([5000]);
     });
@@ -245,12 +253,11 @@ describeWithEnv(
       const attendeeId = 52;
       await postBooking({ attendeeId, eventId: "sess-placed" });
 
+      const placed = sessionReference("sess-placed");
+      const missing = sessionReference("sess-missing");
       expect(
-        await recordAttendeeRefund(attendeeId, [
-          sessionReference("sess-placed"),
-          sessionReference("sess-missing"),
-        ]),
-      ).toEqual({ posted: false });
+        await recordAttendeeRefund(attendeeId, [placed, missing]),
+      ).toEqual(refundLedgerResult([placed], [missing]));
       expect(await refundCashAmounts(attendeeId)).toEqual([5000]);
     });
 
@@ -259,13 +266,12 @@ describeWithEnv(
       await postBooking({ attendeeId, eventId: "sess-named" });
       await postBooking({ attendeeId, eventId: "sess-one-legacy" });
 
+      const named = sessionReference("sess-named");
+      const legacyOne = legacyReference("pi-legacy-one");
+      const legacyTwo = legacyReference("pi-legacy-two");
       expect(
-        await recordAttendeeRefund(attendeeId, [
-          sessionReference("sess-named"),
-          legacyReference("pi-legacy-one"),
-          legacyReference("pi-legacy-two"),
-        ]),
-      ).toEqual({ posted: false });
+        await recordAttendeeRefund(attendeeId, [named, legacyOne, legacyTwo]),
+      ).toEqual(refundLedgerResult([named], [legacyOne, legacyTwo]));
       expect(await refundCashAmounts(attendeeId)).toEqual([5000]);
     });
 
@@ -280,12 +286,11 @@ describeWithEnv(
       await postBooking({ attendeeId, eventId: "sess-c" });
 
       // Tracked A and a legacy charge came back; tracked C did not.
-      const posted = await recordAttendeeRefund(attendeeId, [
-        sessionReference("sess-a"),
-        legacyReference("pi-legacy"),
-      ]);
+      const tracked = sessionReference("sess-a");
+      const legacy = legacyReference("pi-legacy");
+      const posted = await recordAttendeeRefund(attendeeId, [tracked, legacy]);
 
-      expect(posted).toEqual({ posted: false });
+      expect(posted).toEqual(refundLedgerResult([tracked], [legacy]));
       // What could be named is still recorded — the money that moved is not
       // thrown away for the part that could not be placed.
       expect(await refundCashAmounts(attendeeId)).toEqual([5000]);

@@ -74,9 +74,15 @@ describeWithEnv(
 
         const held = await claimCurrentAttendeeRows([first], "keyless");
         if (held.kind !== "claimed") throw new Error("the claim was refused");
-        expect(heldSessionIds(held)).toEqual(["sess-e1"]);
+        expect(heldSessionIds(held).sort()).toEqual(["sess-e1", "sess-e2"]);
+        expect(
+          [...held.shared.values()]
+            .flat()
+            .map(({ sessionId }) => sessionId)
+            .sort(),
+        ).toEqual(["sess-e1", "sess-e2"]);
         expect(await claimCurrentAttendeeRows([second], "keyless")).toEqual({
-          blockedBy: { kind: "foreign" },
+          blockedBy: { kind: "held" },
           kind: "blocked",
         });
       });

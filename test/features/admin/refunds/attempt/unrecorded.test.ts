@@ -9,6 +9,10 @@ import {
   readyCandidate,
   readyCandidateWithReferences,
 } from "#test/features/admin/refunds/provider/helpers.ts";
+import {
+  recordEveryRefund,
+  recordNoRefunds,
+} from "#test/features/admin/refunds/provider/ledger-results.ts";
 import { grantingRowClaim } from "#test-utils/refund-routes.ts";
 
 describe("admin refund provider > an unrecorded refund", () => {
@@ -115,12 +119,10 @@ describe("admin refund provider > an unrecorded refund", () => {
           record: (attendees) => {
             recordedSessions.push(
               ...attendees.flatMap(({ references }) =>
-                references.flatMap(({ sessionIds }) => sessionIds),
+                references.flatMap(({ sessionIds }) => sessionIds)
               ),
             );
-            return Promise.resolve(
-              new Map(attendees.map(({ attendeeId }) => [attendeeId, false])),
-            );
+            return recordNoRefunds(attendees);
           },
         },
       ),
@@ -128,8 +130,8 @@ describe("admin refund provider > an unrecorded refund", () => {
 
     expect(recordedSessions).toEqual(["sess_pi_returned"]);
     expect(counts.notRecordedCount).toBe(1);
-    expect(claim.released).toEqual([]);
-    expect(claim.unrecorded).toEqual([]);
+    expect(claim.released).toEqual([[]]);
+    expect(claim.unrecorded).toEqual([["sess_pi_returned"]]);
   });
 
   /** Run one keyless attendee with the requested ledger and provider answer. */
@@ -153,10 +155,7 @@ describe("admin refund provider > an unrecorded refund", () => {
           capability: "keyless",
           kind: "ready",
         }),
-      record: (attendees) =>
-        Promise.resolve(
-          new Map(attendees.map(({ attendeeId }) => [attendeeId, posted])),
-        ),
+      record: posted ? recordEveryRefund : recordNoRefunds,
     });
     return claim;
   };

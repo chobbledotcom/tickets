@@ -26,11 +26,11 @@ import {
   decideClaim,
   holdsTheRow,
 } from "#shared/payment/claim.ts";
+import type { PaymentReviewReason } from "#shared/payment/review.ts";
 import type {
   RefundCapability,
   ResolvedRefundCapability,
 } from "#shared/payment/row-state.ts";
-import type { PaymentReviewReason } from "#shared/payment/review.ts";
 /* jscpd:ignore-end */
 
 /** What happened when a run asked for an attendee's rows. */
@@ -38,28 +38,37 @@ export type ClaimResult =
   | { blockedBy: ClaimDecision; kind: "blocked" }
   | { kind: "changed" }
   | {
-    /** Each attendee's claimed rows, kept apart so a run can let one
-     *  attendee go while another's answer is still in doubt. */
-    held: ReadonlyMap<number, readonly string[]>;
-    heldSince: string;
-    kind: "claimed";
-    /** Attendees inheriting a crashed run's doubt, under that run's own
-     *  provider capability. */
-    inherited: ReadonlyMap<number, ResolvedRefundCapability>;
-    /** References a claimed or sharing row already says came back. */
-    returned: ReadonlySet<string>;
-    /** Owner-review reasons carried by each claimed row. */
-    reviews: ReadonlyMap<string, PaymentReviewReason>;
-    /** Claimed rows that already say returned money is missing from the
-     *  books. A failed readiness check must not erase this repair target. */
-    unrecorded: ReadonlyMap<number, readonly string[]>;
-  };
+      /** Each attendee's claimed rows, kept apart so a run can let one
+       *  attendee go while another's answer is still in doubt. */
+      held: ReadonlyMap<number, readonly string[]>;
+      heldSince: string;
+      kind: "claimed";
+      /** Attendees inheriting a crashed run's doubt, under that run's own
+       *  provider capability. */
+      inherited: ReadonlyMap<number, ResolvedRefundCapability>;
+      /** References a claimed or sharing row already says came back. */
+      returned: ReadonlySet<string>;
+      /** Owner-review reasons carried by each claimed row. */
+      reviews: ReadonlyMap<string, PaymentReviewReason>;
+      /** References represented by more than one exact payment row. */
+      shared: ReadonlyMap<string, readonly PaymentReferenceRepresentation[]>;
+      /** Claimed rows that already say returned money is missing from the
+       *  books. A failed readiness check must not erase this repair target. */
+      unrecorded: ReadonlyMap<number, readonly string[]>;
+    };
 
 /** The exact attendee and payment-reference snapshot an admin run loaded.
  *  `loadedPiiBlob` is the attendee revision: payment_id lives inside it, so a
  *  concurrent edit cannot make a legacy anchor preserve a stale charge. */
 export type LoadedRefundAttendee = AnchoredAttendee & {
   readonly loadedPiiBlob: string;
+};
+
+/** One exact durable row that represents a provider charge. */
+export type PaymentReferenceRepresentation = {
+  readonly attendeeId: number;
+  readonly index: string;
+  readonly sessionId: string;
 };
 
 type StoredAttendee = {
@@ -77,22 +86,19 @@ type ExpectedPaymentRow = {
 const readClaimableRows = async (
   tx: TxScope,
   attendeeIds: readonly number[],
+  matchingIndexes: readonly string[],
 ): Promise<{
   own: StoredPaymentClaimRow[];
   sharing: StoredPaymentClaimRow[];
 }> => {
   const own = await readPaymentClaimRows(
     tx,
-    `attendee_id IN (${
-      inPlaceholders(
-        attendeeIds,
-      )
-    }) AND payment_reference != ''`,
+    `attendee_id IN (${inPlaceholders(
+      attendeeIds,
+    )}) AND payment_reference != ''`,
     [...attendeeIds],
   );
-  const indexes = own
-    .map((row) => row.payment_reference_index)
-    .filter((index) => index !== "");
+  const indexes = [...new Set(matchingIndexes)].filter((index) => index !== "");
   if (indexes.length === 0) return { own, sharing: [] };
   const sharing = await readPaymentClaimRows(
     tx,
@@ -103,6 +109,13 @@ const readClaimableRows = async (
   return { own, sharing };
 };
 
+const matchingIndexesOf = (
+  attendees: readonly LoadedRefundAttendee[],
+): string[] =>
+  attendees.flatMap(({ references }) =>
+    references.flatMap(({ matchingIndexes }) => matchingIndexes),
+  );
+
 /** Row identities the loaded snapshot says the run must hold. A row-less
  *  charge names the deterministic anchor this transaction will mint. */
 const expectedRowsBySession = (
@@ -111,9 +124,10 @@ const expectedRowsBySession = (
   new Map(
     attendees.flatMap((attendee) =>
       attendee.references.flatMap((reference) => {
-        const sessionIds = reference.rowSessionIds.length > 0
-          ? reference.rowSessionIds
-          : [anchorSessionId(attendee.attendeeId, reference.index)];
+        const sessionIds =
+          reference.rowSessionIds.length > 0
+            ? reference.rowSessionIds
+            : [anchorSessionId(attendee.attendeeId, reference.index)];
         return sessionIds.map(
           (sessionId) =>
             [
@@ -124,7 +138,7 @@ const expectedRowsBySession = (
               },
             ] as const,
         );
-      })
+      }),
     ),
   );
 
@@ -166,6 +180,35 @@ const claimCapability = (
   return original === undefined ? current : original;
 };
 
+const representationOf = (
+  row: StoredPaymentClaimRow,
+): PaymentReferenceRepresentation => ({
+  attendeeId: Number(row.attendee_id),
+  index: row.payment_reference_index,
+  sessionId: row.payment_session_id,
+});
+
+const sharedRepresentations = (
+  attendees: readonly LoadedRefundAttendee[],
+  rows: readonly StoredPaymentClaimRow[],
+): ReadonlyMap<string, readonly PaymentReferenceRepresentation[]> =>
+  new Map(
+    [
+      ...new Map(
+        attendees.flatMap(({ references }) =>
+          references.map((reference) => [reference.index, reference] as const),
+        ),
+      ).values(),
+    ].flatMap((reference) => {
+      const matching = rows
+        .filter((row) =>
+          reference.matchingIndexes.includes(row.payment_reference_index),
+        )
+        .map(representationOf);
+      return matching.length > 1 ? [[reference.index, matching] as const] : [];
+    }),
+  );
+
 /** Claim every row in the loaded snapshot, or none. Legacy anchors, attendee
  *  revision checks, row-set checks, and holds share one write transaction. */
 export const claimAttendeeRows = async (
@@ -180,6 +223,7 @@ export const claimAttendeeRows = async (
       kind: "claimed",
       returned: new Set(),
       reviews: new Map(),
+      shared: new Map(),
       unrecorded: new Map(),
     };
   }
@@ -199,16 +243,28 @@ export const claimAttendeeRows = async (
       return { kind: "changed" };
     }
     if (anchors.length > 0) await tx.batch(anchors);
-    const stored = await readClaimableRows(tx, attendeeIds);
+    const stored = await readClaimableRows(
+      tx,
+      attendeeIds,
+      matchingIndexesOf(attendees),
+    );
     if (!rowsMatch(expected, stored.own)) return { kind: "changed" };
-    const rows = await Promise.all(stored.own.map(asPaymentRowRecord));
+    const storedRows = [...stored.own, ...stored.sharing];
+    const rows = await Promise.all(storedRows.map(asPaymentRowRecord));
+    const ownSessions = new Set(
+      stored.own.map((row) => row.payment_session_id),
+    );
     // Write transactions serialize, so a rival committed before this read or
     // cannot begin until this run commits.
-    const sharing = await Promise.all(stored.sharing.map(asPaymentRowRecord));
     const judged = rows.map((row) => ({
       decision: decideClaim(
         row.state.claim,
-        { attendeeId: row.attendeeId, scope: "attendee_set" },
+        {
+          attendeeId: ownSessions.has(row.sessionId)
+            ? row.attendeeId
+            : attendeeIds[0]!,
+          scope: "attendee_set",
+        },
         staleBefore,
       ),
       row,
@@ -217,16 +273,12 @@ export const claimAttendeeRows = async (
     if (refused !== undefined) {
       return { blockedBy: refused.decision, kind: "blocked" };
     }
-    // We cannot take over somebody else's row, even when their hold is stale.
-    if (sharing.some((row) => row.state.claim !== undefined)) {
-      return { blockedBy: { kind: "foreign" }, kind: "blocked" };
-    }
     const inherited = new Map<number, ResolvedRefundCapability>(
       judged.flatMap(({ decision, row }) =>
         decision.kind === "resume" &&
-          decision.resuming.capability !== "unresolved"
+        decision.resuming.capability !== "unresolved"
           ? [[row.attendeeId, decision.resuming.capability] as const]
-          : []
+          : [],
       ),
     );
     await tx.batch(
@@ -244,7 +296,7 @@ export const claimAttendeeRows = async (
               scope: "attendee_set",
               writtenAt,
             },
-          })
+          }),
         ),
       ),
     );
@@ -261,7 +313,7 @@ export const claimAttendeeRows = async (
       inherited,
       kind: "claimed",
       returned: new Set(
-        [...stored.own, ...stored.sharing]
+        storedRows
           .filter((row) => row.provider_refunded_at !== "")
           .map((row) => row.payment_reference_index),
       ),
@@ -269,9 +321,10 @@ export const claimAttendeeRows = async (
         rows.flatMap((row) =>
           row.state.review === undefined
             ? []
-            : [[row.sessionId, row.state.review] as const]
+            : [[row.sessionId, row.state.review] as const],
         ),
       ),
+      shared: sharedRepresentations(attendees, storedRows),
       unrecorded: new Map(
         [
           ...Map.groupBy(

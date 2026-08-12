@@ -137,7 +137,10 @@ export const paymentRowStateStatement = async (
 
 export type PaymentReviewChange =
   | { readonly kind: "review"; readonly reason: PaymentReviewReason }
-  | { readonly kind: "resolved" };
+  | {
+    readonly kind: "resolved";
+    readonly reason: PaymentReviewReason["kind"];
+  };
 
 export type PaymentBooksChange = "recorded" | "unrecorded";
 
@@ -220,6 +223,9 @@ const withReviewChange = (
   change: PaymentReviewChange | undefined,
 ): PaymentRowState => {
   if (change === undefined) return state;
+  if (change.kind === "resolved" && state.review?.kind !== change.reason) {
+    return state;
+  }
   const { review: _was, ...kept } = state;
   return change.kind === "resolved" ? kept : { ...kept, review: change.reason };
 };
@@ -242,10 +248,7 @@ export const settleAttendeeRows = ({
     const change = rows.get(row.sessionId);
     if (change === undefined) return null;
     return withClaimChange(
-      withReviewChange(
-        withBooksChange(row.state, change.books),
-        change.review,
-      ),
+      withReviewChange(withBooksChange(row.state, change.books), change.review),
       change.claim,
     );
   });

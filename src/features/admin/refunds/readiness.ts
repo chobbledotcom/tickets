@@ -37,9 +37,9 @@ type ReadyRefundReferenceBase = {
 /** One reference after every provider read and provider binding has finished. */
 export type ReadyRefundReference =
   | (ReadyRefundReferenceBase & {
-    charge: ChargeMoney;
-    kind: "observed";
-  })
+      charge: ChargeMoney;
+      kind: "observed";
+    })
   | (ReadyRefundReferenceBase & { kind: "already_returned" });
 
 export type ReadyRefundCandidate = Omit<RefundCandidate, "references"> & {
@@ -58,21 +58,21 @@ export type RefundReadinessRead = {
 
 export type RefundReadinessResult =
   | {
-    capability: ResolvedRefundCapability;
-    candidates: ReadyRefundCandidate[];
-    kind: "ready";
-  }
+      capability: ResolvedRefundCapability;
+      candidates: ReadyRefundCandidate[];
+      kind: "ready";
+    }
   | {
-    kind: "not_ready";
-    reads: RefundReadinessRead[];
-    reason: "provider_evidence";
-  }
+      kind: "not_ready";
+      reads: RefundReadinessRead[];
+      reason: "provider_evidence";
+    }
   | { kind: "not_ready"; reason: "claim_changed" }
   | {
-    indexes: readonly string[];
-    kind: "not_ready";
-    reason: "historical_marker";
-  };
+      indexes: readonly string[];
+      kind: "not_ready";
+      reason: "historical_marker";
+    };
 
 export type RefundReadinessDependencies = {
   bindProviders: typeof bindPaymentReferenceProviders;
@@ -116,9 +116,9 @@ type PreparedReferenceBase = {
 type PreparedReference =
   | (PreparedReferenceBase & { charge: ChargeMoney; kind: "observed" })
   | (PreparedReferenceBase & {
-    kind: "already_returned";
-    original: TaggedRefundPaymentReference;
-  });
+      kind: "already_returned";
+      original: TaggedRefundPaymentReference;
+    });
 
 type PreparedEvidence =
   | { kind: "failed"; read: RefundReadinessRead }
@@ -135,24 +135,22 @@ const prepareEvidence = (
 ): PreparedEvidence =>
   evidence.status === "found"
     ? {
-      kind: "prepared",
-      reference: {
-        charge: evidence.charge,
-        identity: providerIdentity(original, evidence.provider),
-        kind: "observed",
-        original,
-      },
-    }
+        kind: "prepared",
+        reference: {
+          charge: evidence.charge,
+          identity: providerIdentity(original, evidence.provider),
+          kind: "observed",
+          original,
+        },
+      }
     : { kind: "failed", read: { evidence, index: original.index } };
 
 const readReferences = (
   references: readonly RefundPaymentReference[],
   readEvidence: RefundReadinessDependencies["readEvidence"],
 ): Promise<PreparedEvidence[]> =>
-  mapProviderRequests(
-    references,
-    async (reference) =>
-      prepareEvidence(reference, await readEvidence(reference)),
+  mapProviderRequests(references, async (reference) =>
+    prepareEvidence(reference, await readEvidence(reference)),
   );
 
 const alreadyReturnedReference = (
@@ -200,9 +198,10 @@ const taggedReference = (
   index,
   // A row-less legacy reference was anchored under its old index when this
   // claim began. Provider binding changes the index, never that row identity.
-  rowSessionIds: original.rowSessionIds.length === 0
-    ? [anchorSessionId(attendeeId, original.index)]
-    : original.rowSessionIds,
+  rowSessionIds:
+    original.rowSessionIds.length === 0
+      ? [anchorSessionId(attendeeId, original.index)]
+      : original.rowSessionIds,
 });
 
 const readyReference = (
@@ -216,11 +215,11 @@ const readyReference = (
   return prepared.kind === "already_returned"
     ? { kind: "already_returned", provider, reference }
     : {
-      charge: prepared.charge,
-      kind: "observed",
-      provider,
-      reference,
-    };
+        charge: prepared.charge,
+        kind: "observed",
+        provider,
+        reference,
+      };
 };
 
 const readyCandidates = (
@@ -318,9 +317,7 @@ export const prepareRefundReadiness = async (
     readEvidence,
   );
   const preparedReadings = readings.filter(
-    (
-      reading,
-    ): reading is Extract<PreparedEvidence, { kind: "prepared" }> =>
+    (reading): reading is Extract<PreparedEvidence, { kind: "prepared" }> =>
       reading.kind === "prepared",
   );
   const failures = readings.filter(evidenceFailed);

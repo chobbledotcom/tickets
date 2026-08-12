@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { refundReadyCandidate } from "#routes/admin/refunds/attempt.ts";
 import type { RowClaim } from "#routes/admin/refunds/claim.ts";
-import type { RefundRunDependencies } from "#routes/admin/refunds/provider.ts";
 import type { ProviderRead } from "#shared/payment/provider-read.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
@@ -11,6 +10,7 @@ import {
   refundObservation,
 } from "#test-utils/payment-state.ts";
 import { grantingRowClaim } from "#test-utils/refund-routes.ts";
+import { recordEveryRefund } from "./ledger-results.ts";
 import {
   candidate,
   finishedCounts,
@@ -19,13 +19,6 @@ import {
   provider,
   readyCandidate,
 } from "./helpers.ts";
-
-const recordEveryRefund: NonNullable<RefundRunDependencies["record"]> = (
-  attendees,
-) =>
-  Promise.resolve(
-    new Map(attendees.map(({ attendeeId }) => [attendeeId, true])),
-  );
 
 describe("admin refund provider > the claim", () => {
   const errors = setupErrorSpy();

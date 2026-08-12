@@ -31,6 +31,7 @@ import {
   refundReference,
 } from "#test-utils/payment-state.ts";
 import { grantingRowClaim } from "#test-utils/refund-routes.ts";
+import { recordNoRefunds } from "../ledger-results.ts";
 
 const LISTING = 7;
 
@@ -190,7 +191,7 @@ describeWithEnv(
           LISTING,
           {
             claim,
-            record: () => Promise.resolve(new Map([[attendeeId, false]])),
+            record: recordNoRefunds,
           },
         ),
       );
@@ -222,8 +223,8 @@ describeWithEnv(
       );
 
       expect(counts.notRecordedCount).toBe(1);
-      expect(claim.released).toEqual([]);
-      expect(claim.unrecorded).toEqual([]);
+      expect(claim.released).toEqual([[]]);
+      expect(claim.unrecorded).toEqual([["sess-back"]]);
     });
 
     test("starts no ledger work when sibling evidence cannot be read", async () => {
@@ -316,7 +317,7 @@ describeWithEnv(
               capability: "keyed",
               kind: "ready",
             }),
-          record: () => Promise.resolve(new Map([[attendeeId, false]])),
+          record: recordNoRefunds,
         }),
       );
 

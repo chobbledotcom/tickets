@@ -1,12 +1,12 @@
 import { filter } from "#fp";
 import { anchorSessionId } from "#shared/db/payment-anchor/session.ts";
+import type { LoadedRefundAttendee } from "#shared/db/payment-claim/take.ts";
 import {
   getRefundPaymentReferences,
   type RefundPaymentReference,
   stillWithTheProvider,
   underRefundClaim,
 } from "#shared/db/payment-references.ts";
-import type { LoadedRefundAttendee } from "#shared/db/payment-claim/take.ts";
 import type { Attendee } from "#shared/types.ts";
 import { hasTicketQuantity } from "#shared/types.ts";
 

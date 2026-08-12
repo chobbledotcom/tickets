@@ -1,8 +1,7 @@
 /* jscpd:ignore-start -- imports */
+import { requiredMapValue } from "#fp";
 import type { AnchoredAttendee } from "#shared/db/payment-anchor/mint.ts";
-import {
-  markPaymentReferencesProviderRefunded,
-} from "#shared/db/payment-references.ts";
+import { markPaymentReferencesProviderRefunded } from "#shared/db/payment-references.ts";
 import { reportRefundNotRecorded } from "#shared/invariant-errors.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import type { ResolvedRefundCapability } from "#shared/payment/row-state.ts";
@@ -13,8 +12,9 @@ import {
   type PreparedReferenceRefund,
   refundReadyCandidate,
 } from "./attempt.ts";
-import { referenceRowIds, type RefundCandidate } from "./candidates.ts";
+import type { RefundCandidate } from "./candidates.ts";
 import { durableRowClaim, type RowClaim, type RunFindings } from "./claim.ts";
+import { applyRefundLedgerFindings } from "./ledger-findings.ts";
 import { PROVIDER_REFUND_CONCURRENCY } from "./provider-requests.ts";
 import {
   prepareRefundReadiness,
@@ -22,6 +22,7 @@ import {
 } from "./readiness.ts";
 import { runRefundReadiness } from "./readiness-run.ts";
 import { packByReferenceCount, type RefundOutcome } from "./waves.ts";
+
 /* jscpd:ignore-end */
 
 type RecordRefunds = typeof recordAttendeeRefundsBatch;
@@ -123,26 +124,24 @@ const recordWave = async (
   findings: RunFindings,
   listingId: number,
 ): Promise<void> => {
-  const posted = await record(postings);
+  const results = await record(postings);
   for (const { attendeeId, references, whole } of postings) {
-    if (posted.get(attendeeId) !== true) {
+    const result = requiredMapValue(
+      results,
+      attendeeId,
+      `Refund ledger omitted attendee ${attendeeId}`,
+    );
+    const applied = applyRefundLedgerFindings(
+      findings,
+      attendeeId,
+      references,
+      result,
+    );
+    if (applied.hasUnrecorded) {
       counts.notRecordedCount++;
       reportRefundNotRecorded({ attendeeId, listingId });
-      const missedRows = references.flatMap((reference) =>
-        referenceRowIds(attendeeId, reference)
-      );
-      const earlierMissedRows = findings.unrecorded.get(attendeeId);
-      findings.unrecorded.set(
-        attendeeId,
-        earlierMissedRows === undefined
-          ? missedRows
-          : [...earlierMissedRows, ...missedRows],
-      );
-    } else {
-      references
-        .flatMap((reference) => referenceRowIds(attendeeId, reference))
-        .forEach((sessionId) => findings.recorded.add(sessionId));
-      if (whole) counts.refundedCount++;
+    } else if (applied.allRecorded && whole) {
+      counts.refundedCount++;
     }
   }
 };

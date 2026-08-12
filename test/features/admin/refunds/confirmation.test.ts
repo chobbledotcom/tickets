@@ -22,7 +22,7 @@ const setup = async () => {
   const paymentReference = "pi_confirm_refund";
   const attendeeId = await bookedWithPayment(sessionId, paymentReference);
   const privateKey = await getTestPrivateKey();
-  const [reference] = await refundReferencesFor(attendeeId, privateKey) ?? [];
+  const [reference] = (await refundReferencesFor(attendeeId, privateKey)) ?? [];
   if (reference?.kind !== "tagged") {
     throw new Error("the tagged payment reference was not found");
   }
@@ -61,27 +61,29 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
 
     expect(
       await withTestSession(() =>
-        confirmRefund({ ...refund, references: [refund.reference] })
+        confirmRefund({ ...refund, references: [refund.reference] }),
       ),
     ).toBe("new");
     expect(
       await withTestSession(() =>
-        confirmRefund({ ...refund, references: [refund.reference] })
+        confirmRefund({ ...refund, references: [refund.reference] }),
       ),
     ).toBe("current");
 
     const activities = await getAttendeeActivityLog(refund.attendee.id);
     expect(
       activities.filter((entry) =>
-        entry.message.includes("Payment marked as refunded")
+        entry.message.includes("Payment marked as refunded"),
       ),
     ).toHaveLength(1);
     const notes = await getNotesFor(target, refund.privateKey);
-    expect(notes.filter((note) => note.note.includes("Refund confirmed")))
-      .toHaveLength(1);
+    expect(
+      notes.filter((note) => note.note.includes("Refund confirmed")),
+    ).toHaveLength(1);
     expect(notes.some((note) => note.note.includes("pi_other"))).toBe(true);
-    expect(notes.some((note) => note.note.includes(refund.reference.reference)))
-      .toBe(false);
+    expect(
+      notes.some((note) => note.note.includes(refund.reference.reference)),
+    ).toBe(false);
   });
 
   test("writes nothing after the exact claim has gone", async () => {
@@ -90,7 +92,7 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
 
     await expect(
       withTestSession(() =>
-        confirmRefund({ ...refund, references: [refund.reference] })
+        confirmRefund({ ...refund, references: [refund.reference] }),
       ),
     ).rejects.toThrow("Refund confirmation no longer owns every payment row");
     expect(await getAttendeeActivityLog(refund.attendee.id)).toEqual([]);

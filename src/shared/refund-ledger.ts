@@ -39,10 +39,24 @@ import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 
-type RefundReferences = readonly Pick<RefundPaymentReference, "sessionIds">[];
+type RefundReferences = readonly Pick<
+  RefundPaymentReference,
+  "index" | "sessionIds"
+>[];
+
+/** Exact reference outcomes from one ledger attempt. */
+export type RefundLedgerResult = {
+  /** References whose returned cash the ledger now records. */
+  recorded: ReadonlySet<string>;
+  /** References whose returned cash still has no safe ledger record. */
+  unrecorded: ReadonlySet<string>;
+  /** Returned references whose booking obligation needs an owner choice. */
+  reviewReferenceIndexes: ReadonlySet<string>;
+};
+
 type ComputedRefund = {
-  posted: boolean;
   groups: TransferInput[][];
+  result: RefundLedgerResult;
 };
 
 const isRefundLeg = (kind: string | undefined): boolean =>
@@ -69,22 +83,31 @@ export const isPaymentOnlyAccount = (legs: Transfer[]): boolean => {
   return groups.length > 0 && groups.every(isPaymentOnlyPlaceholder);
 };
 
-const refundedSessionGroups = async (
-  references: RefundReferences,
-): Promise<string[][]> =>
-  await Promise.all(
-    references.flatMap((reference) =>
-      reference.sessionIds.map((sessionId) =>
-        Promise.all([
-          bookingEventGroup(sessionId),
-          balanceEventGroup(sessionId),
-        ])
-      )
-    ),
-  );
+type ReferencePlacement = {
+  readonly eventGroups: readonly string[];
+  readonly index: string;
+  readonly named: boolean;
+};
 
-const legacyReferenceCount = (references: RefundReferences): number =>
-  references.filter((reference) => reference.sessionIds.length === 0).length;
+const referencePlacements = (
+  references: RefundReferences,
+): Promise<ReferencePlacement[]> =>
+  Promise.all(
+    references.map(async (reference) => ({
+      eventGroups: (
+        await Promise.all(
+          reference.sessionIds.map((sessionId) =>
+            Promise.all([
+              bookingEventGroup(sessionId),
+              balanceEventGroup(sessionId),
+            ])
+          ),
+        )
+      ).flat(),
+      index: reference.index,
+      named: reference.sessionIds.length > 0,
+    })),
+  );
 
 const hasProviderPayment = (group: Transfer[]): boolean =>
   group.some(isProviderPaymentLeg);
@@ -92,24 +115,37 @@ const hasProviderPayment = (group: Transfer[]): boolean =>
 const hasOperatorMoney = (group: Transfer[]): boolean =>
   group.some(isOperatorMoneyLeg);
 
-/** The order groups to reverse, and whether money that came back could not be
- *  placed among them — a legacy reference names no session, so on a partial
- *  return there is no saying which group it paid for. */
-type ReturnedGroups = { groups: Transfer[][]; unplaced: boolean };
+/** The order groups named by returned references. Whole-account and subset
+ * reversals have different safety rules, so the planner carries that fact. */
+type ReturnedGroups = {
+  readonly groups: Transfer[][];
+  readonly kind: "subset" | "whole_account";
+  readonly placements: readonly ReferencePlacement[];
+  readonly unplaced: ReadonlySet<string>;
+};
 
 const returnedRefundGroups = async (
   groups: Transfer[][],
   references: RefundReferences,
 ): Promise<ReturnedGroups> => {
-  const namedSessionGroups = await refundedSessionGroups(references);
-  const returned = new Set(namedSessionGroups.flat());
-  const cameBack = (group: Transfer[]): boolean =>
-    returned.has(group[0]!.eventGroup);
   const providerGroups = new Set(
     groups.filter(hasProviderPayment).map((group) => group[0]!.eventGroup),
   );
-  const namedUnplaced = namedSessionGroups.some((possible) =>
-    possible.every((eventGroup) => !providerGroups.has(eventGroup))
+  const placements = (await referencePlacements(references)).map(
+    (placement) => ({
+      ...placement,
+      eventGroups: placement.eventGroups.filter((eventGroup) =>
+        providerGroups.has(eventGroup)
+      ),
+    }),
+  );
+  const returned = new Set(
+    placements.flatMap(({ eventGroups }) => eventGroups),
+  );
+  const cameBack = (group: Transfer[]): boolean =>
+    returned.has(group[0]!.eventGroup);
+  const namedUnplaced = placements.filter(
+    ({ eventGroups, named }) => named && eventGroups.length === 0,
   );
   const unnamed = groups.filter(
     (group) => hasProviderPayment(group) && !cameBack(group),
@@ -119,16 +155,28 @@ const returnedRefundGroups = async (
   // reference names no session and so cannot say WHICH group it paid for —
   // this is the one place that does not matter, because the answer is all of
   // them.
-  const legacyCount = legacyReferenceCount(references);
+  const legacyCount = placements.filter(({ named }) => !named).length;
   if (unnamed.length === legacyCount) {
-    return { groups, unplaced: namedUnplaced };
+    return {
+      groups,
+      kind: "whole_account",
+      placements,
+      unplaced: new Set(namedUnplaced.map(({ index }) => index)),
+    };
   }
   // Only some of the account came back. A legacy reference that returned has
   // no session to place it by, so its money belongs to no group we can name:
   // post what we can and let the row say a person has to finish it.
   return {
     groups: groups.filter(cameBack),
-    unplaced: namedUnplaced || legacyCount > 0,
+    kind: "subset",
+    placements,
+    unplaced: new Set([
+      ...namedUnplaced.map(({ index }) => index),
+      ...placements
+        .filter(({ named }) => !named)
+        .map(({ index }) => index),
+    ]),
   };
 };
 
@@ -161,6 +209,74 @@ export const accountRefundGroups = (legs: Transfer[]): Transfer[][] => [
   ).values(),
 ];
 
+const groupIds = (groups: readonly Transfer[][]): ReadonlySet<string> =>
+  new Set(groups.map((group) => group[0]!.eventGroup));
+
+const indexesNamedByGroups = (
+  placements: readonly ReferencePlacement[],
+  groups: readonly Transfer[][],
+): ReadonlySet<string> => {
+  const ids = groupIds(groups);
+  return new Set(
+    placements
+      .filter(({ eventGroups }) =>
+        eventGroups.some((eventGroup) => ids.has(eventGroup))
+      )
+      .map(({ index }) => index),
+  );
+};
+
+const indexesWhollyInGroups = (
+  placements: readonly ReferencePlacement[],
+  groups: readonly Transfer[][],
+): ReadonlySet<string> => {
+  const ids = groupIds(groups);
+  return new Set(
+    placements
+      .filter(
+        ({ eventGroups }) =>
+          eventGroups.length > 0 &&
+          eventGroups.every((eventGroup) => ids.has(eventGroup)),
+      )
+      .map(({ index }) => index),
+  );
+};
+
+const refundLedgerResult = (
+  references: RefundReferences,
+  recorded: ReadonlySet<string> = new Set(),
+  reviewReferenceIndexes: ReadonlySet<string> = new Set(),
+): RefundLedgerResult => ({
+  recorded,
+  reviewReferenceIndexes,
+  unrecorded: new Set(
+    references
+      .map(({ index }) => index)
+      .filter((index) => !recorded.has(index)),
+  ),
+});
+
+const isSettledGroup = (
+  account: ReturnType<typeof attendeeAccount>,
+  group: Transfer[],
+): boolean => balanceOf(account)(group) === 0;
+
+const isSafeSubsetGroup = (
+  account: ReturnType<typeof attendeeAccount>,
+  group: Transfer[],
+): boolean =>
+  hasProviderPayment(group) &&
+  !hasOperatorMoney(group) &&
+  (isPaymentOnlyPlaceholder(group) || isSettledGroup(account, group));
+
+const needsObligationReview = (
+  account: ReturnType<typeof attendeeAccount>,
+  group: Transfer[],
+): boolean =>
+  hasProviderPayment(group) &&
+  !isPaymentOnlyPlaceholder(group) &&
+  !isSettledGroup(account, group);
+
 /**
  * Compute one attendee's refund reversal without posting it: the ledger legs to
  * write (empty when already refunded or not a clean order) and whether the ledger
@@ -177,17 +293,43 @@ const computeAttendeeRefund = async (
   const legs = await transfersByAccount(account);
   const groups = accountRefundGroups(legs);
   const returned = await returnedRefundGroups(groups, references);
-  const orders = await notYetReversed(legs, returned.groups);
+  const reviewGroups = returned.kind === "subset"
+    ? returned.groups.filter((group) => needsObligationReview(account, group))
+    : [];
+  const eligible = returned.kind === "whole_account"
+    ? returned.groups
+    : returned.groups.filter((group) => isSafeSubsetGroup(account, group));
+  const reviewReferenceIndexes = indexesNamedByGroups(
+    returned.placements,
+    reviewGroups,
+  );
+  const recorded = returned.kind === "whole_account"
+    ? new Set(
+      references
+        .map(({ index }) => index)
+        .filter((index) => !returned.unplaced.has(index)),
+    )
+    : indexesWhollyInGroups(returned.placements, eligible);
+  const result = refundLedgerResult(
+    references,
+    recorded,
+    reviewReferenceIndexes,
+  );
+  const orders = await notYetReversed(legs, eligible);
   // Every requested group already carries its reversal: those legs are the
-  // durable record, so replay is a no-op success. Unplaceable returned money
-  // still reports false even when every group we could name was already done.
-  if (returned.groups.length > 0 && orders.length === 0) {
-    return { groups: [], posted: !returned.unplaced };
+  // durable record, so replay is a no-op success. Unsafe or unplaceable
+  // references remain named separately even when every safe group is done.
+  if (eligible.length > 0 && orders.length === 0) {
+    return { groups: [], result };
   }
   // Operator money stays a person's call: a manual payment or adjustment is
   // not something a new provider refund can mirror back.
-  if (groups.some(hasOperatorMoney)) return { groups: [], posted: false };
-  if (orders.length === 0) return { groups: [], posted: false };
+  if (
+    returned.kind === "whole_account" && groups.some(hasOperatorMoney)
+  ) {
+    return { groups: [], result: refundLedgerResult(references) };
+  }
+  if (orders.length === 0) return { groups: [], result };
   // Only auto-reverse a fully-paid account — UNLESS the account is a pure
   // payment-only placeholder (every order group is ONLY provider-payment legs,
   // no sale/fee/adjustment): a quantity-0 stored-but-refunded booking has a
@@ -197,8 +339,12 @@ const computeAttendeeRefund = async (
   // later settles. A surcharge-only order (payment + fee, no sale) does NOT
   // qualify — reversing it would cancel the fee receivable.
   const isPlaceholder = isPaymentOnlyAccount(legs);
-  if (!isPlaceholder && balanceOf(account)(legs) !== 0) {
-    return { groups: [], posted: false };
+  if (
+    returned.kind === "whole_account" &&
+    !isPlaceholder &&
+    balanceOf(account)(legs) !== 0
+  ) {
+    return { groups: [], result: refundLedgerResult(references) };
   }
   const occurredAt = nowIso();
   return {
@@ -211,9 +357,7 @@ const computeAttendeeRefund = async (
         })
       ),
     ),
-    // Money that could not be placed leaves the ledger short of what moved, so
-    // this is not a complete record — the caller marks the row for a person.
-    posted: !returned.unplaced,
+    result,
   };
 };
 
@@ -252,16 +396,69 @@ export const recordAttendeeRefund = (
   attendeeId: number,
   references: RefundReferences,
   memo?: string,
-): Promise<{ posted: boolean }> =>
-  postWithoutThrowing("refund ledger post", attendeeId, async () => {
-    const { posted, groups } = await computeAttendeeRefund(
-      attendeeId,
-      references,
-      memo,
-    );
-    await postTransferGroups(groups);
-    return posted;
-  });
+): Promise<RefundLedgerResult> =>
+  (async () => {
+    let computed: ComputedRefund;
+    try {
+      computed = await computeAttendeeRefund(
+        attendeeId,
+        references,
+        memo,
+      );
+    } catch (error) {
+      logError({
+        code: ErrorCode.LEDGER_POST,
+        detail:
+          `refund ledger preparation failed for attendee ${attendeeId}: ${error}`,
+      });
+      return refundLedgerResult(references);
+    }
+    try {
+      await postTransferGroups(computed.groups);
+      return computed.result;
+    } catch (error) {
+      logError({
+        code: ErrorCode.LEDGER_POST,
+        detail:
+          `refund ledger post failed for attendee ${attendeeId}: ${error}`,
+      });
+      return refundLedgerResult(
+        references,
+        new Set(),
+        computed.result.reviewReferenceIndexes,
+      );
+    }
+  })();
+
+const mergeRefundLedgerResults = (
+  left: RefundLedgerResult | undefined,
+  right: RefundLedgerResult,
+): RefundLedgerResult => {
+  if (left === undefined) return right;
+  const unrecorded = new Set([...left.unrecorded, ...right.unrecorded]);
+  return {
+    recorded: new Set(
+      [...left.recorded, ...right.recorded].filter(
+        (index) => !unrecorded.has(index),
+      ),
+    ),
+    reviewReferenceIndexes: new Set([
+      ...left.reviewReferenceIndexes,
+      ...right.reviewReferenceIndexes,
+    ]),
+    unrecorded,
+  };
+};
+
+const resultsByAttendee = (
+  results: readonly { id: number; result: RefundLedgerResult }[],
+): Map<number, RefundLedgerResult> => {
+  const byAttendee = new Map<number, RefundLedgerResult>();
+  for (const { id, result } of results) {
+    byAttendee.set(id, mergeRefundLedgerResults(byAttendee.get(id), result));
+  }
+  return byAttendee;
+};
 
 /**
  * Record refunds for many attendees, returning each attendee's posted status.
@@ -279,7 +476,7 @@ export const recordAttendeeRefundsBatch = async (
     attendeeId: number;
     references: RefundReferences;
   }[],
-): Promise<Map<number, boolean>> => {
+): Promise<Map<number, RefundLedgerResult>> => {
   try {
     // Fast path: compute every reversal, then post them all in one batch. A
     // compute read here can throw; the whole thing is guarded so it degrades to
@@ -287,15 +484,17 @@ export const recordAttendeeRefundsBatch = async (
     const computed = await Promise.all(
       attendees.map(async (attendee) => ({
         id: attendee.attendeeId,
-        ...(await computeAttendeeRefund(
+        computed: await computeAttendeeRefund(
           attendee.attendeeId,
           attendee.references,
-        )),
+        ),
       })),
     );
-    const groups = computed.flatMap((entry) => entry.groups);
+    const groups = computed.flatMap((entry) => entry.computed.groups);
     await postTransferGroups(groups);
-    return new Map(computed.map((entry) => [entry.id, entry.posted]));
+    return resultsByAttendee(
+      computed.map(({ id, computed }) => ({ id, result: computed.result })),
+    );
   } catch (error) {
     logError({
       code: ErrorCode.LEDGER_POST,
@@ -305,15 +504,17 @@ export const recordAttendeeRefundsBatch = async (
     // Record each attendee independently so one failure never strands the rest:
     // recordAttendeeRefund opens its own transaction, is idempotent (an
     // already-posted refund replays as a no-op), and never throws.
-    const result = new Map<number, boolean>();
+    const results: { id: number; result: RefundLedgerResult }[] = [];
     for (const attendee of attendees) {
-      result.set(
-        attendee.attendeeId,
-        (await recordAttendeeRefund(attendee.attendeeId, attendee.references))
-          .posted,
-      );
+      results.push({
+        id: attendee.attendeeId,
+        result: await recordAttendeeRefund(
+          attendee.attendeeId,
+          attendee.references,
+        ),
+      });
     }
-    return result;
+    return resultsByAttendee(results);
   }
 };
 

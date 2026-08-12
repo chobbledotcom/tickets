@@ -6,7 +6,10 @@ import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { getDb, insert } from "#shared/db/client.ts";
 import { SCHEMA } from "#shared/db/migrations/schema/index.ts";
 import { createTableSql } from "#shared/db/migrations/schema-sync.ts";
-import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
+import {
+  paymentReferenceIndex,
+  storePaymentReference,
+} from "#shared/db/payment-reference-store.ts";
 import {
   clearSessionTokens,
   decryptSessionTokens,
@@ -299,6 +302,36 @@ describeWithEnv("db > processed payments", { db: true }, () => {
         paymentReference,
         await getTestPrivateKey(),
       );
+    });
+
+    test("refuses to heal an equivalent reference under a refund claim", async () => {
+      const reference = "pi_heal_held";
+      const held = await storePaymentReference({
+        kind: "untagged",
+        reference,
+      });
+      await reserveSession("sess_heal_holder");
+      await getDb().execute({
+        args: [7, held.encrypted, held.index, "sess_heal_holder"],
+        sql: `UPDATE processed_payments
+                 SET attendee_id = ?, payment_reference = ?,
+                     payment_reference_index = ?, protected_state = 'claim'
+               WHERE payment_session_id = ?`,
+      });
+      await reserveSession("sess_heal_blocked");
+
+      await expect(
+        finalizeSessionIfUnresolved(
+          "sess_heal_blocked",
+          42,
+          taggedPaymentReference(reference),
+        ),
+      ).rejects.toThrow(
+        "Payment sess_heal_blocked cannot finalize while its reference is held",
+      );
+      expect(
+        (await getProcessedPayment("sess_heal_blocked"))?.attendee_id,
+      ).toBe(null);
     });
 
     test("is a no-op once resolved — preserves a racing delivery's attendee and tokens", async () => {

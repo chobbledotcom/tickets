@@ -35,7 +35,8 @@ type NoteWriter = (
 ) => Promise<void>;
 
 const noteWriterOf =
-  (type: SystemNoteType): NoteWriter => async (target, note, transaction) => {
+  (type: SystemNoteType): NoteWriter =>
+  async (target, note, transaction) => {
     const { sql, args } = insert("system_notes", {
       created: nowIso(),
       entity_id: target.id,
@@ -179,7 +180,7 @@ export const deleteNotes = (
 ): Promise<void> => {
   if (noteIds.length === 0) return Promise.resolve();
   const statements = noteIds.map((noteId) =>
-    deleteNotesWhere(noteOfTarget(target, noteId))
+    deleteNotesWhere(noteOfTarget(target, noteId)),
   );
   return transaction === undefined
     ? executeBatch(statements)

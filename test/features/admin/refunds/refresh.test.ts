@@ -1,18 +1,23 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  refreshClaimedPayment,
-  type RefreshPaymentDependencies,
-} from "#routes/admin/refunds/refresh.ts";
 import type { RowClaim } from "#routes/admin/refunds/claim.ts";
 import type {
   ReadyRefundProvider,
   RefundReadinessResult,
 } from "#routes/admin/refunds/readiness.ts";
+import {
+  refreshClaimedPayment,
+  type RefreshPaymentDependencies,
+} from "#routes/admin/refunds/refresh.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
-import type { ResolvedRefundCapability } from "#shared/payment/row-state.ts";
 import type { PaymentReviewReason } from "#shared/payment/review.ts";
+import type { ResolvedRefundCapability } from "#shared/payment/row-state.ts";
+import type { RefundLedgerResult } from "#shared/refund-ledger.ts";
+import {
+  candidate,
+  tagged,
+} from "#test/features/admin/refunds/readiness/helpers.ts";
 import {
   chargeMoney,
   chargeMoneyWith,
@@ -20,11 +25,8 @@ import {
   gbp,
   refundObservation,
 } from "#test-utils/payment-state.ts";
+import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
 import { grantingRowClaim } from "#test-utils/refund-routes.ts";
-import {
-  candidate,
-  tagged,
-} from "#test/features/admin/refunds/readiness/helpers.ts";
 
 const LISTING_ID = 17;
 const ATTENDEE_ID = 23;
@@ -43,18 +45,20 @@ const recordingProvider = (): ReadyRefundProvider & { sends: number } => {
 };
 
 const readyResult = (
-  reference: Extract<RefundPaymentReference, { kind: "tagged" }>,
+  observations: readonly {
+    observed: ChargeMoney | null;
+    reference: Extract<RefundPaymentReference, { kind: "tagged" }>;
+  }[],
   provider: ReadyRefundProvider,
-  observed: ChargeMoney | null,
 ): Extract<RefundReadinessResult, { kind: "ready" }> => ({
   candidates: [
     {
       attendee: candidate(ATTENDEE_ID, []).attendee,
-      references: [
+      references: observations.map(({ observed, reference }) =>
         observed === null
           ? { kind: "already_returned", provider, reference }
-          : { charge: observed, kind: "observed", provider, reference },
-      ],
+          : { charge: observed, kind: "observed", provider, reference }
+      ),
     },
   ],
   capability: "keyed",
@@ -67,21 +71,42 @@ type HarnessValues = {
   existingUnrecorded?: readonly string[];
   existingReview?: PaymentReviewReason;
   inherited?: ResolvedRefundCapability;
+  ledger?: (
+    references: readonly RefundPaymentReference[],
+  ) => RefundLedgerResult;
   observed?: ChargeMoney | null;
   paymentOnly?: boolean;
   posted?: boolean;
   readiness?: Extract<RefundReadinessResult, { kind: "not_ready" }>;
+  siblingObserved?: ChargeMoney | null;
 };
 
 const runHarness = (values: HarnessValues = {}) => {
   const reference = tagged("pi_refresh", "stripe");
-  const source = candidate(ATTENDEE_ID, [reference]);
+  const observations: {
+    observed: ChargeMoney | null;
+    reference: Extract<RefundPaymentReference, { kind: "tagged" }>;
+  }[] = [
+    {
+      observed: values.observed === undefined ? chargeMoney() : values.observed,
+      reference,
+    },
+    ...(values.siblingObserved === undefined ? [] : [{
+      observed: values.siblingObserved,
+      reference: tagged("pi_refresh_sibling", "stripe"),
+    }]),
+  ];
+  const references = observations.map(({ reference }) => reference);
+  const source = candidate(ATTENDEE_ID, references);
   const provider = recordingProvider();
   const inherited = values.inherited === undefined
     ? new Map<number, ResolvedRefundCapability>()
     : new Map([[ATTENDEE_ID, values.inherited]]);
   const claim = grantingRowClaim(
-    new Map([[ATTENDEE_ID, reference.rowSessionIds]]),
+    new Map([[
+      ATTENDEE_ID,
+      references.flatMap(({ rowSessionIds }) => rowSessionIds),
+    ]]),
     inherited,
     values.existingUnrecorded === undefined
       ? new Map()
@@ -114,17 +139,18 @@ const runHarness = (values: HarnessValues = {}) => {
       calls.prepare++;
       return Promise.resolve(
         values.readiness ??
-          readyResult(
-            reference,
-            provider,
-            values.observed === undefined ? chargeMoney() : values.observed,
-          ),
+          readyResult(observations, provider),
       );
     },
     record: (_attendeeId, references) => {
       calls.record++;
       recorded.push(references);
-      return Promise.resolve({ posted: values.posted ?? true });
+      return Promise.resolve(
+        values.ledger?.(references) ??
+          ((values.posted ?? true)
+            ? refundLedgerResult(references)
+            : refundLedgerResult([], references)),
+      );
     },
   };
   return {
@@ -135,6 +161,7 @@ const runHarness = (values: HarnessValues = {}) => {
     provider,
     recorded,
     reference,
+    references,
     source,
   };
 };
@@ -198,12 +225,87 @@ describe("refresh payment under an attendee claim", () => {
     expect(run.claim.released).toEqual([run.reference.rowSessionIds]);
   });
 
+  test("records a returned reference while its independent sibling remains", async () => {
+    const run = runHarness({
+      observed: fullyRefundedMoney(),
+      siblingObserved: chargeMoney(),
+    });
+
+    expect(
+      await refreshClaimedPayment(run.source, LISTING_ID, run.dependencies),
+    ).toEqual({ kind: "current" });
+    expect(run.recorded).toEqual([[run.reference]]);
+    expect(run.claim.recorded).toEqual([run.reference.rowSessionIds]);
+    expect(run.claim.released).toEqual([
+      run.references.flatMap(({ rowSessionIds }) => rowSessionIds),
+    ]);
+    expect(run.calls.confirm).toBe(0);
+    expect(run.calls.paymentOnly).toBe(0);
+  });
+
+  test("parks an unsafe returned obligation even while its sibling remains", async () => {
+    const run = runHarness({
+      ledger: (references) => refundLedgerResult([], references, references),
+      observed: fullyRefundedMoney(),
+      siblingObserved: chargeMoney(),
+    });
+
+    expect(
+      await refreshClaimedPayment(run.source, LISTING_ID, run.dependencies),
+    ).toEqual({
+      kind: "needs_review",
+      message:
+        "This payment needs an owner review before another refund can be attempted.",
+    });
+    expect(run.recorded).toEqual([[run.reference]]);
+    expect(run.claim.unrecorded).toEqual([run.reference.rowSessionIds]);
+    expect(run.claim.reviewChanges).toEqual([
+      new Map([
+        [
+          run.reference.rowSessionIds[0]!,
+          {
+            kind: "review",
+            reason: { kind: "partially_returned_obligation" },
+          },
+        ],
+      ]),
+    ]);
+    expect(run.claim.released).toEqual([
+      run.references.flatMap(({ rowSessionIds }) => rowSessionIds),
+    ]);
+  });
+
+  test("persists an unsafe return while an in-flight sibling keeps the claim", async () => {
+    const run = runHarness({
+      ledger: (references) => refundLedgerResult([], references, references),
+      observed: fullyRefundedMoney(),
+      siblingObserved: chargeMoneyWith({
+        refunds: [refundObservation({ amount: gbp(100), status: "pending" })],
+      }),
+    });
+
+    expect(
+      await refreshClaimedPayment(run.source, LISTING_ID, run.dependencies),
+    ).toEqual({ kind: "blocked", reason: "refund_in_progress" });
+    expect(run.claim.unrecorded).toEqual([run.reference.rowSessionIds]);
+    expect(run.claim.reviewChanges).toEqual([
+      new Map([
+        [
+          run.reference.rowSessionIds[0]!,
+          {
+            kind: "review",
+            reason: { kind: "partially_returned_obligation" },
+          },
+        ],
+      ]),
+    ]);
+    expect(run.claim.released).toEqual([[]]);
+  });
+
   test("parks a partial provider refund on its exact rows for owner review", async () => {
     const run = runHarness({
       observed: chargeMoneyWith({
-        refunds: [
-          refundObservation({ amount: gbp(40), status: "completed" }),
-        ],
+        refunds: [refundObservation({ amount: gbp(40), status: "completed" })],
       }),
     });
 
@@ -226,20 +328,31 @@ describe("refresh payment under an attendee claim", () => {
   });
 
   test("a completed refresh retires only its earlier partial-refund review", async () => {
-    const completed = runHarness({
-      existingReview: { kind: "partial_refund" },
-      observed: fullyRefundedMoney(),
-    });
-    expect(
-      await refreshClaimedPayment(
-        completed.source,
-        LISTING_ID,
-        completed.dependencies,
-      ),
-    ).toMatchObject({ kind: "returned", posted: true });
-    expect(completed.claim.reviewChanges).toEqual([
-      new Map([[completed.reference.rowSessionIds[0]!, { kind: "resolved" }]]),
-    ]);
+    const completedReviewReasons = [
+      { kind: "partial_refund" },
+      { kind: "partially_returned_obligation" },
+    ] as const satisfies readonly PaymentReviewReason[];
+    for (const existingReview of completedReviewReasons) {
+      const completed = runHarness({
+        existingReview,
+        observed: fullyRefundedMoney(),
+      });
+      expect(
+        await refreshClaimedPayment(
+          completed.source,
+          LISTING_ID,
+          completed.dependencies,
+        ),
+      ).toMatchObject({ kind: "returned", posted: true });
+      expect(completed.claim.reviewChanges).toEqual([
+        new Map([
+          [
+            completed.reference.rowSessionIds[0]!,
+            { kind: "resolved", reason: existingReview.kind },
+          ],
+        ]),
+      ]);
+    }
 
     const unrelated = runHarness({
       existingReview: { kind: "shared_reference" },
@@ -268,9 +381,7 @@ describe("refresh payment under an attendee claim", () => {
   test("retains the claim while an observed refund is still settling", async () => {
     const run = runHarness({
       observed: chargeMoneyWith({
-        refunds: [
-          refundObservation({ amount: gbp(100), status: "pending" }),
-        ],
+        refunds: [refundObservation({ amount: gbp(100), status: "pending" })],
       }),
     });
 
