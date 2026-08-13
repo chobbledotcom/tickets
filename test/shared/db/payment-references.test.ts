@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { execute } from "#shared/db/client.ts";
+import { prepareAttendeePaymentAnchor } from "#shared/db/payment-anchor/attendee.ts";
 import { storePaymentReference } from "#shared/db/payment-reference-store.ts";
 import {
   attendeeIdsWithIndexedPaymentReferences,
@@ -88,16 +89,10 @@ describeWithEnv("db > payment references", { db: true }, () => {
     expect(markerCalls).toBe(1);
   });
 
-  test("does no database work for an empty refund identity", async () => {
+  test("does no database work when there are no returned references", async () => {
     expect(
       await countDatabaseCalls(0, () =>
-        markPaymentReferencesProviderRefunded([
-          refundReference("pi_empty_marker", {
-            index: "",
-            rowSessionIds: [],
-            sessionIds: [],
-          }),
-        ]),
+        markPaymentReferencesProviderRefunded([]),
       ),
     ).toBe(0);
   });
@@ -126,7 +121,7 @@ describeWithEnv("db > payment references", { db: true }, () => {
     ).toBe("completed");
   });
 
-  test("marks a returned payment by its index without a session", async () => {
+  test("marks a returned anchor by its index without a checkout session", async () => {
     const listing = await createTestListing({ maxAttendees: 50 });
     const created = await bookAttendee(listing, {
       email: "index-marker@example.com",
@@ -134,13 +129,17 @@ describeWithEnv("db > payment references", { db: true }, () => {
     });
     if (!created.success) throw new Error("setup failed");
     const attendeeId = created.attendees[0]!.id;
-    const sessionId = "sess_index_marker";
     const payment = taggedPaymentReference("pi_index_marker");
-    await finalizeProcessedPayment(sessionId, attendeeId, "", payment);
-    const reference = await readReference(payment, {
-      rowSessionIds: [],
-      sessionIds: [],
-    });
+    const statement = (await prepareAttendeePaymentAnchor(payment))(attendeeId);
+    await execute(statement.sql, statement.args);
+    const [reference] = await refundReferencesFor(
+      attendeeId,
+      await getTestPrivateKey(),
+    );
+    if (reference === undefined) throw new Error("anchor setup failed");
+
+    expect(reference.sessionIds).toEqual([]);
+    expect(reference.rowSessionIds).toHaveLength(1);
 
     await markPaymentReferencesProviderRefunded([reference]);
 

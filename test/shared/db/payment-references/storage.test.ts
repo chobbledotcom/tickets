@@ -73,8 +73,9 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
     expect(stored.encrypted).not.toContain(payment.reference);
     expect(stored.encrypted.startsWith(HYBRID_PREFIX)).toBe(true);
     expect(stored.encrypted.startsWith(ENCRYPTION_PREFIX)).toBe(false);
-    await expect(decrypt(stored.encrypted as EnvKeyEncrypted)).rejects
-      .toThrow();
+    await expect(
+      decrypt(stored.encrypted as unknown as EnvKeyEncrypted),
+    ).rejects.toThrow();
     expect(stored.index).toBe(await paymentReferenceIndex(payment));
     expect(
       await loadPaymentReference(
