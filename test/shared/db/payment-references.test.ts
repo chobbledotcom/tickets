@@ -11,6 +11,7 @@ import {
   legacyMergePaymentReferenceStatement,
   markPaymentReferencesProviderRefunded,
   stillWithTheProvider,
+  underRefundClaim,
 } from "#shared/db/payment-references.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
 import type { RefundState } from "#shared/payment/refund-state.ts";
@@ -352,5 +353,21 @@ describe("db > payment references > still with the provider", () => {
 
   test("nothing to refund is not still with the provider", () => {
     expect(stillWithTheProvider([])).toBe(false);
+  });
+});
+
+describe("db > payment references > refund claim", () => {
+  test("an unheld charge has no claim", () => {
+    expect(underRefundClaim([refundReference("pi_unheld")])).toBe(false);
+  });
+
+  test("any held row means the refund claim is live", () => {
+    expect(
+      underRefundClaim([
+        refundReference("pi_held", {
+          heldRowSessionIds: ["sess_pi_held"],
+        }),
+      ]),
+    ).toBe(true);
   });
 });

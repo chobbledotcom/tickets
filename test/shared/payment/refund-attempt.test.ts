@@ -4,8 +4,8 @@ import { stub } from "@std/testing/mock";
 import type { ProviderRead } from "#shared/payment/provider-read.ts";
 import {
   type RefundAttemptResult,
-  type RefundRequest,
   refundOutcomeAfterReread,
+  type RefundRequest,
 } from "#shared/payment/refund-attempt.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { PaymentProvider } from "#shared/payments.ts";
@@ -32,6 +32,11 @@ const uncertain = {
   reason: "network_error",
 } as const satisfies RefundAttemptResult;
 
+const rejected = {
+  kind: "rejected",
+  reason: "rejected",
+} as const satisfies RefundAttemptResult;
+
 const completedAfter = (charge: ChargeMoney): RefundAttemptResult => ({
   amount: request.charge.captured,
   kind: "completed",
@@ -55,10 +60,12 @@ describe("uncertain refund reread judgment", () => {
     });
   }
 
-  for (const [name, charge] of [
-    ["amount", chargeMoney(900, 900)],
-    ["currency", chargeMoney(1000, 1000, "USD")],
-  ] as const) {
+  for (
+    const [name, charge] of [
+      ["amount", chargeMoney(900, 900)],
+      ["currency", chargeMoney(1000, 1000, "USD")],
+    ] as const
+  ) {
     test(`refuses a fresh charge with a different captured ${name}`, () => {
       expect(judge({ resource: charge, status: "found" })).toEqual({
         kind: "uncertain",
@@ -67,20 +74,52 @@ describe("uncertain refund reread judgment", () => {
     });
   }
 
-  for (const [name, charge] of [
-    ["no refund", chargeMoney()],
-    [
-      "pending refund",
-      chargeMoneyWith({
-        captured: gbp(1000),
-        refunds: [refundObservation({ amount: gbp(1000), status: "pending" })],
-      }),
-    ],
-    ["partial refund", chargeMoney(1000, 400)],
-    ["over-refund", chargeMoney(1000, 1200)],
-  ] as const) {
+  for (
+    const [name, charge] of [
+      ["no refund", chargeMoney()],
+      [
+        "pending refund",
+        chargeMoneyWith({
+          captured: gbp(1000),
+          refunds: [
+            refundObservation({ amount: gbp(1000), status: "pending" }),
+          ],
+        }),
+      ],
+      ["partial refund", chargeMoney(1000, 400)],
+      ["over-refund", chargeMoney(1000, 1200)],
+    ] as const
+  ) {
     test(`preserves the uncertain answer after observing ${name}`, () => {
       expect(judge({ resource: charge, status: "found" })).toEqual(uncertain);
+    });
+  }
+});
+
+describe("rejected refund reread judgment", () => {
+  for (
+    const [name, freshCharge, reason] of [
+      ["missing", { status: "missing" }, "missing_documented_resource"],
+      [
+        "unavailable",
+        { reason: "timeout", status: "unavailable" },
+        "timeout",
+      ],
+      [
+        "invalid",
+        { reason: "malformed_money", status: "invalid" },
+        "malformed_money",
+      ],
+    ] as const satisfies readonly (readonly [
+      string,
+      ProviderRead<ChargeMoney>,
+      Extract<RefundAttemptResult, { kind: "uncertain" }>["reason"],
+    ])[]
+  ) {
+    test(`keeps the recovery target protected after a ${name} read`, () => {
+      expect(
+        refundOutcomeAfterReread({ attempt: rejected, freshCharge, request }),
+      ).toEqual({ kind: "uncertain", reason });
     });
   }
 });
@@ -124,10 +163,12 @@ const refundAfterRead = async (
   return { calls, result };
 };
 
-for (const adapter of [
-  { name: "Stripe", provider: stripePaymentProvider, sender: stripeApi },
-  { name: "Square", provider: squarePaymentProvider, sender: squareApi },
-] satisfies RereadAdapter[]) {
+for (
+  const adapter of [
+    { name: "Stripe", provider: stripePaymentProvider, sender: stripeApi },
+    { name: "Square", provider: squarePaymentProvider, sender: squareApi },
+  ] satisfies RereadAdapter[]
+) {
   describe(`${adapter.name} uncertain refund reread`, () => {
     test("completes when one immediate read proves the exact charge returned", async () => {
       const charge = chargeMoney(1000, 1000);
@@ -146,7 +187,6 @@ for (const adapter of [
 
     test("completes when a rejected send is visible in one immediate read", async () => {
       const charge = chargeMoney(1000, 1000);
-      const rejected = { kind: "rejected", reason: "rejected" } as const;
       expect(await refundAfterRead(adapter, charge, rejected)).toEqual({
         calls: ["send", "read"],
         result: completedAfter(charge),
@@ -154,27 +194,27 @@ for (const adapter of [
     });
 
     test("preserves a rejected send after one non-covering read", async () => {
-      const rejected = { kind: "rejected", reason: "rejected" } as const;
       expect(await refundAfterRead(adapter, chargeMoney(), rejected)).toEqual({
         calls: ["send", "read"],
         result: rejected,
       });
     });
 
-    for (const [state, charge] of [
-      [
-        "pending",
-        chargeMoneyWith({
-          captured: gbp(1000),
-          refunds: [
-            refundObservation({ amount: gbp(1000), status: "pending" }),
-          ],
-        }),
-      ],
-      ["partial", chargeMoney(1000, 400)],
-    ] as const) {
+    for (
+      const [state, charge] of [
+        [
+          "pending",
+          chargeMoneyWith({
+            captured: gbp(1000),
+            refunds: [
+              refundObservation({ amount: gbp(1000), status: "pending" }),
+            ],
+          }),
+        ],
+        ["partial", chargeMoney(1000, 400)],
+      ] as const
+    ) {
       test(`protects a rejected send after observing a ${state} refund`, async () => {
-        const rejected = { kind: "rejected", reason: "rejected" } as const;
         expect(await refundAfterRead(adapter, charge, rejected)).toEqual({
           calls: ["send", "read"],
           result: { kind: "uncertain", reason: "observed_refund" },
@@ -187,11 +227,13 @@ for (const adapter of [
       throw new Error("Completed refund fixture was not completed");
     }
     const accepted: RefundAttemptResult = { ...completed, kind: "accepted" };
-    for (const [state, answer] of [
-      ["accepted", accepted],
-      ["completed", completed],
-      ["not sent", { kind: "not_sent", reason: "not_configured" }],
-    ] as const satisfies readonly (readonly [string, RefundAttemptResult])[]) {
+    for (
+      const [state, answer] of [
+        ["accepted", accepted],
+        ["completed", completed],
+        ["not sent", { kind: "not_sent", reason: "not_configured" }],
+      ] as const satisfies readonly (readonly [string, RefundAttemptResult])[]
+    ) {
       test(`does not reread a provider answer that was ${state}`, async () => {
         expect(await refundAfterRead(adapter, chargeMoney(), answer)).toEqual({
           calls: ["send"],

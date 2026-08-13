@@ -37,9 +37,9 @@ export type RefundAttemptResult =
   | { kind: "rejected"; reason: RefundRejectionReason }
   | { kind: "not_sent"; reason: "not_configured" }
   | {
-      kind: "uncertain";
-      reason: RefundUncertaintyReason;
-    };
+    kind: "uncertain";
+    reason: RefundUncertaintyReason;
+  };
 
 /** The facts every adapter receives before it may ask for money to move. */
 export type RefundRequest = {
@@ -90,6 +90,19 @@ type RereadJudgment = (facts: {
   request: RefundRequest;
 }) => RefundAttemptResult;
 
+type UnreadCharge = Exclude<ProviderRead<ChargeMoney>, { status: "found" }>;
+
+/** A rejection covers the request, not a refund that raced it elsewhere. */
+const outcomeWithoutFreshCharge = (
+  attempt: RereadableRefundAttempt,
+  freshCharge: UnreadCharge,
+): RefundAttemptResult =>
+  attempt.kind === "uncertain" ? attempt : uncertainRefund(
+    freshCharge.status === "missing"
+      ? "missing_documented_resource"
+      : freshCharge.reason,
+  );
+
 const observedRefund = ({
   attempt,
 }: Parameters<RereadJudgment>[0]): RefundAttemptResult =>
@@ -113,7 +126,9 @@ export const refundOutcomeAfterReread = ({
   freshCharge,
   request,
 }: RefundReread): RefundAttemptResult => {
-  if (freshCharge.status !== "found") return attempt;
+  if (freshCharge.status !== "found") {
+    return outcomeWithoutFreshCharge(attempt, freshCharge);
+  }
   const charge = freshCharge.resource;
   if (!sameMoney(charge.captured, request.charge.captured)) {
     return uncertainRefund("mismatched_money");
