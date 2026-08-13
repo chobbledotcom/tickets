@@ -11,13 +11,17 @@ import { hasTicketQuantity } from "#shared/types.ts";
 
 type RefundCandidateAttendee = Pick<
   Attendee,
-  "id" | "pii_blob" | "quantity" | "refunded"
+  "id" | "payment_id" | "pii_blob" | "quantity" | "refunded"
 >;
 
 export type RefundCandidate = {
   attendee: RefundCandidateAttendee;
   references: RefundPaymentReference[];
 };
+
+export type RefundCandidateSet =
+  | { readonly candidates: RefundCandidate[]; readonly kind: "complete" }
+  | { readonly kind: "legacy_unindexed" };
 
 /** The exact attendee revision and payment rows the claim must verify. */
 export const loadedRefundAttendee = (
@@ -53,26 +57,37 @@ export const refundWorkRemains = (
 export const getRefundCandidates = async (
   attendees: readonly RefundCandidateAttendee[],
   privateKey: CryptoKey,
-): Promise<RefundCandidate[]> => {
+): Promise<RefundCandidateSet> => {
   const ticketHolders = uniqueBy(
     (attendee: RefundCandidateAttendee) => attendee.id,
   )(filter<RefundCandidateAttendee>(hasTicketQuantity)([...attendees]));
   const referencesByAttendee = await getRefundPaymentReferences(
-    ticketHolders,
+    ticketHolders.map((attendee) => ({
+      currentPaymentId: attendee.payment_id,
+      id: attendee.id,
+    })),
     privateKey,
   );
-  return filter(
-    (candidate: RefundCandidate) =>
-      candidate.references.length > 0 &&
-      refundWorkRemains(candidate.attendee, candidate.references),
-  )(
-    ticketHolders.map((attendee) => ({
-      attendee,
-      references: requiredMapValue(
-        referencesByAttendee,
-        attendee.id,
-        `Refund references omitted attendee ${attendee.id}`,
-      ),
-    })),
+  const referenceSets = ticketHolders.map((attendee) => ({
+    attendee,
+    set: requiredMapValue(
+      referencesByAttendee,
+      attendee.id,
+      `Refund references omitted attendee ${attendee.id}`,
+    ),
+  }));
+  const completeSets = referenceSets.flatMap(({ attendee, set }) =>
+    set.kind === "complete" ? [{ attendee, references: set.references }] : [],
   );
+  if (completeSets.length !== referenceSets.length) {
+    return { kind: "legacy_unindexed" };
+  }
+  return {
+    candidates: filter(
+      (candidate: RefundCandidate) =>
+        candidate.references.length > 0 &&
+        refundWorkRemains(candidate.attendee, candidate.references),
+    )(completeSets),
+    kind: "complete",
+  };
 };

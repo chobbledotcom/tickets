@@ -19,7 +19,6 @@ import {
   type PaymentRowSettlement,
   settleAttendeeRows,
 } from "#shared/db/payment-claim.ts";
-import { getRefundPaymentReferences } from "#shared/db/payment-references.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 import { mirrorFor } from "#shared/payment/admit-move.ts";
@@ -33,7 +32,7 @@ import type {
   RefundProviderCapability,
 } from "#shared/payment/row-state.ts";
 import { readRowState, writeRowState } from "#shared/payment/row-state.ts";
-import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { getCompleteRefundPaymentReferences } from "#test-utils/payment-references.ts";
 
 const SLOT = "processed_payments.failure_data";
 
@@ -61,10 +60,7 @@ export const claimCurrentAttendeeRows = async (
     id,
     payment_id: "",
   }));
-  const references = await getRefundPaymentReferences(
-    sources,
-    await getTestPrivateKey(),
-  );
+  const references = await getCompleteRefundPaymentReferences(sources);
   const loadedAttendees = sources.map(({ id }) => {
     const attendee = requiredMapValue(
       storedById,

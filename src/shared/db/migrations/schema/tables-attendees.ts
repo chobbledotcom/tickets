@@ -200,9 +200,11 @@ export const attendeeTables: [name: string, table: Table][] = [
         // the plain-text mirror of live work that SQL-only consumers (pruning,
         // orphan selection) can see without decrypting, and a blind one-way
         // index of the reference's identity so a claim can spot another row
-        // holding the same provider money. Empty on every older row; the
-        // reference index fills at write time for new rows and on first
-        // authenticated touch for older ones.
+        // holding the same provider money. Empty on every older row. New rows
+        // write it with the reference. Saving an old attendee may append an
+        // indexed anchor for the current PII payment id; it does not index
+        // distinct historical processed rows. Those remain blank and make
+        // refunds fail closed until the bounded owner-authenticated M11 copy.
         ["protected_state", "TEXT NOT NULL DEFAULT ''"],
         ["payment_reference_index", "TEXT NOT NULL DEFAULT ''"],
       ],

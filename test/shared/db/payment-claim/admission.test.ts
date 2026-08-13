@@ -18,6 +18,7 @@ import {
   reviewCase,
   rowStateSlot,
 } from "#test-utils/payment-claim.ts";
+import { requireCompleteRefundReferences } from "#test-utils/payment-references.ts";
 import {
   bookedWithPayment,
   finalizeProcessedPayment,
@@ -33,17 +34,19 @@ const loadedAttendee = async (
     "SELECT pii_blob FROM attendees WHERE id = ?",
     [attendeeId],
   );
-  const references = await getRefundPaymentReferences(
-    [{ id: attendeeId, payment_id: "" }],
+  const referenceSets = await getRefundPaymentReferences(
+    [{ currentPaymentId: "", id: attendeeId }],
     await getTestPrivateKey(),
   );
   return {
     attendeeId,
     loadedPiiBlob: attendee.pii_blob,
-    references: requiredMapValue(
-      references,
-      attendeeId,
-      `Attendee ${attendeeId}'s payment references were not loaded`,
+    references: requireCompleteRefundReferences(
+      requiredMapValue(
+        referenceSets,
+        attendeeId,
+        `Attendee ${attendeeId}'s payment references were not loaded`,
+      ),
     ),
   };
 };

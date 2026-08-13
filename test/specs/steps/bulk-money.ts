@@ -3,6 +3,7 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { execute } from "#shared/db/client.ts";
 import {
   acknowledgeFirstPaymentReview,
   contradictFirstPayment,
@@ -81,6 +82,20 @@ Given(
   },
 );
 
+Given(
+  "the first payment was stored before refund indexes existed",
+  async function (this: TicketsWorld): Promise<void> {
+    const [first] = requiredWorldValue(this.attendeeIds, "the people who paid");
+    if (first === undefined) throw new Error("Nobody paid first");
+    await execute(
+      `UPDATE processed_payments
+          SET payment_reference_index = ''
+        WHERE attendee_id = ?`,
+      [first],
+    );
+  },
+);
+
 When(
   "the organiser refunds everyone and the provider turns down the first",
   function (this: TicketsWorld): Promise<void> {
@@ -101,6 +116,16 @@ Then(
     expect(
       requiredWorldValue(this.bulkRefundMessage, "what the organiser was told"),
     ).toContain("needs an owner review");
+    expect(requiredWorldValue(this.refundCalls, "refund calls")()).toBe(0);
+  },
+);
+
+Then(
+  "Refund All stops because older payment history is incomplete",
+  function (this: TicketsWorld): void {
+    expect(
+      requiredWorldValue(this.bulkRefundMessage, "what the organiser was told"),
+    ).toContain("older payment history");
     expect(requiredWorldValue(this.refundCalls, "refund calls")()).toBe(0);
   },
 );

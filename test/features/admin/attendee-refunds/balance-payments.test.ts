@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
+import { execute } from "#shared/db/client.ts";
 import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
 import { getPaymentWorkStatus } from "#shared/db/payment-review.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
@@ -157,6 +158,23 @@ const setupSettledReservationRefundTest = async (): Promise<RefundCtx> => {
   return refundCtx(attendee, listing);
 };
 
+const expectIncompleteReservationHistoryRefused = async (
+  changeHistory: (ctx: RefundCtx) => Promise<void>,
+): Promise<void> => {
+  const ctx = await setupSettledReservationRefundTest();
+  await changeHistory(ctx);
+
+  await withRefundMock(refundCompletes, async (mockRefund) => {
+    const response = await submitRefund(ctx);
+    await expectFlashRedirect(
+      `/admin/attendees/${ctx.attendee.id}/actions`,
+      expect.stringContaining("older payment history"),
+      false,
+    )(response);
+    expect(mockRefund.calls).toEqual([]);
+  });
+};
+
 describeWithEnv("server (admin balance-payment refunds)", { db: true }, () => {
   describe("single attendee refund", () => {
     const errors = setupErrorSpy();
@@ -178,6 +196,26 @@ describeWithEnv("server (admin balance-payment refunds)", { db: true }, () => {
         expect(
           mockRefund.calls.map((call) => call.args[0].paymentReference).sort(),
         ).toEqual(SETTLED_RESERVATION_REFERENCES);
+      });
+    });
+
+    test("does not refund an indexed balance while an old deposit is unindexed", async () => {
+      await expectIncompleteReservationHistoryRefused(async () => {
+        await execute(
+          `UPDATE processed_payments
+              SET payment_reference_index = ''
+            WHERE payment_session_id = ?`,
+          ["reservation_deposit_session"],
+        );
+      });
+    });
+
+    test("does not refund an indexed balance while its PII-only deposit is unindexed", async () => {
+      await expectIncompleteReservationHistoryRefused(async () => {
+        await execute(
+          "DELETE FROM processed_payments WHERE payment_session_id = ?",
+          ["reservation_deposit_session"],
+        );
       });
     });
 

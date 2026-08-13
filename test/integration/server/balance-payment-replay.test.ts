@@ -81,12 +81,17 @@ describeWithEnv("server (balance payment replay)", { db: true }, () => {
       "#shared/db/payment-references.ts"
     );
     const { getTestPrivateKey } = await import("#test-utils/crypto.ts");
-    const references = (
-      await getRefundPaymentReferences(
-        [{ id: attendeeId, payment_id: "" }],
-        await getTestPrivateKey(),
-      )
-    ).get(attendeeId)!;
+    const { requireCompleteRefundReferences } = await import(
+      "#test-utils/payment-references.ts"
+    );
+    const references = requireCompleteRefundReferences(
+      (
+        await getRefundPaymentReferences(
+          [{ currentPaymentId: "", id: attendeeId }],
+          await getTestPrivateKey(),
+        )
+      ).get(attendeeId)!,
+    );
     expect(references.map((reference) => reference.reference)).toContain(
       `pi_${sessionId}`,
     );

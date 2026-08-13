@@ -2,9 +2,7 @@
 import type { Client, ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getRefundCandidates } from "#routes/admin/refunds/candidates.ts";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { setDb } from "#shared/db/client.ts";
+import { execute, setDb } from "#shared/db/client.ts";
 import { markPaymentReferencesProviderRefunded } from "#shared/db/payment-references.ts";
 import {
   getRefundAllSummary,
@@ -15,7 +13,6 @@ import {
   markAsRefunded,
   seedTaggedBatchAttendees,
 } from "#test/features/admin/refunds-helpers.ts";
-import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
@@ -28,17 +25,15 @@ import {
   rowStateSlot,
   UNRECORDED_MIRROR,
 } from "#test-utils/payment-claim.ts";
+import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
+import { getCompleteRefundCandidatesForListing } from "#test-utils/refund-candidates.ts";
 
 // jscpd:ignore-end
 
 const candidateFor = async (listingId: number, attendeeId: number) => {
-  const candidates = await getRefundCandidates(
-    await getAttendeesRaw(listingId),
-    await getTestPrivateKey(),
-  );
-  const candidate = candidates.find(
-    ({ attendee }) => attendee.id === attendeeId,
-  );
+  const candidate = (
+    await getCompleteRefundCandidatesForListing(listingId)
+  ).find(({ attendee }) => attendee.id === attendeeId);
   if (candidate === undefined) {
     throw new Error(`Attendee ${attendeeId} has no refund candidate`);
   }
@@ -84,6 +79,7 @@ describeWithEnv("db > Refund All candidates", { db: true }, () => {
       databaseReturning([
         resultWithRows([
           {
+            legacy_unindexed: 0,
             length: 3,
             owner_review: 0,
             total: 0,
@@ -123,6 +119,12 @@ describeWithEnv("db > Refund All candidates", { db: true }, () => {
       }),
       REVIEW_MIRROR,
     );
+    await execute(
+      `UPDATE processed_payments
+          SET payment_reference_index = ''
+        WHERE payment_session_id = ?`,
+      [paymentRowOf(settledCandidate)],
+    );
     expect(await getRefundAllSummary(listing.id)).toEqual({
       blockedBy: null,
       total: 1,
@@ -138,6 +140,37 @@ describeWithEnv("db > Refund All candidates", { db: true }, () => {
     );
     expect(await getRefundAllSummary(listing.id)).toEqual({
       blockedBy: "unrecorded_money",
+      total: 1,
+    });
+  });
+
+  test("blocks a mixed old and indexed payment history before selecting a batch", async () => {
+    const listing = await createPaidListing();
+    const attendee = await createPaidTestAttendee(
+      listing.id,
+      "Mixed Payment",
+      "mixed-payment@example.com",
+      "pi_old_unindexed",
+    );
+    const oldPayment = await candidateFor(listing.id, attendee.id);
+    await execute(
+      `UPDATE processed_payments
+          SET payment_reference_index = ''
+        WHERE payment_session_id = ?`,
+      [paymentRowOf(oldPayment)],
+    );
+    await finalizeProcessedPayment("new_indexed_payment", attendee.id, "", {
+      kind: "tagged",
+      provider: "stripe",
+      reference: "pi_new_indexed",
+    });
+
+    expect(await getRefundAllSummary(listing.id)).toEqual({
+      blockedBy: "legacy_unindexed",
+      total: 1,
+    });
+    expect(await loadRefundAllBatch(listing.id)).toMatchObject({
+      blockedBy: "legacy_unindexed",
       total: 1,
     });
   });

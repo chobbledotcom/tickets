@@ -9,12 +9,14 @@ import {
 import {
   getRefundPaymentReferences,
   legacyMergePaymentReferenceStatement,
+  type RefundPaymentReferenceSet,
 } from "#shared/db/payment-references.ts";
 import type { UntaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { requireCompleteRefundReferences } from "#test-utils/payment-references.ts";
 import {
   finalizeProcessedPayment,
   readReference,
@@ -34,6 +36,31 @@ const indexOf = (sessionId: string): Promise<{ value: string } | null> =>
       WHERE payment_session_id = ?`,
     [sessionId],
   );
+
+const completeReferencesFor = (
+  sets: ReadonlyMap<number, RefundPaymentReferenceSet>,
+  attendeeId: number,
+) => {
+  const set = sets.get(attendeeId);
+  if (set === undefined) throw new Error(`Attendee ${attendeeId} was omitted`);
+  return requireCompleteRefundReferences(set, `Attendee ${attendeeId}`);
+};
+
+const expectLegacyReferenceUnavailable = async (
+  attendeeId: number,
+  sessionId: string,
+): Promise<void> => {
+  const references = await getRefundPaymentReferences(
+    [{ currentPaymentId: "", id: attendeeId }],
+    await getTestPrivateKey(),
+  );
+
+  expect(references.get(attendeeId)).toEqual({ kind: "legacy_unindexed" });
+  expect(() => completeReferencesFor(references, attendeeId)).toThrow(
+    `Attendee ${attendeeId} is unexpectedly unindexed`,
+  );
+  expect(await indexOf(sessionId)).toEqual({ value: "" });
+};
 
 describeWithEnv("db > payment reference storage", { db: true }, () => {
   test("stores a tagged reference encrypted with its provider-aware index", async () => {
@@ -57,7 +84,7 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
     ).toEqual(new Map());
   });
 
-  test("ignores PII-only payment ids beside indexed rows", async () => {
+  test("refuses PII payment ids missing from indexed rows", async () => {
     const listing = await createTestListing({ maxAttendees: 50 });
     const first = await bookAttendee(listing, {
       email: "refs1@example.com",
@@ -77,21 +104,16 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
 
     const references = await getRefundPaymentReferences(
       [
-        { id: firstId, payment_id: "pi_legacy_ignored" },
-        { id: secondId, payment_id: "pi_legacy_used" },
-        { id: 9999, payment_id: "" },
+        { currentPaymentId: "pi_legacy_ignored", id: firstId },
+        { currentPaymentId: "pi_legacy_used", id: secondId },
+        { currentPaymentId: "", id: 9999 },
       ],
       await getTestPrivateKey(),
     );
 
-    expect(
-      references.get(firstId)?.map(({ kind, reference }) => ({
-        kind,
-        reference,
-      })),
-    ).toEqual([{ kind: "tagged", reference: "pi_recorded" }]);
-    expect(references.get(secondId)).toEqual([]);
-    expect(references.get(9999)).toEqual([]);
+    expect(references.get(firstId)).toEqual({ kind: "legacy_unindexed" });
+    expect(references.get(secondId)).toEqual({ kind: "legacy_unindexed" });
+    expect(completeReferencesFor(references, 9999)).toEqual([]);
   });
 
   test("does not duplicate a legacy id already present on a tagged row", async () => {
@@ -111,15 +133,17 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
     );
 
     const references = await getRefundPaymentReferences(
-      [{ id: attendeeId, payment_id: "pi_duplicate" }],
+      [{ currentPaymentId: "pi_duplicate", id: attendeeId }],
       await getTestPrivateKey(),
     );
 
     expect(
-      references.get(attendeeId)?.map(({ kind, reference }) => ({
-        kind,
-        reference,
-      })),
+      completeReferencesFor(references, attendeeId).map(
+        ({ kind, reference }) => ({
+          kind,
+          reference,
+        }),
+      ),
     ).toEqual([{ kind: "tagged", reference: "pi_duplicate" }]);
   });
 
@@ -229,18 +253,7 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
       ],
     );
 
-    const references = await getRefundPaymentReferences(
-      [{ id: attendeeId, payment_id: "" }],
-      await getTestPrivateKey(),
-    );
-
-    expect(
-      references.get(attendeeId)?.map(({ kind, reference }) => ({
-        kind,
-        reference,
-      })),
-    ).toEqual([]);
-    expect(await indexOf("sess_plain_ref")).toEqual({ value: "" });
+    await expectLegacyReferenceUnavailable(attendeeId, "sess_plain_ref");
   });
 
   test("reads a durable indexed plaintext reference", async () => {
@@ -293,13 +306,7 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
       ["sess_unindexed"],
     );
 
-    const references = await getRefundPaymentReferences(
-      [{ id: attendeeId, payment_id: "" }],
-      await getTestPrivateKey(),
-    );
-
-    expect(references.get(attendeeId)).toEqual([]);
-    expect(await indexOf("sess_unindexed")).toEqual({ value: "" });
+    await expectLegacyReferenceUnavailable(attendeeId, "sess_unindexed");
   });
 
   test("refuses a stored row whose reference index does not match", async () => {
@@ -326,7 +333,7 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
 
     await expect(
       getRefundPaymentReferences(
-        [{ id: attendeeId, payment_id: "" }],
+        [{ currentPaymentId: "", id: attendeeId }],
         await getTestPrivateKey(),
       ),
     ).rejects.toThrow(

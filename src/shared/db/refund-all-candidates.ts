@@ -25,7 +25,11 @@ export type RefundAllCandidateAttendee = {
 };
 
 export type RefundAllSummary = {
-  readonly blockedBy: "owner_review" | "unrecorded_money" | null;
+  readonly blockedBy:
+    | "legacy_unindexed"
+    | "owner_review"
+    | "unrecorded_money"
+    | null;
   readonly total: number;
 };
 
@@ -34,6 +38,7 @@ export type RefundAllBatch = RefundAllSummary & {
 };
 
 type RefundAllSummaryRow = {
+  legacy_unindexed: number;
   owner_review: number;
   total: number;
   unrecorded_money: number;
@@ -55,7 +60,7 @@ const anchorSession = paymentAnchorSessionCondition(
   "payment.payment_session_id",
 );
 
-/** Indexed payment facts for real ticket holders on one listing. */
+/** Payment facts for real ticket holders on one listing. */
 const refundCandidateCtes = (): string => `
   WITH bookingAttendee AS (
     SELECT attendee.id,
@@ -81,13 +86,17 @@ const refundCandidateCtes = (): string => `
            MAX(CASE WHEN payment.protected_state = 'review' THEN 1 ELSE 0 END)
              AS needs_review,
            MAX(CASE WHEN payment.protected_state = 'unrecorded' THEN 1 ELSE 0 END)
-             AS needs_money_record
+             AS needs_money_record,
+           MAX(CASE WHEN payment.payment_reference_index = '' THEN 1 ELSE 0 END)
+             AS legacy_unindexed
       FROM processed_payments AS payment
       JOIN bookingAttendee AS attendee
         ON attendee.id = payment.attendee_id
      WHERE payment.payment_reference != ''
-       AND payment.payment_reference_index != ''
-     GROUP BY payment.attendee_id, payment.payment_reference_index
+     GROUP BY payment.attendee_id,
+              payment.payment_reference_index,
+              CASE WHEN payment.payment_reference_index = ''
+                   THEN payment.payment_session_id ELSE '' END
   ),
   paymentAttendee AS (
     SELECT paymentReference.attendee_id,
@@ -95,6 +104,7 @@ const refundCandidateCtes = (): string => `
            MAX(paymentReference.has_claim) AS has_claim,
            MAX(paymentReference.needs_review) AS needs_review,
            MAX(paymentReference.needs_money_record) AS needs_money_record,
+           MAX(paymentReference.legacy_unindexed) AS legacy_unindexed,
            MAX(
              CASE WHEN paymentReference.is_current = 1
                         AND paymentReference.completed = 0
@@ -113,6 +123,7 @@ const refundCandidateCtes = (): string => `
            attendee.pii_blob,
            attendee.refunded,
            payment.has_claim,
+           payment.legacy_unindexed,
            payment.needs_review,
            payment.needs_money_record
       FROM bookingAttendee AS attendee
@@ -127,6 +138,8 @@ const summaryStatement = (listingId: number): SqlStatement => ({
   args: [listingId],
   sql: `${refundCandidateCtes()}
     SELECT COUNT(*) AS total,
+           COALESCE(MAX(refundable.legacy_unindexed), 0)
+             AS legacy_unindexed,
            COALESCE(MAX(refundable.needs_review), 0) AS owner_review,
            COALESCE(MAX(refundable.needs_money_record), 0)
              AS unrecorded_money
@@ -151,7 +164,9 @@ const readSummary = (result: ResultSet): RefundAllSummary => {
     ? "unrecorded_money"
     : row.owner_review
       ? "owner_review"
-      : null;
+      : row.legacy_unindexed
+        ? "legacy_unindexed"
+        : null;
   return { blockedBy, total: Number(row.total) };
 };
 

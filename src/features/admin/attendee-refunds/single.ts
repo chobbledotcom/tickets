@@ -51,14 +51,18 @@ const whatIsLeftToRefund = async (
   if (workReason[work] !== null) {
     return { kind: "unsafe", reason: workReason[work] };
   }
-  const references = requiredMapValue(
+  const referenceSet = requiredMapValue(
     await getRefundPaymentReferences(
-      [attendee],
+      [{ currentPaymentId: attendee.payment_id, id: attendee.id }],
       await requireRequestPrivateKey(),
     ),
     attendee.id,
     `No refund references read for attendee ${attendee.id}`,
   );
+  if (referenceSet.kind === "legacy_unindexed") {
+    return { kind: "unsafe", reason: t("error.payment_history_incomplete") };
+  }
+  const references = referenceSet.references;
   // A part refund still leaves money to send back, while a leftover hold still
   // needs a run to remove it. Use the same rule as the bulk candidate list.
   if (!refundWorkRemains(attendee, references)) {

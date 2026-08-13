@@ -11,7 +11,6 @@ import { requiredMapValue, unique } from "#fp";
 import {
   execute,
   inPlaceholders,
-  queryAll,
   type SqlStatement,
 } from "#shared/db/client.ts";
 import { paymentAnchorReference } from "#shared/db/payment-anchor/reference.ts";
@@ -19,6 +18,11 @@ import {
   isAnchorSession,
   legacyMergeSessionId,
 } from "#shared/db/payment-anchor/session.ts";
+import {
+  loadSelectedPaymentReferenceRows,
+  type PaymentReferenceRow,
+  querySelectedPaymentReferenceRows,
+} from "#shared/db/payment-reference-rows.ts";
 import {
   loadIndexedPaymentReference,
   matchingPaymentReferenceIndexes,
@@ -39,7 +43,12 @@ export type RefundPaymentReferenceSource = {
   payment_id: string;
 };
 
-type IndexedPaymentReferenceOwner = Pick<RefundPaymentReferenceSource, "id">;
+/** The decrypted current PII identity supplied at refund admission. Naming it
+ * differently keeps raw attendee rows from satisfying this boundary. */
+export type RefundPaymentReferenceOwner = {
+  readonly currentPaymentId: string;
+  readonly id: number;
+};
 
 type RefundPaymentReferenceFacts = {
   /** The rows carrying this charge that a refund run is still holding. A run
@@ -63,6 +72,13 @@ export type RefundPaymentReference =
   | (RefundPaymentReferenceFacts & TaggedPaymentReference)
   | (RefundPaymentReferenceFacts & UntaggedPaymentReference);
 
+/** One attendee's complete refundable identities, or proof that old rows make
+ * the set incomplete. No caller may receive the visible subset in the latter
+ * case. */
+export type RefundPaymentReferenceSet =
+  | { readonly kind: "complete"; readonly references: RefundPaymentReference[] }
+  | { readonly kind: "legacy_unindexed" };
+
 /** Keep the final loaded facts for each stable payment identity. */
 export const paymentReferencesByIndex = <
   Reference extends { readonly index: string },
@@ -74,15 +90,6 @@ export const paymentReferencesByIndex = <
       .flatMap(({ references }) => references)
       .map((reference) => [reference.index, reference]),
   );
-
-type PaymentReferenceRow = {
-  attendee_id: number;
-  payment_reference: string;
-  payment_reference_index: string;
-  payment_session_id: string;
-  protected_state: string;
-  provider_refunded_at: string;
-};
 
 type PaymentReferenceAttendeeRow = {
   attendee_id: number;
@@ -107,31 +114,20 @@ const queryProcessedReferences = <Row>(
   attendeeIds: readonly number[],
   select: string,
   suffix = "",
-): Promise<Row[]> => {
-  if (attendeeIds.length === 0) return Promise.resolve([]);
-  return queryAll<Row>(
-    `SELECT ${select}
+): Promise<Row[]> =>
+  querySelectedPaymentReferenceRows<Row>(
+    attendeeIds,
+    (idSlots) =>
+      `SELECT ${select}
            FROM processed_payments
-          WHERE attendee_id IN (${inPlaceholders(attendeeIds)})
+          WHERE attendee_id IN (${idSlots})
             AND payment_reference != ''
             AND payment_reference_index != ''
           ${suffix}`,
-    [...attendeeIds],
-  );
-};
-
-const paymentReferencesForIds = (
-  attendeeIds: readonly number[],
-): Promise<PaymentReferenceRow[]> =>
-  queryProcessedReferences(
-    attendeeIds,
-    `attendee_id, payment_session_id, payment_reference,
-     payment_reference_index, protected_state, provider_refunded_at`,
-    "ORDER BY attendee_id, processed_at, payment_session_id",
   );
 
 const attendeeIdsOf = (
-  attendees: readonly IndexedPaymentReferenceOwner[],
+  attendees: readonly { readonly id: number }[],
 ): number[] => attendees.map((attendee) => attendee.id);
 
 /** Attendees that have a durable indexed provider-payment row. */
@@ -200,15 +196,16 @@ const asRefundReferences = async (
 
 /**
  * Refundable provider references for each attendee. New processed_payments rows
- * carry per-session references. Old PII-only references become refundable only
- * after an attendee save materializes their durable indexed anchor.
+ * carry per-session references. An old PII-only reference becomes refundable
+ * only after an attendee save materializes that one durable indexed anchor.
+ * Other unindexed historical rows make the whole attendee set unavailable.
  */
 export const getRefundPaymentReferences = async <
-  Owner extends IndexedPaymentReferenceOwner,
+  Owner extends RefundPaymentReferenceOwner,
 >(
   attendees: readonly Owner[],
   privateKey: CryptoKey,
-): Promise<Map<number, RefundPaymentReference[]>> => {
+): Promise<Map<number, RefundPaymentReferenceSet>> => {
   if (attendees.length === 0) return new Map();
   const byAttendee = new Map(
     attendees.map((attendee) => [
@@ -216,8 +213,19 @@ export const getRefundPaymentReferences = async <
       new Map<string, ReferenceProgress>(),
     ]),
   );
-  const rows = await paymentReferencesForIds(attendeeIdsOf(attendees));
+  const rows = await loadSelectedPaymentReferenceRows(attendeeIdsOf(attendees));
+  const incompleteAttendeeIds = new Set(
+    rows
+      .filter((row) => Number(row.unindexed_history) === 1)
+      .map((row) => Number(row.attendee_id)),
+  );
   for (const row of rows) {
+    if (
+      Number(row.unindexed_history) === 1 ||
+      incompleteAttendeeIds.has(Number(row.attendee_id))
+    ) {
+      continue;
+    }
     const { index, payment } = await loadIndexedPaymentReference(
       row,
       privateKey,
@@ -236,28 +244,39 @@ export const getRefundPaymentReferences = async <
   return new Map(
     await Promise.all(
       attendees.map(
-        async (attendee): Promise<[number, RefundPaymentReference[]]> => [
-          attendee.id,
-          await asRefundReferences(
+        async (attendee): Promise<[number, RefundPaymentReferenceSet]> => {
+          if (incompleteAttendeeIds.has(attendee.id)) {
+            return [attendee.id, { kind: "legacy_unindexed" }];
+          }
+          const references = await asRefundReferences(
             requiredMapValue(
               byAttendee,
               attendee.id,
               `Refund references for attendee ${attendee.id} were not loaded`,
             ),
-          ),
-        ],
+          );
+          if (
+            attendee.currentPaymentId !== "" &&
+            !references.some(
+              (reference) => reference.reference === attendee.currentPaymentId,
+            )
+          ) {
+            return [attendee.id, { kind: "legacy_unindexed" }];
+          }
+          return [attendee.id, { kind: "complete", references }];
+        },
       ),
     ),
   );
 };
 
-/** The refund payment references for one attendee (never null). */
+/** The complete refund set or old-history refusal for one attendee. */
 export const getRefundPaymentReferencesForAttendee = async <
-  Owner extends IndexedPaymentReferenceOwner,
+  Owner extends RefundPaymentReferenceOwner,
 >(
   attendee: Owner,
   privateKey: CryptoKey,
-): Promise<RefundPaymentReference[]> =>
+): Promise<RefundPaymentReferenceSet> =>
   requiredMapValue(
     await getRefundPaymentReferences([attendee], privateKey),
     attendee.id,

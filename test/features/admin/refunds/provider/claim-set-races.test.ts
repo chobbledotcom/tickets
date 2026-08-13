@@ -13,6 +13,7 @@ import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { releaseClaimRows } from "#test-utils/payment-claim.ts";
+import { requireCompleteRefundReferences } from "#test-utils/payment-references.ts";
 import {
   bookedWithPayment,
   finalizeProcessedPayment,
@@ -31,9 +32,11 @@ const withStoredRevision = async (
       )
     ).pii_blob,
   } as Attendee,
-  references: await getRefundPaymentReferencesForAttendee(
-    attendee,
-    await getTestPrivateKey(),
+  references: requireCompleteRefundReferences(
+    await getRefundPaymentReferencesForAttendee(
+      { currentPaymentId: attendee.payment_id, id: attendee.id },
+      await getTestPrivateKey(),
+    ),
   ),
 });
 
@@ -127,6 +130,31 @@ describeWithEnv(
         attendeeId,
         "tok-added",
         taggedPaymentReference("pi_added_before_claim"),
+      );
+
+      await expectRunStandsDown(candidate, 7);
+    });
+
+    test("does not refund when unindexed history appears after loading", async () => {
+      const attendeeId = await bookedWithPayment(
+        "sess_indexed_before_history",
+        "pi_indexed_before_history",
+      );
+      const candidate = await withStoredRevision({
+        id: attendeeId,
+        payment_id: "",
+      });
+      await finalizeProcessedPayment(
+        "sess_unindexed_after_load",
+        attendeeId,
+        "tok-unindexed",
+        taggedPaymentReference("pi_unindexed_after_load"),
+      );
+      await execute(
+        `UPDATE processed_payments
+            SET payment_reference_index = ''
+          WHERE payment_session_id = ?`,
+        ["sess_unindexed_after_load"],
       );
 
       await expectRunStandsDown(candidate, 7);

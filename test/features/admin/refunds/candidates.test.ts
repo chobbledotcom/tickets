@@ -9,11 +9,8 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getRefundCandidates } from "#routes/admin/refunds/candidates.ts";
-import {
-  getRefundPaymentReferencesForAttendee,
-  markPaymentReferencesProviderRefunded,
-} from "#shared/db/payment-references.ts";
+import { execute } from "#shared/db/client.ts";
+import { markPaymentReferencesProviderRefunded } from "#shared/db/payment-references.ts";
 import type { Attendee } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -27,10 +24,12 @@ import {
   freshClaimSlot,
   putRowState,
 } from "#test-utils/payment-claim.ts";
+import { getCompleteRefundPaymentReferencesForAttendee } from "#test-utils/payment-references.ts";
 import {
   finalizeProcessedPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
+import { getCompleteRefundCandidates } from "#test-utils/refund-candidates.ts";
 
 /** An attendee whose one charge the provider has already returned, so nothing
  *  is still out and their row reads refunded. */
@@ -52,10 +51,7 @@ const alreadyReturned = async (
     taggedPaymentReference(reference),
   );
   await markPaymentReferencesProviderRefunded(
-    await getRefundPaymentReferencesForAttendee(
-      attendee,
-      await getTestPrivateKey(),
-    ),
+    await getCompleteRefundPaymentReferencesForAttendee(attendee),
   );
   return { ...attendee, refunded: true };
 };
@@ -70,7 +66,7 @@ const holdRow = async (
 };
 
 const candidateIds = async (attendees: Attendee[]): Promise<number[]> =>
-  (await getRefundCandidates(attendees, await getTestPrivateKey())).map(
+  (await getCompleteRefundCandidates(attendees, await getTestPrivateKey())).map(
     (candidate) => candidate.attendee.id,
   );
 
@@ -131,5 +127,22 @@ describeWithEnv("admin refunds > who a run picks up", { db: true }, () => {
         peer,
       ]),
     ).toEqual([repeated.id, peer.id]);
+  });
+
+  test("refuses to turn incomplete old payment history into candidates", async () => {
+    const attendee = await refundableAttendee(
+      "sess_unindexed_candidate",
+      "pi_unindexed_candidate",
+    );
+    await execute(
+      `UPDATE processed_payments
+          SET payment_reference_index = ''
+        WHERE payment_session_id = ?`,
+      ["sess_unindexed_candidate"],
+    );
+
+    await expect(candidateIds([attendee])).rejects.toThrow(
+      "Test refund candidates contain unindexed payment history",
+    );
   });
 });

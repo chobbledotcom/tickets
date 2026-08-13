@@ -140,8 +140,7 @@ const readClaimableRows = async (
   const own = await readPaymentClaimRows(
     tx,
     `attendee_id IN (${inPlaceholders(attendeeIds)})
-       AND payment_reference != ''
-       AND payment_reference_index != ''`,
+       AND payment_reference != ''`,
     [...attendeeIds],
   );
   const indexes = [...new Set(matchingIndexes)].filter((index) => index !== "");

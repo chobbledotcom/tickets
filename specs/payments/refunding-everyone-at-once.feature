@@ -42,3 +42,19 @@ Feature: An organiser refunds everyone on a listing
       Then Refund All stops before asking the provider to return money
       And all 2 people still have their payments
       And the Tour has earned 100.00
+
+  @rule:payments.refund-all-requires-the-complete-payment-history
+  @surface:admin
+  Rule: Refund All stops when an older payment cannot join the refund set
+    A payment row from before refund indexes existed proves that the visible
+    references may be incomplete. The site returns no money until the old
+    history can be migrated safely.
+
+    @case:bulk-refund.unindexed-history-stops-every-send
+    Scenario: One old unindexed payment stops every send
+      Given 2 people each paid 50.00 for a Tour place
+      And the first payment was stored before refund indexes existed
+      When the organiser tries to refund everyone
+      Then Refund All stops because older payment history is incomplete
+      And all 2 people still have their payments
+      And the Tour has earned 100.00

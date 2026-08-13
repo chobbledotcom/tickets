@@ -2060,17 +2060,19 @@ not touch `src/`.
 M4 Part A made one interactive request safe and bounded. `getRefundAllSummary`
 (`src/shared/db/refund-all-candidates.ts`) checks the whole listing through
 indexed, PII-free facts and refuses a visible review or unrecorded-money blocker
-on any attendee who is still part of the refundable set. The blocker check runs
+on any attendee who is still part of the refundable set, and also refuses a
+non-empty processed reference whose blind index is blank. The blocker check runs
 before paging, so an unsafe candidate beyond the first five still closes the
 command. A settled non-candidate's independently protected work does not strand
 an unrelated refund. `loadRefundAllBatch` then selects at most five people, with
 claimed work first; the exact claim decision later distinguishes a live run from
-recoverable stale work. Only those PII blobs are decrypted. The exact selected
-page goes through the same claim and physical provider/database budget as a
-single refund. It either refuses before fresh provider I/O or processes that
-page and reports how many candidates remain. Another form submission takes the
-next page. Five is both the interactive page size and the provider-overlap
-ceiling.
+recoverable stale work. Only those PII blobs are decrypted. Typed admission also
+refuses a selected person's current PII payment id when no indexed row carries
+it. The exact selected page goes through the same claim and physical
+provider/database budget as a single refund. It either refuses before fresh
+provider I/O or processes that page and reports how many candidates remain.
+Another form submission takes the next page. Five is both the interactive page
+size and the provider-overlap ceiling.
 
 What remains is durability of the WHOLE-LISTING intention. A crash after page
 one leaves every untouched attendee discoverable, but no stored job says that
@@ -2081,6 +2083,32 @@ past terminal items; transient failures stay due, permanent refusals become
 owner work, and a visible job always names the unprocessed remainder. Reuse M4's
 summary, exact page claim, budget checkpoints, and settlement; do not add a
 second bulk engine or a generic clear that discards money facts.
+
+## Migrate pre-index refund references before restoring their admin actions
+
+_Origin: Codex review on PR #2065, `src/shared/db/payment-references.ts`._
+
+The payment-state column migration cannot derive blind indexes without the
+owner's private key, so old processed rows retain
+`payment_reference_index = ''`. M4 now returns `legacy_unindexed`, rather than
+the visible indexed subset, when a selected attendee has one of those rows or a
+current PII payment id with no indexed identity. Single Refund, Refresh, and the
+selected Refund All page refuse before provider I/O; Refund All's PII-free
+summary blocks SQL-visible unindexed history before paging, and the claim fence
+catches an unindexed row appearing after admission. A PII-only attendee with no
+reference-bearing row is not visible to Refund All's SQL summary; Single Refund
+and Refresh refuse it, while M11 must migrate it without adding a population
+decrypt to the interactive command.
+
+M11 must clear this compatibility boundary through its bounded,
+owner-authenticated migration. It must copy every available distinct historical
+deposit, balance, merge, session, and PII-only reference into owner-encrypted
+canonical evidence plus blind indexes, without persisting raw references,
+private-key material, or decrypted PII in progress state. Saving an attendee is
+not this migration: it anchors only the current PII payment id. A distinct
+reference absent from every retained source cannot be reconstructed; preserve
+that missing-evidence conflict for a required owner decision rather than
+inventing an identity.
 
 ## A merge can delete the source before the answers and PII are saved
 

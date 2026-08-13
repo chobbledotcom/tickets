@@ -357,17 +357,33 @@ As-built module map:
   that this slice cannot read.
 - **Reference identity and storage.** Migration
   `2026-08-10_payment_state_columns.ts`, `tables-attendees.ts`,
-  `db/payment-reference-store.ts`, `db/payment-references.ts`,
+  `db/payment-reference-store.ts`, `db/payment-reference-rows.ts`,
+  `db/payment-references.ts`,
   `db/payment-anchor/{reference,session,attendee}.ts`, and
   `db/attendees/pii-write.ts` keep a new raw reference under the owner key and a
   DB-keyed blind equality index beside it. `protected_state` is only a plaintext
-  state word. Old PII-only or unindexed references gain an anchor only when that
-  attendee is saved; refund reads never scan or decrypt the attendee table and
-  never repair unrelated people as a side effect. Until then, those older
-  payments have less refund functionality by design. Anchoring is append-only
-  and idempotent: re-saving does not duplicate an identity, changing the legacy
-  PII payment id preserves the earlier indexed identity, and an existing current
-  indexed checkout row suppresses a redundant anchor.
+  state word. `getRefundPaymentReferences` accepts an explicitly named,
+  decrypted `currentPaymentId` and returns the exhaustive
+  `complete | legacy_unindexed` `RefundPaymentReferenceSet`; it never exposes
+  only the indexed subset. Its SQL names only the selected attendee ids. A
+  non-empty historical `processed_payments.payment_reference` with a blank
+  `payment_reference_index`, or a current PII payment id absent from that
+  attendee's indexed identities, makes the attendee `legacy_unindexed` before
+  provider I/O. Once an unindexed row is found, its reference is not decrypted.
+
+  Saving an attendee appends an owner-encrypted indexed anchor only for that
+  attendee's current PII payment id. It does not index or rewrite distinct
+  historical deposit, balance, merge, or session rows. A PII-only current id can
+  therefore become usable after save; a distinct old processed row remains
+  unavailable until M11. Anchoring is append-only and idempotent: re-saving does
+  not duplicate an identity, changing the legacy PII payment id preserves the
+  earlier indexed identity, and an existing current indexed checkout row
+  suppresses a redundant anchor. `legacy_unindexed` is a derived compatibility
+  refusal, not persisted work, and neither acknowledgement nor a generic clear
+  retires it. Historical application behavior never assigned one payment ID to
+  separate attendees, so this path does not scan or decrypt unrelated attendee
+  PII for hypothetical old sharing; indexed representations and merges still
+  expand by blind identity.
 - **Provider ownership.** `payment/provider-discovery.ts`,
   `db/payment-reference-provider.ts`, and
   `features/admin/refunds/{readiness,readiness-findings,readiness-problem,ready-admission,readiness-run}.ts`
@@ -396,27 +412,30 @@ As-built module map:
 - **Exact claims and retry capability.**
   `payment/{row-state,claim,review,admit-move}.ts`,
   `db/payment-claim{,/scope,/take}.ts`, `db/payment-refund-dispatch.ts`, and
-  `features/admin/refunds/{claim,dispatch,provider-reviews}.ts` claim all and
-  only the indexed rows for the command. The transaction fences each attendee's
-  exact `pii_blob` revision and exact `(attendee, session, reference index)`
-  set, expands matching indexed representations, and preserves the initiating
-  attendee scope after a merge. The claim phases
-  `checking -> ready ->
-  send_armed` make the final all-row transaction the
-  only source of typed send permits. Stripe and Square declare `keyed`; SumUp
-  declares `keyless`. The claim lease is the larger of reservation staleness and
-  a five-minute minimum, so an operator cannot tune a live request into a stale
-  claim. Stale `checking` or `ready` work restarts at `checking`; only stale
-  `send_armed` work inherits possible provider doubt. A stale keyed armed call
-  can repeat the exact idempotent request. A stale keyless armed call may only
-  be observed and, while settlement is unproved, becomes explicit
-  `uncertain_keyless_refund` work rather than risking a second payout.
-  Settlement matches the exact command id, lease time, and current row phase, so
-  a stalled predecessor cannot release a successor's claim. Paid-balance
-  completion uses `db/payment-finalize.ts:balanceFinalizeStatements`, whose
-  transaction guard aborts while an admin refund claim holds that attendee; the
-  callback retries instead of racing a booking-finalization write against money
-  leaving.
+  `features/admin/refunds/{claim,dispatch,provider-reviews}.ts` admit only a
+  complete indexed set. Inside the claim transaction, the command rereads every
+  non-empty reference row owned by the selected attendees, including blank-index
+  rows, plus indexed sharing rows. A blank-index row present at initial load
+  yields `legacy_unindexed`; one that appears between load and claim makes the
+  exact row-set comparison return `changed`. Neither path can mint a send
+  permit. The transaction also fences each attendee's exact `pii_blob` revision
+  and exact `(attendee, session, reference index)` set, expands matching indexed
+  representations, and preserves the initiating attendee scope after a merge.
+  The claim progresses from `checking` to `ready` to `send_armed`; the final
+  all-row transaction is the only source of typed send permits. Stripe and
+  Square declare `keyed`; SumUp declares `keyless`. The claim lease is the
+  larger of reservation staleness and a five-minute minimum, so an operator
+  cannot tune a live request into a stale claim. Stale `checking` or `ready`
+  work restarts at `checking`; only stale `send_armed` work inherits possible
+  provider doubt. A stale keyed armed call can repeat the exact idempotent
+  request. A stale keyless armed call may only be observed and, while settlement
+  is unproved, becomes explicit `uncertain_keyless_refund` work rather than
+  risking a second payout. Settlement matches the exact command id, lease time,
+  and current row phase, so a stalled predecessor cannot release a successor's
+  claim. Paid-balance completion uses
+  `db/payment-finalize.ts:balanceFinalizeStatements`, whose transaction guard
+  aborts while an admin refund claim holds that attendee; the callback retries
+  instead of racing a booking-finalization write against money leaving.
 - **Bounded orchestration.**
   `features/admin/refunds/{attempt,budget,candidates,claim,dispatch,provider,provider-requests,readiness-run,waves}.ts`,
   `subrequest-budget.ts`, and `db/client.ts` price physical provider retries,
@@ -434,21 +453,30 @@ As-built module map:
   and flushes the queue even on a throw, so diagnostics cannot consume the
   subrequests reserved for settlement or rollback.
 - **Refund All admission.** `db/refund-all-candidates.ts` first computes a
-  PII-free whole-listing count and detects any visible `review` or `unrecorded`
-  blocker among that same complete refundable set. Settled non-candidates keep
-  their own protection and repair state but cannot strand an unrelated refund.
-  The summary runs before the five-person limit, so a blocker on any refundable
-  candidate still refuses the whole command. It then loads and decrypts at most
-  five candidate PII blobs, with existing claims first, and passes exactly that
-  page through the same claim and budget admission as a single refund.
-  `features/admin/refunds/candidates.ts:getRefundCandidates` drops quantity-zero
-  rows and deduplicates by attendee before loading references, so several
-  booking rows for one person consume one place, one tally, and one
-  orchestration run. One submission retires at most five people and reports the
-  remaining count; another submission takes the next page. Five is therefore
-  both the interactive page size and provider overlap ceiling. M7 still owns a
-  durable cursor/job that remembers and resumes the operator's whole-listing
-  intention after a crash.
+  PII-free whole-listing count and detects any visible `review`, `unrecorded`,
+  or blank-index processed-payment blocker among that same complete refundable
+  set. Settled non-candidates keep their own protection and repair state but
+  cannot strand an unrelated refund. The summary runs before the five-person
+  limit, so any SQL-visible blocker on a refundable candidate refuses the whole
+  command. It then loads and decrypts at most five candidate PII blobs, with
+  existing claims first. Typed candidate admission catches a current PII payment
+  id with no indexed identity and a row that appears after the summary; one
+  incomplete attendee rejects the selected page before provider I/O. This
+  catches a PII-only old charge beside an indexed charge because the indexed
+  sibling puts the attendee on the page. A PII-only attendee with no
+  reference-bearing row is absent from the PII-free Refund All set and cannot be
+  discovered there without the forbidden population decrypt; Single Refund and
+  Refresh still refuse that attendee directly. M11 removes this deliberate
+  compatibility limit rather than broadening an interactive request. The
+  complete selected page passes through the same claim and budget admission as a
+  single refund. `features/admin/refunds/candidates.ts:getRefundCandidates`
+  drops quantity-zero rows and deduplicates by attendee before loading
+  references, so several booking rows for one person consume one place, one
+  tally, and one orchestration run. One submission retires at most five people
+  and reports the remaining count; another submission takes the next page. Five
+  is therefore both the interactive page size and provider overlap ceiling. M7
+  still owns a durable cursor/job that remembers and resumes the operator's
+  whole-listing intention after a crash.
 - **Money settlement.** `shared/accounting/{queries,store}.ts`,
   `shared/refund-ledger/{plan,result,record,log}.ts`, and
   `features/admin/refunds/{ledger-findings,result-findings,provider,claim,refresh}.ts`
@@ -555,15 +583,23 @@ As-built module map:
   They submit the rendered forms and cross the real provider and ledger
   boundaries; the recovery story also merges onto a target with blank legacy
   PII, refreshes without a second provider send, and proves deletion becomes
-  reachable.
+  reachable. `refunding-everyone-at-once.feature` also proves that one old
+  blank-index sibling anywhere in the SQL-visible refundable set stops every
+  provider send.
 
-Known limits are deliberate and remain visible. Part A protects and operates
-only indexed current-store references; it does not globally decrypt or backfill
-old attendees. It does not erase historical plaintext references or old
-DB-key-encrypted warning notes. It does not solve the callback claim, stable
-booking-obligation, exact allocation, ledger order-identity, or durable Refund
-All job described below. Those are new authorities at different layers, not
-piecemeal extensions to the admin row lifecycle.
+Known limits are deliberate and remain visible. Part A protects old history by
+refusing an incomplete selected attendee; it does not make that history
+refundable and never decrypts or backfills an attendee population. Attendee save
+repairs only a PII-only current id; M11 is the clearing path for distinct
+pre-index processed references. A distinct old reference that was never stored
+cannot be reconstructed from PII that remembers only another payment. Refund
+All's PII-free summary cannot discover a PII-only attendee with no
+reference-bearing processed row; this is the accepted compatibility cost of not
+decrypting a population. Part A does not erase historical plaintext references
+or old DB-key-encrypted warning notes. It does not solve the callback claim,
+stable booking-obligation, exact allocation, ledger order-identity, or durable
+Refund All job described below. Those are new authorities at different layers,
+not piecemeal extensions to the admin row lifecycle.
 
 Standalone value: the live admin path cannot guess a provider, default malformed
 evidence into success, send without an exact claimed permit, silently lose a
@@ -1022,7 +1058,17 @@ only after M8 is authoritative fleet-wide.
 - Copy every source by stable cursor in bounded, verified pages. Never split one
   provider payment across pages; never mistake an empty joined page for the end;
   deleted booking rows do not block; ticket-use state is not resurrected;
-  attendee-only references are copied, not skipped. Historical plaintext
+  attendee-only references are copied, not skipped. The
+  `2026-08-10_payment_state_columns` migration deliberately leaves every
+  pre-existing `payment_reference_index` blank. Treat every such non-empty row
+  and every PII-only reference as migration input even when an attendee save has
+  already created an anchor for the current PII id: one anchor proves one
+  identity, never that the attendee's history is complete. Copy every available
+  distinct historical deposit, balance, merge, and session reference through
+  this bounded owner-authenticated cursor. A distinct reference absent from all
+  retained sources is not recoverable; report that missing evidence for the
+  owner's required migration decision rather than inventing it. Never make an
+  interactive refund request perform this migration. Historical plaintext
   `processed_payments.payment_reference` values and raw references found in old
   DB-key-encrypted warning notes cross directly into owner-key-encrypted
   canonical evidence plus blind indexes; they are never persisted in migration
@@ -1214,6 +1260,7 @@ mechanism and a regression test, or — if implementation proves the finding wro
 | F75 | Cancelling a booking obligation that the failed completion never posted                | M8                                      |
 | F76 | A discount folded into line prices losing its signed modifier fact                     | M6                                      |
 | F77 | Deposit and balance allocations minting separate identities for one obligation         | M6                                      |
+| F78 | An indexed refund omitting a PII-only or blank-index sibling charge                    | M4 fails closed; M11 migration          |
 
 ## Done means
 

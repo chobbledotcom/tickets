@@ -17,6 +17,7 @@ import { ownerFormById } from "#routes/entity.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activity-log.ts";
+import { decryptPiiBlob } from "#shared/db/attendees/pii.ts";
 import {
   getListingWithCount,
   getListingWithCountPrimary,
@@ -227,16 +228,28 @@ const processRefundAll = async (
 
   const batch = await loadRefundAllBatch(listing.id);
   const blockerMessage = {
+    legacy_unindexed: t("error.payment_history_incomplete"),
     owner_review: t("error.payment_needs_review"),
     unrecorded_money: t("error.refund_not_recorded"),
   } satisfies Record<Exclude<RefundAllSummary["blockedBy"], null>, string>;
   if (batch.blockedBy !== null) {
     return fail(refundAllUrl, blockerMessage[batch.blockedBy]);
   }
-  const refundable = await getRefundCandidates(
-    batch.attendees,
-    await requireRequestPrivateKey(),
+  const privateKey = await requireRequestPrivateKey();
+  const loaded = await getRefundCandidates(
+    await Promise.all(
+      batch.attendees.map(async (attendee) => ({
+        ...attendee,
+        payment_id: (await decryptPiiBlob(attendee.pii_blob, privateKey, true))
+          .payment_id,
+      })),
+    ),
+    privateKey,
   );
+  if (loaded.kind === "legacy_unindexed") {
+    return fail(refundAllUrl, t("error.payment_history_incomplete"));
+  }
+  const refundable = loaded.candidates;
 
   if (batch.total === 0) {
     return fail(refundAllUrl, t("error.no_attendees_to_refund"));

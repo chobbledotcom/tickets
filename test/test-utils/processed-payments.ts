@@ -1,5 +1,6 @@
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
+import { requiredMapValue } from "#fp";
 import { executeBatch, queryOne } from "#shared/db/client.ts";
 import { batchFinalizeStatements } from "#shared/db/payment-finalize.ts";
 import {
@@ -24,6 +25,7 @@ import {
   bookedAttendee,
 } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { requireCompleteRefundReferences } from "#test-utils/payment-references.ts";
 import { refundReference } from "#test-utils/payment-state.ts";
 
 export const getProcessedPayment = (
@@ -116,13 +118,18 @@ export const bookedWithPayment = async (
 export const refundReferencesFor = async (
   attendeeId: number,
   privateKey: CryptoKey,
-): Promise<RefundPaymentReference[] | undefined> =>
-  (
-    await getRefundPaymentReferences(
-      [{ id: attendeeId, payment_id: "" }],
-      privateKey,
-    )
-  ).get(attendeeId);
+): Promise<RefundPaymentReference[]> =>
+  requireCompleteRefundReferences(
+    requiredMapValue(
+      await getRefundPaymentReferences(
+        [{ currentPaymentId: "", id: attendeeId }],
+        privateKey,
+      ),
+      attendeeId,
+      `Attendee ${attendeeId} was omitted from the refund read`,
+    ),
+    `Attendee ${attendeeId}`,
+  );
 
 /** A reference as the production read hands it back — the fixture builder's
  *  shape with the real blind index rather than the builder's stand-in. */

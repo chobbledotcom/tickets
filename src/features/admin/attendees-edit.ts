@@ -67,10 +67,19 @@ const loadRefreshState = async (
   if (!ctx) return htmlResponse("", 404);
   const { attendee, listingId } = ctx;
   const privateKey = await requireRequestPrivateKey();
-  const references = await getRefundPaymentReferencesForAttendee(
-    attendee,
+  const referenceSet = await getRefundPaymentReferencesForAttendee(
+    { currentPaymentId: attendee.payment_id, id: attendee.id },
     privateKey,
   );
+  if (referenceSet.kind === "legacy_unindexed") {
+    return redirect(
+      `/admin/attendees/${attendeeId}`,
+      t("error.payment_history_incomplete"),
+      false,
+      { form },
+    );
+  }
+  const references = referenceSet.references;
   if (references.length === 0) {
     return redirect(
       `/admin/attendees/${attendeeId}`,

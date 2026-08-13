@@ -5,10 +5,8 @@
  */
 
 import { expect } from "@std/expect";
-import { getRefundCandidates } from "#routes/admin/refunds/candidates.ts";
 // jscpd:ignore-start
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import { sellSomethingAt } from "#test/specs/support/listings.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
@@ -22,9 +20,9 @@ import {
   type TicketsWorld,
   theListing,
 } from "#test/specs/support/world.ts";
-import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { singleItem } from "#test-utils/factories.ts";
 import { chargeMoney, refundObservation } from "#test-utils/payment-state.ts";
+import { getCompleteRefundCandidatesForListing } from "#test-utils/refund-candidates.ts";
 import {
   refundCompletes,
   refundIsRejected,
@@ -141,9 +139,8 @@ export const tryToRefundEveryone = (world: TicketsWorld): Promise<void> =>
 export const firstPaymentIsLastRefundCandidate = async (
   world: TicketsWorld,
 ): Promise<void> => {
-  const candidates = await getRefundCandidates(
-    await getAttendeesRaw(theListing(world)),
-    await getTestPrivateKey(),
+  const candidates = await getCompleteRefundCandidatesForListing(
+    theListing(world),
   );
   expect(candidates).toHaveLength(
     requiredWorldValue(world.attendeeIds, "the people who paid").length,

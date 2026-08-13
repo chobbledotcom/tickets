@@ -24,6 +24,7 @@ import {
 } from "#test/specs/support/refund-safety/state.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { requireCompleteRefundReferences } from "#test-utils/payment-references.ts";
 import { chargeMoney } from "#test-utils/payment-state.ts";
 // jscpd:ignore-end
 
@@ -70,18 +71,18 @@ export const completedRefundFor = (
 export const paymentReferencesFor = async (
   world: TicketsWorld,
   who: string,
-): Promise<
-  Awaited<ReturnType<typeof getRefundPaymentReferencesForAttendee>>
-> => {
+): Promise<ReturnType<typeof requireCompleteRefundReferences>> => {
   const { attendeeId } = safetyBooking(world, who);
   const attendee = await getAttendeeOrNull(
     attendeeId,
     await getTestPrivateKey(),
   );
   if (attendee === null) throw new Error(`There is no booking for ${who}`);
-  return await getRefundPaymentReferencesForAttendee(
-    attendee,
-    await getTestPrivateKey(),
+  return requireCompleteRefundReferences(
+    await getRefundPaymentReferencesForAttendee(
+      { currentPaymentId: attendee.payment_id, id: attendee.id },
+      await getTestPrivateKey(),
+    ),
   );
 };
 

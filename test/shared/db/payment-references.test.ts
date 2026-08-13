@@ -18,6 +18,7 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { requireCompleteRefundReferences } from "#test-utils/payment-references.ts";
 import { refundReference } from "#test-utils/payment-state.ts";
 import {
   finalizeProcessedPayment,
@@ -28,19 +29,19 @@ import {
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 describeWithEnv("db > payment references", { db: true }, () => {
-  test("PII-only payment ids are not refund references", async () => {
+  test("PII-only payment ids make refund history incomplete", async () => {
     expect(
       await getRefundPaymentReferencesForAttendee(
-        { id: 1234, payment_id: "pi_legacy" },
+        { currentPaymentId: "pi_legacy", id: 1234 },
         await getTestPrivateKey(),
       ),
-    ).toEqual([]);
+    ).toEqual({ kind: "legacy_unindexed" });
     expect(
       await getRefundPaymentReferencesForAttendee(
-        { id: 5678, payment_id: "" },
+        { currentPaymentId: "", id: 5678 },
         await getTestPrivateKey(),
       ),
-    ).toEqual([]);
+    ).toEqual({ kind: "complete", references: [] });
   });
 
   test("marks returned processed-payment references", async () => {
@@ -58,12 +59,14 @@ describeWithEnv("db > payment references", { db: true }, () => {
       taggedPaymentReference("pi_returned"),
     );
 
-    const before = (
-      await getRefundPaymentReferences(
-        [{ id: attendeeId, payment_id: "" }],
-        await getTestPrivateKey(),
-      )
-    ).get(attendeeId)!;
+    const before = requireCompleteRefundReferences(
+      (
+        await getRefundPaymentReferences(
+          [{ currentPaymentId: "", id: attendeeId }],
+          await getTestPrivateKey(),
+        )
+      ).get(attendeeId)!,
+    );
     expect(before[0]!.kind).toBe("tagged");
     expect(before[0]!.refundState).toBe("none");
 
@@ -71,12 +74,14 @@ describeWithEnv("db > payment references", { db: true }, () => {
       markPaymentReferencesProviderRefunded(before),
     );
 
-    const after = (
-      await getRefundPaymentReferences(
-        [{ id: attendeeId, payment_id: "" }],
-        await getTestPrivateKey(),
-      )
-    ).get(attendeeId)!;
+    const after = requireCompleteRefundReferences(
+      (
+        await getRefundPaymentReferences(
+          [{ currentPaymentId: "", id: attendeeId }],
+          await getTestPrivateKey(),
+        )
+      ).get(attendeeId)!,
+    );
     expect(after[0]!.kind).toBe("tagged");
     expect(after[0]!.refundState).toBe("completed");
     expect(markerCalls).toBe(1);
@@ -249,11 +254,14 @@ describeWithEnv(
       );
 
       const references = await getRefundPaymentReferences(
-        [{ id: attendeeId, payment_id: "" }],
+        [{ currentPaymentId: "", id: attendeeId }],
         await getTestPrivateKey(),
       );
 
-      expect(references.get(attendeeId)).toEqual([]);
+      expect(references.get(attendeeId)).toEqual({
+        kind: "complete",
+        references: [],
+      });
     });
   },
 );

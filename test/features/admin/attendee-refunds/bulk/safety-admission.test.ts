@@ -1,12 +1,8 @@
 // jscpd:ignore-start -- imports
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
-import {
-  getRefundCandidates,
-  type RefundCandidate,
-} from "#routes/admin/refunds/candidates.ts";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { getDb, setDb } from "#shared/db/client.ts";
+import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
+import { execute, getDb, setDb } from "#shared/db/client.ts";
 import { wrapExecute } from "#shared/db/libsql-call.ts";
 import { markPaymentReferencesProviderRefunded } from "#shared/db/payment-references.ts";
 import { setN1GuardNotifyOnly } from "#shared/db/query-log.ts";
@@ -20,10 +16,10 @@ import {
   seedBatchAttendees,
   seedTaggedBatchAttendees,
 } from "#test/features/admin/refunds-helpers.ts";
-import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
-import { withExpectedError } from "#test-utils/mocks.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import {
   CLAIM_MIRROR,
   protectedStateOf,
@@ -34,6 +30,11 @@ import {
   rowStateSlot,
   UNRECORDED_MIRROR,
 } from "#test-utils/payment-claim.ts";
+import {
+  finalizeProcessedPayment,
+  taggedPaymentReference,
+} from "#test-utils/processed-payments.ts";
+import { getCompleteRefundCandidatesForListing } from "#test-utils/refund-candidates.ts";
 import {
   postRefundAll,
   refundIsRejected,
@@ -49,10 +50,7 @@ const lastRefundCandidate = async (
   listingId: number,
   expectedSize: number,
 ): Promise<RefundCandidate> => {
-  const candidates = await getRefundCandidates(
-    await getAttendeesRaw(listingId),
-    await getTestPrivateKey(),
-  );
+  const candidates = await getCompleteRefundCandidatesForListing(listingId);
   expect(candidates).toHaveLength(expectedSize);
   const candidate = candidates.at(-1);
   if (candidate === undefined) {
@@ -119,10 +117,7 @@ const expectBlockerStopsRefundAll = async (
 };
 
 const refundCandidatesFor = async (listingId: number) =>
-  await getRefundCandidates(
-    await getAttendeesRaw(listingId),
-    await getTestPrivateKey(),
-  );
+  await getCompleteRefundCandidatesForListing(listingId);
 
 /** Leave each returned payment under a crashed claim. A later run only needs
  * to retire the claim; it must make bounded progress without provider calls. */
@@ -158,10 +153,45 @@ const putReturnedClaimsOnEveryPayment = async (
   return sessionIds;
 };
 
+const withPaymentDeletedBeforeReferenceLoad = async (
+  attendeeId: number,
+  work: () => Promise<void>,
+): Promise<void> => {
+  const real = getDb();
+  let changed = false;
+  setDb(
+    proxyMembers(real, {
+      execute: wrapExecute(real, async (statement, execute) => {
+        const sql = typeof statement === "string" ? statement : statement.sql;
+        if (
+          !changed &&
+          sql.includes("FROM processed_payments") &&
+          sql.includes("attendee_id IN")
+        ) {
+          changed = true;
+          await real.execute(
+            "DELETE FROM processed_payments WHERE attendee_id = ?",
+            [attendeeId],
+          );
+        }
+        return await execute();
+      }),
+    }),
+  );
+
+  try {
+    await work();
+  } finally {
+    setDb(real);
+  }
+  expect(changed).toBe(true);
+};
+
 describeWithEnv(
   "server (admin refund-all safety admission)",
   { db: true },
   () => {
+    const errors = setupErrorSpy();
     beforeEach(() => setN1GuardNotifyOnly(true));
     afterEach(() => setN1GuardNotifyOnly(null));
 
@@ -256,41 +286,74 @@ describeWithEnv(
         "changed-payment@example.com",
         "pi_changed_payment",
       );
-      const real = getDb();
-      let changed = false;
-      setDb(
-        proxyMembers(real, {
-          execute: wrapExecute(real, async (statement, execute) => {
-            const sql =
-              typeof statement === "string" ? statement : statement.sql;
-            if (
-              !changed &&
-              sql.includes("FROM processed_payments") &&
-              sql.includes("attendee_id IN")
-            ) {
-              changed = true;
-              await real.execute(
-                "DELETE FROM processed_payments WHERE attendee_id = ?",
-                [attendee.id],
-              );
-            }
-            return await execute();
-          }),
-        }),
-      );
-
-      try {
+      await withPaymentDeletedBeforeReferenceLoad(attendee.id, async () => {
         await withRefundMock(refundIsRejected, async (mockRefund) => {
-          const response = await withExpectedError(() =>
-            postRefundAll(listing),
-          );
-          expect(response.status).toBe(503);
+          const response = await postRefundAll(listing);
+          await expectFlashRedirect(
+            `/admin/listing/${listing.id}/refund-all`,
+            expect.stringContaining("older payment history"),
+            false,
+          )(response);
           expect(mockRefund.calls).toEqual([]);
         });
-      } finally {
-        setDb(real);
-      }
-      expect(changed).toBe(true);
+      });
+    });
+
+    test("throws when a selected current payment disappears while loading", async () => {
+      const listing = await createPaidListing();
+      const attendee = await createPaidTestAttendee(
+        listing.id,
+        "Changed Current Payment",
+        "changed-current-payment@example.com",
+        "",
+      );
+      await finalizeProcessedPayment(
+        "changed_current_payment",
+        attendee.id,
+        "",
+        taggedPaymentReference("pi_changed_current_payment"),
+      );
+      await withPaymentDeletedBeforeReferenceLoad(attendee.id, async () => {
+        await withRefundMock(refundIsRejected, async (mockRefund) => {
+          await expect(postRefundAll(listing)).rejects.toThrow(
+            "Refund All candidate set changed while it was loading",
+          );
+          expect(mockRefund.calls).toEqual([]);
+        });
+      });
+      expect(
+        errors.contains(
+          "Refund All candidate set changed while it was loading",
+        ),
+      ).toBe(true);
+    });
+
+    test("a selected PII-only payment stops an indexed sibling before any send", async () => {
+      const listing = await createPaidListing();
+      const attendee = await createPaidTestAttendee(
+        listing.id,
+        "Old Deposit",
+        "old-deposit@example.com",
+        "pi_old_deposit",
+      );
+      await execute("DELETE FROM processed_payments WHERE attendee_id = ?", [
+        attendee.id,
+      ]);
+      await finalizeProcessedPayment(
+        "new_balance_payment",
+        attendee.id,
+        "",
+        taggedPaymentReference("pi_new_balance"),
+      );
+
+      await withRefundMock(refundIsRejected, async (mockRefund) => {
+        await expectFlashRedirect(
+          `/admin/listing/${listing.id}/refund-all`,
+          expect.stringContaining("older payment history"),
+          false,
+        )(await postRefundAll(listing));
+        expect(mockRefund.calls).toEqual([]);
+      });
     });
   },
 );

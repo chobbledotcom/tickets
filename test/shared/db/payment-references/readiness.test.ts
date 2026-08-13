@@ -17,11 +17,8 @@ import {
   resaveAttendee,
 } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import {
-  claimCurrentAttendeeRows,
-  heldSessionIds,
-  protectedStateOf,
-} from "#test-utils/payment-claim.ts";
+import { protectedStateOf } from "#test-utils/payment-claim.ts";
+import { getCompleteRefundPaymentReferencesForAttendee } from "#test-utils/payment-references.ts";
 import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
 
@@ -69,17 +66,17 @@ describeWithEnv("db > payment reference readiness", { db: true }, () => {
 
     const queries: string[] = [];
     const restore = recordQueries(queries);
-    let references: Map<number, unknown[]>;
+    let references: Awaited<ReturnType<typeof getRefundPaymentReferences>>;
     try {
       references = await getRefundPaymentReferences(
-        [{ id: selected.id, payment_id: selected.payment_id }],
+        [{ currentPaymentId: selected.payment_id, id: selected.id }],
         await getTestPrivateKey(),
       );
     } finally {
       restore();
     }
 
-    expect(references.get(selected.id)).toEqual([]);
+    expect(references.get(selected.id)).toEqual({ kind: "legacy_unindexed" });
     expect(queries.some((sql) => sql.includes("FROM attendees"))).toBe(false);
     expect(await paymentRowsFor(selected.id)).toEqual([]);
     expect(await paymentRowsFor(unrelated.id)).toEqual([
@@ -90,7 +87,7 @@ describeWithEnv("db > payment reference readiness", { db: true }, () => {
     ]);
   });
 
-  test("an unindexed old row cannot block a newer indexed payment", async () => {
+  test("an unindexed old row refuses the newer indexed subset", async () => {
     const listing = await createTestListing();
     const attendee = bookedAttendee(
       await bookAttendee(listing, {
@@ -115,12 +112,16 @@ describeWithEnv("db > payment reference readiness", { db: true }, () => {
       reference: "pi_indexed_new",
     });
 
-    const claimed = await claimCurrentAttendeeRows([attendee.id]);
+    const references = await getRefundPaymentReferences(
+      [{ currentPaymentId: attendee.payment_id, id: attendee.id }],
+      await getTestPrivateKey(),
+    );
 
-    expect(claimed.kind).toBe("claimed");
-    if (claimed.kind !== "claimed") throw new Error("indexed row was refused");
-    expect(heldSessionIds(claimed)).toEqual(["new_indexed"]);
+    expect(references.get(attendee.id)).toEqual({
+      kind: "legacy_unindexed",
+    });
     expect(await protectedStateOf("old_unindexed")).toBe("");
+    expect(await protectedStateOf("new_indexed")).toBe("");
   });
 
   test("re-saving one old attendee creates one append-only indexed anchor", async () => {
@@ -140,14 +141,9 @@ describeWithEnv("db > payment reference readiness", { db: true }, () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]!.payment_reference_index).not.toBe("");
     expect(
-      (
-        await getRefundPaymentReferences(
-          [{ id: attendee.id, payment_id: attendee.payment_id }],
-          await getTestPrivateKey(),
-        )
-      )
-        .get(attendee.id)
-        ?.map((reference) => reference.reference),
+      (await getCompleteRefundPaymentReferencesForAttendee(attendee)).map(
+        (reference) => reference.reference,
+      ),
     ).toEqual(["resaved_legacy_payment"]);
   });
 
@@ -252,13 +248,12 @@ describeWithEnv("db > payment reference readiness", { db: true }, () => {
     expect(await paymentRowsFor(attendee.id)).toHaveLength(2);
     expect(
       (
-        await getRefundPaymentReferences(
-          [{ id: attendee.id, payment_id: "second_legacy_payment" }],
-          await getTestPrivateKey(),
-        )
+        await getCompleteRefundPaymentReferencesForAttendee({
+          currentPaymentId: "second_legacy_payment",
+          id: attendee.id,
+        })
       )
-        .get(attendee.id)
-        ?.map((reference) => reference.reference)
+        .map((reference) => reference.reference)
         .sort(),
     ).toEqual(["first_legacy_payment", "second_legacy_payment"]);
   });

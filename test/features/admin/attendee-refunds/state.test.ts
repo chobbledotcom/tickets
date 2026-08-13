@@ -1,9 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  getRefundPaymentReferencesForAttendee,
-  markPaymentReferencesProviderRefunded,
-} from "#shared/db/payment-references.ts";
+import { markPaymentReferencesProviderRefunded } from "#shared/db/payment-references.ts";
 import { CLAIM_MIRROR } from "#shared/payment/admit-move.ts";
 import {
   createPaidListing,
@@ -14,7 +11,6 @@ import {
   expectFlashRedirect,
   expectHtmlResponse,
 } from "#test-utils/assertions.ts";
-import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createPaidAttendeeWithoutLedger,
@@ -27,6 +23,7 @@ import {
   putRowState,
   staleClaimSlot,
 } from "#test-utils/payment-claim.ts";
+import { getCompleteRefundPaymentReferencesForAttendee } from "#test-utils/payment-references.ts";
 import {
   finalizeProcessedPayment,
   taggedPaymentReference,
@@ -114,10 +111,7 @@ describeWithEnv("server (admin refund state)", { db: true }, () => {
         taggedPaymentReference("pi_stranded"),
       );
       await markPaymentReferencesProviderRefunded(
-        await getRefundPaymentReferencesForAttendee(
-          attendee,
-          await getTestPrivateKey(),
-        ),
+        await getCompleteRefundPaymentReferencesForAttendee(attendee),
       );
       await markAsRefunded(attendee.id);
       await putRowState(
@@ -150,10 +144,7 @@ describeWithEnv("server (admin refund state)", { db: true }, () => {
         taggedPaymentReference("pi_held"),
       );
       await markPaymentReferencesProviderRefunded(
-        await getRefundPaymentReferencesForAttendee(
-          attendee,
-          await getTestPrivateKey(),
-        ),
+        await getCompleteRefundPaymentReferencesForAttendee(attendee),
       );
       await markAsRefunded(attendee.id);
       await putRowState(

@@ -108,6 +108,19 @@ const submitRefreshPayment = async (
   return providerQueries;
 };
 
+const expectIncompleteRefreshRefused = async (
+  attendee: Attendee,
+): Promise<void> => {
+  const queried = await submitRefreshPayment(
+    attendee,
+    () => Promise.resolve(false),
+    expect.stringContaining("older payment history"),
+    false,
+  );
+
+  expect(queried).toEqual([]);
+};
+
 describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
   describe("POST /admin/attendees/:attendeeId/refresh-payment", () => {
     test("records provider-refunded deposit and balance charges", async () => {
@@ -126,6 +139,38 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
         "pi_refresh_balance",
         "pi_refresh_deposit",
       ]);
+    });
+
+    test("does not refresh an indexed balance while an old deposit is unindexed", async () => {
+      const attendee = await setupBalanceRefresh(
+        "refresh-incomplete-balance-session",
+        "pi_refresh_incomplete_balance",
+      );
+      await execute(
+        `UPDATE processed_payments
+            SET payment_reference_index = ''
+          WHERE attendee_id = ?
+            AND payment_session_id != ?`,
+        [attendee.id, "refresh-incomplete-balance-session"],
+      );
+
+      await expectIncompleteRefreshRefused(attendee);
+    });
+
+    test("does not refresh an indexed balance while its deposit exists only in PII", async () => {
+      const balanceSessionId = "refresh-pii-only-balance-session";
+      const attendee = await setupBalanceRefresh(
+        balanceSessionId,
+        "pi_refresh_pii_only_balance",
+      );
+      await execute(
+        `DELETE FROM processed_payments
+          WHERE attendee_id = ?
+            AND payment_session_id != ?`,
+        [attendee.id, balanceSessionId],
+      );
+
+      await expectIncompleteRefreshRefused(attendee);
     });
 
     test("logs a repeated refund refresh once against the first real booking", async () => {

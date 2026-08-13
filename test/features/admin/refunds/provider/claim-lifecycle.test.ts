@@ -26,6 +26,7 @@ import {
   putRowState,
   staleClaimSlot,
 } from "#test-utils/payment-claim.ts";
+import { requireCompleteRefundReferences } from "#test-utils/payment-references.ts";
 import { chargeMoney, fullyRefundedMoney } from "#test-utils/payment-state.ts";
 import {
   finalizeProcessedPayment,
@@ -43,9 +44,11 @@ const loadCandidate = async (attendeeId: number): Promise<RefundCandidate> => {
   }
   return {
     attendee,
-    references: await getRefundPaymentReferencesForAttendee(
-      attendee,
-      privateKey,
+    references: requireCompleteRefundReferences(
+      await getRefundPaymentReferencesForAttendee(
+        { currentPaymentId: attendee.payment_id, id: attendee.id },
+        privateKey,
+      ),
     ),
   };
 };
