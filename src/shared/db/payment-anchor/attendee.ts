@@ -1,4 +1,4 @@
-/** Durable refund identity materialized when an old attendee is saved. */
+/** Durable refund identity attached to an attendee. */
 
 import { inPlaceholders, type SqlStatement } from "#shared/db/client.ts";
 import { nowIso } from "#shared/now.ts";

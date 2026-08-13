@@ -93,7 +93,8 @@ export const postBookingLegsTx = async (
  * never sets a balance. A zero-gross add (free listings) owes nothing.
  */
 export const manualAddLedgerPoster =
-  (order: PricedOrder): AttendeeCreationWork => async (tx, attendeeId) => {
+  (order: PricedOrder): AttendeeCreationWork =>
+  async (tx, attendeeId) => {
     const legs = await mapBooking(
       bookingFactsFromOrder(owedOrderForLedger(order), {
         attendeeId,

@@ -29,12 +29,12 @@ import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
 import { logActivity } from "#shared/db/activity-log.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
-import { prepareAttendeePaymentAnchor } from "#shared/db/payment-anchor/attendee.ts";
 import {
   createNamedSystemNote,
   createSystemNote,
 } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
+import { prepareAttendeePaymentAnchor } from "#shared/db/payment-anchor/attendee.ts";
 import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
 import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import { ErrorCode, type ErrorCodeType, logError } from "#shared/logger.ts";
@@ -217,8 +217,7 @@ export const storeRefundedBooking = async (
   } else {
     logError({
       code: ErrorCode.PAYMENT_REFUND,
-      detail:
-        `Stored-but-unrefunded booking ${attendeeId} (${spec.code}): ${spec.detail}`,
+      detail: `Stored-but-unrefunded booking ${attendeeId} (${spec.code}): ${spec.detail}`,
       listingId,
     });
   }

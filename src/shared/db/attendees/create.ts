@@ -15,12 +15,12 @@ import { buildCapacityCheckedInsert } from "#shared/db/attendees/capacity/checks
 import {
   ATTENDEE_BY_TOKEN_SQL,
   type AttendeeCreationWork,
-  bookingBatchCondition,
   type BookingBatchPlan,
+  bookingBatchCondition,
   type PreparedWrite,
+  type WriteOutcome,
   writeAsBatch,
   writeAsLedgerBatch,
-  type WriteOutcome,
   writeWithCreationWork,
 } from "#shared/db/attendees/create-batch.ts";
 import { ATTENDEE_KIND, type AttendeeKind } from "#shared/db/attendees/kind.ts";
@@ -34,8 +34,8 @@ import { orderActivityStatements } from "#shared/db/contact-tokens.ts";
 import { anyModifierSoldOut } from "#shared/db/modifier-usage.ts";
 import {
   type Attendee,
-  clampDurationDays,
   type ContactInfo,
+  clampDurationDays,
 } from "#shared/types.ts";
 
 /* jscpd:ignore-end */
@@ -142,9 +142,10 @@ const prepareAttendeeWrite = async (
         ...statement.args,
         ...(extraCondition && !allowOverbook ? extraCondition.args : []),
       ] as InValue[],
-      sql: extraCondition && !allowOverbook
-        ? `${statement.sql} AND (${extraCondition.sql})`
-        : statement.sql,
+      sql:
+        extraCondition && !allowOverbook
+          ? `${statement.sql} AND (${extraCondition.sql})`
+          : statement.sql,
     };
   });
   const hasRealBooking = bookings.some(
@@ -152,11 +153,11 @@ const prepareAttendeeWrite = async (
   );
   const activityStatements = hasRealBooking
     ? await orderActivityStatements(
-      contactInfo.email,
-      contactInfo.phone,
-      input.source ?? "public",
-      enc.ticketToken,
-    )
+        contactInfo.email,
+        contactInfo.phone,
+        input.source ?? "public",
+        enc.ticketToken,
+      )
     : [];
 
   return {
@@ -199,7 +200,7 @@ const finishAttendeeWrite = (
         statusId: input.statusId ?? null,
         ticketToken: enc.ticketToken,
         ticketTokenIndex: enc.ticketTokenIndex,
-      })
+      }),
     ),
     success: true,
   };

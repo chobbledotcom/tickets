@@ -3,9 +3,12 @@ import { describe, it as test } from "@std/testing/bdd";
 import { settleBalanceSession } from "#routes/api/payment-processing/store-refund.ts";
 import { processBooking } from "#shared/booking.ts";
 import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
+import {
+  bookingIntent,
+  paymentSession,
+} from "#test/features/api/payment-processing/index/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { bookingIntent, paymentSession } from "../index/helpers.ts";
 
 describeWithEnv(
   "settling a booking's outstanding balance",

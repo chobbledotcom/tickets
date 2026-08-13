@@ -10,6 +10,7 @@ import { stripeApi } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import {
   stripeApiError,
+  stripeChargeMoney,
   stripeClient,
   stripeRefund,
   stripeRefundRequest,
@@ -231,13 +232,17 @@ describeStripe("Stripe refund outcomes", () => {
     );
   });
 
-  test("delegates the typed request through the provider adapter", async () => {
+  test("delegates a rejection and its fresh read through the adapter", async () => {
     const request = stripeRefundRequest("pi_refund");
     const answer = { kind: "rejected", reason: "rejected" } as const;
     using refund = stub(stripeApi, "refundCharge", () =>
       Promise.resolve(answer),
     );
+    using read = stub(stripePaymentProvider, "readCharge", () =>
+      Promise.resolve({ resource: stripeChargeMoney(), status: "found" }),
+    );
     expect(await stripePaymentProvider.refundCharge(request)).toEqual(answer);
     expect(refund.calls[0]?.args).toEqual([request]);
+    expect(read.calls[0]?.args).toEqual([request.paymentReference]);
   });
 });

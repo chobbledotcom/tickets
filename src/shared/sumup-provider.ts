@@ -20,8 +20,8 @@ import {
 import { logDebug } from "#shared/logger.ts";
 import {
   type RefundAttemptResult,
-  refundOutcomeAfterReread,
   type RefundRequest,
+  refundOutcomeAfterReread,
 } from "#shared/payment/refund-attempt.ts";
 import {
   isSessionRejection,
@@ -124,10 +124,10 @@ export const sumupPaymentProvider: PaymentProvider = {
     );
     return submission.kind === "rejected"
       ? refundOutcomeAfterReread({
-        attempt: submission,
-        freshCharge: freshRead,
-        request,
-      })
+          attempt: submission,
+          freshCharge: freshRead,
+          request,
+        })
       : sumupRefundOutcome(submission, request, freshRead);
   },
   requiresWebhookSignature: false,

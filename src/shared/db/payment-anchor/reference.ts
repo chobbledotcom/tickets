@@ -12,7 +12,7 @@ export interface PaymentAnchorReference {
   readonly stored: StoredPaymentReference;
 }
 
-/** Prepare one PII-only payment for either save-time or merge-time anchoring. */
+/** Prepare one payment reference for creation-, save-, or merge-time anchoring. */
 export const paymentAnchorReference = async (
   payment: PaymentReference,
 ): Promise<PaymentAnchorReference> => {

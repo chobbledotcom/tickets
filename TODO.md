@@ -1050,6 +1050,18 @@ webhook/redirect for the same already-refunded session re-enters
 attendee + re-calls `tryRefund` (idempotent, so no double payout) instead of
 acknowledging the session as already handled.
 
+M4 Part A now prepares the provider-tagged reference before refund I/O and puts
+an owner-public-key-encrypted, blind-indexed synthetic `legacy:` anchor in the
+same `createAttendeeAtomic` transaction as the quantity-zero attendee and its
+booking rows. An anchor failure rolls the whole placeholder back, and a stored
+placeholder exposes Refresh immediately without an attendee save or population
+decrypt. That is identity and recovery evidence only. It does not finalize the
+original checkout reservation, prove checkout success, or tell
+`replaySessionFromLedger` that the real session was handled. On the ordinary
+return path, `processPaymentSession` still writes the original reservation's
+terminal failure. A process death after placeholder/refund work but before that
+write, and the later pruning case described here, therefore remain open.
+
 This is NOT fully new: on main before PR #1822 the same gap existed for a
 payment-post failure (the first `postTransfers` threw → no legs). PR #1822
 widens the failure surface from "payment-post failure only" to "payment-post OR
@@ -2277,6 +2289,24 @@ admin path but has no durable accepted-refund identity in the callback path.
 Start at `src/features/api/payment-processing/refunds.ts`, `store-refund.ts`,
 and `src/shared/square/payment-outcomes.ts`; do not add a Square-only
 persistence path.
+
+The earlier callback decision is also still narrower than the M4 provider
+evidence: `src/features/api/payment-processing/classify.ts` validates a paid
+session from signed total and currency, but does not use `refundOutcomeOf` or
+charge refund evidence. If the provider keeps the session paid after its charge
+was externally returned, legacy completion can still book it. M6 must replace
+that classification with the complete whole-checkout read before M8 retires the
+legacy completion writer; a callback claim alone does not close it.
+
+M4 Part A did close the immediate SumUp dashboard race inside one request: a
+rejected send is evidence about that request only, so it takes exactly one fresh
+read through `refundOutcomeAfterReread`. A fully returned charge completes from
+the observation, and only a fresh `found` charge that is still ready preserves
+rejection. Pending or conflicting money becomes uncertain; a missing charge
+becomes `missing_documented_resource`; and unavailable, invalid, or mismatched
+evidence stays uncertain with its exact reason. Stripe and Square use that same
+shared judgment. This bounded reread cannot invent completion, is not a durable
+callback claim, and does not close the process-death work below.
 
 There is also one fail-closed but incomplete admin state: the final transaction
 arms a keyless send before the process calls SumUp. If the process dies in that

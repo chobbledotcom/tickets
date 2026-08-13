@@ -1,5 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { decrypt, ENCRYPTION_PREFIX } from "#shared/crypto/encryption.ts";
+import { HYBRID_PREFIX } from "#shared/crypto/keys.ts";
+import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { execute, queryOne } from "#shared/db/client.ts";
 import {
   loadPaymentReference,
@@ -68,6 +71,10 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
     const stored = await storePaymentReference(payment);
 
     expect(stored.encrypted).not.toContain(payment.reference);
+    expect(stored.encrypted.startsWith(HYBRID_PREFIX)).toBe(true);
+    expect(stored.encrypted.startsWith(ENCRYPTION_PREFIX)).toBe(false);
+    await expect(decrypt(stored.encrypted as EnvKeyEncrypted)).rejects
+      .toThrow();
     expect(stored.index).toBe(await paymentReferenceIndex(payment));
     expect(
       await loadPaymentReference(

@@ -120,7 +120,10 @@ that ships the behavior:
   signed total, the booking may proceed with that review and no automatic
   refund. If the multi-capture reading also fails currency, total, parentage, or
   another validation rule, it parks: no booking and no automatic refund. A
-  coherent single-charge mismatch keeps the automatic-refund remedy.
+  coherent single-charge mismatch keeps the automatic-refund remedy. The review
+  is a durable case. Its best-effort ntfy alert contains only a finite case code
+  — no buyer/provider identifiers or amounts — and points the owner to the
+  owner-protected record where the evidence and required action live.
 - A provider-partially-refunded charge observed before booking parks even when
   its captured and expected totals otherwise agree: no paid booking and no
   automatic refund. The buyer is retained for owner review. On an existing
@@ -346,6 +349,18 @@ write the dormant aggregate tables.
 
 As-built module map:
 
+| Contract                            | Exported entry points                                                                                                                                                             | Focused authority tests                                                                                                                                                                                                                                    |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Refund-only vocabulary and judgment | `kindObject`; `chargeMoneyRead`; `refundMoneyMatchesCapture`; `refundOutcomeOf`; `resolveRefund`; `admitRefund`; `admitProviderRefund`; `sendRefundIfAdmitted`; `admissionReason` | `test/shared/validation/kind.test.ts`; `test/shared/payment/{resources,diagnose,refund,admit-refund}.test.ts`                                                                                                                                              |
+| Provider reads and attempts         | `ProviderRead`; `providerFailure`; `RefundAttemptResult`; `RefundRequest`; `refundOutcomeAfterReread`                                                                             | `test/shared/payment/{provider-failures,refund-attempt}.test.ts`; `test/shared/stripe-provider/{outcomes,refund-outcomes}.test.ts`; `test/shared/square/refund-outcomes.test.ts`; `test/shared/sumup/{transactions,provider-money}.test.ts`                |
+| Claims, state writes, and dispatch  | `claimLeaseMs`; `paymentRowStateStatement`; `armRefundDispatch`; `RefundDispatchPermit`                                                                                           | `test/shared/payment/claim.test.ts`; `test/shared/db/{payment-claim,payment-refund-dispatch}.test.ts`; `test/shared/db/payment-claim/{admission,shared-references,take,unrecorded-date}.test.ts`                                                           |
+| Readiness and refresh               | `runRefundReadiness`; `refreshClaimedPayment`                                                                                                                                     | `test/features/admin/refunds/{readiness-failure-evidence,claim}.test.ts`; `test/features/admin/refunds/readiness-run/{action-admission,refresh-budget,shared-reference}.test.ts`; `test/features/admin/refunds/refresh/{blocking,returned,review}.test.ts` |
+| Declared live work and moves        | `PaymentWorkStatus`; `PaymentRecoveryAction`; `paymentWorkFor`; `moveRefusalOrNull`; `assertRowsFreeToMove`; `PaymentRowsBusyError`                                               | `test/shared/payment/admit-move.test.ts`; `test/shared/db/payment-admit-move.test.ts`                                                                                                                                                                      |
+| Exact Money repair                  | `computeAttendeeRefunds`; `RefundLedgerResult`; `REFUND_LEDGER_BATCH_DATABASE_CALLS`                                                                                              | `test/shared/refund-ledger/plan/{partial,reference-placement,whole-account}.test.ts`; `test/shared/refund-ledger/record/batch.test.ts`; `test/features/admin/refunds/provider/batch/{ledger-findings,ledger}.test.ts`                                      |
+| Declared attendee storage           | `ATTENDEE_DATA_RULES`                                                                                                                                                             | `test/shared/db/attendees/{dependent-data,delete}.test.ts`                                                                                                                                                                                                 |
+| Bounded command support             | `withSubrequestReserve`; `withDeferredErrorReports`; `getRefundCandidates`                                                                                                        | `test/shared/subrequest-budget.test.ts`; `test/integration/logger/log-error.test.ts`; `test/features/admin/refunds/candidates.test.ts`                                                                                                                     |
+| Automatic recovery anchors          | `prepareAttendeePaymentAnchor`; `AttendeeCreationWork`                                                                                                                            | `test/shared/db/payment-anchor/{attendee,reference}.test.ts`; `test/features/api/payment-processing/store-refund.test.ts`                                                                                                                                  |
+
 - **Refund-only rules.** `src/shared/validation/kind.ts` and
   `src/shared/payment/{resources,conflict,diagnose,refund,admit-refund}.ts`
   define one charge's captured/refunded facts and one `refundOutcomeOf`
@@ -361,9 +376,11 @@ As-built module map:
   `db/payment-references.ts`,
   `db/payment-anchor/{reference,session,attendee}.ts`, and
   `db/attendees/pii-write.ts` keep a new raw reference under the owner key and a
-  DB-keyed blind equality index beside it. `protected_state` is only a plaintext
-  state word. `getRefundPaymentReferences` accepts an explicitly named,
-  decrypted `currentPaymentId` and returns the exhaustive
+  DB-keyed blind equality index beside it. That index is deliberately NOT
+  unique: several attendee/payment rows may legitimately represent one provider
+  charge, and the claim must expand to all of them. `protected_state` is only a
+  plaintext state word. `getRefundPaymentReferences` accepts an explicitly
+  named, decrypted `currentPaymentId` and returns the exhaustive
   `complete | legacy_unindexed` `RefundPaymentReferenceSet`; it never exposes
   only the indexed subset. Its SQL names only the selected attendee ids. A
   non-empty historical `processed_payments.payment_reference` with a blank
@@ -404,11 +421,36 @@ As-built module map:
   send the exact captured minor units and currency admitted from the read. SumUp
   exposes only a full-refund-by-transaction operation, so the exact admitted
   transaction is its send boundary rather than an amount argument. Stripe checks
-  capture/refund totals; Square validates payments, refunds, and orders at the
-  wire boundary and treats only an explicit 404 as missing; SumUp treats a
-  top-level `REFUNDED` transaction as authoritative even when event history is
-  absent, but a `SUCCESSFUL` transaction needs the documented refund events. An
-  ambiguous send gets one bounded reread, never an adapter loop.
+  `captured`, `paid`, and `status`, then derives Money from the documented
+  `amount_captured`, `currency`, and `amount_refunded` fields; the provider's
+  boolean `refunded` flag is never enough. Square validates payments, refunds,
+  and orders at the wire boundary and treats only an explicit 404 as missing.
+  SumUp treats a top-level `REFUNDED` transaction as authoritative full-return
+  evidence even when event history is absent. A `SUCCESSFUL` transaction with an
+  absent or empty event list means zero returned. Every present event must name
+  a known type, a chargeback invalidates the read, and every refund event must
+  have a supported status plus a valid amount in the transaction currency.
+
+  `providerFailure` gives every adapter the same read-side transport table: 404
+  is `missing`; 400/422 is invalid `rejected_request`; 408/504 is unavailable
+  `timeout`; 429 is unavailable `rate_limited`; every other HTTP failure is
+  unavailable `provider_error`; a malformed answer is invalid; and a connection
+  failure is unavailable. An ambiguous send gets one bounded reread, never an
+  adapter loop. SumUp also treats a rejected response as local evidence about
+  that request, not proof that no refund happened beside it. Every SumUp result
+  except `not_sent` takes exactly one fresh charge read. Its rejection goes
+  through the same `refundOutcomeAfterReread` judgment Stripe and Square use: a
+  fully returned charge completes from that fresh observation, and only a fresh
+  `found` charge that is still `ready` preserves rejection. Pending or
+  conflicting money becomes `uncertain: observed_refund`; mismatched captured
+  money becomes `uncertain: mismatched_money`; a missing read becomes
+  `uncertain: missing_documented_resource`; and an unavailable or invalid read
+  becomes uncertain with that read's exact reason. None invent completion, and
+  none lets a request-local rejection release the claim as conclusive when the
+  fresh charge itself is unreadable.
+  `test/shared/sumup/{transactions,provider-money}.test.ts` and
+  `test/shared/payment/refund-attempt.test.ts` pin the wire meaning, one-read
+  count, and this evidence table.
 - **Exact claims and retry capability.**
   `payment/{row-state,claim,review,admit-move}.ts`,
   `db/payment-claim{,/scope,/take}.ts`, `db/payment-refund-dispatch.ts`, and
@@ -423,16 +465,28 @@ As-built module map:
   representations, and preserves the initiating attendee scope after a merge.
   The claim progresses from `checking` to `ready` to `send_armed`; the final
   all-row transaction is the only source of typed send permits. Stripe and
-  Square declare `keyed`; SumUp declares `keyless`. The claim lease is the
-  larger of reservation staleness and a five-minute minimum, so an operator
-  cannot tune a live request into a stale claim. Stale `checking` or `ready`
-  work restarts at `checking`; only stale `send_armed` work inherits possible
-  provider doubt. A stale keyed armed call can repeat the exact idempotent
-  request. A stale keyless armed call may only be observed and, while settlement
-  is unproved, becomes explicit `uncertain_keyless_refund` work rather than
-  risking a second payout. Settlement matches the exact command id, lease time,
-  and current row phase, so a stalled predecessor cannot release a successor's
-  claim. Paid-balance completion uses
+  Square declare `keyed`; SumUp declares `keyless`. A fresh `accepted` result is
+  `pending` with `in_doubt` provider state and keeps its fresh claim until a
+  read proves the money returned; a keyed idempotency promise alone is not
+  settlement proof
+  (`test/features/admin/refunds/provider/claim-completion.test.ts`). The claim
+  lease is the larger of reservation staleness and a five-minute minimum, so an
+  operator cannot tune a live request into a stale claim. Stale `checking` or
+  `ready` work restarts at `checking`; only stale `send_armed` work inherits
+  possible provider doubt. A stale keyed armed call can repeat the exact
+  idempotent request. A stale keyless armed call may only be observed and, while
+  settlement is unproved, becomes explicit `uncertain_keyless_refund` work
+  rather than risking a second payout. Settlement matches the exact command id,
+  lease time, and current row phase, so a stalled predecessor cannot release a
+  successor's claim.
+
+  `paymentRowStateStatement` writes the encrypted `failure_data` record and its
+  derived plaintext mirror in ONE conditional statement, matching the exact
+  prior `failure_data`. `PaymentRowSettlement` requires an explicit claim
+  keep/release decision and changes only the optional books/review facts the run
+  proved; an absent decision never clears an older repair target, review, or
+  terminal outcome. A CAS loser changes nothing and cannot overwrite a
+  successor. Paid-balance completion uses
   `db/payment-finalize.ts:balanceFinalizeStatements`, whose transaction guard
   aborts while an admin refund claim holds that attendee; the callback retries
   instead of racing a booking-finalization write against money leaving.
@@ -451,7 +505,10 @@ As-built module map:
   `logger.ts:withDeferredErrorReports` queues non-critical activity,
   notification, and Sentry fan-out until the money-critical command finishes,
   and flushes the queue even on a throw, so diagnostics cannot consume the
-  subrequests reserved for settlement or rollback.
+  subrequests reserved for settlement or rollback. Nested scopes share one outer
+  flush boundary, and independent or overlapping errors each persist; only
+  recursive reporting caused by that persistence attempt is suppressed
+  (`test/integration/logger/log-error.test.ts`).
 - **Refund All admission.** `db/refund-all-candidates.ts` first computes a
   PII-free whole-listing count and detects any visible `review`, `unrecorded`,
   or blank-index processed-payment blocker among that same complete refundable
@@ -481,13 +538,25 @@ As-built module map:
   `shared/refund-ledger/{plan,result,record,log}.ts`, and
   `features/admin/refunds/{ledger-findings,result-findings,provider,claim,refresh}.ts`
   carry exact `recorded`, `unrecorded`, and `review` findings back to each held
-  reference. A provider-confirmed return is conservatively `unrecorded` until
-  the ledger disproves it. A ledger throw records that exact durable fact before
-  propagating; an unexpected preparation throw keeps every unproved row in
-  doubt; a marker or settlement failure retains the claim. `finally` guarantees
-  a settlement attempt, but accumulated evidence — never control-flow optimism —
-  decides what may release. Ledger reads and writes use a bounded snapshot and
-  fixed number of database calls rather than one loop per attendee.
+  reference and settle each attendee independently, so doubt for one person
+  cannot hold proved-finished neighbours. A provider-confirmed return is
+  conservatively `unrecorded` until the ledger disproves it. If another provider
+  read fails, successful sibling observations are not discarded: returned money
+  remains exact `unrecorded` work, in-flight money retains doubt, a
+  contradiction becomes review, and ambiguous provider identity beside money
+  movement stays `in_doubt`. An unexpected preparation throw likewise keeps
+  every still-unproved row in doubt.
+
+  A ledger throw records the exact known return before propagating; a marker or
+  settlement failure retains the claim. `finally` guarantees a settlement
+  attempt, but accumulated evidence — never control-flow optimism — decides what
+  may release. Repeated repair preserves the first `unrecorded.returnedAt` date
+  (`test/shared/db/payment-claim/unrecorded-date.test.ts`). The batch ledger
+  uses one bounded snapshot: a stored conflict parks only its attendee, while a
+  database failure marks every unproved plan unrecorded. The bound is
+  executable, not aspirational: `REFUND_LEDGER_BATCH_DATABASE_CALLS` is four,
+  and `test/shared/refund-ledger/record/batch.test.ts` proves thirty returned
+  attendees still take exactly those four database round trips.
 - **Confirmation and review.** `features/admin/refunds/confirmation.ts`,
   `db/refund-confirmations.ts`, `db/payment-review.ts`,
   `db/notes/{queries,types}.ts`, and migration
@@ -538,15 +607,31 @@ As-built module map:
   merge and delete, while review and unrecorded money block delete and travel
   with a merge. The same plaintext mirror gates prune and orphan purge; an empty
   mirror deliberately preserves ordinary retention, so evidence-only settled
-  rows are not retained forever. Merge admits both source and target inside the
-  transaction, because the source rows move and the target set grows. It mints a
-  legacy anchor only when no matching current source row is moving in that same
-  transaction, preventing a false `shared_reference` case. `ATTENDEE_DATA_RULES`
-  exhaustively declares delete, repoint, or retention for every attendee-linked
-  table; schema tests reject an undeclared attendee-id-like column or payment
-  table. The privacy recovery queue starts at a partial state index, selects
-  only distinct attendee ids, and keyset-pages twenty plus one lookahead without
-  loading or decrypting attendee PII.
+  rows are not retained forever. Conversely, any non-empty `protected_state`
+  prevents pruning however old or stale it is: staleness can make recovery
+  possible, but never makes a safety record disposable
+  (`test/shared/db/prune/payments.test.ts`).
+
+  Merge admits both source and target inside the transaction, because the source
+  rows move and the target set grows. It mints a legacy anchor only when no
+  matching current source row is moving in that same transaction, preventing a
+  false `shared_reference` case. `ATTENDEE_DATA_RULES` exhaustively declares
+  delete, repoint, or retention for every attendee-linked table, and production
+  delete statements derive from it. Its schema tests walk the live database,
+  reject undeclared attendee-id-like columns and payment tables, require every
+  named column to exist, require children before parents, and prove production
+  emits the declared operations
+  (`test/shared/db/attendees/{dependent-data,delete}.test.ts`).
+
+  Protected orphans are excluded from both scheduled and manual purge. The
+  owner-only “Outstanding payment work” queue at `/admin/privacy` starts at the
+  partial state index, selects distinct attendee ids, and keyset-pages twenty
+  plus one lookahead without loading or decrypting attendee PII. It links by
+  attendee id to the still-live attendee page. Review and Refresh are
+  attendee-scoped, so their route and rendered control remain usable after the
+  final listing is deleted (`test/integration/server/privacy.test.ts`,
+  `test/features/admin/attendee-page/actions.test.ts`, and
+  `test/features/admin/attendee-payment-review.test.ts`).
 - **Migration and restore parity.** Migration
   `2026-08-13_payment_work_queue_index.ts` installs the partial
   `processed_payments(attendee_id) WHERE protected_state != ''` recovery-queue
@@ -567,6 +652,30 @@ As-built module map:
   refund and returns a retryable 503 where appropriate. Only expected
   `PaymentUserError` input becomes a visitor-facing refusal; Square's
   buyer-correctable email/phone validation remains in that class.
+- **Recoverable automatic placeholders.**
+  `db/payment-anchor/{reference,attendee,session}.ts`,
+  `db/attendees/{create,create-batch}.ts`, and
+  `features/api/payment-processing/store-refund.ts` prepare the paid session's
+  provider-tagged reference before any provider refund I/O. One
+  `createAttendeeAtomic` transaction then writes the quantity-zero attendee,
+  every booking row, and an owner-public-key-encrypted reference with its blind
+  equality index under a synthetic `legacy:` anchor. Failure to write the anchor
+  rolls back the attendee and bookings too. The synthetic anchor attests only
+  that this attendee owns that tagged reference: it is not the checkout session,
+  does not finalize the original reservation, and is never success or provenance
+  evidence for the checkout.
+
+  The stored handled result still returns to `processPaymentSession`, which
+  marks the original reservation terminal so an ordinary redelivery replays the
+  result. The indexed anchor makes the attendee's real Payment Details and
+  Refresh form render immediately, including for a blank legacy PII payment id;
+  no attendee save or population decrypt is needed. This does not make the
+  original reservation, callback attempt, provider result, or placeholder ledger
+  post one atomic lifecycle. Process death before the terminal marker and the
+  prunable placeholder-ledger replay-marker gap remain explicit M7 debt.
+  `test/features/api/payment-processing/store-refund.test.ts` proves both
+  all-row rollback on anchor failure and the tagged identity plus the rendered
+  Refresh form on the real attendee page.
 - **Privacy-safe diagnostics.** `shared/payment-review.ts`,
   `features/admin/refunds/report.ts`, `shared/refund-ledger/log.ts`, and
   `shared/invariant-errors.ts` accept closed reasons and row/count context, not
@@ -596,10 +705,22 @@ cannot be reconstructed from PII that remembers only another payment. Refund
 All's PII-free summary cannot discover a PII-only attendee with no
 reference-bearing processed row; this is the accepted compatibility cost of not
 decrypting a population. Part A does not erase historical plaintext references
-or old DB-key-encrypted warning notes. It does not solve the callback claim,
-stable booking-obligation, exact allocation, ledger order-identity, or durable
-Refund All job described below. Those are new authorities at different layers,
-not piecemeal extensions to the admin row lifecycle.
+or old DB-key-encrypted warning notes. It does not cut the buyer callback
+classifier over: `payment-processing/classify.ts` still judges a paid session
+from its signed total and currency and does not read `refundOutcomeOf` or
+charge-level refund evidence. A provider session that still reads paid after its
+charge was externally returned can therefore still enter legacy booking
+completion. M6's whole-checkout reader supplies the missing evidence; M8 removes
+the legacy completion writer.
+
+Part A also does not solve the callback claim, stable booking-obligation, exact
+allocation, ledger order-identity, or durable Refund All job described below.
+Those are new authorities at different layers, not piecemeal extensions to the
+admin row lifecycle. In particular, the automatic placeholder's atomic
+attendee/reference creation closes the missing recovery-control fault, but not a
+death between that creation or later refund work and the original reservation's
+terminal write, nor the durable replay marker missing when the placeholder
+ledger batch fails. M7 owns those exits.
 
 Standalone value: the live admin path cannot guess a provider, default malformed
 evidence into success, send without an exact claimed permit, silently lose a
@@ -624,8 +745,10 @@ declarations instead of opening a parallel review system:
 
 - M6 adds revisioned cases produced by the whole-payment judge, the owner list
   and detail evidence, stable buyer result, and retryable current-revision
-  alert. Every rendered link is gated by the same permission and existence fact
-  as its target.
+  alert. The durable case commits before best-effort notification; the ntfy copy
+  carries only a finite case code, never buyer/provider identifiers or amounts,
+  and directs the owner to the protected detail. Every rendered link is gated by
+  the same permission and existence fact as its target.
 - M7 adds refund/allocation decisions and closes both the provider result and
   Money before retiring their case. M8 adds complete-booking decisions and
   durable completion effects.
@@ -840,7 +963,12 @@ engine it replaces.
   have a finite, explicit resolution rather than an immortal observe-only hold.
   Square `accepted`, lost callback responses, the missed-SumUp-checkout
   maintenance task, and placeholder replay all feed this ONE claimed
-  reconciliation path, not provider-specific side machines.
+  reconciliation path, not provider-specific side machines. M4's quantity-zero
+  placeholder already has a tagged, owner-encrypted, blind-indexed synthetic
+  anchor and an immediately reachable Refresh action. That anchor proves only
+  reference identity; M7 must not reinterpret its `legacy:` session id as the
+  original checkout, a sent attempt, provider completion, or durable replay
+  marker.
 - **Aggregate refund engine.** Individual, selected bulk, balance, automatic,
   callback, and case-decision refunds run through one one-or-many engine over
   M6's stored provider-qualified charge identity, exact captured Money, evidence
@@ -1261,6 +1389,9 @@ mechanism and a regression test, or — if implementation proves the finding wro
 | F76 | A discount folded into line prices losing its signed modifier fact                     | M6                                      |
 | F77 | Deposit and balance allocations minting separate identities for one obligation         | M6                                      |
 | F78 | An indexed refund omitting a PII-only or blank-index sibling charge                    | M4 fails closed; M11 migration          |
+| F79 | A rejected SumUp request hiding a refund completed beside it                           | Closed by M4                            |
+| F80 | An automatic quantity-zero placeholder hiding its only payment recovery control        | Closed by M4                            |
+| F81 | A rejected send plus an unreadable reread releasing its claim as conclusive            | Closed by M4                            |
 
 ## Done means
 

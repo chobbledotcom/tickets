@@ -71,9 +71,8 @@ describeWithEnv("db > payment references", { db: true }, () => {
     expect(before[0]!.kind).toBe("tagged");
     expect(before[0]!.refundState).toBe("none");
 
-    const markerCalls = await countDatabaseCalls(
-      1,
-      () => markPaymentReferencesProviderRefunded(before),
+    const markerCalls = await countDatabaseCalls(1, () =>
+      markPaymentReferencesProviderRefunded(before),
     );
 
     const after = requireCompleteRefundReferences(
@@ -98,7 +97,8 @@ describeWithEnv("db > payment references", { db: true }, () => {
             rowSessionIds: [],
             sessionIds: [],
           }),
-        ])),
+        ]),
+      ),
     ).toBe(0);
   });
 
@@ -332,7 +332,7 @@ describeWithEnv(
 describe("db > payment references > still with the provider", () => {
   const withStates = (...states: RefundState[]) =>
     states.map((refundState, index) =>
-      refundReference(`pi_${index}`, { refundState })
+      refundReference(`pi_${index}`, { refundState }),
     );
 
   test("a watched charge not seen back is still out", () => {

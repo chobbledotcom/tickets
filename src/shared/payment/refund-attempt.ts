@@ -37,9 +37,9 @@ export type RefundAttemptResult =
   | { kind: "rejected"; reason: RefundRejectionReason }
   | { kind: "not_sent"; reason: "not_configured" }
   | {
-    kind: "uncertain";
-    reason: RefundUncertaintyReason;
-  };
+      kind: "uncertain";
+      reason: RefundUncertaintyReason;
+    };
 
 /** The facts every adapter receives before it may ask for money to move. */
 export type RefundRequest = {
@@ -97,11 +97,13 @@ const outcomeWithoutFreshCharge = (
   attempt: RereadableRefundAttempt,
   freshCharge: UnreadCharge,
 ): RefundAttemptResult =>
-  attempt.kind === "uncertain" ? attempt : uncertainRefund(
-    freshCharge.status === "missing"
-      ? "missing_documented_resource"
-      : freshCharge.reason,
-  );
+  attempt.kind === "uncertain"
+    ? attempt
+    : uncertainRefund(
+        freshCharge.status === "missing"
+          ? "missing_documented_resource"
+          : freshCharge.reason,
+      );
 
 const observedRefund = ({
   attempt,
