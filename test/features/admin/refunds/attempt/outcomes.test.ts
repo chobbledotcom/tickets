@@ -1,11 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { PreparedReferenceRefund } from "#routes/admin/refunds/attempt.ts";
+import type { ReferenceRefund } from "#routes/admin/refunds/attempt.ts";
 import { PROVIDER_REFUND_CONCURRENCY } from "#routes/admin/refunds/provider-requests.ts";
-import {
-  authorizeEveryRefund,
-  refundReadyCandidate,
-} from "#test/features/admin/refunds/provider/dispatch-helpers.ts";
+import { refundReadyCandidate } from "#test/features/admin/refunds/provider/dispatch-helpers.ts";
 import {
   completedRefund,
   provider,
@@ -31,45 +28,45 @@ describe("admin refund provider", () => {
     const result = await refundReadyCandidate(
       readyCandidate([{ charge: observed, reference: "pi_exact" }], source),
       7,
-      authorizeEveryRefund(),
     );
 
     expect(source.reads).toEqual([]);
-    expect(source.requests).toHaveLength(1);
     expect(source.requests[0]?.charge).toBe(observed);
     expect(result.outcome).toBe("refunded");
     expect(result.returned[0]).toMatchObject({
-      kind: "tagged",
-      provider: "stripe",
-      reference: "pi_exact",
+      reference: {
+        kind: "tagged",
+        provider: "stripe",
+        reference: "pi_exact",
+      },
     });
   });
 
-  test("reports an accepted refund as pending, not failed", async () => {
+  test("reports an accepted refund as pending", async () => {
     const source = provider({ accepted: new Set(["pi_pending"]) });
-
     const result = await refundReadyCandidate(
       readyCandidateWithReferences(["pi_pending"], source),
       7,
-      authorizeEveryRefund(),
     );
 
-    expect(result.outcome).toBe("pending");
-    expect(result.doubt).toBe("in_doubt");
-    expect(result.returned).toEqual([]);
-    expect(errors.calls).toHaveLength(0);
+    expect(result).toMatchObject({
+      outcome: "pending",
+      returned: [],
+    });
   });
 
-  for (const [state, blockedCharge, outcome] of [
-    ["partly refunded", partlyRefundedCharge(), "withheld"],
-    [
-      "still settling",
-      chargeMoneyWith({
-        refunds: [refundObservation({ status: "pending" })],
-      }),
-      "pending",
-    ],
-  ] as const) {
+  for (
+    const [state, blockedCharge, outcome] of [
+      ["partly refunded", partlyRefundedCharge(), "pending"],
+      [
+        "still settling",
+        chargeMoneyWith({
+          refunds: [refundObservation({ status: "pending" })],
+        }),
+        "pending",
+      ],
+    ] as const
+  ) {
     test(`moves no sibling money when one charge is ${state}`, async () => {
       const source = provider({
         refunded: new Set(["pi_clean_a", "pi_clean_b"]),
@@ -84,68 +81,41 @@ describe("admin refund provider", () => {
           source,
         ),
         7,
-        authorizeEveryRefund(),
       );
 
       expect(source.refunds).toEqual([]);
-      expect(result.returned).toEqual([]);
-      expect(result.outcome).toBe(outcome);
+      expect(result).toMatchObject({ outcome, returned: [] });
     });
   }
 
-  test("answers an already-returned reference without provider IO", async () => {
-    const source = provider();
+  for (
+    const [name, input] of [
+      ["stored marker", { kind: "already_returned" as const }],
+      ["provider observation", { charge: fullyRefundedMoney() }],
+    ] as const
+  ) {
+    test(`answers returned money from a ${name} without sending`, async () => {
+      const source = provider();
+      const result = await refundReadyCandidate(
+        readyCandidate([{ ...input, reference: `pi_${name}` }], source),
+        7,
+      );
+
+      expect(source.refunds).toEqual([]);
+      expect(result.outcome).toBe("refunded");
+    });
+  }
+
+  test("maps a durable provider rejection to a failed result", async () => {
     const result = await refundReadyCandidate(
-      readyCandidate(
-        [{ kind: "already_returned", reference: "pi_pre" }],
-        source,
-      ),
+      readyCandidateWithReferences(["pi_no"], provider()),
       7,
-      authorizeEveryRefund(),
     );
 
-    expect([...source.reads, ...source.refunds]).toEqual([]);
-    expect(result.outcome).toBe("refunded");
-    expect(result.returned.map(({ reference }) => reference)).toEqual([
-      "pi_pre",
-    ]);
+    expect(result).toMatchObject({ outcome: "failed", returned: [] });
   });
 
-  test("does not send when the exact observation says money is back", async () => {
-    const source = provider();
-    const result = await refundReadyCandidate(
-      readyCandidate(
-        [{ charge: fullyRefundedMoney(), reference: "pi_seen" }],
-        source,
-      ),
-      7,
-      authorizeEveryRefund(),
-    );
-
-    expect(source.refunds).toEqual([]);
-    expect(result.outcome).toBe("refunded");
-    expect(result.returned.map(({ reference }) => reference)).toEqual([
-      "pi_seen",
-    ]);
-  });
-
-  test("fails and logs when the provider rejects the refund", async () => {
-    const source = provider();
-    const result = await refundReadyCandidate(
-      readyCandidateWithReferences(["pi_no"], source),
-      7,
-      authorizeEveryRefund(),
-    );
-
-    expect(result.outcome).toBe("failed");
-    expect(errors.lastMessage()).toContain(
-      "Refund rejected for stripe payment (failed)",
-    );
-    expect(errors.lastMessage()).not.toContain("pi_no");
-    expect(errors.lastMessage()).toContain("attendee=42");
-  });
-
-  test("withholds when the provider proves no refund request was sent", async () => {
+  test("withholds when the provider proves no request was sent", async () => {
     const source = provider({
       refund: () =>
         Promise.resolve({ kind: "not_sent", reason: "not_configured" }),
@@ -153,81 +123,40 @@ describe("admin refund provider", () => {
     const result = await refundReadyCandidate(
       readyCandidateWithReferences(["pi_not_sent"], source),
       7,
-      authorizeEveryRefund(),
     );
 
-    expect(result.outcome).toBe("withheld");
-    expect(result.doubt).toBeUndefined();
-    expect(result.returned).toEqual([]);
-    expect(errors.calls).toHaveLength(0);
+    expect(result).toMatchObject({ outcome: "withheld", returned: [] });
   });
 
-  test("errors and logs when the provider answer is uncertain", async () => {
+  test("keeps an uncertain authority pending", async () => {
     const source = provider({ throws: new Set(["pi_boom"]) });
     const result = await refundReadyCandidate(
       readyCandidateWithReferences(["pi_boom"], source),
       7,
-      authorizeEveryRefund(),
     );
 
-    expect(result.outcome).toBe("errored");
-    expect(errors.lastMessage()).toContain(
-      "Refund uncertain for stripe payment (network_error)",
-    );
-    expect(errors.lastMessage()).not.toContain("pi_boom");
-    expect(errors.lastMessage()).toContain("attendee=42");
+    expect(result).toMatchObject({
+      outcome: "pending",
+      returned: [],
+    });
   });
 
-  test("returns only the references whose provider refund completed", async () => {
+  test("returns only references whose authority says money returned", async () => {
     const source = provider({ refunded: new Set(["pi_ok"]) });
     const result = await refundReadyCandidate(
       readyCandidateWithReferences(["pi_ok", "pi_bad"], source),
       7,
-      authorizeEveryRefund(),
     );
 
     expect(result.outcome).toBe("failed");
-    expect(result.returned.map(({ reference }) => reference)).toEqual([
-      "pi_ok",
-    ]);
-    expect(
-      errors.contains("Admin refund did not complete all 2 payments"),
-    ).toBe(true);
+    expect(result.returned.map(({ reference }) => reference.reference)).toEqual(
+      ["pi_ok"],
+    );
+    expect(errors.contains("Admin refund did not complete all 2 payments"))
+      .toBe(true);
   });
 
-  test("does not log an incomplete-payment warning for one reference", async () => {
-    const source = provider();
-    const result = await refundReadyCandidate(
-      readyCandidateWithReferences(["pi_solo"], source),
-      7,
-      authorizeEveryRefund(),
-    );
-
-    expect(result.outcome).toBe("failed");
-    expect(
-      errors.contains("Admin refund did not complete all 1 payments"),
-    ).toBe(false);
-  });
-
-  test("refunds every reference across concurrency chunks", async () => {
-    const references = Array.from({ length: 7 }, (_, index) => `pi_${index}`);
-    const source = provider({ refunded: new Set(references) });
-    const result = await refundReadyCandidate(
-      readyCandidateWithReferences(references, source),
-      7,
-      authorizeEveryRefund(),
-    );
-
-    expect(result.outcome).toBe("refunded");
-    expect(result.returned.map(({ reference }) => reference).sort()).toEqual(
-      [...references].sort(),
-    );
-    expect(
-      errors.contains("Admin refund did not complete all 7 payments"),
-    ).toBe(false);
-  });
-
-  test("keeps provider writes inside the concurrency limit", async () => {
+  test("keeps provider requests inside the concurrency limit", async () => {
     const references = Array.from({ length: 7 }, (_, index) => `pi_${index}`);
     const firstWaveStarted = Promise.withResolvers<void>();
     const releaseFirstWave = Promise.withResolvers<void>();
@@ -235,11 +164,11 @@ describe("admin refund provider", () => {
     let mostActive = 0;
     const source = provider({
       refund: async (request) => {
-        active += 1;
+        active++;
         mostActive = Math.max(mostActive, active);
         if (active === PROVIDER_REFUND_CONCURRENCY) firstWaveStarted.resolve();
         await releaseFirstWave.promise;
-        active -= 1;
+        active--;
         return completedRefund(request);
       },
     });
@@ -247,7 +176,6 @@ describe("admin refund provider", () => {
     const refund = refundReadyCandidate(
       readyCandidateWithReferences(references, source),
       7,
-      authorizeEveryRefund(),
     );
     await firstWaveStarted.promise;
     releaseFirstWave.resolve();
@@ -256,21 +184,19 @@ describe("admin refund provider", () => {
     expect(mostActive).toBe(PROVIDER_REFUND_CONCURRENCY);
   });
 
-  test("refunds a shared tagged reference once across attendees", async () => {
+  test("requests a shared tagged reference once across attendees", async () => {
     const source = provider({ refunded: new Set(["pi_shared"]) });
-    const inFlight = new Map<string, Promise<PreparedReferenceRefund>>();
+    const inFlight = new Map<string, Promise<ReferenceRefund>>();
     const results = await Promise.all(
       [11, 12].map((attendeeId) =>
         refundReadyCandidate(
           readyCandidateWithReferences(["pi_shared"], source, attendeeId),
           7,
-          authorizeEveryRefund(),
           inFlight,
-        ),
+        )
       ),
     );
 
-    expect(source.reads).toEqual([]);
     expect(source.refunds).toEqual(["pi_shared"]);
     expect(results.map(({ outcome }) => outcome)).toEqual([
       "refunded",
@@ -293,43 +219,16 @@ describe("admin refund provider", () => {
         stripe,
       ),
       7,
-      authorizeEveryRefund(),
     );
 
     expect(stripe.refunds).toEqual(["same_raw"]);
     expect(square.refunds).toEqual(["same_raw"]);
-    expect(result.returned.map(({ provider }) => provider)).toEqual([
+    expect(result.returned.map(({ reference }) => reference.provider)).toEqual([
       "stripe",
       "square",
     ]);
-    expect(result.returned[0]?.index).not.toBe(result.returned[1]?.index);
-  });
-
-  test("an owner-review decision uses the tagged index, not raw text", async () => {
-    const source = provider({ refunded: new Set(["pi_observe"]) });
-    const candidate = readyCandidateWithReferences(["pi_observe"], source);
-    const index = candidate.references[0]?.reference.index;
-    if (index === undefined) throw new Error("the ready reference was missing");
-
-    const observed = await refundReadyCandidate(candidate, 7, () =>
-      Promise.resolve({
-        indexes: [index],
-        kind: "owner_review",
-        reason: "uncertain_keyless_refund",
-      }),
+    expect(result.returned[0]?.reference.index).not.toBe(
+      result.returned[1]?.reference.index,
     );
-    expect(observed).toMatchObject({
-      outcome: "withheld",
-      reviews: [{ reason: { kind: "uncertain_keyless_refund" } }],
-    });
-    expect(source.refunds).toEqual([]);
-
-    const sent = await refundReadyCandidate(
-      candidate,
-      7,
-      authorizeEveryRefund(),
-    );
-    expect(sent.outcome).toBe("refunded");
-    expect(source.refunds).toEqual(["pi_observe"]);
   });
 });

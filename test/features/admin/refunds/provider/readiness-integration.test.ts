@@ -4,7 +4,6 @@ import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { chargeMoney } from "#test-utils/payment-state.ts";
-import { armEveryRefund } from "./dispatch-helpers.ts";
 import {
   candidateWithReferences,
   finishedCounts,
@@ -140,7 +139,6 @@ describe("admin refund provider readiness integration", () => {
 
     const counts = finishedCounts(
       await processRefundBatch([source], LISTING_ID, {
-        arm: armEveryRefund(),
         claim: claim.rowClaim,
         prepare: readyPreparation([
           readyCandidateFrom(source, [
@@ -164,10 +162,9 @@ describe("admin refund provider readiness integration", () => {
     expect(square.requests[0]?.paymentReference).toBe("same_raw");
     expect(stripe.requests[0]?.charge).toBe(stripeCharge);
     expect(square.requests[0]?.charge).toBe(squareCharge);
-    expect(writes.marked.flat().map(({ index }) => index)).toEqual([
-      stripeRef.index,
-      squareRef.index,
-      returnedRef.index,
+    expect(writes.marked.flat().map(({ referenceIndex }) => referenceIndex)).toEqual([
+      `${stripeRef.provider}:${stripeRef.reference}`,
+      `${squareRef.provider}:${squareRef.reference}`,
     ]);
     expect(counts.refundedCount).toBe(1);
   });

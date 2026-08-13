@@ -7,6 +7,10 @@ import {
   type RefundRequest,
   refundOutcomeAfterReread,
 } from "#shared/payment/refund-attempt.ts";
+import {
+  type AuthorizedRefundRequest,
+  authorizeDurableRefundSend,
+} from "#shared/payment/refund-provider-authorization.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { PaymentProvider } from "#shared/payments.ts";
 import { squareApi } from "#shared/square/api.ts";
@@ -117,11 +121,13 @@ type RefundSender = Pick<PaymentProvider, "refundCharge">;
 interface RereadAdapter {
   readonly name: string;
   readonly provider: PaymentProvider;
+  readonly request: AuthorizedRefundRequest;
   readonly sender: RefundSender;
+  readonly wrongRequest: AuthorizedRefundRequest;
 }
 
 const refundAfterRead = async (
-  { provider, sender }: RereadAdapter,
+  { provider, request: authorizedRequest, sender }: RereadAdapter,
   charge: ChargeMoney,
   attempt: RefundAttemptResult = uncertain,
 ): Promise<{
@@ -142,7 +148,7 @@ const refundAfterRead = async (
       }),
     }),
     async (mocks) => {
-      result = await provider.refundCharge(request);
+      result = await provider.refundCharge(authorizedRequest);
       expect(mocks.read.calls).toHaveLength(
         attempt.kind === "uncertain" || attempt.kind === "rejected" ? 1 : 0,
       );
@@ -151,11 +157,49 @@ const refundAfterRead = async (
   return { calls, result };
 };
 
+const stripeAuthorizedRequest = authorizeDurableRefundSend(request, {
+  capability: "keyed",
+  generation: 1,
+  idempotencyKey: "stripe-test-key",
+  identityIndex: "stripe-test-request",
+  provider: "stripe",
+});
+const squareAuthorizedRequest = authorizeDurableRefundSend(request, {
+  capability: "keyed",
+  generation: 1,
+  idempotencyKey: "square-test-key",
+  identityIndex: "square-test-request",
+  provider: "square",
+});
+
 for (const adapter of [
-  { name: "Stripe", provider: stripePaymentProvider, sender: stripeApi },
-  { name: "Square", provider: squarePaymentProvider, sender: squareApi },
+  {
+    name: "Stripe",
+    provider: stripePaymentProvider,
+    request: stripeAuthorizedRequest,
+    sender: stripeApi,
+    wrongRequest: squareAuthorizedRequest,
+  },
+  {
+    name: "Square",
+    provider: squarePaymentProvider,
+    request: squareAuthorizedRequest,
+    sender: squareApi,
+    wrongRequest: stripeAuthorizedRequest,
+  },
 ] satisfies RereadAdapter[]) {
   describe(`${adapter.name} uncertain refund reread`, () => {
+    test("refuses another provider's authority before sending", async () => {
+      using send = stub(adapter.sender, "refundCharge", () =>
+        Promise.resolve(uncertain),
+      );
+
+      await expect(
+        adapter.provider.refundCharge(adapter.wrongRequest),
+      ).rejects.toThrow("authorization does not permit");
+      expect(send.calls).toHaveLength(0);
+    });
+
     test("completes when one immediate read proves the exact charge returned", async () => {
       const charge = chargeMoney(1000, 1000);
       expect(await refundAfterRead(adapter, charge)).toEqual({

@@ -183,14 +183,3 @@ export const claimRefusal = (decision: ClaimDecision): string => {
   }
   return reason;
 };
-
-/** How a refund call under this claim ended, as far as releasing goes.
- *  `not_sent` covers every ending where no money was asked for at all, so
- *  there is nothing to be in doubt about. */
-export type ClaimAnswer = "lost" | "not_sent" | "validated";
-
-/** Whether the claim may be let go now. A lost answer keeps the only durable
- *  sign that money may still settle, whatever retry mechanism the provider
- *  offered for the original call. */
-export const mayReleaseClaim = (answer: ClaimAnswer): boolean =>
-  answer !== "lost";

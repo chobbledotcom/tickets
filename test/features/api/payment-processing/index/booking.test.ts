@@ -13,7 +13,7 @@ import {
   getProcessedPayment,
 } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { stripeRefundRequest } from "#test-utils/stripe/fixtures.ts";
+import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 import {
@@ -136,7 +136,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
       success: false,
     });
     expect(refund.calls[0]?.args).toEqual([
-      stripeRefundRequest(`pi_${id}`, 900),
+      stripeRefundRequestShape(`pi_${id}`, 900),
     ]);
     expect(
       await queryOne<{ listing_id: number; quantity: number }>(

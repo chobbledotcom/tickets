@@ -10,8 +10,8 @@ import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { BLANK_SESSION_METADATA } from "#test-utils/payment-session.ts";
 import {
   makeSumupClient,
-  SUMUP_META,
   stageSumupCheckout,
+  SUMUP_META,
   sumupCheckout,
   withFetchedSumupCheckout,
   withSumupCheckoutRead,
@@ -53,15 +53,18 @@ describe("sumup-provider resolveWebhookSession", () => {
     provider: "sumup",
     reason: "malformed_charge",
     refundable: true,
+    sessionId: "ref",
   };
 
   // Blank, or longer than any id SumUp mints: the same fixed refusal as
   // every other unstaged callback, before even a database lookup — so the
   // payload is never echoed into a log and the answer's shape leaks nothing.
-  for (const [name, id] of [
-    ["a blank id", ""],
-    ["an id too long to be real", "x".repeat(256)],
-  ] as const) {
+  for (
+    const [name, id] of [
+      ["a blank id", ""],
+      ["an id too long to be real", "x".repeat(256)],
+    ] as const
+  ) {
     test(`refuses ${name} without any lookup`, async () => {
       await withSumupCheckoutRead({ status: "missing" }, async (calls) => {
         expect(await resolve(id)).toBe("retry");
@@ -97,17 +100,19 @@ describe("sumup-provider resolveWebhookSession", () => {
   // The staging row already proved the checkout is ours, so anything but a
   // clean read answers retryably: acknowledging is terminal, and a paid
   // checkout would sit with the money taken and no booking.
-  for (const [name, read] of [
-    ["SumUp says it does not exist", { status: "missing" }],
-    [
-      "SumUp cannot be reached",
-      { reason: "network_error", status: "unavailable" },
-    ],
-    [
-      "the answer contradicts our facts",
-      { reason: "mismatched_account", status: "invalid" },
-    ],
-  ] as const) {
+  for (
+    const [name, read] of [
+      ["SumUp says it does not exist", { status: "missing" }],
+      [
+        "SumUp cannot be reached",
+        { reason: "network_error", status: "unavailable" },
+      ],
+      [
+        "the answer contradicts our facts",
+        { reason: "mismatched_account", status: "invalid" },
+      ],
+    ] as const
+  ) {
     test(`asks to be retried when ${name}`, async () => {
       await stageSumupCheckout();
       await withSumupCheckoutRead(read, async () => {
@@ -116,11 +121,13 @@ describe("sumup-provider resolveWebhookSession", () => {
     });
   }
 
-  for (const [name, checkoutOverrides] of [
-    ["a malformed paid charge", { currency: "GB" }],
-    ["a paid charge with no readable amount", { amountMinor: null }],
-    ["a paid charge with no currency", { currency: null }],
-  ] as const) {
+  for (
+    const [name, checkoutOverrides] of [
+      ["a malformed paid charge", { currency: "GB" }],
+      ["a paid charge with no readable amount", { amountMinor: null }],
+      ["a paid charge with no currency", { currency: null }],
+    ] as const
+  ) {
     test(`returns a refundable rejection for ${name}`, async () => {
       await stageSumupCheckout();
       await withFetchedSumupCheckout(
@@ -173,11 +180,13 @@ describe("sumup-provider resolveWebhookSession", () => {
   // we can neither read it nor prove the charge is ours to refund; refusing
   // retryably keeps SumUp redelivering instead of stranding a paid charge.
   // "ref_other" is staged under its own SumUp id below.
-  for (const [name, reference] of [
-    ["is blank", ""],
-    ["matches no staged row", "unrelated"],
-    ["maps to a different staged row", "ref_other"],
-  ] as const) {
+  for (
+    const [name, reference] of [
+      ["is blank", ""],
+      ["matches no staged row", "unrelated"],
+      ["maps to a different staged row", "ref_other"],
+    ] as const
+  ) {
     test(`asks to be retried when the checkout reference ${name}`, async () => {
       await stageSumupCheckout();
       await storeSumupCheckout("ref_other", SUMUP_META);

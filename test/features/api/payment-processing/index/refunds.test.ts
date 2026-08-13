@@ -23,7 +23,7 @@ import {
 } from "./helpers.ts";
 
 describeWithEnv("payment processing refund outcomes", { db: true }, () => {
-  test("releases the reservation when refunding an inactive listing fails", async () => {
+  test("releases the reservation without repeating a rejected refund", async () => {
     await setupStripe();
     const listing = await createTestListing({
       maxAttendees: 5,
@@ -36,11 +36,16 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
       bookingIntent([{ e: listing.id, p: 800, q: 1 }]),
       800,
     );
-    using refund = stub(stripeApi, "refundCharge", () =>
-      Promise.resolve({ kind: "rejected", reason: "rejected" } as const),
+    using refund = stub(
+      stripeApi,
+      "refundCharge",
+      () => Promise.resolve({ kind: "rejected", reason: "rejected" } as const),
     );
-    using refundState = stub(stripeApi, "readPaymentIntent", () =>
-      Promise.resolve(foundStripeIntent(data.session.paymentReference, 800)),
+    using refundState = stub(
+      stripeApi,
+      "readPaymentIntent",
+      () =>
+        Promise.resolve(foundStripeIntent(data.session.paymentReference, 800)),
     );
 
     expect(await processPaymentSession(id, data)).toEqual({
@@ -55,8 +60,8 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
       refunded: false,
       success: false,
     });
-    expect(refund.calls).toHaveLength(2);
-    expect(refundState.calls).toHaveLength(4);
+    expect(refund.calls).toHaveLength(1);
+    expect(refundState.calls).toHaveLength(2);
   });
 
   test("keeps a price-changed booking as a refunded placeholder", async () => {
@@ -69,7 +74,8 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
     await expectStoredRefund(
       result,
       {
-        detail: `Per-item price mismatch for listing ${listing.id}: metadata p=800 but expected 1000 (can_pay_more=false)`,
+        detail:
+          `Per-item price mismatch for listing ${listing.id}: metadata p=800 but expected 1000 (can_pay_more=false)`,
         listingId: listing.id,
         sessionId: id,
       },
@@ -115,8 +121,10 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
       unitPrice: 500,
     });
     const id = "cs_direct_uncertain";
-    using uncertain = stub(attendeesApi, "createBookingAtomic", () =>
-      Promise.reject(new Error("write result unknown")),
+    using uncertain = stub(
+      attendeesApi,
+      "createBookingAtomic",
+      () => Promise.reject(new Error("write result unknown")),
     );
     using refund = stubRefundPayment("re_uncertain", 500);
 

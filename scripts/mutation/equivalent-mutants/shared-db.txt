@@ -75,3 +75,10 @@ src/shared/db/news-posts.ts::getNewsPostCards.rows.columns~0dqqett  news_post �
 src/features/admin/api-keys.ts::apiKeyPage.load~0c5nk11  ?? → ||   # entity-page load: find() returns a key row object or undefined — a row object is always truthy, so `?? null` and `|| null` agree on every input
 
 src/shared/db/activity-log.ts::logActivity~078kit2  Activity log row missing → ""   # logActivities returns one row per activity it was given, so the single-activity call always has its row and requireValue never raises this message
+
+# Refund-authority creation uses one SQLite INSERT ... ON CONFLICT DO UPDATE
+# ... RETURNING statement. SQLite either returns the inserted/existing row or
+# throws; successful execution cannot yield zero rows, so the last-resort error
+# label cannot be observed through any database state.
+src/shared/db/provider-refund-authority.ts::createOrLoadRefundAuthority~0qe4x0v  Created refund authority is missing → ""   # successful INSERT/UPDATE RETURNING always yields its one charge row; failure throws before this guard
+src/shared/db/provider-refund-authority.ts::createOrLoadRefundAuthority.row~0nne3vb  ?? → ||   # authorityFromResult returns a row object or null; the object is truthy and null selects the fallback under both operators

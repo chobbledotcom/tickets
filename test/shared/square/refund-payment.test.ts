@@ -1,9 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type {
-  RefundAttemptResult,
-  RefundRequest,
-} from "#shared/payment/refund-attempt.ts";
+import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
 import { runWithPendingWork } from "#shared/pending-work.ts";
 import { initSentry } from "#shared/sentry.ts";
 import { squareApi } from "#shared/square/api.ts";
@@ -14,6 +11,7 @@ import {
 } from "#shared/square/transport.ts";
 import {
   configureSquare,
+  squareRefundRequest,
   withSquareClient,
 } from "#test/test-utils/square/fixtures.ts";
 import { describeSquare } from "#test/test-utils/square/harness.ts";
@@ -27,14 +25,14 @@ import { resetSentry, sentryRequestBody } from "#test-utils/sentry.ts";
 
 const PRIVATE_REFERENCE = "PRIVATE_REFERENCE";
 
-const request: RefundRequest = {
+const request = squareRefundRequest({
   charge: {
     captured: gbp(1000),
     confirmedRefunded: gbp(0),
     refunds: [],
   },
   paymentReference: "pay_failure",
-};
+});
 
 const outcomeWhen = async (error: unknown): Promise<RefundAttemptResult> =>
   await withSquareClient(

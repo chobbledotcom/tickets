@@ -23,13 +23,12 @@ describe("admin refund provider > one charge two attendees carry", () => {
           candidate([{ reference: "pi_both", refundState: "none" }], 12),
         ],
         7,
-        { claim: grantingRowClaim(), markReturned: () => Promise.resolve() },
+        { claim: grantingRowClaim() },
       ),
     );
 
     expect(shared.refunds).toEqual(["pi_both"]);
     expect(counts).toEqual({
-      errorCount: 0,
       failedCount: 0,
       notRecordedCount: 2,
       pendingCount: 0,
@@ -50,7 +49,6 @@ describe("admin refund provider > a run that dies after a settled answer", () =>
         7,
         {
           claim,
-          markReturned: () => Promise.resolve(),
           record: () => Promise.reject(new Error("the ledger fell over")),
         },
       ),
@@ -62,7 +60,7 @@ describe("admin refund provider > a run that dies after a settled answer", () =>
 });
 
 describe("admin refund provider > a newly accepted refund", () => {
-  test("keeps its fresh claim until the provider proves it returned", async () => {
+  test("releases its checking fence while durable authority tracks it", async () => {
     const sessionId = "sess_pi_fresh_pending";
     const claim = grantingRowClaim(new Map([[11, [sessionId]]]));
     const source = provider({ accepted: new Set(["pi_fresh_pending"]) });
@@ -78,6 +76,6 @@ describe("admin refund provider > a newly accepted refund", () => {
 
     expect(source.refunds).toEqual(["pi_fresh_pending"]);
     expect(counts.pendingCount).toBe(1);
-    expect(claim.released).toEqual([]);
+    expect(claim.released).toEqual([[sessionId]]);
   });
 });

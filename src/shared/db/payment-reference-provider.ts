@@ -1,7 +1,7 @@
 /** Atomically bind provider evidence to the payment rows a refund run holds. */
 
 /* jscpd:ignore-start -- imports */
-import { requiredMapValue, unique } from "#fp";
+import { unique } from "#fp";
 import {
   inPlaceholders,
   type SqlStatement,
@@ -10,7 +10,6 @@ import {
 import {
   type PaymentRowRecord,
   paymentRowHeldBy,
-  paymentRowStateStatement,
   readPaymentClaimRows,
   type StoredPaymentClaimRow,
 } from "#shared/db/payment-claim.ts";
@@ -28,15 +27,11 @@ import {
   type RefundClaimChanged,
 } from "#shared/payment/claim.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
-import type {
-  RefundClaim,
-  RefundProviderCapability,
-} from "#shared/payment/row-state.ts";
+import type { RefundClaim } from "#shared/payment/row-state.ts";
 /* jscpd:ignore-end */
 
-/** One reference's validated provider identity and retry capability. */
+/** One reference's validated provider identity. */
 export type PaymentReferenceProviderBinding = {
-  readonly capability: RefundProviderCapability;
   readonly identity: TaggedPaymentReference;
 };
 
@@ -117,7 +112,7 @@ const checkedHeldRows = async (
       const held = await paymentRowHeldBy(row, { commandId, heldSince });
       if (
         held === null ||
-        (held.claim.phase !== "checking" && held.claim.phase !== "send_armed")
+        held.claim.phase !== "checking"
       ) {
         return null;
       }
@@ -153,29 +148,6 @@ const referenceRewrite = ({
          WHERE payment_reference_index = ?`,
 });
 
-const claimCapabilityRewrite = (
-  row: CheckedHeldRow,
-  bindings: ReadonlyMap<string, PaymentReferenceProviderBinding>,
-): Promise<SqlStatement> => {
-  const capability = requiredMapValue(
-    bindings,
-    row.index,
-    `Provider binding lost payment reference ${row.index}`,
-  ).capability;
-  if (row.claim.phase === "send_armed" && row.claim.capability !== capability) {
-    throw new Error(
-      `Provider capability changed for armed payment ${row.index}`,
-    );
-  }
-  return paymentRowStateStatement(row.record, {
-    ...row.record.state,
-    claim:
-      row.claim.phase === "send_armed"
-        ? row.claim
-        : { ...row.claim, capability, phase: "ready" },
-  });
-};
-
 const boundIndexes = (
   bindings: readonly PreparedBinding[],
 ): ReadonlyMap<string, string> =>
@@ -184,7 +156,7 @@ const boundIndexes = (
 /**
  * Store already-validated provider identities without doing provider I/O.
  * The exact claim check, historical-marker refusal, shared-row rewrite, and
- * claim capability change all share one write transaction.
+ * reference identity rewrite all share one write transaction.
  */
 export const bindPaymentReferenceProviders = async (
   request: PaymentReferenceProviderBindingRequest,
@@ -217,10 +189,7 @@ export const bindPaymentReferenceProviders = async (
     const referenceWrites = prepared
       .filter(({ newIndex, oldIndex }) => newIndex !== oldIndex)
       .map(referenceRewrite);
-    const claimWrites = await Promise.all(
-      heldRows.map((row) => claimCapabilityRewrite(row, request.bindings)),
-    );
-    await tx.batch([...referenceWrites, ...claimWrites]);
+    if (referenceWrites.length > 0) await tx.batch(referenceWrites);
     return {
       indexes: boundIndexes(prepared),
       kind: "bound",

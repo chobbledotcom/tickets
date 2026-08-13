@@ -30,9 +30,9 @@ import {
   EMPTY_ROW_STATE,
   isEmptyRowState,
   type PaymentRowState,
+  readRowState,
   type RefundClaim,
   type RefundClaimPhase,
-  readRowState,
   writeRowState,
 } from "#shared/payment/row-state.ts";
 
@@ -157,14 +157,11 @@ export const assertRefundRowsHeld = async (
   },
 ): Promise<void> => {
   const sessionIds = [...claim.phases.keys()];
-  const stored =
-    sessionIds.length === 0
-      ? []
-      : await readPaymentClaimRows(
-          tx,
-          `payment_session_id IN (${inPlaceholders(sessionIds)})`,
-          sessionIds,
-        );
+  const stored = sessionIds.length === 0 ? [] : await readPaymentClaimRows(
+    tx,
+    `payment_session_id IN (${inPlaceholders(sessionIds)})`,
+    sessionIds,
+  );
   const rows = await Promise.all(stored.map(asPaymentRowRecord));
   if (
     rows.length !== sessionIds.length ||
@@ -209,9 +206,9 @@ export const paymentRowStateStatement = async (
 export type PaymentReviewChange =
   | { readonly kind: "review"; readonly reason: PaymentReviewReason }
   | {
-      readonly kind: "resolved";
-      readonly reason: PaymentReviewReason["kind"];
-    };
+    readonly kind: "resolved";
+    readonly reason: PaymentReviewReason["kind"];
+  };
 
 export type PaymentBooksChange = "recorded" | "unrecorded";
 
@@ -219,7 +216,7 @@ export type PaymentBooksChange = "recorded" | "unrecorded";
  * preserved; no absence silently clears an older repair target. */
 export type PaymentRowSettlement = {
   readonly books?: PaymentBooksChange;
-  readonly claim: "keep" | "release";
+  readonly claim: "release";
   readonly phase: RefundClaimPhase;
   readonly review?: PaymentReviewChange;
 };
@@ -238,10 +235,9 @@ export type RowSettlement = {
  * staleness cutoff must not strip the live claim off work another run has
  * since resumed.
  *
- * A row can keep its claim while recording a discovered review or missed
- * ledger write. This matters when one sibling is settled and another provider
- * answer is still in doubt. Every other field is preserved unless its change
- * is named explicitly.
+ * Every settlement releases the short-lived fence. Provider uncertainty is
+ * durable provider-refund work, not a reason to retain an attendee-row claim.
+ * Every other field is preserved unless its change is named explicitly.
  */
 const rewriteRows = async (
   sessionIds: readonly string[],
@@ -283,10 +279,9 @@ const withBooksChange = (
   if (change === "recorded") return kept;
   return {
     ...kept,
-    unrecorded:
-      state.unrecorded === undefined
-        ? { returnedAt: nowIso() }
-        : state.unrecorded,
+    unrecorded: state.unrecorded === undefined
+      ? { returnedAt: nowIso() }
+      : state.unrecorded,
   };
 };
 
@@ -315,11 +310,7 @@ const withReviewChange = (
     : { ...kept, review: openPaymentReview(change.reason) };
 };
 
-const withClaimChange = (
-  state: PaymentRowState,
-  change: PaymentRowSettlement["claim"],
-): PaymentRowState => {
-  if (change === "keep") return state;
+const releaseClaim = (state: PaymentRowState): PaymentRowState => {
   const { claim: _released, ...kept } = state;
   return kept;
 };
@@ -344,8 +335,7 @@ export const settleAttendeeRows = ({
     ) {
       return null;
     }
-    return withClaimChange(
+    return releaseClaim(
       withReviewChange(withBooksChange(row.state, change.books), change.review),
-      change.claim,
     );
   });

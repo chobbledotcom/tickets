@@ -32,11 +32,7 @@ import {
   holdsTheRow,
 } from "#shared/payment/claim.ts";
 import type { PaymentReviewReason } from "#shared/payment/review.ts";
-import type {
-  RefundClaim,
-  RefundClaimPhase,
-  RefundProviderCapability,
-} from "#shared/payment/row-state.ts";
+import type { RefundClaimPhase } from "#shared/payment/row-state.ts";
 /* jscpd:ignore-end */
 
 /** What happened when a run asked for an attendee's rows. */
@@ -51,9 +47,6 @@ export type ClaimResult =
       commandId: string;
       heldSince: string;
       kind: "claimed";
-      /** References inheriting a crashed run's doubt, under that reference's
-       *  own provider capability and grouped for attendee-wide settlement. */
-      inherited: InheritedArmedRefunds;
       /** The exact phase each row must still hold when this run settles it. */
       phases: ReadonlyMap<string, RefundClaimPhase>;
       /** References a claimed or sharing row already says came back. */
@@ -81,8 +74,6 @@ export type LoadedRefundAttendee = {
 /** Exact row-backed facts a pure pre-claim gate may recheck under the lock. */
 export type RefundClaimAdmissionFacts = {
   readonly attendees: readonly LoadedRefundAttendee[];
-  /** Holds inherited from the authoritative rows read inside this claim. */
-  readonly inherited: InheritedArmedRefunds;
   readonly returned: ReadonlySet<string>;
 };
 
@@ -110,12 +101,6 @@ export const paymentReferenceRepresentations = (
       })),
     ),
   );
-
-/** Provider retry facts inherited by each attendee and exact reference. */
-export type InheritedArmedRefunds = ReadonlyMap<
-  number,
-  ReadonlyMap<string, RefundProviderCapability>
->;
 
 type StoredAttendee = {
   id: number;
@@ -201,12 +186,6 @@ const rowsMatch = (
   });
 };
 
-type JudgedPaymentRow = {
-  decision: ClaimDecision;
-  nextClaim: RefundClaim;
-  row: PaymentClaimRow;
-};
-
 type PaymentClaimRow = PaymentRowRecord & { readonly referenceIndex: string };
 
 const asPaymentClaimRow = async (
@@ -215,33 +194,6 @@ const asPaymentClaimRow = async (
   ...(await asPaymentRowRecord(stored)),
   referenceIndex: stored.payment_reference_index,
 });
-
-const inheritedArmedRefunds = (
-  judged: readonly JudgedPaymentRow[],
-): InheritedArmedRefunds =>
-  new Map(
-    [
-      ...Map.groupBy(
-        judged.flatMap(({ decision, row }) =>
-          decision.kind === "resume" && decision.resuming.phase === "send_armed"
-            ? [
-                {
-                  attendeeId: row.attendeeId,
-                  capability: decision.resuming.capability,
-                  index: row.referenceIndex,
-                },
-              ]
-            : [],
-        ),
-        ({ attendeeId }) => attendeeId,
-      ),
-    ].map(([attendeeId, references]) => [
-      attendeeId,
-      new Map(
-        references.map(({ capability, index }) => [index, capability] as const),
-      ),
-    ]),
-  );
 
 const representationOf = (
   row: StoredPaymentClaimRow,
@@ -276,7 +228,7 @@ export const claimAttendeeRows = async (
   if (attendees.length === 0) {
     if (
       admit !== undefined &&
-      !admit({ attendees, inherited: new Map(), returned: new Set() })
+      !admit({ attendees, returned: new Set() })
     ) {
       return { kind: "not_admitted" };
     }
@@ -284,7 +236,6 @@ export const claimAttendeeRows = async (
       commandId,
       held: new Map(),
       heldSince: nowIso(),
-      inherited: new Map(),
       kind: "claimed",
       phases: new Map(),
       returned: new Set(),
@@ -330,13 +281,12 @@ export const claimAttendeeRows = async (
     if (refused !== undefined) {
       return { blockedBy: refused.decision, kind: "blocked" };
     }
-    const inherited = inheritedArmedRefunds(judged);
     const returned = new Set(
       storedRows
         .filter((row) => row.provider_refunded_at !== "")
         .map((row) => row.payment_reference_index),
     );
-    if (admit !== undefined && !admit({ attendees, inherited, returned })) {
+    if (admit !== undefined && !admit({ attendees, returned })) {
       return { kind: "not_admitted" };
     }
     await tx.batch(
@@ -357,7 +307,6 @@ export const claimAttendeeRows = async (
         ),
       ),
       heldSince: writtenAt,
-      inherited,
       kind: "claimed",
       phases: new Map(
         judged.map(({ nextClaim, row }) => [row.sessionId, nextClaim.phase]),

@@ -5,8 +5,7 @@ export type RefundOutcome =
   | "refunded"
   | "pending"
   | "withheld"
-  | "failed"
-  | "errored";
+  | "failed";
 
 type CandidateWithReferences = {
   readonly references: readonly unknown[];
@@ -39,10 +38,9 @@ export const packByReferenceCount =
 
 /** Worst wins, so one bad reference is never hidden by a good one beside it. */
 const OUTCOMES_WORST_FIRST = [
-  "errored",
   "failed",
-  "withheld",
   "pending",
+  "withheld",
 ] as const;
 
 /** Reduce a candidate's per-reference outcomes to a single outcome. */

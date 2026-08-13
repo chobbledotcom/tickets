@@ -15,11 +15,11 @@ import {
   uncertainRefund,
 } from "#shared/payment/refund-attempt.ts";
 import { REFUND_NETWORK_RETRIES } from "#shared/payment/refund-network.ts";
+import type { AuthorizedRefundRequest } from "#shared/payment/refund-provider-authorization.ts";
 import {
   assembleCheckoutMetadata,
   buildProviderLineItems,
 } from "#shared/payment-helpers.ts";
-import { refundIdempotencyKey } from "#shared/payment-idempotency.ts";
 import type { CheckoutIntent, SetupWebhookEndpoint } from "#shared/payments.ts";
 import type {
   StripeCheckoutLineItemParams,
@@ -116,7 +116,9 @@ export interface StripeApi {
   readPaymentIntent: (
     id: string,
   ) => Promise<ProviderRead<StripeExpandedPaymentIntent>>;
-  refundCharge: (request: RefundRequest) => Promise<RefundAttemptResult>;
+  refundCharge: (
+    request: AuthorizedRefundRequest<"stripe">,
+  ) => Promise<RefundAttemptResult>;
   retrieveCheckoutSession: (
     id: string,
   ) => Promise<StripeCheckoutSession | null>;
@@ -230,20 +232,18 @@ const stripeRefundResult = (
     },
   );
 
-const refundCharge = (request: RefundRequest): Promise<RefundAttemptResult> =>
+const refundCharge = (
+  request: AuthorizedRefundRequest<"stripe">,
+): Promise<RefundAttemptResult> =>
   withStripeClient<RefundAttemptResult>(
     { kind: "not_sent", reason: "not_configured" },
     async (client) => {
-      const idempotencyKey = await refundIdempotencyKey(
-        "stripe",
-        request.paymentReference,
-      );
       const refund = await client.refunds.create(
         {
           amount: request.charge.captured.amount,
           payment_intent: request.paymentReference,
         },
-        idempotencyKey,
+        request.authorization.idempotencyKey,
         { maxNetworkRetries: REFUND_NETWORK_RETRIES.stripe },
       );
       return stripeRefundResult(request, refund);

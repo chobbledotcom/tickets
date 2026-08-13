@@ -1,7 +1,6 @@
 import type { RowClaim } from "#routes/admin/refunds/claim.ts";
 import type {
   ClaimResult,
-  InheritedArmedRefunds,
   LoadedRefundAttendee,
 } from "#shared/db/payment-claim/take.ts";
 import type { RowSettlement } from "#shared/db/payment-claim.ts";
@@ -35,13 +34,11 @@ export const claimResult = (
 
 export const claimedRows = (
   held: ReadonlyMap<number, readonly string[]>,
-  inherited: InheritedArmedRefunds = new Map(),
   unrecorded: ReadonlyMap<number, readonly string[]> = new Map(),
 ): ClaimedRows => ({
   commandId: "test-command",
   held,
   heldSince: "2026-08-11T12:00:00.000Z",
-  inherited,
   kind: "claimed",
   phases: new Map(
     [...held.values()].flat().map((sessionId) => [sessionId, "checking"]),

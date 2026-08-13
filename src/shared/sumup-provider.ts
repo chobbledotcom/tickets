@@ -20,9 +20,12 @@ import {
 import { logDebug } from "#shared/logger.ts";
 import {
   type RefundAttemptResult,
-  type RefundRequest,
   refundOutcomeAfterReread,
 } from "#shared/payment/refund-attempt.ts";
+import {
+  type AuthorizedRefundRequest,
+  requireProviderRefundAuthorization,
+} from "#shared/payment/refund-provider-authorization.ts";
 import {
   isSessionRejection,
   type SessionRejection,
@@ -110,7 +113,10 @@ export const sumupPaymentProvider: PaymentProvider = {
   readCharge: readSumupCharge,
   refundCapability: "keyless",
 
-  async refundCharge(request: RefundRequest): Promise<RefundAttemptResult> {
+  async refundCharge(
+    request: AuthorizedRefundRequest,
+  ): Promise<RefundAttemptResult> {
+    requireProviderRefundAuthorization(request, "sumup");
     const submission = await sumupApi.refundTransaction(
       request.paymentReference,
     );

@@ -14,9 +14,8 @@ const CONTEXT = "processed_payments.failure_data";
 const FULL: PaymentRowState = {
   claim: {
     attendeeIds: [12],
-    capability: "keyless",
     commandId: "full-command",
-    phase: "send_armed",
+    phase: "checking",
     scope: "attendee_set",
     writtenAt: "2026-08-10T12:00:00.000Z",
   },
@@ -64,9 +63,8 @@ describe("readRowState", () => {
     const claimOnly: PaymentRowState = {
       claim: {
         attendeeIds: [7],
-        capability: "keyed",
         commandId: "claim-only-command",
-        phase: "ready",
+        phase: "checking",
         scope: "attendee_set",
         writtenAt: "2026-08-10T12:00:00.000Z",
       },
@@ -80,9 +78,8 @@ describe("readRowState", () => {
     const rogue = JSON.stringify({
       claim: {
         attendeeIds: [7],
-        capability: "keyed",
         commandId: "rogue-command",
-        phase: "ready",
+        phase: "checking",
         scope: "sweep",
         writtenAt: "2026-08-10T12:00:00.000Z",
       },
@@ -118,9 +115,8 @@ describe("readRowState", () => {
     const rogue = JSON.stringify({
       claim: {
         attendeeIds: [7],
-        capability: "keyed",
         commandId: "no-time-command",
-        phase: "ready",
+        phase: "checking",
         scope: "attendee_set",
       },
     });
@@ -131,9 +127,8 @@ describe("readRowState", () => {
     const rogue = JSON.stringify({
       claim: {
         attendeeIds: [],
-        capability: "keyless",
         commandId: "no-attendee-command",
-        phase: "send_armed",
+        phase: "checking",
         scope: "attendee_set",
         writtenAt: "2026-08-10T12:00:00.000Z",
       },
@@ -175,9 +170,8 @@ describe("writeRowState", () => {
     const bad = {
       claim: {
         attendeeIds: [7],
-        capability: "guessed",
         commandId: "bad-command",
-        phase: "ready",
+        phase: "working",
         scope: "attendee_set",
         writtenAt: "now",
       },

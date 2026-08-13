@@ -28,8 +28,8 @@ type ResponseSchema<T> = v.BaseSchema<unknown, T, v.BaseIssue<unknown>>;
 
 /**
  * Per-request options. `idempotencyKey` overrides the default per-POST retry
- * key so a caller can supply a stable, provider-and-payment-scoped key that
- * survives webhook redelivery (see `refundIdempotencyKey` in
+ * key so a caller can supply the durable refund generation's stable key across
+ * process retries (see `refundIdempotencyKey` in
  * `#shared/payment-idempotency.ts`). `maxNetworkRetries` narrows one bounded
  * workflow without weakening retries for unrelated Stripe calls.
  */

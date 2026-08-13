@@ -5,19 +5,23 @@ import type {
   RefundReadinessResult,
 } from "#routes/admin/refunds/readiness.ts";
 import {
+  refreshClaimedPayment,
   type RefreshPaymentDependencies,
   type RefreshPaymentResult,
-  refreshClaimedPayment,
 } from "#routes/admin/refunds/refresh.ts";
 import type { PaymentReviewChange } from "#shared/db/payment-claim.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { PaymentReviewReason } from "#shared/payment/review.ts";
-import type { RefundProviderCapability } from "#shared/payment/row-state.ts";
 import type { RefundLedgerResult } from "#shared/refund-ledger/result.ts";
+import type {
+  ProviderRefundTarget,
+  RefundAuthorityReceipt,
+} from "#shared/provider-refunds.ts";
+import { requestRecordedProviderRefund } from "#test/features/admin/refunds/provider/dispatch-helpers.ts";
 import {
-  type RecordingProvider,
   provider as recordingProvider,
+  type RecordingProvider,
 } from "#test/features/admin/refunds/provider/helpers.ts";
 import {
   candidate,
@@ -50,7 +54,7 @@ const readyResult = (
       references: observations.map(({ observed, reference }) =>
         observed === null
           ? { kind: "already_returned", provider, reference }
-          : { charge: observed, kind: "observed", provider, reference },
+          : { charge: observed, kind: "observed", provider, reference }
       ),
     },
   ],
@@ -62,7 +66,6 @@ type HarnessValues = {
   confirmationError?: Error;
   existingUnrecorded?: readonly string[];
   existingReview?: PaymentReviewReason;
-  inherited?: RefundProviderCapability;
   ledger?: (
     references: readonly RefundPaymentReference[],
   ) => RefundLedgerResult;
@@ -81,10 +84,12 @@ export interface RefreshHarness {
     paymentOnly: number;
     prepare: number;
     record: number;
+    recordAuthorities: number;
   };
+  readonly authorities: (readonly RefundAuthorityReceipt[])[];
   readonly claim: ReturnType<typeof grantingRowClaim>;
   readonly dependencies: RefreshPaymentDependencies;
-  readonly marked: (readonly RefundPaymentReference[])[];
+  readonly observed: ProviderRefundTarget[];
   readonly provider: RecordingProvider;
   readonly ready: Extract<RefundReadinessResult, { kind: "ready" }>;
   readonly recorded: (readonly RefundPaymentReference[])[];
@@ -104,25 +109,17 @@ export const runHarness = (values: HarnessValues = {}): RefreshHarness => {
       observed: values.observed === undefined ? chargeMoney() : values.observed,
       reference,
     },
-    ...(values.siblingObserved === undefined
-      ? []
-      : [
-          {
-            observed: values.siblingObserved,
-            reference: tagged("pi_refresh_sibling", "stripe"),
-          },
-        ]),
+    ...(values.siblingObserved === undefined ? [] : [
+      {
+        observed: values.siblingObserved,
+        reference: tagged("pi_refresh_sibling", "stripe"),
+      },
+    ]),
   ];
   const references = observations.map(({ reference }) => reference);
   const source = candidate(ATTENDEE_ID, references);
   const provider = recordingProvider();
   const ready = readyResult(observations, provider);
-  const inherited =
-    values.inherited === undefined
-      ? new Map<number, ReadonlyMap<string, RefundProviderCapability>>()
-      : new Map([
-          [ATTENDEE_ID, new Map([[reference.index, values.inherited]])],
-        ]);
   const existingReviews = new Map<string, PaymentReviewReason>();
   if (values.existingReview !== undefined) {
     existingReviews.set(REFERENCE_ROW_ID, values.existingReview);
@@ -131,15 +128,21 @@ export const runHarness = (values: HarnessValues = {}): RefreshHarness => {
     new Map([
       [ATTENDEE_ID, references.flatMap(({ rowSessionIds }) => rowSessionIds)],
     ]),
-    inherited,
     values.existingUnrecorded === undefined
       ? new Map()
       : new Map([[ATTENDEE_ID, values.existingUnrecorded]]),
     existingReviews,
   );
-  const marked: (readonly RefundPaymentReference[])[] = [];
+  const authorities: (readonly RefundAuthorityReceipt[])[] = [];
+  const observed: ProviderRefundTarget[] = [];
   const recorded: (readonly RefundPaymentReference[])[] = [];
-  const calls = { confirm: 0, paymentOnly: 0, prepare: 0, record: 0 };
+  const calls = {
+    confirm: 0,
+    paymentOnly: 0,
+    prepare: 0,
+    record: 0,
+    recordAuthorities: 0,
+  };
   const dependencies: RefreshPaymentDependencies = {
     claim,
     confirm: () => {
@@ -148,10 +151,6 @@ export const runHarness = (values: HarnessValues = {}): RefreshHarness => {
       return values.confirmationError === undefined
         ? Promise.resolve(values.confirmation ?? "new")
         : Promise.reject(values.confirmationError);
-    },
-    markReturned: (references) => {
-      marked.push(references);
-      return Promise.resolve();
     },
     paymentOnly: () => {
       calls.paymentOnly++;
@@ -171,12 +170,22 @@ export const runHarness = (values: HarnessValues = {}): RefreshHarness => {
             : refundLedgerResult([], references)),
       );
     },
+    recordAuthorities: (receipts) => {
+      calls.recordAuthorities++;
+      authorities.push(receipts);
+      return Promise.resolve();
+    },
+    request: (target, dependencies) => {
+      observed.push(target);
+      return requestRecordedProviderRefund(target, dependencies);
+    },
   };
   return {
+    authorities,
     calls,
     claim,
     dependencies,
-    marked,
+    observed,
     provider,
     ready,
     recorded,
@@ -213,7 +222,9 @@ export const expectNewCompletedRefresh = async (
     posted: true,
   });
   expect(run.provider.refunds).toEqual([]);
-  expect(run.marked).toEqual([[run.reference]]);
+  expect(run.observed).toEqual([
+    expect.objectContaining({ mode: "observe_only", reference: run.reference }),
+  ]);
 };
 
 export const expectObligationReview = (run: RefreshHarness): void => {

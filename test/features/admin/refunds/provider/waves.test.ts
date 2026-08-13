@@ -55,13 +55,7 @@ describe("packByReferenceCount", () => {
 });
 
 describe("combineRefundOutcomes", () => {
-  test("prefers errored over every other outcome", () => {
-    expect(combineRefundOutcomes(["refunded", "failed", "errored"])).toBe(
-      "errored",
-    );
-  });
-
-  test("prefers failed over refunded when nothing errored", () => {
+  test("prefers failed over refunded", () => {
     expect(combineRefundOutcomes(["refunded", "failed"])).toBe("failed");
   });
 
@@ -77,8 +71,8 @@ describe("combineRefundOutcomes", () => {
     expect(combineRefundOutcomes(["refunded", "pending"])).toBe("pending");
   });
 
-  test("prefers a withheld refund over one that is pending", () => {
-    expect(combineRefundOutcomes(["pending", "withheld"])).toBe("withheld");
+  test("keeps pending visible when a sibling stands down", () => {
+    expect(combineRefundOutcomes(["pending", "withheld"])).toBe("pending");
   });
 
   test("is refunded only when every outcome is refunded", () => {

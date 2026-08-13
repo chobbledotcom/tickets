@@ -413,6 +413,11 @@ export const MIGRATION_REGISTRY: MigrationRegistryEntry[] = [
     "2026-08-13_payment_work_queue_index",
     () => import("./2026-08-13_payment_work_queue_index.ts"),
   ),
+  // Activate the still-empty aggregate charge table as the one refund sender.
+  entry(
+    "2026-08-13_refund_authority",
+    () => import("./2026-08-13_refund_authority.ts"),
+  ),
 ];
 /* jscpd:ignore-end */
 

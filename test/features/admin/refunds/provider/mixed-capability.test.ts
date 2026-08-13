@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
 import { grantingRowClaim } from "#test-utils/refund-routes.ts";
-import { armEveryRefund } from "./dispatch-helpers.ts";
+import { requestRecordedProviderRefund } from "./dispatch-helpers.ts";
 import {
   candidate,
   finishedCounts,
@@ -11,7 +11,7 @@ import {
 } from "./helpers.ts";
 import { recordEveryRefund } from "./ledger-results.ts";
 
-test("retries only the keyed reference in one mixed inherited claim", async () => {
+test("one authority request handles mixed provider references", async () => {
   const stripe = provider({
     paymentProvider: "stripe",
     refunded: new Set(["stripe_retry"]),
@@ -28,22 +28,11 @@ test("retries only the keyed reference in one mixed inherited claim", async () =
     new Map([
       [42, source.references.flatMap(({ rowSessionIds }) => rowSessionIds)],
     ]),
-    new Map([
-      [
-        42,
-        new Map([
-          ["stripe_retry_index", "keyed"],
-          ["sumup_returned_index", "keyless"],
-        ]),
-      ],
-    ]),
   );
 
   const counts = finishedCounts(
     await processRefundBatch([source], 7, {
-      arm: armEveryRefund(),
       claim: rowClaim,
-      markReturned: () => Promise.resolve(),
       prepare: () =>
         Promise.resolve({
           candidates: [
@@ -67,6 +56,8 @@ test("retries only the keyed reference in one mixed inherited claim", async () =
           kind: "ready",
         }),
       record: recordEveryRefund,
+      recordAuthorities: () => Promise.resolve(),
+      request: requestRecordedProviderRefund,
     }),
   );
 

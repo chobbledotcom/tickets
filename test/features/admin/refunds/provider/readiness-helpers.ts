@@ -6,10 +6,11 @@ import type {
 } from "#routes/admin/refunds/readiness.ts";
 import type { RowSettlement } from "#shared/db/payment-claim.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
-import type { RefundProviderCapability } from "#shared/payment/row-state.ts";
+import type { RefundProviderCapability } from "#shared/payment/refund-provider-authorization.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 import { completedRefund } from "#test-utils/payment-state.ts";
 import { provider, type RecordingProvider } from "./helpers.ts";
+import { requestRecordedProviderRefund } from "./dispatch-helpers.ts";
 import { recordEveryRefund } from "./ledger-results.ts";
 
 export const LISTING_ID = 7;
@@ -88,7 +89,7 @@ export const noValidatingProvider = (
 });
 
 type ClaimFacts = Pick<Claimed, "held"> &
-  Partial<Pick<Claimed, "inherited" | "returned" | "shared">>;
+  Partial<Pick<Claimed, "returned" | "shared">>;
 
 interface RowClaimHarness {
   claims: () => number;
@@ -99,7 +100,6 @@ interface RowClaimHarness {
 export const rowClaimHarness = (
   {
     held,
-    inherited = new Map(),
     returned = new Set(),
     shared = new Map(),
   }: ClaimFacts,
@@ -117,17 +117,10 @@ export const rowClaimHarness = (
           commandId: "test-command",
           held,
           heldSince: HELD_SINCE,
-          inherited,
           kind: "claimed",
           phases: new Map(
-            [...held].flatMap(([attendeeId, sessionIds]) =>
-              sessionIds.map(
-                (sessionId) =>
-                  [
-                    sessionId,
-                    inherited.has(attendeeId) ? "send_armed" : "checking",
-                  ] as const,
-              ),
+            [...held.values()].flatMap((sessionIds) =>
+              sessionIds.map((sessionId) => [sessionId, "checking"] as const),
             ),
           ),
           returned,
@@ -156,24 +149,28 @@ export const releasedRows = (
   );
 
 interface RecordingWrites {
-  dependencies: Pick<RefundRunDependencies, "markReturned" | "record">;
-  marked: TaggedReference[][];
+  dependencies: Pick<
+    RefundRunDependencies,
+    "record" | "recordAuthorities" | "request"
+  >;
+  marked: { readonly referenceIndex: string }[][];
   recorded: number[][];
 }
 
 export const recordingWrites = (): RecordingWrites => {
-  const marked: TaggedReference[][] = [];
+  const marked: { readonly referenceIndex: string }[][] = [];
   const recorded: number[][] = [];
   return {
     dependencies: {
-      markReturned: (references) => {
-        marked.push([...references]);
+      recordAuthorities: (authorities) => {
+        marked.push([...authorities]);
         return Promise.resolve();
       },
       record: (postings) => {
         recorded.push(postings.map(({ attendeeId }) => attendeeId));
         return recordEveryRefund(postings);
       },
+      request: requestRecordedProviderRefund,
     },
     marked,
     recorded,

@@ -17,8 +17,6 @@ import type { Table } from "#shared/db/migrations/schema/types.ts";
  */
 
 /** Joins rules of which one must hold. */
-export const anyOf = (rules: string[]): string => `(${rules.join(" OR ")})`;
-
 const withDefault = (type: string, fallback: string | number | undefined) =>
   `${type}${fallback === undefined ? "" : ` DEFAULT ${fallback}`}`;
 
@@ -49,19 +47,16 @@ export const keyWords = (): string => "TEXT PRIMARY KEY NOT NULL";
  * one separator more than the envelope has.
  */
 const sealed = (name: string, prefix: string, parts: number): string =>
-  `(typeof(${name}) = 'text' AND ${name} GLOB '${prefix}${":?*".repeat(parts)}' AND ${name} NOT GLOB '${prefix}${":*".repeat(parts + 1)}')`;
+  `(typeof(${name}) = 'text' AND ${name} GLOB '${prefix}${
+    ":?*".repeat(parts)
+  }' AND ${name} NOT GLOB '${prefix}${":*".repeat(parts + 1)}')`;
 
 /** Hidden with this site's own key: a starting block, then the hidden text. */
 const ownSealed = (name: string): string => sealed(name, "enc:1", 2);
 
-/** Carried over from an older version, which also wraps up the key it used. */
-const legacySealed = (name: string): string => sealed(name, "hyb:1", 3);
-
-/** A provider's own name for something, hidden either with this site's key or
- *  in the older wrapped form a copied record uses. Which one it is depends on
- *  where the record came from; that it is one of them never does. */
-export const sealedEitherWay = (name: string): string =>
-  `TEXT NOT NULL CHECK (${anyOf([ownSealed(name), legacySealed(name)])})`;
+/** Hidden for the owner with their public key, beyond the database key. */
+export const ownerEncryptedPaymentColumn = (name: string): string =>
+  `TEXT NOT NULL CHECK (${sealed(name, "hyb:1", 3)})`;
 
 export const encryptedPaymentColumn = (name: string): string =>
   `TEXT NOT NULL CHECK (${ownSealed(name)})`;
@@ -80,8 +75,7 @@ export const madeAndTouched: [string, string][] = [
  * only place SQLite lets a table say them.
  */
 export const alsoAbout =
-  (theRow: string[]): ((base: string) => string) =>
-  (base: string): string =>
+  (theRow: string[]): (base: string) => string => (base: string): string =>
     [base, ...theRow.map((rule) => `CHECK (${rule})`)].join("\n          ");
 
 /**

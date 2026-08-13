@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
-import type { RefundProviderCapability } from "#shared/payment/row-state.ts";
 import {
   candidate,
   finishedCounts,
@@ -9,7 +8,6 @@ import {
   processRefundBatchAt,
   provider,
   rowBackedCandidate,
-  unreadableProvider,
 } from "#test/features/admin/refunds/provider/helpers.ts";
 import { oneFailedRefundCounts } from "#test/features/admin/refunds/provider/ledger-results.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -22,7 +20,6 @@ const LISTING = 7;
 type BatchEntry = {
   readonly candidate: RefundCandidate;
   readonly id: number;
-  readonly index: string;
   readonly reference: string;
   readonly sessionId: string;
 };
@@ -36,7 +33,6 @@ const candidateBatch = (name: string): BatchEntry[] =>
     return {
       candidate,
       id,
-      index: `index_of_stripe_${reference}`,
       reference,
       sessionId,
     };
@@ -46,12 +42,6 @@ const heldRows = (
   entries: readonly BatchEntry[],
 ): ReadonlyMap<number, readonly string[]> =>
   new Map(entries.map(({ id, sessionId }) => [id, [sessionId]]));
-
-const inheritedRows = (
-  entries: readonly BatchEntry[],
-  capability: RefundProviderCapability,
-) =>
-  new Map(entries.map(({ id, index }) => [id, new Map([[index, capability]])]));
 
 describeWithEnv(
   "admin refund provider > processRefundBatch > claims",
@@ -109,84 +99,14 @@ describeWithEnv(
       expect(source.refunds).toEqual([]);
     });
 
-    test("keeps a resumed keyless hold when the provider cannot be read", async () => {
-      const claim = grantingRowClaim(
-        new Map([[31, ["sess-31"]]]),
-        new Map([[31, new Map([["index_of_stripe_pi_sess-31", "keyless"]])]]),
-      );
-      const provider = unreadableProvider("keyless");
-
-      await processRefundBatchAt(
-        provider,
-        [rowBackedCandidate(31, "sess-31")],
-        LISTING,
-        { claim },
-      );
-
-      expect(provider.refunds).toEqual([]);
-      expect(claim.released).toEqual([]);
-    });
-
-    test("keeps an inherited keyless hold even when this run is keyed", async () => {
-      const claim = grantingRowClaim(
-        new Map([[34, ["sess-34"]]]),
-        new Map([[34, new Map([["index_of_stripe_pi_sess-34", "keyless"]])]]),
-      );
-      const provider = unreadableProvider("keyed");
-
-      await processRefundBatchAt(
-        provider,
-        [rowBackedCandidate(34, "sess-34")],
-        LISTING,
-        { claim },
-      );
-
-      expect(provider.refunds).toEqual([]);
-      expect(claim.released).toEqual([]);
-    });
-
-    test("lets a fresh keyless hold go when the provider cannot be read", async () => {
-      const claim = grantingRowClaim(new Map([[32, ["sess-32"]]]));
-      const provider = unreadableProvider("keyless");
-
-      await processRefundBatchAt(
-        provider,
-        [rowBackedCandidate(32, "sess-32")],
-        LISTING,
-        { claim },
-      );
-
-      expect(provider.refunds).toEqual([]);
-      expect(claim.released).toEqual([["sess-32"]]);
-    });
-
-    test("keeps a resumed keyed hold when the provider cannot be read", async () => {
-      const claim = grantingRowClaim(
-        new Map([[33, ["sess-33"]]]),
-        new Map([[33, new Map([["index_of_stripe_pi_sess-33", "keyed"]])]]),
-      );
-      const provider = unreadableProvider("keyed");
-
-      await processRefundBatchAt(
-        provider,
-        [rowBackedCandidate(33, "sess-33")],
-        LISTING,
-        { claim },
-      );
-
-      expect(provider.refunds).toEqual([]);
-      expect(claim.released).toEqual([]);
-    });
-
-    test("keeps inherited work when another attendee blocks admission", async () => {
-      const entries = candidateBatch("blocked_inherited").slice(0, 2);
-      const [stale, reviewed] = entries;
-      if (stale === undefined || reviewed === undefined) {
-        throw new Error("No blocked inherited fixture");
+    test("releases checking fences when owner review blocks admission", async () => {
+      const entries = candidateBatch("blocked_review");
+      const reviewed = entries[1];
+      if (reviewed === undefined) {
+        throw new Error("No blocked review fixture");
       }
       const claim = grantingRowClaim(
         heldRows(entries),
-        inheritedRows([stale], "keyless"),
         new Map(),
         new Map([[reviewed.sessionId, { kind: "partial_refund" }]]),
       );
@@ -200,7 +120,7 @@ describeWithEnv(
       );
 
       expect([...source.reads, ...source.refunds]).toEqual([]);
-      expect(claim.released).toEqual([[reviewed.sessionId]]);
+      expect(claim.released).toEqual([entries.map(({ sessionId }) => sessionId)]);
     });
   },
 );

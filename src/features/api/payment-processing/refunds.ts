@@ -2,10 +2,10 @@
  * The refund mechanics of the payment machine, plus the typed reasons a
  * signed-by-us payment must be refunded.
  *
- * `tryRefund` and friends issue the money-back call and turn it into a handled
- * {@link PaymentFailureResult}; {@link PlaceholderRefund} names *why* a booking we
- * kept had to be refunded, stamped PII-free into the ledger reversal and the
- * attendee's system note.
+ * The durable provider-refund authority issues the money-back call. This module
+ * turns its answer into a handled {@link PaymentFailureResult};
+ * {@link PlaceholderRefund} names *why* a booking we kept had to be refunded,
+ * stamped PII-free into the ledger reversal and the attendee's system note.
  */
 
 import type {
@@ -22,29 +22,27 @@ import {
   logError,
 } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
-import { sendRefundIfAdmitted } from "#shared/payment/admit-refund.ts";
 import {
   type PlaceholderRefund,
   placeholderRefund,
 } from "#shared/payment/placeholder-refund.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
-import type { RefundActionResult } from "#shared/payment/refund-attempt.ts";
 import {
   paidPaymentReferenceOf,
   type SessionRejection,
 } from "#shared/payment/validated-session.ts";
-import {
-  reportFailedRefundAttempt,
-  reportWithheldRefund,
-} from "#shared/payment-review.ts";
+import { reportWithheldRefund } from "#shared/payment-review.ts";
 import { parsePriceProof, verifyPrice } from "#shared/payment-signature.ts";
 import {
   type ExistingPaymentProvider,
   getPaymentProviderForExistingPayments,
-  loadPaymentProvider,
   type ValidatedPaymentSession,
 } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
+import {
+  type ProviderRefundResult,
+  requestProviderRefund,
+} from "#shared/provider-refunds.ts";
 
 /** User-facing message when the listing price changed between checkout and payment */
 const PRICE_CHANGED_MESSAGE =
@@ -101,11 +99,17 @@ export const refundRejectedCharge = async (
   }
   // The verified proof establishes ownership, but the refund amount comes from a
   // fresh provider read: malformed charges may have captured a different sum.
-  const refunded = await tryRefund({
-    kind: "tagged",
-    provider: rejection.provider,
-    reference: rejection.paymentReference,
+  const result = await requestProviderRefund({
+    callbackSessionId: rejection.sessionId,
+    evidence: { kind: "read_provider" },
+    mode: "send",
+    reference: {
+      kind: "tagged",
+      provider: rejection.provider,
+      reference: rejection.paymentReference,
+    },
   });
+  const refunded = providerRefundReturned(result);
   return { refunded, settled: refunded };
 };
 
@@ -116,12 +120,11 @@ export const refundRejectedCharge = async (
  */
 export const answerRejectedSession = async (
   rejection: SessionRejection,
-  sessionId: string,
   log: (detail: string) => void,
 ): Promise<Response> => {
   const { refunded, settled } = await refundRejectedCharge(rejection);
   log(
-    `Session rejected as ${rejection.reason} (session=${sessionId}, refunded: ${refunded})`,
+    `Session rejected as ${rejection.reason} (session=${rejection.sessionId}, refunded: ${refunded})`,
   );
   return paymentErrorResponse(
     refunded
@@ -131,52 +134,50 @@ export const answerRejectedSession = async (
   );
 };
 
-/**
- * Attempt to refund a payment. Returns true if refund succeeded, false otherwise.
- * Logs an error if refund fails.
- */
-export const tryRefund = async (
-  reference: TaggedPaymentReference,
-  listingId?: number,
-): Promise<boolean> => {
-  const paymentReference = reference.reference;
-  const provider = await loadPaymentProvider(reference.provider);
-
-  // Ask what the money has already done before sending any more. Stripe and
-  // Square reject a second full refund themselves, but SumUp has no idempotency
-  // key, so there an unguarded re-attempt pays the buyer twice.
-  const result = await sendRefundIfAdmitted(provider, paymentReference);
-  return refundResultSucceeded(result, {
-    listingId,
-    provider: reference.provider,
-  });
-};
-
 type RefundLogContext = {
   listingId?: number | undefined;
   provider: TaggedPaymentReference["provider"];
 };
 
-/** Accepted means the provider took responsibility, not that money returned. */
-const refundResultSucceeded = (
-  result: RefundActionResult<Parameters<typeof reportWithheldRefund>[0]>,
-  { listingId, provider }: RefundLogContext,
+/** Report the durable outcome without treating an armed request as returned. */
+export const providerRefundReturned = (
+  result: ProviderRefundResult,
+  { listingId, provider }: RefundLogContext = {
+    provider: result.reference.provider,
+  },
 ): boolean => {
   if (result.kind === "withheld") {
     reportWithheldRefund(result.admission, { listingId, provider });
-    return result.admission.kind === "already_returned";
+    return false;
   }
-  if (result.kind === "completed") {
+  if (result.kind === "returned") {
     logDebug("Payment", "Refund completed");
     return true;
   }
-  if (result.kind === "accepted") {
-    logDebug("Payment", "Refund accepted but not completed");
+  if (result.kind === "pending") {
+    logDebug("Payment", "Refund sent and awaiting provider confirmation");
     return false;
   }
-  reportFailedRefundAttempt(result, { listingId, provider });
+  logError({
+    code: ErrorCode.PAYMENT_REFUND,
+    detail: result.kind === "ready"
+      ? `Refund was not sent for ${provider} payment; its durable request remains ready`
+      : `Refund needs an owner decision for ${provider} payment (${result.reason})`,
+    listingId,
+  });
   return false;
 };
+
+/** Ask the one durable authority to refund a validated callback session. */
+export const requestSessionRefund = (
+  session: ValidatedPaymentSession,
+): Promise<ProviderRefundResult> =>
+  requestProviderRefund({
+    callbackSessionId: session.id,
+    evidence: { kind: "read_provider" },
+    mode: "send",
+    reference: paidPaymentReferenceOf(session),
+  });
 
 /** Attempt refund and log activity if successful */
 const refundAndLog = async (
@@ -184,7 +185,11 @@ const refundAndLog = async (
   error: string,
   listingId: number,
 ): Promise<boolean> => {
-  const refunded = await tryRefund(paidPaymentReferenceOf(session), listingId);
+  const result = await requestSessionRefund(session);
+  const refunded = providerRefundReturned(result, {
+    listingId,
+    provider: session.provider,
+  });
   if (refunded) {
     await logActivity(`Automatic refund: ${error}`, listingId);
   }

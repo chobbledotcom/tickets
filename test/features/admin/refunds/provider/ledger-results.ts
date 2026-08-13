@@ -9,7 +9,6 @@ type RecordRefunds = NonNullable<RefundRunDependencies["record"]>;
 type RefundReferences = Parameters<RecordRefunds>[0][number]["references"];
 
 export const oneFailedRefundCounts: RefundCounts = {
-  errorCount: 0,
   failedCount: 1,
   notRecordedCount: 0,
   pendingCount: 0,

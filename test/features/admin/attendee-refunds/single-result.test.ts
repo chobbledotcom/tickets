@@ -18,7 +18,6 @@ const counts = (
   changed: Partial<Extract<RefundBatchResult, { kind: "finished" }>["counts"]>,
 ): Extract<RefundBatchResult, { kind: "finished" }> => ({
   counts: {
-    errorCount: 0,
     failedCount: 0,
     notRecordedCount: 0,
     pendingCount: 0,
@@ -70,14 +69,6 @@ const ERROR_RESULTS: readonly ErrorResultCase[] = [
     name: "a provider-accepted refund",
     result: counts({ pendingCount: 1 }),
     status: "moving",
-    url: ACTIONS_URL,
-  },
-  {
-    message:
-      "The payment provider did not give a clear answer. Do not send the refund again. Refresh payment status to check what happened.",
-    name: "an uncertain provider answer",
-    result: counts({ errorCount: 1 }),
-    status: "needs_review",
     url: ACTIONS_URL,
   },
   {

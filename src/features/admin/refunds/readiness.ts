@@ -25,7 +25,7 @@ type TaggedRefundPaymentReference = Extract<
 /** The provider surface an already-read refund attempt still needs. */
 export type ReadyRefundProvider = Pick<
   PaymentProvider,
-  "refundCapability" | "refundCharge" | "type"
+  "readCharge" | "refundCapability" | "refundCharge" | "type"
 >;
 
 type ReadyRefundReferenceBase = {
@@ -58,6 +58,7 @@ export type RefundReadinessRead = {
 /** A successful provider read that must survive a sibling readiness failure. */
 export type RefundReadinessObservation = {
   readonly charge: ChargeMoney;
+  readonly identity: TaggedPaymentReference;
   readonly reference: RefundPaymentReference;
 };
 
@@ -139,7 +140,11 @@ const readinessObservations = (
 ): RefundReadinessObservation[] =>
   prepared.flatMap((entry) =>
     entry.kind === "observed"
-      ? [{ charge: entry.charge, reference: entry.original }]
+      ? [{
+        charge: entry.charge,
+        identity: entry.identity,
+        reference: entry.original,
+      }]
       : [],
   );
 
@@ -346,11 +351,6 @@ export const prepareRefundReadiness = async (
       prepared.map(({ identity, original }) => [
         original.index,
         {
-          capability: requiredMapValue(
-            providers,
-            identity.provider,
-            `Refund readiness lost provider ${identity.provider}`,
-          ).refundCapability,
           identity,
         } satisfies PaymentReferenceProviderBinding,
       ]),

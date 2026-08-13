@@ -10,11 +10,8 @@ import type {
   PaymentReference,
   TaggedPaymentReference,
 } from "#shared/payment/provider-reference.ts";
-import {
-  type RefundClaim,
-  type RefundProviderCapability,
-  readRowState,
-} from "#shared/payment/row-state.ts";
+import type { RefundProviderCapability } from "#shared/payment/refund-provider-authorization.ts";
+import { type RefundClaim, readRowState } from "#shared/payment/row-state.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import {
   bookAttendee,

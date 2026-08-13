@@ -10,7 +10,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#shared/db/client.ts";
-import { markPaymentReferencesProviderRefunded } from "#shared/db/payment-references.ts";
 import type { Attendee } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -24,7 +23,10 @@ import {
   freshClaimSlot,
   putRowState,
 } from "#test-utils/payment-claim.ts";
-import { getCompleteRefundPaymentReferencesForAttendee } from "#test-utils/payment-references.ts";
+import {
+  getCompleteRefundPaymentReferencesForAttendee,
+  markProviderRefundsReturned,
+} from "#test-utils/payment-references.ts";
 import {
   finalizeProcessedPayment,
   taggedPaymentReference,
@@ -48,9 +50,9 @@ const alreadyReturned = async (
     sessionId,
     attendee.id,
     "",
-    taggedPaymentReference(reference),
+    taggedPaymentReference(reference.replaceAll(" ", "-")),
   );
-  await markPaymentReferencesProviderRefunded(
+  await markProviderRefundsReturned(
     await getCompleteRefundPaymentReferencesForAttendee(attendee),
   );
   return { ...attendee, refunded: true };

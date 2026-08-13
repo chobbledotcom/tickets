@@ -16,6 +16,9 @@ export const getCompleteRefundCandidates = async (
   if (loaded.kind === "legacy_unindexed") {
     throw new Error("Test refund candidates contain unindexed payment history");
   }
+  if (loaded.kind === "too_many_references") {
+    throw new Error("Test refund candidates contain too many payment rows");
+  }
   return loaded.candidates;
 };
 

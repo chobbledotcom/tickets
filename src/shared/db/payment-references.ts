@@ -6,13 +6,9 @@
  * authenticated request.
  */
 
-import { requiredMapValue, unique } from "#fp";
+import { requiredMapValue } from "#fp";
 /* jscpd:ignore-start */
-import {
-  execute,
-  inPlaceholders,
-  type SqlStatement,
-} from "#shared/db/client.ts";
+import { inPlaceholders, type SqlStatement } from "#shared/db/client.ts";
 import { paymentAnchorReference } from "#shared/db/payment-anchor/reference.ts";
 import {
   isAnchorSession,
@@ -20,6 +16,7 @@ import {
 } from "#shared/db/payment-anchor/session.ts";
 import {
   loadSelectedPaymentReferenceRows,
+  MAX_REFUND_REFERENCES_PER_ATTENDEE,
   type PaymentReferenceRow,
   querySelectedPaymentReferenceRows,
 } from "#shared/db/payment-reference-rows.ts";
@@ -77,7 +74,8 @@ export type RefundPaymentReference =
  * case. */
 export type RefundPaymentReferenceSet =
   | { readonly kind: "complete"; readonly references: RefundPaymentReference[] }
-  | { readonly kind: "legacy_unindexed" };
+  | { readonly kind: "legacy_unindexed" }
+  | { readonly kind: "too_many_references" };
 
 /** Keep the final loaded facts for each stable payment identity. */
 export const paymentReferencesByIndex = <
@@ -94,6 +92,10 @@ export const paymentReferencesByIndex = <
 type PaymentReferenceAttendeeRow = {
   attendee_id: number;
 };
+
+const attendeeIdSet = (
+  rows: readonly PaymentReferenceAttendeeRow[],
+): Set<number> => new Set(rows.map((row) => Number(row.attendee_id)));
 
 /** One reference's refund status while it is being built up from rows: its
  *  blind index, whether the provider has refunded it, and the payment sessions
@@ -134,13 +136,11 @@ const attendeeIdsOf = (
 export const attendeeIdsWithIndexedPaymentReferences = async (
   attendeeIds: readonly number[],
 ): Promise<Set<number>> =>
-  new Set(
-    (
-      await queryProcessedReferences<PaymentReferenceAttendeeRow>(
-        attendeeIds,
-        "DISTINCT attendee_id",
-      )
-    ).map((row) => Number(row.attendee_id)),
+  attendeeIdSet(
+    await queryProcessedReferences<PaymentReferenceAttendeeRow>(
+      attendeeIds,
+      "DISTINCT attendee_id",
+    ),
   );
 
 const realSessionIds = (row: PaymentReferenceRow): string[] =>
@@ -214,15 +214,21 @@ export const getRefundPaymentReferences = async <
     ]),
   );
   const rows = await loadSelectedPaymentReferenceRows(attendeeIdsOf(attendees));
-  const incompleteAttendeeIds = new Set(
+  const incompleteAttendeeIds = attendeeIdSet(
     rows
-      .filter((row) => Number(row.unindexed_history) === 1)
-      .map((row) => Number(row.attendee_id)),
+      .filter((row) => Number(row.unindexed_history) === 1),
+  );
+  const oversizedAttendeeIds = attendeeIdSet(
+    rows
+      .filter((row) =>
+        Number(row.reference_number) > MAX_REFUND_REFERENCES_PER_ATTENDEE
+      ),
   );
   for (const row of rows) {
     if (
       Number(row.unindexed_history) === 1 ||
-      incompleteAttendeeIds.has(Number(row.attendee_id))
+      incompleteAttendeeIds.has(Number(row.attendee_id)) ||
+      oversizedAttendeeIds.has(Number(row.attendee_id))
     ) {
       continue;
     }
@@ -245,6 +251,9 @@ export const getRefundPaymentReferences = async <
     await Promise.all(
       attendees.map(
         async (attendee): Promise<[number, RefundPaymentReferenceSet]> => {
+          if (oversizedAttendeeIds.has(attendee.id)) {
+            return [attendee.id, { kind: "too_many_references" }];
+          }
           if (incompleteAttendeeIds.has(attendee.id)) {
             return [attendee.id, { kind: "legacy_unindexed" }];
           }
@@ -366,35 +375,4 @@ export const legacyMergePaymentReferenceStatement = async (
                 AND payment.payment_reference_index IN (${matchingIndexSlots})
            )`,
   };
-};
-
-/**
- * Mark processed-payment rows whose provider refund has already happened. The
- * ledger is still the source of the attendee's full-refund status; this per-charge
- * marker lets a later retry finish the remaining charges without re-calling the
- * provider for the ones already returned.
- */
-export const markPaymentReferencesProviderRefunded = async (
-  references: readonly RefundPaymentReference[],
-): Promise<void> => {
-  const sessionIds = unique(
-    references.flatMap((reference) => reference.sessionIds),
-  );
-  // Mark by the reference's identity, not only by the sessions this attendee
-  // holds: two attendees can carry one provider reference, and money returned
-  // against it is returned for both. Marking only our own rows would leave the
-  // other row looking untouched, and a run arriving before the provider's own
-  // evidence caught up would send the same money again.
-  const indexes = unique(references.map((reference) => reference.index)).filter(
-    (index) => index !== "",
-  );
-  if (sessionIds.length === 0 && indexes.length === 0) return;
-  await execute(
-    `UPDATE processed_payments
-        SET provider_refunded_at = COALESCE(NULLIF(provider_refunded_at, ''), ?)
-      WHERE payment_session_id IN (${inPlaceholders(sessionIds)})
-         OR (payment_reference_index != ''
-             AND payment_reference_index IN (${inPlaceholders(indexes)}))`,
-    [nowIso(), ...sessionIds, ...indexes],
-  );
 };

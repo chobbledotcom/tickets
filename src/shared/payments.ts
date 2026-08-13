@@ -9,12 +9,12 @@ import { existingPaymentProviderState } from "#shared/existing-payment-provider.
 import { logDebug } from "#shared/logger.ts";
 import type { Currency } from "#shared/payment/money.ts";
 import type { ProviderRead } from "#shared/payment/provider-read.ts";
+import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
 import type {
-  RefundAttemptResult,
-  RefundRequest,
-} from "#shared/payment/refund-attempt.ts";
+  AuthorizedRefundRequest,
+  RefundProviderCapability,
+} from "#shared/payment/refund-provider-authorization.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
-import type { RefundProviderCapability } from "#shared/payment/row-state.ts";
 import type { SessionRejection } from "#shared/payment/validated-session.ts";
 import type { CalcKind, ModifierTrigger } from "#shared/price-modifier.ts";
 import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
@@ -278,7 +278,7 @@ export interface PaymentProvider {
 
   /** Ask for the observed charge to be refunded and preserve the provider's
    * exact completed, accepted, rejected, unsent, or uncertain answer. */
-  refundCharge(request: RefundRequest): Promise<RefundAttemptResult>;
+  refundCharge(request: AuthorizedRefundRequest): Promise<RefundAttemptResult>;
 
   /** Whether incoming webhooks carry a verifiable signature. Providers that
    * sign their webhooks (Stripe, Square) set this true so the endpoint rejects

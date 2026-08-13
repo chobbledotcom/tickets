@@ -12,8 +12,8 @@ import {
   requireOne,
 } from "#shared/db/client.ts";
 import {
-  type ClaimResult,
   claimAttendeeRows,
+  type ClaimResult,
 } from "#shared/db/payment-claim/take.ts";
 import {
   type PaymentRowSettlement,
@@ -29,7 +29,6 @@ import type {
 import type {
   PaymentRowState,
   RefundClaim,
-  RefundProviderCapability,
 } from "#shared/payment/row-state.ts";
 import { readRowState, writeRowState } from "#shared/payment/row-state.ts";
 import { getCompleteRefundPaymentReferences } from "#test-utils/payment-references.ts";
@@ -88,9 +87,8 @@ export const claimCurrentAttendeeRows = async (
 export const CLAIM_MIRROR = mirrorFor({
   claim: {
     attendeeIds: [1],
-    capability: "keyless",
     commandId: "test-command",
-    phase: "send_armed",
+    phase: "checking",
     scope: "attendee_set",
     writtenAt: "",
   },
@@ -112,8 +110,7 @@ export const UNRECORDED_MIRROR = mirrorFor({
  *  `requireOne` names the failed query rather than handing back a null for the
  *  assertion to trip over further along. */
 const paymentRowColumn =
-  (column: string) =>
-  async (sessionId: string): Promise<string> =>
+  (column: string) => async (sessionId: string): Promise<string> =>
     (
       await requireOne<{ v: string }>(
         `SELECT payment.${column} AS v
@@ -173,23 +170,7 @@ export const rowStateSlot = (state: PaymentRowState): Promise<string> =>
 /** One `attendee_set` claim's record, written the given number of milliseconds
  *  ago. Curried so "a run holding this now" and "a crashed worker's" are the
  *  same record differing only in age. */
-export type ClaimFixturePhase =
-  | "checking"
-  | `ready_${RefundProviderCapability}`
-  | `send_armed_${RefundProviderCapability}`;
-
-const CLAIM_FIXTURE_FACTS = {
-  ready_keyed: { capability: "keyed", phase: "ready" },
-  ready_keyless: { capability: "keyless", phase: "ready" },
-  send_armed_keyed: { capability: "keyed", phase: "send_armed" },
-  send_armed_keyless: { capability: "keyless", phase: "send_armed" },
-} as const satisfies Record<
-  Exclude<ClaimFixturePhase, "checking">,
-  Pick<
-    Extract<RefundClaim, { phase: "ready" | "send_armed" }>,
-    "capability" | "phase"
-  >
->;
+export type ClaimFixturePhase = "checking";
 
 export const refundClaimFixture = (
   attendeeId: number,
@@ -202,23 +183,21 @@ export const refundClaimFixture = (
     scope: "attendee_set" as const,
     writtenAt,
   };
-  if (phase === "checking") return { ...common, phase };
-  return { ...common, ...CLAIM_FIXTURE_FACTS[phase] };
+  return { ...common, phase };
 };
 
-const claimSlotWritten =
-  (msAgo: number) =>
-  (
-    attendeeId: number,
-    phase: ClaimFixturePhase = "send_armed_keyless",
-  ): Promise<string> =>
-    rowStateSlot({
-      claim: refundClaimFixture(
-        attendeeId,
-        phase,
-        new Date(nowMs() - msAgo).toISOString(),
-      ),
-    });
+const claimSlotWritten = (msAgo: number) =>
+(
+  attendeeId: number,
+  phase: ClaimFixturePhase = "checking",
+): Promise<string> =>
+  rowStateSlot({
+    claim: refundClaimFixture(
+      attendeeId,
+      phase,
+      new Date(nowMs() - msAgo).toISOString(),
+    ),
+  });
 
 /** The stored record for a claim a run is holding right now. */
 export const freshClaimSlot = claimSlotWritten(0);
@@ -242,9 +221,8 @@ export const putRowState = async (
   );
 };
 
-/** Every row a claim holds, flattened. The claim keeps them per attendee so a
- *  run can let one person go while another's answer is in doubt; a test that
- *  only cares WHICH rows were held asks for them this way. */
+/** Every row a claim holds, flattened for tests that only care which exact
+ * payment rows the checking fence covered. */
 export const heldSessionIds = (claim: {
   held: ReadonlyMap<number, readonly string[]>;
 }): string[] => [...claim.held.values()].flat();

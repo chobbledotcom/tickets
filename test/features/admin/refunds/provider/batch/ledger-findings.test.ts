@@ -71,11 +71,7 @@ describe("admin refund provider > exact ledger findings", () => {
 
     expect(source.refunds).toEqual([]);
     expect(counts.failedCount).toBe(1);
-    expect(claim.reviewChanges).toEqual([
-      new Map([
-        [reviewSession, { kind: "review", reason: { kind: "partial_refund" } }],
-      ]),
-    ]);
+    expect(claim.reviewChanges).toEqual([new Map()]);
   });
 
   test("settles each returned reference from its own ledger result", async () => {
@@ -100,7 +96,6 @@ describe("admin refund provider > exact ledger findings", () => {
         LISTING,
         {
           claim,
-          markReturned: () => Promise.resolve(),
           record: (postings) => {
             const posting = postings[0];
             if (postings.length !== 1 || posting === undefined) {
@@ -132,7 +127,6 @@ describe("admin refund provider > exact ledger findings", () => {
     );
 
     expect(counts).toEqual({
-      errorCount: 0,
       failedCount: 0,
       notRecordedCount: 1,
       pendingCount: 0,
@@ -142,12 +136,12 @@ describe("admin refund provider > exact ledger findings", () => {
     expect(settlements[0]!.rows.get(recordedSession)).toEqual({
       books: "recorded",
       claim: "release",
-      phase: "ready",
+      phase: "checking",
     });
     expect(settlements[0]!.rows.get(reviewSession)).toEqual({
       books: "unrecorded",
       claim: "release",
-      phase: "ready",
+      phase: "checking",
       review: {
         kind: "review",
         reason: { kind: "partially_returned_obligation" },
@@ -167,7 +161,6 @@ describe("admin refund provider > exact ledger findings", () => {
         LISTING,
         {
           claim,
-          markReturned: () => Promise.resolve(),
           record: () => Promise.resolve(new Map()),
         },
       ),

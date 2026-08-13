@@ -1,11 +1,20 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { deleteAttendee } from "#shared/db/attendees/delete.ts";
-import { queryOne } from "#shared/db/client.ts";
+import { queryOne, withTransaction } from "#shared/db/client.ts";
 import {
+  assertRowsFreeToMove,
   orRefusal,
   PaymentRowsBusyError,
 } from "#shared/db/payment-admit-move.ts";
+import {
+  armRefundSend,
+  markRefundCompleted,
+  markRefundLocalRecorded,
+  readyRefund,
+  type RefundAuthorityState,
+} from "#shared/payment/refund-authority.ts";
+import { markRefundOwnerChoiceNeeded } from "#shared/payment/refund-authority-choice.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   CLAIM_MIRROR,
@@ -17,11 +26,38 @@ import {
   staleClaimSlot,
 } from "#test-utils/payment-claim.ts";
 import { bookedWithPayment } from "#test-utils/processed-payments.ts";
+import { addProviderRefundTestCase } from "#test-utils/provider-refund-cases.ts";
 
 const CLAIM_REFUSAL =
   "A refund for this person is still in progress. Finish or re-run the refund, then try again.";
 const REVIEW_REFUSAL =
   "The owner still has to resolve a payment problem for this person. Refresh or correct the payment evidence, then try again.";
+const REFUND_IN_PROGRESS_REFUSAL =
+  "A provider refund for this payment is still in progress. Open Refund recovery and finish it, then try again.";
+const REFUND_OWNER_REFUSAL =
+  "The owner still has to decide what happened to a provider refund. Resolve it in Refund recovery, then try again.";
+const REFUND_RECORDING_REFUSAL =
+  "The provider returned this money, but the local accounts do not show it. Record it in Refund recovery, then try again.";
+
+const readyAuthority = (identity: string): RefundAuthorityState =>
+  readyRefund({
+    evidenceRevision: 1,
+    nextActionAt: 20,
+    now: 10,
+    request: {
+      capability: "keyed",
+      generation: 1,
+      identityIndex: identity,
+      replayUntil: 100,
+    },
+  });
+
+const addAuthorityFor = async (
+  reference: string,
+  state: RefundAuthorityState,
+): Promise<void> => {
+  await addProviderRefundTestCase(reference, state, "stripe");
+};
 
 /** What a refused delete says, or null when it went through. */
 const deleteRefusal = async (attendeeId: number): Promise<string | null> => {
@@ -112,6 +148,77 @@ describeWithEnv(
 
     test("an ordinary attendee is deleted as before", async () => {
       const attendeeId = await bookedWithPayment("sess-free-2", "pi_free_2");
+      expect(await deleteRefusal(attendeeId)).toBeNull();
+      expect(await attendeeStillThere(attendeeId)).toBe(false);
+    });
+  },
+);
+
+describeWithEnv(
+  "db > moving an attendee whose provider refund is unfinished",
+  { db: true, encryptionKey: true },
+  () => {
+    test("an automatic refund blocks deletion and merge", async () => {
+      const reference = "pi_authority_ready";
+      const attendeeId = await bookedWithPayment(
+        "sess-authority-ready",
+        reference,
+      );
+      await addAuthorityFor(reference, readyAuthority("request-ready"));
+
+      expect(await deleteRefusal(attendeeId)).toBe(REFUND_IN_PROGRESS_REFUSAL);
+      await expect(
+        withTransaction((tx) =>
+          assertRowsFreeToMove(tx, [attendeeId], "merge")
+        ),
+      ).rejects.toThrow(REFUND_IN_PROGRESS_REFUSAL);
+    });
+
+    test("an unresolved provider outcome blocks deletion", async () => {
+      const reference = "pi_authority_owner";
+      const attendeeId = await bookedWithPayment(
+        "sess-authority-owner",
+        reference,
+      );
+      const armed = armRefundSend(readyAuthority("request-owner"), 11, 20);
+      await addAuthorityFor(
+        reference,
+        markRefundOwnerChoiceNeeded(armed, 12, "provider_conflict"),
+      );
+
+      expect(await deleteRefusal(attendeeId)).toBe(REFUND_OWNER_REFUSAL);
+    });
+
+    test("returned money blocks deletion until its local record is finished", async () => {
+      const reference = "pi_authority_due";
+      const attendeeId = await bookedWithPayment(
+        "sess-authority-due",
+        reference,
+      );
+      await addAuthorityFor(
+        reference,
+        markRefundCompleted(readyAuthority("request-due"), 12, "provider"),
+      );
+
+      expect(await deleteRefusal(attendeeId)).toBe(REFUND_RECORDING_REFUSAL);
+    });
+
+    test("a fully recorded refund does not leave a destructive hold", async () => {
+      const reference = "pi_authority-recorded";
+      const attendeeId = await bookedWithPayment(
+        "sess-authority-recorded",
+        reference,
+      );
+      const completed = markRefundCompleted(
+        readyAuthority("request-recorded"),
+        12,
+        "provider",
+      );
+      await addAuthorityFor(
+        reference,
+        markRefundLocalRecorded(completed, 13),
+      );
+
       expect(await deleteRefusal(attendeeId)).toBeNull();
       expect(await attendeeStillThere(attendeeId)).toBe(false);
     });

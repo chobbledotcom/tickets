@@ -28,8 +28,7 @@ import {
 /** Makes a logger that records a payment-session error, prefixed with the
  * payment step it happened on (e.g. "redirect", "cancel"). */
 export const paymentSessionErrorLogger =
-  (step: string): ((detail: string) => void) =>
-  (detail: string): void =>
+  (step: string): (detail: string) => void => (detail: string): void =>
     logError({
       code: ErrorCode.PAYMENT_SESSION,
       detail: `[${step}] ${detail}`,
@@ -153,11 +152,7 @@ export const validatePaidSession = async (
   if (isSessionRejection(session)) {
     return {
       ok: false,
-      response: await answerRejectedSession(
-        session,
-        sessionId,
-        logRedirectError,
-      ),
+      response: await answerRejectedSession(session, logRedirectError),
     };
   }
   if (!session) {

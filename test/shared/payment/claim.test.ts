@@ -9,7 +9,6 @@ import {
   decideClaim,
   holdsTheRow,
   isClaimStale,
-  mayReleaseClaim,
 } from "#shared/payment/claim.ts";
 import type { RefundClaim } from "#shared/payment/row-state.ts";
 
@@ -19,9 +18,8 @@ const CRASHED = "2026-08-10T11:59:59.000Z";
 
 const attendeeClaim = (writtenAt: string, attendeeId = 7): RefundClaim => ({
   attendeeIds: [attendeeId],
-  capability: "keyless",
   commandId: "claim-command",
-  phase: "send_armed",
+  phase: "checking",
   scope: "attendee_set",
   writtenAt,
 });
@@ -103,20 +101,6 @@ describe("holdsTheRow", () => {
       expect(holdsTheRow(decision)).toBe(expected);
     });
   }
-});
-
-describe("mayReleaseClaim", () => {
-  test("releases when the answer came back", () => {
-    expect(mayReleaseClaim("validated")).toBe(true);
-  });
-
-  test("releases when nothing was sent", () => {
-    expect(mayReleaseClaim("not_sent")).toBe(true);
-  });
-
-  test("a lost answer keeps the claim standing", () => {
-    expect(mayReleaseClaim("lost")).toBe(false);
-  });
 });
 
 describe("saying why a run was turned away", () => {

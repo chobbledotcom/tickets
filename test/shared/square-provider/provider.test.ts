@@ -4,6 +4,7 @@ import { squarePaymentProvider } from "#shared/square-provider.ts";
 import {
   configureSquare,
   linkResult,
+  squareRefundRequest,
   withSquareClient,
 } from "#test/test-utils/square/fixtures.ts";
 import { describeSquare } from "#test/test-utils/square/harness.ts";
@@ -268,14 +269,16 @@ describeSquare(() => {
             }),
         },
         async () => {
-          const result = await squarePaymentProvider.refundCharge({
-            charge: {
-              captured: gbp(2000),
-              confirmedRefunded: gbp(0),
-              refunds: [],
-            },
-            paymentReference: "pay_prov_ref",
-          });
+          const result = await squarePaymentProvider.refundCharge(
+            squareRefundRequest({
+              charge: {
+                captured: gbp(2000),
+                confirmedRefunded: gbp(0),
+                refunds: [],
+              },
+              paymentReference: "pay_prov_ref",
+            }),
+          );
           expect(result.kind).toBe("completed");
         },
       );

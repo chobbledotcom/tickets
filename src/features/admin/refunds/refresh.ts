@@ -1,15 +1,18 @@
 /* jscpd:ignore-start -- imports */
-import { compact } from "#fp";
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
-import { markPaymentReferencesProviderRefunded } from "#shared/db/payment-references.ts";
-import type { ObservedRefundAdmission } from "#shared/payment/admit-refund.ts";
 import { PAYMENT_REVIEW_RETIREMENT } from "#shared/payment/review.ts";
-import type { RefundProviderCapability } from "#shared/payment/row-state.ts";
 import { reportWithheldRefund } from "#shared/payment-review.ts";
 import { isPaymentOnlyAccount } from "#shared/refund-ledger/plan.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
 import type { RefundLedgerResult } from "#shared/refund-ledger/result.ts";
+import {
+  type ProviderRefundResult,
+  recordProviderRefunds,
+  type RefundAuthorityReceipt,
+  requestProviderRefund,
+} from "#shared/provider-refunds.ts";
+import { recordedRefundAuthorities, requestReadyRefund } from "./authority.ts";
 import type { RefundCandidate } from "./candidates.ts";
 import {
   durableRowClaim,
@@ -29,24 +32,19 @@ import {
 } from "./ledger-findings.ts";
 import {
   currentPaymentReviews,
-  type ProviderReviewFinding,
-  reconcileProviderReviewFindings,
   resolvePaymentReview,
-} from "./provider-reviews.ts";
+} from "./row-reviews.ts";
+import { mapProviderRequests } from "./provider-requests.ts";
 import {
   prepareRefundReadiness,
   type ReadyRefundCandidate,
   type ReadyRefundReference,
 } from "./readiness.ts";
 import { runRefundReadiness } from "./readiness-run.ts";
-import { readyRefundAdmission } from "./ready-admission.ts";
 
 /* jscpd:ignore-end */
 
 type TaggedRefundReference = ReadyRefundReference["reference"];
-type MarkReturnedReferences = (
-  references: readonly TaggedRefundReference[],
-) => Promise<void>;
 type RecordRefund = (
   attendeeId: number,
   references: readonly TaggedRefundReference[],
@@ -66,10 +64,11 @@ export type RefreshPaymentResult =
 export type RefreshPaymentDependencies = {
   claim?: RowClaim;
   confirm?: ConfirmRefund;
-  markReturned?: MarkReturnedReferences;
   paymentOnly?: (attendeeId: number) => Promise<boolean>;
   prepare?: typeof prepareRefundReadiness;
   record?: RecordRefund;
+  recordAuthorities?: typeof recordProviderRefunds;
+  request?: typeof requestProviderRefund;
 };
 
 const paymentOnlyBeforeRefund = async (
@@ -79,94 +78,45 @@ const paymentOnlyBeforeRefund = async (
   return isPaymentOnlyAccount(legs);
 };
 
-type RefreshedReference =
-  | { kind: "returned"; reference: TaggedRefundReference }
-  | {
-      admission: Exclude<ObservedRefundAdmission, { kind: "already_returned" }>;
-      kind: "unreturned";
-      reference: TaggedRefundReference;
-    };
-
-type UnreturnedReference = Extract<RefreshedReference, { kind: "unreturned" }>;
-
-const hasUnreturnedReference = (
-  observed: readonly RefreshedReference[],
-  matches: (reference: UnreturnedReference) => boolean,
-): boolean =>
-  observed.some(
-    (reference) => reference.kind === "unreturned" && matches(reference),
-  );
-
-const hasAdmission = (
-  observed: readonly RefreshedReference[],
-  kind: UnreturnedReference["admission"]["kind"],
-): boolean =>
-  hasUnreturnedReference(
-    observed,
-    (reference) => reference.admission.kind === kind,
-  );
-
-const resumedKeyedSendRemains = (
-  observed: readonly RefreshedReference[],
-  inherited: ReadonlyMap<string, RefundProviderCapability>,
-): boolean =>
-  hasUnreturnedReference(
-    observed,
-    ({ admission, reference }) =>
-      admission.kind === "send" && inherited.get(reference.index) === "keyed",
-  );
+type ReturnedRefreshReference = {
+  readonly authority: RefundAuthorityReceipt | null;
+  readonly reference: TaggedRefundReference;
+};
 
 const REVIEW_REQUIRED_MESSAGE =
   "This payment needs an owner review before another refund can be attempted.";
 
-const observedReference = (
+const observeReference = async (
   ready: ReadyRefundReference,
   attendeeId: number,
   listingId: number,
-): RefreshedReference => {
-  const admission = readyRefundAdmission(ready);
-  if (admission.kind === "already_returned") {
-    return { kind: "returned", reference: ready.reference };
-  }
-  if (admission.kind !== "send") {
-    reportWithheldRefund(admission, {
+  request: typeof requestProviderRefund,
+): Promise<ProviderRefundResult> => {
+  const result = await requestReadyRefund(ready, "observe_only", request);
+  if (result.kind === "withheld") {
+    reportWithheldRefund(result.admission, {
       attendeeId,
       listingId,
       provider: ready.provider.type,
     });
   }
-  return {
-    admission,
-    kind: "unreturned",
-    reference: ready.reference,
-  };
+  return result;
 };
 
 const returnedReference = (
-  observed: RefreshedReference,
-): TaggedRefundReference | null =>
-  observed.kind === "returned" ? observed.reference : null;
-
-/** Keep only provider disagreements that need an owner's decision. */
-const providerReviewFindings = (
-  observed: readonly RefreshedReference[],
-  uncertainKeyless: ReadonlySet<string>,
-): ProviderReviewFinding[] =>
-  observed.flatMap((result): ProviderReviewFinding[] =>
-    result.kind !== "unreturned"
-      ? []
-      : result.admission.kind === "refused"
-        ? [{ reason: result.admission.issue, reference: result.reference }]
-        : result.admission.kind === "send" &&
-            uncertainKeyless.has(result.reference.index)
-          ? [
-              {
-                reason: { kind: "uncertain_keyless_refund" },
-                reference: result.reference,
-              },
-            ]
-          : [],
-  );
+  result: ProviderRefundResult,
+  reference: TaggedRefundReference,
+): ReturnedRefreshReference[] => {
+  if (
+    result.reference.provider !== reference.provider ||
+    result.reference.reference !== reference.reference
+  ) {
+    throw new Error("Refund authority answered for a different payment");
+  }
+  return result.kind === "returned"
+    ? [{ authority: result.authority, reference }]
+    : [];
+};
 
 /** Retire only refund markers that a complete ledger post disproves. */
 const retireCompletedRefundReviews = (
@@ -188,61 +138,54 @@ const retireCompletedRefundReviews = (
 
 type AppliedRefundLedger = ReturnType<typeof applyRefundLedgerFindings>;
 type RefreshPersistence = Required<
-  Pick<RefreshPaymentDependencies, "markReturned" | "record">
+  Pick<RefreshPaymentDependencies, "record" | "recordAuthorities">
 >;
 
-/** Keep or clear the safety hold for one attendee as a single transition. */
-const setClaimProtection = (
-  findings: RunFindings,
-  attendeeId: number,
-  keepsClaim: boolean,
-): void => {
-  if (keepsClaim) findings.doubts.set(attendeeId, "in_doubt");
-  else findings.doubts.delete(attendeeId);
-};
-
-/** Mark and post returned money before the claim may be retired. */
+/** Post returned money, then retire only matching durable authorities. */
 const persistReturnedReferences = async (
   attendeeId: number,
-  returned: readonly TaggedRefundReference[],
-  keepsClaim: boolean,
+  returned: readonly ReturnedRefreshReference[],
   findings: RunFindings,
   dependencies: RefreshPersistence,
 ): Promise<AppliedRefundLedger | undefined> => {
-  if (returned.length > 0) setClaimProtection(findings, attendeeId, true);
-  await dependencies.markReturned(returned);
   if (returned.length === 0) return;
+  const references = returned.map(({ reference }) => reference);
 
   let result: RefundLedgerResult;
   try {
-    result = await dependencies.record(attendeeId, returned);
+    result = await dependencies.record(attendeeId, references);
   } catch (error) {
-    rememberFailedRefundLedger(findings, attendeeId, returned);
-    setClaimProtection(findings, attendeeId, keepsClaim);
+    rememberFailedRefundLedger(findings, attendeeId, references);
     throw error;
   }
   const ledger = applyRefundLedgerFindings(
     findings,
     attendeeId,
-    returned,
+    references,
     result,
   );
-  setClaimProtection(findings, attendeeId, keepsClaim);
+  const recordedAuthorities = recordedRefundAuthorities(returned, result);
+  if (recordedAuthorities.length > 0) {
+    await dependencies.recordAuthorities(recordedAuthorities);
+  }
   return ledger;
 };
 
 const unreturnedResult = (
-  attendeeId: number,
-  keepsClaim: boolean,
+  observed: readonly ProviderRefundResult[],
   needsReview: boolean,
-  findings: RunFindings,
 ): RefreshPaymentResult => {
-  if (keepsClaim) {
+  if (
+    needsReview ||
+    observed.some((result) => result.kind === "needs_owner_choice")
+  ) {
+    return { kind: "needs_review", message: REVIEW_REQUIRED_MESSAGE };
+  }
+  if (observed.some((result) => result.kind === "pending")) {
     return { kind: "blocked", reason: "refund_in_progress" };
   }
-  if (needsReview) {
-    setClaimProtection(findings, attendeeId, false);
-    return { kind: "needs_review", message: REVIEW_REQUIRED_MESSAGE };
+  if (observed.some((result) => result.kind === "withheld")) {
+    throw new Error("Observed payment refresh lost its provider evidence");
   }
   return { kind: "current" };
 };
@@ -251,13 +194,11 @@ const completedRefresh = async (
   candidate: ReadyRefundCandidate,
   returned: readonly TaggedRefundReference[],
   claim: HeldRefundClaim,
-  findings: RunFindings,
   dependencies: Required<
     Pick<RefreshPaymentDependencies, "confirm" | "paymentOnly">
   >,
 ): Promise<RefreshPaymentResult> => {
   const attendeeId = candidate.attendee.id;
-  setClaimProtection(findings, attendeeId, false);
   const paymentOnly = await dependencies.paymentOnly(attendeeId);
   const confirmation = await dependencies.confirm({
     attendee: candidate.attendee,
@@ -271,66 +212,63 @@ const completedRefresh = async (
 const refreshReadyCandidate = async (
   candidate: ReadyRefundCandidate,
   listingId: number,
-  inherited: ReadonlyMap<string, RefundProviderCapability>,
   findings: RunFindings,
   claim: HeldRefundClaim,
   heldReviews: HeldRefundWork["reviews"],
   dependencies: Required<
     Pick<
       RefreshPaymentDependencies,
-      "confirm" | "markReturned" | "paymentOnly" | "record"
+      | "confirm"
+      | "paymentOnly"
+      | "record"
+      | "recordAuthorities"
+      | "request"
     >
   >,
 ): Promise<RefreshPaymentResult> => {
-  const observed = candidate.references.map((reference) =>
-    observedReference(reference, candidate.attendee.id, listingId),
-  );
-  const returned = compact(observed.map(returnedReference));
-  const hasUnreturned = returned.length !== candidate.references.length;
-  const currentProviderReviews = providerReviewFindings(
-    observed,
-    new Set(
-      [...inherited].flatMap(([index, capability]) =>
-        capability === "keyless" ? [index] : [],
+  const observed = await mapProviderRequests(
+    candidate.references,
+    (reference) =>
+      observeReference(
+        reference,
+        candidate.attendee.id,
+        listingId,
+        dependencies.request,
       ),
-    ),
   );
-  reconcileProviderReviewFindings(
-    findings,
-    heldReviews,
-    candidate.references.map(({ reference }) => reference),
-    currentProviderReviews,
+  const returned = observed.flatMap((result, offset) =>
+    returnedReference(result, candidate.references[offset]!.reference)
   );
+  const hasUnreturned = returned.length !== candidate.references.length;
   const attendeeId = candidate.attendee.id;
-  // The complete observation now replaces protection taken before provider IO.
-  const keepsClaim =
-    hasAdmission(observed, "in_flight") ||
-    resumedKeyedSendRemains(observed, inherited);
-  setClaimProtection(findings, attendeeId, keepsClaim);
   const ledger = await persistReturnedReferences(
     attendeeId,
     returned,
-    keepsClaim,
     findings,
     dependencies,
   );
   if (ledger?.allRecorded) {
-    retireCompletedRefundReviews(returned, heldReviews, findings);
+    retireCompletedRefundReviews(
+      returned.map(({ reference }) => reference),
+      heldReviews,
+      findings,
+    );
   }
   const needsReview = currentPaymentReviews(heldReviews, findings).size > 0;
   if (hasUnreturned) {
-    return unreturnedResult(attendeeId, keepsClaim, needsReview, findings);
+    return unreturnedResult(observed, needsReview);
   }
 
+  if (needsReview) {
+    return { kind: "needs_review", message: REVIEW_REQUIRED_MESSAGE };
+  }
   if (ledger === undefined || !ledger.allRecorded) {
-    setClaimProtection(findings, attendeeId, false);
     return { kind: "returned", posted: false };
   }
   return await completedRefresh(
     candidate,
-    returned,
+    returned.map(({ reference }) => reference),
     claim,
-    findings,
     dependencies,
   );
 };
@@ -354,10 +292,11 @@ export const refreshClaimedPayment = async (
   const {
     claim = durableRowClaim,
     confirm = (refund) => confirmRefund({ ...refund, listingId }),
-    markReturned = markPaymentReferencesProviderRefunded,
     paymentOnly = paymentOnlyBeforeRefund,
     prepare = prepareRefundReadiness,
     record = recordAttendeeRefund,
+    recordAuthorities = recordProviderRefunds,
+    request = requestProviderRefund,
   } = dependencies;
   return await runRefundReadiness<RefreshPaymentResult>({
     action: "refresh",
@@ -368,16 +307,22 @@ export const refreshClaimedPayment = async (
     listingId,
     notReady: (message) => ({ kind: "not_ready", message }),
     prepare,
-    ready: (candidates, { claim: heldClaim, findings, inherited, reviews }) => {
+    request,
+    ready: (candidates, { claim: heldClaim, findings, reviews }) => {
       const readyCandidate = oneReadyCandidate(candidates);
       return refreshReadyCandidate(
         readyCandidate,
         listingId,
-        inherited.get(readyCandidate.attendee.id) ?? new Map(),
         findings,
         heldClaim,
         reviews,
-        { confirm, markReturned, paymentOnly, record },
+        {
+          confirm,
+          paymentOnly,
+          record,
+          recordAuthorities,
+          request,
+        },
       );
     },
   });

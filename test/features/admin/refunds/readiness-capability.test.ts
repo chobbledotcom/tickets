@@ -13,7 +13,7 @@ import {
   untagged,
 } from "./readiness/helpers.ts";
 
-test("binds each resolved provider's capability to its reference", async () => {
+test("binds each resolved provider identity to its reference", async () => {
   const stripe = provider("stripe");
   const sumup = provider("sumup", "keyless");
   const stripeReference = tagged("stripe_charge", "stripe");
@@ -62,7 +62,6 @@ test("binds each resolved provider's capability to its reference", async () => {
       [
         stripeReference.index,
         {
-          capability: "keyed",
           identity: {
             kind: "tagged",
             provider: "stripe",
@@ -73,7 +72,6 @@ test("binds each resolved provider's capability to its reference", async () => {
       [
         sumupReference.index,
         {
-          capability: "keyless",
           identity: {
             kind: "tagged",
             provider: "sumup",

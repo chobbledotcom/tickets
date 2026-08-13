@@ -30,24 +30,18 @@ export const claimRequestFor = (
   return { attendeeIds, scope: "attendee_set" };
 };
 
-/** Stale pre-send work starts over; only a possibly sent command stays armed. */
+/** Every acquired attendee-row hold is only a checking fence. */
 export const nextClaimFor = (
-  decision: ClaimDecision,
+  _decision: ClaimDecision,
   request: ClaimRequest,
   commandId: string,
   writtenAt: string,
 ): RefundClaim => {
-  const claim = {
+  return {
     attendeeIds: [...request.attendeeIds],
     commandId,
     scope: request.scope,
     writtenAt,
+    phase: "checking",
   };
-  return decision.kind === "resume" && decision.resuming.phase === "send_armed"
-    ? {
-        ...claim,
-        capability: decision.resuming.capability,
-        phase: "send_armed",
-      }
-    : { ...claim, phase: "checking" };
 };

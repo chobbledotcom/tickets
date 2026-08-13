@@ -46,8 +46,22 @@ describe("validatedPaymentSession", () => {
 
   it("recognises a session rejection and nothing else", () => {
     expect(
-      isSessionRejection({ provider: "stripe", reason: "blank_reference" }),
+      isSessionRejection({
+        provider: "stripe",
+        reason: "blank_reference",
+        sessionId: "cs_blank",
+      }),
     ).toBe(true);
+    expect(
+      isSessionRejection({ provider: "stripe", reason: "blank_reference" }),
+    ).toBe(false);
+    expect(
+      isSessionRejection({
+        provider: "stripe",
+        reason: "blank_reference",
+        sessionId: "",
+      }),
+    ).toBe(false);
     expect(isSessionRejection({ reason: "blank_reference" })).toBe(false);
     expect(isSessionRejection({ reason: "unknown" })).toBe(false);
     // A malformed_charge without its metadata is an invented partial shape.
@@ -65,6 +79,7 @@ describe("validatedPaymentSession", () => {
         provider: "stripe",
         reason: "malformed_charge",
         refundable: true,
+        sessionId: "cs_malformed",
       }),
     ).toBe(true);
     expect(isSessionRejection(null)).toBe(false);
@@ -132,8 +147,19 @@ describe("validatedPaymentSession", () => {
         id: "invented",
         paymentReference: "   ",
         provider: "stripe",
-      }),
+      })
     ).toThrow(/^Validated session has an invalid provider resource id$/u);
+  });
+
+  it("refuses to construct a session without a provider callback identity", () => {
+    expect(() =>
+      validatedPaymentSession({
+        ...basePaid,
+        amountTotal: 1000,
+        currency: "GBP",
+        id: "",
+      })
+    ).toThrow(/^Payment session has an invalid provider resource id$/u);
   });
 
   // --- The refusals a live callback must make, at the one boundary they share ---
@@ -153,6 +179,7 @@ describe("validatedPaymentSession", () => {
       provider: "stripe",
       reason: "malformed_charge",
       refundable: true,
+      sessionId: "sess-1",
     });
     expect(errorSpy.contains("malformed charge")).toBe(true);
   });
@@ -188,6 +215,7 @@ describe("validatedPaymentSession", () => {
       provider: "stripe",
       reason: "malformed_charge",
       refundable: true,
+      sessionId: "sess-1",
     });
   });
 
@@ -204,6 +232,7 @@ describe("validatedPaymentSession", () => {
       provider: "stripe",
       reason: "malformed_charge",
       refundable: true,
+      sessionId: "sess-1",
     });
   });
 
@@ -220,6 +249,7 @@ describe("validatedPaymentSession", () => {
       provider: "stripe",
       reason: "malformed_charge",
       refundable: true,
+      sessionId: "sess-1",
     });
   });
 
@@ -236,6 +266,7 @@ describe("validatedPaymentSession", () => {
       provider: "stripe",
       reason: "malformed_charge",
       refundable: true,
+      sessionId: "sess-1",
     });
     expect(
       validatedPaymentSession({
@@ -249,6 +280,7 @@ describe("validatedPaymentSession", () => {
       provider: "stripe",
       reason: "malformed_charge",
       refundable: true,
+      sessionId: "sess-1",
     });
   });
 
@@ -267,6 +299,7 @@ describe("validatedPaymentSession", () => {
       provider: "stripe",
       reason: "malformed_charge",
       refundable: true,
+      sessionId: "sess-1",
     });
   });
 
@@ -285,6 +318,7 @@ describe("validatedPaymentSession", () => {
       provider: "stripe",
       reason: "malformed_charge",
       refundable: true,
+      sessionId: "sess-1",
     });
   });
 
@@ -304,6 +338,7 @@ describe("validatedPaymentSession", () => {
       provider: "stripe",
       reason: "malformed_charge",
       refundable: false,
+      sessionId: "sess-1",
     });
   });
 
@@ -332,7 +367,11 @@ describe("validatedPaymentSession", () => {
         currency: "GBP",
         paymentReference: "",
       }),
-    ).toEqual({ provider: "stripe", reason: "blank_reference" });
+    ).toEqual({
+      provider: "stripe",
+      reason: "blank_reference",
+      sessionId: "sess-1",
+    });
     expect(
       validatedPaymentSession({
         ...basePaid,
@@ -340,7 +379,11 @@ describe("validatedPaymentSession", () => {
         currency: "GBP",
         paymentReference: "   ",
       }),
-    ).toEqual({ provider: "stripe", reason: "blank_reference" });
+    ).toEqual({
+      provider: "stripe",
+      reason: "blank_reference",
+      sessionId: "sess-1",
+    });
     expect(errorSpy.contains("provider resource id")).toBe(true);
   });
 });

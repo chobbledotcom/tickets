@@ -7,7 +7,6 @@
 import { expect } from "@std/expect";
 // jscpd:ignore-start
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
-import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import { sellSomethingAt } from "#test/specs/support/listings.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import {
@@ -172,8 +171,8 @@ export const contradictFirstPayment = (world: TicketsWorld): void => {
   });
 };
 
-/** Use the real single-refund and review forms for the first paid attendee. */
-export const acknowledgeFirstPaymentReview = async (
+/** Use the real single-refund form and leave its canonical owner case open. */
+export const leaveFirstRefundCaseForOwner = async (
   world: TicketsWorld,
 ): Promise<void> => {
   const browser = await sendRefundForm(
@@ -184,13 +183,9 @@ export const acknowledgeFirstPaymentReview = async (
     refundCompletes,
   );
   expect(requiredWorldValue(world.refundCalls, "first refund calls")()).toBe(0);
-  await browser.clickLink("Mark payment reviewed");
-  await fillInAndSend(
-    browser,
-    { confirm_identifier: "One" },
-    "Mark payment reviewed",
-  );
-  expect(browser.containsText("Payment review acknowledged")).toBe(true);
+  await browser.clickLink("Settings");
+  await browser.clickLink("Privacy");
+  expect(browser.containsText("Owner decision needed")).toBe(true);
 };
 
 /** Replace the contradictory report with an untouched charge. */

@@ -136,11 +136,34 @@ export const paymentWorkFor = (
 export const moveRefusalOrNull = (
   states: readonly PaymentRowState[],
   move: RowMove,
+): string | null =>
+  moveRefusalWhen(
+    (work) => states.some(work.found),
+    move,
+  );
+
+const moveRefusalWhen = (
+  hasWork: (work: LiveWorkEntry) => boolean,
+  move: RowMove,
 ): string | null => {
   const blocking = WORST_FIRST.find(
-    (work) => work.stops[move] && states.some(work.found),
+    (work) => work.stops[move] && hasWork(work),
   );
   return blocking === undefined ? null : blocking.refusal;
+};
+
+/** Decide from the non-sensitive mirrors used by destructive SQL guards. */
+export const mirroredMoveRefusalOrNull = (
+  mirrors: readonly string[],
+  move: RowMove,
+): string | null => {
+  const known = new Set(["", ...WORST_FIRST.map((work) => work.mirror)]);
+  const invalid = mirrors.find((mirror) => !known.has(mirror));
+  if (invalid !== undefined) {
+    throw new Error(`Unknown protected payment state: ${invalid}`);
+  }
+  const present = new Set(mirrors);
+  return moveRefusalWhen((work) => present.has(work.mirror), move);
 };
 
 /** The plain word a row shows the consumers that cannot decrypt it — the

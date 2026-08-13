@@ -5,11 +5,11 @@ import { expect } from "@std/expect";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { execute } from "#shared/db/client.ts";
 import {
-  acknowledgeFirstPaymentReview,
   contradictFirstPayment,
   correctFirstPayment,
   everyoneRefunded,
   firstPaymentIsLastRefundCandidate,
+  leaveFirstRefundCaseForOwner,
   paidPlaceEach,
   payMoreListing,
   payYourOwnPrice,
@@ -69,9 +69,9 @@ Given(
 );
 
 Given(
-  "the owner tried the first refund and acknowledged its review",
+  "the owner tried the first refund and left its refund case unresolved",
   function (this: TicketsWorld): Promise<void> {
-    return acknowledgeFirstPaymentReview(this);
+    return leaveFirstRefundCaseForOwner(this);
   },
 );
 
@@ -115,7 +115,7 @@ Then(
   function (this: TicketsWorld): void {
     expect(
       requiredWorldValue(this.bulkRefundMessage, "what the organiser was told"),
-    ).toContain("needs an owner review");
+    ).toContain("Refund recovery");
     expect(requiredWorldValue(this.refundCalls, "refund calls")()).toBe(0);
   },
 );

@@ -3,11 +3,20 @@ import type { Client, ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, setDb } from "#shared/db/client.ts";
-import { markPaymentReferencesProviderRefunded } from "#shared/db/payment-references.ts";
+import {
+  enableQueryLog,
+  getQueryLog,
+  runWithQueryLogContext,
+} from "#shared/db/query-log.ts";
 import {
   getRefundAllSummary,
   loadRefundAllBatch,
 } from "#shared/db/refund-all-candidates.ts";
+import {
+  armRefundSend,
+  readyRefund,
+} from "#shared/payment/refund-authority.ts";
+import { markRefundOwnerChoiceNeeded } from "#shared/payment/refund-authority-choice.ts";
 import {
   createPaidListing,
   markAsRefunded,
@@ -19,13 +28,15 @@ import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import {
   CLAIM_MIRROR,
   putRowState,
-  REVIEW_MIRROR,
   refundClaimFixture,
+  REVIEW_MIRROR,
   reviewCase,
   rowStateSlot,
   UNRECORDED_MIRROR,
 } from "#test-utils/payment-claim.ts";
 import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
+import { markProviderRefundsReturned } from "#test-utils/payment-references.ts";
+import { addProviderRefundTestCase } from "#test-utils/provider-refund-cases.ts";
 import { getCompleteRefundCandidatesForListing } from "#test-utils/refund-candidates.ts";
 
 // jscpd:ignore-end
@@ -82,6 +93,7 @@ describeWithEnv("db > Refund All candidates", { db: true }, () => {
             legacy_unindexed: 0,
             length: 3,
             owner_review: 0,
+            provider_refund: 0,
             total: 0,
             unrecorded_money: 0,
           },
@@ -99,7 +111,7 @@ describeWithEnv("db > Refund All candidates", { db: true }, () => {
       listing.id,
       "Settled",
       "settled@example.com",
-      "pi_settled_summary",
+      "",
     );
     const active = await createPaidTestAttendee(
       listing.id,
@@ -107,13 +119,17 @@ describeWithEnv("db > Refund All candidates", { db: true }, () => {
       "active@example.com",
       "pi_active_summary",
     );
-    const settledCandidate = await candidateFor(listing.id, settled.id);
+    await finalizeProcessedPayment("settled-summary", settled.id, "", {
+      kind: "tagged",
+      provider: "stripe",
+      reference: "pi_settled_summary",
+    });
+    const modernSettledCandidate = await candidateFor(listing.id, settled.id);
     const activeCandidate = await candidateFor(listing.id, active.id);
-
-    await markPaymentReferencesProviderRefunded(settledCandidate.references);
+    await markProviderRefundsReturned(modernSettledCandidate.references);
     await markAsRefunded(settled.id);
     await putRowState(
-      paymentRowOf(settledCandidate),
+      paymentRowOf(modernSettledCandidate),
       await rowStateSlot({
         review: reviewCase({ kind: "partial_refund" }),
       }),
@@ -123,7 +139,7 @@ describeWithEnv("db > Refund All candidates", { db: true }, () => {
       `UPDATE processed_payments
           SET payment_reference_index = ''
         WHERE payment_session_id = ?`,
-      [paymentRowOf(settledCandidate)],
+      [paymentRowOf(modernSettledCandidate)],
     );
     expect(await getRefundAllSummary(listing.id)).toEqual({
       blockedBy: null,
@@ -184,7 +200,7 @@ describeWithEnv("db > Refund All candidates", { db: true }, () => {
       throw new Error("The full Refund All page has no last attendee");
     }
     const claimed = await candidateFor(listing.id, claimedId);
-    await markPaymentReferencesProviderRefunded(claimed.references);
+    await markProviderRefundsReturned(claimed.references);
     await markAsRefunded(claimedId);
     await putRowState(
       paymentRowOf(claimed),
@@ -208,6 +224,69 @@ describeWithEnv("db > Refund All candidates", { db: true }, () => {
     });
     expect(batch.attendees.every(({ pii_blob }) => pii_blob.length > 0)).toBe(
       true,
+    );
+  });
+
+  test("blocks canonical provider work outside the selected batch", async () => {
+    const listing = await createPaidListing();
+    await seedTaggedBatchAttendees(listing, "pi_authority_batch_", 7);
+    const initial = await loadRefundAllBatch(listing.id);
+    const selected = new Set(initial.attendees.map(({ id }) => id));
+    const outside = (await getCompleteRefundCandidatesForListing(listing.id))
+      .find(({ attendee }) => !selected.has(attendee.id));
+    const reference = outside?.references[0];
+    if (reference === undefined || reference.kind !== "tagged") {
+      throw new Error("Refund All has no tagged payment outside its first page");
+    }
+    const ready = readyRefund({
+      evidenceRevision: 1,
+      nextActionAt: 20,
+      now: 10,
+      request: {
+        capability: "keyed",
+        generation: 1,
+        identityIndex: "refund-all-owner-case",
+        replayUntil: 30,
+      },
+    });
+    const ownerWork = markRefundOwnerChoiceNeeded(
+      armRefundSend(ready, 11, 20),
+      12,
+      "provider_conflict",
+    );
+    await addProviderRefundTestCase(
+      reference.reference,
+      ownerWork,
+      reference.provider,
+    );
+
+    expect(await getRefundAllSummary(listing.id)).toEqual({
+      blockedBy: "provider_refund",
+      total: 7,
+    });
+    expect(await loadRefundAllBatch(listing.id)).toMatchObject({
+      blockedBy: "provider_refund",
+      total: 7,
+    });
+  });
+
+  test("narrows the complete set before selecting any attendee PII", async () => {
+    const listing = await createPaidListing();
+    await seedTaggedBatchAttendees(listing, "pi_bounded_pii_", 7);
+
+    const statements = await runWithQueryLogContext(async () => {
+      enableQueryLog();
+      await loadRefundAllBatch(listing.id);
+      return getQueryLog().map(({ sql }) => sql);
+    });
+    const [summary, batch] = statements;
+    if (summary === undefined || batch === undefined) {
+      throw new Error("Refund All did not issue both admission reads");
+    }
+    expect(summary).not.toContain("pii_blob");
+    expect(batch.indexOf("LIMIT ?")).toBeGreaterThan(-1);
+    expect(batch.indexOf("attendee.pii_blob")).toBeGreaterThan(
+      batch.indexOf("LIMIT ?"),
     );
   });
 });

@@ -1,5 +1,8 @@
 import { inPlaceholders, queryAll } from "#shared/db/client.ts";
 
+/** Maximum payment-reference rows one attendee refund may open. */
+export const MAX_REFUND_REFERENCES_PER_ATTENDEE = 10;
+
 export type PaymentReferenceRow = {
   attendee_id: number;
   payment_reference: string;
@@ -7,6 +10,7 @@ export type PaymentReferenceRow = {
   payment_session_id: string;
   protected_state: string;
   provider_refunded_at: string;
+  reference_number: number;
   unindexed_history: number;
 };
 
@@ -34,21 +38,31 @@ export const loadSelectedPaymentReferenceRows = (
          FROM processed_payments
         WHERE attendee_id IN (${idSlots})
           AND payment_reference != ''
+     ), numberedReference AS (
+       SELECT attendee_id, payment_session_id, payment_reference,
+              payment_reference_index, protected_state, provider_refunded_at,
+              processed_at,
+              ROW_NUMBER() OVER (
+                PARTITION BY attendee_id
+                ORDER BY processed_at, payment_session_id
+              ) AS reference_number
+         FROM selectedPayment
+        WHERE payment_reference_index != ''
      ), referenceRead AS (
        SELECT attendee_id, payment_session_id, payment_reference,
               payment_reference_index, protected_state, provider_refunded_at,
-              processed_at, 0 AS unindexed_history
-         FROM selectedPayment
-        WHERE payment_reference_index != ''
+              processed_at, 0 AS unindexed_history, reference_number
+         FROM numberedReference
+        WHERE reference_number <= ${MAX_REFUND_REFERENCES_PER_ATTENDEE + 1}
        UNION ALL
-       SELECT attendee_id, '', '', '', '', '', '', 1
+       SELECT attendee_id, '', '', '', '', '', '', 1, 0
          FROM selectedPayment
         WHERE payment_reference_index = ''
         GROUP BY attendee_id
      )
      SELECT attendee_id, payment_session_id, payment_reference,
             payment_reference_index, protected_state, provider_refunded_at,
-            unindexed_history
+            unindexed_history, reference_number
        FROM referenceRead
       ORDER BY attendee_id, unindexed_history DESC, processed_at,
                payment_session_id`,

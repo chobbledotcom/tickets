@@ -46,17 +46,17 @@ const handleAdminRefundAllGet = (
     const { total } = await getRefundAllSummary(id);
     return total === 0
       ? htmlResponse(
-          adminRefundAllAttendeesPage(
-            listing,
-            0,
-            session,
-            flash.error ?? t("error.no_attendees_to_refund"),
-          ),
-          400,
-        )
+        adminRefundAllAttendeesPage(
+          listing,
+          0,
+          session,
+          flash.error ?? t("error.no_attendees_to_refund"),
+        ),
+        400,
+      )
       : htmlResponse(
-          adminRefundAllAttendeesPage(listing, total, session, flash.error),
-        );
+        adminRefundAllAttendeesPage(listing, total, session, flash.error),
+      );
   });
 
 interface RefundResponseContext {
@@ -110,8 +110,8 @@ const remainingRefundMessage = (
   return otherRemaining === 0
     ? null
     : t("admin.attendees.refund_all_result_waiting_remaining", {
-        count: otherRemaining,
-      });
+      count: otherRemaining,
+    });
 };
 
 /** Build the error response branch of a bulk refund. */
@@ -121,7 +121,7 @@ const buildRefundProblemResponse = async (
   const { listing, refundAllUrl, counts, remaining } = context;
   const { refundedCount, failedCount, notRecordedCount, pendingCount } = counts;
   // An unrecorded refund is operator work, so count it as an error.
-  const errorCount = counts.errorCount + notRecordedCount;
+  const errorCount = notRecordedCount;
   const problemCount = failedCount + errorCount;
   const msg = compact([
     t("admin.attendees.refund_all_result_refunds", {
@@ -129,8 +129,8 @@ const buildRefundProblemResponse = async (
     }),
     pendingCount > 0
       ? t("admin.attendees.refund_all_result_pending", {
-          count: pendingCount,
-        })
+        count: pendingCount,
+      })
       : null,
     t("admin.attendees.refund_all_result_failures", {
       count: problemCount,
@@ -141,10 +141,12 @@ const buildRefundProblemResponse = async (
     remainingRefundMessage(remaining, pendingCount),
   ]).join(" ");
   await logActivity(
-    `Bulk refund: ${refundActivityCounts(
-      counts,
-      problemCount,
-    )} for '${listing.name}'`,
+    `Bulk refund: ${
+      refundActivityCounts(
+        counts,
+        problemCount,
+      )
+    } for '${listing.name}'`,
     listing.id,
   );
   return fail(refundAllUrl, msg);
@@ -157,7 +159,7 @@ const buildRefundAllResponse = async (
   const { counts, listing, refundAllUrl, remaining, totalRefundable } = context;
   const refundedCount = counts.refundedCount;
   const hasProblems =
-    counts.failedCount + counts.errorCount + counts.notRecordedCount > 0;
+    counts.failedCount + counts.notRecordedCount > 0;
 
   if (hasProblems) {
     return buildRefundProblemResponse({
@@ -230,6 +232,7 @@ const processRefundAll = async (
   const blockerMessage = {
     legacy_unindexed: t("error.payment_history_incomplete"),
     owner_review: t("error.payment_needs_review"),
+    provider_refund: t("error.refund_recovery_required"),
     unrecorded_money: t("error.refund_not_recorded"),
   } satisfies Record<Exclude<RefundAllSummary["blockedBy"], null>, string>;
   if (batch.blockedBy !== null) {
@@ -246,8 +249,15 @@ const processRefundAll = async (
     ),
     privateKey,
   );
-  if (loaded.kind === "legacy_unindexed") {
-    return fail(refundAllUrl, t("error.payment_history_incomplete"));
+  if (loaded.kind !== "complete") {
+    return fail(
+      refundAllUrl,
+      t(
+        loaded.kind === "legacy_unindexed"
+          ? "error.payment_history_incomplete"
+          : "error.payment_history_too_large",
+      ),
+    );
   }
   const refundable = loaded.candidates;
 

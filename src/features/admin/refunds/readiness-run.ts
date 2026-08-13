@@ -1,6 +1,7 @@
 import type { LoadedRefundAttendee } from "#shared/db/payment-claim/take.ts";
 import { PAYMENT_REVIEW_RETIREMENT } from "#shared/payment/review.ts";
 import { getSubrequestRemaining } from "#shared/subrequest-budget.ts";
+import { requestProviderRefund } from "#shared/provider-refunds.ts";
 import {
   REFRESH_BUDGET_MESSAGE,
   REFUND_BUDGET_MESSAGES,
@@ -21,10 +22,7 @@ import type {
   ReadyRefundCandidate,
   RefundReadinessResult,
 } from "./readiness.ts";
-import {
-  rememberReadinessFailureFindings,
-  rememberRefundDoubts,
-} from "./readiness-findings.ts";
+import { rememberReadinessFailureFindings } from "./readiness-findings.ts";
 import { refundReadinessMessage } from "./readiness-problem.ts";
 import { type RefundNotStartedReason, reportRefundProblem } from "./report.ts";
 
@@ -45,22 +43,24 @@ type RefundReadinessRunBase<TResult> = {
     claim: HeldRefundWork["claim"],
     alreadyReturned: ReadonlySet<string>,
   ) => Promise<RefundReadinessResult>;
+  request?: typeof requestProviderRefund;
   ready: (
     candidates: ReadyRefundCandidate[],
     held: HeldRefundWork,
   ) => Promise<TResult>;
 };
 
-type RefundReadinessRun<TResult> = RefundReadinessRunBase<TResult> &
-  (
+type RefundReadinessRun<TResult> =
+  & RefundReadinessRunBase<TResult>
+  & (
     | {
-        action: Extract<RefundReadinessAction, "refund">;
-        budgetAudience: RefundBudgetAudience;
-      }
+      action: Extract<RefundReadinessAction, "refund">;
+      budgetAudience: RefundBudgetAudience;
+    }
     | {
-        action: Extract<RefundReadinessAction, "refresh">;
-        budgetAudience?: never;
-      }
+      action: Extract<RefundReadinessAction, "refresh">;
+      budgetAudience?: never;
+    }
   );
 
 const REVIEW_REQUIRED_MESSAGE =
@@ -89,19 +89,24 @@ const reportCandidateProblems = (
 const sharedRowSessionIds = (held: HeldRefundWork): Set<string> =>
   new Set(
     [...held.shared.values()].flatMap((representations) =>
-      representations.map(({ sessionId }) => sessionId),
+      representations.map(({ sessionId }) => sessionId)
     ),
   );
 
 /** Record why a claimed run could not establish complete provider evidence. */
-const reportReadinessFailure = (
+const reportReadinessFailure = async (
   run: RefundReadinessRun<unknown>,
   candidates: readonly RefundCandidate[],
   readiness: FailedReadiness,
   held: HeldRefundWork,
-): string => {
+): Promise<string> => {
   const message = refundReadinessMessage(readiness);
-  rememberReadinessFailureFindings(candidates, readiness, held);
+  await rememberReadinessFailureFindings(
+    candidates,
+    readiness,
+    held,
+    run.request ?? requestProviderRefund,
+  );
   reportCandidateProblems(run, candidates, readiness.reason);
   return message;
 };
@@ -168,34 +173,6 @@ const ADMISSION_BY_ACTION = {
   (held: HeldRefundWork) => RefundAdmissionProblem | null
 >;
 
-/** Readiness retires checking, never the protection around a resumed send.
- *  Each action removes that protection only after its own durable outcome. */
-const rememberCheckedPhases = (
-  held: HeldRefundWork,
-  execution: HeldRefundWork["claim"],
-): void => {
-  for (const [sessionId, phase] of execution.phases) {
-    if (phase === "checking") {
-      held.findings.claimPhases.set(sessionId, "ready");
-    }
-  }
-};
-
-/** Keep the claim when provider preparation ends without a complete answer. */
-const protectProviderReads = (
-  candidates: readonly RefundCandidate[],
-  held: HeldRefundWork,
-): void => {
-  const needingProtection = candidates.filter((candidate) =>
-    candidate.references.some(
-      (reference) =>
-        reference.refundState !== "completed" &&
-        !held.alreadyReturned.has(reference.index),
-    ),
-  );
-  rememberRefundDoubts(needingProtection, held, "in_doubt");
-};
-
 const budgetFits = (
   action: RefundReadinessAction,
   candidates: readonly LoadedRefundAttendee[],
@@ -219,10 +196,9 @@ const loadedBudgetCandidates = (
 const refuseForBudget = <TResult>(
   run: RefundReadinessRun<TResult>,
 ): TResult => {
-  const message =
-    run.action === "refresh"
-      ? REFRESH_BUDGET_MESSAGE
-      : REFUND_BUDGET_MESSAGES[run.budgetAudience];
+  const message = run.action === "refresh"
+    ? REFRESH_BUDGET_MESSAGE
+    : REFUND_BUDGET_MESSAGES[run.budgetAudience];
   return run.notReady(message, "subrequest_budget");
 };
 
@@ -275,23 +251,21 @@ export const runRefundReadiness = async <TResult>(
         ) {
           return refuseForBudget(run);
         }
-        let readiness: RefundReadinessResult;
-        try {
-          readiness = await run.prepare(
-            run.candidates,
-            held.claim,
-            held.alreadyReturned,
-          );
-        } catch (error) {
-          protectProviderReads(run.candidates, held);
-          throw error;
-        }
+        const readiness = await run.prepare(
+          run.candidates,
+          held.claim,
+          held.alreadyReturned,
+        );
         if (readiness.kind === "not_ready") {
           return run.notReady(
-            reportReadinessFailure(run, run.candidates, readiness, held),
+            await reportReadinessFailure(
+              run,
+              run.candidates,
+              readiness,
+              held,
+            ),
           );
         }
-        rememberCheckedPhases(held, held.claim);
         return await run.ready(readiness.candidates, held);
       },
     },

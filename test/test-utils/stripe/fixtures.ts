@@ -1,11 +1,13 @@
 import { assertExists } from "@std/assert";
+import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import { settings } from "#shared/db/settings.ts";
 import type { Currency } from "#shared/payment/money.ts";
-import type {
-  RefundAttemptResult,
-  RefundRequest,
-} from "#shared/payment/refund-attempt.ts";
+import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
+import {
+  type AuthorizedRefundRequest,
+  authorizeDurableRefundSend,
+} from "#shared/payment/refund-provider-authorization.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { CheckoutItem, WebhookEvent } from "#shared/payments.ts";
 import type { StripeClient } from "#shared/stripe/client.ts";
@@ -76,10 +78,39 @@ export const stripeRefundRequest = (
   paymentReference = "pi_1",
   amount = 1000,
   currency: Currency = "GBP",
-): RefundRequest => ({
-  charge: stripeChargeMoney(amount, 0, currency),
-  paymentReference,
-});
+  idempotencyKey = `test-refund:${paymentReference}:1`,
+): AuthorizedRefundRequest<"stripe"> =>
+  authorizeDurableRefundSend(
+    {
+      charge: stripeChargeMoney(amount, 0, currency),
+      paymentReference,
+    },
+    {
+      capability: "keyed",
+      generation: 1,
+      idempotencyKey,
+      identityIndex: `test-refund-index:${paymentReference}:1`,
+      provider: "stripe",
+    },
+  );
+
+/** The stable provider-call facts for a refund minted by the durable engine. */
+export const stripeRefundRequestShape = (
+  paymentReference = "pi_1",
+  amount = 1000,
+  currency: Currency = "GBP",
+): ReturnType<typeof expect.objectContaining> =>
+  expect.objectContaining({
+    authorization: expect.objectContaining({
+      capability: "keyed",
+      generation: 1,
+      idempotencyKey: expect.any(String),
+      identityIndex: expect.any(String),
+      provider: "stripe",
+    }),
+    charge: stripeChargeMoney(amount, 0, currency),
+    paymentReference,
+  });
 
 /** A completed Stripe refund answer for route tests that stub the adapter. */
 export const completedStripeRefund = (
@@ -104,7 +135,7 @@ export const completedStripeRefund = (
 /** Stub behaviour that completes exactly the Stripe refund it was asked for. */
 export const answerCompletedStripeRefund =
   (refundId = "re_1") =>
-  (request: RefundRequest): Promise<RefundAttemptResult> =>
+  (request: AuthorizedRefundRequest): Promise<RefundAttemptResult> =>
     Promise.resolve(
       completedStripeRefund(
         request.paymentReference,

@@ -9,6 +9,12 @@ describe("refresh payment under an attendee claim", () => {
 
     await expectNewCompletedRefresh(run);
     expect(run.recorded).toEqual([[run.reference]]);
+    expect(run.authorities).toHaveLength(1);
+    expect(run.authorities[0]).toEqual([
+      expect.objectContaining({
+        referenceIndex: `${run.reference.provider}:${run.reference.reference}`,
+      }),
+    ]);
     expect(run.claim.released).toEqual([run.reference.rowSessionIds]);
   });
 
@@ -19,7 +25,11 @@ describe("refresh payment under an attendee claim", () => {
       posted: false,
     });
 
-    expect(await refresh(run)).toEqual({ kind: "returned", posted: false });
+    expect(await refresh(run)).toEqual({
+      kind: "needs_review",
+      message:
+        "This payment needs an owner review before another refund can be attempted.",
+    });
     expect(run.calls.confirm).toBe(0);
     expect(run.claim.released).toEqual([run.reference.rowSessionIds]);
     expect(run.claim.unrecorded).toEqual([run.reference.rowSessionIds]);
@@ -47,33 +57,7 @@ describe("refresh payment under an attendee claim", () => {
     expect(run.claim.released).toEqual([run.reference.rowSessionIds]);
   });
 
-  test("keeps a resumed keyed refund protected when no return is visible yet", async () => {
-    const run = runHarness({ inherited: "keyed" });
-
-    expect(await refresh(run)).toEqual({
-      kind: "blocked",
-      reason: "refund_in_progress",
-    });
-    expect(run.marked).toEqual([[]]);
-    expect(run.calls.record).toBe(0);
-    expect(run.claim.released).toEqual([]);
-  });
-
-  test("keeps the claim when returned evidence cannot be marked", async () => {
-    const run = runHarness({ observed: fullyRefundedMoney() });
-
-    await expect(
-      refresh(run, {
-        ...run.dependencies,
-        markReturned: () => Promise.reject(new Error("marker unavailable")),
-      }),
-    ).rejects.toThrow("marker unavailable");
-
-    expect(run.calls.record).toBe(0);
-    expect(run.claim.released).toEqual([]);
-  });
-
-  test("records the returned row before raising a ledger failure", async () => {
+  test("keeps a returned authority due when local recording cannot start", async () => {
     const run = runHarness({ observed: fullyRefundedMoney() });
 
     await expect(
@@ -83,17 +67,22 @@ describe("refresh payment under an attendee claim", () => {
       }),
     ).rejects.toThrow("ledger unavailable");
 
+    expect(run.authorities).toEqual([]);
     expect(run.claim.unrecorded).toEqual([run.reference.rowSessionIds]);
     expect(run.claim.released).toEqual([run.reference.rowSessionIds]);
   });
 
-  test("releases a resumed claim after returned money is durable", async () => {
-    const run = runHarness({
-      inherited: "keyed",
-      observed: fullyRefundedMoney(),
-    });
+  test("keeps recorded row facts when authority retirement fails", async () => {
+    const run = runHarness({ observed: fullyRefundedMoney() });
 
-    await expectNewCompletedRefresh(run);
+    await expect(
+      refresh(run, {
+        ...run.dependencies,
+        recordAuthorities: () =>
+          Promise.reject(new Error("authority unavailable")),
+      }),
+    ).rejects.toThrow("authority unavailable");
+
     expect(run.claim.recorded).toEqual([run.reference.rowSessionIds]);
     expect(run.claim.released).toEqual([run.reference.rowSessionIds]);
   });

@@ -15,7 +15,7 @@ import {
 } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { stripeRefundRequest } from "#test-utils/stripe/fixtures.ts";
+import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
 import {
   expectWebhookKeptAndRefunded,
   stubRefundPayment,
@@ -70,7 +70,7 @@ describeWithEnv(
 
       // Verify refund was attempted exactly once
       expect(mockRefund.calls[0]!.args).toEqual([
-        stripeRefundRequest("pi_mismatch", 1200),
+        stripeRefundRequestShape("pi_mismatch", 1200),
       ]);
     });
 
@@ -130,7 +130,7 @@ describeWithEnv(
 
         // Verify refund was attempted exactly once
         expect(mockRefund.calls[0]!.args).toEqual([
-          stripeRefundRequest("pi_redirect_mismatch", 800),
+          stripeRefundRequestShape("pi_redirect_mismatch", 800),
         ]);
       } finally {
         mockRetrieve.restore();

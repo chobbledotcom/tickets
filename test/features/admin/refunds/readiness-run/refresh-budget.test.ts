@@ -169,13 +169,13 @@ describeWithEnv(
       expect(providerReads).toBe(0);
     });
 
-    test("admits sixteen reads when the complete command fits", async () => {
+    test("admits two reads when the complete command fits", async () => {
       await settings.update.stripe.secretKey("sk_test_refresh_budget");
       const claimed = countedClaim();
       let providerReads = 0;
 
       const result = await runWithSubrequestBudget(() =>
-        refreshClaimedPayment(candidate(27, references(16, "full")), 17, {
+        refreshClaimedPayment(candidate(27, references(2, "full")), 17, {
           claim: claimed.claim,
           prepare: () => {
             providerReads++;

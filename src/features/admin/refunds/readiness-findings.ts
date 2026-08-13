@@ -1,101 +1,104 @@
+import { uniqueBy } from "#fp";
 import { admitObservedRefund } from "#shared/payment/admit-refund.ts";
+import {
+  type ProviderRefundResult,
+  requestProviderRefund,
+} from "#shared/provider-refunds.ts";
 import type { RefundCandidate } from "./candidates.ts";
-import type { AttendeeDoubt, HeldRefundWork } from "./claim.ts";
+import type { HeldRefundWork } from "./claim.ts";
 import { rememberFailedRefundLedger } from "./ledger-findings.ts";
-import { recordProviderReviewFindings } from "./provider-reviews.ts";
 import type {
-  RefundReadinessRead,
+  RefundReadinessObservation,
   RefundReadinessResult,
 } from "./readiness.ts";
 
 type FailedReadiness = Extract<RefundReadinessResult, { kind: "not_ready" }>;
 
-const referenceIndexesFor = (candidate: RefundCandidate): ReadonlySet<string> =>
-  new Set(candidate.references.map(({ index }) => index));
-
-const observationsFor = (
+const rememberReturnedForCandidate = (
   candidate: RefundCandidate,
   readiness: FailedReadiness,
-): FailedReadiness["observations"] => {
-  const indexes = referenceIndexesFor(candidate);
-  return readiness.observations.filter(({ reference }) =>
-    indexes.has(reference.index),
-  );
-};
-
-const rememberEvidenceForCandidate = (
-  candidate: RefundCandidate,
-  readiness: FailedReadiness,
+  returnedIndexes: ReadonlySet<string>,
   held: HeldRefundWork,
 ): void => {
   const attendeeId = candidate.attendee.id;
+  const indexes = new Set(returnedIndexes);
   if (readiness.reason === "historical_marker") {
-    const indexes = new Set(readiness.indexes);
-    const returned = candidate.references.filter(({ index }) =>
-      indexes.has(index),
-    );
-    if (returned.length > 0) {
-      rememberFailedRefundLedger(held.findings, attendeeId, returned);
-    }
+    for (const index of readiness.indexes) indexes.add(index);
   }
-  for (const { charge, reference } of observationsFor(candidate, readiness)) {
-    const admission = admitObservedRefund(reference.reference, charge);
-    if (admission.kind === "already_returned") {
-      rememberFailedRefundLedger(held.findings, attendeeId, [reference]);
-    } else if (admission.kind === "in_flight") {
-      held.findings.doubts.set(attendeeId, "in_doubt");
-    } else if (admission.kind === "refused") {
-      recordProviderReviewFindings(held.findings, [
-        { reason: admission.issue, reference },
-      ]);
-    }
+  const returned = candidate.references.filter(({ index }) =>
+    indexes.has(index)
+  );
+  if (returned.length > 0) {
+    rememberFailedRefundLedger(held.findings, attendeeId, returned);
   }
 };
 
-const ambiguousReadSawMoneyMove = (read: RefundReadinessRead): boolean =>
-  read.evidence.status === "unresolved" &&
-  read.evidence.attempts.some(
-    ({ result }) =>
-      result.status === "found" &&
-      admitObservedRefund(read.evidence.reference, result.resource).kind !==
-        "send",
-  );
+const needsAuthority = ({ charge, identity }: RefundReadinessObservation) =>
+  admitObservedRefund(identity.reference, charge).kind !== "send";
 
-const ambiguousMoneyFor = (
-  candidate: RefundCandidate,
-  readiness: FailedReadiness,
-): boolean => {
-  if (readiness.reason !== "provider_evidence") return false;
-  const indexes = referenceIndexesFor(candidate);
-  return readiness.reads.some(
-    (read) => indexes.has(read.index) && ambiguousReadSawMoneyMove(read),
-  );
-};
-
-/** Record one safety doubt for each named refund attendee. */
-export const rememberRefundDoubts = (
-  candidates: readonly RefundCandidate[],
-  held: HeldRefundWork,
-  doubt: AttendeeDoubt,
+const requireMatchingAnswer = (
+  observation: RefundReadinessObservation,
+  answer: ProviderRefundResult,
 ): void => {
-  for (const candidate of candidates) {
-    held.findings.doubts.set(candidate.attendee.id, doubt);
+  if (
+    answer.reference.provider !== observation.identity.provider ||
+    answer.reference.reference !== observation.identity.reference
+  ) {
+    throw new Error("Refund authority answered for a different payment");
   }
+  if (answer.kind === "ready" || answer.kind === "withheld") {
+    throw new Error("Refund authority discarded observed refund evidence");
+  }
+};
+
+const reconcileObservedWork = async (
+  observations: readonly RefundReadinessObservation[],
+  request: typeof requestProviderRefund,
+): Promise<ReadonlySet<string>> => {
+  const relevant = uniqueBy(
+    (observation: RefundReadinessObservation) => observation.reference.index,
+  )(observations.filter(needsAuthority));
+  const settled = await Promise.allSettled(
+    relevant.map(async (observation) => ({
+      answer: await request({
+        evidence: { charge: observation.charge, kind: "observed" },
+        mode: "observe_only",
+        reference: observation.identity,
+      }),
+      observation,
+    })),
+  );
+  const returned = new Set<string>();
+  for (const result of settled) {
+    if (result.status === "rejected") continue;
+    const { answer, observation } = result.value;
+    requireMatchingAnswer(observation, answer);
+    if (answer.kind === "returned") returned.add(observation.reference.index);
+  }
+  const failure = settled.find(
+    (result): result is PromiseRejectedResult => result.status === "rejected",
+  );
+  if (failure !== undefined) throw failure.reason;
+  return returned;
 };
 
 /** Preserve every money fact a failed complete-read attempt did establish. */
-export const rememberReadinessFailureFindings = (
+export const rememberReadinessFailureFindings = async (
   candidates: readonly RefundCandidate[],
   readiness: FailedReadiness,
   held: HeldRefundWork,
-): void => {
-  rememberRefundDoubts(candidates, held, "unread");
+  request: typeof requestProviderRefund = requestProviderRefund,
+): Promise<void> => {
+  const returnedIndexes = await reconcileObservedWork(
+    readiness.observations,
+    request,
+  );
   for (const candidate of candidates) {
-    const attendeeId = candidate.attendee.id;
-    rememberEvidenceForCandidate(candidate, readiness, held);
-    if (ambiguousMoneyFor(candidate, readiness)) {
-      // The money evidence is real, but its provider identity is not.
-      held.findings.doubts.set(attendeeId, "in_doubt");
-    }
+    rememberReturnedForCandidate(
+      candidate,
+      readiness,
+      returnedIndexes,
+      held,
+    );
   }
 };

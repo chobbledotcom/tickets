@@ -6,6 +6,7 @@ import { handleRequest } from "#routes";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { setEffectiveDomainForTest } from "#shared/config.ts";
 import { settings } from "#shared/db/settings.ts";
+import { queryAll } from "#shared/db/client.ts";
 import {
   setSumupCheckoutId,
   storeSumupCheckout,
@@ -255,6 +256,14 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
       ]);
       expect([browser.status, webhook.status]).toEqual([503, 503]);
       expect(refund.send.calls).toHaveLength(1);
+      expect(
+        await queryAll<{
+          refund_revision: number;
+          refund_state_name: string;
+        }>(
+          "SELECT refund_revision, refund_state_name FROM payment_charges",
+        ),
+      ).toEqual([{ refund_revision: 3, refund_state_name: "observing" }]);
     } finally {
       refund.send.restore();
       refund.read.restore();

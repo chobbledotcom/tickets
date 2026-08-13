@@ -10,7 +10,7 @@ import {
   getProcessedPayment,
 } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { stripeRefundRequest } from "#test-utils/stripe/fixtures.ts";
+import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 import { bookingIntent, trustedPayment } from "./helpers.ts";
 
@@ -94,7 +94,7 @@ describeWithEnv("payment processing balance outcomes", { db: true }, () => {
       1000,
     );
     expect(refund.calls[0]?.args).toEqual([
-      stripeRefundRequest(`pi_${id}`, 900),
+      stripeRefundRequestShape(`pi_${id}`, 900),
     ]);
     await expectSessionFailed(id);
   });

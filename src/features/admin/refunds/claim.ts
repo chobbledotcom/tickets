@@ -1,8 +1,7 @@
-import { compact, requiredMapValue } from "#fp";
+import { requiredMapValue } from "#fp";
 import {
-  type ClaimResult,
   claimAttendeeRows,
-  type InheritedArmedRefunds,
+  type ClaimResult,
   type LoadedRefundAttendee,
   paymentReferenceRepresentations,
   type RefundClaimAdmission,
@@ -13,13 +12,8 @@ import {
   type RowSettlement,
   settleAttendeeRows,
 } from "#shared/db/payment-claim.ts";
-import {
-  claimRefusal,
-  heldPaymentRows,
-  mayReleaseClaim,
-} from "#shared/payment/claim.ts";
+import { claimRefusal, heldPaymentRows } from "#shared/payment/claim.ts";
 import type { PaymentReviewReason } from "#shared/payment/review.ts";
-import type { RefundClaimPhase } from "#shared/payment/row-state.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { withSubrequestReserve } from "#shared/subrequest-budget.ts";
 import { REFUND_SETTLEMENT_SUBREQUEST_RESERVE } from "./budget.ts";
@@ -35,15 +29,8 @@ export type RowClaim = {
   settle: (settlement: RowSettlement) => Promise<void>;
 };
 
-/** What a run could not prove about one attendee's money. */
-export type AttendeeDoubt = "in_doubt" | "unread";
-
 /** What a run learnt about the attendees it held. */
 export type RunFindings = {
-  /** Exact durable phase each claimed row reached in this command. */
-  claimPhases: Map<string, RefundClaimPhase>;
-  /** Attendees whose money this run could not account for. */
-  doubts: Map<number, AttendeeDoubt>;
   /** Rows whose returned money the books have not caught up with. */
   unrecorded: Map<number, readonly string[]>;
   /** Review decisions to apply as these exact rows are released. */
@@ -57,7 +44,7 @@ export type RefundRunBlock =
   | { kind: "claim_held"; reason: string }
   | { kind: "payment_set_changed"; reason: string };
 
-/** The exact durable hold provider preparation must bind before any send. */
+/** The exact checking fence provider preparation must still own. */
 export type HeldRefundClaim = Pick<
   Extract<ClaimResult, { kind: "claimed" }>,
   "commandId" | "held" | "heldSince" | "phases"
@@ -68,7 +55,6 @@ export interface HeldRefundWork {
   readonly alreadyReturned: ReadonlySet<string>;
   readonly claim: HeldRefundClaim;
   readonly findings: RunFindings;
-  readonly inherited: InheritedArmedRefunds;
   readonly reviews: ReadonlyMap<string, PaymentReviewReason>;
   readonly shared: Extract<ClaimResult, { kind: "claimed" }>["shared"];
   readonly unrecorded: ReadonlyMap<number, readonly string[]>;
@@ -77,20 +63,6 @@ export interface HeldRefundWork {
 export const durableRowClaim: RowClaim = {
   claim: claimAttendeeRows,
   settle: settleAttendeeRows,
-};
-
-/** Whether this attendee's rows may be let go. */
-const mayLetGo = (
-  doubt: AttendeeDoubt | undefined,
-  resumed: boolean,
-): boolean => {
-  if (doubt === "in_doubt") return mayReleaseClaim("lost");
-  // Learning nothing settles nothing, so an inherited hold keeps whatever the
-  // dead run left on it.
-  if (doubt === "unread") {
-    return mayReleaseClaim(resumed ? "lost" : "not_sent");
-  }
-  return mayReleaseClaim("validated");
 };
 
 /** Settle held rows, reporting rather than raising when a row will not. */
@@ -123,26 +95,20 @@ const booksChange = (
 type SettlementEntry = readonly [string, PaymentRowSettlement];
 
 const settlementEntry = (
-  attendeeId: number,
   sessionId: string,
-  lettingAttendees: ReadonlySet<number>,
   unrecorded: ReadonlySet<string>,
   findings: RunFindings,
-  phases: ReadonlyMap<string, RefundClaimPhase>,
-): SettlementEntry | null => {
+  claim: Extract<ClaimResult, { kind: "claimed" }>,
+): SettlementEntry => {
   const books = booksChange(findings, unrecorded, sessionId);
   const review = findings.reviews.get(sessionId);
-  const claim = lettingAttendees.has(attendeeId) ? "release" : "keep";
-  if (claim === "keep" && books === undefined && review === undefined) {
-    return null;
-  }
   return [
     sessionId,
     {
       ...(books === undefined ? {} : { books }),
-      claim,
+      claim: "release",
       phase: requiredMapValue(
-        phases,
+        claim.phases,
         sessionId,
         "Refund settlement lost a payment-row phase",
       ),
@@ -155,29 +121,10 @@ const settlementRows = (
   claim: Extract<ClaimResult, { kind: "claimed" }>,
   findings: RunFindings,
 ): ReadonlyMap<string, PaymentRowSettlement> => {
-  const lettingAttendees = new Set(
-    [...claim.held]
-      .filter(([attendeeId]) =>
-        mayLetGo(
-          findings.doubts.get(attendeeId),
-          claim.inherited.has(attendeeId),
-        ),
-      )
-      .map(([attendeeId]) => attendeeId),
-  );
   const unrecorded = new Set([...findings.unrecorded.values()].flat());
   return new Map(
-    compact(
-      heldPaymentRows(claim.held).map(({ attendeeId, sessionId }) =>
-        settlementEntry(
-          attendeeId,
-          sessionId,
-          lettingAttendees,
-          unrecorded,
-          findings,
-          findings.claimPhases,
-        ),
-      ),
+    heldPaymentRows(claim.held).map(({ sessionId }) =>
+      settlementEntry(sessionId, unrecorded, findings, claim)
     ),
   );
 };
@@ -196,7 +143,7 @@ const initialUnrecorded = (
     ]),
   );
   const returned = [...represented.values()].filter(({ index }) =>
-    claim.returned.has(index),
+    claim.returned.has(index)
   );
   return new Map(
     [...Map.groupBy(returned, ({ attendeeId }) => attendeeId)].map(
@@ -213,16 +160,18 @@ export const underAttendeeClaim = async <TResult>(
   rowClaim: RowClaim,
   attendees: readonly LoadedRefundAttendee[],
   listingId: number,
-  run: {
-    blocked: (block: RefundRunBlock) => TResult;
-    work: (heldWork: HeldRefundWork) => Promise<TResult>;
-  } & (
-    | {
+  run:
+    & {
+      blocked: (block: RefundRunBlock) => TResult;
+      work: (heldWork: HeldRefundWork) => Promise<TResult>;
+    }
+    & (
+      | {
         admit: RefundClaimAdmission;
         admissionRefused: () => TResult;
       }
-    | { admit?: undefined; admissionRefused?: never }
-  ),
+      | { admit?: undefined; admissionRefused?: never }
+    ),
 ): Promise<TResult> => {
   const claim = await rowClaim.claim(attendees, run.admit);
   if (claim.kind === "changed") {
@@ -245,10 +194,6 @@ export const underAttendeeClaim = async <TResult>(
     )();
   }
   const findings: RunFindings = {
-    claimPhases: new Map(claim.phases),
-    doubts: new Map(
-      [...claim.inherited.keys()].map((attendeeId) => [attendeeId, "unread"]),
-    ),
     recorded: new Set(),
     reviews: new Map(),
     unrecorded: initialUnrecorded(attendees, claim),
@@ -274,10 +219,9 @@ export const underAttendeeClaim = async <TResult>(
             commandId: claim.commandId,
             held: claim.held,
             heldSince: claim.heldSince,
-            phases: findings.claimPhases,
+            phases: claim.phases,
           },
           findings,
-          inherited: claim.inherited,
           reviews: claim.reviews,
           shared: claim.shared,
           unrecorded: claim.unrecorded,

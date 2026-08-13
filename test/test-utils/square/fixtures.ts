@@ -4,6 +4,11 @@ import { type Spy, spy, stub } from "@std/testing/mock";
 import { setEffectiveDomainForTest } from "#shared/config.ts";
 import { settings } from "#shared/db/settings.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
+import type { RefundRequest } from "#shared/payment/refund-attempt.ts";
+import {
+  type AuthorizedRefundRequest,
+  authorizeDurableRefundSend,
+} from "#shared/payment/refund-provider-authorization.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { squareApi } from "#shared/square/api.ts";
 import { createMockClient } from "#test/test-utils/square/harness.ts";
@@ -11,6 +16,19 @@ import { createTestDb, resetDb } from "#test-utils/db.ts";
 
 type MockImpls = Parameters<typeof createMockClient>[0];
 type SquareMock = ReturnType<typeof createMockClient>;
+
+/** Give a Square request the durable permit its provider boundary requires. */
+export const squareRefundRequest = (
+  request: RefundRequest,
+  idempotencyKey = `test-refund:${request.paymentReference}:1`,
+): AuthorizedRefundRequest<"square"> =>
+  authorizeDurableRefundSend(request, {
+    capability: "keyed",
+    generation: 1,
+    idempotencyKey,
+    identityIndex: `test-refund-index:${request.paymentReference}:1`,
+    provider: "square",
+  });
 
 /**
  * Runs the test body with a fake Square SDK client standing in for the real
@@ -23,8 +41,10 @@ export const withSquareClient = async <Result>(
   body: (mock: SquareMock) => Result | Promise<Result>,
 ): Promise<Result> => {
   const mock = createMockClient(impls);
-  const client = stub(squareApi, "getSquareClient", () =>
-    Promise.resolve(mock.client),
+  const client = stub(
+    squareApi,
+    "getSquareClient",
+    () => Promise.resolve(mock.client),
   );
   try {
     return await body(mock);
@@ -96,6 +116,7 @@ export const SQUARE_ORDER_META = {
   email: "alice@example.com",
   items: '[{"e":1,"q":1,"p":0}]',
   name: "Alice",
+  price_proof: "0.test-signature",
 };
 
 /**
@@ -103,7 +124,7 @@ export const SQUARE_ORDER_META = {
  * log. Call it inside a describe block — it registers that block's hooks, and
  * hands back the spy the "why did this skip?" assertions read.
  */
-export const setupSquareProviderSuite = (): (() => Spy) => {
+export const setupSquareProviderSuite = (): () => Spy => {
   let debug: Spy;
   beforeEach(async () => {
     await createTestDb();

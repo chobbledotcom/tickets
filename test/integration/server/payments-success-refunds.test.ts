@@ -6,7 +6,7 @@ import { handleRequest } from "#routes";
 import { groups } from "#shared/db/groups.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { createHiddenPackageGroup } from "#test/integration/server/payment-success-helpers.ts";
-import { stripeRefundRequest } from "#test/test-utils/stripe/fixtures.ts";
+import { stripeRefundRequestShape } from "#test/test-utils/stripe/fixtures.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -171,7 +171,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         expect(body).toContain("no longer accepting registrations");
         expect(body).not.toContain("Vanished Member XYZ");
         expect(mockRefund.calls[0]!.args).toEqual([
-          stripeRefundRequest("pi_stale_pkg_group", 1000),
+          stripeRefundRequestShape("pi_stale_pkg_group", 1000),
         ]);
       } finally {
         mockRetrieve.restore();

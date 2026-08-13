@@ -7,7 +7,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta } from "#test-utils/factories.ts";
 import { expectSessionFailed } from "#test-utils/processed-payments.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
-import { stripeRefundRequest } from "#test-utils/stripe/fixtures.ts";
+import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
 import {
   expectWebhookKeptAndRefunded,
   stubRefundPayment,
@@ -141,7 +141,7 @@ describeWithEnv(
       // Verify refund was attempted exactly once
       expect(mockRefund.calls.length).toBe(1);
       expect(mockRefund.calls[0]!.args).toEqual([
-        stripeRefundRequest("pi_multi_mismatch", 1000),
+        stripeRefundRequestShape("pi_multi_mismatch", 1000),
       ]);
     });
 

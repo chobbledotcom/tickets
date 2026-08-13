@@ -8,8 +8,8 @@ import {
   type RefundRequest,
   uncertainRefund,
 } from "#shared/payment/refund-attempt.ts";
+import type { AuthorizedRefundRequest } from "#shared/payment/refund-provider-authorization.ts";
 import { ResourceIdSchema } from "#shared/payment/resource-id.ts";
-import { refundIdempotencyKey } from "#shared/payment-idempotency.ts";
 import {
   namedSquareRefund,
   squareRefundFailure,
@@ -210,7 +210,7 @@ const refundResultFromResponse = (
  * result. Unknown internal errors still propagate. */
 export const refundSquareCharge = async (
   getClient: GetSquarePaymentClient,
-  request: RefundRequest,
+  request: AuthorizedRefundRequest<"square">,
 ): Promise<RefundAttemptResult> => {
   const client = await getClient();
   if (!client) return { kind: "not_sent", reason: "not_configured" };
@@ -221,10 +221,7 @@ export const refundSquareCharge = async (
         amount: BigInt(request.charge.captured.amount),
         currency: request.charge.captured.currency,
       },
-      idempotencyKey: await refundIdempotencyKey(
-        "square",
-        request.paymentReference,
-      ),
+      idempotencyKey: request.authorization.idempotencyKey,
       paymentId: request.paymentReference,
     });
   } catch (error) {

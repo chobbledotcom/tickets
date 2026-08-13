@@ -34,7 +34,6 @@ const recordingClaim = (
           commandId: "test-command",
           held: facts.held,
           heldSince: HELD_SINCE,
-          inherited: new Map(),
           kind: "claimed",
           phases: new Map(
             [...facts.held.values()]

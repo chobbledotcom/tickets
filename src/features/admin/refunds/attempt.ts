@@ -1,16 +1,16 @@
-import { requiredMapValue } from "#fp";
+/* jscpd:ignore-start -- imports */
 import type {
-  ArmRefundDispatchResult,
-  RefundDispatchPermit,
-} from "#shared/db/payment-refund-dispatch.ts";
-import type { ObservedRefundAdmission } from "#shared/payment/admit-refund.ts";
-import type { RefundRequest } from "#shared/payment/refund-attempt.ts";
+  ObservedRefundAdmission,
+  WithheldRefund,
+} from "#shared/payment/admit-refund.ts";
 import {
-  reportFailedRefundAttempt,
-  reportWithheldRefund,
-} from "#shared/payment-review.ts";
+  type ProviderRefundResult,
+  type RefundAuthorityReceipt,
+  requestProviderRefund,
+} from "#shared/provider-refunds.ts";
+import { reportWithheldRefund } from "#shared/payment-review.ts";
+import { requestReadyRefund } from "./authority.ts";
 import { mapProviderRequests } from "./provider-requests.ts";
-import type { ProviderReviewFinding } from "./provider-reviews.ts";
 import type {
   ReadyRefundCandidate,
   ReadyRefundProvider,
@@ -19,33 +19,33 @@ import type {
 import { readyRefundAdmission } from "./ready-admission.ts";
 import { reportRefundProblem } from "./report.ts";
 import { combineRefundOutcomes, type RefundOutcome } from "./waves.ts";
+/* jscpd:ignore-end */
 
 type TaggedRefundReference = ReadyRefundReference["reference"];
-type ObservedWithheldRefund = Exclude<
-  ObservedRefundAdmission,
-  { kind: "send" }
->;
-
-/** One reference's result. A charge we never had to ask about carries none. */
-export type ReferenceRefund = {
-  doubt?: "in_doubt";
-  outcome: RefundOutcome;
-  review?: ProviderReviewFinding["reason"];
+type ObservedWithheldRefund = WithheldRefund;
+type RefundReportFacts = {
+  readonly attendeeId: number;
+  readonly listingId: number;
+  readonly provider: ReadyRefundProvider["type"];
 };
 
-/** A readiness answer shared by every attendee carrying the same reference. */
-export type PreparedReferenceRefund =
-  | { kind: "answered"; result: ReferenceRefund }
-  | {
-      kind: "ready";
-      send: (permit: RefundDispatchPermit) => Promise<ReferenceRefund>;
-    };
+/** One reference's result. A returned result names the durable authority that
+ * must be retired only after its local ledger write succeeds. */
+export type ReferenceRefund = {
+  authority?: RefundAuthorityReceipt | null;
+  outcome: RefundOutcome;
+};
+
+export type PreparedReferenceRefund = {
+  maySend: boolean;
+  run: (mode: "observe_only" | "send") => Promise<ReferenceRefund>;
+  standDown: ReferenceRefund;
+};
 
 export type PreparedRefundAttempt = PreparedReferenceRefund & {
   readonly reference: TaggedRefundReference;
 };
 
-/** One attendee after every send/no-send decision is known but none has run. */
 export type PreparedCandidateRefund = {
   readonly attempts: readonly PreparedRefundAttempt[];
   readonly candidate: ReadyRefundCandidate;
@@ -64,164 +64,118 @@ const answeredOnce = <TAnswer>(
   return running;
 };
 
-/** Start one provider request even when several attendees share its charge. */
-const sendOnce = <TAnswer>(
-  send: (permit: RefundDispatchPermit) => Promise<TAnswer>,
-): ((permit: RefundDispatchPermit) => Promise<TAnswer>) => {
-  let running: Promise<TAnswer> | undefined;
-  return (permit) => {
-    running ??= send(permit);
-    return running;
-  };
-};
-
-const refunded = (): ReferenceRefund => ({ outcome: "refunded" });
-
 const withheldResult = (
   admission: ObservedWithheldRefund,
-  attendeeId: number,
-  listingId: number,
-  provider: ReadyRefundProvider["type"],
+  report: RefundReportFacts,
 ): ReferenceRefund => {
-  if (admission.kind === "already_returned") return refunded();
-  reportWithheldRefund(admission, {
-    attendeeId,
-    listingId,
-    provider,
-  });
-  if (admission.kind === "refused") {
-    return { outcome: "withheld", review: admission.issue };
-  }
-  return { doubt: "in_doubt", outcome: "pending" };
+  if (admission.kind === "already_returned") return { outcome: "refunded" };
+  reportWithheldRefund(admission, report);
+  return { outcome: admission.kind === "refused" ? "withheld" : "pending" };
 };
 
-const sendReferenceRefund = async (
-  provider: ReadyRefundProvider,
+const standDownResult = (
+  admission: ObservedRefundAdmission,
+  report: RefundReportFacts,
+): ReferenceRefund =>
+  admission.kind === "send"
+    ? { outcome: "failed" }
+    : withheldResult(admission, report);
+
+const engineResult = (
+  result: ProviderRefundResult,
   attendeeId: number,
   listingId: number,
-  request: RefundRequest,
-  index: string,
-  permit: RefundDispatchPermit,
-): Promise<ReferenceRefund> => {
-  if (
-    permit.index !== index ||
-    permit.capability !== provider.refundCapability
-  ) {
-    throw new Error(`Refund dispatch permit does not match payment ${index}`);
+): ReferenceRefund => {
+  if (result.kind === "returned") {
+    return { authority: result.authority, outcome: "refunded" };
   }
-  const settled = (outcome: RefundOutcome): ReferenceRefund => ({ outcome });
-  const result = await provider.refundCharge(request);
-  if (result.kind === "completed") return settled("refunded");
-  if (result.kind === "accepted") {
-    return { doubt: "in_doubt", outcome: "pending" };
+  if (result.kind === "pending") {
+    return { outcome: "pending" };
   }
-  if (result.kind === "not_sent") return settled("withheld");
-  reportFailedRefundAttempt(result, {
-    attendeeId,
-    listingId,
-    provider: provider.type,
-  });
-  return result.kind === "rejected"
-    ? settled("failed")
-    : { doubt: "in_doubt", outcome: "errored" };
+  if (result.kind === "withheld") {
+    return withheldResult(
+      result.admission,
+      { attendeeId, listingId, provider: result.reference.provider },
+    );
+  }
+  if (result.kind === "needs_owner_choice") {
+    return {
+      outcome: result.reason === "provider_rejected" ? "failed" : "pending",
+    };
+  }
+  return { outcome: "withheld" };
 };
+
+const askAuthority = (
+  ready: ReadyRefundReference,
+  attendeeId: number,
+  listingId: number,
+  mode: "observe_only" | "send",
+  request: typeof requestProviderRefund,
+): Promise<ReferenceRefund> =>
+  requestReadyRefund(ready, mode, request).then((result) =>
+    engineResult(result, attendeeId, listingId)
+  );
 
 const prepareReferenceRefund = (
   candidate: ReadyRefundCandidate,
   listingId: number,
   ready: ReadyRefundReference,
-): Promise<PreparedReferenceRefund> => {
+  inFlight: Map<string, Promise<ReferenceRefund>>,
+  request: typeof requestProviderRefund,
+): PreparedReferenceRefund => {
   const admission = readyRefundAdmission(ready);
-  if (admission.kind !== "send") {
-    return Promise.resolve({
-      kind: "answered",
-      result: withheldResult(
-        admission,
-        candidate.attendee.id,
+  return {
+    maySend: admission.kind === "send",
+    run: (mode) =>
+      answeredOnce(inFlight, ready.reference.index, () =>
+        askAuthority(
+          ready,
+          candidate.attendee.id,
+          listingId,
+          mode,
+          request,
+        )),
+    standDown: standDownResult(
+      admission,
+      {
+        attendeeId: candidate.attendee.id,
         listingId,
-        ready.provider.type,
-      ),
-    });
-  }
-  return Promise.resolve({
-    kind: "ready",
-    send: sendOnce((permit) =>
-      sendReferenceRefund(
-        ready.provider,
-        candidate.attendee.id,
-        listingId,
-        admission.request,
-        ready.reference.index,
-        permit,
-      ),
+        provider: ready.provider.type,
+      },
     ),
-  });
+  };
 };
 
-const authorizedResult = (
-  authorization: ArmRefundDispatchResult | undefined,
-  attempt: Extract<PreparedReferenceRefund, { kind: "ready" }>,
-  reference: TaggedRefundReference,
-): Promise<ReferenceRefund> => {
-  if (authorization === undefined) {
-    throw new Error(`Refund ${reference.index} had no dispatch decision`);
-  }
-  if (authorization.kind === "claim_changed") {
-    return Promise.resolve({ outcome: "failed" });
-  }
-  if (authorization.kind === "owner_review") {
-    return Promise.resolve(
-      authorization.indexes.includes(reference.index)
-        ? {
-            outcome: "withheld",
-            review: { kind: authorization.reason },
-          }
-        : { outcome: "withheld" },
-    );
-  }
-  return attempt.send(
-    requiredMapValue(
-      authorization.permits,
-      reference.index,
-      `Refund dispatch omitted payment ${reference.index}`,
-    ),
-  );
+export type ReturnedRefundReference = {
+  readonly authority: RefundAuthorityReceipt | null;
+  readonly reference: TaggedRefundReference;
 };
 
-/** What one attendee's refund came to. */
 export type CandidateRefund = {
   candidate: ReadyRefundCandidate;
   outcome: RefundOutcome;
-  /** Provider conflicts that must remain visible after this request. */
-  reviews: readonly ProviderReviewFinding[];
-  /** The provider-tagged charges that actually went back. */
-  returned: readonly TaggedRefundReference[];
-  doubt?: "in_doubt";
+  returned: readonly ReturnedRefundReference[];
 };
 
-/** Decide every reference without authorizing or starting a provider send. */
+/** Decide every reference without starting a provider send. */
 export const prepareReadyCandidate = async (
   candidate: ReadyRefundCandidate,
   listingId: number,
-  inFlight: Map<string, Promise<PreparedReferenceRefund>> = new Map(),
+  inFlight: Map<string, Promise<ReferenceRefund>> = new Map(),
+  request: typeof requestProviderRefund = requestProviderRefund,
 ): Promise<PreparedCandidateRefund> => {
   const prepared = await mapProviderRequests(
     candidate.references,
     async (ready): Promise<PreparedRefundAttempt> => ({
-      ...(await answeredOnce(inFlight, ready.reference.index, () =>
-        prepareReferenceRefund(candidate, listingId, ready),
-      )),
+      ...prepareReferenceRefund(candidate, listingId, ready, inFlight, request),
       reference: ready.reference,
     }),
   );
-  const blocked = prepared.some(
-    (attempt) =>
-      attempt.kind === "answered" && attempt.result.outcome !== "refunded",
-  );
-  const attempts = blocked
-    ? prepared.filter((attempt) => attempt.kind === "answered")
-    : prepared;
-  return { attempts, candidate };
+  return {
+    attempts: prepared,
+    candidate,
+  };
 };
 
 type ReferenceRefundResult = ReferenceRefund & {
@@ -233,21 +187,15 @@ const candidateResult = (
   results: readonly ReferenceRefundResult[],
   incompleteListingId?: number,
 ): CandidateRefund => {
-  const outcome = combineRefundOutcomes(
-    results.map((result) => result.outcome),
-  );
-  const doubt = results.some((result) => result.doubt === "in_doubt")
-    ? "in_doubt"
-    : undefined;
-  const returnedReferences = results
-    .filter((result) => result.outcome === "refunded")
-    .map((result) => result.reference);
-  const reviews = results.flatMap(({ reference, review }) =>
-    review === undefined ? [] : [{ reason: review, reference }],
+  const outcome = combineRefundOutcomes(results.map(({ outcome }) => outcome));
+  const returned = results.flatMap((result) =>
+    result.outcome === "refunded"
+      ? [{ authority: result.authority ?? null, reference: result.reference }]
+      : []
   );
   if (
     incompleteListingId !== undefined &&
-    (outcome === "failed" || outcome === "errored") &&
+    outcome === "failed" &&
     prepared.candidate.references.length > 1
   ) {
     reportRefundProblem(
@@ -261,41 +209,41 @@ const candidateResult = (
   }
   return {
     candidate: prepared.candidate,
-    ...(doubt !== undefined ? { doubt } : {}),
     outcome,
-    returned: returnedReferences,
-    reviews,
+    returned,
   };
 };
 
-/** Finish one prepared attendee under the batch-wide dispatch decision. */
+/** Finish one prepared attendee through the durable provider authority. */
 export const finishPreparedCandidate = async (
   prepared: PreparedCandidateRefund,
   listingId: number,
-  authorization: ArmRefundDispatchResult | undefined,
 ): Promise<CandidateRefund> => {
+  const mode = prepared.attempts.some(
+      (attempt) =>
+        !attempt.maySend &&
+        attempt.standDown.outcome !== "refunded",
+    )
+    ? "observe_only"
+    : "send";
   const results = await mapProviderRequests(
     prepared.attempts,
     async (attempt): Promise<ReferenceRefundResult> => ({
-      ...(attempt.kind === "ready"
-        ? await authorizedResult(authorization, attempt, attempt.reference)
-        : attempt.result),
+      ...await attempt.run(mode),
       reference: attempt.reference,
     }),
   );
   return candidateResult(prepared, results, listingId);
 };
 
-/** Preserve non-send safety findings when a prepared batch stands down. */
+/** Preserve provider-free evidence when a prepared batch stands down. */
 export const standDownPreparedCandidate = (
   prepared: PreparedCandidateRefund,
 ): CandidateRefund =>
   candidateResult(
     prepared,
     prepared.attempts.map((attempt) => ({
-      ...(attempt.kind === "ready"
-        ? { outcome: "failed" as const }
-        : attempt.result),
+      ...attempt.standDown,
       reference: attempt.reference,
     })),
   );

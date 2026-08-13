@@ -13,12 +13,11 @@ type RefundProblem =
   | {
       attendeeId: number;
       kind: "batch_outcome";
-      outcome: "errored" | "failed";
+      outcome: "failed";
       paymentCount: number;
     }
   | { error: unknown; kind: "claim_settlement" }
   | { attendeeId: number; kind: "incomplete_batch"; paymentCount: number }
-  | { attendeeId: number; error: unknown; kind: "returned_marker_write" }
   | {
       action: "refresh" | "refund";
       attendeeId: number;
@@ -31,8 +30,6 @@ const PROBLEM_DETAIL = {
   claim_settlement: "Refund claim could not be settled",
   incomplete_batch: "Admin refund did not complete all",
   not_started: "Admin",
-  returned_marker_write:
-    "Admin refund could not record returned-payment markers",
 } as const satisfies Record<RefundProblem["kind"], string>;
 
 const problemDetail = (problem: RefundProblem): string =>

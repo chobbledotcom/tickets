@@ -21,7 +21,8 @@ export type RefundCandidate = {
 
 export type RefundCandidateSet =
   | { readonly candidates: RefundCandidate[]; readonly kind: "complete" }
-  | { readonly kind: "legacy_unindexed" };
+  | { readonly kind: "legacy_unindexed" }
+  | { readonly kind: "too_many_references" };
 
 /** The exact attendee revision and payment rows the claim must verify. */
 export const loadedRefundAttendee = (
@@ -76,12 +77,13 @@ export const getRefundCandidates = async (
       `Refund references omitted attendee ${attendee.id}`,
     ),
   }));
-  const completeSets = referenceSets.flatMap(({ attendee, set }) =>
-    set.kind === "complete" ? [{ attendee, references: set.references }] : [],
-  );
-  if (completeSets.length !== referenceSets.length) {
-    return { kind: "legacy_unindexed" };
+  const refused = referenceSets.find(({ set }) => set.kind !== "complete");
+  if (refused !== undefined && refused.set.kind !== "complete") {
+    return { kind: refused.set.kind };
   }
+  const completeSets = referenceSets.flatMap(({ attendee, set }) =>
+    set.kind === "complete" ? [{ attendee, references: set.references }] : []
+  );
   return {
     candidates: filter(
       (candidate: RefundCandidate) =>

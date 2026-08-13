@@ -14,11 +14,14 @@
 
 /* jscpd:ignore-start -- imports */
 import { logDebug } from "#shared/logger.ts";
+import { parsePriceProof } from "#shared/payment-signature.ts";
 import { refundWithOneReread } from "#shared/payment/refund-attempt.ts";
+import { requireProviderRefundAuthorization } from "#shared/payment/refund-provider-authorization.ts";
 import { chargeMoneyRead } from "#shared/payment/resources.ts";
 import { validatedPaymentSession } from "#shared/payment/validated-session.ts";
 /* jscpd:ignore-end */
 import {
+  extractSessionMetadata,
   hasRequiredSessionMetadata,
   toCanonicalIso,
   toCheckoutResult,
@@ -154,12 +157,17 @@ type SquareOrderMetadata =
 /** Distinguish ordinary Square orders from damaged app checkouts. */
 const classifyOrderMetadata = (
   metadata: SquareOrder["metadata"],
+  requirePriceProof: boolean,
 ): SquareOrderMetadata => {
-  if (hasRequiredSessionMetadata(metadata)) {
+  if (
+    hasRequiredSessionMetadata(metadata) &&
+    (!requirePriceProof ||
+      parsePriceProof(extractSessionMetadata(metadata).price_proof) !== null)
+  ) {
     return { kind: "ours", metadata };
   }
   const bearsAppField = Object.keys(metadata ?? {}).some((field) =>
-    Object.hasOwn(SQUARE_APP_METADATA_FIELDS, field),
+    Object.hasOwn(SQUARE_APP_METADATA_FIELDS, field)
   );
   return bearsAppField ? { kind: "malformed" } : { kind: "foreign" };
 };
@@ -182,7 +190,10 @@ const sessionMetadata = (
   order: SquareOrder,
   paidPaymentId: string | undefined,
 ): SessionMetadata | null => {
-  const classified = classifyOrderMetadata(order.metadata);
+  const classified = classifyOrderMetadata(
+    order.metadata,
+    paidPaymentId !== undefined,
+  );
   if (classified.kind === "ours") return classified.metadata;
   const unusable = UNUSABLE_METADATA[classified.kind];
   if (paidPaymentId && unusable.retryCompletedWebhook) {
@@ -253,7 +264,10 @@ export const squarePaymentProvider: PaymentProvider = {
   refundCapability: "keyed",
 
   refundCharge: refundWithOneReread(
-    (request) => squareApi.refundCharge(request),
+    (request) => {
+      requireProviderRefundAuthorization(request, "square");
+      return squareApi.refundCharge(request);
+    },
     (reference) => squarePaymentProvider.readCharge(reference),
   ),
   requiresWebhookSignature: true,

@@ -13,7 +13,7 @@ import type {
 import { runWithPendingWork } from "#shared/pending-work.ts";
 import {
   answerCompletedStripeRefund,
-  stripeRefundRequest,
+  stripeRefundRequestShape,
 } from "#test/test-utils/stripe/fixtures.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -28,8 +28,10 @@ const providerAnswers = async (
 ): Promise<Disposable> => {
   const { stub } = await import("@std/testing/mock");
   const { stripePaymentProvider } = await import("#shared/stripe-provider.ts");
-  return stub(stripePaymentProvider, "retrieveSession", () =>
-    Promise.resolve(answer),
+  return stub(
+    stripePaymentProvider,
+    "retrieveSession",
+    () => Promise.resolve(answer),
   );
 };
 
@@ -94,13 +96,15 @@ describeWithEnv("telling whether a checkout is ours", { db: true }, () => {
 
   // Without a proof we cannot show the checkout is ours, and acting on one that
   // is not would move somebody else's money.
-  for (const [name, priceProof] of [
-    ["carries no proof at all", ""],
-    ["carries a proof in no shape we write", "not-a-proof"],
-    ["carries a proof with no signature", "500."],
-    ["carries a proof signed by somebody else", "500.deadbeef"],
-    ["carries a proof for a different total", "900.deadbeef"],
-  ] as const) {
+  for (
+    const [name, priceProof] of [
+      ["carries no proof at all", ""],
+      ["carries a proof in no shape we write", "not-a-proof"],
+      ["carries a proof with no signature", "500."],
+      ["carries a proof signed by somebody else", "500.deadbeef"],
+      ["carries a proof for a different total", "900.deadbeef"],
+    ] as const
+  ) {
     test(`ignores a checkout that ${name}`, async () => {
       await setupStripe();
 
@@ -151,7 +155,7 @@ describeWithEnv("reading the booking out of a checkout", { db: true }, () => {
             500,
           ),
         ),
-      ),
+      )
     );
 
     expect(classified).toEqual({ kind: "unreadable" });
@@ -170,13 +174,13 @@ describeWithEnv("reading the booking out of a checkout", { db: true }, () => {
  *  rather than skipped over. */
 const loggedAbout = async (step: string, words: string): Promise<boolean> =>
   (await getAllActivityLog()).some((entry) =>
-    entry.message.includes(`[${step}] ${words}`),
+    entry.message.includes(`[${step}] ${words}`)
   );
 
 describeWithEnv("checking a checkout before it is used", { db: true }, () => {
   test("refuses when no payment provider is set up", async () => {
     const result = await runWithPendingWork(() =>
-      validatePaidSession("cs_no_provider"),
+      validatePaidSession("cs_no_provider")
     );
 
     expect(result.ok).toBe(false);
@@ -194,7 +198,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
     using _provider = await providerAnswers(null);
 
     const result = await runWithPendingWork(() =>
-      validatePaidSession("cs_missing"),
+      validatePaidSession("cs_missing")
     );
 
     expect(result.ok).toBe(false);
@@ -222,7 +226,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
     );
 
     const result = await runWithPendingWork(() =>
-      validatePaidSession("cs_unreadable_booking"),
+      validatePaidSession("cs_unreadable_booking")
     );
 
     expect(result.ok).toBe(false);
@@ -246,18 +250,21 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
       provider: "stripe",
       reason: "malformed_charge",
       refundable: true,
+      sessionId: "cs_refunded",
     });
     using refundStub = stub(
       stripeApi,
       "refundCharge",
       answerCompletedStripeRefund(),
     );
-    using _read = stub(stripeApi, "readPaymentIntent", (reference) =>
-      Promise.resolve(foundStripeIntent(reference, 500)),
+    using _read = stub(
+      stripeApi,
+      "readPaymentIntent",
+      (reference) => Promise.resolve(foundStripeIntent(reference, 500)),
     );
 
     const result = await runWithPendingWork(() =>
-      validatePaidSession("cs_refunded"),
+      validatePaidSession("cs_refunded")
     );
 
     expect(result.ok).toBe(false);
@@ -267,7 +274,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
     const page = await result.response.text();
     expect(page).toContain("We have sent your money back");
     expect(refundStub.calls.map((call) => call.args)).toEqual([
-      [stripeRefundRequest("pi_refunded", 500)],
+      [stripeRefundRequestShape("pi_refunded", 500)],
     ]);
     expect(page).not.toContain("We could not find this payment session.");
     expect(
@@ -317,7 +324,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
     });
 
     const result = await runWithPendingWork(() =>
-      validatePaidSession("cs_unpaid"),
+      validatePaidSession("cs_unpaid")
     );
 
     expect(result.ok).toBe(false);
@@ -335,7 +342,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
     using _provider = await providerAnswers(paidSession({ price_proof: "" }));
 
     const result = await runWithPendingWork(() =>
-      validatePaidSession("cs_foreign"),
+      validatePaidSession("cs_foreign")
     );
 
     expect(result.ok).toBe(false);

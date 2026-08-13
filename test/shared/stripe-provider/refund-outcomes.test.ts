@@ -88,7 +88,7 @@ describeStripe("Stripe refund outcomes", () => {
     });
   }
 
-  test("sends the stable payment-scoped idempotency key", async () => {
+  test("sends the exact idempotency key carried by durable authority", async () => {
     const client = await stripeClient();
     const create = stub(client.refunds, "create", () =>
       Promise.resolve(stripeRefund({ payment_intent: "pi_stable" })),
@@ -97,13 +97,20 @@ describeStripe("Stripe refund outcomes", () => {
       () => create,
       async () => {
         expect(
-          await stripeApi.refundCharge(stripeRefundRequest("pi_stable")),
+          await stripeApi.refundCharge(
+            stripeRefundRequest(
+              "pi_stable",
+              1000,
+              "GBP",
+              "persisted-refund-generation-one",
+            ),
+          ),
         ).toHaveProperty("kind", "completed");
       },
     );
     expect(create.calls[0]?.args).toEqual([
       { amount: 1000, payment_intent: "pi_stable" },
-      "zMXoB60J9cW7f7GxpMobuLm6VM5BATENKpD_jsjvf4g",
+      "persisted-refund-generation-one",
       { maxNetworkRetries: REFUND_NETWORK_RETRIES.stripe },
     ]);
   });

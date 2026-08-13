@@ -97,27 +97,29 @@ describe("admin refund subrequest budget", () => {
           ),
       ),
     ).toEqual([
-      { database: 28, external: 3, total: 31 },
-      { database: 24, external: 3, total: 27 },
-      { database: 5, external: 1, total: 6 },
+      { database: 36, external: 3, total: 39 },
+      { database: 32, external: 3, total: 35 },
+      { database: 22, external: 1, total: 23 },
     ]);
     const prepared = {
+      activeAuthorityCount: 1,
       mayRecordReturns: true,
+      returnedAuthorityCount: 0,
       sendReferences: [
         { index: reference.index, provider: reference.provider },
       ],
     };
     expect(
-      (["before_dispatch_arm", "before_provider_send"] as const).map(
+      (["before_authority_request", "inside_authority_request"] as const).map(
         (checkpoint) => refundPreparedSubrequestCost(prepared, checkpoint),
       ),
     ).toEqual([
-      { database: 10, external: 2, total: 12 },
-      { database: 5, external: 2, total: 7 },
+      { database: 18, external: 2, total: 20 },
+      { database: 18, external: 2, total: 20 },
     ]);
   });
 
-  test("admits the complete physical envelope for two ordinary Stripe charges", () => {
+  test("prices each durable authority in a multi-charge command", () => {
     const references = [
       taggedReference("stripe", "stripe_deposit"),
       taggedReference("stripe", "stripe_balance"),
@@ -130,16 +132,21 @@ describe("admin refund subrequest budget", () => {
         "before_claim",
         ["stripe"],
       ),
-    ).toEqual({ database: 28, external: 6, total: 34 });
+    ).toEqual({ database: 39, external: 6, total: 45 });
   });
 
   test("reserves the five local calls even when the provider already returned the money", () => {
     expect(
       refundPreparedSubrequestCost(
-        { mayRecordReturns: true, sendReferences: [] },
-        "before_dispatch_arm",
+        {
+          activeAuthorityCount: 0,
+          mayRecordReturns: true,
+          returnedAuthorityCount: 1,
+          sendReferences: [],
+        },
+        "before_authority_request",
       ),
-    ).toEqual({ database: 5, external: 0, total: 5 });
+    ).toEqual({ database: 8, external: 0, total: 8 });
   });
 
   test("reserves completed-only refresh persistence with no provider reads", () => {
@@ -155,23 +162,30 @@ describe("admin refund subrequest budget", () => {
         "before_claim",
         ["stripe"],
       ),
-    ).toEqual({ database: 33, external: 0, total: 33 });
+    ).toEqual({ database: 35, external: 0, total: 35 });
   });
 
   test("prices no late work when preparation can neither send nor return money", () => {
     expect(
       refundPreparedSubrequestCost(
-        { mayRecordReturns: false, sendReferences: [] },
-        "before_dispatch_arm",
+        {
+          activeAuthorityCount: 0,
+          mayRecordReturns: false,
+          returnedAuthorityCount: 0,
+          sendReferences: [],
+        },
+        "before_authority_request",
       ),
     ).toEqual({ database: 0, external: 0, total: 0 });
   });
 
-  for (const [provider, calls] of [
-    ["square", 3],
-    ["stripe", 3],
-    ["sumup", 3],
-  ] as const) {
+  for (
+    const [provider, calls] of [
+      ["square", 3],
+      ["stripe", 3],
+      ["sumup", 3],
+    ] as const
+  ) {
     test(`counts the full ${provider} read, send, and recovery plan`, () => {
       expect(externalCost(taggedReference(provider), [provider])).toBe(calls);
     });
@@ -186,13 +200,15 @@ describe("admin refund subrequest budget", () => {
     });
   }
 
-  for (const [providers, calls] of [
-    [[], 0],
-    [["square"], 3],
-    [["stripe"], 3],
-    [["sumup"], 3],
-    [["square", "stripe", "sumup"], 5],
-  ] as const) {
+  for (
+    const [providers, calls] of [
+      [[], 0],
+      [["square"], 3],
+      [["stripe"], 3],
+      [["sumup"], 3],
+      [["square", "stripe", "sumup"], 5],
+    ] as const
+  ) {
     test(`counts ${calls} calls to discover an old reference through ${providers.length} providers`, () => {
       expect(externalCost(untaggedReference(), providers)).toBe(calls);
     });

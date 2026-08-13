@@ -11,7 +11,7 @@ import {
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
-import { stripeRefundRequest } from "#test-utils/stripe/fixtures.ts";
+import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 import { checkoutSessionEvent } from "#test-utils/webhooks.ts";
 
@@ -32,7 +32,7 @@ const findRefundActivityEntry = async (listingId: number) => {
 };
 
 describeWithEnv("server webhooks > refund logging", { db: true }, () => {
-  test("tryRefund logs success message when refund succeeds", async () => {
+  test("logs success when the durable refund completes", async () => {
     await setupStripe();
 
     const listing = await createTestListing({
@@ -73,7 +73,7 @@ describeWithEnv("server webhooks > refund logging", { db: true }, () => {
       );
       expect(response.status).toBe(200);
       expect(mockRefund.calls[0]!.args).toEqual([
-        stripeRefundRequest("pi_refund_log"),
+        stripeRefundRequestShape("pi_refund_log"),
       ]);
 
       // Verify refund success was logged to console

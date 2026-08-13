@@ -10,10 +10,7 @@ import type { PaymentConflict } from "#shared/payment/conflict.ts";
 import type { ObservationOutcome } from "#shared/payment/diagnose.ts";
 import { refundOutcomeOf } from "#shared/payment/diagnose.ts";
 import type { ProviderRead } from "#shared/payment/provider-read.ts";
-import type {
-  RefundActionResult,
-  RefundRequest,
-} from "#shared/payment/refund-attempt.ts";
+import type { RefundRequest } from "#shared/payment/refund-attempt.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { PaymentProvider } from "#shared/payments.ts";
 
@@ -36,9 +33,9 @@ export type ObservedRefundAdmission =
 export type ProviderRefundAdmission =
   | ObservedRefundAdmission
   | {
-      kind: "read_failed";
-      read: Exclude<ProviderRead<ChargeMoney>, { status: "found" }>;
-    };
+    kind: "read_failed";
+    read: Exclude<ProviderRead<ChargeMoney>, { status: "found" }>;
+  };
 
 /** The answer for each way a reading can come out settled, listed
  *  exhaustively so a new outcome must say what it does about refunds. */
@@ -68,8 +65,8 @@ export const admissionReason = (admission: WithheldRefund): string =>
   admission.kind === "read_failed"
     ? providerReadReason(admission.read)
     : admission.kind === "refused"
-      ? `needs the owner to look at it (${admission.issue.kind})`
-      : ADMISSION_REASONS[admission.kind];
+    ? `needs the owner to look at it (${admission.issue.kind})`
+    : ADMISSION_REASONS[admission.kind];
 
 const PROVIDER_READ_REASONS = {
   invalid: "the provider returned invalid data",
@@ -119,18 +116,4 @@ export const admitProviderRefund = async (
   const read = await provider.readCharge(paymentReference);
   if (read.status !== "found") return { kind: "read_failed", read };
   return admitObservedRefund(paymentReference, read.resource);
-};
-
-/** The whole refund mechanism: ask what the money has already done, send more
- *  only if it may be sent, hand back whichever answer fits. The routes phrase
- *  their endings differently but must never differ on WHEN money leaves, so
- *  every step up to the provider call lives here once. */
-export const sendRefundIfAdmitted = async (
-  provider: Pick<PaymentProvider, "readCharge" | "refundCharge">,
-  paymentReference: string,
-): Promise<RefundActionResult<WithheldRefund>> => {
-  const admission = await admitProviderRefund(provider, paymentReference);
-  return admission.kind === "send"
-    ? await provider.refundCharge(admission.request)
-    : { admission, kind: "withheld" };
 };

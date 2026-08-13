@@ -139,11 +139,16 @@ export const refundOutcomeAfterReread = ({
   return REREAD_JUDGMENT[outcome.kind]({ attempt, charge, request });
 };
 
-type RefundCharge = (request: RefundRequest) => Promise<RefundAttemptResult>;
+type RefundCharge<Request extends RefundRequest = RefundRequest> = (
+  request: Request,
+) => Promise<RefundAttemptResult>;
 
 /** Add the single post-call evidence read required after an inconclusive send. */
 export const refundWithOneReread =
-  (send: RefundCharge, readCharge: ProviderReader<ChargeMoney>): RefundCharge =>
+  <Request extends RefundRequest>(
+    send: RefundCharge<Request>,
+    readCharge: ProviderReader<ChargeMoney>,
+  ): RefundCharge<Request> =>
   async (request) => {
     const attempt = await send(request);
     if (!needsReread(attempt)) return attempt;

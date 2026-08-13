@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  mirroredMoveRefusalOrNull,
   mirrorFor,
   moveRefusalOrNull,
   paymentWorkFor,
@@ -181,6 +182,19 @@ describe("payment > admit move", () => {
 
     test("a row in the middle of nothing shows nothing", () => {
       expect(mirrorFor(FREE)).toBe("");
+    });
+
+    test("the SQL guard makes the same decision from those words", () => {
+      expect(mirroredMoveRefusalOrNull(["review", "claim"], "delete")).toBe(
+        CLAIM_REFUSAL,
+      );
+      expect(mirroredMoveRefusalOrNull(["unrecorded"], "merge")).toBeNull();
+    });
+
+    test("an unknown word fails loudly instead of freeing the row", () => {
+      expect(() => mirroredMoveRefusalOrNull(["mystery"], "delete")).toThrow(
+        "Unknown protected payment state: mystery",
+      );
     });
   });
 });

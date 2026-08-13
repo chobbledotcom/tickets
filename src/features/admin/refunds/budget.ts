@@ -15,7 +15,8 @@ export type RefundBudgetAudience = "bulk" | "single";
 export type RefundReadinessAction = "refund" | "refresh";
 
 export const REFUND_BUDGET_MESSAGES = {
-  bulk: "This run has too many payments to refund at once. Refund fewer attendees at a time.",
+  bulk:
+    "This run has too many payments to refund at once. Refund fewer attendees at a time.",
   single:
     "This attendee has too many payments to refund in one go. Refund them from the provider dashboard.",
 } satisfies Record<RefundBudgetAudience, string>;
@@ -70,8 +71,8 @@ export type RefundBudgetCheckpoint =
   | "before_claim"
   | "inside_claim"
   | "before_provider_read"
-  | "before_dispatch_arm"
-  | "before_provider_send";
+  | "before_authority_request"
+  | "inside_authority_request";
 
 export type RefundReadinessBudgetCheckpoint = Extract<
   RefundBudgetCheckpoint,
@@ -80,14 +81,14 @@ export type RefundReadinessBudgetCheckpoint = Extract<
 
 export type RefundDispatchBudgetCheckpoint = Extract<
   RefundBudgetCheckpoint,
-  "before_dispatch_arm" | "before_provider_send"
+  "before_authority_request" | "inside_authority_request"
 >;
 
 const PROVIDER_CALL_STAGES = {
   before_claim: "complete",
-  before_dispatch_arm: "send",
+  before_authority_request: "send",
   before_provider_read: "judgment",
-  before_provider_send: "send",
+  inside_authority_request: "send",
   inside_claim: "complete",
 } as const satisfies Record<RefundBudgetCheckpoint, ProviderCallStage>;
 
@@ -111,7 +112,7 @@ const READINESS_PROVIDER_CALL_STAGES = {
 
 const logicalCallsAt = (
   stage: ProviderCallStage,
-): ((plan: ProviderCallPlan) => number) => {
+): (plan: ProviderCallPlan) => number => {
   const calls = {
     complete: ({ judgmentReads, recoveryReads, sends }: ProviderCallPlan) =>
       judgmentReads + recoveryReads + sends,
@@ -141,21 +142,19 @@ const untaggedReferenceCalls = ({
 }: ReadinessProviderCalls): number =>
   sum(
     providers.map((provider) =>
-      physicalCalls(provider, ({ judgmentReads }) => judgmentReads),
+      physicalCalls(provider, ({ judgmentReads }) => judgmentReads)
     ),
   ) +
-  (stage === "judgment"
-    ? 0
-    : Math.max(
-        0,
-        ...providers.map((provider) =>
-          physicalCalls(provider, logicalCallsAt("send")),
-        ),
-      ));
+  (stage === "judgment" ? 0 : Math.max(
+    0,
+    ...providers.map((provider) =>
+      physicalCalls(provider, logicalCallsAt("send"))
+    ),
+  ));
 
 const referenceCalls = (
   calls: ReadinessProviderCalls,
-): ((reference: RefundPaymentReference) => number) => {
+): (reference: RefundPaymentReference) => number => {
   const { providers, stage } = calls;
   const configured = new Set(providers);
   return (reference) =>
@@ -181,7 +180,7 @@ const activeReferences = (
 
 type DatabaseCallPlan = {
   readonly fixed: number;
-  readonly whenArming: number;
+  readonly pricesAuthority: boolean;
   readonly whenRecordingReturns: number;
 };
 
@@ -189,59 +188,54 @@ const CLAIM_DATABASE_CALLS = 6;
 const CLAIM_DATABASE_CALLS_AFTER_ADMISSION = 2;
 const SETTLEMENT_DATABASE_CALLS = DATABASE_MAX_ATTEMPTS * 2;
 const PROVIDER_BINDING_DATABASE_CALLS = 4;
-const DISPATCH_ARM_DATABASE_CALLS = 4;
+const FIRST_ACTIVE_AUTHORITY_DATABASE_CALLS = 13;
+const ADDITIONAL_AUTHORITY_DATABASE_CALLS = 3;
+const RETURNED_AUTHORITY_DATABASE_CALLS = 3;
 const TRANSACTION_ROLLBACK_HEADROOM = 1;
-const RETURNED_MARKER_DATABASE_CALLS = 1;
-const RETURNED_PAYMENT_DATABASE_CALLS =
-  RETURNED_MARKER_DATABASE_CALLS + REFUND_LEDGER_BATCH_DATABASE_CALLS;
+const RETURNED_PAYMENT_DATABASE_CALLS = REFUND_LEDGER_BATCH_DATABASE_CALLS;
 const REFRESH_PAYMENT_ONLY_DATABASE_CALLS = 1;
 // Begin + held-row read + confirmation batch + warning delete + activity +
 // payment-only note + commit, with one mandatory rollback slot.
 const REFUND_CONFIRMATION_DATABASE_CALLS = 8;
-const REFRESH_COMPLETION_DATABASE_CALLS =
-  RETURNED_PAYMENT_DATABASE_CALLS +
+const REFRESH_COMPLETION_DATABASE_CALLS = RETURNED_PAYMENT_DATABASE_CALLS +
   REFRESH_PAYMENT_ONLY_DATABASE_CALLS +
   REFUND_CONFIRMATION_DATABASE_CALLS;
 
 /**
- * Each checkpoint prices work through its next safe refusal. The pre-arm gate
- * includes the send tail because a durable arm leaves no safe late refusal;
- * dispatch holds that tail aside while the arm transaction runs. Recording a
- * return is one marker write plus the fixed refund ledger batch. Settlement and
- * the caller tail have separate nested reserves.
+ * Each checkpoint prices work through its next safe refusal. The last gate
+ * includes the durable authority and send tail because no refusal is safe once
+ * that authority starts. Settlement and the caller tail have separate reserves.
  */
 const DATABASE_CALL_PLANS = {
   before_claim: {
-    fixed:
-      CLAIM_DATABASE_CALLS +
+    fixed: CLAIM_DATABASE_CALLS +
       SETTLEMENT_DATABASE_CALLS +
       PROVIDER_BINDING_DATABASE_CALLS +
       TRANSACTION_ROLLBACK_HEADROOM,
-    whenArming: DISPATCH_ARM_DATABASE_CALLS,
+    pricesAuthority: true,
     whenRecordingReturns: RETURNED_PAYMENT_DATABASE_CALLS,
   },
-  before_dispatch_arm: {
-    fixed: 0,
-    whenArming: DISPATCH_ARM_DATABASE_CALLS + TRANSACTION_ROLLBACK_HEADROOM,
+  before_authority_request: {
+    fixed: TRANSACTION_ROLLBACK_HEADROOM,
+    pricesAuthority: true,
     whenRecordingReturns: RETURNED_PAYMENT_DATABASE_CALLS,
   },
   before_provider_read: {
     fixed: PROVIDER_BINDING_DATABASE_CALLS + TRANSACTION_ROLLBACK_HEADROOM,
-    whenArming: 0,
-    whenRecordingReturns: 0,
+    pricesAuthority: true,
+    whenRecordingReturns: RETURNED_PAYMENT_DATABASE_CALLS,
   },
-  before_provider_send: {
-    fixed: 0,
-    whenArming: 0,
+  inside_authority_request: {
+    fixed: TRANSACTION_ROLLBACK_HEADROOM,
+    pricesAuthority: true,
     whenRecordingReturns: RETURNED_PAYMENT_DATABASE_CALLS,
   },
   inside_claim: {
-    fixed:
-      CLAIM_DATABASE_CALLS_AFTER_ADMISSION +
+    fixed: CLAIM_DATABASE_CALLS_AFTER_ADMISSION +
       SETTLEMENT_DATABASE_CALLS +
       PROVIDER_BINDING_DATABASE_CALLS +
       TRANSACTION_ROLLBACK_HEADROOM,
-    whenArming: DISPATCH_ARM_DATABASE_CALLS,
+    pricesAuthority: true,
     whenRecordingReturns: RETURNED_PAYMENT_DATABASE_CALLS,
   },
 } satisfies Record<RefundBudgetCheckpoint, DatabaseCallPlan>;
@@ -249,13 +243,12 @@ const DATABASE_CALL_PLANS = {
 const refreshAdmissionDatabasePlan = (
   claimCalls: number,
 ): DatabaseCallPlan => ({
-  fixed:
-    claimCalls +
+  fixed: claimCalls +
     SETTLEMENT_DATABASE_CALLS +
     PROVIDER_BINDING_DATABASE_CALLS +
     TRANSACTION_ROLLBACK_HEADROOM +
     REFRESH_COMPLETION_DATABASE_CALLS,
-  whenArming: 0,
+  pricesAuthority: true,
   whenRecordingReturns: 0,
 });
 
@@ -263,11 +256,10 @@ const READINESS_DATABASE_CALL_PLANS = {
   refresh: {
     before_claim: refreshAdmissionDatabasePlan(CLAIM_DATABASE_CALLS),
     before_provider_read: {
-      fixed:
-        PROVIDER_BINDING_DATABASE_CALLS +
+      fixed: PROVIDER_BINDING_DATABASE_CALLS +
         TRANSACTION_ROLLBACK_HEADROOM +
         REFRESH_COMPLETION_DATABASE_CALLS,
-      whenArming: 0,
+      pricesAuthority: true,
       whenRecordingReturns: 0,
     },
     inside_claim: refreshAdmissionDatabasePlan(
@@ -284,10 +276,14 @@ const READINESS_DATABASE_CALL_PLANS = {
   Record<RefundReadinessBudgetCheckpoint, DatabaseCallPlan>
 >;
 
-const databaseCallsAt = (plan: DatabaseCallPlan, mayArm: boolean): number =>
+const databaseCallsAt = (
+  plan: DatabaseCallPlan,
+  authorityCalls: number,
+): number =>
   // A non-empty refund plan may discover returned money, so every safe gate
   // reserves the full recording tail.
-  plan.fixed + (mayArm ? plan.whenArming : 0) + plan.whenRecordingReturns;
+  plan.fixed + (plan.pricesAuthority ? authorityCalls : 0) +
+  plan.whenRecordingReturns;
 
 const zeroSubrequests = (): SubrequestCounts => ({
   database: 0,
@@ -302,22 +298,33 @@ const withDatabaseCalls = (
 
 const subrequestCostFor = (
   plan: DatabaseCallPlan,
-  mayArm: boolean,
+  authorityCalls: number,
   external: number,
 ): SubrequestCounts =>
-  withDatabaseCalls(databaseCallsAt(plan, mayArm), external);
+  withDatabaseCalls(databaseCallsAt(plan, authorityCalls), external);
+
+/** The first live authority reserves recovery headroom. Further references
+ * add their statement tail; any larger set then fails the early gate. */
+const activeAuthorityDatabaseCalls = (count: number): number =>
+  count === 0
+    ? 0
+    : FIRST_ACTIVE_AUTHORITY_DATABASE_CALLS +
+      (count - 1) * ADDITIONAL_AUTHORITY_DATABASE_CALLS;
 
 const referenceSetSubrequestCost = (
   action: RefundReadinessAction,
   references: readonly RefundPaymentReference[],
+  active: readonly RefundPaymentReference[],
   checkpoint: RefundReadinessBudgetCheckpoint,
   providers: readonly PaymentProviderType[],
 ): SubrequestCounts => {
   const stage = READINESS_PROVIDER_CALL_STAGES[action][checkpoint];
-  const external = sum(references.map(referenceCalls({ providers, stage })));
+  const external = sum(active.map(referenceCalls({ providers, stage })));
+  const authorityCalls = activeAuthorityDatabaseCalls(active.length) +
+    (references.length - active.length) * RETURNED_AUTHORITY_DATABASE_CALLS;
   return subrequestCostFor(
     READINESS_DATABASE_CALL_PLANS[action][checkpoint],
-    action === "refund" && references.length > 0,
+    authorityCalls,
     external,
   );
 };
@@ -333,13 +340,18 @@ export const refundReadinessSubrequestCost = (
   providers?: readonly PaymentProviderType[],
 ): SubrequestCounts => {
   if (candidates.length === 0) return zeroSubrequests();
-  const configured =
-    providers === undefined
-      ? orderedCredentialedPaymentProviderTypes()
-      : providers;
+  const configured = providers === undefined
+    ? orderedCredentialedPaymentProviderTypes()
+    : providers;
   const references = refundReferences(candidates);
   const active = activeReferences(references, returned);
-  return referenceSetSubrequestCost(action, active, checkpoint, configured);
+  return referenceSetSubrequestCost(
+    action,
+    references,
+    active,
+    checkpoint,
+    configured,
+  );
 };
 
 export type RefundSendBudgetReference = {
@@ -348,7 +360,9 @@ export type RefundSendBudgetReference = {
 };
 
 export type PreparedRefundBudget = {
+  readonly activeAuthorityCount: number;
   readonly mayRecordReturns: boolean;
+  readonly returnedAuthorityCount: number;
   readonly sendReferences: readonly RefundSendBudgetReference[];
 };
 
@@ -357,19 +371,28 @@ export const refundPreparedSubrequestCost = (
   prepared: PreparedRefundBudget,
   checkpoint: RefundDispatchBudgetCheckpoint,
 ): SubrequestCounts => {
-  const { mayRecordReturns, sendReferences } = prepared;
-  if (sendReferences.length === 0 && !mayRecordReturns) {
+  const {
+    activeAuthorityCount,
+    mayRecordReturns,
+    returnedAuthorityCount,
+    sendReferences,
+  } = prepared;
+  if (
+    activeAuthorityCount === 0 && returnedAuthorityCount === 0 &&
+    !mayRecordReturns
+  ) {
     return zeroSubrequests();
   }
   const stage = PROVIDER_CALL_STAGES[checkpoint];
   const external = sum(
     sendReferences.map(({ provider }) =>
-      physicalCalls(provider, logicalCallsAt(stage)),
+      physicalCalls(provider, logicalCallsAt(stage))
     ),
   );
   return subrequestCostFor(
     DATABASE_CALL_PLANS[checkpoint],
-    sendReferences.length > 0,
+    activeAuthorityDatabaseCalls(activeAuthorityCount) +
+      returnedAuthorityCount * RETURNED_AUTHORITY_DATABASE_CALLS,
     external,
   );
 };

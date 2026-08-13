@@ -4,7 +4,6 @@ import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import { execute, getDb, setDb } from "#shared/db/client.ts";
 import { wrapExecute } from "#shared/db/libsql-call.ts";
-import { markPaymentReferencesProviderRefunded } from "#shared/db/payment-references.ts";
 import { setN1GuardNotifyOnly } from "#shared/db/query-log.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
@@ -13,7 +12,6 @@ import { proxyMembers } from "#shared/proxy-members.ts";
 import {
   createPaidListing,
   markAsRefunded,
-  seedBatchAttendees,
   seedTaggedBatchAttendees,
 } from "#test/features/admin/refunds-helpers.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
@@ -24,8 +22,8 @@ import {
   CLAIM_MIRROR,
   protectedStateOf,
   putRowState,
-  REVIEW_MIRROR,
   refundClaimFixture,
+  REVIEW_MIRROR,
   reviewCase,
   rowStateSlot,
   UNRECORDED_MIRROR,
@@ -34,6 +32,7 @@ import {
   finalizeProcessedPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
+import { markProviderRefundsReturned } from "#test-utils/payment-references.ts";
 import { getCompleteRefundCandidatesForListing } from "#test-utils/refund-candidates.ts";
 import {
   postRefundAll,
@@ -86,7 +85,7 @@ const putUnrecordedOnLastPayment = async (
   expectedSize: number,
 ): Promise<void> => {
   const candidate = await lastRefundCandidate(listingId, expectedSize);
-  await markPaymentReferencesProviderRefunded(candidate.references);
+  await markProviderRefundsReturned(candidate.references, "due");
   await putRowState(
     paymentRowOf(candidate),
     await rowStateSlot({
@@ -107,7 +106,7 @@ const expectBlockerStopsRefundAll = async (
   putBlocker: RefundAllBlocker,
 ): Promise<void> => {
   const listing = await createPaidListing({ maxAttendees: 500 });
-  await seedBatchAttendees(listing, paymentPrefix, attendeeCount);
+  await seedTaggedBatchAttendees(listing, paymentPrefix, attendeeCount);
   await putBlocker(listing.id, attendeeCount);
 
   await withRefundMock(refundIsRejected, async (mockRefund) => {
@@ -131,7 +130,7 @@ const putReturnedClaimsOnEveryPayment = async (
   const sessionIds: string[] = [];
   for (const candidate of candidates) {
     const attendeeReferences = candidate.references;
-    await markPaymentReferencesProviderRefunded(attendeeReferences);
+    await markProviderRefundsReturned(attendeeReferences);
     await markAsRefunded(candidate.attendee.id);
     const sessionId = attendeeReferences[0]?.rowSessionIds[0];
     if (sessionId === undefined) {
@@ -142,7 +141,7 @@ const putReturnedClaimsOnEveryPayment = async (
       await rowStateSlot({
         claim: refundClaimFixture(
           candidate.attendee.id,
-          "send_armed_keyed",
+          "checking",
           writtenAt,
         ),
       }),
@@ -225,7 +224,13 @@ describeWithEnv(
         listing.id,
         "Settled Payment",
         "settled-payment@example.com",
-        "pi_settled_review",
+        "",
+      );
+      await finalizeProcessedPayment(
+        "settled-review",
+        settled.id,
+        "",
+        taggedPaymentReference("pi_settled_review"),
       );
       await createPaidTestAttendee(
         listing.id,
@@ -239,7 +244,7 @@ describeWithEnv(
       if (settledCandidate === undefined) {
         throw new Error("The settled attendee has no payment candidate");
       }
-      await markPaymentReferencesProviderRefunded(settledCandidate.references);
+      await markProviderRefundsReturned(settledCandidate.references);
       await markAsRefunded(settled.id);
       await putRowState(
         paymentRowOf(settledCandidate),
@@ -248,6 +253,7 @@ describeWithEnv(
         }),
         REVIEW_MIRROR,
       );
+      setN1GuardNotifyOnly(false);
 
       await withRefundMock(refundIsRejected, async (mockRefund) => {
         await postRefundAll(listing);

@@ -25,18 +25,17 @@ Feature: An organiser refunds everyone on a listing
 
   @rule:payments.refund-all-respects-owner-review
   @surface:admin
-  Rule: Refund All cannot bypass a payment that still needs owner review
-    Acknowledging a contradictory provider report records that the owner saw
-    it. Even if the provider's next report looks safe, Refund All waits for the
-    review to be resolved through the payment refresh process before sending
-    any money.
+  Rule: Refund All cannot bypass a refund that still needs an owner decision
+    A contradictory provider report creates one durable refund-recovery case.
+    Even if the provider's next report looks safe, Refund All waits for the
+    owner to resolve that case before sending any money.
 
     @case:bulk-refund.review-on-last-payment-stops-every-send
     Scenario: A review on the last payment stops every send
       Given 2 people each paid 50.00 for a Tour place
       And the first payment is last in Refund All's payment set
       And the provider reports returning more than it took on the first payment
-      And the owner tried the first refund and acknowledged its review
+      And the owner tried the first refund and left its refund case unresolved
       And the provider corrects the first payment to show no refund
       When the organiser tries to refund everyone
       Then Refund All stops before asking the provider to return money

@@ -1,26 +1,32 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type {
-  RefundAttemptResult,
-  RefundRequest,
-} from "#shared/payment/refund-attempt.ts";
+import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
+import type { AuthorizedRefundRequest } from "#shared/payment/refund-provider-authorization.ts";
 import { squareApi } from "#shared/square/api.ts";
 import type { RefundPaymentInput } from "#shared/square/payment-outcomes.ts";
-import { withSquareClient } from "#test/test-utils/square/fixtures.ts";
+import {
+  squareRefundRequest,
+  withSquareClient,
+} from "#test/test-utils/square/fixtures.ts";
 import { describeSquare } from "#test/test-utils/square/harness.ts";
 import { gbp } from "#test-utils/payment-state.ts";
 
 const refundRequest = (
   paymentReference = "pay_refund_me",
   amount = 4200,
-): RefundRequest => ({
-  charge: {
-    captured: gbp(amount),
-    confirmedRefunded: gbp(0),
-    refunds: [],
-  },
-  paymentReference,
-});
+  idempotencyKey = `test-refund:${paymentReference}:1`,
+): AuthorizedRefundRequest<"square"> =>
+  squareRefundRequest(
+    {
+      charge: {
+        captured: gbp(amount),
+        confirmedRefunded: gbp(0),
+        refunds: [],
+      },
+      paymentReference,
+    },
+    idempotencyKey,
+  );
 
 const refundOutcomeFor = async (
   refund: unknown,
@@ -68,7 +74,13 @@ describeSquare(() => {
             }),
         },
         async ({ paymentsGet, refundsRefundPayment }) => {
-          const result = await squareApi.refundCharge(refundRequest());
+          const result = await squareApi.refundCharge(
+            refundRequest(
+              "pay_refund_me",
+              4200,
+              "persisted-square-generation-one",
+            ),
+          );
 
           expect(paymentsGet.calls).toHaveLength(0);
           expect(refundsRefundPayment.calls).toHaveLength(1);
@@ -76,7 +88,7 @@ describeSquare(() => {
             .args[0] as RefundPaymentInput;
           expect(sent).toEqual({
             amountMoney: { amount: 4200n, currency: "GBP" },
-            idempotencyKey: "94jKDa73RqRmoCUbDHE2CCc5rNAMtKDdSERbYIImwK0",
+            idempotencyKey: "persisted-square-generation-one",
             paymentId: "pay_refund_me",
           });
           expect(result).toEqual({

@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getPaymentWorkStatus } from "#shared/db/payment-review.ts";
+import { listProviderRefundCases } from "#shared/db/provider-refund-cases.ts";
 import {
   createPaidListing,
   setupRefundTest,
@@ -54,7 +55,7 @@ describeWithEnv("server (admin refund provider logging)", { db: true }, () => {
       ).toBe(true);
     });
 
-    test("an uncertain bulk refund answer is logged as errored", async () => {
+    test("an uncertain bulk refund answer becomes durable recovery work", async () => {
       const listing = await createPaidListing();
       await createPaidTestAttendee(
         listing.id,
@@ -72,9 +73,9 @@ describeWithEnv("server (admin refund provider logging)", { db: true }, () => {
           await postRefundAll(listing);
         },
       );
-      expect(
-        loggedDetails().some((s) => s.includes("Admin bulk refund errored")),
-      ).toBe(true);
+      expect((await listProviderRefundCases()).cases).toEqual([
+        expect.objectContaining({ state: "observing" }),
+      ]);
     });
 
     test("a refused provider observation becomes durable owner work", async () => {

@@ -47,7 +47,7 @@ describeWithEnv(
   () => {
     const errors = setupErrorSpy();
 
-    test("tallies refunded, failed and errored candidates in one batch", async () => {
+    test("tallies refunded and failed candidates in one batch", async () => {
       await postBooking({ attendeeId: 11, eventId: "sess-11" });
 
       const counts = finishedCounts(
@@ -64,8 +64,7 @@ describeWithEnv(
       );
 
       expect(counts).toEqual({
-        errorCount: 1,
-        failedCount: 1,
+        failedCount: 2,
         notRecordedCount: 0,
         pendingCount: 0,
         refundedCount: 1,
@@ -73,9 +72,8 @@ describeWithEnv(
       expect(errors.contains("Admin bulk refund failed for 1 payment(s)")).toBe(
         true,
       );
-      expect(
-        errors.contains("Admin bulk refund errored for 2 payment(s)"),
-      ).toBe(true);
+      expect(errors.contains("Admin bulk refund failed for 2 payment(s)"))
+        .toBe(true);
       expect(errors.contains("pi_boom")).toBe(false);
       expect(errors.contains("pi_two")).toBe(false);
     });
@@ -165,7 +163,6 @@ describeWithEnv(
       );
 
       expect(counts.notRecordedCount).toBe(1);
-      expect(counts.errorCount).toBe(0);
       expect(claim.released).toEqual([["sess-21"]]);
       expect(claim.unrecorded).toEqual([["sess-21"]]);
     });
@@ -195,7 +192,7 @@ describeWithEnv(
       expect(claim.unrecorded).toEqual([["sess-first", "sess-second"]]);
     });
 
-    test("retains the whole claim while a sibling charge is in doubt", async () => {
+    test("releases the row fence while authority observes a sibling charge", async () => {
       const claim = grantingRowClaim(
         new Map([[24, ["sess-back", "sess-stuck"]]]),
       );
@@ -218,7 +215,7 @@ describeWithEnv(
       );
 
       expect(counts.notRecordedCount).toBe(1);
-      expect(claim.released).toEqual([[]]);
+      expect(claim.released).toEqual([["sess-back", "sess-stuck"]]);
       expect(claim.unrecorded).toEqual([["sess-back"]]);
     });
 
@@ -272,7 +269,6 @@ describeWithEnv(
       );
 
       expect(counts).toEqual({
-        errorCount: 0,
         failedCount: 0,
         notRecordedCount: 0,
         pendingCount: 0,
@@ -291,7 +287,6 @@ describeWithEnv(
       );
 
       expect(counts).toEqual({
-        errorCount: 0,
         failedCount: 0,
         notRecordedCount: 1,
         pendingCount: 0,

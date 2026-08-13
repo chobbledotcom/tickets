@@ -27,8 +27,8 @@ import type { Attendee } from "#shared/types.ts";
 /* jscpd:ignore-end */
 import { attendeeActions } from "./attendees-route-helpers.ts";
 import {
-  type RefreshPaymentResult,
   refreshClaimedPayment,
+  type RefreshPaymentResult,
 } from "./refunds/refresh.ts";
 
 /** Minimal context needed by the refresh-payment flow. */
@@ -58,10 +58,10 @@ const loadRefreshState = async (
 ): Promise<
   | Response
   | {
-      attendee: Attendee;
-      listingId: number;
-      references: readonly RefundPaymentReference[];
-    }
+    attendee: Attendee;
+    listingId: number;
+    references: readonly RefundPaymentReference[];
+  }
 > => {
   const ctx = await loadRefreshContext(attendeeId);
   if (!ctx) return htmlResponse("", 404);
@@ -71,10 +71,14 @@ const loadRefreshState = async (
     { currentPaymentId: attendee.payment_id, id: attendee.id },
     privateKey,
   );
-  if (referenceSet.kind === "legacy_unindexed") {
+  if (referenceSet.kind !== "complete") {
     return redirect(
       `/admin/attendees/${attendeeId}`,
-      t("error.payment_history_incomplete"),
+      t(
+        referenceSet.kind === "legacy_unindexed"
+          ? "error.payment_history_incomplete"
+          : "error.payment_history_too_large",
+      ),
       false,
       { form },
     );

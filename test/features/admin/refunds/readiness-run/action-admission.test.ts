@@ -59,7 +59,6 @@ const recordingClaim = (
           commandId: COMMAND_ID,
           held: new Map([[ATTENDEE_ID, [ROW_SESSION_ID]]]),
           heldSince: HELD_SINCE,
-          inherited: new Map(),
           kind: "claimed" as const,
           phases: new Map([[ROW_SESSION_ID, "checking" as const]]),
           returned: new Set<string>(),
@@ -84,9 +83,9 @@ const runFor = async (
   readonly result:
     | RunResult
     | {
-        kind: "blocked";
-        reason: "refund_in_progress";
-      };
+      kind: "blocked";
+      reason: "refund_in_progress";
+    };
   readonly settlements: RowSettlement[];
 }> => {
   const recorded = recordingClaim(state);
@@ -112,20 +111,19 @@ const runFor = async (
       });
     },
   };
-  const run =
-    action === "refund"
-      ? { ...common, action, budgetAudience: "bulk" as const }
-      : { ...common, action };
+  const run = action === "refund"
+    ? { ...common, action, budgetAudience: "bulk" as const }
+    : { ...common, action };
   const result = await runRefundReadiness<RunResult>(run);
   return { calls, result, settlements: recorded.settlements };
 };
 
-const releasedWithoutChangingSafetyState = (
-  phase: "checking" | "ready",
-): RowSettlement => ({
+const releasedWithoutChangingSafetyState = (): RowSettlement => ({
   commandId: COMMAND_ID,
   heldSince: HELD_SINCE,
-  rows: new Map([[ROW_SESSION_ID, { claim: "release", phase }]]),
+  rows: new Map([
+    [ROW_SESSION_ID, { claim: "release", phase: "checking" }],
+  ]),
 });
 
 describe("refund readiness action admission", () => {
@@ -169,7 +167,7 @@ describe("refund readiness action admission", () => {
       });
       expect(run.calls).toEqual({ prepare: 0, ready: 0 });
       expect(run.settlements).toEqual([
-        releasedWithoutChangingSafetyState("checking"),
+        releasedWithoutChangingSafetyState(),
       ]);
       expect(
         errors.contains(`Admin refund not started (${state.diagnosticReason})`),
@@ -185,7 +183,7 @@ describe("refund readiness action admission", () => {
       });
       expect(run.calls).toEqual({ prepare: 1, ready: 1 });
       expect(run.settlements).toEqual([
-        releasedWithoutChangingSafetyState("ready"),
+        releasedWithoutChangingSafetyState(),
       ]);
       expect(errors.calls).toEqual([]);
     });

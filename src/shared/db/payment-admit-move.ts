@@ -6,9 +6,21 @@
  * claim arrives between the check and the write.
  */
 
-import type { TxScope } from "#shared/db/client.ts";
-import { readAttendeeRowStates } from "#shared/db/payment-claim.ts";
-import { moveRefusalOrNull, type RowMove } from "#shared/payment/admit-move.ts";
+import { inPlaceholders, resultRows, type TxScope } from "#shared/db/client.ts";
+import {
+  mirroredMoveRefusalOrNull,
+  type RowMove,
+} from "#shared/payment/admit-move.ts";
+import {
+  readRefundAuthorityState,
+  type RefundAuthorityState,
+} from "#shared/payment/refund-authority.ts";
+import { refundMoveRefusalOrNull } from "#shared/payment/refund-authority-lifecycle.ts";
+
+interface StoredMoveWork {
+  readonly protected_state: string;
+  readonly refund_state: string | null;
+}
 
 /** Raised when payment rows are in the middle of work the operator has to
  *  settle first. The message is written for whoever asked for the merge or the
@@ -28,12 +40,32 @@ export const assertRowsFreeToMove = async (
   attendeeIds: readonly number[],
   move: RowMove,
 ): Promise<void> => {
-  const rows = await readAttendeeRowStates(tx, attendeeIds);
-  const refusal = moveRefusalOrNull(
-    rows.map((row) => row.state),
+  const rows = resultRows<StoredMoveWork>(
+    await tx.execute({
+      args: [...attendeeIds],
+      sql: `SELECT DISTINCT payment.protected_state, charge.refund_state
+              FROM processed_payments AS payment
+              LEFT JOIN payment_charges AS charge
+                ON charge.reference_index = payment.payment_reference_index
+             WHERE payment.attendee_id IN (${inPlaceholders(attendeeIds)})`,
+    }),
+  );
+  const rowRefusal = mirroredMoveRefusalOrNull(
+    rows.map((row) => row.protected_state),
     move,
   );
-  if (refusal !== null) throw new PaymentRowsBusyError(refusal);
+  if (rowRefusal !== null) throw new PaymentRowsBusyError(rowRefusal);
+  const storedAuthorityStates = new Set(
+    rows.flatMap((row) => row.refund_state === null ? [] : [row.refund_state]),
+  );
+  const authorityStates: RefundAuthorityState[] = [...storedAuthorityStates]
+    .map((state) =>
+      readRefundAuthorityState(state, "payment_charges.refund_state")
+    );
+  const authorityRefusal = refundMoveRefusalOrNull(authorityStates, move);
+  if (authorityRefusal !== null) {
+    throw new PaymentRowsBusyError(authorityRefusal);
+  }
 };
 
 /** Run work that may be refused, handing the refusal's words to `refused`

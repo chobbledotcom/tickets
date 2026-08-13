@@ -37,7 +37,7 @@ describe("refresh payment under an attendee claim", () => {
     ]);
   });
 
-  test("persists an unsafe return while an in-flight sibling keeps the claim", async () => {
+  test("persists an unsafe return while authority observes its sibling", async () => {
     const run = runHarness({
       ledger: (references) => refundLedgerResult([], references, references),
       observed: fullyRefundedMoney(),
@@ -45,14 +45,18 @@ describe("refresh payment under an attendee claim", () => {
     });
 
     expect(await refresh(run)).toEqual({
-      kind: "blocked",
-      reason: "refund_in_progress",
+      kind: "needs_review",
+      message:
+        "This payment needs an owner review before another refund can be attempted.",
     });
     expectObligationReview(run);
-    expect(run.claim.released).toEqual([[]]);
+    expect(run.provider.refunds).toEqual([]);
+    expect(run.claim.released).toEqual([
+      run.references.flatMap(({ rowSessionIds }) => rowSessionIds),
+    ]);
   });
 
-  test("parks a partial provider refund on its exact rows for owner review", async () => {
+  test("gives a partial provider refund only to the canonical authority", async () => {
     const run = runHarness({
       observed: chargeMoneyWith({
         refunds: [refundObservation({ amount: gbp(40), status: "completed" })],
@@ -64,12 +68,7 @@ describe("refresh payment under an attendee claim", () => {
       message:
         "This payment needs an owner review before another refund can be attempted.",
     });
-    expect(run.claim.reviewChanges).toEqual([
-      reviewChange(run, {
-        kind: "review",
-        reason: { kind: "partial_refund" },
-      }),
-    ]);
+    expect(run.claim.reviewChanges).toEqual([new Map()]);
     expect(run.claim.released).toEqual([run.reference.rowSessionIds]);
   });
 

@@ -64,9 +64,7 @@ export const singleRefundResultError = async (
           ? t("error.refund_not_recorded")
           : counts.pendingCount === 1
             ? t("error.refund_pending")
-            : counts.errorCount === 1
-              ? t("error.refund_uncertain")
-              : t("error.refund_failed"),
+            : t("error.refund_failed"),
         returnUrl,
         readWorkStatus,
       );

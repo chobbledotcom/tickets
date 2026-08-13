@@ -13,6 +13,7 @@ import {
   type ProviderRead,
 } from "#shared/payment/provider-read.ts";
 import { refundWithOneReread } from "#shared/payment/refund-attempt.ts";
+import { requireProviderRefundAuthorization } from "#shared/payment/refund-provider-authorization.ts";
 import {
   type ChargeMoney,
   chargeMoneyRead,
@@ -107,7 +108,10 @@ export const stripePaymentProvider: PaymentProvider = {
   refundCapability: "keyed",
 
   refundCharge: refundWithOneReread(
-    (request) => stripeApi.refundCharge(request),
+    (request) => {
+      requireProviderRefundAuthorization(request, "stripe");
+      return stripeApi.refundCharge(request);
+    },
     (reference) => stripePaymentProvider.readCharge(reference),
   ),
   requiresWebhookSignature: true,

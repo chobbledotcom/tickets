@@ -24,6 +24,7 @@ import {
   getOrphanPaymentWorkPage,
   purgeOrphanedAttendees,
 } from "#shared/db/orphan-attendees.ts";
+import { readyRefundTestState } from "#test-utils/provider-refund-cases.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -35,6 +36,11 @@ import {
   UNRECORDED_MIRROR,
 } from "#test-utils/payment-claim.ts";
 import { insertRefundConfirmationFixture } from "#test-utils/refund-confirmations.ts";
+import { addProviderRefundTestCase } from "#test-utils/provider-refund-cases.ts";
+import {
+  finalizeProcessedPayment,
+  taggedPaymentReference,
+} from "#test-utils/processed-payments.ts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -278,6 +284,29 @@ describeWithEnv("db > orphan-attendees", { db: true }, () => {
 
       await purgeOrphanedAttendees(nowIso());
 
+      expect(await attendeeExists(id)).toBe(true);
+      expect(await childCount("processed_payments", id)).toBe(1);
+    });
+
+    test("keeps canonical refund work when the legacy mirror is clear", async () => {
+      const id = await insertOrphan(daysAgoIso(365));
+      const reference = "orphan-authority-ready";
+      await finalizeProcessedPayment(
+        `session-${reference}`,
+        id,
+        "tok",
+        taggedPaymentReference(reference),
+      );
+      await addProviderRefundTestCase(
+        reference,
+        readyRefundTestState("orphan-authority-request"),
+        "stripe",
+      );
+
+      expect(await countPurgeableOrphanedAttendees(nowIso())).toBe(0);
+      expect((await getOrphanPaymentWorkPage()).attendeeIds).toEqual([id]);
+
+      expect(await purgeOrphanedAttendees(nowIso())).toBe(0);
       expect(await attendeeExists(id)).toBe(true);
       expect(await childCount("processed_payments", id)).toBe(1);
     });

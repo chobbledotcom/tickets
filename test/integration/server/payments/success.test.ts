@@ -13,7 +13,7 @@ import { singleItem } from "#test-utils/factories.ts";
 import { mockRequest, withMocks } from "#test-utils/mocks.ts";
 import { expectSessionFailed } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { stripeRefundRequest } from "#test-utils/stripe/fixtures.ts";
+import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
 import {
   stubRefundPayment,
   stubRetrieveCheckoutSession,
@@ -153,7 +153,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           // Verify exactly one refund was issued, for the right intent.
           expect(mockRefund.calls.length).toBe(1);
           expect(mockRefund.calls[0]!.args).toEqual([
-            stripeRefundRequest("pi_test_123"),
+            stripeRefundRequestShape("pi_test_123"),
           ]);
         },
       );
@@ -192,7 +192,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           // Verify exactly one refund was issued, for the right intent.
           expect(mockRefund.calls.length).toBe(1);
           expect(mockRefund.calls[0]!.args).toEqual([
-            stripeRefundRequest("pi_second"),
+            stripeRefundRequestShape("pi_second"),
           ]);
 
           // The placeholder is kept alongside the original (sold-out) attendee,

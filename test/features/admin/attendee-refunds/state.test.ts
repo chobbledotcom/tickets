@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { markPaymentReferencesProviderRefunded } from "#shared/db/payment-references.ts";
 import { CLAIM_MIRROR } from "#shared/payment/admit-move.ts";
 import {
   createPaidListing,
@@ -23,7 +22,10 @@ import {
   putRowState,
   staleClaimSlot,
 } from "#test-utils/payment-claim.ts";
-import { getCompleteRefundPaymentReferencesForAttendee } from "#test-utils/payment-references.ts";
+import {
+  getCompleteRefundPaymentReferencesForAttendee,
+  markProviderRefundsReturned,
+} from "#test-utils/payment-references.ts";
 import {
   finalizeProcessedPayment,
   taggedPaymentReference,
@@ -110,13 +112,13 @@ describeWithEnv("server (admin refund state)", { db: true }, () => {
         "",
         taggedPaymentReference("pi_stranded"),
       );
-      await markPaymentReferencesProviderRefunded(
+      await markProviderRefundsReturned(
         await getCompleteRefundPaymentReferencesForAttendee(attendee),
       );
       await markAsRefunded(attendee.id);
       await putRowState(
         sessionId,
-        await staleClaimSlot(attendee.id, "send_armed_keyed"),
+        await staleClaimSlot(attendee.id),
         CLAIM_MIRROR,
       );
 
@@ -143,7 +145,7 @@ describeWithEnv("server (admin refund state)", { db: true }, () => {
         "",
         taggedPaymentReference("pi_held"),
       );
-      await markPaymentReferencesProviderRefunded(
+      await markProviderRefundsReturned(
         await getCompleteRefundPaymentReferencesForAttendee(attendee),
       );
       await markAsRefunded(attendee.id);
@@ -162,11 +164,20 @@ describeWithEnv("server (admin refund state)", { db: true }, () => {
     });
 
     test("marks attendee as refunded after successful refund", async () => {
-      const ctx = await setupRefundTest("pi_mark_refund");
+      const ctx = await setupRefundTest("");
+      await finalizeProcessedPayment(
+        "sess_mark_refund",
+        ctx.attendee.id,
+        "",
+        taggedPaymentReference("pi_mark_refund"),
+      );
 
       await withRefundMock(refundCompletes, async () => {
         const response = await submitRefund(ctx);
-        expect(response.status).toBe(302);
+        await expectFlashRedirect(
+          `/admin/attendees/${ctx.attendee.id}/actions`,
+          "Refund issued",
+        )(response);
 
         const retryResponse = await submitRefund(ctx);
         await expectFlashRedirect(

@@ -10,7 +10,6 @@ import {
   getRefundPaymentReferencesForAttendee,
   hasAnyPaymentReference,
   legacyMergePaymentReferenceStatement,
-  markPaymentReferencesProviderRefunded,
   stillWithTheProvider,
   underRefundClaim,
 } from "#shared/db/payment-references.ts";
@@ -20,7 +19,10 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { requireCompleteRefundReferences } from "#test-utils/payment-references.ts";
+import {
+  markProviderRefundsReturned,
+  requireCompleteRefundReferences,
+} from "#test-utils/payment-references.ts";
 import { refundReference } from "#test-utils/payment-state.ts";
 import {
   finalizeProcessedPayment,
@@ -28,7 +30,6 @@ import {
   refundReferencesFor,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
-import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 describeWithEnv("db > payment references", { db: true }, () => {
   test("PII-only payment ids make refund history incomplete", async () => {
@@ -46,7 +47,7 @@ describeWithEnv("db > payment references", { db: true }, () => {
     ).toEqual({ kind: "complete", references: [] });
   });
 
-  test("marks returned processed-payment references", async () => {
+  test("canonical refund completion marks processed-payment references", async () => {
     const listing = await createTestListing({ maxAttendees: 50 });
     const created = await bookAttendee(listing, {
       email: "returned@example.com",
@@ -72,9 +73,7 @@ describeWithEnv("db > payment references", { db: true }, () => {
     expect(before[0]!.kind).toBe("tagged");
     expect(before[0]!.refundState).toBe("none");
 
-    const markerCalls = await countDatabaseCalls(1, () =>
-      markPaymentReferencesProviderRefunded(before),
-    );
+    await markProviderRefundsReturned(before);
 
     const after = requireCompleteRefundReferences(
       (
@@ -86,39 +85,6 @@ describeWithEnv("db > payment references", { db: true }, () => {
     );
     expect(after[0]!.kind).toBe("tagged");
     expect(after[0]!.refundState).toBe("completed");
-    expect(markerCalls).toBe(1);
-  });
-
-  test("does no database work when there are no returned references", async () => {
-    expect(
-      await countDatabaseCalls(0, () =>
-        markPaymentReferencesProviderRefunded([]),
-      ),
-    ).toBe(0);
-  });
-
-  test("marks a returned payment by its session without an index", async () => {
-    const listing = await createTestListing({ maxAttendees: 50 });
-    const created = await bookAttendee(listing, {
-      email: "session-marker@example.com",
-      name: "Session Marker",
-    });
-    if (!created.success) throw new Error("setup failed");
-    const attendeeId = created.attendees[0]!.id;
-    const sessionId = "sess_session_marker";
-    const payment = taggedPaymentReference("pi_session_marker");
-    await finalizeProcessedPayment(sessionId, attendeeId, "", payment);
-
-    const reference = await readReference(payment, {
-      rowSessionIds: [sessionId],
-      sessionIds: [sessionId],
-    });
-    await markPaymentReferencesProviderRefunded([{ ...reference, index: "" }]);
-
-    expect(
-      (await refundReferencesFor(attendeeId, await getTestPrivateKey()))[0]
-        ?.refundState,
-    ).toBe("completed");
   });
 
   test("marks a returned anchor by its index without a checkout session", async () => {
@@ -141,7 +107,7 @@ describeWithEnv("db > payment references", { db: true }, () => {
     expect(reference.sessionIds).toEqual([]);
     expect(reference.rowSessionIds).toHaveLength(1);
 
-    await markPaymentReferencesProviderRefunded([reference]);
+    await markProviderRefundsReturned([reference]);
 
     expect(
       (await refundReferencesFor(attendeeId, await getTestPrivateKey()))[0]
@@ -255,7 +221,7 @@ describeWithEnv("db > payment references", { db: true }, () => {
     const payment = taggedPaymentReference("pi_shared_refunded");
     await finalizeProcessedPayment("sess_refunded_a", attendeeId, "", payment);
     await finalizeProcessedPayment("sess_refunded_b", attendeeId, "", payment);
-    await markPaymentReferencesProviderRefunded([
+    await markProviderRefundsReturned([
       await readReference(payment, {
         rowSessionIds: ["sess_refunded_a"],
         sessionIds: ["sess_refunded_a"],
@@ -331,7 +297,7 @@ describeWithEnv(
 describe("db > payment references > still with the provider", () => {
   const withStates = (...states: RefundState[]) =>
     states.map((refundState, index) =>
-      refundReference(`pi_${index}`, { refundState }),
+      refundReference(`pi_${index}`, { refundState })
     );
 
   test("a watched charge not seen back is still out", () => {

@@ -8,6 +8,10 @@ import { updateAttendeePII } from "#shared/db/attendees/update.ts";
 import { execute, queryAll } from "#shared/db/client.ts";
 import { createSystemNote } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
+import {
+  loadSelectedPaymentReferenceRows,
+  MAX_REFUND_REFERENCES_PER_ATTENDEE,
+} from "#shared/db/payment-reference-rows.ts";
 import { getRefundPaymentReferences } from "#shared/db/payment-references.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -122,6 +126,46 @@ describeWithEnv("db > payment reference readiness", { db: true }, () => {
     });
     expect(await protectedStateOf("old_unindexed")).toBe("");
     expect(await protectedStateOf("new_indexed")).toBe("");
+  });
+
+  test("an oversized history is refused before any reference is decrypted", async () => {
+    const listing = await createTestListing();
+    const attendee = bookedAttendee(
+      await bookAttendee(listing, {
+        email: "large-payment-history@example.com",
+        name: "Large Payment History",
+      }),
+    );
+    await Promise.all(
+      Array.from(
+        { length: MAX_REFUND_REFERENCES_PER_ATTENDEE + 5 },
+        (_, index) =>
+          finalizeProcessedPayment(
+            `large-history-${index}`,
+            attendee.id,
+            "",
+            {
+              kind: "tagged",
+              provider: "stripe",
+              reference: `pi_large_history_${index}`,
+            },
+          ),
+      ),
+    );
+    await execute(
+      "UPDATE processed_payments SET payment_reference = 'not ciphertext' WHERE attendee_id = ?",
+      [attendee.id],
+    );
+
+    expect(
+      (await getRefundPaymentReferences(
+        [{ currentPaymentId: "", id: attendee.id }],
+        await getTestPrivateKey(),
+      )).get(attendee.id),
+    ).toEqual({ kind: "too_many_references" });
+    expect(await loadSelectedPaymentReferenceRows([attendee.id])).toHaveLength(
+      MAX_REFUND_REFERENCES_PER_ATTENDEE + 1,
+    );
   });
 
   test("re-saving one old attendee creates one append-only indexed anchor", async () => {

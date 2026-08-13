@@ -16,7 +16,7 @@ import {
   expectSettled,
   stubBalanceSession,
 } from "#test/integration/balance-helpers.ts";
-import { stripeRefundRequest } from "#test/test-utils/stripe/fixtures.ts";
+import { stripeRefundRequestShape } from "#test/test-utils/stripe/fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
@@ -202,7 +202,7 @@ describeWithEnv("server (public balance page) > webhook", { db: true }, () => {
       );
       // The stale payment is refunded, not applied.
       expect(refund.calls[0]!.args).toEqual([
-        stripeRefundRequest("pi_bal_stale", 1500),
+        stripeRefundRequestShape("pi_bal_stale", 1500),
       ]);
       const html = await response.text();
       expect(html).toContain("balance for this booking changed");
@@ -229,7 +229,7 @@ describeWithEnv("server (public balance page) > webhook", { db: true }, () => {
         mockRequest("/payment/success?session_id=cs_bal_amt"),
       );
       expect(refund.calls[0]!.args).toEqual([
-        stripeRefundRequest("pi_bal_amt", 1000),
+        stripeRefundRequestShape("pi_bal_amt", 1000),
       ]);
       expect(await response.text()).toContain("price for this listing changed");
       const state = await getAttendeeBalanceState(attendeeId);

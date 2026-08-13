@@ -4,8 +4,13 @@ import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import { deleteAttendee } from "#shared/db/attendees/delete.ts";
 import { getAttendeeOrNull } from "#shared/db/attendees/queries.ts";
 import { getRefundPaymentReferencesForAttendee } from "#shared/db/payment-references.ts";
+import { listProviderRefundCases } from "#shared/db/provider-refund-cases.ts";
 import type { ProviderRead } from "#shared/payment/provider-read.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
+import {
+  recordProviderRefunds,
+  requestProviderRefund,
+} from "#shared/provider-refunds.ts";
 import {
   finishedCounts,
   processRefundBatchAt,
@@ -21,10 +26,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import {
-  CLAIM_MIRROR,
   protectedStateOf,
-  putRowState,
-  staleClaimSlot,
 } from "#test-utils/payment-claim.ts";
 import { requireCompleteRefundReferences } from "#test-utils/payment-references.ts";
 import { chargeMoney, fullyRefundedMoney } from "#test-utils/payment-state.ts";
@@ -110,19 +112,20 @@ describeWithEnv(
         uncertainProvider,
         [firstCandidate],
         listing.id,
+        {
+          recordAuthorities: recordProviderRefunds,
+          request: requestProviderRefund,
+        },
       );
 
       expect(reads).toBe(1);
       expect(sends).toBe(1);
-      expect(await protectedStateOf(SESSION_ID)).toBe(CLAIM_MIRROR);
+      expect(await protectedStateOf(SESSION_ID)).toBe("");
+      expect((await listProviderRefundCases()).cases).toEqual([
+        expect.objectContaining({ state: "observing" }),
+      ]);
       await expect(deleteAttendee(attendee.id)).rejects.toThrow(
-        "A refund for this person is still in progress",
-      );
-
-      await putRowState(
-        SESSION_ID,
-        await staleClaimSlot(attendee.id, "send_armed_keyed"),
-        CLAIM_MIRROR,
+        "A provider refund for this payment is still in progress",
       );
       let retrySends = 0;
       const settledProvider = provider({
@@ -139,6 +142,10 @@ describeWithEnv(
           settledProvider,
           [await loadCandidate(attendee.id)],
           listing.id,
+          {
+            recordAuthorities: recordProviderRefunds,
+            request: requestProviderRefund,
+          },
         ),
       );
 

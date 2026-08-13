@@ -2,10 +2,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import type { ProviderRead } from "#shared/payment/provider-read.ts";
-import type {
-  RefundAttemptResult,
-  RefundRequest,
-} from "#shared/payment/refund-attempt.ts";
+import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
+import {
+  type AuthorizedRefundRequest,
+  authorizeDurableRefundSend,
+} from "#shared/payment/refund-provider-authorization.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { SumupRefundSubmission } from "#shared/sumup/failures.ts";
 import type { SumupTransactionMoney } from "#shared/sumup/transaction.ts";
@@ -151,10 +152,42 @@ describe("sumup provider money", () => {
   }
 
   describe("refundCharge", () => {
-    const request = {
-      charge: chargeMoney(1000),
-      paymentReference: "txn_9",
-    };
+    const request = authorizeDurableRefundSend(
+      {
+        charge: chargeMoney(1000),
+        paymentReference: "txn_9",
+      },
+      {
+        capability: "keyless",
+        generation: 1,
+        identityIndex: "test-refund-index:txn_9:1",
+        provider: "sumup",
+      },
+    );
+
+    test("refuses another provider's authority before sending", async () => {
+      const stripeRequest = authorizeDurableRefundSend(
+        {
+          charge: chargeMoney(1000),
+          paymentReference: "txn_9",
+        },
+        {
+          capability: "keyed",
+          generation: 1,
+          idempotencyKey: "stripe-test-key",
+          identityIndex: "stripe-test-request",
+          provider: "stripe",
+        },
+      );
+      using send = stub(sumupApi, "refundTransaction", () =>
+        Promise.resolve({ kind: "sent" }),
+      );
+
+      await expect(
+        sumupPaymentProvider.refundCharge(stripeRequest),
+      ).rejects.toThrow("authorization does not permit sumup");
+      expect(send.calls).toHaveLength(0);
+    });
 
     const refund = async (
       submission: SumupRefundSubmission,
@@ -162,7 +195,7 @@ describe("sumup provider money", () => {
         resource: chargeMoney(1000),
         status: "found",
       },
-      attemptedRequest: RefundRequest = request,
+      attemptedRequest: AuthorizedRefundRequest<"sumup"> = request,
     ) => {
       const answer: { result?: RefundAttemptResult } = {};
       await withMocks(
@@ -298,7 +331,10 @@ describe("sumup provider money", () => {
         await refund(
           { kind: "uncertain", reason: "network_error" },
           { resource: priorCharge, status: "found" },
-          { charge: priorCharge, paymentReference: "txn_9" },
+          authorizeDurableRefundSend(
+            { charge: priorCharge, paymentReference: "txn_9" },
+            request.authorization,
+          ),
         ),
       ).toEqual({ kind: "uncertain", reason: "network_error" });
     });

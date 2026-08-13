@@ -106,8 +106,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-08-10_payment_state_columns",
         "2026-08-12_refund_confirmations",
         "2026-08-13_payment_work_queue_index",
+        "2026-08-13_refund_authority",
       ],
-      schemaHash: "ybfszb",
+      schemaHash: "1w7f9dy",
     });
   });
 
@@ -122,7 +123,7 @@ describe("db > migrations > schema change guard", () => {
       dbSchemaHash: "db_schema_hash",
       latestDbUpdate: "latest_db_update",
       latestUpdate:
-        "Keep payment recovery queues and legacy-note repair bounded.",
+        "Make every refund entry point share one durable recovery process.",
       migrationLock: "migration_lock",
       schemaMigrations: "schema_migrations",
     });

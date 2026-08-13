@@ -32,6 +32,11 @@ export interface RefundSafetyState {
   managerAnswer?: number;
   moneyFault?: { restore(): Promise<void> };
   ownerContactCount: number;
+  ownerCase?: {
+    readonly id: number;
+    readonly reference: string;
+    readonly systemTime: number;
+  };
   provider?: RefundProviderScript;
   savedRefund?: SavedOwnerForm;
   savedReview?: SavedOwnerForm;

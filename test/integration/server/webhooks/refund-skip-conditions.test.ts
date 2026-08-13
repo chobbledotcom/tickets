@@ -18,7 +18,7 @@ import {
 import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
-import { stripeRefundRequest } from "#test-utils/stripe/fixtures.ts";
+import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
 import { foundStripeIntent } from "#test-utils/stripe/responses.ts";
 import {
   checkoutSessionEvent,
@@ -131,7 +131,7 @@ describeWithEnv(
         // the captured charge — a 503 returned before the provider call would
         // leave the money with Stripe and nothing asking for it back.
         expect(refundStub.calls.map((call) => call.args)).toEqual([
-          [stripeRefundRequest("pi_malformed", 500)],
+          [stripeRefundRequestShape("pi_malformed", 500)],
         ]);
         // Stripe retries silently, so the log is the operator's only sign
         // that a captured charge is sitting unrefunded.
@@ -148,7 +148,7 @@ describeWithEnv(
       }
     });
 
-    test("tryRefund logs error when no payment provider is configured", async () => {
+    test("keeps a refund retryable when its provider is not configured", async () => {
       await setupStripe();
 
       const listing = await createTestListing({

@@ -33,8 +33,10 @@ const expectWebhookResponse = async (
     () => ({
       order: stub(squareApi, "readOrder", () => Promise.resolve(orderRead)),
       payment: stub(squareApi, "readPayment"),
-      verify: stub(squarePaymentProvider, "verifyWebhookSignature", () =>
-        Promise.resolve({ listing: event, valid: true as const }),
+      verify: stub(
+        squarePaymentProvider,
+        "verifyWebhookSignature",
+        () => Promise.resolve({ listing: event, valid: true as const }),
       ),
     }),
     async ({ order, payment }) => {
@@ -44,7 +46,7 @@ const expectWebhookResponse = async (
             {},
             { "x-square-hmacsha256-signature": "square-signature" },
           ),
-        ),
+        )
       );
       expect(response.status).toBe(expectedStatus);
       expect(order.calls).toHaveLength(expectedOrderReads);
@@ -123,4 +125,43 @@ describeWithEnv("Square payment webhooks", { db: true }, () => {
       503,
     );
   });
+
+  for (
+    const [description, priceProof] of [
+      ["no price proof", undefined],
+      ["a malformed price proof", "not-a-price-proof"],
+    ] as const
+  ) {
+    test(`keeps a ticket-shaped order with ${description} retryable`, async () => {
+      const event: WebhookEvent = {
+        data: {
+          object: {
+            payment: {
+              id: "payment-damaged-proof",
+              order_id: "order-damaged-proof",
+              status: "COMPLETED",
+            },
+          },
+        },
+        id: "damaged-proof-event",
+        type: "payment.updated",
+      };
+
+      await expectWebhookResponse(
+        event,
+        squareOrderRead({
+          id: "order-damaged-proof",
+          metadata: {
+            items: '[{"e":1,"q":1,"p":1000}]',
+            name: "Alice",
+            ...(priceProof === undefined ? {} : { price_proof: priceProof }),
+          },
+          state: "COMPLETED",
+          totalMoney: squareMoney(1000),
+        }),
+        1,
+        503,
+      );
+    });
+  }
 });

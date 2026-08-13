@@ -17,8 +17,9 @@ import {
 import { businessTime } from "#routes/api/payment-processing/metadata.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import {
+  providerRefundReturned,
   refundAndFail,
-  tryRefund,
+  requestSessionRefund,
 } from "#routes/api/payment-processing/refunds.ts";
 import type {
   PaymentFailureResult,
@@ -49,6 +50,7 @@ import {
 import { paidPaymentReferenceOf } from "#shared/payment/validated-session.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
+import { recordProviderRefunds } from "#shared/provider-refunds.ts";
 import { recordPlaceholderRefund } from "#shared/refund-ledger/placeholder.ts";
 
 /* jscpd:ignore-end */
@@ -196,8 +198,12 @@ export const storeRefundedBooking = async (
   );
   const attendeeId = (stored as Extract<typeof stored, { success: true }>)
     .attendees[0]!.id;
-  const refunded = await tryRefund(paymentReference, listingId);
-  await recordPlaceholderRefund(
+  const refundResult = await requestSessionRefund(session);
+  const refunded = providerRefundReturned(refundResult, {
+    listingId,
+    provider: session.provider,
+  });
+  const recording = await recordPlaceholderRefund(
     {
       amount: session.amountTotal,
       attendeeId,
@@ -208,6 +214,15 @@ export const storeRefundedBooking = async (
     spec.code,
     refunded,
   );
+  if (
+    refunded &&
+    recording.posted &&
+    refundResult.kind === "returned" &&
+    refundResult.authority !== null &&
+    refundResult.local === "due"
+  ) {
+    await recordProviderRefunds([refundResult.authority]);
+  }
   if (refunded) {
     await logActivity(
       `Automatic refund (${spec.code}); booking kept at quantity 0`,
@@ -217,7 +232,8 @@ export const storeRefundedBooking = async (
   } else {
     logError({
       code: ErrorCode.PAYMENT_REFUND,
-      detail: `Stored-but-unrefunded booking ${attendeeId} (${spec.code}): ${spec.detail}`,
+      detail:
+        `Stored-but-unrefunded booking ${attendeeId} (${spec.code}): ${spec.detail}`,
       listingId,
     });
   }

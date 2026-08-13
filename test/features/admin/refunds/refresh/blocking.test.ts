@@ -1,33 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { RowClaim } from "#routes/admin/refunds/claim.ts";
-import {
-  pendingRefundMoney,
-  refresh,
-  reviewChange,
-  runHarness,
-} from "./helpers.ts";
+import { pendingRefundMoney, refresh, runHarness } from "./helpers.ts";
 
 describe("refresh payment under an attendee claim", () => {
-  test("parks an inherited keyless claim when no refund is visible", async () => {
-    const run = runHarness({ inherited: "keyless" });
-
-    expect(await refresh(run)).toEqual({
-      kind: "needs_review",
-      message:
-        "This payment needs an owner review before another refund can be attempted.",
-    });
-    expect(run.provider.refunds).toEqual([]);
-    expect(run.claim.released).toEqual([[run.rowSessionId]]);
-    expect(run.claim.reviewChanges).toEqual([
-      reviewChange(run, {
-        kind: "review",
-        reason: { kind: "uncertain_keyless_refund" },
-      }),
-    ]);
-  });
-
-  test("retains the claim while an observed refund is still settling", async () => {
+  test("releases the row fence while durable authority observes a refund", async () => {
     const run = runHarness({
       observed: pendingRefundMoney(),
     });
@@ -36,7 +13,11 @@ describe("refresh payment under an attendee claim", () => {
       kind: "blocked",
       reason: "refund_in_progress",
     });
-    expect(run.claim.released).toEqual([]);
+    expect(run.provider.refunds).toEqual([]);
+    expect(run.observed).toEqual([
+      expect.objectContaining({ mode: "observe_only" }),
+    ]);
+    expect(run.claim.released).toEqual([run.reference.rowSessionIds]);
   });
 
   test("reports readiness evidence and releases a fresh unread claim", async () => {
@@ -65,7 +46,7 @@ describe("refresh payment under an attendee claim", () => {
       message:
         "No configured payment provider recognizes this payment. Add the provider it was taken with, or refund it from that provider's dashboard.",
     });
-    expect(run.marked).toEqual([]);
+    expect(run.observed).toEqual([]);
     expect(run.claim.released).toEqual([run.reference.rowSessionIds]);
   });
 
@@ -84,9 +65,8 @@ describe("refresh payment under an attendee claim", () => {
     expect(run.claim.unrecorded).toEqual([[]]);
   });
 
-  test("retains an inherited claim when provider evidence cannot answer", async () => {
+  test("releases the checking fence when provider evidence cannot answer", async () => {
     const run = runHarness({
-      inherited: "keyed",
       readiness: {
         kind: "not_ready",
         observations: [],
@@ -99,7 +79,7 @@ describe("refresh payment under an attendee claim", () => {
       message:
         "the payment rows changed while their providers were being recorded",
     });
-    expect(run.claim.released).toEqual([]);
+    expect(run.claim.released).toEqual([run.reference.rowSessionIds]);
   });
 
   const refusingClaim = (
@@ -142,10 +122,12 @@ describe("refresh payment under an attendee claim", () => {
     expect(run.calls.prepare).toBe(0);
   });
 
-  for (const [name, count] of [
-    ["no attendee", 0],
-    ["more than one attendee", 2],
-  ] as const) {
+  for (
+    const [name, count] of [
+      ["no attendee", 0],
+      ["more than one attendee", 2],
+    ] as const
+  ) {
     test(`fails when readiness returns ${name}`, async () => {
       const run = runHarness();
       const candidates = Array.from({ length: count }).flatMap(

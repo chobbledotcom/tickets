@@ -51,7 +51,11 @@ const validTaggedReference = (
 ): TaggedPaymentReference =>
   parseOrThrow(
     TaggedPaymentReferenceSchema,
-    reference,
+    {
+      kind: reference.kind,
+      provider: reference.provider,
+      reference: reference.reference,
+    },
     () => new Error("Invalid payment reference"),
   );
 

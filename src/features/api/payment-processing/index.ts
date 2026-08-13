@@ -39,14 +39,14 @@ import type {
 } from "#routes/api/webhook-types.ts";
 import { eventGroupHasLegs } from "#shared/accounting/queries.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
-import { type PricedOrder, priceCheckout } from "#shared/checkout-pricing.ts";
+import { priceCheckout, type PricedOrder } from "#shared/checkout-pricing.ts";
 import { generateTicketToken } from "#shared/crypto/utils.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import {
   finalizeSessionIfUnresolved,
   markSessionFailed,
-  type ProcessedPayment,
   parseSessionFailure,
+  type ProcessedPayment,
   releaseReservation,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
@@ -119,7 +119,8 @@ const alreadyHandledSession = (
   sessionId: string,
   listingId: number,
 ): PaymentFailureResult => ({
-  detail: `Ledger already records session ${sessionId} with no live booking (listing ${listingId})`,
+  detail:
+    `Ledger already records session ${sessionId} with no live booking (listing ${listingId})`,
   error: "This payment has already been processed.",
   status: 200,
   success: false,
@@ -220,10 +221,9 @@ const processNewBookingSession = async (
   // — the provider charged a different total, or a listing/modifier/answer price
   // was edited between checkout and now: keep it as a quantity-0 placeholder and
   // refund, never drop it.
-  const knownRefund =
-    verdict.verdict === "mismatch"
-      ? chargeMismatchSpec(session, verdict.agreed)
-      : paidPricingRefund(validatedItems, pricedOrder, verdict.agreed);
+  const knownRefund = verdict.verdict === "mismatch"
+    ? chargeMismatchSpec(session, verdict.agreed)
+    : paidPricingRefund(validatedItems, pricedOrder, verdict.agreed);
   if (knownRefund) {
     return storeRefundedBooking(
       session,
@@ -334,18 +334,9 @@ export const processPaymentSession: SessionProcessor = async (
 
   const result = await processReservedSession(sessionId, data);
 
-  // A refund of a real payment that FAILED must stay retryable, and the very
-  // next provider redelivery should re-attempt it. Releasing the reservation
-  // now (rather than leaving it held with no recorded outcome) is what makes
-  // that happen: a held reservation would make the redelivery collide with the
-  // lock and return 409 until the row goes stale (~5 min), gating refund
-  // recovery on a local timer instead of provider redelivery. Releasing lets
-  // the next delivery re-claim and re-refund immediately. This CANNOT
-  // double-pay: every provider refunds the full charge amount and rejects a
-  // refund that exceeds the already-refunded balance, and tryRefund treats an
-  // already-refunded payment as success — so a redelivery after a refund that
-  // actually went through (but reported failure) records success, not a second
-  // payout.
+  // Keep a failed refund callback retryable. The durable refund authority, not
+  // this short booking reservation, decides whether a later delivery may send,
+  // observe, or wait for the owner, so releasing cannot create a second send.
   if (!result.success && result.refunded === false) {
     await releaseReservation(sessionId);
     return result;

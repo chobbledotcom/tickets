@@ -4,7 +4,6 @@ import {
   type RefundRunBlock,
   underAttendeeClaim,
 } from "#routes/admin/refunds/claim.ts";
-import type { InheritedArmedRefunds } from "#shared/db/payment-claim/take.ts";
 import { refundReference } from "#test-utils/payment-state.ts";
 import {
   type ClaimedRows,
@@ -57,10 +56,7 @@ describe("admin refunds > attendee claim", () => {
     expect(claim.settlements).toEqual([]);
   });
 
-  test("releases only attendees whose provider answer is settled", async () => {
-    const inherited: InheritedArmedRefunds = new Map([
-      [4, new Map([["pi-four", "keyless"]])],
-    ]);
+  test("releases every checking fence while preserving discovered facts", async () => {
     const unrecorded = new Map<number, readonly string[]>([
       [3, ["sess-three"]],
     ]);
@@ -72,7 +68,6 @@ describe("admin refunds > attendee claim", () => {
           [3, ["sess-three"]],
           [4, ["sess-four"]],
         ]),
-        inherited,
         unrecorded,
       ),
     );
@@ -82,27 +77,15 @@ describe("admin refunds > attendee claim", () => {
       work: ({
         alreadyReturned,
         findings,
-        inherited: inheritedClaims,
         unrecorded: existingUnrecorded,
       }) => {
         expect([...alreadyReturned]).toEqual(["pi_returned"]);
-        expect(inheritedClaims).toBe(inherited);
         expect(existingUnrecorded).toBe(unrecorded);
         expect(findings).toEqual({
-          claimPhases: new Map([
-            ["sess-one", "checking"],
-            ["sess-two", "checking"],
-            ["sess-three", "checking"],
-            ["sess-four", "checking"],
-          ]),
-          doubts: new Map([[4, "unread"]]),
           recorded: new Set(),
           reviews: new Map(),
           unrecorded: new Map(),
         });
-        findings.doubts.set(2, "in_doubt");
-        findings.doubts.set(3, "unread");
-        findings.doubts.set(4, "unread");
         findings.unrecorded.set(1, ["sess-one"]);
         findings.unrecorded.set(2, ["sess-two"]);
         findings.unrecorded.set(3, ["sess-three"]);
@@ -149,7 +132,7 @@ describe("admin refunds > attendee claim", () => {
             "sess-two",
             {
               books: "unrecorded",
-              claim: "keep",
+              claim: "release",
               phase: "checking",
               review: { kind: "resolved", reason: "partial_refund" },
             },
@@ -170,7 +153,7 @@ describe("admin refunds > attendee claim", () => {
             "sess-four",
             {
               books: "unrecorded",
-              claim: "keep",
+              claim: "release",
               phase: "checking",
               review: { kind: "resolved", reason: "shared_reference" },
             },

@@ -113,16 +113,13 @@ export const setupConfirmation = async (
     commandId: claimed.commandId,
     held: claimed.held,
     heldSince: claimed.heldSince,
-    phases: new Map(
-      [...claimed.phases].map(([sessionId]) => [sessionId, "ready" as const]),
-    ),
+    phases: claimed.phases,
   };
   const bound = await bindPaymentReferenceProviders({
     bindings: new Map(
       loaded.map((boundReference) => [
         boundReference.index,
         {
-          capability: "keyed" as const,
           identity: {
             kind: "tagged" as const,
             provider:

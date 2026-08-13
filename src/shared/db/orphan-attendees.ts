@@ -22,6 +22,7 @@ import {
   queryAll,
   requireOne,
 } from "#shared/db/client.ts";
+import { refundAuthorityWorkSql } from "#shared/payment/refund-authority-lifecycle.ts";
 import { requireValue } from "#shared/required-value.ts";
 
 /** The shared database fact behind both kinds of orphan: no booking points at
@@ -32,11 +33,16 @@ const HAS_NO_BOOKINGS = `NOT EXISTS (
          WHERE booking.attendee_id = attendee.id
       )`;
 
-/** A payment row whose plaintext mirror says work still blocks deletion. */
+/** A payment row whose plaintext mirrors say work still blocks deletion. */
 const HAS_PAYMENT_WORK = `EXISTS (
         SELECT 1 FROM processed_payments AS payment
+        LEFT JOIN payment_charges AS charge
+          ON charge.reference_index = payment.payment_reference_index
          WHERE payment.attendee_id = attendee.id
-           AND payment.protected_state != ''
+           AND (
+             payment.protected_state != ''
+             OR ${refundAuthorityWorkSql("charge.")}
+           )
       )`;
 
 /**
@@ -58,7 +64,7 @@ export const ORPHAN_IDS = `SELECT attendee.id
 
 /**
  * Find one page of orphans kept alive by refund or payment-review work. Only
- * ids and the plaintext payment-state mirror are read; attendee PII is never
+ * ids and the plaintext payment-state mirrors are read; attendee PII is never
  * loaded or decrypted. These records stay visible regardless of age until
  * their work is resolved and ordinary orphan cleanup can take them.
  */
@@ -79,34 +85,34 @@ export type OrphanPaymentWorkPage = {
 
 type PaymentWorkPageDirection =
   | {
-      boundary: number;
-      comparison: "<";
-      kind: "backward";
-      order: "DESC";
-    }
+    boundary: number;
+    comparison: "<";
+    kind: "backward";
+    order: "DESC";
+  }
   | {
-      boundary: number | undefined;
-      comparison: ">";
-      kind: "forward";
-      order: "ASC";
-    };
+    boundary: number | undefined;
+    comparison: ">";
+    kind: "forward";
+    order: "ASC";
+  };
 
 const paymentWorkPageDirection = (
   cursor: OrphanPaymentWorkCursor,
 ): PaymentWorkPageDirection =>
   cursor.before === undefined
     ? {
-        boundary: cursor.after,
-        comparison: ">",
-        kind: "forward",
-        order: "ASC",
-      }
+      boundary: cursor.after,
+      comparison: ">",
+      kind: "forward",
+      order: "ASC",
+    }
     : {
-        boundary: cursor.before,
-        comparison: "<",
-        kind: "backward",
-        order: "DESC",
-      };
+      boundary: cursor.before,
+      comparison: "<",
+      kind: "backward",
+      order: "DESC",
+    };
 
 type VisiblePaymentWorkPage = {
   hasLookahead: boolean;
@@ -159,13 +165,18 @@ export const getOrphanPaymentWorkPage = async (
   const rows = await queryAll<{ id: number }>(
     `SELECT DISTINCT payment.attendee_id AS id
        FROM processed_payments AS payment
-      WHERE payment.protected_state != ''
+       LEFT JOIN payment_charges AS charge
+         ON charge.reference_index = payment.payment_reference_index
+      WHERE (
+          payment.protected_state != ''
+          OR ${refundAuthorityWorkSql("charge.")}
+        )
         AND payment.attendee_id IS NOT NULL
         ${
-          direction.boundary === undefined
-            ? ""
-            : `AND payment.attendee_id ${direction.comparison} ?`
-        }
+      direction.boundary === undefined
+        ? ""
+        : `AND payment.attendee_id ${direction.comparison} ?`
+    }
         AND EXISTS (
           SELECT 1
             FROM attendees AS attendee

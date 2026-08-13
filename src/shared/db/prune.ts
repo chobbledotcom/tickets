@@ -23,7 +23,9 @@ import {
 import { logDebug } from "#shared/logger.ts";
 import { now, nowMs } from "#shared/now.ts";
 import { orphanRetentionCutoffIso } from "#shared/orphan-retention.ts";
+import { refundAuthorityWorkSql } from "#shared/payment/refund-authority-lifecycle.ts";
 import type { User } from "#shared/types.ts";
+import { isPositiveSafeInteger } from "#shared/validation/number.ts";
 
 type PruneStatement = SqlStatement;
 
@@ -68,9 +70,14 @@ const paymentStatement = (): PruneStatement => ({
               --
               -- Keeping it strands nothing: a stale claim is resumable, so the
               -- next run for that attendee picks the row up and settles it.
-              -- This is the one reader that cannot decrypt, so it routes on
-              -- the mirror.
+              -- This reader cannot decrypt, so it routes on the mirrors.
               AND payment.protected_state = ''
+              AND NOT EXISTS (
+                SELECT 1
+                  FROM payment_charges AS charge
+                 WHERE charge.reference_index = payment.payment_reference_index
+                   AND ${refundAuthorityWorkSql("charge.")}
+              )
               AND (
                 payment.failure_data != ''
                 OR (
@@ -150,7 +157,7 @@ type InvitePage = {
 const checkpointId = (checkpoint: string | null): number | null => {
   if (checkpoint === null) return null;
   const id = Number(checkpoint);
-  if (!Number.isSafeInteger(id) || id < 1) {
+  if (!isPositiveSafeInteger(id)) {
     throw new Error(`Invalid invite pruning checkpoint: ${checkpoint}`);
   }
   return id;
@@ -227,8 +234,7 @@ export const runDatabasePruning = async (
     inviteStatements(invitePage.expiredIds),
   ].filter((batch) => batch.length > 0);
   const results = await executeBatchWithResults(batches.flat());
-  const fullBatch =
-    invitePage.hasMore ||
+  const fullBatch = invitePage.hasMore ||
     lastResultIndexes(batches).some(
       (index) => results[index]!.rowsAffected === MAINTENANCE_PRUNE_BATCH,
     );

@@ -1,9 +1,7 @@
 /* jscpd:ignore-start */
 import type { ProviderRead } from "#shared/payment/provider-read.ts";
-import type {
-  RefundAttemptResult,
-  RefundRequest,
-} from "#shared/payment/refund-attempt.ts";
+import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
+import type { AuthorizedRefundRequest } from "#shared/payment/refund-provider-authorization.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import {
   createSquarePaymentLink,
@@ -37,7 +35,9 @@ type SquareApi = {
   ): Promise<PaymentLinkResult>;
   readOrder(orderId: string): Promise<ProviderRead<SquareOrder>>;
   readPayment(paymentId: string): Promise<ProviderRead<SquarePayment>>;
-  refundCharge(request: RefundRequest): Promise<RefundAttemptResult>;
+  refundCharge(
+    request: AuthorizedRefundRequest<"square">,
+  ): Promise<RefundAttemptResult>;
 };
 
 /** The single stubbable seam shared by Square production code and tests. */

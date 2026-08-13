@@ -15,7 +15,7 @@ import {
   getSubrequestRemaining,
   runWithSubrequestBudget,
 } from "#shared/subrequest-budget.ts";
-import { armEveryRefund } from "#test/features/admin/refunds/provider/dispatch-helpers.ts";
+import { requestRecordedProviderRefund } from "#test/features/admin/refunds/provider/dispatch-helpers.ts";
 import {
   prepareAtProvider,
   processRefundBatchAt,
@@ -54,8 +54,9 @@ const candidate = (
   refundState: RefundPaymentReference["refundState"] = "none",
 ) => ({
   attendee: { id: attendeeId } as RefundCandidate["attendee"],
-  references: Array.from({ length: referenceCount }, (_, offset) =>
-    stripeReference(attendeeId, offset, refundState),
+  references: Array.from(
+    { length: referenceCount },
+    (_, offset) => stripeReference(attendeeId, offset, refundState),
   ),
 });
 
@@ -98,13 +99,14 @@ describeWithEnv(
   "admin refund provider > whole-command budget",
   { db: true },
   () => {
-    test("nine Stripe payments on one attendee make zero provider calls", async () => {
-      await expectRefusedBeforeClaim([candidate(11, 9)]);
+    test("three Stripe payments on one attendee make zero provider calls", async () => {
+      await expectRefusedBeforeClaim([candidate(11, 3)]);
     });
 
     test("a provider set beyond Bunny's total limit refuses before its first send", async () => {
-      const candidates = Array.from({ length: 9 }, (_, offset) =>
-        candidate(20 + offset, 1),
+      const candidates = Array.from(
+        { length: 9 },
+        (_, offset) => candidate(20 + offset, 1),
       );
       await expectRefusedBeforeClaim(candidates);
     });
@@ -165,7 +167,7 @@ describeWithEnv(
       const source = provider();
       const attendeeIds = Array.from({ length: 6 }, (_, offset) => 60 + offset);
       const candidates = attendeeIds.map((attendeeId) =>
-        candidate(attendeeId, 1, "completed"),
+        candidate(attendeeId, 1, "completed")
       );
       const claim = grantingRowClaim(
         new Map(
@@ -228,24 +230,22 @@ describeWithEnv(
       expect(granted.released).toHaveLength(1);
     });
 
-    test("keeps the Stripe send envelope protected while arming", async () => {
+    test("keeps the send envelope protected inside the authority", async () => {
       await settings.update.stripe.secretKey("sk_test_budget");
       const source = provider();
       const granted = grantingRowClaim(
         new Map([[71, ["session_pi_budget_71_0"]]]),
       );
-      const armRefunds = armEveryRefund();
-      let armCalls = 0;
+      let authorityCalls = 0;
 
       const result = await processRefundBatchAt(source, [candidate(71, 1)], 7, {
-        arm: async (request) => {
-          armCalls++;
-          const armed = await armRefunds(request);
+        request: async (...args) => {
+          authorityCalls++;
           const sendEnvelope = 2 * (REFUND_NETWORK_RETRIES.stripe + 1);
-          while (getSubrequestRemaining().total >= sendEnvelope) {
-            countSubrequest("database", "work racing the dispatch arm");
-          }
-          return armed;
+          expect(getSubrequestRemaining().external).toBeGreaterThanOrEqual(
+            sendEnvelope,
+          );
+          return await requestRecordedProviderRefund(...args);
         },
         claim: granted,
         record: recordEveryRefund,
@@ -256,43 +256,9 @@ describeWithEnv(
         kind: "finished",
       });
       expect(source.reads).toEqual(["pi_budget_71_0"]);
-      expect(armCalls).toBe(1);
+      expect(authorityCalls).toBe(1);
       expect(source.refunds).toEqual(["pi_budget_71_0"]);
       expect(granted.released).toEqual([["session_pi_budget_71_0"]]);
-    });
-
-    test("keeps the returned-payment tail protected while arming", async () => {
-      await settings.update.stripe.secretKey("sk_test_budget");
-      const source = provider({ paymentProvider: "square" });
-      const granted = grantingRowClaim(
-        new Map([[72, ["session_pi_budget_72_0"]]]),
-      );
-      const armRefunds = armEveryRefund();
-      let armCalls = 0;
-
-      const result = await processRefundBatchAt(source, [candidate(72, 1)], 7, {
-        arm: async (request) => {
-          armCalls++;
-          const armed = await armRefunds(request);
-          while (getSubrequestRemaining().database > 4) {
-            countSubrequest("database", "work racing the dispatch arm");
-          }
-          const remaining = getSubrequestRemaining();
-          const squareSendEnvelope = 2 * (REFUND_NETWORK_RETRIES.square + 1);
-          expect(remaining.external).toBeGreaterThanOrEqual(squareSendEnvelope);
-          expect(remaining.total).toBeGreaterThanOrEqual(squareSendEnvelope);
-          return armed;
-        },
-        claim: granted,
-        record: recordEveryRefund,
-      });
-
-      expect(result).toMatchObject({
-        counts: { failedCount: 1 },
-        kind: "finished",
-      });
-      expect(armCalls).toBe(1);
-      expect(source.refunds).toEqual(["pi_budget_72_0"]);
     });
 
     test("refuses returned no-send work before its ledger when only four calls remain", async () => {

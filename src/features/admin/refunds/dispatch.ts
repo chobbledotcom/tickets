@@ -1,25 +1,22 @@
-import { groupToMap, requiredMapValue, uniqueBy } from "#fp";
-import type {
-  ArmRefundDispatchResult,
-  armRefundDispatch,
-} from "#shared/db/payment-refund-dispatch.ts";
+import { uniqueBy } from "#fp";
 import {
   getSubrequestRemaining,
   withSubrequestReserve,
 } from "#shared/subrequest-budget.ts";
+import { requestProviderRefund } from "#shared/provider-refunds.ts";
 import {
   type CandidateRefund,
   finishPreparedCandidate,
   type PreparedCandidateRefund,
-  type PreparedReferenceRefund,
   prepareReadyCandidate,
+  type ReferenceRefund,
   standDownPreparedCandidate,
 } from "./attempt.ts";
 import {
   type PreparedRefundBudget,
   type RefundDispatchBudgetCheckpoint,
-  type RefundSendBudgetReference,
   refundPreparedSubrequestCost,
+  type RefundSendBudgetReference,
   subrequestCostFits,
 } from "./budget.ts";
 import type { HeldRefundWork, RunFindings } from "./claim.ts";
@@ -31,128 +28,81 @@ import { packByReferenceCount } from "./waves.ts";
 export type RefundDispatchBatchResult =
   | { readonly kind: "budget_refused" }
   | {
-      readonly kind: "sent";
-      readonly waves: readonly (readonly CandidateRefund[])[];
-    };
+    readonly kind: "sent";
+    readonly waves: readonly (readonly CandidateRefund[])[];
+  };
 
 const prepareWaves = async (
   candidates: readonly ReadyRefundCandidate[],
   listingId: number,
+  request: typeof requestProviderRefund,
 ): Promise<PreparedCandidateRefund[][]> => {
-  const inFlight = new Map<string, Promise<PreparedReferenceRefund>>();
+  const inFlight = new Map<string, Promise<ReferenceRefund>>();
   return await Promise.all(
     packByReferenceCount(PROVIDER_REFUND_CONCURRENCY)(candidates).map((wave) =>
       Promise.all(
         wave.map((candidate) =>
-          prepareReadyCandidate(candidate, listingId, inFlight),
+          prepareReadyCandidate(candidate, listingId, inFlight, request)
         ),
-      ),
+      )
     ),
   );
 };
 
-const sendReferencesOf = (
+type PreparedRefundAttempt = PreparedCandidateRefund["attempts"][number];
+
+const uniqueAttemptsOf = (
   waves: readonly (readonly PreparedCandidateRefund[])[],
+): PreparedRefundAttempt[] =>
+  uniqueBy((attempt: PreparedRefundAttempt) => attempt.reference.index)(
+    waves.flatMap((wave) => wave.flatMap(({ attempts }) => [...attempts])),
+  );
+
+const sendReferencesOf = (
+  attempts: readonly PreparedRefundAttempt[],
 ): RefundSendBudgetReference[] =>
-  uniqueBy((reference: RefundSendBudgetReference) => reference.index)(
-    waves.flatMap((wave) =>
-      wave.flatMap(({ attempts }) =>
-        attempts.flatMap((attempt) =>
-          attempt.kind === "ready"
-            ? [
-                {
-                  index: attempt.reference.index,
-                  provider: attempt.reference.provider,
-                },
-              ]
-            : [],
-        ),
-      ),
-    ),
+  attempts.flatMap((attempt) =>
+    attempt.maySend
+      ? [{
+        index: attempt.reference.index,
+        provider: attempt.reference.provider,
+      }]
+      : []
   );
 
 const preparedBudgetOf = (
   waves: readonly (readonly PreparedCandidateRefund[])[],
-): PreparedRefundBudget => ({
-  mayRecordReturns: waves.some((wave) =>
-    wave.some(({ attempts }) =>
-      attempts.some(
-        (attempt) =>
-          attempt.kind === "ready" || attempt.result.outcome === "refunded",
-      ),
+): PreparedRefundBudget => {
+  const attempts = uniqueAttemptsOf(waves);
+  const returnedAuthorityCount = attempts.filter(
+    ({ standDown }) => standDown.outcome === "refunded",
+  ).length;
+  return {
+    activeAuthorityCount: attempts.length - returnedAuthorityCount,
+    mayRecordReturns: attempts.some(
+      (attempt) => attempt.maySend || attempt.standDown.outcome === "refunded",
     ),
-  ),
-  sendReferences: sendReferencesOf(waves),
-});
+    returnedAuthorityCount,
+    sendReferences: sendReferencesOf(attempts),
+  };
+};
 
 const budgetFits = (
   prepared: PreparedRefundBudget,
   checkpoint: RefundDispatchBudgetCheckpoint,
-): boolean =>
-  subrequestCostFits(
-    refundPreparedSubrequestCost(prepared, checkpoint),
-    getSubrequestRemaining(),
-  );
-
-const attendeesByReference = (
-  candidates: readonly ReadyRefundCandidate[],
-): ReadonlyMap<string, readonly number[]> =>
-  groupToMap(
-    (entry: { attendeeId: number; index: string }) => entry.index,
-    (entry) => entry.attendeeId,
-  )(
-    candidates.flatMap((candidate) =>
-      candidate.references.map(({ reference }) => ({
-        attendeeId: candidate.attendee.id,
-        index: reference.index,
-      })),
-    ),
-  );
-
-const rememberArmed = (
-  authorization: Extract<ArmRefundDispatchResult, { kind: "armed" }>,
-  references: readonly RefundSendBudgetReference[],
-  attendees: ReadonlyMap<string, readonly number[]>,
-  findings: RunFindings,
-): void => {
-  for (const [sessionId, phase] of authorization.phases) {
-    findings.claimPhases.set(sessionId, phase);
-  }
-  for (const { index } of references) {
-    for (const attendeeId of requiredMapValue(
-      attendees,
-      index,
-      `Refund dispatch lost payment ${index}'s attendees`,
-    )) {
-      findings.doubts.set(attendeeId, "in_doubt");
-    }
-  }
+): boolean => {
+  const cost = refundPreparedSubrequestCost(prepared, checkpoint);
+  const remaining = getSubrequestRemaining();
+  return subrequestCostFits(cost, remaining);
 };
 
 /** Carry no-send evidence into settlement without starting local money writes. */
 const rememberStandDown = (
   waves: readonly (readonly PreparedCandidateRefund[])[],
   findings: RunFindings,
-  protectedAttendees: ReadonlySet<number>,
 ): void => {
   for (const prepared of waves.flat()) {
-    const result = standDownPreparedCandidate(prepared);
-    const attendeeId = result.candidate.attendee.id;
-    rememberCandidateFindings(findings, result, {
-      doubt: protectedAttendees.has(attendeeId) ? "keep" : "replace",
-    });
-  }
-};
-
-/** Remember provider-free answers before any send in the batch can fail. */
-const rememberPreparedEvidence = (
-  waves: readonly (readonly PreparedCandidateRefund[])[],
-  findings: RunFindings,
-): void => {
-  for (const prepared of waves.flat()) {
-    rememberCandidateFindings(findings, standDownPreparedCandidate(prepared), {
-      doubt: "merge",
-    });
+    rememberCandidateFindings(findings, standDownPreparedCandidate(prepared));
   }
 };
 
@@ -160,15 +110,12 @@ const rememberPreparedEvidence = (
 const sendPreparedWaves = async (
   waves: readonly (readonly PreparedCandidateRefund[])[],
   listingId: number,
-  authorization: ArmRefundDispatchResult | undefined,
 ): Promise<CandidateRefund[][]> => {
   const sent: CandidateRefund[][] = [];
   const failures: PromiseRejectedResult[] = [];
   for (const wave of waves) {
     const settled = await Promise.allSettled(
-      wave.map((prepared) =>
-        finishPreparedCandidate(prepared, listingId, authorization),
-      ),
+      wave.map((prepared) => finishPreparedCandidate(prepared, listingId)),
     );
     failures.push(
       ...settled.filter(
@@ -178,7 +125,7 @@ const sendPreparedWaves = async (
     );
     sent.push(
       settled.flatMap((result) =>
-        result.status === "fulfilled" ? [result.value] : [],
+        result.status === "fulfilled" ? [result.value] : []
       ),
     );
   }
@@ -186,47 +133,32 @@ const sendPreparedWaves = async (
   return sent;
 };
 
-/** Prepare the whole batch, protect its send allowance, then arm and dispatch. */
+/** Prepare the whole batch, protect its allowance, then use the authority. */
 export const dispatchRefundBatch = async (
   candidates: readonly ReadyRefundCandidate[],
   listingId: number,
   held: HeldRefundWork,
-  arm: typeof armRefundDispatch,
+  request: typeof requestProviderRefund = requestProviderRefund,
 ): Promise<RefundDispatchBatchResult> => {
-  const waves = await prepareWaves(candidates, listingId);
-  rememberPreparedEvidence(waves, held.findings);
+  const waves = await prepareWaves(candidates, listingId, request);
+  rememberStandDown(waves, held.findings);
   const budget = preparedBudgetOf(waves);
   const references = budget.sendReferences;
   const refuseForBudget = (): RefundDispatchBatchResult => {
-    rememberStandDown(waves, held.findings, new Set(held.inherited.keys()));
+    rememberStandDown(waves, held.findings);
     return { kind: "budget_refused" };
   };
-  if (!budgetFits(budget, "before_dispatch_arm")) {
+  if (!budgetFits(budget, "before_authority_request")) {
     return refuseForBudget();
-  }
-
-  const authorization =
-    references.length === 0
-      ? undefined
-      : await withSubrequestReserve(
-          refundPreparedSubrequestCost(budget, "before_provider_send"),
-          () =>
-            arm({
-              ...held.claim,
-              indexes: references.map(({ index }) => index),
-            }),
-        );
-  if (authorization?.kind === "armed") {
-    rememberArmed(
-      authorization,
-      references,
-      attendeesByReference(candidates),
-      held.findings,
-    );
   }
 
   return {
     kind: "sent",
-    waves: await sendPreparedWaves(waves, listingId, authorization),
+    waves: references.length === 0
+      ? await sendPreparedWaves(waves, listingId)
+      : await withSubrequestReserve(
+        refundPreparedSubrequestCost(budget, "inside_authority_request"),
+        () => sendPreparedWaves(waves, listingId),
+      ),
   };
 };

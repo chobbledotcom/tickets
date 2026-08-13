@@ -15,7 +15,7 @@ import {
   pastCloseTime,
 } from "#test-utils/db-helpers/listings.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { stripeRefundRequest } from "#test-utils/stripe/fixtures.ts";
+import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 import { bookingIntent, paymentSession } from "./index/helpers.ts";
 import {
@@ -113,7 +113,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
       success: false,
     });
     expect(refund.calls[0]?.args).toEqual([
-      stripeRefundRequest("pi_cs_items_inactive", 500),
+      stripeRefundRequestShape("pi_cs_items_inactive", 500),
     ]);
   });
 

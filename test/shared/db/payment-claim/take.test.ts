@@ -24,7 +24,6 @@ import {
 } from "#test-utils/payment-claim.ts";
 import {
   bookedWithPayment,
-  finalizeProcessedPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
@@ -196,94 +195,32 @@ describeWithEnv(
     });
 
     describe("resuming a stalled run", () => {
-      test("names inherited doubt and keeps its capability", async () => {
-        const attendeeId = await bookedWithPayment(
-          "sess-inherit",
-          "pi_inherit",
-        );
-        await putRowState(
-          "sess-inherit",
-          await staleClaimSlot(attendeeId, "send_armed_keyless"),
-          CLAIM_MIRROR,
-        );
-
-        const resumed = await claimCurrentAttendeeRows([attendeeId]);
-        const index = await referenceIndexOf("sess-inherit");
-
-        expect(resumed).toMatchObject({
-          inherited: new Map([[attendeeId, new Map([[index, "keyless"]])]]),
-          kind: "claimed",
-        });
-      });
-
-      test("keeps each inherited capability for a mixed-provider attendee", async () => {
-        const attendeeId = await bookedWithPayment(
-          "sess-inherit-stripe",
-          "pi_inherit_stripe",
-        );
-        await finalizeProcessedPayment(
-          "sess-inherit-sumup",
-          attendeeId,
-          "tok",
-          taggedPaymentReference("sumup_inherit", "sumup"),
-        );
-        await putRowState(
-          "sess-inherit-stripe",
-          await staleClaimSlot(attendeeId, "send_armed_keyed"),
-          CLAIM_MIRROR,
-        );
-        await putRowState(
-          "sess-inherit-sumup",
-          await staleClaimSlot(attendeeId, "send_armed_keyless"),
-          CLAIM_MIRROR,
-        );
-        const stripeIndex = await referenceIndexOf("sess-inherit-stripe");
-        const sumupIndex = await referenceIndexOf("sess-inherit-sumup");
-
-        const resumed = await claimCurrentAttendeeRows([attendeeId]);
-
-        expect(resumed).toMatchObject({
-          inherited: new Map([
-            [
-              attendeeId,
-              new Map([
-                [stripeIndex, "keyed"],
-                [sumupIndex, "keyless"],
-              ]),
-            ],
-          ]),
-          kind: "claimed",
-        });
-      });
-
-      test("a stalled checking claim predates any provider send", async () => {
+      test("a stalled checking fence can be resumed", async () => {
         const attendeeId = await bookedWithPayment(
           "sess-inherit-unresolved",
           "pi_inherit_unresolved",
         );
         await putRowState(
           "sess-inherit-unresolved",
-          await staleClaimSlot(attendeeId, "checking"),
+          await staleClaimSlot(attendeeId),
           CLAIM_MIRROR,
         );
 
         const resumed = await claimCurrentAttendeeRows([attendeeId]);
 
-        expect(resumed).toMatchObject({
-          inherited: new Map(),
-          kind: "claimed",
-        });
+        expect(resumed).toMatchObject({ kind: "claimed" });
         expect(await claimCurrentAttendeeRows([attendeeId])).toEqual({
           blockedBy: { kind: "held" },
           kind: "blocked",
         });
       });
 
-      test("a fresh grant has no inherited doubt", async () => {
+      test("a fresh row receives a checking fence", async () => {
         const attendeeId = await bookedWithPayment("sess-grant", "pi_grant");
-        expect(await claimCurrentAttendeeRows([attendeeId])).toMatchObject({
-          inherited: new Map(),
-        });
+        const result = await claimCurrentAttendeeRows([attendeeId]);
+        expect(result).toMatchObject({ kind: "claimed" });
+        if (result.kind !== "claimed") throw new Error("claim was refused");
+        expect([...result.phases.values()]).toEqual(["checking"]);
       });
 
       test("a stalled release does not strip its successor", async () => {

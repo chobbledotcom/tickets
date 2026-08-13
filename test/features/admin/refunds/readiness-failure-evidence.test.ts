@@ -10,6 +10,8 @@ import {
   type RefundReadinessResult,
 } from "#routes/admin/refunds/readiness.ts";
 import { refundLedgerResult } from "#shared/refund-ledger/result.ts";
+import type { ProviderRefundTarget } from "#shared/provider-refunds.ts";
+import { requestRecordedProviderRefund } from "#test/features/admin/refunds/provider/dispatch-helpers.ts";
 import {
   found,
   heldClaim,
@@ -38,7 +40,15 @@ const failedAlongside = (
   charge: FailedReadiness["observations"][number]["charge"],
 ): FailedReadiness => ({
   kind: "not_ready",
-  observations: [{ charge, reference }],
+  observations: [{
+    charge,
+    identity: {
+      kind: "tagged",
+      provider: reference.provider,
+      reference: reference.reference,
+    },
+    reference,
+  }],
   reads: [
     {
       evidence: {
@@ -55,14 +65,20 @@ const failedAlongside = (
   reason: "provider_evidence",
 });
 
+type FailedObservationRun = {
+  readonly authorityRequests: readonly ProviderRefundTarget[];
+  readonly claim: ReturnType<typeof grantingRowClaim>;
+};
+
 const runFailedObservation = async (
   charge: FailedReadiness["observations"][number]["charge"],
-): Promise<ReturnType<typeof grantingRowClaim>> => {
+): Promise<FailedObservationRun> => {
   const attendeeId = 9;
   const observed = tagged("observed", "stripe", "observed_index");
   const unread = tagged("unread", "stripe", "unread_index");
   const rows = [...observed.rowSessionIds, ...unread.rowSessionIds];
   const claim = grantingRowClaim(new Map([[attendeeId, rows]]));
+  const authorityRequests: ProviderRefundTarget[] = [];
   await processRefundBatch(
     [
       {
@@ -74,9 +90,13 @@ const runFailedObservation = async (
     {
       claim,
       prepare: () => Promise.resolve(failedAlongside(observed, charge)),
+      request: (target, dependencies) => {
+        authorityRequests.push(target);
+        return requestRecordedProviderRefund(target, dependencies);
+      },
     },
   );
-  return claim;
+  return { authorityRequests, claim };
 };
 
 const unresolvedDiscovery = (
@@ -192,107 +212,120 @@ describe("admin refund readiness failure evidence", () => {
           reference.reference === returned.reference
             ? found(reference, "stripe", fullyRefundedMoney())
             : {
-                attempts: [
-                  {
-                    provider: "stripe",
-                    result: { reason: "timeout", status: "unavailable" },
-                  },
-                ],
-                provider: "stripe",
-                reason: "timeout",
-                reference: reference.reference,
-                source: "tagged",
-                status: "unavailable",
-              },
-        ),
+              attempts: [
+                {
+                  provider: "stripe",
+                  result: { reason: "timeout", status: "unavailable" },
+                },
+              ],
+              provider: "stripe",
+              reason: "timeout",
+              reference: reference.reference,
+              source: "tagged",
+              status: "unavailable",
+            },
+        )
       ),
     );
 
     if (result.kind !== "not_ready" || result.reason !== "provider_evidence") {
       throw new Error("Expected incomplete provider evidence");
     }
-    expect(result.observations).toEqual([
-      { charge: fullyRefundedMoney(), reference: returned },
-    ]);
+    expect(result.observations).toEqual([{
+      charge: fullyRefundedMoney(),
+      identity: {
+        kind: "tagged",
+        provider: "stripe",
+        reference: returned.reference,
+      },
+      reference: returned,
+    }]);
   });
 
   test("protects a known return before readiness itself throws", async () => {
     const reference = refundReference("known_return", {
       refundState: "completed",
     });
-    const claim = await runPreparationCrash(reference, (postings) =>
-      Promise.resolve(
-        new Map(
-          postings.map(({ attendeeId, references }) => [
-            attendeeId,
-            refundLedgerResult(references),
-          ]),
+    const claim = await runPreparationCrash(
+      reference,
+      (postings) =>
+        Promise.resolve(
+          new Map(
+            postings.map(({ attendeeId, references }) => [
+              attendeeId,
+              refundLedgerResult(references),
+            ]),
+          ),
         ),
-      ),
     );
 
     expect(claim.unrecorded).toEqual([reference.rowSessionIds]);
     expect(claim.released).toEqual([reference.rowSessionIds]);
   });
 
-  test("keeps an unread charge held when readiness itself throws", async () => {
+  test("releases the checking fence when readiness itself throws", async () => {
     const reference = refundReference("unread_throw");
     const claim = await runPreparationCrash(reference);
 
-    expect(claim.released).toEqual([]);
-    expect(claim.unrecorded).toEqual([]);
+    expect(claim.released).toEqual([reference.rowSessionIds]);
+    expect(claim.unrecorded).toEqual([[]]);
   });
 
   test("records a returned observation before releasing unread siblings", async () => {
-    const claim = await runFailedObservation(fullyRefundedMoney());
+    const run = await runFailedObservation(fullyRefundedMoney());
 
-    expect(claim.released).toEqual([
+    expect(run.claim.released).toEqual([
       ["session_observed_index", "session_unread_index"],
     ]);
-    expect(claim.unrecorded).toEqual([["session_observed_index"]]);
-  });
-
-  test("records a partial observation for owner review", async () => {
-    const claim = await runFailedObservation(partlyRefundedCharge());
-
-    expect(claim.released).toEqual([
-      ["session_observed_index", "session_unread_index"],
-    ]);
-    expect(claim.reviewChanges).toEqual([
-      new Map([
-        [
-          "session_observed_index",
-          { kind: "review", reason: { kind: "partial_refund" } },
-        ],
-      ]),
+    expect(run.claim.unrecorded).toEqual([["session_observed_index"]]);
+    expect(run.authorityRequests).toEqual([
+      expect.objectContaining({ mode: "observe_only" }),
     ]);
   });
 
-  test("keeps the whole attendee held for a pending observation", async () => {
-    const claim = await runFailedObservation(
+  test("gives a partial observation only to the provider authority", async () => {
+    const run = await runFailedObservation(partlyRefundedCharge());
+
+    expect(run.claim.released).toEqual([
+      ["session_observed_index", "session_unread_index"],
+    ]);
+    expect(run.claim.reviewChanges).toEqual([new Map()]);
+    expect(run.authorityRequests).toEqual([
+      expect.objectContaining({ mode: "observe_only" }),
+    ]);
+  });
+
+  test("does not turn a pending observation into an attendee-row hold", async () => {
+    const run = await runFailedObservation(
       chargeMoneyWith({
         refunds: [refundObservation({ amount: gbp(100), status: "pending" })],
       }),
     );
 
-    expect(claim.released).toEqual([]);
-    expect(claim.unrecorded).toEqual([]);
+    expect(run.claim.released).toEqual([
+      ["session_observed_index", "session_unread_index"],
+    ]);
+    expect(run.claim.unrecorded).toEqual([[]]);
+    expect(run.authorityRequests).toEqual([
+      expect.objectContaining({ mode: "observe_only" }),
+    ]);
   });
 
   test("releases clean evidence when only its sibling is unread", async () => {
-    const claim = await runFailedObservation(chargeMoney());
+    const run = await runFailedObservation(chargeMoney());
 
-    expect(claim.released).toEqual([
+    expect(run.claim.released).toEqual([
       ["session_observed_index", "session_unread_index"],
     ]);
-    expect(claim.unrecorded).toEqual([[]]);
-    expect(claim.reviewChanges).toEqual([new Map()]);
+    expect(run.claim.unrecorded).toEqual([[]]);
+    expect(run.claim.reviewChanges).toEqual([new Map()]);
+    expect(run.authorityRequests).toEqual([]);
   });
 
-  test("keeps ambiguous legacy evidence when one provider saw returned money", async () => {
+  test("does not turn ambiguous provider evidence into an attendee-row hold", async () => {
     const claim = await runUnresolvedDiscovery(fullyRefundedMoney());
 
-    expect(claim.released).toEqual([]);
+    expect(claim.released).toEqual([["sess_ambiguous"]]);
   });
 
   test("releases ambiguous legacy evidence when no provider saw money move", async () => {

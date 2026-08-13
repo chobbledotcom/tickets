@@ -4,6 +4,7 @@ import { execute } from "#shared/db/client.ts";
 import { runDatabasePruning } from "#shared/db/prune.ts";
 import { PRUNE_PAYMENTS_RETENTION_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
+import { readyRefundTestState } from "#test-utils/provider-refund-cases.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   bookAttendee,
@@ -26,6 +27,7 @@ import {
   paymentExists,
   postRefundCash,
 } from "./helpers.ts";
+import { addProviderRefundTestCase } from "#test-utils/provider-refund-cases.ts";
 
 const oldEnoughToPrune = () =>
   new Date(nowMs() - PRUNE_PAYMENTS_RETENTION_MS - 60_000).toISOString();
@@ -74,6 +76,21 @@ describeWithEnv("db > prunePayments", { db: true }, () => {
     await runDatabasePruning();
 
     expect(await paymentExists("sess_refund_done")).toBe(false);
+  });
+
+  test("keeps old payment links while canonical refund work is active", async () => {
+    const sessionId = "sess_authority_active";
+    const attendeeId = await insertOldReferencedPayment(sessionId);
+    await postRefundCash(attendeeId);
+    await addProviderRefundTestCase(
+      `pi_${sessionId}`,
+      readyRefundTestState("prune-authority-request"),
+      "stripe",
+    );
+
+    await runDatabasePruning();
+
+    expect(await paymentExists(sessionId)).toBe(true);
   });
 
   test("keeps finalized payments within retention window", async () => {

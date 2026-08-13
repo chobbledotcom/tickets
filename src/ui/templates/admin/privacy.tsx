@@ -19,8 +19,10 @@ import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { ORPHAN_RETENTION_OPTIONS } from "#shared/orphan-retention.ts";
+import type { ProviderRefundCasePage } from "#shared/db/provider-refund-cases.ts";
 import type { AdminSession } from "#shared/types.ts";
-import { AdminPage } from "#templates/admin/admin-page.tsx";
+import { renderAdminPage } from "#templates/admin/admin-page.tsx";
+import { ProviderRefundCaseQueue } from "#templates/admin/provider-refund-cases.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import {
   choiceOptions,
@@ -29,6 +31,8 @@ import {
 /* jscpd:ignore-end */
 
 export type PrivacyPageData = {
+  /** Bounded, PII-free cases whose provider outcome still needs attention. */
+  providerRefundCases: ProviderRefundCasePage;
   /** Orphans available to ordinary cleanup, excluding protected payment work. */
   purgeableOrphanCount: number;
   /** Orphans retained because a payment still needs owner attention. */
@@ -79,42 +83,42 @@ const OrphansForm = ({
         <section>
           <h3>{t("privacy.orphans.payment_work_heading")}</h3>
           <p>{t("privacy.orphans.payment_work_intro")}</p>
-          {paymentWorkPage.attendeeIds.length > 0 ? (
-            <ul>
-              {paymentWorkPage.attendeeIds.map((attendeeId) => (
-                <li>
-                  <a href={`/admin/attendees/${attendeeId}`}>
-                    {t("privacy.orphans.payment_work_link", {
-                      id: attendeeId,
-                    })}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p>{t("privacy.orphans.payment_work_empty_page")}</p>
-          )}
+          {paymentWorkPage.attendeeIds.length > 0
+            ? (
+              <ul>
+                {paymentWorkPage.attendeeIds.map((attendeeId) => (
+                  <li>
+                    <a href={`/admin/attendees/${attendeeId}`}>
+                      {t("privacy.orphans.payment_work_link", {
+                        id: attendeeId,
+                      })}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )
+            : <p>{t("privacy.orphans.payment_work_empty_page")}</p>}
           <nav class="pagination">
-            {paymentWorkPage.previousCursor !== null ? (
-              <a
-                href={`/admin/privacy?work_before=${paymentWorkPage.previousCursor}`}
-                rel="prev"
-              >
-                {t("privacy.orphans.payment_work_previous")}
-              </a>
-            ) : (
-              <span />
-            )}
-            {paymentWorkPage.nextCursor !== null ? (
-              <a
-                href={`/admin/privacy?work_after=${paymentWorkPage.nextCursor}`}
-                rel="next"
-              >
-                {t("privacy.orphans.payment_work_next")}
-              </a>
-            ) : (
-              <span />
-            )}
+            {paymentWorkPage.previousCursor !== null
+              ? (
+                <a
+                  href={`/admin/privacy?work_before=${paymentWorkPage.previousCursor}`}
+                  rel="prev"
+                >
+                  {t("privacy.orphans.payment_work_previous")}
+                </a>
+              )
+              : <span />}
+            {paymentWorkPage.nextCursor !== null
+              ? (
+                <a
+                  href={`/admin/privacy?work_after=${paymentWorkPage.nextCursor}`}
+                  rel="next"
+                >
+                  {t("privacy.orphans.payment_work_next")}
+                </a>
+              )
+              : <span />}
           </nav>
         </section>
       )}
@@ -174,17 +178,18 @@ export const adminPrivacyPage = (
   session: AdminSession,
   data: PrivacyPageData,
 ): string =>
-  String(
-    <AdminPage
-      active="/admin/privacy"
-      session={session}
-      title={t("privacy.title")}
-    >
+  renderAdminPage(
+    "/admin/privacy",
+    session,
+    t("privacy.title"),
+    <>
       <div class="prose">
         <Raw html={t("privacy.intro_html")} />
       </div>
 
       <Flash error={data.error} info={data.info} success={data.success} />
+
+      <ProviderRefundCaseQueue page={data.providerRefundCases} />
 
       <OrphansForm
         autoPurgeOrphans={data.autoPurgeOrphans}
@@ -198,5 +203,5 @@ export const adminPrivacyPage = (
       <GuideFooter href="/admin/guide#data-privacy">
         {t("privacy.guide_link")}
       </GuideFooter>
-    </AdminPage>,
+    </>,
   );

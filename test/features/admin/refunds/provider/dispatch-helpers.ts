@@ -1,83 +1,139 @@
-import { assert } from "@std/assert";
-import { unique } from "#fp";
+import type {
+  CandidateRefund,
+  ReferenceRefund,
+} from "#routes/admin/refunds/attempt.ts";
 import {
-  type CandidateRefund,
   finishPreparedCandidate,
-  type PreparedReferenceRefund,
   prepareReadyCandidate,
 } from "#routes/admin/refunds/attempt.ts";
 import type { RowClaim } from "#routes/admin/refunds/claim.ts";
 import type { ReadyRefundCandidate } from "#routes/admin/refunds/readiness.ts";
+import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
+import { admitObservedRefund } from "#shared/payment/admit-refund.ts";
 import type {
-  ArmRefundDispatchResult,
-  armRefundDispatch,
-} from "#shared/db/payment-refund-dispatch.ts";
-import type { RefundProviderCapability } from "#shared/payment/row-state.ts";
+  ProviderRefundResult,
+  ProviderRefundTarget,
+  RefundAuthorityReceipt,
+  requestProviderRefund,
+} from "#shared/provider-refunds.ts";
+import type { RecordingProvider } from "./helpers.ts";
 
-type AuthorizeRefundDispatch = (
-  indexes: readonly string[],
-) => Promise<ArmRefundDispatchResult>;
+const authorityFor = (
+  target: ProviderRefundTarget,
+): RefundAuthorityReceipt => ({
+  id: [...`${target.reference.provider}:${target.reference.reference}`].reduce(
+    (id, character, offset) => id + character.codePointAt(0)! * (offset + 1),
+    0,
+  ),
+  referenceIndex: `${target.reference.provider}:${target.reference.reference}`,
+  revision: 1,
+});
 
-export const authorizeEveryRefund =
-  (capability: RefundProviderCapability = "keyed"): AuthorizeRefundDispatch =>
-  (indexes) =>
-    Promise.resolve({
-      kind: "armed",
-      permits: new Map(
-        indexes.map((index) => [
-          index,
-          {
-            capability,
-            commandId: "test-command",
-            index,
-            kind: "refund_dispatch" as const,
-          },
-        ]),
-      ),
-      phases: new Map(),
-    });
+const attemptResult = (
+  target: ProviderRefundTarget,
+  attempt: RefundAttemptResult,
+): ProviderRefundResult => {
+  const authority = authorityFor(target);
+  if (attempt.kind === "completed") {
+    return {
+      authority,
+      kind: "returned",
+      local: "due",
+      reference: target.reference,
+    };
+  }
+  if (attempt.kind === "accepted" || attempt.kind === "uncertain") {
+    return {
+      authority,
+      kind: "pending",
+      reference: target.reference,
+      state: "observing",
+    };
+  }
+  if (attempt.kind === "rejected") {
+    return {
+      authority,
+      kind: "needs_owner_choice",
+      reason: "provider_rejected",
+      reference: target.reference,
+    };
+  }
+  return { authority, kind: "ready", reference: target.reference };
+};
+
+/** A provider-authority boundary double for focused admin orchestration tests. */
+export const requestRecordedProviderRefund: typeof requestProviderRefund =
+  async (target, dependencies) => {
+    if (target.evidence.kind === "returned_marker") {
+      return {
+        authority: null,
+        kind: "returned",
+        local: "due",
+        reference: target.reference,
+      };
+    }
+    if (target.evidence.kind === "read_provider") {
+      throw new Error("Admin test refund lacked its readiness observation");
+    }
+    const admission = admitObservedRefund(
+      target.reference.reference,
+      target.evidence.charge,
+    );
+    if (admission.kind === "already_returned") {
+      return {
+        authority: authorityFor(target),
+        kind: "returned",
+        local: "due",
+        reference: target.reference,
+      };
+    }
+    if (target.mode === "observe_only") {
+      if (admission.kind === "in_flight") {
+        return {
+          authority: authorityFor(target),
+          kind: "pending",
+          reference: target.reference,
+          state: "observing",
+        };
+      }
+      if (admission.kind === "refused") {
+        return {
+          authority: authorityFor(target),
+          kind: "needs_owner_choice",
+          reason: "provider_conflict",
+          reference: target.reference,
+        };
+      }
+      return {
+        authority: authorityFor(target),
+        kind: "ready",
+        reference: target.reference,
+      };
+    }
+    if (dependencies === undefined) {
+      throw new Error("Admin test refund lacked provider dependencies");
+    }
+    const provider = await dependencies.loadProvider(target.reference.provider);
+    return attemptResult(
+      target,
+      await (provider as RecordingProvider).answerRefund({
+        charge: target.evidence.charge,
+        paymentReference: target.reference.reference,
+      }),
+    );
+  };
 
 /** Exercise one attendee through the production prepare/finish mechanism. */
 export const refundReadyCandidate = async (
   candidate: ReadyRefundCandidate,
   listingId: number,
-  authorize: AuthorizeRefundDispatch,
-  inFlight: Map<string, Promise<PreparedReferenceRefund>> = new Map(),
-): Promise<CandidateRefund> => {
-  const prepared = await prepareReadyCandidate(candidate, listingId, inFlight);
-  const indexes = unique(
-    prepared.attempts.flatMap((attempt) =>
-      attempt.kind === "ready" ? [attempt.reference.index] : [],
-    ),
+  inFlight: Map<string, Promise<ReferenceRefund>> = new Map(),
+  request: typeof requestProviderRefund = requestRecordedProviderRefund,
+): Promise<CandidateRefund> =>
+  await finishPreparedCandidate(
+    await prepareReadyCandidate(candidate, listingId, inFlight, request),
+    listingId,
   );
-  const authorization =
-    indexes.length === 0 ? undefined : await authorize(indexes);
-  return await finishPreparedCandidate(prepared, listingId, authorization);
-};
-
-export const armEveryRefund =
-  (capability: RefundProviderCapability = "keyed"): typeof armRefundDispatch =>
-  async ({ held, indexes }) => {
-    const result = await authorizeEveryRefund(capability)(indexes);
-    assert(result.kind === "armed", "test dispatch was refused");
-    return {
-      ...result,
-      phases: new Map(
-        [...held.values()]
-          .flat()
-          .map((sessionId) => [sessionId, "send_armed" as const]),
-      ),
-    };
-  };
-
-export const reviewEveryArmedKeylessRefund =
-  (): typeof armRefundDispatch =>
-  ({ indexes }) =>
-    Promise.resolve({
-      indexes,
-      kind: "owner_review",
-      reason: "uncertain_keyless_refund",
-    });
 
 export const holdingClaim = (
   settle: RowClaim["settle"],
@@ -88,7 +144,6 @@ export const holdingClaim = (
       commandId: "test-command",
       held: new Map([[11, sessions]]),
       heldSince: "2026-08-10T12:00:00.000Z",
-      inherited: new Map(),
       kind: "claimed",
       phases: new Map(sessions.map((sessionId) => [sessionId, "checking"])),
       returned: new Set<string>(),

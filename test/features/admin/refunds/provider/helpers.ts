@@ -10,6 +10,7 @@ import type {
   ReadyRefundCandidate,
   ReadyRefundProvider,
   ReadyRefundReference,
+  RefundReadinessObservation,
   RefundReadinessRead,
 } from "#routes/admin/refunds/readiness.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
@@ -18,20 +19,22 @@ import type {
   RefundAttemptResult,
   RefundRequest,
 } from "#shared/payment/refund-attempt.ts";
+import type { AuthorizedRefundRequest } from "#shared/payment/refund-provider-authorization.ts";
+import type { RefundProviderCapability } from "#shared/payment/refund-provider-authorization.ts";
 import type { RefundState } from "#shared/payment/refund-state.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
-import type { RefundProviderCapability } from "#shared/payment/row-state.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
+import { requestRecordedProviderRefund } from "./dispatch-helpers.ts";
 import { sessionReference } from "#test/shared/refund-ledger/helpers.ts";
 import {
   acceptedRefund,
   chargeMoney,
   refundReference,
 } from "#test-utils/payment-state.ts";
-import { armEveryRefund } from "./dispatch-helpers.ts";
 
 type Reference = { reference: string; refundState?: RefundState };
 export type RecordingProvider = ReadyRefundProvider & {
+  answerRefund: (request: RefundRequest) => Promise<RefundAttemptResult>;
   readCharge: (reference: string) => Promise<ProviderRead<ChargeMoney>>;
   reads: string[];
   refunds: string[];
@@ -157,11 +160,20 @@ const isReadinessFailure = (
 const preparationObservations = (
   prepared: PreparedProviderReference,
   reference: RefundPaymentReference,
-): { charge: ChargeMoney; reference: RefundPaymentReference }[] => {
+  source: RecordingProvider,
+): RefundReadinessObservation[] => {
   if (isReadinessFailure(prepared) || prepared.kind === "already_returned") {
     return [];
   }
-  return [{ charge: prepared.charge, reference }];
+  return [{
+    charge: prepared.charge,
+    identity: {
+      kind: "tagged",
+      provider: source.type,
+      reference: reference.reference,
+    },
+    reference,
+  }];
 };
 
 const readyReferenceFrom = (
@@ -220,7 +232,7 @@ export const prepareAtProvider =
       ? {
           kind: "not_ready",
           observations: preparedReferences.flatMap(({ prepared, reference }) =>
-            preparationObservations(prepared, reference),
+            preparationObservations(prepared, reference, source),
           ),
           reads: failures,
           reason: "provider_evidence",
@@ -249,8 +261,9 @@ export const processRefundBatchAt = (
 ): Promise<RefundBatchResult> =>
   processRefundBatch(candidates, listingId, {
     ...dependencies,
-    arm: dependencies.arm ?? armEveryRefund(source.refundCapability),
     prepare: prepareAtProvider(source),
+    recordAuthorities: dependencies.recordAuthorities ?? (() => Promise.resolve()),
+    request: dependencies.request ?? requestRecordedProviderRefund,
   });
 
 export const completedRefund = (
@@ -281,7 +294,26 @@ export const provider = ({
   const reads: string[] = [];
   const refunds: string[] = [];
   const requests: RefundRequest[] = [];
+  const answerRefund = (request: RefundRequest): Promise<RefundAttemptResult> => {
+    requests.push(request);
+    refunds.push(request.paymentReference);
+    if (refund !== undefined) return refund(request);
+    if (throws.has(request.paymentReference)) {
+      return Promise.resolve<RefundAttemptResult>({
+        kind: "uncertain",
+        reason: "network_error",
+      });
+    }
+    return Promise.resolve<RefundAttemptResult>(
+      accepted.has(request.paymentReference)
+        ? acceptedRefund(request.charge)
+        : refunded.has(request.paymentReference)
+          ? completedRefund(request)
+          : { kind: "rejected", reason: "failed" },
+    );
+  };
   return {
+    answerRefund,
     readCharge: async (reference: string) => {
       reads.push(reference);
       const charge = await read(reference);
@@ -291,24 +323,7 @@ export const provider = ({
     },
     reads,
     refundCapability,
-    refundCharge: (request: RefundRequest) => {
-      requests.push(request);
-      refunds.push(request.paymentReference);
-      if (refund !== undefined) return refund(request);
-      if (throws.has(request.paymentReference)) {
-        return Promise.resolve<RefundAttemptResult>({
-          kind: "uncertain",
-          reason: "network_error",
-        });
-      }
-      return Promise.resolve<RefundAttemptResult>(
-        accepted.has(request.paymentReference)
-          ? acceptedRefund(request.charge)
-          : refunded.has(request.paymentReference)
-            ? completedRefund(request)
-            : { kind: "rejected", reason: "failed" },
-      );
-    },
+    refundCharge: (request: AuthorizedRefundRequest) => answerRefund(request),
     refunds,
     requests,
     type: paymentProvider,
@@ -370,18 +385,22 @@ export const pendingCandidate = (
 export const failingProvider = (
   uncertain: Set<string>,
   refundCapability: RefundProviderCapability = "keyed",
-): RecordingProvider => ({
-  readCharge: () =>
-    Promise.resolve({ resource: chargeMoney(), status: "found" } as const),
-  reads: [],
-  refundCapability,
-  refundCharge: ({ paymentReference }: RefundRequest) =>
+): RecordingProvider => {
+  const answerRefund = ({ paymentReference }: RefundRequest) =>
     Promise.resolve<RefundAttemptResult>(
       uncertain.has(paymentReference)
         ? { kind: "uncertain", reason: "network_error" }
         : { kind: "rejected", reason: "failed" },
-    ),
-  refunds: [],
-  requests: [],
-  type: "stripe",
-});
+    );
+  return {
+    answerRefund,
+    readCharge: () =>
+      Promise.resolve({ resource: chargeMoney(), status: "found" } as const),
+    reads: [],
+    refundCapability,
+    refundCharge: (request: AuthorizedRefundRequest) => answerRefund(request),
+    refunds: [],
+    requests: [],
+    type: "stripe",
+  };
+};

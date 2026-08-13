@@ -7,7 +7,7 @@ import { jsonHash } from "#test-utils/hash.ts";
 
 test("keeps the complete payment aggregate schema declaration exact", async () => {
   expect(await jsonHash(paymentTables)).toBe(
-    "3c0427382e768ec5db525cd0e6b3d877d7530fd059058f8ad47ce9dbbb74bfcb",
+    "4e8fa161b6e1b4e2205038879ff5dea3053e2ed79bae580effed00d1b48e9bfd",
   );
 });
 
@@ -30,10 +30,10 @@ describeWithEnv("db > payment aggregate indexes", { db: true }, () => {
       "idx_payment_cases_payment_resource",
       "idx_payment_cases_reconcile",
       "idx_payment_cases_redaction",
-      "idx_payment_charges_legacy_source",
-      "idx_payment_charges_payment_reference",
-      "idx_payment_charges_pending_refund",
+      "idx_payment_charges_callback_replay",
+      "idx_payment_charges_next_action",
       "idx_payment_charges_reference",
+      "idx_payment_charges_refund_state",
       "idx_payment_completion_deliveries_pending",
       "idx_payment_completion_deliveries_unique",
       "idx_payment_completion_effects_unique",

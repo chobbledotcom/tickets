@@ -189,7 +189,7 @@ describeWithEnv("the attendee Actions tab", { db: true }, () => {
 
       await putRowState(
         sessionId,
-        await freshClaimSlot(attendeeId, "send_armed_keyed"),
+        await freshClaimSlot(attendeeId),
         CLAIM_MIRROR,
       );
       const inProgress = await tabHtml(attendeeId, "actions");

@@ -13,7 +13,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest, withMocks } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { stripeRefundRequest } from "#test-utils/stripe/fixtures.ts";
+import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
 import {
   stubRefundPayment,
   stubRetrieveCheckoutSession,
@@ -45,8 +45,10 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
 
       await withMocks(
         () =>
-          stub(stripeApi, "retrieveCheckoutSession", () =>
-            Promise.resolve(null),
+          stub(
+            stripeApi,
+            "retrieveCheckoutSession",
+            () => Promise.resolve(null),
           ),
         async () => {
           const response = await handleRequest(
@@ -97,17 +99,21 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       try {
         await withMocks(
           () =>
-            stub(stripePaymentProvider, "retrieveSession", () =>
-              Promise.resolve({
-                metadata: signedMeta(
-                  { email: "a@example.com", items: "[]", name: "A" },
-                  500,
-                ),
-                paymentReference: "pi_unusable",
-                provider: "stripe",
-                reason: "malformed_charge",
-                refundable: true,
-              }),
+            stub(
+              stripePaymentProvider,
+              "retrieveSession",
+              () =>
+                Promise.resolve({
+                  metadata: signedMeta(
+                    { email: "a@example.com", items: "[]", name: "A" },
+                    500,
+                  ),
+                  paymentReference: "pi_unusable",
+                  provider: "stripe",
+                  reason: "malformed_charge",
+                  refundable: true,
+                  sessionId: "cs_rejected",
+                }),
             ),
           async () => {
             const response = await handleRequest(
@@ -124,7 +130,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
         );
         expect(refundSpy.calls.length).toBe(1);
         expect(refundSpy.calls[0]?.args).toEqual([
-          stripeRefundRequest("pi_unusable", 500),
+          stripeRefundRequestShape("pi_unusable", 500),
         ]);
         // The buyer's page does not name the session, so the log is the
         // operator's only record of which one was refused.

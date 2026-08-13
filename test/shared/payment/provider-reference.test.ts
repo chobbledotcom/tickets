@@ -24,6 +24,19 @@ describe("payment reference storage", () => {
     expect(readPaymentReference(stored, "payment row 7")).toEqual(reference);
   });
 
+  test("serializes an enriched refund reference as its exact provider identity", () => {
+    const identity = tagged("stripe", "pi_enriched");
+    const enriched = {
+      ...identity,
+      index: "blind-index",
+      rowSessionIds: ["session"],
+    };
+
+    expect(writePaymentReference(enriched)).toBe(
+      writePaymentReference(identity),
+    );
+  });
+
   test("reads an old raw reference as explicitly untagged", () => {
     const expected: PaymentReference = {
       kind: "untagged",
@@ -60,7 +73,7 @@ describe("payment reference storage", () => {
         readPaymentReference(
           `payment-reference:1:${payload}`,
           "processed_payments.payment_reference",
-        ),
+        )
       ).toThrow("processed_payments.payment_reference");
     });
   }

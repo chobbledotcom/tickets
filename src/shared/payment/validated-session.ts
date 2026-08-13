@@ -18,13 +18,18 @@ import { isPaymentProvider, isRecord } from "#shared/types.ts";
  */
 export type SessionRejection =
   | {
-      reason: "malformed_charge";
-      paymentReference: string;
-      provider: PaymentProviderType;
-      refundable: boolean;
-      metadata: SessionMetadata;
-    }
-  | { provider: PaymentProviderType; reason: "blank_reference" };
+    reason: "malformed_charge";
+    paymentReference: string;
+    provider: PaymentProviderType;
+    refundable: boolean;
+    metadata: SessionMetadata;
+    sessionId: string;
+  }
+  | {
+    provider: PaymentProviderType;
+    reason: "blank_reference";
+    sessionId: string;
+  };
 
 /** The durable charge identity proved by a validated session, or no charge for
  * a free checkout. A non-empty invalid id contradicts the session boundary and
@@ -68,7 +73,9 @@ export const isSessionRejection = (
   if (
     !isRecord(value) ||
     typeof value.provider !== "string" ||
-    !isPaymentProvider(value.provider)
+    !isPaymentProvider(value.provider) ||
+    typeof value.sessionId !== "string" ||
+    !isResourceId(value.sessionId)
   ) {
     return false;
   }
@@ -88,6 +95,7 @@ export const isSessionRejection = (
  *  unpacked shape, so a packed record would fail its own ownership check and
  *  no Square charge would ever be refunded. */
 const malformedChargeRejection = (
+  sessionId: string,
   paymentReference: string,
   provider: PaymentProviderType,
   paid: boolean,
@@ -98,6 +106,7 @@ const malformedChargeRejection = (
   provider,
   reason: "malformed_charge",
   refundable: paid && isResourceId(paymentReference),
+  sessionId,
 });
 
 /**
@@ -121,13 +130,18 @@ export const validatedPaymentSession = (fields: {
   paymentStatus: ValidatedPaymentSession["paymentStatus"];
   provider: PaymentProviderType;
 }): ValidatedPaymentSession | SessionRejection => {
+  if (!isResourceId(fields.id)) {
+    throw new Error("Payment session has an invalid provider resource id");
+  }
   const charge = money(fields.amountTotal, fields.currency);
   if (charge === null) {
     logError({
       code: ErrorCode.PAYMENT_SESSION,
-      detail: `Session ${fields.id} carries a malformed charge (amount=${fields.amountTotal}, currency=${fields.currency})`,
+      detail:
+        `Session ${fields.id} carries a malformed charge (amount=${fields.amountTotal}, currency=${fields.currency})`,
     });
     return malformedChargeRejection(
+      fields.id,
       fields.paymentReference,
       fields.provider,
       fields.paymentStatus === "paid",
@@ -135,9 +149,9 @@ export const validatedPaymentSession = (fields: {
     );
   }
   // A paid charge must name the provider resource that captured it. A blank id
-  // names no charge to refund — `getRefundPaymentReferences` excludes it and
-  // `tryRefund` refuses it — so a paid session with one is refused here rather
-  // than persisted as an unrefundable booking. A free session carries none.
+  // names no charge to refund, so a paid session with one is refused here
+  // rather than persisted as an unrefundable booking. A free session carries
+  // none.
   if (
     fields.paymentStatus === "paid" &&
     !isResourceId(fields.paymentReference)
@@ -146,7 +160,11 @@ export const validatedPaymentSession = (fields: {
       code: ErrorCode.PAYMENT_SESSION,
       detail: `Paid session ${fields.id} is missing its provider resource id`,
     });
-    return { provider: fields.provider, reason: "blank_reference" };
+    return {
+      provider: fields.provider,
+      reason: "blank_reference",
+      sessionId: fields.id,
+    };
   }
   return {
     amountTotal: charge.amount,

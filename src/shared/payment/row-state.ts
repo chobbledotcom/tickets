@@ -17,12 +17,6 @@ import {
 import { integerAtLeast } from "#shared/validation/number.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
-/** Whether a provider can safely repeat one exact refund request. */
-export const RefundProviderCapabilitySchema = v.picklist(["keyed", "keyless"]);
-export type RefundProviderCapability = v.InferOutput<
-  typeof RefundProviderCapabilitySchema
->;
-
 const SortedAttendeeIdsSchema = v.pipe(
   v.array(integerAtLeast(1)),
   v.minLength(1),
@@ -39,29 +33,15 @@ const refundClaimFields = {
   writtenAt: v.string(),
 };
 
-const providerReadyClaim = <TPhase extends "ready" | "send_armed">(
-  phase: TPhase,
-) =>
-  v.strictObject({
-    ...refundClaimFields,
-    capability: RefundProviderCapabilitySchema,
-    phase: v.literal(phase),
-  });
-
 /**
  * One refund command's hold on this row. The attendee ids name the people who
- * initiated this exact reference group, while the payment row itself still
- * names the person who owns that physical row. The phase says whether a
- * provider call definitely has not been armed or may already have escaped.
+ * initiated this exact reference group. It is only an edit and ledger fence;
+ * payment_charges owns every provider-send state.
  */
-export const RefundClaimSchema = v.variant("phase", [
-  v.strictObject({
-    ...refundClaimFields,
-    phase: v.literal("checking"),
-  }),
-  providerReadyClaim("ready"),
-  providerReadyClaim("send_armed"),
-]);
+export const RefundClaimSchema = v.strictObject({
+  ...refundClaimFields,
+  phase: v.literal("checking"),
+});
 export type RefundClaim = v.InferOutput<typeof RefundClaimSchema>;
 export type RefundClaimPhase = RefundClaim["phase"];
 

@@ -4,7 +4,6 @@ import { withTransaction } from "#shared/db/client.ts";
 import {
   assertRefundRowsHeld,
   readAttendeeRowStates,
-  settleAttendeeRows,
 } from "#shared/db/payment-claim.ts";
 import type { PaymentReviewReason } from "#shared/payment/review.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -13,8 +12,8 @@ import {
   claimCurrentAttendeeRows,
   protectedStateOf,
   putRowState,
-  REVIEW_MIRROR,
   releaseClaimRows,
+  REVIEW_MIRROR,
   reviewCase,
   rowStateSlot,
   UNRECORDED_MIRROR,
@@ -26,9 +25,9 @@ import {
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 const claimedPhase = (
-  claim: { phases: ReadonlyMap<string, "checking" | "ready" | "send_armed"> },
+  claim: { phases: ReadonlyMap<string, "checking"> },
   sessionId: string,
-): "checking" | "ready" | "send_armed" => {
+): "checking" => {
   const phase = claim.phases.get(sessionId);
   if (phase === undefined) {
     throw new Error(`Claim did not include payment row ${sessionId}`);
@@ -64,7 +63,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
           phases: new Map([
             ["sess-confirm", claimedPhase(claimed, "sess-confirm")],
           ]),
-        }),
+        })
       );
       await releaseClaimRows(claimed, ["sess-confirm"]);
 
@@ -76,7 +75,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
             phases: new Map([
               ["sess-confirm", claimedPhase(claimed, "sess-confirm")],
             ]),
-          }),
+          })
         ),
       ).rejects.toThrow("Refund confirmation no longer owns every payment row");
     });
@@ -87,7 +86,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
           commandId: "empty-command",
           heldSince: "2026-08-11T12:00:00.000Z",
           phases: new Map(),
-        }),
+        })
       );
     });
 
@@ -257,42 +256,6 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
       expect(await claimCurrentAttendeeRows([attendeeId])).toMatchObject({
         kind: "claimed",
       });
-    });
-
-    test("recording missed books can keep the exact claim in place", async () => {
-      const attendeeId = await bookedWithPayment("sess-kept", "pi_kept");
-      const held = await claimCurrentAttendeeRows([attendeeId]);
-      if (held.kind !== "claimed") throw new Error("the claim was refused");
-
-      await settleAttendeeRows({
-        commandId: held.commandId,
-        heldSince: held.heldSince,
-        rows: new Map([
-          [
-            "sess-kept",
-            {
-              books: "unrecorded",
-              claim: "keep",
-              phase: claimedPhase(held, "sess-kept"),
-            },
-          ],
-        ]),
-      });
-
-      expect(await protectedStateOf("sess-kept")).toBe(CLAIM_MIRROR);
-      expect(
-        await withTransaction((tx) => readAttendeeRowStates(tx, [attendeeId])),
-      ).toContainEqual(
-        expect.objectContaining({
-          sessionId: "sess-kept",
-          state: expect.objectContaining({
-            claim: expect.objectContaining({ writtenAt: held.heldSince }),
-            unrecorded: expect.objectContaining({
-              returnedAt: expect.any(String),
-            }),
-          }),
-        }),
-      );
     });
 
     test("a later run that records the money takes the mark off", async () => {
