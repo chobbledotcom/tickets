@@ -69,7 +69,7 @@ const refundThreeAtOnce = async (
   };
 };
 
-describe("admin refund provider > provider wave writes", () => {
+describe("admin refund dispatch > provider wave writes", () => {
   test("orders writes, batches markers, and keeps provider overlap", async () => {
     const markedIndexes: string[][] = [];
     const { counts, mostPaymentWrites, mostProviderCalls, source } =

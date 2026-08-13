@@ -15,7 +15,7 @@ import {
 } from "#test/features/admin/refunds/provider/helpers.ts";
 import { grantingRowClaim } from "#test-utils/refund-routes.ts";
 
-describe("admin refund provider > late budget lifecycle", () => {
+describe("admin refund dispatch > budget lifecycle", () => {
   test("a pre-arm refusal keeps inherited keyed work protected", async () => {
     const attendeeId = 72;
     const reference = "pi_inherited_budget";
