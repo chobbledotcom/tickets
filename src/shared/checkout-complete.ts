@@ -18,8 +18,8 @@ import {
 } from "#shared/checkout-ledger.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import type {
+  AttendeeCreationWork,
   BookingBatchPlan,
-  LedgerPoster,
 } from "#shared/db/attendees/create.ts";
 import { type TxScope, update } from "#shared/db/client.ts";
 import type { ModifierUsage } from "#shared/db/modifier-usage.ts";
@@ -82,7 +82,7 @@ export const postBookingLegsTx = async (
 };
 
 /**
- * The {@link LedgerPoster} for an admin manual attendee add. The add form
+ * The creation work for an admin manual attendee add. The add form
  * captures per-listing quantities (so each line's GROSS is its listing price ×
  * quantity) but no amount-paid or outstanding-balance field — so this records
  * the same shape of legs a real booking does with nothing collected: the gross
@@ -93,8 +93,7 @@ export const postBookingLegsTx = async (
  * never sets a balance. A zero-gross add (free listings) owes nothing.
  */
 export const manualAddLedgerPoster =
-  (order: PricedOrder): LedgerPoster =>
-  async (tx, attendeeId) => {
+  (order: PricedOrder): AttendeeCreationWork => async (tx, attendeeId) => {
     const legs = await mapBooking(
       bookingFactsFromOrder(owedOrderForLedger(order), {
         attendeeId,

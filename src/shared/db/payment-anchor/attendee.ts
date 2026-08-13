@@ -2,22 +2,19 @@
 
 import { inPlaceholders, type SqlStatement } from "#shared/db/client.ts";
 import { nowIso } from "#shared/now.ts";
+import type { PaymentReference } from "#shared/payment/provider-reference.ts";
 import { paymentAnchorReference } from "./reference.ts";
 import { anchorSessionId } from "./session.ts";
 
-/**
- * Give one attendee's old PII-only payment a durable indexed row. A current
- * checkout row with any provider spelling of the same reference wins, so a
- * routine attendee save never adds a second representation of current money.
- */
-export const attendeePaymentAnchorStatements = async (
-  attendeeId: number,
-  paymentId: string,
-): Promise<SqlStatement[]> => {
-  if (paymentId === "") return [];
-  const { matchingIndexes, stored } = await paymentAnchorReference(paymentId);
+type PreparedAttendeePaymentAnchor = (attendeeId: number) => SqlStatement;
+
+/** Prepare one payment reference before its attendee-creation transaction. */
+export const prepareAttendeePaymentAnchor = async (
+  payment: PaymentReference,
+): Promise<PreparedAttendeePaymentAnchor> => {
+  const { matchingIndexes, stored } = await paymentAnchorReference(payment);
   const matchingIndexSlots = inPlaceholders(matchingIndexes);
-  const anchor = {
+  return (attendeeId) => ({
     args: [
       anchorSessionId(attendeeId, stored.index),
       attendeeId,
@@ -40,6 +37,22 @@ export const attendeePaymentAnchorStatements = async (
                 WHERE payment.attendee_id = ?
                   AND payment.payment_reference_index IN (${matchingIndexSlots})
              )`,
-  };
-  return [anchor];
+  });
+};
+
+/**
+ * Give one attendee's old PII-only payment a durable indexed row. A current
+ * checkout row with any provider spelling of the same reference wins, so a
+ * routine attendee save never adds a second representation of current money.
+ */
+export const attendeePaymentAnchorStatements = async (
+  attendeeId: number,
+  paymentId: string,
+): Promise<SqlStatement[]> => {
+  if (paymentId === "") return [];
+  const prepared = await prepareAttendeePaymentAnchor({
+    kind: "untagged",
+    reference: paymentId,
+  });
+  return [prepared(attendeeId)];
 };

@@ -30,7 +30,10 @@ export type PreparedWrite = {
 
 export type WriteOutcome = { insertId: number };
 
-export type LedgerPoster = (tx: TxScope, attendeeId: number) => Promise<void>;
+export type AttendeeCreationWork = (
+  tx: TxScope,
+  attendeeId: number,
+) => Promise<void>;
 
 export type BookingBatchPlan = {
   usages: ModifierUsage[];
@@ -50,11 +53,9 @@ const bookingWriteGuard = (): SqlStatement => ({
         SELECT NULL, NULL, 1 WHERE changes() != ?`,
 });
 
-const isRequiredColumnFailure =
-  (column: string) =>
-  (error: unknown): boolean =>
-    error instanceof Error &&
-    error.message.includes(`NOT NULL constraint failed: ${column}`);
+const isRequiredColumnFailure = (column: string) => (error: unknown): boolean =>
+  error instanceof Error &&
+  error.message.includes(`NOT NULL constraint failed: ${column}`);
 
 const isBookingWriteGuardFailure = isRequiredColumnFailure(
   "listing_attendees.listing_id",
@@ -92,9 +93,9 @@ class IncompleteBooking extends namedError("IncompleteBooking") {}
 
 /** Create an attendee, all bookings, caller work, and contact activity in one
  * interactive transaction. */
-export const writeWithLedger = (
+export const writeWithCreationWork = (
   prepared: PreparedWrite,
-  postLedger: LedgerPoster,
+  creationWork: AttendeeCreationWork,
 ): Promise<WriteOutcome | null> =>
   withTransaction<WriteOutcome>(async (tx) => {
     await tx.execute(prepared.attendeeInsert);
@@ -107,7 +108,7 @@ export const writeWithLedger = (
       await tx.execute(attendeeIdStatement(prepared.enc.ticketTokenIndex)),
     );
     const attendeeId = Number(attendeeRows[0]!.id);
-    await postLedger(tx, attendeeId);
+    await creationWork(tx, attendeeId);
     for (const statement of prepared.activityStatements) {
       await tx.execute(statement);
     }
@@ -127,9 +128,11 @@ const noExistingLedgerCondition = (legs: TransferInput[]): SqlStatement => {
   return {
     args: [legs[0]!.eventGroup, ...references],
     sql: `NOT EXISTS (SELECT 1 FROM transfers WHERE event_group = ?)
-          AND NOT EXISTS (SELECT 1 FROM transfers WHERE reference IN (${inPlaceholders(
-            references,
-          )}))`,
+          AND NOT EXISTS (SELECT 1 FROM transfers WHERE reference IN (${
+      inPlaceholders(
+        references,
+      )
+    }))`,
   };
 };
 
@@ -150,7 +153,7 @@ export const writeAsLedgerBatch = async (
   const always = { args: [], sql: "1 = 1" };
   const recordedAt = nowIso();
   const usages = plan.usages.map((usage) =>
-    usageInsert(usage, ATTENDEE_BY_TOKEN_SQL, [tokenIndex], always),
+    usageInsert(usage, ATTENDEE_BY_TOKEN_SQL, [tokenIndex], always)
   );
   const legs = plan.legs.map((leg) =>
     bookingLegBatchInsert(
@@ -159,26 +162,23 @@ export const writeAsLedgerBatch = async (
       ATTENDEE_BY_TOKEN_SQL,
       tokenIndex,
       always,
-    ),
+    )
   );
-  const eventGroup: SqlStatement[] =
-    plan.legs.length === 0
-      ? []
-      : [
-          {
-            args: [plan.legs[0]!.eventGroup, tokenIndex],
-            sql: `UPDATE listing_attendees SET ledger_event_group = ?
+  const eventGroup: SqlStatement[] = plan.legs.length === 0 ? [] : [
+    {
+      args: [plan.legs[0]!.eventGroup, tokenIndex],
+      sql: `UPDATE listing_attendees SET ledger_event_group = ?
                   WHERE attendee_id = ${ATTENDEE_BY_TOKEN_SQL}`,
-          },
-        ];
+    },
+  ];
   const finalize = plan.finalize
     ? await batchFinalizeStatements(
-        plan.finalize.sessionId,
-        ATTENDEE_BY_TOKEN_SQL,
-        tokenIndex,
-        plan.finalize.paymentReference,
-        prepared.enc.ticketToken,
-      )
+      plan.finalize.sessionId,
+      ATTENDEE_BY_TOKEN_SQL,
+      tokenIndex,
+      plan.finalize.paymentReference,
+      prepared.enc.ticketToken,
+    )
     : [];
   return runAtomicBatch(prepared, [
     ...usages,

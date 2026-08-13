@@ -70,8 +70,9 @@ describeWithEnv("db > payment references", { db: true }, () => {
     expect(before[0]!.kind).toBe("tagged");
     expect(before[0]!.refundState).toBe("none");
 
-    const markerCalls = await countDatabaseCalls(1, () =>
-      markPaymentReferencesProviderRefunded(before),
+    const markerCalls = await countDatabaseCalls(
+      1,
+      () => markPaymentReferencesProviderRefunded(before),
     );
 
     const after = requireCompleteRefundReferences(
@@ -85,6 +86,67 @@ describeWithEnv("db > payment references", { db: true }, () => {
     expect(after[0]!.kind).toBe("tagged");
     expect(after[0]!.refundState).toBe("completed");
     expect(markerCalls).toBe(1);
+  });
+
+  test("does no database work for an empty refund identity", async () => {
+    expect(
+      await countDatabaseCalls(0, () =>
+        markPaymentReferencesProviderRefunded([
+          refundReference("pi_empty_marker", {
+            index: "",
+            rowSessionIds: [],
+            sessionIds: [],
+          }),
+        ])),
+    ).toBe(0);
+  });
+
+  test("marks a returned payment by its session without an index", async () => {
+    const listing = await createTestListing({ maxAttendees: 50 });
+    const created = await bookAttendee(listing, {
+      email: "session-marker@example.com",
+      name: "Session Marker",
+    });
+    if (!created.success) throw new Error("setup failed");
+    const attendeeId = created.attendees[0]!.id;
+    const sessionId = "sess_session_marker";
+    const payment = taggedPaymentReference("pi_session_marker");
+    await finalizeProcessedPayment(sessionId, attendeeId, "", payment);
+
+    const reference = await readReference(payment, {
+      rowSessionIds: [sessionId],
+      sessionIds: [sessionId],
+    });
+    await markPaymentReferencesProviderRefunded([{ ...reference, index: "" }]);
+
+    expect(
+      (await refundReferencesFor(attendeeId, await getTestPrivateKey()))[0]
+        ?.refundState,
+    ).toBe("completed");
+  });
+
+  test("marks a returned payment by its index without a session", async () => {
+    const listing = await createTestListing({ maxAttendees: 50 });
+    const created = await bookAttendee(listing, {
+      email: "index-marker@example.com",
+      name: "Index Marker",
+    });
+    if (!created.success) throw new Error("setup failed");
+    const attendeeId = created.attendees[0]!.id;
+    const sessionId = "sess_index_marker";
+    const payment = taggedPaymentReference("pi_index_marker");
+    await finalizeProcessedPayment(sessionId, attendeeId, "", payment);
+    const reference = await readReference(payment, {
+      rowSessionIds: [],
+      sessionIds: [],
+    });
+
+    await markPaymentReferencesProviderRefunded([reference]);
+
+    expect(
+      (await refundReferencesFor(attendeeId, await getTestPrivateKey()))[0]
+        ?.refundState,
+    ).toBe("completed");
   });
 
   test("a legacy merge with no payment id needs no statement", async () => {
@@ -269,7 +331,7 @@ describeWithEnv(
 describe("db > payment references > still with the provider", () => {
   const withStates = (...states: RefundState[]) =>
     states.map((refundState, index) =>
-      refundReference(`pi_${index}`, { refundState }),
+      refundReference(`pi_${index}`, { refundState })
     );
 
   test("a watched charge not seen back is still out", () => {

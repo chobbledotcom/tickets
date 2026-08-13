@@ -29,6 +29,7 @@ import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
 import { logActivity } from "#shared/db/activity-log.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
+import { prepareAttendeePaymentAnchor } from "#shared/db/payment-anchor/attendee.ts";
 import {
   createNamedSystemNote,
   createSystemNote,
@@ -178,17 +179,24 @@ export const storeRefundedBooking = async (
 ): Promise<PaymentFailureResult> => {
   if (spec.alert) addPendingWork(sendNtfyError(REFUND_ALERT_CODES[spec.alert]));
   const listingId = bookings[0]!.listingId;
+  const paymentReference = paidPaymentReferenceOf(session);
+  const paymentAnchor = await prepareAttendeePaymentAnchor(paymentReference);
   // A quantity-0 overbook insert has no capacity gate and consumes no modifier
   // stock, so it always writes the row — trust it. (If the PII can't encrypt the
   // whole system is broken; we don't defend against that.)
-  const stored = await attendeesApi.createAttendeeAtomic({
-    ...attendeeBaseFields(session, intent, publicStatusId),
-    allowOverbook: true,
-    bookings,
-  });
+  const stored = await attendeesApi.createAttendeeAtomic(
+    {
+      ...attendeeBaseFields(session, intent, publicStatusId),
+      allowOverbook: true,
+      bookings,
+    },
+    async (tx, attendeeId) => {
+      await tx.execute(paymentAnchor(attendeeId));
+    },
+  );
   const attendeeId = (stored as Extract<typeof stored, { success: true }>)
     .attendees[0]!.id;
-  const refunded = await tryRefund(paidPaymentReferenceOf(session), listingId);
+  const refunded = await tryRefund(paymentReference, listingId);
   await recordPlaceholderRefund(
     {
       amount: session.amountTotal,
@@ -209,7 +217,8 @@ export const storeRefundedBooking = async (
   } else {
     logError({
       code: ErrorCode.PAYMENT_REFUND,
-      detail: `Stored-but-unrefunded booking ${attendeeId} (${spec.code}): ${spec.detail}`,
+      detail:
+        `Stored-but-unrefunded booking ${attendeeId} (${spec.code}): ${spec.detail}`,
       listingId,
     });
   }
@@ -219,7 +228,7 @@ export const storeRefundedBooking = async (
     await createSystemNote(noteTarget, noteText);
   } else {
     await createNamedSystemNote(noteTarget, noteText, {
-      key: await paymentReferenceIndex(paidPaymentReferenceOf(session)),
+      key: await paymentReferenceIndex(paymentReference),
       purpose: "refund_warning",
     });
   }

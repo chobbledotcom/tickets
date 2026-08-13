@@ -18,9 +18,10 @@ import {
   openSumupCheckout,
 } from "#shared/db/sumup-checkouts.ts";
 import { logDebug } from "#shared/logger.ts";
-import type {
-  RefundAttemptResult,
-  RefundRequest,
+import {
+  type RefundAttemptResult,
+  refundOutcomeAfterReread,
+  type RefundRequest,
 } from "#shared/payment/refund-attempt.ts";
 import {
   isSessionRejection,
@@ -113,16 +114,21 @@ export const sumupPaymentProvider: PaymentProvider = {
     const submission = await sumupApi.refundTransaction(
       request.paymentReference,
     );
-    if (submission.kind === "not_sent" || submission.kind === "rejected") {
-      return submission;
-    }
+    if (submission.kind === "not_sent") return submission;
 
-    // A successful response has no refund facts, and an uncertain call may have
-    // landed. Only fresh transaction evidence can settle either one.
+    // The immediate answer never outranks fresh money evidence: a rejected
+    // request can race a refund made in the dashboard, while a successful or
+    // uncertain call carries no conclusive refund facts of its own.
     const freshRead = await sumupPaymentProvider.readCharge(
       request.paymentReference,
     );
-    return sumupRefundOutcome(submission, request, freshRead);
+    return submission.kind === "rejected"
+      ? refundOutcomeAfterReread({
+        attempt: submission,
+        freshCharge: freshRead,
+        request,
+      })
+      : sumupRefundOutcome(submission, request, freshRead);
   },
   requiresWebhookSignature: false,
 

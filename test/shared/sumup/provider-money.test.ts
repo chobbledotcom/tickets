@@ -37,6 +37,13 @@ const failedRefundCharge = (): ChargeMoney => ({
   ],
 });
 
+const EXPECTS_FRESH_READ = {
+  not_sent: false,
+  rejected: true,
+  sent: true,
+  uncertain: true,
+} satisfies Record<SumupRefundSubmission["kind"], boolean>;
+
 const readCharge = async (read: ProviderRead<SumupTransactionMoney>) => {
   const answer: { read?: ProviderRead<ChargeMoney> } = {};
   await withMocks(
@@ -60,23 +67,25 @@ describe("sumup provider money", () => {
     });
   });
 
-  for (const [name, events, expected] of [
-    [
-      "completed",
-      [{ amount: 4, status: "REFUNDED" }],
-      { amount: gbp(400), status: "completed" },
-    ],
-    [
-      "pending",
-      [{ amount: 10, status: "PENDING" }],
-      { amount: gbp(1000), status: "pending" },
-    ],
-    [
-      "failed",
-      [{ amount: 10, status: "FAILED" }],
-      { amount: gbp(1000), reason: "provider_failed", status: "failed" },
-    ],
-  ] as const) {
+  for (
+    const [name, events, expected] of [
+      [
+        "completed",
+        [{ amount: 4, status: "REFUNDED" }],
+        { amount: gbp(400), status: "completed" },
+      ],
+      [
+        "pending",
+        [{ amount: 10, status: "PENDING" }],
+        { amount: gbp(1000), status: "pending" },
+      ],
+      [
+        "failed",
+        [{ amount: 10, status: "FAILED" }],
+        { amount: gbp(1000), reason: "provider_failed", status: "failed" },
+      ],
+    ] as const
+  ) {
     test(`maps a ${name} refund event`, async () => {
       const read = await readCharge(transactionRead(transaction([...events])));
       expect(read).toEqual({
@@ -90,28 +99,30 @@ describe("sumup provider money", () => {
     });
   }
 
-  for (const [name, events, reason] of [
-    [
-      "undocumented status",
-      [{ amount: 4, status: "WAT" }],
-      "unsupported_status",
-    ],
-    [
-      "irrelevant status",
-      [{ amount: 4, status: "PAID_OUT" }],
-      "unsupported_status",
-    ],
-    [
-      "missing status",
-      [{ amount: 4, status: undefined }],
-      "unsupported_status",
-    ],
-    [
-      "missing amount",
-      [{ amount: undefined, status: "REFUNDED" }],
-      "malformed_money",
-    ],
-  ] as const) {
+  for (
+    const [name, events, reason] of [
+      [
+        "undocumented status",
+        [{ amount: 4, status: "WAT" }],
+        "unsupported_status",
+      ],
+      [
+        "irrelevant status",
+        [{ amount: 4, status: "PAID_OUT" }],
+        "unsupported_status",
+      ],
+      [
+        "missing status",
+        [{ amount: 4, status: undefined }],
+        "unsupported_status",
+      ],
+      [
+        "missing amount",
+        [{ amount: undefined, status: "REFUNDED" }],
+        "malformed_money",
+      ],
+    ] as const
+  ) {
     test(`refuses a refund event with ${name}`, async () => {
       expect(
         await readCharge(transactionRead(transaction([...events]))),
@@ -119,12 +130,14 @@ describe("sumup provider money", () => {
     });
   }
 
-  for (const resource of [
-    { amount: undefined, currency: "GBP", refundEvents: [] },
-    { amount: 10, currency: undefined, refundEvents: [] },
-    { amount: 10.001, currency: "GBP", refundEvents: [] },
-    { amount: 10, currency: "GB", refundEvents: [] },
-  ] satisfies SumupTransactionMoney[]) {
+  for (
+    const resource of [
+      { amount: undefined, currency: "GBP", refundEvents: [] },
+      { amount: 10, currency: undefined, refundEvents: [] },
+      { amount: 10.001, currency: "GBP", refundEvents: [] },
+      { amount: 10, currency: "GB", refundEvents: [] },
+    ] satisfies SumupTransactionMoney[]
+  ) {
     test("refuses transaction money with a missing required value", async () => {
       expect(await readCharge(transactionRead(resource))).toEqual({
         reason: "malformed_money",
@@ -133,11 +146,13 @@ describe("sumup provider money", () => {
     });
   }
 
-  for (const read of [
-    { status: "missing" },
-    { reason: "rate_limited", status: "unavailable" },
-    { reason: "malformed_response", status: "invalid" },
-  ] as const satisfies ProviderRead<SumupTransactionMoney>[]) {
+  for (
+    const read of [
+      { status: "missing" },
+      { reason: "rate_limited", status: "unavailable" },
+      { reason: "malformed_response", status: "invalid" },
+    ] as const satisfies ProviderRead<SumupTransactionMoney>[]
+  ) {
     test(`preserves a transaction read that is ${read.status}`, async () => {
       expect(await readCharge(read)).toEqual(read);
     });
@@ -160,39 +175,44 @@ describe("sumup provider money", () => {
       const answer: { result?: RefundAttemptResult } = {};
       await withMocks(
         () => ({
-          read: stub(sumupPaymentProvider, "readCharge", () =>
-            Promise.resolve(fresh),
+          read: stub(
+            sumupPaymentProvider,
+            "readCharge",
+            () => Promise.resolve(fresh),
           ),
-          send: stub(sumupApi, "refundTransaction", () =>
-            Promise.resolve(submission),
+          send: stub(
+            sumupApi,
+            "refundTransaction",
+            () => Promise.resolve(submission),
           ),
         }),
         async (mocks) => {
-          answer.result =
-            await sumupPaymentProvider.refundCharge(attemptedRequest);
+          answer.result = await sumupPaymentProvider.refundCharge(
+            attemptedRequest,
+          );
           expect(mocks.send.calls[0]?.args).toEqual([
             attemptedRequest.paymentReference,
           ]);
           expect(mocks.read.calls).toHaveLength(
-            submission.kind === "sent" || submission.kind === "uncertain"
-              ? 1
-              : 0,
+            EXPECTS_FRESH_READ[submission.kind] ? 1 : 0,
           );
         },
       );
       return answer.result;
     };
 
-    for (const [name, submission] of [
-      ["a sent request", { kind: "sent" }],
-      [
-        "an ambiguous provider conflict",
-        { kind: "uncertain", reason: "provider_error" },
-      ],
-    ] as const satisfies readonly (readonly [
-      string,
-      SumupRefundSubmission,
-    ])[]) {
+    for (
+      const [name, submission] of [
+        ["a sent request", { kind: "sent" }],
+        [
+          "an ambiguous provider conflict",
+          { kind: "uncertain", reason: "provider_error" },
+        ],
+      ] as const satisfies readonly (readonly [
+        string,
+        SumupRefundSubmission,
+      ])[]
+    ) {
       test(`calls a fully observed refund completed after ${name}`, async () => {
         const fresh = fullyRefundedMoney(1000);
         expect(
@@ -205,13 +225,32 @@ describe("sumup provider money", () => {
       });
     }
 
-    for (const [name, submission] of [
-      ["a sent request", { kind: "sent" }],
-      ["a lost network answer", { kind: "uncertain", reason: "network_error" }],
-    ] as const satisfies readonly (readonly [
-      string,
-      SumupRefundSubmission,
-    ])[]) {
+    test("recognises money returned beside a rejected send", async () => {
+      const fresh = fullyRefundedMoney(1000);
+      expect(
+        await refund(
+          { kind: "rejected", reason: "rejected" },
+          { resource: fresh, status: "found" },
+        ),
+      ).toEqual({
+        amount: gbp(1000),
+        kind: "completed",
+        proof: { charge: fresh, kind: "charge_observation" },
+      });
+    });
+
+    for (
+      const [name, submission] of [
+        ["a sent request", { kind: "sent" }],
+        ["a lost network answer", {
+          kind: "uncertain",
+          reason: "network_error",
+        }],
+      ] as const satisfies readonly (readonly [
+        string,
+        SumupRefundSubmission,
+      ])[]
+    ) {
       test(`keeps the requested amount when SumUp shows it pending after ${name}`, async () => {
         const fresh: ChargeMoney = {
           ...chargeMoney(1000),
@@ -286,11 +325,13 @@ describe("sumup provider money", () => {
       });
     }
 
-    for (const [read, reason] of [
-      [{ status: "missing" }, "missing_documented_resource"],
-      [{ reason: "timeout", status: "unavailable" }, "timeout"],
-      [{ reason: "malformed_money", status: "invalid" }, "malformed_money"],
-    ] as const) {
+    for (
+      const [read, reason] of [
+        [{ status: "missing" }, "missing_documented_resource"],
+        [{ reason: "timeout", status: "unavailable" }, "timeout"],
+        [{ reason: "malformed_money", status: "invalid" }, "malformed_money"],
+      ] as const
+    ) {
       test(`never completes after a ${read.status} verification`, async () => {
         expect(await refund({ kind: "sent" }, read)).toEqual({
           kind: "uncertain",
@@ -299,20 +340,24 @@ describe("sumup provider money", () => {
       });
     }
 
-    for (const outcome of [
-      { kind: "not_sent", reason: "not_configured" },
-      { kind: "rejected", reason: "rejected" },
-    ] as const satisfies SumupRefundSubmission[]) {
+    for (
+      const outcome of [
+        { kind: "not_sent", reason: "not_configured" },
+        { kind: "rejected", reason: "rejected" },
+      ] as const satisfies SumupRefundSubmission[]
+    ) {
       test(`preserves a ${outcome.kind} send outcome`, async () => {
         expect(await refund(outcome)).toEqual(outcome);
       });
     }
 
-    for (const reason of [
-      "malformed_response",
-      "network_error",
-      "provider_error",
-    ] as const) {
+    for (
+      const reason of [
+        "malformed_response",
+        "network_error",
+        "provider_error",
+      ] as const
+    ) {
       test(`preserves an uncertain ${reason} while fresh evidence is unchanged`, async () => {
         expect(await refund({ kind: "uncertain", reason })).toEqual({
           kind: "uncertain",

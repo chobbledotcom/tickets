@@ -5,6 +5,7 @@ import {
   type StoredPaymentReference,
   storePaymentReference,
 } from "#shared/db/payment-reference-store.ts";
+import type { PaymentReference } from "#shared/payment/provider-reference.ts";
 
 export interface PaymentAnchorReference {
   readonly matchingIndexes: readonly string[];
@@ -13,9 +14,8 @@ export interface PaymentAnchorReference {
 
 /** Prepare one PII-only payment for either save-time or merge-time anchoring. */
 export const paymentAnchorReference = async (
-  paymentId: string,
+  payment: PaymentReference,
 ): Promise<PaymentAnchorReference> => {
-  const payment = { kind: "untagged", reference: paymentId } as const;
   const [stored, matchingIndexes] = await Promise.all([
     storePaymentReference(payment),
     matchingPaymentReferenceIndexes(payment),

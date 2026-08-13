@@ -14,14 +14,14 @@ import { hasDuplicateBookingSlot } from "#shared/db/attendees/booking-slot.ts";
 import { buildCapacityCheckedInsert } from "#shared/db/attendees/capacity/checks.ts";
 import {
   ATTENDEE_BY_TOKEN_SQL,
-  type BookingBatchPlan,
+  type AttendeeCreationWork,
   bookingBatchCondition,
-  type LedgerPoster,
+  type BookingBatchPlan,
   type PreparedWrite,
-  type WriteOutcome,
   writeAsBatch,
   writeAsLedgerBatch,
-  writeWithLedger,
+  type WriteOutcome,
+  writeWithCreationWork,
 } from "#shared/db/attendees/create-batch.ts";
 import { ATTENDEE_KIND, type AttendeeKind } from "#shared/db/attendees/kind.ts";
 import { annotateOrderParents } from "#shared/db/attendees/order-parents.ts";
@@ -34,8 +34,8 @@ import { orderActivityStatements } from "#shared/db/contact-tokens.ts";
 import { anyModifierSoldOut } from "#shared/db/modifier-usage.ts";
 import {
   type Attendee,
-  type ContactInfo,
   clampDurationDays,
+  type ContactInfo,
 } from "#shared/types.ts";
 
 /* jscpd:ignore-end */
@@ -142,10 +142,9 @@ const prepareAttendeeWrite = async (
         ...statement.args,
         ...(extraCondition && !allowOverbook ? extraCondition.args : []),
       ] as InValue[],
-      sql:
-        extraCondition && !allowOverbook
-          ? `${statement.sql} AND (${extraCondition.sql})`
-          : statement.sql,
+      sql: extraCondition && !allowOverbook
+        ? `${statement.sql} AND (${extraCondition.sql})`
+        : statement.sql,
     };
   });
   const hasRealBooking = bookings.some(
@@ -153,11 +152,11 @@ const prepareAttendeeWrite = async (
   );
   const activityStatements = hasRealBooking
     ? await orderActivityStatements(
-        contactInfo.email,
-        contactInfo.phone,
-        input.source ?? "public",
-        enc.ticketToken,
-      )
+      contactInfo.email,
+      contactInfo.phone,
+      input.source ?? "public",
+      enc.ticketToken,
+    )
     : [];
 
   return {
@@ -200,7 +199,7 @@ const finishAttendeeWrite = (
         statusId: input.statusId ?? null,
         ticketToken: enc.ticketToken,
         ticketTokenIndex: enc.ticketTokenIndex,
-      }),
+      })
     ),
     success: true,
   };
@@ -230,17 +229,17 @@ const capacityFailure = (): CreateAttendeeResult => ({
 
 export const createAttendeeAtomicImpl = (
   input: AttendeeInput,
-  postLedger?: LedgerPoster,
+  creationWork?: AttendeeCreationWork,
 ): Promise<CreateAttendeeResult> =>
   createWith<CreateAttendeeResult>({
     noBooking: capacityFailure,
     write: (prepared) =>
-      postLedger
-        ? writeWithLedger(prepared, postLedger)
+      creationWork
+        ? writeWithCreationWork(prepared, creationWork)
         : writeAsBatch(prepared),
   })(input);
 
-export type { BookingBatchPlan, LedgerPoster };
+export type { AttendeeCreationWork, BookingBatchPlan };
 
 export const createBookingAtomic = (
   input: AttendeeInput,

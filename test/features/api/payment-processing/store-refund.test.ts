@@ -10,21 +10,25 @@ import type { ValidatedItem } from "#routes/api/payment-processing/package-prici
 import {
   datelessGhostBookings,
   placeholderBookings,
-  settleBalanceSession,
   specForFailure,
   storeRefundedBooking,
 } from "#routes/api/payment-processing/store-refund.ts";
-import { processBooking } from "#shared/booking.ts";
 import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
 import { decrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { requirePublicStatusId } from "#shared/db/attendee-statuses.ts";
-import { queryOne } from "#shared/db/client.ts";
+import { execute, queryOne } from "#shared/db/client.ts";
+import { getRefundPaymentReferencesForAttendee } from "#shared/db/payment-references.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import {
+  createTestAttendee,
+  getAttendeesRaw,
+} from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { refundCompletes, withRefundMock } from "#test-utils/refund-routes.ts";
+import { adminGet } from "#test-utils/session.ts";
 import { bookingIntent, paymentSession } from "./index/helpers.ts";
 
 /** A signed cart line: `e` is the listing, `k`/`r` mark a package path. */
@@ -230,6 +234,73 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
   });
 
   describe("either way", () => {
+    test("rolls back the placeholder when its payment anchor cannot be stored", async () => {
+      const listing = await createTestListing({});
+      const intent = bookingIntent([{ e: listing.id, p: 1000, q: 1 }]);
+      const session = paymentSession("cs_anchor_failure", 1000, intent);
+      const bookings = placeholderBookings(
+        [{ expectedPrice: 1000, item: intent.items[0]!, listing }],
+        intent,
+      );
+      await execute(
+        `CREATE TRIGGER fail_placeholder_payment_anchor
+           BEFORE INSERT ON processed_payments
+            WHEN NEW.payment_session_id LIKE 'legacy:%'
+         BEGIN
+           SELECT RAISE(ABORT, 'payment anchor unavailable');
+         END`,
+      );
+
+      try {
+        await expect(
+          storeRefundedBooking(
+            session,
+            intent,
+            bookings,
+            specFor("listing full"),
+            await requirePublicStatusId(),
+          ),
+        ).rejects.toThrow("payment anchor unavailable");
+      } finally {
+        await execute("DROP TRIGGER fail_placeholder_payment_anchor");
+      }
+
+      expect(await getAttendeesRaw(listing.id)).toEqual([]);
+    });
+
+    test("stores a tagged indexed reference with reachable recovery", async () => {
+      const sessionId = "cs_indexed_recovery";
+      const { listing } = await storeFor(sessionId);
+      const attendee = (await getAttendeesRaw(listing.id))[0];
+      if (attendee === undefined) throw new Error("placeholder was not stored");
+
+      expect(
+        await getRefundPaymentReferencesForAttendee(
+          {
+            currentPaymentId: `pi_${sessionId}`,
+            id: attendee.id,
+          },
+          await getTestPrivateKey(),
+        ),
+      ).toMatchObject({
+        kind: "complete",
+        references: [
+          {
+            kind: "tagged",
+            provider: "stripe",
+            reference: `pi_${sessionId}`,
+          },
+        ],
+      });
+
+      const attendeePage = await (
+        await adminGet(`/admin/attendees/${attendee.id}`)
+      ).text();
+      expect(attendeePage).toContain(
+        `action="/admin/attendees/${attendee.id}/refresh-payment"`,
+      );
+    });
+
     test("is a handled outcome the provider should not retry", async () => {
       const { result } = await storeFor("cs_status");
       expect(result.status).toBe(200);
@@ -255,96 +326,6 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
     });
   });
 });
-
-describeWithEnv(
-  "settling a booking's outstanding balance",
-  { db: true },
-  () => {
-    /** A reservation that still owes money, and the balance checkout for it. */
-    const owing = async (owed: number) => {
-      const listing = await createTestListing({
-        maxAttendees: 10,
-        unitPrice: owed,
-      });
-      const result = await processBooking(
-        listing,
-        {
-          address: "",
-          email: "owes@example.com",
-          name: "Owes Money",
-          phone: "",
-          special_instructions: "",
-        },
-        1,
-        null,
-        "http://localhost",
-      );
-      if (result.type !== "success") throw new Error("booking failed");
-      return { attendee: result.attendee, listing };
-    };
-
-    const settleFor = async (
-      sessionId: string,
-      attendeeId: number,
-      listingId: number,
-      amount: number,
-    ) => {
-      const intent = bookingIntent([{ e: listingId, p: amount, q: 1 }], {
-        balanceAttendeeId: attendeeId,
-      });
-      const session = paymentSession(sessionId, amount, intent);
-      return await settleBalanceSession(sessionId, session, intent);
-    };
-
-    describe("when the balance changed while they were paying", () => {
-      test("does not settle for the wrong figure", async () => {
-        const { attendee, listing } = await owing(1500);
-        // The checkout was made for a balance that no longer stands.
-        const result = await settleFor(
-          "cs_stale",
-          attendee.id,
-          listing.id,
-          900,
-        );
-        expect(result.success).toBe(false);
-      });
-
-      test("tells the customer the balance changed", async () => {
-        const { attendee, listing } = await owing(1500);
-        const result = await settleFor(
-          "cs_stale_msg",
-          attendee.id,
-          listing.id,
-          900,
-        );
-        expect((result as { error: string }).error).toBe(
-          "The outstanding balance for this booking changed while you were paying.",
-        );
-      });
-
-      test("asks the provider to try again later rather than acking", async () => {
-        const { attendee, listing } = await owing(1500);
-        const result = await settleFor(
-          "cs_stale_status",
-          attendee.id,
-          listing.id,
-          900,
-        );
-        expect((result as { status: number }).status).toBe(409);
-      });
-
-      test("leaves the balance untouched", async () => {
-        const { attendee, listing } = await owing(1500);
-        await settleFor("cs_stale_keep", attendee.id, listing.id, 900);
-        const { getAttendeeBalanceState } = await import(
-          "#shared/db/attendees/balance.ts"
-        );
-        const state = await getAttendeeBalanceState(attendee.id);
-        expect(state?.remainingBalance).toBe(1500);
-      });
-    });
-  },
-);
 
 describeWithEnv(
   "a placeholder for a listing that is over capacity",

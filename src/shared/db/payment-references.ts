@@ -337,7 +337,10 @@ export const legacyMergePaymentReferenceStatement = async (
   sourcePaymentId: string,
 ): Promise<SqlStatement | null> => {
   if (sourcePaymentId === "") return null;
-  const anchorReference = await paymentAnchorReference(sourcePaymentId);
+  const anchorReference = await paymentAnchorReference({
+    kind: "untagged",
+    reference: sourcePaymentId,
+  });
   const { matchingIndexes, stored } = anchorReference;
   const matchingIndexSlots = inPlaceholders(matchingIndexes);
   return {
