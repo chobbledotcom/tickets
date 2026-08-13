@@ -5,7 +5,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { escapeIcs, escapeXml } from "#routes/feeds.ts";
+import { escapeXml } from "#routes/feeds.ts";
 import { settings } from "#shared/db/settings.ts";
 import { expectHtml } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -413,28 +413,6 @@ describeWithEnv("feeds", { db: true }, () => {
       const body = await response.text();
       expect(body).toContain("<title>Rock &amp; Roll &lt;Live&gt;</title>");
       expect(body).toContain("He said &quot;hello&quot; &amp; goodbye");
-    });
-  });
-
-  describe("escapeIcs", () => {
-    test("escapes backslashes", () => {
-      expect(escapeIcs("a\\b")).toBe("a\\\\b");
-    });
-
-    test("escapes semicolons", () => {
-      expect(escapeIcs("a;b")).toBe("a\\;b");
-    });
-
-    test("escapes commas", () => {
-      expect(escapeIcs("a,b")).toBe("a\\,b");
-    });
-
-    test("escapes newlines", () => {
-      expect(escapeIcs("a\nb")).toBe("a\\nb");
-    });
-
-    test("handles multiple special characters", () => {
-      expect(escapeIcs("a,b;c\\d\ne")).toBe("a\\,b\\;c\\\\d\\ne");
     });
   });
 

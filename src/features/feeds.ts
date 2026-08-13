@@ -30,6 +30,7 @@ import {
 import { getNewsPostSummaries } from "#shared/db/news-posts.ts";
 import { settings } from "#shared/db/settings.ts";
 import { userAgents } from "#shared/db/user-agents.ts";
+import { appendItemSchedule, escapeIcs, formatIcsDate } from "#shared/ics.ts";
 import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import { isPublicListing } from "#shared/listing-visibility.ts";
 import { nowIso } from "#shared/now.ts";
@@ -41,24 +42,9 @@ import {
 } from "#shared/sort-listings.ts";
 import type { Attendee, NewsPostSummary } from "#shared/types.ts";
 
-/** Escape text for ICS (RFC 5545): backslash-escape special characters */
-export const escapeIcs = (text: string): string =>
-  text
-    .replace(/\\/g, "\\\\")
-    .replace(/;/g, "\\;")
-    .replace(/,/g, "\\,")
-    .replace(/\n/g, "\\n");
-
 /** Escape text for XML (extends HTML escaping with apostrophe) */
 export const escapeXml = (text: string): string =>
   escapeHtml(text).replace(/'/g, "&apos;");
-
-/** Format a date string as ICS UTC timestamp (YYYYMMDDTHHMMSSZ) */
-const formatIcsDate = (dateStr: string): string =>
-  new Date(dateStr)
-    .toISOString()
-    .replace(/[-:]/g, "")
-    .replace(/\.\d{3}/, "");
 
 /** Format a date string as RFC 822 (for RSS pubDate) */
 const formatRfc822 = (dateStr: string): string =>
@@ -126,16 +112,6 @@ const loadFeedData = async (): Promise<FeedData> => {
     ],
     title: settings.websiteTitle || "Listings",
   };
-};
-
-/** Append the shared DTSTART/LOCATION lines for anything carrying a date and
- * location — feed items and (via the admin calendar's VEVENTs) listings. */
-const appendItemSchedule = (
-  lines: string[],
-  item: { date: string | null; location: string },
-): void => {
-  if (item.date) lines.push(`DTSTART:${formatIcsDate(item.date)}`);
-  if (item.location) lines.push(`LOCATION:${escapeIcs(item.location)}`);
 };
 
 const buildVListing = (

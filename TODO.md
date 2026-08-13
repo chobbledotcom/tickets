@@ -2089,3 +2089,42 @@ promising shape is to give `mutation:audit-equivalents` a way to attempt a
 distinguishing input for each entry — or, failing that, an explicit re-audit
 stamp so an entry has to be re-confirmed after the file it lives in changes
 shape, instead of resting on a proof nobody has re-read since it was written.
+
+---
+
+## CalDAV pull direction — descoped by the owner (from PR #2064)
+
+The CalDAV feature was rescoped to **push-only** (site → calendar mirror) by the
+owner on PR #2064: calendar edits do not flow back, events created or deleted in
+the calendar do nothing here, and setup is paste-the-address. The shipped
+contract is `docs/caldav-two-way-sync.md`.
+
+If the pull direction is ever wanted, do not redesign it from scratch: the full
+two-way behavior contract — three adversarial review rounds deep, with etag/ctag
+change detection, per-listing conflict rules, booked-listing review holds,
+remote create/delete policies, and their concurrency guards — is in this repo's
+git history:
+
+```sh
+git show 1be31c4:docs/caldav-two-way-sync.md
+```
+
+Starting point: that document's "Commands and events" table, plus the review
+threads on PR #2064 (rounds 1–3) which record every known failure mode and its
+agreed fix.
+
+---
+
+## CalDAV contract doc — trim the draft preamble and review history when the implementation lands (from PR #2064)
+
+CodeRabbit on PR #2064 asked for `docs/caldav-two-way-sync.md` to stop carrying
+its draft-status preamble and the round-by-round adversarial-review history,
+because merged prose should describe current behavior only. While the contract
+is a draft under active review, those sections are the working record that
+PR_WORKFLOW.md's challenge step and the reviewers navigate by, so they stay for
+now. When the implementation PR ships: rewrite the document's opening to
+describe the shipped feature, delete the round-by-round history paragraphs in
+the "Adversarial review" section (keep the challenge-question answers), and
+shorten this file's pull-direction note above to the archive pointer alone.
+Starting point: the header and "Adversarial review" section of
+`docs/caldav-two-way-sync.md`.
