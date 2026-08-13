@@ -230,6 +230,10 @@ src/shared/stripe/webhook.ts::readHeaderPart.key~05rrw2z  1 → 2   # this chang
 
 # SumUp client: values that are never falsy apart from null.
 
+# Square session retrieval returns either an object or null. Objects are
+# truthy, so null is the only value for which either operator takes "skip".
+src/shared/square-provider.ts::squarePaymentProvider.resolveWebhookSession~08j5olw  ?? → ||   # RetrieveSessionResult is ValidatedPaymentSession | SessionRejection | null; both non-null members are objects, so ?? and || agree
+
 # rebrand scanner — four provably-equivalent survivors.
 # tagIsCode is read in exactly one place: stepTag's close, reachable only while
 # inTag is true — and every assignment of inTag=true (stepProse's unfinished
