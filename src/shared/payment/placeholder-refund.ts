@@ -46,12 +46,11 @@ const placeholderRefundNoteText = (
   attendeeId: number,
   refund: PlaceholderRefund,
   refunded: boolean,
-  referenceDetail: string,
 ): string => {
   const ledger = `[ledger](/admin/ledger/attendee/${attendeeId})`;
   return refunded
-    ? `This booking was kept at quantity 0 but its payment was refunded because ${refund.reason}.${referenceDetail} Please check the ${ledger}.`
-    : `This booking was kept at quantity 0 but its payment could NOT be refunded automatically because ${refund.reason}.${referenceDetail} Please refund it manually and check the ${ledger}.`;
+    ? `This booking was kept at quantity 0 but its payment was refunded because ${refund.reason}. Refund code: ${refund.code}. Please check the ${ledger}.`
+    : `This booking was kept at quantity 0 but its payment could NOT be refunded automatically because ${refund.reason}. Refund code: ${refund.code}. Please refund it manually and check the ${ledger}.`;
 };
 
 /** The PII-free system note for a quantity-0 placeholder refund. */
@@ -59,37 +58,4 @@ export const placeholderRefundNote = (
   attendeeId: number,
   refund: PlaceholderRefund,
   refunded: boolean,
-): string =>
-  placeholderRefundNoteText(
-    attendeeId,
-    refund,
-    refunded,
-    ` Refund code: ${refund.code}.`,
-  );
-
-const legacyRefundWarning = (
-  attendeeId: number,
-  refund: PlaceholderRefund,
-  paymentReference: string,
-): string =>
-  placeholderRefundNoteText(
-    attendeeId,
-    refund,
-    false,
-    ` Payment reference: ${paymentReference} (code: ${refund.code}).`,
-  );
-
-/** Every exact warning shape written before system-note names existed. */
-export const legacyRefundWarnings = (
-  attendeeId: number,
-  paymentReference: string,
-): Set<string> =>
-  new Set(
-    Object.keys(REFUND_REASONS).map((code) =>
-      legacyRefundWarning(
-        attendeeId,
-        placeholderRefund(code as RefundCode)(""),
-        paymentReference,
-      ),
-    ),
-  );
+): string => placeholderRefundNoteText(attendeeId, refund, refunded);

@@ -9,8 +9,6 @@ import { execute, queryAll } from "#shared/db/client.ts";
 import { createSystemNote } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { getRefundPaymentReferences } from "#shared/db/payment-references.ts";
-import { legacyRefundWarnings } from "#shared/payment/placeholder-refund.ts";
-import { requireValue } from "#shared/required-value.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -164,10 +162,7 @@ describeWithEnv("db > payment reference readiness", { db: true }, () => {
     );
     await createSystemNote(
       attendeeNotes(attendee.id),
-      requireValue(
-        [...legacyRefundWarnings(attendee.id, attendee.payment_id)][0],
-        "The legacy warning schema needs one message",
-      ),
+      "Historical unnamed payment warning",
     );
     const queries: string[] = [];
     const restore = recordQueries(queries);

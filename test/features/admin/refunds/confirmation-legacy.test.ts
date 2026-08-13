@@ -4,8 +4,6 @@ import { t } from "#i18n";
 import { queryOne } from "#shared/db/client.ts";
 import { createSystemNote, getNotesFor } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
-import { legacyRefundWarnings } from "#shared/payment/placeholder-refund.ts";
-import { requireValue } from "#shared/required-value.ts";
 import type { Attendee } from "#shared/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
@@ -20,12 +18,7 @@ import {
 const createLegacyWarning = (attendee: Attendee): Promise<void> =>
   createSystemNote(
     attendeeNotes(attendee.id),
-    requireValue(
-      [
-        ...legacyRefundWarnings(attendee.id, DEFAULT_PAYMENT.paymentReference),
-      ][0],
-      "The legacy warning schema needs one message",
-    ),
+    `This booking was kept at quantity 0 but its payment could NOT be refunded automatically because the event filled up while they were paying. Payment reference: ${DEFAULT_PAYMENT.paymentReference} (code: capacity_full). Please refund it manually and check the [ledger](/admin/ledger/attendee/${attendee.id}).`,
   );
 
 const capturedAttendee = (attendee: Attendee | null): Attendee => {
@@ -49,14 +42,14 @@ const setupLegacyWarningConfirmation = async (): Promise<{
   return { attendee: capturedAttendee(attendee), refund };
 };
 
-const expectNoLegacyWarning = async (
+const expectLegacyWarning = async (
   refund: Pick<ConfirmationFixture, "attendee" | "privateKey">,
 ): Promise<void> => {
   expect(
     (
       await getNotesFor(attendeeNotes(refund.attendee.id), refund.privateKey)
     ).filter((note) => note.note.includes("could NOT be refunded")),
-  ).toEqual([]);
+  ).toHaveLength(1);
 };
 
 const captureNewConfirmationQueries = async (
@@ -73,12 +66,12 @@ const captureNewConfirmationQueries = async (
 };
 
 describeWithEnv("admin refunds > legacy confirmation", { db: true }, () => {
-  test("retires an exact unnamed warning through bounded attendee-only pages", async () => {
+  test("confirms old money without scanning historical unnamed notes", async () => {
     const refund = await setupConfirmation([DEFAULT_PAYMENT], {
       anchorOnly: true,
       beforeClaim: async (attendee) => {
         const target = attendeeNotes(attendee.id);
-        for (let index = 0; index < 40; index++) {
+        for (let index = 0; index < 100; index++) {
           await createSystemNote(target, `Unrelated imported note ${index}`);
         }
         await createLegacyWarning(attendee);
@@ -96,7 +89,7 @@ describeWithEnv("admin refunds > legacy confirmation", { db: true }, () => {
         note.note.includes("could NOT be refunded"),
       ),
     ).toHaveLength(1);
-    expect(beforeConfirmation).toHaveLength(42);
+    expect(beforeConfirmation).toHaveLength(102);
     expect(refund.references).toHaveLength(1);
     const storedPayments = await queryOne<{ count: number }>(
       `SELECT COUNT(*) AS count
@@ -108,28 +101,26 @@ describeWithEnv("admin refunds > legacy confirmation", { db: true }, () => {
 
     const queries = await captureNewConfirmationQueries(refund);
 
-    const legacyReads = queries.filter(
-      (sql) =>
-        sql.includes("FROM system_notes AS note") &&
-        sql.includes("note.id > ?"),
+    const legacyReads = queries.filter((sql) =>
+      sql.includes("FROM system_notes AS note"),
     );
-    expect(legacyReads).toHaveLength(3);
-    expect(legacyReads.every((sql) => sql.includes("LIMIT ?"))).toBe(true);
-    expect(legacyReads.every((sql) => !sql.includes("pii_blob"))).toBe(true);
+    expect(legacyReads).toEqual([]);
 
     const notes = (await getNotesFor(target, refund.privateKey)).map(
       (note) => note.note,
     );
-    expect(notes).toHaveLength(42);
+    expect(notes).toHaveLength(103);
     expect(notes).toContain("Unrelated imported note 0");
-    expect(notes).toContain("Unrelated imported note 39");
+    expect(notes).toContain("Unrelated imported note 99");
     expect(notes).toContain(
       `Imported provider note for ${refund.reference.reference}; keep this history.`,
     );
     expect(notes).toContain(t("note.placeholder_refund_confirmed"));
-    expect(notes.some((note) => note.includes("could NOT be refunded"))).toBe(
-      false,
+    const legacyWarnings = notes.filter((note) =>
+      note.includes("could NOT be refunded"),
     );
+    expect(legacyWarnings).toHaveLength(1);
+    expect(legacyWarnings[0]).toContain(DEFAULT_PAYMENT.paymentReference);
   });
 
   test("does not scan note history for a current payment", async () => {
@@ -148,12 +139,12 @@ describeWithEnv("admin refunds > legacy confirmation", { db: true }, () => {
     ).toBe(false);
   });
 
-  test("replay keeps the retired anchor warning gone", async () => {
+  test("replay leaves the historical unnamed warning untouched", async () => {
     const { refund } = await setupLegacyWarningConfirmation();
     expect(await confirmFixturePaymentAndReplay(refund)).toEqual([
       "new",
       "current",
     ]);
-    await expectNoLegacyWarning(refund);
+    await expectLegacyWarning(refund);
   });
 });

@@ -2059,9 +2059,12 @@ not touch `src/`.
 
 M4 Part A made one interactive request safe and bounded. `getRefundAllSummary`
 (`src/shared/db/refund-all-candidates.ts`) checks the whole listing through
-indexed, PII-free facts and refuses any visible review or unrecorded-money
-blocker. `loadRefundAllBatch` then selects at most five people, with claimed
-work first; the exact claim decision later distinguishes a live run from
+indexed, PII-free facts and refuses a visible review or unrecorded-money blocker
+on any attendee who is still part of the refundable set. The blocker check runs
+before paging, so an unsafe candidate beyond the first five still closes the
+command. A settled non-candidate's independently protected work does not strand
+an unrelated refund. `loadRefundAllBatch` then selects at most five people, with
+claimed work first; the exact claim decision later distinguishes a live run from
 recoverable stale work. Only those PII blobs are decrypted. The exact selected
 page goes through the same claim and physical provider/database budget as a
 single refund. It either refuses before fresh provider I/O or processes that
@@ -2251,13 +2254,16 @@ There is also one fail-closed but incomplete admin state: the final transaction
 arms a keyless send before the process calls SumUp. If the process dies in that
 gap, a later run cannot distinguish "never called" from "called, response lost",
 so M4 observes only and opens `uncertain_keyless_refund`. Provider proof can
-retire it, but if the call never happened it has no finite resolution today.
-This is NOT an acceptable terminal design: it avoids a possible second payout,
-but can leave an operator action blocked forever. The durable attempt model must
-close BOTH this pre-call gap and the callback gap. Acknowledgement is not a
-resolution and a generic clear is unsafe. The missing exit is a required,
-revision-fenced owner choice whose wording and risk are approved with the
-callback/keyless recovery behavior contract.
+retire it, but if the call never happened it has no finite resolution today. M4
+reserves the complete provider-send and recording allowance around that arm, so
+a budget failure cannot manufacture this state: an over-budget arm rolls back
+and is definitely unsent. The remaining ambiguity is specifically process death
+after a successful durable arm. This is NOT an acceptable terminal design: it
+avoids a possible second payout, but can leave an operator action blocked
+forever. The durable attempt model must close BOTH this pre-call gap and the
+callback gap. Acknowledgement is not a resolution and a generic clear is unsafe.
+The missing exit is a required, revision-fenced owner choice whose wording and
+risk are approved with the callback/keyless recovery behavior contract.
 
 Stage one durable callback claim before every callback refund send, naming the
 exact charge identity, capability, amount, currency, scope, and deterministic

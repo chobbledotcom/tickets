@@ -405,17 +405,25 @@ As-built module map:
   `subrequest-budget.ts`, and `db/client.ts` price physical provider retries,
   database retries, rollback, settlement, and caller tails at several
   checkpoints before fresh provider I/O. A selected command that cannot fit
-  refuses without narrowing or sending. Provider calls overlap by at most five.
-  One attendee may still carry many references, so even a small selected page
-  can refuse safely. `logger.ts:withDeferredErrorReports` queues non-critical
-  activity, notification, and Sentry fan-out until the money-critical command
-  finishes, and flushes the queue even on a throw, so diagnostics cannot consume
-  the subrequests reserved for settlement or rollback.
+  refuses without narrowing or sending. Dispatch reserves the exact post-arm
+  send, bounded reread, and returned-money recording allowance around the arm
+  transaction itself. An arm retry therefore cannot consume the permission it is
+  about to persist: exhaustion before commit is proved `not_sent`, while a
+  durable keyless `send_armed` phase is reserved for a genuinely uncertain
+  dispatch. Provider calls overlap by at most five. One attendee may still carry
+  many references, so even a small selected page can refuse safely.
+  `logger.ts:withDeferredErrorReports` queues non-critical activity,
+  notification, and Sentry fan-out until the money-critical command finishes,
+  and flushes the queue even on a throw, so diagnostics cannot consume the
+  subrequests reserved for settlement or rollback.
 - **Refund All admission.** `db/refund-all-candidates.ts` first computes a
   PII-free whole-listing count and detects any visible `review` or `unrecorded`
-  blocker from indexed state. It then loads and decrypts at most five candidate
-  PII blobs, with existing claims first, and passes exactly that page through
-  the same claim and budget admission as a single refund.
+  blocker among that same complete refundable set. Settled non-candidates keep
+  their own protection and repair state but cannot strand an unrelated refund.
+  The summary runs before the five-person limit, so a blocker on any refundable
+  candidate still refuses the whole command. It then loads and decrypts at most
+  five candidate PII blobs, with existing claims first, and passes exactly that
+  page through the same claim and budget admission as a single refund.
   `features/admin/refunds/candidates.ts:getRefundCandidates` drops quantity-zero
   rows and deduplicates by attendee before loading references, so several
   booking rows for one person consume one place, one tally, and one
@@ -437,15 +445,17 @@ As-built module map:
   fixed number of database calls rather than one loop per attendee.
 - **Confirmation and review.** `features/admin/refunds/confirmation.ts`,
   `db/refund-confirmations.ts`, `db/payment-review.ts`,
-  `db/notes/{queries,types,legacy-refund-warnings}.ts`, and migration
+  `db/notes/{queries,types}.ts`, and migration
   `2026-08-12_refund_confirmations.ts` store one replay-safe confirmation keyed
   by the attendee and sorted provider-aware blind indexes. The confirmation,
   held-row assertion, generic activity, exact warning deletes, and optional
-  named note commit together. Modern confirmation never scans note history. An
-  explicit old anchor confirmation examines only that attendee's unnamed notes
-  in twenty-row decryption waves; an exceptionally long history may still run
-  out of request budget and leave that old payment unavailable, but it never
-  widens to other attendees. Owner review acknowledgement stamps only the exact
+  named note commit together. Confirmation never scans or decrypts historical
+  unnamed note history, including for an old anchor. Pre-naming manual-refund
+  warnings are compatibility history: a successful indexed confirmation leaves
+  them visible beside the authoritative confirmation, and the owner may delete
+  each note through the ordinary note action. This deliberately trades automatic
+  cleanup of old display history for constant request work; do not restore a
+  history scan to tidy it. Owner review acknowledgement stamps only the exact
   case revision; it does not clear the marker, authorize a refund, or decide an
   allocation. `PaymentWorkStatus` is exactly
   `clear | moving |

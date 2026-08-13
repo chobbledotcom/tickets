@@ -112,7 +112,9 @@ const refundCandidateCtes = (): string => `
     SELECT attendee.id,
            attendee.pii_blob,
            attendee.refunded,
-           payment.has_claim
+           payment.has_claim,
+           payment.needs_review,
+           payment.needs_money_record
       FROM bookingAttendee AS attendee
       JOIN paymentAttendee AS payment ON payment.attendee_id = attendee.id
      WHERE attendee.refunded = 0
@@ -124,11 +126,11 @@ const refundCandidateCtes = (): string => `
 const summaryStatement = (listingId: number): SqlStatement => ({
   args: [listingId],
   sql: `${refundCandidateCtes()}
-    SELECT (SELECT COUNT(*) FROM refundable) AS total,
-           COALESCE(MAX(paymentAttendee.needs_review), 0) AS owner_review,
-           COALESCE(MAX(paymentAttendee.needs_money_record), 0)
+    SELECT COUNT(*) AS total,
+           COALESCE(MAX(refundable.needs_review), 0) AS owner_review,
+           COALESCE(MAX(refundable.needs_money_record), 0)
              AS unrecorded_money
-      FROM paymentAttendee`,
+      FROM refundable`,
 });
 
 const batchStatement = (listingId: number): SqlStatement => ({
@@ -161,7 +163,7 @@ const readAttendees = (result: ResultSet): RefundAllCandidateAttendee[] =>
     refunded: Boolean(row.refunded),
   }));
 
-/** Count the complete indexed set and report visible send blockers. */
+/** Count the complete refundable set and report its visible send blockers. */
 export const getRefundAllSummary = async (
   listingId: number,
 ): Promise<RefundAllSummary> => {

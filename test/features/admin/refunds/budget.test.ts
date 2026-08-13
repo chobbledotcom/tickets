@@ -112,7 +112,7 @@ describe("admin refund subrequest budget", () => {
         (checkpoint) => refundPreparedSubrequestCost(prepared, checkpoint),
       ),
     ).toEqual([
-      { database: 10, external: 0, total: 10 },
+      { database: 10, external: 2, total: 12 },
       { database: 5, external: 2, total: 7 },
     ]);
   });

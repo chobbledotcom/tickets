@@ -3,7 +3,10 @@ import type {
   ArmRefundDispatchResult,
   armRefundDispatch,
 } from "#shared/db/payment-refund-dispatch.ts";
-import { getSubrequestRemaining } from "#shared/subrequest-budget.ts";
+import {
+  getSubrequestRemaining,
+  withSubrequestReserve,
+} from "#shared/subrequest-budget.ts";
 import {
   type CandidateRefund,
   finishPreparedCandidate,
@@ -183,7 +186,7 @@ const sendPreparedWaves = async (
   return sent;
 };
 
-/** Prepare the whole batch, arm its exact send set once, then dispatch it. */
+/** Prepare the whole batch, protect its send allowance, then arm and dispatch. */
 export const dispatchRefundBatch = async (
   candidates: readonly ReadyRefundCandidate[],
   listingId: number,
@@ -205,10 +208,14 @@ export const dispatchRefundBatch = async (
   const authorization =
     references.length === 0
       ? undefined
-      : await arm({
-          ...held.claim,
-          indexes: references.map(({ index }) => index),
-        });
+      : await withSubrequestReserve(
+          refundPreparedSubrequestCost(budget, "before_provider_send"),
+          () =>
+            arm({
+              ...held.claim,
+              indexes: references.map(({ index }) => index),
+            }),
+        );
   if (authorization?.kind === "armed") {
     rememberArmed(
       authorization,
@@ -216,9 +223,6 @@ export const dispatchRefundBatch = async (
       attendeesByReference(candidates),
       held.findings,
     );
-    if (!budgetFits(budget, "before_provider_send")) {
-      return refuseForBudget();
-    }
   }
 
   return {

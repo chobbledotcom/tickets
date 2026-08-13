@@ -64,7 +64,7 @@ const physicalCalls = (
   return logicalCalls(plan) * plan.networkAttempts;
 };
 
-type ProviderCallStage = "complete" | "judgment" | "none" | "send";
+type ProviderCallStage = "complete" | "judgment" | "send";
 
 export type RefundBudgetCheckpoint =
   | "before_claim"
@@ -85,7 +85,7 @@ export type RefundDispatchBudgetCheckpoint = Extract<
 
 const PROVIDER_CALL_STAGES = {
   before_claim: "complete",
-  before_dispatch_arm: "none",
+  before_dispatch_arm: "send",
   before_provider_read: "judgment",
   before_provider_send: "send",
   inside_claim: "complete",
@@ -116,7 +116,6 @@ const logicalCallsAt = (
     complete: ({ judgmentReads, recoveryReads, sends }: ProviderCallPlan) =>
       judgmentReads + recoveryReads + sends,
     judgment: ({ judgmentReads }: ProviderCallPlan) => judgmentReads,
-    none: (_plan: ProviderCallPlan) => 0,
     send: ({ recoveryReads, sends }: ProviderCallPlan) => recoveryReads + sends,
   } satisfies Record<ProviderCallStage, (plan: ProviderCallPlan) => number>;
   return calls[stage];
@@ -205,9 +204,11 @@ const REFRESH_COMPLETION_DATABASE_CALLS =
   REFUND_CONFIRMATION_DATABASE_CALLS;
 
 /**
- * Each checkpoint prices only work before its next safe refusal. Arming is its
- * own transaction; recording a return is one marker write plus the fixed refund
- * ledger batch. Settlement and the caller tail have separate nested reserves.
+ * Each checkpoint prices work through its next safe refusal. The pre-arm gate
+ * includes the send tail because a durable arm leaves no safe late refusal;
+ * dispatch holds that tail aside while the arm transaction runs. Recording a
+ * return is one marker write plus the fixed refund ledger batch. Settlement and
+ * the caller tail have separate nested reserves.
  */
 const DATABASE_CALL_PLANS = {
   before_claim: {

@@ -189,6 +189,44 @@ describeWithEnv(
       );
     });
 
+    test("a review on a settled payment does not block another candidate", async () => {
+      const listing = await createPaidListing();
+      const settled = await createPaidTestAttendee(
+        listing.id,
+        "Settled Payment",
+        "settled-payment@example.com",
+        "pi_settled_review",
+      );
+      await createPaidTestAttendee(
+        listing.id,
+        "Refund Candidate",
+        "refund-candidate@example.com",
+        "pi_remaining_candidate",
+      );
+      const settledCandidate = (await refundCandidatesFor(listing.id)).find(
+        ({ attendee }) => attendee.id === settled.id,
+      );
+      if (settledCandidate === undefined) {
+        throw new Error("The settled attendee has no payment candidate");
+      }
+      await markPaymentReferencesProviderRefunded(settledCandidate.references);
+      await markAsRefunded(settled.id);
+      await putRowState(
+        paymentRowOf(settledCandidate),
+        await rowStateSlot({
+          review: reviewCase({ kind: "partial_refund" }),
+        }),
+        REVIEW_MIRROR,
+      );
+
+      await withRefundMock(refundIsRejected, async (mockRefund) => {
+        await postRefundAll(listing);
+        expect(
+          mockRefund.calls.map((call) => call.args[0].paymentReference),
+        ).toEqual(["pi_remaining_candidate"]);
+      });
+    });
+
     test("more claims than one batch retire a bounded batch without deadlocking", async () => {
       const listing = await createPaidListing({ maxAttendees: 500 });
       await seedTaggedBatchAttendees(

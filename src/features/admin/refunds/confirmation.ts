@@ -3,7 +3,6 @@ import { requiredMapValue, sortStrings, unique } from "#fp";
 import { t } from "#i18n";
 import { logActivity } from "#shared/db/activity-log.ts";
 import { withTransaction } from "#shared/db/client.ts";
-import { legacyRefundWarningDeleteStatements } from "#shared/db/notes/legacy-refund-warnings.ts";
 import {
   createNamedSystemNote,
   deleteNamedSystemNotes,
@@ -49,14 +48,6 @@ export const confirmRefund = async (
       refund.references.flatMap((reference) => [...reference.matchingIndexes]),
     ),
   );
-  const legacyReferences = returnedValues(
-    refund.references.filter((reference) => reference.sessionIds.length === 0),
-    ({ reference }) => reference,
-  );
-  const legacyWarningDeletes = await legacyRefundWarningDeleteStatements(
-    refund.attendee.id,
-    legacyReferences,
-  );
   const target = attendeeNotes(refund.attendee.id);
   const confirmation = t("note.placeholder_refund_confirmed");
   const sessionIds = requiredMapValue(
@@ -86,9 +77,6 @@ export const confirmRefund = async (
       referenceIndexes,
     });
     await deleteNamedSystemNotes(target, "refund_warning", warningIndexes, tx);
-    if (legacyWarningDeletes.length > 0) {
-      await tx.batch(legacyWarningDeletes);
-    }
     if (written.kind === "current") return "current";
     await logActivity(
       "Payment marked as refunded",

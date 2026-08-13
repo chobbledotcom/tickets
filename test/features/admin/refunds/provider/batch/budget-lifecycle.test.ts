@@ -1,105 +1,132 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { REFUND_BUDGET_MESSAGES } from "#routes/admin/refunds/budget.ts";
-import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
-import { REFUND_NETWORK_RETRIES } from "#shared/payment/refund-network.ts";
+import { refundPreparedSubrequestCost } from "#routes/admin/refunds/budget.ts";
+import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
 import {
   countSubrequest,
   getSubrequestRemaining,
 } from "#shared/subrequest-budget.ts";
 import { armEveryRefund } from "#test/features/admin/refunds/provider/dispatch-helpers.ts";
 import {
-  candidate,
   candidateWithReferences,
-  processRefundBatchAt,
+  prepareAtProvider,
   provider,
   rowBackedReference,
 } from "#test/features/admin/refunds/provider/helpers.ts";
-import { chargeMoney, fullyRefundedMoney } from "#test-utils/payment-state.ts";
 import { grantingRowClaim } from "#test-utils/refund-routes.ts";
 
-const postArmBudgetRace = () => {
-  const arm = armEveryRefund();
-  return async (request: Parameters<typeof arm>[0]) => {
-    const armed = await arm(request);
-    const sendEnvelope = 2 * (REFUND_NETWORK_RETRIES.stripe + 1);
-    while (getSubrequestRemaining().total >= sendEnvelope) {
-      countSubrequest("database", "work racing the dispatch arm");
-    }
-    return armed;
-  };
-};
-
-const expectBudgetRefusal = (result: unknown): void => {
-  expect(result).toMatchObject({
-    kind: "not_ready",
-    message: REFUND_BUDGET_MESSAGES.bulk,
-    reason: "subrequest_budget",
-  });
-};
-
 describe("admin refund provider > late budget lifecycle", () => {
-  test("keeps inherited keyed work protected when no retry can fit", async () => {
+  test("a pre-arm refusal keeps inherited keyed work protected", async () => {
     const attendeeId = 72;
     const reference = "pi_inherited_budget";
+    const index = `index_of_stripe_${reference}`;
     const sessionId = `sess_${reference}`;
+    const source = provider();
     const claim = grantingRowClaim(
       new Map([[attendeeId, [sessionId]]]),
-      new Map([
-        [
+      new Map([[attendeeId, new Map([[index, "keyed" as const]])]]),
+    );
+    const prepare = prepareAtProvider(source);
+    const dispatchCost = refundPreparedSubrequestCost(
+      {
+        mayRecordReturns: true,
+        sendReferences: [{ index, provider: "stripe" }],
+      },
+      "before_dispatch_arm",
+    );
+    let armCalled = false;
+
+    const result = await processRefundBatch(
+      [
+        candidateWithReferences(
+          [rowBackedReference(reference, sessionId)],
           attendeeId,
-          new Map([[`index_of_stripe_${reference}`, "keyed" as const]]),
-        ],
-      ]),
-    );
-    const source = provider();
-
-    const result = await processRefundBatchAt(
-      source,
-      [candidate([{ reference }], attendeeId)],
+        ),
+      ],
       7,
-      { arm: postArmBudgetRace(), claim },
+      {
+        arm: async (request) => {
+          armCalled = true;
+          return await armEveryRefund()(request);
+        },
+        claim,
+        prepare: async (...args) => {
+          const ready = await prepare(...args);
+          while (getSubrequestRemaining().total >= dispatchCost.total) {
+            countSubrequest("database", "work before refund dispatch");
+          }
+          return ready;
+        },
+      },
     );
 
-    expectBudgetRefusal(result);
-    expect(source.reads).toEqual([reference]);
+    expect(result).toMatchObject({
+      kind: "not_ready",
+      reason: "subrequest_budget",
+    });
+    expect(armCalled).toBe(false);
     expect(source.refunds).toEqual([]);
     expect(claim.released).toEqual([]);
   });
 
-  test("durably marks a returned sibling before releasing an unsent one", async () => {
-    const attendeeId = 73;
-    const returnedReference = "pi_returned_budget";
-    const unsentReference = "pi_unsent_budget";
-    const returnedSession = `sess_${returnedReference}`;
-    const unsentSession = `sess_${unsentReference}`;
-    const candidate: RefundCandidate = candidateWithReferences(
-      [
-        rowBackedReference(returnedReference, returnedSession),
-        rowBackedReference(unsentReference, unsentSession),
-      ],
-      attendeeId,
-    );
-    const claim = grantingRowClaim(
-      new Map([[attendeeId, [returnedSession, unsentSession]]]),
-    );
+  test("a keyless arm cannot spend the provider-send allowance", async () => {
+    const attendeeId = 71;
+    const reference = "pi_keyless_arm_budget";
+    const index = `index_of_sumup_${reference}`;
+    const sessionId = `sess_${reference}`;
     const source = provider({
-      read: (reference) =>
-        Promise.resolve(
-          reference === returnedReference
-            ? fullyRefundedMoney()
-            : chargeMoney(),
+      paymentProvider: "sumup",
+      refundCapability: "keyless",
+    });
+    const claim = grantingRowClaim(new Map([[attendeeId, [sessionId]]]));
+    const prepare = prepareAtProvider(source);
+    const preparedBudget = {
+      mayRecordReturns: true,
+      sendReferences: [{ index, provider: "sumup" as const }],
+    };
+    const beforeArm = refundPreparedSubrequestCost(
+      preparedBudget,
+      "before_dispatch_arm",
+    );
+    const afterArm = refundPreparedSubrequestCost(
+      preparedBudget,
+      "before_provider_send",
+    );
+    const armDatabaseCalls = beforeArm.database - afterArm.database;
+    const exactDispatchTotal = afterArm.total + armDatabaseCalls;
+    const arm = armEveryRefund("keyless");
+    let durableArmReached = false;
+
+    const run = processRefundBatch(
+      [
+        candidateWithReferences(
+          [rowBackedReference(reference, sessionId)],
+          attendeeId,
         ),
-    });
+      ],
+      7,
+      {
+        arm: async (request) => {
+          for (let call = 0; call <= armDatabaseCalls; call++) {
+            countSubrequest("database", "refund arm retry");
+          }
+          durableArmReached = true;
+          return await arm(request);
+        },
+        claim,
+        prepare: async (...args) => {
+          const ready = await prepare(...args);
+          while (getSubrequestRemaining().total > exactDispatchTotal) {
+            countSubrequest("database", "work before refund dispatch");
+          }
+          return ready;
+        },
+      },
+    );
 
-    const result = await processRefundBatchAt(source, [candidate], 7, {
-      arm: postArmBudgetRace(),
-      claim,
-    });
-
-    expectBudgetRefusal(result);
+    await expect(run).rejects.toThrow("Subrequest allowance exceeded");
+    expect(durableArmReached).toBe(false);
     expect(source.refunds).toEqual([]);
-    expect(claim.unrecorded).toEqual([[returnedSession]]);
-    expect(claim.released).toEqual([[returnedSession, unsentSession]]);
+    expect(claim.released).toEqual([[sessionId]]);
   });
 });

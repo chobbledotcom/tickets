@@ -228,7 +228,7 @@ describeWithEnv(
       expect(granted.released).toHaveLength(1);
     });
 
-    test("rechecks the send envelope after arming before any refund call", async () => {
+    test("keeps the Stripe send envelope protected while arming", async () => {
       await settings.update.stripe.secretKey("sk_test_budget");
       const source = provider();
       const granted = grantingRowClaim(
@@ -251,14 +251,17 @@ describeWithEnv(
         record: recordEveryRefund,
       });
 
-      expectBudgetRefusal(result);
+      expect(result).toMatchObject({
+        counts: { failedCount: 1 },
+        kind: "finished",
+      });
       expect(source.reads).toEqual(["pi_budget_71_0"]);
       expect(armCalls).toBe(1);
-      expect(source.refunds).toEqual([]);
+      expect(source.refunds).toEqual(["pi_budget_71_0"]);
       expect(granted.released).toEqual([["session_pi_budget_71_0"]]);
     });
 
-    test("refuses after arming when the five-call result tail no longer fits", async () => {
+    test("keeps the returned-payment tail protected while arming", async () => {
       await settings.update.stripe.secretKey("sk_test_budget");
       const source = provider({ paymentProvider: "square" });
       const granted = grantingRowClaim(
@@ -284,9 +287,12 @@ describeWithEnv(
         record: recordEveryRefund,
       });
 
-      expectBudgetRefusal(result);
+      expect(result).toMatchObject({
+        counts: { failedCount: 1 },
+        kind: "finished",
+      });
       expect(armCalls).toBe(1);
-      expect(source.refunds).toEqual([]);
+      expect(source.refunds).toEqual(["pi_budget_72_0"]);
     });
 
     test("refuses returned no-send work before its ledger when only four calls remain", async () => {
