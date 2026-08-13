@@ -212,13 +212,21 @@ New raw provider references in `processed_payments` are encrypted to the owner's
 public key. Equality uses a DB-keyed one-way index, and SQL-only consumers see a
 plain state word, never the reference. A holder of only the database and
 `DB_ENCRYPTION_KEY` therefore cannot open new raw references or attendee PII.
-Historical plaintext `processed_payments.payment_reference` values remain
-readable compatibility evidence until a later migration or redaction: saving
-that attendee adds the new owner-encrypted indexed anchor, but deliberately does
-not rewrite or delete the historical row. Old DB-key-encrypted refund-warning
-notes remain until the owner's explicit confirmation. There is no global
-decrypt-and-rewrite pass: the compatibility limit is recorded rather than paid
-for by an unbounded request.
+`processed_payments.failure_data` has a deliberately different boundary: it is
+DB-key encrypted, so that same holder can open its lifecycle metadata. Keep it
+limited to attendee and command ids, times, finite review/claim/outcome reasons,
+and terminal display text (which may include a listing name); raw provider
+references and buyer PII must never enter it. Its only compatibility readers
+upgrade an old bare terminal failure to `outcome` and give an old bare review a
+deterministic `legacy:<kind>` case id. Historical plaintext
+`processed_payments.payment_reference` values remain readable compatibility
+evidence until a later migration or redaction: saving that attendee adds the new
+owner-encrypted indexed anchor, but deliberately does not rewrite or delete the
+historical row. Old DB-key-encrypted refund-warning notes survive confirmation
+and remain until the owner deletes them individually or a later
+migration/redaction removes them. There is no global decrypt-and-rewrite pass:
+the compatibility limit is recorded rather than paid for by an unbounded
+request.
 
 Do not copy `payment-runtime/legacy-replay.ts`, `legacy-sumup.ts`,
 `operator-legacy-read.ts`, or any equivalent runtime branch selected by record
@@ -356,7 +364,10 @@ As-built module map:
   state word. Old PII-only or unindexed references gain an anchor only when that
   attendee is saved; refund reads never scan or decrypt the attendee table and
   never repair unrelated people as a side effect. Until then, those older
-  payments have less refund functionality by design.
+  payments have less refund functionality by design. Anchoring is append-only
+  and idempotent: re-saving does not duplicate an identity, changing the legacy
+  PII payment id preserves the earlier indexed identity, and an existing current
+  indexed checkout row suppresses a redundant anchor.
 - **Provider ownership.** `payment/provider-discovery.ts`,
   `db/payment-reference-provider.ts`, and
   `features/admin/refunds/{readiness,readiness-findings,readiness-problem,ready-admission,readiness-run}.ts`
@@ -393,13 +404,19 @@ As-built module map:
   `checking -> ready ->
   send_armed` make the final all-row transaction the
   only source of typed send permits. Stripe and Square declare `keyed`; SumUp
-  declares `keyless`. A stale keyed armed call can repeat the exact idempotent
-  request. A stale keyless armed call may only be observed and, while settlement
-  is unproved, becomes explicit `uncertain_keyless_refund` work rather than
-  risking a second payout. Paid-balance completion uses
-  `db/payment-finalize.ts:balanceFinalizeStatements`, whose transaction guard
-  aborts while an admin refund claim holds that attendee; the callback retries
-  instead of racing a booking-finalization write against money leaving.
+  declares `keyless`. The claim lease is the larger of reservation staleness and
+  a five-minute minimum, so an operator cannot tune a live request into a stale
+  claim. Stale `checking` or `ready` work restarts at `checking`; only stale
+  `send_armed` work inherits possible provider doubt. A stale keyed armed call
+  can repeat the exact idempotent request. A stale keyless armed call may only
+  be observed and, while settlement is unproved, becomes explicit
+  `uncertain_keyless_refund` work rather than risking a second payout.
+  Settlement matches the exact command id, lease time, and current row phase, so
+  a stalled predecessor cannot release a successor's claim. Paid-balance
+  completion uses `db/payment-finalize.ts:balanceFinalizeStatements`, whose
+  transaction guard aborts while an admin refund claim holds that attendee; the
+  callback retries instead of racing a booking-finalization write against money
+  leaving.
 - **Bounded orchestration.**
   `features/admin/refunds/{attempt,budget,candidates,claim,dispatch,provider,provider-requests,readiness-run,waves}.ts`,
   `subrequest-budget.ts`, and `db/client.ts` price physical provider retries,
@@ -478,10 +495,15 @@ As-built module map:
   `features/admin/{attendee-page,attendee-page-data,attendee-payment-review,attendees-route-helpers}.ts`
   and `ui/templates/admin/attendees.tsx` render from authoritative indexed
   payment work, not legacy PII `payment_id`, so a merge cannot hide the only
-  Refresh form. Clean evidence retires only the exact review it proves gone. In
-  particular, a returned-and-recorded reference retires its own `partial_refund`
-  review even when a sibling reference remains captured; acknowledgement alone
-  never retires it.
+  Refresh form. Clean evidence retires only the exact review it proves gone.
+  `PAYMENT_REVIEW_RETIREMENT` is exhaustive: `multiple_pending_refunds` and
+  `refund_exceeds_capture` need complete clean provider evidence;
+  `shared_reference` needs one unique indexed representation; and
+  `partial_refund`, `partially_returned_obligation`, and
+  `uncertain_keyless_refund` need every exact reference returned and recorded.
+  In particular, a returned-and-recorded reference retires its own
+  `partial_refund` review even when a sibling reference remains captured.
+  Acknowledgement retires none of them.
 - **Every destructive consumer.** `db/payment-admit-move.ts`,
   `db/attendees/dependent-data.ts`, `db/attendees/delete.ts`, `db/prune.ts`,
   `merge/attendee-merge.ts`, and `db/orphan-attendees.ts` make claims block
