@@ -13,8 +13,8 @@
  */
 
 /* jscpd:ignore-start -- imports */
+import { getEffectiveDomain } from "#shared/config.ts";
 import { logDebug } from "#shared/logger.ts";
-import { parsePriceProof } from "#shared/payment-signature.ts";
 import { refundWithOneReread } from "#shared/payment/refund-attempt.ts";
 import { requireProviderRefundAuthorization } from "#shared/payment/refund-provider-authorization.ts";
 import { chargeMoneyRead } from "#shared/payment/resources.ts";
@@ -27,6 +27,7 @@ import {
   toCheckoutResult,
   withCheckoutError,
 } from "#shared/payment-helpers.ts";
+import { parsePriceProof } from "#shared/payment-signature.ts";
 import type {
   CheckoutIntent,
   PaymentProvider,
@@ -127,34 +128,14 @@ const readSessionOrder = async (
   return read.resource;
 };
 
-const SQUARE_APP_METADATA_FIELDS = {
-  _origin: true,
-  address: true,
-  allocations: true,
-  answer_ids: true,
-  b: true,
-  balance_attendee_id: true,
-  date: true,
-  day_count: true,
-  email: true,
-  items: true,
-  modifiers: true,
-  name: true,
-  phone: true,
-  price_proof: true,
-  reservation_amount: true,
-  site_token_index: true,
-  special_instructions: true,
-  text_answer_ids: true,
-  thank_you_url: true,
-} as const satisfies Record<keyof SessionMetadata | "b", true>;
-
 type SquareOrderMetadata =
   | { kind: "ours"; metadata: SessionMetadata }
   | { kind: "foreign" }
   | { kind: "malformed" };
 
-/** Distinguish ordinary Square orders from damaged app checkouts. */
+/** Distinguish ordinary Square orders from damaged checkouts created by this
+ * site. Contact field names are common to unrelated Square orders; only the
+ * exact origin our checkout always writes is an app marker. */
 const classifyOrderMetadata = (
   metadata: SquareOrder["metadata"],
   requirePriceProof: boolean,
@@ -166,10 +147,9 @@ const classifyOrderMetadata = (
   ) {
     return { kind: "ours", metadata };
   }
-  const bearsAppField = Object.keys(metadata ?? {}).some((field) =>
-    Object.hasOwn(SQUARE_APP_METADATA_FIELDS, field)
-  );
-  return bearsAppField ? { kind: "malformed" } : { kind: "foreign" };
+  return metadata?._origin === getEffectiveDomain()
+    ? { kind: "malformed" }
+    : { kind: "foreign" };
 };
 
 const UNUSABLE_METADATA = {

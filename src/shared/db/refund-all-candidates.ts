@@ -16,7 +16,9 @@ import { requireValue } from "#shared/required-value.ts";
 
 /* jscpd:ignore-end */
 
-const REFUND_ALL_BATCH_SIZE = 5;
+// One attendee's complete payment set is the largest command whose provider,
+// authority, ledger, settlement, and route tail fit one edge request.
+const REFUND_ALL_BATCH_SIZE = 1;
 
 export type RefundAllCandidateAttendee = {
   readonly id: number;
@@ -80,7 +82,7 @@ const refundCandidateCtes = (): string => `
   paymentReference AS (
     SELECT payment.attendee_id,
            payment.payment_reference_index,
-           MAX(CASE WHEN payment.provider_refunded_at != '' THEN 1 ELSE 0 END)
+           MAX(CASE WHEN charge.refund_state_name = 'completed' THEN 1 ELSE 0 END)
              AS completed,
            MAX(CASE WHEN NOT ${anchorSession} THEN 1 ELSE 0 END)
              AS is_current,

@@ -1,4 +1,4 @@
-/* jscpd:ignore-start */
+/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { APIError } from "@sumup/sdk";
@@ -91,15 +91,30 @@ describe("sumup transactions", () => {
       });
     });
 
-    test("treats a refunded transaction as fully returned without event history", async () => {
+    test("refuses a refunded transaction without refund event evidence", async () => {
       await expectTransactionBody(transactionWire({ status: "REFUNDED" }), {
-        resource: {
-          amount: 10,
-          currency: "GBP",
-          refundEvents: [{ amount: 10, status: "REFUNDED" }],
-        },
-        status: "found",
+        reason: "missing_documented_resource",
+        status: "invalid",
       });
+    });
+
+    test("uses a refunded transaction's real refund event evidence", async () => {
+      await expectTransactionBody(
+        transactionWire({
+          status: "REFUNDED",
+          transaction_events: [
+            { amount: 10, event_type: "REFUND", status: "REFUNDED" },
+          ],
+        }),
+        {
+          resource: {
+            amount: 10,
+            currency: "GBP",
+            refundEvents: [{ amount: 10, status: "REFUNDED" }],
+          },
+          status: "found",
+        },
+      );
     });
 
     // Missing money stays missing for the money adapter to name precisely.
@@ -206,6 +221,24 @@ describe("sumup transactions", () => {
           status: "invalid",
         });
       });
+    });
+
+    test("accepts a documented payout deduction without treating it as a refund", async () => {
+      await expectTransactionBody(
+        transactionWire({
+          transaction_events: [
+            {
+              amount: 2,
+              event_type: "PAYOUT_DEDUCTION",
+              status: "PAID_OUT",
+            },
+          ],
+        }),
+        {
+          resource: { amount: 10, currency: "GBP", refundEvents: [] },
+          status: "found",
+        },
+      );
     });
 
     test("passes a failed read through SumUp failure classification", async () => {

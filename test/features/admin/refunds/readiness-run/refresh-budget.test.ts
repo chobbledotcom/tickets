@@ -1,9 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import {
-  REFUND_SETTLEMENT_SUBREQUEST_RESERVE,
-  refundReadinessSubrequestCost,
-} from "#routes/admin/refunds/budget.ts";
+import { refundReadinessSubrequestCost } from "#routes/admin/refunds/budget.ts";
 import type { RowClaim } from "#routes/admin/refunds/claim.ts";
 import { refreshClaimedPayment } from "#routes/admin/refunds/refresh.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -26,8 +23,10 @@ const REFUSED = {
 } as const;
 
 const references = (count: number, label: string) =>
-  Array.from({ length: count }, (_, offset) =>
-    tagged(`pi_${label}_${offset}`, "stripe", `${label}_${offset}`),
+  Array.from(
+    { length: count },
+    (_, offset) =>
+      tagged(`pi_${label}_${offset}`, "stripe", `${label}_${offset}`),
   );
 
 const runRefusedRefresh = async (
@@ -47,9 +46,40 @@ const runRefusedRefresh = async (
         providerReads++;
         throw new Error("Provider preparation exceeded its budget");
       },
-    }),
+    })
   );
   return { providerReads, result };
+};
+
+const runCountedRefresh = async (
+  attendeeId: number,
+  referenceCount: number,
+): Promise<{
+  claims: number;
+  providerReads: number;
+  result: Awaited<ReturnType<typeof refreshClaimedPayment>>;
+}> => {
+  await settings.update.stripe.secretKey("sk_test_refresh_budget");
+  const claimed = countedClaim();
+  let providerReads = 0;
+  const result = await runWithSubrequestBudget(() =>
+    refreshClaimedPayment(
+      candidate(attendeeId, references(referenceCount, "full")),
+      17,
+      {
+        claim: claimed.claim,
+        prepare: () => {
+          providerReads++;
+          return Promise.resolve({
+            kind: "not_ready",
+            observations: [],
+            reason: "claim_changed",
+          });
+        },
+      },
+    )
+  );
+  return { claims: claimed.count(), providerReads, result };
 };
 
 const countedClaim = (databaseCalls = 0) => {
@@ -123,10 +153,9 @@ describeWithEnv(
               claimed.returned,
               "before_provider_read",
             );
-            const remainingBeforeWork =
-              REFUND_SETTLEMENT_SUBREQUEST_RESERVE.total +
-              providerReadCost.total -
-              1;
+            // The claim wrapper already withholds settlement while this hook
+            // runs, so leave the provider-read plan one call short directly.
+            const remainingBeforeWork = providerReadCost.total - 1;
             while (getSubrequestRemaining().total > remainingBeforeWork) {
               countSubrequest("database", "work racing payment refresh");
             }
@@ -169,28 +198,20 @@ describeWithEnv(
       expect(providerReads).toBe(0);
     });
 
-    test("admits two reads when the complete command fits", async () => {
-      await settings.update.stripe.secretKey("sk_test_refresh_budget");
-      const claimed = countedClaim();
-      let providerReads = 0;
+    test("refuses two independently retryable observations before provider reads", async () => {
+      const run = await runCountedRefresh(27, 2);
 
-      const result = await runWithSubrequestBudget(() =>
-        refreshClaimedPayment(candidate(27, references(2, "full")), 17, {
-          claim: claimed.claim,
-          prepare: () => {
-            providerReads++;
-            return Promise.resolve({
-              kind: "not_ready",
-              observations: [],
-              reason: "claim_changed",
-            });
-          },
-        }),
-      );
+      expect(run.result).toEqual(REFUSED);
+      expect(run.claims).toBe(1);
+      expect(run.providerReads).toBe(0);
+    });
 
-      expect(result).toMatchObject({ kind: "not_ready" });
-      expect(claimed.count()).toBe(1);
-      expect(providerReads).toBe(1);
+    test("admits one observation with its full physical retry envelope", async () => {
+      const run = await runCountedRefresh(28, 1);
+
+      expect(run.result).toMatchObject({ kind: "not_ready" });
+      expect(run.claims).toBe(1);
+      expect(run.providerReads).toBe(1);
     });
   },
 );

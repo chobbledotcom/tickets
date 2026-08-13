@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { PaymentReviewReason } from "#shared/payment/review.ts";
 import {
   chargeMoney,
   chargeMoneyWith,
@@ -13,9 +12,38 @@ import {
   expectObligationReview,
   pendingRefundMoney,
   refresh,
+  type RefreshHarness,
   reviewChange,
   runHarness,
 } from "./helpers.ts";
+
+const NEEDS_OWNER_REVIEW = {
+  kind: "needs_review",
+  message:
+    "This payment needs an owner review before another refund can be attempted.",
+} as const;
+
+const expectReviewUnchanged = async (run: RefreshHarness): Promise<void> => {
+  expect(await refresh(run)).toEqual(NEEDS_OWNER_REVIEW);
+  expect(run.claim.reviewChanges).toEqual([new Map()]);
+  expect(run.claim.released).toEqual([run.reference.rowSessionIds]);
+};
+
+const expectCompletedReviewRetired = async (
+  reason: "partially_returned_obligation" | "shared_reference",
+): Promise<void> => {
+  const run = runHarness({
+    existingReview: { kind: reason },
+    observed: fullyRefundedMoney(),
+  });
+  expect(await refresh(run)).toMatchObject({
+    kind: "returned",
+    posted: true,
+  });
+  expect(run.claim.reviewChanges).toEqual([
+    reviewChange(run, { kind: "resolved", reason }),
+  ]);
+};
 
 describe("refresh payment under an attendee claim", () => {
   test("parks an unsafe returned obligation even while its sibling remains", async () => {
@@ -25,11 +53,7 @@ describe("refresh payment under an attendee claim", () => {
       siblingObserved: chargeMoney(),
     });
 
-    expect(await refresh(run)).toEqual({
-      kind: "needs_review",
-      message:
-        "This payment needs an owner review before another refund can be attempted.",
-    });
+    expect(await refresh(run)).toEqual(NEEDS_OWNER_REVIEW);
     expect(run.recorded).toEqual([[run.reference]]);
     expectObligationReview(run);
     expect(run.claim.released).toEqual([
@@ -44,11 +68,7 @@ describe("refresh payment under an attendee claim", () => {
       siblingObserved: pendingRefundMoney(),
     });
 
-    expect(await refresh(run)).toEqual({
-      kind: "needs_review",
-      message:
-        "This payment needs an owner review before another refund can be attempted.",
-    });
+    expect(await refresh(run)).toEqual(NEEDS_OWNER_REVIEW);
     expectObligationReview(run);
     expect(run.provider.refunds).toEqual([]);
     expect(run.claim.released).toEqual([
@@ -63,72 +83,26 @@ describe("refresh payment under an attendee claim", () => {
       }),
     });
 
-    expect(await refresh(run)).toEqual({
-      kind: "needs_review",
-      message:
-        "This payment needs an owner review before another refund can be attempted.",
-    });
-    expect(run.claim.reviewChanges).toEqual([new Map()]);
-    expect(run.claim.released).toEqual([run.reference.rowSessionIds]);
+    await expectReviewUnchanged(run);
   });
 
-  test("still requires review when clean provider evidence cannot retire the held case", async () => {
+  test("still requires review until returned money is recorded", async () => {
     const run = runHarness({
-      existingReview: { kind: "partial_refund" },
+      existingReview: { kind: "partially_returned_obligation" },
       observed: chargeMoney(),
     });
 
-    expect(await refresh(run)).toEqual({
-      kind: "needs_review",
-      message:
-        "This payment needs an owner review before another refund can be attempted.",
-    });
-    expect(run.claim.reviewChanges).toEqual([new Map()]);
-    expect(run.claim.released).toEqual([run.reference.rowSessionIds]);
+    await expectReviewUnchanged(run);
   });
 
-  test("a completed refresh retires reviews disproved by exact evidence", async () => {
-    const completedReviewReasons = [
-      { kind: "partial_refund" },
-      { kind: "partially_returned_obligation" },
-      { kind: "uncertain_keyless_refund" },
-    ] as const satisfies readonly PaymentReviewReason[];
-    for (const existingReview of completedReviewReasons) {
-      const completed = runHarness({
-        existingReview,
-        observed: fullyRefundedMoney(),
-      });
-      expect(await refresh(completed)).toMatchObject({
-        kind: "returned",
-        posted: true,
-      });
-      expect(completed.claim.reviewChanges).toEqual([
-        reviewChange(completed, {
-          kind: "resolved",
-          reason: existingReview.kind,
-        }),
-      ]);
-    }
-
-    const unrelated = runHarness({
-      existingReview: { kind: "shared_reference" },
-      observed: fullyRefundedMoney(),
-    });
-    expect(await refresh(unrelated)).toMatchObject({
-      kind: "returned",
-      posted: true,
-    });
-    expect(unrelated.claim.reviewChanges).toEqual([
-      reviewChange(unrelated, {
-        kind: "resolved",
-        reason: "shared_reference",
-      }),
-    ]);
+  test("a completed refresh retires an obligation review", async () => {
+    await expectCompletedReviewRetired("partially_returned_obligation");
+    await expectCompletedReviewRetired("shared_reference");
   });
 
   test("a recorded return retires its review while a sibling remains", async () => {
     const run = runHarness({
-      existingReview: { kind: "partial_refund" },
+      existingReview: { kind: "partially_returned_obligation" },
       ledger: (references) => refundLedgerResult(references),
       observed: fullyRefundedMoney(),
       siblingObserved: chargeMoney(),
@@ -138,7 +112,7 @@ describe("refresh payment under an attendee claim", () => {
     expect(run.claim.reviewChanges).toEqual([
       reviewChange(run, {
         kind: "resolved",
-        reason: "partial_refund",
+        reason: "partially_returned_obligation",
       }),
     ]);
   });

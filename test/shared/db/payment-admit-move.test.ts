@@ -126,7 +126,7 @@ describeWithEnv(
       await putRowState(
         "sess-busy-4",
         await rowStateSlot({
-          review: reviewCase({ kind: "partial_refund" }),
+          review: reviewCase({ kind: "partially_returned_obligation" }),
         }),
         REVIEW_MIRROR,
       );

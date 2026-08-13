@@ -1,13 +1,7 @@
 /** Atomic storage for the one provider-refund authority. */
 
 /* jscpd:ignore-start -- imports */
-import {
-  execute,
-  executeBatchWithResults,
-  queryAll,
-  queryOne,
-  resultRows,
-} from "#shared/db/client.ts";
+import { execute, queryAll, queryOne, resultRows } from "#shared/db/client.ts";
 import { storePaymentReference } from "#shared/db/payment-reference-store.ts";
 import type { Money } from "#shared/payment/money.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
@@ -115,9 +109,10 @@ interface RefundCallbackBinding {
   readonly referenceIndex: string;
 }
 
-const loadRefundCallbackBinding = async (
-  { callbackReplayIndex, referenceIndex }: RefundCallbackBinding,
-): Promise<RefundAuthorityRow | null> => {
+const loadRefundCallbackBinding = async ({
+  callbackReplayIndex,
+  referenceIndex,
+}: RefundCallbackBinding): Promise<RefundAuthorityRow | null> => {
   const owners = await queryAll<StoredRefundAuthorityRow>(
     `SELECT ${AUTHORITY_COLUMNS}
        FROM payment_charges
@@ -201,7 +196,7 @@ const requireCreateFacts = (input: CreateRefundAuthority): void => {
   }
 };
 
-const requireSameCharge = (
+const requireSameAuthority = (
   row: RefundAuthorityRow,
   input: CreateRefundAuthority,
   referenceIndex: string,
@@ -209,8 +204,6 @@ const requireSameCharge = (
   if (
     row.referenceIndex !== referenceIndex ||
     row.provider !== input.reference.provider ||
-    row.captured.amount !== input.captured.amount ||
-    row.captured.currency !== input.captured.currency ||
     row.state.request.capability !== input.capability ||
     (input.callbackReplayIndex !== undefined &&
       row.callbackReplayIndex !== input.callbackReplayIndex)
@@ -270,17 +263,16 @@ export const createOrLoadRefundAuthority = async (
     ],
   );
   const returned = authorityFromResult(result);
-  const row = returned ??
+  const row =
+    returned ??
     (input.callbackReplayIndex === undefined
       ? null
-      : await loadRefundCallbackBinding(
-        {
+      : await loadRefundCallbackBinding({
           callbackReplayIndex: input.callbackReplayIndex,
           referenceIndex: stored.index,
-        },
-      ));
+        }));
   if (row === null) throw new Error("Created refund authority is missing");
-  requireSameCharge(row, input, stored.index);
+  requireSameAuthority(row, input, stored.index);
   return row;
 };
 
@@ -340,7 +332,7 @@ export const transitionRefundAuthority = async (
   return authorityFromResult(await execute(statement.sql, statement.args));
 };
 
-/** Persist provider completion and every legacy safety marker atomically. */
+/** Persist provider completion for the exact authority revision. */
 export const completeRefundAuthority = async (
   row: RefundAuthorityVersion,
   refunded: Money,
@@ -349,33 +341,7 @@ export const completeRefundAuthority = async (
 ): Promise<RefundAuthorityRow | null> => {
   const state = markRefundCompleted(row.state, now, proof);
   const authority = changeRefundAuthorityStatement(row, state, refunded, now);
-  const writtenState = writeRefundAuthorityState(state);
-  const [changed] = await executeBatchWithResults([
-    authority,
-    {
-      args: [
-        new Date(state.local.returnedAt).toISOString(),
-        row.referenceIndex,
-        row.id,
-        row.revision + 1,
-        writtenState,
-      ],
-      sql: `UPDATE processed_payments
-               SET provider_refunded_at = COALESCE(
-                 NULLIF(provider_refunded_at, ''), ?
-               )
-             WHERE payment_reference_index = ?
-               AND changes() = 1
-               AND EXISTS (
-                 SELECT 1
-                   FROM payment_charges AS charge
-                  WHERE charge.id = ?
-                    AND charge.refund_revision = ?
-                    AND charge.refund_state = ?
-               )`,
-    },
-  ]);
-  return authorityFromResult(changed!);
+  return authorityFromResult(await execute(authority.sql, authority.args));
 };
 
 /** Finish local bookkeeping only for the exact completed revision. */
@@ -388,7 +354,8 @@ export const markRefundAuthorityRecorded = (
     row === null || row.revision !== expectedRevision
       ? null
       : row.state.kind === "completed" && row.state.local.kind === "recorded"
-      ? row
-      : transitionRefundAuthority(row, now, row.refunded, (state) =>
-        markRefundLocalRecorded(state, now))
+        ? row
+        : transitionRefundAuthority(row, now, row.refunded, (state) =>
+            markRefundLocalRecorded(state, now),
+          ),
   );

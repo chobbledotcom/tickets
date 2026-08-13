@@ -90,7 +90,7 @@ describe("admin refund provider", () => {
 
   for (
     const [name, input] of [
-      ["stored marker", { kind: "already_returned" as const }],
+      ["stored canonical answer", { kind: "already_returned" as const }],
       ["provider observation", { charge: fullyRefundedMoney() }],
     ] as const
   ) {

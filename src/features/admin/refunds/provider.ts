@@ -3,18 +3,13 @@ import { requiredMapValue } from "#fp";
 import { reportRefundNotRecorded } from "#shared/invariant-errors.ts";
 import { withDeferredErrorReports } from "#shared/logger.ts";
 import { recordAttendeeRefundsBatch } from "#shared/refund-ledger/record.ts";
-import { withSubrequestReserve } from "#shared/subrequest-budget.ts";
 import {
   recordProviderRefunds,
   type RefundAuthorityReceipt,
   requestProviderRefund,
 } from "#shared/provider-refunds.ts";
 import type { CandidateRefund, ReturnedRefundReference } from "./attempt.ts";
-import {
-  REFUND_BUDGET_MESSAGES,
-  REFUND_CALLER_SUBREQUEST_RESERVE,
-  type RefundBudgetAudience,
-} from "./budget.ts";
+import { REFUND_BUDGET_MESSAGES, type RefundBudgetAudience } from "./budget.ts";
 import type { RefundCandidate } from "./candidates.ts";
 import { durableRowClaim, type RowClaim, type RunFindings } from "./claim.ts";
 import { dispatchRefundBatch } from "./dispatch.ts";
@@ -194,47 +189,43 @@ export const processRefundBatch = async (
     request = requestProviderRefund,
   }: RefundRunDependencies = {},
 ): Promise<RefundBatchResult> =>
-  await withSubrequestReserve(
-    REFUND_CALLER_SUBREQUEST_RESERVE,
-    () =>
-      withDeferredErrorReports(() =>
-        runRefundReadiness<RefundBatchResult>({
-          action: "refund",
-          budgetAudience: audience,
-          candidates,
-          changedMessage:
-            "The attendee or payment set changed while this refund was starting. Try again.",
-          claim: rowClaim,
+  await withDeferredErrorReports(() =>
+    runRefundReadiness<RefundBatchResult>({
+      action: "refund",
+      budgetAudience: audience,
+      candidates,
+      changedMessage:
+        "The attendee or payment set changed while this refund was starting. Try again.",
+      claim: rowClaim,
+      listingId,
+      notReady: (message, reason) =>
+        notReady(noRefunds(candidates.length), message, reason),
+      prepare,
+      request,
+      ready: async (readyCandidates, held) => {
+        const dispatched = await dispatchRefundBatch(
+          readyCandidates,
           listingId,
-          notReady: (message, reason) =>
-            notReady(noRefunds(candidates.length), message, reason),
-          prepare,
+          held,
           request,
-          ready: async (readyCandidates, held) => {
-            const dispatched = await dispatchRefundBatch(
-              readyCandidates,
-              listingId,
-              held,
-              request,
-            );
-            if (dispatched.kind === "budget_refused") {
-              return notReady(
-                noRefunds(candidates.length),
-                REFUND_BUDGET_MESSAGES[audience],
-                "subrequest_budget",
-              );
-            }
-            return finished(
-              await recordDispatchedBatch(
-                dispatched.waves,
-                listingId,
-                { record, recordAuthorities },
-                held.findings,
-              ),
-            );
-          },
-        })
-      ),
+        );
+        if (dispatched.kind === "budget_refused") {
+          return notReady(
+            noRefunds(candidates.length),
+            REFUND_BUDGET_MESSAGES[audience],
+            "subrequest_budget",
+          );
+        }
+        return finished(
+          await recordDispatchedBatch(
+            dispatched.waves,
+            listingId,
+            { record, recordAuthorities },
+            held.findings,
+          ),
+        );
+      },
+    })
   );
 
 const recordDispatchedBatch = async (

@@ -13,7 +13,7 @@ import { claimedRows, claimResult } from "./claim-helpers.ts";
 describe("admin refunds > attendee claim settlement", () => {
   const errors = setupErrorSpy();
 
-  test("releases the checking fence when cleanup reserve is unavailable", async () => {
+  test("refuses to take a checking fence without cleanup room", async () => {
     const attendeeId = 5;
     const sessionId = "sess-reserve";
     const claim = claimResult(
@@ -40,15 +40,8 @@ describe("admin refunds > attendee claim settlement", () => {
     });
 
     expect(worked).toBe(false);
-    expect(claim.settlements).toEqual([
-      {
-        commandId: "test-command",
-        heldSince: "2026-08-11T12:00:00.000Z",
-        rows: new Map([
-          [sessionId, { claim: "release", phase: "checking" }],
-        ]),
-      },
-    ]);
+    expect(claim.requests).toEqual([]);
+    expect(claim.settlements).toEqual([]);
   });
 
   test("reports a settlement failure without replacing the work failure", async () => {
@@ -67,6 +60,22 @@ describe("admin refunds > attendee claim settlement", () => {
     expect(claim.settlements).toHaveLength(1);
     expect(errors.contains("Refund claim could not be settled")).toBe(true);
     expect(errors.contains("the row would not let go")).toBe(false);
+  });
+
+  test("does not report successful work when settlement failed", async () => {
+    const claim = claimResult(
+      claimedRows(new Map([[1, ["sess-success"]]])),
+      () => Promise.reject(new Error("the successful row stayed held")),
+    );
+
+    await expect(
+      underAttendeeClaim(claim, [], 11, {
+        blocked: () => "blocked",
+        work: () => Promise.resolve("worked"),
+      }),
+    ).rejects.toThrow("the successful row stayed held");
+
+    expect(claim.settlements).toHaveLength(1);
   });
 
   test("settles discovered facts and releases the checking fence on error", async () => {

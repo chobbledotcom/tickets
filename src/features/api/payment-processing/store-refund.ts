@@ -30,14 +30,10 @@ import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
 import { logActivity } from "#shared/db/activity-log.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
-import {
-  createNamedSystemNote,
-  createSystemNote,
-} from "#shared/db/notes/queries.ts";
+import { createSystemNote } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { prepareAttendeePaymentAnchor } from "#shared/db/payment-anchor/attendee.ts";
 import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
-import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import { ErrorCode, type ErrorCodeType, logError } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import {
@@ -218,7 +214,6 @@ export const storeRefundedBooking = async (
     refunded &&
     recording.posted &&
     refundResult.kind === "returned" &&
-    refundResult.authority !== null &&
     refundResult.local === "due"
   ) {
     await recordProviderRefunds([refundResult.authority]);
@@ -232,21 +227,13 @@ export const storeRefundedBooking = async (
   } else {
     logError({
       code: ErrorCode.PAYMENT_REFUND,
-      detail:
-        `Stored-but-unrefunded booking ${attendeeId} (${spec.code}): ${spec.detail}`,
+      detail: `Stored-but-unrefunded booking ${attendeeId} (${spec.code}): ${spec.detail}`,
       listingId,
     });
   }
   const noteTarget = attendeeNotes(attendeeId);
   const noteText = placeholderRefundNote(attendeeId, spec, refunded);
-  if (refunded) {
-    await createSystemNote(noteTarget, noteText);
-  } else {
-    await createNamedSystemNote(noteTarget, noteText, {
-      key: await paymentReferenceIndex(paymentReference),
-      purpose: "refund_warning",
-    });
-  }
+  await createSystemNote(noteTarget, noteText);
   // Status 200: a fully-handled terminal outcome (booking kept, money returned or
   // flagged). The webhook acks it (never the 409 transient-lock retry nor a 503
   // refund retry — the booking exists, so a retry can't re-create it), and the

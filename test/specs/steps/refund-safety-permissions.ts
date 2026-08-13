@@ -2,6 +2,7 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import {
+  completedRefundFor,
   expectPaidWithoutRefund,
   refundProviderFor,
 } from "#test/specs/steps/refund-safety/common.ts";
@@ -28,6 +29,7 @@ import {
   managerBrowser,
   ownerInvitesManager,
 } from "#test/specs/support/staff-accounts.ts";
+import { organiserAddsState } from "#test/specs/support/statuses.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -46,18 +48,38 @@ const providerContacts = (world: TicketsWorld): number => {
   return provider.reads.length + provider.sends.length;
 };
 
-const expectReviewAction = async (
+const expectOnlyMoneyAction = async (
   world: TicketsWorld,
   who: string,
+  action: "Mark payment reviewed" | "Open Refund recovery",
 ): Promise<void> => {
   const browser = await openActionsAsOwner(world, who);
   expect(
-    browser.links.some(({ text }) => text.trim() === "Mark payment reviewed"),
+    browser.links.some(({ text }) => text.trim() === action),
   ).toBe(true);
   expect(browser.links.some(({ text }) => text.trim() === "Refund")).toBe(
     false,
   );
 };
+
+const expectReviewAction = (world: TicketsWorld, who: string): Promise<void> =>
+  expectOnlyMoneyAction(world, who, "Mark payment reviewed");
+
+const expectProviderRecoveryAction = (
+  world: TicketsWorld,
+  who: string,
+): Promise<void> => expectOnlyMoneyAction(world, who, "Open Refund recovery");
+
+Given(
+  "new bookings pay a {float} deposit",
+  function (this: TicketsWorld, pounds: number): Promise<void> {
+    return organiserAddsState(this, {
+      deposit: pounds.toFixed(2),
+      job: "where new bookings start",
+      name: "Reserved",
+    });
+  },
+);
 
 Given(
   "{word} bought a {float} {word} place through the public booking page",
@@ -102,7 +124,7 @@ When(
 );
 
 Then(
-  /^(\w+) is not offered (Refund|Mark payment reviewed)$/,
+  /^(\w+) is not offered (Refund|Mark payment reviewed|Open Refund recovery)$/,
   function (this: TicketsWorld, manager: string, action: string): void {
     expect(
       managerBrowser(this, manager).links.some(
@@ -151,7 +173,38 @@ Given(
 );
 
 Given(
-  "the owner tried the refund and was offered Mark payment reviewed",
+  "Stripe is ready to return {word}'s payment",
+  function (this: TicketsWorld, who: string): void {
+    const booking = safetyBooking(this, who);
+    const provider = refundProviderFor(this);
+    provider.showCharge(
+      "stripe",
+      booking.paymentReference,
+      chargeMoney(booking.amount),
+    );
+    provider.answer(
+      "stripe",
+      booking.paymentReference,
+      completedRefundFor(this, who),
+    );
+  },
+);
+
+Given(
+  "the owner tried the refund and was offered Open Refund recovery",
+  async function (this: TicketsWorld): Promise<void> {
+    const who = safetyBooking(
+      this,
+      requiredWorldValue(this.attendeeName, "the attendee name"),
+    ).who;
+    await ownerRefunds(this, who);
+    await expectProviderRecoveryAction(this, who);
+    refundSafety(this).ownerContactCount = providerContacts(this);
+  },
+);
+
+Given(
+  "the owner returned the deposit and was offered Mark payment reviewed",
   async function (this: TicketsWorld): Promise<void> {
     const who = safetyBooking(
       this,
@@ -167,6 +220,7 @@ When(
   "the owner signs in and tries to refund {word} from her Actions page",
   async function (this: TicketsWorld, who: string): Promise<void> {
     await ownerRefunds(this, who);
+    refundSafety(this).ownerContactCount = providerContacts(this);
   },
 );
 
@@ -180,6 +234,25 @@ When(
     refundProviderFor(this);
     await saveOwnerMoneyForm(this, who, "refund");
     await managerOpensSavedOwnerAddress(this, manager, "refund");
+  },
+);
+
+When(
+  "{word} opens the owner's saved provider-recovery address for {word}",
+  async function (
+    this: TicketsWorld,
+    manager: string,
+    who: string,
+  ): Promise<void> {
+    await saveOwnerMoneyForm(this, who, "provider-recovery");
+    await managerOpensSavedOwnerAddress(this, manager, "provider-recovery");
+  },
+);
+
+When(
+  "{word} submits the owner's saved provider-recovery form for {word}",
+  function (this: TicketsWorld, manager: string, _who: string): Promise<void> {
+    return managerSubmitsSavedOwnerForm(this, manager, "provider-recovery");
   },
 );
 
@@ -213,6 +286,20 @@ Then(
   "{word} is refused access",
   function (this: TicketsWorld, _who: string): void {
     expect(refundSafety(this).managerAnswer).toBe(403);
+  },
+);
+
+Then(
+  "{word}'s Actions page still offers Open Refund recovery to the owner",
+  function (this: TicketsWorld, who: string): Promise<void> {
+    return expectProviderRecoveryAction(this, who);
+  },
+);
+
+Then(
+  "{word}'s Actions page offers Open Refund recovery",
+  function (this: TicketsWorld, who: string): Promise<void> {
+    return expectProviderRecoveryAction(this, who);
   },
 );
 
@@ -256,6 +343,20 @@ When(
   async function (this: TicketsWorld, who: string): Promise<void> {
     await openOwnerAction(this, who, "Mark payment reviewed");
     refundSafety(this).ownerContactCount = providerContacts(this);
+  },
+);
+
+When(
+  "the owner opens Open Refund recovery from {word}'s Actions page",
+  async function (this: TicketsWorld, who: string): Promise<void> {
+    const browser = await openOwnerAction(this, who, "Open Refund recovery");
+    const detail = browser.links.find(({ text }) =>
+      text.trim().startsWith("Open refund ")
+    );
+    if (detail === undefined) {
+      throw new Error("Refund recovery listed no provider case");
+    }
+    await browser.clickLink(detail.text);
   },
 );
 

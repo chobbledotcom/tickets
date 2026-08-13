@@ -190,25 +190,22 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       expect(await parseSessionFailure("")).toBeNull();
     });
 
-    test("parseSessionFailure degrades undecryptable data to a terminal failure instead of throwing", async () => {
-      // Deliberately corrupt stored value — test fixture cast.
-      const result = await parseSessionFailure(
-        "not valid ciphertext{" as EnvKeyEncrypted,
-      );
-      // A value that won't decrypt/parse must not crash the replay path; it
-      // resolves to a generic terminal failure (non-empty message, 500 status).
-      expect(result?.status).toBe(500);
-      expect((result?.error.length ?? 0) > 0).toBe(true);
+    test("parseSessionFailure rejects undecryptable stored data", async () => {
+      await expect(
+        parseSessionFailure("not valid ciphertext{" as EnvKeyEncrypted),
+      ).rejects.toThrow();
     });
 
-    test("parseSessionFailure degrades invalid JSON fields to a terminal failure", async () => {
-      const result = await parseSessionFailure(
-        await encrypt('{"error":42,"refunded":"yes"}'),
-      );
-      expect(result).toEqual({
-        error: "This payment could not be completed. Please contact support.",
-        status: 500,
-      });
+    test("parseSessionFailure rejects invalid stored fields at their boundary", async () => {
+      await expect(
+        parseSessionFailure(await encrypt('{"error":42,"refunded":"yes"}')),
+      ).rejects.toThrow("processed_payments.failure_data");
+    });
+
+    test("parseSessionFailure rejects the obsolete bare failure shape", async () => {
+      await expect(
+        parseSessionFailure(await encrypt('{"error":"Gone"}')),
+      ).rejects.toThrow("processed_payments.failure_data");
     });
 
     test("markSessionFailed throws a labelled error for an invalid failure", async () => {
@@ -251,8 +248,10 @@ describeWithEnv("db > processed payments", { db: true }, () => {
 
   test("throws when the atomic lookup does not return the session", async () => {
     const client = getDb();
-    using batchStub = stub(client, "batch", () =>
-      Promise.resolve([emptyResultSet(), emptyResultSet()]),
+    using batchStub = stub(
+      client,
+      "batch",
+      () => Promise.resolve([emptyResultSet(), emptyResultSet()]),
     );
     await expect(reserveSession("missing-lookup")).rejects.toThrow(
       "Reserved payment session is missing: missing-lookup",

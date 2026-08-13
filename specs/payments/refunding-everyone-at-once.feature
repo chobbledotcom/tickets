@@ -3,25 +3,41 @@
 @actor:organiser
 @edition:managed @edition:self-hosted
 Feature: An organiser refunds everyone on a listing
-  When a listing is called off, an organiser can work through everyone's
-  refunds in bounded pages. One payment the provider turns down must not stop
-  the rest of the selected page — and only refunds that really happened may be
-  counted.
+  When a listing is called off, an organiser works through its refunds one
+  person at a time. Every submission shows how many remain, so the next
+  provider call is a deliberate, bounded visitor action.
 
-  @rule:payments.one-failed-refund-does-not-stop-the-others
+  @rule:payments.refund-all-advances-one-person-at-a-time
   @surface:admin
-  Rule: A refund that fails does not stop the others, and is not counted
-    Every person in the selected page is tried once. The organiser is told how
-    many worked, how many did not, and how many people remain for another
-    submission. A failed refund keeps its money and its place.
+  Rule: Each submission refunds one person and leaves the rest visible
+    Refund All never turns a large listing into one large provider request. A
+    successful submission returns one person's money, tells the organiser how
+    many remain, and lets them submit the same real form again.
 
-    @case:bulk-refund.one-fails-the-rest-succeed
-    Scenario: The provider turns down the first of two refunds
+    @case:bulk-refund.one-person-per-submission
+    Scenario: Two refunds take two submissions
       Given 2 people each paid 50.00 for a Tour place
-      When the organiser refunds everyone and the provider turns down the first
-      Then the organiser is told 1 refund worked and 1 failed
-      And the person who was refunded has their money back
-      And the one who was not still has their place, and the Tour has earned 50.00
+      When the organiser tries to refund everyone
+      Then the organiser is told 1 refund worked and 1 remains
+      And exactly 1 person has their money back
+      When the organiser tries to refund everyone
+      Then all 2 people have their money back
+      And the Tour has earned 0.00
+
+  @rule:payments.failed-refund-keeps-its-place
+  @surface:admin
+  Rule: A failed refund is counted without trying another person
+    A provider refusal leaves everybody else untouched. The organiser sees the
+    failure and the full remaining count, then chooses whether to submit again.
+
+    @case:bulk-refund.failure-stops-this-submission
+    Scenario: The provider turns down the selected refund
+      Given 2 people each paid 50.00 for a Tour place
+      When the organiser tries to refund everyone and the provider turns it down
+      Then the organiser is told 0 refunds worked and 1 failed
+      And the organiser is told 2 refunds remain
+      And all 2 people still have their payments
+      And the Tour has earned 100.00
 
   @rule:payments.refund-all-respects-owner-review
   @surface:admin

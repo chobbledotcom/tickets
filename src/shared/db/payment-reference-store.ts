@@ -86,22 +86,25 @@ export const storePaymentReference = async (
   index: await paymentReferenceIndex(reference),
 });
 
-const paymentReferencePlaintextFrom = async (
+const paymentReferencePlaintextFrom = (
   stored: string,
   privateKey: CryptoKey,
+  context: string,
 ): Promise<string> => {
-  if (!stored.startsWith(HYBRID_PREFIX)) return stored;
-  return await decryptWithOwnerKey(stored as OwnerKeyEncrypted, privateKey);
+  if (!stored.startsWith(HYBRID_PREFIX)) {
+    throw new Error(`${context} is not owner-key encrypted`);
+  }
+  return decryptWithOwnerKey(stored as OwnerKeyEncrypted, privateKey);
 };
 
-/** Decrypt the stored value and parse its tagged or legacy format. */
+/** Decrypt one owner-key value and parse its tagged or untagged identity. */
 export const loadPaymentReference = async (
   stored: string,
   privateKey: CryptoKey,
   context: string,
 ): Promise<PaymentReference> =>
   readPaymentReference(
-    await paymentReferencePlaintextFrom(stored, privateKey),
+    await paymentReferencePlaintextFrom(stored, privateKey, context),
     context,
   );
 

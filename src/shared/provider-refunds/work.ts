@@ -8,7 +8,7 @@ import type {
 
 export type RefundWorkFacts = Pick<
   ProviderRefundWork,
-  "charge" | "now" | "row" | "target"
+  "admission" | "charge" | "now" | "row" | "target"
 >;
 
 type RefundWorkBody = (
@@ -17,16 +17,16 @@ type RefundWorkBody = (
 ) => Promise<ProviderRefundResult>;
 
 /** Give every engine step the same named facts and its untouched full work. */
-export const withRefundWorkFacts = (
-  body: RefundWorkBody,
-): ProviderRefundStep =>
-(work) =>
-  body(
-    {
-      charge: work.charge,
-      now: work.now,
-      row: work.row,
-      target: work.target,
-    },
-    work,
-  );
+export const withRefundWorkFacts =
+  (body: RefundWorkBody): ProviderRefundStep =>
+  (work) =>
+    body(
+      {
+        admission: work.admission,
+        charge: work.charge,
+        now: work.now,
+        row: work.row,
+        target: work.target,
+      },
+      work,
+    );

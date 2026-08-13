@@ -186,7 +186,13 @@ const budgetFits = (
     checkpoint,
   );
   const remaining = getSubrequestRemaining();
-  return subrequestCostFits(cost, remaining);
+  const fits = subrequestCostFits(cost, remaining);
+  if (!fits) {
+    throw new Error(
+      `DEBUG refund budget ${checkpoint}: cost=${JSON.stringify(cost)} remaining=${JSON.stringify(remaining)}`,
+    );
+  }
+  return fits;
 };
 
 const loadedBudgetCandidates = (

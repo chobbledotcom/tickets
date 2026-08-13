@@ -23,15 +23,14 @@ const UNRECORDED_REFUSAL =
 const CLAIMED: PaymentRowState = {
   claim: {
     attendeeIds: [7],
-    capability: "keyless",
     commandId: "test-command",
-    phase: "send_armed",
+    phase: "checking",
     scope: "attendee_set",
     writtenAt: "2026-01-01T00:00:00.000Z",
   },
 };
 const UNDER_REVIEW: PaymentRowState = {
-  review: reviewCase({ kind: "partial_refund" }),
+  review: reviewCase({ kind: "partially_returned_obligation" }),
 };
 const UNRECORDED: PaymentRowState = {
   unrecorded: { returnedAt: "2026-01-01T00:00:00.000Z" },
@@ -144,6 +143,21 @@ describe("payment > admit move", () => {
         status: "needs_money_record",
       });
       expect(paymentWorkFor([UNDER_REVIEW, UNRECORDED, CLAIMED])).toEqual({
+        recoveryAction: "refresh-payment",
+        status: "moving",
+      });
+    });
+
+    test("canonical provider work outranks a local review but not unsettled local money", () => {
+      expect(paymentWorkFor([UNDER_REVIEW], true)).toEqual({
+        recoveryAction: null,
+        status: "needs_provider_recovery",
+      });
+      expect(paymentWorkFor([UNRECORDED], true)).toEqual({
+        recoveryAction: "refresh-payment",
+        status: "needs_money_record",
+      });
+      expect(paymentWorkFor([CLAIMED], true)).toEqual({
         recoveryAction: "refresh-payment",
         status: "moving",
       });

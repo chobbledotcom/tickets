@@ -2,7 +2,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { resetI18nForTest } from "#i18n";
-import { REFUND_BUDGET_MESSAGES } from "#routes/admin/refunds/budget.ts";
 import { setN1GuardNotifyOnly } from "#shared/db/query-log.ts";
 import {
   createPaidListing,
@@ -11,10 +10,7 @@ import {
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import {
-  createPaidAttendeeWithoutLedger,
-  createPaidTestAttendee,
-} from "#test-utils/db-helpers/attendee-payments.ts";
+import { createPaidAttendeeWithoutLedger } from "#test-utils/db-helpers/attendee-payments.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import {
@@ -27,7 +23,7 @@ import {
 // jscpd:ignore-end
 
 const SINGLE_ERROR_RESULT =
-  "1 refund succeeded. There was 1 failure. There was 1 error. Check the activity log for details. 1 refund remains. Submit again to continue.";
+  "0 refunds succeeded. There was 1 failure. There was 1 error. Check the activity log for details. 1 refund remains. Submit again to continue.";
 const OVERSIZED_REFUND_COUNT = 9;
 
 describeWithEnv("server (admin refund-all results)", { db: true }, () => {
@@ -39,12 +35,6 @@ describeWithEnv("server (admin refund-all results)", { db: true }, () => {
 
     test("counts it as errored, not refunded, and reports the broken promise", async () => {
       const listing = await createPaidListing();
-      await createPaidTestAttendee(
-        listing.id,
-        "Ledgered",
-        "ledgered@example.com",
-        "pi_mixed_ledgered",
-      );
       const unledgered = await createPaidAttendeeWithoutLedger(
         listing.id,
         "Unledgered",
@@ -53,7 +43,7 @@ describeWithEnv("server (admin refund-all results)", { db: true }, () => {
       );
       await withRefundMock(refundCompletes, async (mockRefund) => {
         const response = await postRefundAll(listing);
-        expect(mockRefund.calls.length).toBe(2);
+        expect(mockRefund.calls.length).toBe(1);
         await expectFlashRedirect(
           `/admin/listing/${listing.id}/refund-all`,
           SINGLE_ERROR_RESULT,
@@ -72,45 +62,37 @@ describeWithEnv("server (admin refund-all results)", { db: true }, () => {
     });
   });
 
-  test("refuses an oversized command whole before any refund", async () => {
+  test("makes one visible step through an oversized listing", async () => {
     const listing = await createPaidListing({ maxAttendees: 500 });
     await seedBatchAttendees(listing, "pi_batch_", OVERSIZED_REFUND_COUNT);
     await withRefundMock(refundCompletes, async (mockRefund) => {
       const response = await postRefundAll(listing);
-      expect(mockRefund.calls).toEqual([]);
+      expect(mockRefund.calls).toHaveLength(1);
       await expectFlashRedirect(
         `/admin/listing/${listing.id}/refund-all`,
-        REFUND_BUDGET_MESSAGES.bulk,
-        false,
+        "1 refund succeeded. 8 refunds remain. Submit again to continue.",
+        true,
       )(response);
     });
   });
 
-  test("applies copy replacements to a completed partial-refund result", async () => {
+  test("applies copy replacements to a failed refund result", async () => {
     const listing = await createPaidListing();
-    await createPaidTestAttendee(
+    await createPaidAttendeeWithoutLedger(
       listing.id,
-      "Good User",
-      "good@example.com",
-      "pi_partial_ok",
+      "Rejected User",
+      "rejected@example.com",
+      "pi_rejected",
     );
-    await createPaidTestAttendee(
-      listing.id,
-      "Bad User",
-      "bad@example.com",
-      "pi_partial_fail",
-    );
-    let callNum = 0;
     using _env = withEnv({ I18N_REPLACEMENTS: "failure|problem" });
     resetI18nForTest();
     try {
       await withRefundMock(
-        (request) =>
-          ++callNum <= 1 ? refundCompletes(request) : refundIsRejected(request),
+        refundIsRejected,
         async () => {
           await expectFlashRedirect(
             `/admin/listing/${listing.id}/refund-all`,
-            "1 refund succeeded. There was 1 problem. 1 refund remains. Submit again to continue.",
+            "0 refunds succeeded. There was 1 problem. 1 refund remains. Submit again to continue.",
             false,
           )(await postRefundAll(listing));
         },
@@ -120,72 +102,34 @@ describeWithEnv("server (admin refund-all results)", { db: true }, () => {
     }
 
     const log = (await getListingActivityLog(listing.id)).find((entry) =>
-      entry.message.includes("Bulk refund: 1 succeeded"),
+      entry.message.includes("Bulk refund: 0 succeeded")
     );
-    expect(log?.message).toContain("1 succeeded, 1 failed");
+    expect(log?.message).toContain("0 succeeded, 1 failed");
   });
 
   test("reports one uncertain refund answer in the flash", async () => {
     const listing = await createPaidListing();
-    await createPaidTestAttendee(
-      listing.id,
-      "Good User",
-      "good@example.com",
-      "pi_throw_ok",
-    );
-    await createPaidTestAttendee(
+    await createPaidAttendeeWithoutLedger(
       listing.id,
       "Throw User",
       "throw@example.com",
       "pi_throw_boom",
     );
-    let callNum = 0;
     await withRefundMock(
-      (request) => {
-        callNum++;
-        if (callNum === 1) return refundCompletes(request);
-        return Promise.resolve({
-          kind: "uncertain",
-          reason: "network_error",
-        } as const);
-      },
+      () =>
+        Promise.resolve(
+          {
+            kind: "uncertain",
+            reason: "network_error",
+          } as const,
+        ),
       async () => {
         const response = await postRefundAll(listing);
         await expectFlashRedirect(
           `/admin/listing/${listing.id}/refund-all`,
-          SINGLE_ERROR_RESULT,
-          false,
+          "0 refunds succeeded. 1 refund is still settling. Do not send it again.",
+          true,
         )(response);
-      },
-    );
-  });
-
-  test("uses plural error copy for multiple uncertain answers", async () => {
-    const listing = await createPaidListing();
-    await createPaidTestAttendee(
-      listing.id,
-      "Throw One",
-      "throw-one@example.com",
-      "pi_throw_one",
-    );
-    await createPaidTestAttendee(
-      listing.id,
-      "Throw Two",
-      "throw-two@example.com",
-      "pi_throw_two",
-    );
-    await withRefundMock(
-      (_request) =>
-        Promise.resolve({
-          kind: "uncertain",
-          reason: "network_error",
-        } as const),
-      async () => {
-        await expectFlashRedirect(
-          `/admin/listing/${listing.id}/refund-all`,
-          "0 refunds succeeded. There were 2 failures. There were 2 errors. Check the activity log for details. 2 refunds remain. Submit again to continue.",
-          false,
-        )(await postRefundAll(listing));
       },
     );
   });

@@ -5,25 +5,28 @@ import {
   type RefundAuthorityRow,
   transitionRefundAuthority,
 } from "#shared/db/provider-refund-authority.ts";
-import { refundIdempotencyKey } from "#shared/payment-idempotency.ts";
+import { sameMoney } from "#shared/payment/money.ts";
+import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 import {
   armRefundSend,
   markRefundObservationDue,
   mayReplayKeyedRefund,
+  type RefundAuthorityState,
   rearmKeyedRefund,
   returnRefundToReady,
 } from "#shared/payment/refund-authority.ts";
-import { sameMoney } from "#shared/payment/money.ts";
 import { authorizeDurableRefundSend } from "#shared/payment/refund-provider-authorization.ts";
 import { refundRequestIdentityIndex } from "#shared/payment/refund-request-identity.ts";
-import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
+import { refundIdempotencyKey } from "#shared/payment-idempotency.ts";
+import { REFUND_RESULT_DATABASE_RESERVE } from "#shared/provider-refunds/budget.ts";
 import type {
   ProviderRefundResult,
   ProviderRefundStep,
   ProviderRefundWork,
   RefundEngineProvider,
 } from "#shared/provider-refunds.ts";
+import { withSubrequestReserve } from "#shared/subrequest-budget.ts";
 import {
   completeRefundFromEvidence,
   moveRefundToOwner,
@@ -35,6 +38,7 @@ import {
   returnedRefundMoney,
 } from "./state.ts";
 import { withRefundWorkFacts } from "./work.ts";
+
 /* jscpd:ignore-end */
 
 const authorizeSend = async (
@@ -107,29 +111,26 @@ const persistAttempt = async (
     returnedRefundMoney(charge),
     (state) =>
       attempt.kind === "not_sent"
-        ? returnRefundToReady(
-          state,
-          state.evidenceRevision + 1,
-          now,
-          now,
-        )
+        ? returnRefundToReady(state, state.evidenceRevision + 1, now, now)
         : markRefundObservationDue(state, now, next),
   );
   return await refundAfterTransition(changed, row, reference);
 };
 
-const sendArmed = async (
-  { charge, now, provider, row, target }: ProviderRefundWork,
-): Promise<ProviderRefundResult> =>
-  await persistAttempt(
-    row,
-    target.reference,
-    charge,
-    await provider.refundCharge(
-      await authorizeSend(row, target.reference, charge),
-    ),
-    now,
+const sendArmed = async ({
+  charge,
+  now,
+  provider,
+  row,
+  target,
+}: ProviderRefundWork): Promise<ProviderRefundResult> => {
+  const authorized = await authorizeSend(row, target.reference, charge);
+  const attempt = await withSubrequestReserve(
+    REFUND_RESULT_DATABASE_RESERVE,
+    () => provider.refundCharge(authorized),
   );
+  return await persistAttempt(row, target.reference, charge, attempt, now);
+};
 
 const sendAfterTransition = async (
   changed: RefundAuthorityRow | null,
@@ -137,18 +138,27 @@ const sendAfterTransition = async (
 ): Promise<ProviderRefundResult> =>
   changed === null
     ? refundAnswerFrom(
-      await requireCurrentRefund(work.row),
-      work.target.reference,
-    )
+        await requireCurrentRefund(work.row),
+        work.target.reference,
+      )
     : await sendArmed({ ...work, row: changed });
+
+type RefundStateChange = (state: RefundAuthorityState) => RefundAuthorityState;
+
+const transitionBeforeProviderCall = (
+  row: RefundAuthorityRow,
+  charge: ChargeMoney,
+  now: number,
+  change: RefundStateChange,
+): Promise<RefundAuthorityRow | null> =>
+  withSubrequestReserve(REFUND_RESULT_DATABASE_RESERVE, () =>
+    transitionRefundAuthority(row, now, returnedRefundMoney(charge), change),
+  );
 
 export const armReadyRefund: ProviderRefundStep = async (work) => {
   const { charge, now, row } = work;
-  const armed = await transitionRefundAuthority(
-    row,
-    now,
-    returnedRefundMoney(charge),
-    (state) => armRefundSend(state, now, now + REFUND_OBSERVATION_DELAY_MS),
+  const armed = await transitionBeforeProviderCall(row, charge, now, (state) =>
+    armRefundSend(state, now, now + REFUND_OBSERVATION_DELAY_MS),
   );
   return await sendAfterTransition(armed, work);
 };
@@ -178,10 +188,10 @@ export const continueActiveRefund: ProviderRefundStep = withRefundWorkFacts(
     if (!mayReplayKeyedRefund(row.state, requestIndex, now)) {
       return refundAnswerFrom(row, target.reference);
     }
-    const rearmed = await transitionRefundAuthority(
+    const rearmed = await transitionBeforeProviderCall(
       row,
+      charge,
       now,
-      returnedRefundMoney(charge),
       (state) =>
         rearmKeyedRefund(
           state,

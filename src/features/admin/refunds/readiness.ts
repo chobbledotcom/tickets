@@ -77,12 +77,6 @@ export type RefundReadinessResult =
       kind: "not_ready";
       observations: readonly RefundReadinessObservation[];
       reason: "claim_changed";
-    }
-  | {
-      indexes: readonly string[];
-      kind: "not_ready";
-      observations: readonly RefundReadinessObservation[];
-      reason: "historical_marker";
     };
 
 export type RefundReadinessDependencies = {
@@ -272,13 +266,6 @@ const bindingResult = (
   switch (result.kind) {
     case "claim_changed":
       return { kind: "not_ready", observations, reason: "claim_changed" };
-    case "historical_marker":
-      return {
-        indexes: result.indexes,
-        kind: "not_ready",
-        observations,
-        reason: "historical_marker",
-      };
     case "bound":
       return {
         candidates: readyCandidates(
@@ -304,19 +291,6 @@ export const prepareRefundReadiness = async (
     ...dependencies,
   };
   const references = uniqueReferences(candidates);
-  const historical = references.filter(
-    (reference) =>
-      reference.kind === "untagged" && returned(reference, alreadyReturned),
-  );
-  if (historical.length > 0) {
-    return {
-      indexes: historical.map(({ index }) => index),
-      kind: "not_ready",
-      observations: [],
-      reason: "historical_marker",
-    };
-  }
-
   const marked = references.filter(
     (reference): reference is TaggedRefundPaymentReference =>
       reference.kind === "tagged" && returned(reference, alreadyReturned),

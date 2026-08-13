@@ -17,8 +17,8 @@ import {
   completedStripeRefund,
   stripeRefundRequestShape,
 } from "#test/test-utils/stripe/fixtures.ts";
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { signedMeta, webhookMeta } from "#test-utils/factories.ts";
 import { foundStripeIntent } from "#test-utils/stripe/responses.ts";
 
@@ -63,36 +63,32 @@ describeWithEnv("rejected session refunds", { db: true }, () => {
    *  returned and the arguments the refund was actually called with. Stubbed,
    *  not spied: a spy keeps the real method, so the refund would leave for
    *  Stripe itself. */
-  const withRefundAnswering = (
-    answer: (request: RefundRequest) => RefundAttemptResult,
-    capturedAmount = 500,
-    selectedProvider: PaymentProviderType = "stripe",
-  ) =>
-  async <T>(
-    body: () => Promise<T>,
-  ): Promise<{ calls: unknown[][]; result: T }> => {
-    const refundStub = stub(
-      stripeApi,
-      "refundCharge",
-      (request) => Promise.resolve(answer(request)),
-    );
-    // The refund asks what the money has already done before sending any, so
-    // the charge must read as one nothing has come back on for the refund to
-    // be admitted at all.
-    const intentStub = stub(
-      stripeApi,
-      "readPaymentIntent",
-      (reference) =>
+  const withRefundAnswering =
+    (
+      answer: (request: RefundRequest) => RefundAttemptResult,
+      capturedAmount = 500,
+      selectedProvider: PaymentProviderType = "stripe",
+    ) =>
+    async <T>(
+      body: () => Promise<T>,
+    ): Promise<{ calls: unknown[][]; result: T }> => {
+      const refundStub = stub(stripeApi, "refundCharge", (request) =>
+        Promise.resolve(answer(request)),
+      );
+      // The refund asks what the money has already done before sending any, so
+      // the charge must read as one nothing has come back on for the refund to
+      // be admitted at all.
+      const intentStub = stub(stripeApi, "readPaymentIntent", (reference) =>
         Promise.resolve(foundStripeIntent(reference, capturedAmount)),
-    );
-    try {
-      const result = await withProviderSelected(selectedProvider, body);
-      return { calls: refundStub.calls.map((call) => call.args), result };
-    } finally {
-      intentStub.restore();
-      refundStub.restore();
-    }
-  };
+      );
+      try {
+        const result = await withProviderSelected(selectedProvider, body);
+        return { calls: refundStub.calls.map((call) => call.args), result };
+      } finally {
+        intentStub.restore();
+        refundStub.restore();
+      }
+    };
 
   const withSucceedingRefundFor = (capturedAmount: number) =>
     withRefundAnswering(
@@ -127,7 +123,7 @@ describeWithEnv("rejected session refunds", { db: true }, () => {
 
   it("refunds a rejected paid charge whose price proof verifies", async () => {
     const { calls, result } = await withSucceedingRefund(() =>
-      refundRejectedCharge(ourRejection("pi_usable"))
+      refundRejectedCharge(ourRejection("pi_usable")),
     );
     expect(calls).toEqual([[stripeRefundRequestShape("pi_usable", 500)]]);
     expect(result).toEqual({ refunded: true, settled: true });
@@ -233,7 +229,7 @@ describeWithEnv("rejected session refunds", { db: true }, () => {
 
   it("tells a buyer whose charge came back, and settles it at 400", async () => {
     const { calls, result } = await withSucceedingRefund(() =>
-      answerFor("pi_settled")
+      answerFor("pi_settled"),
     );
     expect(calls).toEqual([[stripeRefundRequestShape("pi_settled", 500)]]);
     expect(result.status).toBe(400);
@@ -247,7 +243,7 @@ describeWithEnv("rejected session refunds", { db: true }, () => {
     // Nothing came back, so the buyer must not be told it did — and the caller
     // must retry rather than acknowledge the charge away.
     const { calls, result } = await withRefusedRefund(() =>
-      answerFor("pi_stuck")
+      answerFor("pi_stuck"),
     );
     expect(calls).toEqual([[stripeRefundRequestShape("pi_stuck", 500)]]);
     expect(result.status).toBe(503);

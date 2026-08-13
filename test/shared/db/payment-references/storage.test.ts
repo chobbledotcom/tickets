@@ -264,7 +264,7 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
     await expectLegacyReferenceUnavailable(attendeeId, "sess_plain_ref");
   });
 
-  test("reads a durable indexed plaintext reference", async () => {
+  test("rejects a durable index whose reference is still plaintext", async () => {
     const listing = await createTestListing({ maxAttendees: 50 });
     const created = await bookAttendee(listing, {
       email: "indexed-plain-ref@example.com",
@@ -289,14 +289,9 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
       ],
     );
 
-    expect(
-      await refundReferencesFor(attendeeId, await getTestPrivateKey()),
-    ).toEqual([
-      await readReference(payment, {
-        rowSessionIds: [sessionId],
-        sessionIds: [sessionId],
-      }),
-    ]);
+    await expect(
+      refundReferencesFor(attendeeId, await getTestPrivateKey()),
+    ).rejects.toThrow("processed_payments.payment_reference");
   });
 
   test("does not repair a row predating the provider-aware index", async () => {

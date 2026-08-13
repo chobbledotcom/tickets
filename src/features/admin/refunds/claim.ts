@@ -65,18 +65,13 @@ export const durableRowClaim: RowClaim = {
   settle: settleAttendeeRows,
 };
 
-/** Settle held rows, reporting rather than raising when a row will not. */
+/** Settle held rows. A successful run is not complete until this write lands. */
 const settleHold = async (
   rowClaim: RowClaim,
   settlement: RowSettlement,
-  listingId: number,
 ): Promise<void> => {
   if (settlement.rows.size === 0) return;
-  try {
-    await rowClaim.settle(settlement);
-  } catch (error) {
-    reportRefundProblem({ error, kind: "claim_settlement" }, listingId);
-  }
+  await rowClaim.settle(settlement);
 };
 
 const booksChange = (
@@ -173,7 +168,13 @@ export const underAttendeeClaim = async <TResult>(
       | { admit?: undefined; admissionRefused?: never }
     ),
 ): Promise<TResult> => {
-  const claim = await rowClaim.claim(attendees, run.admit);
+  // Taking the hold may itself spend the request allowance. Keep the complete
+  // settlement tail unavailable until the claim is known not to exist or its
+  // later release has been protected.
+  const claim = await withSubrequestReserve(
+    REFUND_SETTLEMENT_SUBREQUEST_RESERVE,
+    () => rowClaim.claim(attendees, run.admit),
+  );
   if (claim.kind === "changed") {
     return run.blocked({
       kind: "payment_set_changed",
@@ -206,11 +207,11 @@ export const underAttendeeClaim = async <TResult>(
         heldSince: claim.heldSince,
         rows: settlementRows(claim, findings),
       },
-      listingId,
     );
   };
+  let result: TResult;
   try {
-    return await withSubrequestReserve(
+    result = await withSubrequestReserve(
       REFUND_SETTLEMENT_SUBREQUEST_RESERVE,
       () =>
         run.work({
@@ -227,7 +228,17 @@ export const underAttendeeClaim = async <TResult>(
           unrecorded: claim.unrecorded,
         }),
     );
-  } finally {
-    await settle();
+  } catch (error) {
+    try {
+      await settle();
+    } catch (settlementError) {
+      reportRefundProblem(
+        { error: settlementError, kind: "claim_settlement" },
+        listingId,
+      );
+    }
+    throw error;
   }
+  await settle();
+  return result;
 };

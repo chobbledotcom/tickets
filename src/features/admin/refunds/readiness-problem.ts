@@ -37,8 +37,6 @@ const evidenceFailureReason = ({ evidence }: RefundReadinessRead): string => {
 const READINESS_FAILURE_REASON = {
   claim_changed:
     "the payment rows changed while their providers were being recorded",
-  historical_marker:
-    "an older returned-payment marker needs its provider recorded before this refund can continue",
 } as const satisfies Record<
   Exclude<
     Extract<RefundReadinessResult, { kind: "not_ready" }>,

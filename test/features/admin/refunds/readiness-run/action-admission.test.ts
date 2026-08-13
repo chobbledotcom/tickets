@@ -31,7 +31,7 @@ const SAFETY_STATES = [
     name: "owner review",
     refundMessage:
       "This payment still needs owner review. Refresh or correct the payment evidence before another refund.",
-    reviews: new Map([[ROW_SESSION_ID, { kind: "partial_refund" } as const]]),
+    reviews: new Map([[ROW_SESSION_ID, { kind: "partially_returned_obligation" } as const]]),
     unrecorded: new Map(),
   },
   {

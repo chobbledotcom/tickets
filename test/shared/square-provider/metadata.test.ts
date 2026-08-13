@@ -1,0 +1,105 @@
+/* jscpd:ignore-start -- imports */
+import { expect } from "@std/expect";
+import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
+import { squareApi } from "#shared/square/api.ts";
+import { squarePaymentProvider } from "#shared/square-provider.ts";
+import {
+  SQUARE_ORDER_META,
+  setupSquareProviderSuite,
+  squareMoney,
+} from "#test/test-utils/square/fixtures.ts";
+import { squareOrderRead } from "#test/test-utils/square/outcomes.ts";
+import { withMocks } from "#test-utils/mocks.ts";
+
+/* jscpd:ignore-end */
+
+const completedOrder = (id: string, metadata: Record<string, string>) =>
+  squareOrderRead({
+    id,
+    metadata,
+    state: "COMPLETED",
+    totalMoney: squareMoney(1000),
+  });
+
+describe("square provider order ownership", () => {
+  const debug = setupSquareProviderSuite();
+
+  test("returns null when an order carries no app metadata", async () => {
+    await withMocks(
+      () =>
+        stub(squareApi, "readOrder", () =>
+          Promise.resolve(completedOrder("order_no_meta", {})),
+        ),
+      async () => {
+        expect(
+          await squarePaymentProvider.retrieveSession("order_no_meta"),
+        ).toBeNull();
+        expect(debug().calls.at(-1)?.args).toEqual([
+          "[Square] Square order does not carry app metadata",
+        ]);
+      },
+    );
+  });
+
+  test("acknowledges a completed foreign order with a common metadata field", async () => {
+    await withMocks(
+      () =>
+        stub(squareApi, "readOrder", () =>
+          Promise.resolve(
+            completedOrder("order_foreign_name", {
+              name: "Counter sale",
+            }),
+          ),
+        ),
+      async () => {
+        expect(
+          await squarePaymentProvider.retrieveSession(
+            "order_foreign_name",
+            "pay_foreign_name",
+          ),
+        ).toBeNull();
+        expect(debug().calls.at(-1)?.args).toEqual([
+          "[Square] Square order does not carry app metadata",
+        ]);
+      },
+    );
+  });
+
+  for (const [name, metadata] of [
+    [
+      "missing",
+      {
+        _origin: "example.com",
+        items: '[{"e":1,"q":1,"p":0}]',
+        name: "Damaged checkout",
+      },
+    ],
+    [
+      "corrupt",
+      {
+        ...SQUARE_ORDER_META,
+        price_proof: "not-a-price-proof",
+      },
+    ],
+  ] as const) {
+    test(`keeps this site's ${name} price proof retryable`, async () => {
+      await withMocks(
+        () =>
+          stub(squareApi, "readOrder", () =>
+            Promise.resolve(completedOrder(`order_${name}_proof`, metadata)),
+          ),
+        async () => {
+          await expect(
+            squarePaymentProvider.retrieveSession(
+              `order_${name}_proof`,
+              `pay_${name}_proof`,
+            ),
+          ).rejects.toThrow(
+            "Completed Square order is missing required metadata",
+          );
+        },
+      );
+    });
+  }
+});

@@ -50,21 +50,6 @@ describe("refresh payment under an attendee claim", () => {
     expect(run.claim.released).toEqual([run.reference.rowSessionIds]);
   });
 
-  test("does not erase an existing unrecorded mark when readiness fails", async () => {
-    const run = runHarness({
-      existingUnrecorded: ["sess-missed"],
-      readiness: {
-        indexes: ["old_pi_refresh"],
-        kind: "not_ready",
-        observations: [],
-        reason: "historical_marker",
-      },
-    });
-
-    expect(await refresh(run)).toMatchObject({ kind: "not_ready" });
-    expect(run.claim.unrecorded).toEqual([[]]);
-  });
-
   test("releases the checking fence when provider evidence cannot answer", async () => {
     const run = runHarness({
       readiness: {

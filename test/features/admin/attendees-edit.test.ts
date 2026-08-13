@@ -26,6 +26,10 @@ import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { claimCurrentAttendeeRows } from "#test-utils/payment-claim.ts";
 import { chargeMoney } from "#test-utils/payment-state.ts";
 import {
+  getCompleteRefundPaymentReferencesForAttendee,
+  markProviderRefundsReturned,
+} from "#test-utils/payment-references.ts";
+import {
   finalizeReservedPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
@@ -129,10 +133,12 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
         "pi_refresh_balance",
       );
 
-      const queried = await submitRefreshPayment(attendee, (reference) =>
-        Promise.resolve(
-          ["pi_refresh_balance", "pi_refresh_deposit"].includes(reference),
-        ),
+      const queried = await submitRefreshPayment(
+        attendee,
+        (reference) =>
+          Promise.resolve(
+            ["pi_refresh_balance", "pi_refresh_deposit"].includes(reference),
+          ),
       );
 
       expect([...queried].sort()).toEqual([
@@ -253,15 +259,20 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
         "refresh-balance-already-refunded",
         "pi_refresh_balance_done",
       );
-      await execute(
-        `UPDATE processed_payments
-            SET provider_refunded_at = ?
-          WHERE payment_session_id = ?`,
-        ["2026-07-01T00:01:00.000Z", "refresh-balance-already-refunded"],
+      const balanceReference = (
+        await getCompleteRefundPaymentReferencesForAttendee(attendee)
+      ).find(({ reference }) => reference === "pi_refresh_balance_done");
+      if (balanceReference === undefined) {
+        throw new Error("The balance refund reference was not loaded");
+      }
+      await markProviderRefundsReturned(
+        [balanceReference],
+        "due",
       );
 
-      const queried = await submitRefreshPayment(attendee, (reference) =>
-        Promise.resolve(reference === "pi_refresh_deposit"),
+      const queried = await submitRefreshPayment(
+        attendee,
+        (reference) => Promise.resolve(reference === "pi_refresh_deposit"),
       );
 
       expect(queried).toEqual(["pi_refresh_deposit"]);
@@ -402,7 +413,7 @@ describeWithEnv(
         },
       );
 
-      expect(errors.contains("partial_refund")).toBe(true);
+      expect(errors.contains("partially_returned_obligation")).toBe(true);
       expect(errors.contains("an owner needs to look at it")).toBe(true);
       expect(await getPaymentWorkStatus(attendee.id)).toBe("needs_review");
     });

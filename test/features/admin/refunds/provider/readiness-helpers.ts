@@ -64,8 +64,7 @@ export const untaggedReference = (
 };
 
 export const readyPreparation =
-  (candidates: ReadyRefundCandidate[]): Prepare =>
-  () =>
+  (candidates: ReadyRefundCandidate[]): Prepare => () =>
     Promise.resolve({ candidates, kind: "ready" });
 
 export const noValidatingProvider = (
@@ -88,8 +87,9 @@ export const noValidatingProvider = (
   reason: "provider_evidence",
 });
 
-type ClaimFacts = Pick<Claimed, "held"> &
-  Partial<Pick<Claimed, "returned" | "shared">>;
+type ClaimFacts =
+  & Pick<Claimed, "held">
+  & Partial<Pick<Claimed, "returned" | "shared">>;
 
 interface RowClaimHarness {
   claims: () => number;
@@ -120,7 +120,7 @@ export const rowClaimHarness = (
           kind: "claimed",
           phases: new Map(
             [...held.values()].flatMap((sessionIds) =>
-              sessionIds.map((sessionId) => [sessionId, "checking"] as const),
+              sessionIds.map((sessionId) => [sessionId, "checking"] as const)
             ),
           ),
           returned,
@@ -145,7 +145,7 @@ export const releasedRows = (
   settlements.map(({ rows }) =>
     [...rows]
       .filter(([, change]) => change.claim === "release")
-      .map(([sessionId]) => sessionId),
+      .map(([sessionId]) => sessionId)
   );
 
 interface RecordingWrites {

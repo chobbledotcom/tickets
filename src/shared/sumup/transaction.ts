@@ -75,18 +75,17 @@ export const readSumupTransaction = (
     return { reason: "unsupported_status", status: "invalid" };
   }
   const refundEvents = events.filter((event) => event.event_type === "REFUND");
-  const returned =
-    transaction.status === "REFUNDED"
-      ? [{ amount: transaction.amount, status: "REFUNDED" }]
-      : refundEvents.map((event) => ({
-          amount: event.amount,
-          status: event.status,
-        }));
+  if (transaction.status === "REFUNDED" && refundEvents.length === 0) {
+    return { reason: "missing_documented_resource", status: "invalid" };
+  }
   return {
     resource: {
       amount: transaction.amount,
       currency: transaction.currency,
-      refundEvents: returned,
+      refundEvents: refundEvents.map((event) => ({
+        amount: event.amount,
+        status: event.status,
+      })),
     },
     status: "found",
   };

@@ -22,12 +22,15 @@ import {
   finalizeProcessedPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
+import { addProviderRefundTestCase } from "#test-utils/provider-refund-cases.ts";
 import { withTestSession } from "#test-utils/session.ts";
+import type { PaymentProviderType } from "#shared/types.ts";
 import { bookAttendee, MANAGER, OWNER, tabHtml } from "./helpers.ts";
 
 /** One paid attendee whose modern payment row can carry review work. */
 const paidPagePayment = async (
   suffix: string,
+  provider: PaymentProviderType = "stripe",
 ): Promise<{ attendeeId: number; listingId: number; sessionId: string }> => {
   const listing = await createTestListing({});
   const paymentId = `pi_page_${suffix}`;
@@ -42,7 +45,7 @@ const paidPagePayment = async (
     sessionId,
     attendee.id,
     `tok-page-${suffix}`,
-    taggedPaymentReference(paymentId),
+    taggedPaymentReference(paymentId, provider),
   );
   return { attendeeId: attendee.id, listingId: listing.id, sessionId };
 };
@@ -113,7 +116,7 @@ describeWithEnv("the attendee Actions tab", { db: true }, () => {
       await putRowState(
         sessionId,
         await rowStateSlot({
-          review: reviewCase({ kind: "partial_refund" }),
+          review: reviewCase({ kind: "partially_returned_obligation" }),
         }),
         REVIEW_MIRROR,
       );
@@ -136,7 +139,7 @@ describeWithEnv("the attendee Actions tab", { db: true }, () => {
       await putRowState(
         sessionId,
         await rowStateSlot({
-          review: reviewCase({ kind: "partial_refund" }),
+          review: reviewCase({ kind: "partially_returned_obligation" }),
         }),
         REVIEW_MIRROR,
       );
@@ -167,6 +170,27 @@ describeWithEnv("the attendee Actions tab", { db: true }, () => {
       expect(html).not.toContain(
         `/admin/attendees/${attendeeId}/payment-review`,
       );
+    });
+
+    test("offers only owners the canonical provider recovery queue", async () => {
+      const paymentId = "pi_page_provider-recovery";
+      const { attendeeId } = await paidPagePayment(
+        "provider-recovery",
+        "sumup",
+      );
+      await addProviderRefundTestCase(paymentId);
+
+      const ownerHtml = await tabHtml(attendeeId, "actions");
+      expect(ownerHtml).toContain('href="/admin/privacy#refund-recovery"');
+      expect(ownerHtml).toContain("Open Refund recovery");
+      expect(ownerHtml).not.toContain(`/admin/attendees/${attendeeId}/refund`);
+      expect(ownerHtml).not.toContain(
+        `/admin/attendees/${attendeeId}/payment-review`,
+      );
+
+      const managerHtml = await tabHtml(attendeeId, "actions", MANAGER);
+      expect(managerHtml).not.toContain("/admin/privacy#refund-recovery");
+      expect(managerHtml).not.toContain("Open Refund recovery");
     });
 
     test("maps ordinary, stale, and in-progress rows to safe actions", async () => {

@@ -158,11 +158,20 @@ export const providerRefundReturned = (
     logDebug("Payment", "Refund sent and awaiting provider confirmation");
     return false;
   }
+  if (result.kind === "unchanged") {
+    logError({
+      code: ErrorCode.PAYMENT_REFUND,
+      detail: `Refund was only observed for ${provider} payment`,
+      listingId,
+    });
+    return false;
+  }
   logError({
     code: ErrorCode.PAYMENT_REFUND,
-    detail: result.kind === "ready"
-      ? `Refund was not sent for ${provider} payment; its durable request remains ready`
-      : `Refund needs an owner decision for ${provider} payment (${result.reason})`,
+    detail:
+      result.kind === "ready"
+        ? `Refund was not sent for ${provider} payment; its durable request remains ready`
+        : `Refund needs an owner decision for ${provider} payment (${result.reason})`,
     listingId,
   });
   return false;
@@ -174,7 +183,10 @@ export const requestSessionRefund = (
 ): Promise<ProviderRefundResult> =>
   requestProviderRefund({
     callbackSessionId: session.id,
-    evidence: { kind: "read_provider" },
+    evidence: {
+      captured: { amount: session.amountTotal, currency: session.currency },
+      kind: "validated_callback",
+    },
     mode: "send",
     reference: paidPaymentReferenceOf(session),
   });

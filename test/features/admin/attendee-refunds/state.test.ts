@@ -163,16 +163,16 @@ describeWithEnv("server (admin refund state)", { db: true }, () => {
       expect(html).not.toContain("Refund Attendee</button>");
     });
 
-    test("marks attendee as refunded after successful refund", async () => {
+    test("admits one canonical charge, records it, and refuses a second send", async () => {
       const ctx = await setupRefundTest("");
       await finalizeProcessedPayment(
-        "sess_mark_refund",
+        `sale-${ctx.listing.id}-${ctx.attendee.id}`,
         ctx.attendee.id,
         "",
         taggedPaymentReference("pi_mark_refund"),
       );
 
-      await withRefundMock(refundCompletes, async () => {
+      await withRefundMock(refundCompletes, async (mockRefund) => {
         const response = await submitRefund(ctx);
         await expectFlashRedirect(
           `/admin/attendees/${ctx.attendee.id}/actions`,
@@ -185,6 +185,7 @@ describeWithEnv("server (admin refund state)", { db: true }, () => {
           expect.stringContaining("already been refunded"),
           false,
         )(retryResponse);
+        expect(mockRefund.calls.length).toBe(1);
       });
     });
   });

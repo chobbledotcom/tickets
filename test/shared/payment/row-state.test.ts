@@ -20,7 +20,7 @@ const FULL: PaymentRowState = {
     writtenAt: "2026-08-10T12:00:00.000Z",
   },
   outcome: { error: "Sold out", refunded: true, status: 409 },
-  review: reviewCase({ kind: "partial_refund" }),
+  review: reviewCase({ kind: "partially_returned_obligation" }),
 };
 
 describe("readRowState", () => {
@@ -28,38 +28,27 @@ describe("readRowState", () => {
     expect(readRowState(writeRowState(FULL, CONTEXT), CONTEXT)).toEqual(FULL);
   });
 
-  test("reads a row written before this record existed as an outcome", () => {
-    const legacy = JSON.stringify({
-      error: "Payment failed",
-      refunded: true,
-      status: 400,
-    });
-    expect(readRowState(legacy, CONTEXT)).toEqual({
-      outcome: { error: "Payment failed", refunded: true, status: 400 },
-    });
-  });
-
-  test("reads a legacy row carrying only the message", () => {
-    expect(readRowState(JSON.stringify({ error: "Gone" }), CONTEXT)).toEqual({
-      outcome: { error: "Gone" },
-    });
-  });
-
-  test("upgrades a legacy review reason into one stable review case", () => {
-    expect(
+  test("rejects a bare terminal failure outside the row-state schema", () => {
+    expect(() =>
       readRowState(
-        JSON.stringify({ review: { kind: "partial_refund" } }),
+        JSON.stringify({
+          error: "Payment failed",
+          refunded: true,
+          status: 400,
+        }),
         CONTEXT,
-      ),
-    ).toEqual({
-      review: {
-        caseId: "legacy:partial_refund",
-        reason: { kind: "partial_refund" },
-      },
-    });
+      )
+    ).toThrow(CONTEXT);
   });
 
-  test("a claim-only record is not mistaken for a legacy outcome", () => {
+  test("rejects the obsolete bare-review format", () => {
+    const obsolete = JSON.stringify({
+      review: { kind: "partially_returned_obligation" },
+    });
+    expect(() => readRowState(obsolete, CONTEXT)).toThrow(CONTEXT);
+  });
+
+  test("reads a claim-only row-state record", () => {
     const claimOnly: PaymentRowState = {
       claim: {
         attendeeIds: [7],
@@ -102,7 +91,7 @@ describe("readRowState", () => {
         readRowState(
           writeRowState({ review: reviewCase({ kind }) }, CONTEXT),
           CONTEXT,
-        ),
+        )
       ),
     ).toEqual(
       reasons.map((kind) => ({
@@ -136,10 +125,12 @@ describe("readRowState", () => {
     expect(() => readRowState(rogue, CONTEXT)).toThrow(CONTEXT);
   });
 
-  for (const attendeeIds of [
-    [7, 7],
-    [9, 7],
-  ]) {
+  for (
+    const attendeeIds of [
+      [7, 7],
+      [9, 7],
+    ]
+  ) {
     test(`refuses claim attendee ids ${attendeeIds.join(", ")}`, () => {
       const rogue = JSON.stringify({
         claim: {

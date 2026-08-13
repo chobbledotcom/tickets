@@ -92,11 +92,11 @@ describe("admin refunds > attendee claim", () => {
         findings.unrecorded.set(4, ["sess-four"]);
         findings.reviews.set("sess-one", {
           kind: "review",
-          reason: { kind: "partial_refund" },
+          reason: { kind: "partially_returned_obligation" },
         });
         findings.reviews.set("sess-two", {
           kind: "resolved",
-          reason: "partial_refund",
+          reason: "partially_returned_obligation",
         });
         findings.reviews.set("sess-three", {
           kind: "review",
@@ -124,7 +124,7 @@ describe("admin refunds > attendee claim", () => {
               phase: "checking",
               review: {
                 kind: "review",
-                reason: { kind: "partial_refund" },
+                reason: { kind: "partially_returned_obligation" },
               },
             },
           ],
@@ -134,7 +134,7 @@ describe("admin refunds > attendee claim", () => {
               books: "unrecorded",
               claim: "release",
               phase: "checking",
-              review: { kind: "resolved", reason: "partial_refund" },
+              review: { kind: "resolved", reason: "partially_returned_obligation" },
             },
           ],
           [
@@ -175,7 +175,7 @@ describe("admin refunds > attendee claim", () => {
     expect(claim.settlements).toEqual([]);
   });
 
-  test("protects a returned marker carried by a sharing row", async () => {
+  test("protects a canonical return carried by a sharing row", async () => {
     const reference = refundReference("shared", {
       index: "own-index",
       matchingIndexes: ["own-index", "sharing-index"],

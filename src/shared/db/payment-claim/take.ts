@@ -283,7 +283,7 @@ export const claimAttendeeRows = async (
     }
     const returned = new Set(
       storedRows
-        .filter((row) => row.provider_refunded_at !== "")
+        .filter((row) => row.refund_state_name === "completed")
         .map((row) => row.payment_reference_index),
     );
     if (admit !== undefined && !admit({ attendees, returned })) {

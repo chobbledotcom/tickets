@@ -20,7 +20,7 @@ export const requestReadyRefund = (
     {
       evidence: ready.kind === "observed"
         ? { charge: ready.charge, kind: "observed" }
-        : { kind: "returned_marker" },
+        : { kind: "read_provider" },
       mode,
       reference: ready.reference,
     },
@@ -35,7 +35,7 @@ export interface AuthorityBearingReference<
     readonly index: string;
   },
 > {
-  readonly authority: RefundAuthorityReceipt | null;
+  readonly authority: RefundAuthorityReceipt;
   readonly reference: TReference;
 }
 
@@ -46,8 +46,6 @@ export const recordedRefundAuthorities = (
 ): RefundAuthorityReceipt[] =>
   uniqueBy((authority: RefundAuthorityReceipt) => authority.id)(
     references.flatMap(({ authority, reference }) =>
-      authority !== null && ledger.recorded.has(reference.index)
-        ? [authority]
-        : []
+      ledger.recorded.has(reference.index) ? [authority] : []
     ),
   );

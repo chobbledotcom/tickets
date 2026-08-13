@@ -41,10 +41,8 @@ export const withSquareClient = async <Result>(
   body: (mock: SquareMock) => Result | Promise<Result>,
 ): Promise<Result> => {
   const mock = createMockClient(impls);
-  const client = stub(
-    squareApi,
-    "getSquareClient",
-    () => Promise.resolve(mock.client),
+  const client = stub(squareApi, "getSquareClient", () =>
+    Promise.resolve(mock.client),
   );
   try {
     return await body(mock);
@@ -113,6 +111,7 @@ export const squareMoney = (
 
 /** The canonical order metadata for a single-ticket Square checkout. */
 export const SQUARE_ORDER_META = {
+  _origin: "example.com",
   email: "alice@example.com",
   items: '[{"e":1,"q":1,"p":0}]',
   name: "Alice",
@@ -124,7 +123,7 @@ export const SQUARE_ORDER_META = {
  * log. Call it inside a describe block — it registers that block's hooks, and
  * hands back the spy the "why did this skip?" assertions read.
  */
-export const setupSquareProviderSuite = (): () => Spy => {
+export const setupSquareProviderSuite = (): (() => Spy) => {
   let debug: Spy;
   beforeEach(async () => {
     await createTestDb();

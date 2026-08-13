@@ -13,25 +13,25 @@ import {
   findForms,
 } from "#test-utils/test-browser/forms.ts";
 import { openOwnerAction } from "./journeys.ts";
-import { refundSafety, type SavedOwnerForm, safetyBooking } from "./state.ts";
+import {
+  refundSafety,
+  type SavedOwnerForm,
+  type SavedOwnerFormKind,
+  safetyBooking,
+} from "./state.ts";
 // jscpd:ignore-end
-
-export type SavedFormKind = "refund" | "review";
 
 type ActOnSavedOwnerForm = (
   world: TicketsWorld,
   manager: string,
-  kind: SavedFormKind,
+  kind: SavedOwnerFormKind,
 ) => Promise<void>;
 
 const savedForm = (
   world: TicketsWorld,
-  kind: SavedFormKind,
+  kind: SavedOwnerFormKind,
 ): SavedOwnerForm => {
-  const saved =
-    kind === "refund"
-      ? refundSafety(world).savedRefund
-      : refundSafety(world).savedReview;
+  const saved = refundSafety(world).savedOwnerForms.get(kind);
   if (saved === undefined) {
     throw new Error(`The owner has not saved a ${kind} form`);
   }
@@ -40,11 +40,18 @@ const savedForm = (
 
 const keepSavedForm = (
   world: TicketsWorld,
-  kind: SavedFormKind,
+  kind: SavedOwnerFormKind,
   form: SavedOwnerForm,
 ): void => {
-  if (kind === "refund") refundSafety(world).savedRefund = form;
-  else refundSafety(world).savedReview = form;
+  refundSafety(world).savedOwnerForms.set(kind, form);
+};
+
+const hiddenValue = (html: string, name: string): string => {
+  const value = extractFormEntries(html).find(([field]) => field === name)?.[1];
+  if (value === undefined || value === "") {
+    throw new Error(`The owner form omitted ${name}`);
+  }
+  return value;
 };
 
 const actionFor = {
@@ -53,8 +60,12 @@ const actionFor = {
     button: "Mark payment reviewed",
     link: "Mark payment reviewed",
   },
+  "provider-recovery": {
+    button: "Use this provider decision",
+    link: "Open Refund recovery",
+  },
 } as const satisfies Record<
-  SavedFormKind,
+  SavedOwnerFormKind,
   { readonly button: string; readonly link: string }
 >;
 
@@ -62,19 +73,39 @@ const actionFor = {
 export const saveOwnerMoneyForm = async (
   world: TicketsWorld,
   who: string,
-  kind: SavedFormKind,
+  kind: SavedOwnerFormKind,
 ): Promise<SavedOwnerForm> => {
   const action = actionFor[kind];
   const browser = await openOwnerAction(world, who, action.link);
-  const form = findFormByButton(findForms(browser.currentHtml), action.button, [
-    "confirm_identifier",
-  ]);
+  if (kind === "provider-recovery") {
+    const detail = browser.links.find(({ text }) =>
+      text.trim().startsWith("Open refund ")
+    );
+    if (detail === undefined) {
+      throw new Error("Refund recovery listed no provider case");
+    }
+    await browser.clickLink(detail.text);
+  }
+  const fields = kind === "provider-recovery"
+    ? ["choice", "revision"]
+    : ["confirm_identifier"];
+  const form = findFormByButton(
+    findForms(browser.currentHtml),
+    action.button,
+    fields,
+  );
+  const values = kind === "provider-recovery"
+    ? {
+      choice: "provider_confirmed_not_sent",
+      revision: hiddenValue(form.body, "revision"),
+    }
+    : { confirm_identifier: who };
   const saved: SavedOwnerForm = {
     attendeeId: safetyBooking(world, who).attendeeId,
     button: action.button,
     html: browser.currentHtml,
     path: browser.currentUrl,
-    values: { confirm_identifier: who },
+    values,
   };
   expect(form.action).toBe(browser.currentUrl);
   expect(form.method).toBe("post");

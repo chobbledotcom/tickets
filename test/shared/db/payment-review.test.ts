@@ -29,6 +29,7 @@ import {
   bookedWithPayment,
   finalizeProcessedPayment,
 } from "#test-utils/processed-payments.ts";
+import { addProviderRefundTestCase } from "#test-utils/provider-refund-cases.ts";
 
 const LISTING_ID = 1;
 const REVIEW_ACTIVITY = "Payment review acknowledged by owner";
@@ -78,7 +79,7 @@ const putReview = async (
   await putRowState(
     sessionId,
     await rowStateSlot({
-      review: reviewCase({ kind: "partial_refund" }, caseId),
+      review: reviewCase({ kind: "partially_returned_obligation" }, caseId),
     }),
     REVIEW_MIRROR,
   );
@@ -98,7 +99,7 @@ describeWithEnv(
       await putRowState(
         "sess-status",
         await rowStateSlot({
-          review: reviewCase({ kind: "partial_refund" }),
+          review: reviewCase({ kind: "partially_returned_obligation" }),
           unrecorded: { returnedAt: "2026-08-11T10:00:00.000Z" },
         }),
         UNRECORDED_MIRROR,
@@ -115,7 +116,7 @@ describeWithEnv(
             scope: "attendee_set",
             writtenAt: nowIso(),
           },
-          review: reviewCase({ kind: "partial_refund" }),
+          review: reviewCase({ kind: "partially_returned_obligation" }),
           unrecorded: { returnedAt: "2026-08-11T10:00:00.000Z" },
         }),
         CLAIM_MIRROR,
@@ -123,9 +124,19 @@ describeWithEnv(
       expect(await getPaymentWorkStatus(attendeeId)).toBe("moving");
     });
 
+    test("projects canonical provider work onto the attendee action state", async () => {
+      const reference = "pi_provider_work";
+      const attendeeId = await bookedWithPayment("sess-provider", reference);
+      await addProviderRefundTestCase(reference, undefined, "stripe");
+
+      expect(await getPaymentWorkStatus(attendeeId)).toBe(
+        "needs_provider_recovery",
+      );
+    });
+
     test("records acknowledgement without retiring payment facts", async () => {
       const attendeeId = await bookedWithPayment("sess-review", "pi_review");
-      const review = reviewCase({ kind: "partial_refund" }, "exact-review");
+      const review = reviewCase({ kind: "partially_returned_obligation" }, "exact-review");
       await putRowState(
         "sess-review",
         await rowStateSlot({
@@ -153,7 +164,7 @@ describeWithEnv(
 
     test("unrecorded money blocks the lower-priority review action", async () => {
       const attendeeId = await bookedWithPayment("sess-money", "pi_money");
-      const review = reviewCase({ kind: "partial_refund" }, "money-review");
+      const review = reviewCase({ kind: "partially_returned_obligation" }, "money-review");
       await putRowState(
         "sess-money",
         await rowStateSlot({
@@ -182,13 +193,12 @@ describeWithEnv(
         await rowStateSlot({
           claim: {
             attendeeIds: [attendeeId],
-            capability: "keyless",
             commandId: "review-block-command",
-            phase: "send_armed",
+            phase: "checking",
             scope: "attendee_set",
             writtenAt: nowIso(),
           },
-          review: reviewCase({ kind: "uncertain_keyless_refund" }),
+          review: reviewCase({ kind: "partially_returned_obligation" }),
         }),
         CLAIM_MIRROR,
       );
@@ -227,7 +237,7 @@ describeWithEnv(
         kind: "review_changed",
       });
       expect(await reviewOf(attendeeId, "sess-changed")).toEqual(
-        reviewCase({ kind: "partial_refund" }, "new-case"),
+        reviewCase({ kind: "partially_returned_obligation" }, "new-case"),
       );
       expect(await getAttendeeActivityLog(attendeeId)).toEqual([]);
     });
@@ -262,7 +272,7 @@ describeWithEnv(
         "sess-first",
         await rowStateSlot({
           review: {
-            ...reviewCase({ kind: "partial_refund" }, "first-case"),
+            ...reviewCase({ kind: "partially_returned_obligation" }, "first-case"),
             acknowledgedAt: earlier,
           },
         }),

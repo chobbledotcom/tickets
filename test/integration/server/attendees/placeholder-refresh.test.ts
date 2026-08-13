@@ -4,18 +4,13 @@ import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
+import { deleteAttendee } from "#shared/db/attendees/delete.ts";
+import { queryOne } from "#shared/db/client.ts";
 import { deleteListing } from "#shared/db/listings/delete.ts";
-import {
-  createNamedSystemNote,
-  createSystemNote,
-  getNotesFor,
-} from "#shared/db/notes/queries.ts";
-import { attendeeNotes } from "#shared/db/notes/target.ts";
-import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
+import { listProviderRefundCases } from "#shared/db/provider-refund-cases.ts";
 import type { Attendee } from "#shared/types.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
-import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postPaymentLeg } from "#test-utils/db-helpers/payment-leg.ts";
@@ -97,16 +92,6 @@ const refreshAndVerifyRefundCash = async (
   expect(legs.some((leg) => leg.kind === KIND.refundCash)).toBe(true);
 };
 
-const createRefundWarning = async (
-  attendeeId: number,
-  reference: string,
-  note: string,
-): Promise<void> =>
-  createNamedSystemNote(attendeeNotes(attendeeId), note, {
-    key: await paymentReferenceIndex(taggedPaymentReference(reference)),
-    purpose: "refund_warning",
-  });
-
 describeWithEnv(
   "server (admin placeholder refresh payment)",
   { db: true },
@@ -122,41 +107,29 @@ describeWithEnv(
         await refreshAndVerifyRefundCash(attendee);
       });
 
-      test("deletes the stale manual-refund note and adds a confirmation", async () => {
+      test("a current payment refresh creates no refund work or delete blocker", async () => {
+        const sessionId = "current-placeholder-session";
         const attendee = await setupPlaceholderForRefresh(
-          "Stale Note",
-          "stale-note@example.com",
-          "placeholder-stale-note-session",
-          "pi_stale_note",
-        );
-        const privateKey = await getTestPrivateKey();
-        await createRefundWarning(
-          attendee.id,
-          "pi_stale_note",
-          "This booking was kept at quantity 0 but its payment could NOT be refunded automatically because the event filled up while they were paying. Payment reference: pi_stale_note (code: capacity_full). Please refund it manually and check the [ledger](/admin/ledger/attendee/" +
-            attendee.id +
-            ").",
-        );
-        // A second system note about something else entirely. The cleanup is
-        // for the stale manual-refund instruction only — it must not sweep
-        // away the rest of the record's history.
-        await createSystemNote(
-          attendeeNotes(attendee.id),
-          "Moved to another date at the guest's request.",
+          "Current Placeholder",
+          "current-placeholder@example.com",
+          sessionId,
+          "pi_current_placeholder",
         );
 
-        await submitRefreshPayment(attendee, () => Promise.resolve(true));
+        await submitRefreshPayment(
+          attendee,
+          () => Promise.resolve(false),
+          expect.stringContaining("up to date"),
+        );
 
-        const notes = await getNotesFor(attendeeNotes(attendee.id), privateKey);
         expect(
-          notes.some((note) => note.note.includes("could NOT be refunded")),
-        ).toBe(false);
-        expect(
-          notes.some((note) => note.note.includes("Moved to another date")),
-        ).toBe(true);
-        expect(
-          notes.some((note) => note.note.includes("Refund confirmed")),
-        ).toBe(true);
+          await queryOne<{ count: number }>(
+            "SELECT COUNT(*) AS count FROM payment_charges",
+          ),
+        ).toEqual({ count: 0 });
+        expect((await listProviderRefundCases()).cases).toEqual([]);
+        expect(await protectedStateOf(sessionId)).toBe("");
+        await expect(deleteAttendee(attendee.id)).resolves.toBeUndefined();
       });
 
       test("reconciles a placeholder whose listing was since deleted", async () => {

@@ -42,7 +42,7 @@ import {
 
 // jscpd:ignore-end
 
-const EXPECTED_REFUND_ALL_PAGE_SIZE = 5;
+const EXPECTED_REFUND_ALL_PAGE_SIZE = 1;
 const REVIEWED_SET_SIZE = 3;
 
 const lastRefundCandidate = async (
@@ -74,7 +74,7 @@ const putReviewOnLastPayment = async (
   await putRowState(
     paymentRowOf(candidate),
     await rowStateSlot({
-      review: reviewCase({ kind: "partial_refund" }),
+      review: reviewCase({ kind: "partially_returned_obligation" }),
     }),
     REVIEW_MIRROR,
   );
@@ -249,7 +249,7 @@ describeWithEnv(
       await putRowState(
         paymentRowOf(settledCandidate),
         await rowStateSlot({
-          review: reviewCase({ kind: "partial_refund" }),
+          review: reviewCase({ kind: "partially_returned_obligation" }),
         }),
         REVIEW_MIRROR,
       );

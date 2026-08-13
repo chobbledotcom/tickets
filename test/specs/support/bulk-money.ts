@@ -7,6 +7,11 @@
 import { expect } from "@std/expect";
 // jscpd:ignore-start
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
+import {
+  attribute,
+  hasFlag,
+  usableInputsOfKind,
+} from "#test/specs/support/form-controls/reading.ts";
 import { sellSomethingAt } from "#test/specs/support/listings.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import {
@@ -16,8 +21,8 @@ import {
 import {
   type ActOnSomeMoney,
   requiredWorldValue,
-  type TicketsWorld,
   theListing,
+  type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { singleItem } from "#test-utils/factories.ts";
 import { chargeMoney, refundObservation } from "#test-utils/payment-state.ts";
@@ -30,8 +35,6 @@ import { setupStripe } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
-/** The first payment is refused so the next one proves the command continues. */
-const DECLINED_PAYMENT = "pi_bulk_1";
 const FIRST_PAYMENT = "pi_bulk_1";
 
 type RefundAnswer = Parameters<typeof refundByTyping>[2];
@@ -122,13 +125,9 @@ const refundEveryone = async (
   world.bulkRefundMessage = browser.pageText;
 };
 
-/** The provider turns down the first payment while the next one completes. */
-export const everyoneRefunded = (world: TicketsWorld): Promise<void> =>
-  refundEveryone(world, (request) =>
-    request.paymentReference === DECLINED_PAYMENT
-      ? refundIsRejected(request)
-      : refundCompletes(request),
-  );
+/** Submit one bounded Refund All step that the provider refuses. */
+export const refuseNextRefund = (world: TicketsWorld): Promise<void> =>
+  refundEveryone(world, refundIsRejected);
 
 /** Try Refund All with a provider that would return every payment it receives. */
 export const tryToRefundEveryone = (world: TicketsWorld): Promise<void> =>
@@ -185,7 +184,23 @@ export const leaveFirstRefundCaseForOwner = async (
   expect(requiredWorldValue(world.refundCalls, "first refund calls")()).toBe(0);
   await browser.clickLink("Settings");
   await browser.clickLink("Privacy");
-  expect(browser.containsText("Owner decision needed")).toBe(true);
+  expect(browser.containsText("Refund recovery")).toBe(true);
+  const detail = browser.links.find(({ text }) =>
+    text.trim().startsWith("Open refund ")
+  );
+  if (detail === undefined) {
+    throw new Error("Refund recovery listed no provider case");
+  }
+  await browser.clickLink(detail.text);
+  const choices = usableInputsOfKind(browser.currentHtml, "radio").filter(
+    ({ field }) => field === "choice",
+  );
+  expect(choices.map(({ tag }) => attribute(tag, "value"))).toEqual([
+    "provider_confirmed_returned",
+    "provider_confirmed_not_sent",
+  ]);
+  expect(choices.every(({ tag }) => hasFlag(tag, "required"))).toBe(true);
+  expect(choices.every(({ tag }) => !hasFlag(tag, "checked"))).toBe(true);
 };
 
 /** Replace the contradictory report with an untouched charge. */
@@ -195,18 +210,6 @@ export const correctFirstPayment = (world: TicketsWorld): void => {
     FIRST_PAYMENT,
     chargeMoney(charge.captured.amount, 0, charge.captured.currency),
   );
-};
-
-/** Who got their money back, and who the provider turned down. */
-export const refundedPeople = (
-  world: TicketsWorld,
-): { refunded: number[]; turnedDown: number } => {
-  const paid = requiredWorldValue(world.attendeeIds, "the people who paid");
-  if (paid.length !== 2) {
-    throw new Error(`Expected two people to have paid, found ${paid.length}`);
-  }
-  const [first, second] = paid as [number, number];
-  return { refunded: [second], turnedDown: first };
 };
 
 /** A listing that asks one price but lets a customer pay more. */

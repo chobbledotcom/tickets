@@ -4,6 +4,7 @@
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import { requireListingWithCount } from "#shared/db/listings/records.ts";
+import { priceCheckout } from "#shared/checkout-pricing.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import {
@@ -87,7 +88,7 @@ export const buyPaidPlaceThroughPublicPage = async (
   await completePaidCheckout(intent, sessionId);
   const attendeeId = await soleBookingOn(listing.id);
   const booking: SafetyBooking = {
-    amount: Math.round(Number(pounds) * 100),
+    amount: priceCheckout(intent).total,
     attendeeId,
     listingId: listing.id,
     paymentReference: `pi_${sessionId}`,

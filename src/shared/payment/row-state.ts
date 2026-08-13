@@ -10,10 +10,7 @@
  */
 
 import * as v from "valibot";
-import {
-  PaymentReviewCaseSchema,
-  PaymentReviewReasonSchema,
-} from "#shared/payment/review.ts";
+import { PaymentReviewCaseSchema } from "#shared/payment/review.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
@@ -97,45 +94,16 @@ const PaymentRowStateSchema = paymentRowStateSchemaWith(
 );
 export type PaymentRowState = v.InferOutput<typeof PaymentRowStateSchema>;
 
-const LegacyPaymentRowStateSchema = v.strictObject({
-  ...paymentRowStateFields,
-  review: PaymentReviewReasonSchema,
-});
-type LegacyPaymentRowState = v.InferOutput<typeof LegacyPaymentRowStateSchema>;
-
 /** A row carrying nothing yet. */
 export const EMPTY_ROW_STATE: PaymentRowState = {};
 
 const rowStateJson = defineStoredJson(PaymentRowStateSchema);
-const legacyRowStateJson = defineStoredJson(LegacyPaymentRowStateSchema);
-const legacyFailureJson = defineStoredJson(StoredPaymentFailureSchema);
 
-const upgradeLegacyReview = (state: LegacyPaymentRowState): PaymentRowState => {
-  const { review, ...kept } = state;
-  return {
-    ...kept,
-    review: {
-      caseId: `legacy:${review.kind}`,
-      reason: review,
-    },
-  };
-};
-
-/** Read the record out of a decrypted slot. Rows written before it existed
- *  hold a bare terminal failure, read as an outcome-only record — a
- *  stored-format boundary is the one place a compatibility read belongs. */
+/** Read the one canonical record out of a decrypted slot. */
 export const readRowState = (
   stored: string,
   context: string,
-): PaymentRowState => {
-  const parsed: unknown = JSON.parse(stored);
-  if (v.is(StoredPaymentFailureSchema, parsed)) {
-    return { outcome: legacyFailureJson.read(stored, context) };
-  }
-  return v.is(PaymentRowStateSchema, parsed)
-    ? rowStateJson.read(stored, context)
-    : upgradeLegacyReview(legacyRowStateJson.read(stored, context));
-};
+): PaymentRowState => rowStateJson.read(stored, context);
 
 /** Write the record back out. */
 export const writeRowState = (

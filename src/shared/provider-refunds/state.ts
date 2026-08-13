@@ -7,21 +7,20 @@ import {
   type RefundAuthorityRow,
   transitionRefundAuthority,
 } from "#shared/db/provider-refund-authority.ts";
+import type { Money } from "#shared/payment/money.ts";
 import type { ProviderRead } from "#shared/payment/provider-read.ts";
+import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 import {
   armRefundSend,
   markRefundObservationDue,
-  readyRefund,
   type RefundAuthorityState,
   type RefundRequestGeneration,
+  readyRefund,
 } from "#shared/payment/refund-authority.ts";
 import { markRefundOwnerChoiceNeeded } from "#shared/payment/refund-authority-choice.ts";
-import type { Money } from "#shared/payment/money.ts";
-import { sameMoney } from "#shared/payment/money.ts";
 import { REFUND_PROVIDER_CAPABILITIES } from "#shared/payment/refund-provider-authorization.ts";
 import { refundReplayUntil } from "#shared/payment/refund-replay-window.ts";
 import { refundRequestIdentityIndex } from "#shared/payment/refund-request-identity.ts";
-import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 import {
   type ChargeMoney,
   refundMoneyReturned,
@@ -86,7 +85,10 @@ export const refundAfterTransition = async (
   previous: RefundAuthorityRow,
   reference: TaggedPaymentReference,
 ): Promise<ProviderRefundResult> =>
-  refundAnswerFrom(changed ?? await requireCurrentRefund(previous), reference);
+  refundAnswerFrom(
+    changed ?? (await requireCurrentRefund(previous)),
+    reference,
+  );
 
 export const returnedRefundMoney = (charge: ChargeMoney): Money => ({
   amount: refundMoneyReturned(charge),
@@ -103,11 +105,11 @@ const requestGeneration = async (
   return capability === "keyless"
     ? { capability, generation, identityIndex }
     : {
-      capability,
-      generation,
-      identityIndex,
-      replayUntil: refundReplayUntil(reference.provider, now),
-    };
+        capability,
+        generation,
+        identityIndex,
+        replayUntil: refundReplayUntil(reference.provider, now),
+      };
 };
 
 export const initialRefundState = async (
@@ -142,15 +144,6 @@ export const requireMatchingRefundProvider = (
   }
 };
 
-export const requireMatchingCharge = (
-  row: RefundAuthorityRow,
-  charge: ChargeMoney,
-): void => {
-  if (!sameMoney(row.captured, charge.captured)) {
-    throw new Error("Refund charge money changed after it was admitted");
-  }
-};
-
 export const readRefundEvidence = async (
   target: ProviderRefundTarget,
   provider: RefundEngineProvider,
@@ -166,10 +159,10 @@ export const ownerReasonWhenDue = (
   now < state.nextActionAt
     ? null
     : state.request.capability === "keyless"
-    ? "possibly_sent"
-    : now > state.request.replayUntil
-    ? "replay_window_expired"
-    : null;
+      ? "possibly_sent"
+      : now > state.request.replayUntil
+        ? "replay_window_expired"
+        : null;
 
 export const moveRefundToOwner = async (
   row: RefundAuthorityRow,
@@ -182,33 +175,46 @@ export const moveRefundToOwner = async (
   refunded: Money,
 ): Promise<ProviderRefundResult> =>
   await refundAfterTransition(
-    await transitionRefundAuthority(
-      row,
-      now,
-      refunded,
-      (state) =>
-        markRefundOwnerChoiceNeeded(
-          state.kind === "ready" ? armRefundSend(state, now, now) : state,
-          now,
-          reason,
-        ),
+    await transitionRefundAuthority(row, now, refunded, (state) =>
+      markRefundOwnerChoiceNeeded(
+        state.kind === "ready" ? armRefundSend(state, now, now) : state,
+        now,
+        reason,
+      ),
     ),
     row,
     reference,
   );
 
-export const completeRefundFromEvidence = async (
+type AnswerRefund = (
   row: RefundAuthorityRow,
   now: number,
   reference: TaggedPaymentReference,
-): Promise<ProviderRefundResult> =>
+) => Promise<ProviderRefundResult>;
+
+/** Preserve terminal work, or turn a live disagreement into an owner choice. */
+export const answerProviderConflict: AnswerRefund = async (
+  row,
+  now,
+  reference,
+) =>
+  row.state.kind === "completed" || row.state.kind === "needs_owner_choice"
+    ? refundAnswerFrom(row, reference)
+    : await moveRefundToOwner(
+        row,
+        "provider_conflict",
+        now,
+        reference,
+        row.refunded,
+      );
+
+export const completeRefundFromEvidence: AnswerRefund = async (
+  row,
+  now,
+  reference,
+) =>
   await refundAfterTransition(
-    await completeRefundAuthority(
-      row,
-      row.captured,
-      now,
-      "provider",
-    ),
+    await completeRefundAuthority(row, row.captured, now, "provider"),
     row,
     reference,
   );

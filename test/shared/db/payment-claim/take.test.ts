@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { execute } from "#shared/db/client.ts";
 import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
-import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   bookAttendee,
@@ -26,6 +25,10 @@ import {
   bookedWithPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
+import {
+  getCompleteRefundPaymentReferencesForAttendee,
+  markProviderRefundsReturned,
+} from "#test-utils/payment-references.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 describeWithEnv(
@@ -303,11 +306,13 @@ describeWithEnv(
         );
       });
 
-      test("names a reference this run's row says came back", async () => {
+      test("names a reference whose canonical charge says came back", async () => {
         const attendeeId = await bookedWithPayment("sess-q", "pi_already_back");
-        await execute(
-          "UPDATE processed_payments SET provider_refunded_at = ? WHERE payment_session_id = ?",
-          [new Date(nowMs()).toISOString(), "sess-q"],
+        await markProviderRefundsReturned(
+          await getCompleteRefundPaymentReferencesForAttendee({
+            currentPaymentId: "pi_already_back",
+            id: attendeeId,
+          }),
         );
         const held = await claimCurrentAttendeeRows([attendeeId]);
         if (held.kind !== "claimed") throw new Error("the claim was refused");
@@ -318,12 +323,14 @@ describeWithEnv(
         ]);
       });
 
-      test("names a reference a sharing row says came back", async () => {
+      test("names a returned reference represented by a sharing row", async () => {
         const ours = await bookedWithPayment("sess-s1", "pi_shared_back");
         await bookedWithPayment("sess-s2", "pi_shared_back");
-        await execute(
-          "UPDATE processed_payments SET provider_refunded_at = ? WHERE payment_session_id = ?",
-          [new Date(nowMs()).toISOString(), "sess-s2"],
+        await markProviderRefundsReturned(
+          await getCompleteRefundPaymentReferencesForAttendee({
+            currentPaymentId: "pi_shared_back",
+            id: ours,
+          }),
         );
         const held = await claimCurrentAttendeeRows([ours]);
         if (held.kind !== "claimed") throw new Error("the claim was refused");

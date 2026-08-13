@@ -4,13 +4,15 @@ import { t } from "#i18n";
 import { attendeeActionUrlWithReturn } from "#routes/admin/attendees-route-helpers.ts";
 import type { RefundBatchResult } from "#routes/admin/refunds/provider.ts";
 import { errorRedirect } from "#routes/response.ts";
-import { getPaymentWorkStatus } from "#shared/db/payment-review.ts";
 
-type RefundErrorPage = "actions" | "refund";
+type RefundErrorPage = "actions" | "recovery" | "refund";
+
+const REFUND_RECOVERY_URL = "/admin/privacy#refund-recovery";
 
 const refundErrorUrls = {
   actions: (attendeeId: number, returnUrl: string): string =>
     returnUrl || `/admin/attendees/${attendeeId}/actions`,
+  recovery: (): string => REFUND_RECOVERY_URL,
   refund: (attendeeId: number, returnUrl: string): string =>
     attendeeActionUrlWithReturn(attendeeId, "refund", returnUrl),
 } satisfies Record<
@@ -25,23 +27,11 @@ export const refundError = (
   page: RefundErrorPage = "refund",
 ): Response => errorRedirect(refundErrorUrls[page](attendeeId, returnUrl), msg);
 
-/** Put unsafe work on Actions; an ordinary failed send may be retried. */
-const refundResultError = async (
-  attendeeId: number,
-  msg: string,
-  returnUrl: string,
-  readWorkStatus: typeof getPaymentWorkStatus,
-): Promise<Response> =>
-  (await readWorkStatus(attendeeId)) === "clear"
-    ? refundError(attendeeId, msg, returnUrl)
-    : refundError(attendeeId, msg, returnUrl, "actions");
-
 /** Turn one provider run into either its safe error page or a success. */
 export const singleRefundResultError = async (
   result: RefundBatchResult,
   attendeeId: number,
   returnUrl: string,
-  readWorkStatus: typeof getPaymentWorkStatus = getPaymentWorkStatus,
 ): Promise<Response | null> => {
   switch (result.kind) {
     case "blocked":
@@ -56,9 +46,9 @@ export const singleRefundResultError = async (
     case "finished": {
       const { counts } = result;
       if (counts.refundedCount === 1) return null;
-      // These outcomes all leave owner work. Re-read it before choosing the
-      // page, so none can offer an unsafe second send.
-      return await refundResultError(
+      // Every provider outcome that did not finish cleanly leaves its next
+      // allowed action in the canonical recovery queue.
+      return refundError(
         attendeeId,
         counts.notRecordedCount === 1
           ? t("error.refund_not_recorded")
@@ -66,7 +56,7 @@ export const singleRefundResultError = async (
             ? t("error.refund_pending")
             : t("error.refund_failed"),
         returnUrl,
-        readWorkStatus,
+        "recovery",
       );
     }
   }

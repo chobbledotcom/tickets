@@ -25,9 +25,7 @@ import {
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
-import {
-  protectedStateOf,
-} from "#test-utils/payment-claim.ts";
+import { protectedStateOf } from "#test-utils/payment-claim.ts";
 import { requireCompleteRefundReferences } from "#test-utils/payment-references.ts";
 import { chargeMoney, fullyRefundedMoney } from "#test-utils/payment-state.ts";
 import {

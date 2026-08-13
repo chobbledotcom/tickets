@@ -20,7 +20,7 @@ describe("refresh payment under an attendee claim", () => {
 
   test("marks the exact returned rows while releasing a missed ledger post", async () => {
     const run = runHarness({
-      existingReview: { kind: "uncertain_keyless_refund" },
+      existingReview: { kind: "partially_returned_obligation" },
       observed: fullyRefundedMoney(),
       posted: false,
     });

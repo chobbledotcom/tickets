@@ -219,10 +219,12 @@ describeWithEnv(
         settle: granted.settle,
       };
 
-      const result = await processRefundBatchAt(source, [candidate(70, 1)], 7, {
-        claim,
-        record: recordEveryRefund,
-      });
+      const result = await runWithSubrequestBudget(() =>
+        processRefundBatchAt(source, [candidate(70, 1)], 7, {
+          claim,
+          record: recordEveryRefund,
+        })
+      );
 
       expectBudgetRefusal(result);
       expect(source.reads).toEqual([]);
@@ -298,7 +300,7 @@ describeWithEnv(
       expect(granted.unrecorded).toEqual([[sessionId]]);
     });
 
-    test("settlement and caller reserves survive a work allowance failure", async () => {
+    test("settlement reserve survives a work allowance failure", async () => {
       let settlementRemaining = -1;
       const granted = grantingRowClaim(
         new Map([[50, ["session_pi_budget_50_0"]]]),
@@ -321,13 +323,13 @@ describeWithEnv(
         );
 
         expect(result.kind).not.toBe("blocked");
-        expect(settlementRemaining).toBe(45);
+        expect(settlementRemaining).toBe(49);
         expect(getSubrequestRemaining().database).toBe(49);
         countSubrequest("database", "caller activity write");
       });
     });
 
-    test("admits the normal two-Stripe-payment command from the request boundary", async () => {
+    test("refuses two independently retryable sends from the request boundary", async () => {
       await settings.update.stripe.secretKey("sk_test_budget");
       const source = provider({
         refunded: new Set(["pi_budget_80_0", "pi_budget_80_1"]),
@@ -344,15 +346,10 @@ describeWithEnv(
           { claim: granted, record: recordEveryRefund },
         );
 
-        expect(result).toMatchObject({
-          counts: { refundedCount: 1 },
-          kind: "finished",
-        });
+        expectBudgetRefusal(result);
       });
-      expect(source.refunds.sort()).toEqual([
-        "pi_budget_80_0",
-        "pi_budget_80_1",
-      ]);
+      expect(source.reads).toEqual([]);
+      expect(source.refunds).toEqual([]);
     });
   },
 );

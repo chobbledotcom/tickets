@@ -2,7 +2,6 @@ import { ErrorCode, logError } from "#shared/logger.ts";
 
 export type RefundNotStartedReason =
   | "claim_changed"
-  | "historical_marker"
   | "owner_review"
   | "payment_set_changed"
   | "provider_evidence"
@@ -11,19 +10,19 @@ export type RefundNotStartedReason =
 
 type RefundProblem =
   | {
-      attendeeId: number;
-      kind: "batch_outcome";
-      outcome: "failed";
-      paymentCount: number;
-    }
+    attendeeId: number;
+    kind: "batch_outcome";
+    outcome: "failed";
+    paymentCount: number;
+  }
   | { error: unknown; kind: "claim_settlement" }
   | { attendeeId: number; kind: "incomplete_batch"; paymentCount: number }
   | {
-      action: "refresh" | "refund";
-      attendeeId: number;
-      kind: "not_started";
-      reason: RefundNotStartedReason;
-    };
+    action: "refresh" | "refund";
+    attendeeId: number;
+    kind: "not_started";
+    reason: RefundNotStartedReason;
+  };
 
 const PROBLEM_DETAIL = {
   batch_outcome: "Admin bulk refund",
@@ -37,10 +36,10 @@ const problemDetail = (problem: RefundProblem): string =>
     problem.kind === "batch_outcome"
       ? ` ${problem.outcome} for ${problem.paymentCount} payment(s)`
       : problem.kind === "incomplete_batch"
-        ? ` ${problem.paymentCount} payments`
-        : problem.kind === "not_started"
-          ? ` ${problem.action} not started (${problem.reason})`
-          : ""
+      ? ` ${problem.paymentCount} payments`
+      : problem.kind === "not_started"
+      ? ` ${problem.action} not started (${problem.reason})`
+      : ""
   }`;
 
 /** Report refund work using only declared, privacy-safe facts. */

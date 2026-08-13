@@ -32,7 +32,7 @@ export const getProcessedPayment = (
   sessionId: string,
 ): Promise<ProcessedPayment | null> =>
   queryOne<ProcessedPayment>(
-    "SELECT payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data, payment_reference, provider_refunded_at " +
+    "SELECT payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data, payment_reference " +
       "FROM processed_payments WHERE payment_session_id = ?",
     [sessionId],
   );

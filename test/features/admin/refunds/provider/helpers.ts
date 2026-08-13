@@ -52,7 +52,7 @@ export const candidate = (
 ): RefundCandidate => ({
   attendee: { id } as RefundCandidate["attendee"],
   references: references.map(({ reference, refundState = "none" }) =>
-    refundReference(reference, { refundState }),
+    refundReference(reference, { refundState })
   ),
 });
 
@@ -81,11 +81,11 @@ export const readyReference = (
   return input.kind === "already_returned"
     ? { kind: "already_returned", provider: source, reference }
     : {
-        charge: input.charge ?? chargeMoney(),
-        kind: "observed",
-        provider: source,
-        reference,
-      };
+      charge: input.charge ?? chargeMoney(),
+      kind: "observed",
+      provider: source,
+      reference,
+    };
 };
 export const readyCandidate = (
   references: ReadyReferenceInput[],
@@ -142,15 +142,15 @@ const prepareProviderReference = async (
   return read.status === "found"
     ? { charge: read.resource, kind: "observed" }
     : {
-        evidence: {
-          attempts: [{ provider: source.type, result: read }],
-          reason: "no_validating_provider",
-          reference: reference.reference,
-          source: "untagged",
-          status: "unresolved",
-        },
-        index: reference.index,
-      };
+      evidence: {
+        attempts: [{ provider: source.type, result: read }],
+        reason: "no_validating_provider",
+        reference: reference.reference,
+        source: "untagged",
+        status: "unresolved",
+      },
+      index: reference.index,
+    };
 };
 
 const isReadinessFailure = (
@@ -191,11 +191,11 @@ const readyReferenceFrom = (
   return prepared.kind === "already_returned"
     ? { kind: "already_returned", provider: source, reference: tagged }
     : {
-        charge: prepared.charge,
-        kind: "observed",
-        provider: source,
-        reference: tagged,
-      };
+      charge: prepared.charge,
+      kind: "observed",
+      provider: source,
+      reference: tagged,
+    };
 };
 
 export const prepareAtProvider =
@@ -230,27 +230,27 @@ export const prepareAtProvider =
     );
     return failures.length > 0
       ? {
-          kind: "not_ready",
-          observations: preparedReferences.flatMap(({ prepared, reference }) =>
-            preparationObservations(prepared, reference, source),
-          ),
-          reads: failures,
-          reason: "provider_evidence",
-        }
+        kind: "not_ready",
+        observations: preparedReferences.flatMap(({ prepared, reference }) =>
+          preparationObservations(prepared, reference, source)
+        ),
+        reads: failures,
+        reason: "provider_evidence",
+      }
       : {
-          candidates: candidates.map((candidate) => ({
-            attendee: candidate.attendee,
-            references: candidate.references.map((reference) => {
-              const prepared = requiredMapValue(
-                preparedByIndex,
-                reference.index,
-                `Test readiness lost payment reference ${reference.index}`,
-              );
-              return readyReferenceFrom(reference, prepared, source);
-            }),
-          })),
-          kind: "ready",
-        };
+        candidates: candidates.map((candidate) => ({
+          attendee: candidate.attendee,
+          references: candidate.references.map((reference) => {
+            const prepared = requiredMapValue(
+              preparedByIndex,
+              reference.index,
+              `Test readiness lost payment reference ${reference.index}`,
+            );
+            return readyReferenceFrom(reference, prepared, source);
+          }),
+        })),
+        kind: "ready",
+      };
   };
 
 export const processRefundBatchAt = (
@@ -262,7 +262,8 @@ export const processRefundBatchAt = (
   processRefundBatch(candidates, listingId, {
     ...dependencies,
     prepare: prepareAtProvider(source),
-    recordAuthorities: dependencies.recordAuthorities ?? (() => Promise.resolve()),
+    recordAuthorities: dependencies.recordAuthorities ??
+      (() => Promise.resolve()),
     request: dependencies.request ?? requestRecordedProviderRefund,
   });
 
@@ -294,7 +295,9 @@ export const provider = ({
   const reads: string[] = [];
   const refunds: string[] = [];
   const requests: RefundRequest[] = [];
-  const answerRefund = (request: RefundRequest): Promise<RefundAttemptResult> => {
+  const answerRefund = (
+    request: RefundRequest,
+  ): Promise<RefundAttemptResult> => {
     requests.push(request);
     refunds.push(request.paymentReference);
     if (refund !== undefined) return refund(request);
@@ -308,8 +311,8 @@ export const provider = ({
       accepted.has(request.paymentReference)
         ? acceptedRefund(request.charge)
         : refunded.has(request.paymentReference)
-          ? completedRefund(request)
-          : { kind: "rejected", reason: "failed" },
+        ? completedRefund(request)
+        : { kind: "rejected", reason: "failed" },
     );
   };
   return {
@@ -377,7 +380,7 @@ export const pendingCandidate = (
 ): RefundCandidate => ({
   attendee: { id: attendeeId } as RefundCandidate["attendee"],
   references: references.map((reference) =>
-    refundReference(reference, { sessionIds: [] }),
+    refundReference(reference, { sessionIds: [] })
   ),
 });
 

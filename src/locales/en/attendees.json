@@ -141,6 +141,7 @@
   "attendee_form.leg_agent_end": "End agent",
   "attendee_form.agent_none": "— None —",
   "attendee_form.action_refund": "Refund",
+  "attendee_form.action_refund_recovery": "Open Refund recovery",
   "attendee_form.action_payment_review": "Mark payment reviewed",
   "attendee_form.action_resend": "Re-send notification",
   "attendee_form.action_send_text": "Send text",

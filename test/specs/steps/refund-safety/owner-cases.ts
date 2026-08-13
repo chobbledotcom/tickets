@@ -1,6 +1,8 @@
 // jscpd:ignore-start
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { loadRefundAuthorityByReference } from "#shared/db/provider-refund-authority.ts";
+import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import type { ProviderRefundTarget } from "#shared/provider-refunds.ts";
 import {
   type ProviderRefundDependencies,
@@ -53,12 +55,29 @@ const ownerCase = (world: TicketsWorld): OwnerCase => {
   return found;
 };
 
+const expectedProviderReference = (world: TicketsWorld): string => {
+  const prepared = refundSafety(world).ownerCase;
+  if (prepared !== undefined) return prepared.reference;
+  const who = world.attendeeName;
+  if (who === undefined) {
+    throw new Error("The story has no attendee or prepared refund case");
+  }
+  const booking = refundSafety(world).bookings.get(who);
+  if (booking === undefined) {
+    throw new Error(`The story has no paid booking for ${who}`);
+  }
+  return booking.paymentReference;
+};
+
 Given(
   "a SumUp refund intent is ready but has not been sent",
   async function (this: TicketsWorld): Promise<void> {
     const provider = refundProviderFor(this);
     const charge = chargeMoney(4_500);
-    provider.showCharge("sumup", REFERENCE, charge);
+    provider.show("sumup", REFERENCE, {
+      reason: "timeout",
+      status: "unavailable",
+    });
     provider.answer("sumup", REFERENCE, {
       amount: charge.captured,
       kind: "completed",
@@ -68,17 +87,21 @@ Given(
     const result = await requestProviderRefund(
       {
         ...target(),
-        evidence: { charge, kind: "observed" },
-        mode: "observe_only",
+        callbackSessionId: "sumup-owner-recovery-callback",
+        evidence: { captured: charge.captured, kind: "validated_callback" },
       },
       dependencies(startedAt),
     );
-    expect(result.kind).toBe("ready");
-    if (result.kind !== "ready") {
+    expect(result.kind).toBe("withheld");
+    provider.showCharge("sumup", REFERENCE, charge);
+    const stored = await loadRefundAuthorityByReference(
+      await paymentReferenceIndex(target().reference),
+    );
+    if (stored === null || stored.state.kind !== "ready") {
       throw new Error("The callback did not leave a ready refund intent");
     }
     refundSafety(this).ownerCase = {
-      id: result.authority.id,
+      id: stored.id,
       reference: REFERENCE,
       systemTime: startedAt,
     };
@@ -155,7 +178,7 @@ Then(
   "the provider reference is shown with two required unanswered choices",
   function (this: TicketsWorld): void {
     const browser = scenarioBrowser(this);
-    expect(browser.pageText).toContain(ownerCase(this).reference);
+    expect(browser.pageText).toContain(expectedProviderReference(this));
     const choices = usableInputsOfKind(browser.currentHtml, "radio").filter(
       ({ field }) => field === "choice",
     );

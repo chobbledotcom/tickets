@@ -31,15 +31,23 @@ type RefundReportFacts = {
 
 /** One reference's result. A returned result names the durable authority that
  * must be retired only after its local ledger write succeeds. */
-export type ReferenceRefund = {
-  authority?: RefundAuthorityReceipt | null;
-  outcome: RefundOutcome;
+export type ReferenceRefund =
+  | {
+    readonly authority: RefundAuthorityReceipt;
+    readonly outcome: "refunded";
+  }
+  | {
+    readonly outcome: Exclude<RefundOutcome, "refunded">;
+  };
+
+type ReferenceStandDown = {
+  readonly outcome: RefundOutcome;
 };
 
 export type PreparedReferenceRefund = {
   maySend: boolean;
   run: (mode: "observe_only" | "send") => Promise<ReferenceRefund>;
-  standDown: ReferenceRefund;
+  standDown: ReferenceStandDown;
 };
 
 export type PreparedRefundAttempt = PreparedReferenceRefund & {
@@ -67,7 +75,7 @@ const answeredOnce = <TAnswer>(
 const withheldResult = (
   admission: ObservedWithheldRefund,
   report: RefundReportFacts,
-): ReferenceRefund => {
+): ReferenceStandDown => {
   if (admission.kind === "already_returned") return { outcome: "refunded" };
   reportWithheldRefund(admission, report);
   return { outcome: admission.kind === "refused" ? "withheld" : "pending" };
@@ -76,7 +84,7 @@ const withheldResult = (
 const standDownResult = (
   admission: ObservedRefundAdmission,
   report: RefundReportFacts,
-): ReferenceRefund =>
+): ReferenceStandDown =>
   admission.kind === "send"
     ? { outcome: "failed" }
     : withheldResult(admission, report);
@@ -93,16 +101,21 @@ const engineResult = (
     return { outcome: "pending" };
   }
   if (result.kind === "withheld") {
-    return withheldResult(
+    const withheld = withheldResult(
       result.admission,
       { attendeeId, listingId, provider: result.reference.provider },
     );
+    if (withheld.outcome === "refunded") {
+      throw new Error("Refund authority withheld a completed refund");
+    }
+    return { outcome: withheld.outcome };
   }
   if (result.kind === "needs_owner_choice") {
     return {
       outcome: result.reason === "provider_rejected" ? "failed" : "pending",
     };
   }
+  if (result.kind === "unchanged") return { outcome: "withheld" };
   return { outcome: "withheld" };
 };
 
@@ -148,7 +161,7 @@ const prepareReferenceRefund = (
 };
 
 export type ReturnedRefundReference = {
-  readonly authority: RefundAuthorityReceipt | null;
+  readonly authority: RefundAuthorityReceipt;
   readonly reference: TaggedRefundReference;
 };
 
@@ -190,7 +203,7 @@ const candidateResult = (
   const outcome = combineRefundOutcomes(results.map(({ outcome }) => outcome));
   const returned = results.flatMap((result) =>
     result.outcome === "refunded"
-      ? [{ authority: result.authority ?? null, reference: result.reference }]
+      ? [{ authority: result.authority, reference: result.reference }]
       : []
   );
   if (
@@ -239,11 +252,12 @@ export const finishPreparedCandidate = async (
 /** Preserve provider-free evidence when a prepared batch stands down. */
 export const standDownPreparedCandidate = (
   prepared: PreparedCandidateRefund,
-): CandidateRefund =>
-  candidateResult(
-    prepared,
-    prepared.attempts.map((attempt) => ({
-      ...attempt.standDown,
-      reference: attempt.reference,
-    })),
-  );
+): CandidateRefund => ({
+  candidate: prepared.candidate,
+  outcome: combineRefundOutcomes(
+    prepared.attempts.map(({ standDown }) => standDown.outcome),
+  ),
+  // A provider-free refusal has no authority answer to retire. Canonical
+  // completed rows are already protected by the claim's initial findings.
+  returned: [],
+});

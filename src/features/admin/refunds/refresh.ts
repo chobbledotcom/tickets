@@ -30,10 +30,7 @@ import {
   applyRefundLedgerFindings,
   rememberFailedRefundLedger,
 } from "./ledger-findings.ts";
-import {
-  currentPaymentReviews,
-  resolvePaymentReview,
-} from "./row-reviews.ts";
+import { currentPaymentReviews, resolvePaymentReview } from "./row-reviews.ts";
 import { mapProviderRequests } from "./provider-requests.ts";
 import {
   prepareRefundReadiness,
@@ -79,7 +76,7 @@ const paymentOnlyBeforeRefund = async (
 };
 
 type ReturnedRefreshReference = {
-  readonly authority: RefundAuthorityReceipt | null;
+  readonly authority: RefundAuthorityReceipt;
   readonly reference: TaggedRefundReference;
 };
 

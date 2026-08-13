@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute, getDb, queryOne } from "#shared/db/client.ts";
+import { getDb } from "#shared/db/client.ts";
 import type { CreateRefundAuthority } from "#shared/db/provider-refund-authority.ts";
 import {
   bindRefundCallbackIfChargeExists,
@@ -35,14 +35,15 @@ const ready = (capability: "keyed" | "keyless" = "keyless") =>
     evidenceRevision: 1,
     nextActionAt: 20,
     now: 10,
-    request: capability === "keyed"
-      ? {
-        capability,
-        generation: 1,
-        identityIndex: "request-one",
-        replayUntil: 500,
-      }
-      : { capability, generation: 1, identityIndex: "request-one" },
+    request:
+      capability === "keyed"
+        ? {
+            capability,
+            generation: 1,
+            identityIndex: "request-one",
+            replayUntil: 500,
+          }
+        : { capability, generation: 1, identityIndex: "request-one" },
   });
 
 const createInput = (
@@ -55,25 +56,6 @@ const createInput = (
   reference: paymentReference,
   state,
 });
-
-const markerFor = async (index: string): Promise<string | null> =>
-  (
-    await queryOne<{ provider_refunded_at: string }>(
-      `SELECT provider_refunded_at
-       FROM processed_payments
-      WHERE payment_reference_index = ?`,
-      [index],
-    )
-  )?.provider_refunded_at ?? null;
-
-const addProcessedPayment = async (index: string): Promise<void> => {
-  await execute(
-    `INSERT INTO processed_payments
-      (payment_session_id, processed_at, payment_reference_index)
-     VALUES (?, '2026-08-13T00:00:00.000Z', ?)`,
-    [`session-${crypto.randomUUID()}`, index],
-  );
-};
 
 describeWithEnv("provider refund authority persistence", { db: true }, () => {
   test("creates ready authority in one exact upsert", async () => {
@@ -151,23 +133,19 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
     );
 
     expect(
-      await bindRefundCallbackIfChargeExists(
-        {
-          callbackReplayIndex: "callback-one",
-          referenceIndex: first.referenceIndex,
-        },
-      ),
+      await bindRefundCallbackIfChargeExists({
+        callbackReplayIndex: "callback-one",
+        referenceIndex: first.referenceIndex,
+      }),
     ).toMatchObject({
       callbackReplayIndex: "callback-one",
       id: first.id,
     });
     expect(
-      await bindRefundCallbackIfChargeExists(
-        {
-          callbackReplayIndex: "callback-one",
-          referenceIndex: first.referenceIndex,
-        },
-      ),
+      await bindRefundCallbackIfChargeExists({
+        callbackReplayIndex: "callback-one",
+        referenceIndex: first.referenceIndex,
+      }),
     ).toMatchObject({ id: first.id });
     await expect(
       bindRefundCallbackIfChargeExists({
@@ -204,10 +182,9 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
         callbackReplayIndex: "callback-one",
       }),
     ).rejects.toThrow("Refund callback identity belongs to another charge");
-    expect(await getDb().execute("SELECT id FROM payment_charges"))
-      .toMatchObject(
-        { rows: [{ id: first.id }] },
-      );
+    expect(
+      await getDb().execute("SELECT id FROM payment_charges"),
+    ).toMatchObject({ rows: [{ id: first.id }] });
   });
 
   test("transitions exactly the expected revision", async () => {
@@ -231,11 +208,8 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
     expect(queries.sql[0]).toContain("UPDATE payment_charges");
     expect(queries.sql[0]).not.toContain("SELECT");
     expect(
-      await transitionRefundAuthority(
-        row,
-        31,
-        gbp(0),
-        (state) => armRefundSend(state, 31, 50),
+      await transitionRefundAuthority(row, 31, gbp(0), (state) =>
+        armRefundSend(state, 31, 50),
       ),
     ).toBeNull();
   });
@@ -266,19 +240,14 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
     if (observed === null) throw new Error("setup transition lost");
 
     await expect(
-      transitionRefundAuthority(
-        observed,
-        31,
-        gbp(99),
-        (state) => markRefundObservationDue(state, 31, 50),
+      transitionRefundAuthority(observed, 31, gbp(99), (state) =>
+        markRefundObservationDue(state, 31, 50),
       ),
     ).rejects.toThrow("amount moved backwards");
   });
 
-  test("completion and every matching legacy marker commit together", async () => {
+  test("completion changes the canonical authority once", async () => {
     const row = await createOrLoadRefundAuthority(createInput());
-    await addProcessedPayment(row.referenceIndex);
-    await addProcessedPayment(row.referenceIndex);
 
     const completed = await completeRefundAuthority(
       row,
@@ -295,40 +264,10 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
         local: { kind: "due", returnedAt: 50 },
       },
     });
-    const markers = await getDb().execute({
-      args: [row.referenceIndex],
-      sql: `SELECT provider_refunded_at
-              FROM processed_payments
-             WHERE payment_reference_index = ?`,
-    });
-    expect(markers.rows).toEqual([
-      { provider_refunded_at: "1970-01-01T00:00:00.050Z" },
-      { provider_refunded_at: "1970-01-01T00:00:00.050Z" },
-    ]);
   });
 
-  test("a refused legacy marker rolls completion back", async () => {
+  test("a stale completion leaves the authority unchanged", async () => {
     const row = await createOrLoadRefundAuthority(createInput());
-    await addProcessedPayment(row.referenceIndex);
-    await execute(
-      `CREATE TRIGGER refuse_provider_refund_marker
-       BEFORE UPDATE OF provider_refunded_at ON processed_payments
-       BEGIN
-         SELECT RAISE(ABORT, 'marker refused');
-       END`,
-    );
-
-    await expect(
-      completeRefundAuthority(row, gbp(2_500), 50, "provider"),
-    ).rejects.toThrow("marker refused");
-
-    expect(await loadRefundAuthorityById(row.id)).toEqual(row);
-    expect(await markerFor(row.referenceIndex)).toBe("");
-  });
-
-  test("a stale completion changes neither authority nor legacy marker", async () => {
-    const row = await createOrLoadRefundAuthority(createInput());
-    await addProcessedPayment(row.referenceIndex);
 
     expect(
       await completeRefundAuthority(
@@ -338,8 +277,7 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
         "provider",
       ),
     ).toBeNull();
-    expect(await markerFor(row.referenceIndex)).toBe("");
-    expect((await loadRefundAuthorityById(row.id))?.state.kind).toBe("ready");
+    expect(await loadRefundAuthorityById(row.id)).toEqual(row);
   });
 
   test("creation always leaves reachable ready work with zero returned", async () => {
@@ -347,24 +285,6 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
 
     expect(row.state.kind).toBe("ready");
     expect(row.refunded).toEqual(gbp(0));
-  });
-
-  test("a stale completion cannot mark an unrecorded legacy row", async () => {
-    const row = await createOrLoadRefundAuthority(createInput());
-    const completed = await completeRefundAuthority(
-      row,
-      gbp(2_500),
-      50,
-      "provider",
-    );
-    if (completed === null) throw new Error("setup completion lost");
-    await addProcessedPayment(row.referenceIndex);
-
-    expect(
-      await completeRefundAuthority(row, gbp(2_500), 50, "provider"),
-    ).toBeNull();
-
-    expect(await markerFor(row.referenceIndex)).toBe("");
   });
 
   test("local recording is revision fenced and cannot skip completion", async () => {

@@ -51,7 +51,11 @@ const REVIEW_ACTIVITY = "Payment review acknowledged by owner";
 
 const paymentWorkStatus = (
   rows: readonly PaymentRowRecord[],
-): PaymentWorkStatus => paymentWorkFor(rows.map(({ state }) => state)).status;
+): PaymentWorkStatus =>
+  paymentWorkFor(
+    rows.map(({ state }) => state),
+    rows.some(({ providerRefundWork }) => providerRefundWork),
+  ).status;
 
 type ReviewRow = {
   readonly review: PaymentReviewCase;

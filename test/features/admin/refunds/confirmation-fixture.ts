@@ -47,7 +47,7 @@ export const confirmFixturePayment = (
   refund: ConfirmationFixture,
 ): Promise<RefundConfirmation> =>
   withTestSession(() =>
-    confirmRefund({ ...refund, references: [refund.reference] }),
+    confirmRefund({ ...refund, references: [refund.reference] })
   );
 
 export const confirmFixturePaymentAndReplay = async (
@@ -97,7 +97,7 @@ export const setupConfirmation = async (
           attendee.id,
           `tok-${payment.sessionId}`,
           taggedPaymentReference(payment.paymentReference),
-        ),
+        )
       ),
     );
   }
@@ -122,10 +122,9 @@ export const setupConfirmation = async (
         {
           identity: {
             kind: "tagged" as const,
-            provider:
-              boundReference.kind === "tagged"
-                ? boundReference.provider
-                : "stripe",
+            provider: boundReference.kind === "tagged"
+              ? boundReference.provider
+              : "stripe",
             reference: boundReference.reference,
           },
         },

@@ -71,7 +71,7 @@ const setReview = async (
   await putRowState(
     sessionId,
     await rowStateSlot({
-      review: reviewCase({ kind: "partial_refund" }, caseId),
+      review: reviewCase({ kind: "partially_returned_obligation" }, caseId),
     }),
     REVIEW_MIRROR,
   );
@@ -308,13 +308,12 @@ describeWithEnv("admin payment review action", { db: true }, () => {
         await rowStateSlot({
           claim: {
             attendeeIds: [context.attendeeId],
-            capability: "keyed",
             commandId: "test-review-command",
-            phase: "send_armed",
+            phase: "checking",
             scope: "attendee_set",
             writtenAt: nowIso(),
           },
-          review: reviewCase({ kind: "partial_refund" }),
+          review: reviewCase({ kind: "partially_returned_obligation" }),
         }),
         CLAIM_MIRROR,
       );

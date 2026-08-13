@@ -18,6 +18,7 @@ import {
 } from "#shared/db/client.ts";
 import { nowIso } from "#shared/now.ts";
 import { mirrorFor } from "#shared/payment/admit-move.ts";
+import { refundAuthorityWorkSql } from "#shared/payment/refund-authority-lifecycle.ts";
 import {
   type HeldRefundCommand,
   holdsExactRefundCommand,
@@ -44,6 +45,7 @@ const SLOT = "processed_payments.failure_data";
  *  as read, because every write back is conditioned on it being unchanged. */
 export type PaymentRowRecord = {
   readonly attendeeId: number;
+  readonly providerRefundWork: boolean;
   readonly sessionId: string;
   readonly slot: string;
   readonly state: PaymentRowState;
@@ -63,16 +65,21 @@ export type StoredPaymentClaimRow = {
   attendee_id: number | null;
   failure_data: EnvKeyEncrypted | "";
   payment_reference_index: string;
+  provider_refund_work: number;
   payment_session_id: string;
-  provider_refunded_at: string;
+  refund_state_name: string | null;
 };
 
 /** One place says which columns a claim needs, so no reader can build a
  *  `StoredRow` that is missing one. */
 export const paymentClaimRowsSql = (where: string): string =>
   `SELECT payment_session_id, attendee_id, failure_data,
-          payment_reference_index, provider_refunded_at
+          payment_reference_index, charge.refund_state_name,
+          CASE WHEN ${refundAuthorityWorkSql("charge.")}
+            THEN 1 ELSE 0 END AS provider_refund_work
      FROM processed_payments AS payment
+     LEFT JOIN payment_charges AS charge
+       ON charge.reference_index = payment.payment_reference_index
     WHERE ${where}`;
 
 export const readPaymentClaimRows = async (
@@ -87,14 +94,20 @@ export const readPaymentClaimRows = async (
 /** Read one stored row into the record it carries. */
 export const asPaymentRowRecord = async (
   row: StoredPaymentClaimRow,
-): Promise<PaymentRowRecord> => ({
-  attendeeId: Number(row.attendee_id),
-  sessionId: row.payment_session_id,
-  slot: row.failure_data,
-  state: row.failure_data
-    ? readRowState(await decrypt(row.failure_data), SLOT)
-    : EMPTY_ROW_STATE,
-});
+): Promise<PaymentRowRecord> => {
+  if (row.provider_refund_work !== 0 && row.provider_refund_work !== 1) {
+    throw new Error("Provider refund work projection is invalid");
+  }
+  return {
+    attendeeId: Number(row.attendee_id),
+    providerRefundWork: row.provider_refund_work === 1,
+    sessionId: row.payment_session_id,
+    slot: row.failure_data,
+    state: row.failure_data
+      ? readRowState(await decrypt(row.failure_data), SLOT)
+      : EMPTY_ROW_STATE,
+  };
+};
 
 export type HeldPaymentRowRecord = {
   readonly claim: RefundClaim;

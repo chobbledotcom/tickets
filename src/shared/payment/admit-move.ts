@@ -10,13 +10,18 @@
 import type { PaymentRowState } from "#shared/payment/row-state.ts";
 
 /** The attendee actions that can advance durable payment work. */
-export type PaymentRecoveryAction = "payment-review" | "refresh-payment";
+const PAYMENT_RECOVERY_ROUTES = {
+  "payment-review": "/admin/attendees/:attendeeId/payment-review",
+  "refresh-payment": "/admin/attendees/:attendeeId/refresh-payment",
+} as const;
+export type PaymentRecoveryAction = keyof typeof PAYMENT_RECOVERY_ROUTES;
 
 /** The one operator-facing state of an attendee's payment work. */
 export type PaymentWorkStatus =
   | "clear"
   | "moving"
   | "needs_money_record"
+  | "needs_provider_recovery"
   | "needs_review";
 
 /** What the operator is trying to do to the rows. */
@@ -30,13 +35,22 @@ type SettledField = "outcome";
  *  the record, so a new kind of work is a compile error until it decides. */
 type LiveWorkField = Exclude<keyof PaymentRowState, SettledField>;
 
-type LiveWork = {
+type RecoveryDeclaration = {
+  [Action in PaymentRecoveryAction]: {
+    recoveryAction: Action;
+    operatorRoute: (typeof PAYMENT_RECOVERY_ROUTES)[Action];
+  };
+}[PaymentRecoveryAction];
+
+type LiveWork = RecoveryDeclaration & {
+  /** The exported database operation that can remove this work. */
+  clearedBy: "settleAttendeeRows";
   /** Whether this row is in the middle of this work. */
   found: (state: PaymentRowState) => boolean;
   /** The plain word for it, for the consumers that cannot decrypt. */
   mirror: string;
-  /** The attendee action that gives the operator their next useful step. */
-  recoveryAction: PaymentRecoveryAction;
+  /** Whether retirement must carry an explicit resolution. */
+  requiresChoice: boolean;
   /** What to tell the operator, naming what to do next. */
   refusal: string;
   /** Where this comes in the order things are said when a row carries more
@@ -63,11 +77,14 @@ type LiveWork = {
  * money that may be moving right now, then money that moved and is not on the
  * books, then money somebody should look at.
  */
-const LIVE_WORK = {
+export const PAYMENT_ROW_LIFECYCLE = {
   claim: {
+    clearedBy: "settleAttendeeRows",
     found: (state: PaymentRowState) => state.claim !== undefined,
     mirror: "claim",
     recoveryAction: "refresh-payment",
+    requiresChoice: false,
+    operatorRoute: PAYMENT_RECOVERY_ROUTES["refresh-payment"],
     refusal:
       "A refund for this person is still in progress. Finish or re-run the refund, then try again.",
     saidFirst: 0,
@@ -75,9 +92,12 @@ const LIVE_WORK = {
     stops: { delete: true, merge: true },
   },
   review: {
+    clearedBy: "settleAttendeeRows",
     found: (state: PaymentRowState) => state.review !== undefined,
     mirror: "review",
     recoveryAction: "payment-review",
+    requiresChoice: true,
+    operatorRoute: PAYMENT_RECOVERY_ROUTES["payment-review"],
     refusal:
       "The owner still has to resolve a payment problem for this person. Refresh or correct the payment evidence, then try again.",
     saidFirst: 2,
@@ -85,9 +105,12 @@ const LIVE_WORK = {
     stops: { delete: true, merge: false },
   },
   unrecorded: {
+    clearedBy: "settleAttendeeRows",
     found: (state: PaymentRowState) => state.unrecorded !== undefined,
     mirror: "unrecorded",
     recoveryAction: "refresh-payment",
+    requiresChoice: false,
+    operatorRoute: PAYMENT_RECOVERY_ROUTES["refresh-payment"],
     refusal:
       "This person's money went back, but the accounts do not show it. Record it, then try again.",
     saidFirst: 1,
@@ -96,7 +119,7 @@ const LIVE_WORK = {
   },
 } as const satisfies Record<LiveWorkField, LiveWork>;
 
-type LiveWorkEntry = (typeof LIVE_WORK)[LiveWorkField];
+type LiveWorkEntry = (typeof PAYMENT_ROW_LIFECYCLE)[LiveWorkField];
 
 /** The status and its action are selected together from the live-work table. */
 export type PaymentWork = {
@@ -107,14 +130,14 @@ export type PaymentWork = {
 /** The word a row a refund run is holding shows in `protected_state`. Named
  *  here because this is where the word is decided, and read by the SQL guards
  *  that have to ask without decrypting the record. */
-export const CLAIM_MIRROR: string = LIVE_WORK.claim.mirror;
+export const CLAIM_MIRROR: string = PAYMENT_ROW_LIFECYCLE.claim.mirror;
 
 /** Every kind of live work, most urgent first. Built once from the table's own
  *  `saidFirst`, so both readers below agree and neither depends on the order
  *  the fields happen to be written in. */
-const WORST_FIRST: readonly LiveWorkEntry[] = Object.values(LIVE_WORK).sort(
-  (one, other) => one.saidFirst - other.saidFirst,
-);
+const WORST_FIRST: readonly LiveWorkEntry[] = Object.values(
+  PAYMENT_ROW_LIFECYCLE,
+).sort((one, other) => one.saidFirst - other.saidFirst);
 
 const firstLiveWork = (
   states: readonly PaymentRowState[],
@@ -124,8 +147,15 @@ const firstLiveWork = (
 /** Summarize any number of rows using the same priority as every row guard. */
 export const paymentWorkFor = (
   states: readonly PaymentRowState[],
+  providerRefundWork = false,
 ): PaymentWork => {
   const work = firstLiveWork(states);
+  if (
+    providerRefundWork &&
+    (work === undefined || work.status === "needs_review")
+  ) {
+    return { recoveryAction: null, status: "needs_provider_recovery" };
+  }
   return work === undefined
     ? { recoveryAction: null, status: "clear" }
     : { recoveryAction: work.recoveryAction, status: work.status };

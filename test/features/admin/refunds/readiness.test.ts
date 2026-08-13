@@ -142,52 +142,6 @@ describe("admin refund readiness", () => {
     expect(returnedFirst.reference.index).toBe("bound_tagged_returned");
   });
 
-  for (
-    const [name, returned, alreadyReturned] of [
-      [
-        "returned by the held claim",
-        untagged("legacy_claim"),
-        new Set(["old_legacy_claim"]),
-      ],
-      [
-        "marked returned on its row",
-        untagged("legacy_marker", undefined, "completed"),
-        new Set<string>(),
-      ],
-    ] as const
-  ) {
-    test(`quarantines an untagged reference ${name} without provider calls`, async () => {
-      let called = false;
-      const result = await prepareRefundReadiness(
-        [candidate(1, [returned])],
-        heldClaim,
-        alreadyReturned,
-        {
-          bindProviders: () => {
-            called = true;
-            return Promise.resolve({ kind: "claim_changed" });
-          },
-          loadProvider: () => {
-            called = true;
-            return Promise.resolve(provider("stripe"));
-          },
-          readEvidence: () => {
-            called = true;
-            return Promise.resolve(found(returned, "stripe", charge()));
-          },
-        },
-      );
-
-      expect(result).toEqual({
-        indexes: [returned.index],
-        kind: "not_ready",
-        observations: [],
-        reason: "historical_marker",
-      });
-      expect(called).toBe(false);
-    });
-  }
-
   const unreadCases = [
     [
       "missing",
@@ -331,56 +285,35 @@ describe("admin refund readiness", () => {
     expect(highest).toBe(5);
   });
 
-  for (
-    const bindingResult of [
-      { kind: "claim_changed" },
-      { indexes: ["old_raced_marker"], kind: "historical_marker" },
-    ] as const satisfies readonly PaymentReferenceProviderBindingResult[]
-  ) {
-    test(`maps the binding result ${bindingResult.kind}`, async () => {
-      const reference = untagged("binding_result");
-      const result = await prepareRefundReadiness(
-        [candidate(1, [reference])],
-        heldClaim,
-        new Set(),
-        {
-          bindProviders: () => Promise.resolve(bindingResult),
-          loadProvider: () => Promise.resolve(provider("stripe")),
-          readEvidence: () =>
-            Promise.resolve(found(reference, "stripe", charge())),
-        },
-      );
+  test("maps a provider-binding claim race", async () => {
+    const reference = untagged("binding_result");
+    const bindingResult = {
+      kind: "claim_changed",
+    } satisfies PaymentReferenceProviderBindingResult;
+    const result = await prepareRefundReadiness(
+      [candidate(1, [reference])],
+      heldClaim,
+      new Set(),
+      {
+        bindProviders: () => Promise.resolve(bindingResult),
+        loadProvider: () => Promise.resolve(provider("stripe")),
+        readEvidence: () =>
+          Promise.resolve(found(reference, "stripe", charge())),
+      },
+    );
 
-      expect(result).toEqual(
-        bindingResult.kind === "claim_changed"
-          ? {
-            kind: "not_ready",
-            observations: [{
-              charge: charge(),
-              identity: {
-                kind: "tagged",
-                provider: "stripe",
-                reference: reference.reference,
-              },
-              reference,
-            }],
-            reason: "claim_changed",
-          }
-          : {
-            indexes: bindingResult.indexes,
-            kind: "not_ready",
-            observations: [{
-              charge: charge(),
-              identity: {
-                kind: "tagged",
-                provider: "stripe",
-                reference: reference.reference,
-              },
-              reference,
-            }],
-            reason: "historical_marker",
-          },
-      );
+    expect(result).toEqual({
+      kind: "not_ready",
+      observations: [{
+        charge: charge(),
+        identity: {
+          kind: "tagged",
+          provider: "stripe",
+          reference: reference.reference,
+        },
+        reference,
+      }],
+      reason: "claim_changed",
     });
-  }
+  });
 });

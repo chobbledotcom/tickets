@@ -142,8 +142,7 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
       "pi_already_refunded",
       "r2@e.com",
       "R2",
-      async () =>
-        expect(debugLogged(debugSpy, "the money is already back")).toBe(true),
+      async () => expect(debugLogged(debugSpy, "Refund completed")).toBe(true),
     );
   });
 
@@ -157,7 +156,10 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
       "R3",
       async () =>
         expect(
-          errorLogged(errorSpy, "Refund rejected for stripe payment"),
+          errorLogged(
+            errorSpy,
+            "Refund needs an owner decision for stripe payment (provider_rejected)",
+          ),
         ).toBe(true),
     );
   });
@@ -241,7 +243,7 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
     expect(removed.reason).toContain("was removed while they were paying");
   });
 
-  test("placeholderRefundNote distinguishes refunded vs could-not-refund", () => {
+  test("placeholderRefundNote distinguishes returned from tracked recovery", () => {
     const spec = placeholderRefund("price_changed")("detail line");
     const refunded = placeholderRefundNote(7, spec, true);
     expect(refunded).toContain("payment was refunded because");
@@ -249,9 +251,8 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
     expect(refunded).not.toContain("pi_ref");
     expect(refunded).not.toContain("Payment reference");
     expect(refunded).toContain("/admin/ledger/attendee/7");
-    expect(refunded).not.toContain("could NOT be refunded");
     const notRefunded = placeholderRefundNote(7, spec, false);
-    expect(notRefunded).toContain("could NOT be refunded automatically");
+    expect(notRefunded).toContain("refund is tracked in Refund recovery");
     expect(notRefunded).not.toContain("payment was refunded because");
   });
 

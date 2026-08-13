@@ -14,7 +14,7 @@ import {
 } from "./attempt.ts";
 import {
   type PreparedRefundBudget,
-  type RefundDispatchBudgetCheckpoint,
+  REFUND_LEDGER_SUBREQUEST_RESERVE,
   refundPreparedSubrequestCost,
   type RefundSendBudgetReference,
   subrequestCostFits,
@@ -89,12 +89,11 @@ const preparedBudgetOf = (
 
 const budgetFits = (
   prepared: PreparedRefundBudget,
-  checkpoint: RefundDispatchBudgetCheckpoint,
-): boolean => {
-  const cost = refundPreparedSubrequestCost(prepared, checkpoint);
-  const remaining = getSubrequestRemaining();
-  return subrequestCostFits(cost, remaining);
-};
+): boolean =>
+  subrequestCostFits(
+    refundPreparedSubrequestCost(prepared),
+    getSubrequestRemaining(),
+  );
 
 /** Carry no-send evidence into settlement without starting local money writes. */
 const rememberStandDown = (
@@ -141,24 +140,22 @@ export const dispatchRefundBatch = async (
   request: typeof requestProviderRefund = requestProviderRefund,
 ): Promise<RefundDispatchBatchResult> => {
   const waves = await prepareWaves(candidates, listingId, request);
-  rememberStandDown(waves, held.findings);
   const budget = preparedBudgetOf(waves);
-  const references = budget.sendReferences;
   const refuseForBudget = (): RefundDispatchBatchResult => {
     rememberStandDown(waves, held.findings);
     return { kind: "budget_refused" };
   };
-  if (!budgetFits(budget, "before_authority_request")) {
+  if (!budgetFits(budget)) {
     return refuseForBudget();
   }
 
   return {
     kind: "sent",
-    waves: references.length === 0
-      ? await sendPreparedWaves(waves, listingId)
-      : await withSubrequestReserve(
-        refundPreparedSubrequestCost(budget, "inside_authority_request"),
+    waves: budget.mayRecordReturns
+      ? await withSubrequestReserve(
+        REFUND_LEDGER_SUBREQUEST_RESERVE,
         () => sendPreparedWaves(waves, listingId),
-      ),
+      )
+      : await sendPreparedWaves(waves, listingId),
   };
 };

@@ -141,24 +141,20 @@ describeWithEnv("db > notes", { db: true }, () => {
     expect(ownerStored?.note).not.toContain("owner secret");
   });
 
-  test("manages app-written notes by exact indexed name, never their text", async () => {
+  test("manages refund confirmations by exact indexed name, never their text", async () => {
     const attendeeId = await makeAttendee();
     const target = attendeeNotes(attendeeId);
-    await createNamedSystemNote(target, "warning to remove", {
-      key: "reference-one",
-      purpose: "refund_warning",
-    });
-    await createNamedSystemNote(target, "same key, different purpose", {
+    await createNamedSystemNote(target, "confirmation to remove", {
       key: "reference-one",
       purpose: "refund_confirmation",
     });
-    await createNamedSystemNote(target, "different warning", {
+    await createNamedSystemNote(target, "different confirmation", {
       key: "reference-two",
-      purpose: "refund_warning",
+      purpose: "refund_confirmation",
     });
-    await createSystemNote(target, "warning to remove");
+    await createSystemNote(target, "ordinary note to keep");
 
-    await deleteNamedSystemNotes(target, "refund_warning", [
+    await deleteNamedSystemNotes(target, "refund_confirmation", [
       "reference-one",
       "reference-one",
     ]);
@@ -168,9 +164,8 @@ describeWithEnv("db > notes", { db: true }, () => {
         (note) => note.note,
       ),
     ).toEqual([
-      "same key, different purpose",
-      "different warning",
-      "warning to remove",
+      "different confirmation",
+      "ordinary note to keep",
     ]);
   });
 
@@ -193,7 +188,7 @@ describeWithEnv("db > notes", { db: true }, () => {
     await expect(
       createNamedSystemNote(target, "unreachable", {
         key: "",
-        purpose: "refund_warning",
+        purpose: "refund_confirmation",
       }),
     ).rejects.toThrow("A named system note needs a key");
     expect(await getNoteRows("attendee", [target.id])).toEqual([]);
@@ -289,12 +284,15 @@ describeWithEnv("db > notes", { db: true }, () => {
     const owner = await makeAttendee("Nothing To Delete");
     await createSystemNote(attendeeNotes(owner), "kept");
 
-    // The stale-note cleanup runs on every refresh, almost always with nothing
-    // to remove, so this path must not cost a round trip.
+    // Empty deletes must not cost a round trip.
     const { roundTrips } = await runAndCountRoundTrips(() =>
       Promise.all([
         deleteNotes(attendeeNotes(owner), []),
-        deleteNamedSystemNotes(attendeeNotes(owner), "refund_warning", []),
+        deleteNamedSystemNotes(
+          attendeeNotes(owner),
+          "refund_confirmation",
+          [],
+        ),
       ]),
     );
 

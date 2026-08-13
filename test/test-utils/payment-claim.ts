@@ -99,7 +99,7 @@ export const reviewCase = (
 ): PaymentReviewCase => ({ caseId, reason });
 
 export const REVIEW_MIRROR = mirrorFor({
-  review: reviewCase({ kind: "partial_refund" }),
+  review: reviewCase({ kind: "partially_returned_obligation" }),
 });
 export const UNRECORDED_MIRROR = mirrorFor({
   unrecorded: { returnedAt: "" },

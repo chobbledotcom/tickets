@@ -17,7 +17,9 @@ import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
 import { decrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { requirePublicStatusId } from "#shared/db/attendee-statuses.ts";
+import { deleteAttendee } from "#shared/db/attendees/delete.ts";
 import { execute, queryOne } from "#shared/db/client.ts";
+import { PaymentRowsBusyError } from "#shared/db/payment-admit-move.ts";
 import { getRefundPaymentReferencesForAttendee } from "#shared/db/payment-references.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -212,11 +214,11 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
       expect(result.refunded).toBeUndefined();
     });
 
-    test("names the warning by the payment's blind identity", async () => {
-      const { listing } = await storeFor("cs_named_warning");
+    test("keeps only a non-sensitive explanatory note", async () => {
+      const { listing } = await storeFor("cs_plain_explanation");
       const row = await queryOne<{
         note: EnvKeyEncrypted;
-        system_name: string;
+        system_name: string | null;
       }>(
         `SELECT note.note, note.system_name
            FROM system_notes AS note
@@ -226,10 +228,21 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
             AND booking.listing_id = ?`,
         [listing.id],
       );
-      if (row === null) throw new Error("the refund warning was not stored");
-      expect(row.system_name).toContain("refund_warning");
-      expect(row.system_name).not.toContain("pi_cs_named_warning");
-      expect(await decrypt(row.note)).not.toContain("pi_cs_named_warning");
+      if (row === null) {
+        throw new Error("the refund explanation was not stored");
+      }
+      expect(row.system_name).toBeNull();
+      expect(await decrypt(row.note)).not.toContain("pi_cs_plain_explanation");
+    });
+
+    test("keeps the unresolved refund from being deleted", async () => {
+      const { listing } = await storeFor("cs_unrefunded_delete");
+      const attendee = (await getAttendeesRaw(listing.id))[0];
+      if (attendee === undefined) throw new Error("placeholder was not stored");
+
+      await expect(deleteAttendee(attendee.id)).rejects.toThrow(
+        PaymentRowsBusyError,
+      );
     });
   });
 

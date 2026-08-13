@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  REFUND_CALLER_SUBREQUEST_RESERVE,
+  REFUND_LEDGER_SUBREQUEST_RESERVE,
   REFUND_SETTLEMENT_SUBREQUEST_RESERVE,
   refundPreparedSubrequestCost,
   refundReadinessSubrequestCost,
@@ -74,7 +74,7 @@ describe("admin refund subrequest budget", () => {
       external: 0,
       total: 8,
     });
-    expect(REFUND_CALLER_SUBREQUEST_RESERVE).toEqual({
+    expect(REFUND_LEDGER_SUBREQUEST_RESERVE).toEqual({
       database: 4,
       external: 0,
       total: 4,
@@ -97,9 +97,9 @@ describe("admin refund subrequest budget", () => {
           ),
       ),
     ).toEqual([
-      { database: 36, external: 3, total: 39 },
-      { database: 32, external: 3, total: 35 },
-      { database: 22, external: 1, total: 23 },
+      { database: 34, external: 3, total: 37 },
+      { database: 30, external: 1, total: 31 },
+      { database: 28, external: 1, total: 29 },
     ]);
     const prepared = {
       activeAuthorityCount: 1,
@@ -109,14 +109,11 @@ describe("admin refund subrequest budget", () => {
         { index: reference.index, provider: reference.provider },
       ],
     };
-    expect(
-      (["before_authority_request", "inside_authority_request"] as const).map(
-        (checkpoint) => refundPreparedSubrequestCost(prepared, checkpoint),
-      ),
-    ).toEqual([
-      { database: 18, external: 2, total: 20 },
-      { database: 18, external: 2, total: 20 },
-    ]);
+    expect(refundPreparedSubrequestCost(prepared)).toEqual({
+      database: 24,
+      external: 2,
+      total: 26,
+    });
   });
 
   test("prices each durable authority in a multi-charge command", () => {
@@ -132,10 +129,10 @@ describe("admin refund subrequest budget", () => {
         "before_claim",
         ["stripe"],
       ),
-    ).toEqual({ database: 39, external: 6, total: 45 });
+    ).toEqual({ database: 54, external: 6, total: 60 });
   });
 
-  test("reserves the five local calls even when the provider already returned the money", () => {
+  test("reserves canonical lookup and ledger work for returned money", () => {
     expect(
       refundPreparedSubrequestCost(
         {
@@ -144,7 +141,6 @@ describe("admin refund subrequest budget", () => {
           returnedAuthorityCount: 1,
           sendReferences: [],
         },
-        "before_authority_request",
       ),
     ).toEqual({ database: 8, external: 0, total: 8 });
   });
@@ -162,7 +158,7 @@ describe("admin refund subrequest budget", () => {
         "before_claim",
         ["stripe"],
       ),
-    ).toEqual({ database: 35, external: 0, total: 35 });
+    ).toEqual({ database: 18, external: 0, total: 18 });
   });
 
   test("prices no late work when preparation can neither send nor return money", () => {
@@ -174,7 +170,6 @@ describe("admin refund subrequest budget", () => {
           returnedAuthorityCount: 0,
           sendReferences: [],
         },
-        "before_authority_request",
       ),
     ).toEqual({ database: 0, external: 0, total: 0 });
   });

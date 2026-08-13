@@ -64,16 +64,16 @@ const attemptResult = (
 /** A provider-authority boundary double for focused admin orchestration tests. */
 export const requestRecordedProviderRefund: typeof requestProviderRefund =
   async (target, dependencies) => {
-    if (target.evidence.kind === "returned_marker") {
+    if (target.evidence.kind === "read_provider") {
       return {
-        authority: null,
+        authority: authorityFor(target),
         kind: "returned",
         local: "due",
         reference: target.reference,
       };
     }
-    if (target.evidence.kind === "read_provider") {
-      throw new Error("Admin test refund lacked its readiness observation");
+    if (target.evidence.kind === "validated_callback") {
+      throw new Error("Admin test authority received callback evidence");
     }
     const admission = admitObservedRefund(
       target.reference.reference,
@@ -104,11 +104,7 @@ export const requestRecordedProviderRefund: typeof requestProviderRefund =
           reference: target.reference,
         };
       }
-      return {
-        authority: authorityFor(target),
-        kind: "ready",
-        reference: target.reference,
-      };
+      return { kind: "unchanged", reference: target.reference };
     }
     if (dependencies === undefined) {
       throw new Error("Admin test refund lacked provider dependencies");

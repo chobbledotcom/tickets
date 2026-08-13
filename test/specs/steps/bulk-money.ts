@@ -7,13 +7,12 @@ import { execute } from "#shared/db/client.ts";
 import {
   contradictFirstPayment,
   correctFirstPayment,
-  everyoneRefunded,
   firstPaymentIsLastRefundCandidate,
   leaveFirstRefundCaseForOwner,
   paidPlaceEach,
   payMoreListing,
   payYourOwnPrice,
-  refundedPeople,
+  refuseNextRefund,
   tryToRefundEveryone,
 } from "#test/specs/support/bulk-money.ts";
 import { listingIdNamed } from "#test/specs/support/listings.ts";
@@ -23,7 +22,6 @@ import {
   attendeeLegsOfKind,
   incomeOf,
   owedBy,
-  sumOfAllBalances,
   worldBalance,
 } from "#test/specs/support/money-reads.ts";
 import {
@@ -97,9 +95,9 @@ Given(
 );
 
 When(
-  "the organiser refunds everyone and the provider turns down the first",
+  "the organiser tries to refund everyone and the provider turns it down",
   function (this: TicketsWorld): Promise<void> {
-    return everyoneRefunded(this);
+    return refuseNextRefund(this);
   },
 );
 
@@ -164,30 +162,58 @@ Then(
 );
 
 Then(
-  "the person who was refunded has their money back",
-  async function (this: TicketsWorld): Promise<void> {
-    const { refunded } = refundedPeople(this);
-    for (const id of refunded) {
-      expect((await attendeeLegsOfKind(id, "refund_cash")).length).toBe(1);
-    }
+  "the organiser is told {int} refund(s) worked and {int} remain(s)",
+  function (this: TicketsWorld, worked: number, remaining: number): void {
+    const told = requiredWorldValue(
+      this.bulkRefundMessage,
+      "what they were told",
+    );
+    expect(told).toContain(
+      `${worked} refund${worked === 1 ? "" : "s"} succeeded`,
+    );
+    expect(told).toContain(
+      `${remaining} refund${remaining === 1 ? "" : "s"} remain`,
+    );
+    expect(requiredWorldValue(this.refundCalls, "refund calls")()).toBe(
+      worked,
+    );
   },
 );
 
 Then(
-  "the one who was not still has their place, and the {word} has earned {word}",
-  async function (
-    this: TicketsWorld,
-    listing: string,
-    earned: string,
-  ): Promise<void> {
-    const { turnedDown } = refundedPeople(this);
-    expect((await attendeeLegsOfKind(turnedDown, "refund_cash")).length).toBe(
-      0,
+  "the organiser is told {int} refund(s) remain",
+  function (this: TicketsWorld, remaining: number): void {
+    expect(
+      requiredWorldValue(this.bulkRefundMessage, "what they were told"),
+    ).toContain(
+      `${remaining} refund${remaining === 1 ? "" : "s"} remain`,
     );
-    expect(await incomeOf(listingIdNamed(this, listing))).toBe(
-      minorUnits(earned),
+  },
+);
+
+Then(
+  "exactly {int} person has their money back",
+  async function (this: TicketsWorld, count: number): Promise<void> {
+    const returned = await Promise.all(
+      requiredWorldValue(this.attendeeIds, "the people who paid").map(
+        async (id) => (await attendeeLegsOfKind(id, "refund_cash")).length,
+      ),
     );
-    expect(await sumOfAllBalances()).toBe(0);
+    expect(returned.filter((legs) => legs === 1)).toHaveLength(count);
+  },
+);
+
+Then(
+  "all {int} people have their money back",
+  async function (this: TicketsWorld, count: number): Promise<void> {
+    const people = requiredWorldValue(
+      this.attendeeIds,
+      "the people who paid",
+    );
+    expect(people).toHaveLength(count);
+    for (const id of people) {
+      expect(await attendeeLegsOfKind(id, "refund_cash")).toHaveLength(1);
+    }
   },
 );
 
@@ -215,7 +241,7 @@ Then(
     expect(await incomeOf(listingIdNamed(this, listing))).toBe(
       minorUnits(earned),
     );
-    expect(await worldBalance()).toBe(-minorUnits(earned));
+    expect(await worldBalance()).toBe(0 - minorUnits(earned));
   },
 );
 

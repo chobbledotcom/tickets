@@ -11,7 +11,7 @@ import type {
   TaggedPaymentReference,
 } from "#shared/payment/provider-reference.ts";
 import type { RefundProviderCapability } from "#shared/payment/refund-provider-authorization.ts";
-import { type RefundClaim, readRowState } from "#shared/payment/row-state.ts";
+import { readRowState, type RefundClaim } from "#shared/payment/row-state.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import {
   bookAttendee,
@@ -25,13 +25,11 @@ type StoredPaymentRow = {
   failure_data: EnvKeyEncrypted | "";
   payment_reference: string;
   payment_reference_index: string;
-  provider_refunded_at: string;
 };
 
 export const rowFor = (sessionId: string): Promise<StoredPaymentRow> =>
   requireOne<StoredPaymentRow>(
-    `SELECT failure_data, payment_reference, payment_reference_index,
-            provider_refunded_at
+    `SELECT failure_data, payment_reference, payment_reference_index
        FROM processed_payments
       WHERE payment_session_id = ?`,
     [sessionId],

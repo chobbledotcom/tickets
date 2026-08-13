@@ -20,7 +20,9 @@ const authority: RefundAuthorityReceipt = {
 };
 
 type ResultWithoutReference = ProviderRefundResult extends infer Answer
-  ? Answer extends ProviderRefundResult ? Omit<Answer, "reference"> : never
+  ? Answer extends ProviderRefundResult
+    ? Omit<Answer, "reference">
+    : never
   : never;
 
 const result = <Answer extends ResultWithoutReference>(
@@ -45,27 +47,35 @@ describe("callback provider-refund result", () => {
     ).toBe(true);
   });
 
-  for (
-    const pending of [
-      { kind: "pending", state: "send_armed" },
-      { kind: "pending", state: "observing" },
-    ] as const
-  ) {
+  for (const pending of [
+    { kind: "pending", state: "send_armed" },
+    { kind: "pending", state: "observing" },
+  ] as const) {
     it(`keeps ${pending.state} money pending`, () => {
-      expect(
-        providerRefundReturned(result({ authority, ...pending })),
-      ).toBe(false);
+      expect(providerRefundReturned(result({ authority, ...pending }))).toBe(
+        false,
+      );
     });
   }
 
   it("reports a definitely unsent request that remains ready", () => {
     expect(
-      providerRefundReturned(
-        result({ authority, kind: "ready" }),
-        { listingId: 7, provider: "stripe" },
-      ),
+      providerRefundReturned(result({ authority, kind: "ready" }), {
+        listingId: 7,
+        provider: "stripe",
+      }),
     ).toBe(false);
     expect(errors.contains("durable request remains ready")).toBe(true);
+  });
+
+  it("does not turn a read-only observation into a refund", () => {
+    expect(
+      providerRefundReturned(result({ kind: "unchanged" }), {
+        listingId: 7,
+        provider: "stripe",
+      }),
+    ).toBe(false);
+    expect(errors.contains("only observed for stripe payment")).toBe(true);
   });
 
   it("reports the exact reason an owner decision is required", () => {

@@ -162,13 +162,13 @@ const addReference = (
     existing.heldRowSessionIds.push(...held);
     existing.rowSessionIds.push(row.payment_session_id);
     existing.sessionIds.push(...sessionIds);
-    existing.refunded ||= row.provider_refunded_at !== "";
+    existing.refunded ||= row.refund_state_name === "completed";
   } else {
     byReference.set(index, {
       heldRowSessionIds: held,
       index,
       payment,
-      refunded: row.provider_refunded_at !== "",
+      refunded: row.refund_state_name === "completed",
       rowSessionIds: [row.payment_session_id],
       sessionIds,
     });

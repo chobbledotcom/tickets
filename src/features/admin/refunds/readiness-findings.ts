@@ -16,15 +16,11 @@ type FailedReadiness = Extract<RefundReadinessResult, { kind: "not_ready" }>;
 
 const rememberReturnedForCandidate = (
   candidate: RefundCandidate,
-  readiness: FailedReadiness,
   returnedIndexes: ReadonlySet<string>,
   held: HeldRefundWork,
 ): void => {
   const attendeeId = candidate.attendee.id;
   const indexes = new Set(returnedIndexes);
-  if (readiness.reason === "historical_marker") {
-    for (const index of readiness.indexes) indexes.add(index);
-  }
   const returned = candidate.references.filter(({ index }) =>
     indexes.has(index)
   );
@@ -46,7 +42,11 @@ const requireMatchingAnswer = (
   ) {
     throw new Error("Refund authority answered for a different payment");
   }
-  if (answer.kind === "ready" || answer.kind === "withheld") {
+  if (
+    answer.kind === "ready" ||
+    answer.kind === "unchanged" ||
+    answer.kind === "withheld"
+  ) {
     throw new Error("Refund authority discarded observed refund evidence");
   }
 };
@@ -96,7 +96,6 @@ export const rememberReadinessFailureFindings = async (
   for (const candidate of candidates) {
     rememberReturnedForCandidate(
       candidate,
-      readiness,
       returnedIndexes,
       held,
     );

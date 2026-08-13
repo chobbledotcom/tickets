@@ -32,7 +32,7 @@ describe("admin refund provider > local recording", () => {
     expect(result.outcome).toBe("failed");
   });
 
-  test("a returned marker needs no provider call", async () => {
+  test("a canonical completed charge needs no provider call", async () => {
     const source = provider({ refundCapability: "keyless" });
     const result = await refundReadyCandidate(
       readyCandidate(

@@ -131,15 +131,9 @@ describeWithEnv("db > Refund All candidates", { db: true }, () => {
     await putRowState(
       paymentRowOf(modernSettledCandidate),
       await rowStateSlot({
-        review: reviewCase({ kind: "partial_refund" }),
+        review: reviewCase({ kind: "partially_returned_obligation" }),
       }),
       REVIEW_MIRROR,
-    );
-    await execute(
-      `UPDATE processed_payments
-          SET payment_reference_index = ''
-        WHERE payment_session_id = ?`,
-      [paymentRowOf(modernSettledCandidate)],
     );
     expect(await getRefundAllSummary(listing.id)).toEqual({
       blockedBy: null,
@@ -149,7 +143,7 @@ describeWithEnv("db > Refund All candidates", { db: true }, () => {
     await putRowState(
       paymentRowOf(activeCandidate),
       await rowStateSlot({
-        review: reviewCase({ kind: "partial_refund" }),
+        review: reviewCase({ kind: "partially_returned_obligation" }),
         unrecorded: { returnedAt: "2026-08-13T12:00:00.000Z" },
       }),
       UNRECORDED_MIRROR,
@@ -191,15 +185,16 @@ describeWithEnv("db > Refund All candidates", { db: true }, () => {
     });
   });
 
-  test("selects five claim-first attendees as encrypted records", async () => {
+  test("selects one claim-first attendee as an encrypted record", async () => {
     const listing = await createPaidListing();
     await seedTaggedBatchAttendees(listing, "pi_refund_batch_", 7);
-    const initial = await loadRefundAllBatch(listing.id);
-    const claimedId = initial.attendees[4]?.id;
-    if (claimedId === undefined) {
-      throw new Error("The full Refund All page has no last attendee");
+    const claimed = (await getCompleteRefundCandidatesForListing(listing.id))[
+      4
+    ];
+    if (claimed === undefined) {
+      throw new Error("Refund All has no fifth attendee");
     }
-    const claimed = await candidateFor(listing.id, claimedId);
+    const claimedId = claimed.attendee.id;
     await markProviderRefundsReturned(claimed.references);
     await markAsRefunded(claimedId);
     await putRowState(
@@ -216,7 +211,7 @@ describeWithEnv("db > Refund All candidates", { db: true }, () => {
 
     const batch = await loadRefundAllBatch(listing.id);
     expect(batch).toMatchObject({ blockedBy: null, total: 7 });
-    expect(batch.attendees).toHaveLength(5);
+    expect(batch.attendees).toHaveLength(1);
     expect(batch.attendees[0]).toMatchObject({
       id: claimedId,
       quantity: 1,
@@ -236,7 +231,9 @@ describeWithEnv("db > Refund All candidates", { db: true }, () => {
       .find(({ attendee }) => !selected.has(attendee.id));
     const reference = outside?.references[0];
     if (reference === undefined || reference.kind !== "tagged") {
-      throw new Error("Refund All has no tagged payment outside its first page");
+      throw new Error(
+        "Refund All has no tagged payment outside its first page",
+      );
     }
     const ready = readyRefund({
       evidenceRevision: 1,

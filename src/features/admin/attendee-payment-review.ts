@@ -21,6 +21,7 @@ const REVIEW_GUARD = {
   clear: "admin.attendees.payment_review_none",
   moving: "admin.attendees.payment_review_in_progress",
   needs_money_record: "admin.attendees.payment_review_none",
+  needs_provider_recovery: "admin.attendees.payment_review_none",
   needs_review: null,
 } satisfies Record<PaymentWorkStatus, string | null>;
 

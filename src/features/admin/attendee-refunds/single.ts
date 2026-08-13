@@ -43,6 +43,7 @@ const whatIsLeftToRefund = async (
     clear: null,
     moving: t("error.refund_pending"),
     needs_money_record: t("error.refund_not_recorded"),
+    needs_provider_recovery: t("error.refund_recovery_required"),
     needs_review: t("error.payment_needs_review"),
   } satisfies Record<
     Awaited<ReturnType<typeof getPaymentWorkStatus>>,

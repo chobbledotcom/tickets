@@ -7,8 +7,8 @@ import { squareApi } from "#shared/square/api.ts";
 import type { SquarePayment } from "#shared/square/payment-outcomes.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
 import {
-  setupSquareProviderSuite,
   SQUARE_ORDER_META,
+  setupSquareProviderSuite,
   squareMoney,
 } from "#test/test-utils/square/fixtures.ts";
 import { squareOrderRead } from "#test/test-utils/square/outcomes.ts";
@@ -18,14 +18,6 @@ import {
   asSession,
   BLANK_SESSION_METADATA,
 } from "#test-utils/payment-session.ts";
-
-/** A completed order carrying no metadata (the "ignore" fixture). */
-const NO_META_ORDER = {
-  id: "order_no_meta",
-  metadata: {},
-  state: "COMPLETED",
-  totalMoney: squareMoney(1000),
-};
 
 const foundPayment = (
   resource: SquarePayment,
@@ -43,7 +35,8 @@ const paidPay1Mocks = (id: string, createdAt?: string) => ({
         tenders: [{ id: "tender_1", paymentId: "pay_1" }],
         totalMoney: squareMoney(1000),
       }),
-    )),
+    ),
+  ),
   payment: stub(squareApi, "readPayment", () =>
     Promise.resolve(
       foundPayment({
@@ -51,7 +44,8 @@ const paidPay1Mocks = (id: string, createdAt?: string) => ({
         id: "pay_1",
         status: "COMPLETED",
       }),
-    )),
+    ),
+  ),
 });
 
 /** A single-line checkout intent for the given listing and phone value. */
@@ -109,33 +103,11 @@ describe("square-provider", () => {
   });
 
   describe("retrieveSession", () => {
-    test("returns null when an order carries no app metadata", async () => {
-      await withMocks(
-        () =>
-          stub(
-            squareApi,
-            "readOrder",
-            () => Promise.resolve(squareOrderRead(NO_META_ORDER)),
-          ),
-        async () => {
-          const result = await squarePaymentProvider.retrieveSession(
-            "order_no_meta",
-          );
-          expect(result).toBeNull();
-          expect(debug().calls.at(-1)?.args).toEqual([
-            "[Square] Square order does not carry app metadata",
-          ]);
-        },
-      );
-    });
-
     test("logs and returns null when the order does not exist", async () => {
       await withMocks(
         () =>
-          stub(
-            squareApi,
-            "readOrder",
-            () => Promise.resolve(squareOrderRead(null)),
+          stub(squareApi, "readOrder", () =>
+            Promise.resolve(squareOrderRead(null)),
           ),
         async () => {
           expect(
@@ -163,14 +135,10 @@ describe("square-provider", () => {
                 tenders: [{ id: "tender_1", paymentId: "pay_1" }],
                 totalMoney: { amount: null, currency: null },
               }),
-            )),
-          payment: stub(
-            squareApi,
-            "readPayment",
-            () =>
-              Promise.resolve(
-                foundPayment({ id: "pay_1", status: "COMPLETED" }),
-              ),
+            ),
+          ),
+          payment: stub(squareApi, "readPayment", () =>
+            Promise.resolve(foundPayment({ id: "pay_1", status: "COMPLETED" })),
           ),
         }),
         async () => {
@@ -192,9 +160,8 @@ describe("square-provider", () => {
       await withMocks(
         () => paidPay1Mocks("order_completed"),
         async (mocks) => {
-          const result = await squarePaymentProvider.retrieveSession(
-            "order_completed",
-          );
+          const result =
+            await squarePaymentProvider.retrieveSession("order_completed");
           expect(result).not.toBeNull();
           expect(asSession(result).paymentStatus).toBe("paid");
           expect(asSession(result).paymentReference).toBe("pay_1");
@@ -209,9 +176,8 @@ describe("square-provider", () => {
       await withMocks(
         () => paidPay1Mocks("order_dated", "2026-06-20T09:00:00Z"),
         async () => {
-          const result = await squarePaymentProvider.retrieveSession(
-            "order_dated",
-          );
+          const result =
+            await squarePaymentProvider.retrieveSession("order_dated");
           expect(asSession(result).createdAt).toBe("2026-06-20T09:00:00.000Z");
         },
       );
@@ -233,7 +199,8 @@ describe("square-provider", () => {
                 tenders: [{ id: "tender_1", paymentId: "pay_2" }],
                 totalMoney: { amount: BigInt(1000), currency: "GBP" },
               }),
-            )),
+            ),
+          ),
           payment: stub(squareApi, "readPayment", () =>
             Promise.resolve(
               foundPayment({
@@ -241,12 +208,12 @@ describe("square-provider", () => {
                 id: "pay_2",
                 status: "COMPLETED",
               }),
-            )),
+            ),
+          ),
         }),
         async (mocks) => {
-          const result = await squarePaymentProvider.retrieveSession(
-            "order_open",
-          );
+          const result =
+            await squarePaymentProvider.retrieveSession("order_open");
           expect(result).not.toBeNull();
           expect(asSession(result).paymentStatus).toBe("paid");
           expect(asSession(result).paymentReference).toBe("pay_2");
@@ -271,19 +238,20 @@ describe("square-provider", () => {
                 tenders: [{ id: "tender_1", paymentId: "pay_3" }],
                 totalMoney: { amount: BigInt(1000), currency: "GBP" },
               }),
-            )),
+            ),
+          ),
           payment: stub(squareApi, "readPayment", () =>
             Promise.resolve(
               foundPayment({
                 id: "pay_3",
                 status: "PENDING",
               }),
-            )),
+            ),
+          ),
         }),
         async () => {
-          const result = await squarePaymentProvider.retrieveSession(
-            "order_open",
-          );
+          const result =
+            await squarePaymentProvider.retrieveSession("order_open");
           expect(result).not.toBeNull();
           expect(asSession(result).paymentStatus).toBe("unpaid");
         },
@@ -305,11 +273,11 @@ describe("square-provider", () => {
                 state: "OPEN",
                 totalMoney: { amount: BigInt(1000), currency: "GBP" },
               }),
-            )),
+            ),
+          ),
         async () => {
-          const result = await squarePaymentProvider.retrieveSession(
-            "order_no_tenders",
-          );
+          const result =
+            await squarePaymentProvider.retrieveSession("order_no_tenders");
           expect(result).not.toBeNull();
           expect(asSession(result).paymentReference).toBe("");
           expect(asSession(result).paymentStatus).toBe("unpaid");

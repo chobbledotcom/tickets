@@ -50,7 +50,7 @@ const placeholderRefundNoteText = (
   const ledger = `[ledger](/admin/ledger/attendee/${attendeeId})`;
   return refunded
     ? `This booking was kept at quantity 0 but its payment was refunded because ${refund.reason}. Refund code: ${refund.code}. Please check the ${ledger}.`
-    : `This booking was kept at quantity 0 but its payment could NOT be refunded automatically because ${refund.reason}. Refund code: ${refund.code}. Please refund it manually and check the ${ledger}.`;
+    : `This booking was kept at quantity 0 because ${refund.reason}. Its refund is tracked in Refund recovery. Refund code: ${refund.code}. Please check the ${ledger}.`;
 };
 
 /** The PII-free system note for a quantity-0 placeholder refund. */

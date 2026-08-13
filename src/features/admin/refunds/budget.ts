@@ -7,6 +7,11 @@ import {
 import { orderedCredentialedPaymentProviderTypes } from "#shared/existing-payment-provider.ts";
 import { REFUND_NETWORK_RETRIES } from "#shared/payment/refund-network.ts";
 import { REFUND_LEDGER_BATCH_DATABASE_CALLS } from "#shared/refund-ledger/record.ts";
+import {
+  REFUND_ACTIVE_AUTHORITY_DATABASE_CALLS,
+  REFUND_KNOWN_AUTHORITY_DATABASE_CALLS,
+  REFUND_OBSERVED_AUTHORITY_DATABASE_CALLS,
+} from "#shared/provider-refunds/budget.ts";
 import type { SubrequestCounts } from "#shared/subrequest-budget.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 
@@ -67,30 +72,10 @@ const physicalCalls = (
 
 type ProviderCallStage = "complete" | "judgment" | "send";
 
-export type RefundBudgetCheckpoint =
+export type RefundReadinessBudgetCheckpoint =
   | "before_claim"
   | "inside_claim"
-  | "before_provider_read"
-  | "before_authority_request"
-  | "inside_authority_request";
-
-export type RefundReadinessBudgetCheckpoint = Extract<
-  RefundBudgetCheckpoint,
-  "before_claim" | "inside_claim" | "before_provider_read"
->;
-
-export type RefundDispatchBudgetCheckpoint = Extract<
-  RefundBudgetCheckpoint,
-  "before_authority_request" | "inside_authority_request"
->;
-
-const PROVIDER_CALL_STAGES = {
-  before_claim: "complete",
-  before_authority_request: "send",
-  before_provider_read: "judgment",
-  inside_authority_request: "send",
-  inside_claim: "complete",
-} as const satisfies Record<RefundBudgetCheckpoint, ProviderCallStage>;
+  | "before_provider_read";
 
 /** Refresh only observes provider facts. Refund additionally prices the one
  * send and bounded recovery read that its readiness can lead to. */
@@ -103,7 +88,7 @@ const READINESS_PROVIDER_CALL_STAGES = {
   refund: {
     before_claim: "complete",
     before_provider_read: "judgment",
-    inside_claim: "complete",
+    inside_claim: "judgment",
   },
 } as const satisfies Record<
   RefundReadinessAction,
@@ -185,69 +170,51 @@ type DatabaseCallPlan = {
 };
 
 const CLAIM_DATABASE_CALLS = 6;
+// Admission runs before the claim batch and transaction commit.
 const CLAIM_DATABASE_CALLS_AFTER_ADMISSION = 2;
 const SETTLEMENT_DATABASE_CALLS = DATABASE_MAX_ATTEMPTS * 2;
 const PROVIDER_BINDING_DATABASE_CALLS = 4;
-const FIRST_ACTIVE_AUTHORITY_DATABASE_CALLS = 13;
-const ADDITIONAL_AUTHORITY_DATABASE_CALLS = 3;
-const RETURNED_AUTHORITY_DATABASE_CALLS = 3;
-const TRANSACTION_ROLLBACK_HEADROOM = 1;
+const REFRESH_RECORDING_DATABASE_CALLS = REFUND_LEDGER_BATCH_DATABASE_CALLS;
 const RETURNED_PAYMENT_DATABASE_CALLS = REFUND_LEDGER_BATCH_DATABASE_CALLS;
-const REFRESH_PAYMENT_ONLY_DATABASE_CALLS = 1;
-// Begin + held-row read + confirmation batch + warning delete + activity +
-// payment-only note + commit, with one mandatory rollback slot.
-const REFUND_CONFIRMATION_DATABASE_CALLS = 8;
-const REFRESH_COMPLETION_DATABASE_CALLS = RETURNED_PAYMENT_DATABASE_CALLS +
-  REFRESH_PAYMENT_ONLY_DATABASE_CALLS +
-  REFUND_CONFIRMATION_DATABASE_CALLS;
 
 /**
- * Each checkpoint prices work through its next safe refusal. The last gate
- * includes the durable authority and send tail because no refusal is safe once
- * that authority starts. Settlement and the caller tail have separate reserves.
+ * Each checkpoint prices work through its next safe refusal. Readiness prices
+ * provider judgment and durable authority; the later dispatch gate prices send
+ * and recovery transport before authority work starts. Settlement has its own
+ * structural reserve.
  */
 const DATABASE_CALL_PLANS = {
   before_claim: {
     fixed: CLAIM_DATABASE_CALLS +
-      SETTLEMENT_DATABASE_CALLS +
-      PROVIDER_BINDING_DATABASE_CALLS +
-      TRANSACTION_ROLLBACK_HEADROOM,
-    pricesAuthority: true,
-    whenRecordingReturns: RETURNED_PAYMENT_DATABASE_CALLS,
-  },
-  before_authority_request: {
-    fixed: TRANSACTION_ROLLBACK_HEADROOM,
+      PROVIDER_BINDING_DATABASE_CALLS,
     pricesAuthority: true,
     whenRecordingReturns: RETURNED_PAYMENT_DATABASE_CALLS,
   },
   before_provider_read: {
-    fixed: PROVIDER_BINDING_DATABASE_CALLS + TRANSACTION_ROLLBACK_HEADROOM,
-    pricesAuthority: true,
-    whenRecordingReturns: RETURNED_PAYMENT_DATABASE_CALLS,
-  },
-  inside_authority_request: {
-    fixed: TRANSACTION_ROLLBACK_HEADROOM,
+    fixed: PROVIDER_BINDING_DATABASE_CALLS,
     pricesAuthority: true,
     whenRecordingReturns: RETURNED_PAYMENT_DATABASE_CALLS,
   },
   inside_claim: {
     fixed: CLAIM_DATABASE_CALLS_AFTER_ADMISSION +
-      SETTLEMENT_DATABASE_CALLS +
-      PROVIDER_BINDING_DATABASE_CALLS +
-      TRANSACTION_ROLLBACK_HEADROOM,
+      PROVIDER_BINDING_DATABASE_CALLS,
     pricesAuthority: true,
     whenRecordingReturns: RETURNED_PAYMENT_DATABASE_CALLS,
   },
-} satisfies Record<RefundBudgetCheckpoint, DatabaseCallPlan>;
+} satisfies Record<RefundReadinessBudgetCheckpoint, DatabaseCallPlan>;
+
+const AUTHORITY_REQUEST_DATABASE_PLAN = {
+  fixed: 0,
+  pricesAuthority: true,
+  whenRecordingReturns: RETURNED_PAYMENT_DATABASE_CALLS,
+} satisfies DatabaseCallPlan;
 
 const refreshAdmissionDatabasePlan = (
-  claimCalls: number,
+  beforeAdmissionCalls: number,
 ): DatabaseCallPlan => ({
-  fixed: claimCalls +
-    SETTLEMENT_DATABASE_CALLS +
+  fixed: beforeAdmissionCalls +
     PROVIDER_BINDING_DATABASE_CALLS +
-    TRANSACTION_ROLLBACK_HEADROOM +
-    REFRESH_COMPLETION_DATABASE_CALLS,
+    REFRESH_RECORDING_DATABASE_CALLS,
   pricesAuthority: true,
   whenRecordingReturns: 0,
 });
@@ -257,8 +224,7 @@ const READINESS_DATABASE_CALL_PLANS = {
     before_claim: refreshAdmissionDatabasePlan(CLAIM_DATABASE_CALLS),
     before_provider_read: {
       fixed: PROVIDER_BINDING_DATABASE_CALLS +
-        TRANSACTION_ROLLBACK_HEADROOM +
-        REFRESH_COMPLETION_DATABASE_CALLS,
+        REFRESH_RECORDING_DATABASE_CALLS,
       pricesAuthority: true,
       whenRecordingReturns: 0,
     },
@@ -303,13 +269,15 @@ const subrequestCostFor = (
 ): SubrequestCounts =>
   withDatabaseCalls(databaseCallsAt(plan, authorityCalls), external);
 
-/** The first live authority reserves recovery headroom. Further references
- * add their statement tail; any larger set then fails the early gate. */
-const activeAuthorityDatabaseCalls = (count: number): number =>
-  count === 0
-    ? 0
-    : FIRST_ACTIVE_AUTHORITY_DATABASE_CALLS +
-      (count - 1) * ADDITIONAL_AUTHORITY_DATABASE_CALLS;
+/** Every unresolved charge owns the complete durable path its action can use. */
+const activeAuthorityDatabaseCalls = (
+  action: RefundReadinessAction,
+  count: number,
+): number =>
+  count *
+  (action === "refund"
+    ? REFUND_ACTIVE_AUTHORITY_DATABASE_CALLS
+    : REFUND_OBSERVED_AUTHORITY_DATABASE_CALLS);
 
 const referenceSetSubrequestCost = (
   action: RefundReadinessAction,
@@ -320,8 +288,9 @@ const referenceSetSubrequestCost = (
 ): SubrequestCounts => {
   const stage = READINESS_PROVIDER_CALL_STAGES[action][checkpoint];
   const external = sum(active.map(referenceCalls({ providers, stage })));
-  const authorityCalls = activeAuthorityDatabaseCalls(active.length) +
-    (references.length - active.length) * RETURNED_AUTHORITY_DATABASE_CALLS;
+  const authorityCalls = activeAuthorityDatabaseCalls(action, active.length) +
+    (references.length - active.length) *
+      REFUND_KNOWN_AUTHORITY_DATABASE_CALLS;
   return subrequestCostFor(
     READINESS_DATABASE_CALL_PLANS[action][checkpoint],
     authorityCalls,
@@ -329,9 +298,9 @@ const referenceSetSubrequestCost = (
   );
 };
 
-/** Physical worst-case provider calls plus current nominal DB work. Early
- * admission includes settlement; nested allowances enforce it while work runs
- * and separately protect the route tail. */
+/** Physical worst-case provider calls plus the DB work before the next safe
+ * refusal. The claim wrapper withholds settlement separately, so these plans
+ * never count that same reserve twice. */
 export const refundReadinessSubrequestCost = (
   action: RefundReadinessAction,
   candidates: readonly RefundBudgetCandidate[],
@@ -369,7 +338,6 @@ export type PreparedRefundBudget = {
 /** The late gates use the exact provider-tagged plans that preparation proved. */
 export const refundPreparedSubrequestCost = (
   prepared: PreparedRefundBudget,
-  checkpoint: RefundDispatchBudgetCheckpoint,
 ): SubrequestCounts => {
   const {
     activeAuthorityCount,
@@ -383,16 +351,15 @@ export const refundPreparedSubrequestCost = (
   ) {
     return zeroSubrequests();
   }
-  const stage = PROVIDER_CALL_STAGES[checkpoint];
   const external = sum(
     sendReferences.map(({ provider }) =>
-      physicalCalls(provider, logicalCallsAt(stage))
+      physicalCalls(provider, logicalCallsAt("send"))
     ),
   );
   return subrequestCostFor(
-    DATABASE_CALL_PLANS[checkpoint],
-    activeAuthorityDatabaseCalls(activeAuthorityCount) +
-      returnedAuthorityCount * RETURNED_AUTHORITY_DATABASE_CALLS,
+    AUTHORITY_REQUEST_DATABASE_PLAN,
+    activeAuthorityDatabaseCalls("refund", activeAuthorityCount) +
+      returnedAuthorityCount * REFUND_KNOWN_AUTHORITY_DATABASE_CALLS,
     external,
   );
 };
@@ -412,9 +379,9 @@ export const REFUND_SETTLEMENT_SUBREQUEST_RESERVE: SubrequestCounts = {
   total: SETTLEMENT_DATABASE_CALLS,
 };
 
-/** Every successful route writes one final owner-facing activity entry. */
-export const REFUND_CALLER_SUBREQUEST_RESERVE: SubrequestCounts = {
-  database: DATABASE_MAX_ATTEMPTS,
+/** Money known to be back always keeps enough room for its fixed ledger post. */
+export const REFUND_LEDGER_SUBREQUEST_RESERVE: SubrequestCounts = {
+  database: RETURNED_PAYMENT_DATABASE_CALLS,
   external: 0,
-  total: DATABASE_MAX_ATTEMPTS,
+  total: RETURNED_PAYMENT_DATABASE_CALLS,
 };

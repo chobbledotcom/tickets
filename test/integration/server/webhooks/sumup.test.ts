@@ -5,8 +5,8 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { setEffectiveDomainForTest } from "#shared/config.ts";
-import { settings } from "#shared/db/settings.ts";
 import { queryAll } from "#shared/db/client.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   setSumupCheckoutId,
   storeSumupCheckout,
@@ -96,7 +96,8 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
           transactionId,
         },
         status: "found" as const,
-      }));
+      }),
+    );
 
   test("processes an unsigned SumUp webhook end to end, idempotently", async () => {
     const listing = await createTestListing({ unitPrice: 1000 });
@@ -124,10 +125,8 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
   const expectRefusedLocally = async (id: string) => {
     const listing = await createTestListing({ unitPrice: 1000 });
     await stageSumupCheckout(listing);
-    const fetchStub = stub(
-      sumupApi,
-      "readCheckoutById",
-      () => Promise.resolve({ status: "missing" as const }),
+    const fetchStub = stub(sumupApi, "readCheckoutById", () =>
+      Promise.resolve({ status: "missing" as const }),
     );
     try {
       const response = await handleRequest(
@@ -167,17 +166,14 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
 
   /** Keep the provider's charge observation stale until the test makes the
    * returned money visible. The real SumUp adapter still performs the send. */
-  const installRefundObservation = (
-    returned: () => boolean,
-  ) => ({
+  const installRefundObservation = (returned: () => boolean) => ({
     read: stub(sumupPaymentProvider, "readCharge", () =>
       Promise.resolve(
         foundCharge(returned() ? fullyRefundedMoney() : chargeMoney()),
-      )),
-    send: stub(
-      sumupApi,
-      "refundTransaction",
-      () => Promise.resolve({ kind: "sent" as const }),
+      ),
+    ),
+    send: stub(sumupApi, "refundTransaction", () =>
+      Promise.resolve({ kind: "sent" as const }),
     ),
   });
 
@@ -185,14 +181,16 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
   const postSumupWebhook = (): Promise<Response> =>
     handleRequest(mockWebhookRequest(sumupWebhookEvent));
 
-  test("does not send a rejected SumUp charge twice while its first refund is not yet visible", async () => {
-    const listing = await createTestListing({ unitPrice: 1000 });
-    const reference = await stageSumupCheckout(listing);
+  const expectOneRefundAcrossRetries = async (
+    reference: string,
+    transactionId: string,
+    currency = "GBP",
+  ): Promise<void> => {
     const checkout = stubRetrieveCheckoutById(
       reference,
       "PAID",
-      "txn_rejected_once",
-      "GB",
+      transactionId,
+      currency,
     );
     let returned = false;
     const refund = installRefundObservation(() => returned);
@@ -209,32 +207,19 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
       refund.read.restore();
       checkout.restore();
     }
+  };
+
+  test("does not send a rejected SumUp charge twice while its first refund is not yet visible", async () => {
+    const listing = await createTestListing({ unitPrice: 1000 });
+    const reference = await stageSumupCheckout(listing);
+    await expectOneRefundAcrossRetries(reference, "txn_rejected_once", "GB");
   });
 
   test("does not release a reserved failed booking into a second SumUp refund", async () => {
     const listing = await createTestListing({ unitPrice: 1000 });
     await deactivateTestListing(listing.id);
     const reference = await stageSumupCheckout(listing);
-    const checkout = stubRetrieveCheckoutById(
-      reference,
-      "PAID",
-      "txn_reserved_once",
-    );
-    let returned = false;
-    const refund = installRefundObservation(() => returned);
-    try {
-      expect((await postSumupWebhook()).status).toBe(503);
-      expect((await postSumupWebhook()).status).toBe(503);
-      expect(refund.send.calls).toHaveLength(1);
-
-      returned = true;
-      expect((await postSumupWebhook()).status).toBe(200);
-      expect(refund.send.calls).toHaveLength(1);
-    } finally {
-      refund.send.restore();
-      refund.read.restore();
-      checkout.restore();
-    }
+    await expectOneRefundAcrossRetries(reference, "txn_reserved_once");
   });
 
   test("shares one SumUp refund between a browser return and webhook", async () => {
@@ -249,9 +234,7 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
     const refund = installRefundObservation(() => false);
     try {
       const [browser, webhook] = await Promise.all([
-        handleRequest(
-          mockRequest(`/payment/success?session_id=${reference}`),
-        ),
+        handleRequest(mockRequest(`/payment/success?session_id=${reference}`)),
         postSumupWebhook(),
       ]);
       expect([browser.status, webhook.status]).toEqual([503, 503]);
@@ -260,9 +243,7 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
         await queryAll<{
           refund_revision: number;
           refund_state_name: string;
-        }>(
-          "SELECT refund_revision, refund_state_name FROM payment_charges",
-        ),
+        }>("SELECT refund_revision, refund_state_name FROM payment_charges"),
       ).toEqual([{ refund_revision: 3, refund_state_name: "observing" }]);
     } finally {
       refund.send.restore();
@@ -271,12 +252,10 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
     }
   });
 
-  for (
-    const [name, providerCallLanded] of [
-      ["before its provider call", false],
-      ["after its provider call", true],
-    ] as const
-  ) {
+  for (const [name, providerCallLanded] of [
+    ["before its provider call", false],
+    ["after its provider call", true],
+  ] as const) {
     test(`does not repeat a keyless refund after crashing ${name}`, async () => {
       const listing = await createTestListing({ unitPrice: 1000 });
       const reference = await stageSumupCheckout(listing);
@@ -289,13 +268,10 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
       let returned = false;
       let attempts = 0;
       let providerCalls = 0;
-      const read = stub(
-        sumupPaymentProvider,
-        "readCharge",
-        () =>
-          Promise.resolve(
-            foundCharge(returned ? fullyRefundedMoney() : chargeMoney()),
-          ),
+      const read = stub(sumupPaymentProvider, "readCharge", () =>
+        Promise.resolve(
+          foundCharge(returned ? fullyRefundedMoney() : chargeMoney()),
+        ),
       );
       const refund = stub(sumupPaymentProvider, "refundCharge", () => {
         attempts += 1;

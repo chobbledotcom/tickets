@@ -1,7 +1,6 @@
 /* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { test } from "@std/testing/bdd";
-import { execute } from "#shared/db/client.ts";
 import { bindPaymentReferenceProviders } from "#shared/db/payment-reference-provider.ts";
 import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
@@ -59,12 +58,10 @@ describeWithEnv(
       expect(await referenceIndexOf("bind_shared_a")).toBe(newIndex);
       expect(await referenceIndexOf("bind_shared_b")).toBe(newIndex);
       expect(await storedClaim("bind_shared_a")).toMatchObject({
-        capability: "keyed",
-        phase: "ready",
+        phase: "checking",
       });
       expect(await storedClaim("bind_shared_b")).toMatchObject({
-        capability: "keyed",
-        phase: "ready",
+        phase: "checking",
       });
     });
 
@@ -112,12 +109,10 @@ describeWithEnv(
         ),
       ).toMatchObject({ kind: "bound" });
       expect(await storedClaim("bind_mixed_a")).toMatchObject({
-        capability: "keyed",
-        phase: "ready",
+        phase: "checking",
       });
       expect(await storedClaim("bind_mixed_b")).toMatchObject({
-        capability: "keyless",
-        phase: "ready",
+        phase: "checking",
       });
     });
 
@@ -149,7 +144,7 @@ describeWithEnv(
 
       const resumed = await claimCurrentAttendeeRows([attendeeId]);
 
-      expect(resumed).toMatchObject({ inherited: new Map(), kind: "claimed" });
+      expect(resumed).toMatchObject({ kind: "claimed" });
     });
 
     test("a changed exact claim leaves every reference untouched", async () => {
@@ -223,50 +218,7 @@ describeWithEnv(
       expect(await rowFor("bind_wrong_raw")).toEqual(before);
     });
 
-    test("a historical marker on any sharing old row refuses all writes", async () => {
-      const raw = "legacy_historical_marker";
-      const attendeeId = await legacyBooking("bind_marker_a", raw);
-      await legacyBooking("bind_marker_b", raw);
-      const held = await claimCurrentAttendeeRows([attendeeId]);
-      if (held.kind !== "claimed") throw new Error("the claim was refused");
-      await execute(
-        `UPDATE processed_payments
-            SET provider_refunded_at = ?
-          WHERE payment_session_id = ?`,
-        ["2026-08-11T10:00:00.000Z", "bind_marker_b"],
-      );
-      const before = await Promise.all([
-        rowFor("bind_marker_a"),
-        rowFor("bind_marker_b"),
-      ]);
-      const oldIndex = before[0].payment_reference_index;
-
-      expect(
-        await bindPaymentReferenceProviders(
-          bindingRequest(
-            held,
-            new Map<string, TaggedPaymentReference>([
-              [
-                oldIndex,
-                {
-                  kind: "tagged",
-                  provider: "square",
-                  reference: raw,
-                },
-              ],
-            ]),
-          ),
-        ),
-      ).toEqual({ indexes: [oldIndex], kind: "historical_marker" });
-      expect(
-        await Promise.all([rowFor("bind_marker_a"), rowFor("bind_marker_b")]),
-      ).toEqual(before);
-      expect(await storedClaim("bind_marker_a")).toMatchObject({
-        phase: "checking",
-      });
-    });
-
-    test("identity bindings allow old markers and keep providers distinct", async () => {
+    test("identity bindings keep providers distinct", async () => {
       const stripe = {
         kind: "tagged",
         provider: "stripe",
@@ -280,12 +232,6 @@ describeWithEnv(
         squareAttendee,
       ]);
       if (held.kind !== "claimed") throw new Error("the claim was refused");
-      await execute(
-        `UPDATE processed_payments
-            SET provider_refunded_at = ?
-          WHERE payment_session_id = ?`,
-        ["2026-08-11T10:00:00.000Z", "bind_tagged_stripe"],
-      );
       const stripeIndex = await paymentReferenceIndex(stripe);
       const squareIndex = await paymentReferenceIndex(square);
 
@@ -308,12 +254,10 @@ describeWithEnv(
       });
       expect(stripeIndex).not.toBe(squareIndex);
       expect(await storedClaim("bind_tagged_stripe")).toMatchObject({
-        capability: "keyed",
-        phase: "ready",
+        phase: "checking",
       });
       expect(await storedClaim("bind_tagged_square")).toMatchObject({
-        capability: "keyed",
-        phase: "ready",
+        phase: "checking",
       });
     });
 
@@ -380,7 +324,7 @@ describeWithEnv(
             {
               review: {
                 kind: "review",
-                reason: { kind: "partial_refund" },
+                reason: { kind: "partially_returned_obligation" },
               },
             },
           ],

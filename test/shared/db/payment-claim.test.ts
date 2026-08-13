@@ -108,7 +108,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
       await putRowState(
         "sess-rev",
         await rowStateSlot({
-          review: reviewCase({ kind: "partial_refund" }),
+          review: reviewCase({ kind: "partially_returned_obligation" }),
         }),
         REVIEW_MIRROR,
       );
@@ -138,7 +138,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
             {
               review: {
                 kind: "review",
-                reason: { kind: "partial_refund" },
+                reason: { kind: "partially_returned_obligation" },
               },
             },
           ],
@@ -154,7 +154,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
         new Map([
           [
             "sess-new-review",
-            { review: { kind: "resolved", reason: "partial_refund" } },
+            { review: { kind: "resolved", reason: "partially_returned_obligation" } },
           ],
         ]),
       );
@@ -182,7 +182,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
         new Map([
           [
             "sess-changed-review",
-            { review: { kind: "resolved", reason: "partial_refund" } },
+            { review: { kind: "resolved", reason: "partially_returned_obligation" } },
           ],
         ]),
       );
@@ -199,7 +199,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
     test("keeps acknowledgement for the same issue and reopens a changed issue", async () => {
       const attendeeId = await bookedWithPayment("sess-review-case", "pi_case");
       const acknowledged = {
-        ...reviewCase({ kind: "partial_refund" }, "acknowledged-case"),
+        ...reviewCase({ kind: "partially_returned_obligation" }, "acknowledged-case"),
         acknowledgedAt: "2026-08-12T13:00:00.000Z",
       };
       await putRowState(
@@ -224,7 +224,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
         );
       };
 
-      await settleWith("partial_refund");
+      await settleWith("partially_returned_obligation");
       expect(await reviewOf(attendeeId)).toEqual(acknowledged);
       await settleWith("shared_reference");
       const reopened = await reviewOf(attendeeId);

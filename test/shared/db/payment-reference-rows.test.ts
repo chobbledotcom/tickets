@@ -66,7 +66,8 @@ describeWithEnv("db > selected payment reference rows", { db: true }, () => {
       payment_reference_index: "",
       payment_session_id: "",
       protected_state: "",
-      provider_refunded_at: "",
+      reference_number: 0,
+      refund_state_name: null,
       unindexed_history: 1,
     });
     expect(

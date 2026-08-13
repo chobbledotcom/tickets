@@ -70,53 +70,6 @@ describe("admin refund provider readiness integration", () => {
     ).toBe(true);
   });
 
-  test("reports a historical marker as repair-required without executing", async () => {
-    const reference = untaggedReference("returned", "old", "completed");
-    const batch = [candidateWithReferences([reference], 12)];
-    const claim = rowClaimHarness({
-      held: new Map([[12, reference.rowSessionIds]]),
-    });
-    const writes = recordingWrites();
-    const prepare: Prepare = () =>
-      Promise.resolve({
-        indexes: [reference.index],
-        kind: "not_ready",
-        observations: [],
-        reason: "historical_marker",
-      });
-
-    const counts = finishedCounts(
-      await processRefundBatch(batch, LISTING_ID, {
-        claim: claim.rowClaim,
-        prepare,
-        ...writes.dependencies,
-      }),
-    );
-
-    expect(counts.failedCount).toBe(1);
-    expect(writes.marked).toEqual([]);
-    expect(writes.recorded).toEqual([]);
-    expect(claim.settlements).toEqual([
-      {
-        commandId: "test-command",
-        heldSince: HELD_SINCE,
-        rows: new Map([
-          [
-            reference.rowSessionIds[0],
-            {
-              books: "unrecorded",
-              claim: "release",
-              phase: "checking",
-            },
-          ],
-        ]),
-      },
-    ]);
-    expect(
-      errors.contains("Admin refund not started (historical_marker)"),
-    ).toBe(true);
-  });
-
   test("dispatches equal raw references by tagged index and reuses exact evidence", async () => {
     const stripe = recordingProvider("stripe");
     const square = recordingProvider("square");
@@ -162,10 +115,12 @@ describe("admin refund provider readiness integration", () => {
     expect(square.requests[0]?.paymentReference).toBe("same_raw");
     expect(stripe.requests[0]?.charge).toBe(stripeCharge);
     expect(square.requests[0]?.charge).toBe(squareCharge);
-    expect(writes.marked.flat().map(({ referenceIndex }) => referenceIndex)).toEqual([
-      `${stripeRef.provider}:${stripeRef.reference}`,
-      `${squareRef.provider}:${squareRef.reference}`,
-    ]);
+    expect(writes.marked.flat().map(({ referenceIndex }) => referenceIndex))
+      .toEqual([
+        `${stripeRef.provider}:${stripeRef.reference}`,
+        `${squareRef.provider}:${squareRef.reference}`,
+        `${returnedRef.provider}:${returnedRef.reference}`,
+      ]);
     expect(counts.refundedCount).toBe(1);
   });
 });

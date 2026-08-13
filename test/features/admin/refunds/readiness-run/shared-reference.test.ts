@@ -175,10 +175,9 @@ describe("admin refund shared-reference readiness", () => {
     const result = await runRefund(candidate, runClaim.claim, {
       prepare: () =>
         Promise.resolve({
-          indexes: [reference.index],
           kind: "not_ready",
           observations: [],
-          reason: "historical_marker",
+          reason: "claim_changed",
         }),
       ready: () => Promise.resolve({ kind: "ready", message: "" }),
     });
@@ -192,7 +191,6 @@ describe("admin refund shared-reference readiness", () => {
           [
             "unique_row",
             {
-              books: "unrecorded",
               claim: "release",
               phase: "checking",
               review: { kind: "resolved", reason: "shared_reference" },

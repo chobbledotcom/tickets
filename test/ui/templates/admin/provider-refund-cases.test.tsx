@@ -52,6 +52,7 @@ describe("provider refund recovery templates", () => {
     const html = String(<ProviderRefundCaseQueue page={queue} />);
 
     expect(html).toContain("Refunds needing attention");
+    expect(html).toContain('<section class="prose" id="refund-recovery">');
     expect(html).toContain("SumUp");
     expect(html).toContain("£25");
     expect(html).toContain('href="/admin/privacy/refunds/17"');

@@ -2,11 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { confirmRefund } from "#routes/admin/refunds/confirmation.ts";
 import { execute, queryAll, queryOne } from "#shared/db/client.ts";
-import {
-  createNamedSystemNote,
-  createSystemNote,
-  getNotesFor,
-} from "#shared/db/notes/queries.ts";
+import { createSystemNote, getNotesFor } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -36,7 +32,7 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
         confirmRefund({
           ...refund,
           references: [{ ...refund.reference, index: "" }],
-        }),
+        })
       ),
     ).rejects.toThrow("A refund confirmation needs indexed payment references");
 
@@ -44,18 +40,10 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
     expect(await getAttendeeActivityLog(refund.attendee.id)).toEqual([]);
   });
 
-  test("writes activity and note cleanup once for one reference set", async () => {
+  test("writes activity and one confirmation for one reference set", async () => {
     const refund = await setup();
     const target = attendeeNotes(refund.attendee.id);
-    await createNamedSystemNote(
-      target,
-      `This booking could NOT be refunded automatically. Payment reference: ${refund.reference.reference}.`,
-      { key: refund.reference.index, purpose: "refund_warning" },
-    );
-    await createSystemNote(
-      target,
-      "A different payment could NOT be refunded automatically. Payment reference: pi_other.",
-    );
+    await createSystemNote(target, "A separate historical payment note.");
 
     expect(await confirmFixturePaymentAndReplay(refund)).toEqual([
       "new",
@@ -64,7 +52,7 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
 
     const activities = await getAttendeeActivityLog(refund.attendee.id);
     const confirmations = activities.filter((entry) =>
-      entry.message.includes("Payment marked as refunded"),
+      entry.message.includes("Payment marked as refunded")
     );
     expect(confirmations).toHaveLength(1);
     expect(confirmations[0]?.message).not.toContain(refund.attendeeName);
@@ -73,10 +61,9 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
     expect(
       notes.filter((note) => note.note.includes("Refund confirmed")),
     ).toHaveLength(1);
-    expect(notes.some((note) => note.note.includes("pi_other"))).toBe(true);
     expect(
-      notes.some((note) => note.note.includes(refund.reference.reference)),
-    ).toBe(false);
+      notes.some((note) => note.note.includes("separate historical")),
+    ).toBe(true);
     expect(await confirmationCount(refund.attendee.id)).toBe(1);
     const stored = await queryOne<{ identity: string }>(
       `SELECT confirmation.identity
@@ -106,10 +93,10 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
         confirmRefund({
           ...refund,
           references: [second, first, second],
-        }),
+        })
       ),
       withTestSession(() =>
-        confirmRefund({ ...refund, references: [first, second] }),
+        confirmRefund({ ...refund, references: [first, second] })
       ),
     ]);
 
@@ -131,12 +118,12 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
           reference_index: reference.index,
         }))
         .sort((left, right) =>
-          left.reference_index.localeCompare(right.reference_index),
+          left.reference_index.localeCompare(right.reference_index)
         ),
     );
     expect(
       (await getAttendeeActivityLog(refund.attendee.id)).filter((entry) =>
-        entry.message.includes("Payment marked as refunded"),
+        entry.message.includes("Payment marked as refunded")
       ),
     ).toHaveLength(1);
     expect(
@@ -146,40 +133,8 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
     ).toHaveLength(1);
   });
 
-  test("a replay retires a warning that appeared after confirmation", async () => {
-    const refund = await setup();
-    const target = attendeeNotes(refund.attendee.id);
-    expect(
-      await withTestSession(() =>
-        confirmRefund({ ...refund, references: [refund.reference] }),
-      ),
-    ).toBe("new");
-    await createNamedSystemNote(
-      target,
-      "This payment could NOT be refunded automatically.",
-      { key: refund.reference.index, purpose: "refund_warning" },
-    );
-
-    expect(
-      await withTestSession(() =>
-        confirmRefund({ ...refund, references: [refund.reference] }),
-      ),
-    ).toBe("current");
-    expect(
-      (await getNotesFor(target, refund.privateKey)).some((note) =>
-        note.note.includes("could NOT be refunded"),
-      ),
-    ).toBe(false);
-  });
-
   test("rolls the replay identity and every visible effect back together", async () => {
     const refund = await setup();
-    const target = attendeeNotes(refund.attendee.id);
-    await createNamedSystemNote(
-      target,
-      "This payment could NOT be refunded automatically.",
-      { key: refund.reference.index, purpose: "refund_warning" },
-    );
     await execute(
       `CREATE TRIGGER fail_refund_confirmation_activity
        BEFORE INSERT ON activity_log
@@ -190,7 +145,7 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
 
     await expect(
       withTestSession(() =>
-        confirmRefund({ ...refund, references: [refund.reference] }),
+        confirmRefund({ ...refund, references: [refund.reference] })
       ),
     ).rejects.toThrow("activity write failed");
 
@@ -202,8 +157,11 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
     ).toEqual({ count: 0 });
     expect(await getAttendeeActivityLog(refund.attendee.id)).toEqual([]);
     expect(
-      (await getNotesFor(target, refund.privateKey)).map((note) => note.note),
-    ).toEqual(["This payment could NOT be refunded automatically."]);
+      await getNotesFor(
+        attendeeNotes(refund.attendee.id),
+        refund.privateKey,
+      ),
+    ).toEqual([]);
   });
 
   test("writes nothing after the exact claim has gone", async () => {
@@ -212,7 +170,7 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
 
     await expect(
       withTestSession(() =>
-        confirmRefund({ ...refund, references: [refund.reference] }),
+        confirmRefund({ ...refund, references: [refund.reference] })
       ),
     ).rejects.toThrow("Refund confirmation no longer owns every payment row");
     expect(await getAttendeeActivityLog(refund.attendee.id)).toEqual([]);
@@ -243,7 +201,7 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
 
     expect(
       await withTestSession(() =>
-        confirmRefund({ ...refund, references: [refund.reference] }),
+        confirmRefund({ ...refund, references: [refund.reference] })
       ),
     ).toBe("new");
 

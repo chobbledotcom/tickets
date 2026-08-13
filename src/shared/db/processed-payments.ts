@@ -27,10 +27,10 @@ import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { isoBefore, nowIso } from "#shared/now.ts";
 import type { PaymentReference } from "#shared/payment/provider-reference.ts";
 import {
+  readRowState,
   type StoredPaymentFailure,
-  StoredPaymentFailureSchema,
+  writeRowState,
 } from "#shared/payment/row-state.ts";
-import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
 export { STALE_RESERVATION_MS };
 
@@ -52,20 +52,16 @@ export type ProcessedPayment = {
   processed_at: string;
   /** Encrypted "+"-joined ticket tokens; "" while none are stored. */
   ticket_tokens: EnvKeyEncrypted | "";
-  /** Encrypted JSON-encoded {@link StoredPaymentFailure} once a session reaches a
-   * handled terminal failure (refund issued, sold out, price changed, …); "" while
-   * a row is in-progress or finalized. Encrypted at rest (like ticket_tokens)
-   * because the stored message can embed an encrypted-at-rest listing name. Lets a
-   * later redirect/webhook replay the same outcome instead of re-running refund
-   * logic. */
+  /** Encrypted payment-row state carrying an outcome once a session reaches a
+   * handled terminal failure (refund issued, sold out, price changed, …); ""
+   * while a row is in-progress or finalized. The message can embed an
+   * encrypted-at-rest listing name, so the whole state is encrypted too. */
   failure_data: EnvKeyEncrypted | "";
   /** Provider-specific refundable payment reference (e.g. Stripe pi_...). */
   payment_reference: OwnerKeyEncrypted | "";
-  /** Non-empty once this charge has been returned at the provider. */
-  provider_refunded_at: string;
 };
 
-const paymentFailureJson = defineStoredJson(StoredPaymentFailureSchema);
+const FAILURE_DATA_CONTEXT = "processed_payments.failure_data";
 
 /** Result of session reservation attempt */
 export type ReserveSessionResult =
@@ -79,8 +75,7 @@ const execWithSessionId = (sessionId: string, sql: string): Promise<unknown> =>
 /** A void write parameterized by a single payment session ID: curries the SQL,
  * returns a function that runs it for one session. */
 const sessionIdWrite =
-  (sql: string) =>
-  async (sessionId: string): Promise<void> => {
+  (sql: string) => async (sessionId: string): Promise<void> => {
     await execWithSessionId(sessionId, sql);
   };
 
@@ -127,7 +122,8 @@ export const reserveSession = async (
   const [claimResult, lookupResult] = await executeBatchWithResults([
     {
       args: [sessionId, claimedAt, staleBefore],
-      sql: `INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at)
+      sql:
+        `INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at)
             VALUES (?, NULL, ?)
             ON CONFLICT(payment_session_id) DO UPDATE SET
               attendee_id = NULL,
@@ -135,15 +131,15 @@ export const reserveSession = async (
               ticket_tokens = '',
               failure_data = '',
               payment_reference = '',
-              payment_reference_index = '',
-              provider_refunded_at = ''
+              payment_reference_index = ''
             WHERE ${UNRESOLVED_RESERVATION}
               AND processed_payments.processed_at < ?
             RETURNING payment_session_id`,
     },
     {
       args: [sessionId],
-      sql: "SELECT payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data, payment_reference, provider_refunded_at FROM processed_payments WHERE payment_session_id = ?",
+      sql:
+        "SELECT payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data, payment_reference FROM processed_payments WHERE payment_session_id = ?",
     },
   ]);
   if (resultRows(claimResult!)[0] !== undefined) return { reserved: true };
@@ -237,38 +233,34 @@ export const markSessionFailed = async (
     `UPDATE processed_payments SET failure_data = ? WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
     [
       await encrypt(
-        paymentFailureJson.write(failure, "processed_payments.failure_data"),
+        writeRowState({ outcome: failure }, FAILURE_DATA_CONTEXT),
       ),
       sessionId,
     ],
   );
 };
 
-/** Generic terminal failure used when stored failure_data can't be parsed. */
-const CORRUPT_FAILURE: StoredPaymentFailure = {
-  error: "This payment could not be completed. Please contact support.",
-  status: 500,
-};
-
 /**
- * Parse a stored terminal failure, or null when the row carries none. We only
- * ever write valid encrypted JSON (via {@link markSessionFailed}), but a value
- * that won't decrypt or parse (restore, manual edit, rotated key) must not crash
- * the replay path — it degrades to a generic terminal failure so the session
- * still resolves instead of looping.
+ * Parse a stored terminal failure, or null when the row carries none. A
+ * non-empty value is an app-written durable outcome, so decryption or schema
+ * failure is corruption and must surface here instead of being mistaken for a
+ * handled booking result.
  */
 export const parseSessionFailure = async (
   failureData: EnvKeyEncrypted | "",
 ): Promise<StoredPaymentFailure | null> => {
   if (!failureData) return null;
-  try {
-    return paymentFailureJson.read(
-      await decrypt(failureData),
-      "processed_payments.failure_data",
-    );
-  } catch {
-    return CORRUPT_FAILURE;
+  const state = readRowState(
+    await decrypt(failureData),
+    FAILURE_DATA_CONTEXT,
+  );
+  if (
+    state.outcome === undefined || state.claim !== undefined ||
+    state.review !== undefined || state.unrecorded !== undefined
+  ) {
+    throw new Error(`${FAILURE_DATA_CONTEXT}: invalid terminal session state`);
   }
+  return state.outcome;
 };
 
 /**

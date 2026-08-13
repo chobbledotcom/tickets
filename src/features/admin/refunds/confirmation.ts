@@ -3,10 +3,7 @@ import { requiredMapValue, sortStrings, unique } from "#fp";
 import { t } from "#i18n";
 import { logActivity } from "#shared/db/activity-log.ts";
 import { withTransaction } from "#shared/db/client.ts";
-import {
-  createNamedSystemNote,
-  deleteNamedSystemNotes,
-} from "#shared/db/notes/queries.ts";
+import { createNamedSystemNote } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { assertRefundRowsHeld } from "#shared/db/payment-claim.ts";
 import { insertRefundConfirmation } from "#shared/db/refund-confirmations.ts";
@@ -43,11 +40,6 @@ export const confirmRefund = async (
     refund.references,
     ({ index }) => index,
   );
-  const warningIndexes = sortStrings(
-    unique(
-      refund.references.flatMap((reference) => [...reference.matchingIndexes]),
-    ),
-  );
   const target = attendeeNotes(refund.attendee.id);
   const confirmation = t("note.placeholder_refund_confirmed");
   const sessionIds = requiredMapValue(
@@ -76,7 +68,6 @@ export const confirmRefund = async (
       attendeeId: refund.attendee.id,
       referenceIndexes,
     });
-    await deleteNamedSystemNotes(target, "refund_warning", warningIndexes, tx);
     if (written.kind === "current") return "current";
     await logActivity(
       "Payment marked as refunded",

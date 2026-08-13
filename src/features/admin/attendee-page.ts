@@ -149,6 +149,14 @@ const ATTENDEE_ACTIONS: readonly ActionDef<AttendeePageEntity>[] = [
     labelKey: "attendee_form.action_payment_review",
     visible: ownerPaymentWhen("payment-review", "needs_review"),
   }),
+  {
+    href: () => "/admin/privacy#refund-recovery",
+    icon: "rotate-ccw",
+    labelKey: "attendee_form.action_refund_recovery",
+    visible: (entity, session) =>
+      isOwnerRole(session.adminLevel) &&
+      entity.paymentWorkStatus === "needs_provider_recovery",
+  },
   attendeeAction("resend-notification", {
     icon: "rotate-ccw",
     labelKey: "attendee_form.action_resend",

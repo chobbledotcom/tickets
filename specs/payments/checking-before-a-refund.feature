@@ -61,10 +61,10 @@ Feature: The site checks an old payment before refunding it
 
   @rule:payments.any-returned-money-makes-another-refund-unsafe
   @surface:admin
-  Rule: Even one penny already returned needs an owner review
-    The site never treats a small returned amount as no refund at all. Marking
-    it reviewed records the owner's acknowledgement; it does not move money or
-    make unchanged evidence safe.
+  Rule: Even one penny already returned needs an owner decision
+    The site never treats a small returned amount as no refund at all. It keeps
+    the conflict in the one Refund recovery queue and requires the owner to say
+    what the provider confirms; it never offers a second refund meanwhile.
 
     @case:refund-safety.one-penny-returned-still-needs-review
     Scenario: A failed provider refund nevertheless returned one penny
@@ -72,18 +72,8 @@ Feature: The site checks an old payment before refunding it
       And Stripe says a failed refund returned 0.01 to Alice
       When the owner signs in and tries to refund Alice from her Actions page
       Then no provider is asked to return any more money
-      And Alice's Actions page offers Mark payment reviewed
+      And Alice's Actions page offers Open Refund recovery
       And Money still shows Alice's 45.00 payment
-      When the owner opens Mark payment reviewed from Alice's Actions page
-      And types Alice's exact name and presses Mark payment reviewed
-      Then the owner is told the payment was marked reviewed
+      When the owner opens Open Refund recovery from Alice's Actions page
+      Then the provider reference is shown with two required unanswered choices
       And the provider has not been contacted again
-      And Money still shows Alice's 45.00 payment
-      And Alice's Actions page still offers Mark payment reviewed to the owner
-      When the owner checks Alice's Actions page again
-      Then no provider is asked to return any more money
-      And Alice's Actions page offers Mark payment reviewed again
-      When Stripe finishes returning Alice's 45.00
-      And the owner presses Refresh payment status from Alice's attendee page
-      Then Money shows one refund for Alice
-      And the owner can delete Alice now that the payment work is finished

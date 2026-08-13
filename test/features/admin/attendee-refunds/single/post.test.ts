@@ -111,7 +111,12 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
             `/admin/attendees/${ctx.attendee.id}/actions`,
             "Refund issued",
           )(await submitRefund(ctx));
-          expect(mockRefund.calls[0]?.args[0]).toEqual({
+          expect(mockRefund.calls[0]?.args[0]).toMatchObject({
+            authorization: {
+              capability: "keyed",
+              generation: 1,
+              provider: "stripe",
+            },
             charge: observed,
             paymentReference: "pi_test_success",
           });
@@ -165,16 +170,14 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       });
     });
 
-    test("a refund error keeps return_url threaded so a retry returns to its origin", async () => {
+    test("a refund error opens its canonical recovery case", async () => {
       const ctx = await setupRefundTest("pi_test_return_err");
       const returnUrl = `/admin/attendees/${ctx.attendee.id}/actions`;
 
       await withRefundMock(refundIsRejected, async () => {
         const response = await submitRefund(ctx, { return_url: returnUrl });
         await expectFlashRedirect(
-          `/admin/attendees/${ctx.attendee.id}/refund?return_url=${encodeURIComponent(
-            returnUrl,
-          )}`,
+          "/admin/privacy#refund-recovery",
           expect.stringContaining("failed"),
           false,
         )(response);
@@ -187,7 +190,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       await withRefundMock(refundIsRejected, async () => {
         const response = await submitRefund(ctx);
         await expectFlashRedirect(
-          `/admin/attendees/${ctx.attendee.id}/refund`,
+          "/admin/privacy#refund-recovery",
           expect.stringContaining("Refund failed"),
           false,
         )(response);
@@ -200,7 +203,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       await withRefundMock(refundStaysPending, async () => {
         const response = await submitRefund(ctx);
         await expectFlashRedirect(
-          `/admin/attendees/${ctx.attendee.id}/actions`,
+          "/admin/privacy#refund-recovery",
           "A refund for this payment is still settling. Refresh payment status after it completes.",
           false,
         )(response);
@@ -223,8 +226,8 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
 
     test("a provider that never answered is checked instead of sent again", async () => {
       // The call died before the provider said anything, so nobody knows
-      // whether the money moved. The retained claim sends the owner to refresh
-      // rather than exposing a second provider call.
+      // whether the money moved. Its canonical authority stays observable and
+      // refuses to expose a second provider call.
       const ctx = await setupRefundTest("pi_uncertain");
 
       await withRefundMock(
@@ -232,12 +235,15 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
           kind: "uncertain",
           reason: "network_error",
         }),
-        async () => {
-          await expectFlashRedirect(
-            `/admin/attendees/${ctx.attendee.id}/actions`,
-            "The payment provider did not give a clear answer. Do not send the refund again. Refresh payment status to check what happened.",
-            false,
-          )(await submitRefund(ctx));
+        async (mockRefund) => {
+          for (const response of [await submitRefund(ctx), await submitRefund(ctx)]) {
+            await expectFlashRedirect(
+              "/admin/privacy#refund-recovery",
+              "A refund for this payment is still settling. Refresh payment status after it completes.",
+              false,
+            )(response);
+          }
+          expect(mockRefund.calls.length).toBe(1);
         },
       );
     });
@@ -265,7 +271,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
         await withRefundMock(refundCompletes, async (mockRefund) => {
           const response = await submitRefund(ctx);
           await expectFlashRedirect(
-            `/admin/attendees/${attendee.id}/actions`,
+            "/admin/privacy#refund-recovery",
             "The payment provider sent the refund. It could not be recorded in Money. Fix Money, then refresh payment status. Do not send the refund again.",
             false,
           )(response);

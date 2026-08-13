@@ -108,7 +108,7 @@ describeWithEnv(
       const claim = grantingRowClaim(
         heldRows(entries),
         new Map(),
-        new Map([[reviewed.sessionId, { kind: "partial_refund" }]]),
+        new Map([[reviewed.sessionId, { kind: "partially_returned_obligation" }]]),
       );
       const source = provider();
 
@@ -120,7 +120,9 @@ describeWithEnv(
       );
 
       expect([...source.reads, ...source.refunds]).toEqual([]);
-      expect(claim.released).toEqual([entries.map(({ sessionId }) => sessionId)]);
+      expect(claim.released).toEqual([
+        entries.map(({ sessionId }) => sessionId),
+      ]);
     });
   },
 );

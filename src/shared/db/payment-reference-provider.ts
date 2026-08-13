@@ -1,7 +1,6 @@
 /** Atomically bind provider evidence to the payment rows a refund run holds. */
 
 /* jscpd:ignore-start -- imports */
-import { unique } from "#fp";
 import {
   inPlaceholders,
   type SqlStatement,
@@ -23,7 +22,6 @@ import {
   distinctHeldPaymentRows,
   type HeldPaymentRow,
   type HeldRefundCommand,
-  type IndexedRefundClaimDecision,
   type RefundClaimChanged,
 } from "#shared/payment/claim.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
@@ -45,7 +43,6 @@ export interface PaymentReferenceProviderBindingRequest
 /** Expected refusals write nothing; success names every resulting identity. */
 export type PaymentReferenceProviderBindingResult =
   | RefundClaimChanged
-  | IndexedRefundClaimDecision<"historical_marker">
   | {
       readonly indexes: ReadonlyMap<string, string>;
       readonly kind: "bound";
@@ -122,21 +119,6 @@ const checkedHeldRows = async (
   return completeExactReferenceRows(checked, [...bindings.keys()]);
 };
 
-const markedChangingIndexes = (
-  rows: readonly StoredPaymentClaimRow[],
-  bindings: readonly PreparedBinding[],
-): string[] =>
-  bindings
-    .filter(({ newIndex, oldIndex }) => newIndex !== oldIndex)
-    .filter(({ oldIndex }) =>
-      rows.some(
-        (row) =>
-          row.payment_reference_index === oldIndex &&
-          row.provider_refunded_at !== "",
-      ),
-    )
-    .map(({ oldIndex }) => oldIndex);
-
 const referenceRewrite = ({
   newIndex,
   oldIndex,
@@ -155,8 +137,8 @@ const boundIndexes = (
 
 /**
  * Store already-validated provider identities without doing provider I/O.
- * The exact claim check, historical-marker refusal, shared-row rewrite, and
- * reference identity rewrite all share one write transaction.
+ * The exact claim check, shared-row rewrite, and reference identity rewrite
+ * all share one write transaction.
  */
 export const bindPaymentReferenceProviders = async (
   request: PaymentReferenceProviderBindingRequest,
@@ -182,10 +164,6 @@ export const bindPaymentReferenceProviders = async (
       request.heldSince,
     );
     if (heldRows === null) return { kind: "claim_changed" };
-    const historical = unique(markedChangingIndexes(rows, prepared));
-    if (historical.length > 0) {
-      return { indexes: historical, kind: "historical_marker" };
-    }
     const referenceWrites = prepared
       .filter(({ newIndex, oldIndex }) => newIndex !== oldIndex)
       .map(referenceRewrite);

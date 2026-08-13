@@ -25,6 +25,8 @@ export interface SavedOwnerForm {
   readonly values: Record<string, string>;
 }
 
+export type SavedOwnerFormKind = "provider-recovery" | "refund" | "review";
+
 /** State shared only by the high-risk refund stories. */
 export interface RefundSafetyState {
   readonly bookings: Map<string, SafetyBooking>;
@@ -38,8 +40,7 @@ export interface RefundSafetyState {
     readonly systemTime: number;
   };
   provider?: RefundProviderScript;
-  savedRefund?: SavedOwnerForm;
-  savedReview?: SavedOwnerForm;
+  readonly savedOwnerForms: Map<SavedOwnerFormKind, SavedOwnerForm>;
   windows?: RefundWindows;
 }
 
@@ -49,6 +50,7 @@ export const refundSafety = (world: TicketsWorld): RefundSafetyState => {
     world.refundSafety = {
       bookings: new Map(),
       ownerContactCount: 0,
+      savedOwnerForms: new Map(),
     };
   }
   return world.refundSafety;

@@ -98,7 +98,7 @@ describeWithEnv(
         await putRowState(
           "sess-merge-review",
           await rowStateSlot({
-            review: reviewCase({ kind: "partial_refund" }),
+            review: reviewCase({ kind: "partially_returned_obligation" }),
           }),
           REVIEW_MIRROR,
         );
@@ -117,7 +117,7 @@ describeWithEnv(
         await putRowState(
           "sess-merge-review-moves",
           await rowStateSlot({
-            review: reviewCase({ kind: "partial_refund" }),
+            review: reviewCase({ kind: "partially_returned_obligation" }),
           }),
           REVIEW_MIRROR,
         );

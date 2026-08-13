@@ -2,11 +2,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { singleRefundResultError } from "#routes/admin/attendee-refunds/single-result.ts";
 import type { RefundBatchResult } from "#routes/admin/refunds/provider.ts";
-import type { PaymentWorkStatus } from "#shared/payment/admit-move.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
 
 const ATTENDEE_ID = 42;
 const ACTIONS_URL = `/admin/attendees/${ATTENDEE_ID}/actions`;
+const RECOVERY_URL = "/admin/privacy#refund-recovery";
 const REFUND_URL = `/admin/attendees/${ATTENDEE_ID}/refund`;
 
 const requireResponse = (response: Response | null): Response => {
@@ -31,7 +31,6 @@ type ErrorResultCase = {
   readonly message: string;
   readonly name: string;
   readonly result: RefundBatchResult;
-  readonly status: PaymentWorkStatus;
   readonly url: string;
 };
 
@@ -41,7 +40,6 @@ const ERROR_RESULTS: readonly ErrorResultCase[] = [
       "A refund for this payment is still settling. Refresh payment status after it completes.",
     name: "a run blocked by another claim",
     result: { kind: "blocked", reason: "refund_in_progress" },
-    status: "moving",
     url: ACTIONS_URL,
   },
   {
@@ -52,7 +50,6 @@ const ERROR_RESULTS: readonly ErrorResultCase[] = [
       kind: "not_ready",
       message: "Provider evidence changed",
     },
-    status: "clear",
     url: REFUND_URL,
   },
   {
@@ -60,34 +57,30 @@ const ERROR_RESULTS: readonly ErrorResultCase[] = [
       "The payment provider sent the refund. It could not be recorded in Money. Fix Money, then refresh payment status. Do not send the refund again.",
     name: "money that has not been recorded",
     result: counts({ notRecordedCount: 1 }),
-    status: "needs_money_record",
-    url: ACTIONS_URL,
+    url: RECOVERY_URL,
   },
   {
     message:
       "A refund for this payment is still settling. Refresh payment status after it completes.",
     name: "a provider-accepted refund",
     result: counts({ pendingCount: 1 }),
-    status: "moving",
-    url: ACTIONS_URL,
+    url: RECOVERY_URL,
   },
   {
     message: "Refund failed. The payment may have already been refunded.",
     name: "an ordinary failed send",
     result: counts({ failedCount: 1 }),
-    status: "clear",
-    url: REFUND_URL,
+    url: RECOVERY_URL,
   },
 ];
 
 describe("single refund result", () => {
-  for (const { message, name, result, status, url } of ERROR_RESULTS) {
+  for (const { message, name, result, url } of ERROR_RESULTS) {
     test(`sends ${name} to its safe page`, async () => {
       const response = await singleRefundResultError(
         result,
         ATTENDEE_ID,
         "",
-        () => Promise.resolve(status),
       );
       expect(response).not.toBeNull();
       expectRedirectWithFlash(url, message, false)(requireResponse(response));
@@ -112,9 +105,6 @@ describe("single refund result", () => {
       counts({ refundedCount: 1 }),
       ATTENDEE_ID,
       "",
-      () => {
-        throw new Error("A successful refund re-read the work state");
-      },
     );
     expect(response).toBeNull();
   });

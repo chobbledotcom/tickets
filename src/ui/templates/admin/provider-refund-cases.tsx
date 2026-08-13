@@ -52,7 +52,7 @@ export const ProviderRefundCaseQueue = ({
   page: ProviderRefundCasePage;
 }): JSX.Element =>
   page.cases.length === 0 ? <></> : (
-    <section class="prose">
+    <section class="prose" id="refund-recovery">
       <h2>{t("privacy.refunds.heading")}</h2>
       <p>{t("privacy.refunds.intro")}</p>
       <ul>

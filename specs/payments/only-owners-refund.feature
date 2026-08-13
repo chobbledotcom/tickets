@@ -4,12 +4,13 @@
 @edition:managed @edition:self-hosted
 Feature: Only an owner decides what happens to refunds needing attention
   Managers can help run listings, but only an owner may send money back or say
-  that a payment conflict has been reviewed. Pages must not promise managers an
-  action they cannot take, and copied addresses must not bypass the rule.
+  what happened to an uncertain provider refund or acknowledge a local payment
+  review. Pages must not promise managers an action they cannot take, and copied
+  addresses must not bypass the rule.
 
   @rule:payments.managers-are-not-offered-owner-refund-actions
   @surface:admin
-  Rule: A manager sees no refund or payment-review links
+  Rule: A manager sees no refund or recovery links
     The Actions page shows only links that the signed-in person can follow.
 
     @case:refund-permissions.manager-sees-no-refund-action
@@ -21,20 +22,20 @@ Feature: Only an owner decides what happens to refunds needing attention
       Then Morgan is not offered Refund
       And every action Morgan is offered opens for Morgan
 
-    @case:refund-permissions.manager-sees-no-review-action
-    Scenario: A manager opens a booking that needs an owner review
+    @case:refund-permissions.manager-sees-no-provider-recovery-action
+    Scenario: A manager opens a booking that needs a provider decision
       Given Bob bought a 45.00 Concert place through the public booking page
       And Stripe says a failed refund returned 0.01 to Bob
-      And the owner tried the refund and was offered Mark payment reviewed
+      And the owner tried the refund and was offered Open Refund recovery
       And the owner invited Morgan as a manager
       And Morgan accepted the invitation, chose a password and signed in
       When Morgan opens Bob's Actions page
-      Then Morgan is not offered Mark payment reviewed
+      Then Morgan is not offered Open Refund recovery
       And every action Morgan is offered opens for Morgan
 
   @rule:payments.copied-addresses-do-not-give-managers-owner-powers
   @surface:admin
-  Rule: A manager cannot use a copied refund or review address
+  Rule: A manager cannot use a copied refund or provider-recovery address
     Hiding a link is not permission. Both the confirmation page and its form
     refuse a manager before contacting the provider or changing the review.
 
@@ -50,18 +51,18 @@ Feature: Only an owner decides what happens to refunds needing attention
       And no provider is asked to return Alice's money
       And Money still shows Alice's 45.00 payment
 
-    @case:refund-permissions.manager-cannot-open-or-acknowledge-review
-    Scenario: A manager uses the owner's payment-review address
+    @case:refund-permissions.manager-cannot-open-or-resolve-provider-recovery
+    Scenario: A manager uses the owner's provider-recovery address
       Given Alice bought a 45.00 Concert place through the public booking page
       And Stripe says a failed refund returned 0.01 to Alice
-      And the owner tried the refund and was offered Mark payment reviewed
+      And the owner tried the refund and was offered Open Refund recovery
       And the owner invited Morgan as a manager
       And Morgan accepted the invitation, chose a password and signed in
-      When Morgan opens the owner's saved payment-review address for Alice
+      When Morgan opens the owner's saved provider-recovery address for Alice
       Then Morgan is refused access
-      When Morgan submits the owner's saved payment-review form for Alice
+      When Morgan submits the owner's saved provider-recovery form for Alice
       Then Morgan is refused access
-      And Alice's Actions page still offers Mark payment reviewed to the owner
+      And Alice's Actions page still offers Open Refund recovery to the owner
       And the provider has not been contacted again
       And Money still shows Alice's 45.00 payment
 
@@ -73,12 +74,28 @@ Feature: Only an owner decides what happens to refunds needing attention
 
     @case:refund-permissions.owner-can-acknowledge-review
     Scenario: The owner marks a payment reviewed
-      Given Alice bought a 45.00 Concert place through the public booking page
-      And Stripe says a failed refund returned 0.01 to Alice
-      And the owner tried the refund and was offered Mark payment reviewed
+      Given new bookings pay a 10.00 deposit
+      And Alice bought a 45.00 Concert place through the public booking page
+      And Stripe is ready to return Alice's payment
+      And the owner returned the deposit and was offered Mark payment reviewed
       When the owner opens Mark payment reviewed from Alice's Actions page
       And types Alice's exact name and presses Mark payment reviewed
       Then the owner is told the payment was marked reviewed
       And the provider has not been contacted again
-      And Money still shows Alice's 45.00 payment
+      And Money still shows Alice's 10.00 payment
       And Alice's Actions page still offers Mark payment reviewed to the owner
+
+    @case:refund-permissions.manager-cannot-acknowledge-local-review
+    Scenario: A manager uses the owner's local payment-review address
+      Given new bookings pay a 10.00 deposit
+      And Alice bought a 45.00 Concert place through the public booking page
+      And Stripe is ready to return Alice's payment
+      And the owner returned the deposit and was offered Mark payment reviewed
+      And the owner invited Morgan as a manager
+      And Morgan accepted the invitation, chose a password and signed in
+      When Morgan opens the owner's saved payment-review address for Alice
+      Then Morgan is refused access
+      When Morgan submits the owner's saved payment-review form for Alice
+      Then Morgan is refused access
+      And Alice's Actions page still offers Mark payment reviewed to the owner
+      And the provider has not been contacted again

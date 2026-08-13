@@ -70,7 +70,7 @@ describe("admin refund provider > exact ledger findings", () => {
     );
 
     expect(source.refunds).toEqual([]);
-    expect(counts.failedCount).toBe(1);
+    expect(counts).toMatchObject({ failedCount: 0, pendingCount: 1 });
     expect(claim.reviewChanges).toEqual([new Map()]);
   });
 

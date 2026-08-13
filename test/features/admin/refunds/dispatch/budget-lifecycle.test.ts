@@ -14,32 +14,40 @@ import {
 } from "#test/features/admin/refunds/provider/helpers.ts";
 import { grantingRowClaim } from "#test-utils/refund-routes.ts";
 
-test("budget refusal happens before the durable authority is asked", async () => {
-  const attendeeId = 72;
-  const reference = "pi_budget";
-  const index = `index_of_stripe_${reference}`;
-  const sessionId = `sess_${reference}`;
+test("an over-budget batch makes zero durable authority or provider calls", async () => {
+  const attendeeIds = [72, 73];
+  const references = ["pi_budget_a", "pi_budget_b"];
+  const sessionIds = references.map((reference) => `sess_${reference}`);
   const source = provider();
-  const claim = grantingRowClaim(new Map([[attendeeId, [sessionId]]]));
+  const claim = grantingRowClaim(
+    new Map(
+      attendeeIds.map((attendeeId, position) => [
+        attendeeId,
+        [sessionIds[position]!],
+      ]),
+    ),
+  );
   const prepare = prepareAtProvider(source);
   const dispatchCost = refundPreparedSubrequestCost(
     {
-      activeAuthorityCount: 1,
+      activeAuthorityCount: references.length,
       mayRecordReturns: true,
       returnedAuthorityCount: 0,
-      sendReferences: [{ index, provider: "stripe" }],
+      sendReferences: references.map((reference) => ({
+        index: `index_of_stripe_${reference}`,
+        provider: "stripe" as const,
+      })),
     },
-    "before_authority_request",
   );
   let authorityCalled = false;
 
   const result = await processRefundBatch(
-    [
+    references.map((reference, position) =>
       candidateWithReferences(
-        [rowBackedReference(reference, sessionId)],
-        attendeeId,
-      ),
-    ],
+        [rowBackedReference(reference, sessionIds[position]!)],
+        attendeeIds[position]!,
+      )
+    ),
     7,
     {
       claim,
@@ -63,5 +71,5 @@ test("budget refusal happens before the durable authority is asked", async () =>
   });
   expect(authorityCalled).toBe(false);
   expect(source.refunds).toEqual([]);
-  expect(claim.released).toEqual([[sessionId]]);
+  expect(claim.released).toEqual([]);
 });
