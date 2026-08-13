@@ -69,6 +69,42 @@ describeWithEnv(
       expect(await settingsValueOrNull("db_schema_hash")).toBe(SCHEMA_HASH);
     });
 
+    test("a migration completed before lock acquisition releases the unused lock", async () => {
+      await getDb().execute(
+        "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
+      );
+      invalidateInitDbCache();
+
+      const client = getDb();
+      const execute = client.execute.bind(client);
+      let completedElsewhere = false;
+      using _execute = stub(
+        client,
+        "execute",
+        async (statement: InStatement) => {
+          if (!completedElsewhere && bootStep(statement) === "lock") {
+            completedElsewhere = true;
+            await client.batch(
+              [
+                {
+                  args: [SCHEMA_HASH],
+                  sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
+                },
+              ],
+              "write",
+            );
+          }
+          return await execute(statement);
+        },
+      );
+
+      await initDb();
+
+      expect(completedElsewhere).toBe(true);
+      expect(await settingsValueOrNull("migration_lock")).toBeNull();
+      expect(await settingsValueOrNull("db_schema_hash")).toBe(SCHEMA_HASH);
+    });
+
     test("the other half-matching marker needs work too", async () => {
       await staleOneMarker("latest_db_update", "db_schema_hash", SCHEMA_HASH);
 

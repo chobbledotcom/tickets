@@ -231,7 +231,7 @@
         <div class="metric"><b>79</b><span>files added</span></div>
         <div class="metric"><b>85</b><span>files modified</span></div>
         <div class="metric"><b>3</b><span>files deleted</span></div>
-        <div class="metric"><b>+9,978</b><span>net source lines</span></div>
+        <div class="metric"><b>+9,975</b><span>net source lines</span></div>
       </div>
     </header>
 
@@ -519,7 +519,7 @@
       <div class="atlas-controls" aria-label="File atlas controls">
         <label><span class="sr-only">Search changed files</span><input id="file-search" type="search" placeholder="Search path or purpose…" autocomplete="off"></label>
         <div class="filters" aria-label="Filter by change status"><button class="filter" type="button" data-filter="all" aria-pressed="true">All</button><button class="filter" type="button" data-filter="added" aria-pressed="false">Added</button><button class="filter" type="button" data-filter="modified" aria-pressed="false">Modified</button><button class="filter" type="button" data-filter="deleted" aria-pressed="false">Deleted</button></div>
-        <div id="inventory-status" class="inventory-status" aria-live="polite">167 files · +13,318 / −3,340</div>
+        <div id="inventory-status" class="inventory-status" aria-live="polite">167 files · +13,315 / −3,340</div>
       </div>
       <p id="empty-atlas" class="empty">No changed source files match that search and status.</p>
       <details class="file-group" data-area="admin_ui" open>
@@ -665,7 +665,7 @@
           <li class="file-row" data-status="modified" data-area="shared_rules" data-adds="12" data-dels="6"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/payment/money.ts</code><span class="file-delta">+12 −6</span><p class="file-why">Accepts safely convertible BigInt provider amounts and exposes the reusable strict money schema and exact comparison.</p></li>
           <li class="file-row" data-status="added" data-area="shared_rules" data-adds="95" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/payment/placeholder-refund.ts</code><span class="file-delta">+95 −0</span><p class="file-why">Centralizes every quantity-zero refund reason, alert choice, operator note, and legacy warning shape in one shared schema.</p></li>
           <li class="file-row" data-status="added" data-area="shared_rules" data-adds="180" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/payment/provider-discovery.ts</code><span class="file-delta">+180 −0</span><p class="file-why">Reads tagged references at one provider and binds a legacy reference only when exactly one provider validates and every other provider gives a definite miss—not an outage or invalid answer.</p></li>
-          <li class="file-row" data-status="added" data-area="shared_rules" data-adds="120" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/payment/provider-failures.ts</code><span class="file-delta">+120 −0</span><p class="file-why">Translates known HTTP, connection, and malformed provider failures into different read and refund meanings.</p></li>
+          <li class="file-row" data-status="added" data-area="shared_rules" data-adds="117" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/payment/provider-failures.ts</code><span class="file-delta">+117 −0</span><p class="file-why">Translates known HTTP, connection, and malformed provider failures into different read and refund meanings.</p></li>
           <li class="file-row" data-status="modified" data-area="shared_rules" data-adds="30" data-dels="8"><span class="file-status modified" title="Modified">M</span><code class="file-path">src/shared/payment/provider-read.ts</code><span class="file-delta">+30 −8</span><p class="file-why">Expands the shared found/missing/unavailable/invalid vocabulary and provides a mapper that preserves every failure exactly.</p></li>
           <li class="file-row" data-status="added" data-area="shared_rules" data-adds="93" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/payment/provider-reference.ts</code><span class="file-delta">+93 −0</span><p class="file-why">Defines tagged and legacy reference identities plus a versioned canonical storage format used by encryption and HMAC.</p></li>
           <li class="file-row" data-status="added" data-area="shared_rules" data-adds="143" data-dels="0"><span class="file-status added" title="Added">A</span><code class="file-path">src/shared/payment/refund-attempt.ts</code><span class="file-delta">+143 −0</span><p class="file-why">Defines exact attempt results and an exhaustive one-reread policy that turns observed pending, partial, or conflicting money after rejection into protected uncertainty.</p></li>
@@ -749,7 +749,7 @@
       };
       const expected = {
         files: 167,
-        adds: 13318,
+        adds: 13315,
         dels: 3340,
         statuses: { added: 79, modified: 85, deleted: 3 },
         areas: {
