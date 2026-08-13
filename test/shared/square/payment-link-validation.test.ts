@@ -172,7 +172,8 @@ describeSquare(() => {
             listingId: i + 1,
             name: `Listing ${i + 1}`,
             slug: `listing-${i + 1}`,
-          }));
+          }),
+        );
 
         await expect(
           squareApi.createPaymentLink(

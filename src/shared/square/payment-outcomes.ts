@@ -1,10 +1,7 @@
 /* jscpd:ignore-start */
 import * as v from "valibot";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import {
-  malformedProviderRead,
-  withExactRefundMoney,
-} from "#shared/payment/provider-failures.ts";
+import { withExactRefundMoney } from "#shared/payment/provider-failures.ts";
 import type { ProviderRead } from "#shared/payment/provider-read.ts";
 import {
   type RefundAttemptResult,
@@ -15,9 +12,9 @@ import { ResourceIdSchema } from "#shared/payment/resource-id.ts";
 import { refundIdempotencyKey } from "#shared/payment-idempotency.ts";
 import {
   namedSquareRefund,
-  squareReadFailure,
   squareRefundFailure,
 } from "#shared/square/outcomes.ts";
+import { readSquareResource } from "#shared/square/read.ts";
 /* jscpd:ignore-end */
 
 /** Input to Square's refund transport. */
@@ -152,34 +149,22 @@ export const readSquarePayment = async (
   paymentId: string,
 ): Promise<ProviderRead<SquarePayment>> => {
   const client = await getClient();
-  if (!client) return { reason: "not_configured", status: "unavailable" };
-  try {
-    const { payment } = await client.payments.get({ paymentId });
-    if (!payment) {
-      return { reason: "missing_documented_resource", status: "invalid" };
-    }
-    const parsed = v.safeParse(SquarePaymentSchema, {
-      amountMoney: squareMoneyOrUndefined(payment.amountMoney),
-      id: payment.id,
-      orderId: payment.orderId,
-      refundedMoney: squareMoneyOrUndefined(payment.refundedMoney),
-      status: payment.status,
-    });
-    if (!parsed.success) {
-      return malformedProviderRead();
-    }
-    if (parsed.output.id !== paymentId) {
-      return { reason: "mismatched_id", status: "invalid" };
-    }
-    if (!isSquarePaymentStatus(parsed.output.status)) {
-      return { reason: "unsupported_status", status: "invalid" };
-    }
-    return { resource: parsed.output, status: "found" };
-  } catch (error) {
-    const failure = squareReadFailure(error);
-    if (failure) return failure;
-    throw error;
-  }
+  return readSquareResource(client, {
+    accepts: (payment) => isSquarePaymentStatus(payment.status),
+    matches: (payment) => payment.id === paymentId,
+    parse: (payment: SquarePayment) => {
+      const parsed = v.safeParse(SquarePaymentSchema, {
+        amountMoney: squareMoneyOrUndefined(payment.amountMoney),
+        id: payment.id,
+        orderId: payment.orderId,
+        refundedMoney: squareMoneyOrUndefined(payment.refundedMoney),
+        status: payment.status,
+      });
+      return parsed.success ? parsed.output : null;
+    },
+    read: (square) => square.payments.get({ paymentId }),
+    resource: (response) => response.payment,
+  });
 };
 
 const SquareRefundSchema = v.object({

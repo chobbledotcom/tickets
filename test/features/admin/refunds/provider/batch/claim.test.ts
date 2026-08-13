@@ -71,11 +71,7 @@ describeWithEnv(
 
       expect(counts).toEqual(oneFailedRefundCounts);
       expect(
-        errors.contains(
-          "No configured payment provider recognizes this payment. " +
-            "Add the provider it was taken with, or refund it from that " +
-            "provider's dashboard.",
-        ),
+        errors.contains("Admin refund not started (provider_evidence)"),
       ).toBe(true);
     });
 

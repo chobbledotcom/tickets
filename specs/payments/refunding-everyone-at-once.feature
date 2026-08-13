@@ -3,15 +3,17 @@
 @actor:organiser
 @edition:managed @edition:self-hosted
 Feature: An organiser refunds everyone on a listing
-  When a listing is called off, an organiser can refund everyone on it in one
-  go. One payment the provider turns down must not stop the rest — and only the
-  refunds that really happened may be counted.
+  When a listing is called off, an organiser can work through everyone's
+  refunds in bounded pages. One payment the provider turns down must not stop
+  the rest of the selected page — and only refunds that really happened may be
+  counted.
 
   @rule:payments.one-failed-refund-does-not-stop-the-others
   @surface:admin
   Rule: A refund that fails does not stop the others, and is not counted
-    Every booking is tried. The organiser is told how many worked and how many
-    did not, and the one that failed keeps its money and its place.
+    Every person in the selected page is tried once. The organiser is told how
+    many worked, how many did not, and how many people remain for another
+    submission. A failed refund keeps its money and its place.
 
     @case:bulk-refund.one-fails-the-rest-succeed
     Scenario: The provider turns down the first of two refunds

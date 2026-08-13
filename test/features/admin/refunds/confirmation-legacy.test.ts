@@ -1,20 +1,18 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
-import { confirmRefund } from "#routes/admin/refunds/confirmation.ts";
 import { queryOne } from "#shared/db/client.ts";
 import { createSystemNote, getNotesFor } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
-import {
-  legacyRefundWarnings,
-} from "#shared/payment/placeholder-refund.ts";
+import { legacyRefundWarnings } from "#shared/payment/placeholder-refund.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type { Attendee } from "#shared/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
-import { withTestSession } from "#test-utils/session.ts";
 import {
   type ConfirmationFixture,
+  confirmFixturePayment,
+  confirmFixturePaymentAndReplay,
   DEFAULT_PAYMENT,
   setupConfirmation,
 } from "./confirmation-fixture.ts";
@@ -23,7 +21,9 @@ const createLegacyWarning = (attendee: Attendee): Promise<void> =>
   createSystemNote(
     attendeeNotes(attendee.id),
     requireValue(
-      [...legacyRefundWarnings(attendee.id, DEFAULT_PAYMENT.paymentReference)][0],
+      [
+        ...legacyRefundWarnings(attendee.id, DEFAULT_PAYMENT.paymentReference),
+      ][0],
       "The legacy warning schema needs one message",
     ),
   );
@@ -57,6 +57,19 @@ const expectNoLegacyWarning = async (
       await getNotesFor(attendeeNotes(refund.attendee.id), refund.privateKey)
     ).filter((note) => note.note.includes("could NOT be refunded")),
   ).toEqual([]);
+};
+
+const captureNewConfirmationQueries = async (
+  refund: ConfirmationFixture,
+): Promise<string[]> => {
+  const queries: string[] = [];
+  const restore = recordQueries(queries);
+  try {
+    expect(await confirmFixturePayment(refund)).toBe("new");
+  } finally {
+    restore();
+  }
+  return queries;
 };
 
 describeWithEnv("admin refunds > legacy confirmation", { db: true }, () => {
@@ -93,17 +106,7 @@ describeWithEnv("admin refunds > legacy confirmation", { db: true }, () => {
     );
     expect(storedPayments?.count).toBe(1);
 
-    const queries: string[] = [];
-    const restore = recordQueries(queries);
-    try {
-      expect(
-        await withTestSession(() =>
-          confirmRefund({ ...refund, references: [refund.reference] }),
-        ),
-      ).toBe("new");
-    } finally {
-      restore();
-    }
+    const queries = await captureNewConfirmationQueries(refund);
 
     const legacyReads = queries.filter(
       (sql) =>
@@ -134,17 +137,7 @@ describeWithEnv("admin refunds > legacy confirmation", { db: true }, () => {
       beforeClaim: createLegacyWarning,
       paymentId: DEFAULT_PAYMENT.paymentReference,
     });
-    const queries: string[] = [];
-    const restore = recordQueries(queries);
-    try {
-      expect(
-        await withTestSession(() =>
-          confirmRefund({ ...refund, references: [refund.reference] }),
-        ),
-      ).toBe("new");
-    } finally {
-      restore();
-    }
+    const queries = await captureNewConfirmationQueries(refund);
 
     expect(
       queries.some(
@@ -157,16 +150,10 @@ describeWithEnv("admin refunds > legacy confirmation", { db: true }, () => {
 
   test("replay keeps the retired anchor warning gone", async () => {
     const { refund } = await setupLegacyWarningConfirmation();
-    expect(
-      await withTestSession(() =>
-        confirmRefund({ ...refund, references: [refund.reference] }),
-      ),
-    ).toBe("new");
-    expect(
-      await withTestSession(() =>
-        confirmRefund({ ...refund, references: [refund.reference] }),
-      ),
-    ).toBe("current");
+    expect(await confirmFixturePaymentAndReplay(refund)).toEqual([
+      "new",
+      "current",
+    ]);
     await expectNoLegacyWarning(refund);
   });
 });

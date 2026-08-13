@@ -21,10 +21,39 @@ import {
 
 // jscpd:ignore-end
 
+const expectRetryableWebhook = async (
+  event: WebhookEvent,
+  orderRead: ReturnType<typeof squareOrderRead>,
+  expectedOrderReads: number,
+): Promise<void> => {
+  await configureSquare();
+  await settings.update.paymentProvider("square");
+  await withMocks(
+    () => ({
+      order: stub(squareApi, "readOrder", () => Promise.resolve(orderRead)),
+      payment: stub(squareApi, "readPayment"),
+      verify: stub(squarePaymentProvider, "verifyWebhookSignature", () =>
+        Promise.resolve({ listing: event, valid: true as const }),
+      ),
+    }),
+    async ({ order, payment }) => {
+      const response = await withExpectedError(() =>
+        handleRequest(
+          mockWebhookRequest(
+            {},
+            { "x-square-hmacsha256-signature": "square-signature" },
+          ),
+        ),
+      );
+      expect(response.status).toBe(503);
+      expect(order.calls).toHaveLength(expectedOrderReads);
+      expect(payment.calls).toHaveLength(0);
+    },
+  );
+};
+
 describeWithEnv("Square payment webhooks", { db: true }, () => {
   test("keeps a completed payment without an order retryable", async () => {
-    await configureSquare();
-    await settings.update.paymentProvider("square");
     const event: WebhookEvent = {
       data: {
         object: {
@@ -35,35 +64,10 @@ describeWithEnv("Square payment webhooks", { db: true }, () => {
       type: "payment.updated",
     };
 
-    await withMocks(
-      () => ({
-        order: stub(squareApi, "readOrder", () =>
-          Promise.resolve(squareOrderRead(null)),
-        ),
-        payment: stub(squareApi, "readPayment"),
-        verify: stub(squarePaymentProvider, "verifyWebhookSignature", () =>
-          Promise.resolve({ listing: event, valid: true as const }),
-        ),
-      }),
-      async ({ order, payment }) => {
-        const response = await withExpectedError(() =>
-          handleRequest(
-            mockWebhookRequest(
-              {},
-              { "x-square-hmacsha256-signature": "square-signature" },
-            ),
-          )
-        );
-        expect(response.status).toBe(503);
-        expect(order.calls).toHaveLength(0);
-        expect(payment.calls).toHaveLength(0);
-      },
-    );
+    await expectRetryableWebhook(event, squareOrderRead(null), 0);
   });
 
   test("keeps a completed payment with malformed order metadata retryable", async () => {
-    await configureSquare();
-    await settings.update.paymentProvider("square");
     const event: WebhookEvent = {
       data: {
         object: {
@@ -78,36 +82,15 @@ describeWithEnv("Square payment webhooks", { db: true }, () => {
       type: "payment.updated",
     };
 
-    await withMocks(
-      () => ({
-        order: stub(squareApi, "readOrder", () =>
-          Promise.resolve(
-            squareOrderRead({
-              id: "order-private-sentinel",
-              metadata: {},
-              state: "COMPLETED",
-              totalMoney: squareMoney(1000),
-            }),
-          ),
-        ),
-        payment: stub(squareApi, "readPayment"),
-        verify: stub(squarePaymentProvider, "verifyWebhookSignature", () =>
-          Promise.resolve({ listing: event, valid: true as const }),
-        ),
+    await expectRetryableWebhook(
+      event,
+      squareOrderRead({
+        id: "order-private-sentinel",
+        metadata: {},
+        state: "COMPLETED",
+        totalMoney: squareMoney(1000),
       }),
-      async ({ order, payment }) => {
-        const response = await withExpectedError(() =>
-          handleRequest(
-            mockWebhookRequest(
-              {},
-              { "x-square-hmacsha256-signature": "square-signature" },
-            ),
-          )
-        );
-        expect(response.status).toBe(503);
-        expect(order.calls).toHaveLength(1);
-        expect(payment.calls).toHaveLength(0);
-      },
+      1,
     );
   });
 });

@@ -26,6 +26,7 @@ type ConnectionReason = Extract<
   ProviderUnavailableReason,
   "network_error" | "timeout"
 >;
+type ProviderFailureRead = Exclude<ProviderRead<never>, { status: "found" }>;
 
 /** Transport facts a provider adapter can prove about one caught error. */
 export type ProviderFailureFacts = {
@@ -36,7 +37,7 @@ export type ProviderFailureFacts = {
 
 /** The read and refund meanings of the same known provider failure. */
 export type ProviderFailure = {
-  read: ProviderRead<never>;
+  read: ProviderFailureRead;
   refund: FailedRefund;
 };
 
@@ -47,7 +48,7 @@ const httpUnavailableReason = (statusCode: number): UnavailableReason =>
       ? "timeout"
       : "provider_error";
 
-const httpReadFailure = (statusCode: number): ProviderRead<never> =>
+const httpReadFailure = (statusCode: number): ProviderFailureRead =>
   statusCode === 404
     ? { status: "missing" }
     : statusCode === 400 || statusCode === 422
@@ -64,7 +65,7 @@ const httpRefundFailure = (statusCode: number): FailedRefund =>
     : uncertainRefund(httpUnavailableReason(statusCode));
 
 /** Refuse a provider answer that does not match its documented shape. */
-export const malformedProviderRead = (): ProviderRead<never> => ({
+export const malformedProviderRead = (): ProviderFailureRead => ({
   reason: "malformed_response",
   status: "invalid",
 });

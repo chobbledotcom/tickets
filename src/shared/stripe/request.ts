@@ -1,5 +1,9 @@
 import * as v from "valibot";
-import { namedError } from "#shared/named-error.ts";
+import {
+  isAbortOrTimeoutError,
+  isTimeoutError,
+  namedError,
+} from "#shared/named-error.ts";
 import { delay } from "#shared/now.ts";
 import { countExternalSubrequest } from "#shared/subrequest-budget.ts";
 import { encodeStripeForm, type StripeFormValue } from "./form.ts";
@@ -161,8 +165,7 @@ const connectionError = (
   retry: number,
   timeout: number,
 ): StripeConnectionError => {
-  const timedOut =
-    error instanceof DOMException && error.name === "TimeoutError";
+  const timedOut = isTimeoutError(error);
   return new StripeConnectionError(
     timedOut ? "timeout" : "network_error",
     timedOut
@@ -175,9 +178,7 @@ const retriesRemain = (retry: number, maximum: number): boolean =>
   retry < maximum;
 
 const isTransportFailure = (error: unknown): boolean =>
-  error instanceof TypeError ||
-  (error instanceof DOMException &&
-    (error.name === "AbortError" || error.name === "TimeoutError"));
+  error instanceof TypeError || isAbortOrTimeoutError(error);
 
 const headerOrUndefined = (
   headers: Headers,

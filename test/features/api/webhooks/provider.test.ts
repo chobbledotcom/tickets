@@ -5,8 +5,8 @@ import { spy, stub } from "@std/testing/mock";
 import * as v from "valibot";
 import { handleRequest } from "#routes";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { stripeApi } from "#shared/stripe.ts";
 import { StripeConnectionError } from "#shared/stripe/request.ts";
+import { stripeApi } from "#shared/stripe.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -45,10 +45,8 @@ describeWithEnv("server (payment webhook edge cases)", { db: true }, () => {
     const { stripePaymentProvider } = await import(
       "#shared/stripe-provider.ts"
     );
-    using _rs = stub(
-      stripePaymentProvider,
-      "resolveWebhookSession",
-      () => Promise.resolve("skip" as const),
+    using _rs = stub(stripePaymentProvider, "resolveWebhookSession", () =>
+      Promise.resolve("skip" as const),
     );
     using _v = await stubWebhookVerify(
       webhookEvent({
@@ -72,10 +70,8 @@ describeWithEnv("server (payment webhook edge cases)", { db: true }, () => {
     const { stripePaymentProvider } = await import(
       "#shared/stripe-provider.ts"
     );
-    using _rs = stub(
-      stripePaymentProvider,
-      "resolveWebhookSession",
-      () => Promise.resolve("retry" as const),
+    using _rs = stub(stripePaymentProvider, "resolveWebhookSession", () =>
+      Promise.resolve("retry" as const),
     );
     using _v = await stubWebhookVerify(
       webhookEvent({
@@ -101,16 +97,13 @@ describeWithEnv("server (payment webhook edge cases)", { db: true }, () => {
   test("Stripe fallback read failure stays retryable", async () => {
     await setupStripe();
     const client = await stripeClient();
-    using _retrieve = stub(
-      client.checkout.sessions,
-      "retrieve",
-      () =>
-        Promise.reject(
-          new StripeConnectionError(
-            "network_error",
-            "PRIVATE_STRIPE_READ_FAILURE",
-          ),
+    using _retrieve = stub(client.checkout.sessions, "retrieve", () =>
+      Promise.reject(
+        new StripeConnectionError(
+          "network_error",
+          "PRIVATE_STRIPE_READ_FAILURE",
         ),
+      ),
     );
     using _verify = await stubWebhookVerify(
       webhookEvent({
@@ -123,9 +116,7 @@ describeWithEnv("server (payment webhook edge cases)", { db: true }, () => {
     );
 
     const response = await withExpectedError(() =>
-      handleRequest(
-        mockWebhookRequest({}, { "stripe-signature": "sig" }),
-      )
+      handleRequest(mockWebhookRequest({}, { "stripe-signature": "sig" })),
     );
 
     expect(response.status).toBe(503);

@@ -98,41 +98,49 @@ const pairedPlans = (
     ),
   }));
 
+type RefundLedgerBatchStep<Result> =
+  | { kind: "completed"; result: Result }
+  | { kind: "failed" };
+
+const runRefundLedgerBatchStep = async <Result>(
+  attendeeCount: number,
+  kind: "batch_post" | "batch_preparation",
+  run: () => Promise<Result>,
+): Promise<RefundLedgerBatchStep<Result>> => {
+  try {
+    return { kind: "completed", result: await run() };
+  } catch (error) {
+    logRefundLedgerError({ attendeeCount, error, kind });
+    return { kind: "failed" };
+  }
+};
+
 /** Record many attendees from one read snapshot and one bounded write. */
 export const recordAttendeeRefundsBatch = async (
   attendees: readonly RefundLedgerTarget[],
 ): Promise<Map<number, RefundLedgerResult>> => {
   const targets = mergedTargets(attendees);
   if (targets.length === 0) return new Map();
-  let computed: ComputedRefund[];
-  try {
-    computed = await computeAttendeeRefunds(
-      targets.map(({ attendeeId, references }) => ({
-        attendeeId,
-        references,
-      })),
-    );
-  } catch (error) {
-    logRefundLedgerError({
-      attendeeCount: targets.length,
-      error,
-      kind: "batch_preparation",
-    });
-    return failureResults(targets);
-  }
-  const plans = pairedPlans(targets, computed);
+  const computed = await runRefundLedgerBatchStep(
+    targets.length,
+    "batch_preparation",
+    () =>
+      computeAttendeeRefunds(
+        targets.map(({ attendeeId, references }) => ({
+          attendeeId,
+          references,
+        })),
+      ),
+  );
+  if (computed.kind === "failed") return failureResults(targets);
+  const plans = pairedPlans(targets, computed.result);
 
-  let posted: Awaited<ReturnType<typeof postTransferGroupBatches>>;
-  try {
-    posted = await postTransferGroupBatches(
-      plans.map(({ computed }) => computed.groups),
-    );
-  } catch (error) {
-    logRefundLedgerError({
-      attendeeCount: targets.length,
-      error,
-      kind: "batch_post",
-    });
+  const posted = await runRefundLedgerBatchStep(
+    targets.length,
+    "batch_post",
+    () => postTransferGroupBatches(plans.map((plan) => plan.computed.groups)),
+  );
+  if (posted.kind === "failed") {
     return new Map(
       plans.map(({ attendeeId, computed }) => [
         attendeeId,
@@ -143,7 +151,7 @@ export const recordAttendeeRefundsBatch = async (
   return new Map(
     plans.map(({ attendeeId, computed }, index) => {
       const result = requireValue(
-        posted[index],
+        posted.result[index],
         `Refund ledger omitted attendee ${attendeeId}`,
       );
       if (result.kind === "conflict") {

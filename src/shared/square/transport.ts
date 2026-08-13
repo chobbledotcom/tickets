@@ -2,6 +2,7 @@
 import * as v from "valibot";
 import { isNotNullish } from "#fp";
 import { type FetchResult, fetchText } from "#shared/fetch.ts";
+import { isAbortOrTimeoutError } from "#shared/named-error.ts";
 import type { ProviderUnavailableReason } from "#shared/payment/provider-read.ts";
 /* jscpd:ignore-end */
 
@@ -113,8 +114,7 @@ export class SquareProtocolError extends Error {
 const squareConnectionReason = (
   error: unknown,
 ): SquareConnectionError["reason"] | undefined =>
-  error instanceof DOMException &&
-  (error.name === "AbortError" || error.name === "TimeoutError")
+  isAbortOrTimeoutError(error)
     ? "timeout"
     : error instanceof TypeError
       ? "network_error"

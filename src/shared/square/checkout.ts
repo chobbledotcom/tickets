@@ -2,6 +2,7 @@
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { settings } from "#shared/db/settings.ts";
 import { ErrorCode, logDebug } from "#shared/logger.ts";
+import { checkoutFailure } from "#shared/payment/checkout-failure.ts";
 import {
   assembleCheckoutMetadata,
   buildProviderLineItems,
@@ -10,7 +11,6 @@ import {
 } from "#shared/payment-helpers.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { normalizePhone } from "#shared/phone.ts";
-import { ProviderCheckoutError } from "#shared/payment/checkout-failure.ts";
 import type {
   CreatePaymentLinkInput,
   GetSquareClient,
@@ -39,16 +39,13 @@ const rethrowAsUserError = (error: unknown): never => {
     );
   }
   if (error instanceof SquareApiError) {
-    throw new ProviderCheckoutError(
-      "square",
-      { reason: "provider_error", statusCode: error.statusCode },
-    );
+    throw checkoutFailure.provider("square", error.statusCode);
   }
   if (error instanceof SquareConnectionError) {
-    throw new ProviderCheckoutError("square", { reason: error.reason });
+    throw checkoutFailure.connection("square", error.reason);
   }
   if (error instanceof SquareProtocolError) {
-    throw new ProviderCheckoutError("square", { reason: "invalid_response" });
+    throw checkoutFailure.invalidResponse("square");
   }
   throw error;
 };
@@ -106,9 +103,7 @@ const createPaymentLink = (
     const orderId = response.paymentLink?.orderId;
     const url = response.paymentLink?.url;
     if (!orderId || !url) {
-      throw new ProviderCheckoutError("square", {
-        reason: "invalid_response",
-      });
+      throw checkoutFailure.invalidResponse("square");
     }
     return { orderId, url };
   }, ErrorCode.SQUARE_CHECKOUT);

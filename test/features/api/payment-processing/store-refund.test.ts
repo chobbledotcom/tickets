@@ -17,9 +17,9 @@ import {
 import { processBooking } from "#shared/booking.ts";
 import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
 import { decrypt } from "#shared/crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { requirePublicStatusId } from "#shared/db/attendee-statuses.ts";
 import { queryOne } from "#shared/db/client.ts";
-import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

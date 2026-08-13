@@ -107,9 +107,7 @@ describeWithEnv("server webhooks > unrecognized sessions", { db: true }, () => {
     const log = await getAllActivityLog();
     expect(
       log.some((entry) =>
-        entry.message.includes(
-          "Signed payment's booking could not be read",
-        )
+        entry.message.includes("Signed payment's booking could not be read"),
       ),
     ).toBe(true);
     expect(JSON.stringify(log)).not.toContain("cs_unreadable_booking");

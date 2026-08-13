@@ -96,6 +96,23 @@ const refundActivityCounts = (
     failedCount === undefined ? null : `${failedCount} failed`,
   ]).join(", ");
 
+const remainingRefundMessage = (
+  remaining: number,
+  pendingCount: number,
+): string | null => {
+  const otherRemaining = remaining - pendingCount;
+  if (pendingCount === 0) {
+    return t("admin.attendees.refund_all_result_remaining", {
+      count: remaining,
+    });
+  }
+  return otherRemaining === 0
+    ? null
+    : t("admin.attendees.refund_all_result_waiting_remaining", {
+        count: otherRemaining,
+      });
+};
+
 /** Build the error response branch of a bulk refund. */
 const buildRefundProblemResponse = async (
   context: RefundResponseContext,
@@ -120,12 +137,7 @@ const buildRefundProblemResponse = async (
     errorCount > 0
       ? t("admin.attendees.refund_all_result_errors", { count: errorCount })
       : null,
-    t(
-      remaining > 0
-        ? "admin.attendees.refund_all_result_remaining"
-        : "admin.attendees.refund_all_result_complete",
-      { count: remaining },
-    ),
+    remainingRefundMessage(remaining, pendingCount),
   ]).join(" ");
   await logActivity(
     `Bulk refund: ${refundActivityCounts(
@@ -170,11 +182,7 @@ const buildRefundAllResponse = async (
         t("admin.attendees.refund_all_result_pending", {
           count: counts.pendingCount,
         }),
-        remaining > 0
-          ? t("admin.attendees.refund_all_result_remaining", {
-              count: remaining,
-            })
-          : null,
+        remainingRefundMessage(remaining, counts.pendingCount),
       ]).join(" "),
     );
   }

@@ -1,7 +1,7 @@
 import { compact, requiredMapValue } from "#fp";
 import {
-  claimAttendeeRows,
   type ClaimResult,
+  claimAttendeeRows,
   type InheritedArmedRefunds,
   type LoadedRefundAttendee,
   paymentReferenceRepresentations,
@@ -161,7 +161,7 @@ const settlementRows = (
         mayLetGo(
           findings.doubts.get(attendeeId),
           claim.inherited.has(attendeeId),
-        )
+        ),
       )
       .map(([attendeeId]) => attendeeId),
   );
@@ -176,7 +176,7 @@ const settlementRows = (
           unrecorded,
           findings,
           findings.claimPhases,
-        )
+        ),
       ),
     ),
   );
@@ -196,7 +196,7 @@ const initialUnrecorded = (
     ]),
   );
   const returned = [...represented.values()].filter(({ index }) =>
-    claim.returned.has(index)
+    claim.returned.has(index),
   );
   return new Map(
     [...Map.groupBy(returned, ({ attendeeId }) => attendeeId)].map(
@@ -213,18 +213,16 @@ export const underAttendeeClaim = async <TResult>(
   rowClaim: RowClaim,
   attendees: readonly LoadedRefundAttendee[],
   listingId: number,
-  run:
-    & {
-      blocked: (block: RefundRunBlock) => TResult;
-      work: (heldWork: HeldRefundWork) => Promise<TResult>;
-    }
-    & (
-      | {
+  run: {
+    blocked: (block: RefundRunBlock) => TResult;
+    work: (heldWork: HeldRefundWork) => Promise<TResult>;
+  } & (
+    | {
         admit: RefundClaimAdmission;
         admissionRefused: () => TResult;
       }
-      | { admit?: undefined; admissionRefused?: never }
-    ),
+    | { admit?: undefined; admissionRefused?: never }
+  ),
 ): Promise<TResult> => {
   const claim = await rowClaim.claim(attendees, run.admit);
   if (claim.kind === "changed") {

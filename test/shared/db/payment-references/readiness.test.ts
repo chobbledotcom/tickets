@@ -9,9 +9,7 @@ import { execute, queryAll } from "#shared/db/client.ts";
 import { createSystemNote } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { getRefundPaymentReferences } from "#shared/db/payment-references.ts";
-import {
-  legacyRefundWarnings,
-} from "#shared/payment/placeholder-refund.ts";
+import { legacyRefundWarnings } from "#shared/payment/placeholder-refund.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

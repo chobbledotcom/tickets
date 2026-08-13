@@ -35,7 +35,6 @@ export const expectClosedCheckoutFailure = async (
   original?: unknown,
 ): Promise<void> => {
   const thrown = await thrownFrom(promise);
-  expect(thrown).toBeInstanceOf(Error);
   if (!(thrown instanceof Error)) throw new Error("Checkout threw a non-error");
   if (original !== undefined) expect(thrown).not.toBe(original);
   expect(thrown.name).toBe("ProviderCheckoutError");
@@ -48,7 +47,7 @@ export const expectClosedCheckoutFailure = async (
   expect(Reflect.get(thrown, "error")).toBeUndefined();
   for (const value of privateValues) {
     expect(String(thrown)).not.toContain(value);
-    expect(thrown.stack ?? "").not.toContain(value);
+    expect(String(thrown.stack)).not.toContain(value);
   }
 };
 

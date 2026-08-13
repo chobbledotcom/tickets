@@ -1,5 +1,9 @@
 import { assert } from "@std/assert";
-import type { ConfirmedRefund } from "#routes/admin/refunds/confirmation.ts";
+import {
+  type ConfirmedRefund,
+  confirmRefund,
+  type RefundConfirmation,
+} from "#routes/admin/refunds/confirmation.ts";
 import { queryOne } from "#shared/db/client.ts";
 import { bindPaymentReferenceProviders } from "#shared/db/payment-reference-provider.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
@@ -17,6 +21,7 @@ import {
   refundReferencesFor,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
+import { withTestSession } from "#test-utils/session.ts";
 
 export type PaymentFixture = {
   paymentReference: string;
@@ -37,6 +42,20 @@ export const DEFAULT_PAYMENT: PaymentFixture = {
   paymentReference: "pi_confirm_refund",
   sessionId: "sess-confirm-refund",
 };
+
+export const confirmFixturePayment = (
+  refund: ConfirmationFixture,
+): Promise<RefundConfirmation> =>
+  withTestSession(() =>
+    confirmRefund({ ...refund, references: [refund.reference] }),
+  );
+
+export const confirmFixturePaymentAndReplay = async (
+  refund: ConfirmationFixture,
+): Promise<[RefundConfirmation, RefundConfirmation]> => [
+  await confirmFixturePayment(refund),
+  await confirmFixturePayment(refund),
+];
 
 export const setupConfirmation = async (
   payments: readonly PaymentFixture[] = [DEFAULT_PAYMENT],

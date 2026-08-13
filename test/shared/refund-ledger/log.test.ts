@@ -6,7 +6,7 @@ import { initSentry } from "#shared/sentry.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
-import { resetSentry } from "#test-utils/sentry.ts";
+import { resetSentry, sentryRequestBody } from "#test-utils/sentry.ts";
 
 describe("refund ledger diagnostics", () => {
   const errors = setupErrorSpy();
@@ -35,15 +35,7 @@ describe("refund ledger diagnostics", () => {
     expect(errors.lastMessage()).toContain("attendee=17");
     expect(errors.lastMessage()).not.toContain(failure.message);
 
-    const sentryCall = fetchStub.calls.find((call) =>
-      String(call.args[0]).includes("bugs.example.test"),
-    );
-    if (sentryCall === undefined) throw new Error("Sentry was not called");
-    const options = sentryCall.args[1] as RequestInit;
-    const body =
-      typeof options.body === "string"
-        ? options.body
-        : new TextDecoder().decode(options.body as Uint8Array);
+    const body = sentryRequestBody(fetchStub.calls);
     expect(body).toContain('"value":"ledger backend failed"');
     expect(body).toContain("stacktrace");
     expect(body).toContain('"detail":"Refund ledger post failed"');

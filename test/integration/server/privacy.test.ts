@@ -209,9 +209,7 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
         `/admin/privacy?work_after=${attendeeIds[39]}`,
       );
       const lastHtml = await last.text();
-      expect(lastHtml).toContain(
-        `href="/admin/attendees/${attendeeIds[40]}"`,
-      );
+      expect(lastHtml).toContain(`href="/admin/attendees/${attendeeIds[40]}"`);
       expect(lastHtml).toContain(
         `href="/admin/privacy?work_before=${attendeeIds[40]}"`,
       );

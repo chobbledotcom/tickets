@@ -83,9 +83,9 @@ Given(
     expect(await adminPageHtml(bookingPagePath(this, "activity"))).toContain(
       "Refund issued",
     );
-    expect(await adminPageHtml(bookingPagePath(this, "activity"))).not.toContain(
-      "Refund issued for attendee 'Logged Guest'",
-    );
+    expect(
+      await adminPageHtml(bookingPagePath(this, "activity")),
+    ).not.toContain("Refund issued for attendee 'Logged Guest'");
   },
 );
 

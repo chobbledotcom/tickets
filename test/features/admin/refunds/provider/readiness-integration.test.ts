@@ -67,9 +67,7 @@ describe("admin refund provider readiness integration", () => {
     expect(writes.marked).toEqual([]);
     expect(writes.recorded).toEqual([]);
     expect(
-      errors.contains(
-        "No configured payment provider recognizes this payment. Add the provider it was taken with, or refund it from that provider's dashboard.",
-      ),
+      errors.contains("Admin refund not started (provider_evidence)"),
     ).toBe(true);
   });
 
@@ -116,9 +114,7 @@ describe("admin refund provider readiness integration", () => {
       },
     ]);
     expect(
-      errors.contains(
-        "an older returned-payment marker needs its provider recorded before this refund can continue",
-      ),
+      errors.contains("Admin refund not started (historical_marker)"),
     ).toBe(true);
   });
 

@@ -116,20 +116,14 @@ const sendReferenceRefund = async (
     return { doubt: "in_doubt", outcome: "pending" };
   }
   if (result.kind === "not_sent") return settled("withheld");
-  if (result.kind === "rejected") {
-    reportFailedRefundAttempt(result, {
-      attendeeId,
-      listingId,
-      provider: provider.type,
-    });
-    return settled("failed");
-  }
   reportFailedRefundAttempt(result, {
     attendeeId,
     listingId,
     provider: provider.type,
   });
-  return { doubt: "in_doubt", outcome: "errored" };
+  return result.kind === "rejected"
+    ? settled("failed")
+    : { doubt: "in_doubt", outcome: "errored" };
 };
 
 const prepareReferenceRefund = (

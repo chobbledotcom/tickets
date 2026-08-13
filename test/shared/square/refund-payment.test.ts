@@ -23,7 +23,7 @@ import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { gbp } from "#test-utils/payment-state.ts";
 import { providerRefundHttpCases } from "#test-utils/provider-failure-cases.ts";
-import { resetSentry } from "#test-utils/sentry.ts";
+import { resetSentry, sentryRequestBody } from "#test-utils/sentry.ts";
 
 const PRIVATE_REFERENCE = "PRIVATE_REFERENCE";
 
@@ -109,15 +109,7 @@ describeSquare(() => {
         expect(errors.lastMessage()).toContain("reason=provider_error");
         expect(errors.lastMessage()).not.toContain(PRIVATE_REFERENCE);
 
-        const sentryCall = fetchStub.calls.find((call) =>
-          String(call.args[0]).includes("bugs.example.test"),
-        );
-        if (sentryCall === undefined) throw new Error("Sentry was not called");
-        const options = sentryCall.args[1] as RequestInit;
-        const body =
-          typeof options.body === "string"
-            ? options.body
-            : new TextDecoder().decode(options.body as Uint8Array);
+        const body = sentryRequestBody(fetchStub.calls);
         expect(body).not.toContain(PRIVATE_REFERENCE);
         expect(body).toContain("Status code: 503");
         expect(body).toContain("stacktrace");

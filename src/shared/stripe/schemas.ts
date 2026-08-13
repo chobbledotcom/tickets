@@ -1,7 +1,10 @@
 import type Stripe from "stripe";
 import * as v from "valibot";
 import { ResourceIdSchema } from "#shared/payment/resource-id.ts";
-import { NonEmptyTextSchema } from "#shared/validation/string.ts";
+import {
+  NonEmptyTextSchema,
+  OptionalNullableStringSchema,
+} from "#shared/validation/string.ts";
 
 const NonEmptyNullableStringSchema = v.nullable(NonEmptyTextSchema);
 const MetadataSchema = v.nullable(v.record(v.string(), v.string()));
@@ -30,7 +33,7 @@ type StripeCheckoutSessionFields = {
 export const StripeCheckoutSessionSchema = v.object({
   amount_total: v.nullable(v.number()),
   created: v.number(),
-  currency: v.optional(v.nullable(v.string())),
+  currency: OptionalNullableStringSchema,
   id: NonEmptyTextSchema,
   metadata: MetadataSchema,
   payment_intent: NonEmptyNullableStringSchema,

@@ -108,42 +108,47 @@ const paymentWorkPageDirection = (
         order: "DESC",
       };
 
-const forwardPageCursors = (
-  after: number | undefined,
-  hasLookahead: boolean,
-  firstId: number | undefined,
-  lastId: number | undefined,
-): Pick<OrphanPaymentWorkPage, "nextCursor" | "previousCursor"> => ({
-  nextCursor: hasLookahead
-    ? requireValue(lastId, "A payment-work lookahead needs a visible last row")
-    : null,
-  previousCursor:
-    after === undefined
-      ? null
-      : (firstId ?? Math.min(Number.MAX_SAFE_INTEGER, after + 1)),
-});
+type VisiblePaymentWorkPage = {
+  hasLookahead: boolean;
+  firstId: number | undefined;
+  lastId: number | undefined;
+};
 
-const backwardPageCursors = (
-  before: number,
-  hasLookahead: boolean,
+const paymentWorkPageEdge = (
+  id: number | undefined,
+  edge: "first" | "last",
+): number =>
+  requireValue(id, `A payment-work lookahead needs a visible ${edge} row`);
+
+const forwardPreviousCursor = (
+  boundary: number | undefined,
   firstId: number | undefined,
-  lastId: number | undefined,
-): Pick<OrphanPaymentWorkPage, "nextCursor" | "previousCursor"> => ({
-  nextCursor: lastId ?? Math.max(0, before - 1),
-  previousCursor: hasLookahead
-    ? requireValue(firstId, "A payment-work lookahead needs a visible first row")
-    : null,
-});
+): number | null => {
+  if (boundary === undefined) return null;
+  return firstId ?? Math.min(Number.MAX_SAFE_INTEGER, boundary + 1);
+};
 
 const paymentWorkPageCursors = (
   direction: PaymentWorkPageDirection,
-  hasLookahead: boolean,
-  firstId: number | undefined,
-  lastId: number | undefined,
-): Pick<OrphanPaymentWorkPage, "nextCursor" | "previousCursor"> =>
-  direction.kind === "backward"
-    ? backwardPageCursors(direction.boundary, hasLookahead, firstId, lastId)
-    : forwardPageCursors(direction.boundary, hasLookahead, firstId, lastId);
+  page: VisiblePaymentWorkPage,
+): Pick<OrphanPaymentWorkPage, "nextCursor" | "previousCursor"> => {
+  switch (direction.kind) {
+    case "backward":
+      return {
+        nextCursor: page.lastId ?? Math.max(0, direction.boundary - 1),
+        previousCursor: page.hasLookahead
+          ? paymentWorkPageEdge(page.firstId, "first")
+          : null,
+      };
+    case "forward":
+      return {
+        nextCursor: page.hasLookahead
+          ? paymentWorkPageEdge(page.lastId, "last")
+          : null,
+        previousCursor: forwardPreviousCursor(direction.boundary, page.firstId),
+      };
+  }
+};
 
 /** One keyset page of protected orphans. The query starts at the partial
  * payment-work index and reads only attendee ids; one extra id is the lookahead. */
@@ -182,7 +187,7 @@ export const getOrphanPaymentWorkPage = async (
   const lastId = attendeeIds.at(-1);
   return {
     attendeeIds,
-    ...paymentWorkPageCursors(direction, hasLookahead, firstId, lastId),
+    ...paymentWorkPageCursors(direction, { firstId, hasLookahead, lastId }),
   };
 };
 

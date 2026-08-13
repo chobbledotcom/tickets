@@ -6,12 +6,14 @@ import {
   type RefundCandidate,
 } from "#routes/admin/refunds/candidates.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { getDb, setDb } from "#shared/db/client.ts";
+import { wrapExecute } from "#shared/db/libsql-call.ts";
 import { markPaymentReferencesProviderRefunded } from "#shared/db/payment-references.ts";
 import { setN1GuardNotifyOnly } from "#shared/db/query-log.ts";
-import { REFUND_ALL_BATCH_SIZE } from "#shared/db/refund-all-candidates.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 import { claimLeaseMs } from "#shared/payment/claim.ts";
+import { proxyMembers } from "#shared/proxy-members.ts";
 import {
   createPaidListing,
   markAsRefunded,
@@ -20,6 +22,8 @@ import {
 } from "#test/features/admin/refunds-helpers.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { withExpectedError } from "#test-utils/mocks.ts";
 import {
   CLAIM_MIRROR,
   protectedStateOf,
@@ -38,11 +42,12 @@ import {
 
 // jscpd:ignore-end
 
+const EXPECTED_REFUND_ALL_PAGE_SIZE = 5;
 const REVIEWED_SET_SIZE = 3;
 
 const lastRefundCandidate = async (
   listingId: number,
-  expectedSize = REVIEWED_SET_SIZE,
+  expectedSize: number,
 ): Promise<RefundCandidate> => {
   const candidates = await getRefundCandidates(
     await getAttendeesRaw(listingId),
@@ -66,7 +71,7 @@ const paymentRowOf = (candidate: RefundCandidate): string => {
 
 const putReviewOnLastPayment = async (
   listingId: number,
-  expectedSize = REVIEWED_SET_SIZE,
+  expectedSize: number,
 ): Promise<void> => {
   const candidate = await lastRefundCandidate(listingId, expectedSize);
   await putRowState(
@@ -91,6 +96,26 @@ const putUnrecordedOnLastPayment = async (
     }),
     UNRECORDED_MIRROR,
   );
+};
+
+type RefundAllBlocker = (
+  listingId: number,
+  attendeeCount: number,
+) => Promise<void>;
+
+const expectBlockerStopsRefundAll = async (
+  paymentPrefix: string,
+  attendeeCount: number,
+  putBlocker: RefundAllBlocker,
+): Promise<void> => {
+  const listing = await createPaidListing({ maxAttendees: 500 });
+  await seedBatchAttendees(listing, paymentPrefix, attendeeCount);
+  await putBlocker(listing.id, attendeeCount);
+
+  await withRefundMock(refundIsRejected, async (mockRefund) => {
+    await postRefundAll(listing);
+    expect(mockRefund.calls).toEqual([]);
+  });
 };
 
 const refundCandidatesFor = async (listingId: number) =>
@@ -141,44 +166,27 @@ describeWithEnv(
     afterEach(() => setN1GuardNotifyOnly(null));
 
     test("a review on the last payment stops every provider send", async () => {
-      const listing = await createPaidListing({ maxAttendees: 500 });
-      await seedBatchAttendees(listing, "pi_review_last_", REVIEWED_SET_SIZE);
-      await putReviewOnLastPayment(listing.id);
-
-      await withRefundMock(refundIsRejected, async (mockRefund) => {
-        await postRefundAll(listing);
-        expect(mockRefund.calls).toEqual([]);
-      });
+      await expectBlockerStopsRefundAll(
+        "pi_review_last_",
+        REVIEWED_SET_SIZE,
+        putReviewOnLastPayment,
+      );
     });
 
     test("a review after the first refund batch stops every provider send", async () => {
-      const listing = await createPaidListing({ maxAttendees: 500 });
-      await seedBatchAttendees(
-        listing,
+      await expectBlockerStopsRefundAll(
         "pi_review_after_batch_",
-        REFUND_ALL_BATCH_SIZE + 1,
+        EXPECTED_REFUND_ALL_PAGE_SIZE + 1,
+        putReviewOnLastPayment,
       );
-      await putReviewOnLastPayment(listing.id, REFUND_ALL_BATCH_SIZE + 1);
-
-      await withRefundMock(refundIsRejected, async (mockRefund) => {
-        await postRefundAll(listing);
-        expect(mockRefund.calls).toEqual([]);
-      });
     });
 
     test("unrecorded money after the first batch stops every provider send", async () => {
-      const listing = await createPaidListing({ maxAttendees: 500 });
-      await seedBatchAttendees(
-        listing,
+      await expectBlockerStopsRefundAll(
         "pi_unrecorded_after_batch_",
-        REFUND_ALL_BATCH_SIZE + 1,
+        EXPECTED_REFUND_ALL_PAGE_SIZE + 1,
+        putUnrecordedOnLastPayment,
       );
-      await putUnrecordedOnLastPayment(listing.id, REFUND_ALL_BATCH_SIZE + 1);
-
-      await withRefundMock(refundIsRejected, async (mockRefund) => {
-        await postRefundAll(listing);
-        expect(mockRefund.calls).toEqual([]);
-      });
     });
 
     test("more claims than one batch retire a bounded batch without deadlocking", async () => {
@@ -186,7 +194,7 @@ describeWithEnv(
       await seedTaggedBatchAttendees(
         listing,
         "pi_claim_batch_",
-        REFUND_ALL_BATCH_SIZE + 1,
+        EXPECTED_REFUND_ALL_PAGE_SIZE + 1,
       );
       const sessionIds = await putReturnedClaimsOnEveryPayment(listing.id);
 
@@ -197,9 +205,54 @@ describeWithEnv(
 
       const states = await Promise.all(sessionIds.map(protectedStateOf));
       expect(states.filter((state) => state === "")).toHaveLength(
-        REFUND_ALL_BATCH_SIZE,
+        EXPECTED_REFUND_ALL_PAGE_SIZE,
       );
       expect(states.filter((state) => state === "claim")).toHaveLength(1);
+    });
+
+    test("fails closed when a selected payment disappears before references load", async () => {
+      const listing = await createPaidListing();
+      const attendee = await createPaidTestAttendee(
+        listing.id,
+        "Changed Payment",
+        "changed-payment@example.com",
+        "pi_changed_payment",
+      );
+      const real = getDb();
+      let changed = false;
+      setDb(
+        proxyMembers(real, {
+          execute: wrapExecute(real, async (statement, execute) => {
+            const sql =
+              typeof statement === "string" ? statement : statement.sql;
+            if (
+              !changed &&
+              sql.includes("FROM processed_payments") &&
+              sql.includes("attendee_id IN")
+            ) {
+              changed = true;
+              await real.execute(
+                "DELETE FROM processed_payments WHERE attendee_id = ?",
+                [attendee.id],
+              );
+            }
+            return await execute();
+          }),
+        }),
+      );
+
+      try {
+        await withRefundMock(refundIsRejected, async (mockRefund) => {
+          const response = await withExpectedError(() =>
+            postRefundAll(listing),
+          );
+          expect(response.status).toBe(503);
+          expect(mockRefund.calls).toEqual([]);
+        });
+      } finally {
+        setDb(real);
+      }
+      expect(changed).toBe(true);
     });
   },
 );

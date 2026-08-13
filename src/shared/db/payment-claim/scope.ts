@@ -18,10 +18,10 @@ export const claimRequestFor = (
   const attendeeIds = sortedUniqueIds(
     attendees.flatMap((attendee) =>
       attendee.references.some((reference) =>
-          reference.matchingIndexes.includes(row.referenceIndex)
-        )
+        reference.matchingIndexes.includes(row.referenceIndex),
+      )
         ? [attendee.attendeeId]
-        : []
+        : [],
     ),
   );
   if (attendeeIds.length === 0) {
@@ -45,9 +45,9 @@ export const nextClaimFor = (
   };
   return decision.kind === "resume" && decision.resuming.phase === "send_armed"
     ? {
-      ...claim,
-      capability: decision.resuming.capability,
-      phase: "send_armed",
-    }
+        ...claim,
+        capability: decision.resuming.capability,
+        phase: "send_armed",
+      }
     : { ...claim, phase: "checking" };
 };

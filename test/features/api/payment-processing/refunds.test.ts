@@ -156,9 +156,9 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
       "r3@e.com",
       "R3",
       async () =>
-        expect(errorLogged(errorSpy, "Refund rejected for stripe payment")).toBe(
-          true,
-        ),
+        expect(
+          errorLogged(errorSpy, "Refund rejected for stripe payment"),
+        ).toBe(true),
     );
   });
 

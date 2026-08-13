@@ -39,6 +39,24 @@ describeWithEnv(
       );
     });
 
+    test("waits for the partial-index column during historical upgrades", async () => {
+      await getDb().execute(`DROP INDEX ${INDEX}`);
+      await getDb().execute(
+        "ALTER TABLE processed_payments DROP COLUMN protected_state",
+      );
+
+      await syncIndexes();
+      expect(await storedIndexSql()).toBe("");
+
+      await getDb().execute(
+        "ALTER TABLE processed_payments ADD COLUMN protected_state TEXT NOT NULL DEFAULT ''",
+      );
+      await syncIndexes();
+      expect(await storedIndexSql()).toContain(
+        `ON processed_payments(attendee_id) WHERE protected_state != ''`,
+      );
+    });
+
     test("declares the one index it owns", () => {
       const migration = paymentWorkQueueIndex(context);
       expect(migration).toMatchObject({

@@ -156,7 +156,7 @@ describeWithEnv("refund ledger > partial returns", { db: true }, () => {
       refundLedgerResult([], [returned], [returned]),
     );
     expect(await refundCashAmounts()).toEqual([]);
-    expect(errors.lastMessage()).toContain("refund ledger post failed");
+    expect(errors.lastMessage()).toContain("Refund ledger post failed");
   });
 
   test("keeps an earlier exact reversal recorded when a sibling post fails", async () => {

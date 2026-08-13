@@ -168,10 +168,8 @@ describeStripe("Stripe client configuration", () => {
 
     await withMocks(
       () =>
-        stub(
-          client.checkout.sessions,
-          "retrieve",
-          () => Promise.reject(stripeError),
+        stub(client.checkout.sessions, "retrieve", () =>
+          Promise.reject(stripeError),
         ),
       async () => {
         await expect(

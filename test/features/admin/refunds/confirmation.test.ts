@@ -14,6 +14,7 @@ import { releaseClaimRows } from "#test-utils/payment-claim.ts";
 import { withTestSession } from "#test-utils/session.ts";
 import {
   confirmationCount,
+  confirmFixturePaymentAndReplay,
   DEFAULT_PAYMENT,
   setupConfirmation as setup,
 } from "./confirmation-fixture.ts";
@@ -56,16 +57,10 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
       "A different payment could NOT be refunded automatically. Payment reference: pi_other.",
     );
 
-    expect(
-      await withTestSession(() =>
-        confirmRefund({ ...refund, references: [refund.reference] }),
-      ),
-    ).toBe("new");
-    expect(
-      await withTestSession(() =>
-        confirmRefund({ ...refund, references: [refund.reference] }),
-      ),
-    ).toBe("current");
+    expect(await confirmFixturePaymentAndReplay(refund)).toEqual([
+      "new",
+      "current",
+    ]);
 
     const activities = await getAttendeeActivityLog(refund.attendee.id);
     const confirmations = activities.filter((entry) =>

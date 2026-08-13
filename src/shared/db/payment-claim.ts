@@ -30,9 +30,9 @@ import {
   EMPTY_ROW_STATE,
   isEmptyRowState,
   type PaymentRowState,
-  readRowState,
   type RefundClaim,
   type RefundClaimPhase,
+  readRowState,
   writeRowState,
 } from "#shared/payment/row-state.ts";
 
@@ -157,11 +157,14 @@ export const assertRefundRowsHeld = async (
   },
 ): Promise<void> => {
   const sessionIds = [...claim.phases.keys()];
-  const stored = sessionIds.length === 0 ? [] : await readPaymentClaimRows(
-    tx,
-    `payment_session_id IN (${inPlaceholders(sessionIds)})`,
-    sessionIds,
-  );
+  const stored =
+    sessionIds.length === 0
+      ? []
+      : await readPaymentClaimRows(
+          tx,
+          `payment_session_id IN (${inPlaceholders(sessionIds)})`,
+          sessionIds,
+        );
   const rows = await Promise.all(stored.map(asPaymentRowRecord));
   if (
     rows.length !== sessionIds.length ||
@@ -206,9 +209,9 @@ export const paymentRowStateStatement = async (
 export type PaymentReviewChange =
   | { readonly kind: "review"; readonly reason: PaymentReviewReason }
   | {
-    readonly kind: "resolved";
-    readonly reason: PaymentReviewReason["kind"];
-  };
+      readonly kind: "resolved";
+      readonly reason: PaymentReviewReason["kind"];
+    };
 
 export type PaymentBooksChange = "recorded" | "unrecorded";
 
@@ -280,9 +283,10 @@ const withBooksChange = (
   if (change === "recorded") return kept;
   return {
     ...kept,
-    unrecorded: state.unrecorded === undefined
-      ? { returnedAt: nowIso() }
-      : state.unrecorded,
+    unrecorded:
+      state.unrecorded === undefined
+        ? { returnedAt: nowIso() }
+        : state.unrecorded,
   };
 };
 

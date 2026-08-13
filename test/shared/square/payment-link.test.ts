@@ -38,6 +38,18 @@ describeSquare(() => {
       );
     });
 
+    test("reports a configured link that has no available client", async () => {
+      const { settings } = await import("#shared/db/settings.ts");
+      await settings.update.square.locationId("L_loc_456");
+
+      await expectNoLink(checkoutIntent());
+
+      expect(debugMessages(debugLog()).slice(-2)).toEqual([
+        "[Square] No access token configured, cannot create client",
+        "[Square] Payment link creation failed",
+      ]);
+    });
+
     test("constructs correct SDK call for single-listing checkout", async () => {
       await configureSquare({ locationId: "L_loc_456" });
       await withSquareClient(

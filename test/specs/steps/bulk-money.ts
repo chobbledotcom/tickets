@@ -100,7 +100,7 @@ Then(
   function (this: TicketsWorld): void {
     expect(
       requiredWorldValue(this.bulkRefundMessage, "what the organiser was told"),
-    ).toContain("still needs owner review");
+    ).toContain("needs an owner review");
     expect(requiredWorldValue(this.refundCalls, "refund calls")()).toBe(0);
   },
 );

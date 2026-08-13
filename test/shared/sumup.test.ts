@@ -31,8 +31,8 @@ describe("sumup", () => {
   });
 
   describe("createCheckout", () => {
-    test("propagates unexpected checkout client failures", async () => {
-      const failure = new TypeError("SumUp connection failed");
+    test("propagates unexpected application checkout failures", async () => {
+      const failure = new Error("SumUp checkout mapper failed");
       const client = makeSumupClient({
         create: () => Promise.reject(failure),
       });

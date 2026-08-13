@@ -4,6 +4,7 @@ import { stub } from "@std/testing/mock";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import {
   lineFor,
+  stripeApiError,
   stripeCheckoutSession,
   stripeClient,
 } from "#test/test-utils/stripe/fixtures.ts";
@@ -108,11 +109,11 @@ describeStripe("stripe-provider", () => {
       );
     });
 
-    test("returns null when session is null from Stripe", async () => {
+    test("returns null for Stripe's explicit not-found answer", async () => {
       const client = await stripeClient();
       await whileRetrieving(
         client,
-        () => Promise.reject(new Error("Not found")),
+        () => Promise.reject(stripeApiError(404)),
         async () => {
           const result =
             await stripePaymentProvider.retrieveSession("cs_notfound");

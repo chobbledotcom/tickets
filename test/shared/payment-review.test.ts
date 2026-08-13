@@ -7,7 +7,7 @@ import { initSentry } from "#shared/sentry.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
-import { resetSentry } from "#test-utils/sentry.ts";
+import { resetSentry, sentryRequestBody } from "#test-utils/sentry.ts";
 
 const PRIVATE_REFERENCE = "pi_private_refund_reference";
 const where = {
@@ -49,15 +49,7 @@ describe("reporting a withheld refund", () => {
         return Promise.resolve();
       });
 
-      const sentryCall = fetchStub.calls.find((call) =>
-        String(call.args[0]).includes("bugs.example.test"),
-      );
-      if (sentryCall === undefined) throw new Error("Sentry was not called");
-      const options = sentryCall.args[1] as RequestInit;
-      const body =
-        typeof options.body === "string"
-          ? options.body
-          : new TextDecoder().decode(options.body as Uint8Array);
+      const body = sentryRequestBody(fetchStub.calls);
       expect(body).not.toContain(PRIVATE_REFERENCE);
       expect(body).toContain('"listingId":"3"');
       expect(body).toContain('"attendeeId":"7"');

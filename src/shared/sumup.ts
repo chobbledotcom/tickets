@@ -26,25 +26,25 @@ import {
   storeSumupCheckout,
 } from "#shared/db/sumup-checkouts.ts";
 import { errorMessage } from "#shared/error-message.ts";
+import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import { isAbortOrTimeoutError } from "#shared/named-error.ts";
 import {
-  ErrorCode,
-  type ErrorCodeType,
-  logDebug,
-  logError,
-} from "#shared/logger.ts";
+  checkoutFailure,
+  type ProviderCheckoutError,
+} from "#shared/payment/checkout-failure.ts";
 import type { ProviderRead } from "#shared/payment/provider-read.ts";
-import { ProviderCheckoutError } from "#shared/payment/checkout-failure.ts";
 import {
   assembleCheckoutMetadata,
   type CredentialCheck,
+  createWithClient,
 } from "#shared/payment-helpers.ts";
 import { providerCurrencyBlock } from "#shared/payment-providers.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import {
+  type SumupRefundSubmission,
   sumupReadFailure,
   sumupRefundFailure,
-  type SumupRefundSubmission,
 } from "#shared/sumup/failures.ts";
 import {
   readSumupTransaction,
@@ -96,41 +96,28 @@ const getClientImpl = (): SumupClient | null => {
  * absence; a failed provider call is an unexpected booking failure. */
 const sumupSdkFailure = (error: unknown): ProviderCheckoutError => {
   if (error instanceof APIError) {
-    return new ProviderCheckoutError(
-      "sumup",
-      { reason: "provider_error", statusCode: error.status },
-    );
+    return checkoutFailure.provider("sumup", error.status);
   }
   if (error instanceof TypeError) {
-    return new ProviderCheckoutError("sumup", { reason: "network_error" });
+    return checkoutFailure.connection("sumup", "network_error");
   }
-  if (
-    error instanceof DOMException &&
-    (error.name === "AbortError" || error.name === "TimeoutError")
-  ) {
-    return new ProviderCheckoutError("sumup", { reason: "timeout" });
+  if (isAbortOrTimeoutError(error)) {
+    return checkoutFailure.connection("sumup", "timeout");
   }
   if (error instanceof SumUpError) {
     const reason = error.message.startsWith("Request timed out after ")
       ? "timeout"
       : "invalid_response";
-    return new ProviderCheckoutError("sumup", { reason });
+    return reason === "timeout"
+      ? checkoutFailure.connection("sumup", reason)
+      : checkoutFailure.invalidResponse("sumup");
   }
   throw error;
 };
 
-const withCheckoutClient = async <Result>(
-  useClient: (client: SumupClient) => Promise<Result>,
-  _errorCode: ErrorCodeType,
-): Promise<Result | null> => {
-  const client = sumupApi.getSumupClient();
-  if (client === null) return null;
-  try {
-    return await useClient(client);
-  } catch (error) {
-    throw sumupSdkFailure(error);
-  }
-};
+const withCheckoutClient = createWithClient(() => sumupApi.getSumupClient(), {
+  replaceError: sumupSdkFailure,
+});
 
 /** Resolve the configured merchant code, logging if absent. */
 const getMerchantCode = (): string | null => {

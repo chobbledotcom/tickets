@@ -1,5 +1,6 @@
 import { APIError } from "@sumup/sdk";
 import { logDebug } from "#shared/logger.ts";
+import { isAbortOrTimeoutError } from "#shared/named-error.ts";
 import {
   type ProviderFailure,
   type ProviderFailureFacts,
@@ -24,10 +25,7 @@ const sumupFailureFacts = (err: unknown): ProviderFailureFacts | undefined => {
   if (err instanceof SumupApiError) return { statusCode: err.statusCode };
   if (err instanceof SumupProtocolError) return { malformed: true };
   if (err instanceof TypeError) return { connectionReason: "network_error" };
-  if (
-    err instanceof DOMException &&
-    (err.name === "AbortError" || err.name === "TimeoutError")
-  ) {
+  if (isAbortOrTimeoutError(err)) {
     return { connectionReason: "timeout" };
   }
   return;

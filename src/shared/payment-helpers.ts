@@ -79,30 +79,34 @@ type GuardedAsync = <T>(
 
 interface AsyncErrorHandling {
   errorDetail?: ((err: unknown) => string) | undefined;
+  replaceError?: ((err: unknown) => Error) | undefined;
   shouldPropagate?: ((err: unknown) => boolean) | undefined;
 }
 
-const guardedWithValue = <Value>(
-  getValue: () => Value | null | Promise<Value | null>,
-  {
-    errorDetail = (err) => (err instanceof Error ? err.message : "unknown"),
-    shouldPropagate = () => false,
-  }: AsyncErrorHandling = {},
-) =>
-async <T>(
-  fn: (value: Value) => Promise<T>,
-  errorCode: ErrorCodeType,
-): Promise<T | null> => {
-  const value = await getValue();
-  if (value === null) return null;
-  try {
-    return await fn(value);
-  } catch (err) {
-    if (err instanceof PaymentUserError || shouldPropagate(err)) throw err;
-    logError({ code: errorCode, detail: errorDetail(err) });
-    return null;
-  }
-};
+const guardedWithValue =
+  <Value>(
+    getValue: () => Value | null | Promise<Value | null>,
+    {
+      errorDetail = (err) => (err instanceof Error ? err.message : "unknown"),
+      replaceError,
+      shouldPropagate = () => false,
+    }: AsyncErrorHandling = {},
+  ) =>
+  async <T>(
+    fn: (value: Value) => Promise<T>,
+    errorCode: ErrorCodeType,
+  ): Promise<T | null> => {
+    const value = await getValue();
+    if (value === null) return null;
+    try {
+      return await fn(value);
+    } catch (err) {
+      if (replaceError !== undefined) throw replaceError(err);
+      if (err instanceof PaymentUserError || shouldPropagate(err)) throw err;
+      logError({ code: errorCode, detail: errorDetail(err) });
+      return null;
+    }
+  };
 
 /** Safely execute async operation, returning null on error.
  * Re-throws PaymentUserError so user-facing messages propagate. */
@@ -218,11 +222,9 @@ export const toBookingItems = (intent: CheckoutIntent): BookingItem[] => {
  * will become "" when extractSessionMetadata normalizes the metadata back.
  */
 const optionalFields = (
-  intent:
-    & Partial<
-      Pick<ContactInfo, "phone" | "address" | "special_instructions">
-    >
-    & { date: string | null; dayCount?: number | undefined },
+  intent: Partial<
+    Pick<ContactInfo, "phone" | "address" | "special_instructions">
+  > & { date: string | null; dayCount?: number | undefined },
 ): Record<string, string> => ({
   ...(intent.phone ? { phone: intent.phone } : {}),
   ...(intent.address ? { address: intent.address } : {}),
@@ -323,9 +325,9 @@ export const buildItemsMetadata = async (
     ...(siteTokenIndex !== undefined ? { siteTokenIndex } : {}),
   });
   const base = thankYouUrlFits(intent.thankYouUrl, withoutUrl, {
-      maxEntries,
-      maxValueLength,
-    })
+    maxEntries,
+    maxValueLength,
+  })
     ? { ...withoutUrl, thank_you_url: intent.thankYouUrl! }
     : withoutUrl;
   // Sign the agreed total bound to every stored booking field, so the webhook
@@ -386,9 +388,8 @@ export const toModifierRefs = (
     : undefined;
 
 /** Input for buildMetadata — like BookingIntent but with optional contact fields */
-type MetadataInput =
-  & Pick<BookingIntent, "name" | "email" | "items" | "date">
-  & Partial<
+type MetadataInput = Pick<BookingIntent, "name" | "email" | "items" | "date"> &
+  Partial<
     Pick<
       BookingIntent,
       | "phone"
@@ -435,33 +436,41 @@ export const buildMetadata = (
     : {}),
 });
 
+type SuccessfulCheckoutResult = Exclude<
+  CheckoutSessionResult,
+  null | { error: string }
+>;
+type CheckoutResultReader<Missing> = (
+  sessionId: string | undefined,
+  url: string | undefined | null,
+  label: LogCategory,
+) => Missing | SuccessfulCheckoutResult;
+type MissingCheckoutField = "id" | "URL";
+
+function checkoutResultReader<Missing>(
+  whenMissing: (label: LogCategory, field: MissingCheckoutField) => Missing,
+): CheckoutResultReader<Missing> {
+  return (sessionId, url, label) => {
+    if (!sessionId) return whenMissing(label, "id");
+    if (!url) return whenMissing(label, "URL");
+    return { checkoutUrl: url, sessionId };
+  };
+}
+
 /**
  * Convert a provider-specific checkout result to a CheckoutSessionResult.
  * Returns null if session ID or URL is missing.
  */
-export const toCheckoutResult = (
-  sessionId: string | undefined,
-  url: string | undefined | null,
-  label: LogCategory,
-): CheckoutSessionResult => {
-  if (!sessionId || !url) {
+export const toCheckoutResult: CheckoutResultReader<null> =
+  checkoutResultReader((label) => {
     logDebug(label, "Checkout result missing session ID or URL");
     return null;
-  }
-  return { checkoutUrl: url, sessionId };
-};
+  });
 
-const requiredCheckoutResult = (
-  sessionId: string | undefined,
-  url: string | undefined | null,
-  label: LogCategory,
-): Exclude<CheckoutSessionResult, null | { error: string }> => {
-  if (!sessionId) {
-    throw new Error(`${label} checkout response is missing its id`);
-  }
-  if (!url) throw new Error(`${label} checkout response is missing its URL`);
-  return { checkoutUrl: url, sessionId };
-};
+const requiredCheckoutResult: CheckoutResultReader<never> =
+  checkoutResultReader((label, field) => {
+    throw new Error(`${label} checkout response is missing its ${field}`);
+  });
 
 /**
  * Build a provider's `createCheckoutSession`: call the provider's own create
@@ -471,24 +480,25 @@ const requiredCheckoutResult = (
  * id/url, and its display label. A null create answer means the provider is not
  * configured; a non-null answer must contain both documented fields.
  */
-export const makeCreateCheckoutSession = <Result>(
-  label: LogCategory,
-  create: (intent: CheckoutIntent, baseUrl: string) => Promise<Result | null>,
-  readResult: (result: Result) => {
-    id: string | undefined;
-    url: string | undefined | null;
-  },
-): (
-  intent: CheckoutIntent,
-  baseUrl: string,
-) => Promise<CheckoutSessionResult> =>
-(intent, baseUrl) =>
-  withCheckoutError(async () => {
-    const result = await create(intent, baseUrl);
-    if (result === null) return null;
-    const { id, url } = readResult(result);
-    return requiredCheckoutResult(id, url, label);
-  });
+export const makeCreateCheckoutSession =
+  <Result>(
+    label: LogCategory,
+    create: (intent: CheckoutIntent, baseUrl: string) => Promise<Result | null>,
+    readResult: (result: Result) => {
+      id: string | undefined;
+      url: string | undefined | null;
+    },
+  ): ((
+    intent: CheckoutIntent,
+    baseUrl: string,
+  ) => Promise<CheckoutSessionResult>) =>
+  (intent, baseUrl) =>
+    withCheckoutError(async () => {
+      const result = await create(intent, baseUrl);
+      if (result === null) return null;
+      const { id, url } = readResult(result);
+      return requiredCheckoutResult(id, url, label);
+    });
 
 /**
  * Wrap a checkout operation, converting PaymentUserError to { error } and

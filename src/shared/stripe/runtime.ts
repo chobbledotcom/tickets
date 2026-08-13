@@ -1,9 +1,14 @@
 import { mapNotNullish } from "#fp";
 import { settings } from "#shared/db/settings.ts";
 import { getEnv } from "#shared/env.ts";
-import type { ErrorCodeType } from "#shared/logger.ts";
-import { cachedClientFactory } from "#shared/payment-helpers.ts";
-import { ProviderCheckoutError } from "#shared/payment/checkout-failure.ts";
+import {
+  checkoutFailure,
+  type ProviderCheckoutError,
+} from "#shared/payment/checkout-failure.ts";
+import {
+  cachedClientFactory,
+  createWithClient,
+} from "#shared/payment-helpers.ts";
 import { createStripeClient, type StripeClient } from "./client.ts";
 import { stripeMock } from "./mock.ts";
 import {
@@ -37,7 +42,7 @@ type StripeErrorField = (typeof STRIPE_ERROR_FIELDS)[number];
 export const sanitizeStripeError = (error: unknown): string => {
   if (!(error instanceof Error)) return "unknown";
   const parts = mapNotNullish((field: StripeErrorField) =>
-    field.format(Reflect.get(error, field.key))
+    field.format(Reflect.get(error, field.key)),
   )(STRIPE_ERROR_FIELDS);
   return parts.length > 0 ? parts.join(" ") : error.name;
 };
@@ -104,35 +109,20 @@ const cache = cachedClientFactory({
 const get = (): Promise<StripeClient | null> => cache.getClient();
 const closedCheckoutError = (error: unknown): ProviderCheckoutError => {
   if (error instanceof StripeApiError) {
-    return new ProviderCheckoutError(
-      "stripe",
-      { reason: "provider_error", statusCode: error.statusCode },
-    );
+    return checkoutFailure.provider("stripe", error.statusCode);
   }
   if (error instanceof StripeConnectionError) {
-    return new ProviderCheckoutError("stripe", { reason: error.reason });
+    return checkoutFailure.connection("stripe", error.reason);
   }
   if (error instanceof StripeProtocolError) {
-    return new ProviderCheckoutError(
-      "stripe",
-      { reason: "invalid_response", statusCode: error.statusCode },
-    );
+    return checkoutFailure.invalidResponse("stripe", error.statusCode);
   }
   throw error;
 };
 
-const runCheckout = async <Result>(
-  useClient: (client: StripeClient) => Promise<Result>,
-  _errorCode: ErrorCodeType,
-): Promise<Result | null> => {
-  const client = await get();
-  if (client === null) return null;
-  try {
-    return await useClient(client);
-  } catch (error) {
-    throw closedCheckoutError(error);
-  }
-};
+const runCheckout = createWithClient(get, {
+  replaceError: closedCheckoutError,
+});
 
 /** Shared Stripe client lifecycle for payment and endpoint operations. */
 export const stripeClientRuntime = { create, get, runCheckout };

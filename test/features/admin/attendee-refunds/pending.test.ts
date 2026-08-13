@@ -79,7 +79,7 @@ describeWithEnv("server (admin refunds still settling)", { db: true }, () => {
       async () => {
         await expectFlashRedirect(
           refundAllUrl(listing.id),
-          "0 refunds succeeded. 1 refund is still settling. Do not send it again. There was 1 failure. Some payments may have already been refunded.",
+          "0 refunds succeeded. 1 refund is still settling. Do not send it again. There was 1 failure. 1 other refund remains. Refresh payment status before continuing.",
           false,
         )(await postRefundAll(listing));
       },

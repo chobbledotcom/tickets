@@ -28,11 +28,13 @@ import type {
   CheckoutIntent,
   PaymentProvider,
   RetrieveSessionResult,
+  SessionMetadata,
   WebhookEvent,
   WebhookSessionResult,
   WebhookSetupResult,
 } from "#shared/payments.ts";
 import { squareApi } from "#shared/square/api.ts";
+import type { SquareOrder } from "#shared/square/order.ts";
 import type { SquarePayment } from "#shared/square/payment-outcomes.ts";
 import { verifySquareWebhookSignature } from "#shared/square/webhook.ts";
 
@@ -65,6 +67,100 @@ const sessionPayment = async (
   throw new Error(
     `Square payment could not be read (${read.status}:${read.reason})`,
   );
+};
+
+type SquareWebhookPayment = {
+  id: string | null;
+  orderId: string | null;
+  status: unknown;
+};
+
+const webhookPaymentObject = (
+  object: Record<string, unknown>,
+): Record<string, unknown> => {
+  const nested = object.payment;
+  if (typeof nested === "object" && nested !== null) {
+    return nested as Record<string, unknown>;
+  }
+  return object;
+};
+
+const textOrNull = (value: unknown): string | null =>
+  typeof value === "string" ? value : null;
+
+const isNonCompletedStatus = (status: unknown): status is string =>
+  typeof status === "string" && status !== "COMPLETED";
+
+const minorUnitNumber = (amount: bigint | null | undefined): number | null =>
+  typeof amount === "bigint" ? Number(amount) : null;
+
+const webhookPayment = (listing: WebhookEvent): SquareWebhookPayment => {
+  const object = listing.data.object;
+  const payment = webhookPaymentObject(object);
+  const id = textOrNull(payment.id);
+  const orderId = textOrNull(payment.order_id);
+  if (!id && listing.type.startsWith("payment.")) {
+    throw new Error("Square payment webhook is missing id");
+  }
+  if (!orderId && id && payment.status === "COMPLETED") {
+    throw new Error("Completed Square payment is missing order id");
+  }
+  return { id, orderId, status: payment.status };
+};
+
+const readSessionOrder = async (
+  sessionId: string,
+): Promise<SquareOrder | null> => {
+  const read = await squareApi.readOrder(sessionId);
+  if (read.status === "missing") {
+    logDebug("Square", "Square order not found");
+    return null;
+  }
+  if (read.status !== "found") {
+    throw new Error(
+      `Square order could not be read (${read.status}:${read.reason})`,
+    );
+  }
+  return read.resource;
+};
+
+const sessionMetadata = (
+  order: SquareOrder,
+  paidPaymentId: string | undefined,
+): SessionMetadata | null => {
+  if (hasRequiredSessionMetadata(order.metadata)) return order.metadata;
+  if (paidPaymentId) {
+    throw new Error("Completed Square order is missing required metadata");
+  }
+  logDebug("Square", "Square order is missing required metadata fields");
+  return null;
+};
+
+type SquareOrderPayment = {
+  payment: SquarePayment | null;
+  paymentReference: string;
+};
+
+const readOrderPayment = async (
+  order: SquareOrder,
+  paidPaymentId: string | undefined,
+): Promise<SquareOrderPayment> => {
+  const firstTenderPayment = order.tenders?.[0]?.paymentId;
+  const paymentReference = paidPaymentId ?? firstTenderPayment ?? "";
+  const payment = await sessionPayment(paymentReference);
+  // A completed webhook must stay retryable until Square's read agrees.
+  if (paidPaymentId && payment?.status !== "COMPLETED") {
+    throw new Error(
+      `Square payment did not read back as completed (status=${
+        payment?.status ?? "unreadable"
+      })`,
+    );
+  }
+  // Never book one order's signed metadata against another order's payment.
+  if (payment?.orderId !== undefined && payment.orderId !== order.id) {
+    throw new Error("Square payment reports a different order");
+  }
+  return { payment, paymentReference };
 };
 
 /** Square payment provider implementation */
@@ -109,41 +205,19 @@ export const squarePaymentProvider: PaymentProvider = {
   async resolveWebhookSession(
     listing: WebhookEvent,
   ): Promise<WebhookSessionResult> {
-    const obj = listing.data.object;
-
-    // Square nests payment fields under data.object.payment
-    const payment =
-      typeof obj.payment === "object" && obj.payment !== null
-        ? (obj.payment as Record<string, unknown>)
-        : obj;
-
-    const paymentId = typeof payment.id === "string" ? payment.id : null;
-    if (!paymentId && listing.type.startsWith("payment.")) {
-      throw new Error("Square payment webhook is missing id");
-    }
-
-    // Extract the order ID (Square's session equivalent)
-    const orderId =
-      typeof payment.order_id === "string" ? payment.order_id : null;
-
-    if (!orderId) {
-      if (paymentId && payment.status === "COMPLETED") {
-        throw new Error("Completed Square payment is missing order id");
-      }
-      return Promise.resolve(null);
-    }
-    if (!paymentId) return Promise.resolve(null);
+    const payment = webhookPayment(listing);
+    if (!payment.orderId || !payment.id) return null;
 
     // Skip non-completed payments to avoid unnecessary API calls
-    if (typeof payment.status === "string" && payment.status !== "COMPLETED") {
+    if (isNonCompletedStatus(payment.status)) {
       logDebug(
         "Square",
         `Skipping webhook for non-completed payment (status=${payment.status})`,
       );
-      return Promise.resolve("skip");
+      return "skip";
     }
 
-    const session = await this.retrieveSession(orderId, paymentId);
+    const session = await this.retrieveSession(payment.orderId, payment.id);
     return session ?? "skip";
   },
 
@@ -156,59 +230,18 @@ export const squarePaymentProvider: PaymentProvider = {
     paidPaymentId?: string,
   ): Promise<RetrieveSessionResult> {
     /* jscpd:ignore-end */
-    // sessionId is the Square order ID
-    const read = await squareApi.readOrder(sessionId);
-    if (read.status === "missing") {
-      logDebug("Square", "Square order not found");
-      return null;
-    }
-    if (read.status !== "found") {
-      throw new Error(
-        `Square order could not be read (${read.status}:${read.reason})`,
-      );
-    }
-    const order = read.resource;
-
-    const { metadata } = order;
-    if (!hasRequiredSessionMetadata(metadata)) {
-      if (paidPaymentId) {
-        throw new Error("Completed Square order is missing required metadata");
-      }
-      logDebug("Square", "Square order is missing required metadata fields");
-      return null;
-    }
+    const order = await readSessionOrder(sessionId);
+    if (!order) return null;
+    const metadata = sessionMetadata(order, paidPaymentId);
+    if (!metadata) return null;
 
     // A webhook names the payment Square just reported COMPLETED, so it wins:
     // the order's tenders can lag behind it entirely, or still lead with an
     // earlier payment, and either would call this captured charge unpaid.
-    const paymentReference =
-      paidPaymentId ?? order.tenders?.[0]?.paymentId ?? "";
-    const payment = await sessionPayment(paymentReference);
-    // The webhook already saw this payment complete, so a read-back that is
-    // missing or still short of COMPLETED is Square lagging its own signed
-    // event, not an unpaid order. Throwing answers the caller retryably; going
-    // quiet would acknowledge a captured charge as pending, and Square would
-    // have no reason to deliver it again.
-    if (paidPaymentId && payment?.status !== "COMPLETED") {
-      throw new Error(
-        `Square payment did not read back as completed (status=${
-          payment?.status ?? "unreadable"
-        })`,
-      );
-    }
-
-    // The payment must be for the order whose signed metadata we are about to
-    // book. Square saying otherwise contradicts the signed event that sent us
-    // here, so neither answer is safe: booking uses the wrong metadata, and
-    // acknowledging is terminal on a charge that has already taken money.
-    // Throwing keeps it retryable until Square answers consistently.
-    if (
-      payment &&
-      payment.orderId !== undefined &&
-      payment.orderId !== order.id
-    ) {
-      throw new Error("Square payment reports a different order");
-    }
+    const { payment, paymentReference } = await readOrderPayment(
+      order,
+      paidPaymentId,
+    );
 
     // Money we can see was taken. A completed payment names its own amount, and
     // standing the order total in for it would let a short or unreadable charge
@@ -216,11 +249,11 @@ export const squarePaymentProvider: PaymentProvider = {
     // total is all there is, and nothing has been captured against it.
     const paid = payment?.status === "COMPLETED";
     const charged = paid ? payment.amountMoney : order.totalMoney;
+    const amountTotal = charged?.amount;
     return validatedPaymentSession({
       // A missing amount stays missing: Number(null) is 0, which the
       // boundary would accept as a real free order.
-      amountTotal:
-        typeof charged?.amount === "bigint" ? Number(charged.amount) : null,
+      amountTotal: minorUnitNumber(amountTotal),
       createdAt: toCanonicalIso(order.createdAt),
       currency: charged?.currency,
       id: order.id,

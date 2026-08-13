@@ -214,11 +214,7 @@ export const storeRefundedBooking = async (
     });
   }
   const noteTarget = attendeeNotes(attendeeId);
-  const noteText = placeholderRefundNote(
-    attendeeId,
-    spec,
-    refunded,
-  );
+  const noteText = placeholderRefundNote(attendeeId, spec, refunded);
   if (refunded) {
     await createSystemNote(noteTarget, noteText);
   } else {

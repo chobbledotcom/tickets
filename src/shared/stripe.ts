@@ -28,8 +28,8 @@ import type {
 } from "#shared/stripe/client.ts";
 import {
   cleanupOldWebhookEndpoints,
-  setupWebhookEndpoint,
   type StripeConnectionTestResult,
+  setupWebhookEndpoint,
   testStripeConnection,
 } from "#shared/stripe/endpoints.ts";
 import {
@@ -84,9 +84,8 @@ const createCheckoutSession = async (
         price_data: {
           currency: cur,
           product_data: {
-            description: line.quantity > 1
-              ? `${line.quantity} Tickets`
-              : "Ticket",
+            description:
+              line.quantity > 1 ? `${line.quantity} Tickets` : "Ticket",
             name: `Ticket: ${line.item.name}`,
           },
           unit_amount: line.chargedUnitAmount,
@@ -127,11 +126,10 @@ export interface StripeApi {
 
 const stripeFailure = (error: unknown): ProviderFailure | undefined =>
   providerFailure({
-    connectionReason: error instanceof StripeConnectionError
-      ? error.reason
-      : undefined,
-    malformed: error instanceof StripeProtocolError &&
-      error.statusCode === undefined,
+    connectionReason:
+      error instanceof StripeConnectionError ? error.reason : undefined,
+    malformed:
+      error instanceof StripeProtocolError && error.statusCode === undefined,
     statusCode:
       error instanceof StripeApiError || error instanceof StripeProtocolError
         ? error.statusCode
@@ -141,18 +139,25 @@ const stripeFailure = (error: unknown): ProviderFailure | undefined =>
 const withStripeClient = async <Result>(
   notConfigured: Result,
   useClient: (client: StripeClient) => Promise<Result>,
-  useFailure: (failure: ProviderFailure) => Result,
+  useError: (error: unknown, failure: ProviderFailure | undefined) => Result,
 ): Promise<Result> => {
   const client = await stripeClientRuntime.get();
   if (client === null) return notConfigured;
   try {
     return await useClient(client);
   } catch (error) {
-    const failure = stripeFailure(error);
-    if (failure !== undefined) return useFailure(failure);
-    throw error;
+    return useError(error, stripeFailure(error));
   }
 };
+
+const requireStripeFailure =
+  <Result>(
+    useFailure: (failure: ProviderFailure) => Result,
+  ): ((error: unknown, failure: ProviderFailure | undefined) => Result) =>
+  (error, failure) => {
+    if (failure !== undefined) return useFailure(failure);
+    throw error;
+  };
 
 const readPaymentIntent = (
   id: string,
@@ -168,7 +173,7 @@ const readPaymentIntent = (
         ? { resource, status: "found" }
         : { reason: "mismatched_id", status: "invalid" };
     },
-    (failure) => failure.read,
+    requireStripeFailure((failure) => failure.read),
   );
 
 type StripeRefundStatus = Exclude<StripeRefund["status"], null>;
@@ -178,7 +183,8 @@ type StripeRefundAnswer = (
 ) => RefundAttemptResult;
 
 const movedStripeRefund =
-  (kind: "accepted" | "completed"): StripeRefundAnswer => (amount, refund) => ({
+  (kind: "accepted" | "completed"): StripeRefundAnswer =>
+  (amount, refund) => ({
     amount,
     kind,
     proof: {
@@ -193,7 +199,8 @@ const movedStripeRefund =
   });
 
 const rejectedStripeRefund =
-  (reason: "canceled" | "failed"): StripeRefundAnswer => () => ({
+  (reason: "canceled" | "failed"): StripeRefundAnswer =>
+  () => ({
     kind: "rejected",
     reason,
   });
@@ -223,9 +230,7 @@ const stripeRefundResult = (
     },
   );
 
-const refundCharge = (
-  request: RefundRequest,
-): Promise<RefundAttemptResult> =>
+const refundCharge = (request: RefundRequest): Promise<RefundAttemptResult> =>
   withStripeClient<RefundAttemptResult>(
     { kind: "not_sent", reason: "not_configured" },
     async (client) => {
@@ -243,7 +248,7 @@ const refundCharge = (
       );
       return stripeRefundResult(request, refund);
     },
-    (failure) => failure.refund,
+    requireStripeFailure((failure) => failure.refund),
   );
 
 class StripeCheckoutReadError extends Error {
@@ -253,40 +258,26 @@ class StripeCheckoutReadError extends Error {
   }
 }
 
-/** A documented 404 is the only configured-provider failure that means the
- * checkout is absent. Every other known read failure remains loud and carries
- * only the closed provider outcome, never Stripe's response text. */
-const checkoutReadFailure = (
-  failure: ProviderFailure,
-): StripeCheckoutSession | null => {
-  const read = failure.read;
-  if (read.status === "missing") return null;
-  if (read.status === "unavailable" || read.status === "invalid") {
-    throw new StripeCheckoutReadError(`${read.status}:${read.reason}`);
-  }
-  throw new StripeCheckoutReadError("invalid_failure_state");
-};
-
 const retrieveCheckoutSession = async (
   id: string,
-): Promise<StripeCheckoutSession | null> => {
-  const client = await stripeClientRuntime.get();
-  if (client === null) return null;
-  try {
-    return await client.checkout.sessions.retrieve(id);
-  } catch (error) {
-    const failure = stripeFailure(error);
-    if (failure?.read.status === "missing") return null;
-    logError({
-      code: ErrorCode.STRIPE_SESSION,
-      detail: sanitizeStripeError(error),
-    });
-    if (failure === undefined) {
-      throw new StripeCheckoutReadError("unexpected_failure");
-    }
-    return checkoutReadFailure(failure);
-  }
-};
+): Promise<StripeCheckoutSession | null> =>
+  withStripeClient<StripeCheckoutSession | null>(
+    null,
+    (client) => client.checkout.sessions.retrieve(id),
+    (error, failure) => {
+      if (failure?.read.status === "missing") return null;
+      logError({
+        code: ErrorCode.STRIPE_SESSION,
+        detail: sanitizeStripeError(error),
+      });
+      if (failure === undefined) {
+        throw new StripeCheckoutReadError("unexpected_failure");
+      }
+      throw new StripeCheckoutReadError(
+        `${failure.read.status}:${failure.read.reason}`,
+      );
+    },
+  );
 
 export const stripeApi: StripeApi = {
   cleanupOldWebhookEndpoints,

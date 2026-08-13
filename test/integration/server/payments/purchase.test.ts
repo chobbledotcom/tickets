@@ -5,9 +5,9 @@ import { stub } from "@std/testing/mock";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { getDb } from "#shared/db/client.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
+import { ProviderCheckoutError } from "#shared/payment/checkout-failure.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
-import { StripeApiError } from "#shared/stripe/request.ts";
 import { expectFlash, expectRedirect } from "#test-utils/assertions.ts";
 import { stubCheckout } from "#test-utils/checkout.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
@@ -66,7 +66,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           email: "john@example.com",
           name: "John Doe",
         }),
-      ).rejects.toThrow(StripeApiError);
+      ).rejects.toThrow(ProviderCheckoutError);
     });
 
     test("shows specific error when payment provider returns validation error", async () => {

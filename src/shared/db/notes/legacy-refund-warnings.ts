@@ -1,5 +1,6 @@
 /** Bounded recognition of unnamed refund warnings written by older builds. */
 
+/* jscpd:ignore-start -- imports */
 import { chunk, unique } from "#fp";
 import { decrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
@@ -7,6 +8,8 @@ import { inPlaceholders, type SqlStatement } from "#shared/db/client.ts";
 import { readRows } from "#shared/db/read.ts";
 import { legacyRefundWarnings } from "#shared/payment/placeholder-refund.ts";
 import { requireValue } from "#shared/required-value.ts";
+
+/* jscpd:ignore-end */
 
 type LegacySystemNoteRow = {
   id: number;

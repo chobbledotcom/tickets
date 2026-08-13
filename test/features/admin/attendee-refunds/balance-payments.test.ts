@@ -189,7 +189,7 @@ describeWithEnv("server (admin balance-payment refunds)", { db: true }, () => {
         errors.calls
           .map((call) => String(call.args[0]))
           .some((message) =>
-            message.includes("did not complete every payment"),
+            message.includes("Admin refund did not complete all 2 payments"),
           ),
       ).toBe(true);
     });

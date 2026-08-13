@@ -15,7 +15,7 @@ import { requireValue } from "#shared/required-value.ts";
 
 /* jscpd:ignore-end */
 
-export const REFUND_ALL_BATCH_SIZE = 5;
+const REFUND_ALL_BATCH_SIZE = 5;
 
 export type RefundAllCandidateAttendee = {
   readonly id: number;
@@ -141,10 +141,10 @@ const batchStatement = (listingId: number): SqlStatement => ({
 });
 
 const readSummary = (result: ResultSet): RefundAllSummary => {
-  const row = resultRows<RefundAllSummaryRow>(result)[0];
-  if (row === undefined) {
-    throw new Error("Refund All admission returned no summary");
-  }
+  const row = requireValue(
+    resultRows<RefundAllSummaryRow>(result)[0],
+    "Refund All admission returned no summary",
+  );
   const blockedBy = row.unrecorded_money
     ? "unrecorded_money"
     : row.owner_review

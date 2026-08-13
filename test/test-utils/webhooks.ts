@@ -39,9 +39,10 @@ export const checkoutSessionEvent = (opts: {
       currency: "gbp",
       id: opts.sessionId,
       metadata: opts.metadata,
-      payment_intent: opts.paymentIntent === undefined
-        ? `pi_${opts.sessionId}`
-        : opts.paymentIntent,
+      payment_intent:
+        opts.paymentIntent === undefined
+          ? `pi_${opts.sessionId}`
+          : opts.paymentIntent,
       payment_status: opts.paymentStatus ?? "paid",
       url: null,
     },

@@ -85,7 +85,8 @@ describeStripe("stripe", () => {
                 statusCode: 404,
                 type: "invalid_request_error",
               }),
-            )),
+            ),
+          ),
         async (retrieveSpy) => {
           const result = await stripeApi.retrieveCheckoutSession("cs_test_123");
           expect(result).toBeNull();
@@ -98,15 +99,32 @@ describeStripe("stripe", () => {
       const client = await stripeClient();
       await withMocks(
         () =>
-          stub(
-            client.checkout.sessions,
-            "retrieve",
-            () => Promise.reject(new Error("Network error")),
+          stub(client.checkout.sessions, "retrieve", () =>
+            Promise.reject(new Error("Network error")),
           ),
         async () => {
           await expect(
             stripeApi.retrieveCheckoutSession("cs_test_123"),
           ).rejects.toThrow("Stripe checkout could not be read");
+        },
+      );
+    });
+
+    test("fails loudly when Stripe returns a malformed checkout", async () => {
+      const client = await stripeClient();
+      await withMocks(
+        () =>
+          stub(client.checkout.sessions, "retrieve", () =>
+            Promise.reject(
+              new StripeProtocolError("private malformed response"),
+            ),
+          ),
+        async () => {
+          await expect(
+            stripeApi.retrieveCheckoutSession("cs_test_123"),
+          ).rejects.toThrow(
+            "Stripe checkout could not be read (invalid:malformed_response)",
+          );
         },
       );
     });
@@ -117,21 +135,18 @@ describeStripe("stripe", () => {
       const client = await stripeClient();
       await withMocks(
         () =>
-          stub(
-            client.paymentIntents,
-            "retrieveWithLatestCharge",
-            () =>
-              Promise.resolve({
-                id: "pi_refunded",
-                latest_charge: {
-                  amount_captured: 1000,
-                  amount_refunded: 1000,
-                  captured: true,
-                  currency: "gbp",
-                  paid: true,
-                  status: "succeeded",
-                },
-              }),
+          stub(client.paymentIntents, "retrieveWithLatestCharge", () =>
+            Promise.resolve({
+              id: "pi_refunded",
+              latest_charge: {
+                amount_captured: 1000,
+                amount_refunded: 1000,
+                captured: true,
+                currency: "gbp",
+                paid: true,
+                status: "succeeded",
+              },
+            }),
           ),
         async (retrieveSpy) => {
           const result = await stripeApi.readPaymentIntent("pi_refunded");
@@ -252,7 +267,8 @@ describeStripe("stripe", () => {
       withMocks(
         () =>
           stub(client.checkout.sessions, "create", () =>
-            Promise.resolve(session)),
+            Promise.resolve(session),
+          ),
         async (createSpy) => {
           await run(() => {
             const params = createSpy.calls[0]?.args[0];
@@ -283,10 +299,8 @@ describeStripe("stripe", () => {
       let result: Promise<unknown> = Promise.resolve();
       await withMocks(
         () =>
-          stub(
-            client.checkout.sessions,
-            "create",
-            () => Promise.reject(providerError),
+          stub(client.checkout.sessions, "create", () =>
+            Promise.reject(providerError),
           ),
         async () => {
           result = stripeApi.createCheckoutSession(
@@ -376,7 +390,7 @@ describeStripe("stripe", () => {
             (li) => li.price_data.product_data.name === "Booking fee",
           );
           const ticketItem = params.line_items.find((li) =>
-            li.price_data.product_data.name.startsWith("Ticket:")
+            li.price_data.product_data.name.startsWith("Ticket:"),
           );
           expect(params.customer_email).toBe("jane@example.com");
           expect(ticketItem?.price_data.product_data.description).toBe(
@@ -416,7 +430,7 @@ describeStripe("stripe", () => {
 
           const params = getParams();
           const ticketItem = params.line_items.find((li) =>
-            li.price_data.product_data.name.startsWith("Ticket:")
+            li.price_data.product_data.name.startsWith("Ticket:"),
           );
           const feeItem = params.line_items.find(
             (li) => li.price_data.product_data.name === "Booking fee",
