@@ -42,19 +42,42 @@ export const placeholderRefund =
     ...REFUND_REASONS[code],
   });
 
+const placeholderRefundNoteText = (
+  attendeeId: number,
+  refund: PlaceholderRefund,
+  refunded: boolean,
+  referenceDetail: string,
+): string => {
+  const ledger = `[ledger](/admin/ledger/attendee/${attendeeId})`;
+  return refunded
+    ? `This booking was kept at quantity 0 but its payment was refunded because ${refund.reason}.${referenceDetail} Please check the ${ledger}.`
+    : `This booking was kept at quantity 0 but its payment could NOT be refunded automatically because ${refund.reason}.${referenceDetail} Please refund it manually and check the ${ledger}.`;
+};
+
 /** The PII-free system note for a quantity-0 placeholder refund. */
 export const placeholderRefundNote = (
   attendeeId: number,
   refund: PlaceholderRefund,
   refunded: boolean,
+): string =>
+  placeholderRefundNoteText(
+    attendeeId,
+    refund,
+    refunded,
+    ` Refund code: ${refund.code}.`,
+  );
+
+const legacyRefundWarning = (
+  attendeeId: number,
+  refund: PlaceholderRefund,
   paymentReference: string,
-): string => {
-  const ledger = `[ledger](/admin/ledger/attendee/${attendeeId})`;
-  const ref = ` Payment reference: ${paymentReference} (code: ${refund.code}).`;
-  return refunded
-    ? `This booking was kept at quantity 0 but its payment was refunded because ${refund.reason}.${ref} Please check the ${ledger}.`
-    : `This booking was kept at quantity 0 but its payment could NOT be refunded automatically because ${refund.reason}.${ref} Please refund it manually and check the ${ledger}.`;
-};
+): string =>
+  placeholderRefundNoteText(
+    attendeeId,
+    refund,
+    false,
+    ` Payment reference: ${paymentReference} (code: ${refund.code}).`,
+  );
 
 /** Every exact warning shape written before system-note names existed. */
 export const legacyRefundWarnings = (
@@ -63,10 +86,9 @@ export const legacyRefundWarnings = (
 ): Set<string> =>
   new Set(
     Object.keys(REFUND_REASONS).map((code) =>
-      placeholderRefundNote(
+      legacyRefundWarning(
         attendeeId,
         placeholderRefund(code as RefundCode)(""),
-        false,
         paymentReference,
       ),
     ),

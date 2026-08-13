@@ -134,11 +134,7 @@ const handleAttendeeRefund = attendeeActions.refund.verified(
       returnUrl,
     );
     if (resultError) return resultError;
-    await logActivity(
-      `Refund issued for attendee '${data.attendee.name}'`,
-      listingId,
-      attendeeId,
-    );
+    await logActivity("Refund issued", listingId, attendeeId);
     return redirect(
       `/admin/attendees/${attendeeId}/actions`,
       t("success.refund_issued"),

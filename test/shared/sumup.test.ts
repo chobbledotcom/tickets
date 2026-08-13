@@ -4,6 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { APIError } from "@sumup/sdk";
 import { settings } from "#shared/db/settings.ts";
 import { sumupApi } from "#shared/sumup.ts";
+import { checkoutIntent } from "#test-utils/checkout.ts";
 import {
   makeSumupClient,
   setupSumupSuite,
@@ -26,6 +27,21 @@ describe("sumup", () => {
 
     test("returns a client when an API key is configured", () => {
       expect(sumupApi.getSumupClient()).not.toBeNull();
+    });
+  });
+
+  describe("createCheckout", () => {
+    test("propagates unexpected checkout client failures", async () => {
+      const failure = new TypeError("SumUp connection failed");
+      const client = makeSumupClient({
+        create: () => Promise.reject(failure),
+      });
+
+      await withSumupClient(client, async () => {
+        await expect(
+          sumupApi.createCheckout(checkoutIntent(), "https://example.com"),
+        ).rejects.toBe(failure);
+      });
     });
   });
 

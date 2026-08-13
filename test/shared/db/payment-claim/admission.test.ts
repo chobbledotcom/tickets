@@ -99,8 +99,8 @@ describeWithEnv(
         claimRequestFor([loaded], {
           referenceIndex: "unrelated-reference-index",
           sessionId: "unrelated-session",
-        }),
-      ).toThrow("Payment row unrelated-session matched no initiating attendee");
+        })
+      ).toThrow(/^Payment row matched no initiating attendee$/u);
     });
 
     test("a row added after loading changes the exact payment set", async () => {

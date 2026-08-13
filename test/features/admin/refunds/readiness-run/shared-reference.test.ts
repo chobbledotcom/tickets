@@ -66,7 +66,6 @@ const runRefund = (
     candidates: [candidate],
     changedMessage: "changed",
     claim,
-    label: "Refund",
     listingId: 7,
     notReady: (message) => ({ kind: "not_ready", message }),
     ...work,
@@ -152,11 +151,9 @@ describe("admin refund shared-reference readiness", () => {
         ),
       },
     ]);
-    expect(
-      errors.contains(
-        "This payment reference is attached to more than one payment row",
-      ),
-    ).toBe(true);
+    expect(errors.contains("Admin refund not started (shared_reference)")).toBe(
+      true,
+    );
   });
 
   test("retires a shared-reference review once the exact index is unique", async () => {

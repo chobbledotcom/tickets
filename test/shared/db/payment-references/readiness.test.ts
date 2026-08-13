@@ -10,9 +10,9 @@ import { createSystemNote } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { getRefundPaymentReferences } from "#shared/db/payment-references.ts";
 import {
-  placeholderRefund,
-  placeholderRefundNote,
+  legacyRefundWarnings,
 } from "#shared/payment/placeholder-refund.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -155,7 +155,7 @@ describeWithEnv("db > payment reference readiness", { db: true }, () => {
     ).toEqual(["resaved_legacy_payment"]);
   });
 
-  test("rolls an old warning name and its payment anchor back together", async () => {
+  test("an ordinary save never reads or opens unnamed note history", async () => {
     const listing = await createTestListing();
     const attendee = bookedAttendee(
       await bookAttendee(listing, {
@@ -166,26 +166,21 @@ describeWithEnv("db > payment reference readiness", { db: true }, () => {
     );
     await createSystemNote(
       attendeeNotes(attendee.id),
-      placeholderRefundNote(
-        attendee.id,
-        placeholderRefund("capacity_full")("legacy detail"),
-        false,
-        attendee.payment_id,
+      requireValue(
+        [...legacyRefundWarnings(attendee.id, attendee.payment_id)][0],
+        "The legacy warning schema needs one message",
       ),
     );
-    await execute(
-      `CREATE TRIGGER fail_legacy_warning_name
-       BEFORE UPDATE OF system_name ON system_notes
-       BEGIN
-         SELECT RAISE(ABORT, 'warning name failed');
-       END`,
-    );
+    const queries: string[] = [];
+    const restore = recordQueries(queries);
+    try {
+      await resaveAttendee(attendee);
+    } finally {
+      restore();
+    }
 
-    await expect(resaveAttendee(attendee)).rejects.toThrow(
-      "warning name failed",
-    );
-
-    expect(await paymentRowsFor(attendee.id)).toEqual([]);
+    expect(queries.some((sql) => sql.includes("system_notes"))).toBe(false);
+    expect(await paymentRowsFor(attendee.id)).toHaveLength(1);
     const warning = await queryAll<{ system_name: string | null }>(
       `SELECT system_name
          FROM system_notes AS note

@@ -8,6 +8,11 @@ import {
   hasRequiredSessionMetadata,
 } from "#shared/payment-helpers.ts";
 import type { StripeCheckoutSessionCreateParams } from "#shared/stripe/client.ts";
+import {
+  StripeApiError,
+  StripeConnectionError,
+  StripeProtocolError,
+} from "#shared/stripe/request.ts";
 import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import {
@@ -18,6 +23,10 @@ import {
 } from "#test/test-utils/stripe/fixtures.ts";
 import { describeStripe } from "#test/test-utils/stripe/harness.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
+import {
+  expectClosedCheckoutFailure,
+  expectSameThrown,
+} from "#test-utils/checkout-failure.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";
@@ -64,18 +73,40 @@ describeStripe("stripe", () => {
       expect(result).toBeNull();
     });
 
-    test("returns null when Stripe API throws error", async () => {
+    test("returns null for Stripe's explicit not-found answer", async () => {
       const client = await stripeClient();
-      // Spy on the checkout.sessions.retrieve method and make it throw
       await withMocks(
         () =>
           stub(client.checkout.sessions, "retrieve", () =>
-            Promise.reject(new Error("Network error")),
-          ),
+            Promise.reject(
+              new StripeApiError("not found", {
+                code: "resource_missing",
+                requestId: "req_missing",
+                statusCode: 404,
+                type: "invalid_request_error",
+              }),
+            )),
         async (retrieveSpy) => {
           const result = await stripeApi.retrieveCheckoutSession("cs_test_123");
           expect(result).toBeNull();
           expect(retrieveSpy.calls[0]!.args).toEqual(["cs_test_123"]);
+        },
+      );
+    });
+
+    test("throws when an unexpected Stripe read fails", async () => {
+      const client = await stripeClient();
+      await withMocks(
+        () =>
+          stub(
+            client.checkout.sessions,
+            "retrieve",
+            () => Promise.reject(new Error("Network error")),
+          ),
+        async () => {
+          await expect(
+            stripeApi.retrieveCheckoutSession("cs_test_123"),
+          ).rejects.toThrow("Stripe checkout could not be read");
         },
       );
     });
@@ -86,18 +117,21 @@ describeStripe("stripe", () => {
       const client = await stripeClient();
       await withMocks(
         () =>
-          stub(client.paymentIntents, "retrieveWithLatestCharge", () =>
-            Promise.resolve({
-              id: "pi_refunded",
-              latest_charge: {
-                amount_captured: 1000,
-                amount_refunded: 1000,
-                captured: true,
-                currency: "gbp",
-                paid: true,
-                status: "succeeded",
-              },
-            }),
+          stub(
+            client.paymentIntents,
+            "retrieveWithLatestCharge",
+            () =>
+              Promise.resolve({
+                id: "pi_refunded",
+                latest_charge: {
+                  amount_captured: 1000,
+                  amount_refunded: 1000,
+                  captured: true,
+                  currency: "gbp",
+                  paid: true,
+                  status: "succeeded",
+                },
+              }),
           ),
         async (retrieveSpy) => {
           const result = await stripeApi.readPaymentIntent("pi_refunded");
@@ -218,8 +252,7 @@ describeStripe("stripe", () => {
       withMocks(
         () =>
           stub(client.checkout.sessions, "create", () =>
-            Promise.resolve(session),
-          ),
+            Promise.resolve(session)),
         async (createSpy) => {
           await run(() => {
             const params = createSpy.calls[0]?.args[0];
@@ -241,6 +274,79 @@ describeStripe("stripe", () => {
         "http://localhost",
       );
       expect(result).toBeNull();
+    });
+
+    const checkoutFailure = async (
+      providerError: unknown,
+    ): Promise<unknown> => {
+      const client = await stripeClient();
+      let result: Promise<unknown> = Promise.resolve();
+      await withMocks(
+        () =>
+          stub(
+            client.checkout.sessions,
+            "create",
+            () => Promise.reject(providerError),
+          ),
+        async () => {
+          result = stripeApi.createCheckoutSession(
+            checkoutIntent(),
+            "http://localhost",
+          );
+          await result.catch(() => undefined);
+        },
+      );
+      return result;
+    };
+
+    test("closes Stripe API failures before they reach diagnostics", async () => {
+      const privateMessage = "card for private.person@example.com was refused";
+      const privateRequest = "req_private_123";
+      const providerError = new StripeApiError(privateMessage, {
+        code: "card_error",
+        requestId: privateRequest,
+        statusCode: 402,
+        type: "card_error",
+      });
+      await expectClosedCheckoutFailure(
+        checkoutFailure(providerError),
+        { provider: "stripe", reason: "provider_error", statusCode: 402 },
+        [privateMessage, privateRequest],
+        providerError,
+      );
+    });
+
+    test("closes Stripe connection failures", async () => {
+      const privateMessage = "socket failed beside pi_private_123";
+      const providerError = new StripeConnectionError(
+        "network_error",
+        privateMessage,
+      );
+      await expectClosedCheckoutFailure(
+        checkoutFailure(providerError),
+        { provider: "stripe", reason: "network_error" },
+        [privateMessage],
+        providerError,
+      );
+    });
+
+    test("closes malformed Stripe checkout responses", async () => {
+      const privateMessage = "malformed body includes cs_private_123";
+      const providerError = new StripeProtocolError(privateMessage, 502);
+      await expectClosedCheckoutFailure(
+        checkoutFailure(providerError),
+        { provider: "stripe", reason: "invalid_response", statusCode: 502 },
+        [privateMessage],
+        providerError,
+      );
+    });
+
+    test("does not relabel an internal Stripe checkout failure", async () => {
+      const applicationError = new Error("Stripe checkout mapper bug");
+      await expectSameThrown(
+        checkoutFailure(applicationError),
+        applicationError,
+      );
     });
 
     test("includes booking fee line item when fee is set", async () => {
@@ -270,7 +376,7 @@ describeStripe("stripe", () => {
             (li) => li.price_data.product_data.name === "Booking fee",
           );
           const ticketItem = params.line_items.find((li) =>
-            li.price_data.product_data.name.startsWith("Ticket:"),
+            li.price_data.product_data.name.startsWith("Ticket:")
           );
           expect(params.customer_email).toBe("jane@example.com");
           expect(ticketItem?.price_data.product_data.description).toBe(
@@ -310,7 +416,7 @@ describeStripe("stripe", () => {
 
           const params = getParams();
           const ticketItem = params.line_items.find((li) =>
-            li.price_data.product_data.name.startsWith("Ticket:"),
+            li.price_data.product_data.name.startsWith("Ticket:")
           );
           const feeItem = params.line_items.find(
             (li) => li.price_data.product_data.name === "Booking fee",

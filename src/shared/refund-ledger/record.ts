@@ -30,9 +30,7 @@ const postComputedRefund = async (
     await postTransferGroups(computed.groups);
     return computed.result;
   } catch (error) {
-    logRefundLedgerError(
-      `refund ledger post failed for attendee ${attendeeId}: ${error}`,
-    );
+    logRefundLedgerError({ attendeeId, error, kind: "single_post" });
     return computed.postFailureResult;
   }
 };
@@ -55,9 +53,7 @@ export const recordAttendeeRefund = async (
       ...(memo === undefined ? {} : { memo }),
     });
   } catch (error) {
-    logRefundLedgerError(
-      `refund ledger preparation failed for attendee ${attendeeId}: ${error}`,
-    );
+    logRefundLedgerError({ attendeeId, error, kind: "single_preparation" });
     return refundLedgerResult(references);
   }
   return await postComputedRefund(attendeeId, computed);
@@ -117,9 +113,11 @@ export const recordAttendeeRefundsBatch = async (
       })),
     );
   } catch (error) {
-    logRefundLedgerError(
-      `bulk refund ledger preparation failed (${targets.length}): ${error}`,
-    );
+    logRefundLedgerError({
+      attendeeCount: targets.length,
+      error,
+      kind: "batch_preparation",
+    });
     return failureResults(targets);
   }
   const plans = pairedPlans(targets, computed);
@@ -130,9 +128,11 @@ export const recordAttendeeRefundsBatch = async (
       plans.map(({ computed }) => computed.groups),
     );
   } catch (error) {
-    logRefundLedgerError(
-      `bulk refund ledger post failed (${targets.length}): ${error}`,
-    );
+    logRefundLedgerError({
+      attendeeCount: targets.length,
+      error,
+      kind: "batch_post",
+    });
     return new Map(
       plans.map(({ attendeeId, computed }) => [
         attendeeId,
@@ -147,9 +147,11 @@ export const recordAttendeeRefundsBatch = async (
         `Refund ledger omitted attendee ${attendeeId}`,
       );
       if (result.kind === "conflict") {
-        logRefundLedgerError(
-          `refund ledger post failed for attendee ${attendeeId}: ${result.error}`,
-        );
+        logRefundLedgerError({
+          attendeeId,
+          error: result.error,
+          kind: "single_post",
+        });
         return [attendeeId, computed.postFailureResult];
       }
       return [attendeeId, computed.result];

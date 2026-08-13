@@ -3,10 +3,12 @@ import type {
   ArmRefundDispatchResult,
   RefundDispatchPermit,
 } from "#shared/db/payment-refund-dispatch.ts";
-import { ErrorCode, logError } from "#shared/logger.ts";
 import type { ObservedRefundAdmission } from "#shared/payment/admit-refund.ts";
 import type { RefundRequest } from "#shared/payment/refund-attempt.ts";
-import { reportWithheldRefund } from "#shared/payment-review.ts";
+import {
+  reportFailedRefundAttempt,
+  reportWithheldRefund,
+} from "#shared/payment-review.ts";
 import { mapProviderRequests } from "./provider-requests.ts";
 import type { ProviderReviewFinding } from "./provider-reviews.ts";
 import type {
@@ -23,11 +25,6 @@ type ObservedWithheldRefund = Exclude<
   ObservedRefundAdmission,
   { kind: "send" }
 >;
-
-const refusedRefund = (detail: string, listingId: number): RefundOutcome => {
-  reportRefundProblem(detail, listingId);
-  return "failed";
-};
 
 /** One reference's result. A charge we never had to ask about carries none. */
 export type ReferenceRefund = {
@@ -84,13 +81,13 @@ const withheldResult = (
   admission: ObservedWithheldRefund,
   attendeeId: number,
   listingId: number,
-  paymentReference: string,
+  provider: ReadyRefundProvider["type"],
 ): ReferenceRefund => {
   if (admission.kind === "already_returned") return refunded();
   reportWithheldRefund(admission, {
     attendeeId,
     listingId,
-    paymentReference,
+    provider,
   });
   if (admission.kind === "refused") {
     return { outcome: "withheld", review: admission.issue };
@@ -112,7 +109,6 @@ const sendReferenceRefund = async (
   ) {
     throw new Error(`Refund dispatch permit does not match payment ${index}`);
   }
-  const paymentReference = request.paymentReference;
   const settled = (outcome: RefundOutcome): ReferenceRefund => ({ outcome });
   const result = await provider.refundCharge(request);
   if (result.kind === "completed") return settled("refunded");
@@ -121,17 +117,18 @@ const sendReferenceRefund = async (
   }
   if (result.kind === "not_sent") return settled("withheld");
   if (result.kind === "rejected") {
-    return settled(
-      refusedRefund(
-        `Admin refund rejected for attendee ${attendeeId}, payment ${paymentReference} (${result.reason})`,
-        listingId,
-      ),
-    );
+    reportFailedRefundAttempt(result, {
+      attendeeId,
+      listingId,
+      provider: provider.type,
+    });
+    return settled("failed");
   }
-  reportRefundProblem(
-    `Admin refund errored for attendee ${attendeeId}, payment ${paymentReference} (${result.reason})`,
+  reportFailedRefundAttempt(result, {
+    attendeeId,
     listingId,
-  );
+    provider: provider.type,
+  });
   return { doubt: "in_doubt", outcome: "errored" };
 };
 
@@ -148,7 +145,7 @@ const prepareReferenceRefund = (
         admission,
         candidate.attendee.id,
         listingId,
-        ready.reference.reference,
+        ready.provider.type,
       ),
     });
   }
@@ -259,11 +256,14 @@ const candidateResult = (
     (outcome === "failed" || outcome === "errored") &&
     prepared.candidate.references.length > 1
   ) {
-    logError({
-      code: ErrorCode.PAYMENT_REFUND,
-      detail: `Admin refund did not complete every payment for attendee ${prepared.candidate.attendee.id}`,
-      listingId: incompleteListingId,
-    });
+    reportRefundProblem(
+      {
+        attendeeId: prepared.candidate.attendee.id,
+        kind: "incomplete_batch",
+        paymentCount: prepared.candidate.references.length,
+      },
+      incompleteListingId,
+    );
   }
   return {
     candidate: prepared.candidate,

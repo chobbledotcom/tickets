@@ -81,6 +81,9 @@ Given(
     );
     // The money event is on the customer's own history for anyone to see.
     expect(await adminPageHtml(bookingPagePath(this, "activity"))).toContain(
+      "Refund issued",
+    );
+    expect(await adminPageHtml(bookingPagePath(this, "activity"))).not.toContain(
       "Refund issued for attendee 'Logged Guest'",
     );
   },

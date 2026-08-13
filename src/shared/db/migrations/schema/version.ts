@@ -1,7 +1,7 @@
 /** Schema version label and the migrations bookkeeping table name. */
 
 export const LATEST_UPDATE =
-  "Record each returned payment set once without opening note or activity history.";
+  "Keep payment recovery queues and legacy-note repair bounded.";
 
 export const SCHEMA_MIGRATIONS_TABLE = "schema_migrations";
 export const LATEST_DB_UPDATE_KEY = "latest_db_update";

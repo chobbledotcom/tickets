@@ -39,6 +39,8 @@ export type RefundPaymentReferenceSource = {
   payment_id: string;
 };
 
+type IndexedPaymentReferenceOwner = Pick<RefundPaymentReferenceSource, "id">;
+
 type RefundPaymentReferenceFacts = {
   /** The rows carrying this charge that a refund run is still holding. A run
    *  that finished its money but lost the write that lets go leaves its hold
@@ -129,7 +131,7 @@ const paymentReferencesForIds = (
   );
 
 const attendeeIdsOf = (
-  attendees: readonly RefundPaymentReferenceSource[],
+  attendees: readonly IndexedPaymentReferenceOwner[],
 ): number[] => attendees.map((attendee) => attendee.id);
 
 /** Attendees that have a durable indexed provider-payment row. */
@@ -201,8 +203,10 @@ const asRefundReferences = async (
  * carry per-session references. Old PII-only references become refundable only
  * after an attendee save materializes their durable indexed anchor.
  */
-export const getRefundPaymentReferences = async (
-  attendees: readonly RefundPaymentReferenceSource[],
+export const getRefundPaymentReferences = async <
+  Owner extends IndexedPaymentReferenceOwner,
+>(
+  attendees: readonly Owner[],
   privateKey: CryptoKey,
 ): Promise<Map<number, RefundPaymentReference[]>> => {
   if (attendees.length === 0) return new Map();
@@ -248,8 +252,10 @@ export const getRefundPaymentReferences = async (
 };
 
 /** The refund payment references for one attendee (never null). */
-export const getRefundPaymentReferencesForAttendee = async (
-  attendee: RefundPaymentReferenceSource,
+export const getRefundPaymentReferencesForAttendee = async <
+  Owner extends IndexedPaymentReferenceOwner,
+>(
+  attendee: Owner,
   privateKey: CryptoKey,
 ): Promise<RefundPaymentReference[]> =>
   requiredMapValue(

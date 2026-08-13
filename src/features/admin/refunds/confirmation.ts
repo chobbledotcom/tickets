@@ -3,6 +3,7 @@ import { requiredMapValue, sortStrings, unique } from "#fp";
 import { t } from "#i18n";
 import { logActivity } from "#shared/db/activity-log.ts";
 import { withTransaction } from "#shared/db/client.ts";
+import { legacyRefundWarningDeleteStatements } from "#shared/db/notes/legacy-refund-warnings.ts";
 import {
   createNamedSystemNote,
   deleteNamedSystemNotes,
@@ -20,7 +21,7 @@ type ConfirmedReference = ReadyRefundReference["reference"];
 export type RefundConfirmation = "current" | "new";
 
 export type ConfirmedRefund = {
-  attendee: Pick<Attendee, "id" | "name">;
+  attendee: Pick<Attendee, "id">;
   claim: HeldRefundClaim;
   listingId: number;
   paymentOnly: boolean;
@@ -32,18 +33,11 @@ const returnedValues = (
   readValue: (reference: ConfirmedReference) => string,
 ): string[] => sortStrings(unique(references.map(readValue)));
 
-const activityTag = (references: readonly string[]): string =>
-  `payment references ${JSON.stringify(references)}`;
-
 /** Finish the operator record atomically while the exact payment claim lives. */
 export const confirmRefund = async (
   refund: ConfirmedRefund,
 ): Promise<RefundConfirmation> => {
-  const references = returnedValues(
-    refund.references,
-    ({ reference }) => reference,
-  );
-  if (references.length === 0) {
+  if (refund.references.length === 0) {
     throw new Error("A refund confirmation needs at least one payment");
   }
   const referenceIndexes = returnedValues(
@@ -55,8 +49,15 @@ export const confirmRefund = async (
       refund.references.flatMap((reference) => [...reference.matchingIndexes]),
     ),
   );
+  const legacyReferences = returnedValues(
+    refund.references.filter((reference) => reference.sessionIds.length === 0),
+    ({ reference }) => reference,
+  );
+  const legacyWarningDeletes = await legacyRefundWarningDeleteStatements(
+    refund.attendee.id,
+    legacyReferences,
+  );
   const target = attendeeNotes(refund.attendee.id);
-  const tag = activityTag(references);
   const confirmation = t("note.placeholder_refund_confirmed");
   const sessionIds = requiredMapValue(
     refund.claim.held,
@@ -69,7 +70,7 @@ export const confirmRefund = async (
       requiredMapValue(
         refund.claim.phases,
         sessionId,
-        `Refund confirmation lost payment-row phase ${sessionId}`,
+        "Refund confirmation lost a payment-row phase",
       ),
     ]),
   );
@@ -85,9 +86,12 @@ export const confirmRefund = async (
       referenceIndexes,
     });
     await deleteNamedSystemNotes(target, "refund_warning", warningIndexes, tx);
+    if (legacyWarningDeletes.length > 0) {
+      await tx.batch(legacyWarningDeletes);
+    }
     if (written.kind === "current") return "current";
     await logActivity(
-      `Payment marked as refunded for attendee '${refund.attendee.name}'; ${tag}`,
+      "Payment marked as refunded",
       refund.listingId,
       refund.attendee.id,
       tx,

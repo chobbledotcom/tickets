@@ -29,8 +29,7 @@ describe("admin refunds > attendee claim settlement", () => {
       let worked = false;
 
       await runWithSubrequestBudget(async () => {
-        const callsBeforeReserveRefusal =
-          BUNNY_SUBREQUEST_LIMIT -
+        const callsBeforeReserveRefusal = BUNNY_SUBREQUEST_LIMIT -
           REFUND_SETTLEMENT_SUBREQUEST_RESERVE.total +
           1;
         for (let call = 0; call < callsBeforeReserveRefusal; call++) {
@@ -53,8 +52,9 @@ describe("admin refunds > attendee claim settlement", () => {
   }
 
   test("reports a settlement failure without replacing the work failure", async () => {
-    const claim = claimResult(claimedRows(new Map([[1, ["sess-one"]]])), () =>
-      Promise.reject(new Error("the row would not let go")),
+    const claim = claimResult(
+      claimedRows(new Map([[1, ["sess-one"]]])),
+      () => Promise.reject(new Error("the row would not let go")),
     );
 
     await expect(
@@ -65,11 +65,8 @@ describe("admin refunds > attendee claim settlement", () => {
     ).rejects.toThrow("the provider fell over");
 
     expect(claim.settlements).toHaveLength(1);
-    expect(
-      errors.contains(
-        "Refund claim could not be settled: Error: the row would not let go",
-      ),
-    ).toBe(true);
+    expect(errors.contains("Refund claim could not be settled")).toBe(true);
+    expect(errors.contains("the row would not let go")).toBe(false);
   });
 
   test("settles discovered facts and keeps uncertain claims when work raises", async () => {
@@ -137,9 +134,7 @@ describe("admin refunds > attendee claim settlement", () => {
           return Promise.resolve("worked");
         },
       }),
-    ).rejects.toThrow(
-      "Refund row sess-contradictory was both recorded and unrecorded",
-    );
+    ).rejects.toThrow(/^Refund row had contradictory recording results$/u);
     expect(claim.settlements).toEqual([]);
   });
 });

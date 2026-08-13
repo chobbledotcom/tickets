@@ -33,7 +33,10 @@ import {
   paidPaymentReferenceOf,
   type SessionRejection,
 } from "#shared/payment/validated-session.ts";
-import { reportWithheldRefund } from "#shared/payment-review.ts";
+import {
+  reportFailedRefundAttempt,
+  reportWithheldRefund,
+} from "#shared/payment-review.ts";
 import { parsePriceProof, verifyPrice } from "#shared/payment-signature.ts";
 import {
   type ExistingPaymentProvider,
@@ -143,21 +146,24 @@ export const tryRefund = async (
   // Square reject a second full refund themselves, but SumUp has no idempotency
   // key, so there an unguarded re-attempt pays the buyer twice.
   const result = await sendRefundIfAdmitted(provider, paymentReference);
-  return refundResultSucceeded(result, { listingId, paymentReference });
+  return refundResultSucceeded(result, {
+    listingId,
+    provider: reference.provider,
+  });
 };
 
 type RefundLogContext = {
   listingId?: number | undefined;
-  paymentReference: string;
+  provider: TaggedPaymentReference["provider"];
 };
 
 /** Accepted means the provider took responsibility, not that money returned. */
 const refundResultSucceeded = (
   result: RefundActionResult<Parameters<typeof reportWithheldRefund>[0]>,
-  { listingId, paymentReference }: RefundLogContext,
+  { listingId, provider }: RefundLogContext,
 ): boolean => {
   if (result.kind === "withheld") {
-    reportWithheldRefund(result.admission, { listingId, paymentReference });
+    reportWithheldRefund(result.admission, { listingId, provider });
     return result.admission.kind === "already_returned";
   }
   if (result.kind === "completed") {
@@ -168,11 +174,7 @@ const refundResultSucceeded = (
     logDebug("Payment", "Refund accepted but not completed");
     return false;
   }
-  logError({
-    code: ErrorCode.PAYMENT_REFUND,
-    detail: `Refund ${result.kind} for payment ${paymentReference} (${result.reason})`,
-    listingId,
-  });
+  reportFailedRefundAttempt(result, { listingId, provider });
   return false;
 };
 

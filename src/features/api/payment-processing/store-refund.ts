@@ -160,8 +160,9 @@ export const settleBalanceSession = async (
  * payment, record the cash round-trip in the ledger (a `payment` + `refund_cash`
  * with NO `sale` leg, so the placeholder recognises no revenue and its projected
  * price_paid stays 0), and flag the attendee with a plain-language system note
- * carrying the reason and the provider's payment reference. The customer is told
- * their details were saved and the payment refunded; no ticket is issued.
+ * carrying a non-sensitive reason code. The provider reference stays in
+ * owner-key payment storage. The customer is told their details were saved and
+ * the payment refunded; no ticket is issued.
  *
  * We never report `refunded: false`. The booking now exists, so a retry must NOT
  * re-create it — an un-refunded payment is recorded as a terminal, operator-
@@ -217,7 +218,6 @@ export const storeRefundedBooking = async (
     attendeeId,
     spec,
     refunded,
-    session.paymentReference,
   );
   if (refunded) {
     await createSystemNote(noteTarget, noteText);

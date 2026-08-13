@@ -4,17 +4,28 @@ import type {
   RefundAttemptResult,
   RefundRequest,
 } from "#shared/payment/refund-attempt.ts";
+import { runWithPendingWork } from "#shared/pending-work.ts";
+import { initSentry } from "#shared/sentry.ts";
 import { squareApi } from "#shared/square/api.ts";
 import {
   SquareApiError,
   SquareConnectionError,
   SquareProtocolError,
 } from "#shared/square/transport.ts";
-import { withSquareClient } from "#test/test-utils/square/fixtures.ts";
+import {
+  configureSquare,
+  withSquareClient,
+} from "#test/test-utils/square/fixtures.ts";
 import { describeSquare } from "#test/test-utils/square/harness.ts";
 import { squareBoundaryValidationError } from "#test/test-utils/square/outcomes.ts";
+import { withEnv } from "#test-utils/env.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { gbp } from "#test-utils/payment-state.ts";
 import { providerRefundHttpCases } from "#test-utils/provider-failure-cases.ts";
+import { resetSentry } from "#test-utils/sentry.ts";
+
+const PRIVATE_REFERENCE = "PRIVATE_REFERENCE";
 
 const request: RefundRequest = {
   charge: {
@@ -32,6 +43,8 @@ const outcomeWhen = async (error: unknown): Promise<RefundAttemptResult> =>
   );
 
 describeSquare(() => {
+  const errors = setupErrorSpy();
+
   describe("refundCharge failures", () => {
     test("states that no request left when Square is not configured", async () => {
       expect(await squareApi.refundCharge(request)).toEqual({
@@ -42,22 +55,21 @@ describeSquare(() => {
 
     for (const [status, expected] of providerRefundHttpCases) {
       test(`classifies HTTP ${status} without guessing`, async () => {
-        expect(
-          await outcomeWhen(new SquareApiError(status, "failure")),
-        ).toEqual(expected);
+        expect(await outcomeWhen(new SquareApiError(status))).toEqual(expected);
       });
     }
 
     for (const reason of ["network_error", "timeout"] as const) {
       test(`keeps a ${reason} connection failure uncertain`, async () => {
-        expect(
-          await outcomeWhen(new SquareConnectionError(reason, "offline")),
-        ).toEqual({ kind: "uncertain", reason });
+        expect(await outcomeWhen(new SquareConnectionError(reason))).toEqual({
+          kind: "uncertain",
+          reason,
+        });
       });
     }
 
     test("names invalid JSON as a malformed response", async () => {
-      expect(await outcomeWhen(new SquareProtocolError("bad JSON"))).toEqual({
+      expect(await outcomeWhen(new SquareProtocolError())).toEqual({
         kind: "uncertain",
         reason: "malformed_response",
       });
@@ -68,6 +80,53 @@ describeSquare(() => {
         kind: "uncertain",
         reason: "malformed_response",
       });
+    });
+
+    test("keeps a provider body out of refund diagnostics", async () => {
+      using _env = withEnv({
+        NTFY_URL: undefined,
+        SENTRY_URL: "https://square@bugs.example.test/2",
+      });
+      const responseBody = `{ "errors": [{ "detail": "${PRIVATE_REFERENCE}" }] }`;
+      using fetchStub = stubFetch((url) =>
+        url.includes("squareupsandbox.com")
+          ? new Response(responseBody, { status: 503 })
+          : new Response("{}", { status: 200 }),
+      );
+
+      try {
+        await configureSquare({ sandbox: true });
+        await initSentry();
+        const result = await runWithPendingWork(() =>
+          squareApi.refundCharge(request),
+        );
+        expect(result).toEqual({
+          kind: "uncertain",
+          reason: "provider_error",
+        });
+
+        expect(errors.lastMessage()).toContain("outcome=uncertain");
+        expect(errors.lastMessage()).toContain("reason=provider_error");
+        expect(errors.lastMessage()).not.toContain(PRIVATE_REFERENCE);
+
+        const sentryCall = fetchStub.calls.find((call) =>
+          String(call.args[0]).includes("bugs.example.test"),
+        );
+        if (sentryCall === undefined) throw new Error("Sentry was not called");
+        const options = sentryCall.args[1] as RequestInit;
+        const body =
+          typeof options.body === "string"
+            ? options.body
+            : new TextDecoder().decode(options.body as Uint8Array);
+        expect(body).not.toContain(PRIVATE_REFERENCE);
+        expect(body).toContain("Status code: 503");
+        expect(body).toContain("stacktrace");
+        expect(body).toContain(
+          '"detail":"outcome=uncertain reason=provider_error"',
+        );
+      } finally {
+        resetSentry();
+      }
     });
 
     test("does not relabel an unknown internal failure as a network error", async () => {

@@ -9,8 +9,13 @@ import {
 import type { Attendee } from "#shared/types.ts";
 import { hasTicketQuantity } from "#shared/types.ts";
 
+type RefundCandidateAttendee = Pick<
+  Attendee,
+  "id" | "pii_blob" | "quantity" | "refunded"
+>;
+
 export type RefundCandidate = {
-  attendee: Attendee;
+  attendee: RefundCandidateAttendee;
   references: RefundPaymentReference[];
 };
 
@@ -46,12 +51,12 @@ export const refundWorkRemains = (
 /** Attendees a refund run still has work for on this listing: a real ticket
  * line, at least one stored provider charge reference, and work remaining. */
 export const getRefundCandidates = async (
-  attendees: Attendee[],
+  attendees: readonly RefundCandidateAttendee[],
   privateKey: CryptoKey,
 ): Promise<RefundCandidate[]> => {
-  const ticketHolders = uniqueBy((attendee: Attendee) => attendee.id)(
-    filter<Attendee>(hasTicketQuantity)(attendees),
-  );
+  const ticketHolders = uniqueBy(
+    (attendee: RefundCandidateAttendee) => attendee.id,
+  )(filter<RefundCandidateAttendee>(hasTicketQuantity)([...attendees]));
   const referencesByAttendee = await getRefundPaymentReferences(
     ticketHolders,
     privateKey,

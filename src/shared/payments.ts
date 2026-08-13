@@ -119,7 +119,8 @@ export type CheckoutIntent = CheckoutIntentBase & {
 /** Result of creating a checkout session.
  * - Success: { sessionId, checkoutUrl }
  * - User-facing error (e.g. invalid phone): { error }
- * - Internal/unknown failure: null */
+ * - Provider not configured: null
+ * Unexpected failures throw. */
 export type CheckoutSessionResult =
   | {
       sessionId: string;

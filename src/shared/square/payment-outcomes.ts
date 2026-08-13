@@ -1,6 +1,5 @@
 /* jscpd:ignore-start */
 import * as v from "valibot";
-import { errorMessage } from "#shared/error-message.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   malformedProviderRead,
@@ -244,8 +243,14 @@ export const refundSquareCharge = async (
       paymentId: request.paymentReference,
     });
   } catch (error) {
-    logError({ code: ErrorCode.SQUARE_REFUND, detail: errorMessage(error) });
     const failure = squareRefundFailure(error);
+    logError({
+      code: ErrorCode.SQUARE_REFUND,
+      detail: failure
+        ? `outcome=${failure.kind} reason=${failure.reason}`
+        : "outcome=thrown reason=internal_error",
+      error,
+    });
     if (failure) return failure;
     throw error;
   }

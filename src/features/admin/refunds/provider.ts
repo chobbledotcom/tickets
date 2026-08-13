@@ -6,11 +6,7 @@ import {
 } from "#shared/db/payment-references.ts";
 import { armRefundDispatch } from "#shared/db/payment-refund-dispatch.ts";
 import { reportRefundNotRecorded } from "#shared/invariant-errors.ts";
-import {
-  ErrorCode,
-  logError,
-  withDeferredErrorReports,
-} from "#shared/logger.ts";
+import { withDeferredErrorReports } from "#shared/logger.ts";
 import { recordAttendeeRefundsBatch } from "#shared/refund-ledger/record.ts";
 import { withSubrequestReserve } from "#shared/subrequest-budget.ts";
 import type { CandidateRefund } from "./attempt.ts";
@@ -95,14 +91,15 @@ const logBulkRefundProblem = (
   candidate: ReadyRefundCandidate,
   listingId: number,
 ): void => {
-  const refs = candidate.references
-    .map(({ reference }) => reference.reference)
-    .join(", ");
-  logError({
-    code: ErrorCode.PAYMENT_REFUND,
-    detail: `Admin bulk refund ${outcome} for attendee ${candidate.attendee.id}, payments ${refs}`,
+  reportRefundProblem(
+    {
+      attendeeId: candidate.attendee.id,
+      kind: "batch_outcome",
+      outcome,
+      paymentCount: candidate.references.length,
+    },
     listingId,
-  });
+  );
 };
 
 /** An attendee's charges that came back, and whether that was all of them. */
@@ -185,9 +182,11 @@ const markerFailure = (
 ): CandidateRefund => {
   if (result.returned.length === 0) return result;
   reportRefundProblem(
-    `Admin refund could not record returned payments for attendee ${result.candidate.attendee.id}: ${String(
+    {
+      attendeeId: result.candidate.attendee.id,
       error,
-    )}`,
+      kind: "returned_marker_write",
+    },
     listingId,
   );
   return {
@@ -247,7 +246,6 @@ export const processRefundBatch = async (
         changedMessage:
           "The attendee or payment set changed while this refund was starting. Try again.",
         claim: rowClaim,
-        label: "Admin bulk refund",
         listingId,
         notReady: (message, reason) =>
           notReady(noRefunds(candidates.length), message, reason),

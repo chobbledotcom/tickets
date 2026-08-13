@@ -109,7 +109,7 @@ describeStripe("stripe-provider", () => {
   });
 
   describe("createCheckoutSession - via provider", () => {
-    test("returns null when session has no URL", async () => {
+    test("throws when a created session has no URL", async () => {
       const client = await stripeClient();
       await withMocks(
         () =>
@@ -122,11 +122,12 @@ describeStripe("stripe-provider", () => {
             ),
           ),
         async () => {
-          const result = await stripePaymentProvider.createCheckoutSession(
-            checkoutIntent({ email: "jane@example.com", name: "Jane" }),
-            "http://localhost:3000",
-          );
-          expect(result).toBeNull();
+          await expect(
+            stripePaymentProvider.createCheckoutSession(
+              checkoutIntent({ email: "jane@example.com", name: "Jane" }),
+              "http://localhost:3000",
+            ),
+          ).rejects.toThrow("Stripe checkout response is missing its URL");
         },
       );
     });
@@ -152,18 +153,36 @@ describeStripe("stripe-provider", () => {
       expect((result as { error: string }).error).toMatch(/too many listings/i);
     });
 
-    test("returns null for non-PaymentUserError exceptions", async () => {
+    test("propagates non-PaymentUserError exceptions", async () => {
       await settings.update.stripe.secretKey("sk_test_mock");
-      // Stub stripeApi.createCheckoutSession to throw a generic error
-      // that propagates through to withUserError's catch
       using _mockCreate = stub(stripeApi, "createCheckoutSession", () =>
         Promise.reject(new TypeError("unexpected")),
       );
-      const result = await stripePaymentProvider.createCheckoutSession(
-        checkoutIntent({ email: "john@example.com", name: "John" }),
-        "http://localhost:3000",
+      await expect(
+        stripePaymentProvider.createCheckoutSession(
+          checkoutIntent({ email: "john@example.com", name: "John" }),
+          "http://localhost:3000",
+        ),
+      ).rejects.toThrow("unexpected");
+    });
+
+    test("propagates checkout client failures from the production path", async () => {
+      const client = await stripeClient();
+      const failure = new TypeError("Stripe connection failed");
+      await withMocks(
+        () =>
+          stub(client.checkout.sessions, "create", () =>
+            Promise.reject(failure),
+          ),
+        async () => {
+          await expect(
+            stripePaymentProvider.createCheckoutSession(
+              checkoutIntent({ email: "john@example.com", name: "John" }),
+              "http://localhost:3000",
+            ),
+          ).rejects.toBe(failure);
+        },
       );
-      expect(result).toBeNull();
     });
   });
 

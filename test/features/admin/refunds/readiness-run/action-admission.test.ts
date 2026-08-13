@@ -18,6 +18,7 @@ const REFERENCE = untagged("admission", "admission");
 const CANDIDATE = candidate(ATTENDEE_ID, [REFERENCE]);
 
 type SafetyState = {
+  readonly diagnosticReason: "owner_review" | "unrecorded_money";
   readonly name: string;
   readonly refundMessage: string;
   readonly reviews: ReadonlyMap<string, PaymentReviewReason>;
@@ -26,6 +27,7 @@ type SafetyState = {
 
 const SAFETY_STATES = [
   {
+    diagnosticReason: "owner_review",
     name: "owner review",
     refundMessage:
       "This payment still needs owner review. Refresh or correct the payment evidence before another refund.",
@@ -33,6 +35,7 @@ const SAFETY_STATES = [
     unrecorded: new Map(),
   },
   {
+    diagnosticReason: "unrecorded_money",
     name: "unrecorded returned money",
     refundMessage:
       "This returned payment is not recorded in Money yet. Refresh the payment status before another refund.",
@@ -92,7 +95,6 @@ const runFor = async (
     candidates: [CANDIDATE],
     changedMessage: "the loaded payment changed",
     claim: recorded.claim,
-    label: action === "refund" ? "Refund" : "Refresh",
     listingId: 7,
     notReady: (message: string): RunResult => ({
       kind: "not_ready",
@@ -138,7 +140,6 @@ describe("refund readiness action admission", () => {
         claim: () => Promise.resolve({ kind: "changed" }),
         settle: () => Promise.reject(new Error("No rows were claimed")),
       },
-      label: "Refresh",
       listingId: 7,
       notReady: (message) => ({ kind: "not_ready", message }),
       prepare: () => {
@@ -154,9 +155,7 @@ describe("refund readiness action admission", () => {
       message: "the loaded payment changed",
     });
     expect(
-      errors.contains(
-        `Refresh not started for attendee ${ATTENDEE_ID}: the attendee or payment set changed while this refund was starting`,
-      ),
+      errors.contains("Admin refresh not started (payment_set_changed)"),
     ).toBe(true);
   });
 
@@ -173,9 +172,7 @@ describe("refund readiness action admission", () => {
         releasedWithoutChangingSafetyState("checking"),
       ]);
       expect(
-        errors.contains(
-          `Refund not started for attendee ${ATTENDEE_ID}: ${state.refundMessage}`,
-        ),
+        errors.contains(`Admin refund not started (${state.diagnosticReason})`),
       ).toBe(true);
     });
 

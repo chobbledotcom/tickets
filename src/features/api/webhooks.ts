@@ -162,9 +162,11 @@ const processSessionAndRedirect = async (
   if (result.ticketTokens.length > 0) {
     await clearSessionTokens(sessionId);
     return redirectResponse(
-      `/payment/success?tokens=${encodeURIComponent(
-        result.ticketTokens.join("+"),
-      )}`,
+      `/payment/success?tokens=${
+        encodeURIComponent(
+          result.ticketTokens.join("+"),
+        )
+      }`,
     );
   }
 
@@ -202,10 +204,9 @@ const renderSuccessFromTokens = async (
   // Only use thank_you_url for single-listing purchases — and never for a hidden
   // package's sole member, whose URL would reveal the listing it concealed.
   const uniqueListingIds = unique(listingIds);
-  const thankYouUrl =
-    uniqueListingIds.length === 1
-      ? await singleListingThankYou(uniqueListingIds[0]!)
-      : "";
+  const thankYouUrl = uniqueListingIds.length === 1
+    ? await singleListingThankYou(uniqueListingIds[0]!)
+    : "";
 
   return renderPaidSuccessPage(thankYouUrl, ticketUrl);
 };
@@ -231,7 +232,8 @@ const handlePaymentSuccess = (request: Request): Promise<Response> => {
   const referer = request.headers.get("referer") ?? "none";
   logError({
     code: ErrorCode.PAYMENT_SESSION,
-    detail: `Payment success callback with no session_id or tokens | params=[${paramKeys}] referer=${referer}`,
+    detail:
+      `Payment success callback with no session_id or tokens | params=[${paramKeys}] referer=${referer}`,
   });
   return Promise.resolve(paymentErrorResponse("Invalid payment callback"));
 };
@@ -293,7 +295,6 @@ const webhookAckResponse = (extra?: Record<string, unknown>): Response =>
 const webhookResultResponse = (
   result: PaymentResult,
   session: ValidatedPaymentSession,
-  payload: string,
   listingIdForLog: number | undefined,
 ): Response => {
   if (result.success) return webhookAckResponse({ processed: true });
@@ -303,7 +304,7 @@ const webhookResultResponse = (
     detail: failureDetail(result),
     listingId: listingIdForLog,
   });
-  logDebug("Webhook", `Failed payload: ${payload}`);
+  logDebug("Webhook", "Payment callback processing failed");
   if (result.status === 409 && result.refunded === undefined) {
     return plainResponse(result.error, 409);
   }
@@ -334,16 +335,16 @@ const authenticateWebhook = async (
 ): Promise<
   | Response
   | {
-      provider: NonNullable<ExistingPaymentProvider>;
-      listing: WebhookEvent;
-    }
+    provider: NonNullable<ExistingPaymentProvider>;
+    listing: WebhookEvent;
+  }
 > => {
   const provider = await getPaymentProviderOrLog(
     ErrorCode.PAYMENT_SESSION,
     "Webhook received but payment provider not configured",
   );
   if (!provider) {
-    logDebug("Webhook", `Rejected payload: ${payload}`);
+    logDebug("Webhook", "Rejected webhook: payment provider not configured");
     return plainResponse("Payment provider not configured", 400);
   }
 
@@ -353,7 +354,7 @@ const authenticateWebhook = async (
       code: ErrorCode.PAYMENT_SESSION,
       detail: "Webhook missing signature header",
     });
-    logDebug("Webhook", `Rejected payload: ${payload}`);
+    logDebug("Webhook", "Rejected webhook: missing signature");
     return plainResponse("Missing signature", 400);
   }
 
@@ -373,7 +374,7 @@ const authenticateWebhook = async (
       code: ErrorCode.PAYMENT_SIGNATURE,
       detail: `Webhook signature verification failed: ${verification.error}`,
     });
-    logDebug("Webhook", `Rejected payload: ${payload}`);
+    logDebug("Webhook", "Rejected webhook: signature verification failed");
     return plainResponse(verification.error, 400);
   }
 
@@ -427,7 +428,8 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
     const outcome = await refundRejectedCharge(sessionResult);
     logError({
       code: ErrorCode.PAYMENT_SESSION,
-      detail: `Webhook session rejected as ${sessionResult.reason} (refunded: ${outcome.refunded})`,
+      detail:
+        `Webhook session rejected as ${sessionResult.reason} (refunded: ${outcome.refunded})`,
     });
     // A required refund that failed must retry: acknowledging would strand the
     // captured charge with no redelivery.
@@ -436,10 +438,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   }
 
   if (!sessionResult) {
-    logDebug(
-      "Webhook",
-      `Ignoring webhook for unrecognized payment session: ${payload}`,
-    );
+    logDebug("Webhook", "Ignoring webhook for unrecognized payment session");
     return webhookAckResponse();
   }
 
@@ -450,9 +449,9 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   if (session.paymentStatus !== "paid") {
     logError({
       code: ErrorCode.PAYMENT_SESSION,
-      detail: `Webhook session not yet paid (session=${session.id}, status=${session.paymentStatus})`,
+      detail: `Webhook session not yet paid (status=${session.paymentStatus})`,
     });
-    logDebug("Webhook", `Pending payload: ${payload}`);
+    logDebug("Webhook", "Waiting for a completed payment");
     return webhookAckResponse({ status: "pending" });
   }
 
@@ -463,12 +462,15 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   // refunding — refunding an unverifiable session could refund another
   // instance's payment.
   const classified = await classifySessionIntent(session);
-  if (classified === null) {
-    logDebug(
-      "Webhook",
-      `Ignoring webhook for unverifiable session (origin=${session.metadata._origin}): ${payload}`,
-    );
-    return webhookAckResponse();
+  switch (classified.kind) {
+    case "unverifiable":
+      logDebug("Webhook", "Ignoring webhook for unverifiable session");
+      return webhookAckResponse();
+    case "unreadable":
+      logDebug("Webhook", "Refusing an unreadable signed booking retryably");
+      return plainResponse("Payment verification failed", 503);
+    case "ready":
+      break;
   }
 
   const { intent, verdict } = classified;
@@ -478,7 +480,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
     session,
     verdict,
   });
-  return webhookResultResponse(result, session, payload, listingIdForLog);
+  return webhookResultResponse(result, session, listingIdForLog);
 };
 
 /** Payment routes definition */

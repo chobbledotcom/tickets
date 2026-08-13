@@ -1,8 +1,13 @@
+import { APIError, SumUpError } from "@sumup/sdk";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
 import { getSumupCheckout } from "#shared/db/sumup-checkouts.ts";
 import { sumupApi } from "#shared/sumup.ts";
+import {
+  expectClosedCheckoutFailure,
+  expectSameThrown,
+} from "#test-utils/checkout-failure.ts";
 import {
   makeSumupClient,
   setupSumupSuite,
@@ -22,7 +27,7 @@ const intent = {
 };
 
 describe("sumup createCheckout", () => {
-  const { loggedDebug } = setupSumupSuite();
+  setupSumupSuite();
 
   test("returns null and stores no orphan when merchant code is absent", async () => {
     settings.setForTest({ sumup_merchant_code: "" });
@@ -67,6 +72,83 @@ describe("sumup createCheckout", () => {
     });
   });
 
+  const checkoutFailure = async (providerError: unknown): Promise<unknown> => {
+    const client = makeSumupClient({
+      create: () => Promise.reject(providerError),
+    });
+    let result: Promise<unknown> = Promise.resolve();
+    await withSumupClient(client, async () => {
+      result = sumupApi.createCheckout(intent, "http://localhost");
+      await result.catch(() => undefined);
+    });
+    return result;
+  };
+
+  test("closes SumUp API bodies before they reach diagnostics", async () => {
+    const privateBody = "buyer private.person@example.com checkout co_private";
+    const providerError = new APIError(
+      422,
+      { detail: privateBody },
+      Response.json({ detail: privateBody }, { status: 422 }),
+    );
+    await expectClosedCheckoutFailure(
+      checkoutFailure(providerError),
+      { provider: "sumup", reason: "provider_error", statusCode: 422 },
+      [privateBody],
+      providerError,
+    );
+  });
+
+  test("closes SumUp network failures", async () => {
+    const privateMessage = "network failed beside checkout co_private";
+    const providerError = new TypeError(privateMessage);
+    await expectClosedCheckoutFailure(
+      checkoutFailure(providerError),
+      { provider: "sumup", reason: "network_error" },
+      [privateMessage],
+      providerError,
+    );
+  });
+
+  for (const name of ["AbortError", "TimeoutError"]) {
+    test(`closes SumUp ${name} transport failures`, async () => {
+      const privateMessage = `transport failed beside checkout co_${name}`;
+      const providerError = new DOMException(privateMessage, name);
+      await expectClosedCheckoutFailure(
+        checkoutFailure(providerError),
+        { provider: "sumup", reason: "timeout" },
+        [privateMessage],
+        providerError,
+      );
+    });
+  }
+
+  test("closes malformed SumUp checkout responses", async () => {
+    const providerError = new SumUpError("Unexpected non-json response.");
+    await expectClosedCheckoutFailure(
+      checkoutFailure(providerError),
+      { provider: "sumup", reason: "invalid_response" },
+      [],
+      providerError,
+    );
+  });
+
+  test("closes SumUp checkout timeouts", async () => {
+    const privateMessage = "Request timed out after 12345ms.";
+    const providerError = new SumUpError(privateMessage);
+    await expectClosedCheckoutFailure(
+      checkoutFailure(providerError),
+      { provider: "sumup", reason: "timeout" },
+      [privateMessage],
+      providerError,
+    );
+  });
+
+  test("does not relabel an internal SumUp checkout failure", async () => {
+    const applicationError = new Error("SumUp checkout mapper bug");
+    await expectSameThrown(checkoutFailure(applicationError), applicationError);
+  });
+
   test("derives the major-unit amount from the configured currency", async () => {
     // CLP is a SumUp-supported zero-decimal currency: 2000 stays 2000.
     settings.setForTest({ currency: "CLP" });
@@ -88,29 +170,26 @@ describe("sumup createCheckout", () => {
     });
   });
 
-  test("returns null and says why when the response lacks an id", async () => {
+  test("throws when the response lacks an id", async () => {
     const client = makeSumupClient({
       create: () =>
         Promise.resolve({ hosted_checkout_url: "https://pay.sumup.com/z" }),
     });
     await withSumupClient(client, async () => {
-      expect(
-        await sumupApi.createCheckout(intent, "http://localhost"),
-      ).toBeNull();
+      await expect(
+        sumupApi.createCheckout(intent, "http://localhost"),
+      ).rejects.toThrow("SumUp checkout response is missing its id");
     });
-    expect(
-      loggedDebug("Checkout response missing id or hosted_checkout_url"),
-    ).toBe(true);
   });
 
-  test("returns null when the response lacks a hosted_checkout_url", async () => {
+  test("throws when the response lacks a hosted checkout URL", async () => {
     const client = makeSumupClient({
       create: () => Promise.resolve({ id: "co_no_url" }),
     });
     await withSumupClient(client, async () => {
-      expect(
-        await sumupApi.createCheckout(intent, "http://localhost"),
-      ).toBeNull();
+      await expect(
+        sumupApi.createCheckout(intent, "http://localhost"),
+      ).rejects.toThrow("SumUp checkout response is missing its hosted URL");
     });
   });
 

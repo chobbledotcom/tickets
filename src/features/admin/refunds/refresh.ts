@@ -132,7 +132,7 @@ const observedReference = (
     reportWithheldRefund(admission, {
       attendeeId,
       listingId,
-      paymentReference: ready.reference.reference,
+      provider: ready.provider.type,
     });
   }
   return {
@@ -251,7 +251,6 @@ const completedRefresh = async (
   candidate: ReadyRefundCandidate,
   returned: readonly TaggedRefundReference[],
   claim: HeldRefundClaim,
-  heldReviews: HeldRefundWork["reviews"],
   findings: RunFindings,
   dependencies: Required<
     Pick<RefreshPaymentDependencies, "confirm" | "paymentOnly">
@@ -260,7 +259,6 @@ const completedRefresh = async (
   const attendeeId = candidate.attendee.id;
   setClaimProtection(findings, attendeeId, false);
   const paymentOnly = await dependencies.paymentOnly(attendeeId);
-  retireCompletedRefundReviews(returned, heldReviews, findings);
   const confirmation = await dependencies.confirm({
     attendee: candidate.attendee,
     claim,
@@ -316,6 +314,9 @@ const refreshReadyCandidate = async (
     findings,
     dependencies,
   );
+  if (ledger?.allRecorded) {
+    retireCompletedRefundReviews(returned, heldReviews, findings);
+  }
   const needsReview = currentPaymentReviews(heldReviews, findings).size > 0;
   if (hasUnreturned) {
     return unreturnedResult(attendeeId, keepsClaim, needsReview, findings);
@@ -329,7 +330,6 @@ const refreshReadyCandidate = async (
     candidate,
     returned,
     claim,
-    heldReviews,
     findings,
     dependencies,
   );
@@ -365,7 +365,6 @@ export const refreshClaimedPayment = async (
     changedMessage:
       "The attendee or payment set changed while this refresh was starting. Try again.",
     claim,
-    label: "Admin payment refresh",
     listingId,
     notReady: (message) => ({ kind: "not_ready", message }),
     prepare,

@@ -68,11 +68,12 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
     ).toBe("current");
 
     const activities = await getAttendeeActivityLog(refund.attendee.id);
-    expect(
-      activities.filter((entry) =>
-        entry.message.includes("Payment marked as refunded"),
-      ),
-    ).toHaveLength(1);
+    const confirmations = activities.filter((entry) =>
+      entry.message.includes("Payment marked as refunded"),
+    );
+    expect(confirmations).toHaveLength(1);
+    expect(confirmations[0]?.message).not.toContain(refund.attendeeName);
+    expect(confirmations[0]?.message).not.toContain(refund.reference.reference);
     const notes = await getNotesFor(target, refund.privateKey);
     expect(
       notes.filter((note) => note.note.includes("Refund confirmed")),
@@ -225,7 +226,7 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
     ).toEqual([]);
   });
 
-  test("does not open unrelated history to decide whether this is a replay", async () => {
+  test("does not open unrelated history for a current payment", async () => {
     const refund = await setup();
     await execute(
       `INSERT INTO activity_log

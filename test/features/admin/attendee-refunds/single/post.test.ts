@@ -122,7 +122,12 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
         (await getAttendeeActivityLog(ctx.attendee.id)).map(
           (entry) => entry.message,
         ),
-      ).toContain("Refund issued for attendee 'John Doe'");
+      ).toContain("Refund issued");
+      expect(
+        (await getAttendeeActivityLog(ctx.attendee.id)).map(
+          (entry) => entry.message,
+        ),
+      ).not.toContain("Refund issued for attendee 'John Doe'");
     });
 
     // The money is already back, so it is reported as a success WITHOUT the

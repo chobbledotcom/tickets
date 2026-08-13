@@ -3,6 +3,10 @@ import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  finalizeProcessedPayment,
+  taggedPaymentReference,
+} from "#test-utils/processed-payments.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
 
 /** Seed `count` paid attendees with payment-intent ids `${piPrefix}<i>`. */
@@ -17,6 +21,28 @@ export const seedBatchAttendees = async (
       `User ${i}`,
       `user${i}@example.com`,
       `${piPrefix}${i}`,
+    );
+  }
+};
+
+/** Seed modern provider-tagged payments whose ledger event names each order. */
+export const seedTaggedBatchAttendees = async (
+  listing: { id: number },
+  referencePrefix: string,
+  count: number,
+): Promise<void> => {
+  for (let index = 0; index < count; index++) {
+    const attendee = await createPaidTestAttendee(
+      listing.id,
+      `User ${index}`,
+      `user${index}@example.com`,
+      "",
+    );
+    await finalizeProcessedPayment(
+      `sale-${listing.id}-${attendee.id}`,
+      attendee.id,
+      "",
+      taggedPaymentReference(`${referencePrefix}${index}`),
     );
   }
 };

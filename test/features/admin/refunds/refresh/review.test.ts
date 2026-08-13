@@ -126,4 +126,21 @@ describe("refresh payment under an attendee claim", () => {
       }),
     ]);
   });
+
+  test("a recorded return retires its review while a sibling remains", async () => {
+    const run = runHarness({
+      existingReview: { kind: "partial_refund" },
+      ledger: (references) => refundLedgerResult(references),
+      observed: fullyRefundedMoney(),
+      siblingObserved: chargeMoney(),
+    });
+
+    expect(await refresh(run)).toEqual({ kind: "current" });
+    expect(run.claim.reviewChanges).toEqual([
+      reviewChange(run, {
+        kind: "resolved",
+        reason: "partial_refund",
+      }),
+    ]);
+  });
 });

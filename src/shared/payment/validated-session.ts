@@ -18,12 +18,12 @@ import { isPaymentProvider, isRecord } from "#shared/types.ts";
  */
 export type SessionRejection =
   | {
-      reason: "malformed_charge";
-      paymentReference: string;
-      provider: PaymentProviderType;
-      refundable: boolean;
-      metadata: SessionMetadata;
-    }
+    reason: "malformed_charge";
+    paymentReference: string;
+    provider: PaymentProviderType;
+    refundable: boolean;
+    metadata: SessionMetadata;
+  }
   | { provider: PaymentProviderType; reason: "blank_reference" };
 
 /** The durable charge identity proved by a validated session, or no charge for
@@ -37,9 +37,7 @@ export const paymentReferenceOf = (
 ): TaggedPaymentReference | null => {
   if (session.paymentReference === "") return null;
   if (!isResourceId(session.paymentReference)) {
-    throw new Error(
-      `Validated session ${session.id} has an invalid provider resource id`,
-    );
+    throw new Error("Validated session has an invalid provider resource id");
   }
   return {
     kind: "tagged",
@@ -57,7 +55,7 @@ export const paidPaymentReferenceOf = (
 ): TaggedPaymentReference => {
   const reference = paymentReferenceOf(session);
   if (reference === null) {
-    throw new Error(`Paid session ${session.id} has no provider resource id`);
+    throw new Error("Paid session has no provider resource id");
   }
   return reference;
 };
@@ -71,8 +69,9 @@ export const isSessionRejection = (
     !isRecord(value) ||
     typeof value.provider !== "string" ||
     !isPaymentProvider(value.provider)
-  )
+  ) {
     return false;
+  }
   if (value.reason === "blank_reference") return true;
   return (
     value.reason === "malformed_charge" &&
@@ -126,7 +125,8 @@ export const validatedPaymentSession = (fields: {
   if (charge === null) {
     logError({
       code: ErrorCode.PAYMENT_SESSION,
-      detail: `Session ${fields.id} carries a malformed charge (amount=${fields.amountTotal}, currency=${fields.currency})`,
+      detail:
+        `Session ${fields.id} carries a malformed charge (amount=${fields.amountTotal}, currency=${fields.currency})`,
     });
     return malformedChargeRejection(
       fields.paymentReference,

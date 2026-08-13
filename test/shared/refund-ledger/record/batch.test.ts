@@ -204,9 +204,8 @@ describeWithEnv(
         refundLegsOf(await transfersByAccount(attendeeAccount(18))).length,
       ).toBe(0);
       expect(errors.lastMessage()).toContain("E_LEDGER_POST");
-      expect(errors.lastMessage()).toContain(
-        "refund ledger post failed for attendee 18:",
-      );
+      expect(errors.lastMessage()).toContain("Refund ledger post failed");
+      expect(errors.lastMessage()).toContain("attendee=18");
     });
 
     test("posts all refund groups for a balance-settled attendee in a bulk batch", async () => {
@@ -283,8 +282,9 @@ describeWithEnv(
         setDb(real);
       }
       expect(errors.lastMessage()).toContain(
-        "bulk refund ledger preparation failed (1): Error: ledger read failed",
+        "Bulk refund ledger preparation failed for 1 attendee records",
       );
+      expect(errors.lastMessage()).not.toContain("ledger read failed");
     });
 
     test("keeps every returned reference unrecorded when the shared write fails", async () => {
@@ -304,8 +304,9 @@ describeWithEnv(
         setDb(real);
       }
       expect(errors.lastMessage()).toContain(
-        "bulk refund ledger post failed (1): Error: ledger write failed",
+        "Bulk refund ledger post failed for 1 attendee records",
       );
+      expect(errors.lastMessage()).not.toContain("ledger write failed");
     });
   },
 );

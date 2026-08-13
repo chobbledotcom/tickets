@@ -63,7 +63,7 @@ const sessionPayment = async (
   if (read.status === "found") return read.resource;
   if (read.status === "missing") return null;
   throw new Error(
-    `Square payment ${paymentReference} could not be read (${read.status}:${read.reason})`,
+    `Square payment could not be read (${read.status}:${read.reason})`,
   );
 };
 
@@ -126,7 +126,13 @@ export const squarePaymentProvider: PaymentProvider = {
     const orderId =
       typeof payment.order_id === "string" ? payment.order_id : null;
 
-    if (!orderId || !paymentId) return Promise.resolve(null);
+    if (!orderId) {
+      if (paymentId && payment.status === "COMPLETED") {
+        throw new Error("Completed Square payment is missing order id");
+      }
+      return Promise.resolve(null);
+    }
+    if (!paymentId) return Promise.resolve(null);
 
     // Skip non-completed payments to avoid unnecessary API calls
     if (typeof payment.status === "string" && payment.status !== "COMPLETED") {
@@ -137,10 +143,6 @@ export const squarePaymentProvider: PaymentProvider = {
       return Promise.resolve("skip");
     }
 
-    // If the order has no metadata (e.g. created directly in Square
-    // dashboard/POS, not by our system), skip silently instead of treating
-    // it as an error — avoids noisy logs and 400 responses that trigger
-    // Square webhook retries.
     const session = await this.retrieveSession(orderId, paymentId);
     return session ?? "skip";
   },
@@ -155,15 +157,24 @@ export const squarePaymentProvider: PaymentProvider = {
   ): Promise<RetrieveSessionResult> {
     /* jscpd:ignore-end */
     // sessionId is the Square order ID
-    const order = await squareApi.retrieveOrder(sessionId);
-    if (!order?.id) {
-      logDebug("Square", `Order ${sessionId} not found`);
+    const read = await squareApi.readOrder(sessionId);
+    if (read.status === "missing") {
+      logDebug("Square", "Square order not found");
       return null;
     }
+    if (read.status !== "found") {
+      throw new Error(
+        `Square order could not be read (${read.status}:${read.reason})`,
+      );
+    }
+    const order = read.resource;
 
     const { metadata } = order;
     if (!hasRequiredSessionMetadata(metadata)) {
-      logDebug("Square", `Order ${sessionId} missing required metadata fields`);
+      if (paidPaymentId) {
+        throw new Error("Completed Square order is missing required metadata");
+      }
+      logDebug("Square", "Square order is missing required metadata fields");
       return null;
     }
 
@@ -180,7 +191,7 @@ export const squarePaymentProvider: PaymentProvider = {
     // have no reason to deliver it again.
     if (paidPaymentId && payment?.status !== "COMPLETED") {
       throw new Error(
-        `Square payment ${paidPaymentId} did not read back as completed (status=${
+        `Square payment did not read back as completed (status=${
           payment?.status ?? "unreadable"
         })`,
       );
@@ -196,9 +207,7 @@ export const squarePaymentProvider: PaymentProvider = {
       payment.orderId !== undefined &&
       payment.orderId !== order.id
     ) {
-      throw new Error(
-        `Square payment ${paymentReference} reports order ${payment.orderId}, not ${order.id}`,
-      );
+      throw new Error("Square payment reports a different order");
     }
 
     // Money we can see was taken. A completed payment names its own amount, and

@@ -292,7 +292,7 @@ describeWithEnv(
       );
 
       await expect(acknowledge(attendeeId)).rejects.toThrow(
-        "Payment review no longer owns payment row sess-cas-lost",
+        /^Payment review no longer owns its payment row$/u,
       );
       expect(
         (await reviewOf(attendeeId, "sess-cas-first")).acknowledgedAt,

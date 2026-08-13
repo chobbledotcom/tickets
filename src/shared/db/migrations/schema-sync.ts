@@ -133,9 +133,10 @@ const fromAttendeeColumns = stepUsing(() => getExistingColumns("attendees"));
 /** Build the idempotent CREATE INDEX statement for a declared index. */
 const createIndexSql = (tableName: string, idx: Index): string => {
   const unique = idx.unique ? "UNIQUE " : "";
+  const where = idx.where === undefined ? "" : ` WHERE ${idx.where}`;
   return `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${tableName}(${idx.columns.join(
     ", ",
-  )})`;
+  )})${where}`;
 };
 
 const currentSchemaTable = (tableName: string): Table => {

@@ -139,8 +139,10 @@ describe("admin refund provider", () => {
 
     expect(result.outcome).toBe("failed");
     expect(errors.lastMessage()).toContain(
-      "Admin refund rejected for attendee 42, payment pi_no",
+      "Refund rejected for stripe payment (failed)",
     );
+    expect(errors.lastMessage()).not.toContain("pi_no");
+    expect(errors.lastMessage()).toContain("attendee=42");
   });
 
   test("withholds when the provider proves no refund request was sent", async () => {
@@ -170,8 +172,10 @@ describe("admin refund provider", () => {
 
     expect(result.outcome).toBe("errored");
     expect(errors.lastMessage()).toContain(
-      "Admin refund errored for attendee 42, payment pi_boom",
+      "Refund uncertain for stripe payment (network_error)",
     );
+    expect(errors.lastMessage()).not.toContain("pi_boom");
+    expect(errors.lastMessage()).toContain("attendee=42");
   });
 
   test("returns only the references whose provider refund completed", async () => {
@@ -187,9 +191,7 @@ describe("admin refund provider", () => {
       "pi_ok",
     ]);
     expect(
-      errors.contains(
-        "Admin refund did not complete every payment for attendee 42",
-      ),
+      errors.contains("Admin refund did not complete all 2 payments"),
     ).toBe(true);
   });
 
@@ -203,9 +205,7 @@ describe("admin refund provider", () => {
 
     expect(result.outcome).toBe("failed");
     expect(
-      errors.contains(
-        "Admin refund did not complete every payment for attendee 42",
-      ),
+      errors.contains("Admin refund did not complete all 1 payments"),
     ).toBe(false);
   });
 
@@ -223,9 +223,7 @@ describe("admin refund provider", () => {
       [...references].sort(),
     );
     expect(
-      errors.contains(
-        "Admin refund did not complete every payment for attendee 42",
-      ),
+      errors.contains("Admin refund did not complete all 7 payments"),
     ).toBe(false);
   });
 

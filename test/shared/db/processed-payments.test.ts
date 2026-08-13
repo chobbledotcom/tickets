@@ -251,8 +251,10 @@ describeWithEnv("db > processed payments", { db: true }, () => {
 
   test("throws when the atomic lookup does not return the session", async () => {
     const client = getDb();
-    using batchStub = stub(client, "batch", () =>
-      Promise.resolve([emptyResultSet(), emptyResultSet()]),
+    using batchStub = stub(
+      client,
+      "batch",
+      () => Promise.resolve([emptyResultSet(), emptyResultSet()]),
     );
     await expect(reserveSession("missing-lookup")).rejects.toThrow(
       "Reserved payment session is missing: missing-lookup",
@@ -319,7 +321,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
           taggedPaymentReference(reference),
         ),
       ).rejects.toThrow(
-        "Payment sess_heal_blocked cannot finalize while its reference is held",
+        /^Payment cannot finalize while its reference is held$/u,
       );
       expect(
         (await getProcessedPayment("sess_heal_blocked"))?.attendee_id,

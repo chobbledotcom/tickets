@@ -34,46 +34,51 @@ describeStripe("stripe-provider", () => {
     body: () => void | Promise<void>,
   ) => withMocks(() => stub(client.checkout.sessions, "retrieve", impl), body);
 
-  describe("toCheckoutResult - session with no URL", () => {
-    /** The checkout should collapse to null when the SDK create behaves badly. */
-    const expectNullCheckout = (
+  describe("create checkout failures", () => {
+    const expectCheckoutFailure = (
       client: Awaited<ReturnType<typeof stripeClient>>,
       createImpl: Awaited<
         ReturnType<typeof stripeClient>
       >["checkout"]["sessions"]["create"],
+      message: string,
     ) =>
       withMocks(
         () => stub(client.checkout.sessions, "create", createImpl),
         async () => {
           const listing = testListing({ unit_price: 1000 });
-          const result = await stripePaymentProvider.createCheckoutSession(
-            checkoutIntent({
-              email: "john@example.com",
-              items: [lineFor(listing)],
-              name: "John",
-            }),
-            "http://localhost:3000",
-          );
-          expect(result).toBeNull();
+          await expect(
+            stripePaymentProvider.createCheckoutSession(
+              checkoutIntent({
+                email: "john@example.com",
+                items: [lineFor(listing)],
+                name: "John",
+              }),
+              "http://localhost:3000",
+            ),
+          ).rejects.toThrow(message);
         },
       );
 
-    test("returns null when session has no URL", async () => {
+    test("throws when session has no id", async () => {
       const client = await stripeClient();
-      await expectNullCheckout(client, () =>
-        Promise.resolve(
-          stripeCheckoutSession({
-            id: "cs_no_url",
-            url: null,
-          }),
-        ),
+      await expectCheckoutFailure(
+        client,
+        () =>
+          Promise.resolve(
+            stripeCheckoutSession({
+              id: "",
+            }),
+          ),
+        "Stripe checkout response is missing its id",
       );
     });
 
-    test("returns null when session is null", async () => {
+    test("propagates a checkout API failure", async () => {
       const client = await stripeClient();
-      await expectNullCheckout(client, () =>
-        Promise.reject(new Error("API error")),
+      await expectCheckoutFailure(
+        client,
+        () => Promise.reject(new Error("API error")),
+        "API error",
       );
     });
   });

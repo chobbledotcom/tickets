@@ -13,6 +13,7 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import type { OrphanPaymentWorkPage } from "#shared/db/orphan-attendees.ts";
 import type { FlashFields } from "#shared/flash-fields.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
@@ -31,7 +32,7 @@ export type PrivacyPageData = {
   /** Orphans available to ordinary cleanup, excluding protected payment work. */
   purgeableOrphanCount: number;
   /** Orphans retained because a payment still needs owner attention. */
-  paymentWorkAttendeeIds: number[];
+  paymentWorkPage: OrphanPaymentWorkPage;
   /** Currently saved retention age (whole days, as a string). */
   orphanRetention: string;
   /** Whether automatic orphan purging is enabled. */
@@ -54,13 +55,13 @@ const RetentionSelect = ({ selected }: { selected: string }): JSX.Element => (
 const OrphansForm = ({
   orphanRetention,
   autoPurgeOrphans,
-  paymentWorkAttendeeIds,
+  paymentWorkPage,
   purgeableOrphanCount,
 }: Pick<
   PrivacyPageData,
   | "orphanRetention"
   | "autoPurgeOrphans"
-  | "paymentWorkAttendeeIds"
+  | "paymentWorkPage"
   | "purgeableOrphanCount"
 >): JSX.Element => (
   <CsrfForm action="/admin/privacy/orphans" id="privacy-orphans">
@@ -72,19 +73,49 @@ const OrphansForm = ({
           count: purgeableOrphanCount,
         })}
       </p>
-      {paymentWorkAttendeeIds.length > 0 && (
+      {(paymentWorkPage.attendeeIds.length > 0 ||
+        paymentWorkPage.previousCursor !== null ||
+        paymentWorkPage.nextCursor !== null) && (
         <section>
           <h3>{t("privacy.orphans.payment_work_heading")}</h3>
           <p>{t("privacy.orphans.payment_work_intro")}</p>
-          <ul>
-            {paymentWorkAttendeeIds.map((attendeeId) => (
-              <li>
-                <a href={`/admin/attendees/${attendeeId}`}>
-                  {t("privacy.orphans.payment_work_link", { id: attendeeId })}
-                </a>
-              </li>
-            ))}
-          </ul>
+          {paymentWorkPage.attendeeIds.length > 0 ? (
+            <ul>
+              {paymentWorkPage.attendeeIds.map((attendeeId) => (
+                <li>
+                  <a href={`/admin/attendees/${attendeeId}`}>
+                    {t("privacy.orphans.payment_work_link", {
+                      id: attendeeId,
+                    })}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>{t("privacy.orphans.payment_work_empty_page")}</p>
+          )}
+          <nav class="pagination">
+            {paymentWorkPage.previousCursor !== null ? (
+              <a
+                href={`/admin/privacy?work_before=${paymentWorkPage.previousCursor}`}
+                rel="prev"
+              >
+                {t("privacy.orphans.payment_work_previous")}
+              </a>
+            ) : (
+              <span />
+            )}
+            {paymentWorkPage.nextCursor !== null ? (
+              <a
+                href={`/admin/privacy?work_after=${paymentWorkPage.nextCursor}`}
+                rel="next"
+              >
+                {t("privacy.orphans.payment_work_next")}
+              </a>
+            ) : (
+              <span />
+            )}
+          </nav>
         </section>
       )}
     </div>
@@ -158,7 +189,7 @@ export const adminPrivacyPage = (
       <OrphansForm
         autoPurgeOrphans={data.autoPurgeOrphans}
         orphanRetention={data.orphanRetention}
-        paymentWorkAttendeeIds={data.paymentWorkAttendeeIds}
+        paymentWorkPage={data.paymentWorkPage}
         purgeableOrphanCount={data.purgeableOrphanCount}
       />
 

@@ -122,22 +122,23 @@ describeSquare(() => {
 
     for (const [statusCode, expected] of providerReadHttpCases) {
       test(`classifies HTTP ${statusCode}`, async () => {
-        expect(
-          await readFailure(new SquareApiError(statusCode, "bad")),
-        ).toEqual(expected);
+        expect(await readFailure(new SquareApiError(statusCode))).toEqual(
+          expected,
+        );
       });
     }
 
     for (const reason of ["network_error", "timeout"] as const) {
       test(`classifies a ${reason} connection failure`, async () => {
-        expect(
-          await readFailure(new SquareConnectionError(reason, "offline")),
-        ).toEqual({ reason, status: "unavailable" });
+        expect(await readFailure(new SquareConnectionError(reason))).toEqual({
+          reason,
+          status: "unavailable",
+        });
       });
     }
 
     test("classifies invalid JSON as malformed", async () => {
-      expect(await readFailure(new SquareProtocolError("bad JSON"))).toEqual({
+      expect(await readFailure(new SquareProtocolError())).toEqual({
         reason: "malformed_response",
         status: "invalid",
       });

@@ -17,16 +17,13 @@ type PlaceholderRefundFacts = {
 };
 
 const postWithoutThrowing = async (
-  label: string,
   attendeeId: number,
   post: () => Promise<boolean>,
 ): Promise<{ posted: boolean }> => {
   try {
     return { posted: await post() };
   } catch (error) {
-    logRefundLedgerError(
-      `${label} failed for attendee ${attendeeId}: ${error}`,
-    );
+    logRefundLedgerError({ attendeeId, error, kind: "placeholder_post" });
     return { posted: false };
   }
 };
@@ -42,30 +39,26 @@ export const recordPlaceholderRefund = (
   memo: string,
   refunded: boolean,
 ): Promise<{ posted: boolean }> =>
-  postWithoutThrowing(
-    "placeholder refund ledger post",
-    facts.attendeeId,
-    async () => {
-      const payment = await mapBooking({
-        amountPaid: facts.amount,
-        attendeeId: facts.attendeeId,
-        bookingFee: 0,
-        eventId: facts.eventId,
-        lines: [{ gross: 0, listingId: facts.listingId }],
-        modifiers: [],
-        occurredAt: facts.occurredAt,
-      });
-      const groups = refunded
-        ? [
-            payment,
-            await mapRefund({
-              memo,
-              occurredAt: facts.occurredAt,
-              orderLegs: asOrderLegs(payment, facts.occurredAt),
-            }),
-          ]
-        : [payment];
-      await postTransferGroups(groups);
-      return true;
-    },
-  );
+  postWithoutThrowing(facts.attendeeId, async () => {
+    const payment = await mapBooking({
+      amountPaid: facts.amount,
+      attendeeId: facts.attendeeId,
+      bookingFee: 0,
+      eventId: facts.eventId,
+      lines: [{ gross: 0, listingId: facts.listingId }],
+      modifiers: [],
+      occurredAt: facts.occurredAt,
+    });
+    const groups = refunded
+      ? [
+          payment,
+          await mapRefund({
+            memo,
+            occurredAt: facts.occurredAt,
+            orderLegs: asOrderLegs(payment, facts.occurredAt),
+          }),
+        ]
+      : [payment];
+    await postTransferGroups(groups);
+    return true;
+  });

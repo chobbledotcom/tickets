@@ -6,12 +6,10 @@
  */
 
 import { unique } from "#fp";
-import { decrypt } from "#shared/crypto/encryption.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import {
   execute,
   executeBatch,
-  inPlaceholders,
   insert,
   type SqlStatement,
   type TxScope,
@@ -24,14 +22,8 @@ import {
   type WhereClause,
 } from "#shared/db/where-clauses.ts";
 import { nowIso } from "#shared/now.ts";
-import { legacyRefundWarnings } from "#shared/payment/placeholder-refund.ts";
 import { openNote, openNotes, sealNote } from "./sealing.ts";
-import {
-  attendeeNotes,
-  type NoteEntity,
-  type NoteTarget,
-  noteTargets,
-} from "./target.ts";
+import { type NoteEntity, type NoteTarget, noteTargets } from "./target.ts";
 import type {
   SystemNote,
   SystemNoteName,
@@ -53,96 +45,6 @@ type NoteWriter = (
 
 const storedSystemNoteName = ({ key, purpose }: SystemNoteName): string =>
   `system-note:1:${JSON.stringify([purpose, key])}`;
-
-type LegacySystemNoteRow = Pick<
-  Extract<SystemNoteRow, { type: "system" }>,
-  "id" | "note"
->;
-
-type LegacyRefundWarningPayment = {
-  index: string;
-  matchingIndexes: readonly string[];
-  reference: string;
-};
-
-/** The only old note fields warning recognition needs, for one attendee. */
-const legacySystemNoteRows = (
-  attendeeId: number,
-): Promise<LegacySystemNoteRow[]> =>
-  readRows<LegacySystemNoteRow>({
-    columns: "id, note",
-    from: "system_notes",
-    where: [
-      ...noteTargets.where(attendeeNotes(attendeeId)),
-      ...equals("type", "system"),
-      { args: [], clause: "system_name IS NULL" },
-    ],
-  });
-
-/** Resolve the exact old warnings this app wrote for one attendee and payment.
- * The attendee save bounds this to one record; no refund path scans history. */
-export const legacyRefundWarningSaveStatements = async (
-  attendeeId: number,
-  payment: LegacyRefundWarningPayment,
-): Promise<SqlStatement[]> => {
-  const rows = await legacySystemNoteRows(attendeeId);
-  const expected = legacyRefundWarnings(attendeeId, payment.reference);
-  const matchingRows = (
-    await Promise.all(
-      rows.map(async (row) => ({
-        matches: expected.has(await decrypt(row.note)),
-        row,
-      })),
-    )
-  )
-    .filter(({ matches }) => matches)
-    .map(({ row }) => row);
-  const returnedPayment = `EXISTS (
-    SELECT 1
-      FROM processed_payments AS payment
-     WHERE payment.attendee_id = ?
-       AND payment.payment_reference_index IN (${inPlaceholders(
-         payment.matchingIndexes,
-       )})
-       AND payment.provider_refunded_at != ''
-  ) OR EXISTS (
-    SELECT 1
-      FROM refund_confirmation_references AS confirmedReference
-      JOIN refund_confirmations AS confirmation
-        ON confirmation.identity = confirmedReference.confirmation_identity
-     WHERE confirmation.attendee_id = ?
-       AND confirmedReference.reference_index IN (${inPlaceholders(
-         payment.matchingIndexes,
-       )})
-  )`;
-  const returnedArgs = [
-    attendeeId,
-    ...payment.matchingIndexes,
-    attendeeId,
-    ...payment.matchingIndexes,
-  ];
-  const warningName = storedSystemNoteName({
-    key: payment.index,
-    purpose: "refund_warning",
-  });
-  return matchingRows.flatMap((row) => [
-    {
-      args: [row.id, ...returnedArgs],
-      sql: `DELETE FROM system_notes
-             WHERE id = ?
-               AND system_name IS NULL
-               AND (${returnedPayment})`,
-    },
-    {
-      args: [warningName, row.id, ...returnedArgs],
-      sql: `UPDATE system_notes
-               SET system_name = ?
-             WHERE id = ?
-               AND system_name IS NULL
-               AND NOT (${returnedPayment})`,
-    },
-  ]);
-};
 
 const writeNote = async (
   type: SystemNoteType,

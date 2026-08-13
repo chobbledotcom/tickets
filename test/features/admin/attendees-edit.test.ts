@@ -194,9 +194,7 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
         expect.stringContaining("up to date"),
       );
 
-      const message =
-        "Payment marked as refunded for attendee 'First Real'; " +
-        'payment references ["pi_refresh_first_real"]';
+      const message = "Payment marked as refunded";
       expect(
         pipe(
           filter((entry: ActivityLogEntry) => entry.message === message),

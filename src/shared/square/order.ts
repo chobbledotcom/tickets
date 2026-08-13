@@ -1,13 +1,15 @@
 /* jscpd:ignore-start */
-import { ErrorCode } from "#shared/logger.ts";
-import { createWithClient } from "#shared/payment-helpers.ts";
+import * as v from "valibot";
+import { malformedProviderRead } from "#shared/payment/provider-failures.ts";
+import type { ProviderRead } from "#shared/payment/provider-read.ts";
+import { ResourceIdSchema } from "#shared/payment/resource-id.ts";
 import type { GetSquareClient } from "#shared/square/client.ts";
-import { stringEntries } from "#shared/string-entries.ts";
+import { squareReadFailure } from "#shared/square/outcomes.ts";
 /* jscpd:ignore-end */
 
 /** The Square order facts used to rebuild a checkout session. */
 export type SquareOrder = {
-  id?: string | undefined;
+  id: string;
   metadata?: Record<string, string> | undefined;
   tenders?:
     | Array<{
@@ -20,29 +22,64 @@ export type SquareOrder = {
   createdAt?: string | undefined;
 };
 
-/** Retrieve and normalize one Square order. */
-export const retrieveSquareOrder = (
+const SquareOrderMoneySchema = v.object({
+  amount: v.optional(v.nullable(v.bigint())),
+  currency: v.optional(v.nullable(v.string())),
+});
+
+const SquareOrderSchema = v.object({
+  createdAt: v.optional(v.string()),
+  id: ResourceIdSchema,
+  metadata: v.optional(v.record(v.string(), v.string())),
+  state: v.optional(v.string()),
+  tenders: v.optional(
+    v.array(
+      v.object({
+        id: v.optional(v.string()),
+        paymentId: v.optional(v.nullable(v.string())),
+      }),
+    ),
+  ),
+  totalMoney: v.optional(SquareOrderMoneySchema),
+});
+
+/** Read and normalize one Square order without confusing absence and failure. */
+export const readSquareOrder = async (
   getClient: GetSquareClient,
   orderId: string,
-): Promise<SquareOrder | null> =>
-  createWithClient(getClient)(async (client) => {
+): Promise<ProviderRead<SquareOrder>> => {
+  const client = await getClient();
+  if (!client) return { reason: "not_configured", status: "unavailable" };
+  try {
     const { order } = await client.orders.get({ orderId });
-    if (!order) return null;
-    const metadata: Record<string, string> | undefined = order.metadata
-      ? Object.fromEntries(stringEntries(Object.entries(order.metadata)))
-      : undefined;
+    if (!order) {
+      return { reason: "missing_documented_resource", status: "invalid" };
+    }
+    const parsed = v.safeParse(SquareOrderSchema, order);
+    if (!parsed.success) return malformedProviderRead();
+    if (parsed.output.id !== orderId) {
+      return { reason: "mismatched_id", status: "invalid" };
+    }
     return {
-      createdAt: order.createdAt,
-      id: order.id,
-      metadata,
-      state: order.state,
-      tenders: order.tenders?.map((tender) => ({
-        id: tender.id,
-        paymentId: tender.paymentId ?? undefined,
-      })),
-      totalMoney: {
-        amount: order.totalMoney?.amount ?? null,
-        currency: order.totalMoney?.currency ?? null,
+      resource: {
+        createdAt: parsed.output.createdAt,
+        id: parsed.output.id,
+        metadata: parsed.output.metadata,
+        state: parsed.output.state,
+        tenders: parsed.output.tenders?.map((tender) => ({
+          id: tender.id,
+          paymentId: tender.paymentId ?? undefined,
+        })),
+        totalMoney: {
+          amount: parsed.output.totalMoney?.amount ?? null,
+          currency: parsed.output.totalMoney?.currency ?? null,
+        },
       },
+      status: "found",
     };
-  }, ErrorCode.SQUARE_ORDER);
+  } catch (error) {
+    const failure = squareReadFailure(error);
+    if (failure) return failure;
+    throw error;
+  }
+};

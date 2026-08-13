@@ -7,6 +7,7 @@ import { getDb } from "#shared/db/client.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
+import { StripeApiError } from "#shared/stripe/request.ts";
 import { expectFlash, expectRedirect } from "#test-utils/assertions.ts";
 import { stubCheckout } from "#test-utils/checkout.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
@@ -55,23 +56,17 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
     // These tests use the stripe-mock host and port chosen by the harness.
     // Stripe keys are now set via environment variables
 
-    test("handles payment flow error when Stripe fails", async () => {
+    test("lets Stripe checkout failures propagate", async () => {
       // Set a fake Stripe key to enable payments, and make a paid listing
       const listing = await setupPaidListing(1000, "sk_test_fake_key");
 
       // Try to reserve a ticket - should fail because Stripe key is invalid
-      const response = await submitTicketForm(listing.slug, {
-        email: "john@example.com",
-        name: "John Doe",
-      });
-
-      // Should redirect with error because Stripe session creation fails
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("Failed to create payment session"),
-        false,
-      );
+      await expect(
+        submitTicketForm(listing.slug, {
+          email: "john@example.com",
+          name: "John Doe",
+        }),
+      ).rejects.toThrow(StripeApiError);
     });
 
     test("shows specific error when payment provider returns validation error", async () => {

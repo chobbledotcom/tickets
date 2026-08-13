@@ -1,7 +1,7 @@
 /* jscpd:ignore-start */
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { settings } from "#shared/db/settings.ts";
-import { ErrorCode } from "#shared/logger.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
 import type { Money } from "#shared/payment/money.ts";
 import {
   type ProviderFailure,
@@ -28,8 +28,8 @@ import type {
 } from "#shared/stripe/client.ts";
 import {
   cleanupOldWebhookEndpoints,
-  type StripeConnectionTestResult,
   setupWebhookEndpoint,
+  type StripeConnectionTestResult,
   testStripeConnection,
 } from "#shared/stripe/endpoints.ts";
 import {
@@ -37,7 +37,10 @@ import {
   StripeConnectionError,
   StripeProtocolError,
 } from "#shared/stripe/request.ts";
-import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
+import {
+  sanitizeStripeError,
+  stripeClientRuntime,
+} from "#shared/stripe/runtime.ts";
 import type {
   StripeCheckoutSession,
   StripeExpandedPaymentIntent,
@@ -81,8 +84,9 @@ const createCheckoutSession = async (
         price_data: {
           currency: cur,
           product_data: {
-            description:
-              line.quantity > 1 ? `${line.quantity} Tickets` : "Ticket",
+            description: line.quantity > 1
+              ? `${line.quantity} Tickets`
+              : "Ticket",
             name: `Ticket: ${line.item.name}`,
           },
           unit_amount: line.chargedUnitAmount,
@@ -100,7 +104,7 @@ const createCheckoutSession = async (
     ...(intent.email ? { customer_email: intent.email } : {}),
     metadata: await assembleCheckoutMetadata("stripe", intent, order.total),
   };
-  const session = await stripeClientRuntime.run(
+  const session = await stripeClientRuntime.runCheckout(
     (client) => client.checkout.sessions.create(params),
     ErrorCode.STRIPE_CHECKOUT,
   );
@@ -123,10 +127,11 @@ export interface StripeApi {
 
 const stripeFailure = (error: unknown): ProviderFailure | undefined =>
   providerFailure({
-    connectionReason:
-      error instanceof StripeConnectionError ? error.reason : undefined,
-    malformed:
-      error instanceof StripeProtocolError && error.statusCode === undefined,
+    connectionReason: error instanceof StripeConnectionError
+      ? error.reason
+      : undefined,
+    malformed: error instanceof StripeProtocolError &&
+      error.statusCode === undefined,
     statusCode:
       error instanceof StripeApiError || error instanceof StripeProtocolError
         ? error.statusCode
@@ -149,7 +154,7 @@ const withStripeClient = async <Result>(
   }
 };
 
-const readPaymentIntent = async (
+const readPaymentIntent = (
   id: string,
 ): Promise<ProviderRead<StripeExpandedPaymentIntent>> =>
   withStripeClient<ProviderRead<StripeExpandedPaymentIntent>>(
@@ -173,8 +178,7 @@ type StripeRefundAnswer = (
 ) => RefundAttemptResult;
 
 const movedStripeRefund =
-  (kind: "accepted" | "completed"): StripeRefundAnswer =>
-  (amount, refund) => ({
+  (kind: "accepted" | "completed"): StripeRefundAnswer => (amount, refund) => ({
     amount,
     kind,
     proof: {
@@ -189,8 +193,7 @@ const movedStripeRefund =
   });
 
 const rejectedStripeRefund =
-  (reason: "canceled" | "failed"): StripeRefundAnswer =>
-  () => ({
+  (reason: "canceled" | "failed"): StripeRefundAnswer => () => ({
     kind: "rejected",
     reason,
   });
@@ -220,7 +223,7 @@ const stripeRefundResult = (
     },
   );
 
-const refundCharge = async (
+const refundCharge = (
   request: RefundRequest,
 ): Promise<RefundAttemptResult> =>
   withStripeClient<RefundAttemptResult>(
@@ -243,16 +246,54 @@ const refundCharge = async (
     (failure) => failure.refund,
   );
 
+class StripeCheckoutReadError extends Error {
+  constructor(reason: string) {
+    super(`Stripe checkout could not be read (${reason})`);
+    this.name = "StripeCheckoutReadError";
+  }
+}
+
+/** A documented 404 is the only configured-provider failure that means the
+ * checkout is absent. Every other known read failure remains loud and carries
+ * only the closed provider outcome, never Stripe's response text. */
+const checkoutReadFailure = (
+  failure: ProviderFailure,
+): StripeCheckoutSession | null => {
+  const read = failure.read;
+  if (read.status === "missing") return null;
+  if (read.status === "unavailable" || read.status === "invalid") {
+    throw new StripeCheckoutReadError(`${read.status}:${read.reason}`);
+  }
+  throw new StripeCheckoutReadError("invalid_failure_state");
+};
+
+const retrieveCheckoutSession = async (
+  id: string,
+): Promise<StripeCheckoutSession | null> => {
+  const client = await stripeClientRuntime.get();
+  if (client === null) return null;
+  try {
+    return await client.checkout.sessions.retrieve(id);
+  } catch (error) {
+    const failure = stripeFailure(error);
+    if (failure?.read.status === "missing") return null;
+    logError({
+      code: ErrorCode.STRIPE_SESSION,
+      detail: sanitizeStripeError(error),
+    });
+    if (failure === undefined) {
+      throw new StripeCheckoutReadError("unexpected_failure");
+    }
+    return checkoutReadFailure(failure);
+  }
+};
+
 export const stripeApi: StripeApi = {
   cleanupOldWebhookEndpoints,
   createCheckoutSession,
   readPaymentIntent,
   refundCharge,
-  retrieveCheckoutSession: (id) =>
-    stripeClientRuntime.run(
-      (client) => client.checkout.sessions.retrieve(id),
-      ErrorCode.STRIPE_SESSION,
-    ),
+  retrieveCheckoutSession,
   setupWebhookEndpoint,
   testStripeConnection,
 };

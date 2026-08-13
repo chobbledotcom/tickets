@@ -16,8 +16,10 @@ import {
 } from "#routes/api/payment-processing/store-refund.ts";
 import { processBooking } from "#shared/booking.ts";
 import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
+import { decrypt } from "#shared/crypto/encryption.ts";
 import { requirePublicStatusId } from "#shared/db/attendee-statuses.ts";
 import { queryOne } from "#shared/db/client.ts";
+import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -208,8 +210,11 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
 
     test("names the warning by the payment's blind identity", async () => {
       const { listing } = await storeFor("cs_named_warning");
-      const row = await queryOne<{ system_name: string }>(
-        `SELECT note.system_name
+      const row = await queryOne<{
+        note: EnvKeyEncrypted;
+        system_name: string;
+      }>(
+        `SELECT note.note, note.system_name
            FROM system_notes AS note
            JOIN listing_attendees AS booking
              ON booking.attendee_id = note.entity_id
@@ -220,6 +225,7 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
       if (row === null) throw new Error("the refund warning was not stored");
       expect(row.system_name).toContain("refund_warning");
       expect(row.system_name).not.toContain("pi_cs_named_warning");
+      expect(await decrypt(row.note)).not.toContain("pi_cs_named_warning");
     });
   });
 

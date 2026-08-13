@@ -5,10 +5,7 @@ import {
   providerFailure,
 } from "#shared/payment/provider-failures.ts";
 import type { ProviderRead } from "#shared/payment/provider-read.ts";
-import type {
-  RefundAttemptResult,
-  RefundProof,
-} from "#shared/payment/refund-attempt.ts";
+import type { RefundProof } from "#shared/payment/refund-attempt.ts";
 import {
   SquareApiError,
   SquareConnectionError,
@@ -34,7 +31,7 @@ export const squareReadFailure = (
 /** Translate a known Square refund failure, leaving internal bugs unclaimed. */
 export const squareRefundFailure = (
   error: unknown,
-): RefundAttemptResult | undefined => squareFailure(error)?.refund;
+): ProviderFailure["refund"] | undefined => squareFailure(error)?.refund;
 
 /** Turn Square's named refund into the provider-neutral proof. */
 export const namedSquareRefund = (refund: {

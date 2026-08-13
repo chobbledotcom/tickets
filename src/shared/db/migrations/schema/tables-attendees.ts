@@ -224,6 +224,11 @@ export const attendeeTables: [name: string, table: Table][] = [
           columns: ["payment_reference_index"],
           name: "idx_processed_payments_reference_index",
         },
+        {
+          columns: ["attendee_id"],
+          name: "idx_processed_payments_protected_attendee",
+          where: "protected_state != ''",
+        },
       ],
       // FK declarations removed — libsql's FK enforcement breaks table
       // recreation migrations (PRAGMA foreign_keys is connection-scoped and

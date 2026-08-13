@@ -6,13 +6,23 @@ import type { ProviderRead } from "#shared/payment/provider-read.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import { squareApi } from "#shared/square/api.ts";
 import type { SquarePayment } from "#shared/square/payment-outcomes.ts";
+import {
+  SquareApiError,
+  SquareConnectionError,
+} from "#shared/square/transport.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
 import {
   SQUARE_ORDER_META,
   setupSquareProviderSuite,
   squareMoney,
+  withSquareClient,
 } from "#test/test-utils/square/fixtures.ts";
-import { squarePaymentRead } from "#test/test-utils/square/outcomes.ts";
+import {
+  completedSquareWebhook,
+  squareOrderRead,
+  squarePaymentRead,
+} from "#test/test-utils/square/outcomes.ts";
+import { rejectionMessage } from "#test-utils/assertions.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import { asSession } from "#test-utils/payment-session.ts";
 import { gbp } from "#test-utils/payment-state.ts";
@@ -39,7 +49,9 @@ const withSessionRead = (
 ): Promise<void> =>
   withMocks(
     () => ({
-      order: stub(squareApi, "retrieveOrder", () => Promise.resolve(order)),
+      order: stub(squareApi, "readOrder", () =>
+        Promise.resolve(squareOrderRead(order)),
+      ),
       payment: stub(squareApi, "readPayment", () => Promise.resolve(read)),
     }),
     () => body(),
@@ -72,8 +84,8 @@ describe("square-provider read outcomes", () => {
   test("keeps a payment whose order contradicts the event retryable", async () => {
     await withMocks(
       () => ({
-        order: stub(squareApi, "retrieveOrder", () =>
-          Promise.resolve({ ...order, id: "order_mine" }),
+        order: stub(squareApi, "readOrder", () =>
+          Promise.resolve(squareOrderRead({ ...order, id: "order_mine" })),
         ),
         payment: stub(squareApi, "readPayment", () =>
           Promise.resolve(
@@ -87,9 +99,11 @@ describe("square-provider read outcomes", () => {
         ),
       }),
       async () => {
-        await expect(
-          squarePaymentProvider.retrieveSession("order_mine", "pay_stranger"),
-        ).rejects.toThrow("order_someone_else");
+        expect(
+          await rejectionMessage(
+            squarePaymentProvider.retrieveSession("order_mine", "pay_stranger"),
+          ),
+        ).toBe("Square payment reports a different order");
       },
     );
   });
@@ -97,8 +111,8 @@ describe("square-provider read outcomes", () => {
   test("keeps a completed event's stale payment read retryable", async () => {
     await withMocks(
       () => ({
-        order: stub(squareApi, "retrieveOrder", () =>
-          Promise.resolve({ ...order, id: "order_stale" }),
+        order: stub(squareApi, "readOrder", () =>
+          Promise.resolve(squareOrderRead({ ...order, id: "order_stale" })),
         ),
         payment: stub(squareApi, "readPayment", () =>
           Promise.resolve(
@@ -111,9 +125,53 @@ describe("square-provider read outcomes", () => {
         ),
       }),
       async () => {
+        expect(
+          await rejectionMessage(
+            squarePaymentProvider.retrieveSession("order_stale", "pay_stale"),
+          ),
+        ).toBe(
+          "Square payment did not read back as completed (status=APPROVED)",
+        );
+      },
+    );
+  });
+
+  for (const [name, error] of [
+    ["transport failure", new SquareConnectionError("network_error")],
+    ["provider failure", new SquareApiError(503)],
+  ] as const) {
+    test(`keeps an order ${name} retryable after a completed event`, async () => {
+      await withSquareClient(
+        { ordersGet: () => Promise.reject(error) },
+        async () => {
+          await expect(
+            completedSquareWebhook("pay_retry", "order_retry"),
+          ).rejects.toThrow();
+        },
+      );
+    });
+  }
+
+  test("keeps a successful order response with no order retryable", async () => {
+    await withSquareClient(
+      { ordersGet: () => Promise.resolve({ order: null }) },
+      async () => {
         await expect(
-          squarePaymentProvider.retrieveSession("order_stale", "pay_stale"),
-        ).rejects.toThrow("pay_stale");
+          completedSquareWebhook("pay_malformed", "order_malformed"),
+        ).rejects.toThrow();
+      },
+    );
+  });
+
+  test("acknowledges a completed event only when Square proves the order is gone", async () => {
+    await withSquareClient(
+      {
+        ordersGet: () => Promise.reject(new SquareApiError(404)),
+      },
+      async () => {
+        expect(await completedSquareWebhook("pay_gone", "order_gone")).toBe(
+          "skip",
+        );
       },
     );
   });

@@ -18,7 +18,7 @@ import {
   type SquareConnectionTestResult,
   testSquareConnection,
 } from "#shared/square/connection.ts";
-import { retrieveSquareOrder, type SquareOrder } from "#shared/square/order.ts";
+import { readSquareOrder, type SquareOrder } from "#shared/square/order.ts";
 import {
   readSquarePayment,
   refundSquareCharge,
@@ -35,7 +35,7 @@ type SquareApi = {
     intent: CheckoutIntent,
     baseUrl: string,
   ): Promise<PaymentLinkResult>;
-  retrieveOrder(orderId: string): Promise<SquareOrder | null>;
+  readOrder(orderId: string): Promise<ProviderRead<SquareOrder>>;
   readPayment(paymentId: string): Promise<ProviderRead<SquarePayment>>;
   refundCharge(request: RefundRequest): Promise<RefundAttemptResult>;
 };
@@ -45,13 +45,13 @@ export const squareApi: SquareApi = {
   createPaymentLink: (intent, baseUrl) =>
     createSquarePaymentLink(() => squareApi.getSquareClient(), intent, baseUrl),
   getSquareClient,
+  readOrder: (orderId) =>
+    readSquareOrder(() => squareApi.getSquareClient(), orderId),
   readPayment: (paymentId) =>
     readSquarePayment(() => squareApi.getSquareClient(), paymentId),
   refundCharge: (request) =>
     refundSquareCharge(() => squareApi.getSquareClient(), request),
   resetSquareClient,
-  retrieveOrder: (orderId) =>
-    retrieveSquareOrder(() => squareApi.getSquareClient(), orderId),
   testSquareConnection: () =>
     testSquareConnection(() => squareApi.getSquareClient()),
 };

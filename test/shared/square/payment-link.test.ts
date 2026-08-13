@@ -12,6 +12,7 @@ import {
 } from "#test/test-utils/square/fixtures.ts";
 import { describeSquare } from "#test/test-utils/square/harness.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
+import { expectClosedCheckoutFailure } from "#test-utils/checkout-failure.ts";
 import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
 import { testListing } from "#test-utils/factories.ts";
 
@@ -162,26 +163,20 @@ describeSquare(() => {
       );
     });
 
-    test("returns null when SDK response missing orderId", async () => {
+    test("rejects a successful response missing its URL", async () => {
       await configureSquare({ locationId: "L_loc_456" });
       await withSquareClient(
         {
           checkoutCreate: () =>
             Promise.resolve({
-              paymentLink: { url: "https://square.link/abc" },
+              paymentLink: { orderId: "order_abc" },
             }),
         },
         async () => {
-          const result = await squareApi.createPaymentLink(
-            checkoutIntent(),
-            "http://localhost",
+          await expectClosedCheckoutFailure(
+            squareApi.createPaymentLink(checkoutIntent(), "http://localhost"),
+            { provider: "square", reason: "invalid_response" },
           );
-          expect(result).toBeNull();
-          expect(debugMessages(debugLog()).slice(-3)).toEqual([
-            "[Square] Creating payment link for 1 listing(s)",
-            "[Square] Payment link response missing orderId or url",
-            "[Square] Payment link creation failed",
-          ]);
         },
       );
     });

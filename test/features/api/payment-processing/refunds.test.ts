@@ -156,7 +156,9 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
       "r3@e.com",
       "R3",
       async () =>
-        expect(errorLogged(errorSpy, "Refund rejected for payment")).toBe(true),
+        expect(errorLogged(errorSpy, "Refund rejected for stripe payment")).toBe(
+          true,
+        ),
     );
   });
 
@@ -241,13 +243,14 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
 
   test("placeholderRefundNote distinguishes refunded vs could-not-refund", () => {
     const spec = placeholderRefund("price_changed")("detail line");
-    const refunded = placeholderRefundNote(7, spec, true, "pi_ref");
+    const refunded = placeholderRefundNote(7, spec, true);
     expect(refunded).toContain("payment was refunded because");
-    expect(refunded).toContain("code: price_changed)");
-    expect(refunded).toContain("Payment reference: pi_ref");
+    expect(refunded).toContain("Refund code: price_changed");
+    expect(refunded).not.toContain("pi_ref");
+    expect(refunded).not.toContain("Payment reference");
     expect(refunded).toContain("/admin/ledger/attendee/7");
     expect(refunded).not.toContain("could NOT be refunded");
-    const notRefunded = placeholderRefundNote(7, spec, false, "pi_ref");
+    const notRefunded = placeholderRefundNote(7, spec, false);
     expect(notRefunded).toContain("could NOT be refunded automatically");
     expect(notRefunded).not.toContain("payment was refunded because");
   });

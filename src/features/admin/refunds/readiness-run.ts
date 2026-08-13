@@ -26,7 +26,7 @@ import {
   rememberRefundDoubts,
 } from "./readiness-findings.ts";
 import { refundReadinessMessage } from "./readiness-problem.ts";
-import { reportRefundProblem } from "./report.ts";
+import { type RefundNotStartedReason, reportRefundProblem } from "./report.ts";
 
 type FailedReadiness = Extract<RefundReadinessResult, { kind: "not_ready" }>;
 type BlockedRefundRun = { kind: "blocked"; reason: "refund_in_progress" };
@@ -38,7 +38,6 @@ type RefundReadinessRunBase<TResult> = {
   candidates: readonly RefundCandidate[];
   changedMessage: string;
   claim: RowClaim;
-  label: string;
   listingId: number;
   notReady: (message: string, reason?: "subrequest_budget") => TResult;
   prepare: (
@@ -72,11 +71,16 @@ const MONEY_RECORD_REQUIRED_MESSAGE =
 const reportCandidateProblems = (
   run: RefundReadinessRun<unknown>,
   candidates: readonly RefundCandidate[],
-  message: string,
+  reason: RefundNotStartedReason,
 ): void => {
   for (const candidate of candidates) {
     reportRefundProblem(
-      `${run.label} not started for attendee ${candidate.attendee.id}: ${message}`,
+      {
+        action: run.action,
+        attendeeId: candidate.attendee.id,
+        kind: "not_started",
+        reason,
+      },
       run.listingId,
     );
   }
@@ -98,7 +102,7 @@ const reportReadinessFailure = (
 ): string => {
   const message = refundReadinessMessage(readiness);
   rememberReadinessFailureFindings(candidates, readiness, held);
-  reportCandidateProblems(run, candidates, message);
+  reportCandidateProblems(run, candidates, readiness.reason);
   return message;
 };
 
@@ -113,7 +117,7 @@ const reportSharedReference = (
       reason: { kind: "shared_reference" },
     });
   }
-  reportCandidateProblems(run, run.candidates, SHARED_REFERENCE_MESSAGE);
+  reportCandidateProblems(run, run.candidates, "shared_reference");
   return SHARED_REFERENCE_MESSAGE;
 };
 
@@ -139,9 +143,20 @@ const hasUnresolvedReview = (held: HeldRefundWork): boolean =>
   );
 
 /** A send refuses facts that only refresh is allowed to reconcile. */
-const refundAdmissionProblem = (held: HeldRefundWork): string | null => {
-  if (hasUnresolvedReview(held)) return REVIEW_REQUIRED_MESSAGE;
-  return held.unrecorded.size > 0 ? MONEY_RECORD_REQUIRED_MESSAGE : null;
+type RefundAdmissionProblem = {
+  message: string;
+  reason: Extract<RefundNotStartedReason, "owner_review" | "unrecorded_money">;
+};
+
+const refundAdmissionProblem = (
+  held: HeldRefundWork,
+): RefundAdmissionProblem | null => {
+  if (hasUnresolvedReview(held)) {
+    return { message: REVIEW_REQUIRED_MESSAGE, reason: "owner_review" };
+  }
+  return held.unrecorded.size > 0
+    ? { message: MONEY_RECORD_REQUIRED_MESSAGE, reason: "unrecorded_money" }
+    : null;
 };
 
 /** Every operation declares whether unresolved safety work may enter it. */
@@ -150,7 +165,7 @@ const ADMISSION_BY_ACTION = {
   refund: refundAdmissionProblem,
 } satisfies Record<
   RefundReadinessAction,
-  (held: HeldRefundWork) => string | null
+  (held: HeldRefundWork) => RefundAdmissionProblem | null
 >;
 
 /** Readiness retires checking, never the protection around a resumed send.
@@ -237,7 +252,7 @@ export const runRefundReadiness = async <TResult>(
         if (block.kind === "claim_held") {
           return { kind: "blocked", reason: "refund_in_progress" };
         }
-        reportCandidateProblems(run, run.candidates, block.reason);
+        reportCandidateProblems(run, run.candidates, block.kind);
         return run.notReady(run.changedMessage);
       },
       work: async (held) => {
@@ -247,8 +262,8 @@ export const runRefundReadiness = async <TResult>(
         }
         const admissionProblem = ADMISSION_BY_ACTION[run.action](held);
         if (admissionProblem !== null) {
-          reportCandidateProblems(run, run.candidates, admissionProblem);
-          return run.notReady(admissionProblem);
+          reportCandidateProblems(run, run.candidates, admissionProblem.reason);
+          return run.notReady(admissionProblem.message);
         }
         if (
           !budgetFits(

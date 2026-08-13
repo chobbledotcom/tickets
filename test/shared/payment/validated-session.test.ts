@@ -122,7 +122,7 @@ describe("validatedPaymentSession", () => {
     expect(build.amountTotal).toBe(0);
     expect(paymentReferenceOf(build)).toBeNull();
     expect(() => paidPaymentReferenceOf(build)).toThrow(
-      "Paid session sess-free has no provider resource id",
+      /^Paid session has no provider resource id$/u,
     );
   });
 
@@ -132,8 +132,8 @@ describe("validatedPaymentSession", () => {
         id: "invented",
         paymentReference: "   ",
         provider: "stripe",
-      }),
-    ).toThrow("Validated session invented has an invalid provider resource id");
+      })
+    ).toThrow(/^Validated session has an invalid provider resource id$/u);
   });
 
   // --- The refusals a live callback must make, at the one boundary they share ---

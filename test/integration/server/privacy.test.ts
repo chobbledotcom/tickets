@@ -1,22 +1,6 @@
-/**
- * Tests for the admin Privacy page (GET render + the orphan-purge and GDPR
- * erasure POST handlers).
- *
- * These cover each arm of the two handlers directly, including the refusals no
- * rendered form could ever send: an age outside the dropdown's own list, and a
- * "find by" nothing on the page offers. The organiser's journey through the
- * same page is told in the story "The organiser keeps only the personal details
- * the site still needs", and a Cucumber run does not count towards coverage, so
- * the arms below stay covered here.
- *
- * Note on the background prune: most requests flush the fire-and-forget prune
- * scheduler before responding, but POST /admin/privacy/orphans deliberately
- * skips it (see prepareRequestEnvironment) so a request that changes the
- * retention or switches auto-purge off is never raced by a purge enqueued with
- * the pre-change settings. The purge test relies on that: it leaves auto-purge
- * on (its default) and asserts the *handler* — not a background prune —
- * decides an old orphan's fate.
- */
+/** Privacy-page routes, including refusals the rendered forms cannot send.
+ * Saving orphan settings skips the background prune so old settings cannot
+ * race the request; the purge test therefore exercises the handler itself. */
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -46,6 +30,7 @@ import {
   freshClaimSlot,
   putRowState,
 } from "#test-utils/payment-claim.ts";
+import { recordQueries } from "#test-utils/record-queries.ts";
 import {
   adminFormPost,
   adminGet,
@@ -61,6 +46,20 @@ const insertOrphan = async (createdIso: string): Promise<number> => {
     (nowMs() - new Date(createdIso).getTime()) / DAY_MS,
   );
   return insertOrphanAttendee(daysAgo, "priv-orphan");
+};
+
+/** Put one orphan in the owner-visible payment-recovery queue. */
+const insertPaymentWorkOrphan = async (): Promise<number> => {
+  const attendeeId = await insertOrphan(oldIso());
+  await getDb().execute(
+    insert("processed_payments", {
+      attendee_id: attendeeId,
+      payment_session_id: `privacy-page-${attendeeId}`,
+      processed_at: oldIso(),
+      protected_state: CLAIM_MIRROR,
+    }),
+  );
+  return attendeeId;
 };
 
 const attendeeExists = async (id: number): Promise<boolean> =>
@@ -150,6 +149,142 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
       expect((await adminGet(`/admin/attendees/${attendee.id}`)).status).toBe(
         200,
       );
+    });
+
+    test("pages the payment-work queue without loading attendee PII", async () => {
+      await getDb().execute(
+        "UPDATE processed_payments SET protected_state = ''",
+      );
+      const attendeeIds = await Promise.all(
+        Array.from({ length: 41 }, () => insertPaymentWorkOrphan()),
+      );
+      const queries: string[] = [];
+      const restore = recordQueries(queries);
+      let first: Response;
+      try {
+        first = await adminGet("/admin/privacy");
+      } finally {
+        restore();
+      }
+      const firstHtml = await first.text();
+      for (const attendeeId of attendeeIds.slice(0, 20)) {
+        expect(firstHtml).toContain(`href="/admin/attendees/${attendeeId}"`);
+      }
+      expect(firstHtml).not.toContain(
+        `href="/admin/attendees/${attendeeIds[20]}"`,
+      );
+      expect(firstHtml).toContain(
+        `href="/admin/privacy?work_after=${attendeeIds[19]}"`,
+      );
+      expect(firstHtml).toContain('rel="next"');
+      expect(firstHtml).not.toContain('rel="prev"');
+
+      const queueQueries = queries.filter((sql) =>
+        sql.includes("SELECT DISTINCT payment.attendee_id AS id"),
+      );
+      expect(queueQueries).toHaveLength(1);
+      expect(queueQueries[0]).toContain("LIMIT ?");
+      expect(queueQueries[0]).not.toContain("pii_blob");
+
+      const second = await adminGet(
+        `/admin/privacy?work_after=${attendeeIds[19]}`,
+      );
+      const secondHtml = await second.text();
+      for (const attendeeId of attendeeIds.slice(20, 40)) {
+        expect(secondHtml).toContain(`href="/admin/attendees/${attendeeId}"`);
+      }
+      expect(secondHtml).not.toContain(
+        `href="/admin/attendees/${attendeeIds[19]}"`,
+      );
+      expect(secondHtml).toContain(
+        `href="/admin/privacy?work_before=${attendeeIds[20]}"`,
+      );
+      expect(secondHtml).toContain(
+        `href="/admin/privacy?work_after=${attendeeIds[39]}"`,
+      );
+      expect(secondHtml).toContain('rel="prev"');
+      expect(secondHtml).toContain('rel="next"');
+
+      const last = await adminGet(
+        `/admin/privacy?work_after=${attendeeIds[39]}`,
+      );
+      const lastHtml = await last.text();
+      expect(lastHtml).toContain(
+        `href="/admin/attendees/${attendeeIds[40]}"`,
+      );
+      expect(lastHtml).toContain(
+        `href="/admin/privacy?work_before=${attendeeIds[40]}"`,
+      );
+      expect(lastHtml).not.toContain('rel="next"');
+
+      const previous = await adminGet(
+        `/admin/privacy?work_before=${attendeeIds[40]}`,
+      );
+      const previousHtml = await previous.text();
+      expect(previousHtml).toContain(
+        `href="/admin/attendees/${attendeeIds[20]}"`,
+      );
+      expect(previousHtml).toContain(
+        `href="/admin/privacy?work_before=${attendeeIds[20]}"`,
+      );
+      expect(previousHtml).toContain('rel="prev"');
+      expect(previousHtml).toContain('rel="next"');
+
+      const firstAgain = await adminGet(
+        `/admin/privacy?work_before=${attendeeIds[20]}`,
+      );
+      const firstAgainHtml = await firstAgain.text();
+      expect(firstAgainHtml).toContain(
+        `href="/admin/attendees/${attendeeIds[0]}"`,
+      );
+      expect(firstAgainHtml).toContain('rel="next"');
+      expect(firstAgainHtml).not.toContain('rel="prev"');
+    });
+
+    test("defaults malformed payment-work cursors to the first page", async () => {
+      const attendeeId = await insertPaymentWorkOrphan();
+      const response = await adminGet(
+        "/admin/privacy?work_after=not-an-id&work_before=also-not-an-id",
+      );
+      expect(await response.text()).toContain(
+        `href="/admin/attendees/${attendeeId}"`,
+      );
+    });
+
+    test("keeps a way back from empty out-of-range cursor pages", async () => {
+      const attendeeId = await insertPaymentWorkOrphan();
+      const highCursor = attendeeId + 1_000;
+      const afterEnd = await adminGet(
+        `/admin/privacy?work_after=${highCursor}`,
+      );
+      const afterEndHtml = await afterEnd.text();
+      expect(afterEndHtml).toContain("There are no records on this page.");
+      expect(afterEndHtml).toContain(
+        `href="/admin/privacy?work_before=${highCursor + 1}"`,
+      );
+      expect(afterEndHtml).toContain('rel="prev"');
+      expect(afterEndHtml).not.toContain("undefined");
+      expect(
+        await (
+          await adminGet(`/admin/privacy?work_before=${highCursor + 1}`)
+        ).text(),
+      ).toContain(`href="/admin/attendees/${attendeeId}"`);
+
+      const beforeStart = await adminGet(
+        `/admin/privacy?work_before=${attendeeId}`,
+      );
+      const beforeStartHtml = await beforeStart.text();
+      expect(beforeStartHtml).toContain("There are no records on this page.");
+      expect(beforeStartHtml).toContain(
+        `href="/admin/privacy?work_after=${attendeeId - 1}"`,
+      );
+      expect(beforeStartHtml).toContain('rel="next"');
+      expect(beforeStartHtml).not.toContain("undefined");
+      expect(
+        await (
+          await adminGet(`/admin/privacy?work_after=${attendeeId - 1}`)
+        ).text(),
+      ).toContain(`href="/admin/attendees/${attendeeId}"`);
     });
   });
 

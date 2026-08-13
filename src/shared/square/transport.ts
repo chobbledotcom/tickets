@@ -1,6 +1,6 @@
 /* jscpd:ignore-start */
+import * as v from "valibot";
 import { isNotNullish } from "#fp";
-import { errorMessage } from "#shared/error-message.ts";
 import { type FetchResult, fetchText } from "#shared/fetch.ts";
 import type { ProviderUnavailableReason } from "#shared/payment/provider-read.ts";
 /* jscpd:ignore-end */
@@ -13,6 +13,47 @@ export const SQUARE_MAX_NETWORK_RETRIES = 0;
 
 /** Optional method and JSON body for one Square REST call. */
 export type SquareRequestOptions = { method?: string; body?: unknown };
+
+/** A buyer field Square can reject with a message safe to show to them. */
+export type SquareInvalidField = "email" | "phone";
+
+const SquareApiErrorEntrySchema = v.object({
+  category: v.string(),
+  code: v.string(),
+  field: v.optional(v.string()),
+});
+
+const SquareApiErrorResponseSchema = v.object({
+  errors: v.array(SquareApiErrorEntrySchema),
+});
+
+const namedInvalidField = (
+  field: string | undefined,
+): SquareInvalidField | null =>
+  field === "pre_populated_data.buyer_email"
+    ? "email"
+    : field === "pre_populated_data.buyer_phone_number"
+      ? "phone"
+      : null;
+
+/** Keep only the closed validation fact checkout needs from an error body. */
+const readInvalidField = (responseBody: string): SquareInvalidField | null => {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(responseBody);
+  } catch {
+    // An error body is optional validation evidence, not application data.
+    return null;
+  }
+  const parsed = v.safeParse(SquareApiErrorResponseSchema, raw);
+  if (!parsed.success) return null;
+  return (
+    parsed.output.errors
+      .filter(({ category }) => category === "INVALID_REQUEST_ERROR")
+      .map(({ field }) => namedInvalidField(field))
+      .find(isNotNullish) ?? null
+  );
+};
 
 const jsonStringify = (value: unknown): string =>
   JSON.stringify(value, (_, field) =>
@@ -40,9 +81,9 @@ export const squareRequestInit = (
 export class SquareApiError extends Error {
   constructor(
     readonly statusCode: number,
-    readonly responseBody: string,
+    readonly invalidField: SquareInvalidField | null = null,
   ) {
-    super(`Status code: ${statusCode} Body: ${responseBody}`);
+    super(`Square API request failed. Status code: ${statusCode}`);
   }
 }
 
@@ -53,14 +94,21 @@ export class SquareConnectionError extends Error {
       ProviderUnavailableReason,
       "network_error" | "timeout"
     >,
-    detail: string,
   ) {
-    super(detail);
+    super(
+      reason === "timeout"
+        ? "Square request timed out"
+        : "Square connection failed",
+    );
   }
 }
 
 /** Square returned a success response that was not valid JSON. */
-export class SquareProtocolError extends Error {}
+export class SquareProtocolError extends Error {
+  constructor() {
+    super("Square returned an invalid response");
+  }
+}
 
 const squareConnectionReason = (
   error: unknown,
@@ -81,7 +129,7 @@ const fetchSquareResponse = async (
   } catch (error) {
     const reason = squareConnectionReason(error);
     if (!reason) throw error;
-    throw new SquareConnectionError(reason, errorMessage(error));
+    throw new SquareConnectionError(reason);
   }
 };
 
@@ -97,11 +145,11 @@ export const squareFetch = async (
     squareRequestInit(token, options),
   );
   if (!response.ok) {
-    throw new SquareApiError(response.status, response.text);
+    throw new SquareApiError(response.status, readInvalidField(response.text));
   }
   try {
     return JSON.parse(response.text);
-  } catch (error) {
-    throw new SquareProtocolError(errorMessage(error));
+  } catch {
+    throw new SquareProtocolError();
   }
 };

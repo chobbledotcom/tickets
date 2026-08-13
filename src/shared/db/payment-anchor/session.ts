@@ -11,6 +11,11 @@ const ANCHOR_SESSION_PREFIX = "legacy:";
  *  generally. Still recognised because such rows are still out there. */
 const LEGACY_MERGE_SESSION_PREFIX = "legacy-merge:";
 
+const ANCHOR_SESSION_PREFIXES = [
+  ANCHOR_SESSION_PREFIX,
+  LEGACY_MERGE_SESSION_PREFIX,
+] as const;
+
 /** The session id of one attendee's anchor for one charge. Both parts are
  *  needed: the attendee alone would clash if their legacy charge were
  *  replaced, and the charge alone would make two people who share it fight
@@ -22,8 +27,14 @@ export const anchorSessionId = (attendeeId: number, index: string): string =>
  *  Anchors carry no real payment session, so anything comparing a claim's rows
  *  against a loaded reference list must know they are left out on purpose. */
 export const isAnchorSession = (sessionId: string): boolean =>
-  sessionId.startsWith(ANCHOR_SESSION_PREFIX) ||
-  sessionId.startsWith(LEGACY_MERGE_SESSION_PREFIX);
+  ANCHOR_SESSION_PREFIXES.some((prefix) => sessionId.startsWith(prefix));
+
+/** SQL condition matching the same stored anchor spellings as
+ * {@link isAnchorSession}. The column expression comes from our own query. */
+export const paymentAnchorSessionCondition = (column: string): string =>
+  `(${ANCHOR_SESSION_PREFIXES.map(
+    (prefix) => `${column} LIKE '${prefix}%'`,
+  ).join(" OR ")})`;
 
 /** The session id a merge writes for a legacy payment it is carrying over. */
 export const legacyMergeSessionId = (sourceId: number): string =>

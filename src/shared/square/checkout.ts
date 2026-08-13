@@ -1,5 +1,4 @@
 /* jscpd:ignore-start */
-import * as v from "valibot";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { settings } from "#shared/db/settings.ts";
 import { ErrorCode, logDebug } from "#shared/logger.ts";
@@ -11,69 +10,45 @@ import {
 } from "#shared/payment-helpers.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { normalizePhone } from "#shared/phone.ts";
+import { ProviderCheckoutError } from "#shared/payment/checkout-failure.ts";
 import type {
   CreatePaymentLinkInput,
   GetSquareClient,
 } from "#shared/square/client.ts";
+import {
+  SquareApiError,
+  SquareConnectionError,
+  type SquareInvalidField,
+  SquareProtocolError,
+} from "#shared/square/transport.ts";
 
 /* jscpd:ignore-end */
 
 type SquareLineItem = CreatePaymentLinkInput["order"]["lineItems"][number];
 
-const SquareApiErrorEntrySchema = v.object({
-  category: v.string(),
-  code: v.string(),
-  detail: v.optional(v.string()),
-  field: v.optional(v.string()),
-});
-
-const SquareApiErrorResponseSchema = v.object({
-  errors: v.array(SquareApiErrorEntrySchema),
-});
-
-type SquareApiErrorEntry = v.InferOutput<typeof SquareApiErrorEntrySchema>;
-
-const SQUARE_FIELD_LABELS: Record<string, string> = {
-  "pre_populated_data.buyer_email": "email address",
-  "pre_populated_data.buyer_phone_number": "phone number",
-};
-
-const parseSquareApiErrors = (error: Error): SquareApiErrorEntry[] | null => {
-  const bodyMatch = error.message.match(/Body:\s*(\{[\s\S]*\})\s*$/);
-  const bodyText = bodyMatch?.[1];
-  if (!bodyText) return null;
-  try {
-    const parsed = v.safeParse(
-      SquareApiErrorResponseSchema,
-      JSON.parse(bodyText),
-    );
-    return parsed.success ? parsed.output.errors : null;
-  } catch {
-    // An unreadable body is not a user mistake, so preserve the provider error.
-    return null;
-  }
-};
-
-const toUserFacingSquareError = (
-  errors: SquareApiErrorEntry[],
-): string | null => {
-  for (const error of errors) {
-    if (error.category !== "INVALID_REQUEST_ERROR" || !error.field) continue;
-    const label = SQUARE_FIELD_LABELS[error.field];
-    if (label) {
-      return `The payment processor rejected the ${label} as invalid. Please correct it and try again.`;
-    }
-  }
-  return null;
+const SQUARE_FIELD_LABELS: Record<SquareInvalidField, string> = {
+  email: "email address",
+  phone: "phone number",
 };
 
 const rethrowAsUserError = (error: unknown): never => {
-  if (error instanceof Error) {
-    const apiErrors = parseSquareApiErrors(error);
-    if (apiErrors) {
-      const userMessage = toUserFacingSquareError(apiErrors);
-      if (userMessage) throw new PaymentUserError(userMessage);
-    }
+  if (error instanceof SquareApiError && error.invalidField !== null) {
+    const label = SQUARE_FIELD_LABELS[error.invalidField];
+    throw new PaymentUserError(
+      `The payment processor rejected the ${label} as invalid. Please correct it and try again.`,
+    );
+  }
+  if (error instanceof SquareApiError) {
+    throw new ProviderCheckoutError(
+      "square",
+      { reason: "provider_error", statusCode: error.statusCode },
+    );
+  }
+  if (error instanceof SquareConnectionError) {
+    throw new ProviderCheckoutError("square", { reason: error.reason });
+  }
+  if (error instanceof SquareProtocolError) {
+    throw new ProviderCheckoutError("square", { reason: "invalid_response" });
   }
   throw error;
 };
@@ -108,7 +83,9 @@ const createPaymentLink = (
   getClient: GetSquareClient,
   params: PaymentLinkParams,
 ): Promise<PaymentLinkResult> =>
-  createWithClient(getClient)(async (client) => {
+  createWithClient(getClient, {
+    shouldPropagate: () => true,
+  })(async (client) => {
     const response = await client.checkout.paymentLinks
       .create({
         checkoutOptions: {
@@ -129,8 +106,9 @@ const createPaymentLink = (
     const orderId = response.paymentLink?.orderId;
     const url = response.paymentLink?.url;
     if (!orderId || !url) {
-      logDebug("Square", `${params.label} response missing orderId or url`);
-      return null;
+      throw new ProviderCheckoutError("square", {
+        reason: "invalid_response",
+      });
     }
     return { orderId, url };
   }, ErrorCode.SQUARE_CHECKOUT);

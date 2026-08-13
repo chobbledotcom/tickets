@@ -10,7 +10,12 @@ import {
   setupSquareProviderSuite,
   squareMoney,
 } from "#test/test-utils/square/fixtures.ts";
-import { squarePaymentRead } from "#test/test-utils/square/outcomes.ts";
+import {
+  completedSquareWebhook,
+  squareOrderRead,
+  squarePaymentRead,
+} from "#test/test-utils/square/outcomes.ts";
+import { rejectionMessage } from "#test-utils/assertions.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import { asSession } from "#test-utils/payment-session.ts";
 
@@ -22,18 +27,20 @@ describe("square-provider resolveWebhookSession", () => {
   test("extracts order_id from nested Square payment object", async () => {
     await withMocks(
       () => ({
-        order: stub(squareApi, "retrieveOrder", () =>
-          Promise.resolve({
-            id: "order_nested_456",
-            metadata: {
-              email: "alice@example.com",
-              items: '[{"e":1,"q":1,"p":0}]',
-              name: "Alice",
-            },
-            state: "COMPLETED",
-            tenders: [{ id: "tender_1", paymentId: "pay_nested_123" }],
-            totalMoney: { amount: BigInt(1000), currency: "GBP" },
-          }),
+        order: stub(squareApi, "readOrder", () =>
+          Promise.resolve(
+            squareOrderRead({
+              id: "order_nested_456",
+              metadata: {
+                email: "alice@example.com",
+                items: '[{"e":1,"q":1,"p":0}]',
+                name: "Alice",
+              },
+              state: "COMPLETED",
+              tenders: [{ id: "tender_1", paymentId: "pay_nested_123" }],
+              totalMoney: { amount: BigInt(1000), currency: "GBP" },
+            }),
+          ),
         ),
         payment: stub(squareApi, "readPayment", () =>
           Promise.resolve(
@@ -69,26 +76,16 @@ describe("square-provider resolveWebhookSession", () => {
 
   /** Stubs the order and the payment Square answers the webhook with. */
   const withOrderAndPayment = (
-    order: Awaited<ReturnType<typeof squareApi.retrieveOrder>>,
+    order: Parameters<typeof squareOrderRead>[0],
     payment: SquarePayment | null,
   ) => ({
-    order: stub(squareApi, "retrieveOrder", () => Promise.resolve(order)),
+    order: stub(squareApi, "readOrder", () =>
+      Promise.resolve(squareOrderRead(order)),
+    ),
     payment: stub(squareApi, "readPayment", () =>
       Promise.resolve(squarePaymentRead(payment)),
     ),
   });
-
-  /** Deliver a completed payment.updated webhook for `paymentId`. */
-  const completedWebhook = (paymentId: string, orderId: string) =>
-    squarePaymentProvider.resolveWebhookSession({
-      data: {
-        object: {
-          payment: { id: paymentId, order_id: orderId, status: "COMPLETED" },
-        },
-      },
-      id: `evt_${paymentId}`,
-      type: "payment.updated",
-    });
 
   test("validates what the payment took, not what the order asked for", async () => {
     // A partial payment against a £10 order would otherwise be handed on as
@@ -109,7 +106,10 @@ describe("square-provider resolveWebhookSession", () => {
           },
         ),
       async () => {
-        const result = await completedWebhook("pay_partial", "order_partial");
+        const result = await completedSquareWebhook(
+          "pay_partial",
+          "order_partial",
+        );
         expect(asSession(result).amountTotal).toBe(500);
         expect(asSession(result).currency).toBe("GBP");
       },
@@ -131,7 +131,7 @@ describe("square-provider resolveWebhookSession", () => {
           { id: "pay_no_amount", status: "COMPLETED" },
         ),
       async () => {
-        const result = await completedWebhook(
+        const result = await completedSquareWebhook(
           "pay_no_amount",
           "order_no_amount",
         );
@@ -163,26 +163,30 @@ describe("square-provider resolveWebhookSession", () => {
           null,
         ),
       async () => {
-        await expect(
-          completedWebhook("pay_blip", "order_blip"),
-        ).rejects.toThrow("pay_blip");
+        expect(
+          await rejectionMessage(
+            completedSquareWebhook("pay_blip", "order_blip"),
+          ),
+        ).toBe(
+          "Square payment did not read back as completed (status=unreadable)",
+        );
       },
     );
   });
 
   test("books a completed payment whose order has no tender yet", async () => {
-    // Square's tenders can lag the payment webhook. Reading the order alone
-    // would call this unpaid, and a captured charge would be acknowledged as
-    // pending — so the webhook's own completed payment id is used.
+    // The completed event wins while Square's order tenders lag behind it.
     await withMocks(
       () => ({
-        order: stub(squareApi, "retrieveOrder", () =>
-          Promise.resolve({
-            id: "order_no_tender",
-            metadata: SQUARE_ORDER_META,
-            state: "COMPLETED",
-            totalMoney: squareMoney(1000),
-          }),
+        order: stub(squareApi, "readOrder", () =>
+          Promise.resolve(
+            squareOrderRead({
+              id: "order_no_tender",
+              metadata: SQUARE_ORDER_META,
+              state: "COMPLETED",
+              totalMoney: squareMoney(1000),
+            }),
+          ),
         ),
         payment: stub(squareApi, "readPayment", () =>
           Promise.resolve(
@@ -222,14 +226,16 @@ describe("square-provider resolveWebhookSession", () => {
     // session records — and the one a refund would have to reach.
     await withMocks(
       () => ({
-        order: stub(squareApi, "retrieveOrder", () =>
-          Promise.resolve({
-            id: "order_two_payments",
-            metadata: SQUARE_ORDER_META,
-            state: "COMPLETED",
-            tenders: [{ id: "tender_old", paymentId: "pay_earlier" }],
-            totalMoney: squareMoney(1000),
-          }),
+        order: stub(squareApi, "readOrder", () =>
+          Promise.resolve(
+            squareOrderRead({
+              id: "order_two_payments",
+              metadata: SQUARE_ORDER_META,
+              state: "COMPLETED",
+              tenders: [{ id: "tender_old", paymentId: "pay_earlier" }],
+              totalMoney: squareMoney(1000),
+            }),
+          ),
         ),
         payment: stub(squareApi, "readPayment", () =>
           Promise.resolve(
@@ -299,26 +305,29 @@ describe("square-provider resolveWebhookSession", () => {
     ).rejects.toThrow("Square payment webhook is missing id");
   });
 
-  test("ignores a payment id without its order id", async () => {
+  test("refuses a completed payment without its order id", async () => {
     await withMocks(
       () => ({
-        order: stub(squareApi, "retrieveOrder"),
+        order: stub(squareApi, "readOrder"),
         payment: stub(squareApi, "readPayment"),
       }),
       async (mocks) => {
-        const result = await squarePaymentProvider.resolveWebhookSession({
-          data: {
-            object: {
-              payment: {
-                id: "pay_fallback_id",
-                status: "COMPLETED",
+        const message = await rejectionMessage(
+          squarePaymentProvider.resolveWebhookSession({
+            data: {
+              object: {
+                payment: {
+                  id: "pay_fallback_id",
+                  status: "COMPLETED",
+                },
               },
             },
-          },
-          id: "evt_no_order",
-          type: "payment.updated",
-        });
-        expect(result).toBeNull();
+            id: "evt_no_order",
+            type: "payment.updated",
+          }),
+        );
+        expect(message).toBe("Completed Square payment is missing order id");
+        expect(message).not.toContain("pay_fallback_id");
         expect(mocks.order.calls).toHaveLength(0);
         expect(mocks.payment.calls).toHaveLength(0);
       },
@@ -337,39 +346,49 @@ describe("square-provider resolveWebhookSession", () => {
     ).toBeNull();
   });
 
-  test("returns skip when order exists but has no metadata", async () => {
+  test("refuses a completed payment whose order has no metadata", async () => {
     await withMocks(
       () =>
-        stub(squareApi, "retrieveOrder", () =>
-          Promise.resolve({
-            id: "order_no_meta",
-            metadata: {},
-            state: "COMPLETED",
-            totalMoney: { amount: BigInt(1000), currency: "GBP" },
-          }),
+        stub(squareApi, "readOrder", () =>
+          Promise.resolve(
+            squareOrderRead({
+              id: "order_no_meta",
+              metadata: {},
+              state: "COMPLETED",
+              totalMoney: { amount: BigInt(1000), currency: "GBP" },
+            }),
+          ),
         ),
       async () => {
-        const result = await squarePaymentProvider.resolveWebhookSession({
-          data: {
-            object: {
-              payment: {
-                id: "pay_no_meta",
-                order_id: "order_no_meta",
-                status: "COMPLETED",
+        const message = await rejectionMessage(
+          squarePaymentProvider.resolveWebhookSession({
+            data: {
+              object: {
+                payment: {
+                  id: "pay_no_meta",
+                  order_id: "order_no_meta",
+                  status: "COMPLETED",
+                },
               },
             },
-          },
-          id: "evt_no_meta",
-          type: "payment.updated",
-        });
-        expect(result).toBe("skip");
+            id: "evt_no_meta",
+            type: "payment.updated",
+          }),
+        );
+        expect(message).toBe(
+          "Completed Square order is missing required metadata",
+        );
+        expect(message).not.toContain("order_no_meta");
       },
     );
   });
 
   test("handles flat listing object without payment wrapper", async () => {
     await withMocks(
-      () => stub(squareApi, "retrieveOrder", () => Promise.resolve(null)),
+      () =>
+        stub(squareApi, "readOrder", () =>
+          Promise.resolve(squareOrderRead(null)),
+        ),
       async (mockOrder) => {
         const result = await squarePaymentProvider.resolveWebhookSession({
           data: {

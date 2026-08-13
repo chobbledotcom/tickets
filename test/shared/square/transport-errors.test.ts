@@ -3,6 +3,11 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
 import { squareApi } from "#shared/square/api.ts";
 import {
+  SquareApiError,
+  SquareConnectionError,
+  SquareProtocolError,
+} from "#shared/square/transport.ts";
+import {
   installMockFetch,
   jsonResponse,
 } from "#test/shared/square/mock-fetch.ts";
@@ -14,6 +19,31 @@ const failedResponse = (status: number) => ({
   status,
   text: () => Promise.resolve("failure"),
 });
+
+const thrownBy = async (work: () => Promise<unknown>): Promise<unknown> => {
+  try {
+    await work();
+  } catch (error) {
+    return error;
+  }
+  throw new Error("Expected Square transport to throw");
+};
+
+const apiErrorFrom = async (responseBody: string): Promise<SquareApiError> => {
+  installMockFetch(() =>
+    Promise.resolve({
+      ok: false,
+      status: 400,
+      text: () => Promise.resolve(responseBody),
+    }),
+  );
+  const client = await squareApi.getSquareClient();
+  const error = await thrownBy(() =>
+    client!.payments.get({ paymentId: "pay_error" }),
+  );
+  if (error instanceof SquareApiError) return error;
+  throw error;
+};
 
 describeSquare(() => {
   describe("Square payment transport outcomes", () => {
@@ -36,18 +66,74 @@ describeSquare(() => {
       });
     }
 
-    test("reports invalid JSON as malformed provider data", async () => {
+    test("keeps an HTTP error body out of its message", async () => {
+      const error = await apiErrorFrom(
+        JSON.stringify({
+          errors: [
+            {
+              category: "API_ERROR",
+              code: "SERVER_ERROR",
+              detail: "PRIVATE_REFERENCE",
+            },
+            {
+              category: "INVALID_REQUEST_ERROR",
+              code: "BAD_FIELD",
+              field: "order.id",
+            },
+          ],
+        }),
+      );
+
+      expect(error.message).toContain("Status code: 400");
+      expect(error.message).not.toContain("PRIVATE_REFERENCE");
+      expect(error.invalidField).toBeNull();
+      expect("responseBody" in error).toBe(false);
+    });
+
+    for (const [providerField, invalidField] of [
+      ["pre_populated_data.buyer_email", "email"],
+      ["pre_populated_data.buyer_phone_number", "phone"],
+    ] as const) {
+      test(`retains only the safe ${invalidField} classification`, async () => {
+        const error = await apiErrorFrom(
+          JSON.stringify({
+            errors: [
+              {
+                category: "INVALID_REQUEST_ERROR",
+                code: "INVALID_VALUE",
+                detail: "PRIVATE_REFERENCE",
+                field: providerField,
+              },
+            ],
+          }),
+        );
+
+        expect(error.invalidField).toBe(invalidField);
+        expect(error.message).not.toContain("PRIVATE_REFERENCE");
+        expect(error.message).not.toContain(providerField);
+      });
+    }
+
+    test("keeps a malformed error payload unclassified", async () => {
+      const error = await apiErrorFrom('{"errors":{}}');
+      expect(error.invalidField).toBeNull();
+    });
+
+    test("discards malformed success bodies from its protocol error", async () => {
+      const privateBody = "not-json-PRIVATE_REFERENCE";
       installMockFetch(() =>
         Promise.resolve({
           ok: true,
           status: 200,
-          text: () => Promise.resolve("not-json"),
+          text: () => Promise.resolve(privateBody),
         }),
       );
-      expect(await squareApi.readPayment("pay_json")).toEqual({
-        reason: "malformed_response",
-        status: "invalid",
-      });
+      const client = await squareApi.getSquareClient();
+      const error = await thrownBy(() =>
+        client!.payments.get({ paymentId: "pay_json" }),
+      );
+      expect(error).toBeInstanceOf(SquareProtocolError);
+      expect((error as Error).message).not.toContain(privateBody);
     });
 
     test("reports a malformed payment body as malformed provider data", async () => {
@@ -66,12 +152,16 @@ describeSquare(() => {
       });
     });
 
-    test("reports a socket failure as a network outage", async () => {
-      installMockFetch(() => Promise.reject(new TypeError("socket closed")));
-      expect(await squareApi.readPayment("pay_network")).toEqual({
-        reason: "network_error",
-        status: "unavailable",
-      });
+    test("discards connection details from its network error", async () => {
+      const privateDetail = "socket closed PRIVATE_REFERENCE";
+      installMockFetch(() => Promise.reject(new TypeError(privateDetail)));
+      const client = await squareApi.getSquareClient();
+      const error = await thrownBy(() =>
+        client!.payments.get({ paymentId: "pay_network" }),
+      );
+      expect(error).toBeInstanceOf(SquareConnectionError);
+      expect((error as SquareConnectionError).reason).toBe("network_error");
+      expect((error as Error).message).not.toContain(privateDetail);
     });
 
     test("does not disguise an internal transport failure as a network outage", async () => {
@@ -83,13 +173,17 @@ describeSquare(() => {
 
     for (const name of ["AbortError", "TimeoutError"]) {
       test(`reports ${name} as a timeout`, async () => {
+        const privateDetail = "timed out PRIVATE_REFERENCE";
         installMockFetch(() =>
-          Promise.reject(new DOMException("timed out", name)),
+          Promise.reject(new DOMException(privateDetail, name)),
         );
-        expect(await squareApi.readPayment("pay_timeout")).toEqual({
-          reason: "timeout",
-          status: "unavailable",
-        });
+        const client = await squareApi.getSquareClient();
+        const error = await thrownBy(() =>
+          client!.payments.get({ paymentId: "pay_timeout" }),
+        );
+        expect(error).toBeInstanceOf(SquareConnectionError);
+        expect((error as SquareConnectionError).reason).toBe("timeout");
+        expect((error as Error).message).not.toContain(privateDetail);
       });
     }
   });

@@ -44,17 +44,16 @@ export const paymentReferenceIndex = (
 export const matchingPaymentReferenceIndexes = async (
   reference: PaymentReference,
 ): Promise<readonly string[]> => {
-  const identities: PaymentReference[] =
-    reference.kind === "tagged"
-      ? [reference, { kind: "untagged", reference: reference.reference }]
-      : [
-          reference,
-          ...PaymentProviderSchema.options.map((provider) => ({
-            kind: "tagged" as const,
-            provider,
-            reference: reference.reference,
-          })),
-        ];
+  const identities: PaymentReference[] = reference.kind === "tagged"
+    ? [reference, { kind: "untagged", reference: reference.reference }]
+    : [
+      reference,
+      ...PaymentProviderSchema.options.map((provider) => ({
+        kind: "tagged" as const,
+        provider,
+        reference: reference.reference,
+      })),
+    ];
   return [...new Set(await Promise.all(identities.map(paymentReferenceIndex)))];
 };
 
@@ -67,9 +66,11 @@ export const unclaimedPaymentReference = async (
     args: indexes,
     sql: `NOT EXISTS (
       SELECT 1 FROM processed_payments AS referenceHolder
-       WHERE referenceHolder.payment_reference_index IN (${inPlaceholders(
-         indexes,
-       )})
+       WHERE referenceHolder.payment_reference_index IN (${
+      inPlaceholders(
+        indexes,
+      )
+    })
          AND referenceHolder.protected_state = '${CLAIM_MIRROR}'
     )`,
   };
@@ -109,12 +110,10 @@ export const loadPaymentReference = async (
 export const preparePaymentReferenceWrite = async (
   reference: PaymentReference | null,
 ): Promise<PreparedPaymentReferenceWrite> =>
-  reference === null
-    ? { claim: { args: [], sql: "1 = 1" }, stored: null }
-    : {
-        claim: await unclaimedPaymentReference(reference),
-        stored: await storePaymentReference(reference),
-      };
+  reference === null ? { claim: { args: [], sql: "1 = 1" }, stored: null } : {
+    claim: await unclaimedPaymentReference(reference),
+    stored: await storePaymentReference(reference),
+  };
 
 export type IndexedPaymentReferenceSource = {
   readonly payment_reference: string;
@@ -130,16 +129,14 @@ export const loadIndexedPaymentReference = async (
   const payment = await loadPaymentReference(
     row.payment_reference,
     privateKey,
-    `processed_payments.payment_reference for ${row.payment_session_id}`,
+    "processed_payments.payment_reference",
   );
   const index = await paymentReferenceIndex(payment);
   if (
     row.payment_reference_index !== "" &&
     row.payment_reference_index !== index
   ) {
-    throw new Error(
-      `Payment reference index does not match ${row.payment_session_id}`,
-    );
+    throw new Error("Payment reference index does not match stored reference");
   }
   return { index, payment };
 };

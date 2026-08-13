@@ -123,13 +123,13 @@ describeSquare(() => {
       );
     });
 
-    test("retrieveSession returns null when order not found", async () => {
+    test("retrieveSession refuses a successful response with no order", async () => {
       await withSquareClient(
         { ordersGet: () => Promise.resolve({ order: null }) },
         async () => {
-          const result =
-            await squarePaymentProvider.retrieveSession("order_gone");
-          expect(result).toBeNull();
+          await expect(
+            squarePaymentProvider.retrieveSession("order_gone"),
+          ).rejects.toThrow("invalid:missing_documented_resource");
         },
       );
     });

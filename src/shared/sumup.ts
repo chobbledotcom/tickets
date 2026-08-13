@@ -16,7 +16,7 @@
  */
 
 import type { Currency } from "@sumup/sdk";
-import { SumUp } from "@sumup/sdk";
+import { APIError, SumUp, SumUpError } from "@sumup/sdk";
 /* jscpd:ignore-start */
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { toMajorUnits } from "#shared/currency.ts";
@@ -26,20 +26,25 @@ import {
   storeSumupCheckout,
 } from "#shared/db/sumup-checkouts.ts";
 import { errorMessage } from "#shared/error-message.ts";
-import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import {
+  ErrorCode,
+  type ErrorCodeType,
+  logDebug,
+  logError,
+} from "#shared/logger.ts";
 import type { ProviderRead } from "#shared/payment/provider-read.ts";
+import { ProviderCheckoutError } from "#shared/payment/checkout-failure.ts";
 import {
   assembleCheckoutMetadata,
   type CredentialCheck,
-  createWithClient,
 } from "#shared/payment-helpers.ts";
 import { providerCurrencyBlock } from "#shared/payment-providers.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import {
-  type SumupRefundSubmission,
   sumupReadFailure,
   sumupRefundFailure,
+  type SumupRefundSubmission,
 } from "#shared/sumup/failures.ts";
 import {
   readSumupTransaction,
@@ -87,8 +92,45 @@ const getClientImpl = (): SumupClient | null => {
   };
 };
 
-/** Run an operation with the SumUp client, returning null if unavailable. */
-const withClient = createWithClient(() => sumupApi.getSumupClient());
+/** Run checkout with the configured client. Missing configuration is a normal
+ * absence; a failed provider call is an unexpected booking failure. */
+const sumupSdkFailure = (error: unknown): ProviderCheckoutError => {
+  if (error instanceof APIError) {
+    return new ProviderCheckoutError(
+      "sumup",
+      { reason: "provider_error", statusCode: error.status },
+    );
+  }
+  if (error instanceof TypeError) {
+    return new ProviderCheckoutError("sumup", { reason: "network_error" });
+  }
+  if (
+    error instanceof DOMException &&
+    (error.name === "AbortError" || error.name === "TimeoutError")
+  ) {
+    return new ProviderCheckoutError("sumup", { reason: "timeout" });
+  }
+  if (error instanceof SumUpError) {
+    const reason = error.message.startsWith("Request timed out after ")
+      ? "timeout"
+      : "invalid_response";
+    return new ProviderCheckoutError("sumup", { reason });
+  }
+  throw error;
+};
+
+const withCheckoutClient = async <Result>(
+  useClient: (client: SumupClient) => Promise<Result>,
+  _errorCode: ErrorCodeType,
+): Promise<Result | null> => {
+  const client = sumupApi.getSumupClient();
+  if (client === null) return null;
+  try {
+    return await useClient(client);
+  } catch (error) {
+    throw sumupSdkFailure(error);
+  }
+};
 
 /** Resolve the configured merchant code, logging if absent. */
 const getMerchantCode = (): string | null => {
@@ -202,7 +244,7 @@ export const sumupApi: {
       await assembleCheckoutMetadata("sumup", intent, totalMinor),
     );
 
-    return withClient(async (client) => {
+    return withCheckoutClient(async (client) => {
       const checkout = await client.createCheckout({
         amount: Number(toMajorUnits(totalMinor)),
         checkout_reference: reference,
@@ -214,12 +256,11 @@ export const sumupApi: {
         return_url: getPaymentWebhookUrl(),
       });
       const url = checkout.hosted_checkout_url;
-      if (!checkout.id || !url) {
-        logDebug(
-          "SumUp",
-          "Checkout response missing id or hosted_checkout_url",
-        );
-        return null;
+      if (!checkout.id) {
+        throw new Error("SumUp checkout response is missing its id");
+      }
+      if (!url) {
+        throw new Error("SumUp checkout response is missing its hosted URL");
       }
       // Record the SumUp id so webhooks for this checkout pass the pre-filter
       // and the redirect can fetch it directly. Runs before the customer ever

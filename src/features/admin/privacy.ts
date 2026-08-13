@@ -1,4 +1,3 @@
-import { defineRoutes } from "#routes/router.ts";
 /**
  * Privacy page routes (owner-only).
  *
@@ -11,6 +10,8 @@ import { defineRoutes } from "#routes/router.ts";
 import { t } from "#i18n";
 import { ownerPage } from "#routes/auth.ts";
 import { errorRedirect, infoRedirect, redirect } from "#routes/response.ts";
+import { defineRoutes } from "#routes/router.ts";
+import { getSearchParam } from "#routes/url.ts";
 import { ownerFormHandler } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activity-log.ts";
 import {
@@ -20,7 +21,7 @@ import {
 } from "#shared/db/contact-preferences.ts";
 import {
   countPurgeableOrphanedAttendees,
-  getOrphanAttendeeIdsWithPaymentWork,
+  getOrphanPaymentWorkPage,
   purgeOrphanedAttendees,
 } from "#shared/db/orphan-attendees.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -30,15 +31,24 @@ import {
   isOrphanRetentionValue,
   orphanRetentionCutoffIso,
 } from "#shared/orphan-retention.ts";
+import { parseNonNegativeInt } from "#shared/validation/number.ts";
 import { adminPrivacyPage } from "#templates/admin/privacy.tsx";
 
 const PRIVACY_PATH = "/admin/privacy";
 
 /** GET /admin/privacy — explainer plus the orphan-purge and erasure forms. */
-const handlePrivacyGet = ownerPage(async (session) => {
-  const [purgeableOrphanCount, paymentWorkAttendeeIds] = await Promise.all([
+const paymentWorkCursor = (request: Request) => {
+  const after = parseNonNegativeInt(getSearchParam(request, "work_after"));
+  const before = parseNonNegativeInt(getSearchParam(request, "work_before"));
+  if (after !== null && before === null) return { after } as const;
+  if (before !== null && after === null) return { before } as const;
+  return {};
+};
+
+const handlePrivacyGet = ownerPage(async (session, request) => {
+  const [purgeableOrphanCount, paymentWorkPage] = await Promise.all([
     countPurgeableOrphanedAttendees(nowIso()),
-    getOrphanAttendeeIdsWithPaymentWork(),
+    getOrphanPaymentWorkPage(paymentWorkCursor(request)),
   ]);
   const flash = getFlash();
   return adminPrivacyPage(session, {
@@ -46,7 +56,7 @@ const handlePrivacyGet = ownerPage(async (session) => {
     error: flash.error,
     info: flash.info,
     orphanRetention: settings.orphanPurgeRetention,
-    paymentWorkAttendeeIds,
+    paymentWorkPage,
     purgeableOrphanCount,
     success: flash.success,
   });

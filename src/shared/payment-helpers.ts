@@ -82,28 +82,27 @@ interface AsyncErrorHandling {
   shouldPropagate?: ((err: unknown) => boolean) | undefined;
 }
 
-const guardedWithValue =
-  <Value>(
-    getValue: () => Value | null | Promise<Value | null>,
-    {
-      errorDetail = (err) => (err instanceof Error ? err.message : "unknown"),
-      shouldPropagate = () => false,
-    }: AsyncErrorHandling = {},
-  ) =>
-  async <T>(
-    fn: (value: Value) => Promise<T>,
-    errorCode: ErrorCodeType,
-  ): Promise<T | null> => {
-    const value = await getValue();
-    if (value === null) return null;
-    try {
-      return await fn(value);
-    } catch (err) {
-      if (err instanceof PaymentUserError || shouldPropagate(err)) throw err;
-      logError({ code: errorCode, detail: errorDetail(err) });
-      return null;
-    }
-  };
+const guardedWithValue = <Value>(
+  getValue: () => Value | null | Promise<Value | null>,
+  {
+    errorDetail = (err) => (err instanceof Error ? err.message : "unknown"),
+    shouldPropagate = () => false,
+  }: AsyncErrorHandling = {},
+) =>
+async <T>(
+  fn: (value: Value) => Promise<T>,
+  errorCode: ErrorCodeType,
+): Promise<T | null> => {
+  const value = await getValue();
+  if (value === null) return null;
+  try {
+    return await fn(value);
+  } catch (err) {
+    if (err instanceof PaymentUserError || shouldPropagate(err)) throw err;
+    logError({ code: errorCode, detail: errorDetail(err) });
+    return null;
+  }
+};
 
 /** Safely execute async operation, returning null on error.
  * Re-throws PaymentUserError so user-facing messages propagate. */
@@ -176,8 +175,8 @@ export const buildProviderLineItems = <Item>(
 /** Run an operation with the lazily-resolved client. Returns null when the
  * client is unconfigured or the operation fails (unless the error should
  * propagate). The named type keeps the contract visible to callers of the
- * widely-used `stripeClientRuntime.run` so a signature drift fails at the
- * definition instead of leaking to callers. */
+ * widely-used provider runners so a signature drift fails at the definition
+ * instead of leaking to callers. */
 export type ClientRunner<Client> = <T>(
   fn: (value: Client) => Promise<T>,
   errorCode: ErrorCodeType,
@@ -219,9 +218,11 @@ export const toBookingItems = (intent: CheckoutIntent): BookingItem[] => {
  * will become "" when extractSessionMetadata normalizes the metadata back.
  */
 const optionalFields = (
-  intent: Partial<
-    Pick<ContactInfo, "phone" | "address" | "special_instructions">
-  > & { date: string | null; dayCount?: number | undefined },
+  intent:
+    & Partial<
+      Pick<ContactInfo, "phone" | "address" | "special_instructions">
+    >
+    & { date: string | null; dayCount?: number | undefined },
 ): Record<string, string> => ({
   ...(intent.phone ? { phone: intent.phone } : {}),
   ...(intent.address ? { address: intent.address } : {}),
@@ -322,9 +323,9 @@ export const buildItemsMetadata = async (
     ...(siteTokenIndex !== undefined ? { siteTokenIndex } : {}),
   });
   const base = thankYouUrlFits(intent.thankYouUrl, withoutUrl, {
-    maxEntries,
-    maxValueLength,
-  })
+      maxEntries,
+      maxValueLength,
+    })
     ? { ...withoutUrl, thank_you_url: intent.thankYouUrl! }
     : withoutUrl;
   // Sign the agreed total bound to every stored booking field, so the webhook
@@ -385,8 +386,9 @@ export const toModifierRefs = (
     : undefined;
 
 /** Input for buildMetadata — like BookingIntent but with optional contact fields */
-type MetadataInput = Pick<BookingIntent, "name" | "email" | "items" | "date"> &
-  Partial<
+type MetadataInput =
+  & Pick<BookingIntent, "name" | "email" | "items" | "date">
+  & Partial<
     Pick<
       BookingIntent,
       | "phone"
@@ -449,35 +451,48 @@ export const toCheckoutResult = (
   return { checkoutUrl: url, sessionId };
 };
 
+const requiredCheckoutResult = (
+  sessionId: string | undefined,
+  url: string | undefined | null,
+  label: LogCategory,
+): Exclude<CheckoutSessionResult, null | { error: string }> => {
+  if (!sessionId) {
+    throw new Error(`${label} checkout response is missing its id`);
+  }
+  if (!url) throw new Error(`${label} checkout response is missing its URL`);
+  return { checkoutUrl: url, sessionId };
+};
+
 /**
  * Build a provider's `createCheckoutSession`: call the provider's own create
  * function, read the session id and URL off whatever shape it returns, and map
  * that to a shared CheckoutSessionResult — all inside the standard checkout
  * error guard. Each provider only supplies its create call, how to read the
- * id/url, and its display label.
+ * id/url, and its display label. A null create answer means the provider is not
+ * configured; a non-null answer must contain both documented fields.
  */
-export const makeCreateCheckoutSession =
-  <Result>(
-    label: LogCategory,
-    create: (intent: CheckoutIntent, baseUrl: string) => Promise<Result>,
-    readResult: (result: Result) => {
-      id: string | undefined;
-      url: string | undefined | null;
-    },
-  ): ((
-    intent: CheckoutIntent,
-    baseUrl: string,
-  ) => Promise<CheckoutSessionResult>) =>
-  (intent, baseUrl) =>
-    withCheckoutError(async () => {
-      const result = await create(intent, baseUrl);
-      const { id, url } = readResult(result);
-      return toCheckoutResult(id, url, label);
-    });
+export const makeCreateCheckoutSession = <Result>(
+  label: LogCategory,
+  create: (intent: CheckoutIntent, baseUrl: string) => Promise<Result | null>,
+  readResult: (result: Result) => {
+    id: string | undefined;
+    url: string | undefined | null;
+  },
+): (
+  intent: CheckoutIntent,
+  baseUrl: string,
+) => Promise<CheckoutSessionResult> =>
+(intent, baseUrl) =>
+  withCheckoutError(async () => {
+    const result = await create(intent, baseUrl);
+    if (result === null) return null;
+    const { id, url } = readResult(result);
+    return requiredCheckoutResult(id, url, label);
+  });
 
 /**
- * Wrap a checkout operation, converting PaymentUserError to { error } result
- * and swallowing unexpected errors as null. Used by both provider adapters.
+ * Wrap a checkout operation, converting PaymentUserError to { error } and
+ * letting unexpected failures propagate. Used by both provider adapters.
  */
 export const withCheckoutError = async (
   op: () => Promise<CheckoutSessionResult>,
@@ -486,7 +501,7 @@ export const withCheckoutError = async (
     return await op();
   } catch (err) {
     if (err instanceof PaymentUserError) return { error: err.message };
-    return null;
+    throw err;
   }
 };
 

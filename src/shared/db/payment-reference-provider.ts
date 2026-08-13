@@ -80,7 +80,7 @@ const prepareBindings = (
       });
       if (oldIndex !== stored.index && oldIndex !== untaggedIndex) {
         throw new Error(
-          `Payment reference binding ${oldIndex} does not match ${identity.reference}`,
+          `Payment reference binding ${oldIndex} does not match its provider identity`,
         );
       }
       return { newIndex: stored.index, oldIndex, stored };
@@ -118,8 +118,9 @@ const checkedHeldRows = async (
       if (
         held === null ||
         (held.claim.phase !== "checking" && held.claim.phase !== "send_armed")
-      )
+      ) {
         return null;
+      }
       return { ...held, index: row.payment_reference_index };
     }),
   );

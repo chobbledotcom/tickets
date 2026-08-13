@@ -43,8 +43,8 @@ describeWithEnv("refund ledger > record one attendee", { db: true }, () => {
     } finally {
       setDb(real);
     }
-    expect(errors.lastMessage()).toContain(
-      "refund ledger preparation failed for attendee 3: Error: ledger read failed",
-    );
+    expect(errors.lastMessage()).toContain("Refund ledger preparation failed");
+    expect(errors.lastMessage()).toContain("attendee=3");
+    expect(errors.lastMessage()).not.toContain("ledger read failed");
   });
 });

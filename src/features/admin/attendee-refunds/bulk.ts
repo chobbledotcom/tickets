@@ -3,7 +3,6 @@
 /* jscpd:ignore-start -- imports */
 import { compact } from "#fp";
 import { t } from "#i18n";
-import { withDecryptedAttendees } from "#routes/admin/actions.ts";
 import type { ListingRouteParams } from "#routes/admin/attendees-route-helpers.ts";
 import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
 import { getRefundCandidates } from "#routes/admin/refunds/candidates.ts";
@@ -12,16 +11,25 @@ import {
   type RefundBatchResult,
   type RefundCounts,
 } from "#routes/admin/refunds/provider.ts";
-import { type AuthSession, requireOwnerOr } from "#routes/auth.ts";
+import { requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { ownerFormById } from "#routes/entity.ts";
-import { htmlResponse } from "#routes/response.ts";
+import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activity-log.ts";
+import {
+  getListingWithCount,
+  getListingWithCountPrimary,
+} from "#shared/db/listings/records.ts";
+import {
+  getRefundAllSummary,
+  loadRefundAllBatch,
+  type RefundAllSummary,
+} from "#shared/db/refund-all-candidates.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { fail, ok } from "#shared/response.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import type { Attendee, ListingWithCount } from "#shared/types.ts";
+import type { ListingWithCount } from "#shared/types.ts";
 import { adminRefundAllAttendeesPage } from "#templates/admin/attendees.tsx";
 
 /* jscpd:ignore-end */
@@ -30,32 +38,32 @@ const handleAdminRefundAllGet = (
   request: Request,
   { id }: ListingRouteParams,
 ): Promise<Response> =>
-  requireOwnerOr(request, (session) =>
-    withDecryptedAttendees(session, id, async (listing, attendees) => {
-      const flash = applyFlash(request);
-      const count = (
-        await getRefundCandidates(attendees, await requireRequestPrivateKey())
-      ).length;
-      return count === 0
-        ? htmlResponse(
-            adminRefundAllAttendeesPage(
-              listing,
-              0,
-              session,
-              flash.error ?? t("error.no_attendees_to_refund"),
-            ),
-            400,
-          )
-        : htmlResponse(
-            adminRefundAllAttendeesPage(listing, count, session, flash.error),
-          );
-    }),
-  );
+  requireOwnerOr(request, async (session) => {
+    const listing = await getListingWithCount(id);
+    if (listing === null) return notFoundResponse();
+    const flash = applyFlash(request);
+    const { total } = await getRefundAllSummary(id);
+    return total === 0
+      ? htmlResponse(
+          adminRefundAllAttendeesPage(
+            listing,
+            0,
+            session,
+            flash.error ?? t("error.no_attendees_to_refund"),
+          ),
+          400,
+        )
+      : htmlResponse(
+          adminRefundAllAttendeesPage(listing, total, session, flash.error),
+        );
+  });
 
 interface RefundResponseContext {
   counts: RefundCounts;
   listing: ListingWithCount;
   refundAllUrl: string;
+  remaining: number;
+  totalRefundable: number;
 }
 
 const buildBlockedRefundResponse = async (
@@ -92,7 +100,7 @@ const refundActivityCounts = (
 const buildRefundProblemResponse = async (
   context: RefundResponseContext,
 ): Promise<Response> => {
-  const { listing, refundAllUrl, counts } = context;
+  const { listing, refundAllUrl, counts, remaining } = context;
   const { refundedCount, failedCount, notRecordedCount, pendingCount } = counts;
   // An unrecorded refund is operator work, so count it as an error.
   const errorCount = counts.errorCount + notRecordedCount;
@@ -112,7 +120,12 @@ const buildRefundProblemResponse = async (
     errorCount > 0
       ? t("admin.attendees.refund_all_result_errors", { count: errorCount })
       : null,
-    t("admin.attendees.refund_all_result_complete"),
+    t(
+      remaining > 0
+        ? "admin.attendees.refund_all_result_remaining"
+        : "admin.attendees.refund_all_result_complete",
+      { count: remaining },
+    ),
   ]).join(" ");
   await logActivity(
     `Bulk refund: ${refundActivityCounts(
@@ -128,7 +141,7 @@ const buildRefundProblemResponse = async (
 const buildRefundAllResponse = async (
   context: RefundResponseContext,
 ): Promise<Response> => {
-  const { counts, listing, refundAllUrl } = context;
+  const { counts, listing, refundAllUrl, remaining, totalRefundable } = context;
   const refundedCount = counts.refundedCount;
   const hasProblems =
     counts.failedCount + counts.errorCount + counts.notRecordedCount > 0;
@@ -138,6 +151,8 @@ const buildRefundAllResponse = async (
       counts,
       listing,
       refundAllUrl,
+      remaining,
+      totalRefundable,
     });
   }
 
@@ -148,12 +163,35 @@ const buildRefundAllResponse = async (
     );
     return ok(
       refundAllUrl,
-      [
+      compact([
         t("admin.attendees.refund_all_result_refunds", {
           count: refundedCount,
         }),
         t("admin.attendees.refund_all_result_pending", {
           count: counts.pendingCount,
+        }),
+        remaining > 0
+          ? t("admin.attendees.refund_all_result_remaining", {
+              count: remaining,
+            })
+          : null,
+      ]).join(" "),
+    );
+  }
+
+  if (remaining > 0) {
+    await logActivity(
+      `Bulk refund: ${refundedCount} of ${totalRefundable} refunded for '${listing.name}'`,
+      listing.id,
+    );
+    return ok(
+      refundAllUrl,
+      [
+        t("admin.attendees.refund_all_result_refunds", {
+          count: refundedCount,
+        }),
+        t("admin.attendees.refund_all_result_remaining", {
+          count: remaining,
         }),
       ].join(" "),
     );
@@ -168,15 +206,9 @@ const buildRefundAllResponse = async (
 
 const processRefundAll = async (
   listing: ListingWithCount,
-  attendees: Attendee[],
-  _session: AuthSession,
   form: FormParams,
 ): Promise<Response> => {
   const refundAllUrl = `/admin/listing/${listing.id}/refund-all`;
-  const refundable = await getRefundCandidates(
-    attendees,
-    await requireRequestPrivateKey(),
-  );
   const error = verifyOrRedirect(
     form,
     listing.name,
@@ -185,8 +217,24 @@ const processRefundAll = async (
   );
   if (error) return error;
 
-  if (refundable.length === 0) {
+  const batch = await loadRefundAllBatch(listing.id);
+  const blockerMessage = {
+    owner_review: t("error.payment_needs_review"),
+    unrecorded_money: t("error.refund_not_recorded"),
+  } satisfies Record<Exclude<RefundAllSummary["blockedBy"], null>, string>;
+  if (batch.blockedBy !== null) {
+    return fail(refundAllUrl, blockerMessage[batch.blockedBy]);
+  }
+  const refundable = await getRefundCandidates(
+    batch.attendees,
+    await requireRequestPrivateKey(),
+  );
+
+  if (batch.total === 0) {
     return fail(refundAllUrl, t("error.no_attendees_to_refund"));
+  }
+  if (refundable.length !== batch.attendees.length) {
+    throw new Error("Refund All candidate set changed while it was loading");
   }
 
   const result: RefundBatchResult = await processRefundBatch(
@@ -195,7 +243,7 @@ const processRefundAll = async (
     { audience: "bulk" },
   );
   if (result.kind === "blocked") {
-    return buildBlockedRefundResponse(listing, refundAllUrl, refundable.length);
+    return buildBlockedRefundResponse(listing, refundAllUrl, batch.total);
   }
   if (result.kind === "not_ready") {
     return fail(refundAllUrl, result.message);
@@ -204,14 +252,17 @@ const processRefundAll = async (
     counts: result.counts,
     listing,
     refundAllUrl,
+    remaining: batch.total - result.counts.refundedCount,
+    totalRefundable: batch.total,
   });
 };
 
-const handleAdminRefundAllPost = ownerFormById((id, session, form) =>
-  withDecryptedAttendees(session, id, (listing, attendees) =>
-    processRefundAll(listing, attendees, session, form),
-  ),
-);
+const handleAdminRefundAllPost = ownerFormById(async (id, _session, form) => {
+  const listing = await getListingWithCountPrimary(id);
+  return listing === null
+    ? notFoundResponse()
+    : processRefundAll(listing, form);
+});
 
 /** Routes that refund every eligible attendee on a listing. */
 export const bulkRefundHandlers = defineRoutes({

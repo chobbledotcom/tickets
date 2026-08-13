@@ -1,7 +1,7 @@
 import { compact, requiredMapValue } from "#fp";
 import {
-  type ClaimResult,
   claimAttendeeRows,
+  type ClaimResult,
   type InheritedArmedRefunds,
   type LoadedRefundAttendee,
   paymentReferenceRepresentations,
@@ -103,10 +103,7 @@ const settleHold = async (
   try {
     await rowClaim.settle(settlement);
   } catch (error) {
-    reportRefundProblem(
-      `Refund claim could not be settled: ${String(error)}`,
-      listingId,
-    );
+    reportRefundProblem({ error, kind: "claim_settlement" }, listingId);
   }
 };
 
@@ -118,7 +115,7 @@ const booksChange = (
   const missed = unrecorded.has(sessionId);
   const recorded = findings.recorded.has(sessionId);
   if (missed && recorded) {
-    throw new Error(`Refund row ${sessionId} was both recorded and unrecorded`);
+    throw new Error("Refund row had contradictory recording results");
   }
   return missed ? "unrecorded" : recorded ? "recorded" : undefined;
 };
@@ -147,7 +144,7 @@ const settlementEntry = (
       phase: requiredMapValue(
         phases,
         sessionId,
-        `Refund settlement lost payment-row phase ${sessionId}`,
+        "Refund settlement lost a payment-row phase",
       ),
       ...(review === undefined ? {} : { review }),
     },
@@ -164,7 +161,7 @@ const settlementRows = (
         mayLetGo(
           findings.doubts.get(attendeeId),
           claim.inherited.has(attendeeId),
-        ),
+        )
       )
       .map(([attendeeId]) => attendeeId),
   );
@@ -179,7 +176,7 @@ const settlementRows = (
           unrecorded,
           findings,
           findings.claimPhases,
-        ),
+        )
       ),
     ),
   );
@@ -199,7 +196,7 @@ const initialUnrecorded = (
     ]),
   );
   const returned = [...represented.values()].filter(({ index }) =>
-    claim.returned.has(index),
+    claim.returned.has(index)
   );
   return new Map(
     [...Map.groupBy(returned, ({ attendeeId }) => attendeeId)].map(
@@ -216,16 +213,18 @@ export const underAttendeeClaim = async <TResult>(
   rowClaim: RowClaim,
   attendees: readonly LoadedRefundAttendee[],
   listingId: number,
-  run: {
-    blocked: (block: RefundRunBlock) => TResult;
-    work: (heldWork: HeldRefundWork) => Promise<TResult>;
-  } & (
-    | {
+  run:
+    & {
+      blocked: (block: RefundRunBlock) => TResult;
+      work: (heldWork: HeldRefundWork) => Promise<TResult>;
+    }
+    & (
+      | {
         admit: RefundClaimAdmission;
         admissionRefused: () => TResult;
       }
-    | { admit?: undefined; admissionRefused?: never }
-  ),
+      | { admit?: undefined; admissionRefused?: never }
+    ),
 ): Promise<TResult> => {
   const claim = await rowClaim.claim(attendees, run.admit);
   if (claim.kind === "changed") {

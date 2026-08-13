@@ -329,7 +329,9 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
         [{ id: attendeeId, payment_id: "" }],
         await getTestPrivateKey(),
       ),
-    ).rejects.toThrow(`Payment reference index does not match ${sessionId}`);
+    ).rejects.toThrow(
+      /^Payment reference index does not match stored reference$/u,
+    );
     expect(await indexOf(sessionId)).toEqual({ value: "wrong-index" });
   });
 });

@@ -27,7 +27,7 @@ import {
 // jscpd:ignore-end
 
 const SINGLE_ERROR_RESULT =
-  "1 refund succeeded. There was 1 failure. There was 1 error. Check the activity log for details. Some payments may have already been refunded.";
+  "1 refund succeeded. There was 1 failure. There was 1 error. Check the activity log for details. 1 refund remains. Submit again to continue.";
 const OVERSIZED_REFUND_COUNT = 9;
 
 describeWithEnv("server (admin refund-all results)", { db: true }, () => {
@@ -110,7 +110,7 @@ describeWithEnv("server (admin refund-all results)", { db: true }, () => {
         async () => {
           await expectFlashRedirect(
             `/admin/listing/${listing.id}/refund-all`,
-            "1 refund succeeded. There was 1 problem. Some payments may have already been refunded.",
+            "1 refund succeeded. There was 1 problem. 1 refund remains. Submit again to continue.",
             false,
           )(await postRefundAll(listing));
         },
@@ -183,7 +183,7 @@ describeWithEnv("server (admin refund-all results)", { db: true }, () => {
       async () => {
         await expectFlashRedirect(
           `/admin/listing/${listing.id}/refund-all`,
-          "0 refunds succeeded. There were 2 failures. There were 2 errors. Check the activity log for details. Some payments may have already been refunded.",
+          "0 refunds succeeded. There were 2 failures. There were 2 errors. Check the activity log for details. 2 refunds remain. Submit again to continue.",
           false,
         )(await postRefundAll(listing));
       },

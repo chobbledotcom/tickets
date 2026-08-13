@@ -29,8 +29,13 @@ describeWithEnv("server (admin refund provider logging)", { db: true }, () => {
         await submitRefund(ctx);
       });
       expect(
-        loggedDetails().some((s) => s.includes("Admin refund rejected")),
+        loggedDetails().some((s) =>
+          s.includes("Refund rejected for stripe payment"),
+        ),
       ).toBe(true);
+      expect(loggedDetails().some((s) => s.includes("pi_logfail_single"))).toBe(
+        false,
+      );
     });
 
     test("a bulk refund the provider rejects is logged per attendee", async () => {

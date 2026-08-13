@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { storeSumupCheckout } from "#shared/db/sumup-checkouts.ts";
+import { PaymentUserError } from "#shared/payment-helpers.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
@@ -199,6 +200,37 @@ describe("sumup-provider", () => {
           ).toBeNull();
         },
       ));
+
+    test("returns an expected checkout message at the adapter boundary", () =>
+      withMocks(
+        () =>
+          stub(sumupApi, "createCheckout", () =>
+            Promise.reject(new PaymentUserError("Phone number is invalid")),
+          ),
+        async () => {
+          expect(
+            await sumupPaymentProvider.createCheckoutSession(
+              intent,
+              "http://localhost",
+            ),
+          ).toEqual({ error: "Phone number is invalid" });
+        },
+      ));
+
+    test("propagates an unexpected checkout failure through the adapter", () => {
+      const failure = new TypeError("SumUp connection failed");
+      return withMocks(
+        () => stub(sumupApi, "createCheckout", () => Promise.reject(failure)),
+        async () => {
+          await expect(
+            sumupPaymentProvider.createCheckoutSession(
+              intent,
+              "http://localhost",
+            ),
+          ).rejects.toBe(failure);
+        },
+      );
+    });
   });
 
   test("setupWebhookEndpoint is a no-op (webhooks are per-checkout)", async () => {

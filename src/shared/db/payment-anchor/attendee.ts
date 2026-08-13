@@ -1,7 +1,6 @@
 /** Durable refund identity materialized when an old attendee is saved. */
 
 import { inPlaceholders, type SqlStatement } from "#shared/db/client.ts";
-import { legacyRefundWarningSaveStatements } from "#shared/db/notes/queries.ts";
 import { nowIso } from "#shared/now.ts";
 import { paymentAnchorReference } from "./reference.ts";
 import { anchorSessionId } from "./session.ts";
@@ -42,12 +41,5 @@ export const attendeePaymentAnchorStatements = async (
                   AND payment.payment_reference_index IN (${matchingIndexSlots})
              )`,
   };
-  return [
-    anchor,
-    ...(await legacyRefundWarningSaveStatements(attendeeId, {
-      index: stored.index,
-      matchingIndexes,
-      reference: paymentId,
-    })),
-  ];
+  return [anchor];
 };

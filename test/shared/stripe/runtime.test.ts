@@ -168,13 +168,17 @@ describeStripe("Stripe client configuration", () => {
 
     await withMocks(
       () =>
-        stub(client.checkout.sessions, "retrieve", () =>
-          Promise.reject(stripeError),
+        stub(
+          client.checkout.sessions,
+          "retrieve",
+          () => Promise.reject(stripeError),
         ),
       async () => {
-        expect(
-          await stripeApi.retrieveCheckoutSession("cs_test_123"),
-        ).toBeNull();
+        await expect(
+          stripeApi.retrieveCheckoutSession("cs_test_123"),
+        ).rejects.toThrow(
+          "Stripe checkout could not be read (unexpected_failure)",
+        );
       },
     );
 

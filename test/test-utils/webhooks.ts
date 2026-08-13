@@ -39,10 +39,9 @@ export const checkoutSessionEvent = (opts: {
       currency: "gbp",
       id: opts.sessionId,
       metadata: opts.metadata,
-      payment_intent:
-        opts.paymentIntent === undefined
-          ? `pi_${opts.sessionId}`
-          : opts.paymentIntent,
+      payment_intent: opts.paymentIntent === undefined
+        ? `pi_${opts.sessionId}`
+        : opts.paymentIntent,
       payment_status: opts.paymentStatus ?? "paid",
       url: null,
     },
@@ -233,9 +232,9 @@ const expectWebhookAcknowledged = async (
 
 /**
  * The third canonical webhook outcome alongside "processed" and "kept and
- * refunded": the session carries no valid price proof (corrupt/missing/non-array
- * items, an unparseable body, ...) so it classifies as "ignore" — acknowledged
- * (200, `received: true`) without processing, never a throw or refund.
+ * refunded": the session carries no valid price proof, so ownership cannot be
+ * established. It is acknowledged without processing or refunding. A valid
+ * proof whose booking will not parse is a different, retryable outcome.
  */
 export const expectWebhookIgnored = (
   event: Parameters<typeof stubWebhookVerify>[0],

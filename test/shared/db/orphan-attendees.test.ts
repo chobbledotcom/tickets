@@ -21,7 +21,7 @@ import { createSystemNote, getNoteRows } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
 import {
   countPurgeableOrphanedAttendees,
-  getOrphanAttendeeIdsWithPaymentWork,
+  getOrphanPaymentWorkPage,
   purgeOrphanedAttendees,
 } from "#shared/db/orphan-attendees.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
@@ -245,7 +245,7 @@ describeWithEnv("db > orphan-attendees", { db: true }, () => {
       const unrecordedId = await insertOrphan(nowIso());
       await addPaymentWork(unrecordedId, UNRECORDED_MIRROR);
 
-      expect(await getOrphanAttendeeIdsWithPaymentWork()).toEqual([
+      expect((await getOrphanPaymentWorkPage()).attendeeIds).toEqual([
         claimId,
         reviewId,
         unrecordedId,
@@ -262,7 +262,7 @@ describeWithEnv("db > orphan-attendees", { db: true }, () => {
       );
       await addPaymentWork(attendee.id, CLAIM_MIRROR);
 
-      expect(await getOrphanAttendeeIdsWithPaymentWork()).toEqual([]);
+      expect((await getOrphanPaymentWorkPage()).attendeeIds).toEqual([]);
     });
 
     test("is not offered up for purging", async () => {

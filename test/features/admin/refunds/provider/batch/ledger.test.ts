@@ -70,14 +70,14 @@ describeWithEnv(
         pendingCount: 0,
         refundedCount: 1,
       });
-      expect(errors.contains("Admin bulk refund failed for attendee 12")).toBe(
+      expect(errors.contains("Admin bulk refund failed for 1 payment(s)")).toBe(
         true,
       );
       expect(
-        errors.contains(
-          "Admin bulk refund errored for attendee 13, payments pi_boom, pi_two",
-        ),
+        errors.contains("Admin bulk refund errored for 2 payment(s)"),
       ).toBe(true);
+      expect(errors.contains("pi_boom")).toBe(false);
+      expect(errors.contains("pi_two")).toBe(false);
     });
 
     test("records the charges that came back when a sibling is refused", async () => {

@@ -79,8 +79,7 @@ const execWithSessionId = (sessionId: string, sql: string): Promise<unknown> =>
 /** A void write parameterized by a single payment session ID: curries the SQL,
  * returns a function that runs it for one session. */
 const sessionIdWrite =
-  (sql: string) =>
-  async (sessionId: string): Promise<void> => {
+  (sql: string) => async (sessionId: string): Promise<void> => {
     await execWithSessionId(sessionId, sql);
   };
 
@@ -127,7 +126,8 @@ export const reserveSession = async (
   const [claimResult, lookupResult] = await executeBatchWithResults([
     {
       args: [sessionId, claimedAt, staleBefore],
-      sql: `INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at)
+      sql:
+        `INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at)
             VALUES (?, NULL, ?)
             ON CONFLICT(payment_session_id) DO UPDATE SET
               attendee_id = NULL,
@@ -143,7 +143,8 @@ export const reserveSession = async (
     },
     {
       args: [sessionId],
-      sql: "SELECT payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data, payment_reference, provider_refunded_at FROM processed_payments WHERE payment_session_id = ?",
+      sql:
+        "SELECT payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data, payment_reference, provider_refunded_at FROM processed_payments WHERE payment_session_id = ?",
     },
   ]);
   if (resultRows(claimResult!)[0] !== undefined) return { reserved: true };
@@ -216,9 +217,7 @@ export const finalizeSessionIfUnresolved = async (
                AND NOT (${referenceClaim.sql})`,
     });
     if (resultRows(blocked).length > 0) {
-      throw new Error(
-        `Payment ${sessionId} cannot finalize while its reference is held`,
-      );
+      throw new Error("Payment cannot finalize while its reference is held");
     }
   });
 };

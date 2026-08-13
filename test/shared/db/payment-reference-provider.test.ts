@@ -201,7 +201,7 @@ describeWithEnv(
       if (held.kind !== "claimed") throw new Error("the claim was refused");
       const before = await rowFor("bind_wrong_raw");
 
-      await expect(
+      const failure = expect(
         bindPaymentReferenceProviders(
           bindingRequest(
             held,
@@ -217,7 +217,9 @@ describeWithEnv(
             ]),
           ),
         ),
-      ).rejects.toThrow("does not match legacy_wrong");
+      ).rejects;
+      await failure.toThrow("does not match its provider identity");
+      await failure.not.toThrow("legacy_wrong");
       expect(await rowFor("bind_wrong_raw")).toEqual(before);
     });
 

@@ -97,8 +97,9 @@ describeWithEnv("refund-ledger > recordPlaceholderRefund", { db: true }, () => {
     ).toEqual([]);
     expect(errors.lastMessage()).toContain("E_LEDGER_POST");
     expect(errors.lastMessage()).toContain(
-      "placeholder refund ledger post failed for attendee 7:",
+      "Placeholder refund ledger post failed",
     );
+    expect(errors.lastMessage()).toContain("attendee=7");
   });
 
   test("logs and does not throw when the payment reference conflicts", async () => {

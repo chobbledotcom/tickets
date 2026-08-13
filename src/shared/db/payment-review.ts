@@ -14,8 +14,8 @@ import {
 } from "#shared/db/payment-claim.ts";
 import { nowIso } from "#shared/now.ts";
 import {
-  type PaymentWorkStatus,
   paymentWorkFor,
+  type PaymentWorkStatus,
 } from "#shared/payment/admit-move.ts";
 import {
   acknowledgePaymentReview,
@@ -39,13 +39,13 @@ export type AcknowledgePaymentReviewResult =
 
 export type PaymentReviewState =
   | {
-      readonly allAcknowledged: boolean;
-      readonly identity: string;
-      readonly status: "needs_review";
-    }
+    readonly allAcknowledged: boolean;
+    readonly identity: string;
+    readonly status: "needs_review";
+  }
   | {
-      readonly status: Exclude<PaymentWorkStatus, "needs_review">;
-    };
+    readonly status: Exclude<PaymentWorkStatus, "needs_review">;
+  };
 
 const REVIEW_ACTIVITY = "Payment review acknowledged by owner";
 
@@ -68,7 +68,7 @@ const reviewRows = (rows: readonly PaymentRowRecord[]): ReviewRow[] =>
 const reviewIdentity = (reviews: readonly ReviewRow[]): Promise<string> => {
   const facts = sortStrings(
     reviews.map(({ review, row }) =>
-      JSON.stringify([row.sessionId, review.caseId, review.reason]),
+      JSON.stringify([row.sessionId, review.caseId, review.reason])
     ),
   );
   return hmacHash(`payment-review:1:${JSON.stringify(facts)}`);
@@ -115,9 +115,7 @@ const assertEveryRowChanged = (
 ): void => {
   const missed = rows.find((_, index) => affected[index] !== 1);
   if (missed !== undefined) {
-    throw new Error(
-      `Payment review no longer owns payment row ${missed.sessionId}`,
-    );
+    throw new Error("Payment review no longer owns its payment row");
   }
 };
 
@@ -145,7 +143,7 @@ export const acknowledgeCurrentPaymentReview = (
           paymentRowStateStatement(
             review.row,
             acknowledgedState(review, acknowledgedAt),
-          ),
+          )
         ),
       ),
     );
