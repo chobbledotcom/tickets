@@ -124,15 +124,71 @@ const readSessionOrder = async (
   return read.resource;
 };
 
+const SQUARE_APP_METADATA_FIELDS = {
+  _origin: true,
+  address: true,
+  allocations: true,
+  answer_ids: true,
+  b: true,
+  balance_attendee_id: true,
+  date: true,
+  day_count: true,
+  email: true,
+  items: true,
+  modifiers: true,
+  name: true,
+  phone: true,
+  price_proof: true,
+  reservation_amount: true,
+  site_token_index: true,
+  special_instructions: true,
+  text_answer_ids: true,
+  thank_you_url: true,
+} as const satisfies Record<keyof SessionMetadata | "b", true>;
+
+type SquareOrderMetadata =
+  | { kind: "ours"; metadata: SessionMetadata }
+  | { kind: "foreign" }
+  | { kind: "malformed" };
+
+/** Distinguish ordinary Square orders from damaged app checkouts. */
+const classifyOrderMetadata = (
+  metadata: SquareOrder["metadata"],
+): SquareOrderMetadata => {
+  if (hasRequiredSessionMetadata(metadata)) {
+    return { kind: "ours", metadata };
+  }
+  const bearsAppField = Object.keys(metadata ?? {}).some((field) =>
+    Object.hasOwn(SQUARE_APP_METADATA_FIELDS, field),
+  );
+  return bearsAppField ? { kind: "malformed" } : { kind: "foreign" };
+};
+
+const UNUSABLE_METADATA = {
+  foreign: {
+    log: "Square order does not carry app metadata",
+    retryCompletedWebhook: false,
+  },
+  malformed: {
+    log: "Square order is missing required metadata fields",
+    retryCompletedWebhook: true,
+  },
+} as const satisfies Record<
+  Exclude<SquareOrderMetadata["kind"], "ours">,
+  { log: string; retryCompletedWebhook: boolean }
+>;
+
 const sessionMetadata = (
   order: SquareOrder,
   paidPaymentId: string | undefined,
 ): SessionMetadata | null => {
-  if (hasRequiredSessionMetadata(order.metadata)) return order.metadata;
-  if (paidPaymentId) {
+  const classified = classifyOrderMetadata(order.metadata);
+  if (classified.kind === "ours") return classified.metadata;
+  const unusable = UNUSABLE_METADATA[classified.kind];
+  if (paidPaymentId && unusable.retryCompletedWebhook) {
     throw new Error("Completed Square order is missing required metadata");
   }
-  logDebug("Square", "Square order is missing required metadata fields");
+  logDebug("Square", unusable.log);
   return null;
 };
 

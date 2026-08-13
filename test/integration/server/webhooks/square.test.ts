@@ -21,10 +21,11 @@ import {
 
 // jscpd:ignore-end
 
-const expectRetryableWebhook = async (
+const expectWebhookResponse = async (
   event: WebhookEvent,
   orderRead: ReturnType<typeof squareOrderRead>,
   expectedOrderReads: number,
+  expectedStatus: number,
 ): Promise<void> => {
   await configureSquare();
   await settings.update.paymentProvider("square");
@@ -45,7 +46,7 @@ const expectRetryableWebhook = async (
           ),
         ),
       );
-      expect(response.status).toBe(503);
+      expect(response.status).toBe(expectedStatus);
       expect(order.calls).toHaveLength(expectedOrderReads);
       expect(payment.calls).toHaveLength(0);
     },
@@ -64,7 +65,35 @@ describeWithEnv("Square payment webhooks", { db: true }, () => {
       type: "payment.updated",
     };
 
-    await expectRetryableWebhook(event, squareOrderRead(null), 0);
+    await expectWebhookResponse(event, squareOrderRead(null), 0, 503);
+  });
+
+  test("acknowledges a completed payment for a foreign Square order", async () => {
+    const event: WebhookEvent = {
+      data: {
+        object: {
+          payment: {
+            id: "point-of-sale-payment",
+            order_id: "point-of-sale-order",
+            status: "COMPLETED",
+          },
+        },
+      },
+      id: "point-of-sale-event",
+      type: "payment.updated",
+    };
+
+    await expectWebhookResponse(
+      event,
+      squareOrderRead({
+        id: "point-of-sale-order",
+        metadata: { source: "POINT_OF_SALE" },
+        state: "COMPLETED",
+        totalMoney: squareMoney(1000),
+      }),
+      1,
+      200,
+    );
   });
 
   test("keeps a completed payment with malformed order metadata retryable", async () => {
@@ -82,15 +111,16 @@ describeWithEnv("Square payment webhooks", { db: true }, () => {
       type: "payment.updated",
     };
 
-    await expectRetryableWebhook(
+    await expectWebhookResponse(
       event,
       squareOrderRead({
         id: "order-private-sentinel",
-        metadata: {},
+        metadata: { _origin: "tickets.example" },
         state: "COMPLETED",
         totalMoney: squareMoney(1000),
       }),
       1,
+      503,
     );
   });
 });

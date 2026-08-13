@@ -111,7 +111,7 @@ describe("square-provider", () => {
   });
 
   describe("retrieveSession", () => {
-    test("returns null when order metadata is missing required fields", async () => {
+    test("returns null when an order carries no app metadata", async () => {
       await withMocks(
         () =>
           stub(squareApi, "readOrder", () =>
@@ -122,7 +122,7 @@ describe("square-provider", () => {
             await squarePaymentProvider.retrieveSession("order_no_meta");
           expect(result).toBeNull();
           expect(debug().calls.at(-1)?.args).toEqual([
-            "[Square] Square order is missing required metadata fields",
+            "[Square] Square order does not carry app metadata",
           ]);
         },
       );

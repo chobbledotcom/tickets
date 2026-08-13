@@ -346,10 +346,10 @@ describe("square-provider resolveWebhookSession", () => {
     ).toBeNull();
   });
 
-  test("refuses a completed payment whose order has no metadata", async () => {
+  test("skips a completed payment for an order with no app metadata", async () => {
     await withMocks(
-      () =>
-        stub(squareApi, "readOrder", () =>
+      () => ({
+        order: stub(squareApi, "readOrder", () =>
           Promise.resolve(
             squareOrderRead({
               id: "order_no_meta",
@@ -359,26 +359,24 @@ describe("square-provider resolveWebhookSession", () => {
             }),
           ),
         ),
-      async () => {
-        const message = await rejectionMessage(
-          squarePaymentProvider.resolveWebhookSession({
-            data: {
-              object: {
-                payment: {
-                  id: "pay_no_meta",
-                  order_id: "order_no_meta",
-                  status: "COMPLETED",
-                },
+        payment: stub(squareApi, "readPayment"),
+      }),
+      async ({ payment }) => {
+        const result = await squarePaymentProvider.resolveWebhookSession({
+          data: {
+            object: {
+              payment: {
+                id: "pay_no_meta",
+                order_id: "order_no_meta",
+                status: "COMPLETED",
               },
             },
-            id: "evt_no_meta",
-            type: "payment.updated",
-          }),
-        );
-        expect(message).toBe(
-          "Completed Square order is missing required metadata",
-        );
-        expect(message).not.toContain("order_no_meta");
+          },
+          id: "evt_no_meta",
+          type: "payment.updated",
+        });
+        expect(result).toBe("skip");
+        expect(payment.calls).toHaveLength(0);
       },
     );
   });
