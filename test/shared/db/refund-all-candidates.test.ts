@@ -29,8 +29,8 @@ import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import {
   CLAIM_MIRROR,
   putRowState,
-  refundClaimFixture,
   REVIEW_MIRROR,
+  refundClaimFixture,
   reviewCase,
   rowStateSlot,
   UNRECORDED_MIRROR,
