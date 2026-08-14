@@ -1,7 +1,7 @@
 /** Exact provider money and the owner resolution it can safely support. */
 
 import * as v from "valibot";
-import { type Money, MoneySchema } from "#shared/payment/money.ts";
+import { type Money, MoneySchema, sameMoney } from "#shared/payment/money.ts";
 import {
   type ChargeMoney,
   refundMoneyAccountedFor,
@@ -67,6 +67,14 @@ export const RefundConflictDecisionSchema = v.variant("kind", [
 export type RefundConflictDecision = v.InferOutput<
   typeof RefundConflictDecisionSchema
 >;
+
+/** Evidence that cannot yet support an owner decision must be checked again. */
+export const refundConflictNeedsProviderCheck = (
+  decision: RefundConflictDecision,
+): boolean =>
+  decision.kind === "wait" ||
+  (decision.kind === "returned" &&
+    !sameMoney(decision.captured, decision.refunded));
 
 export const ReturnedOrNotSentDecisionSchema = v.strictObject({
   kind: v.literal("returned_or_not_sent"),

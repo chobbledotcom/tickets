@@ -22,7 +22,7 @@ const rememberReturnedForCandidate = (
   const attendeeId = candidate.attendee.id;
   const indexes = new Set(returnedIndexes);
   const returned = candidate.references.filter(({ index }) =>
-    indexes.has(index),
+    indexes.has(index)
   );
   if (returned.length > 0) {
     rememberFailedRefundLedger(held.findings, attendeeId, returned);
@@ -34,12 +34,19 @@ const needsAuthority = ({ charge, identity }: RefundReadinessObservation) =>
 
 type ObservedAuthorityAnswer = Extract<
   ProviderRefundResult,
-  { kind: "needs_owner_choice" | "pending" | "returned" }
+  {
+    kind:
+      | "needs_owner_choice"
+      | "needs_provider_check"
+      | "pending"
+      | "returned";
+  }
 >;
 
 const PRESERVES_OBSERVED_EVIDENCE = {
   changed: false,
   needs_owner_choice: true,
+  needs_provider_check: true,
   pending: true,
   ready: false,
   returned: true,

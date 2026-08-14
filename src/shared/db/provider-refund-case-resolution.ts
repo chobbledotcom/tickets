@@ -19,11 +19,11 @@ import {
 } from "#shared/db/provider-refund-cases.ts";
 import { nowMs } from "#shared/now.ts";
 import { money } from "#shared/payment/money.ts";
-import {
-  markRefundLocalRecorded,
-  type NeedsOwnerChoiceRefundState,
-  type RefundAuthorityState,
-} from "#shared/payment/refund-authority.ts";
+import { markRefundLocalRecorded } from "#shared/payment/refund-authority.ts";
+import type {
+  NeedsOwnerChoiceRefundState,
+  RefundAuthorityState,
+} from "#shared/payment/refund-authority-state.ts";
 import {
   type RefundOwnerChoice,
   type RefundOwnerChoiceName,
@@ -101,10 +101,10 @@ const notSentChoice = async (
   return state.request.capability === "keyless"
     ? { ...common, capability: "keyless" }
     : {
-        ...common,
-        capability: "keyed",
-        replayUntil: refundReplayUntil(reference.provider, decidedAt),
-      };
+      ...common,
+      capability: "keyed",
+      replayUntil: refundReplayUntil(reference.provider, decidedAt),
+    };
 };
 
 const decisionMoney = (
@@ -114,16 +114,15 @@ const decisionMoney = (
 ): RefundAuthorityMoney =>
   state.reason === "provider_conflict"
     ? {
-        captured: state.decision.captured,
-        refunded: state.decision.refunded,
-      }
+      captured: state.decision.captured,
+      refunded: state.decision.refunded,
+    }
     : {
-        captured: authority.captured,
-        refunded:
-          choice === "provider_confirmed_returned"
-            ? authority.captured
-            : authority.refunded,
-      };
+      captured: authority.captured,
+      refunded: choice === "provider_confirmed_returned"
+        ? authority.captured
+        : authority.refunded,
+    };
 
 const applyDecision = async (
   transaction: TxScope,
@@ -219,6 +218,6 @@ export const resolveProviderRefundCase = async (
     throw new Error("Refund-case activity message must not be empty");
   }
   return await withTransaction((transaction) =>
-    resolveInTransaction(transaction, input),
+    resolveInTransaction(transaction, input)
   );
 };

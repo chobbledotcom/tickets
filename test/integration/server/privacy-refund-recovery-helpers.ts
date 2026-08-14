@@ -63,11 +63,11 @@ export const returnedProviderCheck = () =>
 export const partiallyReturnedProviderCheck = () =>
   providerCheck(foundCharge(chargeMoney(2_500, 400)));
 
-export const expectUnreadableProviderCheck = async (
+export const expectProviderCheck = async (
   id: number,
-  provider: ReturnType<typeof unreadableProviderCheck>,
+  provider: ReturnType<typeof providerCheck>,
   flashMessage: string,
-  activityMessage: string,
+  activityMessage?: string,
 ): Promise<void> => {
   await expectFlashRedirect(
     refundCasePath(id),
@@ -76,7 +76,9 @@ export const expectUnreadableProviderCheck = async (
   )(await submitRefundCase(await testCookie(), { choice: "check_again" }, id));
   expect(provider.read.calls).toHaveLength(1);
   expect(provider.send.calls).toHaveLength(0);
-  expect((await getAllActivityLog()).map(({ message }) => message)).toContain(
-    activityMessage,
-  );
+  if (activityMessage) {
+    expect((await getAllActivityLog()).map(({ message }) => message)).toContain(
+      activityMessage,
+    );
+  }
 };

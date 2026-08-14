@@ -34,6 +34,10 @@ const queue: ProviderRefundCasePage = {
 
 const detail: ProviderRefundCase = {
   ...queue.cases[0]!,
+  choices: [
+    "provider_confirmed_returned",
+    "provider_confirmed_not_sent",
+  ],
   decision: { kind: "returned_or_not_sent" },
   reason: "possibly_sent",
   reference: {
@@ -45,9 +49,13 @@ const detail: ProviderRefundCase = {
 };
 
 const automaticCase = (
-  state: Exclude<ProviderRefundCase["state"], "needs_owner_choice">,
+  state: Exclude<
+    ProviderRefundCase["state"],
+    "needs_owner_choice" | "needs_provider_check"
+  >,
 ): ProviderRefundCase => ({
   ...detail,
+  choices: null,
   decision: null,
   reason: null,
   state,
@@ -88,14 +96,15 @@ describe("provider refund recovery templates", () => {
     expect(html).not.toContain("checked");
   });
 
-  test("keeps a partial return checkable and offers choices only for conclusive money", () => {
+  test("separates a partial provider check from conclusive owner choices", () => {
     const partial = adminProviderRefundCasePage(
       OWNER_SESSION,
       {
         ...detail,
+        choices: null,
         decision: { captured, kind: "returned", refunded: money(1, "GBP")! },
         reason: "provider_conflict",
-        state: "needs_owner_choice",
+        state: "needs_provider_check",
       },
       {},
     );
@@ -103,6 +112,7 @@ describe("provider refund recovery templates", () => {
       OWNER_SESSION,
       {
         ...detail,
+        choices: ["provider_confirmed_returned"],
         decision: { captured, kind: "returned", refunded: captured },
         reason: "provider_conflict",
         state: "needs_owner_choice",
@@ -113,6 +123,7 @@ describe("provider refund recovery templates", () => {
       OWNER_SESSION,
       {
         ...detail,
+        choices: ["provider_confirmed_not_sent"],
         decision: {
           captured,
           kind: "not_sent",
@@ -139,9 +150,10 @@ describe("provider refund recovery templates", () => {
       OWNER_SESSION,
       {
         ...detail,
+        choices: null,
         decision: { captured, kind: "wait", refunded: money(1, "GBP")! },
         reason: "provider_conflict",
-        state: "needs_owner_choice",
+        state: "needs_provider_check",
       },
       {},
     );

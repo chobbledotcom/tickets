@@ -380,8 +380,8 @@ export const getActivePaymentProvider = (): Promise<PaymentProvider | null> =>
 export type ExistingPaymentProvider = PaymentProvider | null;
 
 /**
- * Resolve the provider for refunds, callbacks, and completion of payments that
- * already exist. New sales use {@link getActivePaymentProvider}.
+ * Resolve the provider for callbacks and completion of payments that already
+ * exist. New sales use {@link getActivePaymentProvider}.
  */
 export const getPaymentProviderForExistingPayments =
   (): Promise<ExistingPaymentProvider> =>

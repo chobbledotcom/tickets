@@ -23,7 +23,7 @@ const aboutTheCharge = alsoAbout([
   "length(currency) = 3 AND currency = upper(currency)",
   "json_valid(refund_state)",
   "json_type(refund_state) = 'object'",
-  "refund_state_name IN ('ready', 'send_armed', 'observing', 'completed', 'needs_owner_choice')",
+  "refund_state_name IN ('ready', 'send_armed', 'observing', 'completed', 'needs_owner_choice', 'needs_provider_check')",
   "refund_local_state IN ('not_due', 'due', 'recorded')",
   "json_type(refund_state, '$.kind') IS 'text'",
   "json_type(refund_state, '$.request.capability') IS 'text'",

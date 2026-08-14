@@ -1,13 +1,13 @@
 import { getDb, insert } from "#shared/db/client.ts";
 import { storePaymentReference } from "#shared/db/payment-reference-store.ts";
+import { armRefundSend } from "#shared/payment/refund-authority.ts";
 import {
-  armRefundSend,
   type RefundAuthorityState,
   refundLocalMirror,
   refundNextActionAt,
   refundStateMirror,
   writeRefundAuthorityState,
-} from "#shared/payment/refund-authority.ts";
+} from "#shared/payment/refund-authority-state.ts";
 import { markRefundOwnerChoiceNeeded } from "#shared/payment/refund-authority-choice.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 import { readyRefundForTest } from "#test-utils/refund-authority.ts";
@@ -36,6 +36,7 @@ export const addProviderRefundTestCase = async (
     `request-${reference}`,
   ),
   provider: PaymentProviderType = "sumup",
+  refundedAmount = state.kind === "completed" ? 2_500 : 0,
 ): Promise<number> => {
   const paymentReference = { kind: "tagged", provider, reference } as const;
   const stored = await storePaymentReference(paymentReference);
@@ -56,7 +57,7 @@ export const addProviderRefundTestCase = async (
       refund_revision: 1,
       refund_state: writeRefundAuthorityState(state),
       refund_state_name: refundStateMirror(state),
-      refunded_amount: state.kind === "completed" ? 2_500 : 0,
+      refunded_amount: refundedAmount,
       updated_at: stamp,
     }),
   );

@@ -42,7 +42,8 @@ export type RunFindings = {
 /** Why a run could not take the complete set it loaded. */
 export type RefundRunBlock =
   | { kind: "claim_held"; reason: string }
-  | { kind: "payment_set_changed"; reason: string };
+  | { kind: "payment_set_changed"; reason: string }
+  | { kind: "too_many_reference_holders" };
 
 /** The exact checking fence provider preparation must still own. */
 export type HeldRefundClaim = Pick<
@@ -190,6 +191,9 @@ export const underAttendeeClaim = async <TResult>(
       reason:
         "the attendee or payment set changed while this refund was starting",
     });
+  }
+  if (claim.kind === "too_many_reference_holders") {
+    return run.blocked({ kind: "too_many_reference_holders" });
   }
   if (claim.kind === "blocked") {
     return run.blocked({

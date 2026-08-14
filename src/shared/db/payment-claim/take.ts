@@ -35,30 +35,34 @@ import type { PaymentReviewReason } from "#shared/payment/review.ts";
 import type { RefundClaimPhase } from "#shared/payment/row-state.ts";
 /* jscpd:ignore-end */
 
+/** Most sharing rows one claim accepts before refusing the payment history. */
+const MAX_SHARED_PAYMENT_ROWS_PER_CLAIM = 100;
+
 /** What happened when a run asked for an attendee's rows. */
 export type ClaimResult =
   | { blockedBy: ClaimDecision; kind: "blocked" }
   | { kind: "changed" }
   | { kind: "not_admitted" }
+  | { kind: "too_many_reference_holders" }
   | {
-      /** Each attendee's claimed rows, kept apart so a run can let one
-       *  attendee go while another's answer is still in doubt. */
-      held: ReadonlyMap<number, readonly string[]>;
-      commandId: string;
-      heldSince: string;
-      kind: "claimed";
-      /** The exact phase each row must still hold when this run settles it. */
-      phases: ReadonlyMap<string, RefundClaimPhase>;
-      /** References a claimed or sharing row already says came back. */
-      returned: ReadonlySet<string>;
-      /** Owner-review reasons carried by each claimed row. */
-      reviews: ReadonlyMap<string, PaymentReviewReason>;
-      /** References represented by more than one exact payment row. */
-      shared: ReadonlyMap<string, readonly PaymentReferenceRepresentation[]>;
-      /** Claimed rows that already say returned money is missing from the
-       *  books. A failed readiness check must not erase this repair target. */
-      unrecorded: ReadonlyMap<number, readonly string[]>;
-    };
+    /** Each attendee's claimed rows, kept apart so a run can let one
+     *  attendee go while another's answer is still in doubt. */
+    held: ReadonlyMap<number, readonly string[]>;
+    commandId: string;
+    heldSince: string;
+    kind: "claimed";
+    /** The exact phase each row must still hold when this run settles it. */
+    phases: ReadonlyMap<string, RefundClaimPhase>;
+    /** References a claimed or sharing row already says came back. */
+    returned: ReadonlySet<string>;
+    /** Owner-review reasons carried by each claimed row. */
+    reviews: ReadonlyMap<string, PaymentReviewReason>;
+    /** References represented by more than one exact payment row. */
+    shared: ReadonlyMap<string, readonly PaymentReferenceRepresentation[]>;
+    /** Claimed rows that already say returned money is missing from the
+     *  books. A failed readiness check must not erase this repair target. */
+    unrecorded: ReadonlyMap<number, readonly string[]>;
+  };
 
 /** The exact attendee and payment-reference snapshot an admin run loaded.
  *  `loadedPiiBlob` is the attendee revision, so a concurrent save cannot
@@ -96,8 +100,8 @@ export const paymentReferenceRepresentations = (
         attendeeId: attendee.attendeeId,
         index: reference.index,
         sessionId,
-      })),
-    ),
+      }))
+    )
   );
 
 type StoredAttendee = {
@@ -131,7 +135,8 @@ const readClaimableRows = async (
   const sharing = await readPaymentClaimRows(
     tx,
     `attendee_id NOT IN (${inPlaceholders(attendeeIds)})
-       AND payment_reference_index IN (${inPlaceholders(indexes)})`,
+       AND payment_reference_index IN (${inPlaceholders(indexes)})
+     LIMIT ${MAX_SHARED_PAYMENT_ROWS_PER_CLAIM + 1}`,
     [...attendeeIds, ...indexes],
   );
   return { own, sharing };
@@ -141,7 +146,7 @@ const matchingIndexesOf = (
   attendees: readonly LoadedRefundAttendee[],
 ): string[] =>
   attendees.flatMap(({ references }) =>
-    references.flatMap(({ matchingIndexes }) => matchingIndexes),
+    references.flatMap(({ matchingIndexes }) => matchingIndexes)
   );
 
 /** Row identities the loaded snapshot says the run must hold. */
@@ -209,7 +214,7 @@ const sharedRepresentations = (
     [...paymentReferencesByIndex(attendees).values()].flatMap((reference) => {
       const matching = rows
         .filter((row) =>
-          reference.matchingIndexes.includes(row.payment_reference_index),
+          reference.matchingIndexes.includes(row.payment_reference_index)
         )
         .map(representationOf);
       return matching.length > 1 ? [[reference.index, matching] as const] : [];
@@ -259,6 +264,9 @@ export const claimAttendeeRows = async (
       matchingIndexesOf(attendees),
     );
     if (!rowsMatch(expected, stored.own)) return { kind: "changed" };
+    if (stored.sharing.length > MAX_SHARED_PAYMENT_ROWS_PER_CLAIM) {
+      return { kind: "too_many_reference_holders" };
+    }
     const storedRows = [...stored.own, ...stored.sharing];
     const rows = await Promise.all(storedRows.map(asPaymentClaimRow));
     // Write transactions serialize, so a rival committed before this read or
@@ -287,7 +295,7 @@ export const claimAttendeeRows = async (
     await tx.batch(
       await Promise.all(
         judged.map(({ nextClaim, row }) =>
-          paymentRowStateStatement(row, { ...row.state, claim: nextClaim }),
+          paymentRowStateStatement(row, { ...row.state, claim: nextClaim })
         ),
       ),
     );

@@ -342,7 +342,7 @@
     <main>
       <header>
         <p class="eyebrow">
-          Behavior-only source review · verified source checkpoint
+          Behavior-only source review · provisional working snapshot
         </p>
         <h1>What is actually new in M4 Part A?</h1>
         <p class="lede">
@@ -351,16 +351,22 @@
           moves, and renames. It keeps only three things: genuinely new methods,
           new database touches, and old methods whose behavior changed.
         </p>
-        <div class="snapshot">
-          <span><strong>base</strong> <code
-            >470b47efef0836487d55beb8a26442dd432f6f35</code></span><span><strong
-            >source checkpoint</strong> <code
-            >31492eb2936dea7d7ac51d225d8af3f8fc18d95a</code></span><span><strong
-            >source diff</strong> <code
-            >8dfd2f2b541fd2726677ff7d07eee60beb50caeba958617cfe0cf30ef435be8e</code></span><span
-          ><strong>generated</strong> <code
-            >2026-08-14T05:23:52+01:00</code></span><span><strong>scope</strong>
-            <code>origin/main...source checkpoint</code></span>
+        <!-- FINALIZE: replace data-finalize values after the final green commit. -->
+        <div class="snapshot" data-snapshot="provisional">
+          <span data-finalize="base"><strong>base</strong> <code
+            >470b47efef0836487d55beb8a26442dd432f6f35</code></span><span
+            data-finalize="branch-head"
+          ><strong>provisional HEAD</strong> <code>d91a8ec86</code></span><span
+            data-finalize="working-state"
+          ><strong>working state</strong> <code>HEAD + final uncommitted
+              fixes</code></span><span
+            data-finalize="source-fingerprint"
+          ><strong>source fingerprint</strong> <code>pending final
+              commit</code></span><span data-finalize="generated"><strong
+            >generated</strong> <code
+            >2026-08-14T07:18:00+01:00</code></span><span
+            data-finalize="scope"
+          ><strong>scope</strong> <code>origin/main..working tree</code></span>
         </div>
         <div class="metrics">
           <div class="metric"><b>6</b><span>new method families</span></div>
@@ -373,6 +379,12 @@
           <div class="metric">
             <b>0</b><span>moves counted as features</span>
           </div>
+        </div>
+        <div class="callout warn" data-finalize="snapshot-note">
+          <strong>Provisional values:</strong> this inventory covers the
+          complete working tree. Final commit, fingerprint, raw source totals,
+          code-only totals, and test counts live in named <code
+          >data-finalize</code> fields for a mechanical final update.
         </div>
       </header>
 
@@ -424,15 +436,39 @@
         <div class="callout">
           <strong>One path, not a compatibility stack:</strong> the inventory
           contains one durable provider-refund engine and one send transition.
-          The old sender, provider-discovery fallback, read-through admission
-          helper, and runtime reader for <code>provider_refunded_at</code> are
-          deleted or absent. Provider adapters require the permit minted by this
-          path; there is no legacy fallback to count as a second implementation.
+          The old refund sender, refund-local provider-discovery fallback,
+          read-through admission helper, and runtime reader for <code
+          >provider_refunded_at</code> are deleted or absent. Provider adapters
+          require the permit minted by this path. The still-temporary checkout
+          selector is exactly confined to <code>classify.ts</code>, <code
+          >webhooks.ts</code>, and its declaration in <code>payments.ts</code>;
+          an architecture test rejects it from admin refunds, the shared engine,
+          or adapters. Its later replacement is an all-at-once cutover, never a
+          legacy dual or read-through path.
         </div>
 
         <details open>
           <summary>Canonical provider-refund authority</summary>
           <ul class="method-list">
+            <li class="method">
+              <div>
+                <a href="src/shared/payment/refund-authority-state.ts"><code
+                  >readRefundAuthorityState</code> / <code
+                  >writeRefundAuthorityState</code> / <code
+                  >validateRefundAuthorityState</code> / mirror methods</a><span
+                  class="where"
+                >shared/payment/refund-authority-state.ts</span>
+              </div>
+              <p>
+                Define and validate the complete stored union: <code
+                >ready</code>,
+                <code>send_armed</code>, <code>observing</code>, <code
+                >completed</code>, <code>needs_owner_choice</code>, and <code
+                >needs_provider_check</code>. An owner-choice row is invalid
+                unless its stored evidence admits a real decision; partial or
+                inconclusive Money has its own check-again state.
+              </p>
+            </li>
             <li class="method">
               <div>
                 <a href="src/shared/payment/refund-authority.ts"><code
@@ -489,11 +525,11 @@
                 >shared/payment/refund-authority-choice.ts</span>
               </div>
               <p>
-                Turn irreducible uncertainty into a required owner answer; each
-                reason exhaustively declares which source states may open it.
-                Ready-but-unreadable work can enter this exit without being
-                falsely armed first, and there is intentionally no generic
-                clear.
+                Turn only genuinely decidable uncertainty into a required owner
+                answer; each reason exhaustively declares which source states
+                may open it and the schema guarantees at least one legal choice.
+                Partial and waiting provider evidence cannot enter this state,
+                and there is intentionally no generic clear.
               </p>
             </li>
             <li class="method">
@@ -503,10 +539,11 @@
                 >shared/payment/refund-conflict-decision.ts</span>
               </div>
               <p>
-                Turn one fresh charge into the exact safe owner branch: only not
-                sent when zero return is proved, only returned when positive
-                exact return is proved, and wait when money is invalid,
-                backward, excessive, pending, or in the wrong currency.
+                Turn one fresh charge into exact evidence: zero return may admit
+                not sent, a full exact return may admit returned, while a
+                partial return or invalid, backward, excessive, pending, or
+                wrong-currency Money requires another provider check rather than
+                a human guess.
               </p>
             </li>
             <li class="method">
@@ -517,8 +554,11 @@
                 >shared/payment/refund-authority-lifecycle.ts</span>
               </div>
               <p>
-                Declare the real recovery route, clear method, pruning rule, and
-                merge/delete effect for every durable state.
+                Declare the real clearer, whether a money choice is required,
+                the operator route, pruning rule, and merge/delete effect for
+                every durable state. Static checks prove the clearer export and
+                route exist; route/template journeys prove the usable control is
+                actually rendered to the permitted role.
               </p>
             </li>
             <li class="method">
@@ -544,10 +584,14 @@
               </div>
               <p>
                 Give admin and callback work one durable send-or-observe engine;
-                singular work is the same array path with one target.
-                Observe-only work may retire an owner-choice state from later
-                conclusive provider proof, but it cannot send or substitute a
-                manager’s judgment.
+                singular work is the same array path with one target. Owner send
+                forms pin <code>{id, revision}</code> before provider I/O and
+                again at the transition. A harmless check-again read also
+                prechecks its rendered revision, then CASes its result. Fresh
+                full proof may finish ordinary ambiguity; partial, backward, or
+                inconclusive proof advances the revision, preserves the known
+                returned-Money floor, and remains provider-check work. It cannot
+                send or overwrite a conclusive provider-conflict owner choice.
               </p>
             </li>
             <li class="method">
@@ -796,6 +840,10 @@
               <p>
                 Transactionally fence attendee revisions, the complete selected
                 row set, blank indexes, and every shared indexed representation.
+                Shared-holder discovery uses <code>LIMIT 101</code>: exactly 100
+                rows may participate, while the sentinel row returns <code
+                >too_many_reference_holders</code> before protected-state
+                decryption or any claim write.
               </p>
             </li>
             <li class="method">
@@ -866,8 +914,10 @@
                 >shared/db/refund-all-candidates.ts</span>
               </div>
               <p>
-                Check the complete listing without PII, then load exactly one
-                claim-first attendee for the current request.
+                Check every SQL-visible candidate and blocker without PII before
+                narrowing. Only after that fail-closed admission does <code
+                >LIMIT 1</code> load one attendee for the current request; that
+                attendee is separately capped at ten references.
               </p>
             </li>
             <li class="method">
@@ -912,7 +962,9 @@
               </div>
               <p>
                 Observe and repair under the same claim while a type-level mode
-                prevents a fresh provider send.
+                prevents a fresh provider send. A rendered owner-case revision
+                is checked before even harmless provider I/O and fenced again
+                when the resulting evidence is stored.
               </p>
             </li>
             <li class="method">
@@ -1131,7 +1183,7 @@
                 </td>
                 <td>
                   Initial rows, transaction reread, blank-index/new/shared
-                  representations.
+                  representations; shared-holder lookup is capped at 101 rows.
                 </td>
                 <td>
                   All-or-none claim; canonical checking state/mirror values;
@@ -1140,7 +1192,9 @@
                 <td>
                   A changed attendee or row set cannot be judged from stale
                   evidence, and inserts can enter the same lifecycle without a
-                  second writer format.
+                  second writer format. The 101st row is an overflow sentinel:
+                  above 100 holders the command refuses before decrypting their
+                  protected states or writing any claim.
                 </td>
               </tr>
               <tr>
@@ -1171,13 +1225,15 @@
                   >processed_payments</code>, <code>payment_charges</code>
                 </td>
                 <td>
-                  PII-free whole-set count/blockers, then one <code
-                  >pii_blob</code>.
+                  PII-free whole-set count/blockers before narrowing, then one
+                  <code>pii_blob</code> under <code>LIMIT 1</code>; at most ten
+                  references for that attendee.
                 </td>
                 <td>None in admission.</td>
                 <td>
                   A hidden blocker anywhere in the SQL-visible refundable set
-                  stops every send before decryption/provider I/O.
+                  stops every send before decryption/provider I/O. Pagination
+                  cannot put the blocker outside the admitted batch.
                 </td>
               </tr>
               <tr>
@@ -1311,10 +1367,15 @@
               <p>
                 Uses strict payment/order/refund parsers and the typed permit;
                 an explicit 404 is missing, malformed success is invalid, and
-                amount/currency must agree. Any non-empty app <code
-                >_origin</code> remains proof of an app-created order after a
-                domain change, so damaged old orders retry instead of being
-                mistaken for foreign work.
+                amount/currency must agree. Payment status is the closed set
+                <code>APPROVED</code>, <code>PENDING</code>, <code
+                >COMPLETED</code>, <code>CANCELED</code>, or <code
+                >FAILED</code>; missing, non-text, empty, or unknown values fail
+                at the boundary, and only <code>COMPLETED</code> plus an order
+                ID enters completion. Any non-empty app <code>_origin</code>
+                remains proof of an app-created order after a domain change, so
+                damaged old orders retry instead of being mistaken for foreign
+                work.
               </p>
             </li>
             <li class="method">
@@ -1369,7 +1430,8 @@
               </div>
               <p>
                 Use the same canonical authority as admin work and preserve
-                exact pending/returned/owner/withheld answers.
+                exact pending, returned, owner-choice, provider-check, and
+                withheld answers.
               </p>
             </li>
             <li class="method">
@@ -1438,10 +1500,11 @@
               </div>
               <p>
                 Adds bounded local-work and canonical-refund queues while
-                ordinary orphan cleanup counts only purgeable records. A check
-                that reaches unreadable owner choice reports that no refund was
-                sent and renders the required decision instead of claiming a
-                successful check.
+                ordinary orphan cleanup counts only purgeable records. The
+                owner-only detail route renders either required money choices or
+                a check-again control, with the exact authority revision. A
+                stale check is rejected before provider I/O; check-again can
+                observe but never send.
               </p>
             </li>
             <li class="method">
@@ -1470,7 +1533,9 @@
                 rather than the legacy PII payment ID. It shows indexed work
                 after merge, withholds Refresh for <code>provider_unknown</code>
                 and other incomplete sets, and explains why the action is
-                unavailable.
+                unavailable. Route and template journeys prove recovery remains
+                reachable after merge or listing deletion and that managers see
+                no forbidden refund, owner-choice, or review control.
               </p>
             </li>
           </ul>
@@ -1634,6 +1699,13 @@
             results, and changed failure behavior appear above.
           </div>
           <div class="ignore">
+            <code>refund-authority.ts → refund-authority-state.ts + transition
+              modules</code><br>Moving schemas, stored JSON, types, and mirrors
+            out of the large transition file is structural. The new
+            owner-choice/provider-check split, revision fences, and evidence
+            rules are counted above because they change behavior.
+          </div>
+          <div class="ignore">
             <code>attendee-refunds.ts →
               attendee-refunds/{single,bulk,...}</code><br>Moving route handlers
             is ignored. Owner-only authorization, whole-set admission, and
@@ -1667,6 +1739,22 @@
       <section id="limits">
         <p class="eyebrow">06 · Boundaries that affect interpretation</p>
         <h2>“Private” and “legacy” need precise wording.</h2>
+        <div class="callout">
+          <strong>One real engine in production and tests:</strong> an
+          architecture inventory pins production and test entry points to <code
+          >requestProviderRefund</code>/<code>requestProviderRefunds</code>,
+          then separately confines the permit mint, lower send methods, and
+          provider API clients. Tests inject provider behavior at reviewed
+          boundaries; they do not exercise a parallel refund implementation.
+        </div>
+        <div class="callout">
+          <strong>A route alone is not recovery:</strong> lifecycle declarations
+          name the clearer, required choice, and owner route for every blocking
+          state. Static checks prove the exports and route registrations;
+          rendered route/template journeys prove the matching usable control
+          exists for the owner, survives merge or listing deletion, and is
+          absent for a manager who cannot perform it.
+        </div>
         <div class="callout">
           <strong>Booking-error proof:</strong> the changed payment-session path
           does not turn an unexpected booking exception into success or quietly
@@ -1709,27 +1797,40 @@
         <div class="callout warn">
           <strong>Atomic-cutover caveat:</strong> this report does not claim
           that every legacy payment field or the whole checkout/session entry
-          has disappeared. Today <code>existing-payment-provider.ts</code> still
-          owns ambient current/last selection before a provider-tagged target
-          exists. The later M6–M11 replacement must activate its writers,
-          readers, jobs, completion, delivery, and M11 migration together while
-          deleting <code>getPaymentProviderForExistingPayments</code> and every
-          runtime payment-ownership caller. Configuration-only credential
-          enumeration may remain under an honest name; no second observer,
-          sender, fallback, read-through, bridge, or old-record branch may
-          coexist.
+          has disappeared. Today the ambient current/last selector is exactly
+          allowlisted to <code
+          >features/api/payment-processing/classify.ts</code>,
+          <code>features/api/webhooks.ts</code>, and its declaration in <code
+          >shared/payments.ts</code>; it cannot enter refund administration, the
+          shared engine, or adapters. The later M6–M11 replacement must activate
+          its writers, readers, jobs, completion, delivery, and M11 migration in
+          the same change that deletes <code
+          >getPaymentProviderForExistingPayments</code> and every runtime
+          payment-ownership caller. There is no permitted dual-run or
+          read-through window. Configuration-only credential enumeration may
+          remain under an honest name; no second observer, sender, fallback,
+          bridge, or old-record branch may coexist.
         </div>
       </section>
 
-      <footer>
-        <strong>Reviewed one-off distillation.</strong> The verified snapshot
-        changes 207 <code>src/</code> paths: 16,024 raw lines added and 3,628
-        removed. Its code-only total is 14,881 changed lines after excluding
-        imports, comments, and blanks. Categories were human-reviewed against
-        <code>origin/main...31492eb2936dea7d7ac51d225d8af3f8fc18d95a</code>
-        callers, storage, and behavior; they intentionally do not claim
-        AST-level declaration completeness. Documentation-only final commits may
-        follow without changing this source fingerprint.
+      <footer data-finalize="footer-checkpoint">
+        <strong>Provisional reviewed one-off distillation.</strong> The complete
+        working tree changes <span data-finalize="source-paths"
+        >208 <code>src/</code> paths</span>: <span data-finalize="source-added"
+        >16,537 raw lines added</span> and <span data-finalize="source-removed"
+        >3,682 removed</span>. Its <span data-finalize="code-only-total"
+        >code-only total is 15,365 changed lines: 12,775 added and 2,590
+          removed</span>
+        after excluding imports, comments, and blanks. Categories were
+        human-reviewed against <code
+        >origin/main@470b47efef0836487d55beb8a26442dd432f6f35...HEAD@d91a8ec86 +
+          final uncommitted fixes</code> callers, storage, and behavior; they
+        intentionally do not claim AST-level declaration completeness. Replace
+        the named finalization fields with the final commit and <span
+          data-finalize="source-fingerprint"
+        >source fingerprint (currently pending)</span> after the last green run;
+        documentation-only commits may then follow without changing that source
+        fingerprint.
       </footer>
     </main>
   </body>

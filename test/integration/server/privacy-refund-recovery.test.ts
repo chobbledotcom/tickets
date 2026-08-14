@@ -7,8 +7,8 @@ import { queryOne } from "#shared/db/client.ts";
 import {
   armRefundSend,
   markRefundCompleted,
-  readRefundAuthorityState,
 } from "#shared/payment/refund-authority.ts";
+import { readRefundAuthorityState } from "#shared/payment/refund-authority-state.ts";
 import { markRefundProviderConflict } from "#shared/payment/refund-authority-choice.ts";
 import { refundRequestIdentityIndex } from "#shared/payment/refund-request-identity.ts";
 import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
@@ -35,7 +35,7 @@ import {
   testCookie,
 } from "#test-utils/session.ts";
 import {
-  expectUnreadableProviderCheck,
+  expectProviderCheck,
   partiallyReturnedProviderCheck,
   refundCasePath,
   returnedProviderCheck,
@@ -148,7 +148,7 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
     );
     using provider = unreadableProviderCheck();
 
-    await expectUnreadableProviderCheck(
+    await expectProviderCheck(
       id,
       provider,
       "The provider could not supply trustworthy payment evidence. No refund was sent, and this work remains protected.",
@@ -163,7 +163,7 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
     );
     using provider = unreadableProviderCheck();
 
-    await expectUnreadableProviderCheck(
+    await expectProviderCheck(
       id,
       provider,
       "The provider could not settle what happened. No refund was sent; check the payment there and make the required choice.",
@@ -244,14 +244,11 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
 
     const detail = await adminGet(refundCasePath(id));
     expect(await detail.text()).toContain("Check the provider again");
-    await expectFlashRedirect(
-      refundCasePath(id),
+    await expectProviderCheck(
+      id,
+      provider,
       "The provider could not settle what happened. No refund was sent; check the payment there and make the required choice.",
-      false,
-    )(await submitCase(await testCookie(), { choice: "check_again" }, id));
-
-    expect(provider.read.calls).toHaveLength(1);
-    expect(provider.send.calls).toHaveLength(0);
+    );
     const row = await queryOne<{ refund_state: string }>(
       "SELECT refund_state FROM payment_charges WHERE id = ?",
       [id],
@@ -283,18 +280,15 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
           refunded: { amount: 400, currency: "GBP" },
         },
       ),
+      "sumup",
+      400,
     );
     using provider = partiallyReturnedProviderCheck();
 
-    await expectFlashRedirect(
-      refundCasePath(id),
+    await expectProviderCheck(
+      id,
+      provider,
       "The provider still cannot prove that the whole refund finished. No refund was sent; this work remains protected and can be checked again.",
-      false,
-    )(await submitCase(await testCookie(), { choice: "check_again" }, id));
-
-    expect(provider.read.calls).toHaveLength(1);
-    expect(provider.send.calls).toHaveLength(0);
-    expect((await getAllActivityLog()).map(({ message }) => message)).toContain(
       `Refund recovery ${id}: provider evidence still requires another check; no refund was sent`,
     );
   });

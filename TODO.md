@@ -550,12 +550,21 @@ New sales and existing payments are now resolved by different questions:
 completion entry points. When sales are off, that existing-payment path falls
 back to the last activated provider. Actual provider refund sends no longer use
 that ambient choice: M4's canonical authority carries a tagged provider identity
-and loads exactly that adapter. A site already on `none` recovers when exactly
-one provider has stored credentials; when multiple do, the operator must choose
-the provider in a recovery form that keeps new sales off.
+and loads exactly that adapter. That older whole-checkout resolver must not be
+called, copied, or consulted as a refund fallback, including for old rows; an
+untagged refund reference is a typed reduced-functionality refusal until the
+owner-authenticated migration qualifies it. A site already on `none` recovers
+when exactly one provider has stored credentials; when multiple do, the operator
+must choose the provider in a recovery form that keeps new sales off.
 `setPaymentProviderNone` reads the current provider via an atomic INSERT ...
 SELECT subquery so a concurrent activation cannot land between the read and the
 write.
+
+The same no-parallel-path rule binds the future aggregate cutover: either extend
+the canonical refund authority in place or fence requests, migrate and verify
+all retained rows, switch one epoch, and delete every displaced reader and
+writer in the same release. Record age may select migration-only decoding, never
+a live legacy engine, read-through, dual write, or fallback authority.
 
 The seven accepted safety rules are recorded as acceptance constraints in
 [`docs/payment-aggregate-acceptance.md`](docs/payment-aggregate-acceptance.md).
@@ -1091,9 +1100,14 @@ keeps one rollback call outside its working allowance. M4 Part A also prices the
 EXACT selected admin refund attendee over physical provider retries, database
 work, rollback, settlement, and the caller tail before fresh provider I/O.
 Refund All uses a PII-free whole-listing safety summary, then selects one
-person; it does not pretend one request can finish an arbitrary listing. The
-paths below still have data-dependent fan-out or need resumable work; counting
-them makes an overrun loud, but does not itself make a large operation finish.
+person; its GET decrypts zero attendee PII, and its POST decrypts zero when
+blocked/empty or exactly one when admitted. It does not pretend one request can
+finish an arbitrary listing. Blind-index claim expansion separately accepts at
+most 100 sharing rows outside the selected attendee set and retrieves row 101
+only as an overflow sentinel. Overflow refuses before decrypting shared row
+state, writing a claim, or calling a provider. The paths below still have
+data-dependent fan-out or need resumable work; counting them makes an overrun
+loud, but does not itself make a large operation finish.
 
 - ~~**Package carts and payment completion.**~~ Done. `resolveCartSlugs` now
   resolves every package slug through `loadCartPackagesBySlugs`
@@ -1881,8 +1895,9 @@ buyer really was charged:
 - A refund that has not completed. M4 now persists this in `payment_charges`
   before a validated callback sends and gives it an owner recovery route, so it
   really is in hand. The buyer-facing `RejectionOutcome` still collapses
-  `ready`, `pending`, and `needs_owner_choice` into `settled: false` and generic
-  copy instead of saying that the refund is being checked.
+  `ready`, `pending`, `needs_owner_choice`, and `needs_provider_check` into
+  `settled: false` and generic copy instead of saying whether the refund awaits
+  the provider or a real owner decision.
 - A `withheld`/`read_failed` refund, where the fresh provider read could not
   prove captured Money. No send occurred and, because an authority row cannot be
   populated with guessed money, this case may have no durable owner route today.
@@ -2087,14 +2102,16 @@ anywhere in the refundable set still closes the command. A settled
 non-candidate's independently protected work does not strand an unrelated
 refund. `loadRefundAllBatch` then selects one person, with claimed work first;
 the exact claim decision later distinguishes a live run from recoverable stale
-work. Only that PII blob is decrypted. Typed admission also refuses a selected
-person's current PII payment id when no indexed row carries it. The exact
-selected attendee goes through the same claim and physical provider/database
-budget as a single refund. It either refuses before fresh provider I/O or
-processes that person and reports how many candidates remain. Another form
-submission takes the next person. This one-attendee size follows the proved
-Bunny envelope for the maximum accepted reference set; up to five provider calls
-may overlap within that attendee.
+work. Opening Refund All decrypts zero attendee PII. Posting it decrypts zero
+when the summary is blocked or empty and exactly that one selected blob
+otherwise; no route decrypts a candidate array and slices it afterwards. Typed
+admission also refuses a selected person's current PII payment id when no
+indexed row carries it. The exact selected attendee goes through the same claim
+and physical provider/database budget as a single refund. It either refuses
+before fresh provider I/O or processes that person and reports how many
+candidates remain. Another form submission takes the next person. This
+one-attendee size follows the proved Bunny envelope for the maximum accepted
+reference set; up to five provider calls may overlap within that attendee.
 
 What remains is durability of the WHOLE-LISTING intention. A crash after page
 one leaves every untouched attendee discoverable, but no stored job says that
@@ -2202,6 +2219,15 @@ records no allocation, so an unchanged shared representation stays blocked; the
 marker retires only when a later indexed claim proves the representation is
 unique.
 
+That expansion is bounded in the current path. A claim accepts at most
+`MAX_SHARED_PAYMENT_ROWS_PER_CLAIM` (100) rows outside the selected attendee
+set; its SQL reads at most 101 and treats the extra row only as proof of
+overflow. The typed `too_many_reference_holders` result reaches Refund and
+Refresh as finite operator copy before any sharing row's encrypted
+`failure_data` is opened, before any claim is written, and before provider or
+ledger I/O. Never replace that refusal with truncation: an incomplete holder set
+would make the one-payout guarantee false.
+
 The application has never intentionally assigned one provider payment id to two
 independent historical attendees, so do not add a whole-table holder scan or
 decrypt old attendee PII for a hypothetical legacy sharing case. The real case
@@ -2272,6 +2298,13 @@ ownership proof and must not be compared with the current hostname; the signed
 `price_proof` remains the ownership fact. Reintroducing host equality would
 terminally misclassify an older damaged checkout as foreign.
 
+Preserve the other live Square boundary too: payment webhook status is exactly
+`APPROVED | PENDING | COMPLETED | CANCELED | FAILED`. Missing, non-text, empty,
+or unknown values throw; only a known non-completed status may be acknowledged
+without processing, and `COMPLETED` requires an Order id. M6 must reuse or
+replace that declaration atomically, never leave a permissive legacy webhook
+parser beside its observer.
+
 Reads must be bounded and fenced on an evidence revision or fingerprint. A
 provider-controlled sibling list cannot cause an unbounded request; evidence
 beyond the declared cap becomes an explicit owner case. Do not restore a
@@ -2281,22 +2314,37 @@ speculative module set wholesale or put a second refund classifier beside
 `PaymentConflict` is only a TypeScript type, not persisted schema authority. The
 stored `PaymentReviewReasonSchema` currently contains only `shared_reference`
 and `partially_returned_obligation`; provider disagreements that already have
-trustworthy refund authority live instead in
-`payment_charges.needs_owner_choice`. Its current exact decision comes from
-`payment/refund-conflict-decision.ts`; identity writes and Money/state writes
+trustworthy refund authority live instead in the canonical `payment_charges`
+union. Exact zero or full return may live in `needs_owner_choice`, whose schema
+guarantees at least one evidence-supported answer. Partial, invalid, backward,
+wrong-currency, excessive, or pending evidence lives in `needs_provider_check`,
+which offers only another provider observation. Fresh partial evidence replaces
+an ordinary ambiguous choice and advances the revision, so a stale not-sent form
+cannot erase it; a conclusive conflict choice is not rewritten by a later read.
+The current exact decision comes from `payment/refund-conflict-decision.ts`;
+stored schemas and mirrors live in `payment/refund-authority-state.ts`;
+automatic transitions in `payment/refund-authority.ts`; conflict and owner
+transitions in `payment/refund-authority-choice.ts`; lifecycle exits in
+`payment/refund-authority-lifecycle.ts`; identity writes and Money/state writes
 are the one logical authority split across `db/provider-refund-authority.ts` and
 `db/provider-refund-authority-change.ts`; and
 `db/provider-refund-case-resolution.ts` commits a decision with its activity
-audit. Any newly reachable M6 conflict kind must extend those canonical
-mechanisms with its schema, required owner action, and tested retirement path in
-the same atomic cutover. Do not revive the deleted module cluster or create a
-second refund classifier/state machine.
+audit. Every rendered action carries the authority id and revision: a stale Send
+loses before provider I/O, a money choice loses inside its transaction, and
+Check again is observe-only with a stale-form precheck plus transition CAS. Any
+newly reachable M6 conflict kind must extend those canonical mechanisms with its
+schema, required owner action, and tested retirement path in the same atomic
+cutover. Do not revive the deleted module cluster or create a second refund
+classifier/state machine.
 
 That cutover is an atomic replacement, not a runtime selector. Every checkout
 caller moves to the new observer and completion authority in the same activation
 that deletes the displaced readers and writers. No fallback, read-through, dual
 write, second refund authority, or old-record branch may remain in request code;
-old-format decoding exists only inside the fenced migration ceremony.
+old-format decoding exists only inside the fenced migration ceremony. This rule
+also governs every later refund-authority evolution: extend the one authority in
+place or make the same fenced migrate/verify/epoch-switch/delete cutover. Never
+ship an intermediate compatibility path, even temporarily.
 
 ## The stale-claim touch test is timing-flaky on CI
 

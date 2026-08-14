@@ -15,12 +15,7 @@ import type {
 import { paymentErrorResponse } from "#routes/payment-response.ts";
 import { logActivity } from "#shared/db/activity-log.ts";
 import { t } from "#shared/i18n.ts";
-import {
-  ErrorCode,
-  type ErrorCodeType,
-  logDebug,
-  logError,
-} from "#shared/logger.ts";
+import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import {
   type PlaceholderRefund,
@@ -33,11 +28,7 @@ import {
 } from "#shared/payment/validated-session.ts";
 import { reportWithheldRefund } from "#shared/payment-review.ts";
 import { parsePriceProof, verifyPrice } from "#shared/payment-signature.ts";
-import {
-  type ExistingPaymentProvider,
-  getPaymentProviderForExistingPayments,
-  type ValidatedPaymentSession,
-} from "#shared/payments.ts";
+import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 import {
   type ProviderRefundResult,
@@ -51,21 +42,6 @@ const PRICE_CHANGED_MESSAGE =
 /** The diagnostic message from a failed payment result. */
 export const failureDetail = (result: PaymentFailureResult): string =>
   result.detail ?? result.error;
-
-/**
- * Resolve the configured provider for an incoming webhook. Falls back to the
- * last activated provider when new sales are off. When none is configured, log
- * the caller's structured error before returning null.
- */
-export const getPaymentProviderOrLog = async (
-  code: ErrorCodeType,
-  detail: string,
-  listingId?: number,
-): Promise<ExistingPaymentProvider> => {
-  const provider = await getPaymentProviderForExistingPayments();
-  if (!provider) logError({ code, detail, listingId });
-  return provider;
-};
 
 /** What became of a rejected session's charge. `settled` means nothing is left
  *  owing; `refunded` means money actually moved. They are kept apart because
@@ -161,7 +137,8 @@ export const providerRefundReturned = (
   if (result.kind === "changed") {
     logError({
       code: ErrorCode.PAYMENT_REFUND,
-      detail: `Refund authority changed before money could be sent through ${provider}`,
+      detail:
+        `Refund authority changed before money could be sent through ${provider}`,
       listingId,
     });
     return false;
@@ -174,12 +151,19 @@ export const providerRefundReturned = (
     });
     return false;
   }
+  if (result.kind === "needs_provider_check") {
+    logError({
+      code: ErrorCode.PAYMENT_REFUND,
+      detail: `Refund needs another provider check for ${provider} payment`,
+      listingId,
+    });
+    return false;
+  }
   logError({
     code: ErrorCode.PAYMENT_REFUND,
-    detail:
-      result.kind === "ready"
-        ? `Refund was not sent for ${provider} payment; its durable request remains ready`
-        : `Refund needs an owner decision for ${provider} payment (${result.reason})`,
+    detail: result.kind === "ready"
+      ? `Refund was not sent for ${provider} payment; its durable request remains ready`
+      : `Refund needs an owner decision for ${provider} payment (${result.reason})`,
     listingId,
   });
   return false;

@@ -167,7 +167,10 @@ const unreturnedResult = (
 ): RefreshPaymentResult => {
   if (
     needsReview ||
-    observed.some((result) => result.kind === "needs_owner_choice")
+    observed.some((result) =>
+      result.kind === "needs_owner_choice" ||
+      result.kind === "needs_provider_check"
+    )
   ) {
     return { kind: "needs_review", message: REVIEW_REQUIRED_MESSAGE };
   }
@@ -226,7 +229,7 @@ const refreshReadyCandidate = async (
       ),
   );
   const returned = observed.flatMap((result, offset) =>
-    returnedReference(result, candidate.references[offset]!.reference),
+    returnedReference(result, candidate.references[offset]!.reference)
   );
   const hasUnreturned = returned.length !== candidate.references.length;
   const attendeeId = candidate.attendee.id;

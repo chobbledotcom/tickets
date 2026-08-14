@@ -14,6 +14,7 @@ import {
   markRefundLocalRecorded,
   markRefundObservationDue,
 } from "#shared/payment/refund-authority.ts";
+import { markRefundProviderConflict } from "#shared/payment/refund-authority-choice.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { historicalPaymentReferenceStorage } from "#test-utils/historical-payment-references.ts";
@@ -92,8 +93,11 @@ const expectQueueFailure = (
   value: number | string,
   message: string,
 ): Promise<void> =>
-  expectCorruptCaseFailure(column, value, message, () =>
-    listProviderRefundCases(),
+  expectCorruptCaseFailure(
+    column,
+    value,
+    message,
+    () => listProviderRefundCases(),
   );
 
 const expectDetailFailure = (
@@ -122,6 +126,11 @@ describeWithEnv("provider refund case validation", { db: true }, () => {
       markRefundObservationDue(armed, 12, 30),
       markRefundCompleted(ready, 13, "provider"),
       ownerRefundChoiceTestState("valid-owner-choice"),
+      markRefundProviderConflict(ready, 14, {
+        captured: { amount: 2_500, currency: "GBP" },
+        kind: "wait",
+        refunded: { amount: 0, currency: "GBP" },
+      }),
     ];
     await Promise.all(
       states.map((state, index) => addCase(`valid-state-${index}`, state)),
@@ -138,6 +147,7 @@ describeWithEnv("provider refund case validation", { db: true }, () => {
         "observing",
         "completed",
         "needs_owner_choice",
+        "needs_provider_check",
       ]),
     );
   });
@@ -186,32 +196,34 @@ describeWithEnv("provider refund case validation", { db: true }, () => {
     ).toBe(false);
   });
 
-  for (const [name, column, value, message] of [
-    [
-      "state name",
-      "refund_state_name",
-      "ready",
-      "Payment charge refund-state mirrors do not match",
-    ],
-    [
-      "local state",
-      "refund_local_state",
-      "due",
-      "Payment charge refund-state mirrors do not match",
-    ],
-    [
-      "request capability",
-      "capability",
-      "keyed",
-      "Payment charge refund-state mirrors do not match",
-    ],
-    [
-      "provider capability",
-      "provider",
-      "stripe",
-      "Payment charge refund capability does not match provider",
-    ],
-  ] as const) {
+  for (
+    const [name, column, value, message] of [
+      [
+        "state name",
+        "refund_state_name",
+        "ready",
+        "Payment charge refund-state mirrors do not match",
+      ],
+      [
+        "local state",
+        "refund_local_state",
+        "due",
+        "Payment charge refund-state mirrors do not match",
+      ],
+      [
+        "request capability",
+        "capability",
+        "keyed",
+        "Payment charge refund-state mirrors do not match",
+      ],
+      [
+        "provider capability",
+        "provider",
+        "stripe",
+        "Payment charge refund capability does not match provider",
+      ],
+    ] as const
+  ) {
     test(`rejects a ${name} mirror which disagrees with state`, async () => {
       await expectDetailFailure(column, value, message);
     });
@@ -263,12 +275,14 @@ describeWithEnv("provider refund case validation", { db: true }, () => {
 
   test("rejects malformed resolution identities before querying", async () => {
     const privateKey = await getTestPrivateKey();
-    for (const input of [
-      { id: 0, revision: 1 },
-      { id: Number.NaN, revision: 1 },
-      { id: 1, revision: 0 },
-      { id: 1, revision: Number.NaN },
-    ]) {
+    for (
+      const input of [
+        { id: 0, revision: 1 },
+        { id: Number.NaN, revision: 1 },
+        { id: 1, revision: 0 },
+        { id: 1, revision: Number.NaN },
+      ]
+    ) {
       await expect(
         resolveProviderRefundCase({
           ...input,

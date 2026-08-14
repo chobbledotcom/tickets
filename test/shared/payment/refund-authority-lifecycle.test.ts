@@ -28,7 +28,7 @@ const ready = () =>
     },
   });
 
-describe("payment > refund authority lifecycle", () => {
+describe("payment > declared refund authority lifecycle", () => {
   test("unfinished work blocks deletion but can move with its indexed row", () => {
     const armed = armRefundSend(ready(), 2, 20);
     const observing = markRefundObservationDue(armed, 3, 30);
@@ -68,6 +68,7 @@ describe("payment > refund authority lifecycle", () => {
       kind: "returned",
       refunded: { amount: 400, currency: "GBP" },
     });
+    expect(state.kind).toBe("needs_provider_check");
 
     expect(refundLifecycleFor(state)).toEqual({
       blocks: { delete: true, merge: false },
@@ -86,6 +87,7 @@ describe("payment > refund authority lifecycle", () => {
       kind: "wait",
       refunded: { amount: 400, currency: "GBP" },
     });
+    expect(state.kind).toBe("needs_provider_check");
 
     expect(refundLifecycleFor(state)).toMatchObject({
       clearedBy: "requestProviderRefund",

@@ -96,11 +96,23 @@ describe("callback provider-refund result", () => {
           authority,
           kind: "needs_owner_choice",
           reason: "possibly_sent",
-          requiresChoice: true,
         }),
       ),
     ).toBe(false);
     expect(errors.contains("possibly_sent")).toBe(true);
+  });
+
+  it("reports provider-check work without pretending it is an owner choice", () => {
+    expect(
+      providerRefundReturned(
+        result({
+          authority,
+          kind: "needs_provider_check",
+          reason: "provider_conflict",
+        }),
+      ),
+    ).toBe(false);
+    expect(errors.contains("needs another provider check")).toBe(true);
   });
 
   it("does not turn an unreadable provider answer into returned money", () => {

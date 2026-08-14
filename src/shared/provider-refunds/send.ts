@@ -9,9 +9,9 @@ import {
   armRefundSend,
   markRefundObservationDue,
   rearmKeyedRefund,
-  type RefundAuthorityState,
   returnRefundToReady,
 } from "#shared/payment/refund-authority.ts";
+import type { RefundAuthorityState } from "#shared/payment/refund-authority-state.ts";
 import { authorizeDurableRefundSend } from "#shared/payment/refund-provider-authorization.ts";
 import { refundRequestIdentityIndex } from "#shared/payment/refund-request-identity.ts";
 import {

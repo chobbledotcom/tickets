@@ -5,6 +5,7 @@ import {
   markRefundCompleted,
   markRefundObservationDue,
 } from "#shared/payment/refund-authority.ts";
+import { validateRefundAuthorityState } from "#shared/payment/refund-authority-state.ts";
 import {
   markRefundOwnerChoiceNeeded,
   markRefundProviderConflict,
@@ -98,7 +99,7 @@ describe("payment > refund authority owner choice", () => {
     ).toThrow("cannot start from ready");
   });
 
-  test("a provider conflict cannot replace completed work or another owner decision", () => {
+  test("fresh provider conflict replaces only ordinary owner work", () => {
     const completed = markRefundCompleted(
       readyRefundForTest("keyless"),
       170,
@@ -109,12 +110,27 @@ describe("payment > refund authority owner choice", () => {
       180,
       "possibly_sent",
     );
+    const conclusiveChoice = markRefundProviderConflict(
+      keylessArmed(),
+      180,
+      notSentConflict,
+    );
 
     expect(() => markRefundProviderConflict(completed, 190, notSentConflict))
       .toThrow("Provider conflict cannot start from completed");
     expect(() =>
-      markRefundProviderConflict(ordinaryChoice, 190, notSentConflict)
+      markRefundProviderConflict(conclusiveChoice, 190, notSentConflict)
     ).toThrow("Provider conflict cannot start from needs_owner_choice");
+    expect(
+      markRefundProviderConflict(ordinaryChoice, 190, {
+        captured: { amount: 2_000, currency: "GBP" },
+        kind: "returned",
+        refunded: { amount: 500, currency: "GBP" },
+      }),
+    ).toMatchObject({
+      decision: { kind: "returned" },
+      kind: "needs_provider_check",
+    });
   });
 
   test("provider-returned choice makes local recording due", () => {
@@ -209,7 +225,7 @@ describe("payment > refund authority owner choice", () => {
     });
   });
 
-  test("provider-conflict money admits only the resolution it proves", () => {
+  test("provider conflicts separate real choices from provider checks", () => {
     const notSent = markRefundProviderConflict(
       keylessArmed(),
       180,
@@ -231,29 +247,33 @@ describe("payment > refund authority owner choice", () => {
       refunded: { amount: 0, currency: "GBP" },
     });
 
+    if (
+      notSent.kind !== "needs_owner_choice" ||
+      returned.kind !== "needs_owner_choice"
+    ) {
+      throw new Error(
+        "Conclusive conflict evidence must require an owner choice",
+      );
+    }
     expect(refundOwnerChoices(notSent)).toEqual([
       "provider_confirmed_not_sent",
     ]);
     expect(refundOwnerChoices(returned)).toEqual([
       "provider_confirmed_returned",
     ]);
-    expect(refundOwnerChoices(partial)).toEqual([]);
-    expect(refundOwnerChoices(waiting)).toEqual([]);
+    expect(partial.kind).toBe("needs_provider_check");
+    expect(waiting.kind).toBe("needs_provider_check");
     expect(() =>
-      resolveRefundOwnerChoice(partial, {
-        decidedAt: 200,
-        kind: "provider_confirmed_returned",
+      validateRefundAuthorityState({
+        ...partial,
+        kind: "needs_owner_choice",
       })
-    ).toThrow("is not allowed by returned");
+    ).toThrow("owner-choice conflict must admit an owner decision");
     expect(() =>
-      resolveRefundOwnerChoice(partial, {
-        capability: "keyless",
-        decidedAt: 200,
-        evidenceRevision: 3,
-        kind: "provider_confirmed_not_sent",
-        nextActionAt: 200,
-        requestIndex: "request-two",
+      validateRefundAuthorityState({
+        ...notSent,
+        kind: "needs_provider_check",
       })
-    ).toThrow("is not allowed by returned");
+    ).toThrow("provider-check state must carry evidence");
   });
 });

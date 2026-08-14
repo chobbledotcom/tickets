@@ -1,20 +1,25 @@
 /** Required owner decisions for refund outcomes evidence cannot settle. */
 
 import {
-  type CompletedRefundState,
   markRefundCompleted,
-  type NeedsOwnerChoiceRefundState,
-  type ProviderConflictRefundState,
   readyRefund,
+} from "#shared/payment/refund-authority.ts";
+import {
+  type CompletedRefundState,
+  type NeedsOwnerChoiceRefundState,
+  type NeedsProviderCheckRefundState,
+  type ProviderConflictOwnerChoiceRefundState,
   type ReadyRefundState,
   type RefundAuthorityState,
+  type RefundAuthorityStateName,
   type RefundOwnerChoiceReason,
   type RefundRequestGeneration,
   validateRefundAuthorityState,
-} from "#shared/payment/refund-authority.ts";
-import type {
-  RefundConflictDecision,
-  RefundOwnerDecision,
+} from "#shared/payment/refund-authority-state.ts";
+import {
+  type RefundConflictDecision,
+  refundConflictNeedsProviderCheck,
+  type RefundOwnerDecision,
 } from "#shared/payment/refund-conflict-decision.ts";
 import { sameMoney } from "#shared/payment/money.ts";
 
@@ -31,7 +36,7 @@ const OWNER_CHOICE_FROM = {
 type OrdinaryOwnerChoiceReason = keyof typeof OWNER_CHOICE_FROM;
 type OrdinaryOwnerChoiceRefundState = Exclude<
   NeedsOwnerChoiceRefundState,
-  ProviderConflictRefundState
+  ProviderConflictOwnerChoiceRefundState
 >;
 
 interface OwnerChoiceFacts {
@@ -72,25 +77,57 @@ export const markRefundOwnerChoiceNeeded = (
   }) as OrdinaryOwnerChoiceRefundState;
 };
 
-/** Park a disagreement with its exact provider evidence. A later read may
- * replace only this same kind of owner decision. */
+type ProviderConflictState =
+  | NeedsProviderCheckRefundState
+  | ProviderConflictOwnerChoiceRefundState;
+
+const FRESH_EVIDENCE_REPLACES_STATE = {
+  completed: false,
+  needs_owner_choice: true,
+  needs_provider_check: true,
+  observing: true,
+  ready: true,
+  send_armed: true,
+} as const satisfies Record<RefundAuthorityStateName, boolean>;
+
+const FRESH_EVIDENCE_REPLACES_OWNER_REASON = {
+  possibly_sent: true,
+  provider_conflict: false,
+  provider_rejected: true,
+  provider_unreadable: true,
+  replay_window_expired: true,
+} as const satisfies Record<RefundOwnerChoiceReason, boolean>;
+
+/** Whether newer provider evidence may replace this exact stored judgment. */
+export const mayReplaceRefundWithFreshEvidence = (
+  state: RefundAuthorityState,
+): boolean =>
+  FRESH_EVIDENCE_REPLACES_STATE[state.kind] &&
+  (state.kind !== "needs_owner_choice" ||
+    FRESH_EVIDENCE_REPLACES_OWNER_REASON[state.reason]);
+
+/** Park a disagreement with its exact provider evidence. Only evidence that
+ * cannot support a decision remains open for another provider check. */
 export const markRefundProviderConflict = (
   state: RefundAuthorityState,
   openedAt: number,
   decision: RefundConflictDecision,
-): ProviderConflictRefundState => {
-  if (
-    state.kind === "completed" ||
-    (state.kind === "needs_owner_choice" &&
-      state.reason !== "provider_conflict")
-  ) {
+): ProviderConflictState => {
+  if (!mayReplaceRefundWithFreshEvidence(state)) {
     throw new Error(`Provider conflict cannot start from ${state.kind}`);
   }
-  return ownerChoiceState(state, openedAt, {
+  return validateRefundAuthorityState({
     decision,
     evidenceRevision: state.evidenceRevision + 1,
+    kind: refundConflictNeedsProviderCheck(decision)
+      ? "needs_provider_check"
+      : "needs_owner_choice",
+    local: { kind: "not_due" },
+    nextActionAt: null,
+    openedAt,
     reason: "provider_conflict",
-  }) as ProviderConflictRefundState;
+    request: state.request,
+  }) as ProviderConflictState;
 };
 
 export type RefundOwnerChoice =
@@ -136,35 +173,30 @@ const nextGeneration = (
 
 export type RefundOwnerChoiceName = RefundOwnerChoice["kind"];
 
-const OWNER_CHOICES_BY_DECISION = {
-  not_sent: ["provider_confirmed_not_sent"],
-  returned: ["provider_confirmed_returned"],
-  returned_or_not_sent: [
-    "provider_confirmed_returned",
-    "provider_confirmed_not_sent",
-  ],
-  wait: [],
-} as const satisfies Record<
-  RefundOwnerDecision["kind"],
-  readonly RefundOwnerChoiceName[]
->;
-
-/** Exact choices admitted by one provider decision. A partial return proves
- * neither that the full refund finished nor that the remainder is safe to
- * send, so its only safe action is another provider check. */
-export const refundOwnerChoicesForDecision = (
-  decision: RefundOwnerDecision,
-): readonly RefundOwnerChoiceName[] =>
-  decision.kind === "returned" &&
-    !sameMoney(decision.captured, decision.refunded)
-    ? []
-    : OWNER_CHOICES_BY_DECISION[decision.kind];
+export type RefundOwnerChoices = readonly [
+  RefundOwnerChoiceName,
+  ...RefundOwnerChoiceName[],
+];
 
 /** Exact choices admitted by the evidence stored in this authority revision. */
 export const refundOwnerChoices = (
   state: NeedsOwnerChoiceRefundState,
-): readonly RefundOwnerChoiceName[] =>
-  refundOwnerChoicesForDecision(state.decision);
+): RefundOwnerChoices => {
+  const decision: RefundOwnerDecision = state.decision;
+  if (decision.kind === "returned_or_not_sent") {
+    return ["provider_confirmed_returned", "provider_confirmed_not_sent"];
+  }
+  if (decision.kind === "not_sent") {
+    return ["provider_confirmed_not_sent"];
+  }
+  if (
+    decision.kind === "returned" &&
+    sameMoney(decision.captured, decision.refunded)
+  ) {
+    return ["provider_confirmed_returned"];
+  }
+  throw new Error("Owner-choice refund state does not admit a decision");
+};
 
 /** Apply one explicit owner answer; there is intentionally no generic clear. */
 export const resolveRefundOwnerChoice = (

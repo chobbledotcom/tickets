@@ -65,7 +65,7 @@ Feature: The site checks that a payment names its provider before refunding it
     is conclusive. The owner cannot call a partial return complete or send the
     rest as though nothing was returned.
 
-    @case:refund-safety.one-penny-returned-still-needs-review
+    @case:refund-safety.one-penny-returned-still-needs-provider-check
     Scenario: A failed provider refund nevertheless returned one penny
       Given Alice bought a 45.00 Concert place through Stripe on the public booking page
       And Stripe says a failed refund returned 0.01 to Alice

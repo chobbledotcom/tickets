@@ -135,6 +135,19 @@ describe("provider-refund architecture", () => {
     ]);
   });
 
+  test("existing-provider lookup stays confined to session retrieval", async () => {
+    expect(
+      pathsContaining(
+        await sourceFiles(),
+        /\bgetPaymentProviderForExistingPayments\b/,
+      ),
+    ).toEqual([
+      "features/api/payment-processing/classify.ts",
+      "features/api/webhooks.ts",
+      "shared/payments.ts",
+    ]);
+  });
+
   test("single and listing-wide refunds share one batch command", async () => {
     expect(
       pathsContaining(await sourceFiles(), /processRefundBatch\s*\(/),

@@ -596,7 +596,9 @@
     </nav>
     <main>
       <header>
-        <p class="eyebrow">M4 Part A · branch compared with origin/main</p>
+        <p class="eyebrow">
+          M4 Part A · provisional working snapshot compared with origin/main
+        </p>
         <h1>One charge. One refund authority. No guessing.</h1>
         <p class="lede">
           This branch turns refunds from a collection of route-level guesses
@@ -607,31 +609,43 @@
           generation, and returned money remains visible until the local books
           catch up.
         </p>
-        <div class="snapshot">
-          <span><strong>base</strong> <code
+        <!-- FINALIZE: replace data-finalize values after the final green commit. -->
+        <div class="snapshot" data-snapshot="provisional">
+          <span data-finalize="base"><strong>base</strong> <code
             >470b47efef0836487d55beb8a26442dd432f6f35</code></span>
-          <span><strong>source checkpoint</strong> <code
-            >31492eb2936dea7d7ac51d225d8af3f8fc18d95a</code></span>
-          <span><strong>source diff</strong> <code
-            >8dfd2f2b541fd2726677ff7d07eee60beb50caeba958617cfe0cf30ef435be8e</code></span>
-          <span><strong>generated</strong> <code
-            >2026-08-14T05:23:52+01:00</code></span>
-          <span><strong>scope</strong> <code>origin/main...source
-              checkpoint</code></span>
+          <span data-finalize="branch-head"><strong>provisional HEAD</strong>
+            <code>d91a8ec86</code></span>
+          <span data-finalize="working-state"><strong>working state</strong>
+            <code>HEAD + final uncommitted fixes</code></span>
+          <span data-finalize="source-fingerprint"><strong>source
+              fingerprint</strong> <code>pending final commit</code></span>
+          <span data-finalize="generated"><strong>generated</strong> <code
+            >2026-08-14T07:18:00+01:00</code></span>
+          <span data-finalize="scope"><strong>scope</strong>
+            <code>origin/main..working tree</code></span>
         </div>
         <div class="metrics">
-          <div class="metric">
-            <b>207</b><span>source paths changed</span>
+          <div class="metric" data-finalize="source-paths">
+            <b>208</b><span>source paths changed</span>
           </div>
-          <div class="metric">
-            <b>+16024</b><span>source lines added</span>
+          <div class="metric" data-finalize="source-added">
+            <b>+16537</b><span>source lines added</span>
           </div>
-          <div class="metric">
-            <b>−3628</b><span>source lines removed</span>
+          <div class="metric" data-finalize="source-removed">
+            <b>−3682</b><span>source lines removed</span>
           </div>
           <div class="metric">
             <b>1</b><span>canonical provider-refund authority</span>
           </div>
+        </div>
+        <div class="callout warn" data-finalize="snapshot-note">
+          <span class="mark">≈</span><p>
+            <strong>Provisional values:</strong> the explanation covers the
+            complete working tree. Commit, fingerprint, source totals, and test
+            totals are isolated in <code>data-finalize</code> fields so the
+            final green checkpoint can replace them without changing the design
+            narrative.
+          </p>
         </div>
       </header>
 
@@ -743,9 +757,11 @@
               <code>LIMIT 1</code> before selecting that one encrypted blob, and
               only then does the route decrypt it. One attendee may expose at
               most ten indexed references; an eleventh produces a typed refusal
-              before any reference decrypt or provider call. The SQL order and
-              one-row bound are pinned in <code
-              >refund-all-candidates.test.ts</code>.
+              before any reference decrypt or provider call. A claim may also
+              encounter rows belonging to other attendees with the same blind
+              reference: that lookup stops at the 101st row and refuses above
+              the 100-row ceiling before decrypting shared state or writing a
+              claim. Both SQL bounds are pinned by integration tests.
             </p>
           </article>
           <article class="card after">
@@ -847,7 +863,9 @@
             <text x="674" y="153">one row per provider charge</text>
             <text x="674" y="182">generation + capability</text>
             <text x="674" y="207">ready / armed / observing</text>
-            <text x="674" y="232">completed / owner choice</text>
+            <text x="674" y="232">
+              completed / owner choice / provider check
+            </text>
             <text x="674" y="257">provider Money + local status</text>
             <text x="674" y="282">revision-fenced transitions</text>
             <text class="small" x="674" y="316">
@@ -911,10 +929,16 @@
             provider refund permit. Two repository modules form the one <code
             >payment_charges</code> writer boundary: one creates/binds identity,
             and one owns every Money/state transition. The architecture test
-            rejects a third writer. The old sender, provider-discovery fallback,
-            read-through admission helper, and live <code
+            rejects a third writer. The old refund-local sender, discovery
+            fallback, read-through admission helper, and live <code
             >provider_refunded_at</code> reader are absent; the same test fails
-            if any returns.
+            if any returns. The temporary checkout-session selector is not a
+            refund fallback: an exact allowlist confines <code
+            >getPaymentProviderForExistingPayments</code> to <code
+            >classify.ts</code>, <code>webhooks.ts</code>, and its declaration
+            in
+            <code>payments.ts</code>. It cannot enter admin refunds, the shared
+            engine, or a provider adapter.
           </p>
         </div>
       </section>
@@ -998,9 +1022,12 @@
               send.</strong> It takes the same exact row claim, reads the named
             providers, observes returned or pending work, posts known returns,
             and retires clean review facts. Its target mode cannot mint a new
-            provider send. Even keyless work waiting for an owner choice can
-            retire when a later provider read conclusively proves the money
-            returned; the manager supplies no judgment and cannot send again.
+            provider send. Fresh full proof may retire an ordinary owner
+            ambiguity. Fresh partial, backward, or otherwise inconclusive Money
+            instead moves that ambiguity to <code>needs_provider_check</code>,
+            raises the stored returned-money floor when justified, and advances
+            the revision so an older “not sent” form cannot be used. A manager
+            supplies no judgment and cannot send again.
           </p>
         </div>
         <h3>Buyer callback needs an automatic refund</h3>
@@ -1071,7 +1098,8 @@
             <h3>Conflict</h3>
             <p>
               Partial return, over-return, several pending refunds, or changed
-              captured Money becomes review or required owner work.
+              captured Money becomes a typed provider check. It cannot be
+              squeezed into a false owner answer.
             </p>
           </article>
         </div>
@@ -1170,17 +1198,15 @@
         </div>
         <div class="callout warn">
           <span class="mark">?</span><p>
-            <strong>Required human branch:</strong> possibly sent keyless work,
-            expired keyed replay, provider conflict, provider rejection, or a
-            ready refund whose evidence stayed unreadable becomes <code
-            >needs_owner_choice</code>. There is no generic clear. Ordinary
-            uncertainty offers returned or not sent; an exact zero-return
-            conflict offers only not sent; an exact positive-return conflict
-            offers only returned. Invalid, backward, wrong-currency, excessive,
-            or pending evidence offers no money answer and only “Check again.”
-            Local Money recording is a separate action, and every displayed
-            amount uses the charge's stored currency rather than today's site
-            setting.
+            <strong>Two exits, never one vague “review” state:</strong> <code
+            >needs_owner_choice</code> is schema-valid only when at least one
+            real decision is possible. Ordinary uncertainty offers returned or
+            not sent; exact zero-return conflict offers only not sent; exact
+            full-return conflict offers only returned. Partial or inconclusive
+            evidence has no honest money answer, so it is stored separately as
+            <code>needs_provider_check</code> and offers only “Check again.”
+            Neither state has a generic clear. Local Money recording remains a
+            separate action, and every amount uses the charge’s stored currency.
           </p>
         </div>
         <div class="grid-3">
@@ -1192,11 +1218,24 @@
             </p>
           </article>
           <article class="card">
+            <h3>Fresh partial evidence closes stale choices</h3>
+            <p>
+              If “possibly sent” was already shown and a later read proves a
+              partial return, the engine replaces that ordinary ambiguity with
+              provider-check work, preserves the returned amount, and advances
+              the revision. The old “not sent” form then loses its revision
+              fence before it can authorize another generation. A conclusive
+              provider-conflict owner choice is not overwritten by later reads.
+            </p>
+          </article>
+          <article class="card">
             <h3>Exact admin claim</h3>
             <p>
               The claim transaction checks attendee PII revisions, complete
               reference rows, sharing rows, blank indexes, and the same command
-              identity.
+              identity. Shared-holder discovery reads at most 101 rows: 100 is
+              accepted, while the sentinel row returns a typed refusal before
+              shared state decryption or any claim write.
             </p>
           </article>
           <article class="card">
@@ -1391,8 +1430,10 @@
               The Privacy page keyset-pages canonical charge work. A summary
               shows provider, Money, state, revision, and time; the owner-only
               detail decrypts the reference and renders exactly the state’s real
-              exit. If a ready case stays unreadable past its grace, checking
-              sends nothing and opens two required provider-outcome choices.
+              exit. Owner-choice cases render only their admitted decisions;
+              provider-check cases render only “Check again.” If a ready case
+              stays unreadable past its grace, checking sends nothing and opens
+              the required returned-or-not-sent owner decision.
             </p>
           </article>
           <article class="card">
@@ -1412,6 +1453,17 @@
               provider-unknown sets show the real refusal in plain text and
               withhold the unusable control. Protected payment details remain
               visible even when legacy PII has no payment ID.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Route and rendered control are one promise</h3>
+            <p>
+              Every blocking lifecycle entry declares its clearer, whether it
+              needs a choice, and the operator route that reaches it. Static
+              architecture tests prove the clearer export and route exist;
+              template and route journeys prove the matching control is actually
+              rendered for the permitted role—even after merge or listing
+              deletion—and absent for managers who cannot use it.
             </p>
           </article>
           <article class="card">
@@ -1442,6 +1494,17 @@
               An eleventh indexed reference returns <code
               >too_many_references</code> before reference decryption or
               provider I/O.
+            </p>
+          </article>
+          <article class="card">
+            <span class="label">100 holders</span><h3>
+              Shared-reference ceiling
+            </h3>
+            <p>
+              Claim SQL asks for at most 101 other rows carrying the same blind
+              reference. The sentinel distinguishes “exactly 100” from “too
+              many”; overflow refuses before decrypting their protected state or
+              writing any claim.
             </p>
           </article>
           <article class="card">
@@ -1596,6 +1659,16 @@
               changed behavior.
             </p>
           </article>
+          <article class="card">
+            <h3>Square payment status is a closed vocabulary</h3>
+            <p>
+              Webhooks accept only <code>APPROVED</code>, <code>PENDING</code>,
+              <code>COMPLETED</code>, <code>CANCELED</code>, or <code
+              >FAILED</code>. Missing, non-text, empty, or unknown status throws
+              at the boundary. Only <code>COMPLETED</code> with an order ID can
+              enter completed-payment handling.
+            </p>
+          </article>
         </div>
       </section>
 
@@ -1606,11 +1679,14 @@
           The source report is scoped to <code>src/</code>, but its safety
           claims are pinned outside that directory. The branch adds or updates
           pure rule tests, database and route integration tests, architecture
-          guards, mutation expectations, and visitor-level payment stories.
-          Final suite totals: <code>261 scenarios</code> and <code>1,863
-            steps</code>. The stories include a real owner journey where
-          unreadable SumUp evidence sends nothing and opens the required
-          decision.
+          guards, mutation expectations, and visitor-level payment stories. Last
+          complete run: <code data-finalize="unit-tests"
+          >23,299 unit and integration tests</code>, <code
+            data-finalize="cucumber-scenarios"
+          >262 scenarios</code>, and <code data-finalize="cucumber-steps"
+          >1,877 steps</code>. These are provisional until the final green
+          commit. The stories include a real owner journey where unreadable
+          SumUp evidence sends nothing and opens the required decision.
         </p>
         <div class="test-stack">
           <article class="test-level">
@@ -1646,7 +1722,12 @@
             rejects another <code>payment_charges</code> writer, another
             authorization mint, provider-adapter calls outside the engine,
             legacy live reads of <code>provider_refunded_at</code>, or a
-            declared recovery action without a real registered route.
+            declared recovery action without a real registered route. It also
+            pins every production and test entry to the same <code
+            >requestProviderRefund</code> engine, exact-allowlists the temporary
+            checkout provider selector, and pairs route checks with rendered
+            role/state journeys so “route exists but no usable control” cannot
+            count as recovery.
           </p>
         </div>
       </section>
@@ -1808,11 +1889,13 @@
             </article>
             <article class="module">
               <code
-              >shared/payment/{refund-authority,refund-authority-choice,refund-conflict-decision,refund-authority-lifecycle}</code><p>
-                The pure durable state machine, exact conflict-to-decision
-                table, reason-specific legal owner answers—including
-                ready-but-unreadable work—and one declared
-                clear/prune/delete/merge policy for every state.
+              >shared/payment/{refund-authority,refund-authority-state,refund-authority-choice,refund-conflict-decision,refund-authority-lifecycle}</code><p>
+                A strict stored union for ready, armed, observing, completed,
+                owner-choice, and provider-check states; pure transitions; exact
+                conflict decisions; and one declared clear/prune/delete/merge
+                policy for every state. The schema makes an empty owner choice
+                invalid and keeps partial or inconclusive evidence in a separate
+                check-again state.
               </p>
             </article>
             <article class="module">
@@ -1829,7 +1912,9 @@
                 entries load, reconcile, arm, send/observe, and persist through
                 it. Ready work may wait through one five-minute
                 unavailable-evidence grace, then must expose the owner-choice
-                exit.
+                exit. New full provider proof can finish an ordinary ambiguity;
+                partial, backward, or inconclusive proof instead advances the
+                revision and remains provider-check work.
               </p>
             </article>
             <article class="module">
@@ -1872,7 +1957,9 @@
                 Atomic complete-set claims, the reusable canonical checking
                 fence, encrypted-state/mirror values made together, revision and
                 row-set fences, exact settlement, and transaction-time
-                merge/delete admission.
+                merge/delete admission. Shared-holder SQL stops at a 101st
+                sentinel and refuses above the 100-row ceiling before protected
+                state decryption or claim writes.
               </p>
             </article>
             <article class="module">
@@ -1895,9 +1982,10 @@
             <article class="module">
               <code>shared/db/refund-all-candidates · payment-review ·
                 refund-confirmations · notes/{queries,sealing,types}</code><p>
-                PII-free whole-set safety, exact review revision, replay-safe
-                confirmation identities, and named app notes without history
-                scans.
+                PII-free whole-set safety before a one-attendee batch, a
+                ten-reference attendee ceiling, exact review revision,
+                replay-safe confirmation identities, and named app notes without
+                history scans.
               </p>
             </article>
             <article class="module">
@@ -2025,8 +2113,12 @@
                 square/{api,checkout,client,connection,order,outcomes,payment-outcomes,read,transport,webhook}</code><p>
                 Split the monolith by responsibility and harden Money, wire
                 schemas, error translation, webhook proof, and authorized
-                refunds. App-created order recognition now trusts the durable
-                <code>_origin</code> marker across domain changes.
+                refunds. Payment status is the closed set <code>APPROVED</code>,
+                <code>PENDING</code>, <code>COMPLETED</code>, <code
+                >CANCELED</code>, or <code>FAILED</code>; anything absent,
+                non-text, empty, or unknown throws. App-created order
+                recognition trusts the durable <code>_origin</code> marker
+                across domain changes.
               </p>
             </article>
             <article class="module">
@@ -2040,11 +2132,11 @@
           </div>
         </details>
 
-        <div class="callout">
+        <div class="callout" data-finalize="source-path-accounting">
           <span class="mark">Σ</span><p>
-            <strong>Raw path accounting:</strong> the final snapshot contains
-            <strong>98 added</strong>, <strong>106 modified</strong>, and
-            <strong>3 deleted</strong>
+            <strong>Provisional raw path accounting:</strong> the complete
+            working tree contains <strong>99 added</strong>, <strong>106
+              modified</strong>, and <strong>3 deleted</strong>
             source paths. Structural deletions include <code
             >features/admin/require-provider.ts</code>, <code
             >shared/refund-ledger.ts</code>, and <code>shared/square.ts</code>;
@@ -2095,19 +2187,21 @@
               Not every legacy payment field is gone
             </h3>
             <p>
-              The buyer callback still uses <code
-              >existing-payment-provider.ts</code> to begin with the current or
-              last configured provider. Historical columns and terminal edge
+              The temporary active-provider selector is confined by an exact
+              architecture allowlist to <code>classify.ts</code>, <code
+              >webhooks.ts</code>, and its declaration in <code
+              >payments.ts</code>; it cannot enter admin refunds, the shared
+              refund engine, or an adapter. Historical columns and terminal edge
               cases remain around blank paid references or malformed signed
               completions. Once a provider-tagged refund target is admitted,
-              this branch has one authority. The future M6–M11 atomic cutover
-              must replace and delete <code
-              >getPaymentProviderForExistingPayments</code> and all runtime
-              payment-ownership callers while switching writers, readers, jobs,
-              completion, delivery, and migration together. Configuration-only
-              credential enumeration may remain under an honest name; no second
-              observer, sender, fallback, read-through, or old-record branch may
-              survive.
+              this branch has one authority. The future M6–M11 cutover must
+              replace and delete <code
+              >getPaymentProviderForExistingPayments</code> and every runtime
+              payment-ownership caller in the same change that switches writers,
+              readers, jobs, completion, delivery, and migration. There must be
+              no dual-run or read-through window. Configuration-only credential
+              enumeration may remain under an honest name; no second observer,
+              sender, fallback, bridge, or old-record branch may survive.
             </p>
           </article>
           <article class="card boundary">
@@ -2133,14 +2227,14 @@
         </div>
       </section>
 
-      <footer>
-        <strong>Verified source-checkpoint report.</strong> The fingerprint is
-        the SHA-256 of the full-index binary diff for <code>src/</code>; source
-        counts describe <code>src/</code> only. Documentation-only final commits
-        may follow the named source checkpoint without changing that diff.
-        Explanations were audited against <code
-        >origin/main...31492eb2936dea7d7ac51d225d8af3f8fc18d95a</code> and its
-        as-built module map.
+      <footer data-finalize="footer-checkpoint">
+        <strong>Provisional complete-working-tree report.</strong> Source counts
+        describe <code>src/</code> only. At finalization, replace this named
+        field with the final commit and SHA-256 source fingerprint;
+        documentation-only commits may then follow without changing that source
+        diff. The current narrative was audited against <code
+        >origin/main@470b47efef0836487d55beb8a26442dd432f6f35...HEAD@d91a8ec86 +
+          final uncommitted fixes</code> and its as-built module map.
       </footer>
     </main>
   </body>

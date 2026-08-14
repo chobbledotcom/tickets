@@ -97,10 +97,10 @@ describeWithEnv("provider refund conflict recovery", { db: true }, () => {
       dependencies,
     );
     expect(waiting).toMatchObject({
-      kind: "needs_owner_choice",
+      kind: "needs_provider_check",
       reason: "provider_conflict",
     });
-    if (waiting.kind !== "needs_owner_choice") {
+    if (waiting.kind !== "needs_provider_check") {
       throw new Error("Expected waiting provider-conflict work");
     }
     expect(
@@ -138,6 +138,22 @@ describeWithEnv("provider refund conflict recovery", { db: true }, () => {
         refunded: { amount: 0, currency: "GBP" },
       },
     });
+
+    observed = chargeMoney(100, 100);
+    expect(
+      await requestProviderRefund(
+        {
+          evidence: { kind: "read_provider" },
+          mode: "observe_only",
+          reference: payment,
+        },
+        dependencies,
+      ),
+    ).toMatchObject({
+      authority: { revision: rechecked.authority.revision },
+      kind: "needs_owner_choice",
+      reason: "provider_conflict",
+    });
   });
 
   test("partial returned money cannot be forgotten by later provider reads", async () => {
@@ -159,10 +175,10 @@ describeWithEnv("provider refund conflict recovery", { db: true }, () => {
       dependencies,
     );
     expect(partial).toMatchObject({
-      kind: "needs_owner_choice",
+      kind: "needs_provider_check",
       reason: "provider_conflict",
     });
-    if (partial.kind !== "needs_owner_choice") {
+    if (partial.kind !== "needs_provider_check") {
       throw new Error("Expected a partial-return provider conflict");
     }
 
@@ -175,7 +191,7 @@ describeWithEnv("provider refund conflict recovery", { db: true }, () => {
       },
       dependencies,
     );
-    expect(invalid).toMatchObject({ kind: "needs_owner_choice" });
+    expect(invalid).toMatchObject({ kind: "needs_provider_check" });
 
     observed = chargeMoney(2_500);
     const backwards = await requestProviderRefund(
@@ -186,8 +202,8 @@ describeWithEnv("provider refund conflict recovery", { db: true }, () => {
       },
       dependencies,
     );
-    expect(backwards).toMatchObject({ kind: "needs_owner_choice" });
-    if (backwards.kind !== "needs_owner_choice") {
+    expect(backwards).toMatchObject({ kind: "needs_provider_check" });
+    if (backwards.kind !== "needs_provider_check") {
       throw new Error("Expected partial-return evidence to remain protected");
     }
     expect(
@@ -197,7 +213,7 @@ describeWithEnv("provider refund conflict recovery", { db: true }, () => {
       ),
     ).toMatchObject({
       decision: { kind: "wait" },
-      state: "needs_owner_choice",
+      state: "needs_provider_check",
     });
     expect(
       await resolveProviderRefundCase({
@@ -213,7 +229,7 @@ describeWithEnv("provider refund conflict recovery", { db: true }, () => {
     ).toMatchObject({
       refunded_amount: 400,
       refund_local_state: "not_due",
-      refund_state_name: "needs_owner_choice",
+      refund_state_name: "needs_provider_check",
     });
     expect(sendCount).toBe(0);
   });

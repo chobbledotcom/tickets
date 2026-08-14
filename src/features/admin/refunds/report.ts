@@ -5,6 +5,7 @@ export type RefundNotStartedReason =
   | "payment_set_changed"
   | "provider_evidence"
   | "shared_reference"
+  | "too_many_reference_holders"
   | "unrecorded_money";
 
 type RefundProblem =

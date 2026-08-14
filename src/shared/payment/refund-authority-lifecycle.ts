@@ -2,20 +2,20 @@
 
 import type { RowMove } from "#shared/payment/admit-move.ts";
 import type {
+  NeedsProviderCheckRefundState,
   RefundAuthorityState,
   RefundAuthorityStateName,
-} from "#shared/payment/refund-authority.ts";
-import { refundOwnerChoices } from "#shared/payment/refund-authority-choice.ts";
+} from "#shared/payment/refund-authority-state.ts";
 
 type LifecycleExit =
   | {
-      clearedBy: "resolveProviderRefundCase";
-      requiresChoice: true;
-    }
+    clearedBy: "resolveProviderRefundCase";
+    requiresChoice: true;
+  }
   | {
-      clearedBy: "markRefundAuthorityRecorded" | "requestProviderRefund";
-      requiresChoice: false;
-    };
+    clearedBy: "markRefundAuthorityRecorded" | "requestProviderRefund";
+    requiresChoice: false;
+  };
 
 type LifecycleRecovery = LifecycleExit & {
   refusal: string;
@@ -90,31 +90,20 @@ const PROVIDER_CHECK_RECOVERY = {
 } as const;
 
 const providerCheckRecovery = (
-  state: Extract<RefundAuthorityState, { kind: "needs_owner_choice" }>,
+  state: NeedsProviderCheckRefundState,
 ): LifecycleRecovery => {
   const kind = state.decision.kind;
   if (kind !== "returned" && kind !== "wait") {
-    throw new Error(`Owner decision ${kind} unexpectedly has no choices`);
+    throw new Error(`Provider-check evidence cannot be ${kind}`);
   }
   return PROVIDER_CHECK_RECOVERY[kind];
-};
-
-const ownerChoiceRecovery = (
-  state: RefundAuthorityState,
-): LifecycleRecovery => {
-  if (state.kind !== "needs_owner_choice") {
-    throw new Error("Owner-choice recovery received another refund state");
-  }
-  return refundOwnerChoices(state).length === 0
-    ? providerCheckRecovery(state)
-    : REFUND_RECOVERY.choose;
 };
 
 const unfinished = {
   operatorRoute: "/admin/privacy/refunds/:id",
   prunable: never,
   recovery: fixedRecovery(REFUND_RECOVERY.continue),
-  saidFirst: 2,
+  saidFirst: 3,
   stops: refundWorkStops,
   storedWork: "all",
 } satisfies LifecycleRuleWithoutState;
@@ -138,9 +127,25 @@ const REFUND_LIFECYCLE = {
   needs_owner_choice: {
     operatorRoute: "/admin/privacy/refunds/:id",
     prunable: never,
-    recovery: ownerChoiceRecovery,
+    recovery: fixedRecovery(REFUND_RECOVERY.choose),
     saidFirst: 1,
     state: "needs_owner_choice",
+    stops: refundWorkStops,
+    storedWork: "all",
+  },
+  needs_provider_check: {
+    operatorRoute: "/admin/privacy/refunds/:id",
+    prunable: never,
+    recovery: (state) => {
+      if (state.kind !== "needs_provider_check") {
+        throw new Error(
+          "Provider-check recovery received another refund state",
+        );
+      }
+      return providerCheckRecovery(state);
+    },
+    saidFirst: 2,
+    state: "needs_provider_check",
     stops: refundWorkStops,
     storedWork: "all",
   },
@@ -155,13 +160,15 @@ type RefundAuthorityColumnPrefix = "" | "charge.";
 export const refundAuthorityWorkSql = (
   prefix: RefundAuthorityColumnPrefix,
 ): string =>
-  `(${Object.values(REFUND_LIFECYCLE)
-    .map((rule) =>
-      rule.storedWork === "all"
-        ? `${prefix}refund_state_name = '${rule.state}'`
-        : `(${prefix}refund_state_name = '${rule.state}' AND ${prefix}refund_local_state = 'due')`,
-    )
-    .join(" OR ")})`;
+  `(${
+    Object.values(REFUND_LIFECYCLE)
+      .map((rule) =>
+        rule.storedWork === "all"
+          ? `${prefix}refund_state_name = '${rule.state}'`
+          : `(${prefix}refund_state_name = '${rule.state}' AND ${prefix}refund_local_state = 'due')`
+      )
+      .join(" OR ")
+  })`;
 
 export type RefundLifecycle = {
   readonly blocks: Record<RowMove, boolean>;

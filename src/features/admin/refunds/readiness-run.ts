@@ -1,3 +1,4 @@
+import { t } from "#i18n";
 import type { LoadedRefundAttendee } from "#shared/db/payment-claim/take.ts";
 import { PAYMENT_REVIEW_RETIREMENT } from "#shared/payment/review.ts";
 import { requestProviderRefund } from "#shared/provider-refunds.ts";
@@ -215,6 +216,10 @@ export const runRefundReadiness = async <TResult>(
     blocked: (block) => {
       if (block.kind === "claim_held") {
         return { kind: "blocked", reason: "refund_in_progress" };
+      }
+      if (block.kind === "too_many_reference_holders") {
+        reportCandidateProblems(run, run.candidates, block.kind);
+        return run.notReady(t("error.payment_reference_holders_too_large"));
       }
       reportCandidateProblems(run, run.candidates, block.kind);
       return run.notReady(run.changedMessage);

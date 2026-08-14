@@ -268,6 +268,7 @@
   "error.no_payment_to_refund": "This attendee has no payment to refund.",
   "error.payment_history_incomplete": "This attendee has older payment history that must be migrated before their payment can be safely refunded or refreshed. No money was sent.",
   "error.payment_history_too_large": "This attendee has too many separate payments to handle safely in one request. No money was sent; use the provider dashboard.",
+  "error.payment_reference_holders_too_large": "This payment appears on too many booking records to handle safely in one request. No money was sent; use the provider dashboard.",
   "error.payment_provider_unknown": "This older payment does not record which provider took it, so it cannot be refunded or refreshed automatically. No provider was contacted.",
   "error.no_attendees_to_refund": "No attendees have payments to refund.",
   "error.refund_failed": "Refund failed. The payment may have already been refunded.",

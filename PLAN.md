@@ -203,13 +203,15 @@ vocabulary in `resources.ts`, `conflict.ts`, `diagnose.ts`, `refund.ts`, and
 `admit-refund.ts`: `ChargeMoney` is the complete fact one charge can prove,
 `refundOutcomeOf` is its sole judge, and the pure `PaymentConflict` union
 contains only the three disagreements that judge can produce. Those names are
-not a second stored review schema: a durable provider disagreement is normalized
-to the canonical authority's `needs_owner_choice/provider_conflict` state while
-retaining the exact Money and charge facts. `provider-read.ts`,
-`provider-failures.ts`, `refund-attempt.ts`, and `refund-network.ts` make
-provider reads, attempts, failures, and bounded reconciliation total and
-exhaustive. `row-state.ts`, `claim.ts`, `review.ts`, and `admit-move.ts` declare
-the live row lifecycle and derive its operator and writer rules.
+not a second stored review schema: a durable provider disagreement retains its
+exact Money in the canonical authority. Exact zero or full-return evidence can
+become `needs_owner_choice/provider_conflict`; partial or inconclusive evidence
+becomes `needs_provider_check/provider_conflict` and admits no owner money
+answer. `provider-read.ts`, `provider-failures.ts`, `refund-attempt.ts`, and
+`refund-network.ts` make provider reads, attempts, failures, and bounded
+reconciliation total and exhaustive. `row-state.ts`, `claim.ts`, `review.ts`,
+and `admit-move.ts` declare the live row lifecycle and derive its operator and
+writer rules.
 
 The whole-checkout observation, ownership proofs, charge legs, expected-money
 comparisons, and whole-payment `outcomeOf` are deliberately NOT present. They
@@ -389,31 +391,50 @@ As-built module map:
 | Contract                         | Exported entry points                                                                                                                                                                                                                                                                                                                                                                        | Focused authority tests                                                                                                                                                                                                                                                                                                                                                                                                  |
 | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Charge evidence and judgment     | `chargeMoneyRead`; `refundMoneyReturned`; `refundMoneyAccountedFor`; `refundMoneyMatchesCapture`; `refundOutcomeOf`; `resolveRefund`; `admitRefund`; `admitObservedRefund`; `admissionReason`                                                                                                                                                                                                | `test/shared/payment/{resources,diagnose,refund,admit-refund}.test.ts`                                                                                                                                                                                                                                                                                                                                                   |
-| Provider reads and attempts      | `ProviderRead`; `providerFailure`; `RefundAttemptResult`; `RefundRequest`; `refundOutcomeAfterReread`; `refundWithOneReread`                                                                                                                                                                                                                                                                 | `test/shared/payment/{provider-failures,refund-attempt}.test.ts`; `test/shared/stripe-provider/{outcomes,refund-outcomes}.test.ts`; `test/shared/square/refund-outcomes.test.ts`; `test/shared/sumup/{transaction,provider-money}.test.ts`; `test/shared/square-provider/metadata.test.ts`                                                                                                                               |
-| Durable provider authority       | `RefundAuthorityState`; `readyRefund`; `armRefundSend`; `markRefundObservationDue`; `markRefundCompleted`; `resolveRefundOwnerChoice`; `refundLifecycleFor`; `refundAuthorityWorkSql`                                                                                                                                                                                                        | `test/shared/payment/refund-authority/{state,lifecycle}.test.ts`; `test/integration/refund-authority-architecture.test.ts`                                                                                                                                                                                                                                                                                               |
+| Provider reads and attempts      | `ProviderRead`; `providerFailure`; `RefundAttemptResult`; `RefundRequest`; `refundOutcomeAfterReread`; `refundWithOneReread`; `SquarePaymentStatus`; `isSquarePaymentStatus`                                                                                                                                                                                                                 | `test/shared/payment/{provider-failures,refund-attempt}.test.ts`; `test/shared/stripe-provider/{outcomes,refund-outcomes}.test.ts`; `test/shared/square/refund-outcomes.test.ts`; `test/shared/sumup/{transaction,provider-money}.test.ts`; `test/shared/square-provider/{metadata,webhook-fields}.test.ts`                                                                                                              |
+| Durable provider state           | `RefundAuthorityState`; `RefundAuthorityStateName`; `readRefundAuthorityState`; `writeRefundAuthorityState`; `validateRefundAuthorityState`; `refundStateMirror`; `refundLocalMirror`; `refundNextActionAt`; `readyRefund`; `armRefundSend`; `markRefundObservationDue`; `rearmKeyedRefund`; `returnRefundToReady`; `markRefundCompleted`; `markRefundLocalRecorded`                         | `test/shared/payment/refund-authority-state.test.ts`; `test/shared/payment/refund-authority/state.test.ts`; `test/integration/refund-authority-architecture.test.ts`                                                                                                                                                                                                                                                     |
+| Conflict, choice, and lifecycle  | `RefundConflictDecisionSchema`; `refundConflictDecision`; `refundConflictNeedsProviderCheck`; `markRefundOwnerChoiceNeeded`; `mayReplaceRefundWithFreshEvidence`; `markRefundProviderConflict`; `refundOwnerChoices`; `resolveRefundOwnerChoice`; `refundLifecycleFor`; `refundAuthorityWorkSql`; `refundMoveRefusalOrNull`                                                                  | `test/shared/payment/refund-authority-choice.test.ts`; `test/shared/payment/refund-authority-lifecycle.test.ts`; `test/shared/payment/refund-authority/state.test.ts`; `test/shared/provider-refunds/state.test.ts`; `test/integration/refund-authority-architecture.test.ts`                                                                                                                                            |
 | Provider permit and one engine   | `ProviderRefundEvidence`; `ProviderRefundTarget`; `ProviderRefundResult`; `RefundAuthorityReceipt`; `ProviderRefundDependencies`; `RefundEngineProvider`; `AuthorizedRefundRequest`; `authorizeDurableRefundSend`; `requireProviderRefundAuthorization`; `requestProviderRefunds`; `requestProviderRefund`; `recordProviderRefunds`                                                          | `test/shared/provider-refunds/{target,state,work,send,budget}.test.ts`; `test/shared/provider-refunds/send/outcomes.test.ts`; `test/shared/provider-refunds.test.ts`; `test/integration/refund-authority-architecture.test.ts`                                                                                                                                                                                           |
-| Atomic authority storage         | `createOrLoadRefundAuthority`; `bindRefundCallbackIfChargeExists`; `transitionRefundAuthority`; `completeRefundAuthority`; `markRefundAuthorityRecorded`                                                                                                                                                                                                                                     | `test/shared/db/provider-refund-authority.test.ts`; `test/shared/provider-refunds/{target,state,work,send}.test.ts`                                                                                                                                                                                                                                                                                                      |
+| Atomic authority storage         | `createOrLoadRefundAuthority`; `bindRefundCallbackIfChargeExists`; `transitionRefundAuthority`; `resolveRefundAuthorityMoney`; `completeRefundAuthority`; `markRefundAuthorityRecorded`                                                                                                                                                                                                      | `test/shared/db/provider-refund-authority.test.ts`; `test/shared/provider-refunds/{target,state,work,send}.test.ts`                                                                                                                                                                                                                                                                                                      |
 | Callback and placeholder cutover | `requestSessionRefund`; `refundRejectedCharge`; `storeRefundedBooking`                                                                                                                                                                                                                                                                                                                       | `test/features/api/payment-processing/refunds/{provider-result,rejected-charge}.test.ts`; `test/features/api/payment-processing/store-refund.test.ts`; callback integration suites under `test/integration/server/`                                                                                                                                                                                                      |
-| Admin claims and dispatch        | `claimLeaseMs`; `checkingClaimFor`; `underAttendeeClaim`; `runRefundReadiness`; `requestReadyRefund`; `dispatchRefundBatch`; `refreshClaimedPayment`; `AuthorityBearingReference`; `recordedRefundAuthorities`                                                                                                                                                                               | `test/shared/payment/claim.test.ts`; `test/shared/db/payment-claim/{admission,shared-references,take,unrecorded-date}.test.ts`; `test/features/admin/refunds/{claim,readiness-failure-evidence}.test.ts`; `test/features/admin/refunds/dispatch/{budget-lifecycle,write-order}.test.ts`                                                                                                                                  |
-| Owner recovery                   | `listProviderRefundCases`; `loadProviderRefundCase`; `resolveProviderRefundCase`                                                                                                                                                                                                                                                                                                             | `test/shared/db/provider-refund-cases.test.ts`; `test/integration/server/privacy-refund-recovery.test.ts`; `test/shared/provider-refunds.test.ts`; `test/ui/templates/admin/provider-refund-cases.test.tsx`; `specs/payments/resolving-uncertain-refunds.feature`                                                                                                                                                        |
+| Admin claims and dispatch        | `claimLeaseMs`; `checkingClaimFor`; `claimAttendeeRows`; `underAttendeeClaim`; `runRefundReadiness`; `requestReadyRefund`; `dispatchRefundBatch`; `refreshClaimedPayment`; `AuthorityBearingReference`; `recordedRefundAuthorities`                                                                                                                                                          | `test/shared/payment/claim.test.ts`; `test/shared/db/payment-claim/{admission,shared-references,take,unrecorded-date}.test.ts`; `test/features/admin/refunds/{claim,readiness-failure-evidence}.test.ts`; `test/features/admin/refunds/dispatch/{budget-lifecycle,write-order}.test.ts`                                                                                                                                  |
+| Owner recovery                   | `ProviderRefundCase`; `listProviderRefundCases`; `loadProviderRefundCase`; `resolveProviderRefundCase`                                                                                                                                                                                                                                                                                       | `test/shared/db/provider-refund-cases.test.ts`; `test/shared/provider-refunds/state-owner-revision.test.ts`; `test/integration/server/privacy-refund-recovery{,-race}.test.ts`; `test/ui/templates/admin/provider-refund-cases.test.tsx`; `specs/payments/resolving-uncertain-refunds.feature`                                                                                                                           |
 | Local work and destructive moves | `PaymentWorkStatus`; `PaymentRecoveryAction`; `PAYMENT_ROW_LIFECYCLE`; `paymentWorkFor`; `mirroredMoveRefusalOrNull`; `mirrorFor`; `assertRowsFreeToMove`; `PaymentRowsBusyError`; `ATTENDEE_DATA_RULES`                                                                                                                                                                                     | `test/shared/payment/admit-move.test.ts`; `test/shared/db/payment-admit-move.test.ts`; `test/shared/provider-refunds.test.ts`; `test/shared/db/attendees/{dependent-data,delete}.test.ts`                                                                                                                                                                                                                                |
 | Confirmation and local review    | `confirmRefund`; `insertRefundConfirmation`; `PAYMENT_REVIEW_RETIREMENT`; `getPaymentReviewState`; `getPaymentWorkStatus`; `acknowledgeCurrentPaymentReview`                                                                                                                                                                                                                                 | `test/features/admin/refunds/confirmation.test.ts`; `test/shared/db/{refund-confirmations,payment-review}.test.ts`; `test/features/admin/attendee-payment-review.test.ts`                                                                                                                                                                                                                                                |
 | Exact Money repair               | `refundMoneyReturned`; `refundMoneyAccountedFor`; `computeAttendeeRefunds`; `RefundLedgerResult`; `REFUND_LEDGER_BATCH_DATABASE_CALLS`                                                                                                                                                                                                                                                       | `test/shared/payment/resources.test.ts`; `test/shared/refund-ledger/plan/{partial,reference-placement,whole-account}.test.ts`; `test/shared/refund-ledger/record/batch.test.ts`; `test/features/admin/refunds/provider/batch/{ledger-findings,ledger}.test.ts`                                                                                                                                                           |
 | Bounded command support          | `refundReadinessSubrequestCost`; `refundPreparedSubrequestCost`; `REFUND_SETTLEMENT_SUBREQUEST_RESERVE`; `REFUND_LEDGER_SUBREQUEST_RESERVE`; `REFUND_OBSERVED_AUTHORITY_DATABASE_CALLS`; `REFUND_ACTIVE_AUTHORITY_DATABASE_CALLS`; `REFUND_RESULT_DATABASE_RESERVE`; `withSubrequestReserve`; `withDeferredErrorReports`; `getRefundCandidates`; `getRefundAllSummary`; `loadRefundAllBatch` | `test/features/admin/refunds/{budget,claim-settlement,candidates}.test.ts`; `test/features/admin/refunds/provider/batch/budget.test.ts`; `test/features/admin/refunds/dispatch/budget-lifecycle.test.ts`; `test/features/admin/refunds/readiness-run/refresh-budget.test.ts`; `test/shared/provider-refunds/{budget,send}.test.ts`; `test/shared/subrequest-budget.test.ts`; `test/integration/logger/log-error.test.ts` |
 | Private indexed references       | `storePaymentReference`; `loadPaymentReference`; `prepareClaimedAttendeePaymentAnchor`; `getRefundPaymentReferences`; `MAX_REFUND_REFERENCES_PER_ATTENDEE`                                                                                                                                                                                                                                   | `test/shared/db/payment-anchor/{attendee,reference}.test.ts`; `test/shared/db/payment-references{,/readiness,/storage}.test.ts`; `test/features/api/payment-processing/store-refund.test.ts`; `test/integration/refund-authority-architecture.test.ts`                                                                                                                                                                   |
 
+- **Authority module ownership.** `payment/refund-authority-state.ts` owns the
+  one stored union, its parser, serializer, validation, and SQL mirrors.
+  `payment/refund-authority.ts` owns pure automatic transitions;
+  `payment/refund-authority-choice.ts` owns the explicit owner/conflict
+  transitions, legal-choice derivation, and the exhaustive
+  `mayReplaceRefundWithFreshEvidence` rule;
+  `payment/refund-conflict-decision.ts` turns fresh Money evidence into the
+  exact `not_sent | returned | wait` decision; and
+  `payment/refund-authority-lifecycle.ts` exhaustively declares each state's
+  blocker, clearer, choice requirement, operator route, and pruning rule. The
+  database identity and state writers remain `db/provider-refund-authority.ts`
+  and `db/provider-refund-authority-change.ts`; owner decisions plus their
+  activity audit remain one transaction in
+  `db/provider-refund-case-resolution.ts`. These are parts of one authority, not
+  interchangeable implementations.
 - **Refund-only rules.** `src/shared/validation/kind.ts` and
   `src/shared/payment/{resources,conflict,diagnose,refund,admit-refund}.ts`
   define one charge's captured/refunded facts and one `refundOutcomeOf`
   judgment. Its pure `PaymentConflict` result can name `refund_exceeds_capture`,
   `partial_refund`, or `multiple_pending_refunds`; those are charge-judgment
   values, not variants stored in the local `PaymentReviewReason` schema. Durable
-  disagreements use the canonical provider authority's
-  `needs_owner_choice/provider_conflict` state, so there is one retirement path.
-  `failed_refund` is deliberately absent: an attempt that certainly moved no
-  money may be retried, while a failure reported beside returned money is
-  diagnosed from the returned facts. The judge never invents the signed checkout
-  total or booking allocation that this slice cannot read.
+  disagreements use the canonical provider authority's `provider_conflict`
+  evidence. Only exact zero or full return admits a real owner decision in
+  `needs_owner_choice`; partial or inconclusive evidence lives in
+  `needs_provider_check` and can only be observed again. Both retire through the
+  one canonical Refund recovery route. `failed_refund` is deliberately absent:
+  an attempt that certainly moved no money may be retried, while a failure
+  reported beside returned money is diagnosed from the returned facts. The judge
+  never invents the signed checkout total or booking allocation that this slice
+  cannot read.
 - **Reference identity and storage.** Migration
   `2026-08-10_payment_state_columns.ts`, `tables-attendees.ts`,
   `db/payment-reference-store.ts`, `db/payment-reference-rows.ts`,
@@ -491,12 +512,19 @@ As-built module map:
   `amount_captured`, `currency`, and `amount_refunded` fields; the provider's
   boolean `refunded` flag is never enough. Square validates payments, refunds,
   and orders at the wire boundary and treats only an explicit 404 as missing.
-  SumUp never turns a missing proof into a full return: a top-level `REFUNDED`
-  transaction without at least one refund event is invalid
-  `missing_documented_resource`. A `SUCCESSFUL` transaction with an absent or
-  empty event list means zero returned. Every present event must name a known
-  type, a chargeback invalidates the read, and every refund event must have a
-  supported status plus a valid amount in the transaction currency.
+  Its payment webhook admits exactly `APPROVED`, `PENDING`, `COMPLETED`,
+  `CANCELED`, and `FAILED`: a missing, non-text, empty, or unknown status throws
+  at the boundary; a known non-completed status is the only status acknowledged
+  without processing; and `COMPLETED` must also carry its Order id. The shared
+  `isSquarePaymentStatus` declaration and
+  `test/shared/square-provider/webhook-fields.test.ts` pin that set, so a new
+  provider word cannot silently become a safe skip. SumUp never turns a missing
+  proof into a full return: a top-level `REFUNDED` transaction without at least
+  one refund event is invalid `missing_documented_resource`. A `SUCCESSFUL`
+  transaction with an absent or empty event list means zero returned. Every
+  present event must name a known type, a chargeback invalidates the read, and
+  every refund event must have a supported status plus a valid amount in the
+  transaction currency.
 
   `providerFailure` gives every adapter the same read-side transport table: 404
   is `missing`; 400/422 is invalid `rejected_request`; 408/504 is unavailable
@@ -541,8 +569,15 @@ As-built module map:
   `features/admin/refunds/{claim,dispatch,authority}.ts` admit only a complete
   indexed attendee set. Inside the claim transaction, the command rereads every
   non-empty reference row owned by the selected attendees, including blank-index
-  rows, plus indexed sharing rows. A blank-index row present at initial load
-  yields `legacy_unindexed`; an indexed but untagged reference yields
+  rows, plus indexed sharing rows. That expansion is hard-bounded:
+  `MAX_SHARED_PAYMENT_ROWS_PER_CLAIM` admits at most 100 rows outside the
+  selected attendee set, and the SQL reads at most 101 so the last row is only
+  an overflow sentinel. Seeing it returns the typed `too_many_reference_holders`
+  refusal before any sharing row's encrypted `failure_data` is decrypted, before
+  a claim write, and before provider or ledger I/O. The refund and Refresh
+  surfaces map that finite result to exact operator copy; they never truncate
+  the sharing set. A blank-index row present at initial load yields
+  `legacy_unindexed`; an indexed but untagged reference yields
   `provider_unknown`; and a row that appears between load and claim makes the
   exact row-set comparison return `changed`. None can reach the provider
   authority. The transaction also fences each attendee's exact `pii_blob`
@@ -554,7 +589,12 @@ As-built module map:
   ordinary claim acquisition and the automatic placeholder anchor. There is no
   second hand-built claim shape for callback recovery.
 
-  `payment/refund-{authority,authority-choice,provider-authorization,replay-window,request-identity}.ts`,
+  `test/shared/db/payment-claim/take/shared-references.test.ts` proves the
+  100-row edge is accepted and 101 is refused without decrypting even
+  deliberately corrupt shared state. The readiness admission regression proves
+  the typed refusal remains finite at the feature boundary.
+
+  `payment/refund-{authority,authority-state,authority-choice,authority-lifecycle,conflict-decision,provider-authorization,replay-window,request-identity}.ts`,
   `db/provider-refund-authority.ts`, and `shared/provider-refunds.ts` and
   `shared/provider-refunds/{target,send,state,work,budget}.ts` own the
   irreversible lifecycle. One globally unique blind reference index identifies
@@ -562,21 +602,31 @@ As-built module map:
   every transition compares an exact revision. `ready` means evidence permits
   one attempt; `send_armed` means that exact generation may have crossed the
   network boundary; `observing` waits for fresh evidence; `completed` separately
-  tracks provider return and local Money recording; `needs_owner_choice` blocks
-  every send until a specific owner answer. An observe-only Refresh may still
-  retire that choice when later provider evidence proves the money fully
-  returned; it never turns that state back into an automatic send. Stripe and
-  Square declare `keyed`; SumUp declares `keyless`. Keyed replay uses the same
-  identity only inside its finite provider window. Keyless work never
-  automatically resends an armed generation. A fresh `accepted` result stays
-  `observing` until provider evidence proves the return; an idempotency key is
-  not settlement proof.
+  tracks provider return and local Money recording; `needs_owner_choice` means
+  the stored evidence schema admits at least one specific owner answer; and
+  `needs_provider_check` means it admits none and only another observation may
+  advance it. Both attention states block sends and destructive deletion. An
+  observe-only check may retire an ordinary ambiguity when fresh provider
+  evidence proves the money fully returned. Fresh partial, invalid, backward,
+  wrong-currency, excessive, or pending evidence instead replaces that ordinary
+  ambiguity with `needs_provider_check`, advances the authority revision, and
+  preserves or raises the proved returned-Money floor. It therefore invalidates
+  a stale “not sent” form rather than letting an old guess erase newer evidence.
+  A conclusive `provider_conflict` owner-choice revision is immutable under
+  later reads. Stripe and Square declare `keyed`; SumUp declares `keyless`.
+  Keyed replay uses the same identity only inside its finite provider window.
+  Keyless work never automatically resends an armed generation. A fresh
+  `accepted` result stays `observing` until provider evidence proves the return;
+  an idempotency key is not settlement proof.
 
   `ProviderRefundTarget` makes send versus observation explicit. A clean
   observe-only read with no existing authority returns `unchanged`; it does not
   invent durable work. Once an authority exists, callback and admin entry points
-  both reconcile that same row and return the same exhaustive
-  `ready | pending | returned | needs_owner_choice | withheld` outcomes.
+  both reconcile that same row through the exhaustive `changed`,
+  `needs_owner_choice`, `needs_provider_check`, `pending`, `ready`, `returned`,
+  `unchanged`, or `withheld` result. `unchanged` is possible only for a clean
+  observe-only probe with no authority to create; `changed` is the explicit lost
+  revision result.
 
   A `ready` authority cannot remain a dead Send control when its provider read
   is unreadable. `missing` or `invalid` evidence moves it immediately to
@@ -638,18 +688,21 @@ As-built module map:
   or blank-index processed-payment blocker among that same complete refundable
   set. Settled non-candidates keep their own protection and repair state but
   cannot strand an unrelated refund. The summary runs before selection, so any
-  SQL-visible blocker on a refundable candidate refuses the whole command. It
-  then loads and decrypts exactly one candidate PII blob, with existing claims
-  first. Typed candidate admission catches a current PII payment id with no
-  indexed identity and a row that appears after the summary; an incomplete
-  attendee rejects the request before provider I/O. This catches a PII-only old
-  charge beside an indexed charge because the indexed sibling puts the attendee
-  on the page. A PII-only attendee with no reference-bearing row is absent from
-  the PII-free Refund All set and cannot be discovered there without the
-  forbidden population decrypt; Single Refund and Refresh still refuse that
-  attendee directly. The atomic cutover's M11 migration removes this deliberate
-  limit rather than broadening an interactive request. The selected attendee
-  passes through the same claim and budget admission as a single refund.
+  SQL-visible blocker on a refundable candidate refuses the whole command. The
+  GET/summary route decrypts zero attendee PII blobs. The POST batch loads at
+  most one encrypted blob, with existing claims first, and decrypts zero when
+  the summary is blocked or empty and exactly one otherwise. It never decrypts
+  an attendee array and then slices it. Typed candidate admission catches a
+  current PII payment id with no indexed identity and a row that appears after
+  the summary; an incomplete attendee rejects the request before provider I/O.
+  This catches a PII-only old charge beside an indexed charge because the
+  indexed sibling puts the attendee on the page. A PII-only attendee with no
+  reference-bearing row is absent from the PII-free Refund All set and cannot be
+  discovered there without the forbidden population decrypt; Single Refund and
+  Refresh still refuse that attendee directly. The atomic cutover's M11
+  migration removes this deliberate limit rather than broadening an interactive
+  request. The selected attendee passes through the same claim and budget
+  admission as a single refund.
   `features/admin/refunds/candidates.ts:getRefundCandidates` drops quantity-zero
   rows and deduplicates by attendee before loading references, so several
   booking rows for one person consume one place, one tally, and one
@@ -714,11 +767,15 @@ As-built module map:
   schema. `provider-refund-cases.ts` exposes the canonical authority's own
   revision. `payment/refund-authority-choice.ts` derives the only legal action
   from the exact stored evidence: ordinary uncertainty offers returned or not
-  sent; an exact zero-return conflict offers only not sent; an exact
-  positive-return conflict offers only returned; and invalid, backward,
+  sent; an exact zero-return conflict offers only not sent; an exact full-return
+  conflict offers only returned; and a partial return or invalid, backward,
   wrong-currency, excessive, or pending evidence offers no money answer and can
-  only be checked again. `money_recorded` is the separate proof that the local
-  ledger caught up. There is no generic clear. `PaymentWorkStatus` is exactly
+  only be checked again. The stored union makes those last cases
+  `needs_provider_check`, while `needs_owner_choice` is constructible only with
+  a non-empty legal choice set. A fresh partial or inconclusive reading replaces
+  an ordinary ambiguous choice instead of leaving a stale not-sent answer
+  available. `money_recorded` is the separate proof that the local ledger caught
+  up. There is no generic clear. `PaymentWorkStatus` is exactly
   `clear | moving | needs_money_record |
   needs_provider_recovery | needs_review`.
   A live claim comes first, then an explicit owner review, then mechanical
@@ -740,14 +797,22 @@ As-built module map:
   queue keyset-pages twenty summaries without decrypting references. Only its
   owner-only detail opens the reference. `ready` renders one clearly marked Send
   action; `send_armed` and `observing` render observation only; `completed/due`
-  requires the separate Money-recorded confirmation; and `needs_owner_choice`
-  renders only the answer justified by the exact conflict table above. Stored
-  Money is displayed with its own currency divisor, symbol, and code, never the
-  site's current currency. A not-sent answer increments the generation and
-  leaves `ready` work; saving the choice itself sends nothing. Every form binds
-  the exact id and revision, and a concurrent change refuses instead of acting
-  on stale evidence. The revision-fenced authority change and its finite
-  activity audit commit together; an audit failure rolls the decision back.
+  requires the separate Money-recorded confirmation; `needs_owner_choice`
+  renders only the answer justified by the exact conflict table above; and
+  `needs_provider_check` renders only Check again, never a returned/not-sent
+  choice. Stored Money is displayed with its own currency divisor, symbol, and
+  code, never the site's current currency. A not-sent answer increments the
+  generation and leaves `ready` work; saving the choice itself sends nothing.
+  Every form binds the exact id and revision. A ready Send carries that pair
+  into authority admission and loses before provider I/O if the inspected
+  revision changed. An owner money decision compares it inside the transaction
+  that changes the authority and writes its finite activity audit. Check again
+  is observe-only: its POST first refuses a stale submitted revision, and any
+  concurrent change after the read loses the transition CAS and is reread
+  instead of overwriting newer evidence. An audit failure rolls an owner
+  decision back. The HTTP and state-level races are pinned by
+  `test/integration/server/privacy-refund-recovery-race.test.ts` and
+  `test/shared/provider-refunds/state-owner-revision.test.ts`.
   `refund-authority-lifecycle.ts` exhaustively declares the clearer, whether a
   choice is required, the real route, pruning, and merge/delete policy for every
   state. The architecture test proves every declared clearer is exported and
@@ -1035,6 +1100,16 @@ requests. The displaced readers, writers, interfaces, and maintenance paths are
 deleted in this same release; there is no read-through, dual write, runtime
 fallback, or mixed-store answer. Frozen old tables remain only as migration
 audit input for M12/M13 redaction and removal.
+
+This is also the rule for every later change to M4's live refund authority, not
+just this named aggregate cutover. Extend the canonical state and every consumer
+in place, or fence requests, migrate and verify every retained row, switch one
+epoch, and delete the displaced schema, readers, writers, routes, and jobs in
+the same release. Record age, missing optional fields, provider kind, and
+deployment version may preserve evidence or cause a typed refusal; none may
+select a legacy runtime, fallback authority, dual write, or alternate refund
+engine. If a future change cannot make that atomic replacement safely, it does
+not activate.
 
 Every dormant aggregate table must hold its complete production role at that
 epoch or be dropped. The cutover cannot activate without the owner's private

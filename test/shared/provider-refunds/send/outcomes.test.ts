@@ -6,7 +6,7 @@ import { loadRefundAuthorityByReference } from "#shared/db/provider-refund-autho
 import {
   type RefundRequestGeneration,
   writeRefundAuthorityState,
-} from "#shared/payment/refund-authority.ts";
+} from "#shared/payment/refund-authority-state.ts";
 import { requestProviderRefund } from "#shared/provider-refunds.ts";
 import {
   fakeRefundProvider,
@@ -64,35 +64,37 @@ describeWithEnv("provider refund engine outcomes", { db: true }, () => {
     });
   });
 
-  for (const { change, error, payment } of [
-    {
-      change: (request: RefundRequestGeneration) => ({
-        ...request,
-        identityIndex: "another-generation",
-      }),
-      error: "generation identity does not match its charge",
-      payment: refundReference("txn-wrong-generation", "stripe"),
-    },
-    {
-      change: (request: RefundRequestGeneration) => ({
-        capability: "keyless" as const,
-        generation: request.generation,
-        identityIndex: request.identityIndex,
-      }),
-      error: "Keyless refund generation does not belong to SumUp",
-      payment: refundReference("txn-keyless-stripe", "stripe"),
-    },
-    {
-      change: (request: RefundRequestGeneration) => ({
-        capability: "keyed" as const,
-        generation: request.generation,
-        identityIndex: request.identityIndex,
-        replayUntil: 500,
-      }),
-      error: "Keyed refund generation cannot belong to SumUp",
-      payment: refundReference("txn-keyed-sumup"),
-    },
-  ] as const) {
+  for (
+    const { change, error, payment } of [
+      {
+        change: (request: RefundRequestGeneration) => ({
+          ...request,
+          identityIndex: "another-generation",
+        }),
+        error: "generation identity does not match its charge",
+        payment: refundReference("txn-wrong-generation", "stripe"),
+      },
+      {
+        change: (request: RefundRequestGeneration) => ({
+          capability: "keyless" as const,
+          generation: request.generation,
+          identityIndex: request.identityIndex,
+        }),
+        error: "Keyless refund generation does not belong to SumUp",
+        payment: refundReference("txn-keyless-stripe", "stripe"),
+      },
+      {
+        change: (request: RefundRequestGeneration) => ({
+          capability: "keyed" as const,
+          generation: request.generation,
+          identityIndex: request.identityIndex,
+          replayUntil: 500,
+        }),
+        error: "Keyed refund generation cannot belong to SumUp",
+        payment: refundReference("txn-keyed-sumup"),
+      },
+    ] as const
+  ) {
     test(`refuses inconsistent durable state: ${error}`, async () => {
       const refunding = notSentRefundProvider(payment.provider);
       const dependencies = refundDependencies(refunding.provider);

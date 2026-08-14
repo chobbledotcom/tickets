@@ -158,6 +158,53 @@ describe("refund readiness action admission", () => {
     ).toBe(true);
   });
 
+  for (const action of ["refund", "refresh"] as const) {
+    test(`${action} explains an excessive shared payment history`, async () => {
+      let prepared = false;
+      const common = {
+        candidates: [CANDIDATE],
+        changedMessage: "the loaded payment changed",
+        claim: {
+          claim: () =>
+            Promise.resolve({ kind: "too_many_reference_holders" as const }),
+          settle: () => Promise.reject(new Error("No rows were claimed")),
+        },
+        listingId: 7,
+        notReady: (message: string): RunResult => ({
+          kind: "not_ready",
+          message,
+        }),
+        prepare: () => {
+          prepared = true;
+          return Promise.resolve({ candidates: [], kind: "ready" as const });
+        },
+        ready: () => {
+          throw new Error("Excessive history reached ready work");
+        },
+      };
+      const result =
+        action === "refund"
+          ? await runRefundReadiness<RunResult>({
+              ...common,
+              action,
+              budgetAudience: "bulk",
+            })
+          : await runRefundReadiness<RunResult>({ ...common, action });
+
+      expect(result).toEqual({
+        kind: "not_ready",
+        message:
+          "This payment appears on too many booking records to handle safely in one request. No money was sent; use the provider dashboard.",
+      });
+      expect(prepared).toBe(false);
+      expect(
+        errors.contains(
+          `Admin ${action} not started (too_many_reference_holders)`,
+        ),
+      ).toBe(true);
+    });
+  }
+
   for (const state of SAFETY_STATES) {
     test(`a refund stops before preparation for ${state.name}`, async () => {
       const run = await runFor("refund", state);

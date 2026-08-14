@@ -7,15 +7,22 @@ import {
 import { type Money, money } from "#shared/payment/money.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 import {
+  readRefundAuthorityState,
   type RefundAuthorityState,
   type RefundAuthorityStateName,
-  type RefundOwnerChoiceReason,
-  readRefundAuthorityState,
   refundLocalMirror,
+  type RefundOwnerChoiceReason,
   refundStateMirror,
-} from "#shared/payment/refund-authority.ts";
+} from "#shared/payment/refund-authority-state.ts";
+import {
+  type RefundOwnerChoices,
+  refundOwnerChoices,
+} from "#shared/payment/refund-authority-choice.ts";
 import { refundAuthorityWorkSql } from "#shared/payment/refund-authority-lifecycle.ts";
-import type { RefundOwnerDecision } from "#shared/payment/refund-conflict-decision.ts";
+import type {
+  RefundConflictDecision,
+  RefundOwnerDecision,
+} from "#shared/payment/refund-conflict-decision.ts";
 import { REFUND_PROVIDER_CAPABILITIES } from "#shared/payment/refund-provider-authorization.ts";
 import { writeProviderRefundCursor } from "#shared/provider-refund-cursor.ts";
 import { isPaymentProvider, type PaymentProviderType } from "#shared/types.ts";
@@ -41,20 +48,47 @@ interface ProviderRefundCaseDetail extends ProviderRefundCaseSummary {
 }
 
 interface OwnerChoiceProviderRefundCase extends ProviderRefundCaseDetail {
+  readonly choices: RefundOwnerChoices;
   readonly decision: RefundOwnerDecision;
   readonly reason: RefundOwnerChoiceReason;
   readonly state: "needs_owner_choice";
 }
 
+interface ProviderCheckRefundCase extends ProviderRefundCaseDetail {
+  readonly choices: null;
+  readonly decision: RefundConflictDecision;
+  readonly reason: "provider_conflict";
+  readonly state: "needs_provider_check";
+}
+
 interface AutomaticProviderRefundCase extends ProviderRefundCaseDetail {
+  readonly choices: null;
   readonly decision: null;
   readonly reason: null;
-  readonly state: Exclude<ProviderRefundCaseState, "needs_owner_choice">;
+  readonly state: Exclude<
+    ProviderRefundCaseState,
+    "needs_owner_choice" | "needs_provider_check"
+  >;
 }
 
 export type ProviderRefundCase =
   | AutomaticProviderRefundCase
-  | OwnerChoiceProviderRefundCase;
+  | OwnerChoiceProviderRefundCase
+  | ProviderCheckRefundCase;
+
+type RefundAttentionState = Extract<
+  RefundAuthorityState,
+  { kind: "needs_owner_choice" | "needs_provider_check" }
+>;
+
+const refundAttentionDetail = <State extends RefundAttentionState>(
+  detail: ProviderRefundCaseDetail,
+  state: State,
+): ProviderRefundCaseDetail & Pick<State, "decision" | "reason"> => ({
+  ...detail,
+  decision: state.decision,
+  reason: state.reason,
+});
 
 export interface ProviderRefundCasePage {
   readonly cases: readonly ProviderRefundCaseSummary[];
@@ -183,10 +217,9 @@ export const listProviderRefundCases = async (
   const page = rows.slice(0, PAGE_SIZE).map(providerRefundCaseSummary);
   return {
     cases: page,
-    nextCursor:
-      rows.length > PAGE_SIZE
-        ? await writeProviderRefundCursor(page[page.length - 1]!.id)
-        : null,
+    nextCursor: rows.length > PAGE_SIZE
+      ? await writeProviderRefundCursor(page[page.length - 1]!.id)
+      : null,
   };
 };
 
@@ -221,19 +254,26 @@ export const loadProviderRefundCase = async (
   const summary = providerRefundCaseSummary(row);
   const state = readProviderRefundCaseState(row);
   const reference = await loadProviderRefundCaseReference(row, privateKey);
-  return state.kind === "needs_owner_choice"
-    ? {
-        ...summary,
-        decision: state.decision,
-        reason: state.reason,
-        reference,
-        state: state.kind,
-      }
-    : {
-        ...summary,
-        decision: null,
-        reason: null,
-        reference,
-        state: state.kind,
-      };
+  const detail = { ...summary, reference };
+  if (state.kind === "needs_owner_choice") {
+    return {
+      ...refundAttentionDetail(detail, state),
+      choices: refundOwnerChoices(state),
+      state: state.kind,
+    };
+  }
+  if (state.kind === "needs_provider_check") {
+    return {
+      ...refundAttentionDetail(detail, state),
+      choices: null,
+      state: state.kind,
+    };
+  }
+  return {
+    ...detail,
+    choices: null,
+    decision: null,
+    reason: null,
+    state: state.kind,
+  };
 };

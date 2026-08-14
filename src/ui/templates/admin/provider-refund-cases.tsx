@@ -8,12 +8,8 @@ import type {
 import type { FlashFields } from "#shared/flash-fields.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
-import type { RefundOwnerChoiceReason } from "#shared/payment/refund-authority.ts";
-import {
-  type RefundOwnerChoiceName,
-  refundOwnerChoicesForDecision,
-} from "#shared/payment/refund-authority-choice.ts";
-import type { RefundOwnerDecision } from "#shared/payment/refund-conflict-decision.ts";
+import type { RefundOwnerChoiceReason } from "#shared/payment/refund-authority-state.ts";
+import type { RefundOwnerChoiceName } from "#shared/payment/refund-authority-choice.ts";
 import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { renderAdminPage } from "#templates/admin/admin-page.tsx";
@@ -27,6 +23,7 @@ const CASE_PATH = "/admin/privacy/refunds";
 const STATE_LABELS = {
   completed: "privacy.refunds.state.completed",
   needs_owner_choice: "privacy.refunds.state.needs_owner_choice",
+  needs_provider_check: "privacy.refunds.state.needs_provider_check",
   observing: "privacy.refunds.state.observing",
   ready: "privacy.refunds.state.ready",
   send_armed: "privacy.refunds.state.send_armed",
@@ -43,6 +40,7 @@ const REASON_LABELS = {
 const STATE_EXPLANATIONS = {
   completed: "privacy.refunds.explanation.completed",
   needs_owner_choice: "privacy.refunds.choice_intro",
+  needs_provider_check: "privacy.refunds.explanation.needs_provider_check",
   observing: "privacy.refunds.explanation.observing",
   ready: "privacy.refunds.explanation.ready",
   send_armed: "privacy.refunds.explanation.send_armed",
@@ -151,22 +149,9 @@ const ownerChoiceForm = (
   submit: "privacy.refunds.submit",
 });
 
-const ownerDecisionForm = (
-  decision: RefundOwnerDecision,
-): RefundCaseFormSchema => {
-  const choices = refundOwnerChoicesForDecision(decision);
-  return choices.length === 0
-    ? checkForm(
-      "refund-check-conflict",
-      "privacy.refunds.check_again",
-      false,
-    )
-    : ownerChoiceForm(choices);
-};
-
 type AutomaticCaseState = Exclude<
   ProviderRefundCase["state"],
-  "needs_owner_choice"
+  "needs_owner_choice" | "needs_provider_check"
 >;
 
 const AUTOMATIC_CASE_FORMS = {
@@ -198,7 +183,13 @@ const AUTOMATIC_CASE_FORMS = {
 
 const formFor = (refundCase: ProviderRefundCase): RefundCaseFormSchema =>
   refundCase.state === "needs_owner_choice"
-    ? ownerDecisionForm(refundCase.decision)
+    ? ownerChoiceForm(refundCase.choices)
+    : refundCase.state === "needs_provider_check"
+    ? checkForm(
+      "refund-check-conflict",
+      "privacy.refunds.check_again",
+      false,
+    )
     : AUTOMATIC_CASE_FORMS[refundCase.state];
 
 const RefundCaseForm = ({

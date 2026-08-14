@@ -10,15 +10,17 @@ import {
   type RefundAuthorityVersion,
 } from "#shared/db/provider-refund-authority.ts";
 import type { Money } from "#shared/payment/money.ts";
-import type { RefundAuthorityState } from "#shared/payment/refund-authority.ts";
 import {
   markRefundCompleted,
   markRefundLocalRecorded,
+} from "#shared/payment/refund-authority.ts";
+import {
+  type RefundAuthorityState,
   refundLocalMirror,
   refundNextActionAt,
   refundStateMirror,
   writeRefundAuthorityState,
-} from "#shared/payment/refund-authority.ts";
+} from "#shared/payment/refund-authority-state.ts";
 /* jscpd:ignore-end */
 
 export type RefundAuthorityMoney = Pick<
@@ -158,8 +160,11 @@ export const completeRefundAuthority = (
   now: number,
   proof: "owner" | "provider",
 ): Promise<RefundAuthorityRow | null> =>
-  transitionRefundAuthority(row, now, refunded, (state) =>
-    markRefundCompleted(state, now, proof)
+  transitionRefundAuthority(
+    row,
+    now,
+    refunded,
+    (state) => markRefundCompleted(state, now, proof),
   );
 
 /** Finish local bookkeeping only for the exact completed revision. */
@@ -174,6 +179,5 @@ export const markRefundAuthorityRecorded = async (
     : row.state.kind === "completed" && row.state.local.kind === "recorded"
     ? row
     : transitionRefundAuthority(row, now, row.refunded, (state) =>
-      markRefundLocalRecorded(state, now)
-    );
+      markRefundLocalRecorded(state, now));
 };

@@ -5,31 +5,13 @@ import {
   markRefundCompleted,
   markRefundLocalRecorded,
   markRefundObservationDue,
-  readRefundAuthorityState,
   readyRefund,
   rearmKeyedRefund,
-  refundLocalMirror,
-  refundNextActionAt,
-  refundStateMirror,
   returnRefundToReady,
-  writeRefundAuthorityState,
 } from "#shared/payment/refund-authority.ts";
 import { readyRefundForTest } from "#test-utils/refund-authority.ts";
 
-describe("payment > refund authority state", () => {
-  test("stores one strict tagged state", () => {
-    const state = readyRefundForTest("keyed");
-    const stored = writeRefundAuthorityState(state, "test charge");
-
-    expect(readRefundAuthorityState(stored, "test charge")).toEqual(state);
-    expect(() =>
-      readRefundAuthorityState(
-        JSON.stringify({ ...state, surprise: true }),
-        "test charge",
-      ),
-    ).toThrow("Invalid stored JSON");
-  });
-
+describe("payment > refund authority transitions", () => {
   test("a keyed generation carries its finite exact replay window", () => {
     const armed = armRefundSend(readyRefundForTest("keyed"), 120, 150);
     const observing = markRefundObservationDue(armed, 130, 170);
@@ -39,9 +21,8 @@ describe("payment > refund authority state", () => {
       kind: "send_armed",
       request: { generation: 1, identityIndex: "request-one" },
     });
-    expect(() =>
-      rearmKeyedRefund(observing, "another-request", 400, 430),
-    ).toThrow("only its exact request");
+    expect(() => rearmKeyedRefund(observing, "another-request", 400, 430))
+      .toThrow("only its exact request");
     expect(() => rearmKeyedRefund(observing, "request-one", 501, 530)).toThrow(
       "outside its replay window",
     );
@@ -56,7 +37,7 @@ describe("payment > refund authority state", () => {
           identityIndex: "expired-before-start",
           replayUntil: 500,
         },
-      }),
+      })
     ).toThrow("cannot start outside its replay window");
   });
 
@@ -86,7 +67,7 @@ describe("payment > refund authority state", () => {
       request: { generation: 1 },
     });
     expect(() =>
-      returnRefundToReady(readyRefundForTest("keyless"), 5, 180, 190),
+      returnRefundToReady(readyRefundForTest("keyless"), 5, 180, 190)
     ).toThrow("not armed");
   });
 
@@ -113,18 +94,5 @@ describe("payment > refund authority state", () => {
     expect(() => armRefundSend(completed, 170, 180)).toThrow(
       "not ready to arm",
     );
-  });
-
-  test("plain mirrors are always derived from the parsed state", () => {
-    const ready = readyRefundForTest("keyed");
-    const completed = markRefundCompleted(ready, 140, "provider");
-
-    expect(refundStateMirror(ready)).toBe("ready");
-    expect(refundLocalMirror(completed)).toBe("due");
-    expect(refundNextActionAt(ready)).toBe(110);
-    expect(refundNextActionAt(completed)).toBe(140);
-    expect(
-      refundNextActionAt(markRefundLocalRecorded(completed, 160)),
-    ).toBeNull();
   });
 });

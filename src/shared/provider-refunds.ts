@@ -11,7 +11,7 @@ import type {
 import { admitObservedRefund } from "#shared/payment/admit-refund.ts";
 import { type Money, sameMoney } from "#shared/payment/money.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
-import type { RefundAuthorityState } from "#shared/payment/refund-authority.ts";
+import type { RefundAuthorityState } from "#shared/payment/refund-authority-state.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { PaymentProvider } from "#shared/payments.ts";
 import { loadPaymentProvider } from "#shared/payments.ts";
@@ -146,7 +146,12 @@ interface OwnerRefundResult extends RefundResultFacts {
     RefundAuthorityState,
     { kind: "needs_owner_choice" }
   >["reason"];
-  readonly requiresChoice: boolean;
+}
+
+interface ProviderCheckRefundResult extends RefundResultFacts {
+  readonly authority: RefundAuthorityReceipt;
+  readonly kind: "needs_provider_check";
+  readonly reason: "provider_conflict";
 }
 
 interface WithheldRefundResult extends RefundResultFacts {
@@ -158,6 +163,7 @@ export type ProviderRefundResult =
   | ChangedRefundResult
   | OwnerRefundResult
   | PendingRefundResult
+  | ProviderCheckRefundResult
   | ReadyRefundResult
   | ReturnedRefundResult
   | UnchangedRefundResult
@@ -190,6 +196,7 @@ const providerFactsConflict = ({
     !sameMoney(target.evidence.captured, charge.captured)) ||
   (row.state.kind === "needs_owner_choice" &&
     row.state.reason === "provider_conflict") ||
+  row.state.kind === "needs_provider_check" ||
   admission.kind === "refused";
 
 const reconcileRefund = async (

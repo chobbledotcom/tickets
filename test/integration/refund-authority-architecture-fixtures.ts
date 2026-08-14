@@ -12,6 +12,7 @@ const AUTHORITY_BUILDING_MARKERS = [
 
 const AUTHORITY_RESULT_KINDS = [
   "needs_owner_choice",
+  "needs_provider_check",
   "pending",
   "ready",
   "returned",
@@ -43,7 +44,7 @@ export const PARALLEL_AUTHORITY_FORMS = [
   `async function duplicate(target, dependencies) {
      const provider = await dependencies.loadProvider(target.reference.provider);
      await provider.refundCharge(request);
-     return { authority, kind: "needs_owner_choice", reason: "possibly_sent", reference: target.reference, requiresChoice: true };
+     return { authority, kind: "needs_owner_choice", reason: "possibly_sent", reference: target.reference };
    }`,
   `const dependencies = {
      request: async (target, engine) => {
@@ -81,6 +82,7 @@ export const TEST_AUTHORITY_BUILDING_PATHS = [
   "integration/webhook-price-signature/helpers.ts",
   "shared/payment/admit-refund.test.ts",
   "shared/payment/refund-attempt.test.ts",
+  "shared/payment/refund-authority-choice.test.ts",
   "shared/provider-refunds.test.ts",
   "shared/provider-refunds/engine-helpers.ts",
   "shared/provider-refunds/send.test.ts",
@@ -122,7 +124,7 @@ export const REFUND_AUTHORITY_TEST_PATHS = [
   "features/admin/refunds/readiness-failure-evidence.test.ts",
   "features/admin/refunds/refresh/helpers.ts",
   "integration/server/privacy-refund-recovery-race.test.ts",
-  "shared/payment/refund-authority/lifecycle.test.ts",
+  "shared/payment/refund-authority-lifecycle.test.ts",
   "shared/provider-refunds.test.ts",
   "shared/provider-refunds/send.test.ts",
   "shared/provider-refunds/send/outcomes.test.ts",

@@ -16,10 +16,12 @@ import {
   armRefundSend,
   markRefundCompleted,
   markRefundLocalRecorded,
-  readRefundAuthorityState,
   readyRefund,
-  type RefundAuthorityState,
 } from "#shared/payment/refund-authority.ts";
+import {
+  readRefundAuthorityState,
+  type RefundAuthorityState,
+} from "#shared/payment/refund-authority-state.ts";
 import {
   markRefundOwnerChoiceNeeded,
   markRefundProviderConflict,
@@ -195,6 +197,10 @@ describeWithEnv("provider refund recovery cases", { db: true }, () => {
     }
 
     expect(loaded).toMatchObject({
+      choices: [
+        "provider_confirmed_returned",
+        "provider_confirmed_not_sent",
+      ],
       id,
       reason: "possibly_sent",
       reference: taggedReference("selected-reference"),
@@ -303,7 +309,12 @@ describeWithEnv("provider refund recovery cases", { db: true }, () => {
         refunded: { amount: 400, currency: "GBP" },
       },
     );
-    const id = await addProviderRefundTestCase("partial-conflict", state);
+    const id = await addProviderRefundTestCase(
+      "partial-conflict",
+      state,
+      "sumup",
+      400,
+    );
     const privateKey = await getTestPrivateKey();
 
     expect(await loadProviderRefundCase(id, privateKey)).toMatchObject({
@@ -312,6 +323,7 @@ describeWithEnv("provider refund recovery cases", { db: true }, () => {
         kind: "returned",
         refunded: { amount: 400, currency: "GBP" },
       },
+      state: "needs_provider_check",
     });
     await expectMoneyChoicesRejected(id, privateKey);
   });
@@ -333,6 +345,7 @@ describeWithEnv("provider refund recovery cases", { db: true }, () => {
 
     expect(await loadProviderRefundCase(id, privateKey)).toMatchObject({
       decision: { kind: "wait" },
+      state: "needs_provider_check",
     });
     await expectMoneyChoicesRejected(id, privateKey);
   });

@@ -52,7 +52,6 @@ import {
   isOrphanRetentionValue,
   orphanRetentionCutoffIso,
 } from "#shared/orphan-retention.ts";
-import { refundOwnerChoicesForDecision } from "#shared/payment/refund-authority-choice.ts";
 import { readProviderRefundCursor } from "#shared/provider-refund-cursor.ts";
 import {
   type OwnerRecoveryRefundTarget,
@@ -139,24 +138,27 @@ type ExistingProviderRefundResult = Exclude<
   { kind: "changed" | "unchanged" }
 >;
 
-type AutomaticRefundCaseState = Exclude<
-  ProviderRefundCase["state"],
-  "needs_owner_choice"
->;
-
 const AUTOMATIC_PROVIDER_CHECK = {
   completed: false,
+  needs_owner_choice: false,
+  needs_provider_check: true,
   observing: true,
   ready: true,
   send_armed: true,
-} as const satisfies Record<AutomaticRefundCaseState, boolean>;
+} as const satisfies Record<ProviderRefundCase["state"], boolean>;
 
 const mayCheckProvider = (refundCase: ProviderRefundCase): boolean =>
-  refundCase.state === "needs_owner_choice"
-    ? refundOwnerChoicesForDecision(refundCase.decision).length === 0
-    : AUTOMATIC_PROVIDER_CHECK[refundCase.state];
+  AUTOMATIC_PROVIDER_CHECK[refundCase.state];
 
 const CHECK_STOP_COPY = {
+  needs_owner_choice: {
+    log: "privacy.refunds.log_choice_opened",
+    message: "privacy.refunds.choice_opened",
+  },
+  needs_provider_check: {
+    log: "privacy.refunds.log_recheck_needed",
+    message: "privacy.refunds.recheck_needed",
+  },
   pending: null,
   ready: null,
   returned: null,
@@ -165,30 +167,14 @@ const CHECK_STOP_COPY = {
     message: "privacy.refunds.unreadable",
   },
 } as const satisfies Record<
-  Exclude<ExistingProviderRefundResult["kind"], "needs_owner_choice">,
+  ExistingProviderRefundResult["kind"],
   { readonly log: string; readonly message: string } | null
->;
-
-const OWNER_CHECK_STOP_COPY = {
-  false: {
-    log: "privacy.refunds.log_recheck_needed",
-    message: "privacy.refunds.recheck_needed",
-  },
-  true: {
-    log: "privacy.refunds.log_choice_opened",
-    message: "privacy.refunds.choice_opened",
-  },
-} as const satisfies Record<
-  `${boolean}`,
-  { readonly log: string; readonly message: string }
 >;
 
 const stoppedProviderCheck = (
   result: ExistingProviderRefundResult,
 ): { readonly log: string; readonly message: string } | null =>
-  result.kind === "needs_owner_choice"
-    ? OWNER_CHECK_STOP_COPY[`${result.requiresChoice}`]
-    : CHECK_STOP_COPY[result.kind];
+  CHECK_STOP_COPY[result.kind];
 
 const checkProviderAgain = async (
   id: number,

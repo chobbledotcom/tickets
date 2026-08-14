@@ -4,7 +4,7 @@ import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import { loadRefundAuthorityByReference } from "#shared/db/provider-refund-authority.ts";
 import { DAY_MS } from "#shared/now.ts";
 import { admitObservedRefund } from "#shared/payment/admit-refund.ts";
-import type { RefundAuthorityState } from "#shared/payment/refund-authority.ts";
+import type { RefundAuthorityState } from "#shared/payment/refund-authority-state.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import { armReadyRefund } from "#shared/provider-refunds/send.ts";
 import { REFUND_OBSERVATION_DELAY_MS } from "#shared/provider-refunds/state.ts";

@@ -5,6 +5,11 @@ import {
   type StoredPaymentReference,
   storePaymentReference,
 } from "#shared/db/payment-reference-store.ts";
+import {
+  enableQueryLog,
+  getQueryLog,
+  runWithQueryLogContext,
+} from "#shared/db/query-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { historicalPaymentReferenceStorage } from "#test-utils/historical-payment-references.ts";
 import {
@@ -37,8 +42,42 @@ const sharedSessions = (claim: {
     .map(({ sessionId }) => sessionId)
     .sort();
 
+const UNREADABLE_ROW_STATE = "not-an-encrypted-payment-state";
+const FIRST_REFUSED_SHARING_ROW_COUNT = 101;
+
+const addUnreadableSharingRows = async (
+  sourceSessionId: string,
+  attendeeId: number,
+): Promise<void> => {
+  await execute(
+    `WITH RECURSIVE sharingRow(row_number) AS (
+       VALUES (1)
+       UNION ALL
+       SELECT row_number + 1
+         FROM sharingRow
+        WHERE row_number < ?
+     )
+     INSERT INTO processed_payments (
+       payment_session_id, attendee_id, processed_at, failure_data,
+       payment_reference, payment_reference_index
+     )
+     SELECT 'sess-overflow-' || sharingRow.row_number, ?,
+            source.processed_at, ?, source.payment_reference,
+            source.payment_reference_index
+       FROM sharingRow
+       JOIN processed_payments AS source
+         ON source.payment_session_id = ?`,
+    [
+      FIRST_REFUSED_SHARING_ROW_COUNT,
+      attendeeId,
+      UNREADABLE_ROW_STATE,
+      sourceSessionId,
+    ],
+  );
+};
+
 describeWithEnv(
-  "db > shared payment-reference claims",
+  "db > taking a payment claim > shared payment references",
   { db: true, encryptionKey: true },
   () => {
     test("two rows on one attendee expose one shared representation", async () => {
@@ -105,6 +144,49 @@ describeWithEnv(
       expect(heldSessionIds(squareHeld)).toEqual(["sess-provider-square"]);
       expect(stripeHeld.shared).toEqual(new Map());
       expect(squareHeld.shared).toEqual(new Map());
+    });
+
+    test("refuses excessive sharing rows before decrypting their state", async () => {
+      const sourceSessionId = "sess-overflow-source";
+      const source = await bookedWithPayment(
+        sourceSessionId,
+        "pi_overflow_source",
+      );
+      const sharing = await bookedWithPayment(
+        "sess-overflow-holder",
+        "pi_overflow_holder",
+      );
+      await addUnreadableSharingRows(sourceSessionId, sharing);
+
+      const { queries, result } = await runWithQueryLogContext(async () => {
+        enableQueryLog();
+        const result = await claimCurrentAttendeeRows([source]);
+        return { queries: getQueryLog().map(({ sql }) => sql), result };
+      });
+
+      expect(result).toEqual({ kind: "too_many_reference_holders" });
+      expect(
+        queries.find((sql) => sql.includes("attendee_id NOT IN")),
+      ).toContain(`LIMIT ${FIRST_REFUSED_SHARING_ROW_COUNT}`);
+      const state = await execute(
+        `SELECT COUNT(*) AS row_count,
+                SUM(CASE WHEN protected_state != '' THEN 1 ELSE 0 END)
+                  AS claimed_count,
+                SUM(CASE WHEN failure_data = ? THEN 1 ELSE 0 END)
+                  AS unreadable_count
+           FROM processed_payments
+          WHERE payment_reference_index = (
+            SELECT payment_reference_index
+              FROM processed_payments
+             WHERE payment_session_id = ?
+          )`,
+        [UNREADABLE_ROW_STATE, sourceSessionId],
+      );
+      expect(state.rows[0]).toMatchObject({
+        claimed_count: 0,
+        row_count: FIRST_REFUSED_SHARING_ROW_COUNT + 1,
+        unreadable_count: FIRST_REFUSED_SHARING_ROW_COUNT,
+      });
     });
   },
 );
