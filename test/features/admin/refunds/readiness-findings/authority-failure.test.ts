@@ -284,22 +284,20 @@ describeWithEnv("failed refund evidence authority", { db: true }, () => {
     expect(run.authorityRequests).toEqual([]);
   });
 
-  for (
-    const [description, wrongReference] of [
-      [
-        "provider",
-        {
-          kind: "tagged",
-          provider: "square",
-          reference: "observed",
-        },
-      ],
-      [
-        "reference",
-        { kind: "tagged", provider: "stripe", reference: "somewhere_else" },
-      ],
-    ] as const
-  ) {
+  for (const [description, wrongReference] of [
+    [
+      "provider",
+      {
+        kind: "tagged",
+        provider: "square",
+        reference: "observed",
+      },
+    ],
+    [
+      "reference",
+      { kind: "tagged", provider: "stripe", reference: "somewhere_else" },
+    ],
+  ] as const) {
     test(`refuses an authority answer for another ${description}`, async () => {
       const run = await oneObservedFailure(async (target) => ({
         ...(await requestAtStripe(target)),
@@ -315,7 +313,7 @@ describeWithEnv("failed refund evidence authority", { db: true }, () => {
   for (const [kind, answerCase] of Object.entries(AUTHORITY_ANSWER_CASES)) {
     test(`${kind} names whether it preserves observed evidence`, async () => {
       const run = await oneObservedFailure((target) =>
-        Promise.resolve(answerCase.answer(target.reference))
+        Promise.resolve(answerCase.answer(target.reference)),
       );
 
       if (answerCase.preserves) {
