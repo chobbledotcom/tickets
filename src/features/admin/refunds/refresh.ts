@@ -5,14 +5,17 @@ import { PAYMENT_REVIEW_RETIREMENT } from "#shared/payment/review.ts";
 import { reportWithheldRefund } from "#shared/payment-review.ts";
 import {
   type ProviderRefundResult,
-  type RefundAuthorityReceipt,
   recordProviderRefunds,
   requestProviderRefund,
 } from "#shared/provider-refunds.ts";
 import { isPaymentOnlyAccount } from "#shared/refund-ledger/plan.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
 import type { RefundLedgerResult } from "#shared/refund-ledger/result.ts";
-import { recordedRefundAuthorities, requestReadyRefund } from "./authority.ts";
+import {
+  type AuthorityBearingReference,
+  recordedRefundAuthorities,
+  requestReadyRefund,
+} from "./authority.ts";
 import type { RefundCandidate } from "./candidates.ts";
 import {
   durableRowClaim,
@@ -75,11 +78,6 @@ const paymentOnlyBeforeRefund = async (
   return isPaymentOnlyAccount(legs);
 };
 
-type ReturnedRefreshReference = {
-  readonly authority: RefundAuthorityReceipt;
-  readonly reference: TaggedRefundReference;
-};
-
 const REVIEW_REQUIRED_MESSAGE =
   "This payment needs an owner review before another refund can be attempted.";
 
@@ -103,7 +101,7 @@ const observeReference = async (
 const returnedReference = (
   result: ProviderRefundResult,
   reference: TaggedRefundReference,
-): ReturnedRefreshReference[] => {
+): AuthorityBearingReference<TaggedRefundReference>[] => {
   if (
     result.reference.provider !== reference.provider ||
     result.reference.reference !== reference.reference
@@ -141,7 +139,7 @@ type RefreshPersistence = Required<
 /** Post returned money, then retire only matching durable authorities. */
 const persistReturnedReferences = async (
   attendeeId: number,
-  returned: readonly ReturnedRefreshReference[],
+  returned: readonly AuthorityBearingReference<TaggedRefundReference>[],
   findings: RunFindings,
   dependencies: RefreshPersistence,
 ): Promise<AppliedRefundLedger | undefined> => {

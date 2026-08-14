@@ -2,7 +2,7 @@ import type { AttendeeFormLine } from "#routes/admin/attendee-form-model.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
   parseNonNegativeInt,
-  parsePositiveIntId,
+  parsePositiveInt as parsePositiveIntId,
 } from "#shared/validation/number.ts";
 
 /** Per-line hidden field carrying the line's listing id: `line_listing_<i>`.

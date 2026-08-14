@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { CLAIM_MIRROR } from "#shared/payment/admit-move.ts";
 import {
   createPaidListing,
+  createRefundableAttendee,
   markAsRefunded,
   setupRefundTest,
 } from "#test/features/admin/refunds-helpers.ts";
@@ -11,10 +12,7 @@ import {
   expectHtmlResponse,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import {
-  createPaidAttendeeWithoutLedger,
-  createPaidTestAttendee,
-} from "#test-utils/db-helpers/attendee-payments.ts";
+import { createPaidAttendeeWithoutLedger } from "#test-utils/db-helpers/attendee-payments.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
@@ -22,10 +20,6 @@ import {
   putRowState,
   staleClaimSlot,
 } from "#test-utils/payment-claim.ts";
-import {
-  getCompleteRefundPaymentReferencesForAttendee,
-  markProviderRefundsReturned,
-} from "#test-utils/payment-references.ts";
 import {
   finalizeProcessedPayment,
   taggedPaymentReference,
@@ -66,13 +60,13 @@ describeWithEnv("server (admin refund state)", { db: true }, () => {
 
     test("refund-all excludes already-refunded attendees", async () => {
       const listing = await createPaidListing();
-      const refundedAttendee = await createPaidTestAttendee(
+      const refundedAttendee = await createRefundableAttendee(
         listing.id,
         "Refunded",
         "refunded@example.com",
         "pi_ra_1",
       );
-      await createPaidTestAttendee(
+      await createRefundableAttendee(
         listing.id,
         "Not Refunded",
         "notrefunded@example.com",
@@ -112,9 +106,6 @@ describeWithEnv("server (admin refund state)", { db: true }, () => {
         "",
         taggedPaymentReference("pi_stranded"),
       );
-      await markProviderRefundsReturned(
-        await getCompleteRefundPaymentReferencesForAttendee(attendee),
-      );
       await markAsRefunded(attendee.id);
       await putRowState(
         sessionId,
@@ -133,20 +124,23 @@ describeWithEnv("server (admin refund state)", { db: true }, () => {
     // Recovery must observe it through refresh, never expose another send form.
     test("a crashed provider claim leaves no refund form to send again", async () => {
       const listing = await createPaidListing();
-      const attendee = await createPaidTestAttendee(
+      const attendee = await createPaidAttendeeWithoutLedger(
         listing.id,
         "Held Open",
         "held-open@example.com",
         "",
       );
+      await postListingSale({
+        attendeeId: attendee.id,
+        eventId: "sess_held",
+        gross: 500,
+        listingId: listing.id,
+      });
       await finalizeProcessedPayment(
         "sess_held",
         attendee.id,
         "",
         taggedPaymentReference("pi_held"),
-      );
-      await markProviderRefundsReturned(
-        await getCompleteRefundPaymentReferencesForAttendee(attendee),
       );
       await markAsRefunded(attendee.id);
       await putRowState(
@@ -164,13 +158,7 @@ describeWithEnv("server (admin refund state)", { db: true }, () => {
     });
 
     test("admits one canonical charge, records it, and refuses a second send", async () => {
-      const ctx = await setupRefundTest("");
-      await finalizeProcessedPayment(
-        `sale-${ctx.listing.id}-${ctx.attendee.id}`,
-        ctx.attendee.id,
-        "",
-        taggedPaymentReference("pi_mark_refund"),
-      );
+      const ctx = await setupRefundTest("pi_mark_refund");
 
       await withRefundMock(refundCompletes, async (mockRefund) => {
         const response = await submitRefund(ctx);

@@ -4,10 +4,10 @@ import { getPaymentWorkStatus } from "#shared/db/payment-review.ts";
 import { listProviderRefundCases } from "#shared/db/provider-refund-cases.ts";
 import {
   createPaidListing,
+  createRefundableAttendee,
   setupRefundTest,
 } from "#test/features/admin/refunds-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { partlyRefundedCharge } from "#test-utils/payment-state.ts";
 import {
@@ -31,7 +31,7 @@ describeWithEnv("server (admin refund provider logging)", { db: true }, () => {
       });
       expect(
         loggedDetails().some((s) =>
-          s.includes("Refund rejected for stripe payment"),
+          s.includes("Admin bulk refund failed for 1 payment(s)"),
         ),
       ).toBe(true);
       expect(loggedDetails().some((s) => s.includes("pi_logfail_single"))).toBe(
@@ -41,7 +41,7 @@ describeWithEnv("server (admin refund provider logging)", { db: true }, () => {
 
     test("a bulk refund the provider rejects is logged per attendee", async () => {
       const listing = await createPaidListing();
-      await createPaidTestAttendee(
+      await createRefundableAttendee(
         listing.id,
         "Bulk Fail",
         "bulkfail@example.com",
@@ -57,7 +57,7 @@ describeWithEnv("server (admin refund provider logging)", { db: true }, () => {
 
     test("an uncertain bulk refund answer becomes durable recovery work", async () => {
       const listing = await createPaidListing();
-      await createPaidTestAttendee(
+      await createRefundableAttendee(
         listing.id,
         "Bulk Throw",
         "bulkthrow@example.com",
@@ -89,7 +89,9 @@ describeWithEnv("server (admin refund provider logging)", { db: true }, () => {
         { charge: partlyRefundedCharge() },
       );
 
-      expect(await getPaymentWorkStatus(ctx.attendee.id)).toBe("needs_review");
+      expect(await getPaymentWorkStatus(ctx.attendee.id)).toBe(
+        "needs_provider_recovery",
+      );
     });
   });
 });

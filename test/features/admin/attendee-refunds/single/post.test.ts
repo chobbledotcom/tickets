@@ -235,10 +235,11 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       const ctx = await setupRefundTest("pi_uncertain");
 
       await withRefundMock(
-        async (): Promise<RefundAttemptResult> => ({
-          kind: "uncertain",
-          reason: "network_error",
-        }),
+        (): Promise<RefundAttemptResult> =>
+          Promise.resolve({
+            kind: "uncertain",
+            reason: "network_error",
+          }),
         async (mockRefund) => {
           await expectFlashRedirect(
             "/admin/privacy#refund-recovery",

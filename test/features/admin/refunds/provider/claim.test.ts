@@ -53,11 +53,11 @@ describe("admin refund provider > the attendee fence", () => {
     };
 
     await processRefundBatchAt(
-      provider({ refunded: new Set(["pi_1", "pi_2", "pi_3"]) }),
+      provider(),
       [
-        candidate([{ reference: "pi_1" }], 11),
-        candidate([{ reference: "pi_2" }], 12),
-        candidate([{ reference: "pi_3" }], 13),
+        candidate([{ reference: "pi_1", refundState: "completed" }], 11),
+        candidate([{ reference: "pi_2", refundState: "completed" }], 12),
+        candidate([{ reference: "pi_3", refundState: "completed" }], 13),
       ],
       7,
       { claim: counting, record: recordEveryRefund },
@@ -99,22 +99,21 @@ describe("admin refund provider > the attendee fence", () => {
     expect([...untouched.reads, ...untouched.refunds]).toEqual([]);
   });
 
-  test("reports a failed release without replacing the refund answer", async () => {
+  test("reports and propagates a failed release after returned money", async () => {
     const refusingRelease = holdingClaim(
       () => Promise.reject(new Error("the row would not let go")),
       ["sess_pi_held"],
     );
 
-    const counts = finishedCounts(
-      await processRefundBatchAt(
+    await expect(
+      processRefundBatchAt(
         provider({ refunded: new Set(["pi_held"]) }),
         [candidate([{ reference: "pi_held" }], 11)],
         7,
         { claim: refusingRelease, record: recordEveryRefund },
       ),
-    );
+    ).rejects.toThrow("the row would not let go");
 
-    expect(counts.refundedCount).toBe(1);
     expect(errors.contains("Refund claim could not be settled")).toBe(true);
   });
 

@@ -345,17 +345,17 @@ export const completeRefundAuthority = async (
 };
 
 /** Finish local bookkeeping only for the exact completed revision. */
-export const markRefundAuthorityRecorded = (
+export const markRefundAuthorityRecorded = async (
   id: number,
   expectedRevision: number,
   now: number,
-): Promise<RefundAuthorityRow | null> =>
-  loadRefundAuthorityById(id).then((row) =>
-    row === null || row.revision !== expectedRevision
-      ? null
-      : row.state.kind === "completed" && row.state.local.kind === "recorded"
-        ? row
-        : transitionRefundAuthority(row, now, row.refunded, (state) =>
-            markRefundLocalRecorded(state, now),
-          ),
-  );
+): Promise<RefundAuthorityRow | null> => {
+  const row = await loadRefundAuthorityById(id);
+  return row === null || row.revision !== expectedRevision
+    ? null
+    : row.state.kind === "completed" && row.state.local.kind === "recorded"
+      ? row
+      : transitionRefundAuthority(row, now, row.refunded, (state) =>
+          markRefundLocalRecorded(state, now),
+        );
+};

@@ -72,8 +72,10 @@ describeWithEnv(
       // completion migration is data-only and covered by its direct tests. The
       // note-entities migration rebuilds system_notes around its new
       // entity_type/entity_id pair, owning no additive objects to drop and
-      // restore; it has its own migration test.
-      expect(additiveMigrations.length).toBe(MIGRATIONS.length - 23);
+      // restore; it has its own migration test. The refund-authority migration
+      // also owns no additive object: it rebuilds the existing, still-empty
+      // payment_charges table and has a direct migration suite for that guard.
+      expect(additiveMigrations.length).toBe(MIGRATIONS.length - 24);
     });
 
     test("restores triggers attached to a dropped table", async () => {

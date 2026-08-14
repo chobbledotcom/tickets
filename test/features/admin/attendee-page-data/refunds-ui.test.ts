@@ -12,16 +12,14 @@ import {
 import type { ExistingLine } from "#shared/db/attendees/atomic-update.ts";
 import {
   createPaidListing,
+  createRefundableAttendee,
   markAsRefunded,
   setBookingLineQuantity,
   setupRefundTest,
 } from "#test/features/admin/refunds-helpers.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import {
-  bookAttendee,
-  createPaidTestAttendee,
-} from "#test-utils/db-helpers/attendee-payments.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import {
   createDailyTestListing,
@@ -41,7 +39,7 @@ describeWithEnv("server (admin refund UI)", { db: true }, () => {
 
     test("shows the listing-level Refund All on a paid listing", async () => {
       const listing = await createPaidListing();
-      await createPaidTestAttendee(
+      await createRefundableAttendee(
         listing.id,
         "Paid User",
         "paid@example.com",
@@ -108,7 +106,7 @@ describeWithEnv("server (admin refund UI)", { db: true }, () => {
 
     test("shows the per-attendee Refund action on a paid attendee's edit page", async () => {
       const listing = await createPaidListing();
-      const attendee = await createPaidTestAttendee(
+      const attendee = await createRefundableAttendee(
         listing.id,
         "Paid User",
         "paid@example.com",

@@ -5,12 +5,12 @@ import { resetI18nForTest } from "#i18n";
 import { setN1GuardNotifyOnly } from "#shared/db/query-log.ts";
 import {
   createPaidListing,
-  seedBatchAttendees,
+  createRefundableAttendee,
+  seedTaggedBatchAttendees,
 } from "#test/features/admin/refunds-helpers.ts";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createPaidAttendeeWithoutLedger } from "#test-utils/db-helpers/attendee-payments.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import {
@@ -35,11 +35,12 @@ describeWithEnv("server (admin refund-all results)", { db: true }, () => {
 
     test("counts it as errored, not refunded, and reports the broken promise", async () => {
       const listing = await createPaidListing();
-      const unledgered = await createPaidAttendeeWithoutLedger(
+      const unledgered = await createRefundableAttendee(
         listing.id,
         "Unledgered",
         "unledgered@example.com",
         "pi_mixed_unledgered",
+        { ledger: "missing" },
       );
       await withRefundMock(refundCompletes, async (mockRefund) => {
         const response = await postRefundAll(listing);
@@ -64,7 +65,11 @@ describeWithEnv("server (admin refund-all results)", { db: true }, () => {
 
   test("makes one visible step through an oversized listing", async () => {
     const listing = await createPaidListing({ maxAttendees: 500 });
-    await seedBatchAttendees(listing, "pi_batch_", OVERSIZED_REFUND_COUNT);
+    await seedTaggedBatchAttendees(
+      listing,
+      "pi_batch_",
+      OVERSIZED_REFUND_COUNT,
+    );
     await withRefundMock(refundCompletes, async (mockRefund) => {
       const response = await postRefundAll(listing);
       expect(mockRefund.calls).toHaveLength(1);
@@ -78,11 +83,12 @@ describeWithEnv("server (admin refund-all results)", { db: true }, () => {
 
   test("applies copy replacements to a failed refund result", async () => {
     const listing = await createPaidListing();
-    await createPaidAttendeeWithoutLedger(
+    await createRefundableAttendee(
       listing.id,
       "Rejected User",
       "rejected@example.com",
       "pi_rejected",
+      { ledger: "missing" },
     );
     using _env = withEnv({ I18N_REPLACEMENTS: "failure|problem" });
     resetI18nForTest();
@@ -106,11 +112,12 @@ describeWithEnv("server (admin refund-all results)", { db: true }, () => {
 
   test("reports one uncertain refund answer in the flash", async () => {
     const listing = await createPaidListing();
-    await createPaidAttendeeWithoutLedger(
+    await createRefundableAttendee(
       listing.id,
       "Throw User",
       "throw@example.com",
       "pi_throw_boom",
+      { ledger: "missing" },
     );
     await withRefundMock(
       () =>

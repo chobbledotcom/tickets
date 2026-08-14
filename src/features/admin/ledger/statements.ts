@@ -13,7 +13,7 @@ import {
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { statementFor } from "#shared/ledger/project.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
-import { parsePositiveIntId } from "#shared/validation/number.ts";
+import { parsePositiveInt as parsePositiveIntId } from "#shared/validation/number.ts";
 import type { AccountLedgerData } from "#templates/admin/ledger/statement.tsx";
 import { adminAccountStatementPage } from "#templates/admin/ledger/statement.tsx";
 

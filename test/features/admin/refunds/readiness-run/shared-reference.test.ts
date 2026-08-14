@@ -5,7 +5,7 @@ import type { RowClaim } from "#routes/admin/refunds/claim.ts";
 import { runRefundReadiness } from "#routes/admin/refunds/readiness-run.ts";
 import type { RowSettlement } from "#shared/db/payment-claim.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
-import { refundReference } from "#test-utils/payment-state.ts";
+import { taggedRefundReference } from "#test-utils/payment-state.ts";
 
 const HELD_SINCE = "2026-08-11T12:00:00.000Z";
 
@@ -73,7 +73,7 @@ const runRefund = (
 describe("admin refund shared-reference readiness", () => {
   const errors = setupErrorSpy();
   test("parks every exact row before preparation", async () => {
-    const reference = refundReference("shared_charge", {
+    const reference = taggedRefundReference("shared_charge", "stripe", {
       index: "shared_index",
       matchingIndexes: ["shared_index"],
       rowSessionIds: ["shared_first"],
@@ -156,7 +156,7 @@ describe("admin refund shared-reference readiness", () => {
   });
 
   test("retires a shared-reference review once the exact index is unique", async () => {
-    const reference = refundReference("unique_charge", {
+    const reference = taggedRefundReference("unique_charge", "stripe", {
       index: "unique_index",
       matchingIndexes: ["unique_index"],
       rowSessionIds: ["unique_row"],

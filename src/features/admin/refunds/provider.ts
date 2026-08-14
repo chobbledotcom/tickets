@@ -8,8 +8,11 @@ import {
   requestProviderRefund,
 } from "#shared/provider-refunds.ts";
 import { recordAttendeeRefundsBatch } from "#shared/refund-ledger/record.ts";
-import type { CandidateRefund, ReturnedRefundReference } from "./attempt.ts";
-import { recordedRefundAuthorities } from "./authority.ts";
+import type { CandidateRefund } from "./attempt.ts";
+import {
+  type AuthorityBearingReference,
+  recordedRefundAuthorities,
+} from "./authority.ts";
 import { REFUND_BUDGET_MESSAGES, type RefundBudgetAudience } from "./budget.ts";
 import type { RefundCandidate } from "./candidates.ts";
 import { durableRowClaim, type RowClaim, type RunFindings } from "./claim.ts";
@@ -30,6 +33,8 @@ import type { RefundOutcome } from "./waves.ts";
 /* jscpd:ignore-end */
 
 type RecordRefunds = typeof recordAttendeeRefundsBatch;
+type TaggedRefundReference =
+  ReadyRefundCandidate["references"][number]["reference"];
 
 export type RefundCounts = {
   refundedCount: number;
@@ -93,9 +98,9 @@ const logBulkRefundProblem = (
 
 /** An attendee's charges that came back, and whether that was all of them. */
 type LedgerPosting = {
-  readonly authorities: readonly ReturnedRefundReference[];
+  readonly authorities: readonly AuthorityBearingReference<TaggedRefundReference>[];
   readonly attendeeId: number;
-  readonly references: readonly ReturnedRefundReference["reference"][];
+  readonly references: readonly TaggedRefundReference[];
   readonly whole: boolean;
 };
 

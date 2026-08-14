@@ -81,7 +81,6 @@ describeWithEnv(
               [
                 { reference: "pi_already_back", refundState: "completed" },
                 { reference: "pi_unreadable_sibling" },
-                { reference: "pi_observed_sibling" },
               ],
               22,
             ),
@@ -92,16 +91,13 @@ describeWithEnv(
       );
 
       expect(counts).toEqual(oneFailedRefundCounts);
-      expect(source.reads).toEqual([
-        "pi_unreadable_sibling",
-        "pi_observed_sibling",
-      ]);
+      expect(source.reads).toEqual(["pi_unreadable_sibling"]);
       expect(source.refunds).toEqual([]);
     });
 
     test("releases checking fences when owner review blocks admission", async () => {
-      const entries = candidateBatch("blocked_review");
-      const reviewed = entries[1];
+      const entries = candidateBatch("blocked_review").slice(0, 1);
+      const reviewed = entries[0];
       if (reviewed === undefined) {
         throw new Error("No blocked review fixture");
       }

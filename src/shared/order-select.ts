@@ -14,7 +14,7 @@
 
 import { listingOptionKey, packageOptionKey } from "#shared/order/options.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
-import { parsePositiveIntId } from "#shared/validation/number.ts";
+import { parsePositiveInt as parsePositiveIntId } from "#shared/validation/number.ts";
 
 export const SELECT_PREFIX = "select_";
 export const PACKAGE_SELECT_PREFIX = "select_package_";

@@ -2,15 +2,15 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import { requestProviderRefund } from "#shared/provider-refunds.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { chargeMoney, foundCharge } from "#test-utils/payment-state.ts";
 import {
   fakeRefundProvider,
   refundDependencies,
   refundReference,
   sendRefundTarget,
   storedRefundAuthority,
-} from "../engine-helpers.ts";
+} from "#test/shared/provider-refunds/engine-helpers.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { chargeMoney, foundCharge } from "#test-utils/payment-state.ts";
 
 describeWithEnv("provider refund engine outcomes", { db: true }, () => {
   test("refuses a completed provider answer for different money", async () => {

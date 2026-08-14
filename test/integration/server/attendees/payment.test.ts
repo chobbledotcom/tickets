@@ -7,6 +7,7 @@ import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { settings } from "#shared/db/settings.ts";
 import { paymentsApi } from "#shared/payments.ts";
 // jscpd:ignore-end
+import { createRefundableAttendee } from "#test/features/admin/refunds-helpers.ts";
 import {
   expectFlashPage,
   firstAttendee,
@@ -21,11 +22,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import {
-  bookAttendee,
-  createPaidAttendeeWithoutLedger,
-  createPaidTestAttendee,
-} from "#test-utils/db-helpers/attendee-payments.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
@@ -214,7 +211,7 @@ describeWithEnv(
 
       test("returns error when no payment provider configured", async () => {
         const listing = await createTestListing(paidListing(500));
-        const attendee = await createPaidTestAttendee(
+        const attendee = await createRefundableAttendee(
           listing.id,
           "John Doe",
           "john@example.com",
@@ -229,7 +226,7 @@ describeWithEnv(
             expect(response.status).toBe(302);
             expectFlash(
               response,
-              expect.stringContaining("payment provider"),
+              "Payment pi_no_provider at stripe could not answer (not_configured).",
               false,
             );
           },
@@ -238,7 +235,7 @@ describeWithEnv(
 
       test("marks as refunded when Stripe reports refund", async () => {
         const listing = await createTestListing(paidListing(500));
-        const attendee = await createPaidTestAttendee(
+        const attendee = await createRefundableAttendee(
           listing.id,
           "John Doe",
           "john@example.com",
@@ -272,11 +269,12 @@ describeWithEnv(
         // now, so this must surface for a manual adjustment rather than silently
         // succeed and leave the payment looking un-refunded.
         const listing = await createTestListing(paidListing(500));
-        const attendee = await createPaidAttendeeWithoutLedger(
+        const attendee = await createRefundableAttendee(
           listing.id,
           "John Doe",
           "john@example.com",
           "pi_refresh_unrecorded",
+          { ledger: "missing" },
         );
         const { response } = await refreshPaymentAsStripe(attendee.id, true);
         expect(response.status).toBe(302);
@@ -293,7 +291,7 @@ describeWithEnv(
 
       test("redirects without marking refunded when payment is not refunded", async () => {
         const listing = await createTestListing(paidListing(500));
-        const attendee = await createPaidTestAttendee(
+        const attendee = await createRefundableAttendee(
           listing.id,
           "John Doe",
           "john@example.com",

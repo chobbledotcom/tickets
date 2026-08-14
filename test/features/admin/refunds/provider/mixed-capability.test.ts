@@ -22,7 +22,7 @@ test("one authority request handles mixed provider references", async () => {
   });
   const source = candidate([
     { reference: "stripe_retry" },
-    { reference: "sumup_returned" },
+    { reference: "sumup_returned", refundState: "completed" },
   ]);
   const rowClaim = grantingRowClaim(
     new Map([

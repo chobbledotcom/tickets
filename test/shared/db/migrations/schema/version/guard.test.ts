@@ -108,7 +108,7 @@ describe("db > migrations > schema change guard", () => {
         "2026-08-13_payment_work_queue_index",
         "2026-08-13_refund_authority",
       ],
-      schemaHash: "1w7f9dy",
+      schemaHash: "1ewu6fx",
     });
   });
 

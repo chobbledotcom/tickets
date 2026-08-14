@@ -9,7 +9,10 @@ import {
   type RefundAuthorityReceipt,
   requestProviderRefund,
 } from "#shared/provider-refunds.ts";
-import { requestReadyRefund } from "./authority.ts";
+import {
+  type AuthorityBearingReference,
+  requestReadyRefund,
+} from "./authority.ts";
 import { mapProviderRequests } from "./provider-requests.ts";
 import type {
   ReadyRefundCandidate,
@@ -121,16 +124,16 @@ const engineResult = (
   return { outcome: "withheld" };
 };
 
-const askAuthority = (
+const askAuthority = async (
   ready: ReadyRefundReference,
   attendeeId: number,
   listingId: number,
   mode: "observe_only" | "send",
   request: typeof requestProviderRefund,
-): Promise<ReferenceRefund> =>
-  requestReadyRefund(ready, mode, request).then((result) =>
-    engineResult(result, attendeeId, listingId),
-  );
+): Promise<ReferenceRefund> => {
+  const result = await requestReadyRefund(ready, mode, request);
+  return engineResult(result, attendeeId, listingId);
+};
 
 const prepareReferenceRefund = (
   candidate: ReadyRefundCandidate,
@@ -154,15 +157,10 @@ const prepareReferenceRefund = (
   };
 };
 
-export type ReturnedRefundReference = {
-  readonly authority: RefundAuthorityReceipt;
-  readonly reference: TaggedRefundReference;
-};
-
 export type CandidateRefund = {
   candidate: ReadyRefundCandidate;
   outcome: RefundOutcome;
-  returned: readonly ReturnedRefundReference[];
+  returned: readonly AuthorityBearingReference<TaggedRefundReference>[];
 };
 
 /** Decide every reference without starting a provider send. */

@@ -3,7 +3,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   mirroredMoveRefusalOrNull,
   mirrorFor,
-  moveRefusalOrNull,
   paymentWorkFor,
   type RowMove,
 } from "#shared/payment/admit-move.ts";
@@ -38,12 +37,17 @@ const UNRECORDED: PaymentRowState = {
 const SETTLED: PaymentRowState = { outcome: { error: "Card declined" } };
 const FREE: PaymentRowState = {};
 
+const moveRefusal = (
+  states: readonly PaymentRowState[],
+  move: RowMove,
+): string | null => mirroredMoveRefusalOrNull(states.map(mirrorFor), move);
+
 describe("payment > admit move", () => {
   describe("a claim stops both writers", () => {
     const cases: RowMove[] = ["delete", "merge"];
     for (const move of cases) {
       test(`${move} is refused while a refund holds the row`, () => {
-        expect(moveRefusalOrNull([CLAIMED], move)).toBe(CLAIM_REFUSAL);
+        expect(moveRefusal([CLAIMED], move)).toBe(CLAIM_REFUSAL);
       });
     }
   });
@@ -52,13 +56,13 @@ describe("payment > admit move", () => {
     // A delete destroys the row the marker rides on, and that marker is the
     // promise someone will look at this person's money.
     test("delete waits for the owner to look at the payment", () => {
-      expect(moveRefusalOrNull([UNDER_REVIEW], "delete")).toBe(REVIEW_REFUSAL);
+      expect(moveRefusal([UNDER_REVIEW], "delete")).toBe(REVIEW_REFUSAL);
     });
 
     // A merge only relocates it: the marker arrives on the merged person and
     // the review is still there to do.
     test("merge carries the review across instead of refusing", () => {
-      expect(moveRefusalOrNull([UNDER_REVIEW], "merge")).toBeNull();
+      expect(moveRefusal([UNDER_REVIEW], "merge")).toBeNull();
     });
   });
 
@@ -67,51 +71,43 @@ describe("payment > admit move", () => {
     // the correction somebody was just asked to make — while the payout stays
     // missing from the ledger.
     test("delete waits until the money is on the books", () => {
-      expect(moveRefusalOrNull([UNRECORDED], "delete")).toBe(
-        UNRECORDED_REFUSAL,
-      );
+      expect(moveRefusal([UNRECORDED], "delete")).toBe(UNRECORDED_REFUSAL);
     });
 
     // A merge relocates the row, so the mark rides across and the correction
     // is still there to make afterwards.
     test("merge carries the mark across instead of refusing", () => {
-      expect(moveRefusalOrNull([UNRECORDED], "merge")).toBeNull();
+      expect(moveRefusal([UNRECORDED], "merge")).toBeNull();
     });
   });
 
   describe("what does not hold a row up", () => {
     test("a payment that already ended stops neither writer", () => {
-      expect(moveRefusalOrNull([SETTLED], "delete")).toBeNull();
-      expect(moveRefusalOrNull([SETTLED], "merge")).toBeNull();
+      expect(moveRefusal([SETTLED], "delete")).toBeNull();
+      expect(moveRefusal([SETTLED], "merge")).toBeNull();
     });
 
     test("rows in the middle of nothing stop neither writer", () => {
-      expect(moveRefusalOrNull([FREE, FREE], "delete")).toBeNull();
+      expect(moveRefusal([FREE, FREE], "delete")).toBeNull();
     });
 
     test("an attendee with no payment rows at all is free to go", () => {
-      expect(moveRefusalOrNull([], "delete")).toBeNull();
+      expect(moveRefusal([], "delete")).toBeNull();
     });
   });
 
   test("one busy row among free ones is enough to refuse", () => {
     // The writer takes every row it is shown, so the answer is about the worst
     // of them, not the first.
-    expect(moveRefusalOrNull([FREE, FREE, CLAIMED], "delete")).toBe(
-      CLAIM_REFUSAL,
-    );
+    expect(moveRefusal([FREE, FREE, CLAIMED], "delete")).toBe(CLAIM_REFUSAL);
   });
 
   test("money that may be moving right now is named before a pending review", () => {
-    expect(moveRefusalOrNull([UNDER_REVIEW, CLAIMED], "delete")).toBe(
-      CLAIM_REFUSAL,
-    );
+    expect(moveRefusal([UNDER_REVIEW, CLAIMED], "delete")).toBe(CLAIM_REFUSAL);
   });
 
   test("a review still refuses a delete when no claim is live", () => {
-    expect(moveRefusalOrNull([SETTLED, UNDER_REVIEW], "delete")).toBe(
-      REVIEW_REFUSAL,
-    );
+    expect(moveRefusal([SETTLED, UNDER_REVIEW], "delete")).toBe(REVIEW_REFUSAL);
   });
 
   describe("the operator-facing work", () => {

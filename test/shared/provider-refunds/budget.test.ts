@@ -3,14 +3,11 @@ import { it as test } from "@std/testing/bdd";
 import { DATABASE_MAX_ATTEMPTS } from "#shared/db/client.ts";
 import {
   REFUND_ACTIVE_AUTHORITY_DATABASE_CALLS,
-  REFUND_AUTHORITY_RECORD_DATABASE_CALLS,
-  REFUND_KNOWN_AUTHORITY_DATABASE_CALLS,
   REFUND_OBSERVED_AUTHORITY_DATABASE_CALLS,
   REFUND_RESULT_DATABASE_RESERVE,
 } from "#shared/provider-refunds/budget.ts";
 
 test("refund authority budgets every physical database attempt", () => {
-  expect(REFUND_KNOWN_AUTHORITY_DATABASE_CALLS).toBe(DATABASE_MAX_ATTEMPTS);
   expect(REFUND_ACTIVE_AUTHORITY_DATABASE_CALLS).toBe(
     DATABASE_MAX_ATTEMPTS * 5,
   );
@@ -22,7 +19,4 @@ test("refund authority budgets every physical database attempt", () => {
     external: 0,
     total: DATABASE_MAX_ATTEMPTS * 2,
   });
-  expect(REFUND_AUTHORITY_RECORD_DATABASE_CALLS).toBe(
-    DATABASE_MAX_ATTEMPTS * 3,
-  );
 });

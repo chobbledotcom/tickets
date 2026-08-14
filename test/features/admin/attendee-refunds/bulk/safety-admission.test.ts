@@ -11,6 +11,7 @@ import { claimLeaseMs } from "#shared/payment/claim.ts";
 import { proxyMembers } from "#shared/proxy-members.ts";
 import {
   createPaidListing,
+  createRefundableAttendee,
   markAsRefunded,
   seedTaggedBatchAttendees,
 } from "#test/features/admin/refunds-helpers.ts";
@@ -216,29 +217,17 @@ describeWithEnv(
 
     test("a review on a settled payment does not block another candidate", async () => {
       const listing = await createPaidListing();
-      const settled = await createPaidTestAttendee(
+      const settled = await createRefundableAttendee(
         listing.id,
         "Settled Payment",
         "settled-payment@example.com",
-        "",
+        "pi_settled_review",
       );
-      await finalizeProcessedPayment(
-        "settled-review",
-        settled.id,
-        "",
-        taggedPaymentReference("pi_settled_review"),
-      );
-      const remaining = await createPaidTestAttendee(
+      await createRefundableAttendee(
         listing.id,
         "Refund Candidate",
         "refund-candidate@example.com",
-        "",
-      );
-      await finalizeProcessedPayment(
-        "remaining-candidate",
-        remaining.id,
-        "",
-        taggedPaymentReference("pi_remaining_candidate"),
+        "pi_remaining_candidate",
       );
       const settledCandidate = (await refundCandidatesFor(listing.id)).find(
         ({ attendee }) => attendee.id === settled.id,

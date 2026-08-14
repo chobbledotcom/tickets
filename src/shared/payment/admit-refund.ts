@@ -12,7 +12,6 @@ import { refundOutcomeOf } from "#shared/payment/diagnose.ts";
 import type { ProviderRead } from "#shared/payment/provider-read.ts";
 import type { RefundRequest } from "#shared/payment/refund-attempt.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
-import type { PaymentProvider } from "#shared/payments.ts";
 
 /** What to do about a refund somebody asked for. Only `send` reaches a
  *  provider; the rest are answers we already have. */
@@ -27,15 +26,6 @@ export type RefundAdmission =
 export type ObservedRefundAdmission =
   | Exclude<RefundAdmission, { kind: "send" }>
   | { kind: "send"; request: RefundRequest };
-
-/** A provider read either supplies the observed admission or keeps its exact
- * failure. Missing, unavailable, and invalid evidence need different repair. */
-export type ProviderRefundAdmission =
-  | ObservedRefundAdmission
-  | {
-      kind: "read_failed";
-      read: Exclude<ProviderRead<ChargeMoney>, { status: "found" }>;
-    };
 
 /** The answer for each way a reading can come out settled, listed
  *  exhaustively so a new outcome must say what it does about refunds. */
@@ -56,8 +46,14 @@ export const admitRefund = (outcome: ObservationOutcome): RefundAdmission =>
     ? { issue: outcome.issue, kind: "refused" }
     : ADMISSION_BY_OUTCOME[outcome.kind];
 
-/** An answer that sends no money. */
-export type WithheldRefund = Exclude<ProviderRefundAdmission, { kind: "send" }>;
+/** An answer that sends no money. A failed provider read keeps its exact
+ * reason so each recovery path can make the right repair. */
+export type WithheldRefund =
+  | Exclude<ObservedRefundAdmission, { kind: "send" }>
+  | {
+      kind: "read_failed";
+      read: Exclude<ProviderRead<ChargeMoney>, { status: "found" }>;
+    };
 
 /** Why no money was sent, in words for a log line. Only the refusal needs the
  *  problem's name, so the rest read the same wherever they are reported. */
@@ -101,19 +97,4 @@ export const admitObservedRefund = (
   return admission.kind === "send"
     ? { kind: "send", request: { charge, paymentReference } }
     : admission;
-};
-
-/**
- * Ask the provider what has become of this charge's money, and answer whether
- * a refund may be sent. A charge it cannot state is never refunded on the hope
- * that it was fine: unreadable evidence and "already back" look identical from
- * here, and only one is safe to send money against.
- */
-export const admitProviderRefund = async (
-  provider: Pick<PaymentProvider, "readCharge">,
-  paymentReference: string,
-): Promise<ProviderRefundAdmission> => {
-  const read = await provider.readCharge(paymentReference);
-  if (read.status !== "found") return { kind: "read_failed", read };
-  return admitObservedRefund(paymentReference, read.resource);
 };

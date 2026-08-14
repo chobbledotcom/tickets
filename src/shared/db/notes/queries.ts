@@ -5,7 +5,6 @@
  * serves every kind of record: see ./target.ts.
  */
 
-import { unique } from "#fp";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import {
   execute,
@@ -18,7 +17,6 @@ import { readOneRow, readRows } from "#shared/db/read.ts";
 import {
   deleteWhere,
   equals,
-  inList,
   type WhereClause,
 } from "#shared/db/where-clauses.ts";
 import { nowIso } from "#shared/now.ts";
@@ -27,7 +25,6 @@ import { type NoteEntity, type NoteTarget, noteTargets } from "./target.ts";
 import type {
   SystemNote,
   SystemNoteName,
-  SystemNotePurpose,
   SystemNoteRow,
   SystemNoteType,
 } from "./types.ts";
@@ -214,31 +211,6 @@ export const deleteNotes = async (
     deleteNotesWhere(noteOfTarget(target, noteId)),
   );
   await executeBatch(statements);
-};
-
-/** Delete exact app-written notes by their indexed names. One reference or
- * many takes one statement; ordinary notes and other purposes cannot match. */
-export const deleteNamedSystemNotes = async (
-  target: NoteTarget,
-  purpose: SystemNotePurpose,
-  keys: readonly string[],
-  transaction?: TxScope,
-): Promise<void> => {
-  const distinctKeys = unique([...keys]);
-  if (distinctKeys.length === 0) return;
-  const statement = deleteNotesWhere([
-    ...noteTargets.where(target),
-    ...equals("type", "system"),
-    ...inList(
-      "system_name",
-      distinctKeys.map((key) => storedSystemNoteName({ key, purpose })),
-    ),
-  ]);
-  if (transaction === undefined) {
-    await execute(statement.sql, statement.args);
-  } else {
-    await transaction.execute(statement);
-  }
 };
 
 /** Delete the notes of records chosen by a subquery — for a delete path that

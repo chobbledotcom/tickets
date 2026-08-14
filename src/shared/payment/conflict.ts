@@ -8,12 +8,9 @@
  * yet, so only the problems a charge's own money can show are named.
  */
 
-import * as v from "valibot";
-import { kindObject } from "#shared/validation/kind.ts";
-
-export const PaymentConflictSchema = v.variant("kind", [
-  kindObject("multiple_pending_refunds"),
-  kindObject("refund_exceeds_capture"),
-  kindObject("partial_refund"),
-]);
-export type PaymentConflict = v.InferOutput<typeof PaymentConflictSchema>;
+export type PaymentConflict = {
+  readonly kind:
+    | "multiple_pending_refunds"
+    | "partial_refund"
+    | "refund_exceeds_capture";
+};

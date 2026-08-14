@@ -5,6 +5,7 @@ import { execute } from "#shared/db/client.ts";
 import { setN1GuardNotifyOnly } from "#shared/db/query-log.ts";
 import {
   createPaidListing,
+  createRefundableAttendee,
   setupRefundTest,
 } from "#test/features/admin/refunds-helpers.ts";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
@@ -14,7 +15,6 @@ import {
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
@@ -64,7 +64,7 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
 
     test("shows refund all confirmation page with refundable count", async () => {
       const listing = await createPaidListing();
-      await createPaidTestAttendee(
+      await createRefundableAttendee(
         listing.id,
         "Paid User",
         "paid@example.com",
@@ -176,28 +176,30 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
       const response = await submitRefundAll(ctx);
       await expectFlashRedirect(
         `/admin/listing/${ctx.listing.id}/refund-all`,
-        expect.stringContaining(
-          "No configured payment provider recognizes this payment",
-        ),
+        "Payment pi_noprov_all at stripe could not answer (not_configured).",
         false,
       )(response);
     });
 
     test("successfully refunds all attendees", async () => {
       const listing = await createPaidListing();
-      await createPaidTestAttendee(
+      await createRefundableAttendee(
         listing.id,
         "User One",
         "one@example.com",
         "pi_all_1",
       );
-      await createPaidTestAttendee(
+      await createRefundableAttendee(
         listing.id,
         "User Two",
         "two@example.com",
         "pi_all_2",
       );
       await withRefundMock(refundCompletes, async (mockRefund) => {
+        await expectFlashRedirect(
+          `/admin/listing/${listing.id}/refund-all`,
+          "1 refund succeeded. 1 refund remains. Submit again to continue.",
+        )(await postRefundAll(listing));
         const response = await postRefundAll(listing);
         await expectFlashRedirect(
           `/admin/listing/${listing.id}`,
@@ -206,21 +208,28 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
         expect(mockRefund.calls.length).toBe(2);
       });
 
-      const log = (await getListingActivityLog(listing.id)).find((entry) =>
-        entry.message.includes("Bulk refund: all"),
-      );
-      expect(log?.message).toContain("all 2 attendee(s) refunded");
+      const activity = await getListingActivityLog(listing.id);
+      expect(
+        activity.some((entry) =>
+          entry.message.includes("Bulk refund: 1 of 2 refunded"),
+        ),
+      ).toBe(true);
+      expect(
+        activity.some((entry) =>
+          entry.message.includes("Bulk refund: all 1 attendee(s) refunded"),
+        ),
+      ).toBe(true);
     });
 
     test("refunds each attendee once when one has two booking rows", async () => {
       const listing = await createPaidListing();
-      const repeated = await createPaidTestAttendee(
+      const repeated = await createRefundableAttendee(
         listing.id,
         "Repeated booking",
         "repeated@example.com",
         "pi_repeated_booking",
       );
-      await createPaidTestAttendee(
+      await createRefundableAttendee(
         listing.id,
         "Independent peer",
         "peer@example.com",
@@ -234,6 +243,7 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
       );
 
       await withRefundMock(refundCompletes, async (mockRefund) => {
+        await postRefundAll(listing);
         await postRefundAll(listing);
         expect(
           mockRefund.calls

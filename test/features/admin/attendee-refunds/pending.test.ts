@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
 import { setN1GuardNotifyOnly } from "#shared/db/query-log.ts";
-import { createPaidListing } from "#test/features/admin/refunds-helpers.ts";
+import {
+  createPaidListing,
+  createRefundableAttendee,
+} from "#test/features/admin/refunds-helpers.ts";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { claimCurrentAttendeeRows } from "#test-utils/payment-claim.ts";
 import {
   postRefundAll,
@@ -33,7 +35,7 @@ describeWithEnv("server (admin refunds still settling)", { db: true }, () => {
 
   test("reports an accepted bulk refund as pending, not failed", async () => {
     const listing = await createPaidListing();
-    await createPaidTestAttendee(
+    await createRefundableAttendee(
       listing.id,
       "Pending User",
       "pending@example.com",
@@ -56,15 +58,15 @@ describeWithEnv("server (admin refunds still settling)", { db: true }, () => {
     }
   });
 
-  test("keeps pending refunds separate when another refund fails", async () => {
+  test("keeps an untouched refund separate from a pending refund", async () => {
     const listing = await createPaidListing();
-    await createPaidTestAttendee(
+    await createRefundableAttendee(
       listing.id,
       "Pending User",
       "pending@example.com",
       "pi_pending_side",
     );
-    await createPaidTestAttendee(
+    await createRefundableAttendee(
       listing.id,
       "Failed User",
       "failed@example.com",
@@ -79,27 +81,29 @@ describeWithEnv("server (admin refunds still settling)", { db: true }, () => {
       async () => {
         await expectFlashRedirect(
           refundAllUrl(listing.id),
-          "0 refunds succeeded. 1 refund is still settling. Do not send it again. There was 1 failure. 1 other refund remains. Refresh payment status before continuing.",
-          false,
+          "0 refunds succeeded. 1 refund is still settling. Do not send it again. 1 other refund remains. Refresh payment status before continuing.",
         )(await postRefundAll(listing));
       },
     );
 
     const activity = await bulkRefundActivity(listing.id);
-    if (!activity.includes("1 still settling, 1 failed")) {
+    if (!activity.includes("1 still settling")) {
       throw new Error(`Mixed refund was logged incorrectly: ${activity}`);
+    }
+    if (activity.includes("failed")) {
+      throw new Error(`Untouched refund was logged as failed: ${activity}`);
     }
   });
 
   test("a blocked bulk run says every untouched refund remains", async () => {
     const listing = await createPaidListing();
-    const held = await createPaidTestAttendee(
+    const held = await createRefundableAttendee(
       listing.id,
       "Held User",
       "held@example.com",
       "pi_bulk_held",
     );
-    await createPaidTestAttendee(
+    await createRefundableAttendee(
       listing.id,
       "Untouched One",
       "untouched-one@example.com",

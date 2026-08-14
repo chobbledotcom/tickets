@@ -3,19 +3,16 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   admissionReason,
   admitObservedRefund,
-  admitProviderRefund,
   admitRefund,
 } from "#shared/payment/admit-refund.ts";
 import type { ObservationOutcome } from "#shared/payment/diagnose.ts";
 import { refundOutcomeOf } from "#shared/payment/diagnose.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
-import type { PaymentProvider } from "#shared/payments.ts";
 import {
   chargeMoneyWith,
   gbp,
   partlyRefundedCharge,
   refundObservation,
-  unreadChargeCases,
 } from "#test-utils/payment-state.ts";
 
 /** Money back on every penny of this charge. */
@@ -155,20 +152,6 @@ describe("why money was not sent", () => {
 });
 
 describe("provider evidence before a refund", () => {
-  const provider = (readCharge: PaymentProvider["readCharge"]) => ({
-    readCharge,
-  });
-
-  for (const [name, read] of unreadChargeCases) {
-    test(`keeps a ${name} read distinct`, async () => {
-      const source = provider(() => Promise.resolve(read));
-      expect(await admitProviderRefund(source, "pi_1")).toEqual({
-        kind: "read_failed",
-        read,
-      });
-    });
-  }
-
   test("admits an existing validated reading without another provider read", () => {
     const charge = chargeMoneyWith();
 

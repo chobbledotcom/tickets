@@ -29,7 +29,7 @@ import type { PaymentProviderType } from "#shared/types.ts";
 import {
   acceptedRefund,
   chargeMoney,
-  refundReference,
+  taggedRefundReference,
 } from "#test-utils/payment-state.ts";
 import { requestRecordedProviderRefund } from "./dispatch-helpers.ts";
 
@@ -52,25 +52,6 @@ export const finishedCounts = (result: RefundBatchResult): RefundCounts => {
   return result.counts;
 };
 
-const taggedReference = (
-  reference: string,
-  provider: PaymentProviderType,
-  values: Partial<
-    Omit<TaggedRefundPaymentReference, "kind" | "provider" | "reference">
-  > = {},
-): TaggedRefundPaymentReference => {
-  const stored = refundReference(reference, values);
-  const index = values.index ?? `index_of_${provider}_${reference}`;
-  return {
-    ...stored,
-    ...values,
-    index,
-    kind: "tagged",
-    matchingIndexes: values.matchingIndexes ?? [index],
-    provider,
-  };
-};
-
 export const candidate = (
   references: Reference[],
   id = 42,
@@ -78,7 +59,11 @@ export const candidate = (
   attendee: { id } as RefundCandidate["attendee"],
   references: references.map(
     ({ provider = "stripe", reference, refundState = "none" }) =>
-      taggedReference(reference, provider, { refundState }),
+      taggedRefundReference(reference, provider, {
+        index: `index_of_${provider}_${reference}`,
+        matchingIndexes: [`index_of_${provider}_${reference}`],
+        refundState,
+      }),
   ),
 });
 
@@ -98,7 +83,7 @@ export const readyReference = (
   defaultProvider: RecordingProvider,
 ): ReadyRefundReference => {
   const source = input.provider ?? defaultProvider;
-  const reference = taggedReference(input.reference, source.type, {
+  const reference = taggedRefundReference(input.reference, source.type, {
     index: input.index ?? `index_of_${source.type}_${input.reference}`,
   });
   return input.kind === "already_returned"
@@ -366,7 +351,7 @@ export const rowBackedReference = (
   sessionId: string,
   refundState: RefundState = "none",
 ): TaggedRefundPaymentReference =>
-  taggedReference(reference, "stripe", {
+  taggedRefundReference(reference, "stripe", {
     refundState,
     rowSessionIds: [sessionId],
     sessionIds: [sessionId],
@@ -402,7 +387,7 @@ export const pendingCandidate = (
 ): RefundCandidate => ({
   attendee: { id: attendeeId } as RefundCandidate["attendee"],
   references: references.map((reference) =>
-    taggedReference(reference, "stripe", { sessionIds: [] }),
+    taggedRefundReference(reference, "stripe", { sessionIds: [] }),
   ),
 });
 

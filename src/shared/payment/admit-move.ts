@@ -158,13 +158,6 @@ export const paymentWorkFor = (
     : { recoveryAction: work.recoveryAction, status: work.status };
 };
 
-/** Why this move must not go ahead, or null when the rows are free. Most rows
- *  are in the middle of nothing, so that is an ordinary answer. */
-export const moveRefusalOrNull = (
-  states: readonly PaymentRowState[],
-  move: RowMove,
-): string | null => moveRefusalWhen((work) => states.some(work.found), move);
-
 const moveRefusalWhen = (
   hasWork: (work: LiveWorkEntry) => boolean,
   move: RowMove,

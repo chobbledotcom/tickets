@@ -5,7 +5,7 @@
 import type { Result } from "#shared/result.ts";
 import {
   parseNonNegativeInt,
-  parsePositiveIntId,
+  parsePositiveInt as parsePositiveIntId,
 } from "#shared/validation/number.ts";
 
 /**

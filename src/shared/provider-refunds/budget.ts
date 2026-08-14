@@ -3,10 +3,6 @@
 import { DATABASE_MAX_ATTEMPTS } from "#shared/db/client.ts";
 import type { SubrequestCounts } from "#shared/subrequest-budget.ts";
 
-/** Worst-case physical database calls before an already-final authority can
- * answer: the identity load may make every configured transient retry. */
-export const REFUND_KNOWN_AUTHORITY_DATABASE_CALLS = DATABASE_MAX_ATTEMPTS;
-
 /** Worst-case physical database calls for a live authority request: identity
  * load, create, arm, answer write, and the lost-revision reread. Callers use
  * this complete envelope at admission instead of guessing from logical SQL. */
@@ -24,7 +20,3 @@ export const REFUND_RESULT_DATABASE_RESERVE: SubrequestCounts = {
   external: 0,
   total: DATABASE_MAX_ATTEMPTS * 2,
 };
-
-/** Worst-case physical database calls to retire one returned authority: load,
- * revision-fenced write, then a reread if another writer won. */
-export const REFUND_AUTHORITY_RECORD_DATABASE_CALLS = DATABASE_MAX_ATTEMPTS * 3;

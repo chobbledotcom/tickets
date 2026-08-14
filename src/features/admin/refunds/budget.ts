@@ -8,7 +8,6 @@ import { orderedCredentialedPaymentProviderTypes } from "#shared/existing-paymen
 import { REFUND_NETWORK_RETRIES } from "#shared/payment/refund-network.ts";
 import {
   REFUND_ACTIVE_AUTHORITY_DATABASE_CALLS,
-  REFUND_KNOWN_AUTHORITY_DATABASE_CALLS,
   REFUND_OBSERVED_AUTHORITY_DATABASE_CALLS,
 } from "#shared/provider-refunds/budget.ts";
 import { REFUND_LEDGER_BATCH_DATABASE_CALLS } from "#shared/refund-ledger/record.ts";
@@ -152,9 +151,6 @@ const CLAIM_DATABASE_CALLS = 6;
 // Admission runs before the claim batch and transaction commit.
 const CLAIM_DATABASE_CALLS_AFTER_ADMISSION = 2;
 const SETTLEMENT_DATABASE_CALLS = DATABASE_MAX_ATTEMPTS * 2;
-const REFRESH_RECORDING_DATABASE_CALLS = REFUND_LEDGER_BATCH_DATABASE_CALLS;
-const RETURNED_PAYMENT_DATABASE_CALLS = REFUND_LEDGER_BATCH_DATABASE_CALLS;
-
 /**
  * Each checkpoint prices work through its next safe refusal. Readiness prices
  * provider judgment and durable authority; the later dispatch gate prices send
@@ -165,30 +161,30 @@ const DATABASE_CALL_PLANS = {
   before_claim: {
     fixed: CLAIM_DATABASE_CALLS,
     pricesAuthority: true,
-    whenRecordingReturns: RETURNED_PAYMENT_DATABASE_CALLS,
+    whenRecordingReturns: REFUND_LEDGER_BATCH_DATABASE_CALLS,
   },
   before_provider_read: {
     fixed: 0,
     pricesAuthority: true,
-    whenRecordingReturns: RETURNED_PAYMENT_DATABASE_CALLS,
+    whenRecordingReturns: REFUND_LEDGER_BATCH_DATABASE_CALLS,
   },
   inside_claim: {
     fixed: CLAIM_DATABASE_CALLS_AFTER_ADMISSION,
     pricesAuthority: true,
-    whenRecordingReturns: RETURNED_PAYMENT_DATABASE_CALLS,
+    whenRecordingReturns: REFUND_LEDGER_BATCH_DATABASE_CALLS,
   },
 } satisfies Record<RefundReadinessBudgetCheckpoint, DatabaseCallPlan>;
 
 const AUTHORITY_REQUEST_DATABASE_PLAN = {
   fixed: 0,
   pricesAuthority: true,
-  whenRecordingReturns: RETURNED_PAYMENT_DATABASE_CALLS,
+  whenRecordingReturns: REFUND_LEDGER_BATCH_DATABASE_CALLS,
 } satisfies DatabaseCallPlan;
 
 const refreshAdmissionDatabasePlan = (
   beforeAdmissionCalls: number,
 ): DatabaseCallPlan => ({
-  fixed: beforeAdmissionCalls + REFRESH_RECORDING_DATABASE_CALLS,
+  fixed: beforeAdmissionCalls + REFUND_LEDGER_BATCH_DATABASE_CALLS,
   pricesAuthority: true,
   whenRecordingReturns: 0,
 });
@@ -197,7 +193,7 @@ const READINESS_DATABASE_CALL_PLANS = {
   refresh: {
     before_claim: refreshAdmissionDatabasePlan(CLAIM_DATABASE_CALLS),
     before_provider_read: {
-      fixed: REFRESH_RECORDING_DATABASE_CALLS,
+      fixed: REFUND_LEDGER_BATCH_DATABASE_CALLS,
       pricesAuthority: true,
       whenRecordingReturns: 0,
     },
@@ -264,7 +260,7 @@ const referenceSetSubrequestCost = (
   const external = sum(active.map(referenceCalls({ providers, stage })));
   const authorityCalls =
     activeAuthorityDatabaseCalls(action, active.length) +
-    (references.length - active.length) * REFUND_KNOWN_AUTHORITY_DATABASE_CALLS;
+    (references.length - active.length) * DATABASE_MAX_ATTEMPTS;
   return subrequestCostFor(
     READINESS_DATABASE_CALL_PLANS[action][checkpoint],
     authorityCalls,
@@ -335,7 +331,7 @@ export const refundPreparedSubrequestCost = (
   return subrequestCostFor(
     AUTHORITY_REQUEST_DATABASE_PLAN,
     activeAuthorityDatabaseCalls("refund", activeAuthorityCount) +
-      returnedAuthorityCount * REFUND_KNOWN_AUTHORITY_DATABASE_CALLS,
+      returnedAuthorityCount * DATABASE_MAX_ATTEMPTS,
     external,
   );
 };
@@ -357,7 +353,7 @@ export const REFUND_SETTLEMENT_SUBREQUEST_RESERVE: SubrequestCounts = {
 
 /** Money known to be back always keeps enough room for its fixed ledger post. */
 export const REFUND_LEDGER_SUBREQUEST_RESERVE: SubrequestCounts = {
-  database: RETURNED_PAYMENT_DATABASE_CALLS,
+  database: REFUND_LEDGER_BATCH_DATABASE_CALLS,
   external: 0,
-  total: RETURNED_PAYMENT_DATABASE_CALLS,
+  total: REFUND_LEDGER_BATCH_DATABASE_CALLS,
 };

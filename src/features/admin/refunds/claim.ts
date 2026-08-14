@@ -65,13 +65,24 @@ export const durableRowClaim: RowClaim = {
   settle: settleAttendeeRows,
 };
 
+type SettlementResult =
+  | { readonly kind: "settled" }
+  | { readonly error: unknown; readonly kind: "failed" };
+
 /** Settle held rows. A successful run is not complete until this write lands. */
 const settleHold = async (
   rowClaim: RowClaim,
   settlement: RowSettlement,
-): Promise<void> => {
-  if (settlement.rows.size === 0) return;
-  await rowClaim.settle(settlement);
+  listingId: number,
+): Promise<SettlementResult> => {
+  if (settlement.rows.size === 0) return { kind: "settled" };
+  try {
+    await rowClaim.settle(settlement);
+    return { kind: "settled" };
+  } catch (error) {
+    reportRefundProblem({ error, kind: "claim_settlement" }, listingId);
+    return { error, kind: "failed" };
+  }
 };
 
 const booksChange = (
@@ -197,13 +208,16 @@ export const underAttendeeClaim = async <TResult>(
     reviews: new Map(),
     unrecorded: initialUnrecorded(attendees, claim),
   };
-  const settle = async (): Promise<void> => {
-    await settleHold(rowClaim, {
-      commandId: claim.commandId,
-      heldSince: claim.heldSince,
-      rows: settlementRows(claim, findings),
-    });
-  };
+  const settle = (): Promise<SettlementResult> =>
+    settleHold(
+      rowClaim,
+      {
+        commandId: claim.commandId,
+        heldSince: claim.heldSince,
+        rows: settlementRows(claim, findings),
+      },
+      listingId,
+    );
   let result: TResult;
   try {
     result = await withSubrequestReserve(
@@ -224,16 +238,10 @@ export const underAttendeeClaim = async <TResult>(
         }),
     );
   } catch (error) {
-    try {
-      await settle();
-    } catch (settlementError) {
-      reportRefundProblem(
-        { error: settlementError, kind: "claim_settlement" },
-        listingId,
-      );
-    }
+    await settle();
     throw error;
   }
-  await settle();
+  const settlement = await settle();
+  if (settlement.kind === "failed") throw settlement.error;
   return result;
 };

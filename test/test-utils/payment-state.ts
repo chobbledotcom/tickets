@@ -1,4 +1,7 @@
-import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
+import type {
+  RefundPaymentReference,
+  TaggedRefundPaymentReference,
+} from "#shared/db/payment-references.ts";
 import type { Money } from "#shared/payment/money.ts";
 import type { ProviderRead } from "#shared/payment/provider-read.ts";
 import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
@@ -7,6 +10,7 @@ import type {
   ProviderRefundResource,
   RefundObservation,
 } from "#shared/payment/resources.ts";
+import type { PaymentProviderType } from "#shared/types.ts";
 
 /** Money in the currency these tests use throughout. */
 export const gbp = (amount: number): Money => ({ amount, currency: "GBP" });
@@ -131,3 +135,15 @@ export const refundReference = (
   sessionIds: [`sess_${reference}`],
   ...values,
 });
+
+/** A provider-tagged payment row suitable for automatic refund admission. */
+export const taggedRefundReference = (
+  reference: string,
+  provider: PaymentProviderType = "stripe",
+  values: Partial<
+    Omit<TaggedRefundPaymentReference, "kind" | "provider" | "reference">
+  > = {},
+): TaggedRefundPaymentReference => {
+  const stored = refundReference(reference, values);
+  return { ...stored, kind: "tagged", provider };
+};

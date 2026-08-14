@@ -1,32 +1,61 @@
 import { expect } from "@std/expect";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
-import type { Attendee, Listing } from "#shared/types.ts";
+import type { Attendee, Listing, PaymentProviderType } from "#shared/types.ts";
 import {
   createPaidAttendeeWithoutLedger,
   createPaidTestAttendee,
 } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { postListingSale } from "#test-utils/ledger.ts";
+import {
+  getCompleteRefundPaymentReferencesForAttendee,
+  markProviderRefundsReturned,
+} from "#test-utils/payment-references.ts";
 import {
   finalizeProcessedPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
 
-/** Seed `count` paid attendees with payment-intent ids `${piPrefix}<i>`. */
-export const seedBatchAttendees = async (
-  listing: { id: number },
-  piPrefix: string,
-  count = 32,
-): Promise<void> => {
-  for (let i = 0; i < count; i++) {
-    await createPaidTestAttendee(
-      listing.id,
-      `User ${i}`,
-      `user${i}@example.com`,
-      `${piPrefix}${i}`,
-    );
-  }
+const paymentSessionId = (listingId: number, attendeeId: number): string =>
+  `sale-${listingId}-${attendeeId}`;
+
+/** Create a paid attendee whose provider-tagged payment row names its sale. */
+export const createRefundableAttendee = async (
+  listingId: number,
+  name: string,
+  email: string,
+  reference: string,
+  {
+    ledger = "recorded",
+    pricePaid = 500,
+    provider = "stripe",
+    quantity = 1,
+  }: {
+    ledger?: "missing" | "recorded";
+    pricePaid?: number;
+    provider?: PaymentProviderType;
+    quantity?: number;
+  } = {},
+): Promise<Attendee> => {
+  const createPaidAttendee =
+    ledger === "recorded"
+      ? createPaidTestAttendee
+      : createPaidAttendeeWithoutLedger;
+  const attendee = await createPaidAttendee(
+    listingId,
+    name,
+    email,
+    "",
+    pricePaid,
+    quantity,
+  );
+  await finalizeProcessedPayment(
+    paymentSessionId(listingId, attendee.id),
+    attendee.id,
+    "",
+    taggedPaymentReference(reference, provider),
+  );
+  return attendee;
 };
 
 /** Seed modern provider-tagged payments whose ledger event names each order. */
@@ -36,17 +65,11 @@ export const seedTaggedBatchAttendees = async (
   count: number,
 ): Promise<void> => {
   for (let index = 0; index < count; index++) {
-    const attendee = await createPaidTestAttendee(
+    await createRefundableAttendee(
       listing.id,
       `User ${index}`,
       `user${index}@example.com`,
-      "",
-    );
-    await finalizeProcessedPayment(
-      `sale-${listing.id}-${attendee.id}`,
-      attendee.id,
-      "",
-      taggedPaymentReference(`${referencePrefix}${index}`),
+      `${referencePrefix}${index}`,
     );
   }
 };
@@ -67,24 +90,11 @@ export const setupRefundTest = async (
   paymentId: string,
 ): Promise<RefundCtx> => {
   const listing = await createPaidListing();
-  const attendee = await createPaidAttendeeWithoutLedger(
+  const attendee = await createRefundableAttendee(
     listing.id,
     "John Doe",
     "john@example.com",
-    "",
-  );
-  const paymentSessionId = `refund-route-${attendee.id}`;
-  await postListingSale({
-    attendeeId: attendee.id,
-    eventId: paymentSessionId,
-    gross: 500,
-    listingId: listing.id,
-  });
-  await finalizeProcessedPayment(
-    paymentSessionId,
-    attendee.id,
-    "",
-    taggedPaymentReference(paymentId),
+    paymentId,
   );
   return {
     attendee,
@@ -99,11 +109,17 @@ export const markAsRefunded = async (attendeeId: number): Promise<void> => {
   const { recordAttendeeRefund } = await import(
     "#shared/refund-ledger/record.ts"
   );
-  const index = `legacy-refund-${attendeeId}`;
-  const result = await recordAttendeeRefund(attendeeId, [
-    { index, sessionIds: [] },
-  ]);
-  expect(result.recorded).toEqual(new Set([index]));
+  const references = await getCompleteRefundPaymentReferencesForAttendee({
+    currentPaymentId: "",
+    id: attendeeId,
+  });
+  const result = await recordAttendeeRefund(attendeeId, references);
+  expect(result.recorded).toEqual(
+    new Set(references.map(({ index }) => index)),
+  );
+  await markProviderRefundsReturned(
+    references.filter(({ refundState }) => refundState !== "completed"),
+  );
 };
 
 export const setBookingLineQuantity = async (

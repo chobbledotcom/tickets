@@ -3,11 +3,10 @@ import { describe, it as test } from "@std/testing/bdd";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
+import { updateAttendeePII } from "#shared/db/attendees/update.ts";
 import { execute } from "#shared/db/client.ts";
 import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
-import { getPaymentWorkStatus } from "#shared/db/payment-review.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
-import { t } from "#shared/i18n.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import type { RefundCtx } from "#test/features/admin/refunds-helpers.ts";
 import {
@@ -16,8 +15,8 @@ import {
 } from "#test-utils/assertions.ts";
 import { settle } from "#test-utils/balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { attendeePiiOf } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import {
   putRowState,
@@ -32,33 +31,10 @@ import {
   expectSingleRefundIssued,
   postRefundAll,
   refundCompletes,
-  refundIsRejected,
   submitRefund,
   withRefundMock,
 } from "#test-utils/refund-routes.ts";
 import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
-
-const SETTLED_RESERVATION_REFERENCES = [
-  "pi_reservation_balance",
-  "pi_reservation_deposit",
-];
-
-const expectSettledReservationRefundFailure = async (
-  ctx: RefundCtx,
-  refundBehavior: Parameters<typeof withRefundMock>[0],
-  message: Parameters<typeof expectFlashRedirect>[1] = expect.stringContaining(
-    "Refund failed",
-  ),
-  destination = `/admin/attendees/${ctx.attendee.id}/refund`,
-) => {
-  await withRefundMock(refundBehavior, async (mockRefund) => {
-    const response = await submitRefund(ctx);
-    await expectFlashRedirect(destination, message, false)(response);
-    expect(
-      mockRefund.calls.map((call) => call.args[0].paymentReference).sort(),
-    ).toEqual(SETTLED_RESERVATION_REFERENCES);
-  });
-};
 
 const refundCtx = async (
   attendee: Attendee,
@@ -123,7 +99,6 @@ const setupSettledReservationRefundTest = async (): Promise<RefundCtx> => {
     bookings: [{ listingId: listing.id, pricePaid: 2000, quantity: 1 }],
     email: "reservation@example.com",
     name: "John Doe",
-    paymentId: "pi_reservation_deposit",
     remainingBalance: 8000,
     statusId: status.id,
   });
@@ -177,8 +152,6 @@ const expectIncompleteReservationHistoryRefused = async (
 
 describeWithEnv("server (admin balance-payment refunds)", { db: true }, () => {
   describe("single attendee refund", () => {
-    const errors = setupErrorSpy();
-
     test("refunds a balance-paid attendee whose original row has no payment id", async () => {
       const ctx = await setupBalancePaidRefundTest();
 
@@ -189,13 +162,16 @@ describeWithEnv("server (admin balance-payment refunds)", { db: true }, () => {
       });
     });
 
-    test("refunds both charges for a settled reservation", async () => {
+    test("refuses two charges before provider work exceeds the request budget", async () => {
       const ctx = await setupSettledReservationRefundTest();
 
-      await expectSingleRefundIssued(ctx, (mockRefund) => {
-        expect(
-          mockRefund.calls.map((call) => call.args[0].paymentReference).sort(),
-        ).toEqual(SETTLED_RESERVATION_REFERENCES);
+      await withRefundMock(refundCompletes, async (mockRefund) => {
+        await expectFlashRedirect(
+          `/admin/attendees/${ctx.attendee.id}/refund`,
+          "This attendee has too many payments to refund in one go. Refund them from the provider dashboard.",
+          false,
+        )(await submitRefund(ctx));
+        expect(mockRefund.calls).toEqual([]);
       });
     });
 
@@ -211,61 +187,16 @@ describeWithEnv("server (admin balance-payment refunds)", { db: true }, () => {
     });
 
     test("does not refund an indexed balance while its PII-only deposit is unindexed", async () => {
-      await expectIncompleteReservationHistoryRefused(async () => {
+      await expectIncompleteReservationHistoryRefused(async (ctx) => {
+        await updateAttendeePII(ctx.attendee.id, {
+          ...attendeePiiOf(ctx.attendee),
+          payment_id: "pi_reservation_deposit",
+        });
         await execute(
           "DELETE FROM processed_payments WHERE payment_session_id = ?",
           ["reservation_deposit_session"],
         );
       });
-    });
-
-    test("logs when a settled reservation refund misses one of its charges", async () => {
-      const ctx = await setupSettledReservationRefundTest();
-
-      await expectSettledReservationRefundFailure(ctx, refundIsRejected);
-      expect(
-        errors.calls
-          .map((call) => String(call.args[0]))
-          .some((message) =>
-            message.includes("Admin refund did not complete all 2 payments"),
-          ),
-      ).toBe(true);
-    });
-
-    test("offers the highest-priority recovery when one charge returned and the other failed", async () => {
-      const ctx = await setupSettledReservationRefundTest();
-
-      await expectSettledReservationRefundFailure(
-        ctx,
-        (request) =>
-          request.paymentReference === "pi_reservation_deposit"
-            ? refundCompletes(request)
-            : refundIsRejected(request),
-        t("error.refund_not_recorded"),
-        `/admin/attendees/${ctx.attendee.id}/actions`,
-      );
-
-      expect(await getPaymentWorkStatus(ctx.attendee.id)).toBe(
-        "needs_money_record",
-      );
-      const actions = await expectHtmlResponse(
-        await adminGet(`/admin/attendees/${ctx.attendee.id}/actions`),
-        200,
-        "Actions",
-      );
-      expect(actions).not.toContain(
-        `/admin/attendees/${ctx.attendee.id}/refund`,
-      );
-      expect(actions).not.toContain("Mark payment reviewed");
-
-      const overview = await expectHtmlResponse(
-        await adminGet(`/admin/attendees/${ctx.attendee.id}`),
-        200,
-        "Refresh payment status",
-      );
-      expect(overview).toContain(
-        `action="/admin/attendees/${ctx.attendee.id}/refresh-payment"`,
-      );
     });
   });
 

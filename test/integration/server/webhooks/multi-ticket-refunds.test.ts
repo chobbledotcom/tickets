@@ -66,7 +66,7 @@ describeWithEnv(
         }),
       );
 
-      const mockRefund = stubRefundPayment("re_multi_cap");
+      const mockRefund = stubRefundPayment("re_multi_cap", 800);
 
       await postWebhookAndAssert(
         () => {

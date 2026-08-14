@@ -51,9 +51,6 @@ export const parseNonNegativeInt = (value: string): number | null =>
 export const parsePositiveInt = (value: string): number | null =>
   parseIntWithSchema(PositiveIntSchema, value);
 
-/** The strict positive parser also validates database ids. */
-export const parsePositiveIntId = parsePositiveInt;
-
 /** Whether a number can be stored safely as a positive database id. */
 export const isPositiveSafeInteger = (value: number): boolean =>
   Number.isSafeInteger(value) && value >= 1;

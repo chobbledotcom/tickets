@@ -120,7 +120,7 @@ describeWithEnv("server webhooks > refund logging", { db: true }, () => {
       }),
     );
 
-    const mockRefund = stubRefundPayment("re_activity");
+    const mockRefund = stubRefundPayment("re_activity", 500);
 
     try {
       const response = await handleRequest(

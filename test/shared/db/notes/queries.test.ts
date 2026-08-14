@@ -6,7 +6,6 @@ import {
   createNamedSystemNote,
   createOwnerNote,
   createSystemNote,
-  deleteNamedSystemNotes,
   deleteNotes,
   getNote,
   getNoteRows,
@@ -141,31 +140,6 @@ describeWithEnv("db > notes", { db: true }, () => {
     expect(ownerStored?.note).not.toContain("owner secret");
   });
 
-  test("manages refund confirmations by exact indexed name, never their text", async () => {
-    const attendeeId = await makeAttendee();
-    const target = attendeeNotes(attendeeId);
-    await createNamedSystemNote(target, "confirmation to remove", {
-      key: "reference-one",
-      purpose: "refund_confirmation",
-    });
-    await createNamedSystemNote(target, "different confirmation", {
-      key: "reference-two",
-      purpose: "refund_confirmation",
-    });
-    await createSystemNote(target, "ordinary note to keep");
-
-    await deleteNamedSystemNotes(target, "refund_confirmation", [
-      "reference-one",
-      "reference-one",
-    ]);
-
-    expect(
-      (await getNotesFor(target, await getTestPrivateKey())).map(
-        (note) => note.note,
-      ),
-    ).toEqual(["different confirmation", "ordinary note to keep"]);
-  });
-
   test("refuses a second app-written note with the same indexed name", async () => {
     const target = attendeeNotes(await makeAttendee());
     const name = {
@@ -283,10 +257,7 @@ describeWithEnv("db > notes", { db: true }, () => {
 
     // Empty deletes must not cost a round trip.
     const { roundTrips } = await runAndCountRoundTrips(() =>
-      Promise.all([
-        deleteNotes(attendeeNotes(owner), []),
-        deleteNamedSystemNotes(attendeeNotes(owner), "refund_confirmation", []),
-      ]),
+      deleteNotes(attendeeNotes(owner), []),
     );
 
     expect(roundTrips).toBe(0);
