@@ -3,2285 +3,1533 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#102f3e">
-    <title>M4 Part A — complete source change map</title>
+    <title>PR4-A — the refund data model</title>
     <style>
       :root {
-        color-scheme: light;
-        --ink: #102f3e;
-        --muted: #586d76;
-        --paper: #f4f1e8;
-        --card: #fffdf7;
-        --line: #c9d5d7;
-        --navy: #102f3e;
-        --teal: #087d78;
-        --cyan: #50c9c2;
-        --green: #197557;
-        --green-soft: #e0f2e8;
-        --amber: #bd7207;
-        --amber-soft: #fff0cf;
-        --red: #aa4148;
-        --red-soft: #fbe4e1;
-        --violet: #7053a2;
-        --violet-soft: #eee7f8;
-        --shadow: 0 18px 50px rgb(16 47 62 / 10%);
+        color-scheme: dark;
+        --bg: #071117;
+        --panel: #0d1b23;
+        --panel-2: #122630;
+        --ink: #eef8f7;
+        --muted: #a8bec1;
+        --line: #28424a;
+        --teal: #4ce0ca;
+        --teal-soft: #143b39;
+        --purple: #b8a2ff;
+        --purple-soft: #292347;
+        --amber: #ffd166;
+        --amber-soft: #423719;
+        --red: #ff8296;
+        --red-soft: #40222b;
+        --blue: #78b7ff;
+        --blue-soft: #172e49;
+        --grey-soft: #1a282e;
+        --radius: 18px;
+        --shadow: 0 22px 60px rgb(0 0 0 / 24%);
       }
+
       * {
         box-sizing: border-box;
       }
+
       html {
         scroll-behavior: smooth;
       }
+
       body {
         margin: 0;
-        color: var(--ink);
         background:
           radial-gradient(
-            circle at 12% 0%,
-            rgb(80 201 194 / 13%),
+            circle at 15% 0%,
+            rgb(76 224 202 / 10%),
             transparent 30rem
           ),
-          var(--paper);
+          radial-gradient(
+          circle at 95% 15%,
+          rgb(184 162 255 / 8%),
+          transparent 28rem
+        ),
+          var(--bg);
+        color: var(--ink);
         font-family:
-          Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI",
-          sans-serif;
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        font-size: 16px;
         line-height: 1.55;
       }
-      code, .mono {
-        font-family: "SFMono-Regular", Consolas, monospace;
-        overflow-wrap: anywhere;
-      }
+
       a {
-        color: inherit;
+        color: var(--teal);
       }
-      main {
-        width: min(1180px, calc(100% - 2rem));
-        margin: auto;
+
+      code {
+        color: #c9fff6;
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 0.91em;
       }
-      .topnav {
+
+      .topbar {
         position: sticky;
-        z-index: 20;
+        z-index: 10;
         top: 0;
+        border-bottom: 1px solid rgb(76 224 202 / 18%);
+        background: rgb(7 17 23 / 90%);
+        backdrop-filter: blur(14px);
+      }
+
+      nav {
         display: flex;
+        width: min(1120px, calc(100% - 2rem));
+        margin: auto;
         gap: 0.35rem;
-        padding: 0.65rem max(1rem, calc((100vw - 1180px) / 2));
         overflow-x: auto;
-        color: white;
-        background: rgb(16 47 62 / 96%);
-        backdrop-filter: blur(12px);
+        padding: 0.65rem 0;
+        scrollbar-width: none;
       }
-      .topnav a {
+
+      nav a {
         flex: 0 0 auto;
-        padding: 0.35rem 0.65rem;
-        border-radius: 99px;
-        color: #d6ecee;
-        font-size: 0.78rem;
+        border: 1px solid transparent;
+        border-radius: 999px;
+        color: var(--muted);
+        padding: 0.35rem 0.7rem;
         text-decoration: none;
+        font-size: 0.82rem;
+        font-weight: 700;
       }
-      .topnav a:hover, .topnav a:focus-visible {
-        background: rgb(255 255 255 / 13%);
+
+      nav a:hover,
+      nav a:focus-visible {
+        border-color: var(--line);
+        color: var(--ink);
         outline: none;
       }
-      header {
-        position: relative;
-        margin: 1.4rem 0 4.5rem;
-        padding: clamp(2rem, 7vw, 5rem);
-        overflow: hidden;
-        border-radius: 30px;
-        color: white;
-        background: linear-gradient(
-          135deg,
-          #102f3e 0%,
-          #075f65 65%,
-          #087d78 100%
-        );
-        box-shadow: var(--shadow);
+
+      main {
+        width: min(1120px, calc(100% - 2rem));
+        margin: auto;
+        padding: 3.5rem 0 5rem;
       }
-      header::after {
-        content: "";
-        position: absolute;
-        right: -8rem;
-        bottom: -12rem;
-        width: 34rem;
-        height: 34rem;
-        border: 2px solid rgb(255 255 255 / 12%);
-        border-radius: 50%;
-        box-shadow:
-          0 0 0 4rem rgb(255 255 255 / 3%),
-          0 0 0 8rem rgb(255 255 255 / 3%);
+
+      header,
+      section {
+        scroll-margin-top: 4.5rem;
       }
-      header > * {
-        position: relative;
-        z-index: 1;
+
+      section {
+        margin-top: 5.5rem;
       }
-      .eyebrow {
-        margin: 0 0 0.65rem;
+
+      .eyebrow,
+      .section-number {
         color: var(--teal);
-        font-size: 0.76rem;
-        font-weight: 850;
-        letter-spacing: 0.15em;
+        font-size: 0.72rem;
+        font-weight: 900;
+        letter-spacing: 0.13em;
         text-transform: uppercase;
       }
-      header .eyebrow {
-        color: #8ce7df;
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin-top: 0;
       }
+
       h1 {
-        max-width: 920px;
-        margin: 0;
-        font-size: clamp(2.7rem, 7vw, 5.8rem);
-        line-height: 0.94;
-        letter-spacing: -0.06em;
-      }
-      h2 {
-        margin: 0 0 1rem;
-        font-size: clamp(2rem, 4.8vw, 4rem);
+        max-width: 900px;
+        margin-bottom: 1.1rem;
+        font-size: clamp(2.65rem, 7vw, 5.7rem);
         line-height: 0.98;
-        letter-spacing: -0.045em;
+        letter-spacing: -0.055em;
       }
-      h3 {
-        margin: 0 0 0.55rem;
-        font-size: 1.12rem;
-        line-height: 1.2;
-      }
-      h4 {
-        margin: 1.2rem 0 0.45rem;
-      }
-      .lede {
+
+      h2 {
         max-width: 880px;
-        color: #d5edef;
-        font-size: 1.18rem;
+        margin-bottom: 0.75rem;
+        font-size: clamp(2rem, 4vw, 3.25rem);
+        line-height: 1.04;
+        letter-spacing: -0.035em;
       }
-      .snapshot {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-        margin-top: 1.7rem;
+
+      h3 {
+        margin-bottom: 0.45rem;
+        font-size: 1.03rem;
+        line-height: 1.25;
       }
-      .snapshot span {
-        padding: 0.42rem 0.7rem;
-        border: 1px solid rgb(255 255 255 / 18%);
-        border-radius: 99px;
-        background: rgb(255 255 255 / 8%);
-        font-size: 0.76rem;
-      }
-      .metrics {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 0.75rem;
-        margin-top: 2rem;
-      }
-      .metric {
-        min-height: 105px;
-        padding: 1rem;
-        border: 1px solid rgb(255 255 255 / 18%);
-        border-radius: 14px;
-        background: rgb(255 255 255 / 8%);
-      }
-      .metric b {
-        display: block;
-        font-size: 2.1rem;
-        line-height: 1;
-      }
-      .metric b.pending {
-        font-size: 1.05rem;
-        white-space: nowrap;
-      }
-      .metric span {
-        display: block;
-        margin-top: 0.55rem;
-        color: #c8e1e3;
-        font-size: 0.78rem;
-      }
-      section {
-        scroll-margin-top: 70px;
-        margin-bottom: 5rem;
-      }
+
+      .lede,
       .section-lede {
-        max-width: 920px;
+        max-width: 760px;
         color: var(--muted);
         font-size: 1.08rem;
       }
-      .grid-2, .grid-3, .grid-4 {
-        display: grid;
-        gap: 1rem;
-      }
-      .grid-2 {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-      .grid-3 {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-      }
-      .grid-4 {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-      }
-      .card, .callout, .diagram, .table-wrap, details {
-        border: 1px solid var(--line);
-        border-radius: 17px;
-        background: var(--card);
-        box-shadow: 0 8px 24px rgb(16 47 62 / 5%);
-      }
-      .card {
-        padding: 1.25rem;
-      }
-      .card p:last-child, .callout p:last-child {
-        margin-bottom: 0;
-      }
-      .label {
-        display: inline-block;
-        margin-bottom: 0.7rem;
-        padding: 0.22rem 0.5rem;
-        border-radius: 99px;
-        color: white;
-        background: var(--teal);
-        font-size: 0.68rem;
+
+      .hero-note {
+        display: inline-flex;
+        margin-bottom: 1rem;
+        border: 1px solid rgb(76 224 202 / 30%);
+        border-radius: 999px;
+        background: var(--teal-soft);
+        color: var(--teal);
+        padding: 0.3rem 0.72rem;
+        font-size: 0.78rem;
         font-weight: 850;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
       }
-      .before .label {
-        background: var(--red);
-      }
-      .after .label {
-        background: var(--green);
-      }
-      .boundary .label {
-        background: var(--amber);
-      }
-      .card.before {
-        border-top: 5px solid var(--red);
-      }
-      .card.after {
-        border-top: 5px solid var(--green);
-      }
-      .card.boundary {
-        border-top: 5px solid var(--amber);
-      }
-      .plain-list {
-        margin: 0.6rem 0 0;
-        padding-left: 1.15rem;
-      }
-      .plain-list li + li {
-        margin-top: 0.45rem;
-      }
-      .callout {
+
+      .read-three {
         display: grid;
-        grid-template-columns: auto 1fr;
-        gap: 0.9rem;
-        margin: 1.2rem 0;
-        padding: 1.15rem 1.25rem;
-        border-left: 6px solid var(--teal);
+        margin-top: 2.2rem;
+        gap: 0.8rem;
+        grid-template-columns: repeat(3, 1fr);
       }
-      .callout.warn {
-        border-left-color: var(--amber);
-        background: var(--amber-soft);
+
+      .big-fact {
+        min-height: 165px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: linear-gradient(145deg, var(--panel-2), var(--panel));
+        box-shadow: var(--shadow);
+        padding: 1.2rem;
       }
-      .callout.risk {
-        border-left-color: var(--red);
-        background: var(--red-soft);
-      }
-      .mark {
-        display: grid;
-        place-items: center;
-        width: 2.1rem;
-        height: 2.1rem;
-        border-radius: 50%;
-        color: white;
-        background: var(--teal);
-        font-weight: 900;
-      }
-      .warn .mark {
-        background: var(--amber);
-      }
-      .risk .mark {
-        background: var(--red);
-      }
-      .diagram {
-        margin: 1.25rem 0;
-        padding: clamp(1rem, 3vw, 2rem);
-        overflow-x: auto;
-      }
-      .authority-svg {
+
+      .big-fact b {
         display: block;
-        width: 100%;
-        min-width: 820px;
-        height: auto;
-      }
-      .authority-svg .box {
-        fill: #fffdf7;
-        stroke: #9fb6bb;
-        stroke-width: 2;
-        rx: 15;
-      }
-      .authority-svg .authority {
-        fill: #e0f2e8;
-        stroke: #197557;
-        stroke-width: 3;
-      }
-      .authority-svg .refuse {
-        fill: #fff0cf;
-        stroke: #bd7207;
-        stroke-width: 2;
-      }
-      .authority-svg .flow {
-        fill: none;
-        stroke: #087d78;
-        stroke-width: 3;
-        marker-end: url(#arrow);
-      }
-      .authority-svg .dash {
-        fill: none;
-        stroke: #aa4148;
-        stroke-width: 2;
-        stroke-dasharray: 7 6;
-        marker-end: url(#red-arrow);
-      }
-      .authority-svg text {
-        fill: #102f3e;
-        font-family: Inter, system-ui, sans-serif;
-        font-size: 14px;
-      }
-      .authority-svg .title {
-        font-size: 17px;
-        font-weight: 850;
-      }
-      .authority-svg .small {
-        fill: #586d76;
-        font-size: 12px;
-      }
-      .steps {
-        display: grid;
-        grid-template-columns: repeat(5, minmax(0, 1fr));
-        gap: 0.7rem;
-        margin: 1.2rem 0;
-        counter-reset: step;
-      }
-      .step {
-        position: relative;
-        min-height: 170px;
-        padding: 1.05rem;
-        border: 1px solid var(--line);
-        border-radius: 15px;
-        background: var(--card);
-        counter-increment: step;
-      }
-      .step::before {
-        content: counter(step);
-        display: grid;
-        place-items: center;
-        width: 1.75rem;
-        height: 1.75rem;
-        margin-bottom: 0.75rem;
-        border-radius: 50%;
-        color: white;
-        background: var(--teal);
-        font-weight: 900;
-      }
-      .step p {
-        margin: 0.4rem 0 0;
-        color: var(--muted);
-        font-size: 0.87rem;
-      }
-      .state-flow {
-        display: flex;
-        align-items: stretch;
-        gap: 0.55rem;
-        overflow-x: auto;
-        padding: 0.8rem 0;
-      }
-      .state {
-        flex: 1 0 145px;
-        padding: 0.9rem;
-        border: 1px solid var(--line);
-        border-radius: 13px;
-        background: var(--card);
-      }
-      .state strong {
-        display: block;
+        margin-bottom: 0.6rem;
         color: var(--teal);
-      }
-      .state small {
-        color: var(--muted);
-      }
-      .arrow {
-        display: grid;
-        place-items: center;
-        color: var(--teal);
-        font-size: 1.4rem;
-      }
-      .state.owner {
-        border-color: #dbc998;
-        background: var(--amber-soft);
-      }
-      .state.done {
-        border-color: #9fcbb7;
-        background: var(--green-soft);
-      }
-      .table-wrap {
-        overflow-x: auto;
-      }
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 0.86rem;
-      }
-      th, td {
-        padding: 0.85rem;
-        border-bottom: 1px solid var(--line);
-        text-align: left;
-        vertical-align: top;
-      }
-      th {
-        background: #e8f0ef;
-        font-size: 0.72rem;
-        letter-spacing: 0.07em;
-        text-transform: uppercase;
-      }
-      tr:last-child td {
-        border-bottom: 0;
-      }
-      .yes {
-        color: var(--green);
-        font-weight: 850;
-      }
-      .no {
-        color: var(--red);
-        font-weight: 850;
-      }
-      .limited {
-        color: var(--amber);
-        font-weight: 850;
-      }
-      .fact-pairs {
-        display: grid;
-        grid-template-columns: 1fr auto 1fr;
-        gap: 0.7rem;
-        align-items: center;
-        margin: 1rem 0;
-      }
-      .fact {
-        min-height: 115px;
-        padding: 1rem;
-        border: 1px solid var(--line);
-        border-radius: 14px;
-        background: var(--card);
-      }
-      .fact b {
-        display: block;
-        color: var(--teal);
-      }
-      .equals {
-        color: var(--teal);
+        font-family: "SFMono-Regular", Consolas, monospace;
         font-size: 1.7rem;
-        font-weight: 900;
       }
-      details {
-        margin-top: 0.8rem;
-        overflow: hidden;
-      }
-      summary {
-        padding: 1rem 1.15rem;
-        cursor: pointer;
-        font-weight: 850;
-        background: #e8f0ef;
-      }
-      details > div {
-        padding: 1rem 1.15rem;
-      }
-      .module-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 0.75rem;
-      }
-      .module {
-        padding: 0.9rem;
-        border: 1px solid var(--line);
-        border-radius: 12px;
-        background: #fff;
-      }
-      .module code {
-        display: block;
-        color: var(--teal);
-        font-weight: 800;
-      }
-      .module p {
-        margin: 0.4rem 0 0;
-        color: var(--muted);
-        font-size: 0.82rem;
-      }
-      .path-cloud {
+
+      .big-fact p {
         margin: 0;
         color: var(--muted);
-        font-size: 0.84rem;
       }
-      .path-cloud code {
-        color: var(--ink);
-      }
-      .test-stack {
+
+      .risk-strip {
         display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
-        gap: 1rem;
+        margin-top: 1rem;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        overflow: hidden;
+        grid-template-columns: repeat(3, 1fr);
       }
-      .test-level {
-        padding: 1.2rem;
-        border-radius: 16px;
-        color: white;
+
+      .risk {
+        padding: 0.9rem 1rem;
+        background: rgb(13 27 35 / 90%);
       }
-      .test-level:nth-child(1) {
-        background: #087d78;
+
+      .risk + .risk {
+        border-left: 1px solid var(--line);
       }
-      .test-level:nth-child(2) {
-        background: #176279;
-      }
-      .test-level:nth-child(3) {
-        background: #7053a2;
-      }
-      .test-level p {
-        margin-bottom: 0;
-        color: rgb(255 255 255 / 82%);
-      }
-      footer {
-        margin: 4rem 0 0;
-        padding: 2rem 0 4rem;
-        border-top: 1px solid var(--line);
-        color: var(--muted);
+
+      .risk strong {
+        display: block;
+        margin-bottom: 0.2rem;
+        color: var(--ink);
         font-size: 0.82rem;
       }
+
+      .risk span {
+        color: var(--muted);
+        font-size: 0.8rem;
+      }
+
+      .dot {
+        display: inline-block;
+        width: 0.58rem;
+        height: 0.58rem;
+        margin-right: 0.42rem;
+        border-radius: 50%;
+        background: var(--teal);
+        box-shadow: 0 0 0 4px rgb(76 224 202 / 10%);
+      }
+
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        margin: 1.4rem 0 1rem;
+        gap: 0.45rem;
+      }
+
+      .chip,
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        gap: 0.35rem;
+        padding: 0.28rem 0.58rem;
+        font-size: 0.72rem;
+        font-weight: 800;
+      }
+
+      .badge {
+        border: 0;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .new {
+        background: var(--teal-soft);
+        color: var(--teal);
+      }
+
+      .changed {
+        background: var(--purple-soft);
+        color: var(--purple);
+      }
+
+      .existing {
+        background: var(--grey-soft);
+        color: var(--muted);
+      }
+
+      .schema-map {
+        display: grid;
+        align-items: center;
+        margin-top: 1rem;
+        gap: 1rem;
+        grid-template-columns: minmax(0, 0.88fr) 150px minmax(0, 1.25fr);
+      }
+
+      .schema-stack {
+        display: grid;
+        gap: 0.55rem;
+      }
+
+      .down-arrow {
+        color: var(--muted);
+        text-align: center;
+        font-size: 1.4rem;
+        line-height: 1;
+      }
+
+      .table-box {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--panel);
+        padding: 1rem;
+      }
+
+      .table-box.authority {
+        border-color: rgb(76 224 202 / 45%);
+        background: linear-gradient(
+          155deg,
+          rgb(20 59 57 / 72%),
+          var(--panel)
+        );
+        box-shadow: var(--shadow);
+      }
+
+      .table-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.75rem;
+        gap: 0.6rem;
+      }
+
+      .table-head code {
+        color: var(--ink);
+        font-size: 0.98rem;
+        font-weight: 850;
+      }
+
+      .field-group {
+        display: grid;
+        gap: 0.32rem;
+      }
+
+      .field {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        border-top: 1px solid rgb(40 66 74 / 60%);
+        gap: 1rem;
+        padding-top: 0.32rem;
+        color: var(--muted);
+        font-size: 0.78rem;
+      }
+
+      .field code {
+        color: var(--ink);
+      }
+
+      .field em {
+        color: var(--muted);
+        font-style: normal;
+        text-align: right;
+      }
+
+      .logical-link {
+        position: relative;
+        color: var(--amber);
+        text-align: center;
+        font-family: "SFMono-Regular", Consolas, monospace;
+        font-size: 0.78rem;
+        font-weight: 850;
+      }
+
+      .logical-link::before {
+        display: block;
+        border-top: 2px dashed rgb(255 209 102 / 65%);
+        content: "";
+      }
+
+      .logical-link::after {
+        position: absolute;
+        top: -0.42rem;
+        right: -0.12rem;
+        content: "▶";
+      }
+
+      .logical-link span {
+        display: block;
+        margin-top: 0.45rem;
+      }
+
+      .schema-lower {
+        display: grid;
+        margin-top: 1rem;
+        gap: 1rem;
+        grid-template-columns: 1.35fr 0.65fr;
+      }
+
+      .confirmation-chain {
+        display: grid;
+        align-items: stretch;
+        gap: 0.55rem;
+        grid-template-columns: 1fr auto 1fr;
+      }
+
+      .chain-arrow {
+        display: grid;
+        color: var(--muted);
+        place-items: center;
+        font-size: 1.25rem;
+      }
+
+      .box-note {
+        margin: 0.7rem 0 0;
+        color: var(--muted);
+        font-size: 0.78rem;
+      }
+
+      .constraint-bar {
+        display: grid;
+        margin-top: 1rem;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--panel);
+        overflow: hidden;
+        grid-template-columns: repeat(4, 1fr);
+      }
+
+      .constraint {
+        padding: 0.85rem;
+        font-size: 0.76rem;
+      }
+
+      .constraint + .constraint {
+        border-left: 1px solid var(--line);
+      }
+
+      .constraint strong {
+        display: block;
+        margin-bottom: 0.18rem;
+        color: var(--teal);
+      }
+
+      .pipeline {
+        display: grid;
+        margin: 1.6rem 0 1rem;
+        gap: 0.42rem;
+        grid-template-columns: repeat(8, minmax(0, 1fr));
+      }
+
+      .pipe-step {
+        position: relative;
+        min-height: 126px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: var(--panel);
+        padding: 0.75rem;
+      }
+
+      .pipe-step:not(:last-child)::after {
+        position: absolute;
+        z-index: 2;
+        top: 48%;
+        right: -0.68rem;
+        color: var(--teal);
+        content: "→";
+        font-size: 1rem;
+        font-weight: 900;
+      }
+
+      .pipe-step b {
+        display: block;
+        margin-bottom: 0.38rem;
+        color: var(--teal);
+        font-family: "SFMono-Regular", Consolas, monospace;
+        font-size: 0.74rem;
+      }
+
+      .pipe-step strong {
+        display: block;
+        margin-bottom: 0.28rem;
+        font-size: 0.8rem;
+      }
+
+      .pipe-step span {
+        display: block;
+        color: var(--muted);
+        font-size: 0.7rem;
+        line-height: 1.4;
+      }
+
+      .state-panel {
+        display: grid;
+        margin-top: 1rem;
+        gap: 1rem;
+        grid-template-columns: 1.3fr 0.7fr;
+      }
+
+      .state-card,
+      .failure-card,
+      .privacy-card,
+      .proof-card,
+      .limit-card {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--panel);
+        padding: 1rem;
+      }
+
+      .state-track {
+        display: flex;
+        align-items: stretch;
+        margin: 0.8rem 0;
+        gap: 0.32rem;
+      }
+
+      .state {
+        display: grid;
+        flex: 1;
+        min-height: 68px;
+        border: 1px solid rgb(76 224 202 / 28%);
+        border-radius: 10px;
+        background: var(--teal-soft);
+        color: #d8fff9;
+        padding: 0.48rem;
+        place-items: center;
+        text-align: center;
+        font-family: "SFMono-Regular", Consolas, monospace;
+        font-size: 0.68rem;
+        font-weight: 800;
+      }
+
+      .state-arrow {
+        display: grid;
+        color: var(--muted);
+        place-items: center;
+      }
+
+      .side-states {
+        display: grid;
+        gap: 0.45rem;
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .side-state {
+        border-radius: 10px;
+        background: var(--amber-soft);
+        color: var(--amber);
+        padding: 0.58rem;
+        text-align: center;
+        font-family: "SFMono-Regular", Consolas, monospace;
+        font-size: 0.72rem;
+        font-weight: 800;
+      }
+
+      .axis-list {
+        display: grid;
+        margin-top: 0.8rem;
+        gap: 0.5rem;
+      }
+
+      .axis-item {
+        display: grid;
+        border-radius: 10px;
+        background: var(--purple-soft);
+        gap: 0.15rem;
+        padding: 0.58rem 0.7rem;
+        grid-template-columns: 88px 1fr;
+        color: var(--muted);
+        font-size: 0.74rem;
+      }
+
+      .axis-item code {
+        color: var(--purple);
+        font-weight: 850;
+      }
+
+      .failure-grid {
+        display: grid;
+        margin-top: 1rem;
+        gap: 0.55rem;
+        grid-template-columns: repeat(5, 1fr);
+      }
+
+      .failure-card {
+        padding: 0.82rem;
+      }
+
+      .failure-card strong {
+        display: block;
+        margin-bottom: 0.35rem;
+        color: var(--amber);
+        font-size: 0.76rem;
+      }
+
+      .failure-card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.72rem;
+      }
+
+      .provider-chips {
+        display: flex;
+        flex-wrap: wrap;
+        margin-top: 0.8rem;
+        gap: 0.45rem;
+      }
+
+      .provider-chips .chip {
+        background: var(--blue-soft);
+        color: var(--blue);
+      }
+
+      .bounds-grid {
+        display: grid;
+        margin: 1.4rem 0 1rem;
+        gap: 0.55rem;
+        grid-template-columns: repeat(6, 1fr);
+      }
+
+      .bound {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: var(--panel);
+        padding: 0.82rem;
+      }
+
+      .bound b {
+        display: block;
+        color: var(--teal);
+        font-family: "SFMono-Regular", Consolas, monospace;
+        font-size: 1.55rem;
+      }
+
+      .bound span {
+        display: block;
+        color: var(--muted);
+        font-size: 0.7rem;
+        line-height: 1.35;
+      }
+
+      .privacy-grid {
+        display: grid;
+        gap: 0.7rem;
+        grid-template-columns: repeat(4, 1fr);
+      }
+
+      .privacy-card {
+        min-height: 174px;
+        padding: 0.9rem;
+      }
+
+      .privacy-card .level {
+        display: inline-block;
+        margin-bottom: 0.6rem;
+        border-radius: 999px;
+        padding: 0.2rem 0.48rem;
+        font-family: "SFMono-Regular", Consolas, monospace;
+        font-size: 0.68rem;
+        font-weight: 850;
+      }
+
+      .privacy-card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.76rem;
+      }
+
+      .privacy-card.owner .level {
+        background: var(--teal-soft);
+        color: var(--teal);
+      }
+
+      .privacy-card.blind .level {
+        background: var(--blue-soft);
+        color: var(--blue);
+      }
+
+      .privacy-card.dbkey .level {
+        background: var(--purple-soft);
+        color: var(--purple);
+      }
+
+      .privacy-card.plain .level {
+        background: var(--amber-soft);
+        color: var(--amber);
+      }
+
+      .plain-callout {
+        margin-top: 1rem;
+        border-left: 3px solid var(--amber);
+        border-radius: 0 12px 12px 0;
+        background: var(--amber-soft);
+        color: #f7e8ba;
+        padding: 0.8rem 1rem;
+        font-size: 0.78rem;
+      }
+
+      .proof-stats {
+        display: grid;
+        margin: 1.4rem 0 1rem;
+        border: 1px solid rgb(76 224 202 / 35%);
+        border-radius: var(--radius);
+        background: var(--teal-soft);
+        overflow: hidden;
+        grid-template-columns: repeat(4, 1fr);
+      }
+
+      .proof-stat {
+        padding: 0.9rem;
+        text-align: center;
+      }
+
+      .proof-stat + .proof-stat {
+        border-left: 1px solid rgb(76 224 202 / 22%);
+      }
+
+      .proof-stat b {
+        display: block;
+        color: var(--teal);
+        font-family: "SFMono-Regular", Consolas, monospace;
+        font-size: 1.35rem;
+      }
+
+      .proof-stat span {
+        color: #bfddd8;
+        font-size: 0.7rem;
+      }
+
+      .proof-grid,
+      .limits-grid {
+        display: grid;
+        gap: 0.7rem;
+        grid-template-columns: repeat(4, 1fr);
+      }
+
+      .proof-card,
+      .limit-card {
+        padding: 0.9rem;
+      }
+
+      .proof-card strong,
+      .limit-card strong {
+        display: block;
+        margin-bottom: 0.35rem;
+        color: var(--ink);
+        font-size: 0.82rem;
+      }
+
+      .proof-card p,
+      .limit-card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.75rem;
+      }
+
+      .proof-caveat {
+        margin: 0.9rem 0 0;
+        color: var(--muted);
+        font-size: 0.76rem;
+      }
+
+      .limits-grid {
+        margin-top: 1.2rem;
+      }
+
+      .limit-card {
+        border-color: rgb(255 209 102 / 24%);
+        background: linear-gradient(145deg, var(--amber-soft), var(--panel));
+      }
+
+      footer {
+        margin-top: 4rem;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        padding-top: 1.2rem;
+        font-size: 0.72rem;
+      }
+
+      .footer-grid {
+        display: grid;
+        gap: 0.5rem 1rem;
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      footer p {
+        margin: 0.7rem 0 0;
+      }
+
       @media (max-width: 900px) {
-        .metrics, .grid-4, .steps {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
+        .read-three,
+        .risk-strip,
+        .schema-lower,
+        .state-panel,
+        .privacy-grid,
+        .proof-grid,
+        .limits-grid {
+          grid-template-columns: repeat(2, 1fr);
         }
-        .grid-3, .test-stack {
+
+        .risk:nth-child(3) {
+          border-top: 1px solid var(--line);
+          border-left: 0;
+          grid-column: 1 / -1;
+        }
+
+        .schema-map {
           grid-template-columns: 1fr;
         }
-      }
-      @media (max-width: 650px) {
-        .metrics, .grid-2, .grid-4, .steps, .module-grid {
-          grid-template-columns: 1fr;
+
+        .logical-link {
+          padding: 0.25rem 0;
         }
-        .fact-pairs {
-          grid-template-columns: 1fr;
+
+        .logical-link::before {
+          width: 2px;
+          height: 32px;
+          margin: auto;
+          border-top: 0;
+          border-left: 2px dashed rgb(255 209 102 / 65%);
         }
-        .equals {
+
+        .logical-link::after {
+          top: 1.5rem;
+          right: calc(50% - 0.37rem);
           transform: rotate(90deg);
-          text-align: center;
         }
-      }
-      @media print {
-        .topnav {
+
+        .constraint-bar,
+        .bounds-grid {
+          grid-template-columns: repeat(3, 1fr);
+        }
+
+        .constraint:nth-child(4) {
+          border-top: 1px solid var(--line);
+          border-left: 0;
+        }
+
+        .pipeline {
+          grid-template-columns: repeat(4, 1fr);
+        }
+
+        .pipe-step:nth-child(4)::after {
           display: none;
         }
-        body {
-          background: white;
+
+        .failure-grid {
+          grid-template-columns: repeat(3, 1fr);
         }
-        header, .card, .callout, .diagram, .table-wrap, details {
-          box-shadow: none;
+      }
+
+      @media (max-width: 620px) {
+        main {
+          width: min(100% - 1.2rem, 1120px);
+          padding-top: 2rem;
+        }
+
+        section {
+          margin-top: 4rem;
+        }
+
+        h1 {
+          font-size: clamp(2.45rem, 14vw, 4rem);
+        }
+
+        .read-three,
+        .risk-strip,
+        .schema-lower,
+        .privacy-grid,
+        .proof-grid,
+        .limits-grid,
+        .state-panel {
+          grid-template-columns: 1fr;
+        }
+
+        .risk + .risk,
+        .risk:nth-child(3) {
+          border-top: 1px solid var(--line);
+          border-left: 0;
+          grid-column: auto;
+        }
+
+        .confirmation-chain {
+          grid-template-columns: 1fr;
+        }
+
+        .chain-arrow {
+          transform: rotate(90deg);
+        }
+
+        .constraint-bar,
+        .bounds-grid,
+        .proof-stats {
+          grid-template-columns: repeat(2, 1fr);
+        }
+
+        .constraint:nth-child(3),
+        .proof-stat:nth-child(3) {
+          border-top: 1px solid var(--line);
+          border-left: 0;
+        }
+
+        .pipeline {
+          grid-template-columns: repeat(2, 1fr);
+        }
+
+        .pipe-step:nth-child(even)::after {
+          display: none;
+        }
+
+        .pipe-step:nth-child(4)::after {
+          display: none;
+        }
+
+        .failure-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .state-track {
+          display: grid;
+          grid-template-columns: 1fr;
+        }
+
+        .state-arrow {
+          transform: rotate(90deg);
+        }
+
+        .footer-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media print {
+        :root {
+          color-scheme: light;
+          --bg: #fff;
+          --panel: #f7faf9;
+          --panel-2: #edf5f3;
+          --ink: #102326;
+          --muted: #40585b;
+          --line: #bfd0ce;
+          --teal-soft: #e2f6f2;
+          --purple-soft: #f0ecff;
+          --amber-soft: #fff7db;
+          --blue-soft: #eaf3ff;
+          --grey-soft: #edf1f1;
+        }
+
+        body {
+          background: #fff;
+          font-size: 10pt;
+        }
+
+        .topbar {
+          display: none;
+        }
+
+        main {
+          width: 100%;
+          padding: 0;
+        }
+
+        section {
+          margin-top: 2rem;
           break-inside: avoid;
         }
-        section {
-          break-before: auto;
+
+        .big-fact,
+        .table-box {
+          box-shadow: none;
+        }
+
+        a {
+          color: #075e55;
         }
       }
     </style>
   </head>
   <body>
-    <nav class="topnav" aria-label="Report sections">
-      <a href="#change">Change</a><a href="#merge-risk">Merge risk</a><a
-        href="#authority"
-      >Authority</a><a href="#journeys">Journeys</a><a href="#evidence"
-      >Evidence</a><a href="#safety">Safety</a><a href="#privacy">Privacy</a><a
-        href="#people"
-      >People</a><a href="#speed">Limits</a><a href="#providers">Providers</a><a
-        href="#proof"
-      >Proof</a><a href="#map">Source map</a><a href="#limits">Boundaries</a>
-    </nav>
+    <div class="topbar">
+      <nav aria-label="Document sections">
+        <a href="#summary">Summary</a>
+        <a href="#data-model">Data model</a>
+        <a href="#flow">Data flow</a>
+        <a href="#bounds">Bounds &amp; privacy</a>
+        <a href="#proof">Test signal</a>
+        <a href="#limits">Limits</a>
+      </nav>
+    </div>
+
     <main>
-      <header>
-        <p class="eyebrow">
-          M4 Part A · final source review compared with origin/main
-        </p>
-        <h1>One charge. One refund authority. No guessing.</h1>
+      <header id="summary">
+        <span class="hero-note">PR4-A · five-minute technical read</span>
+        <p class="eyebrow">The useful mental model</p>
+        <h1>A provider charge is now the unit of refund truth.</h1>
         <p class="lede">
-          This branch turns refunds from a collection of route-level guesses
-          into one evidence-led process. Every actual refund send, and every
-          admitted provider-tagged callback target once captured Money is
-          trustworthy, meets at the same durable charge record. A provider
-          refund send can happen only after that record authorizes an exact
-          generation, and returned money remains visible until the local books
-          catch up.
+          The large diff replaces route-local guesses with one durable,
+          revisioned charge record. Attendee rows coordinate work; the charge
+          record decides whether money may move.
         </p>
-        <div class="snapshot" data-snapshot="final">
-          <span data-finalize="base"><strong>base</strong> <code
-            >470b47efef0836487d55beb8a26442dd432f6f35</code></span>
-          <span data-finalize="branch-head"><strong>source checkpoint</strong>
-            <code>a3789975d81ceaf827b33da2bc7489499bf0a922</code></span>
-          <span data-finalize="working-state"><strong>report state</strong>
-            <code>source fixed; documentation finalized afterward</code></span>
-          <span data-finalize="source-fingerprint"><strong>source
-              fingerprint</strong> <code
-            >f74f77215e7478cce00f105fa9524edc89b39b1b4470e16a758e4a34092530ce</code></span>
-          <span data-finalize="generated"><strong>generated</strong> <code
-            >2026-08-14T09:56:27+01:00</code></span>
-          <span data-finalize="scope"><strong>scope</strong>
-            <code>origin/main...source checkpoint</code></span>
+
+        <div class="read-three" aria-label="If you read only three things">
+          <article class="big-fact">
+            <b>01 · one authority</b>
+            <h3><code>payment_charges</code> owns provider truth</h3>
+            <p>
+              Provider identity, exact Money, send generation, evidence, local
+              recording and recovery state live together.
+            </p>
+          </article>
+          <article class="big-fact">
+            <b>02 · persist first</b>
+            <h3>The send is armed before network I/O</h3>
+            <p>
+              A crash can leave uncertainty, but never an invisible permission
+              to send the same keyless refund again.
+            </p>
+          </article>
+          <article class="big-fact">
+            <b>03 · two facts</b>
+            <h3>Cash returned ≠ ledger recorded</h3>
+            <p>
+              Provider completion and local accounting retire separately, so a
+              failed ledger write cannot erase returned money.
+            </p>
+          </article>
         </div>
-        <div class="metrics">
-          <div class="metric" data-finalize="source-paths">
-            <b>210</b><span>source paths changed</span>
+
+        <div class="risk-strip" aria-label="The three merge concerns">
+          <div class="risk">
+            <strong><span class="dot"></span>Silent booking errors</strong>
+            <span>Recover only from matching stored facts; otherwise
+              rethrow.</span>
           </div>
-          <div class="metric" data-finalize="source-added">
-            <b>+16758</b><span>source lines added</span>
+          <div class="risk">
+            <strong><span class="dot"></span>Population decryption</strong>
+            <span>Refund All decrypts 0 on GET and at most 1 on POST.</span>
           </div>
-          <div class="metric" data-finalize="source-removed">
-            <b>−3912</b><span>source lines removed</span>
+          <div class="risk">
+            <strong><span class="dot"></span>DB-key privacy</strong>
+            <span>New PII and raw references require the owner key.</span>
           </div>
-          <div class="metric">
-            <b>1</b><span>canonical provider-refund authority</span>
-          </div>
-        </div>
-        <div class="callout good" data-finalize="snapshot-note">
-          <span class="mark">✓</span><p>
-            <strong>Verified values:</strong> the explanation, source totals,
-            fingerprint, and test totals describe the committed source
-            checkpoint. The plan and these reports were finalized afterward;
-            those documentation-only edits do not alter the source comparison.
-          </p>
         </div>
       </header>
 
-      <section id="change">
-        <p class="eyebrow">01 · The change in one screen</p>
-        <h2>Refund state is now a stored fact, not a route’s memory.</h2>
+      <section id="data-model">
+        <p class="section-number">01 · the schema is the design</p>
+        <h2>Two state owners, joined by a blind identity.</h2>
         <p class="section-lede">
-          The old code could ask a configured provider a yes/no question and
-          then try to infer what to do. The new code carries provider identity,
-          exact Money, explicit failure meanings, a durable generation,
-          local-accounting status, and the human action needed when evidence
-          cannot decide.
+          <code>processed_payments</code> coordinates attendee work.
+          <code>payment_charges</code> owns irreversible provider work. The join
+          is application identity—not a database foreign key.
         </p>
-        <div class="grid-2">
-          <article class="card before">
-            <span class="label">Before</span><h3>Several partial stories</h3>
-            <ul class="plain-list">
-              <li>
-                The currently selected provider stood in for charge ownership.
-              </li>
-              <li>
-                “Refunded?” collapsed returned amount, pending work, errors, and
-                absence.
-              </li>
-              <li>
-                Single, bulk, refresh, and callback paths could make adjacent
-                decisions.
-              </li>
-              <li>
-                Human-readable notes and attendee rows carried too much safety
-                meaning.
-              </li>
-              <li>
-                A provider success followed by a local failure was hard to
-                resume exactly.
-              </li>
-            </ul>
-          </article>
-          <article class="card after">
-            <span class="label">Now</span><h3>One evidence-led story</h3>
-            <ul class="plain-list">
-              <li>
-                Every charge admitted to the new refund authority is
-                provider-qualified and blind-indexed.
-              </li>
-              <li>
-                Provider adapters return captured Money, returned Money, events,
-                and typed failures.
-              </li>
-              <li>
-                <code>payment_charges</code> owns the one irreversible refund
-                lifecycle.
-              </li>
-              <li>
-                Short attendee-row claims fence local records while admin work
-                runs.
-              </li>
-              <li>
-                Provider return and local Money recording are separate durable
-                facts.
-              </li>
-            </ul>
+
+        <div class="legend" aria-label="Diagram legend">
+          <span class="chip">🔐 owner-key ciphertext</span>
+          <span class="chip"># blind HMAC identity</span>
+          <span class="chip">◇ queryable state mirror</span>
+          <span class="chip">↻ revision-fenced fact</span>
+        </div>
+
+        <div class="schema-map">
+          <div class="schema-stack">
+            <article class="table-box">
+              <div class="table-head">
+                <code>attendees</code><span class="badge existing"
+                >existing</span>
+              </div>
+              <div class="field-group">
+                <div class="field"><code>id</code><em>person identity</em></div>
+                <div class="field">
+                  <code>pii_blob</code><em>🔐 PII + opaque revision fence</em>
+                </div>
+              </div>
+            </article>
+            <div class="down-arrow" aria-hidden="true">↓ 1:N</div>
+            <article class="table-box">
+              <div class="table-head">
+                <code>processed_payments</code><span class="badge changed"
+                >changed</span>
+              </div>
+              <div class="field-group">
+                <div class="field">
+                  <code>payment_session_id</code><em>session anchor</em>
+                </div>
+                <div class="field">
+                  <code>attendee_id</code><em>attendee representation</em>
+                </div>
+                <div class="field">
+                  <code>payment_reference</code><em>🔐 raw reference</em>
+                </div>
+                <div class="field">
+                  <code>payment_reference_index</code><em># deliberately
+                    non-unique</em>
+                </div>
+                <div class="field">
+                  <code>failure_data</code><em>encrypted row-work envelope</em>
+                </div>
+                <div class="field">
+                  <code>protected_state</code><em>◇ narrow SQL mirror</em>
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <div class="logical-link">
+            <span># reference identity<br>logical join · no FK</span>
+          </div>
+
+          <article class="table-box authority">
+            <div class="table-head">
+              <code>payment_charges</code><span class="badge new"
+              >rebuilt authority</span>
+            </div>
+            <div class="field-group">
+              <div class="field">
+                <code>provider</code><em>Stripe · Square · SumUp</em>
+              </div>
+              <div class="field">
+                <code>provider_reference</code><em>🔐 raw charge identity</em>
+              </div>
+              <div class="field">
+                <code>reference_index</code><em># globally unique</em>
+              </div>
+              <div class="field">
+                <code>callback_replay_index</code><em># optional unique
+                  replay</em>
+              </div>
+              <div class="field">
+                <code>capability</code><em>keyed · keyless</em>
+              </div>
+              <div class="field">
+                <code>captured/refunded + currency</code><em>exact Money</em>
+              </div>
+              <div class="field">
+                <code>refund_state</code><em>validated lifecycle JSON</em>
+              </div>
+              <div class="field">
+                <code>state/local/due mirrors</code><em>◇ indexed work
+                  queues</em>
+              </div>
+              <div class="field">
+                <code>refund_revision</code><em>↻ compare-and-swap</em>
+              </div>
+            </div>
           </article>
         </div>
-        <div class="callout">
-          <span class="mark">!</span><p>
-            <strong>The key design choice:</strong> <code
-            >processed_payments</code> does not pretend to be the provider-send
-            authority. It holds a short <code>claim</code> fence and local <code
-            >review</code>/<code>unrecorded</code> work. The globally unique
-            charge in <code>payment_charges</code> owns send generation, replay
-            rules, observation, owner choice, provider completion, and whether
-            local accounting is still due.
-          </p>
+
+        <div class="schema-lower">
+          <div class="confirmation-chain">
+            <article class="table-box">
+              <div class="table-head">
+                <code>refund_confirmations</code><span class="badge new"
+                >new</span>
+              </div>
+              <p class="box-note">
+                One replay-safe identity for <code>HMAC(attendee + sorted exact
+                  reference set)</code>.
+              </p>
+            </article>
+            <div class="chain-arrow" aria-hidden="true">→</div>
+            <article class="table-box">
+              <div class="table-head">
+                <code>refund_confirmation_references</code><span
+                  class="badge new"
+                >new</span>
+              </div>
+              <p class="box-note">
+                Queryable member indexes make the confirmed set exact, not a
+                prose note.
+              </p>
+            </article>
+          </div>
+
+          <article class="table-box">
+            <div class="table-head">
+              <code>system_notes</code><span class="badge changed"
+              >changed</span>
+            </div>
+            <p class="box-note">
+              An opaque entity-unique <code>system_name</code> lets app notes
+              replay or retire without decrypting and scanning encrypted note
+              history.
+            </p>
+          </article>
+        </div>
+
+        <div class="constraint-bar" aria-label="Database-enforced invariants">
+          <div class="constraint">
+            <strong>Unique authority</strong>
+            One charge identity and one callback replay identity.
+          </div>
+          <div class="constraint">
+            <strong>Mirrors must agree</strong>
+            SQL checks correlate JSON kind, local state, due time and
+            capability.
+          </div>
+          <div class="constraint">
+            <strong>No invented migration</strong>
+            Rebuild refuses if the old charge table unexpectedly contains rows.
+          </div>
+          <div class="constraint">
+            <strong>Work-only indexes</strong>
+            Partial indexes expose live/due work without decrypting everything.
+          </div>
         </div>
       </section>
 
-      <section id="merge-risk">
-        <p class="eyebrow">02 · The three merge-risk questions</p>
-        <h2>The risky failure modes have named gates and direct proof.</h2>
+      <section id="flow">
+        <p class="section-number">02 · one fenced data flow</p>
+        <h2>Every entrance reaches the same decision boundary.</h2>
         <p class="section-lede">
-          This is the short merge decision. Each concern is answered by a
-          bounded construction in <code>src/</code> and a regression test that
-          exercises the real failure, not by a comment or an assumed calling
-          convention.
+          Single, Refund All, Refresh and callbacks prepare different evidence.
+          They do not own different refund engines.
         </p>
-        <div class="grid-3">
-          <article class="card after">
-            <span class="label">Booking errors</span><h3>
-              No silent catch-and-continue
-            </h3>
-            <p>
-              An uncertain atomic booking write is reread from primary state.
-              Matching payment and ticket facts recover the booking; a proved
-              rollback creates the protected quantity-zero record and enters the
-              canonical refund path; every ambiguous or contradictory shape
-              rethrows the original error. Placeholder creation also commits its
-              indexed claim and a conservative handled session outcome in the
-              same transaction. If the commit reply is lost, the error still
-              propagates, but a later delivery replays that outcome instead of
-              creating a second attendee or sending money again. The proof is
-              <code>recovery.test.ts</code>, <code
-              >recovery-decision.test.ts</code>, the webhook post-commit
-              recovery suite, and the lost-placeholder- reply regression in
-              <code>index/refunds.test.ts</code>.
-            </p>
+
+        <div class="pipeline" aria-label="Refund pipeline">
+          <div class="pipe-step">
+            <b>01</b><strong>Enter</strong><span>single · bulk · refresh ·
+              callback</span>
+          </div>
+          <div class="pipe-step">
+            <b>02</b><strong>Name target</strong><span>tagged provider + exact
+              reference</span>
+          </div>
+          <div class="pipe-step">
+            <b>03</b><strong>Read</strong><span>found · missing · unavailable ·
+              invalid</span>
+          </div>
+          <div class="pipe-step">
+            <b>04</b><strong>Judge</strong><span>captured, returned, pending,
+              capability</span>
+          </div>
+          <div class="pipe-step">
+            <b>05</b><strong>Fence</strong><span>exact rows + attendee +
+              authority revision</span>
+          </div>
+          <div class="pipe-step">
+            <b>06</b><strong>Arm</strong><span>persist generation before
+              I/O</span>
+          </div>
+          <div class="pipe-step">
+            <b>07</b><strong>Attempt</strong><span>completed · accepted ·
+              rejected · not_sent · uncertain</span>
+          </div>
+          <div class="pipe-step">
+            <b>08</b><strong>Finish</strong><span>persist fact → ledger → settle
+              exact claim</span>
+          </div>
+        </div>
+
+        <div class="state-panel">
+          <article class="state-card">
+            <h3>Charge authority: provider and ledger progress</h3>
+            <div class="state-track" aria-label="Main refund authority states">
+              <div class="state">ready</div>
+              <div class="state-arrow">→</div>
+              <div class="state">send_armed</div>
+              <div class="state-arrow">→</div>
+              <div class="state">observing</div>
+              <div class="state-arrow">→</div>
+              <div class="state">completed<br>local: due</div>
+              <div class="state-arrow">→</div>
+              <div class="state">completed<br>local: recorded</div>
+            </div>
+            <div class="side-states">
+              <div class="side-state">
+                needs_provider_check<br>partial / inconclusive
+              </div>
+              <div class="side-state">
+                needs_owner_choice<br>genuine binary decision
+              </div>
+            </div>
           </article>
-          <article class="card after">
-            <span class="label">Performance</span><h3>
-              Refund All decrypts at most one attendee
-            </h3>
-            <p>
-              <code>getRefundAllSummary</code> checks the complete listing with
-              no <code>pii_blob</code>. <code>loadRefundAllBatch</code> applies
-              <code>LIMIT 1</code> before selecting that one encrypted blob, and
-              only then does the route decrypt it. One attendee may expose at
-              most ten indexed references; an eleventh produces a typed refusal
-              before any reference decrypt or provider call. A claim may also
-              encounter rows belonging to other attendees with the same blind
-              reference: that lookup stops at the 101st row and refuses above
-              the 100-row ceiling before decrypting shared state or writing a
-              claim. Both SQL bounds are pinned by integration tests.
-            </p>
-          </article>
-          <article class="card after">
-            <span class="label">Database privacy</span><h3>
-              New raw references are beyond the DB key
-            </h3>
-            <p>
-              New reference writers create <code>hyb:1</code> owner-public-key
-              ciphertext and a DB-keyed HMAC for equality. <code
-              >payment_charges</code> also has a storage check that rejects
-              anything outside that envelope. A database plus <code
-              >DB_ENCRYPTION_KEY</code> can see operational metadata, but cannot
-              open these new raw references. Storage, schema, and owner-only
-              detail tests pin the boundary; provider credentials and dormant v1
-              owner keys remain the explicit caveats below.
-            </p>
+
+          <article class="state-card">
+            <h3>Attendee row: short-lived coordination</h3>
+            <div class="axis-list">
+              <div class="axis-item">
+                <code>claim</code><span>blocks delete + merge; exact run owns
+                  it</span>
+              </div>
+              <div class="axis-item">
+                <code>review</code><span>blocks delete; requires the owner's
+                  decision</span>
+              </div>
+              <div class="axis-item">
+                <code>unrecorded</code><span>blocks delete; Money is ahead of
+                  books</span>
+              </div>
+              <div class="axis-item">
+                <code>outcome</code><span>terminal callback result; blocks
+                  nothing</span>
+              </div>
+            </div>
           </article>
         </div>
-        <div class="callout">
-          <span class="mark">✓</span><p>
-            <strong>Merge reading:</strong> the branch materially closes these
-            three risks for its new refund records and refund workflow. It does
-            not claim that all historical payment fields have already migrated,
-            or that possession of provider credentials cannot expose
-            provider-held data.
-          </p>
+
+        <div class="failure-grid" aria-label="Failure semantics">
+          <article class="failure-card">
+            <strong>Crash after arm</strong>
+            <p>Possibly sent. Observe before any replay.</p>
+          </article>
+          <article class="failure-card">
+            <strong>Provider returned; ledger failed</strong>
+            <p>Charge stays completed/local due; repair remains reachable.</p>
+          </article>
+          <article class="failure-card">
+            <strong>Concurrent writer</strong>
+            <p>CAS loser rereads the winning revision.</p>
+          </article>
+          <article class="failure-card">
+            <strong>Malformed success</strong>
+            <p><code>invalid</code>; never converted into send permission.</p>
+          </article>
+          <article class="failure-card">
+            <strong>Partial evidence</strong>
+            <p>Provider check—not a fake yes/no owner choice.</p>
+          </article>
+        </div>
+
+        <div class="provider-chips" aria-label="Provider retry capabilities">
+          <span class="chip"><strong>Stripe</strong> keyed · bounded
+            replay</span>
+          <span class="chip"><strong>Square</strong> keyed · arm is the replay
+            boundary</span>
+          <span class="chip"><strong>SumUp</strong> keyless · never automatic
+            replay</span>
+          <span class="chip"><strong>Roles</strong> manager observes · owner
+            sends/decides</span>
         </div>
       </section>
 
-      <section id="authority">
-        <p class="eyebrow">03 · Canonical authority</p>
-        <h2>Every doorway reaches the same charge-level state machine.</h2>
+      <section id="bounds">
+        <p class="section-number">03 · cost and disclosure are explicit</p>
+        <h2>Bound first. Decrypt second.</h2>
         <p class="section-lede">
-          Single Refund, Refund All, Refresh, and paid-callback recovery do not
-          own parallel refund engines. They prepare different evidence, then
-          call the same provider-refund authority. The adapters cannot be called
-          with an ordinary amount or reference; they require the permit minted
-          by this path.
+          Large-set questions use indexes and state mirrors. Sensitive detail is
+          opened only after the request has selected one bounded target.
         </p>
-        <div
-          class="diagram"
-          role="img"
-          aria-label="Admin and callback entries flow through provider-qualified evidence into one payment-charges authority, then provider adapters and local accounting"
-        >
-          <svg
-            class="authority-svg"
-            viewBox="0 0 1100 520"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <defs>
-              <marker
-                id="arrow"
-                viewBox="0 0 10 10"
-                refX="9"
-                refY="5"
-                markerWidth="7"
-                markerHeight="7"
-                orient="auto-start-reverse"
-              >
-                <path d="M 0 0 L 10 5 L 0 10 z" fill="#087d78" />
-              </marker>
-              <marker
-                id="red-arrow"
-                viewBox="0 0 10 10"
-                refX="9"
-                refY="5"
-                markerWidth="7"
-                markerHeight="7"
-                orient="auto-start-reverse"
-              >
-                <path d="M 0 0 L 10 5 L 0 10 z" fill="#aa4148" />
-              </marker>
-            </defs>
-            <rect class="box" x="25" y="35" width="210" height="90" />
-            <text class="title" x="45" y="65">Owner admin routes</text>
-            <text x="45" y="90">single · Refund All</text>
-            <text x="45" y="110">owner recovery</text>
-            <rect class="box" x="25" y="160" width="210" height="90" />
-            <text class="title" x="45" y="190">Staff observation</text>
-            <text x="45" y="215">Payment Refresh</text>
-            <text class="small" x="45" y="235">cannot mint a send</text>
-            <rect class="box" x="25" y="285" width="210" height="90" />
-            <text class="title" x="45" y="315">Buyer callback</text>
-            <text x="45" y="340">validated paid charge</text>
-            <text class="small" x="45" y="360">signed + provider-read</text>
-            <rect class="refuse" x="25" y="410" width="210" height="75" />
-            <text class="title" x="45" y="440">Old unqualified ID</text>
-            <text x="45" y="463">refuse before provider I/O</text>
-            <rect class="box" x="330" y="105" width="230" height="210" />
-            <text class="title" x="352" y="137">Exact target</text>
-            <text x="352" y="166">provider + raw reference</text>
-            <text x="352" y="190">blind reference identity</text>
-            <text x="352" y="214">captured / returned Money</text>
-            <text x="352" y="238">send or observe-only mode</text>
-            <text x="352" y="262">callback replay identity</text>
-            <text class="small" x="352" y="292">all schemas fail closed</text>
-            <rect class="authority" x="650" y="90" width="280" height="250" />
-            <text class="title" x="674" y="124">payment_charges</text>
-            <text x="674" y="153">one row per provider charge</text>
-            <text x="674" y="182">generation + capability</text>
-            <text x="674" y="207">ready / armed / observing</text>
-            <text x="674" y="232">
-              completed / owner choice / provider check
-            </text>
-            <text x="674" y="257">provider Money + local status</text>
-            <text x="674" y="282">revision-fenced transitions</text>
-            <text class="small" x="674" y="316">
-              one boundary: identity + state writers
-            </text>
-            <rect class="box" x="830" y="400" width="245" height="85" />
-            <text class="title" x="852" y="432">Provider adapter</text>
-            <text x="852" y="456">accepts only typed permit</text>
-            <text class="small" x="852" y="476">Stripe · Square · SumUp</text>
-            <rect class="box" x="485" y="400" width="245" height="85" />
-            <text class="title" x="507" y="432">Local Money ledger</text>
-            <text x="507" y="456">record exact returned charge</text>
-            <text class="small" x="507" y="476">then retire local “due”</text>
-            <path class="flow" d="M235 80 C280 80 280 155 330 155" />
-            <path class="flow" d="M235 205 C285 205 285 205 330 205" />
-            <path class="flow" d="M235 330 C280 330 280 255 330 255" />
-            <path class="dash" d="M235 447 C370 447 300 315 330 290" />
-            <path class="flow" d="M560 205 L650 205" />
-            <path class="flow" d="M790 340 C790 385 875 375 900 400" />
-            <path class="flow" d="M830 442 C780 442 775 315 790 340" />
-            <path class="flow" d="M650 300 C610 345 605 365 605 400" />
-            <path class="flow" d="M730 442 C760 440 750 340 750 340" />
-          </svg>
-        </div>
-        <div class="grid-3">
-          <article class="card">
-            <span class="label">Fact owner</span><h3>
-              <code>payment_charges</code>
-            </h3>
-            <p>
-              Provider-qualified identity is globally unique. State JSON, plain
-              SQL mirrors, due time, Money, capability, and revision must agree.
-            </p>
-          </article>
-          <article class="card">
-            <span class="label">Temporary fence</span><h3>
-              <code>processed_payments</code>
-            </h3>
-            <p>
-              Admin work claims the exact attendee revisions and every indexed
-              representation. It keeps local review or books-behind work, not
-              provider generations.
-            </p>
-          </article>
-          <article class="card">
-            <span class="label">One permit</span><h3>
-              <code>AuthorizedRefundRequest</code>
-            </h3>
-            <p>
-              Only the durable engine can mint it; provider adapters require it.
-              This makes bypassing the authority a type and architecture
-              failure.
-            </p>
-          </article>
-        </div>
-        <div class="callout">
-          <span class="mark">1</span><p>
-            <strong>Canonical means there is no runtime bridge beside
-              it.</strong> <code>provider-refunds/send.ts</code> owns the only
-            arm/send/replay path and the only production import that can mint a
-            provider refund permit. Two repository modules form the one <code
-            >payment_charges</code> writer boundary: one creates/binds identity,
-            and one owns every Money/state transition. The architecture test
-            rejects a third writer. The old refund-local sender, discovery
-            fallback, read-through admission helper, and live <code
-            >provider_refunded_at</code> reader are absent; the same test fails
-            if any returns. Every refund-facing adapter load passes the complete
-            <code>TaggedPaymentReference</code> through <code
-            >loadRefundProvider</code>, which loads only the tagged provider and
-            verifies the match. The same gate rejects current/last-provider
-            selectors, provider-state lookup, credential enumeration, raw
-            provider loading, and direct adapter imports in refund-facing code.
-            The temporary checkout-session selector is not a refund fallback: an
-            exact allowlist confines <code
-            >getPaymentProviderForExistingPayments</code> to <code
-            >classify.ts</code>, <code>webhooks.ts</code>, and its declaration
-            in
-            <code>payments.ts</code>. It cannot enter admin refunds, the shared
-            engine, or a provider adapter.
-          </p>
-        </div>
-      </section>
 
-      <section id="journeys">
-        <p class="eyebrow">04 · Real workflows</p>
-        <h2>Four entrances; one safe middle.</h2>
-        <h3>Owner sends a single refund</h3>
-        <div class="steps">
-          <article class="step">
-            <h3>Load exact person</h3>
-            <p>
-              Owner-only route decrypts that attendee, loads every usable
-              indexed charge, and refuses an incomplete or over-large set.
-            </p>
-          </article>
-          <article class="step">
-            <h3>Price and claim</h3>
-            <p>
-              The route proves the complete operation fits, then transactionally
-              fences attendee revisions and all matching rows.
-            </p>
-          </article>
-          <article class="step">
-            <h3>Read the charge</h3>
-            <p>
-              The provider tagged on the stored reference—and no provider
-              selected from current settings—returns captured and returned Money
-              or one explicit missing/unavailable/invalid answer.
-            </p>
-          </article>
-          <article class="step">
-            <h3>Authorize and act</h3>
-            <p>
-              The charge authority decides whether to send, observe, reuse an
-              answer, or require the owner.
-            </p>
-          </article>
-          <article class="step">
-            <h3>Post and settle</h3>
-            <p>
-              Returned Money is posted by exact reference. Charge-local and
-              attendee-local work retire only after their own proof.
-            </p>
-          </article>
-        </div>
-        <h3>Owner chooses Refund All</h3>
-        <div class="grid-3">
-          <article class="card">
-            <span class="label">Whole set</span><h3>
-              PII-free safety summary first
-            </h3>
-            <p>
-              SQL counts the complete refundable listing set and detects old
-              unindexed history, review, books-behind Money, or live provider
-              work before a person is opened.
-            </p>
-          </article>
-          <article class="card">
-            <span class="label">One page</span><h3>
-              One attendee per submission
-            </h3>
-            <p>
-              The current Bunny request budget proves one attendee’s complete
-              set, so the page loads and decrypts exactly one candidate. Another
-              submission takes the next.
-            </p>
-          </article>
-          <article class="card">
-            <span class="label">Same engine</span><h3>No bulk shortcut</h3>
-            <p>
-              The selected person goes through the same exact reference load,
-              claim, provider authority, ledger, and settlement path as Single
-              Refund.
-            </p>
-          </article>
-        </div>
-        <h3 style="margin-top: 2rem">Manager chooses Refresh</h3>
-        <div class="callout">
-          <span class="mark">↻</span><p>
-            <strong>Refresh is observation and repair, not permission to
-              send.</strong> It takes the same exact row claim, reads the named
-            providers, observes returned or pending work, posts known returns,
-            and retires clean review facts. Its target mode cannot mint a new
-            provider send. Fresh full proof may retire an ordinary owner
-            ambiguity. Fresh partial, backward, or otherwise inconclusive Money
-            instead moves that ambiguity to <code>needs_provider_check</code>,
-            raises the stored returned-money floor when justified, and advances
-            the revision so an older “not sent” form cannot be used. A manager
-            supplies no judgment and cannot send again.
-          </p>
-        </div>
-        <h3>Buyer callback needs an automatic refund</h3>
-        <div class="grid-2">
-          <article class="card">
-            <h3>Evidence already names the charge</h3>
-            <p>
-              The validated callback carries its provider, captured Money,
-              session, and provider-qualified payment reference. Callback replay
-              is bound to the same charge authority before any send.
-            </p>
-          </article>
-          <article class="card">
-            <h3>Placeholder stays fenced until fully recorded</h3>
-            <p>
-              When booking cannot be fulfilled, the attendee, zero-quantity
-              booking, owner-key reference anchor, and an exact row claim are
-              written atomically. The exact claimed anchor returned by that
-              insert is carried through provider refund, Money ledger,
-              charge-authority retirement, activity, and note writes; it is
-              never regenerated from the attendee ID. Only its matching
-              settlement releases it after every step succeeds, so any earlier
-              failure leaves a protected repair target.
-            </p>
-          </article>
-        </div>
-      </section>
-
-      <section id="evidence">
-        <p class="eyebrow">05 · Evidence vocabulary</p>
-        <h2>
-          The code keeps answers apart until they really mean the same thing.
-        </h2>
-        <div class="fact-pairs">
-          <div class="fact">
-            <b>Captured Money</b>Minor units plus three-letter currency,
-            validated at the provider boundary.
+        <div class="bounds-grid" aria-label="Operational bounds">
+          <div class="bound">
+            <b>0</b><span>attendee decryptions on Refund All GET</span>
           </div>
-          <div class="equals">+</div>
-          <div class="fact">
-            <b>Refund observations</b>Completed, pending, or failed events plus
-            an authoritative cumulative returned total.
+          <div class="bound">
+            <b>≤1</b><span>attendee decrypted per Refund All POST</span>
+          </div>
+          <div class="bound">
+            <b>10</b><span>references allowed per attendee</span>
+          </div>
+          <div class="bound">
+            <b>100</b><span>shared holders; row 101 refuses first</span>
+          </div>
+          <div class="bound">
+            <b>5</b><span>concurrent provider calls</span>
+          </div>
+          <div class="bound">
+            <b>20</b><span>IDs per keyset-paged recovery list</span>
           </div>
         </div>
-        <div class="grid-4">
-          <article class="card">
-            <h3>Ready</h3>
-            <p>
-              Captured Money is valid, nothing is pending, and no returned
-              amount or contradiction blocks a send.
-            </p>
-          </article>
-          <article class="card">
-            <h3>Already returned</h3>
-            <p>
-              Returned Money exactly equals captured Money. No second send is
-              attempted.
-            </p>
-          </article>
-          <article class="card">
-            <h3>In flight</h3>
-            <p>
-              A supported pending refund is visible. The engine observes; it
-              does not stack another request beside it.
-            </p>
-          </article>
-          <article class="card">
-            <h3>Conflict</h3>
-            <p>
-              Partial return, over-return, several pending refunds, or changed
-              captured Money becomes a typed provider check. It cannot be
-              squeezed into a false owner answer.
-            </p>
-          </article>
-        </div>
-        <h3 style="margin-top: 2rem">Provider reads are total</h3>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Answer</th>
-                <th>Meaning</th>
-                <th>May send?</th>
-                <th>What survives</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><code>found</code></td>
-                <td>Validated charge evidence with exact Money.</td>
-                <td class="limited">Only if the common judge says ready.</td>
-                <td>The observed evidence and durable authority revision.</td>
-              </tr>
-              <tr>
-                <td><code>missing</code></td>
-                <td>
-                  The named provider explicitly says this charge is absent.
-                </td>
-                <td class="no">No.</td>
-                <td>
-                  A ready durable case opens <code>provider_unreadable</code>
-                  owner choice immediately; there is no provider guessing.
-                </td>
-              </tr>
-              <tr>
-                <td><code>unavailable</code></td>
-                <td>Timeout, rate limit, connection, or provider failure.</td>
-                <td class="no">No.</td>
-                <td>
-                  A ready durable refund gets a five-minute grace for another
-                  observation. If evidence is still unavailable when that finite
-                  grace ends, it becomes a required <code
-                  >provider_unreadable</code> owner choice—never a silent
-                  permanent wait.
-                </td>
-              </tr>
-              <tr>
-                <td><code>invalid</code></td>
-                <td>Malformed or contradictory successful response.</td>
-                <td class="no">No.</td>
-                <td>
-                  A ready durable case opens owner choice immediately. Malformed
-                  success never becomes permission to send.
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <h3 style="margin-top: 2rem">Provider sends are also total</h3>
-        <p class="section-lede">
-          <code>completed</code>, <code>accepted</code>, <code>rejected</code>,
-          <code>not_sent</code>, and <code>uncertain</code> do not collapse into
-          a boolean. A conclusive <code>not_sent</code> can return the same
-          generation to ready. Any possibility that money crossed the network
-          stays armed/observing or goes to an owner choice.
-        </p>
-      </section>
 
-      <section id="safety">
-        <p class="eyebrow">06 · Races, crashes, and retries</p>
-        <h2>The database is the referee.</h2>
-        <h3>One charge moves through named durable phases</h3>
-        <div class="state-flow" aria-label="Refund authority state sequence">
-          <div class="state">
-            <strong>ready</strong><small>Evidence allows this generation to
-              try.</small>
-          </div>
-          <div class="arrow">→</div>
-          <div class="state">
-            <strong>send_armed</strong><small>The exact command may cross the
-              network.</small>
-          </div>
-          <div class="arrow">→</div>
-          <div class="state">
-            <strong>observing</strong><small>Wait for fresh provider
-              evidence.</small>
-          </div>
-          <div class="arrow">→</div>
-          <div class="state done">
-            <strong>completed / due</strong><small>Money is back; local books
-              still owe a write.</small>
-          </div>
-          <div class="arrow">→</div>
-          <div class="state done">
-            <strong>completed / recorded</strong><small>Provider and local Money
-              agree.</small>
-          </div>
-        </div>
-        <div class="callout warn">
-          <span class="mark">?</span><p>
-            <strong>Two exits, never one vague “review” state:</strong> <code
-            >needs_owner_choice</code> is schema-valid only when at least one
-            real decision is possible. Ordinary uncertainty offers returned or
-            not sent; exact zero-return conflict offers only not sent; exact
-            full-return conflict offers only returned. Partial or inconclusive
-            evidence has no honest money answer, so it is stored separately as
-            <code>needs_provider_check</code> and offers only “Check again.”
-            Neither state has a generic clear. Local Money recording remains a
-            separate action, and every amount uses the charge’s stored currency.
-          </p>
-        </div>
-        <div class="grid-3">
-          <article class="card">
-            <h3>Revision compare-and-swap</h3>
+        <div class="privacy-grid" aria-label="Storage privacy tiers">
+          <article class="privacy-card owner">
+            <span class="level">owner-key secret</span>
+            <h3>Raw personal/payment identity</h3>
             <p>
-              Every charge transition names the exact prior revision. A losing
-              writer rereads the winner; it cannot overwrite newer evidence.
-              Replaying identical provider evidence does not manufacture a new
-              revision, while materially changed evidence always does.
+              Modern attendee PII and new raw provider references use owner
+              public-key ciphertext. DB + <code>DB_ENCRYPTION_KEY</code> is not
+              enough to open them.
             </p>
           </article>
-          <article class="card">
-            <h3>Fresh partial evidence closes stale choices</h3>
+          <article class="privacy-card blind">
+            <span class="level">blind identity</span>
+            <h3>Searchable, not reversible</h3>
             <p>
-              If “possibly sent” was already shown and a later read proves a
-              partial return, the engine replaces that ordinary ambiguity with
-              provider-check work, preserves the returned amount, and advances
-              the revision. The old “not sent” form then loses its revision
-              fence before it can authorize another generation. A conclusive
-              provider-conflict owner choice is not overwritten by later reads.
-              POST also rederives the exact choices from that stored revision; a
-              crafted but otherwise valid answer cannot enter the transaction.
+              DB-keyed HMACs join references, callbacks and confirmations
+              without exposing the raw provider value.
             </p>
           </article>
-          <article class="card">
-            <h3>Exact admin claim</h3>
+          <article class="privacy-card dbkey">
+            <span class="level">DB-key envelope</span>
+            <h3>Finite local coordination</h3>
             <p>
-              The claim transaction checks attendee PII revisions, complete
-              reference rows, sharing rows, blank indexes, and the same command
-              identity. Shared-holder discovery reads at most 101 rows: 100 is
-              accepted, while the sentinel row returns a typed refusal before
-              shared state decryption or any claim write. Blank indexes never
-              share an identity, a set with no usable index skips the sharing
-              query, and either PII revision drift or a disappeared payment row
-              returns <code>changed</code>.
+              Claim, outcome, review and unrecorded markers are encrypted local
+              state. They must contain no buyer PII or provider bodies.
             </p>
           </article>
-          <article class="card">
-            <h3>Provider capability matters</h3>
+          <article class="privacy-card plain">
+            <span class="level">intentional plaintext</span>
+            <h3>Queryable operations</h3>
             <p>
-              Stripe can replay the identical keyed generation for one day.
-              Square's keyed window ends when the command is armed, so it cannot
-              replay later. SumUp is keyless and never auto-replays an armed
-              command.
-            </p>
-          </article>
-          <article class="card">
-            <h3>Arm before I/O</h3>
-            <p>
-              The engine stores that money may move before the provider call. A
-              crash cannot turn “possibly sent” into “safe to try again.”
-            </p>
-          </article>
-          <article class="card">
-            <h3>Admin settlement is always attempted</h3>
-            <p>
-              Every admin refund exit attempts to settle its short-lived row
-              claim. Before a failed ledger post is rethrown, provider-confirmed
-              returns are marked for durable <code>unrecorded</code> work and
-              unproved rows remain in doubt; settlement then tries to persist
-              that answer. Fully-returned provider observations enter those
-              findings before the fallible authority write, so a database error
-              cannot erase evidence that money is back. If the settlement write
-              itself fails, it is reported and the claim may remain; a
-              successful work path throws that settlement error, while a failed
-              work path keeps its original error. The automatic-placeholder
-              claim intentionally follows the stricter all-effects rule
-              described above.
-            </p>
-          </article>
-          <article class="card">
-            <h3>Destructive writes ask first</h3>
-            <p>
-              Delete, merge, finalize, prune, and orphan cleanup read the same
-              lifecycle rules. Delete refuses live work that would lose its
-              repair target; merge may relocate stable indexed work but never an
-              active claim.
+              Provider, Money, lifecycle mirrors, due dates and narrow protected
+              words remain visible so SQL can find work safely.
             </p>
           </article>
         </div>
-        <div class="callout risk">
-          <span class="mark">×</span><p>
-            <strong>Old unqualified records do not enter this state
-              machine.</strong> Live authority requires a provider-tagged
-            identity. A raw old reference, a DB-key ciphertext, or a
-            reference-bearing processed row with no blind index is a typed
-            refusal before provider I/O. The system does not search every
-            configured provider and does not infer ownership from today’s
-            setting.
-          </p>
-        </div>
-      </section>
 
-      <section id="privacy">
-        <p class="eyebrow">07 · Privacy and direct-database reality</p>
-        <h2>
-          New raw identifiers are owner-key protected—but the boundary has named
-          limits.
-        </h2>
-        <div class="grid-3">
-          <article class="card after">
-            <span class="label">New references</span><h3>
-              Owner-public-key ciphertext
-            </h3>
-            <p>
-              New provider references use <code>hyb:1</code> owner-key
-              encryption. Equality uses a DB-keyed HMAC. SQL sees provider,
-              Money, state, dates, counts, and blind identities—not the raw
-              reference. “Owner-key protected” describes storage; access is
-              still governed separately by each route’s role check.
-            </p>
-          </article>
-          <article class="card after">
-            <span class="label">No broad decrypt</span><h3>
-              Indexes answer population questions
-            </h3>
-            <p>
-              Refund All summarizes without PII and decrypts one selected
-              attendee. Protected orphan work pages twenty IDs. Provider
-              recovery summaries do not decrypt references; only the owner-only
-              detail does.
-            </p>
-          </article>
-          <article class="card boundary">
-            <span class="label">Metadata</span><h3>
-              Finite, not secret, state
-            </h3>
-            <p>
-              <code>failure_data</code>, system notes, lifecycle mirrors,
-              provider name, Money, and due times may be readable with the
-              environment key or directly in SQL. They must never contain buyer
-              PII or raw provider bodies.
-            </p>
-          </article>
-        </div>
-        <div class="callout warn">
-          <span class="mark">1</span><p>
-            <strong>Direct-DB caveat: provider credentials are environment-key
-              encrypted settings.</strong> Someone who has both the database and
-            <code>DB_ENCRYPTION_KEY</code> may decrypt those credentials and use
-            them to query the payment provider. Owner-key encryption protects
-            new identifiers stored in this database; it is not a claim that the
-            provider’s own data is unreachable with stolen credentials.
-          </p>
-        </div>
-        <div class="callout warn">
-          <span class="mark">2</span><p>
-            <strong>Direct-DB caveat: dormant v1 owner keys remain an older
-              system-wide limit.</strong> Modern password-wrapped owner keys
-            keep attendee PII and new payment references beyond a
-            database-plus-environment-key holder. Older v1 wrapped owner-key
-            rows do not provide the same separation until their existing upgrade
-            ceremony runs.
-          </p>
-        </div>
-        <div class="callout risk">
-          <span class="mark">3</span><p>
-            <strong>Historical data is not silently “fixed” by a
-              request.</strong> Old plaintext, DB-key-encrypted, unindexed, or
-            provider-untagged references can still exist. Live refund admission
-            fails closed on them, and ordinary attendee save or merge does not
-            turn an unqualified ID into a live payment row. No admin click
-            scans, decrypts, rewrites, or deletes a whole population. Only the
-            future bounded, owner-authenticated and owner-authorized M11
-            migration may qualify them; it must verify each canonical write
-            before redacting its source.
-          </p>
-        </div>
-      </section>
-
-      <section id="people">
-        <p class="eyebrow">08 · Permissions and operator work</p>
-        <h2>Every visible control promises a route that role may use.</h2>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Actor</th>
-                <th>Can observe</th>
-                <th>Can send</th>
-                <th>Can decide uncertainty</th>
-                <th>Guard</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><strong>Owner</strong></td>
-                <td class="yes">Yes</td>
-                <td class="yes">Single, Refund All, ready recovery</td>
-                <td class="yes">
-                  Required provider outcome and Money-recorded choices
-                </td>
-                <td>
-                  Owner-only GET, form, and POST; revision-bound form data.
-                </td>
-              </tr>
-              <tr>
-                <td><strong>Manager</strong></td>
-                <td class="yes">Refresh existing work</td>
-                <td class="no">No</td>
-                <td class="no">No</td>
-                <td>Send/review links are not rendered; routes also reject.</td>
-              </tr>
-              <tr>
-                <td><strong>Buyer callback</strong></td>
-                <td class="limited">Only validated charge evidence</td>
-                <td class="limited">
-                  Only automatic failure recovery through authority
-                </td>
-                <td class="no">No human choice</td>
-                <td>
-                  Signed/provider-validated session and callback replay
-                  identity.
-                </td>
-              </tr>
-              <tr>
-                <td><strong>Database-only process</strong></td>
-                <td class="limited">Plain state/index facts</td>
-                <td class="no">No provider permit</td>
-                <td class="no">No owner private key</td>
-                <td>Cannot load new raw references from the database alone.</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <div class="grid-3" style="margin-top: 1rem">
-          <article class="card">
-            <h3>Refund recovery queue</h3>
-            <p>
-              The Privacy page keyset-pages canonical charge work. A summary
-              shows provider, Money, state, revision, and time; the owner-only
-              detail decrypts the reference and renders exactly the state’s real
-              exit. Owner-choice cases render only their admitted decisions;
-              provider-check cases render only “Check again.” If a ready case
-              stays unreadable past its grace, checking sends nothing and opens
-              the required returned-or-not-sent owner decision.
-            </p>
-          </article>
-          <article class="card">
-            <h3>Outstanding attendee work</h3>
-            <p>
-              Review and books-behind markers remain on the attendee’s payment
-              rows. Orphans with work stay reachable by ID even after their last
-              listing disappears.
-            </p>
-          </article>
-          <article class="card">
-            <h3>No dead Refresh promise</h3>
-            <p>
-              The attendee page loads one bounded, typed reference set instead
-              of asking only whether an index exists. A complete set renders
-              Refresh; no references render nothing; legacy, too-large, or
-              provider-unknown sets show the real refusal in plain text and
-              withhold the unusable control. Protected payment details remain
-              visible even when legacy PII has no payment ID. The Refund action
-              asks the same remaining-charge-work rule as the command, so one
-              refunded booking cannot hide an unreturned sibling charge.
-            </p>
-          </article>
-          <article class="card">
-            <h3>Route and rendered control are one promise</h3>
-            <p>
-              Every blocking lifecycle entry declares its clearer, whether it
-              needs a choice, and the operator route that reaches it. Static
-              architecture tests prove the clearer export and route exist;
-              template and route journeys prove the matching control is actually
-              rendered for the permitted role—even after merge or listing
-              deletion—and absent for managers who cannot use it.
-            </p>
-          </article>
-          <article class="card">
-            <h3>Acknowledgement is not a clear</h3>
-            <p>
-              Owner acknowledgement timestamps the exact review revision seen.
-              It does not send, decide provider outcome, erase Money debt, or
-              make a contradiction safe.
-            </p>
-          </article>
-        </div>
-      </section>
-
-      <section id="speed">
-        <p class="eyebrow">09 · Performance and edge limits</p>
-        <h2>The complete operation is priced before it starts.</h2>
-        <div class="grid-4">
-          <article class="card">
-            <span class="label">1 person</span><h3>Refund All page</h3>
-            <p>
-              One attendee’s complete charge set is the largest current
-              end-to-end command proved to fit the Bunny edge allowance.
-            </p>
-          </article>
-          <article class="card">
-            <span class="label">10 refs</span><h3>Per-attendee ceiling</h3>
-            <p>
-              An eleventh indexed reference returns <code
-              >too_many_references</code> before reference decryption or
-              provider I/O.
-            </p>
-          </article>
-          <article class="card">
-            <span class="label">100 holders</span><h3>
-              Shared-reference ceiling
-            </h3>
-            <p>
-              Claim SQL asks for at most 101 other rows carrying the same blind
-              reference. The sentinel distinguishes “exactly 100” from “too
-              many”; overflow refuses before decrypting their protected state or
-              writing any claim.
-            </p>
-          </article>
-          <article class="card">
-            <span class="label">5 calls</span><h3>Provider concurrency</h3>
-            <p>
-              Independent provider work overlaps in bounded waves; it never
-              creates an unbounded fan-out.
-            </p>
-          </article>
-          <article class="card">
-            <span class="label">20 IDs</span><h3>Recovery page</h3>
-            <p>
-              Protected orphan and provider-work queues use keyset pagination
-              and one lookahead rather than broad rows or offsets.
-            </p>
-          </article>
-        </div>
-        <div class="grid-2" style="margin-top: 1rem">
-          <article class="card">
-            <h3>Worst-case, not happy-path, budgeting</h3>
-            <p>
-              Budgets include physical database retries, exact provider
-              attempts, judgment and recovery reads, claim admission, rollback,
-              returned-Money writes, ledger work, settlement, and route tails.
-              Every active reference is priced from its stored provider tag,
-              even when that provider is not currently configured. If the
-              selected command does not fit, nothing narrows itself after a
-              first send.
-            </p>
-          </article>
-          <article class="card">
-            <h3>Critical work gets the allowance</h3>
-            <p>
-              Logging, activity, notification, and Sentry fan-out are deferred
-              until the money-critical scope finishes. The deferred queue also
-              flushes on an error, without consuming the reserve needed to
-              settle or roll back.
-            </p>
-          </article>
-          <article class="card">
-            <h3>One bounded ledger snapshot</h3>
-            <p>
-              Refund planning loads accounts and reference groups in batches,
-              then posts clean plans together. The declared batch path stays at
-              four database round trips even for thirty returned attendees.
-            </p>
-          </article>
-          <article class="card">
-            <h3>Partial indexes make work findable</h3>
-            <p>
-              SQL starts at small live-work indexes for attendee rows and charge
-              authority. Schema restore now understands index predicates so
-              fresh, upgraded, and restored databases build the same paths.
-            </p>
-          </article>
-        </div>
-      </section>
-
-      <section id="providers">
-        <p class="eyebrow">10 · Provider and checkout boundaries</p>
-        <h2>One contract, three honest provider differences.</h2>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th></th>
-                <th>Stripe</th>
-                <th>Square</th>
-                <th>SumUp</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <th>Refund capability</th>
-                <td>Keyed</td>
-                <td>Keyed</td>
-                <td>Keyless</td>
-              </tr>
-              <tr>
-                <th>Charge evidence</th>
-                <td>
-                  Captured amount/currency, cumulative returned amount, refund
-                  objects and states.
-                </td>
-                <td>
-                  Captured payment Money plus parsed refund/order resources and
-                  states.
-                </td>
-                <td>
-                  Transaction Money plus typed refund events; absence is
-                  interpreted only where the wire contract permits it.
-                </td>
-              </tr>
-              <tr>
-                <th>Retry rule</th>
-                <td>Same generation for up to one day.</td>
-                <td>
-                  Replay window ends at arm time; no later automatic replay.
-                </td>
-                <td>An armed generation never auto-replays.</td>
-              </tr>
-              <tr>
-                <th>Malformed success</th>
-                <td colspan="3">
-                  Invalid evidence; never “not refunded,” never permission to
-                  send.
-                </td>
-              </tr>
-              <tr>
-                <th>Transport retries</th>
-                <td colspan="3">
-                  One attempt inside a command. Durable state and a later fresh
-                  read own recovery.
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <div class="grid-3" style="margin-top: 1rem">
-          <article class="card">
-            <h3>Checkout failures stay honest</h3>
-            <p>
-              Known provider absence or buyer-correctable input can become an
-              ordinary refusal. Network, malformed successful response,
-              database, and application errors remain errors; unknown exceptions
-              keep their identity.
-            </p>
-          </article>
-          <article class="card">
-            <h3>Admitted refund facts keep provider identity</h3>
-            <p>
-              Once callback validation has produced a provider-tagged charge,
-              the refund engine keeps that provider and never re-resolves
-              today’s setting. Initial checkout and callback provider selection
-              remain part of the later whole-checkout cutover.
-            </p>
-          </article>
-          <article class="card">
-            <h3>Square recognises its old app orders</h3>
-            <p>
-              Square’s <code>_origin</code> field is a durable “created by this
-              app” marker, not a value that must equal today’s domain. After a
-              domain change, a damaged old app order is still treated as
-              malformed-and-retryable instead of being misclassified as somebody
-              else’s order and terminally acknowledged.
-            </p>
-          </article>
-          <article class="card">
-            <h3>Square monolith is only a structural split</h3>
-            <p>
-              The old large file is separated into client, transport, checkout,
-              connection, order, payment outcomes, read, API, and webhook
-              modules. The distilled report excludes moves and names only
-              changed behavior.
-            </p>
-          </article>
-          <article class="card">
-            <h3>Square payment status is a closed vocabulary</h3>
-            <p>
-              Webhooks accept only <code>APPROVED</code>, <code>PENDING</code>,
-              <code>COMPLETED</code>, <code>CANCELED</code>, or <code
-              >FAILED</code>. Missing, non-text, empty, or unknown status throws
-              at the boundary. Only <code>COMPLETED</code> with an order ID can
-              enter completed-payment handling.
-            </p>
-          </article>
+        <div class="plain-callout">
+          <strong>Caveat:</strong> provider credentials are DB-key encrypted and
+          can be used by someone holding the database and environment key.
+          Dormant v1 owner keys retain the older boundary until their existing
+          upgrade ceremony runs.
         </div>
       </section>
 
       <section id="proof">
-        <p class="eyebrow">11 · Proof, not just branches</p>
-        <h2>The test changes follow the authority boundaries.</h2>
-        <p class="section-lede">
-          The source report is scoped to <code>src/</code>, but its safety
-          claims are pinned outside that directory. The branch adds or updates
-          pure rule tests, database and route integration tests, architecture
-          guards, mutation expectations, and visitor-level payment stories. Last
-          complete run: <code data-finalize="unit-tests"
-          >23,351 unit and integration tests</code>, <code
-            data-finalize="cucumber-scenarios"
-          >262 scenarios</code>, and <code data-finalize="cucumber-steps"
-          >1,877 steps</code>. The stories include a real owner journey where
-          unreadable SumUp evidence sends nothing and opens the required
-          decision.
+        <p class="section-number">04 · test signal, not test theatre</p>
+        <h2>What the tests actually establish.</h2>
+
+        <div class="proof-stats" aria-label="Test totals">
+          <div class="proof-stat">
+            <b>23,351</b><span>unit + integration tests</span>
+          </div>
+          <div class="proof-stat">
+            <b>100%</b><span>enforced lines + branches</span>
+          </div>
+          <div class="proof-stat">
+            <b>33 / 365</b><span>refund scenarios / visitor steps</span>
+          </div>
+          <div class="proof-stat">
+            <b>0</b><span>focused mutation survivors</span>
+          </div>
+        </div>
+
+        <div class="proof-grid">
+          <article class="proof-card">
+            <strong>Visitors</strong>
+            <p>
+              Owners send/decide; managers observe; callbacks and rendered
+              recovery controls use real routes.
+            </p>
+          </article>
+          <article class="proof-card">
+            <strong>Storage and races</strong>
+            <p>
+              Migrations, constraints, CAS, claims, crashes, settlement,
+              merge/delete/prune and bounds are exercised directly.
+            </p>
+          </article>
+          <article class="proof-card">
+            <strong>Architecture</strong>
+            <p>
+              Static checks reject a second authority, direct adapter calls,
+              ambient refund selection and dead recovery controls.
+            </p>
+          </article>
+          <article class="proof-card">
+            <strong>Decision quality</strong>
+            <p>
+              Exhaustive state tables and mutation suites attack branches where
+              a wrong money answer could otherwise hide.
+            </p>
+          </article>
+        </div>
+
+        <p class="proof-caveat">
+          Full Cucumber catalogue: 262 scenarios / 1,877 steps. These prove code
+          invariants and simulated provider/race behaviour—not provider uptime,
+          unusual production history or the future aggregate migrations. The
+          whole-branch mutation wrapper refuses this &gt;100-file stack; the
+          safety-critical modules were run directly with zero survivors.
         </p>
-        <div class="test-stack">
-          <article class="test-level">
-            <h3>Pure rules</h3>
-            <p>
-              Every Money shape, provider-read outcome, refund judgment, row
-              lifecycle, charge-authority transition, owner choice, replay
-              window, and permission decision gets an exhaustive table.
-            </p>
-          </article>
-          <article class="test-level">
-            <h3>Storage and races</h3>
-            <p>
-              Claims, CAS transitions, shared references, callback replay,
-              merge/delete/prune, partial indexes, budget reservation, ledger
-              batch bounds, and provider wire parsing run against real
-              repositories or integration seams.
-            </p>
-          </article>
-          <article class="test-level">
-            <h3>Human journeys</h3>
-            <p>
-              Eight refund stories drive 33 scenarios and 365 steps through
-              pre-send checking, waiting, Money repair, two-window races,
-              owner-only controls, Refund All blockers, and owner resolution
-              from the rendered form through provider and ledger boundaries.
-            </p>
-          </article>
-        </div>
-        <div class="callout">
-          <span class="mark">A</span><p>
-            <strong>Architecture is tested too.</strong> The integration guard
-            rejects another <code>payment_charges</code> writer, another
-            authorization mint, provider-adapter calls outside the engine,
-            legacy live reads of <code>provider_refunded_at</code>, or a
-            declared recovery action without a real registered route. It also
-            pins every production and test entry to the same <code
-            >requestProviderRefund</code> engine, rejects every ambient/raw
-            provider selector in refund-facing source, exact-allowlists <code
-            >loadRefundProvider</code> to readiness and authority, confines the
-            temporary checkout provider selector, and pairs route checks with
-            rendered role/state journeys so “route exists but no usable control”
-            cannot count as recovery.
-          </p>
-        </div>
-      </section>
-
-      <section id="map">
-        <p class="eyebrow">12 · Complete meaningful source map</p>
-        <h2>Where every part of the source diff belongs.</h2>
-        <p class="section-lede">
-          This map covers every changed source path by responsibility. File
-          moves and large-file splits are named as structure, not sold as new
-          behavior. The companion distilled report lists only genuinely new
-          callables, new database touches, and old behavior that changed.
-        </p>
-
-        <details open>
-          <summary>Admin pages, routes, and copy</summary>
-          <div class="module-grid">
-            <article class="module">
-              <code
-              >features/admin/attendee-refunds{,/bulk,/single,/single-result}</code><p>
-                Split routing by single and listing-wide workflow; owner-only
-                send, whole-set admission, one-attendee pages, and exact result
-                copy.
-              </p>
-            </article>
-            <article class="module">
-              <code
-              >features/admin/refunds/{attempt,authority,budget,claim,dispatch,provider}</code><p>
-                The admin orchestration shell: prepare, price, claim, call
-                canonical authority, record returned Money, settle.
-              </p>
-            </article>
-            <article class="module">
-              <code
-              >features/admin/refunds/{candidates,readiness*,ready-admission,waves,provider-requests}</code><p>
-                Complete reference admission, provider-qualified readiness,
-                bounded waves, and refusal reasons. Old provider
-                discovery/guessing is absent from the live path.
-              </p>
-            </article>
-            <article class="module">
-              <code
-              >features/admin/refunds/{confirmation,ledger-findings,result-findings,row-reviews,report,refresh}</code><p>
-                Structured confirmation, exact local findings, safe diagnostics,
-                review retirement, and observation-only repair.
-              </p>
-            </article>
-            <article class="module">
-              <code
-              >features/admin/{attendee-form-routes,attendee-page*,attendee-payment-review,attendees*,entity-pages,listing-page}</code><p>
-                Show real payment work after merge/deletion, bind actions to the
-                role and current case, and keep repair targets reachable. The
-                attendee page carries the bounded typed reference result into
-                its template, so <code>provider_unknown</code> shows its refusal
-                without promising a dead Refresh route.
-              </p>
-            </article>
-            <article class="module">
-              <code
-              >features/admin/{attendee-form-lines,attendee-logistics,attendees-list,bulk-email,ledger/statements,servicing,sms}
-                ·
-                shared/{bulk-email-targets/listings,form-data,ledger-scope,logistics-filter,order-select}
-                · db/questions/parsing</code><p>
-                Mechanical callers now use the one positive-integer parser
-                directly. The deleted alias changed no behavior and leaves no
-                compatibility path.
-              </p>
-            </article>
-            <article class="module">
-              <code>features/admin/privacy ·
-                ui/templates/admin/{privacy,provider-refund-cases,attendees,confirm-page}</code><p>
-                Owner recovery queues, exact action forms, manager-safe
-                controls, and plain-language results—including an explicit
-                no-send answer when unreadable ready work opens an owner choice.
-              </p>
-            </article>
-            <article class="module">
-              <code>features/admin/require-provider (deleted) ·
-                settings-square</code><p>
-                Remove a global-provider gate from historical refund work;
-                provider selection now belongs to each tagged charge. Settings
-                wiring follows the shared provider surface.
-              </p>
-            </article>
-            <article class="module">
-              <code>locales/en/{attendees,privacy,guide-accounts}.json ·
-                admin-surface/write-routes-a-m</code><p>
-                Blocked/recovery copy and route registration track the real
-                owner/manager exits.
-              </p>
-            </article>
-          </div>
-        </details>
-
-        <details open>
-          <summary>Buyer callbacks and checkout failure handling</summary>
-          <div class="module-grid">
-            <article class="module">
-              <code
-              >features/api/payment-processing/{classify,create,index,pricing,recovery}</code><p>
-                Carry provider identity and exact paid facts, fail before
-                booking on unreadable trusted input, and keep unexpected-create
-                recovery explicit.
-              </p>
-            </article>
-            <article class="module">
-              <code
-              >features/api/payment-processing/{refunds,store-refund}</code><p>
-                Replace direct refund calls with canonical authority targets;
-                write the repairable placeholder, indexed anchor, and checking
-                claim before provider work, then retire the exact claim only
-                after provider, ledger, authority, activity, and note work
-                finishes.
-              </p>
-            </article>
-            <article class="module">
-              <code>features/api/payment-success · features/api/webhooks ·
-                features/read-json-body · shared/read-json</code><p>
-                Keep malformed bodies and signed/provider-authenticated callback
-                failures distinct; parsing errors do not become silent skips.
-              </p>
-            </article>
-            <article class="module">
-              <code
-              >shared/{booking,checkout-complete,payment-helpers,payment-idempotency,payments}</code><p>
-                Carry tagged references and Money through booking completion,
-                expose the strict provider contract, and derive stable refund
-                identities.
-              </p>
-            </article>
-          </div>
-        </details>
-
-        <details open>
-          <summary>Canonical payment rules and refund engine</summary>
-          <div class="module-grid">
-            <article class="module">
-              <code
-              >shared/payment/{money,resource-id,resources,refund,diagnose,conflict,admit-refund}</code><p>
-                One validated charge-Money model and one exhaustive answer for
-                ready, returned, pending, or conflicting evidence.
-              </p>
-            </article>
-            <article class="module">
-              <code
-              >shared/payment/{provider-read,provider-failures,refund-attempt,refund-network}</code><p>
-                Total read/send outcomes, shared failure translation, and
-                exactly one evidence-led reread where the adapter contract
-                requires it.
-              </p>
-            </article>
-            <article class="module">
-              <code
-              >shared/payment/{provider-reference,validated-session}</code><p>
-                Versioned provider-qualified identity at storage and callback
-                boundaries. Unqualified legacy values refuse in live refund
-                work.
-              </p>
-            </article>
-            <article class="module">
-              <code
-              >shared/payment/{refund-authority,refund-authority-state,refund-authority-choice,refund-conflict-decision,refund-authority-lifecycle}</code><p>
-                A strict stored union for ready, armed, observing, completed,
-                owner-choice, and provider-check states; pure transitions; exact
-                conflict decisions; and one declared evidence-action,
-                clear/route/prune/delete/merge policy for every state. The
-                schema makes an empty owner choice invalid and keeps partial or
-                inconclusive evidence in a separate check-again state. Identical
-                evidence is a replay and retains its revision; changed evidence
-                advances it.
-              </p>
-            </article>
-            <article class="module">
-              <code
-              >shared/payment/{refund-provider-authorization,refund-replay-window,refund-request-identity,refund-generation}</code><p>
-                Typed send permits, keyed/keyless replay rules, stable
-                request/callback identities, and validated generations.
-              </p>
-            </article>
-            <article class="module">
-              <code>shared/provider-refunds{,/target,/send,/state,/work,/budget}
-                · provider-refund-cursor</code><p>
-                The sole engine and owner-queue cursor. Both admin and callback
-                entries load, reconcile, arm, send/observe, and persist through
-                it. <code>loadRefundProvider</code> accepts the complete tagged
-                reference, loads only its named adapter, and checks the match.
-                Ready work may wait through one five-minute unavailable-evidence
-                grace, then must expose the owner-choice exit. New full provider
-                proof can finish an ordinary ambiguity; partial, backward, or
-                inconclusive proof instead advances the revision and remains
-                provider-check work.
-              </p>
-            </article>
-            <article class="module">
-              <code>shared/payment/{row-state,claim,review,admit-move} ·
-                shared/payment-review</code><p>
-                Local claim/review/books-behind facts, destructive-write policy,
-                retirement proof, and closed diagnostic reasons.
-              </p>
-            </article>
-            <article class="module">
-              <code>shared/payment/{placeholder-refund,checkout-failure} ·
-                named-error · logger · subrequest-budget</code><p>
-                Finite retained diagnostics, fail-loud checkout boundaries,
-                deferred non-critical reports, and protected physical-call
-                allowances.
-              </p>
-            </article>
-          </div>
-        </details>
-
-        <details open>
-          <summary>
-            Database authority, claims, references, and maintenance
-          </summary>
-          <div class="module-grid">
-            <article class="module">
-              <code>shared/db/provider-refund-authority ·
-                provider-refund-authority-change · provider-refund-cases ·
-                provider-refund-case-resolution</code><p>
-                One logical <code>payment_charges</code> boundary split between
-                identity creation/binding and all Money/state transitions, plus
-                bounded owner-case reads and transactional decision-and-activity
-                audit. Detail decrypts only after owner authentication; an audit
-                failure rolls the decision back.
-              </p>
-            </article>
-            <article class="module">
-              <code>shared/db/payment-claim{,/scope,/take} ·
-                payment-admit-move</code><p>
-                Atomic complete-set claims, the reusable canonical checking
-                fence, encrypted-state/mirror values made together, revision and
-                row-set fences, exact settlement, and transaction-time
-                merge/delete admission. Shared-holder SQL stops at a 101st
-                sentinel and refuses above the 100-row ceiling before protected
-                state decryption or claim writes.
-              </p>
-            </article>
-            <article class="module">
-              <code>shared/db/payment-reference-{store,rows} ·
-                payment-references</code><p>
-                Owner-key storage, blind indexes, bounded selected-row reads,
-                complete/legacy/provider-unknown/too-many results, and no
-                untagged legacy path to a provider.
-              </p>
-            </article>
-            <article class="module">
-              <code>shared/db/payment-anchor/{attendee,reference,session} ·
-                attendees/pii-write</code><p>
-                Provider-proved tagged anchors for automatic placeholders now
-                bind one exact attendee and carry their own checking claim plus
-                settlement; ordinary attendee edits encrypt PII atomically
-                without creating legacy payment rows.
-              </p>
-            </article>
-            <article class="module">
-              <code>shared/db/refund-all-candidates · payment-review ·
-                refund-confirmations · notes/{queries,sealing,types}</code><p>
-                PII-free whole-set safety before a one-attendee batch, a
-                ten-reference attendee ceiling, exact review revision,
-                replay-safe confirmation identities, and named app notes without
-                history scans.
-              </p>
-            </article>
-            <article class="module">
-              <code>shared/db/processed-payments · payment-finalize</code><p>
-                Write encrypted reference and index together, encode local state
-                plus mirror together, and refuse finalization under a live
-                claim. A failed paid booking prepares one terminal session
-                transition that can join attendee creation, then advances only
-                that exact conservative outcome by compare-and-swap.
-              </p>
-            </article>
-            <article class="module">
-              <code
-              >shared/db/attendees/{atomic-update,create,create-batch,delete,dependent-data,queries,select,servicing,update}</code><p>
-                Atomic PII saves, schema-driven dependent handling,
-                listing-scoped refund truth, and work-safe moves/deletes. Stable
-                booking/order identity remains a later milestone.
-              </p>
-            </article>
-            <article class="module">
-              <code>shared/db/{orphan-attendees,prune,listing-overview-stats} ·
-                merge/{attendee-merge,attendee-merge-types}</code><p>
-                Relocate stable indexed work through merge, refuse active
-                claims, preserve repair targets through listing deletion and
-                retention, and use indexes rather than PII scans. Pruning asks
-                the same lifecycle declaration whether this exact indexed charge
-                is settled; an attendee-wide refund leg cannot delete an
-                unreturned sibling payment.
-              </p>
-            </article>
-            <article class="module">
-              <code
-              >shared/accounting/{backfill,conflicts,mappers,queries,store}</code><p>
-                Name stored conflicts as planning results, read accounts in
-                batches, derive exact refund groups, and post clean batches
-                together.
-              </p>
-            </article>
-            <article class="module">
-              <code>shared/refund-ledger/{plan,record,result,placeholder,log} ·
-                refund-ledger.ts (deleted)</code><p>
-                Structural split plus meaningful change from one attendee
-                boolean to per-reference recorded/unrecorded/review findings and
-                bounded batch posting.
-              </p>
-            </article>
-            <article class="module">
-              <code>shared/db/client · existing-payment-provider</code><p>
-                Expose physical DB retry count to the budget and separate
-                credential availability from historical charge ownership. The
-                credential-order helper was deleted from refund budgeting;
-                stored provider identity alone determines the worst-case cost.
-              </p>
-            </article>
-            <article class="module">
-              <code>validation/{kind,number,string}</code><p>
-                Small shared boundary validators used by the new closed schemas.
-                The duplicate positive-ID parser alias is deleted; callers use
-                <code>parsePositiveInt</code> itself.
-              </p>
-            </article>
-          </div>
-        </details>
-
-        <details open>
-          <summary>Schema and migrations</summary>
-          <div class="module-grid">
-            <article class="module">
-              <code>2026-08-10_payment_state_columns</code><p>
-                Add <code>protected_state</code>, <code
-                >payment_reference_index</code>, and the reference index to
-                <code>processed_payments</code>.
-              </p>
-            </article>
-            <article class="module">
-              <code>2026-08-12_refund_confirmations</code><p>
-                Add exact confirmation and member tables, plus indexed app-note
-                names.
-              </p>
-            </article>
-            <article class="module">
-              <code>2026-08-13_payment_work_queue_index</code><p>
-                Add a partial attendee index for the small set of locally
-                protected payment rows.
-              </p>
-            </article>
-            <article class="module">
-              <code>2026-08-13_refund_authority</code><p>
-                Refuse a populated dormant table, then activate <code
-                >payment_charges</code> as canonical refund authority.
-              </p>
-            </article>
-            <article class="module">
-              <code
-              >migrations/schema/payments/{charges,columns,index,refund-confirmations}</code><p>
-                Owner-key-protected raw references, state/mirror constraints,
-                unique identities, due/work partial indexes, and confirmation
-                tables.
-              </p>
-            </article>
-            <article class="module">
-              <code>migrations/schema/{tables-attendees,tables-questions,types}
-                · schema-sync</code><p>
-                Processed-row state/index columns, named notes, partial-index
-                <code>where</code> support, and predicate dependency discovery
-                for restore.
-              </p>
-            </article>
-            <article class="module">
-              <code>migrations/registry · migrations/schema/version ·
-                migrations/2026-07-26_payment_records</code><p>
-                Register the new migrations and make historical/fresh table
-                lists converge on the current schema.
-              </p>
-            </article>
-          </div>
-        </details>
-
-        <details open>
-          <summary>Provider adapters</summary>
-          <div class="module-grid">
-            <article class="module">
-              <code>shared/stripe-provider · stripe ·
-                stripe/{client,endpoints,request,runtime,schemas}</code><p>
-                Replace refund booleans/direct calls with exact charge reads and
-                typed authorized sends; distinguish transport, provider,
-                protocol, and buyer-correctable failures.
-              </p>
-            </article>
-            <article class="module">
-              <code>shared/square-provider · square.ts (deleted) ·
-                square/{api,checkout,client,connection,order,outcomes,payment-outcomes,read,transport,webhook}</code><p>
-                Split the monolith by responsibility and harden Money, wire
-                schemas, error translation, webhook proof, and authorized
-                refunds. Payment status is the closed set <code>APPROVED</code>,
-                <code>PENDING</code>, <code>COMPLETED</code>, <code
-                >CANCELED</code>, or <code>FAILED</code>; anything absent,
-                non-text, empty, or unknown throws. App-created order
-                recognition trusts the durable <code>_origin</code> marker
-                across domain changes.
-              </p>
-            </article>
-            <article class="module">
-              <code>shared/sumup-provider · sumup · sumup-observation ·
-                sumup/{failures,money,transaction,transport,wire}</code><p>
-                Validate transaction currency/amount/events, keep keyless
-                uncertainty explicit, and reread fresh evidence instead of
-                trusting one submission answer.
-              </p>
-            </article>
-          </div>
-        </details>
-
-        <div class="callout" data-finalize="source-path-accounting">
-          <span class="mark">Σ</span><p>
-            <strong>Final raw path accounting:</strong> the source checkpoint
-            contains <strong>100 added</strong>, <strong>106 modified</strong>,
-            and <strong>4 deleted</strong>
-            source paths. Structural deletions include <code
-            >features/admin/require-provider.ts</code>, <code
-            >shared/refund-ledger.ts</code>, and <code>shared/square.ts</code>;
-            the ambient <code>shared/payment-dashboard.ts</code> provider guess
-            is deleted too; their still-needed behavior either moved into the
-            one shared mechanism or was removed.
-          </p>
-        </div>
       </section>
 
       <section id="limits">
-        <p class="eyebrow">13 · Deliberate limits</p>
-        <h2>What this branch does not claim.</h2>
-        <div class="grid-3">
-          <article class="card boundary">
-            <span class="label">Old data</span><h3>
-              No live compatibility reader
-            </h3>
+        <p class="section-number">05 · honest edges</p>
+        <h2>What this PR deliberately does not pretend.</h2>
+
+        <div class="limits-grid">
+          <article class="limit-card">
+            <strong>Old unqualified payments</strong>
             <p>
-              Pre-index, plaintext, or provider-untagged references do not
-              regain refunds here. Ordinary save and merge do not materialize
-              them. Historical references wait for the bounded,
-              owner-authenticated and owner-authorized M11 migration.
+              They get reduced refund functionality. There is no compatibility
+              reader or provider guess.
             </p>
           </article>
-          <article class="card boundary">
-            <span class="label">Bulk intent</span><h3>
-              No durable “finish the listing” job
-            </h3>
+          <article class="limit-card">
+            <strong>Refund All</strong>
             <p>
-              Each Refund All submission safely completes at most one attendee.
-              A crash leaves remaining candidates discoverable, but this part
-              does not persist an automatic whole-listing cursor.
+              One attendee per submission—not yet a durable, resumable
+              listing-wide intention.
             </p>
           </article>
-          <article class="card boundary">
-            <span class="label">Later aggregate</span><h3>
-              No stable obligation allocator
-            </h3>
+          <article class="limit-card">
+            <strong>Booking obligations</strong>
             <p>
-              This is the current-charge refund authority, not the later
-              whole-payment, allocation, decision, effect, or delivery
-              aggregate. In particular, the current ledger cannot safely mark a
-              zero-price member of a paid package refunded when the order key
-              has been overwritten by a later order. M7 must introduce the
-              stable, joinable booking obligation that fixes this without
-              guessing. Those later layers must link to this authority, not
-              build a second engine.
+              Stable order identity, shared-charge allocation and free
+              package-member cancellation remain later work.
             </p>
           </article>
-          <article class="card boundary">
-            <span class="label">Atomic cutover</span><h3>
-              Not every legacy payment field is gone
-            </h3>
+          <article class="limit-card">
+            <strong>Checkout cutover</strong>
             <p>
-              The temporary active-provider selector is confined by an exact
-              architecture allowlist to <code>classify.ts</code>, <code
-              >webhooks.ts</code>, and its declaration in <code
-              >payments.ts</code>; it cannot enter admin refunds, the shared
-              refund engine, or an adapter. Historical columns and terminal edge
-              cases remain around blank paid references or malformed signed
-              completions. Once a provider-tagged refund target is admitted,
-              this branch has one authority. The future M6–M11 cutover must
-              replace and delete <code
-              >getPaymentProviderForExistingPayments</code> and every runtime
-              payment-ownership caller in the same change that switches writers,
-              readers, jobs, completion, delivery, and migration. There must be
-              no dual-run or read-through window. After that cutover, credential
-              enumeration may exist only inside settings and activation
-              recovery. It is never payment ownership and cannot enter refund
-              admission, budgeting, provider loading, observation, sending, or
-              dashboard links. No second observer, sender, fallback, bridge, or
-              old-record branch may survive.
-            </p>
-          </article>
-          <article class="card boundary">
-            <span class="label">Historical privacy</span><h3>
-              Old plaintext is not erased
-            </h3>
-            <p>
-              This branch closes new reference writes and live reads; it does
-              not perform the later verified redaction of historical raw
-              references or old environment-key notes.
-            </p>
-          </article>
-          <article class="card boundary">
-            <span class="label">Credentials</span><h3>
-              Provider access is a separate boundary
-            </h3>
-            <p>
-              Owner-key storage does not protect provider-side data if a
-              database-plus-environment-key holder can decrypt provider
-              credentials.
+              A confined pre-cutover session selector cannot refund; its
+              replacement must delete it atomically.
             </p>
           </article>
         </div>
       </section>
 
       <footer data-finalize="footer-checkpoint">
-        <strong>Final reviewed source report.</strong> Source counts describe
-        <code>src/</code> only. The narrative was audited against <code
-        >origin/main@470b47efef0836487d55beb8a26442dd432f6f35...a3789975d81ceaf827b33da2bc7489499bf0a922</code>
-        and source fingerprint <code
-        >f74f77215e7478cce00f105fa9524edc89b39b1b4470e16a758e4a34092530ce</code>.
-        Documentation-only finalization followed without changing that source
-        diff.
+        <div class="footer-grid">
+          <div>
+            <strong>Source:</strong>
+            <code data-finalize="branch-head"
+            >a3789975d81ceaf827b33da2bc7489499bf0a922</code>
+            against <code data-finalize="base"
+            >470b47efef0836487d55beb8a26442dd432f6f35</code>
+          </div>
+          <div>
+            <strong>Fingerprint:</strong>
+            <code data-finalize="source-fingerprint"
+            >f74f77215e7478cce00f105fa9524edc89b39b1b4470e16a758e4a34092530ce</code>
+          </div>
+          <div>
+            <strong>Source scale:</strong> 210 paths · 15,582 code-only changed
+            lines after excluding imports/comments/blanks
+          </div>
+          <div>
+            <strong>Deeper references:</strong>
+            <a href="src-diff-distilled.html"
+            >behavioural source distillation</a>
+            · <a href="PLAN.md">permanent plan</a> · <a href="TODO.md"
+            >named later work</a>
+          </div>
+        </div>
+        <p>
+          Final PR4-A developer briefing · generated 2026-08-14 · file-by-file
+          inventory intentionally omitted.
+        </p>
       </footer>
     </main>
   </body>
