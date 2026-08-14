@@ -2145,13 +2145,16 @@ current PII payment id with no indexed identity. An owner-encrypted indexed but
 untagged identity returns `provider_unknown`; neither refusal can load a
 provider. Single Refund, Refresh, and the selected Refund All page refuse before
 provider I/O; Refund All's PII-free summary blocks SQL-visible unindexed history
-before paging, and the claim fence catches an unindexed row appearing after
-admission. `provider_unknown` is a bounded typed limitation, not actionable
-recovery: the attendee page explains the missing provider and renders no dead
-Refresh form, while a direct Refresh request still refuses with zero provider
-calls. A PII-only attendee with no reference-bearing row is not visible to
-Refund All's SQL summary; Single Refund and Refresh refuse it, while the atomic
-M6–M11 cutover's migration work package must migrate it without adding a
+before paging. It also requires the booking's event-group-scoped ledger sale and
+payment facts to classify a paid attendee with no reference-bearing row as
+`legacy_unindexed`; that proves money was taken without decrypting the attendee,
+while a sale-only abandoned checkout remains outside the refundable set. It
+cannot recover the raw reference or attest its provider. The claim fence catches
+an unindexed row appearing after admission. `provider_unknown` is a bounded
+typed limitation, not actionable recovery: the attendee page explains the
+missing provider and renders no dead Refresh form, while a direct Refresh
+request still refuses with zero provider calls. The atomic M6–M11 cutover's
+migration work package must still migrate PII-only references without adding a
 population decrypt to the interactive command.
 
 This is also the explicit historical-v1 privacy boundary. New

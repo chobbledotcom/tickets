@@ -716,33 +716,33 @@ As-built module map:
   (`test/integration/logger/log-error.test.ts`).
 - **Refund All admission.** `db/refund-all-candidates.ts` first computes a
   PII-free whole-listing count and detects any visible `review`, `unrecorded`,
-  or blank-index processed-payment blocker among that same complete refundable
-  set. Settled non-candidates keep their own protection and repair state but
-  cannot strand an unrelated refund. The summary runs before selection, so any
-  SQL-visible blocker on a refundable candidate refuses the whole command. The
-  GET/summary route decrypts zero attendee PII blobs. The POST batch loads at
-  most one encrypted blob, with existing claims first, and decrypts zero when
-  the summary is blocked or empty and exactly one otherwise. It never decrypts
-  an attendee array and then slices it. Typed candidate admission catches a
-  current PII payment id with no indexed identity and a row that appears after
-  the summary; an incomplete attendee rejects the request before provider I/O.
-  This catches a PII-only old charge beside an indexed charge because the
-  indexed sibling puts the attendee on the page. A PII-only attendee with no
-  reference-bearing row is absent from the PII-free Refund All set and cannot be
-  discovered there without the forbidden population decrypt; Single Refund and
-  Refresh still refuse that attendee directly. The atomic cutover's M11
-  migration removes this deliberate limit rather than broadening an interactive
-  request. The selected attendee passes through the same claim and budget
-  admission as a single refund.
-  `features/admin/refunds/candidates.ts:getRefundCandidates` drops quantity-zero
-  rows and deduplicates by attendee before loading references, so several
-  booking rows for one person consume one place, one tally, and one
-  orchestration run. One submission retires at most one person and reports the
-  remaining count; another submission takes the next person. This conservative
-  batch size follows the proved Bunny envelope for one attendee's complete
-  reference set; the provider overlap ceiling remains five within that attendee.
-  M7 still owns a durable cursor/job that remembers and resumes the operator's
-  whole-listing intention after a crash.
+  or incomplete historical-payment blocker among that same complete refundable
+  set. Its booking CTE requires the event-group-scoped ledger sale and payment
+  facts, so a paid booking with no reference-bearing processed-payment row
+  contributes a `legacy_unindexed` blocker without reading its PII; a free
+  booking or an abandoned checkout with only a sale contributes nothing.
+  Together those facts prove only that the booking took money, not its raw
+  provider reference or provider ownership. Settled non-candidates keep their
+  own protection and repair state but cannot strand an unrelated refund. The
+  summary runs before selection, so any SQL-visible blocker on a refundable
+  candidate refuses the whole command. The GET/summary route decrypts zero
+  attendee PII blobs. The POST batch loads at most one encrypted blob, with
+  existing claims first, and decrypts zero when the summary is blocked or empty
+  and exactly one otherwise. It never decrypts an attendee array and then slices
+  it. Typed candidate admission catches a current PII payment id with no indexed
+  identity and a row that appears after the summary; an incomplete attendee
+  rejects the request before provider I/O. The atomic cutover's M11 migration
+  must still qualify that historical reference before it becomes refundable. The
+  selected attendee passes through the same claim and budget admission as a
+  single refund. `features/admin/refunds/candidates.ts:getRefundCandidates`
+  drops quantity-zero rows and deduplicates by attendee before loading
+  references, so several booking rows for one person consume one place, one
+  tally, and one orchestration run. One submission retires at most one person
+  and reports the remaining count; another submission takes the next person.
+  This conservative batch size follows the proved Bunny envelope for one
+  attendee's complete reference set; the provider overlap ceiling remains five
+  within that attendee. M7 still owns a durable cursor/job that remembers and
+  resumes the operator's whole-listing intention after a crash.
 - **Money settlement.** `shared/accounting/{queries,store}.ts`,
   `shared/refund-ledger/{plan,result,record,log}.ts`, and
   `features/admin/refunds/{ledger-findings,result-findings,provider,claim,refresh}.ts`
@@ -1072,16 +1072,17 @@ freshly validated provider evidence. Current/last configuration is not evidence:
 M11 must not restore a guessed provider binding or dashboard link for an
 untagged id. A distinct old reference that was never stored cannot be
 reconstructed from PII that remembers only another payment. Refund All's
-PII-free summary cannot discover a PII-only attendee with no reference-bearing
-processed row; this is the accepted compatibility cost of not decrypting a
-population. Part A does not erase historical plaintext references or old
-DB-key-encrypted warning notes. It does not cut the buyer callback classifier
-over: `payment-processing/classify.ts` still judges a paid session from its
-signed total and currency and does not read `refundOutcomeOf` or charge-level
-refund evidence. A provider session that still reads paid after its charge was
-externally returned can therefore still enter the current booking completion
-path. The atomic cutover combines M6's whole-checkout reader with M8's durable
-completion and deletes that displaced writer before activation.
+PII-free summary can use the booking's ledger sale and payment facts to detect
+and block a paid attendee with no reference-bearing processed row, but it cannot
+recover or provider-qualify the raw PII reference. Part A does not erase
+historical plaintext references or old DB-key-encrypted warning notes. It does
+not cut the buyer callback classifier over: `payment-processing/classify.ts`
+still judges a paid session from its signed total and currency and does not read
+`refundOutcomeOf` or charge-level refund evidence. A provider session that still
+reads paid after its charge was externally returned can therefore still enter
+the current booking completion path. The atomic cutover combines M6's
+whole-checkout reader with M8's durable completion and deletes that displaced
+writer before activation.
 
 Before a provider-tagged refund target exists, the current checkout entry still
 uses `shared/existing-payment-provider.ts` to choose the ambient current or last

@@ -24,8 +24,12 @@ import {
   seedTaggedBatchAttendees,
 } from "#test/features/admin/refunds-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import {
+  createPaidAttendeeWithoutLedger,
+  createPaidTestAttendee,
+} from "#test-utils/db-helpers/attendee-payments.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
+import { postListingSale } from "#test-utils/ledger.ts";
 import {
   CLAIM_MIRROR,
   putRowState,
@@ -183,6 +187,51 @@ describeWithEnv("db > Refund All candidates", { db: true }, () => {
     expect(await loadRefundAllBatch(listing.id)).toMatchObject({
       blockedBy: "legacy_unindexed",
       total: 1,
+    });
+  });
+
+  test("blocks a paid PII-only attendee without counting free or unpaid bookings", async () => {
+    const listing = await createPaidListing();
+    const indexed = await createRefundableAttendee(
+      listing.id,
+      "Indexed Payment",
+      "indexed-payment@example.com",
+      "pi_indexed_payment",
+    );
+    await createPaidTestAttendee(
+      listing.id,
+      "PII-only Payment",
+      "pii-only-payment@example.com",
+      "pi_pii_only_payment",
+    );
+    await createPaidTestAttendee(
+      listing.id,
+      "Free Booking",
+      "free-booking@example.com",
+      "",
+      0,
+    );
+    const unpaid = await createPaidAttendeeWithoutLedger(
+      listing.id,
+      "Unpaid Booking",
+      "unpaid-booking@example.com",
+      "",
+    );
+    await postListingSale({
+      amountPaid: 0,
+      attendeeId: unpaid.id,
+      gross: 500,
+      listingId: listing.id,
+    });
+
+    expect(await getRefundAllSummary(listing.id)).toEqual({
+      blockedBy: "legacy_unindexed",
+      total: 2,
+    });
+    expect(await loadRefundAllBatch(listing.id)).toMatchObject({
+      attendees: [{ id: indexed.id }],
+      blockedBy: "legacy_unindexed",
+      total: 2,
     });
   });
 

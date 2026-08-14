@@ -2,6 +2,12 @@
 
 /* jscpd:ignore-start -- imports */
 import type { ResultSet } from "@libsql/client";
+import { ATTENDEE } from "#shared/accounting/accounts.ts";
+import { KIND } from "#shared/accounting/kinds.ts";
+import {
+  accountPredicate,
+  saleLegPredicate,
+} from "#shared/accounting/projection-sql.ts";
 import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import { refundedForBooking } from "#shared/db/attendees/select.ts";
@@ -65,12 +71,24 @@ const anchorSession = paymentAnchorSessionCondition(
   "payment.payment_session_id",
 );
 const providerRefundWork = refundAuthorityWorkSql("charge.");
+const paidBooking =
+  `EXISTS (SELECT 1 FROM transfers WHERE ${saleLegPredicate(
+    "listingAttendee.attendee_id",
+    "listingAttendee.listing_id",
+    "listingAttendee.ledger_event_group",
+  )})` +
+  ` AND EXISTS (SELECT 1 FROM transfers WHERE kind = '${KIND.payment}'` +
+  ` AND ${accountPredicate("dest", ATTENDEE, "listingAttendee.attendee_id")}` +
+  " AND event_group = listingAttendee.ledger_event_group)";
 
 /** Payment facts for real ticket holders on one listing. */
 const refundCandidateCtes = (): string => `
   WITH bookingAttendee AS (
     SELECT attendee.id,
-           MIN(${refundStatus}) AS refunded
+           MIN(${refundStatus}) AS refunded,
+           MAX(
+             CASE WHEN ${paidBooking} THEN 1 ELSE 0 END
+           ) AS has_paid_line
       FROM attendees AS attendee
       JOIN listing_attendees AS listingAttendee
         ON listingAttendee.attendee_id = attendee.id
@@ -131,18 +149,23 @@ const refundCandidateCtes = (): string => `
   refundable AS (
     SELECT attendee.id,
            attendee.refunded,
-           payment.has_claim,
-           payment.legacy_unindexed,
-           payment.needs_review,
-           payment.needs_money_record,
-           payment.provider_refund
+           COALESCE(payment.has_claim, 0) AS has_claim,
+           CASE WHEN attendee.has_paid_line = 1
+                     AND payment.attendee_id IS NULL
+                THEN 1 ELSE COALESCE(payment.legacy_unindexed, 0) END
+             AS legacy_unindexed,
+           COALESCE(payment.needs_review, 0) AS needs_review,
+           COALESCE(payment.needs_money_record, 0) AS needs_money_record,
+           COALESCE(payment.provider_refund, 0) AS provider_refund
       FROM bookingAttendee AS attendee
-      JOIN paymentAttendee AS payment ON payment.attendee_id = attendee.id
-     WHERE attendee.refunded = 0
-        OR payment.has_claim = 1
-        OR payment.provider_refund = 1
-        OR payment.has_current = 1
-        OR (payment.has_completed = 1 AND payment.has_unknown = 1)
+      LEFT JOIN paymentAttendee AS payment ON payment.attendee_id = attendee.id
+     WHERE (attendee.refunded = 0
+            AND (attendee.has_paid_line = 1 OR payment.attendee_id IS NOT NULL))
+        OR COALESCE(payment.has_claim, 0) = 1
+        OR COALESCE(payment.provider_refund, 0) = 1
+        OR COALESCE(payment.has_current, 0) = 1
+        OR (COALESCE(payment.has_completed, 0) = 1
+            AND COALESCE(payment.has_unknown, 0) = 1)
   )`;
 
 const summaryStatement = (listingId: number): SqlStatement => ({
