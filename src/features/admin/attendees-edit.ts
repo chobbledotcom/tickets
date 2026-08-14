@@ -27,8 +27,8 @@ import type { Attendee } from "#shared/types.ts";
 /* jscpd:ignore-end */
 import { attendeeActions } from "./attendees-route-helpers.ts";
 import {
-  refreshClaimedPayment,
   type RefreshPaymentResult,
+  refreshClaimedPayment,
 } from "./refunds/refresh.ts";
 
 /** Minimal context needed by the refresh-payment flow. */
@@ -61,10 +61,10 @@ const loadRefreshState = async (
 ): Promise<
   | Response
   | {
-    attendee: Attendee;
-    listingId: number;
-    references: readonly TaggedRefundPaymentReference[];
-  }
+      attendee: Attendee;
+      listingId: number;
+      references: readonly TaggedRefundPaymentReference[];
+    }
 > => {
   const ctx = await loadRefreshContext(attendeeId);
   if (!ctx) return htmlResponse("", 404);

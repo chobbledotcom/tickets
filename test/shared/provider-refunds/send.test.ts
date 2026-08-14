@@ -217,10 +217,9 @@ describeWithEnv("provider refund engine sends", { db: true }, () => {
 
     await expect(
       runWithSubrequestBudget(() =>
-        withSubrequestAllowance(
-          { database: 2, external: 10, total: 12 },
-          () => requestProviderRefund(target, dependencies),
-        )
+        withSubrequestAllowance({ database: 2, external: 10, total: 12 }, () =>
+          requestProviderRefund(target, dependencies),
+        ),
       ),
     ).rejects.toThrow("Subrequest reserve unavailable");
     expect(sends).toBe(0);

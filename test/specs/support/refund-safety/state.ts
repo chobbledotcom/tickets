@@ -33,12 +33,12 @@ export interface RefundSafetyState {
   manager?: TestBrowser;
   managerAnswer?: number;
   moneyFault?: { restore(): Promise<void> };
-  ownerContactCount: number;
   ownerCase?: {
     readonly id: number;
     readonly reference: string;
     readonly systemTime: number;
   };
+  ownerContactCount: number;
   provider?: RefundProviderScript;
   readonly savedOwnerForms: Map<SavedOwnerFormKind, SavedOwnerForm>;
   windows?: RefundWindows;

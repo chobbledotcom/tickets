@@ -47,9 +47,9 @@ export const keyWords = (): string => "TEXT PRIMARY KEY NOT NULL";
  * one separator more than the envelope has.
  */
 const sealed = (name: string, prefix: string, parts: number): string =>
-  `(typeof(${name}) = 'text' AND ${name} GLOB '${prefix}${
-    ":?*".repeat(parts)
-  }' AND ${name} NOT GLOB '${prefix}${":*".repeat(parts + 1)}')`;
+  `(typeof(${name}) = 'text' AND ${name} GLOB '${prefix}${":?*".repeat(
+    parts,
+  )}' AND ${name} NOT GLOB '${prefix}${":*".repeat(parts + 1)}')`;
 
 /** Hidden with this site's own key: a starting block, then the hidden text. */
 const ownSealed = (name: string): string => sealed(name, "enc:1", 2);
@@ -75,7 +75,8 @@ export const madeAndTouched: [string, string][] = [
  * only place SQLite lets a table say them.
  */
 export const alsoAbout =
-  (theRow: string[]): (base: string) => string => (base: string): string =>
+  (theRow: string[]): ((base: string) => string) =>
+  (base: string): string =>
     [base, ...theRow.map((rule) => `CHECK (${rule})`)].join("\n          ");
 
 /**

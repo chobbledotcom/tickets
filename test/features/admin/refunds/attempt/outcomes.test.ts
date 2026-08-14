@@ -55,18 +55,16 @@ describe("admin refund provider", () => {
     });
   });
 
-  for (
-    const [state, blockedCharge, outcome] of [
-      ["partly refunded", partlyRefundedCharge(), "pending"],
-      [
-        "still settling",
-        chargeMoneyWith({
-          refunds: [refundObservation({ status: "pending" })],
-        }),
-        "pending",
-      ],
-    ] as const
-  ) {
+  for (const [state, blockedCharge, outcome] of [
+    ["partly refunded", partlyRefundedCharge(), "pending"],
+    [
+      "still settling",
+      chargeMoneyWith({
+        refunds: [refundObservation({ status: "pending" })],
+      }),
+      "pending",
+    ],
+  ] as const) {
     test(`moves no sibling money when one charge is ${state}`, async () => {
       const source = provider({
         refunded: new Set(["pi_clean_a", "pi_clean_b"]),
@@ -88,12 +86,10 @@ describe("admin refund provider", () => {
     });
   }
 
-  for (
-    const [name, input] of [
-      ["stored canonical answer", { kind: "already_returned" as const }],
-      ["provider observation", { charge: fullyRefundedMoney() }],
-    ] as const
-  ) {
+  for (const [name, input] of [
+    ["stored canonical answer", { kind: "already_returned" as const }],
+    ["provider observation", { charge: fullyRefundedMoney() }],
+  ] as const) {
     test(`answers returned money from a ${name} without sending`, async () => {
       const source = provider();
       const result = await refundReadyCandidate(
@@ -152,8 +148,9 @@ describe("admin refund provider", () => {
     expect(result.returned.map(({ reference }) => reference.reference)).toEqual(
       ["pi_ok"],
     );
-    expect(errors.contains("Admin refund did not complete all 2 payments"))
-      .toBe(true);
+    expect(
+      errors.contains("Admin refund did not complete all 2 payments"),
+    ).toBe(true);
   });
 
   test("keeps provider requests inside the concurrency limit", async () => {
@@ -193,7 +190,7 @@ describe("admin refund provider", () => {
           readyCandidateWithReferences(["pi_shared"], source, attendeeId),
           7,
           inFlight,
-        )
+        ),
       ),
     );
 

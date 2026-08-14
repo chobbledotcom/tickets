@@ -129,14 +129,12 @@ describe("admin refund subrequest budget", () => {
 
   test("reserves canonical lookup and ledger work for returned money", () => {
     expect(
-      refundPreparedSubrequestCost(
-        {
-          activeAuthorityCount: 0,
-          mayRecordReturns: true,
-          returnedAuthorityCount: 1,
-          sendReferences: [],
-        },
-      ),
+      refundPreparedSubrequestCost({
+        activeAuthorityCount: 0,
+        mayRecordReturns: true,
+        returnedAuthorityCount: 1,
+        sendReferences: [],
+      }),
     ).toEqual({ database: 8, external: 0, total: 8 });
   });
 
@@ -158,24 +156,20 @@ describe("admin refund subrequest budget", () => {
 
   test("prices no late work when preparation can neither send nor return money", () => {
     expect(
-      refundPreparedSubrequestCost(
-        {
-          activeAuthorityCount: 0,
-          mayRecordReturns: false,
-          returnedAuthorityCount: 0,
-          sendReferences: [],
-        },
-      ),
+      refundPreparedSubrequestCost({
+        activeAuthorityCount: 0,
+        mayRecordReturns: false,
+        returnedAuthorityCount: 0,
+        sendReferences: [],
+      }),
     ).toEqual({ database: 0, external: 0, total: 0 });
   });
 
-  for (
-    const [provider, calls] of [
-      ["square", 3],
-      ["stripe", 3],
-      ["sumup", 3],
-    ] as const
-  ) {
+  for (const [provider, calls] of [
+    ["square", 3],
+    ["stripe", 3],
+    ["sumup", 3],
+  ] as const) {
     test(`counts the full ${provider} read, send, and recovery plan`, () => {
       expect(externalCost(taggedReference(provider), [provider])).toBe(calls);
     });

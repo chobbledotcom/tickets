@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { filter, map, pipe } from "#fp";
+import { REFRESH_BUDGET_MESSAGE } from "#routes/admin/refunds/budget.ts";
 import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import { mapBooking } from "#shared/accounting/mappers.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
-import { REFRESH_BUDGET_MESSAGE } from "#routes/admin/refunds/budget.ts";
 import type { ActivityLogEntry } from "#shared/db/activity-log.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
@@ -16,19 +16,17 @@ import type { Attendee } from "#shared/types.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import { expectErrorFlash, expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import {
-  createPaidAttendeeWithoutLedger,
-} from "#test-utils/db-helpers/attendee-payments.ts";
+import { createPaidAttendeeWithoutLedger } from "#test-utils/db-helpers/attendee-payments.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postPaymentLeg } from "#test-utils/db-helpers/payment-leg.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { claimCurrentAttendeeRows } from "#test-utils/payment-claim.ts";
-import { chargeMoney } from "#test-utils/payment-state.ts";
 import {
   getCompleteRefundPaymentReferencesForAttendee,
   markProviderRefundsReturned,
 } from "#test-utils/payment-references.ts";
+import { chargeMoney } from "#test-utils/payment-state.ts";
 import {
   finalizeProcessedPayment,
   finalizeReservedPayment,
@@ -58,13 +56,7 @@ const setupBalanceRefresh = async (
     500,
   );
   const depositSessionId = "refresh-deposit-session";
-  await postPaymentLeg(
-    attendee.id,
-    500,
-    depositSessionId,
-    listing.id,
-    800,
-  );
+  await postPaymentLeg(attendee.id, 500, depositSessionId, listing.id, 800);
   await finalizeProcessedPayment(
     depositSessionId,
     attendee.id,
@@ -286,14 +278,10 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
       if (balanceReference === undefined) {
         throw new Error("The balance refund reference was not loaded");
       }
-      await markProviderRefundsReturned(
-        [balanceReference],
-        "due",
-      );
+      await markProviderRefundsReturned([balanceReference], "due");
 
-      const queried = await submitRefreshPayment(
-        attendee,
-        (reference) => Promise.resolve(reference === "pi_refresh_deposit"),
+      const queried = await submitRefreshPayment(attendee, (reference) =>
+        Promise.resolve(reference === "pi_refresh_deposit"),
       );
 
       expect(queried).toEqual(["pi_refresh_deposit"]);

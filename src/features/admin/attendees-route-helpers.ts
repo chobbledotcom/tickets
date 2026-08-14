@@ -93,7 +93,7 @@ type PaymentReviewActionData = AttendeeActionData & {
 const loadAttendeeActionData: (
   attendeeId: number,
 ) => Promise<AttendeeActionData | null> = withDecryptedAttendee((attendee) =>
-  Promise.resolve({ attendee })
+  Promise.resolve({ attendee }),
 );
 
 const loadPaymentReviewActionData: (
@@ -168,10 +168,11 @@ type AttendeeActionPagePreparation<Data> = (
 ) => AttendeeActionPage<Data> | Promise<AttendeeActionPage<Data>>;
 
 /** A page with no data-dependent admission work. */
-export const attendeeActionPage = <Data>(
-  render: AttendeeActionRenderer<Data>,
-): AttendeeActionPagePreparation<Data> =>
-() => ({ reason: null, render });
+export const attendeeActionPage =
+  <Data>(
+    render: AttendeeActionRenderer<Data>,
+  ): AttendeeActionPagePreparation<Data> =>
+  () => ({ reason: null, render });
 
 type AttendeeActionRoute = ParamsRoute<AttendeeIdRouteParams>;
 
@@ -270,13 +271,11 @@ const bookingAction = <Action extends string>(action: Action) =>
 const defineAttendeeActions = <
   const Actions extends Record<string, { readonly action: string }>,
 >(
-  actions:
-    & Actions
-    & {
-      [Action in keyof Actions]: {
-        readonly action: Extract<Action, string>;
-      };
-    },
+  actions: Actions & {
+    [Action in keyof Actions]: {
+      readonly action: Extract<Action, string>;
+    };
+  },
 ): Actions => actions;
 
 /** The complete action schema. Adding an action means choosing its scope once;
@@ -306,7 +305,7 @@ type AttendeeIdRouteParams = { attendeeId: number };
  * the parsed form. Shared by the note and logistics POSTs. */
 export const attendeeFormPost = (
   handle: IdFormHandler,
-): (request: Request, params: AttendeeIdRouteParams) => Promise<Response> =>
+): ((request: Request, params: AttendeeIdRouteParams) => Promise<Response>) =>
   createAuthedHandler<AttendeeIdRouteParams>({
     handle: ({ form, params, session }) =>
       handle(params.attendeeId, session, form),
@@ -330,7 +329,7 @@ type AttendeeFormAction = ResponseHandler<
 /** Create an attendee form handler with typed IDs */
 export const attendeeFormAction = (
   handler: AttendeeFormAction,
-): (request: Request, params: AttendeeRouteParams) => Promise<Response> =>
+): ((request: Request, params: AttendeeRouteParams) => Promise<Response>) =>
   createAuthedHandler<AttendeeRouteParams, AttendeeWithListing>({
     handle: ({ context, form, params, session }) =>
       handler(context, session, form, params.listingId, params.attendeeId),

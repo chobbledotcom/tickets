@@ -36,12 +36,10 @@ export const nextClaimFor = (
   request: ClaimRequest,
   commandId: string,
   writtenAt: string,
-): RefundClaim => {
-  return {
-    attendeeIds: [...request.attendeeIds],
-    commandId,
-    scope: request.scope,
-    writtenAt,
-    phase: "checking",
-  };
-};
+): RefundClaim => ({
+  attendeeIds: [...request.attendeeIds],
+  commandId,
+  phase: "checking",
+  scope: request.scope,
+  writtenAt,
+});

@@ -24,7 +24,6 @@ import {
   getOrphanPaymentWorkPage,
   purgeOrphanedAttendees,
 } from "#shared/db/orphan-attendees.ts";
-import { readyRefundTestState } from "#test-utils/provider-refund-cases.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -35,12 +34,15 @@ import {
   REVIEW_MIRROR,
   UNRECORDED_MIRROR,
 } from "#test-utils/payment-claim.ts";
-import { insertRefundConfirmationFixture } from "#test-utils/refund-confirmations.ts";
-import { addProviderRefundTestCase } from "#test-utils/provider-refund-cases.ts";
 import {
   finalizeProcessedPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
+import {
+  addProviderRefundTestCase,
+  readyRefundTestState,
+} from "#test-utils/provider-refund-cases.ts";
+import { insertRefundConfirmationFixture } from "#test-utils/refund-confirmations.ts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

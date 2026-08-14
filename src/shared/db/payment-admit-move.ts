@@ -12,8 +12,8 @@ import {
   type RowMove,
 } from "#shared/payment/admit-move.ts";
 import {
-  readRefundAuthorityState,
   type RefundAuthorityState,
+  readRefundAuthorityState,
 } from "#shared/payment/refund-authority.ts";
 import { refundMoveRefusalOrNull } from "#shared/payment/refund-authority-lifecycle.ts";
 
@@ -56,12 +56,15 @@ export const assertRowsFreeToMove = async (
   );
   if (rowRefusal !== null) throw new PaymentRowsBusyError(rowRefusal);
   const storedAuthorityStates = new Set(
-    rows.flatMap((row) => row.refund_state === null ? [] : [row.refund_state]),
+    rows.flatMap((row) =>
+      row.refund_state === null ? [] : [row.refund_state],
+    ),
   );
-  const authorityStates: RefundAuthorityState[] = [...storedAuthorityStates]
-    .map((state) =>
-      readRefundAuthorityState(state, "payment_charges.refund_state")
-    );
+  const authorityStates: RefundAuthorityState[] = [
+    ...storedAuthorityStates,
+  ].map((state) =>
+    readRefundAuthorityState(state, "payment_charges.refund_state"),
+  );
   const authorityRefusal = refundMoveRefusalOrNull(authorityStates, move);
   if (authorityRefusal !== null) {
     throw new PaymentRowsBusyError(authorityRefusal);

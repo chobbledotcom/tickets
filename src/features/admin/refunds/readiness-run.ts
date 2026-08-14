@@ -1,7 +1,7 @@
 import type { LoadedRefundAttendee } from "#shared/db/payment-claim/take.ts";
 import { PAYMENT_REVIEW_RETIREMENT } from "#shared/payment/review.ts";
-import { getSubrequestRemaining } from "#shared/subrequest-budget.ts";
 import { requestProviderRefund } from "#shared/provider-refunds.ts";
+import { getSubrequestRemaining } from "#shared/subrequest-budget.ts";
 import {
   REFRESH_BUDGET_MESSAGE,
   REFUND_BUDGET_MESSAGES,
@@ -51,17 +51,16 @@ type RefundReadinessRunBase<TResult> = {
   ) => Promise<TResult>;
 };
 
-type RefundReadinessRun<TResult> =
-  & RefundReadinessRunBase<TResult>
-  & (
+type RefundReadinessRun<TResult> = RefundReadinessRunBase<TResult> &
+  (
     | {
-      action: Extract<RefundReadinessAction, "refund">;
-      budgetAudience: RefundBudgetAudience;
-    }
+        action: Extract<RefundReadinessAction, "refund">;
+        budgetAudience: RefundBudgetAudience;
+      }
     | {
-      action: Extract<RefundReadinessAction, "refresh">;
-      budgetAudience?: never;
-    }
+        action: Extract<RefundReadinessAction, "refresh">;
+        budgetAudience?: never;
+      }
   );
 
 const REVIEW_REQUIRED_MESSAGE =
@@ -90,7 +89,7 @@ const reportCandidateProblems = (
 const sharedRowSessionIds = (held: HeldRefundWork): Set<string> =>
   new Set(
     [...held.shared.values()].flatMap((representations) =>
-      representations.map(({ sessionId }) => sessionId)
+      representations.map(({ sessionId }) => sessionId),
     ),
   );
 
@@ -207,9 +206,10 @@ const loadedBudgetCandidates = (
 const refuseForBudget = <TResult>(
   run: RefundReadinessRun<TResult>,
 ): TResult => {
-  const message = run.action === "refresh"
-    ? REFRESH_BUDGET_MESSAGE
-    : REFUND_BUDGET_MESSAGES[run.budgetAudience];
+  const message =
+    run.action === "refresh"
+      ? REFRESH_BUDGET_MESSAGE
+      : REFUND_BUDGET_MESSAGES[run.budgetAudience];
   return run.notReady(message, "subrequest_budget");
 };
 
@@ -269,12 +269,7 @@ export const runRefundReadiness = async <TResult>(
         );
         if (readiness.kind === "not_ready") {
           return run.notReady(
-            await reportReadinessFailure(
-              run,
-              run.candidates,
-              readiness,
-              held,
-            ),
+            await reportReadinessFailure(run, run.candidates, readiness, held),
           );
         }
         return await run.ready(readiness.candidates, held);

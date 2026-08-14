@@ -18,18 +18,18 @@ import { isPaymentProvider, isRecord } from "#shared/types.ts";
  */
 export type SessionRejection =
   | {
-    reason: "malformed_charge";
-    paymentReference: string;
-    provider: PaymentProviderType;
-    refundable: boolean;
-    metadata: SessionMetadata;
-    sessionId: string;
-  }
+      reason: "malformed_charge";
+      paymentReference: string;
+      provider: PaymentProviderType;
+      refundable: boolean;
+      metadata: SessionMetadata;
+      sessionId: string;
+    }
   | {
-    provider: PaymentProviderType;
-    reason: "blank_reference";
-    sessionId: string;
-  };
+      provider: PaymentProviderType;
+      reason: "blank_reference";
+      sessionId: string;
+    };
 
 /** The durable charge identity proved by a validated session, or no charge for
  * a free checkout. A non-empty invalid id contradicts the session boundary and
@@ -137,8 +137,7 @@ export const validatedPaymentSession = (fields: {
   if (charge === null) {
     logError({
       code: ErrorCode.PAYMENT_SESSION,
-      detail:
-        `Session ${fields.id} carries a malformed charge (amount=${fields.amountTotal}, currency=${fields.currency})`,
+      detail: `Session ${fields.id} carries a malformed charge (amount=${fields.amountTotal}, currency=${fields.currency})`,
     });
     return malformedChargeRejection(
       fields.id,

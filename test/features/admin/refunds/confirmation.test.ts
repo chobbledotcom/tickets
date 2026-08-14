@@ -32,7 +32,7 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
         confirmRefund({
           ...refund,
           references: [{ ...refund.reference, index: "" }],
-        })
+        }),
       ),
     ).rejects.toThrow("A refund confirmation needs indexed payment references");
 
@@ -52,7 +52,7 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
 
     const activities = await getAttendeeActivityLog(refund.attendee.id);
     const confirmations = activities.filter((entry) =>
-      entry.message.includes("Payment marked as refunded")
+      entry.message.includes("Payment marked as refunded"),
     );
     expect(confirmations).toHaveLength(1);
     expect(confirmations[0]?.message).not.toContain(refund.attendeeName);
@@ -93,10 +93,10 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
         confirmRefund({
           ...refund,
           references: [second, first, second],
-        })
+        }),
       ),
       withTestSession(() =>
-        confirmRefund({ ...refund, references: [first, second] })
+        confirmRefund({ ...refund, references: [first, second] }),
       ),
     ]);
 
@@ -118,12 +118,12 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
           reference_index: reference.index,
         }))
         .sort((left, right) =>
-          left.reference_index.localeCompare(right.reference_index)
+          left.reference_index.localeCompare(right.reference_index),
         ),
     );
     expect(
       (await getAttendeeActivityLog(refund.attendee.id)).filter((entry) =>
-        entry.message.includes("Payment marked as refunded")
+        entry.message.includes("Payment marked as refunded"),
       ),
     ).toHaveLength(1);
     expect(
@@ -145,7 +145,7 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
 
     await expect(
       withTestSession(() =>
-        confirmRefund({ ...refund, references: [refund.reference] })
+        confirmRefund({ ...refund, references: [refund.reference] }),
       ),
     ).rejects.toThrow("activity write failed");
 
@@ -157,10 +157,7 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
     ).toEqual({ count: 0 });
     expect(await getAttendeeActivityLog(refund.attendee.id)).toEqual([]);
     expect(
-      await getNotesFor(
-        attendeeNotes(refund.attendee.id),
-        refund.privateKey,
-      ),
+      await getNotesFor(attendeeNotes(refund.attendee.id), refund.privateKey),
     ).toEqual([]);
   });
 
@@ -170,7 +167,7 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
 
     await expect(
       withTestSession(() =>
-        confirmRefund({ ...refund, references: [refund.reference] })
+        confirmRefund({ ...refund, references: [refund.reference] }),
       ),
     ).rejects.toThrow("Refund confirmation no longer owns every payment row");
     expect(await getAttendeeActivityLog(refund.attendee.id)).toEqual([]);
@@ -201,7 +198,7 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
 
     expect(
       await withTestSession(() =>
-        confirmRefund({ ...refund, references: [refund.reference] })
+        confirmRefund({ ...refund, references: [refund.reference] }),
       ),
     ).toBe("new");
 

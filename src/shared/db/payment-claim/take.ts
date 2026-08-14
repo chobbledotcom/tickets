@@ -226,10 +226,7 @@ export const claimAttendeeRows = async (
 ): Promise<ClaimResult> => {
   const commandId = crypto.randomUUID();
   if (attendees.length === 0) {
-    if (
-      admit !== undefined &&
-      !admit({ attendees, returned: new Set() })
-    ) {
+    if (admit !== undefined && !admit({ attendees, returned: new Set() })) {
       return { kind: "not_admitted" };
     }
     return {

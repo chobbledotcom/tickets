@@ -28,14 +28,14 @@ import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import {
   CLAIM_MIRROR,
   putRowState,
-  refundClaimFixture,
   REVIEW_MIRROR,
+  refundClaimFixture,
   reviewCase,
   rowStateSlot,
   UNRECORDED_MIRROR,
 } from "#test-utils/payment-claim.ts";
-import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
 import { markProviderRefundsReturned } from "#test-utils/payment-references.ts";
+import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
 import { addProviderRefundTestCase } from "#test-utils/provider-refund-cases.ts";
 import { getCompleteRefundCandidatesForListing } from "#test-utils/refund-candidates.ts";
 
@@ -198,9 +198,9 @@ describeWithEnv("db > Refund All candidates", { db: true }, () => {
   test("selects one claim-first attendee as an encrypted record", async () => {
     const listing = await createPaidListing();
     await seedTaggedBatchAttendees(listing, "pi_refund_batch_", 7);
-    const claimed = (await getCompleteRefundCandidatesForListing(listing.id))[
-      4
-    ];
+    const claimed = (
+      await getCompleteRefundCandidatesForListing(listing.id)
+    )[4];
     if (claimed === undefined) {
       throw new Error("Refund All has no fifth attendee");
     }
@@ -237,8 +237,9 @@ describeWithEnv("db > Refund All candidates", { db: true }, () => {
     await seedTaggedBatchAttendees(listing, "pi_authority_batch_", 7);
     const initial = await loadRefundAllBatch(listing.id);
     const selected = new Set(initial.attendees.map(({ id }) => id));
-    const outside = (await getCompleteRefundCandidatesForListing(listing.id))
-      .find(({ attendee }) => !selected.has(attendee.id));
+    const outside = (
+      await getCompleteRefundCandidatesForListing(listing.id)
+    ).find(({ attendee }) => !selected.has(attendee.id));
     const reference = outside?.references[0];
     if (reference === undefined || reference.kind !== "tagged") {
       throw new Error(

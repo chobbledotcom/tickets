@@ -87,12 +87,10 @@ describe("refresh payment under an attendee claim", () => {
     expect(run.calls.prepare).toBe(0);
   });
 
-  for (
-    const [name, count] of [
-      ["no attendee", 0],
-      ["more than one attendee", 2],
-    ] as const
-  ) {
+  for (const [name, count] of [
+    ["no attendee", 0],
+    ["more than one attendee", 2],
+  ] as const) {
     test(`fails when readiness returns ${name}`, async () => {
       const run = runHarness();
       const candidates = Array.from({ length: count }).flatMap(

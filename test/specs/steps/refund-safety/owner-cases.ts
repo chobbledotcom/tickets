@@ -1,14 +1,15 @@
 // jscpd:ignore-start
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
-import { loadRefundAuthorityByReference } from "#shared/db/provider-refund-authority.ts";
 import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
+import { loadRefundAuthorityByReference } from "#shared/db/provider-refund-authority.ts";
 import type { ProviderRefundTarget } from "#shared/provider-refunds.ts";
 import {
   type ProviderRefundDependencies,
   requestProviderRefund,
 } from "#shared/provider-refunds.ts";
 import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
+import { refundProviderFor } from "#test/specs/steps/refund-safety/common.ts";
 import { adminBrowser, scenarioBrowser } from "#test/specs/support/browser.ts";
 import {
   attribute,
@@ -16,13 +17,13 @@ import {
   usableInputsOfKind,
 } from "#test/specs/support/form-controls/reading.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
-import { refundProviderFor } from "#test/specs/steps/refund-safety/common.ts";
 import {
-  refundSafety,
   type RefundSafetyState,
+  refundSafety,
 } from "#test/specs/support/refund-safety/state.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { chargeMoney } from "#test-utils/payment-state.ts";
+
 // jscpd:ignore-end
 
 const REFERENCE = "sumup-owner-recovery-reference";
@@ -210,11 +211,7 @@ Then(
 When(
   "the owner sends the ready refund",
   function (this: TicketsWorld): Promise<void> {
-    return fillInAndSend(
-      scenarioBrowser(this),
-      {},
-      "Send this refund",
-    );
+    return fillInAndSend(scenarioBrowser(this), {}, "Send this refund");
   },
 );
 

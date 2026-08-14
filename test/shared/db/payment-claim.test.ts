@@ -12,8 +12,8 @@ import {
   claimCurrentAttendeeRows,
   protectedStateOf,
   putRowState,
-  releaseClaimRows,
   REVIEW_MIRROR,
+  releaseClaimRows,
   reviewCase,
   rowStateSlot,
   UNRECORDED_MIRROR,
@@ -63,7 +63,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
           phases: new Map([
             ["sess-confirm", claimedPhase(claimed, "sess-confirm")],
           ]),
-        })
+        }),
       );
       await releaseClaimRows(claimed, ["sess-confirm"]);
 
@@ -75,7 +75,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
             phases: new Map([
               ["sess-confirm", claimedPhase(claimed, "sess-confirm")],
             ]),
-          })
+          }),
         ),
       ).rejects.toThrow("Refund confirmation no longer owns every payment row");
     });
@@ -86,7 +86,7 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
           commandId: "empty-command",
           heldSince: "2026-08-11T12:00:00.000Z",
           phases: new Map(),
-        })
+        }),
       );
     });
 
@@ -154,7 +154,12 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
         new Map([
           [
             "sess-new-review",
-            { review: { kind: "resolved", reason: "partially_returned_obligation" } },
+            {
+              review: {
+                kind: "resolved",
+                reason: "partially_returned_obligation",
+              },
+            },
           ],
         ]),
       );
@@ -182,7 +187,12 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
         new Map([
           [
             "sess-changed-review",
-            { review: { kind: "resolved", reason: "partially_returned_obligation" } },
+            {
+              review: {
+                kind: "resolved",
+                reason: "partially_returned_obligation",
+              },
+            },
           ],
         ]),
       );
@@ -199,7 +209,10 @@ describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
     test("keeps acknowledgement for the same issue and reopens a changed issue", async () => {
       const attendeeId = await bookedWithPayment("sess-review-case", "pi_case");
       const acknowledged = {
-        ...reviewCase({ kind: "partially_returned_obligation" }, "acknowledged-case"),
+        ...reviewCase(
+          { kind: "partially_returned_obligation" },
+          "acknowledged-case",
+        ),
         acknowledgedAt: "2026-08-12T13:00:00.000Z",
       };
       await putRowState(

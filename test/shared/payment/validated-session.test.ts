@@ -147,7 +147,7 @@ describe("validatedPaymentSession", () => {
         id: "invented",
         paymentReference: "   ",
         provider: "stripe",
-      })
+      }),
     ).toThrow(/^Validated session has an invalid provider resource id$/u);
   });
 
@@ -158,7 +158,7 @@ describe("validatedPaymentSession", () => {
         amountTotal: 1000,
         currency: "GBP",
         id: "",
-      })
+      }),
     ).toThrow(/^Payment session has an invalid provider resource id$/u);
   });
 

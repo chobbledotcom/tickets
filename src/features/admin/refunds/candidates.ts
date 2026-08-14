@@ -83,7 +83,7 @@ export const getRefundCandidates = async (
     return { kind: refused.set.kind };
   }
   const completeSets = referenceSets.flatMap(({ attendee, set }) =>
-    set.kind === "complete" ? [{ attendee, references: set.references }] : []
+    set.kind === "complete" ? [{ attendee, references: set.references }] : [],
   );
   return {
     candidates: filter(

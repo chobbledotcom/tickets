@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { paymentChargeTable } from "#shared/db/migrations/schema/payments/charges.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
 import { refundAuthorityWorkSql } from "#shared/payment/refund-authority-lifecycle.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   expectAccepted,
   expectRefused,
@@ -12,8 +12,7 @@ import {
 const COLUMNS =
   "provider, provider_reference, reference_index, callback_replay_index, capability, captured_amount, currency, refunded_amount, refund_state, refund_state_name, refund_local_state, next_refund_action_at, refund_revision, created_at, updated_at, observed_at";
 
-const READY_STATE =
-  `{"kind":"ready","request":{"capability":"keyed","generation":1,"identityIndex":"request-one","replayUntil":500},"evidenceRevision":1,"local":{"kind":"not_due"},"nextActionAt":100,"readyAt":1}`;
+const READY_STATE = `{"kind":"ready","request":{"capability":"keyed","generation":1,"identityIndex":"request-one","replayUntil":500},"evidenceRevision":1,"local":{"kind":"not_due"},"nextActionAt":100,"readyAt":1}`;
 
 const aCharge = (
   index: string,
@@ -56,14 +55,12 @@ test("is what the money actually taken is made of", () => {
 });
 
 describeWithEnv("db > payment charge rules", { db: true }, () => {
-  for (
-    const [name, reference] of [
-      ["in plain words", "'pi_12345'"],
-      ["behind an upper-case envelope", "'ENC:1:a:b'"],
-      ["wearing an envelope with nothing in it", "'enc:1:pi_12345'"],
-      ["behind the database owner's symmetric key", "'enc:1:a:b'"],
-    ] as const
-  ) {
+  for (const [name, reference] of [
+    ["in plain words", "'pi_12345'"],
+    ["behind an upper-case envelope", "'ENC:1:a:b'"],
+    ["wearing an envelope with nothing in it", "'enc:1:pi_12345'"],
+    ["behind the database owner's symmetric key", "'enc:1:a:b'"],
+  ] as const) {
     test(`refuses money whose provider name is held ${name}`, async () => {
       await expectRefused(aCharge("plain-index", reference));
     });
@@ -88,9 +85,7 @@ describeWithEnv("db > payment charge rules", { db: true }, () => {
   });
 
   test("refuses a second authority for the same callback replay", async () => {
-    await expectAccepted(
-      aCharge("first-index", undefined, "'replay'"),
-    );
+    await expectAccepted(aCharge("first-index", undefined, "'replay'"));
     await expectRefusedAsRepeat(
       aCharge("second-index", "'hyb:1:d:e:f'", "'replay'"),
     );
@@ -98,9 +93,7 @@ describeWithEnv("db > payment charge rules", { db: true }, () => {
 
   test("allows admin commands with no callback replay identity", async () => {
     await expectAccepted(aCharge("first-admin-index"));
-    await expectAccepted(
-      aCharge("second-admin-index", "'hyb:1:d:e:f'"),
-    );
+    await expectAccepted(aCharge("second-admin-index", "'hyb:1:d:e:f'"));
   });
 
   test("refuses invalid or dishonest state mirrors", async () => {
@@ -122,10 +115,7 @@ describeWithEnv("db > payment charge rules", { db: true }, () => {
       ),
     );
     await expectRefused(
-      aCharge("bad-capability-index").replace(
-        "'keyed', 100",
-        "'keyless', 100",
-      ),
+      aCharge("bad-capability-index").replace("'keyed', 100", "'keyless', 100"),
     );
   });
 });

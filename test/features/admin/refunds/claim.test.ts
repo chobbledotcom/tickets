@@ -74,11 +74,7 @@ describe("admin refunds > attendee claim", () => {
 
     const result = await underAttendeeClaim(claim, LOADED, 9, {
       blocked: () => "blocked",
-      work: ({
-        alreadyReturned,
-        findings,
-        unrecorded: existingUnrecorded,
-      }) => {
+      work: ({ alreadyReturned, findings, unrecorded: existingUnrecorded }) => {
         expect([...alreadyReturned]).toEqual(["pi_returned"]);
         expect(existingUnrecorded).toBe(unrecorded);
         expect(findings).toEqual({
@@ -134,7 +130,10 @@ describe("admin refunds > attendee claim", () => {
               books: "unrecorded",
               claim: "release",
               phase: "checking",
-              review: { kind: "resolved", reason: "partially_returned_obligation" },
+              review: {
+                kind: "resolved",
+                reason: "partially_returned_obligation",
+              },
             },
           ],
           [

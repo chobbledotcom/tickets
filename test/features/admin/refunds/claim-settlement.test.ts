@@ -22,9 +22,8 @@ describe("admin refunds > attendee claim settlement", () => {
     let worked = false;
 
     await runWithSubrequestBudget(async () => {
-      const callsBeforeReserveRefusal = BUNNY_SUBREQUEST_LIMIT -
-        REFUND_SETTLEMENT_SUBREQUEST_RESERVE.total +
-        1;
+      const callsBeforeReserveRefusal =
+        BUNNY_SUBREQUEST_LIMIT - REFUND_SETTLEMENT_SUBREQUEST_RESERVE.total + 1;
       for (let call = 0; call < callsBeforeReserveRefusal; call++) {
         countSubrequest("database", "earlier refund work");
       }
@@ -45,9 +44,8 @@ describe("admin refunds > attendee claim settlement", () => {
   });
 
   test("reports a settlement failure without replacing the work failure", async () => {
-    const claim = claimResult(
-      claimedRows(new Map([[1, ["sess-one"]]])),
-      () => Promise.reject(new Error("the row would not let go")),
+    const claim = claimResult(claimedRows(new Map([[1, ["sess-one"]]])), () =>
+      Promise.reject(new Error("the row would not let go")),
     );
 
     await expect(
@@ -123,10 +121,7 @@ describe("admin refunds > attendee claim settlement", () => {
               },
             },
           ],
-          [
-            "sess-uncertain",
-            { claim: "release", phase: "checking" },
-          ],
+          ["sess-uncertain", { claim: "release", phase: "checking" }],
         ]),
       },
     ]);

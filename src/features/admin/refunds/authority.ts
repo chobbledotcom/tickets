@@ -1,12 +1,12 @@
 /* jscpd:ignore-start -- imports */
 import { uniqueBy } from "#fp";
 import { nowMs } from "#shared/now.ts";
-import type { RefundLedgerResult } from "#shared/refund-ledger/result.ts";
-import {
-  type ProviderRefundResult,
-  type RefundAuthorityReceipt,
+import type {
+  ProviderRefundResult,
+  RefundAuthorityReceipt,
   requestProviderRefund,
 } from "#shared/provider-refunds.ts";
+import type { RefundLedgerResult } from "#shared/refund-ledger/result.ts";
 import type { ReadyRefundReference } from "./readiness.ts";
 /* jscpd:ignore-end */
 
@@ -18,9 +18,10 @@ export const requestReadyRefund = (
 ): Promise<ProviderRefundResult> =>
   request(
     {
-      evidence: ready.kind === "observed"
-        ? { charge: ready.charge, kind: "observed" }
-        : { kind: "read_provider" },
+      evidence:
+        ready.kind === "observed"
+          ? { charge: ready.charge, kind: "observed" }
+          : { kind: "read_provider" },
       mode,
       reference: ready.reference,
     },
@@ -46,6 +47,6 @@ export const recordedRefundAuthorities = (
 ): RefundAuthorityReceipt[] =>
   uniqueBy((authority: RefundAuthorityReceipt) => authority.id)(
     references.flatMap(({ authority, reference }) =>
-      ledger.recorded.has(reference.index) ? [authority] : []
+      ledger.recorded.has(reference.index) ? [authority] : [],
     ),
   );

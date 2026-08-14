@@ -3,8 +3,8 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
-import { requireListingWithCount } from "#shared/db/listings/records.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
+import { requireListingWithCount } from "#shared/db/listings/records.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import {

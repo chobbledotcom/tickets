@@ -1,11 +1,7 @@
 /** What a refund came to. `withheld` means no money was sent and the reason has
  * already been reported at the volume it deserved. `pending` means the
  * provider accepted it but has not yet proved the money returned. */
-export type RefundOutcome =
-  | "refunded"
-  | "pending"
-  | "withheld"
-  | "failed";
+export type RefundOutcome = "refunded" | "pending" | "withheld" | "failed";
 
 type CandidateWithReferences = {
   readonly references: readonly unknown[];
@@ -37,11 +33,7 @@ export const packByReferenceCount =
   };
 
 /** Worst wins, so one bad reference is never hidden by a good one beside it. */
-const OUTCOMES_WORST_FIRST = [
-  "failed",
-  "pending",
-  "withheld",
-] as const;
+const OUTCOMES_WORST_FIRST = ["failed", "pending", "withheld"] as const;
 
 /** Reduce a candidate's per-reference outcomes to a single outcome. */
 export const combineRefundOutcomes = (

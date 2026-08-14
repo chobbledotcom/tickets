@@ -37,7 +37,7 @@ describe("readRowState", () => {
           status: 400,
         }),
         CONTEXT,
-      )
+      ),
     ).toThrow(CONTEXT);
   });
 
@@ -91,7 +91,7 @@ describe("readRowState", () => {
         readRowState(
           writeRowState({ review: reviewCase({ kind }) }, CONTEXT),
           CONTEXT,
-        )
+        ),
       ),
     ).toEqual(
       reasons.map((kind) => ({
@@ -125,12 +125,10 @@ describe("readRowState", () => {
     expect(() => readRowState(rogue, CONTEXT)).toThrow(CONTEXT);
   });
 
-  for (
-    const attendeeIds of [
-      [7, 7],
-      [9, 7],
-    ]
-  ) {
+  for (const attendeeIds of [
+    [7, 7],
+    [9, 7],
+  ]) {
     test(`refuses claim attendee ids ${attendeeIds.join(", ")}`, () => {
       const rogue = JSON.stringify({
         claim: {

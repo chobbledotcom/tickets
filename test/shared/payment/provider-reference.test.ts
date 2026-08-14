@@ -73,7 +73,7 @@ describe("payment reference storage", () => {
         readPaymentReference(
           `payment-reference:1:${payload}`,
           "processed_payments.payment_reference",
-        )
+        ),
       ).toThrow("processed_payments.payment_reference");
     });
   }

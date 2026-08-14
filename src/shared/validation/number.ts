@@ -12,7 +12,7 @@ export const integerAtLeast = (
 export const clampInteger = (
   minimum: number,
   maximum: number,
-): (value: number) => number => {
+): ((value: number) => number) => {
   const integerSchema = integerAtLeast(Number.MIN_SAFE_INTEGER);
   return (value) =>
     Math.max(minimum, Math.min(maximum, v.parse(integerSchema, value)));

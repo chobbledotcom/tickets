@@ -23,10 +23,8 @@ const REFUSED = {
 } as const;
 
 const references = (count: number, label: string) =>
-  Array.from(
-    { length: count },
-    (_, offset) =>
-      tagged(`pi_${label}_${offset}`, "stripe", `${label}_${offset}`),
+  Array.from({ length: count }, (_, offset) =>
+    tagged(`pi_${label}_${offset}`, "stripe", `${label}_${offset}`),
   );
 
 const runRefusedRefresh = async (
@@ -46,7 +44,7 @@ const runRefusedRefresh = async (
         providerReads++;
         throw new Error("Provider preparation exceeded its budget");
       },
-    })
+    }),
   );
   return { providerReads, result };
 };
@@ -73,19 +71,21 @@ const runCountedRefresh = async (
           return Promise.resolve({
             kind: "not_ready",
             observations: [],
-            reads: [{
-              evidence: {
-                provider: "stripe",
-                reference: "pi_full",
-                status: "missing",
+            reads: [
+              {
+                evidence: {
+                  provider: "stripe",
+                  reference: "pi_full",
+                  status: "missing",
+                },
+                index: "full",
               },
-              index: "full",
-            }],
+            ],
             reason: "provider_evidence",
           });
         },
       },
-    )
+    ),
   );
   return { claims: claimed.count(), providerReads, result };
 };

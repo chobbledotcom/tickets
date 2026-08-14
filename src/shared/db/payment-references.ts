@@ -74,9 +74,9 @@ export type TaggedRefundPaymentReference = Extract<
  * case. */
 export type RefundPaymentReferenceSet =
   | {
-    readonly kind: "complete";
-    readonly references: TaggedRefundPaymentReference[];
-  }
+      readonly kind: "complete";
+      readonly references: TaggedRefundPaymentReference[];
+    }
   | { readonly kind: "legacy_unindexed" }
   | { readonly kind: "provider_unknown" }
   | { readonly kind: "too_many_references" };
@@ -223,14 +223,13 @@ export const getRefundPaymentReferences = async <
   );
   const rows = await loadSelectedPaymentReferenceRows(attendeeIdsOf(attendees));
   const incompleteAttendeeIds = attendeeIdSet(
-    rows
-      .filter((row) => Number(row.unindexed_history) === 1),
+    rows.filter((row) => Number(row.unindexed_history) === 1),
   );
   const oversizedAttendeeIds = attendeeIdSet(
-    rows
-      .filter((row) =>
-        Number(row.reference_number) > MAX_REFUND_REFERENCES_PER_ATTENDEE
-      ),
+    rows.filter(
+      (row) =>
+        Number(row.reference_number) > MAX_REFUND_REFERENCES_PER_ATTENDEE,
+    ),
   );
   for (const row of rows) {
     if (

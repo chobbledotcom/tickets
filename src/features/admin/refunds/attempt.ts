@@ -3,12 +3,12 @@ import type {
   ObservedRefundAdmission,
   WithheldRefund,
 } from "#shared/payment/admit-refund.ts";
+import { reportWithheldRefund } from "#shared/payment-review.ts";
 import {
   type ProviderRefundResult,
   type RefundAuthorityReceipt,
   requestProviderRefund,
 } from "#shared/provider-refunds.ts";
-import { reportWithheldRefund } from "#shared/payment-review.ts";
 import { requestReadyRefund } from "./authority.ts";
 import { mapProviderRequests } from "./provider-requests.ts";
 import type {
@@ -19,6 +19,7 @@ import type {
 import { readyRefundAdmission } from "./ready-admission.ts";
 import { reportRefundProblem } from "./report.ts";
 import { combineRefundOutcomes, type RefundOutcome } from "./waves.ts";
+
 /* jscpd:ignore-end */
 
 type TaggedRefundReference = ReadyRefundReference["reference"];
@@ -33,12 +34,12 @@ type RefundReportFacts = {
  * must be retired only after its local ledger write succeeds. */
 export type ReferenceRefund =
   | {
-    readonly authority: RefundAuthorityReceipt;
-    readonly outcome: "refunded";
-  }
+      readonly authority: RefundAuthorityReceipt;
+      readonly outcome: "refunded";
+    }
   | {
-    readonly outcome: Exclude<RefundOutcome, "refunded">;
-  };
+      readonly outcome: Exclude<RefundOutcome, "refunded">;
+    };
 
 type ReferenceStandDown = {
   readonly outcome: RefundOutcome;
@@ -101,10 +102,11 @@ const engineResult = (
     return { outcome: "pending" };
   }
   if (result.kind === "withheld") {
-    const withheld = withheldResult(
-      result.admission,
-      { attendeeId, listingId, provider: result.reference.provider },
-    );
+    const withheld = withheldResult(result.admission, {
+      attendeeId,
+      listingId,
+      provider: result.reference.provider,
+    });
     if (withheld.outcome === "refunded") {
       throw new Error("Refund authority withheld a completed refund");
     }
@@ -127,7 +129,7 @@ const askAuthority = (
   request: typeof requestProviderRefund,
 ): Promise<ReferenceRefund> =>
   requestReadyRefund(ready, mode, request).then((result) =>
-    engineResult(result, attendeeId, listingId)
+    engineResult(result, attendeeId, listingId),
   );
 
 const prepareReferenceRefund = (
@@ -142,21 +144,13 @@ const prepareReferenceRefund = (
     maySend: admission.kind === "send",
     run: (mode) =>
       answeredOnce(inFlight, ready.reference.index, () =>
-        askAuthority(
-          ready,
-          candidate.attendee.id,
-          listingId,
-          mode,
-          request,
-        )),
-    standDown: standDownResult(
-      admission,
-      {
-        attendeeId: candidate.attendee.id,
-        listingId,
-        provider: ready.provider.type,
-      },
-    ),
+        askAuthority(ready, candidate.attendee.id, listingId, mode, request),
+      ),
+    standDown: standDownResult(admission, {
+      attendeeId: candidate.attendee.id,
+      listingId,
+      provider: ready.provider.type,
+    }),
   };
 };
 
@@ -204,7 +198,7 @@ const candidateResult = (
   const returned = results.flatMap((result) =>
     result.outcome === "refunded"
       ? [{ authority: result.authority, reference: result.reference }]
-      : []
+      : [],
   );
   if (
     incompleteListingId !== undefined &&
@@ -233,16 +227,14 @@ export const finishPreparedCandidate = async (
   listingId: number,
 ): Promise<CandidateRefund> => {
   const mode = prepared.attempts.some(
-      (attempt) =>
-        !attempt.maySend &&
-        attempt.standDown.outcome !== "refunded",
-    )
+    (attempt) => !attempt.maySend && attempt.standDown.outcome !== "refunded",
+  )
     ? "observe_only"
     : "send";
   const results = await mapProviderRequests(
     prepared.attempts,
     async (attempt): Promise<ReferenceRefundResult> => ({
-      ...await attempt.run(mode),
+      ...(await attempt.run(mode)),
       reference: attempt.reference,
     }),
   );

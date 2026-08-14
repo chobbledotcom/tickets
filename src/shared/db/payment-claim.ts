@@ -18,11 +18,11 @@ import {
 } from "#shared/db/client.ts";
 import { nowIso } from "#shared/now.ts";
 import { mirrorFor } from "#shared/payment/admit-move.ts";
-import { refundAuthorityWorkSql } from "#shared/payment/refund-authority-lifecycle.ts";
 import {
   type HeldRefundCommand,
   holdsExactRefundCommand,
 } from "#shared/payment/claim.ts";
+import { refundAuthorityWorkSql } from "#shared/payment/refund-authority-lifecycle.ts";
 import {
   openPaymentReview,
   type PaymentReviewReason,
@@ -31,9 +31,9 @@ import {
   EMPTY_ROW_STATE,
   isEmptyRowState,
   type PaymentRowState,
-  readRowState,
   type RefundClaim,
   type RefundClaimPhase,
+  readRowState,
   writeRowState,
 } from "#shared/payment/row-state.ts";
 
@@ -170,11 +170,14 @@ export const assertRefundRowsHeld = async (
   },
 ): Promise<void> => {
   const sessionIds = [...claim.phases.keys()];
-  const stored = sessionIds.length === 0 ? [] : await readPaymentClaimRows(
-    tx,
-    `payment_session_id IN (${inPlaceholders(sessionIds)})`,
-    sessionIds,
-  );
+  const stored =
+    sessionIds.length === 0
+      ? []
+      : await readPaymentClaimRows(
+          tx,
+          `payment_session_id IN (${inPlaceholders(sessionIds)})`,
+          sessionIds,
+        );
   const rows = await Promise.all(stored.map(asPaymentRowRecord));
   if (
     rows.length !== sessionIds.length ||
@@ -219,9 +222,9 @@ export const paymentRowStateStatement = async (
 export type PaymentReviewChange =
   | { readonly kind: "review"; readonly reason: PaymentReviewReason }
   | {
-    readonly kind: "resolved";
-    readonly reason: PaymentReviewReason["kind"];
-  };
+      readonly kind: "resolved";
+      readonly reason: PaymentReviewReason["kind"];
+    };
 
 export type PaymentBooksChange = "recorded" | "unrecorded";
 
@@ -292,9 +295,10 @@ const withBooksChange = (
   if (change === "recorded") return kept;
   return {
     ...kept,
-    unrecorded: state.unrecorded === undefined
-      ? { returnedAt: nowIso() }
-      : state.unrecorded,
+    unrecorded:
+      state.unrecorded === undefined
+        ? { returnedAt: nowIso() }
+        : state.unrecorded,
   };
 };
 

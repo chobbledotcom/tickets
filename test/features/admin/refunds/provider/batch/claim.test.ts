@@ -108,7 +108,9 @@ describeWithEnv(
       const claim = grantingRowClaim(
         heldRows(entries),
         new Map(),
-        new Map([[reviewed.sessionId, { kind: "partially_returned_obligation" }]]),
+        new Map([
+          [reviewed.sessionId, { kind: "partially_returned_obligation" }],
+        ]),
       );
       const source = provider();
 

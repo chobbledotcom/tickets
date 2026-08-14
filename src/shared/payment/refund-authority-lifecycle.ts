@@ -1,20 +1,20 @@
 /** The declared exit and destructive-write policy for every refund state. */
 
+import type { RowMove } from "#shared/payment/admit-move.ts";
 import type {
   RefundAuthorityState,
   RefundAuthorityStateName,
 } from "#shared/payment/refund-authority.ts";
-import type { RowMove } from "#shared/payment/admit-move.ts";
 
 type LifecycleExit =
   | {
-    clearedBy: "resolveProviderRefundCase";
-    requiresChoice: true;
-  }
+      clearedBy: "resolveProviderRefundCase";
+      requiresChoice: true;
+    }
   | {
-    clearedBy: "markRefundAuthorityRecorded" | "requestProviderRefund";
-    requiresChoice: false;
-  };
+      clearedBy: "markRefundAuthorityRecorded" | "requestProviderRefund";
+      requiresChoice: false;
+    };
 
 type LifecycleRuleWithoutState = LifecycleExit & {
   operatorRoute: string;
@@ -44,13 +44,13 @@ const refundWorkStops = {
 const unfinished = {
   clearedBy: "requestProviderRefund",
   operatorRoute: "/admin/privacy/refunds/:id",
+  prunable: never,
   refusal:
     "A provider refund for this payment is still in progress. Open Refund recovery and finish it, then try again.",
-  prunable: never,
   requiresChoice: false,
   saidFirst: 2,
-  storedWork: "all",
   stops: refundWorkStops,
+  storedWork: "all",
 } satisfies LifecycleRuleWithoutState;
 const completedIsRecorded = (state: RefundAuthorityState): boolean =>
   state.kind === "completed" && state.local.kind === "recorded";
@@ -60,29 +60,29 @@ const REFUND_LIFECYCLE = {
   completed: {
     clearedBy: "markRefundAuthorityRecorded",
     operatorRoute: "/admin/privacy/refunds/:id",
+    prunable: completedIsRecorded,
     refusal:
       "The provider returned this money, but the local accounts do not show it. Record it in Refund recovery, then try again.",
-    prunable: completedIsRecorded,
     requiresChoice: false,
     saidFirst: 0,
     state: "completed",
-    storedWork: "local_due",
     stops: {
       delete: (state) => !completedIsRecorded(state),
       merge: never,
     },
+    storedWork: "local_due",
   },
   needs_owner_choice: {
     clearedBy: "resolveProviderRefundCase",
     operatorRoute: "/admin/privacy/refunds/:id",
+    prunable: never,
     refusal:
       "The owner still has to decide what happened to a provider refund. Resolve it in Refund recovery, then try again.",
-    prunable: never,
     requiresChoice: true,
     saidFirst: 1,
     state: "needs_owner_choice",
-    storedWork: "all",
     stops: refundWorkStops,
+    storedWork: "all",
   },
   observing: { ...unfinished, state: "observing" },
   ready: { ...unfinished, state: "ready" },
@@ -95,13 +95,13 @@ type RefundAuthorityColumnPrefix = "" | "charge.";
 export const refundAuthorityWorkSql = (
   prefix: RefundAuthorityColumnPrefix,
 ): string =>
-  `(${
-    Object.values(REFUND_LIFECYCLE).map((rule) =>
+  `(${Object.values(REFUND_LIFECYCLE)
+    .map((rule) =>
       rule.storedWork === "all"
         ? `${prefix}refund_state_name = '${rule.state}'`
-        : `(${prefix}refund_state_name = '${rule.state}' AND ${prefix}refund_local_state = 'due')`
-    ).join(" OR ")
-  })`;
+        : `(${prefix}refund_state_name = '${rule.state}' AND ${prefix}refund_local_state = 'due')`,
+    )
+    .join(" OR ")})`;
 
 export type RefundLifecycle = {
   readonly blocks: Record<RowMove, boolean>;

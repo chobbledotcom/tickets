@@ -56,7 +56,7 @@ describe("admin refund authority > ordered local writes", () => {
     const counts = finishedCounts(await refund);
 
     const lastProviderAnswer = events.findLastIndex((event) =>
-      event.startsWith("send:end:")
+      event.startsWith("send:end:"),
     );
     expect(events.indexOf("ledger")).toBeGreaterThan(lastProviderAnswer);
     expect(events.indexOf("retire:3")).toBeGreaterThan(
@@ -81,7 +81,10 @@ describe("admin refund authority > ordered local writes", () => {
       processRefundBatchAt(
         source,
         [
-          candidate(active.map((reference) => ({ reference })), 11),
+          candidate(
+            active.map((reference) => ({ reference })),
+            11,
+          ),
           candidate(
             [{ reference: knownReturned, refundState: "completed" }],
             12,
@@ -125,7 +128,10 @@ describe("admin refund authority > ordered local writes", () => {
       processRefundBatchAt(
         source,
         [
-          candidate(active.map((reference) => ({ reference })), 11),
+          candidate(
+            active.map((reference) => ({ reference })),
+            11,
+          ),
           candidate([{ reference: returned, refundState: "completed" }], 12),
         ],
         7,

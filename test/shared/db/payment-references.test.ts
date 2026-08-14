@@ -292,7 +292,7 @@ describeWithEnv(
 describe("db > payment references > still with the provider", () => {
   const withStates = (...states: RefundState[]) =>
     states.map((refundState, index) =>
-      refundReference(`pi_${index}`, { refundState })
+      refundReference(`pi_${index}`, { refundState }),
     );
 
   test("a watched charge not seen back is still out", () => {

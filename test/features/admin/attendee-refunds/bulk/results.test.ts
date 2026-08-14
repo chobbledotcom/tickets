@@ -87,22 +87,19 @@ describeWithEnv("server (admin refund-all results)", { db: true }, () => {
     using _env = withEnv({ I18N_REPLACEMENTS: "failure|problem" });
     resetI18nForTest();
     try {
-      await withRefundMock(
-        refundIsRejected,
-        async () => {
-          await expectFlashRedirect(
-            `/admin/listing/${listing.id}/refund-all`,
-            "0 refunds succeeded. There was 1 problem. 1 refund remains. Submit again to continue.",
-            false,
-          )(await postRefundAll(listing));
-        },
-      );
+      await withRefundMock(refundIsRejected, async () => {
+        await expectFlashRedirect(
+          `/admin/listing/${listing.id}/refund-all`,
+          "0 refunds succeeded. There was 1 problem. 1 refund remains. Submit again to continue.",
+          false,
+        )(await postRefundAll(listing));
+      });
     } finally {
       resetI18nForTest();
     }
 
     const log = (await getListingActivityLog(listing.id)).find((entry) =>
-      entry.message.includes("Bulk refund: 0 succeeded")
+      entry.message.includes("Bulk refund: 0 succeeded"),
     );
     expect(log?.message).toContain("0 succeeded, 1 failed");
   });
@@ -117,12 +114,10 @@ describeWithEnv("server (admin refund-all results)", { db: true }, () => {
     );
     await withRefundMock(
       () =>
-        Promise.resolve(
-          {
-            kind: "uncertain",
-            reason: "network_error",
-          } as const,
-        ),
+        Promise.resolve({
+          kind: "uncertain",
+          reason: "network_error",
+        } as const),
       async () => {
         const response = await postRefundAll(listing);
         await expectFlashRedirect(

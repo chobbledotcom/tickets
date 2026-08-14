@@ -85,34 +85,34 @@ export type OrphanPaymentWorkPage = {
 
 type PaymentWorkPageDirection =
   | {
-    boundary: number;
-    comparison: "<";
-    kind: "backward";
-    order: "DESC";
-  }
+      boundary: number;
+      comparison: "<";
+      kind: "backward";
+      order: "DESC";
+    }
   | {
-    boundary: number | undefined;
-    comparison: ">";
-    kind: "forward";
-    order: "ASC";
-  };
+      boundary: number | undefined;
+      comparison: ">";
+      kind: "forward";
+      order: "ASC";
+    };
 
 const paymentWorkPageDirection = (
   cursor: OrphanPaymentWorkCursor,
 ): PaymentWorkPageDirection =>
   cursor.before === undefined
     ? {
-      boundary: cursor.after,
-      comparison: ">",
-      kind: "forward",
-      order: "ASC",
-    }
+        boundary: cursor.after,
+        comparison: ">",
+        kind: "forward",
+        order: "ASC",
+      }
     : {
-      boundary: cursor.before,
-      comparison: "<",
-      kind: "backward",
-      order: "DESC",
-    };
+        boundary: cursor.before,
+        comparison: "<",
+        kind: "backward",
+        order: "DESC",
+      };
 
 type VisiblePaymentWorkPage = {
   hasLookahead: boolean;
@@ -173,10 +173,10 @@ export const getOrphanPaymentWorkPage = async (
         )
         AND payment.attendee_id IS NOT NULL
         ${
-      direction.boundary === undefined
-        ? ""
-        : `AND payment.attendee_id ${direction.comparison} ?`
-    }
+          direction.boundary === undefined
+            ? ""
+            : `AND payment.attendee_id ${direction.comparison} ?`
+        }
         AND EXISTS (
           SELECT 1
             FROM attendees AS attendee

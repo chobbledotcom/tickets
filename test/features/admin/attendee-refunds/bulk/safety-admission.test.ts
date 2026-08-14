@@ -22,17 +22,17 @@ import {
   CLAIM_MIRROR,
   protectedStateOf,
   putRowState,
-  refundClaimFixture,
   REVIEW_MIRROR,
+  refundClaimFixture,
   reviewCase,
   rowStateSlot,
   UNRECORDED_MIRROR,
 } from "#test-utils/payment-claim.ts";
+import { markProviderRefundsReturned } from "#test-utils/payment-references.ts";
 import {
   finalizeProcessedPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
-import { markProviderRefundsReturned } from "#test-utils/payment-references.ts";
 import { getCompleteRefundCandidatesForListing } from "#test-utils/refund-candidates.ts";
 import {
   postRefundAll,
@@ -139,11 +139,7 @@ const putReturnedClaimsOnEveryPayment = async (
     await putRowState(
       sessionId,
       await rowStateSlot({
-        claim: refundClaimFixture(
-          candidate.attendee.id,
-          "checking",
-          writtenAt,
-        ),
+        claim: refundClaimFixture(candidate.attendee.id, "checking", writtenAt),
       }),
       CLAIM_MIRROR,
     );

@@ -45,10 +45,8 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
 
       await withMocks(
         () =>
-          stub(
-            stripeApi,
-            "retrieveCheckoutSession",
-            () => Promise.resolve(null),
+          stub(stripeApi, "retrieveCheckoutSession", () =>
+            Promise.resolve(null),
           ),
         async () => {
           const response = await handleRequest(
@@ -99,21 +97,18 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       try {
         await withMocks(
           () =>
-            stub(
-              stripePaymentProvider,
-              "retrieveSession",
-              () =>
-                Promise.resolve({
-                  metadata: signedMeta(
-                    { email: "a@example.com", items: "[]", name: "A" },
-                    500,
-                  ),
-                  paymentReference: "pi_unusable",
-                  provider: "stripe",
-                  reason: "malformed_charge",
-                  refundable: true,
-                  sessionId: "cs_rejected",
-                }),
+            stub(stripePaymentProvider, "retrieveSession", () =>
+              Promise.resolve({
+                metadata: signedMeta(
+                  { email: "a@example.com", items: "[]", name: "A" },
+                  500,
+                ),
+                paymentReference: "pi_unusable",
+                provider: "stripe",
+                reason: "malformed_charge",
+                refundable: true,
+                sessionId: "cs_rejected",
+              }),
             ),
           async () => {
             const response = await handleRequest(

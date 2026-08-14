@@ -5,13 +5,13 @@ import {
   processRefundBatch,
   type RefundRunDependencies,
 } from "#routes/admin/refunds/provider.ts";
-import { refreshClaimedPayment } from "#routes/admin/refunds/refresh.ts";
 import {
   prepareRefundReadiness,
   type RefundReadinessResult,
 } from "#routes/admin/refunds/readiness.ts";
-import { refundLedgerResult } from "#shared/refund-ledger/result.ts";
+import { refreshClaimedPayment } from "#routes/admin/refunds/refresh.ts";
 import type { ProviderRefundTarget } from "#shared/provider-refunds.ts";
+import { refundLedgerResult } from "#shared/refund-ledger/result.ts";
 import { requestRecordedProviderRefund } from "#test/features/admin/refunds/provider/dispatch-helpers.ts";
 import {
   heldClaim,
@@ -39,15 +39,17 @@ const failedAlongside = (
   charge: FailedReadiness["observations"][number]["charge"],
 ): FailedReadiness => ({
   kind: "not_ready",
-  observations: [{
-    charge,
-    identity: {
-      kind: "tagged",
-      provider: reference.provider,
-      reference: reference.reference,
+  observations: [
+    {
+      charge,
+      identity: {
+        kind: "tagged",
+        provider: reference.provider,
+        reference: reference.reference,
+      },
+      reference,
     },
-    reference,
-  }],
+  ],
   reads: [
     {
       evidence: {
@@ -153,25 +155,27 @@ describe("admin refund readiness failure evidence", () => {
           reference === returned.reference
             ? { resource: fullyRefundedMoney(), status: "found" }
             : {
-              reason: "timeout",
-              status: "unavailable",
-            },
-        )
+                reason: "timeout",
+                status: "unavailable",
+              },
+        ),
       ),
     );
 
     if (result.kind !== "not_ready" || result.reason !== "provider_evidence") {
       throw new Error("Expected incomplete provider evidence");
     }
-    expect(result.observations).toEqual([{
-      charge: fullyRefundedMoney(),
-      identity: {
-        kind: "tagged",
-        provider: "stripe",
-        reference: returned.reference,
+    expect(result.observations).toEqual([
+      {
+        charge: fullyRefundedMoney(),
+        identity: {
+          kind: "tagged",
+          provider: "stripe",
+          reference: returned.reference,
+        },
+        reference: returned,
       },
-      reference: returned,
-    }]);
+    ]);
   });
 
   test("protects a known return before readiness itself throws", async () => {
@@ -181,17 +185,15 @@ describe("admin refund readiness failure evidence", () => {
       "known_return",
       "completed",
     );
-    const claim = await runPreparationCrash(
-      reference,
-      (postings) =>
-        Promise.resolve(
-          new Map(
-            postings.map(({ attendeeId, references }) => [
-              attendeeId,
-              refundLedgerResult(references),
-            ]),
-          ),
+    const claim = await runPreparationCrash(reference, (postings) =>
+      Promise.resolve(
+        new Map(
+          postings.map(({ attendeeId, references }) => [
+            attendeeId,
+            refundLedgerResult(references),
+          ]),
         ),
+      ),
     );
 
     expect(claim.unrecorded).toEqual([reference.rowSessionIds]);

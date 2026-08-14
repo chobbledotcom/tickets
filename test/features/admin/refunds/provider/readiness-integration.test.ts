@@ -107,11 +107,12 @@ describe("admin refund provider readiness integration", () => {
     expect(square.requests).toEqual([]);
     expect(stripe.requests[0]?.paymentReference).toBe("same_raw");
     expect(stripe.requests[0]?.charge).toBe(stripeCharge);
-    expect(writes.marked.flat().map(({ referenceIndex }) => referenceIndex))
-      .toEqual([
-        `${stripeRef.provider}:${stripeRef.reference}`,
-        `${squareRef.provider}:${squareRef.reference}`,
-      ]);
+    expect(
+      writes.marked.flat().map(({ referenceIndex }) => referenceIndex),
+    ).toEqual([
+      `${stripeRef.provider}:${stripeRef.reference}`,
+      `${squareRef.provider}:${squareRef.reference}`,
+    ]);
     expect(counts.refundedCount).toBe(1);
   });
 });

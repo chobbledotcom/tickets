@@ -181,12 +181,12 @@ const readSummary = (result: ResultSet): RefundAllSummary => {
   const blockedBy = row.unrecorded_money
     ? "unrecorded_money"
     : row.provider_refund
-    ? "provider_refund"
-    : row.owner_review
-    ? "owner_review"
-    : row.legacy_unindexed
-    ? "legacy_unindexed"
-    : null;
+      ? "provider_refund"
+      : row.owner_review
+        ? "owner_review"
+        : row.legacy_unindexed
+          ? "legacy_unindexed"
+          : null;
   return { blockedBy, total: Number(row.total) };
 };
 

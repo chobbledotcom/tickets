@@ -4,7 +4,6 @@ import { execute } from "#shared/db/client.ts";
 import { runDatabasePruning } from "#shared/db/prune.ts";
 import { PRUNE_PAYMENTS_RETENTION_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
-import { readyRefundTestState } from "#test-utils/provider-refund-cases.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   bookAttendee,
@@ -20,6 +19,10 @@ import {
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
 import {
+  addProviderRefundTestCase,
+  readyRefundTestState,
+} from "#test-utils/provider-refund-cases.ts";
+import {
   insertClaimedPayment,
   insertFailedPayment,
   insertFinalizedPayment,
@@ -27,7 +30,6 @@ import {
   paymentExists,
   postRefundCash,
 } from "./helpers.ts";
-import { addProviderRefundTestCase } from "#test-utils/provider-refund-cases.ts";
 
 const oldEnoughToPrune = () =>
   new Date(nowMs() - PRUNE_PAYMENTS_RETENTION_MS - 60_000).toISOString();

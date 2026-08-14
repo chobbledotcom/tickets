@@ -8,8 +8,8 @@ import {
 } from "#routes/admin/refunds/attempt.ts";
 import type { RowClaim } from "#routes/admin/refunds/claim.ts";
 import type { ReadyRefundCandidate } from "#routes/admin/refunds/readiness.ts";
-import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
 import { admitObservedRefund } from "#shared/payment/admit-refund.ts";
+import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
 import type {
   ProviderRefundResult,
   ProviderRefundTarget,

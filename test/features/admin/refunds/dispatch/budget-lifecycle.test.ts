@@ -28,17 +28,15 @@ test("an over-budget batch makes zero durable authority or provider calls", asyn
     ),
   );
   const prepare = prepareAtProvider(source);
-  const dispatchCost = refundPreparedSubrequestCost(
-    {
-      activeAuthorityCount: references.length,
-      mayRecordReturns: true,
-      returnedAuthorityCount: 0,
-      sendReferences: references.map((reference) => ({
-        index: `index_of_stripe_${reference}`,
-        provider: "stripe" as const,
-      })),
-    },
-  );
+  const dispatchCost = refundPreparedSubrequestCost({
+    activeAuthorityCount: references.length,
+    mayRecordReturns: true,
+    returnedAuthorityCount: 0,
+    sendReferences: references.map((reference) => ({
+      index: `index_of_stripe_${reference}`,
+      provider: "stripe" as const,
+    })),
+  });
   let authorityCalled = false;
 
   const result = await processRefundBatch(
@@ -46,7 +44,7 @@ test("an over-budget batch makes zero durable authority or provider calls", asyn
       candidateWithReferences(
         [rowBackedReference(reference, sessionIds[position]!)],
         attendeeIds[position]!,
-      )
+      ),
     ),
     7,
     {

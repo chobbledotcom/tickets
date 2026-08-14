@@ -19,6 +19,7 @@ import {
   type SavedOwnerFormKind,
   safetyBooking,
 } from "./state.ts";
+
 // jscpd:ignore-end
 
 type ActOnSavedOwnerForm = (
@@ -55,14 +56,14 @@ const hiddenValue = (html: string, name: string): string => {
 };
 
 const actionFor = {
+  "provider-recovery": {
+    button: "Use this provider decision",
+    link: "Open Refund recovery",
+  },
   refund: { button: "Refund Attendee", link: "Refund" },
   review: {
     button: "Mark payment reviewed",
     link: "Mark payment reviewed",
-  },
-  "provider-recovery": {
-    button: "Use this provider decision",
-    link: "Open Refund recovery",
   },
 } as const satisfies Record<
   SavedOwnerFormKind,
@@ -79,27 +80,29 @@ export const saveOwnerMoneyForm = async (
   const browser = await openOwnerAction(world, who, action.link);
   if (kind === "provider-recovery") {
     const detail = browser.links.find(({ text }) =>
-      text.trim().startsWith("Open refund ")
+      text.trim().startsWith("Open refund "),
     );
     if (detail === undefined) {
       throw new Error("Refund recovery listed no provider case");
     }
     await browser.clickLink(detail.text);
   }
-  const fields = kind === "provider-recovery"
-    ? ["choice", "revision"]
-    : ["confirm_identifier"];
+  const fields =
+    kind === "provider-recovery"
+      ? ["choice", "revision"]
+      : ["confirm_identifier"];
   const form = findFormByButton(
     findForms(browser.currentHtml),
     action.button,
     fields,
   );
-  const values = kind === "provider-recovery"
-    ? {
-      choice: "provider_confirmed_not_sent",
-      revision: hiddenValue(form.body, "revision"),
-    }
-    : { confirm_identifier: who };
+  const values =
+    kind === "provider-recovery"
+      ? {
+          choice: "provider_confirmed_not_sent",
+          revision: hiddenValue(form.body, "revision"),
+        }
+      : { confirm_identifier: who };
   const saved: SavedOwnerForm = {
     attendeeId: safetyBooking(world, who).attendeeId,
     button: action.button,

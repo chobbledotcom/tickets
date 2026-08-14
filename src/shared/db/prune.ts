@@ -234,7 +234,8 @@ export const runDatabasePruning = async (
     inviteStatements(invitePage.expiredIds),
   ].filter((batch) => batch.length > 0);
   const results = await executeBatchWithResults(batches.flat());
-  const fullBatch = invitePage.hasMore ||
+  const fullBatch =
+    invitePage.hasMore ||
     lastResultIndexes(batches).some(
       (index) => results[index]!.rowsAffected === MAINTENANCE_PRUNE_BATCH,
     );

@@ -163,10 +163,7 @@ describeWithEnv("db > notes", { db: true }, () => {
       (await getNotesFor(target, await getTestPrivateKey())).map(
         (note) => note.note,
       ),
-    ).toEqual([
-      "different confirmation",
-      "ordinary note to keep",
-    ]);
+    ).toEqual(["different confirmation", "ordinary note to keep"]);
   });
 
   test("refuses a second app-written note with the same indexed name", async () => {
@@ -288,11 +285,7 @@ describeWithEnv("db > notes", { db: true }, () => {
     const { roundTrips } = await runAndCountRoundTrips(() =>
       Promise.all([
         deleteNotes(attendeeNotes(owner), []),
-        deleteNamedSystemNotes(
-          attendeeNotes(owner),
-          "refund_confirmation",
-          [],
-        ),
+        deleteNamedSystemNotes(attendeeNotes(owner), "refund_confirmation", []),
       ]),
     );
 

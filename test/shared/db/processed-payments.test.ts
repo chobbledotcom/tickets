@@ -248,10 +248,8 @@ describeWithEnv("db > processed payments", { db: true }, () => {
 
   test("throws when the atomic lookup does not return the session", async () => {
     const client = getDb();
-    using batchStub = stub(
-      client,
-      "batch",
-      () => Promise.resolve([emptyResultSet(), emptyResultSet()]),
+    using batchStub = stub(client, "batch", () =>
+      Promise.resolve([emptyResultSet(), emptyResultSet()]),
     );
     await expect(reserveSession("missing-lookup")).rejects.toThrow(
       "Reserved payment session is missing: missing-lookup",

@@ -31,10 +31,9 @@ const SAFETY_STATES = [
     name: "owner review",
     refundMessage:
       "This payment still needs owner review. Refresh or correct the payment evidence before another refund.",
-    reviews: new Map([[
-      ROW_SESSION_ID,
-      { kind: "partially_returned_obligation" } as const,
-    ]]),
+    reviews: new Map([
+      [ROW_SESSION_ID, { kind: "partially_returned_obligation" } as const],
+    ]),
     unrecorded: new Map(),
   },
   {
@@ -86,9 +85,9 @@ const runFor = async (
   readonly result:
     | RunResult
     | {
-      kind: "blocked";
-      reason: "refund_in_progress";
-    };
+        kind: "blocked";
+        reason: "refund_in_progress";
+      };
   readonly settlements: RowSettlement[];
 }> => {
   const recorded = recordingClaim(state);
@@ -114,9 +113,10 @@ const runFor = async (
       });
     },
   };
-  const run = action === "refund"
-    ? { ...common, action, budgetAudience: "bulk" as const }
-    : { ...common, action };
+  const run =
+    action === "refund"
+      ? { ...common, action, budgetAudience: "bulk" as const }
+      : { ...common, action };
   const result = await runRefundReadiness<RunResult>(run);
   return { calls, result, settlements: recorded.settlements };
 };
@@ -124,9 +124,7 @@ const runFor = async (
 const releasedWithoutChangingSafetyState = (): RowSettlement => ({
   commandId: COMMAND_ID,
   heldSince: HELD_SINCE,
-  rows: new Map([
-    [ROW_SESSION_ID, { claim: "release", phase: "checking" }],
-  ]),
+  rows: new Map([[ROW_SESSION_ID, { claim: "release", phase: "checking" }]]),
 });
 
 describe("refund readiness action admission", () => {
@@ -169,9 +167,7 @@ describe("refund readiness action admission", () => {
         message: state.refundMessage,
       });
       expect(run.calls).toEqual({ prepare: 0, ready: 0 });
-      expect(run.settlements).toEqual([
-        releasedWithoutChangingSafetyState(),
-      ]);
+      expect(run.settlements).toEqual([releasedWithoutChangingSafetyState()]);
       expect(
         errors.contains(`Admin refund not started (${state.diagnosticReason})`),
       ).toBe(true);
@@ -185,9 +181,7 @@ describe("refund readiness action admission", () => {
         message: `Refresh prepared ${state.name}`,
       });
       expect(run.calls).toEqual({ prepare: 1, ready: 1 });
-      expect(run.settlements).toEqual([
-        releasedWithoutChangingSafetyState(),
-      ]);
+      expect(run.settlements).toEqual([releasedWithoutChangingSafetyState()]);
       expect(errors.calls).toEqual([]);
     });
   }

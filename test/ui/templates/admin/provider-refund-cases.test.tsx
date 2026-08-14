@@ -2,11 +2,11 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { ensureMessageGroups } from "#i18n";
 import { MESSAGE_GROUPS } from "#locales/manifest.ts";
-import { money } from "#shared/payment/money.ts";
 import type {
   ProviderRefundCase,
   ProviderRefundCasePage,
 } from "#shared/db/provider-refund-cases.ts";
+import { money } from "#shared/payment/money.ts";
 import {
   adminProviderRefundCasePage,
   ProviderRefundCaseQueue,
@@ -63,11 +63,7 @@ describe("provider refund recovery templates", () => {
   });
 
   test("requires an explicit owner choice and posts the seen revision", () => {
-    const html = adminProviderRefundCasePage(
-      OWNER_SESSION,
-      detail,
-      {},
-    );
+    const html = adminProviderRefundCasePage(OWNER_SESSION, detail, {});
 
     expect(html).toContain("charge-17");
     expect(html).toContain('action="/admin/privacy/refunds/17"');
@@ -91,9 +87,7 @@ describe("provider refund recovery templates", () => {
 
       expect(html).toContain('action="/admin/privacy/refunds/17"');
       expect(html).toContain('name="revision" type="hidden" value="4"');
-      expect(html).toContain(
-        'name="choice" type="hidden" value="check_again"',
-      );
+      expect(html).toContain('name="choice" type="hidden" value="check_again"');
       expect(html).toContain("Check the provider again");
       expect(html).not.toContain("Send this refund");
       expect(html).not.toContain('type="radio"');

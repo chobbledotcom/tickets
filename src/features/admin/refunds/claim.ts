@@ -1,7 +1,7 @@
 import { requiredMapValue } from "#fp";
 import {
-  claimAttendeeRows,
   type ClaimResult,
+  claimAttendeeRows,
   type LoadedRefundAttendee,
   paymentReferenceRepresentations,
   type RefundClaimAdmission,
@@ -119,7 +119,7 @@ const settlementRows = (
   const unrecorded = new Set([...findings.unrecorded.values()].flat());
   return new Map(
     heldPaymentRows(claim.held).map(({ sessionId }) =>
-      settlementEntry(sessionId, unrecorded, findings, claim)
+      settlementEntry(sessionId, unrecorded, findings, claim),
     ),
   );
 };
@@ -138,7 +138,7 @@ const initialUnrecorded = (
     ]),
   );
   const returned = [...represented.values()].filter(({ index }) =>
-    claim.returned.has(index)
+    claim.returned.has(index),
   );
   return new Map(
     [...Map.groupBy(returned, ({ attendeeId }) => attendeeId)].map(
@@ -155,18 +155,16 @@ export const underAttendeeClaim = async <TResult>(
   rowClaim: RowClaim,
   attendees: readonly LoadedRefundAttendee[],
   listingId: number,
-  run:
-    & {
-      blocked: (block: RefundRunBlock) => TResult;
-      work: (heldWork: HeldRefundWork) => Promise<TResult>;
-    }
-    & (
-      | {
+  run: {
+    blocked: (block: RefundRunBlock) => TResult;
+    work: (heldWork: HeldRefundWork) => Promise<TResult>;
+  } & (
+    | {
         admit: RefundClaimAdmission;
         admissionRefused: () => TResult;
       }
-      | { admit?: undefined; admissionRefused?: never }
-    ),
+    | { admit?: undefined; admissionRefused?: never }
+  ),
 ): Promise<TResult> => {
   // Taking the hold may itself spend the request allowance. Keep the complete
   // settlement tail unavailable until the claim is known not to exist or its
@@ -200,14 +198,11 @@ export const underAttendeeClaim = async <TResult>(
     unrecorded: initialUnrecorded(attendees, claim),
   };
   const settle = async (): Promise<void> => {
-    await settleHold(
-      rowClaim,
-      {
-        commandId: claim.commandId,
-        heldSince: claim.heldSince,
-        rows: settlementRows(claim, findings),
-      },
-    );
+    await settleHold(rowClaim, {
+      commandId: claim.commandId,
+      heldSince: claim.heldSince,
+      rows: settlementRows(claim, findings),
+    });
   };
   let result: TResult;
   try {

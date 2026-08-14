@@ -9,8 +9,8 @@ import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import { asSession } from "#test-utils/payment-session.ts";
 import {
-  stageSumupCheckout,
   SUMUP_META,
+  stageSumupCheckout,
   sumupCheckout,
   withFetchedSumupCheckout,
   withSumupCheckoutRead,
@@ -84,7 +84,7 @@ describe("sumup-provider", () => {
           provider: "sumup",
           reason: "blank_reference",
           sessionId: "ref_blank",
-        })
+        }),
       ).toThrow();
     });
 
@@ -177,7 +177,8 @@ describe("sumup-provider", () => {
             Promise.resolve({
               reference: "ref_new",
               url: "https://pay.sumup.com/x",
-            })),
+            }),
+          ),
         async () => {
           expect(
             await sumupPaymentProvider.createCheckoutSession(
@@ -207,11 +208,8 @@ describe("sumup-provider", () => {
     test("returns an expected checkout message at the adapter boundary", () =>
       withMocks(
         () =>
-          stub(
-            sumupApi,
-            "createCheckout",
-            () =>
-              Promise.reject(new PaymentUserError("Phone number is invalid")),
+          stub(sumupApi, "createCheckout", () =>
+            Promise.reject(new PaymentUserError("Phone number is invalid")),
           ),
         async () => {
           expect(

@@ -32,8 +32,6 @@ export const isAnchorSession = (sessionId: string): boolean =>
 /** SQL condition matching the same stored anchor spellings as
  * {@link isAnchorSession}. The column expression comes from our own query. */
 export const paymentAnchorSessionCondition = (column: string): string =>
-  `(${
-    ANCHOR_SESSION_PREFIXES.map(
-      (prefix) => `${column} LIKE '${prefix}%'`,
-    ).join(" OR ")
-  })`;
+  `(${ANCHOR_SESSION_PREFIXES.map(
+    (prefix) => `${column} LIKE '${prefix}%'`,
+  ).join(" OR ")})`;

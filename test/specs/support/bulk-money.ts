@@ -21,8 +21,8 @@ import {
 import {
   type ActOnSomeMoney,
   requiredWorldValue,
-  theListing,
   type TicketsWorld,
+  theListing,
 } from "#test/specs/support/world.ts";
 import { singleItem } from "#test-utils/factories.ts";
 import { chargeMoney, refundObservation } from "#test-utils/payment-state.ts";
@@ -186,7 +186,7 @@ export const leaveFirstRefundCaseForOwner = async (
   await browser.clickLink("Privacy");
   expect(browser.containsText("Refunds needing attention")).toBe(true);
   const detail = browser.links.find(({ text }) =>
-    text.trim().startsWith("Open refund ")
+    text.trim().startsWith("Open refund "),
   );
   if (detail === undefined) {
     throw new Error("Refund recovery listed no provider case");

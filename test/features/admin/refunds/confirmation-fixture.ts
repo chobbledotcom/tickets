@@ -44,7 +44,7 @@ export const confirmFixturePayment = (
   refund: ConfirmationFixture,
 ): Promise<RefundConfirmation> =>
   withTestSession(() =>
-    confirmRefund({ ...refund, references: [refund.reference] })
+    confirmRefund({ ...refund, references: [refund.reference] }),
   );
 
 export const confirmFixturePaymentAndReplay = async (
@@ -79,7 +79,7 @@ export const setupConfirmation = async (
         attendee.id,
         `tok-${payment.sessionId}`,
         taggedPaymentReference(payment.paymentReference),
-      )
+      ),
     ),
   );
   const privateKey = await getTestPrivateKey();

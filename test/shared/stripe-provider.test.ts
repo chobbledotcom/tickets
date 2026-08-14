@@ -102,9 +102,8 @@ describeStripe("stripe-provider", () => {
             }),
           ),
         async () => {
-          const result = await stripePaymentProvider.retrieveSession(
-            "cs_no_items",
-          );
+          const result =
+            await stripePaymentProvider.retrieveSession("cs_no_items");
           expect(result).toBeNull();
         },
       );
@@ -116,9 +115,8 @@ describeStripe("stripe-provider", () => {
         client,
         () => Promise.reject(stripeApiError(404)),
         async () => {
-          const result = await stripePaymentProvider.retrieveSession(
-            "cs_notfound",
-          );
+          const result =
+            await stripePaymentProvider.retrieveSession("cs_notfound");
           expect(result).toBeNull();
         },
       );
@@ -139,9 +137,8 @@ describeStripe("stripe-provider", () => {
             }),
           ),
         async () => {
-          const result = await stripePaymentProvider.retrieveSession(
-            "cs_no_meta",
-          );
+          const result =
+            await stripePaymentProvider.retrieveSession("cs_no_meta");
           expect(result).toBeNull();
         },
       );
@@ -165,9 +162,8 @@ describeStripe("stripe-provider", () => {
             }),
           ),
         async () => {
-          const result = await stripePaymentProvider.retrieveSession(
-            "cs_multi",
-          );
+          const result =
+            await stripePaymentProvider.retrieveSession("cs_multi");
           expect(result).not.toBeNull();
           expect(asSession(result).id).toBe("cs_multi");
           expect(asSession(result).metadata.items).toBe('[{"e":1,"q":2}]');
@@ -193,9 +189,8 @@ describeStripe("stripe-provider", () => {
             }),
           ),
         async () => {
-          const result = await stripePaymentProvider.retrieveSession(
-            "cs_single",
-          );
+          const result =
+            await stripePaymentProvider.retrieveSession("cs_single");
           expect(result).not.toBeNull();
           expect(asSession(result).id).toBe("cs_single");
           expect(asSession(result).paymentStatus).toBe("paid");
@@ -225,9 +220,8 @@ describeStripe("stripe-provider", () => {
             }),
           ),
         async () => {
-          const result = await stripePaymentProvider.retrieveSession(
-            "cs_with_amount",
-          );
+          const result =
+            await stripePaymentProvider.retrieveSession("cs_with_amount");
           expect(result).not.toBeNull();
           expect(asSession(result).amountTotal).toBe(4500);
           expect(asSession(result).paymentReference).toBe("pi_with_amount");
@@ -253,9 +247,8 @@ describeStripe("stripe-provider", () => {
             }),
           ),
         async () => {
-          const result = await stripePaymentProvider.retrieveSession(
-            "cs_no_currency",
-          );
+          const result =
+            await stripePaymentProvider.retrieveSession("cs_no_currency");
           // A missing currency is refused at the boundary: it is not defaulted
           // to the site's, and the charge cannot be trusted without one.
           expect(result).toEqual({
@@ -293,9 +286,8 @@ describeStripe("stripe-provider", () => {
             }),
           ),
         async () => {
-          const result = await stripePaymentProvider.retrieveSession(
-            "cs_null_amount",
-          );
+          const result =
+            await stripePaymentProvider.retrieveSession("cs_null_amount");
           expect(result).toEqual({
             metadata: {
               ...BLANK_SESSION_METADATA,
@@ -332,9 +324,8 @@ describeStripe("stripe-provider", () => {
             }),
           ),
         async () => {
-          const result = await stripePaymentProvider.retrieveSession(
-            "cs_amount_cast",
-          );
+          const result =
+            await stripePaymentProvider.retrieveSession("cs_amount_cast");
           expect(result).not.toBeNull();
           expect(asSession(result).amountTotal).toBe(7500);
           expect(asSession(result).createdAt).toBe("1970-01-01T00:02:03.000Z");

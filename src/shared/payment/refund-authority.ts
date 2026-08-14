@@ -2,8 +2,8 @@
 
 import * as v from "valibot";
 import { integerAtLeast } from "#shared/validation/number.ts";
-import { NonEmptyTextSchema } from "#shared/validation/string.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
+import { NonEmptyTextSchema } from "#shared/validation/string.ts";
 
 const TimeSchema = integerAtLeast(0);
 
@@ -69,8 +69,8 @@ const ObservingRefundStateSchema = v.strictObject({
   lastObservedAt: TimeSchema,
 });
 const completedFields = {
-  evidenceRevision: integerAtLeast(1),
   completedAt: TimeSchema,
+  evidenceRevision: integerAtLeast(1),
   kind: v.literal("completed"),
   proof: v.picklist(["owner", "provider"]),
   request: RefundRequestGenerationSchema,
@@ -135,10 +135,7 @@ export type RefundAuthorityState = v.InferOutput<
   typeof RefundAuthorityStateSchema
 >;
 export type RefundAuthorityStateName = RefundAuthorityState["kind"];
-export type ReadyRefundState = Extract<
-  RefundAuthorityState,
-  { kind: "ready" }
->;
+export type ReadyRefundState = Extract<RefundAuthorityState, { kind: "ready" }>;
 export type SendArmedRefundState = Extract<
   RefundAuthorityState,
   { kind: "send_armed" }

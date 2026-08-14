@@ -4,11 +4,11 @@ import {
   type CompletedRefundState,
   markRefundCompleted,
   type NeedsOwnerChoiceRefundState,
-  readyRefund,
   type ReadyRefundState,
   type RefundAuthorityState,
   type RefundOwnerChoiceReason,
   type RefundRequestGeneration,
+  readyRefund,
   requireActiveSentRefund,
   validateRefundAuthorityState,
 } from "#shared/payment/refund-authority.ts";
@@ -38,22 +38,22 @@ export const markRefundOwnerChoiceNeeded = (
 export type RefundOwnerChoice =
   | { decidedAt: number; kind: "provider_confirms_returned" }
   | {
-    capability: "keyless";
-    decidedAt: number;
-    evidenceRevision: number;
-    kind: "provider_confirms_not_sent";
-    nextActionAt: number;
-    requestIndex: string;
-  }
+      capability: "keyless";
+      decidedAt: number;
+      evidenceRevision: number;
+      kind: "provider_confirms_not_sent";
+      nextActionAt: number;
+      requestIndex: string;
+    }
   | {
-    capability: "keyed";
-    decidedAt: number;
-    evidenceRevision: number;
-    kind: "provider_confirms_not_sent";
-    nextActionAt: number;
-    replayUntil: number;
-    requestIndex: string;
-  };
+      capability: "keyed";
+      decidedAt: number;
+      evidenceRevision: number;
+      kind: "provider_confirms_not_sent";
+      nextActionAt: number;
+      replayUntil: number;
+      requestIndex: string;
+    };
 
 const nextGeneration = (
   state: NeedsOwnerChoiceRefundState,
@@ -64,16 +64,16 @@ const nextGeneration = (
   }
   return choice.capability === "keyed"
     ? {
-      capability: "keyed",
-      generation: state.request.generation + 1,
-      identityIndex: choice.requestIndex,
-      replayUntil: choice.replayUntil,
-    }
+        capability: "keyed",
+        generation: state.request.generation + 1,
+        identityIndex: choice.requestIndex,
+        replayUntil: choice.replayUntil,
+      }
     : {
-      capability: "keyless",
-      generation: state.request.generation + 1,
-      identityIndex: choice.requestIndex,
-    };
+        capability: "keyless",
+        generation: state.request.generation + 1,
+        identityIndex: choice.requestIndex,
+      };
 };
 
 /** Apply one explicit owner answer; there is intentionally no generic clear. */
@@ -84,8 +84,8 @@ export const resolveRefundOwnerChoice = (
   choice.kind === "provider_confirms_returned"
     ? markRefundCompleted(state, choice.decidedAt, "owner")
     : readyRefund({
-      evidenceRevision: choice.evidenceRevision,
-      nextActionAt: choice.nextActionAt,
-      now: choice.decidedAt,
-      request: nextGeneration(state, choice),
-    });
+        evidenceRevision: choice.evidenceRevision,
+        nextActionAt: choice.nextActionAt,
+        now: choice.decidedAt,
+        request: nextGeneration(state, choice),
+      });

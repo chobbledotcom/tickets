@@ -100,7 +100,7 @@ describeWithEnv(
         claimRequestFor([loaded], {
           referenceIndex: "unrelated-reference-index",
           sessionId: "unrelated-session",
-        })
+        }),
       ).toThrow(/^Payment row matched no initiating attendee$/u);
     });
 

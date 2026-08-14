@@ -56,10 +56,8 @@ const candidate = (
   paymentProvider: TaggedReference["provider"] = "stripe",
 ) => ({
   attendee: { id: attendeeId } as RefundCandidate["attendee"],
-  references: Array.from(
-    { length: referenceCount },
-    (_, offset) =>
-      taggedReference(attendeeId, offset, refundState, paymentProvider),
+  references: Array.from({ length: referenceCount }, (_, offset) =>
+    taggedReference(attendeeId, offset, refundState, paymentProvider),
   ),
 });
 
@@ -107,9 +105,8 @@ describeWithEnv(
     });
 
     test("a provider set beyond Bunny's total limit refuses before its first send", async () => {
-      const candidates = Array.from(
-        { length: 9 },
-        (_, offset) => candidate(20 + offset, 1),
+      const candidates = Array.from({ length: 9 }, (_, offset) =>
+        candidate(20 + offset, 1),
       );
       await expectRefusedBeforeClaim(candidates);
     });
@@ -170,7 +167,7 @@ describeWithEnv(
       const source = provider();
       const attendeeIds = Array.from({ length: 6 }, (_, offset) => 60 + offset);
       const candidates = attendeeIds.map((attendeeId) =>
-        candidate(attendeeId, 1, "completed")
+        candidate(attendeeId, 1, "completed"),
       );
       const claim = grantingRowClaim(
         new Map(
@@ -226,7 +223,7 @@ describeWithEnv(
         processRefundBatchAt(source, [candidate(70, 1)], 7, {
           claim,
           record: recordEveryRefund,
-        })
+        }),
       );
 
       expectBudgetRefusal(result);
@@ -244,6 +241,8 @@ describeWithEnv(
       let authorityCalls = 0;
 
       const result = await processRefundBatchAt(source, [candidate(71, 1)], 7, {
+        claim: granted,
+        record: recordEveryRefund,
         request: async (...args) => {
           authorityCalls++;
           const sendEnvelope = 2 * (REFUND_NETWORK_RETRIES.stripe + 1);
@@ -252,8 +251,6 @@ describeWithEnv(
           );
           return await requestRecordedProviderRefund(...args);
         },
-        claim: granted,
-        record: recordEveryRefund,
       });
 
       expect(result).toMatchObject({

@@ -135,7 +135,10 @@ describeWithEnv(
 
     test("records acknowledgement without retiring payment facts", async () => {
       const attendeeId = await bookedWithPayment("sess-review", "pi_review");
-      const review = reviewCase({ kind: "partially_returned_obligation" }, "exact-review");
+      const review = reviewCase(
+        { kind: "partially_returned_obligation" },
+        "exact-review",
+      );
       await putRowState(
         "sess-review",
         await rowStateSlot({
@@ -163,7 +166,10 @@ describeWithEnv(
 
     test("an owner review stays reachable while its money record waits", async () => {
       const attendeeId = await bookedWithPayment("sess-money", "pi_money");
-      const review = reviewCase({ kind: "partially_returned_obligation" }, "money-review");
+      const review = reviewCase(
+        { kind: "partially_returned_obligation" },
+        "money-review",
+      );
       await putRowState(
         "sess-money",
         await rowStateSlot({
@@ -273,7 +279,10 @@ describeWithEnv(
         "sess-first",
         await rowStateSlot({
           review: {
-            ...reviewCase({ kind: "partially_returned_obligation" }, "first-case"),
+            ...reviewCase(
+              { kind: "partially_returned_obligation" },
+              "first-case",
+            ),
             acknowledgedAt: earlier,
           },
         }),

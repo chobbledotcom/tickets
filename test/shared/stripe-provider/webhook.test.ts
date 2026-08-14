@@ -40,10 +40,8 @@ describeStripe("stripe-provider resolveWebhookSession", () => {
   test("looks up even a one-character session ID", async () => {
     // Only a genuinely absent id is refused; any id Stripe sends, however
     // short, must still be fetched rather than dismissed unread.
-    const retrieve = stub(
-      stripeApi,
-      "retrieveCheckoutSession",
-      () => Promise.resolve(null),
+    const retrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+      Promise.resolve(null),
     );
     try {
       expect(
@@ -72,10 +70,8 @@ describeStripe("stripe-provider resolveWebhookSession", () => {
       },
       payment_intent: null,
     });
-    const retrieve = stub(
-      stripeApi,
-      "retrieveCheckoutSession",
-      () => Promise.resolve(paidWithoutIntent),
+    const retrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+      Promise.resolve(paidWithoutIntent),
     );
     try {
       expect(
@@ -110,10 +106,8 @@ describeStripe("stripe-provider resolveWebhookSession", () => {
       id: "cs_foreign",
       metadata: { foreign: "metadata" },
     });
-    const retrieve = stub(
-      stripeApi,
-      "retrieveCheckoutSession",
-      () => Promise.resolve(foreign),
+    const retrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+      Promise.resolve(foreign),
     );
     try {
       expect(

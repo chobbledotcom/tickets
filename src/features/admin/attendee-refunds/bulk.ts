@@ -46,17 +46,17 @@ const handleAdminRefundAllGet = (
     const { total } = await getRefundAllSummary(id);
     return total === 0
       ? htmlResponse(
-        adminRefundAllAttendeesPage(
-          listing,
-          0,
-          session,
-          flash.error ?? t("error.no_attendees_to_refund"),
-        ),
-        400,
-      )
+          adminRefundAllAttendeesPage(
+            listing,
+            0,
+            session,
+            flash.error ?? t("error.no_attendees_to_refund"),
+          ),
+          400,
+        )
       : htmlResponse(
-        adminRefundAllAttendeesPage(listing, total, session, flash.error),
-      );
+          adminRefundAllAttendeesPage(listing, total, session, flash.error),
+        );
   });
 
 interface RefundResponseContext {
@@ -110,8 +110,8 @@ const remainingRefundMessage = (
   return otherRemaining === 0
     ? null
     : t("admin.attendees.refund_all_result_waiting_remaining", {
-      count: otherRemaining,
-    });
+        count: otherRemaining,
+      });
 };
 
 /** Build the error response branch of a bulk refund. */
@@ -129,8 +129,8 @@ const buildRefundProblemResponse = async (
     }),
     pendingCount > 0
       ? t("admin.attendees.refund_all_result_pending", {
-        count: pendingCount,
-      })
+          count: pendingCount,
+        })
       : null,
     t("admin.attendees.refund_all_result_failures", {
       count: problemCount,
@@ -141,12 +141,10 @@ const buildRefundProblemResponse = async (
     remainingRefundMessage(remaining, pendingCount),
   ]).join(" ");
   await logActivity(
-    `Bulk refund: ${
-      refundActivityCounts(
-        counts,
-        problemCount,
-      )
-    } for '${listing.name}'`,
+    `Bulk refund: ${refundActivityCounts(
+      counts,
+      problemCount,
+    )} for '${listing.name}'`,
     listing.id,
   );
   return fail(refundAllUrl, msg);

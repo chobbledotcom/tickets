@@ -77,11 +77,7 @@ const ERROR_RESULTS: readonly ErrorResultCase[] = [
 describe("single refund result", () => {
   for (const { message, name, result, url } of ERROR_RESULTS) {
     test(`sends ${name} to its safe page`, async () => {
-      const response = await singleRefundResultError(
-        result,
-        ATTENDEE_ID,
-        "",
-      );
+      const response = await singleRefundResultError(result, ATTENDEE_ID, "");
       expect(response).not.toBeNull();
       expectRedirectWithFlash(url, message, false)(requireResponse(response));
     });

@@ -1,9 +1,5 @@
 import { expect } from "@std/expect";
 import {
-  completeRefundAuthority,
-  createOrLoadRefundAuthority,
-} from "#shared/db/provider-refund-authority.ts";
-import {
   getRefundPaymentReferences,
   getRefundPaymentReferencesForAttendee,
   type RefundPaymentReference,
@@ -12,6 +8,10 @@ import {
   type RefundPaymentReferenceSource,
   type TaggedRefundPaymentReference,
 } from "#shared/db/payment-references.ts";
+import {
+  completeRefundAuthority,
+  createOrLoadRefundAuthority,
+} from "#shared/db/provider-refund-authority.ts";
 import { readyRefund } from "#shared/payment/refund-authority.ts";
 import { REFUND_PROVIDER_CAPABILITIES } from "#shared/payment/refund-provider-authorization.ts";
 import { refundReplayUntil } from "#shared/payment/refund-replay-window.ts";
@@ -34,14 +34,15 @@ export const markProviderRefundsReturned = async (
     }
     const capability = REFUND_PROVIDER_CAPABILITIES[reference.provider];
     const identityIndex = await refundRequestIdentityIndex(reference, 1);
-    const request = capability === "keyless"
-      ? { capability, generation: 1, identityIndex }
-      : {
-        capability,
-        generation: 1,
-        identityIndex,
-        replayUntil: refundReplayUntil(reference.provider, RETURNED_AT),
-      };
+    const request =
+      capability === "keyless"
+        ? { capability, generation: 1, identityIndex }
+        : {
+            capability,
+            generation: 1,
+            identityIndex,
+            replayUntil: refundReplayUntil(reference.provider, RETURNED_AT),
+          };
     const row = await createOrLoadRefundAuthority({
       capability,
       captured: { amount: 500, currency: "GBP" },
@@ -108,10 +109,12 @@ export const getCompleteRefundPaymentReferencesForAttendee = async (
 ): Promise<TaggedRefundPaymentReference[]> =>
   requireCompleteRefundReferences(
     await getRefundPaymentReferencesForAttendee(
-      "currentPaymentId" in attendee ? attendee : {
-        currentPaymentId: attendee.payment_id,
-        id: attendee.id,
-      },
+      "currentPaymentId" in attendee
+        ? attendee
+        : {
+            currentPaymentId: attendee.payment_id,
+            id: attendee.id,
+          },
       await getTestPrivateKey(),
     ),
     `Attendee ${attendee.id}`,

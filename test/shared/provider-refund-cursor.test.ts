@@ -17,10 +17,12 @@ describe("provider refund queue cursor", () => {
 
   test("refuses changed, non-canonical, and malformed input", async () => {
     const cursor = await writeProviderRefundCursor(42);
-    expect(await readProviderRefundCursor(cursor.replace(/^42/u, "41")))
-      .toBeNull();
-    expect(await readProviderRefundCursor(`042.${cursor.split(".")[1]}`))
-      .toBeNull();
+    expect(
+      await readProviderRefundCursor(cursor.replace(/^42/u, "41")),
+    ).toBeNull();
+    expect(
+      await readProviderRefundCursor(`042.${cursor.split(".")[1]}`),
+    ).toBeNull();
     expect(await readProviderRefundCursor("42")).toBeNull();
   });
 

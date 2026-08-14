@@ -11,8 +11,8 @@ import {
   armRefundSend,
   markRefundCompleted,
   markRefundLocalRecorded,
-  readyRefund,
   type RefundAuthorityState,
+  readyRefund,
 } from "#shared/payment/refund-authority.ts";
 import { markRefundOwnerChoiceNeeded } from "#shared/payment/refund-authority-choice.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -168,7 +168,7 @@ describeWithEnv(
 
       expect(await deleteRefusal(attendeeId)).toBe(REFUND_IN_PROGRESS_REFUSAL);
       await withTransaction((tx) =>
-        assertRowsFreeToMove(tx, [attendeeId], "merge")
+        assertRowsFreeToMove(tx, [attendeeId], "merge"),
       );
     });
 
@@ -212,10 +212,7 @@ describeWithEnv(
         12,
         "provider",
       );
-      await addAuthorityFor(
-        reference,
-        markRefundLocalRecorded(completed, 13),
-      );
+      await addAuthorityFor(reference, markRefundLocalRecorded(completed, 13));
 
       expect(await deleteRefusal(attendeeId)).toBeNull();
       expect(await attendeeStillThere(attendeeId)).toBe(false);

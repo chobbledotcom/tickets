@@ -36,16 +36,11 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
       bookingIntent([{ e: listing.id, p: 800, q: 1 }]),
       800,
     );
-    using refund = stub(
-      stripeApi,
-      "refundCharge",
-      () => Promise.resolve({ kind: "rejected", reason: "rejected" } as const),
+    using refund = stub(stripeApi, "refundCharge", () =>
+      Promise.resolve({ kind: "rejected", reason: "rejected" } as const),
     );
-    using refundState = stub(
-      stripeApi,
-      "readPaymentIntent",
-      () =>
-        Promise.resolve(foundStripeIntent(data.session.paymentReference, 800)),
+    using refundState = stub(stripeApi, "readPaymentIntent", () =>
+      Promise.resolve(foundStripeIntent(data.session.paymentReference, 800)),
     );
 
     expect(await processPaymentSession(id, data)).toEqual({
@@ -74,8 +69,7 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
     await expectStoredRefund(
       result,
       {
-        detail:
-          `Per-item price mismatch for listing ${listing.id}: metadata p=800 but expected 1000 (can_pay_more=false)`,
+        detail: `Per-item price mismatch for listing ${listing.id}: metadata p=800 but expected 1000 (can_pay_more=false)`,
         listingId: listing.id,
         sessionId: id,
       },
@@ -121,10 +115,8 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
       unitPrice: 500,
     });
     const id = "cs_direct_uncertain";
-    using uncertain = stub(
-      attendeesApi,
-      "createBookingAtomic",
-      () => Promise.reject(new Error("write result unknown")),
+    using uncertain = stub(attendeesApi, "createBookingAtomic", () =>
+      Promise.reject(new Error("write result unknown")),
     );
     using refund = stubRefundPayment("re_uncertain", 500);
 

@@ -174,9 +174,7 @@ Then(
     expect(told).toContain(
       `${remaining} refund${remaining === 1 ? "" : "s"} remain`,
     );
-    expect(requiredWorldValue(this.refundCalls, "refund calls")()).toBe(
-      worked,
-    );
+    expect(requiredWorldValue(this.refundCalls, "refund calls")()).toBe(worked);
   },
 );
 
@@ -185,9 +183,7 @@ Then(
   function (this: TicketsWorld, remaining: number): void {
     expect(
       requiredWorldValue(this.bulkRefundMessage, "what they were told"),
-    ).toContain(
-      `${remaining} refund${remaining === 1 ? "" : "s"} remain`,
-    );
+    ).toContain(`${remaining} refund${remaining === 1 ? "" : "s"} remain`);
   },
 );
 
@@ -206,10 +202,7 @@ Then(
 Then(
   "all {int} people have their money back",
   async function (this: TicketsWorld, count: number): Promise<void> {
-    const people = requiredWorldValue(
-      this.attendeeIds,
-      "the people who paid",
-    );
+    const people = requiredWorldValue(this.attendeeIds, "the people who paid");
     expect(people).toHaveLength(count);
     for (const id of people) {
       expect(await attendeeLegsOfKind(id, "refund_cash")).toHaveLength(1);

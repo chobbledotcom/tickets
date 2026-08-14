@@ -19,17 +19,19 @@ import type {
   RefundAttemptResult,
   RefundRequest,
 } from "#shared/payment/refund-attempt.ts";
-import type { AuthorizedRefundRequest } from "#shared/payment/refund-provider-authorization.ts";
-import type { RefundProviderCapability } from "#shared/payment/refund-provider-authorization.ts";
+import type {
+  AuthorizedRefundRequest,
+  RefundProviderCapability,
+} from "#shared/payment/refund-provider-authorization.ts";
 import type { RefundState } from "#shared/payment/refund-state.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
-import { requestRecordedProviderRefund } from "./dispatch-helpers.ts";
 import {
   acceptedRefund,
   chargeMoney,
   refundReference,
 } from "#test-utils/payment-state.ts";
+import { requestRecordedProviderRefund } from "./dispatch-helpers.ts";
 
 type Reference = {
   provider?: PaymentProviderType;
@@ -54,10 +56,7 @@ const taggedReference = (
   reference: string,
   provider: PaymentProviderType,
   values: Partial<
-    Omit<
-      TaggedRefundPaymentReference,
-      "kind" | "provider" | "reference"
-    >
+    Omit<TaggedRefundPaymentReference, "kind" | "provider" | "reference">
   > = {},
 ): TaggedRefundPaymentReference => {
   const stored = refundReference(reference, values);
@@ -105,11 +104,11 @@ export const readyReference = (
   return input.kind === "already_returned"
     ? { kind: "already_returned", provider: source, reference }
     : {
-      charge: input.charge ?? chargeMoney(),
-      kind: "observed",
-      provider: source,
-      reference,
-    };
+        charge: input.charge ?? chargeMoney(),
+        kind: "observed",
+        provider: source,
+        reference,
+      };
 };
 export const readyCandidate = (
   references: ReadyReferenceInput[],
@@ -171,13 +170,13 @@ const prepareProviderReference = async (
   return read.status === "found"
     ? { charge: read.resource, kind: "observed" }
     : {
-      evidence: {
-        ...read,
-        provider: source.type,
-        reference: reference.reference,
-      },
-      index: reference.index,
-    };
+        evidence: {
+          ...read,
+          provider: source.type,
+          reference: reference.reference,
+        },
+        index: reference.index,
+      };
 };
 
 const isReadinessFailure = (
@@ -192,31 +191,32 @@ const preparationObservations = (
   if (isReadinessFailure(prepared) || prepared.kind === "already_returned") {
     return [];
   }
-  return [{
-    charge: prepared.charge,
-    identity: {
-      kind: "tagged",
-      provider: source.type,
-      reference: reference.reference,
+  return [
+    {
+      charge: prepared.charge,
+      identity: {
+        kind: "tagged",
+        provider: source.type,
+        reference: reference.reference,
+      },
+      reference,
     },
-    reference,
-  }];
+  ];
 };
 
 const readyReferenceFrom = (
   reference: TaggedRefundPaymentReference,
   prepared: Exclude<PreparedProviderReference, RefundReadinessRead>,
   source: RecordingProvider,
-): ReadyRefundReference => {
-  return prepared.kind === "already_returned"
+): ReadyRefundReference =>
+  prepared.kind === "already_returned"
     ? { kind: "already_returned", provider: source, reference }
     : {
-      charge: prepared.charge,
-      kind: "observed",
-      provider: source,
-      reference,
-    };
-};
+        charge: prepared.charge,
+        kind: "observed",
+        provider: source,
+        reference,
+      };
 
 export const prepareAtProvider =
   (source: RecordingProvider): NonNullable<RefundRunDependencies["prepare"]> =>
@@ -250,27 +250,27 @@ export const prepareAtProvider =
     );
     return failures.length > 0
       ? {
-        kind: "not_ready",
-        observations: preparedReferences.flatMap(({ prepared, reference }) =>
-          preparationObservations(prepared, reference, source)
-        ),
-        reads: failures,
-        reason: "provider_evidence",
-      }
+          kind: "not_ready",
+          observations: preparedReferences.flatMap(({ prepared, reference }) =>
+            preparationObservations(prepared, reference, source),
+          ),
+          reads: failures,
+          reason: "provider_evidence",
+        }
       : {
-        candidates: candidates.map((candidate) => ({
-          attendee: candidate.attendee,
-          references: candidate.references.map((reference) => {
-            const prepared = requiredMapValue(
-              preparedByIndex,
-              reference.index,
-              `Test readiness lost payment reference ${reference.index}`,
-            );
-            return readyReferenceFrom(reference, prepared, source);
-          }),
-        })),
-        kind: "ready",
-      };
+          candidates: candidates.map((candidate) => ({
+            attendee: candidate.attendee,
+            references: candidate.references.map((reference) => {
+              const prepared = requiredMapValue(
+                preparedByIndex,
+                reference.index,
+                `Test readiness lost payment reference ${reference.index}`,
+              );
+              return readyReferenceFrom(reference, prepared, source);
+            }),
+          })),
+          kind: "ready",
+        };
   };
 
 export const processRefundBatchAt = (
@@ -282,8 +282,8 @@ export const processRefundBatchAt = (
   processRefundBatch(candidates, listingId, {
     ...dependencies,
     prepare: prepareAtProvider(source),
-    recordAuthorities: dependencies.recordAuthorities ??
-      (() => Promise.resolve()),
+    recordAuthorities:
+      dependencies.recordAuthorities ?? (() => Promise.resolve()),
     request: dependencies.request ?? requestRecordedProviderRefund,
   });
 
@@ -331,8 +331,8 @@ export const provider = ({
       accepted.has(request.paymentReference)
         ? acceptedRefund(request.charge)
         : refunded.has(request.paymentReference)
-        ? completedRefund(request)
-        : { kind: "rejected", reason: "failed" },
+          ? completedRefund(request)
+          : { kind: "rejected", reason: "failed" },
     );
   };
   return {
@@ -402,7 +402,7 @@ export const pendingCandidate = (
 ): RefundCandidate => ({
   attendee: { id: attendeeId } as RefundCandidate["attendee"],
   references: references.map((reference) =>
-    taggedReference(reference, "stripe", { sessionIds: [] })
+    taggedReference(reference, "stripe", { sessionIds: [] }),
   ),
 });
 

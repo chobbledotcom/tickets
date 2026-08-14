@@ -9,8 +9,8 @@ import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import type { RefundProviderCapability } from "#shared/payment/refund-provider-authorization.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 import { completedRefund } from "#test-utils/payment-state.ts";
-import { provider, type RecordingProvider } from "./helpers.ts";
 import { requestRecordedProviderRefund } from "./dispatch-helpers.ts";
+import { provider, type RecordingProvider } from "./helpers.ts";
 import { recordEveryRefund } from "./ledger-results.ts";
 
 export const LISTING_ID = 7;
@@ -54,7 +54,8 @@ export const taggedReference = (
 });
 
 export const readyPreparation =
-  (candidates: ReadyRefundCandidate[]): Prepare => () =>
+  (candidates: ReadyRefundCandidate[]): Prepare =>
+  () =>
     Promise.resolve({ candidates, kind: "ready" });
 
 export const missingAtProvider = (
@@ -75,9 +76,8 @@ export const missingAtProvider = (
   reason: "provider_evidence",
 });
 
-type ClaimFacts =
-  & Pick<Claimed, "held">
-  & Partial<Pick<Claimed, "returned" | "shared">>;
+type ClaimFacts = Pick<Claimed, "held"> &
+  Partial<Pick<Claimed, "returned" | "shared">>;
 
 interface RowClaimHarness {
   claims: () => number;
@@ -86,11 +86,7 @@ interface RowClaimHarness {
 }
 
 export const rowClaimHarness = (
-  {
-    held,
-    returned = new Set(),
-    shared = new Map(),
-  }: ClaimFacts,
+  { held, returned = new Set(), shared = new Map() }: ClaimFacts,
   events: string[] = [],
 ): RowClaimHarness => {
   let claims = 0;
@@ -108,7 +104,7 @@ export const rowClaimHarness = (
           kind: "claimed",
           phases: new Map(
             [...held.values()].flatMap((sessionIds) =>
-              sessionIds.map((sessionId) => [sessionId, "checking"] as const)
+              sessionIds.map((sessionId) => [sessionId, "checking"] as const),
             ),
           ),
           returned,
@@ -133,7 +129,7 @@ export const releasedRows = (
   settlements.map(({ rows }) =>
     [...rows]
       .filter(([, change]) => change.claim === "release")
-      .map(([sessionId]) => sessionId)
+      .map(([sessionId]) => sessionId),
   );
 
 interface RecordingWrites {
@@ -150,13 +146,13 @@ export const recordingWrites = (): RecordingWrites => {
   const recorded: number[][] = [];
   return {
     dependencies: {
-      recordAuthorities: (authorities) => {
-        marked.push([...authorities]);
-        return Promise.resolve();
-      },
       record: (postings) => {
         recorded.push(postings.map(({ attendeeId }) => attendeeId));
         return recordEveryRefund(postings);
+      },
+      recordAuthorities: (authorities) => {
+        marked.push([...authorities]);
+        return Promise.resolve();
       },
       request: requestRecordedProviderRefund,
     },

@@ -162,11 +162,9 @@ const processSessionAndRedirect = async (
   if (result.ticketTokens.length > 0) {
     await clearSessionTokens(sessionId);
     return redirectResponse(
-      `/payment/success?tokens=${
-        encodeURIComponent(
-          result.ticketTokens.join("+"),
-        )
-      }`,
+      `/payment/success?tokens=${encodeURIComponent(
+        result.ticketTokens.join("+"),
+      )}`,
     );
   }
 
@@ -204,9 +202,10 @@ const renderSuccessFromTokens = async (
   // Only use thank_you_url for single-listing purchases — and never for a hidden
   // package's sole member, whose URL would reveal the listing it concealed.
   const uniqueListingIds = unique(listingIds);
-  const thankYouUrl = uniqueListingIds.length === 1
-    ? await singleListingThankYou(uniqueListingIds[0]!)
-    : "";
+  const thankYouUrl =
+    uniqueListingIds.length === 1
+      ? await singleListingThankYou(uniqueListingIds[0]!)
+      : "";
 
   return renderPaidSuccessPage(thankYouUrl, ticketUrl);
 };
@@ -232,8 +231,7 @@ const handlePaymentSuccess = (request: Request): Promise<Response> => {
   const referer = request.headers.get("referer") ?? "none";
   logError({
     code: ErrorCode.PAYMENT_SESSION,
-    detail:
-      `Payment success callback with no session_id or tokens | params=[${paramKeys}] referer=${referer}`,
+    detail: `Payment success callback with no session_id or tokens | params=[${paramKeys}] referer=${referer}`,
   });
   return Promise.resolve(paymentErrorResponse("Invalid payment callback"));
 };
@@ -335,9 +333,9 @@ const authenticateWebhook = async (
 ): Promise<
   | Response
   | {
-    provider: NonNullable<ExistingPaymentProvider>;
-    listing: WebhookEvent;
-  }
+      provider: NonNullable<ExistingPaymentProvider>;
+      listing: WebhookEvent;
+    }
 > => {
   const provider = await getPaymentProviderOrLog(
     ErrorCode.PAYMENT_SESSION,
@@ -428,8 +426,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
     const outcome = await refundRejectedCharge(sessionResult);
     logError({
       code: ErrorCode.PAYMENT_SESSION,
-      detail:
-        `Webhook session rejected as ${sessionResult.reason} (refunded: ${outcome.refunded})`,
+      detail: `Webhook session rejected as ${sessionResult.reason} (refunded: ${outcome.refunded})`,
     });
     // A required refund that failed must retry: acknowledging would strand the
     // captured charge with no redelivery.

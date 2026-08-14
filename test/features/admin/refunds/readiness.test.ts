@@ -20,7 +20,7 @@ const claimFor = (
   heldSince: heldClaim.heldSince,
   phases: new Map(
     [...rows.values()].flatMap((sessionIds) =>
-      sessionIds.map((sessionId) => [sessionId, "checking"] as const)
+      sessionIds.map((sessionId) => [sessionId, "checking"] as const),
     ),
   ),
 });
@@ -91,7 +91,8 @@ describe("admin refund readiness", () => {
     if (
       observedFirst?.kind !== "observed" ||
       observedSecond?.kind !== "observed"
-    ) return;
+    )
+      return;
     expect(observedFirst.charge).toBe(observed);
     expect(observedSecond.charge).toBe(observed);
     expect(observedFirst.provider).toBe(loadedSquare);
@@ -136,14 +137,16 @@ describe("admin refund readiness", () => {
       expect(result).toEqual({
         kind: "not_ready",
         observations: [],
-        reads: [{
-          evidence: {
-            ...read,
-            provider: "stripe",
-            reference: "unread",
+        reads: [
+          {
+            evidence: {
+              ...read,
+              provider: "stripe",
+              reference: "unread",
+            },
+            index: "stripe_unread",
           },
-          index: "stripe_unread",
-        }],
+        ],
         reason: "provider_evidence",
       });
       expect(loadCount).toBe(1);
@@ -151,9 +154,8 @@ describe("admin refund readiness", () => {
   }
 
   test("keeps at most five exact-provider reads in flight", async () => {
-    const references = Array.from(
-      { length: 6 },
-      (_, index) => tagged(`charge_${index}`, "stripe"),
+    const references = Array.from({ length: 6 }, (_, index) =>
+      tagged(`charge_${index}`, "stripe"),
     );
     const gate = Promise.withResolvers<void>();
     const firstWave = Promise.withResolvers<void>();

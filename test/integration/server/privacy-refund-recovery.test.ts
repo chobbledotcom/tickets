@@ -21,15 +21,15 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import {
-  addProviderRefundTestCase,
-  readyRefundTestState,
-} from "#test-utils/provider-refund-cases.ts";
-import {
   chargeMoney,
   completedRefund,
   foundCharge,
   fullyRefundedMoney,
 } from "#test-utils/payment-state.ts";
+import {
+  addProviderRefundTestCase,
+  readyRefundTestState,
+} from "#test-utils/provider-refund-cases.ts";
 import {
   adminGet,
   createTestManagerSession,
@@ -120,10 +120,8 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
         Date.now() + 60_000,
       ),
     );
-    using read = stub(
-      sumupPaymentProvider,
-      "readCharge",
-      () => Promise.resolve(foundCharge(fullyRefundedMoney(2_500))),
+    using read = stub(sumupPaymentProvider, "readCharge", () =>
+      Promise.resolve(foundCharge(fullyRefundedMoney(2_500))),
     );
     using send = stub(sumupPaymentProvider, "refundCharge", () => {
       throw new Error("Checking returned money must not send a refund");
@@ -132,13 +130,7 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
     await expectFlashRedirect(
       casePath(id),
       "Checked the payment provider again.",
-    )(
-      await submitCase(
-        await testCookie(),
-        { choice: "check_again" },
-        id,
-      ),
-    );
+    )(await submitCase(await testCookie(), { choice: "check_again" }, id));
 
     expect(read.calls).toHaveLength(1);
     expect(read.calls[0]!.args).toEqual([reference]);
@@ -147,8 +139,9 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
       "SELECT refund_state FROM payment_charges WHERE id = ?",
       [id],
     );
-    expect(readRefundAuthorityState(row!.refund_state, "checked case"))
-      .toMatchObject({ kind: "completed", local: { kind: "due" } });
+    expect(
+      readRefundAuthorityState(row!.refund_state, "checked case"),
+    ).toMatchObject({ kind: "completed", local: { kind: "due" } });
     const messages = (await getAllActivityLog()).map(({ message }) => message);
     expect(messages).toContain(
       `Refund recovery ${id}: owner asked the site to check the provider again`,
@@ -166,15 +159,11 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
       reference,
       readyRefundTestState(identity),
     );
-    using read = stub(
-      sumupPaymentProvider,
-      "readCharge",
-      () => Promise.resolve(foundCharge(chargeMoney(2_500))),
+    using read = stub(sumupPaymentProvider, "readCharge", () =>
+      Promise.resolve(foundCharge(chargeMoney(2_500))),
     );
-    using send = stub(
-      sumupPaymentProvider,
-      "refundCharge",
-      (request) => Promise.resolve(completedRefund(request.charge)),
+    using send = stub(sumupPaymentProvider, "refundCharge", (request) =>
+      Promise.resolve(completedRefund(request.charge)),
     );
 
     const detail = await adminGet(casePath(id));
@@ -185,13 +174,7 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
     await expectFlashRedirect(
       casePath(id),
       "Continued the ready refund safely.",
-    )(
-      await submitCase(
-        await testCookie(),
-        { choice: "check_again" },
-        id,
-      ),
-    );
+    )(await submitCase(await testCookie(), { choice: "check_again" }, id));
 
     expect(read.calls).toHaveLength(1);
     expect(send.calls).toHaveLength(1);
@@ -199,8 +182,9 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
       "SELECT refund_state FROM payment_charges WHERE id = ?",
       [id],
     );
-    expect(readRefundAuthorityState(row!.refund_state, "ready owner case"))
-      .toMatchObject({ kind: "completed", local: { kind: "due" } });
+    expect(
+      readRefundAuthorityState(row!.refund_state, "ready owner case"),
+    ).toMatchObject({ kind: "completed", local: { kind: "due" } });
     expect((await getAllActivityLog()).map(({ message }) => message)).toContain(
       `Refund recovery ${id}: owner authorized the ready refund to continue`,
     );
@@ -222,13 +206,7 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
         casePath(id),
         "This refund changed while you were checking it. Read the current details and choose again.",
         false,
-      )(
-        await submitCase(
-          await testCookie(),
-          { choice: "check_again" },
-          id,
-        ),
-      );
+      )(await submitCase(await testCookie(), { choice: "check_again" }, id));
     }
   });
 
@@ -254,20 +232,20 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
     await expectFlashRedirect(
       "/admin/privacy",
       "Saved the provider decision.",
-    )(
-      await submitCase(await testCookie(), {}, id),
-    );
-    const due = await queryOne<
-      { refund_revision: number; refund_state: string }
-    >(
+    )(await submitCase(await testCookie(), {}, id));
+    const due = await queryOne<{
+      refund_revision: number;
+      refund_state: string;
+    }>(
       `SELECT refund_revision, refund_state
          FROM payment_charges
         WHERE id = ?`,
       [id],
     );
     expect(due?.refund_revision).toBe(2);
-    expect(readRefundAuthorityState(due!.refund_state, "route result"))
-      .toMatchObject({ kind: "completed", local: { kind: "due" } });
+    expect(
+      readRefundAuthorityState(due!.refund_state, "route result"),
+    ).toMatchObject({ kind: "completed", local: { kind: "due" } });
 
     const recording = await adminGet(casePath(id));
     expect(await recording.text()).toContain(

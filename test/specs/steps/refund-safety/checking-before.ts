@@ -71,11 +71,10 @@ Given(
   "Square would recognise {word}'s Stripe payment",
   function (this: TicketsWorld, who: string): void {
     const booking = safetyBooking(this, who);
-    refundProviderFor(this).show(
-      "square",
-      booking.paymentReference,
-      { resource: untouchedChargeFor(this, who), status: "found" },
-    );
+    refundProviderFor(this).show("square", booking.paymentReference, {
+      resource: untouchedChargeFor(this, who),
+      status: "found",
+    });
   },
 );
 
@@ -142,10 +141,12 @@ Then(
   function (this: TicketsWorld, who: string): void {
     const booking = safetyBooking(this, who);
     const provider = refundProviderFor(this);
-    expect([...provider.reads, ...provider.sends].every(
-      ({ provider: contacted, reference }) =>
-        contacted === "stripe" && reference === booking.paymentReference,
-    )).toBe(true);
+    expect(
+      [...provider.reads, ...provider.sends].every(
+        ({ provider: contacted, reference }) =>
+          contacted === "stripe" && reference === booking.paymentReference,
+      ),
+    ).toBe(true);
   },
 );
 

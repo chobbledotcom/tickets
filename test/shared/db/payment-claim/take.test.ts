@@ -22,13 +22,13 @@ import {
   UNRECORDED_MIRROR,
 } from "#test-utils/payment-claim.ts";
 import {
-  bookedWithPayment,
-  taggedPaymentReference,
-} from "#test-utils/processed-payments.ts";
-import {
   getCompleteRefundPaymentReferencesForAttendee,
   markProviderRefundsReturned,
 } from "#test-utils/payment-references.ts";
+import {
+  bookedWithPayment,
+  taggedPaymentReference,
+} from "#test-utils/processed-payments.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 describeWithEnv(

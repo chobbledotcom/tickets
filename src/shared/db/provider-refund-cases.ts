@@ -1,40 +1,41 @@
 /* jscpd:ignore-start -- imports */
 import { queryAll, queryOnePrimary } from "#shared/db/client.ts";
 import {
+  loadPaymentReference,
+  paymentReferenceIndex,
+} from "#shared/db/payment-reference-store.ts";
+import {
   completeRefundAuthority,
   markRefundAuthorityRecorded,
   type RefundAuthorityVersion,
   transitionRefundAuthority,
 } from "#shared/db/provider-refund-authority.ts";
+import { nowMs } from "#shared/now.ts";
+import { type Money, money } from "#shared/payment/money.ts";
+import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 import {
-  loadPaymentReference,
-  paymentReferenceIndex,
-} from "#shared/db/payment-reference-store.ts";
+  type NeedsOwnerChoiceRefundState,
+  type RefundAuthorityState,
+  type RefundAuthorityStateName,
+  type RefundOwnerChoiceReason,
+  readRefundAuthorityState,
+  refundLocalMirror,
+  refundStateMirror,
+} from "#shared/payment/refund-authority.ts";
 import {
   type RefundOwnerChoice,
   resolveRefundOwnerChoice,
 } from "#shared/payment/refund-authority-choice.ts";
 import {
-  type NeedsOwnerChoiceRefundState,
-  readRefundAuthorityState,
-  type RefundAuthorityState,
-  type RefundAuthorityStateName,
-  refundLocalMirror,
-  type RefundOwnerChoiceReason,
-  refundStateMirror,
-} from "#shared/payment/refund-authority.ts";
-import {
   refundAuthorityWorkSql,
   refundLifecycleFor,
 } from "#shared/payment/refund-authority-lifecycle.ts";
-import { type Money, money } from "#shared/payment/money.ts";
 import { REFUND_PROVIDER_CAPABILITIES } from "#shared/payment/refund-provider-authorization.ts";
-import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 import { refundReplayUntil } from "#shared/payment/refund-replay-window.ts";
 import { refundRequestIdentityIndex } from "#shared/payment/refund-request-identity.ts";
 import { writeProviderRefundCursor } from "#shared/provider-refund-cursor.ts";
-import { nowMs } from "#shared/now.ts";
 import { isPaymentProvider, type PaymentProviderType } from "#shared/types.ts";
+
 /* jscpd:ignore-end */
 
 const PAGE_SIZE = 20;
@@ -102,11 +103,7 @@ interface ResolutionRow extends DetailRow {
   readonly refunded_amount: Whole;
 }
 
-const wholeNumber = (
-  value: Whole,
-  name: string,
-  minimum: number,
-): number => {
+const wholeNumber = (value: Whole, name: string, minimum: number): number => {
   const number = Number(value);
   if (!Number.isSafeInteger(number) || number < minimum) {
     throw new Error(`payment_charges.${name} is not a safe whole number`);
@@ -195,10 +192,7 @@ const taggedReferenceFrom = async (
 export const listProviderRefundCases = async (
   after?: number,
 ): Promise<ProviderRefundCasePage> => {
-  if (
-    after !== undefined &&
-    (!Number.isSafeInteger(after) || after < 1)
-  ) {
+  if (after !== undefined && (!Number.isSafeInteger(after) || after < 1)) {
     throw new Error("Refund-case boundary must be a positive safe integer");
   }
   const rows = await queryAll<SummaryRow>(
@@ -219,9 +213,10 @@ export const listProviderRefundCases = async (
   const page = rows.slice(0, PAGE_SIZE).map(summaryFrom);
   return {
     cases: page,
-    nextCursor: rows.length > PAGE_SIZE
-      ? await writeProviderRefundCursor(page[page.length - 1]!.id)
-      : null,
+    nextCursor:
+      rows.length > PAGE_SIZE
+        ? await writeProviderRefundCursor(page[page.length - 1]!.id)
+        : null,
   };
 };
 
@@ -306,10 +301,10 @@ const notSentChoice = async (
   return state.request.capability === "keyless"
     ? { ...common, capability: "keyless" }
     : {
-      ...common,
-      capability: "keyed",
-      replayUntil: refundReplayUntil(reference.provider, decidedAt),
-    };
+        ...common,
+        capability: "keyed",
+        replayUntil: refundReplayUntil(reference.provider, decidedAt),
+      };
 };
 
 const applyDecision = async (
@@ -321,38 +316,39 @@ const applyDecision = async (
 ): Promise<boolean> => {
   if (input.choice === "money_recorded") {
     if (state.kind !== "completed" || state.local.kind !== "due") return false;
-    return await markRefundAuthorityRecorded(
-      input.id,
-      input.revision,
-      decidedAt,
-    ) !== null;
+    return (
+      (await markRefundAuthorityRecorded(
+        input.id,
+        input.revision,
+        decidedAt,
+      )) !== null
+    );
   }
   if (state.kind !== "needs_owner_choice") return false;
   if (input.choice === "provider_confirmed_returned") {
-    return await completeRefundAuthority(
-      authority,
-      authority.captured,
-      decidedAt,
-      "owner",
-    ) !== null;
+    return (
+      (await completeRefundAuthority(
+        authority,
+        authority.captured,
+        decidedAt,
+        "owner",
+      )) !== null
+    );
   }
-  const choice = await notSentChoice(
-    state,
-    row,
-    input.privateKey,
-    decidedAt,
+  const choice = await notSentChoice(state, row, input.privateKey, decidedAt);
+  return (
+    (await transitionRefundAuthority(
+      authority,
+      decidedAt,
+      authority.refunded,
+      (current) => {
+        if (current.kind !== "needs_owner_choice") {
+          throw new Error("Refund authority no longer needs its owner");
+        }
+        return resolveRefundOwnerChoice(current, choice);
+      },
+    )) !== null
   );
-  return await transitionRefundAuthority(
-    authority,
-    decidedAt,
-    authority.refunded,
-    (current) => {
-      if (current.kind !== "needs_owner_choice") {
-        throw new Error("Refund authority no longer needs its owner");
-      }
-      return resolveRefundOwnerChoice(current, choice);
-    },
-  ) !== null;
 };
 
 export const resolveProviderRefundCase = async (
@@ -390,10 +386,10 @@ export const resolveProviderRefundCase = async (
   if (await applyDecision(authority, state, row, input, decidedAt)) {
     return "resolved";
   }
-  return await queryOnePrimary<{ readonly id: Whole }>(
-      "SELECT id FROM payment_charges WHERE id = ? LIMIT 1",
-      [input.id],
-    ) === null
+  return (await queryOnePrimary<{ readonly id: Whole }>(
+    "SELECT id FROM payment_charges WHERE id = ? LIMIT 1",
+    [input.id],
+  )) === null
     ? "missing"
     : "changed";
 };

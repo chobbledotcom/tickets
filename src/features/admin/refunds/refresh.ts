@@ -3,15 +3,15 @@ import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { PAYMENT_REVIEW_RETIREMENT } from "#shared/payment/review.ts";
 import { reportWithheldRefund } from "#shared/payment-review.ts";
+import {
+  type ProviderRefundResult,
+  type RefundAuthorityReceipt,
+  recordProviderRefunds,
+  requestProviderRefund,
+} from "#shared/provider-refunds.ts";
 import { isPaymentOnlyAccount } from "#shared/refund-ledger/plan.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
 import type { RefundLedgerResult } from "#shared/refund-ledger/result.ts";
-import {
-  type ProviderRefundResult,
-  recordProviderRefunds,
-  type RefundAuthorityReceipt,
-  requestProviderRefund,
-} from "#shared/provider-refunds.ts";
 import { recordedRefundAuthorities, requestReadyRefund } from "./authority.ts";
 import type { RefundCandidate } from "./candidates.ts";
 import {
@@ -30,7 +30,6 @@ import {
   applyRefundLedgerFindings,
   rememberFailedRefundLedger,
 } from "./ledger-findings.ts";
-import { currentPaymentReviews, resolvePaymentReview } from "./row-reviews.ts";
 import { mapProviderRequests } from "./provider-requests.ts";
 import {
   prepareRefundReadiness,
@@ -38,6 +37,7 @@ import {
   type ReadyRefundReference,
 } from "./readiness.ts";
 import { runRefundReadiness } from "./readiness-run.ts";
+import { currentPaymentReviews, resolvePaymentReview } from "./row-reviews.ts";
 
 /* jscpd:ignore-end */
 
@@ -215,11 +215,7 @@ const refreshReadyCandidate = async (
   dependencies: Required<
     Pick<
       RefreshPaymentDependencies,
-      | "confirm"
-      | "paymentOnly"
-      | "record"
-      | "recordAuthorities"
-      | "request"
+      "confirm" | "paymentOnly" | "record" | "recordAuthorities" | "request"
     >
   >,
 ): Promise<RefreshPaymentResult> => {
@@ -234,7 +230,7 @@ const refreshReadyCandidate = async (
       ),
   );
   const returned = observed.flatMap((result, offset) =>
-    returnedReference(result, candidate.references[offset]!.reference)
+    returnedReference(result, candidate.references[offset]!.reference),
   );
   const hasUnreturned = returned.length !== candidate.references.length;
   const attendeeId = candidate.attendee.id;
@@ -304,7 +300,6 @@ export const refreshClaimedPayment = async (
     listingId,
     notReady: (message) => ({ kind: "not_ready", message }),
     prepare,
-    request,
     ready: (candidates, { claim: heldClaim, findings, reviews }) => {
       const readyCandidate = oneReadyCandidate(candidates);
       return refreshReadyCandidate(
@@ -322,5 +317,6 @@ export const refreshClaimedPayment = async (
         },
       );
     },
+    request,
   });
 };

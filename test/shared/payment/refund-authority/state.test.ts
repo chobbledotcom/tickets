@@ -55,7 +55,7 @@ describe("payment > refund authority state", () => {
       readRefundAuthorityState(
         JSON.stringify({ ...state, surprise: true }),
         "test charge",
-      )
+      ),
     ).toThrow("Invalid stored JSON");
   });
 
@@ -64,9 +64,7 @@ describe("payment > refund authority state", () => {
     const observing = markRefundObservationDue(armed, 130, 170);
 
     expect(mayReplayKeyedRefund(observing, "request-one", 500)).toBe(true);
-    expect(mayReplayKeyedRefund(observing, "another-request", 400)).toBe(
-      false,
-    );
+    expect(mayReplayKeyedRefund(observing, "another-request", 400)).toBe(false);
     expect(mayReplayKeyedRefund(observing, "request-one", 501)).toBe(false);
     expect(rearmKeyedRefund(observing, "request-one", 400, 430)).toMatchObject({
       armedAt: 400,
@@ -122,7 +120,7 @@ describe("payment > refund authority state", () => {
       reason: "possibly_sent",
     });
     expect(() =>
-      markRefundOwnerChoiceNeeded(keylessReady(), 180, "provider_rejected")
+      markRefundOwnerChoiceNeeded(keylessReady(), 180, "provider_rejected"),
     ).toThrow("armed refund");
   });
 
@@ -147,10 +145,11 @@ describe("payment > refund authority state", () => {
       markRefundOwnerChoiceNeeded(keyed, 510, "replay_window_expired").reason,
     ).toBe("replay_window_expired");
     expect(() =>
-      markRefundOwnerChoiceNeeded(keyless, 180, "replay_window_expired")
+      markRefundOwnerChoiceNeeded(keyless, 180, "replay_window_expired"),
     ).toThrow("reason does not match");
-    expect(() => markRefundOwnerChoiceNeeded(keyed, 510, "possibly_sent"))
-      .toThrow("reason does not match");
+    expect(() =>
+      markRefundOwnerChoiceNeeded(keyed, 510, "possibly_sent"),
+    ).toThrow("reason does not match");
   });
 
   test("provider-returned choice makes local recording due", () => {
@@ -253,7 +252,8 @@ describe("payment > refund authority state", () => {
     expect(refundLocalMirror(completed)).toBe("due");
     expect(refundNextActionAt(ready)).toBe(110);
     expect(refundNextActionAt(completed)).toBe(140);
-    expect(refundNextActionAt(markRefundLocalRecorded(completed, 160)))
-      .toBeNull();
+    expect(
+      refundNextActionAt(markRefundLocalRecorded(completed, 160)),
+    ).toBeNull();
   });
 });

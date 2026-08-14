@@ -20,7 +20,7 @@ const paidBackCandidate = (
 ): RefundCandidate => ({
   attendee: { id: attendeeId } as RefundCandidate["attendee"],
   references: sessionIds.map((sessionId) =>
-    rowBackedReference(`pi-${sessionId}`, sessionId, "completed")
+    rowBackedReference(`pi-${sessionId}`, sessionId, "completed"),
   ),
 });
 

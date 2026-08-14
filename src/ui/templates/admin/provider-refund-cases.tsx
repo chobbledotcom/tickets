@@ -8,12 +8,13 @@ import type {
 import type { FlashFields } from "#shared/flash-fields.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
-import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import type { RefundOwnerChoiceReason } from "#shared/payment/refund-authority.ts";
+import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { renderAdminPage } from "#templates/admin/admin-page.tsx";
 import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
 import { RadioOption } from "#templates/components/radio-option.tsx";
+
 /* jscpd:ignore-end */
 
 const CASE_PATH = "/admin/privacy/refunds";
@@ -50,8 +51,8 @@ export const ProviderRefundCaseQueue = ({
   page,
 }: {
   page: ProviderRefundCasePage;
-}): JSX.Element =>
-  page.cases.length === 0 ? <></> : (
+}): JSX.Element | null =>
+  page.cases.length === 0 ? null : (
     <section class="prose" id="refund-recovery">
       <h2>{t("privacy.refunds.heading")}</h2>
       <p>{t("privacy.refunds.intro")}</p>
@@ -70,11 +71,9 @@ export const ProviderRefundCaseQueue = ({
       {page.nextCursor !== null && (
         <p>
           <a
-            href={`/admin/privacy?refund_after=${
-              encodeURIComponent(
-                page.nextCursor,
-              )
-            }`}
+            href={`/admin/privacy?refund_after=${encodeURIComponent(
+              page.nextCursor,
+            )}`}
             rel="next"
           >
             {t("privacy.refunds.next")}
@@ -89,20 +88,18 @@ type Choice = {
   readonly value: string;
 };
 
-type RefundCaseFormSchema =
-  & {
-    readonly danger: boolean;
-    readonly id: string;
-    readonly submit: string;
-  }
-  & (
-    | {
+type RefundCaseFormSchema = {
+  readonly danger: boolean;
+  readonly id: string;
+  readonly submit: string;
+} & (
+  | {
       readonly choices: readonly Choice[];
       readonly kind: "choices";
       readonly legend: string;
     }
-    | { readonly choice: "check_again"; readonly kind: "check" }
-  );
+  | { readonly choice: "check_again"; readonly kind: "check" }
+);
 
 const checkForm = (
   id: string,
@@ -118,10 +115,12 @@ const checkForm = (
 
 const REFUND_CASE_FORMS = {
   completed: {
-    choices: [{
-      label: "privacy.refunds.recorded_choice",
-      value: "money_recorded",
-    }],
+    choices: [
+      {
+        label: "privacy.refunds.recorded_choice",
+        value: "money_recorded",
+      },
+    ],
     danger: false,
     id: "refund-recorded",
     kind: "choices",
@@ -150,20 +149,13 @@ const REFUND_CASE_FORMS = {
     "privacy.refunds.check_again",
     false,
   ),
-  ready: checkForm(
-    "refund-send-ready",
-    "privacy.refunds.send_ready",
-    true,
-  ),
+  ready: checkForm("refund-send-ready", "privacy.refunds.send_ready", true),
   send_armed: checkForm(
     "refund-check-armed",
     "privacy.refunds.check_again",
     false,
   ),
-} as const satisfies Record<
-  ProviderRefundCase["state"],
-  RefundCaseFormSchema
->;
+} as const satisfies Record<ProviderRefundCase["state"], RefundCaseFormSchema>;
 
 const RefundCaseForm = ({
   refundCase,
@@ -175,23 +167,23 @@ const RefundCaseForm = ({
     <WritableOnly>
       <CsrfForm action={`${CASE_PATH}/${refundCase.id}`} id={form.id}>
         <input name="revision" type="hidden" value={refundCase.revision} />
-        {form.kind === "check"
-          ? <input name="choice" type="hidden" value={form.choice} />
-          : (
-            <fieldset class="radios">
-              <legend>{t(form.legend)}</legend>
-              {form.choices.map((choice) => (
-                <RadioOption
-                  checked={false}
-                  name="choice"
-                  required
-                  value={choice.value}
-                >
-                  {t(choice.label)}
-                </RadioOption>
-              ))}
-            </fieldset>
-          )}
+        {form.kind === "check" ? (
+          <input name="choice" type="hidden" value={form.choice} />
+        ) : (
+          <fieldset class="radios">
+            <legend>{t(form.legend)}</legend>
+            {form.choices.map((choice) => (
+              <RadioOption
+                checked={false}
+                name="choice"
+                required
+                value={choice.value}
+              >
+                {t(choice.label)}
+              </RadioOption>
+            ))}
+          </fieldset>
+        )}
         <p class="actions">
           <button class={form.danger ? "danger" : undefined} type="submit">
             {t(form.submit)}

@@ -23,9 +23,9 @@ type ReadyRefundReferenceBase = {
 /** One provider-tagged reference after its exact provider read has finished. */
 export type ReadyRefundReference =
   | (ReadyRefundReferenceBase & {
-    charge: ChargeMoney;
-    kind: "observed";
-  })
+      charge: ChargeMoney;
+      kind: "observed";
+    })
   | (ReadyRefundReferenceBase & { kind: "already_returned" });
 
 export type ReadyRefundCandidate = Omit<RefundCandidate, "references"> & {
@@ -51,15 +51,15 @@ export type RefundReadinessObservation = {
 
 export type RefundReadinessResult =
   | {
-    candidates: ReadyRefundCandidate[];
-    kind: "ready";
-  }
+      candidates: ReadyRefundCandidate[];
+      kind: "ready";
+    }
   | {
-    kind: "not_ready";
-    observations: readonly RefundReadinessObservation[];
-    reads: RefundReadinessRead[];
-    reason: "provider_evidence";
-  };
+      kind: "not_ready";
+      observations: readonly RefundReadinessObservation[];
+      reads: RefundReadinessRead[];
+      reason: "provider_evidence";
+    };
 
 export type RefundReadinessDependencies = {
   loadProvider: (provider: PaymentProviderType) => Promise<ReadyRefundProvider>;
@@ -92,14 +92,14 @@ const providerIdentity = (
 
 type PreparedReference =
   | {
-    charge: ChargeMoney;
-    kind: "observed";
-    original: TaggedRefundPaymentReference;
-  }
+      charge: ChargeMoney;
+      kind: "observed";
+      original: TaggedRefundPaymentReference;
+    }
   | {
-    kind: "already_returned";
-    original: TaggedRefundPaymentReference;
-  };
+      kind: "already_returned";
+      original: TaggedRefundPaymentReference;
+    };
 
 type PreparedEvidence =
   | { kind: "failed"; read: RefundReadinessRead }
@@ -110,12 +110,14 @@ const readinessObservations = (
 ): RefundReadinessObservation[] =>
   prepared.flatMap((entry) =>
     entry.kind === "observed"
-      ? [{
-        charge: entry.charge,
-        identity: providerIdentity(entry.original),
-        reference: entry.original,
-      }]
-      : []
+      ? [
+          {
+            charge: entry.charge,
+            identity: providerIdentity(entry.original),
+            reference: entry.original,
+          },
+        ]
+      : [],
   );
 
 const evidenceFailed = (
@@ -134,33 +136,32 @@ const readReference = async (
   ).readCharge(reference.reference);
   return read.status === "found"
     ? {
-      kind: "prepared",
-      reference: {
-        charge: read.resource,
-        kind: "observed",
-        original: reference,
-      },
-    }
-    : {
-      kind: "failed",
-      read: {
-        evidence: {
-          ...read,
-          provider: reference.provider,
-          reference: reference.reference,
+        kind: "prepared",
+        reference: {
+          charge: read.resource,
+          kind: "observed",
+          original: reference,
         },
-        index: reference.index,
-      },
-    };
+      }
+    : {
+        kind: "failed",
+        read: {
+          evidence: {
+            ...read,
+            provider: reference.provider,
+            reference: reference.reference,
+          },
+          index: reference.index,
+        },
+      };
 };
 
 const readReferences = (
   references: readonly TaggedRefundPaymentReference[],
   providers: ReadonlyMap<PaymentProviderType, ReadyRefundProvider>,
 ): Promise<PreparedEvidence[]> =>
-  mapProviderRequests(
-    references,
-    (reference) => readReference(reference, providers),
+  mapProviderRequests(references, (reference) =>
+    readReference(reference, providers),
   );
 
 const alreadyReturnedReference = (
@@ -194,11 +195,11 @@ const readyReference = (
   prepared.kind === "already_returned"
     ? { kind: "already_returned", provider, reference }
     : {
-      charge: prepared.charge,
-      kind: "observed",
-      provider,
-      reference,
-    };
+        charge: prepared.charge,
+        kind: "observed",
+        provider,
+        reference,
+      };
 
 const readyCandidates = (
   candidates: readonly RefundCandidate[],
@@ -236,7 +237,7 @@ export const prepareRefundReadiness = async (
   const references = uniqueReferences(candidates);
   const providers = await loadProviders(references, loadProvider);
   const marked = references.filter((reference) =>
-    returned(reference, alreadyReturned)
+    returned(reference, alreadyReturned),
   );
   const readings = await readReferences(
     references.filter((reference) => !returned(reference, alreadyReturned)),

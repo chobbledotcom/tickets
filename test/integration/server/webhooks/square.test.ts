@@ -33,10 +33,8 @@ const expectWebhookResponse = async (
     () => ({
       order: stub(squareApi, "readOrder", () => Promise.resolve(orderRead)),
       payment: stub(squareApi, "readPayment"),
-      verify: stub(
-        squarePaymentProvider,
-        "verifyWebhookSignature",
-        () => Promise.resolve({ listing: event, valid: true as const }),
+      verify: stub(squarePaymentProvider, "verifyWebhookSignature", () =>
+        Promise.resolve({ listing: event, valid: true as const }),
       ),
     }),
     async ({ order, payment }) => {
@@ -46,7 +44,7 @@ const expectWebhookResponse = async (
             {},
             { "x-square-hmacsha256-signature": "square-signature" },
           ),
-        )
+        ),
       );
       expect(response.status).toBe(expectedStatus);
       expect(order.calls).toHaveLength(expectedOrderReads);
@@ -126,12 +124,10 @@ describeWithEnv("Square payment webhooks", { db: true }, () => {
     );
   });
 
-  for (
-    const [description, priceProof] of [
-      ["no price proof", undefined],
-      ["a malformed price proof", "not-a-price-proof"],
-    ] as const
-  ) {
+  for (const [description, priceProof] of [
+    ["no price proof", undefined],
+    ["a malformed price proof", "not-a-price-proof"],
+  ] as const) {
     test(`keeps a ticket-shaped order with ${description} retryable`, async () => {
       const event: WebhookEvent = {
         data: {

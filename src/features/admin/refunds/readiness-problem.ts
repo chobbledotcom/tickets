@@ -14,6 +14,6 @@ const evidenceFailureReason = ({ evidence }: RefundReadinessRead): string => {
 };
 
 /** Explain why complete provider evidence could not be established. */
-export const refundReadinessMessage = (
-  readiness: { readonly reads: readonly RefundReadinessRead[] },
-): string => readiness.reads.map(evidenceFailureReason).join(" ");
+export const refundReadinessMessage = (readiness: {
+  readonly reads: readonly RefundReadinessRead[];
+}): string => readiness.reads.map(evidenceFailureReason).join(" ");

@@ -33,9 +33,9 @@ export type ObservedRefundAdmission =
 export type ProviderRefundAdmission =
   | ObservedRefundAdmission
   | {
-    kind: "read_failed";
-    read: Exclude<ProviderRead<ChargeMoney>, { status: "found" }>;
-  };
+      kind: "read_failed";
+      read: Exclude<ProviderRead<ChargeMoney>, { status: "found" }>;
+    };
 
 /** The answer for each way a reading can come out settled, listed
  *  exhaustively so a new outcome must say what it does about refunds. */
@@ -65,8 +65,8 @@ export const admissionReason = (admission: WithheldRefund): string =>
   admission.kind === "read_failed"
     ? providerReadReason(admission.read)
     : admission.kind === "refused"
-    ? `needs the owner to look at it (${admission.issue.kind})`
-    : ADMISSION_REASONS[admission.kind];
+      ? `needs the owner to look at it (${admission.issue.kind})`
+      : ADMISSION_REASONS[admission.kind];
 
 const PROVIDER_READ_REASONS = {
   invalid: "the provider returned invalid data",

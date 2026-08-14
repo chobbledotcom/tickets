@@ -12,8 +12,8 @@ import {
   requireOne,
 } from "#shared/db/client.ts";
 import {
-  claimAttendeeRows,
   type ClaimResult,
+  claimAttendeeRows,
 } from "#shared/db/payment-claim/take.ts";
 import {
   type PaymentRowSettlement,
@@ -110,7 +110,8 @@ export const UNRECORDED_MIRROR = mirrorFor({
  *  `requireOne` names the failed query rather than handing back a null for the
  *  assertion to trip over further along. */
 const paymentRowColumn =
-  (column: string) => async (sessionId: string): Promise<string> =>
+  (column: string) =>
+  async (sessionId: string): Promise<string> =>
     (
       await requireOne<{ v: string }>(
         `SELECT payment.${column} AS v
@@ -186,18 +187,19 @@ export const refundClaimFixture = (
   return { ...common, phase };
 };
 
-const claimSlotWritten = (msAgo: number) =>
-(
-  attendeeId: number,
-  phase: ClaimFixturePhase = "checking",
-): Promise<string> =>
-  rowStateSlot({
-    claim: refundClaimFixture(
-      attendeeId,
-      phase,
-      new Date(nowMs() - msAgo).toISOString(),
-    ),
-  });
+const claimSlotWritten =
+  (msAgo: number) =>
+  (
+    attendeeId: number,
+    phase: ClaimFixturePhase = "checking",
+  ): Promise<string> =>
+    rowStateSlot({
+      claim: refundClaimFixture(
+        attendeeId,
+        phase,
+        new Date(nowMs() - msAgo).toISOString(),
+      ),
+    });
 
 /** The stored record for a claim a run is holding right now. */
 export const freshClaimSlot = claimSlotWritten(0);

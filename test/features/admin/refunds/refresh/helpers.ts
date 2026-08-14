@@ -5,23 +5,23 @@ import type {
   RefundReadinessResult,
 } from "#routes/admin/refunds/readiness.ts";
 import {
-  refreshClaimedPayment,
   type RefreshPaymentDependencies,
   type RefreshPaymentResult,
+  refreshClaimedPayment,
 } from "#routes/admin/refunds/refresh.ts";
 import type { PaymentReviewChange } from "#shared/db/payment-claim.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { PaymentReviewReason } from "#shared/payment/review.ts";
-import type { RefundLedgerResult } from "#shared/refund-ledger/result.ts";
 import type {
   ProviderRefundTarget,
   RefundAuthorityReceipt,
 } from "#shared/provider-refunds.ts";
+import type { RefundLedgerResult } from "#shared/refund-ledger/result.ts";
 import { requestRecordedProviderRefund } from "#test/features/admin/refunds/provider/dispatch-helpers.ts";
 import {
-  provider as recordingProvider,
   type RecordingProvider,
+  provider as recordingProvider,
 } from "#test/features/admin/refunds/provider/helpers.ts";
 import {
   candidate,
@@ -54,7 +54,7 @@ const readyResult = (
       references: observations.map(({ observed, reference }) =>
         observed === null
           ? { kind: "already_returned", provider, reference }
-          : { charge: observed, kind: "observed", provider, reference }
+          : { charge: observed, kind: "observed", provider, reference },
       ),
     },
   ],
@@ -79,6 +79,7 @@ type HarnessValues = {
 type TaggedReference = Extract<RefundPaymentReference, { kind: "tagged" }>;
 
 export interface RefreshHarness {
+  readonly authorities: (readonly RefundAuthorityReceipt[])[];
   readonly calls: {
     confirm: number;
     paymentOnly: number;
@@ -86,7 +87,6 @@ export interface RefreshHarness {
     record: number;
     recordAuthorities: number;
   };
-  readonly authorities: (readonly RefundAuthorityReceipt[])[];
   readonly claim: ReturnType<typeof grantingRowClaim>;
   readonly dependencies: RefreshPaymentDependencies;
   readonly observed: ProviderRefundTarget[];
@@ -109,12 +109,14 @@ export const runHarness = (values: HarnessValues = {}): RefreshHarness => {
       observed: values.observed === undefined ? chargeMoney() : values.observed,
       reference,
     },
-    ...(values.siblingObserved === undefined ? [] : [
-      {
-        observed: values.siblingObserved,
-        reference: tagged("pi_refresh_sibling", "stripe"),
-      },
-    ]),
+    ...(values.siblingObserved === undefined
+      ? []
+      : [
+          {
+            observed: values.siblingObserved,
+            reference: tagged("pi_refresh_sibling", "stripe"),
+          },
+        ]),
   ];
   const references = observations.map(({ reference }) => reference);
   const source = candidate(ATTENDEE_ID, references);

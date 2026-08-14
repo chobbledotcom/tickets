@@ -1,9 +1,9 @@
 import { uniqueBy } from "#fp";
+import { requestProviderRefund } from "#shared/provider-refunds.ts";
 import {
   getSubrequestRemaining,
   withSubrequestReserve,
 } from "#shared/subrequest-budget.ts";
-import { requestProviderRefund } from "#shared/provider-refunds.ts";
 import {
   type CandidateRefund,
   finishPreparedCandidate,
@@ -15,8 +15,8 @@ import {
 import {
   type PreparedRefundBudget,
   REFUND_LEDGER_SUBREQUEST_RESERVE,
-  refundPreparedSubrequestCost,
   type RefundSendBudgetReference,
+  refundPreparedSubrequestCost,
   subrequestCostFits,
 } from "./budget.ts";
 import type { HeldRefundWork, RunFindings } from "./claim.ts";
@@ -28,9 +28,9 @@ import { packByReferenceCount } from "./waves.ts";
 export type RefundDispatchBatchResult =
   | { readonly kind: "budget_refused" }
   | {
-    readonly kind: "sent";
-    readonly waves: readonly (readonly CandidateRefund[])[];
-  };
+      readonly kind: "sent";
+      readonly waves: readonly (readonly CandidateRefund[])[];
+    };
 
 const prepareWaves = async (
   candidates: readonly ReadyRefundCandidate[],
@@ -42,9 +42,9 @@ const prepareWaves = async (
     packByReferenceCount(PROVIDER_REFUND_CONCURRENCY)(candidates).map((wave) =>
       Promise.all(
         wave.map((candidate) =>
-          prepareReadyCandidate(candidate, listingId, inFlight, request)
+          prepareReadyCandidate(candidate, listingId, inFlight, request),
         ),
-      )
+      ),
     ),
   );
 };
@@ -63,11 +63,13 @@ const sendReferencesOf = (
 ): RefundSendBudgetReference[] =>
   attempts.flatMap((attempt) =>
     attempt.maySend
-      ? [{
-        index: attempt.reference.index,
-        provider: attempt.reference.provider,
-      }]
-      : []
+      ? [
+          {
+            index: attempt.reference.index,
+            provider: attempt.reference.provider,
+          },
+        ]
+      : [],
   );
 
 const preparedBudgetOf = (
@@ -87,9 +89,7 @@ const preparedBudgetOf = (
   };
 };
 
-const budgetFits = (
-  prepared: PreparedRefundBudget,
-): boolean =>
+const budgetFits = (prepared: PreparedRefundBudget): boolean =>
   subrequestCostFits(
     refundPreparedSubrequestCost(prepared),
     getSubrequestRemaining(),
@@ -124,7 +124,7 @@ const sendPreparedWaves = async (
     );
     sent.push(
       settled.flatMap((result) =>
-        result.status === "fulfilled" ? [result.value] : []
+        result.status === "fulfilled" ? [result.value] : [],
       ),
     );
   }
@@ -152,10 +152,9 @@ export const dispatchRefundBatch = async (
   return {
     kind: "sent",
     waves: budget.mayRecordReturns
-      ? await withSubrequestReserve(
-        REFUND_LEDGER_SUBREQUEST_RESERVE,
-        () => sendPreparedWaves(waves, listingId),
-      )
+      ? await withSubrequestReserve(REFUND_LEDGER_SUBREQUEST_RESERVE, () =>
+          sendPreparedWaves(waves, listingId),
+        )
       : await sendPreparedWaves(waves, listingId),
   };
 };

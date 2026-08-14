@@ -2,13 +2,14 @@
 import { requiredMapValue } from "#fp";
 import { reportRefundNotRecorded } from "#shared/invariant-errors.ts";
 import { withDeferredErrorReports } from "#shared/logger.ts";
-import { recordAttendeeRefundsBatch } from "#shared/refund-ledger/record.ts";
 import {
-  recordProviderRefunds,
   type RefundAuthorityReceipt,
+  recordProviderRefunds,
   requestProviderRefund,
 } from "#shared/provider-refunds.ts";
+import { recordAttendeeRefundsBatch } from "#shared/refund-ledger/record.ts";
 import type { CandidateRefund, ReturnedRefundReference } from "./attempt.ts";
+import { recordedRefundAuthorities } from "./authority.ts";
 import { REFUND_BUDGET_MESSAGES, type RefundBudgetAudience } from "./budget.ts";
 import type { RefundCandidate } from "./candidates.ts";
 import { durableRowClaim, type RowClaim, type RunFindings } from "./claim.ts";
@@ -25,7 +26,6 @@ import { runRefundReadiness } from "./readiness-run.ts";
 import { reportRefundProblem } from "./report.ts";
 import { rememberCandidateFindings } from "./result-findings.ts";
 import type { RefundOutcome } from "./waves.ts";
-import { recordedRefundAuthorities } from "./authority.ts";
 
 /* jscpd:ignore-end */
 
@@ -46,11 +46,11 @@ export type RefundBatchResult =
   | { kind: "blocked"; reason: "refund_in_progress" }
   | { counts: RefundCounts; kind: "finished" }
   | {
-    counts: RefundCounts;
-    kind: "not_ready";
-    message: string;
-    reason?: "subrequest_budget";
-  };
+      counts: RefundCounts;
+      kind: "not_ready";
+      message: string;
+      reason?: "subrequest_budget";
+    };
 
 const noRefunds = (failedCount = 0): RefundCounts => ({
   failedCount,
@@ -117,8 +117,8 @@ const tallyProviderRefund = (
   // Record whatever came back, even when a sibling charge did not.
   if (returned.length > 0) {
     postings.push({
-      authorities: returned,
       attendeeId: candidate.attendee.id,
+      authorities: returned,
       references: returned.map(({ reference }) => reference),
       whole: outcome === "refunded",
     });
@@ -155,9 +155,7 @@ const recordWave = async (
       references,
       result,
     );
-    recordedAuthorities.push(
-      ...recordedRefundAuthorities(authorities, result),
-    );
+    recordedAuthorities.push(...recordedRefundAuthorities(authorities, result));
     if (applied.hasUnrecorded) {
       counts.notRecordedCount++;
       reportRefundNotRecorded({ attendeeId, listingId });
@@ -201,7 +199,6 @@ export const processRefundBatch = async (
       notReady: (message, reason) =>
         notReady(noRefunds(candidates.length), message, reason),
       prepare,
-      request,
       ready: async (readyCandidates, held) => {
         const dispatched = await dispatchRefundBatch(
           readyCandidates,
@@ -225,7 +222,8 @@ export const processRefundBatch = async (
           ),
         );
       },
-    })
+      request,
+    }),
   );
 
 const recordDispatchedBatch = async (

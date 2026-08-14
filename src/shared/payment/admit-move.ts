@@ -82,11 +82,11 @@ export const PAYMENT_ROW_LIFECYCLE = {
     clearedBy: "settleAttendeeRows",
     found: (state: PaymentRowState) => state.claim !== undefined,
     mirror: "claim",
-    recoveryAction: "refresh-payment",
-    requiresChoice: false,
     operatorRoute: PAYMENT_RECOVERY_ROUTES["refresh-payment"],
+    recoveryAction: "refresh-payment",
     refusal:
       "A refund for this person is still in progress. Finish or re-run the refund, then try again.",
+    requiresChoice: false,
     saidFirst: 0,
     status: "moving",
     stops: { delete: true, merge: true },
@@ -95,11 +95,11 @@ export const PAYMENT_ROW_LIFECYCLE = {
     clearedBy: "settleAttendeeRows",
     found: (state: PaymentRowState) => state.review !== undefined,
     mirror: "review",
-    recoveryAction: "payment-review",
-    requiresChoice: true,
     operatorRoute: PAYMENT_RECOVERY_ROUTES["payment-review"],
+    recoveryAction: "payment-review",
     refusal:
       "The owner still has to resolve a payment problem for this person. Refresh or correct the payment evidence, then try again.",
+    requiresChoice: true,
     saidFirst: 1,
     status: "needs_review",
     stops: { delete: true, merge: false },
@@ -108,11 +108,11 @@ export const PAYMENT_ROW_LIFECYCLE = {
     clearedBy: "settleAttendeeRows",
     found: (state: PaymentRowState) => state.unrecorded !== undefined,
     mirror: "unrecorded",
-    recoveryAction: "refresh-payment",
-    requiresChoice: false,
     operatorRoute: PAYMENT_RECOVERY_ROUTES["refresh-payment"],
+    recoveryAction: "refresh-payment",
     refusal:
       "This person's money went back, but the accounts do not show it. Record it, then try again.",
+    requiresChoice: false,
     saidFirst: 2,
     status: "needs_money_record",
     stops: { delete: true, merge: false },
@@ -163,11 +163,7 @@ export const paymentWorkFor = (
 export const moveRefusalOrNull = (
   states: readonly PaymentRowState[],
   move: RowMove,
-): string | null =>
-  moveRefusalWhen(
-    (work) => states.some(work.found),
-    move,
-  );
+): string | null => moveRefusalWhen((work) => states.some(work.found), move);
 
 const moveRefusalWhen = (
   hasWork: (work: LiveWorkEntry) => boolean,

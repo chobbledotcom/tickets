@@ -44,9 +44,10 @@ const handlePaymentReviewGet = attendeeActions[ACTION].page(
         adminPaymentReviewPage(
           {
             attendee,
-            reviewIdentity: paymentReview.status === "needs_review"
-              ? paymentReview.identity
-              : null,
+            reviewIdentity:
+              paymentReview.status === "needs_review"
+                ? paymentReview.identity
+                : null,
           },
           session,
           returnUrl,

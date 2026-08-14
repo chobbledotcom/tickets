@@ -36,21 +36,21 @@ import {
   getOrphanPaymentWorkPage,
   purgeOrphanedAttendees,
 } from "#shared/db/orphan-attendees.ts";
-import { settings } from "#shared/db/settings.ts";
-import { nowIso, nowMs } from "#shared/now.ts";
 import {
   listProviderRefundCases,
   loadProviderRefundCase,
   type ProviderRefundOwnerChoice,
   resolveProviderRefundCase,
 } from "#shared/db/provider-refund-cases.ts";
-import { readProviderRefundCursor } from "#shared/provider-refund-cursor.ts";
-import { requestProviderRefund } from "#shared/provider-refunds.ts";
-import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
+import { settings } from "#shared/db/settings.ts";
+import { nowIso, nowMs } from "#shared/now.ts";
 import {
   isOrphanRetentionValue,
   orphanRetentionCutoffIso,
 } from "#shared/orphan-retention.ts";
+import { readProviderRefundCursor } from "#shared/provider-refund-cursor.ts";
+import { requestProviderRefund } from "#shared/provider-refunds.ts";
+import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
   parseNonNegativeInt,
   parsePositiveInt,
@@ -72,9 +72,10 @@ const paymentWorkCursor = (request: Request) => {
 
 const handlePrivacyGet = ownerResponsePage(async (session, request, flash) => {
   const refundCursor = new URL(request.url).searchParams.get("refund_after");
-  const refundAfter = refundCursor === null
-    ? undefined
-    : await readProviderRefundCursor(refundCursor);
+  const refundAfter =
+    refundCursor === null
+      ? undefined
+      : await readProviderRefundCursor(refundCursor);
   if (refundAfter === null) {
     return htmlResponse(t("privacy.refunds.invalid_cursor"), 400);
   }
@@ -109,9 +110,11 @@ const handleRefundCaseGet: RefundCaseRoute = (request, { id }) =>
       id,
       await requireRequestPrivateKey(),
     );
-    return refundCase === null ? notFoundResponse() : htmlResponse(
-      adminProviderRefundCasePage(session, refundCase, applyFlash(request)),
-    );
+    return refundCase === null
+      ? notFoundResponse()
+      : htmlResponse(
+          adminProviderRefundCasePage(session, refundCase, applyFlash(request)),
+        );
   });
 
 const isOwnerChoice = (value: string): value is ProviderRefundOwnerChoice =>

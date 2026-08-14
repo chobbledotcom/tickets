@@ -6,12 +6,12 @@ import {
 } from "#shared/db/payment-references.ts";
 import { orderedCredentialedPaymentProviderTypes } from "#shared/existing-payment-provider.ts";
 import { REFUND_NETWORK_RETRIES } from "#shared/payment/refund-network.ts";
-import { REFUND_LEDGER_BATCH_DATABASE_CALLS } from "#shared/refund-ledger/record.ts";
 import {
   REFUND_ACTIVE_AUTHORITY_DATABASE_CALLS,
   REFUND_KNOWN_AUTHORITY_DATABASE_CALLS,
   REFUND_OBSERVED_AUTHORITY_DATABASE_CALLS,
 } from "#shared/provider-refunds/budget.ts";
+import { REFUND_LEDGER_BATCH_DATABASE_CALLS } from "#shared/refund-ledger/record.ts";
 import type { SubrequestCounts } from "#shared/subrequest-budget.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 
@@ -20,8 +20,7 @@ export type RefundBudgetAudience = "bulk" | "single";
 export type RefundReadinessAction = "refund" | "refresh";
 
 export const REFUND_BUDGET_MESSAGES = {
-  bulk:
-    "This run has too many payments to refund at once. Refund fewer attendees at a time.",
+  bulk: "This run has too many payments to refund at once. Refund fewer attendees at a time.",
   single:
     "This attendee has too many payments to refund in one go. Refund them from the provider dashboard.",
 } satisfies Record<RefundBudgetAudience, string>;
@@ -97,7 +96,7 @@ const READINESS_PROVIDER_CALL_STAGES = {
 
 const logicalCallsAt = (
   stage: ProviderCallStage,
-): (plan: ProviderCallPlan) => number => {
+): ((plan: ProviderCallPlan) => number) => {
   const calls = {
     complete: ({ judgmentReads, recoveryReads, sends }: ProviderCallPlan) =>
       judgmentReads + recoveryReads + sends,
@@ -121,7 +120,7 @@ type ReadinessProviderCalls = {
 
 const referenceCalls = (
   calls: ReadinessProviderCalls,
-): (reference: TaggedRefundPaymentReference) => number => {
+): ((reference: TaggedRefundPaymentReference) => number) => {
   const { providers, stage } = calls;
   const configured = new Set(providers);
   return (reference) =>
@@ -189,8 +188,7 @@ const AUTHORITY_REQUEST_DATABASE_PLAN = {
 const refreshAdmissionDatabasePlan = (
   beforeAdmissionCalls: number,
 ): DatabaseCallPlan => ({
-  fixed: beforeAdmissionCalls +
-    REFRESH_RECORDING_DATABASE_CALLS,
+  fixed: beforeAdmissionCalls + REFRESH_RECORDING_DATABASE_CALLS,
   pricesAuthority: true,
   whenRecordingReturns: 0,
 });
@@ -223,7 +221,8 @@ const databaseCallsAt = (
 ): number =>
   // A non-empty refund plan may discover returned money, so every safe gate
   // reserves the full recording tail.
-  plan.fixed + (plan.pricesAuthority ? authorityCalls : 0) +
+  plan.fixed +
+  (plan.pricesAuthority ? authorityCalls : 0) +
   plan.whenRecordingReturns;
 
 const zeroSubrequests = (): SubrequestCounts => ({
@@ -263,9 +262,9 @@ const referenceSetSubrequestCost = (
 ): SubrequestCounts => {
   const stage = READINESS_PROVIDER_CALL_STAGES[action][checkpoint];
   const external = sum(active.map(referenceCalls({ providers, stage })));
-  const authorityCalls = activeAuthorityDatabaseCalls(action, active.length) +
-    (references.length - active.length) *
-      REFUND_KNOWN_AUTHORITY_DATABASE_CALLS;
+  const authorityCalls =
+    activeAuthorityDatabaseCalls(action, active.length) +
+    (references.length - active.length) * REFUND_KNOWN_AUTHORITY_DATABASE_CALLS;
   return subrequestCostFor(
     READINESS_DATABASE_CALL_PLANS[action][checkpoint],
     authorityCalls,
@@ -284,9 +283,10 @@ export const refundReadinessSubrequestCost = (
   providers?: readonly PaymentProviderType[],
 ): SubrequestCounts => {
   if (candidates.length === 0) return zeroSubrequests();
-  const configured = providers === undefined
-    ? orderedCredentialedPaymentProviderTypes()
-    : providers;
+  const configured =
+    providers === undefined
+      ? orderedCredentialedPaymentProviderTypes()
+      : providers;
   const references = refundReferences(candidates);
   const active = activeReferences(references, returned);
   return referenceSetSubrequestCost(
@@ -321,14 +321,15 @@ export const refundPreparedSubrequestCost = (
     sendReferences,
   } = prepared;
   if (
-    activeAuthorityCount === 0 && returnedAuthorityCount === 0 &&
+    activeAuthorityCount === 0 &&
+    returnedAuthorityCount === 0 &&
     !mayRecordReturns
   ) {
     return zeroSubrequests();
   }
   const external = sum(
     sendReferences.map(({ provider }) =>
-      physicalCalls(provider, logicalCallsAt("send"))
+      physicalCalls(provider, logicalCallsAt("send")),
     ),
   );
   return subrequestCostFor(

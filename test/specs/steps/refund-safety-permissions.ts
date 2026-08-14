@@ -54,9 +54,7 @@ const expectOnlyMoneyAction = async (
   action: "Mark payment reviewed" | "Open Refund recovery",
 ): Promise<void> => {
   const browser = await openActionsAsOwner(world, who);
-  expect(
-    browser.links.some(({ text }) => text.trim() === action),
-  ).toBe(true);
+  expect(browser.links.some(({ text }) => text.trim() === action)).toBe(true);
   expect(browser.links.some(({ text }) => text.trim() === "Refund")).toBe(
     false,
   );
@@ -351,7 +349,7 @@ When(
   async function (this: TicketsWorld, who: string): Promise<void> {
     const browser = await openOwnerAction(this, who, "Open Refund recovery");
     const detail = browser.links.find(({ text }) =>
-      text.trim().startsWith("Open refund ")
+      text.trim().startsWith("Open refund "),
     );
     if (detail === undefined) {
       throw new Error("Refund recovery listed no provider case");
