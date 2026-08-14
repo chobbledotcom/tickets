@@ -4,7 +4,7 @@ import {
   type RefundRunBlock,
   underAttendeeClaim,
 } from "#routes/admin/refunds/claim.ts";
-import { refundReference } from "#test-utils/payment-state.ts";
+import { taggedRefundReference } from "#test-utils/payment-state.ts";
 import {
   type ClaimedRows,
   claimedRows,
@@ -175,7 +175,7 @@ describe("admin refunds > attendee claim", () => {
   });
 
   test("protects a canonical return carried by a sharing row", async () => {
-    const reference = refundReference("shared", {
+    const reference = taggedRefundReference("shared", "stripe", {
       index: "own-index",
       matchingIndexes: ["own-index", "sharing-index"],
       rowSessionIds: ["own-row"],

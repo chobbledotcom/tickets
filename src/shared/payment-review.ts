@@ -23,6 +23,13 @@ type WithheldContext = {
   provider: PaymentProviderType;
 };
 
+type WithheldLocation = Omit<WithheldContext, "provider">;
+
+type ProviderWithheldRefund = {
+  readonly admission: Extract<WithheldRefund, { kind: "read_failed" }>;
+  readonly reference: { readonly provider: PaymentProviderType };
+};
+
 type FailedRefundAttempt = Extract<
   RefundAttemptResult,
   { kind: "not_sent" | "rejected" | "uncertain" }
@@ -55,6 +62,20 @@ export const reportWithheldRefund = (
     detail: `${detail}. The provider's records and this booking disagree, so an owner needs to look at it.`,
     listingId,
   });
+};
+
+/** Report the unreadable result from the shared provider authority. */
+export const reportProviderWithheldRefund = <
+  Result extends ProviderWithheldRefund,
+>(
+  result: Result,
+  location: WithheldLocation,
+): Result => {
+  reportWithheldRefund(result.admission, {
+    ...location,
+    provider: result.reference.provider,
+  });
+  return result;
 };
 
 /** Report a provider attempt without accepting its private reference as

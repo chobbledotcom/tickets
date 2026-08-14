@@ -18,10 +18,6 @@ import {
 } from "#shared/db/client.ts";
 import { nowIso } from "#shared/now.ts";
 import { mirrorFor } from "#shared/payment/admit-move.ts";
-import {
-  type HeldRefundCommand,
-  holdsExactRefundCommand,
-} from "#shared/payment/claim.ts";
 import { refundAuthorityWorkSql } from "#shared/payment/refund-authority-lifecycle.ts";
 import {
   openPaymentReview,
@@ -31,7 +27,6 @@ import {
   EMPTY_ROW_STATE,
   isEmptyRowState,
   type PaymentRowState,
-  type RefundClaim,
   type RefundClaimPhase,
   readRowState,
   writeRowState,
@@ -107,21 +102,6 @@ export const asPaymentRowRecord = async (
       ? readRowState(await decrypt(row.failure_data), SLOT)
       : EMPTY_ROW_STATE,
   };
-};
-
-export type HeldPaymentRowRecord = {
-  readonly claim: RefundClaim;
-  readonly record: PaymentRowRecord;
-};
-
-/** Decode a row only when it still carries the exact refund command. */
-export const paymentRowHeldBy = async (
-  row: StoredPaymentClaimRow,
-  command: Pick<HeldRefundCommand, "commandId" | "heldSince">,
-): Promise<HeldPaymentRowRecord | null> => {
-  const record = await asPaymentRowRecord(row);
-  const claim = record.state.claim;
-  return holdsExactRefundCommand(claim, command) ? { claim, record } : null;
 };
 
 /** Decode the row-state slots returned by either payment-row reader. */
@@ -225,12 +205,7 @@ export const paymentRowStateStatement = async (
 ): Promise<SqlStatement> => {
   const stored = await paymentRowStateValues(state);
   return {
-    args: [
-      stored.failureData,
-      stored.protectedState,
-      row.sessionId,
-      row.slot,
-    ],
+    args: [stored.failureData, stored.protectedState, row.sessionId, row.slot],
     sql: `UPDATE processed_payments
            SET failure_data = ?, protected_state = ?
          WHERE payment_session_id = ? AND failure_data = ?`,

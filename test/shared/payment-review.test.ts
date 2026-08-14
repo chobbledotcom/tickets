@@ -1,7 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { WithheldRefund } from "#shared/payment/admit-refund.ts";
-import { reportWithheldRefund } from "#shared/payment-review.ts";
+import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
+import {
+  reportFailedRefundAttempt,
+  reportWithheldRefund,
+} from "#shared/payment-review.ts";
 import { runWithPendingWork } from "#shared/pending-work.ts";
 import { initSentry } from "#shared/sentry.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -102,6 +106,27 @@ describe("reporting a withheld refund", () => {
         read.status === "missing" ? "does not exist" : "invalid",
       );
       expect(errors.lastMessage()).toContain("an owner needs to look at it");
+    });
+  }
+
+  const failedAttempts: Extract<
+    RefundAttemptResult,
+    { kind: "not_sent" | "rejected" | "uncertain" }
+  >[] = [
+    { kind: "not_sent", reason: "not_configured" },
+    { kind: "rejected", reason: "rejected" },
+    { kind: "uncertain", reason: "network_error" },
+  ];
+
+  for (const attempt of failedAttempts) {
+    test(`reports a ${attempt.kind} provider attempt without its reference`, () => {
+      reportFailedRefundAttempt(attempt, where);
+
+      expect(errors.calls).toHaveLength(1);
+      expect(errors.lastMessage()).toContain(
+        `Refund ${attempt.kind} for stripe payment (${attempt.reason})`,
+      );
+      expect(errors.lastMessage()).not.toContain(PRIVATE_REFERENCE);
     });
   }
 });

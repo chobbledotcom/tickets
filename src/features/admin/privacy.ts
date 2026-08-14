@@ -7,6 +7,7 @@
  * erasure of a single contact's recognition record by email or phone.
  */
 
+import { assert } from "@std/assert";
 import { t } from "#i18n";
 import {
   OWNER_FORM,
@@ -120,39 +121,36 @@ const handleRefundCaseGet: RefundCaseRoute = (request, { id }) =>
         );
   });
 
-const isOwnerChoice = (value: string): value is ProviderRefundOwnerChoice =>
-  value === "money_recorded" ||
-  value === "provider_confirmed_returned" ||
-  value === "provider_confirmed_not_sent";
-
 const OWNER_CHOICE_LOG = {
   money_recorded: "privacy.refunds.log_money_recorded",
   provider_confirmed_not_sent: "privacy.refunds.log_not_sent",
   provider_confirmed_returned: "privacy.refunds.log_returned",
 } as const satisfies Record<ProviderRefundOwnerChoice, string>;
 
-const CHECK_STOP = {
-  needs_owner_choice: "choice_opened",
-  pending: null,
-  ready: null,
-  returned: null,
-  unchanged: "impossible",
-  withheld: "unreadable",
-} as const satisfies Record<
-  ProviderRefundResult["kind"],
-  "choice_opened" | "impossible" | "unreadable" | null
+const isOwnerChoice = (value: string): value is ProviderRefundOwnerChoice =>
+  Object.hasOwn(OWNER_CHOICE_LOG, value);
+
+type ExistingProviderRefundResult = Exclude<
+  ProviderRefundResult,
+  { kind: "unchanged" }
 >;
 
-const STOPPED_CHECK_COPY = {
-  choice_opened: {
+const CHECK_STOP_COPY = {
+  needs_owner_choice: {
     log: "privacy.refunds.log_choice_opened",
     message: "privacy.refunds.choice_opened",
   },
-  unreadable: {
+  pending: null,
+  ready: null,
+  returned: null,
+  withheld: {
     log: "privacy.refunds.log_unreadable",
     message: "privacy.refunds.unreadable",
   },
-} as const;
+} as const satisfies Record<
+  ExistingProviderRefundResult["kind"],
+  { readonly log: string; readonly message: string } | null
+>;
 
 const checkProviderAgain = async (
   id: number,
@@ -177,14 +175,14 @@ const checkProviderAgain = async (
     mode: sendsReadyRefund ? "send" : "observe_only",
     reference: refundCase.reference,
   });
-  const stopped = CHECK_STOP[result.kind];
-  if (stopped === "impossible") {
-    throw new Error("Existing refund recovery lost its durable authority");
-  }
+  assert(
+    result.kind !== "unchanged",
+    "Existing refund recovery lost its durable authority",
+  );
+  const stopped = CHECK_STOP_COPY[result.kind];
   if (stopped !== null) {
-    const copy = STOPPED_CHECK_COPY[stopped];
-    await logActivity(t(copy.log, { id }));
-    return errorRedirect(refundCasePath(id), t(copy.message));
+    await logActivity(t(stopped.log, { id }));
+    return errorRedirect(refundCasePath(id), t(stopped.message));
   }
   await logActivity(
     t(

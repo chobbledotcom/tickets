@@ -2,7 +2,7 @@
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { PAYMENT_REVIEW_RETIREMENT } from "#shared/payment/review.ts";
-import { reportWithheldRefund } from "#shared/payment-review.ts";
+import { reportProviderWithheldRefund } from "#shared/payment-review.ts";
 import {
   type ProviderRefundResult,
   recordProviderRefunds,
@@ -88,14 +88,9 @@ const observeReference = async (
   request: typeof requestProviderRefund,
 ): Promise<ProviderRefundResult> => {
   const result = await requestReadyRefund(ready, "observe_only", request);
-  if (result.kind === "withheld") {
-    reportWithheldRefund(result.admission, {
-      attendeeId,
-      listingId,
-      provider: ready.provider.type,
-    });
-  }
-  return result;
+  return result.kind === "withheld"
+    ? reportProviderWithheldRefund(result, { attendeeId, listingId })
+    : result;
 };
 
 const returnedReference = (

@@ -45,55 +45,6 @@ export const heldPaymentRows = (
     sessionIds.map((sessionId) => ({ attendeeId, sessionId })),
   );
 
-/** Name held rows once, failing when one physical row was repeated. */
-export const distinctHeldPaymentRows = (
-  held: HeldRefundCommand["held"],
-): HeldPaymentRow[] => {
-  const rows = heldPaymentRows(held);
-  if (new Set(rows.map(({ sessionId }) => sessionId)).size !== rows.length) {
-    throw new Error("A refund command repeated a held session");
-  }
-  return rows;
-};
-
-/** Whether a row still carries this exact command and lease. */
-export const holdsExactRefundCommand = (
-  claim: RefundClaim | undefined,
-  command: Pick<HeldRefundCommand, "commandId" | "heldSince">,
-): claim is RefundClaim =>
-  claim !== undefined &&
-  claim.commandId === command.commandId &&
-  claim.writtenAt === command.heldSince;
-
-/** Whether the observed reference groups are exactly the requested groups. */
-export const coversExactReferenceIndexes = (
-  observed: readonly string[],
-  requested: readonly string[],
-): boolean => {
-  const found = new Set(observed);
-  return (
-    found.size === requested.length &&
-    requested.every((index) => found.has(index))
-  );
-};
-
-/** Keep a complete checked reference set, or refuse the whole set. */
-export const completeExactReferenceRows = <
-  TRow extends { readonly index: string },
->(
-  rows: readonly (TRow | null)[],
-  requested: readonly string[],
-): TRow[] | null => {
-  const complete = rows.filter((row): row is TRow => row !== null);
-  return complete.length === rows.length &&
-    coversExactReferenceIndexes(
-      complete.map(({ index }) => index),
-      requested,
-    )
-    ? complete
-    : null;
-};
-
 /** What a run may do with the row it just read. `grant` and `resume` both end
  *  holding the claim, kept apart because resuming means a previous run died
  *  mid-flight and must be re-judged behind fresh evidence. `held` and

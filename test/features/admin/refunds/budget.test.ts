@@ -34,20 +34,24 @@ const externalCost = (
   reference: TaggedRefundPaymentReference,
   providers: readonly PaymentProviderType[],
 ): number =>
-  refundReadinessSubrequestCost(
-    "refund",
-    [{ references: [reference] }],
-    new Set(),
-    "before_claim",
+  refundReadinessSubrequestCost({
+    action: "refund",
+    candidates: [{ references: [reference] }],
+    checkpoint: "before_claim",
     providers,
-  ).external;
+    returned: new Set(),
+  }).external;
 
 describe("admin refund subrequest budget", () => {
   test("prices no work when there are no candidates", () => {
     expect(
-      refundReadinessSubrequestCost("refresh", [], new Set(), "before_claim", [
-        "stripe",
-      ]),
+      refundReadinessSubrequestCost({
+        action: "refresh",
+        candidates: [],
+        checkpoint: "before_claim",
+        providers: ["stripe"],
+        returned: new Set(),
+      }),
     ).toEqual({ database: 0, external: 0, total: 0 });
   });
 
@@ -83,13 +87,13 @@ describe("admin refund subrequest budget", () => {
     expect(
       (["before_claim", "inside_claim", "before_provider_read"] as const).map(
         (checkpoint) =>
-          refundReadinessSubrequestCost(
-            "refund",
+          refundReadinessSubrequestCost({
+            action: "refund",
             candidates,
-            new Set(),
             checkpoint,
-            ["stripe"],
-          ),
+            providers: ["stripe"],
+            returned: new Set(),
+          }),
       ),
     ).toEqual([
       { database: 30, external: 3, total: 33 },
@@ -117,13 +121,13 @@ describe("admin refund subrequest budget", () => {
       taggedReference("stripe", "stripe_balance"),
     ];
     expect(
-      refundReadinessSubrequestCost(
-        "refund",
-        [{ references }],
-        new Set(),
-        "before_claim",
-        ["stripe"],
-      ),
+      refundReadinessSubrequestCost({
+        action: "refund",
+        candidates: [{ references }],
+        checkpoint: "before_claim",
+        providers: ["stripe"],
+        returned: new Set(),
+      }),
     ).toEqual({ database: 50, external: 6, total: 56 });
   });
 
@@ -144,13 +148,13 @@ describe("admin refund subrequest budget", () => {
       refundState: "completed" as const,
     };
     expect(
-      refundReadinessSubrequestCost(
-        "refresh",
-        [{ references: [completed] }],
-        new Set(),
-        "before_claim",
-        ["stripe"],
-      ),
+      refundReadinessSubrequestCost({
+        action: "refresh",
+        candidates: [{ references: [completed] }],
+        checkpoint: "before_claim",
+        providers: ["stripe"],
+        returned: new Set(),
+      }),
     ).toEqual({ database: 14, external: 0, total: 14 });
   });
 

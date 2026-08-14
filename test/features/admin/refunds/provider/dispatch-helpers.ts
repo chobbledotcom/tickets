@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import type {
   CandidateRefund,
   ReferenceRefund,
@@ -72,9 +73,10 @@ export const requestRecordedProviderRefund: typeof requestProviderRefund =
         reference: target.reference,
       };
     }
-    if (target.evidence.kind === "validated_callback") {
-      throw new Error("Admin test authority received callback evidence");
-    }
+    assert(
+      target.evidence.kind !== "validated_callback",
+      "Admin test authority received callback evidence",
+    );
     const admission = admitObservedRefund(
       target.reference.reference,
       target.evidence.charge,
@@ -106,9 +108,7 @@ export const requestRecordedProviderRefund: typeof requestProviderRefund =
       }
       return { kind: "unchanged", reference: target.reference };
     }
-    if (dependencies === undefined) {
-      throw new Error("Admin test refund lacked provider dependencies");
-    }
+    assert(dependencies !== undefined, "Admin test refund lacked dependencies");
     const provider = await dependencies.loadProvider(target.reference.provider);
     return attemptResult(
       target,

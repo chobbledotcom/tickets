@@ -50,7 +50,6 @@ const createInput = (
   paymentReference = reference("tx-one"),
   state = ready(),
 ): CreateRefundAuthority => ({
-  capability: state.request.capability,
   captured: gbp(2_500),
   now: 10,
   reference: paymentReference,
@@ -122,6 +121,23 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
     expect(
       await getDb().execute("SELECT id FROM payment_charges"),
     ).toMatchObject({ rows: [{ id: first.id }] });
+  });
+
+  test("creation refuses a provider with the wrong refund capability", async () => {
+    await expect(
+      createOrLoadRefundAuthority(
+        createInput(reference("pi-wrong-capability", "stripe"), ready()),
+      ),
+    ).rejects.toThrow("Refund authority facts disagree");
+  });
+
+  test("one charge identity cannot be reused with different captured money", async () => {
+    const input = createInput(reference("tx-changed-money"));
+    await createOrLoadRefundAuthority(input);
+
+    await expect(
+      createOrLoadRefundAuthority({ ...input, captured: gbp(2_501) }),
+    ).rejects.toThrow("Refund identity belongs to different charge facts");
   });
 
   test("an existing charge accepts only its exact callback identity", async () => {

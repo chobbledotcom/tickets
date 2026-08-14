@@ -137,6 +137,30 @@ describe("admin refund provider", () => {
     });
   });
 
+  test("keeps an unreadable completed marker pending for later evidence", async () => {
+    const source = provider();
+    const result = await refundReadyCandidate(
+      readyCandidate(
+        [{ kind: "already_returned", reference: "pi_unreadable" }],
+        source,
+      ),
+      7,
+      new Map(),
+      (target) =>
+        Promise.resolve({
+          admission: {
+            kind: "read_failed",
+            read: { reason: "network_error", status: "unavailable" },
+          },
+          kind: "withheld",
+          reference: target.reference,
+        }),
+    );
+
+    expect(result).toMatchObject({ outcome: "pending", returned: [] });
+    expect(source.refunds).toEqual([]);
+  });
+
   test("returns only references whose authority says money returned", async () => {
     const source = provider({ refunded: new Set(["pi_ok"]) });
     const result = await refundReadyCandidate(

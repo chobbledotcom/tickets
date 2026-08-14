@@ -77,13 +77,13 @@ export const getRefundCandidates = async (
       `Refund references omitted attendee ${attendee.id}`,
     ),
   }));
+  const completeSets = referenceSets.flatMap(({ attendee, set }) =>
+    set.kind === "complete" ? [{ attendee, references: set.references }] : [],
+  );
   const refused = referenceSets.find(({ set }) => set.kind !== "complete");
   if (refused !== undefined && refused.set.kind !== "complete") {
     return { kind: refused.set.kind };
   }
-  const completeSets = referenceSets.flatMap(({ attendee, set }) =>
-    set.kind === "complete" ? [{ attendee, references: set.references }] : [],
-  );
   return {
     candidates: filter(
       (candidate: RefundCandidate) =>

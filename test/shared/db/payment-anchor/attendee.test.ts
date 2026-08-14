@@ -103,10 +103,8 @@ describeWithEnv("db > payment anchor > attendee", { db: true }, () => {
       }
       expect(held.protected_state).toBe("claim");
       expect(
-        readRowState(
-          await decrypt(held.failure_data),
-          "claimed anchor test",
-        ).claim,
+        readRowState(await decrypt(held.failure_data), "claimed anchor test")
+          .claim,
       ).toEqual({
         attendeeIds: [attendeeId],
         commandId: anchor.settlement.commandId,

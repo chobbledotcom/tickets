@@ -1,50 +1,49 @@
-# PR 3: current payment-provider scope and resource relationships
+# PR 3: payment-provider evidence and the atomic checkout target
 
 ## Status
 
-**Approved for implementation.** The provider direction, behavioral choices,
-SumUp schema, 16-line/webhook bound, two-attempt shared DB retry allowance,
-one-prebuilt-site assignment bound, and direct-only registration-webhook policy
-are settled. The reduced synchronous design fits below Bunny's limit with a
-proven 48-call maximum and two-call headroom. The revised source estimate is
-1,170-1,870 changed/added lines before deletions.
+**Historical evidence appendix; not an implementation plan.** This document
+preserves the provider research, threat model, and acceptance inventory that led
+to the shipped payment work. `PLAN.md` is the only plan for work that still
+remains. In particular, the whole-checkout boundary described below belongs to
+its M6-M11 atomic cutover and must not be revived as a sequence of live
+provider-specific slices.
+
+Activation is all-or-nothing: migrate every caller, schema, durable identity,
+and owner exit before the new checkout engine becomes live, then delete the old
+runtime in the same cutover. There must be no compatibility wrapper, dual write,
+runtime read-through, fallback, or legacy parallel observer/refund path.
+Read-only preparation and tests may land before activation, but no intermediate
+commit may select between two live engines.
 
 ### Implementation progress
 
-The first merge slice is intentionally narrow: registration webhooks make one
-direct request per configured URL, never follow redirects, stop before sending
-to more than 16 distinct URLs, and record one value-free failure. This slice
-changes 222 lines in `src/`; the provider-observation implementation was removed
-from the merge diff after it exceeded the agreed roughly 1,000-line source
-limit.
+The evidence has produced four shipped foundations:
 
-The remaining provider work stays specified in this plan and must ship as
-separate, independently green slices of roughly 1,000 changed `src/` lines or
-less:
+- PR #2048 built the fixed-call paid-order snapshot and bounded processing core.
+  A successful paid order uses four database calls without answers and five when
+  answers must be replaced: one conditional claim, one snapshot, one atomic
+  booking/finalization batch, the optional answer batch, and one combined
+  activity batch. Email and webhook rendering add no database reads.
+- PR #2050 made registration delivery direct-only and bounded: one POST per at
+  most 16 distinct URLs, no redirect following, and one value-free failure
+  record.
+- PR #2060 added strict current SumUp callback observation and staging,
+  including the evidence-backed checkout shapes below.
+- M4 Part A added typed all-provider `ChargeMoney` reads and refund attempts,
+  plus one canonical `payment_charges` authority for every real provider send.
+  Its automatic placeholder atomically mints the indexed anchor and canonical
+  `checking` row state with the attendee/bookings, then releases that fence only
+  after provider, ledger, authority, activity, and note work finishes.
 
-1. Add strict, evidence-backed Stripe observations and typed read outcomes.
-2. Add strict Square observations, location/parent checks, and bounded tender
-   selection.
-3. Add strict SumUp checkout, transaction, merchant, and refund observations.
-4. Bind one provider attempt through browser, callback, refund, and status
-   paths.
-5. Add the bounded webhook request/parser/privacy boundary and fixed retry
-   response.
-6. Add provider-qualified replay and private owner-action records.
-7. Add shared payment retry credits and exact request-budget tests.
+The checkout observer, provider-qualified completion identity, callback/body
+boundary, and remaining scope/price/replay work are not partially implemented by
+this document. They move together through `PLAN.md` M6-M11. M4's refund
+authority is reused by that cutover; a second refund authority is forbidden.
 
-The bounded processing core is complete. A successful paid order now uses four
-database calls when there are no answers and five when answers must be replaced:
-one conditional processing claim, one paid-order snapshot, one atomic booking
-and finalization batch, the optional answer batch, and one combined activity
-batch. Email and webhook rendering add no database reads. Direct call-count
-tests hold for orders at the 16-line bound. The completed slice passed 21,892
-tests with 100% line and branch coverage, strict type checking and linting, zero
-code clones, and targeted mutation at 100% for its substantive modules.
-
-The completed slice changed the source tree by 6,487 added lines and 7,053
-deleted lines, a net reduction of 566 lines. The gross additions exceed the
-1,170-1,870 estimate because every touched source and test file was brought
+The #2048 processing slice changed the source tree by 6,487 added lines and
+7,053 deleted lines, a net reduction of 566 lines. The gross additions exceed
+the 1,170-1,870 estimate because every touched source and test file was brought
 under the 400-line limit. That required splitting several existing admin,
 payment, email, listing, modifier, and code-quality monoliths and moving their
 existing tests into focused suites. Those moved lines are modularization, not
@@ -53,10 +52,11 @@ claim/answer/activity writes, and removal of their superseded parallel readers.
 
 ## Goal and honest guarantee
 
-PR 3 should put Stripe, Square, and SumUp browser returns and completion
-callbacks through one current-observation boundary before booking or automatic
-refund. The strongest guarantee available without a persisted historical
-provider-account identity is narrower than historical provider ownership:
+The remaining atomic checkout cutover must put Stripe, Square, and SumUp browser
+returns and completion callbacks through one current-observation boundary before
+booking or automatic refund. The strongest guarantee available without a
+persisted historical provider-account identity is narrower than historical
+provider ownership:
 
 > A provider response may enter payment processing only when its current
 > provider scope, top-level resource, and every child used by processing agree
@@ -67,11 +67,56 @@ provider-account identity is narrower than historical provider ownership:
 This guarantee is named **current provider-scope/resource consistency**, not
 historical provider ownership. It does **not** prove the Stripe account or
 Square merchant that created an old checkout or preserve every checkout-time
-provider fact. PR 3 does add a provider-qualified durable session record for
-completed replay and private owner recovery; that record does not turn a current
-observation into historical account proof.
+provider fact. The M6-M11 cutover will add a provider-qualified durable session
+record for completed replay and private owner recovery; that record cannot turn
+a current observation into historical account proof.
 
-## Current production evidence
+## Evidence snapshot and current corrections
+
+The table below is the source audit that shaped the original plan; its file
+locations and "current" wording describe that audit, not today's branch. Apply
+these corrections before using it:
+
+- **Whole-checkout callers:** `validatePaidSession` and the cancel/callback
+  routes still call `retrieveSession` or `resolveWebhookSession`, and provider
+  adapters still convert independently through `validatedPaymentSession`. The
+  atomic M6 cutover must replace all of them together.
+- **Stripe checkout:** the checkout schema still omits `livemode` and expanded
+  PaymentIntent handling. M4's strict Stripe charge reader is refund evidence,
+  not a whole-checkout replacement.
+- **Square checkout:** the browser checkout path still selects `tenders[0]` and
+  does not yet enforce the complete location, parent, and all-tender
+  relationship. The old `src/shared/square.ts` monolith is already gone; strict
+  charge/refund reads live under `src/shared/square/`. A non-empty `_origin`
+  remains an app-family marker when the hostname changes, not proof of current
+  site ownership; the signed `price_proof` remains that proof.
+- **SumUp:** PR #2060 built strict current checkout observation and a
+  known-callback path with one indexed staging read through
+  `getSealedSumupCheckout`, then one checkout read. M4's transaction reader
+  strictly parses `transaction_events` for refund evidence.
+- **Provider reads:** refund charge reads use the typed `ProviderRead` states
+  `found`, `missing`, `unavailable`, and `invalid`. Whole-checkout
+  `retrieveSession` remains the older nullable/throwing contract and must not be
+  mistaken for that authority. A canonical `ready` refund whose read is missing
+  or invalid moves immediately to `needs_owner_choice/provider_unreadable`; an
+  unavailable read gets one five-minute grace before that same zero-send exit.
+- **Configuration:** whole-checkout provider choice, browser/callback
+  observation, and verification still use ambient configuration at separate
+  points.
+- **Refund safety:** `tryRefund` is gone. Real sends use tagged references
+  through `requestProviderRefund`/`requestProviderRefunds` and never re-resolve
+  a provider after admission. The remaining gap is earlier whole-checkout
+  provider selection before the target is tagged.
+- **Persistence and review:** `payment_charges` is the canonical durable
+  authority for refund sends and owner choices.
+  `processed_payments.payment_session_id` remains a flat checkout identity until
+  M6-M11; local `payment_state.review` is not a second provider authority.
+  `checkingClaimFor` is the sole constructor for ordinary and placeholder
+  attendee fences. `provider_unknown` remains a bounded typed old-data refusal,
+  and the attendee page explains it without rendering a dead Refresh form.
+- **Remaining faults:** blank paid references are still terminally acknowledged,
+  site proof and strict webhook-envelope work remain incomplete, and
+  whole-callback diagnostics still expose more detail than the target permits.
 
 | Area                 | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Consequence                                                                                                                                                                                                                           |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -121,9 +166,11 @@ contract leaves runtime presence or status-specific shape uncertain.
 
 ## Required boundary layers
 
-The provider contract and bounded request design are evidence-backed and all
-behavioral choices are approved. The implementation must keep these layers
-distinct:
+The provider contract and bounded request design are evidence-backed. These are
+acceptance layers for the single M6-M11 runtime, not independently activatable
+features. They must replace the live whole-checkout callers atomically and reuse
+M4's canonical refund authority; they must never coexist with a legacy observer
+or refund engine.
 
 1. **Request and authentication:** apply a webhook byte limit; parse one strict
    common envelope or the strict SumUp envelope; verify Stripe/Square signature
@@ -201,13 +248,13 @@ corroborated the same full amount through the payment item's `refunded_amount`
 and a linked refund item, but production needs no history read because the exact
 transaction response already proves the full refund.
 
-**One-response verdict:** pass for pending/paid/failed ownership and payment
-observation. SumUp browser and known-callback paths use staging plus one
-checkout read; no transaction read or checkout-time merchant persistence is
-added. Refund-status confirmation keeps its existing one transaction read but
-must parse `transaction_events[]` and compare successful refund-event totals
-with the transaction amount instead of reading only top-level transaction
-status. No SumUp provider call count increases.
+**As-built verdict:** PR #2060 uses staging plus one checkout read for
+pending/paid/failed ownership and payment observation; the known callback first
+uses one indexed staging read. M4's refund charge reader uses one transaction
+read, parses `transaction_events[]`, and compares successful refund-event totals
+with the transaction amount instead of trusting the unchanged top-level
+transaction status. Missing expected event evidence is `invalid`, never an empty
+history. M6 must reuse these readers instead of building a second SumUp path.
 
 All narrow schemas that promise rejection of unknown properties use
 `v.strictObject`; ordinary `v.object` strips extras and must not be described as
@@ -216,13 +263,17 @@ different boundaries and must not be conflated.
 
 ## State and HTTP matrix
 
+This is the acceptance matrix for atomic checkout activation. Rows already
+implemented by #2060 or M4 are named as such; the remaining rows are not a live
+parallel path.
+
 | Path/state                                              | Provider/DB work                                                                   | Processing                                                                                               | HTTP behavior                                                                                                                     |
 | ------------------------------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | Stripe callback, malformed/contradictory embedded facts | Zero Stripe reads                                                                  | No booking/refund while relationship or scope is unproven                                                | Exact retry response below                                                                                                        |
 | Stripe callback, pending                                | Zero Stripe reads                                                                  | No booking/refund                                                                                        | Authenticated non-processing `200` pending acknowledgement while card-only creation remains enforced                              |
 | Square callback, non-completed signed notice            | Zero provider reads                                                                | No booking/refund                                                                                        | `200` non-processing acknowledgement; ownership is not claimed because no resource read occurred                                  |
 | Square completed callback                               | One Order + one signed Payment read                                                | Continue only after exact ID/parent/location, charge, site, and price checks                             | Existing handled success/pending response; rejection uses exact retry response when retryable                                     |
-| Known SumUp callback                                    | Two staging DB reads + one checkout read                                           | Continue only after returned-reference binding and the evidence-backed checkout/transaction relationship | Existing handled success/pending response; retryable refusal uses exact retry response                                            |
+| Known SumUp callback                                    | One indexed staging DB read + one checkout read                                    | Continue only after returned-reference binding and the evidence-backed checkout/transaction relationship | Existing handled success/pending response; retryable refusal uses exact retry response                                            |
 | Non-empty unstaged SumUp callback                       | Exactly one indexed DB read; zero SumUp reads; no per-attempt activity/Sentry/ntfy | No booking/refund/persistence                                                                            | Exact retry response. A later retry can pass after `setSumupCheckoutId`; forged traffic remains locally bounded                   |
 | Browser missing/contradictory/malformed                 | One normal provider observation plus staging where applicable                      | No booking/refund                                                                                        | Localized permanent verification page, status `400`: “Payment could not be verified. Check the payment link or contact support.”  |
 | Browser unavailable                                     | Same attempted read; no authoritative facts                                        | No booking/refund                                                                                        | Localized temporary page, status `503`: “Payment could not be checked. Try again in a few minutes.”                               |
@@ -238,12 +289,15 @@ messages, or mismatch details. SumUp documents only four retries, after 1
 minute, 5 minutes, 20 minutes, and 2 hours; no section may claim indefinite
 redelivery.
 
-`setSumupCheckoutId` must be changed to require exactly one affected row before
-the hosted URL is exposed. The `503` closes the normal pre-ID race only while
-that write succeeds within SumUp's finite retry window; it is not durable
-reconciliation.
+`setSumupCheckoutId` already requires exactly one affected row before the hosted
+URL is exposed. The `503` closes the normal pre-ID race only while that write
+succeeds within SumUp's finite retry window; it is not durable reconciliation.
 
 ## Concurrency, idempotency, and persistence
+
+The following is the M6-M11 target. Every identity, claim, writer, reader, and
+retirement path activates together; no old/new read-through or dual authority is
+permitted.
 
 - Each request creates one bound provider attempt before signature verification
   or provider IO. A settings write affects only later attempts. Currency and
@@ -291,14 +345,14 @@ reconciliation.
 
 ## Privacy, request limits, and diagnostics
 
-- Read payment webhook bodies incrementally from `request.body.getReader()`
-  before provider work. Preserve the collected raw bytes unchanged for signature
-  verification. Accept exactly 64 KiB and cancel/reject as soon as accumulated
-  bytes exceed that bound, regardless of `Content-Length` or chunking. Reject
-  provider IDs over 255 UTF-8 bytes before DB/provider use. The current generic
-  request buffering and webhook `arrayBuffer()` are unbounded
-  (`src/features/request-body.ts:31-38`,
-  `src/features/api/webhooks.ts:389-395`).
+- The atomic cutover must read payment webhook bodies incrementally from
+  `request.body.getReader()` before provider work. Preserve the collected raw
+  bytes unchanged for signature verification. Accept exactly 64 KiB and
+  cancel/reject as soon as accumulated bytes exceed that bound, regardless of
+  `Content-Length` or chunking. Generic callback buffering through
+  `arrayBuffer()` remains unbounded. PR #2060 already rejects a SumUp callback
+  ID over 255 UTF-8 bytes before DB/provider use; M6 must apply the same
+  boundary wherever another provider-controlled resource ID can enter first.
 - Parse external JSON with strict boundary schemas. Expected malformed payloads
   become value-free typed outcomes. Unexpected system errors may propagate only
   after external SDK/body/parser detail has been replaced with a fixed safe
@@ -324,16 +378,19 @@ reconciliation.
 
 ## API and caller migration
 
-The former two stateless replacement methods are insufficient. Replace them with
-one request-local bound provider attempt created before authentication. It owns
-signature verification, browser and callback observation, current expected
-scope, automatic refund, and refund-status confirmation using one captured
-configuration/client. Secrets stay private to the attempt.
+This inventory belongs to the atomic M6 activation. Replace the former stateless
+methods with one request-local bound provider attempt created before
+authentication. It owns signature verification, browser and callback
+observation, current expected scope, automatic refund, and refund-status
+confirmation using one captured configuration/client. Secrets stay private to
+the attempt. Deleting an old method and migrating every caller are one change;
+there is no alias, compatibility wrapper, fallback, read-through, or period with
+two live implementations.
 
 Required migration inventory:
 
-- Delete `PaymentProvider.retrieveSession` and `resolveWebhookSession` after all
-  source callers and provider implementations migrate.
+- Delete `PaymentProvider.retrieveSession` and `resolveWebhookSession` in the
+  same activation that migrates all source callers and provider implementations.
 - Migrate direct test stubs in
   `test/features/api/payment-processing/classify.test.ts`,
   `test/features/api/webhooks/provider.test.ts`, cancel/session-resolution/item-
@@ -342,11 +399,12 @@ Required migration inventory:
 - Keep checkout creation and admin refund/refresh outside the new observation
   API; automatic refunds caused by the observed session must use the bound
   attempt. Do not leave an alias or compatibility wrapper.
-- Move new provider/read contracts out of `src/shared/payments.ts` because that
-  file is already about 391 lines. Extract Square read schemas/transport from
-  the roughly 966-line `src/shared/square.ts`; keep response/diagnostic mapping
-  out of the 486-line webhook route and strict parsing out of the 735-line
-  `payment-helpers.ts`.
+- Keep new provider/read contracts focused and lazy. The old 966-line
+  `src/shared/square.ts` has already been deleted and split under
+  `src/shared/square/`; extend those modules and do not recreate the monolith.
+  Split any touched source or test file that crosses the repository's roughly
+  400-line target, and keep response/diagnostic mapping out of the webhook route
+  and strict parsing out of `payment-helpers.ts`.
 - Consolidate Stripe key-mode parsing onto existing `keyModeOf` in
   `src/shared/db/settings/constants.ts`; remove `detectStripeKeyMode` rather
   than adding a third implementation.
@@ -356,7 +414,13 @@ Required migration inventory:
 
 ## Subrequest and source budgets
 
-The old “no call increase” and 545-755-line claims are withdrawn.
+The figures in this section are the approved design ledger that justified #2048
+and #2050. They are not the live M4 refund budget and must not be copied into M6
+as current request authority. The M6 cutover must measure its exact physical
+provider retries and database calls against today's code before activation. Its
+tests, not this historical 48-call table, are the executable bound.
+
+The older “no call increase” and 545-755-line claims were withdrawn.
 
 - Bunny's limit is 50 combined DB and external subrequests. Count every physical
   attempt. One Stripe logical call allows three attempts; Square and the pinned
@@ -384,7 +448,7 @@ The old “no call increase” and 545-755-line claims are withdrawn.
   two reads; provider-qualified replay adds one. SumUp browser, known callback,
   and unstaged callback paths add one, two, and one staging reads respectively.
 
-### Settled provider maxima
+### Historical provider maxima
 
 | Path                             | Observation | Failed refund plus status confirmation | Combined provider maximum |
 | -------------------------------- | ----------: | -------------------------------------: | ------------------------: |
@@ -396,16 +460,16 @@ The old “no call increase” and 545-755-line claims are withdrawn.
 | SumUp staged browser or callback |           1 |                                      2 |                         3 |
 | SumUp unstaged callback          |           0 |                                      0 |                         0 |
 
-### One bounded processing mechanism
+### As-built bounded processing mechanism
 
-Do not preserve the old parallel readers. Build one paid-order snapshot with one
-`queryBatch` after the processing claim. Its statements load ledger disposition,
+PR #2048 deleted the old parallel readers and built one paid-order snapshot with
+one `queryBatch` after the processing claim. Its rows load ledger disposition,
 current listings, package display/membership/prices, hidden membership, both
 directions of listing relationships, referenced modifiers and their scopes, both
-contact visit counts, public status, and question/answer facts. Fold and
-validate the rows in memory. The same snapshot supplies booking creation, email
-package display, webhook package prices, cancel rendering, and refunded-result
-storage.
+contact visit counts, public status, and question/answer facts. The same
+snapshot supplies booking creation, email package display, webhook package
+prices, cancel rendering, and refunded-result storage. M6 extends this one
+mechanism; it does not create a checkout-specific reader beside it.
 
 The maximum successful core is five DB calls regardless of line, modifier,
 package, promo, or answer count within the 16-line bound:
@@ -430,7 +494,7 @@ instead of creating a third email. Refunded-result
 attendee/ledger/activity/note/terminal state is likewise one batch using the
 snapshot rather than parallel rereads.
 
-### Exact request totals
+### Historical exact request totals
 
 “First attempt” means each DB operation runs once while provider columns already
 include their physical retry maxima. “Retry maximum” adds the approved two DB
@@ -528,14 +592,14 @@ Organic maintenance already stops at 42 combined calls and skips when foreground
 usage leaves no allowance. It can raise smaller requests to 42 but cannot raise
 the 48-call maximum. Thus the complete maximum remains 48.
 
-### Approved direct-only webhook policy
+### As-built direct-only webhook policy
 
-Current registration webhooks follow five redirects and repeat the POST body, so
-16 URLs can consume 96 fetches. The ordinary Square browser maximum would become
-120 and the assignment-plus-renewal maximum 127 (128 with the consolidated
-failure activity). No batching can make that fit.
+Before PR #2050, registration webhooks followed five redirects and repeated the
+POST body, so 16 URLs could consume 96 fetches. The ordinary Square browser
+maximum would have become 120 and the assignment-plus-renewal maximum 127 (128
+with the consolidated failure activity). No batching could make that fit.
 
-Registration webhooks are **direct-only**: deduplicate non-empty configured
+Registration webhooks are now **direct-only**: deduplicate non-empty configured
 URLs, validate and count that set, then make exactly one POST per distinct
 validated URL. Force `redirect: "manual"`. Every 3xx is a typed failed delivery
 and is never followed. Attendee data is never sent to the redirected location.
@@ -557,13 +621,24 @@ synchronous bound.
 | Bounds, shared retry allowance, site rules, instrumentation, file splits |                       100-180 |
 | **Total before deletions**                                               |               **1,170-1,870** |
 
-The remaining provider-safety scope ships through the bounded slices listed
-above. The estimate includes the batching and hard-bound work; deleting the old
-parallel readers is mandatory and may reduce net growth but not changed lines.
+This estimate is retained only to explain the historical review. Remaining
+provider-safety work ships through the atomic `PLAN.md` M6-M11 cutover. That
+cutover deletes the old checkout runtime as it activates the new one; a source
+budget cannot justify leaving a parallel reader behind.
 
 ## Regression and mutation plan
 
-The full test plan is fixed. It must include direct deterministic tests for:
+This is the acceptance inventory for the atomic M6-M11 cutover, plus the tests
+that already pin #2048, #2050, #2060, and M4. Reconcile paths with the current
+tree when implementing it; no test may keep an old runtime callable merely to
+compare it with the new one.
+
+M4's focused `resolving-uncertain-refunds.feature` currently has four scenarios
+and 43 executed Cucumber steps, including the unreadable-ready zero-send exit.
+Its addition invalidates older suite-wide counts; recompute those only after the
+final full run.
+
+Direct deterministic coverage for the remaining cutover must include:
 
 - strict Stripe Session parsing (`livemode`, string/expanded/null
   `payment_intent`) in `test/shared/stripe/schemas.test.ts`;
@@ -642,22 +717,16 @@ The full test plan is fixed. It must include direct deterministic tests for:
   renewal, consolidated delivery failure, organic-maintenance refusal, and
   lazy-import/ cold-start contracts without subprocess-only coverage.
 
-Split touched legacy files as part of migration: root Square provider tests and
-its webhook suite already exceed 400 lines; `test/test-utils/webhooks.ts` is
-over 400; the existing post-commit recovery suite is about 400. Split claim
-races from refund recovery and split fixture construction from posting/assertion
-helpers. Every resulting test file must be below 400 lines.
+Split any touched source or test file over the repository's roughly 400-line
+target. Keep claim races separate from refund recovery and fixture construction
+separate from posting/assertion helpers. A file-size note in this historical
+document is not authority for recreating a deleted monolith.
 
-Mutation paths must mirror `scripts/mutation/test-map.ts`: Stripe schema uses
-`test/shared/stripe/schemas.test.ts`; `src/shared/square.ts` uses
-`test/shared/square/*.test.ts`; `src/shared/sumup.ts` uses
-`test/shared/sumup.test.ts` and `test/shared/sumup/*.test.ts`. Webhook mutation
-must also name the changed integration payment-ownership suites. The old
-targeted paths `test/integration/server/payments-success-basic.test.ts` and
-`payments-success-replay.test.ts` are invalid; the real paths are
-`test/integration/server/payments/success.test.ts` and
-`payments/replay.test.ts`. The root `test/shared/stripe-provider.test.ts` must
-be included explicitly.
+Mutation paths must mirror the current `scripts/mutation/test-map.ts`. Stripe
+schema coverage lives under `test/shared/stripe/`; Square and SumUp coverage now
+span their focused provider/module directories, and webhook mutation must name
+the changed integration payment-ownership suites. Do not restore the deleted
+`src/shared/square.ts` or obsolete test paths to satisfy this old inventory.
 
 After implementation only: run targeted mirrored tests, coverage and inspect all
 changed branches, `test:quality-audit`, targeted exhaustive mutation where
@@ -665,6 +734,11 @@ practical, `precommit`, then committed-diff `precommit:mutation`. This review
 ran none of those commands.
 
 ## Adversarial review
+
+This table records the design challenges and decisions that produced the
+evidence above. "Resolved" means resolved in that design review unless the
+as-built sections explicitly say the mechanism shipped; it is not a claim that
+the remaining checkout cutover is live.
 
 | Attack                                                                         | Evidence                                                                                                                                            | Verdict                                      | Exact plan correction                                                                                                                                                                                                                            |
 | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -696,8 +770,10 @@ ran none of those commands.
 
 ## Recommendation
 
-The complete plan is approved for implementation. Provider evidence, request
-reduction, and direct-only webhook delivery are reconciled. The complete
-cold-ready maximum is 48 calls, leaving two below Bunny's limit; ordinary Square
-success is 40 before organic maintenance and at most 42 after it. No outbox is
-needed.
+The provider evidence, bounded processing core, direct-only webhook delivery,
+strict SumUp observation, and M4 refund authority are retained as implemented
+foundations. The 48-call conclusion and synchronous/no-outbox decision explain
+the historical design; they are not authority for the final cutover. Remaining
+work follows `PLAN.md` M6-M11, recalculates its budget from current code, and
+activates only after it can delete every legacy whole-checkout path in the same
+change.

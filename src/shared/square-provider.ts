@@ -146,9 +146,7 @@ const classifyOrderMetadata = (
   ) {
     return { kind: "ours", metadata };
   }
-  return metadata?._origin
-    ? { kind: "malformed" }
-    : { kind: "foreign" };
+  return metadata?._origin ? { kind: "malformed" } : { kind: "foreign" };
 };
 
 const UNUSABLE_METADATA = {

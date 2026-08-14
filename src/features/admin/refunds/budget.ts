@@ -143,7 +143,6 @@ const activeReferences = (
 
 type DatabaseCallPlan = {
   readonly fixed: number;
-  readonly pricesAuthority: boolean;
   readonly whenRecordingReturns: number;
 };
 
@@ -160,24 +159,20 @@ const SETTLEMENT_DATABASE_CALLS = DATABASE_MAX_ATTEMPTS * 2;
 const DATABASE_CALL_PLANS = {
   before_claim: {
     fixed: CLAIM_DATABASE_CALLS,
-    pricesAuthority: true,
     whenRecordingReturns: REFUND_LEDGER_BATCH_DATABASE_CALLS,
   },
   before_provider_read: {
     fixed: 0,
-    pricesAuthority: true,
     whenRecordingReturns: REFUND_LEDGER_BATCH_DATABASE_CALLS,
   },
   inside_claim: {
     fixed: CLAIM_DATABASE_CALLS_AFTER_ADMISSION,
-    pricesAuthority: true,
     whenRecordingReturns: REFUND_LEDGER_BATCH_DATABASE_CALLS,
   },
 } satisfies Record<RefundReadinessBudgetCheckpoint, DatabaseCallPlan>;
 
 const AUTHORITY_REQUEST_DATABASE_PLAN = {
   fixed: 0,
-  pricesAuthority: true,
   whenRecordingReturns: REFUND_LEDGER_BATCH_DATABASE_CALLS,
 } satisfies DatabaseCallPlan;
 
@@ -185,7 +180,6 @@ const refreshAdmissionDatabasePlan = (
   beforeAdmissionCalls: number,
 ): DatabaseCallPlan => ({
   fixed: beforeAdmissionCalls + REFUND_LEDGER_BATCH_DATABASE_CALLS,
-  pricesAuthority: true,
   whenRecordingReturns: 0,
 });
 
@@ -194,7 +188,6 @@ const READINESS_DATABASE_CALL_PLANS = {
     before_claim: refreshAdmissionDatabasePlan(CLAIM_DATABASE_CALLS),
     before_provider_read: {
       fixed: REFUND_LEDGER_BATCH_DATABASE_CALLS,
-      pricesAuthority: true,
       whenRecordingReturns: 0,
     },
     inside_claim: refreshAdmissionDatabasePlan(
@@ -217,9 +210,7 @@ const databaseCallsAt = (
 ): number =>
   // A non-empty refund plan may discover returned money, so every safe gate
   // reserves the full recording tail.
-  plan.fixed +
-  (plan.pricesAuthority ? authorityCalls : 0) +
-  plan.whenRecordingReturns;
+  plan.fixed + authorityCalls + plan.whenRecordingReturns;
 
 const zeroSubrequests = (): SubrequestCounts => ({
   database: 0,
@@ -271,13 +262,21 @@ const referenceSetSubrequestCost = (
 /** Physical worst-case provider calls plus the DB work before the next safe
  * refusal. The claim wrapper withholds settlement separately, so these plans
  * never count that same reserve twice. */
-export const refundReadinessSubrequestCost = (
-  action: RefundReadinessAction,
-  candidates: readonly RefundBudgetCandidate[],
-  returned: ReadonlySet<string>,
-  checkpoint: RefundReadinessBudgetCheckpoint,
-  providers?: readonly PaymentProviderType[],
-): SubrequestCounts => {
+export interface RefundReadinessBudget {
+  readonly action: RefundReadinessAction;
+  readonly candidates: readonly RefundBudgetCandidate[];
+  readonly checkpoint: RefundReadinessBudgetCheckpoint;
+  readonly providers?: readonly PaymentProviderType[];
+  readonly returned: ReadonlySet<string>;
+}
+
+export const refundReadinessSubrequestCost = ({
+  action,
+  candidates,
+  checkpoint,
+  providers,
+  returned,
+}: RefundReadinessBudget): SubrequestCounts => {
   if (candidates.length === 0) return zeroSubrequests();
   const configured =
     providers === undefined
@@ -293,6 +292,14 @@ export const refundReadinessSubrequestCost = (
     configured,
   );
 };
+
+/** Whether the remaining allowance can carry this exact readiness work to its
+ * next safe refusal. */
+export const refundReadinessFits = (
+  remaining: SubrequestCounts,
+  budget: RefundReadinessBudget,
+): boolean =>
+  subrequestCostFits(refundReadinessSubrequestCost(budget), remaining);
 
 export type RefundSendBudgetReference = {
   readonly index: string;

@@ -87,7 +87,7 @@ interface SummaryRow {
   readonly id: Whole;
   readonly provider: string;
   readonly revision: Whole;
-  readonly state: string;
+  readonly state: ProviderRefundCaseState;
   readonly updated_at: Whole;
 }
 
@@ -118,19 +118,6 @@ const providerFrom = (value: string): PaymentProviderType => {
   return value;
 };
 
-const caseStateFrom = (value: string): ProviderRefundCaseState => {
-  if (
-    value !== "ready" &&
-    value !== "completed" &&
-    value !== "needs_owner_choice" &&
-    value !== "observing" &&
-    value !== "send_armed"
-  ) {
-    throw new Error("payment_charges.refund_state_name is not owner work");
-  }
-  return value;
-};
-
 const summaryFrom = (row: SummaryRow): ProviderRefundCaseSummary => {
   const captured = money(row.captured_amount, row.currency);
   if (captured === null) {
@@ -141,7 +128,7 @@ const summaryFrom = (row: SummaryRow): ProviderRefundCaseSummary => {
     id: wholeNumber(row.id, "id", 1),
     provider: providerFrom(row.provider),
     revision: wholeNumber(row.revision, "refund_revision", 1),
-    state: caseStateFrom(row.state),
+    state: row.state,
     updatedAt: wholeNumber(row.updated_at, "updated_at", 0),
   };
 };
@@ -250,9 +237,6 @@ export const loadProviderRefundCase = async (
   if (row === null) return null;
   const summary = summaryFrom(row);
   const state = stateFrom(row);
-  if (!isCurrentCase(state)) {
-    throw new Error("Selected payment charge is not current owner work");
-  }
   return {
     ...summary,
     reason: state.kind === "needs_owner_choice" ? state.reason : null,
@@ -341,12 +325,7 @@ const applyDecision = async (
       authority,
       decidedAt,
       authority.refunded,
-      (current) => {
-        if (current.kind !== "needs_owner_choice") {
-          throw new Error("Refund authority no longer needs its owner");
-        }
-        return resolveRefundOwnerChoice(current, choice);
-      },
+      () => resolveRefundOwnerChoice(state, choice),
     )) !== null
   );
 };
@@ -386,10 +365,5 @@ export const resolveProviderRefundCase = async (
   if (await applyDecision(authority, state, row, input, decidedAt)) {
     return "resolved";
   }
-  return (await queryOnePrimary<{ readonly id: Whole }>(
-    "SELECT id FROM payment_charges WHERE id = ? LIMIT 1",
-    [input.id],
-  )) === null
-    ? "missing"
-    : "changed";
+  return "changed";
 };

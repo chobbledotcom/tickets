@@ -1,14 +1,5 @@
 import { queryOne } from "#shared/db/client.ts";
-import {
-  loadRefundAuthorityByReference,
-  type RefundAuthorityRow,
-  transitionRefundAuthority,
-} from "#shared/db/provider-refund-authority.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
-import {
-  armRefundSend,
-  markRefundObservationDue,
-} from "#shared/payment/refund-authority.ts";
 import type { AuthorizedRefundRequest } from "#shared/payment/refund-provider-authorization.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type {
@@ -44,12 +35,29 @@ export const fakeRefundProvider = (
 export const completingRefundProvider = (
   provider: PaymentProviderType,
   observed: ChargeMoney = fullyRefundedMoney(),
-): RefundEngineProvider =>
-  fakeRefundProvider(
+): RefundEngineProvider => {
+  const completedRead = foundCharge(observed);
+  return fakeRefundProvider(
     provider,
-    () => Promise.resolve(foundCharge(observed)),
+    () => Promise.resolve(completedRead),
     (request) => Promise.resolve(completedRefund(request.charge)),
   );
+};
+
+export const notSentRefundProvider = (
+  provider: PaymentProviderType,
+  read: Parameters<typeof fakeRefundProvider>[1] = () =>
+    Promise.resolve(foundCharge()),
+) => {
+  let sendCount = 0;
+  return {
+    provider: fakeRefundProvider(provider, read, () => {
+      sendCount++;
+      return Promise.resolve({ kind: "not_sent", reason: "not_configured" });
+    }),
+    sendCount: () => sendCount,
+  };
+};
 
 export const refundDependencies = (
   provider: RefundEngineProvider,
@@ -89,28 +97,3 @@ export const storedRefundAuthority = (index: string) =>
       WHERE reference_index = ?`,
     [index],
   );
-
-/** Move a newly-created keyed authority to one exact observation state. */
-export const observingKeyedAuthority = async (
-  index: string,
-  observedAt: number,
-  nextActionAt: number,
-): Promise<RefundAuthorityRow> => {
-  const row = await loadRefundAuthorityByReference(index);
-  if (row === null || row.state.kind !== "ready") {
-    throw new Error("Expected a ready authority to observe");
-  }
-  const changed = await transitionRefundAuthority(
-    row,
-    observedAt,
-    row.refunded,
-    (state) =>
-      markRefundObservationDue(
-        armRefundSend(state, observedAt, nextActionAt),
-        observedAt,
-        nextActionAt,
-      ),
-  );
-  if (changed === null) throw new Error("Authority observation changed");
-  return changed;
-};

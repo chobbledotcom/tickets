@@ -32,10 +32,7 @@ import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import { createSystemNote } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
-import {
-  type ClaimedAttendeePaymentAnchor,
-  prepareClaimedAttendeePaymentAnchor,
-} from "#shared/db/payment-anchor/attendee.ts";
+import { prepareClaimedAttendeePaymentAnchor } from "#shared/db/payment-anchor/attendee.ts";
 import { settleAttendeeRows } from "#shared/db/payment-claim.ts";
 import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
 import { ErrorCode, type ErrorCodeType, logError } from "#shared/logger.ts";
@@ -182,10 +179,12 @@ export const storeRefundedBooking = async (
   if (spec.alert) addPendingWork(sendNtfyError(REFUND_ALERT_CODES[spec.alert]));
   const listingId = bookings[0]!.listingId;
   const paymentReference = paidPaymentReferenceOf(session);
-  const paymentAnchor = await prepareClaimedAttendeePaymentAnchor(
-    paymentReference,
-  );
-  let claimedAnchor: ClaimedAttendeePaymentAnchor | undefined;
+  const paymentAnchor =
+    await prepareClaimedAttendeePaymentAnchor(paymentReference);
+  const anchorWritten =
+    Promise.withResolvers<
+      Awaited<ReturnType<typeof paymentAnchor.forAttendee>>
+    >();
   // A quantity-0 overbook insert has no capacity gate and consumes no modifier
   // stock, so it always writes the row — trust it. (If the PII can't encrypt the
   // whole system is broken; we don't defend against that.)
@@ -196,15 +195,14 @@ export const storeRefundedBooking = async (
       bookings,
     },
     async (tx, attendeeId) => {
-      claimedAnchor = await paymentAnchor.forAttendee(attendeeId);
+      const claimedAnchor = await paymentAnchor.forAttendee(attendeeId);
       await tx.execute(claimedAnchor.statement);
+      anchorWritten.resolve(claimedAnchor);
     },
   );
   const attendeeId = (stored as Extract<typeof stored, { success: true }>)
     .attendees[0]!.id;
-  if (claimedAnchor === undefined) {
-    throw new Error("Stored placeholder is missing its payment fence");
-  }
+  const claimedAnchor = await anchorWritten.promise;
   const refundResult = await requestSessionRefund(session);
   const refunded = providerRefundReturned(refundResult, {
     listingId,
@@ -238,8 +236,7 @@ export const storeRefundedBooking = async (
   } else {
     logError({
       code: ErrorCode.PAYMENT_REFUND,
-      detail:
-        `Stored-but-unrefunded booking ${attendeeId} (${spec.code}): ${spec.detail}`,
+      detail: `Stored-but-unrefunded booking ${attendeeId} (${spec.code}): ${spec.detail}`,
       listingId,
     });
   }

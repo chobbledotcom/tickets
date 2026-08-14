@@ -32,29 +32,45 @@ const rememberReturnedForCandidate = (
 const needsAuthority = ({ charge, identity }: RefundReadinessObservation) =>
   admitObservedRefund(identity.reference, charge).kind !== "send";
 
-const requireMatchingAnswer = (
+type ObservedAuthorityAnswer = Extract<
+  ProviderRefundResult,
+  { kind: "needs_owner_choice" | "pending" | "returned" }
+>;
+
+const PRESERVES_OBSERVED_EVIDENCE = {
+  needs_owner_choice: true,
+  pending: true,
+  ready: false,
+  returned: true,
+  unchanged: false,
+  withheld: false,
+} as const satisfies Record<ProviderRefundResult["kind"], boolean>;
+
+type RequireMatchingAnswer = (
   observation: RefundReadinessObservation,
   answer: ProviderRefundResult,
-): void => {
+) => asserts answer is ObservedAuthorityAnswer;
+
+const requireMatchingAnswer: RequireMatchingAnswer = (observation, answer) => {
   if (
     answer.reference.provider !== observation.identity.provider ||
     answer.reference.reference !== observation.identity.reference
   ) {
     throw new Error("Refund authority answered for a different payment");
   }
-  if (
-    answer.kind === "ready" ||
-    answer.kind === "unchanged" ||
-    answer.kind === "withheld"
-  ) {
+  if (!PRESERVES_OBSERVED_EVIDENCE[answer.kind]) {
     throw new Error("Refund authority discarded observed refund evidence");
   }
 };
 
+type ReconciledObservedWork =
+  | { kind: "complete"; returned: ReadonlySet<string> }
+  | { error: unknown; kind: "failed"; returned: ReadonlySet<string> };
+
 const reconcileObservedWork = async (
   observations: readonly RefundReadinessObservation[],
   request: typeof requestProviderRefund,
-): Promise<ReadonlySet<string>> => {
+): Promise<ReconciledObservedWork> => {
   const relevant = uniqueBy(
     (observation: RefundReadinessObservation) => observation.reference.index,
   )(observations.filter(needsAuthority));
@@ -78,8 +94,9 @@ const reconcileObservedWork = async (
   const failure = settled.find(
     (result): result is PromiseRejectedResult => result.status === "rejected",
   );
-  if (failure !== undefined) throw failure.reason;
-  return returned;
+  return failure === undefined
+    ? { kind: "complete", returned }
+    : { error: failure.reason, kind: "failed", returned };
 };
 
 /** Preserve every money fact a failed complete-read attempt did establish. */
@@ -89,11 +106,12 @@ export const rememberReadinessFailureFindings = async (
   held: HeldRefundWork,
   request: typeof requestProviderRefund = requestProviderRefund,
 ): Promise<void> => {
-  const returnedIndexes = await reconcileObservedWork(
+  const reconciliation = await reconcileObservedWork(
     readiness.observations,
     request,
   );
   for (const candidate of candidates) {
-    rememberReturnedForCandidate(candidate, returnedIndexes, held);
+    rememberReturnedForCandidate(candidate, reconciliation.returned, held);
   }
+  if (reconciliation.kind === "failed") throw reconciliation.error;
 };

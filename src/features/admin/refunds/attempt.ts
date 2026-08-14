@@ -3,7 +3,10 @@ import type {
   ObservedRefundAdmission,
   WithheldRefund,
 } from "#shared/payment/admit-refund.ts";
-import { reportWithheldRefund } from "#shared/payment-review.ts";
+import {
+  reportProviderWithheldRefund,
+  reportWithheldRefund,
+} from "#shared/payment-review.ts";
 import {
   type ProviderRefundResult,
   type RefundAuthorityReceipt,
@@ -105,15 +108,11 @@ const engineResult = (
     return { outcome: "pending" };
   }
   if (result.kind === "withheld") {
-    const withheld = withheldResult(result.admission, {
+    reportProviderWithheldRefund(result, {
       attendeeId,
       listingId,
-      provider: result.reference.provider,
     });
-    if (withheld.outcome === "refunded") {
-      throw new Error("Refund authority withheld a completed refund");
-    }
-    return { outcome: withheld.outcome };
+    return { outcome: "pending" };
   }
   if (result.kind === "needs_owner_choice") {
     return {
@@ -164,15 +163,14 @@ export type CandidateRefund = {
 };
 
 /** Decide every reference without starting a provider send. */
-export const prepareReadyCandidate = async (
+export const prepareReadyCandidate = (
   candidate: ReadyRefundCandidate,
   listingId: number,
   inFlight: Map<string, Promise<ReferenceRefund>> = new Map(),
   request: typeof requestProviderRefund = requestProviderRefund,
-): Promise<PreparedCandidateRefund> => {
-  const prepared = await mapProviderRequests(
-    candidate.references,
-    async (ready): Promise<PreparedRefundAttempt> => ({
+): PreparedCandidateRefund => {
+  const prepared = candidate.references.map(
+    (ready): PreparedRefundAttempt => ({
       ...prepareReferenceRefund(candidate, listingId, ready, inFlight, request),
       reference: ready.reference,
     }),

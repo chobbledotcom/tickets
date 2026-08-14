@@ -5,8 +5,8 @@ import {
   markRefundCompleted,
   markRefundLocalRecorded,
   markRefundObservationDue,
-  mayReplayKeyedRefund,
   readRefundAuthorityState,
+  readyRefund,
   rearmKeyedRefund,
   refundLocalMirror,
   refundNextActionAt,
@@ -26,7 +26,7 @@ describe("payment > refund authority state", () => {
       readRefundAuthorityState(
         JSON.stringify({ ...state, surprise: true }),
         "test charge",
-      )
+      ),
     ).toThrow("Invalid stored JSON");
   });
 
@@ -34,17 +34,30 @@ describe("payment > refund authority state", () => {
     const armed = armRefundSend(readyRefundForTest("keyed"), 120, 150);
     const observing = markRefundObservationDue(armed, 130, 170);
 
-    expect(mayReplayKeyedRefund(observing, "request-one", 500)).toBe(true);
-    expect(mayReplayKeyedRefund(observing, "another-request", 400)).toBe(false);
-    expect(mayReplayKeyedRefund(observing, "request-one", 501)).toBe(false);
     expect(rearmKeyedRefund(observing, "request-one", 400, 430)).toMatchObject({
       armedAt: 400,
       kind: "send_armed",
       request: { generation: 1, identityIndex: "request-one" },
     });
+    expect(() =>
+      rearmKeyedRefund(observing, "another-request", 400, 430),
+    ).toThrow("only its exact request");
     expect(() => rearmKeyedRefund(observing, "request-one", 501, 530)).toThrow(
       "outside its replay window",
     );
+    expect(() =>
+      readyRefund({
+        evidenceRevision: 1,
+        nextActionAt: 500,
+        now: 501,
+        request: {
+          capability: "keyed",
+          generation: 1,
+          identityIndex: "expired-before-start",
+          replayUntil: 500,
+        },
+      }),
+    ).toThrow("cannot start outside its replay window");
   });
 
   test("a keyless send can never use the keyed replay transition", () => {
@@ -54,7 +67,6 @@ describe("payment > refund authority state", () => {
       170,
     );
 
-    expect(mayReplayKeyedRefund(observing, "request-one", 140)).toBe(false);
     expect(() => rearmKeyedRefund(observing, "request-one", 140, 170)).toThrow(
       "keyless",
     );
@@ -74,10 +86,8 @@ describe("payment > refund authority state", () => {
       request: { generation: 1 },
     });
     expect(() =>
-      returnRefundToReady(readyRefundForTest("keyless"), 5, 180, 190)
-    ).toThrow(
-      "not armed",
-    );
+      returnRefundToReady(readyRefundForTest("keyless"), 5, 180, 190),
+    ).toThrow("not armed");
   });
 
   test("completion and local recording are separate durable facts", () => {
@@ -96,6 +106,12 @@ describe("payment > refund authority state", () => {
     });
     expect(() => markRefundLocalRecorded(recorded, 170)).toThrow(
       "not waiting for local recording",
+    );
+    expect(() => markRefundCompleted(completed, 170, "provider")).toThrow(
+      "already completed",
+    );
+    expect(() => armRefundSend(completed, 170, 180)).toThrow(
+      "not ready to arm",
     );
   });
 

@@ -1,11 +1,11 @@
 /** Durable refund identity attached to an attendee. */
 
 import { inPlaceholders, type SqlStatement } from "#shared/db/client.ts";
+import { checkingClaimFor } from "#shared/db/payment-claim/scope.ts";
 import {
   paymentRowStateValues,
   type RowSettlement,
 } from "#shared/db/payment-claim.ts";
-import { checkingClaimFor } from "#shared/db/payment-claim/scope.ts";
 import { nowIso } from "#shared/now.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 import { paymentAnchorReference } from "./reference.ts";
@@ -47,9 +47,7 @@ export const prepareClaimedAttendeePaymentAnchor = async (
       settlement: {
         commandId,
         heldSince,
-        rows: new Map([
-          [sessionId, { claim: "release", phase: "checking" }],
-        ]),
+        rows: new Map([[sessionId, { claim: "release", phase: "checking" }]]),
       },
       statement: {
         args: [

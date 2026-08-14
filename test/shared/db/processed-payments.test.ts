@@ -18,7 +18,10 @@ import {
   STALE_RESERVATION_MS,
 } from "#shared/db/processed-payments.ts";
 import { nowMs } from "#shared/now.ts";
-import type { StoredPaymentFailure } from "#shared/payment/row-state.ts";
+import {
+  type StoredPaymentFailure,
+  writeRowState,
+} from "#shared/payment/row-state.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -206,6 +209,19 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       await expect(
         parseSessionFailure(await encrypt('{"error":"Gone"}')),
       ).rejects.toThrow("processed_payments.failure_data");
+    });
+
+    test("parseSessionFailure rejects terminal outcomes mixed with live work", async () => {
+      const mixed = writeRowState(
+        {
+          outcome: { error: "Gone" },
+          unrecorded: { returnedAt: "2026-08-13T12:00:00.000Z" },
+        },
+        "processed_payments.failure_data",
+      );
+      await expect(parseSessionFailure(await encrypt(mixed))).rejects.toThrow(
+        "processed_payments.failure_data: invalid terminal session state",
+      );
     });
 
     test("markSessionFailed throws a labelled error for an invalid failure", async () => {

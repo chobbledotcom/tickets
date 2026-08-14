@@ -177,17 +177,18 @@
     <header>
       <p class="eyebrow">M4 Part A · branch compared with origin/main</p>
       <h1>One charge. One refund authority. No guessing.</h1>
-      <p class="lede">This branch turns refunds from a collection of route-level guesses into one evidence-led process. Admin refunds and buyer-callback refunds now meet at the same durable charge record. A provider call can happen only after that record authorizes an exact generation, and returned money remains visible until the local books catch up.</p>
+      <p class="lede">This branch turns refunds from a collection of route-level guesses into one evidence-led process. Admin refunds and buyer-callback refunds now meet at the same durable charge record. A provider refund send can happen only after that record authorizes an exact generation, and returned money remains visible until the local books catch up.</p>
       <div class="snapshot">
         <span><strong>base</strong> <code>origin/main @ 470b47efef08</code></span>
-        <span><strong>branch</strong> <code>fbc8340f8dc2</code></span>
-        <span><strong>source snapshot</strong> <code>9662f753a1ad</code></span>
+        <span><strong>branch</strong> <code>d16a6acfd836</code></span>
+        <span><strong>source diff</strong> <code>24d433aa6dec</code></span>
+        <span><strong>generated</strong> <code>2026-08-14 03:18 BST</code></span>
         <span><strong>scope</strong> clean <code>src/</code> tree</span>
       </div>
       <div class="metrics">
-        <div class="metric"><b>190</b><span>source paths changed</span></div>
-        <div class="metric"><b>+15,575</b><span>source lines added</span></div>
-        <div class="metric"><b>−3,604</b><span>source lines removed</span></div>
+        <div class="metric"><b>203</b><span>source paths changed</span></div>
+        <div class="metric"><b>+15,713</b><span>source lines added</span></div>
+        <div class="metric"><b>−3,625</b><span>source lines removed</span></div>
         <div class="metric"><b>1</b><span>canonical provider-refund authority</span></div>
       </div>
     </header>
@@ -250,11 +251,11 @@
         <article class="card"><span class="label">Same engine</span><h3>No bulk shortcut</h3><p>The selected person goes through the same exact reference load, claim, provider authority, ledger, and settlement path as Single Refund.</p></article>
       </div>
       <h3 style="margin-top:2rem">Manager chooses Refresh</h3>
-      <div class="callout"><span class="mark">↻</span><p><strong>Refresh is observation and repair, not permission to send.</strong> It takes the same exact row claim, reads the named providers, observes returned or pending work, posts known returns, and retires clean review facts. Its target mode cannot mint a new provider send.</p></div>
+      <div class="callout"><span class="mark">↻</span><p><strong>Refresh is observation and repair, not permission to send.</strong> It takes the same exact row claim, reads the named providers, observes returned or pending work, posts known returns, and retires clean review facts. Its target mode cannot mint a new provider send. Even keyless work waiting for an owner choice can retire when a later provider read conclusively proves the money returned; the manager supplies no judgment and cannot send again.</p></div>
       <h3>Buyer callback needs an automatic refund</h3>
       <div class="grid-2">
         <article class="card"><h3>Evidence already names the charge</h3><p>The validated callback carries its provider, captured Money, session, and provider-qualified payment reference. Callback replay is bound to the same charge authority before any send.</p></article>
-        <article class="card"><h3>Placeholder remains repairable</h3><p>When booking cannot be fulfilled, attendee, zero-quantity booking, and owner-key reference anchor are written atomically. The authority survives provider or local failure and appears in owner recovery.</p></article>
+        <article class="card"><h3>Placeholder stays fenced until fully recorded</h3><p>When booking cannot be fulfilled, the attendee, zero-quantity booking, owner-key reference anchor, and an exact row claim are written atomically. The exact claimed anchor returned by that insert is carried through provider refund, Money ledger, charge-authority retirement, activity, and note writes; it is never regenerated from the attendee ID. Only its matching settlement releases it after every step succeeds, so any earlier failure leaves a protected repair target.</p></article>
       </div>
     </section>
 
@@ -278,9 +279,9 @@
           <thead><tr><th>Answer</th><th>Meaning</th><th>May send?</th><th>What survives</th></tr></thead>
           <tbody>
             <tr><td><code>found</code></td><td>Validated charge evidence with exact Money.</td><td class="limited">Only if the common judge says ready.</td><td>The observed evidence and durable authority revision.</td></tr>
-            <tr><td><code>missing</code></td><td>The named provider explicitly says this charge is absent.</td><td class="no">No.</td><td>Exact missing-document evidence; no provider guessing.</td></tr>
-            <tr><td><code>unavailable</code></td><td>Timeout, rate limit, connection, or provider failure.</td><td class="no">No.</td><td>Retryable/observable work without inventing an answer.</td></tr>
-            <tr><td><code>invalid</code></td><td>Malformed or contradictory successful response.</td><td class="no">No.</td><td>A loud protocol failure or owner-visible blocked case.</td></tr>
+            <tr><td><code>missing</code></td><td>The named provider explicitly says this charge is absent.</td><td class="no">No.</td><td>A ready durable case opens <code>provider_unreadable</code> owner choice immediately; there is no provider guessing.</td></tr>
+            <tr><td><code>unavailable</code></td><td>Timeout, rate limit, connection, or provider failure.</td><td class="no">No.</td><td>A ready durable refund gets a five-minute grace for another observation. If evidence is still unavailable when that finite grace ends, it becomes a required <code>provider_unreadable</code> owner choice—never a silent permanent wait.</td></tr>
+            <tr><td><code>invalid</code></td><td>Malformed or contradictory successful response.</td><td class="no">No.</td><td>A ready durable case opens owner choice immediately. Malformed success never becomes permission to send.</td></tr>
           </tbody>
         </table>
       </div>
@@ -299,13 +300,13 @@
         <div class="state done"><strong>completed / due</strong><small>Money is back; local books still owe a write.</small></div><div class="arrow">→</div>
         <div class="state done"><strong>completed / recorded</strong><small>Provider and local Money agree.</small></div>
       </div>
-      <div class="callout warn"><span class="mark">?</span><p><strong>Required human branch:</strong> possibly sent keyless work, expired keyed replay, provider conflict, or provider rejection becomes <code>needs_owner_choice</code>. There is no generic clear. The owner must say “provider confirms returned” or “provider confirms not sent”; local Money recording is a separate action.</p></div>
+      <div class="callout warn"><span class="mark">?</span><p><strong>Required human branch:</strong> possibly sent keyless work, expired keyed replay, provider conflict, provider rejection, or a ready refund whose evidence stayed unreadable becomes <code>needs_owner_choice</code>. There is no generic clear. The owner must say “provider confirms returned” or “provider confirms not sent”; local Money recording is a separate action.</p></div>
       <div class="grid-3">
         <article class="card"><h3>Revision compare-and-swap</h3><p>Every charge transition names the exact prior revision. A losing writer rereads the winner; it cannot overwrite newer evidence.</p></article>
         <article class="card"><h3>Exact admin claim</h3><p>The claim transaction checks attendee PII revisions, complete reference rows, sharing rows, blank indexes, and the same command identity.</p></article>
         <article class="card"><h3>Provider capability matters</h3><p>Stripe can replay the identical keyed generation for one day. Square's keyed window ends when the command is armed, so it cannot replay later. SumUp is keyless and never auto-replays an armed command.</p></article>
         <article class="card"><h3>Arm before I/O</h3><p>The engine stores that money may move before the provider call. A crash cannot turn “possibly sent” into “safe to try again.”</p></article>
-        <article class="card"><h3>Durable repair before release</h3><p>Every exit releases the short-lived row claim. When a ledger post fails, the same settlement leaves durable <code>unrecorded</code> work that blocks deletion until the books are repaired.</p></article>
+        <article class="card"><h3>Admin settlement is always attempted</h3><p>Every admin refund exit attempts to settle its short-lived row claim. Before a failed ledger post is rethrown, provider-confirmed returns are marked for durable <code>unrecorded</code> work and unproved rows remain in doubt; settlement then tries to persist that answer. If the settlement write itself fails, it is reported and the claim may remain; a successful work path throws that settlement error, while a failed work path keeps its original error. The automatic-placeholder claim intentionally follows the stricter all-effects rule described above.</p></article>
         <article class="card"><h3>Destructive writes ask first</h3><p>Delete, merge, finalize, prune, and orphan cleanup read the same lifecycle rules. Delete refuses live work that would lose its repair target; merge may relocate stable indexed work but never an active claim.</p></article>
       </div>
       <div class="callout risk"><span class="mark">×</span><p><strong>Old unqualified records do not enter this state machine.</strong> Live authority requires a provider-tagged identity. A raw old reference, a DB-key ciphertext, or a reference-bearing processed row with no blind index is a typed refusal before provider I/O. The system does not search every configured provider and does not infer ownership from today’s setting.</p></div>
@@ -313,9 +314,9 @@
 
     <section id="privacy">
       <p class="eyebrow">06 · Privacy and direct-database reality</p>
-      <h2>New raw identifiers are owner-only—but the boundary has named limits.</h2>
+      <h2>New raw identifiers are owner-key protected—but the boundary has named limits.</h2>
       <div class="grid-3">
-        <article class="card after"><span class="label">New references</span><h3>Owner-public-key ciphertext</h3><p>New provider references use <code>hyb:1</code> owner-key encryption. Equality uses a DB-keyed HMAC. SQL sees provider, Money, state, dates, counts, and blind identities—not the raw reference.</p></article>
+        <article class="card after"><span class="label">New references</span><h3>Owner-public-key ciphertext</h3><p>New provider references use <code>hyb:1</code> owner-key encryption. Equality uses a DB-keyed HMAC. SQL sees provider, Money, state, dates, counts, and blind identities—not the raw reference. “Owner-key protected” describes storage; access is still governed separately by each route’s role check.</p></article>
         <article class="card after"><span class="label">No broad decrypt</span><h3>Indexes answer population questions</h3><p>Refund All summarizes without PII and decrypts one selected attendee. Protected orphan work pages twenty IDs. Provider recovery summaries do not decrypt references; only the owner-only detail does.</p></article>
         <article class="card boundary"><span class="label">Metadata</span><h3>Finite, not secret, state</h3><p><code>failure_data</code>, system notes, lifecycle mirrors, provider name, Money, and due times may be readable with the environment key or directly in SQL. They must never contain buyer PII or raw provider bodies.</p></article>
       </div>
@@ -339,8 +340,9 @@
         </table>
       </div>
       <div class="grid-3" style="margin-top:1rem">
-        <article class="card"><h3>Refund recovery queue</h3><p>The Privacy page keyset-pages canonical charge work. A summary shows provider, Money, state, revision, and time; the owner-only detail decrypts the reference and renders exactly the state’s real exit.</p></article>
+        <article class="card"><h3>Refund recovery queue</h3><p>The Privacy page keyset-pages canonical charge work. A summary shows provider, Money, state, revision, and time; the owner-only detail decrypts the reference and renders exactly the state’s real exit. If a ready case stays unreadable past its grace, checking sends nothing and opens two required provider-outcome choices.</p></article>
         <article class="card"><h3>Outstanding attendee work</h3><p>Review and books-behind markers remain on the attendee’s payment rows. Orphans with work stay reachable by ID even after their last listing disappears.</p></article>
+        <article class="card"><h3>No dead Refresh promise</h3><p>The attendee page loads one bounded, typed reference set instead of asking only whether an index exists. A complete set renders Refresh; no references render nothing; legacy, too-large, or provider-unknown sets show the real refusal in plain text and withhold the unusable control. Protected payment details remain visible even when legacy PII has no payment ID.</p></article>
         <article class="card"><h3>Acknowledgement is not a clear</h3><p>Owner acknowledgement timestamps the exact review revision seen. It does not send, decide provider outcome, erase Money debt, or make a contradiction safe.</p></article>
       </div>
     </section>
@@ -379,7 +381,8 @@
       </div>
       <div class="grid-3" style="margin-top:1rem">
         <article class="card"><h3>Checkout failures stay honest</h3><p>Known provider absence or buyer-correctable input can become an ordinary refusal. Network, malformed successful response, database, and application errors remain errors; unknown exceptions keep their identity.</p></article>
-        <article class="card"><h3>Session facts carry provider identity</h3><p>A validated paid session records which provider authenticated it. Today’s site setting no longer stands in for the provider that owns an old charge.</p></article>
+        <article class="card"><h3>Admitted refund facts keep provider identity</h3><p>Once callback validation has produced a provider-tagged charge, the refund engine keeps that provider and never re-resolves today’s setting. Initial checkout and callback provider selection remain part of the later whole-checkout cutover.</p></article>
+        <article class="card"><h3>Square recognises its old app orders</h3><p>Square’s <code>_origin</code> field is a durable “created by this app” marker, not a value that must equal today’s domain. After a domain change, a damaged old app order is still treated as malformed-and-retryable instead of being misclassified as somebody else’s order and terminally acknowledged.</p></article>
         <article class="card"><h3>Square monolith is only a structural split</h3><p>The old large file is separated into client, transport, checkout, connection, order, payment outcomes, read, API, and webhook modules. The distilled report excludes moves and names only changed behavior.</p></article>
       </div>
     </section>
@@ -387,7 +390,7 @@
     <section id="proof">
       <p class="eyebrow">10 · Proof, not just branches</p>
       <h2>The test changes follow the authority boundaries.</h2>
-      <p class="section-lede">The source report is scoped to <code>src/</code>, but its safety claims are pinned outside that directory. The branch adds or updates pure rule tests, database and route integration tests, architecture guards, mutation expectations, and seven visitor-level payment stories.</p>
+      <p class="section-lede">The source report is scoped to <code>src/</code>, but its safety claims are pinned outside that directory. The branch adds or updates pure rule tests, database and route integration tests, architecture guards, mutation expectations, and eight visitor-level payment stories. The suite now contains 261 scenarios and 1,860 steps, including a real owner journey where unreadable SumUp evidence sends nothing and opens the required decision.</p>
       <div class="test-stack">
         <article class="test-level"><h3>Pure rules</h3><p>Every Money shape, provider-read outcome, refund judgment, row lifecycle, charge-authority transition, owner choice, replay window, and permission decision gets an exhaustive table.</p></article>
         <article class="test-level"><h3>Storage and races</h3><p>Claims, CAS transitions, shared references, callback replay, merge/delete/prune, partial indexes, budget reservation, ledger batch bounds, and provider wire parsing run against real repositories or integration seams.</p></article>
@@ -406,15 +409,16 @@
         <article class="module"><code>features/admin/refunds/{attempt,authority,budget,claim,dispatch,provider}</code><p>The admin orchestration shell: prepare, price, claim, call canonical authority, record returned Money, settle.</p></article>
         <article class="module"><code>features/admin/refunds/{candidates,readiness*,ready-admission,waves,provider-requests}</code><p>Complete reference admission, provider-qualified readiness, bounded waves, and refusal reasons. Old provider discovery/guessing is absent from the live path.</p></article>
         <article class="module"><code>features/admin/refunds/{confirmation,ledger-findings,result-findings,row-reviews,report,refresh}</code><p>Structured confirmation, exact local findings, safe diagnostics, review retirement, and observation-only repair.</p></article>
-        <article class="module"><code>features/admin/{attendee-form-routes,attendee-page*,attendee-payment-review,attendees*,entity-pages,listing-page}</code><p>Show real payment work after merge/deletion, bind actions to the role and current case, and keep repair targets reachable.</p></article>
-        <article class="module"><code>features/admin/privacy · ui/templates/admin/{privacy,provider-refund-cases,attendees,confirm-page}</code><p>Owner recovery queues, exact action forms, manager-safe controls, and plain-language results.</p></article>
+        <article class="module"><code>features/admin/{attendee-form-routes,attendee-page*,attendee-payment-review,attendees*,entity-pages,listing-page}</code><p>Show real payment work after merge/deletion, bind actions to the role and current case, and keep repair targets reachable. The attendee page carries the bounded typed reference result into its template, so <code>provider_unknown</code> shows its refusal without promising a dead Refresh route.</p></article>
+        <article class="module"><code>features/admin/{attendee-form-lines,attendee-logistics,attendees-list,bulk-email,ledger/statements,servicing,sms} · shared/{bulk-email-targets/listings,form-data,ledger-scope,logistics-filter,order-select} · db/questions/parsing</code><p>Mechanical callers now use the one positive-integer parser directly. The deleted alias changed no behavior and leaves no compatibility path.</p></article>
+        <article class="module"><code>features/admin/privacy · ui/templates/admin/{privacy,provider-refund-cases,attendees,confirm-page}</code><p>Owner recovery queues, exact action forms, manager-safe controls, and plain-language results—including an explicit no-send answer when unreadable ready work opens an owner choice.</p></article>
         <article class="module"><code>features/admin/require-provider (deleted) · settings-square</code><p>Remove a global-provider gate from historical refund work; provider selection now belongs to each tagged charge. Settings wiring follows the shared provider surface.</p></article>
         <article class="module"><code>locales/en/{attendees,privacy,guide-accounts}.json · admin-surface/write-routes-a-m</code><p>Blocked/recovery copy and route registration track the real owner/manager exits.</p></article>
       </div></details>
 
       <details open><summary>Buyer callbacks and checkout failure handling</summary><div class="module-grid">
         <article class="module"><code>features/api/payment-processing/{classify,create,index,pricing,recovery}</code><p>Carry provider identity and exact paid facts, fail before booking on unreadable trusted input, and keep unexpected-create recovery explicit.</p></article>
-        <article class="module"><code>features/api/payment-processing/{refunds,store-refund}</code><p>Replace direct refund calls with canonical authority targets; write a repairable placeholder and indexed anchor before provider work.</p></article>
+        <article class="module"><code>features/api/payment-processing/{refunds,store-refund}</code><p>Replace direct refund calls with canonical authority targets; write the repairable placeholder, indexed anchor, and checking claim before provider work, then retire the exact claim only after provider, ledger, authority, activity, and note work finishes.</p></article>
         <article class="module"><code>features/api/webhooks · features/read-json-body · shared/read-json</code><p>Keep malformed bodies and signed/provider-authenticated callback failures distinct; parsing errors do not become silent skips.</p></article>
         <article class="module"><code>shared/{booking,checkout-complete,payment-helpers,payment-idempotency,payments}</code><p>Carry tagged references and Money through booking completion, expose the strict provider contract, and derive stable refund identities.</p></article>
       </div></details>
@@ -423,18 +427,18 @@
         <article class="module"><code>shared/payment/{money,resource-id,resources,refund,diagnose,conflict,admit-refund}</code><p>One validated charge-Money model and one exhaustive answer for ready, returned, pending, or conflicting evidence.</p></article>
         <article class="module"><code>shared/payment/{provider-read,provider-failures,refund-attempt,refund-network}</code><p>Total read/send outcomes, shared failure translation, and exactly one evidence-led reread where the adapter contract requires it.</p></article>
         <article class="module"><code>shared/payment/{provider-reference,validated-session}</code><p>Versioned provider-qualified identity at storage and callback boundaries. Unqualified legacy values refuse in live refund work.</p></article>
-        <article class="module"><code>shared/payment/{refund-authority,refund-authority-choice,refund-authority-lifecycle}</code><p>The pure durable state machine, required owner decisions, and one declared clear/prune/delete/merge policy for every state.</p></article>
+        <article class="module"><code>shared/payment/{refund-authority,refund-authority-choice,refund-authority-lifecycle}</code><p>The pure durable state machine, reason-specific source states for required owner decisions—including ready-but-unreadable work—and one declared clear/prune/delete/merge policy for every state.</p></article>
         <article class="module"><code>shared/payment/{refund-provider-authorization,refund-replay-window,refund-request-identity,refund-generation}</code><p>Typed send permits, keyed/keyless replay rules, stable request/callback identities, and validated generations.</p></article>
-        <article class="module"><code>shared/provider-refunds{,/target,/send,/state,/work,/budget} · provider-refund-cursor</code><p>The sole engine and owner-queue cursor. Both admin and callback entries load, reconcile, arm, send/observe, and persist through it.</p></article>
+        <article class="module"><code>shared/provider-refunds{,/target,/send,/state,/work,/budget} · provider-refund-cursor</code><p>The sole engine and owner-queue cursor. Both admin and callback entries load, reconcile, arm, send/observe, and persist through it. Ready work may wait through one five-minute unavailable-evidence grace, then must expose the owner-choice exit.</p></article>
         <article class="module"><code>shared/payment/{row-state,claim,review,admit-move} · shared/payment-review</code><p>Local claim/review/books-behind facts, destructive-write policy, retirement proof, and closed diagnostic reasons.</p></article>
         <article class="module"><code>shared/payment/{placeholder-refund,checkout-failure} · named-error · logger · subrequest-budget</code><p>Finite retained diagnostics, fail-loud checkout boundaries, deferred non-critical reports, and protected physical-call allowances.</p></article>
       </div></details>
 
       <details open><summary>Database authority, claims, references, and maintenance</summary><div class="module-grid">
         <article class="module"><code>shared/db/provider-refund-authority · provider-refund-cases</code><p>The sole <code>payment_charges</code> writer and its bounded owner recovery repository; detail decrypts only after owner authentication.</p></article>
-        <article class="module"><code>shared/db/payment-claim{,/scope,/take} · payment-admit-move</code><p>Atomic complete-set claims, revision and row-set fences, exact settlement, and transaction-time merge/delete admission.</p></article>
+        <article class="module"><code>shared/db/payment-claim{,/scope,/take} · payment-admit-move</code><p>Atomic complete-set claims, the reusable canonical checking fence, encrypted-state/mirror values made together, revision and row-set fences, exact settlement, and transaction-time merge/delete admission.</p></article>
         <article class="module"><code>shared/db/payment-reference-{store,rows} · payment-references</code><p>Owner-key storage, blind indexes, bounded selected-row reads, complete/legacy/provider-unknown/too-many results, and no untagged legacy path to a provider.</p></article>
-        <article class="module"><code>shared/db/payment-anchor/{attendee,reference,session} · attendees/pii-write</code><p>Provider-proved tagged anchors for automatic placeholders; ordinary attendee edits encrypt PII atomically without creating legacy payment rows.</p></article>
+        <article class="module"><code>shared/db/payment-anchor/{attendee,reference,session} · attendees/pii-write</code><p>Provider-proved tagged anchors for automatic placeholders now bind one exact attendee and carry their own checking claim plus settlement; ordinary attendee edits encrypt PII atomically without creating legacy payment rows.</p></article>
         <article class="module"><code>shared/db/refund-all-candidates · payment-review · refund-confirmations · notes/{queries,sealing,types}</code><p>PII-free whole-set safety, exact review revision, replay-safe confirmation identities, and named app notes without history scans.</p></article>
         <article class="module"><code>shared/db/processed-payments · payment-finalize</code><p>Write encrypted reference and index together, encode local state plus mirror together, and refuse finalization under a live claim.</p></article>
         <article class="module"><code>shared/db/attendees/{atomic-update,create,create-batch,delete,dependent-data,queries,select,servicing,update}</code><p>Atomic PII saves, schema-driven dependent handling, booking-specific refund truth, and work-safe moves/deletes.</p></article>
@@ -442,7 +446,7 @@
         <article class="module"><code>shared/accounting/{backfill,conflicts,mappers,queries,store}</code><p>Name stored conflicts as planning results, read accounts in batches, derive exact refund groups, and post clean batches together.</p></article>
         <article class="module"><code>shared/refund-ledger/{plan,record,result,placeholder,log} · refund-ledger.ts (deleted)</code><p>Structural split plus meaningful change from one attendee boolean to per-reference recorded/unrecorded/review findings and bounded batch posting.</p></article>
         <article class="module"><code>shared/db/client · existing-payment-provider</code><p>Expose physical DB retry count to the budget and separate credential availability from historical charge ownership.</p></article>
-        <article class="module"><code>validation/{kind,number,string}</code><p>Small shared boundary validators used by the new closed schemas.</p></article>
+        <article class="module"><code>validation/{kind,number,string}</code><p>Small shared boundary validators used by the new closed schemas. The duplicate positive-ID parser alias is deleted; callers use <code>parsePositiveInt</code> itself.</p></article>
       </div></details>
 
       <details open><summary>Schema and migrations</summary><div class="module-grid">
@@ -450,18 +454,18 @@
         <article class="module"><code>2026-08-12_refund_confirmations</code><p>Add exact confirmation and member tables, plus indexed app-note names.</p></article>
         <article class="module"><code>2026-08-13_payment_work_queue_index</code><p>Add a partial attendee index for the small set of locally protected payment rows.</p></article>
         <article class="module"><code>2026-08-13_refund_authority</code><p>Refuse a populated dormant table, then activate <code>payment_charges</code> as canonical refund authority.</p></article>
-        <article class="module"><code>migrations/schema/payments/{charges,columns,index,refund-confirmations}</code><p>Owner-key-only raw references, state/mirror constraints, unique identities, due/work partial indexes, and confirmation tables.</p></article>
+        <article class="module"><code>migrations/schema/payments/{charges,columns,index,refund-confirmations}</code><p>Owner-key-protected raw references, state/mirror constraints, unique identities, due/work partial indexes, and confirmation tables.</p></article>
         <article class="module"><code>migrations/schema/{tables-attendees,tables-questions,types} · schema-sync</code><p>Processed-row state/index columns, named notes, partial-index <code>where</code> support, and predicate dependency discovery for restore.</p></article>
         <article class="module"><code>migrations/registry · migrations/schema/version · migrations/2026-07-26_payment_records</code><p>Register the new migrations and make historical/fresh table lists converge on the current schema.</p></article>
       </div></details>
 
       <details open><summary>Provider adapters</summary><div class="module-grid">
         <article class="module"><code>shared/stripe-provider · stripe · stripe/{client,endpoints,request,runtime,schemas}</code><p>Replace refund booleans/direct calls with exact charge reads and typed authorized sends; distinguish transport, provider, protocol, and buyer-correctable failures.</p></article>
-        <article class="module"><code>shared/square-provider · square.ts (deleted) · square/{api,checkout,client,connection,order,outcomes,payment-outcomes,read,transport,webhook}</code><p>Split the monolith by responsibility and harden Money, wire schemas, error translation, webhook proof, and authorized refunds.</p></article>
+        <article class="module"><code>shared/square-provider · square.ts (deleted) · square/{api,checkout,client,connection,order,outcomes,payment-outcomes,read,transport,webhook}</code><p>Split the monolith by responsibility and harden Money, wire schemas, error translation, webhook proof, and authorized refunds. App-created order recognition now trusts the durable <code>_origin</code> marker across domain changes.</p></article>
         <article class="module"><code>shared/sumup-provider · sumup · sumup-observation · sumup/{failures,money,transaction,transport,wire}</code><p>Validate transaction currency/amount/events, keep keyless uncertainty explicit, and reread fresh evidence instead of trusting one submission answer.</p></article>
       </div></details>
 
-      <div class="callout"><span class="mark">Σ</span><p><strong>Raw path accounting:</strong> the final snapshot contains <strong>95 added</strong>, <strong>92 modified</strong>, and <strong>3 deleted</strong> source paths. Structural deletions are <code>features/admin/require-provider.ts</code>, <code>shared/refund-ledger.ts</code>, and <code>shared/square.ts</code>; their still-needed behavior either moved into the one shared mechanism or was removed.</p></div>
+      <div class="callout"><span class="mark">Σ</span><p><strong>Raw path accounting:</strong> the final snapshot contains <strong>95 added</strong>, <strong>105 modified</strong>, and <strong>3 deleted</strong> source paths. Structural deletions are <code>features/admin/require-provider.ts</code>, <code>shared/refund-ledger.ts</code>, and <code>shared/square.ts</code>; their still-needed behavior either moved into the one shared mechanism or was removed.</p></div>
     </section>
 
     <section id="limits">
@@ -471,13 +475,13 @@
         <article class="card boundary"><span class="label">Old data</span><h3>No live compatibility reader</h3><p>Pre-index or unqualified references do not regain refunds here. Ordinary save and merge do not materialize them. Historical references wait for bounded owner-authenticated migration.</p></article>
         <article class="card boundary"><span class="label">Bulk intent</span><h3>No durable “finish the listing” job</h3><p>Each Refund All submission safely completes at most one attendee. A crash leaves remaining candidates discoverable, but this part does not persist an automatic whole-listing cursor.</p></article>
         <article class="card boundary"><span class="label">Later aggregate</span><h3>No stable obligation allocator</h3><p>This is the current-charge refund authority, not the later whole-payment, allocation, decision, effect, or delivery aggregate. Those later layers must link to it, not build a second engine.</p></article>
-        <article class="card boundary"><span class="label">Callback cutover</span><h3>Current classifier remains</h3><p>The buyer callback still judges its signed paid session with the current classifier. A later atomic cutover combines whole-checkout observation and durable completion.</p></article>
+        <article class="card boundary"><span class="label">Callback cutover</span><h3>Current checkout entry remains</h3><p>The buyer callback still begins with the current/last configured provider and retains existing terminal-acknowledgement edge cases for blank paid references or malformed signed completions. Once a provider-tagged refund target is admitted, this branch has one authority; a later atomic cutover replaces the remaining whole-checkout entry rather than adding a parallel path.</p></article>
         <article class="card boundary"><span class="label">Historical privacy</span><h3>Old plaintext is not erased</h3><p>This branch closes new reference writes and live reads; it does not perform the later verified redaction of historical raw references or old environment-key notes.</p></article>
         <article class="card boundary"><span class="label">Credentials</span><h3>Provider access is a separate boundary</h3><p>Owner-key storage does not protect provider-side data if a database-plus-environment-key holder can decrypt provider credentials.</p></article>
       </div>
     </section>
 
-    <footer><strong>One-off live-tree report.</strong> Generated from <code>origin/main</code> at <code>470b47efef0836487d55beb8a26442dd432f6f35</code> versus the clean <code>src/</code> tree at branch commit <code>fbc8340f8dc2b52bdffe59f81dfa1c113c475ddc</code>. Snapshot <code>9662f753a1ade94260f3ead9d0dc7e0624dee08c059c15d8d03ebb35575f0d1a</code> is the SHA-256 of the base identity plus the sorted changed-path/blob manifest; deleted paths are recorded as <code>DELETED</code>. Counts describe <code>src/</code> only. Explanations were checked against the current code and its as-built module map; later source edits require regeneration.</footer>
+    <footer><strong>One-off live-tree report.</strong> Generated at <code>2026-08-14T03:18:55+01:00</code> from <code>origin/main</code> at <code>470b47efef0836487d55beb8a26442dd432f6f35</code> versus the clean <code>src/</code> tree at branch commit <code>d16a6acfd83675fb62118ca64baac096cbcbbfb8</code>. Source-diff fingerprint <code>24d433aa6dec0e30d79a1e5379f9bbc7476ffbbdbcf453abe69b6e4bacebb7f0</code> is the SHA-256 of the full-index binary diff for <code>src/</code>. Counts describe <code>src/</code> only. Explanations were checked against the current code and its as-built module map; later source edits require regeneration.</footer>
   </main>
 </body>
 </html>

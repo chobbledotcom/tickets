@@ -2,15 +2,17 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { PaymentProviderSchema } from "#shared/types.ts";
+import { scenarioBrowser } from "#test/specs/support/browser.ts";
 import { forgetStoredPaymentProvider } from "#test/specs/support/refund-safety/history.ts";
 import {
   openActionsAsOwner,
-  openOwnerAction,
+  openAttendeeAsOwner,
   ownerRefunds,
 } from "#test/specs/support/refund-safety/journeys.ts";
 import { safetyBooking } from "#test/specs/support/refund-safety/state.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import {
+  expectNoRefundAction,
   expectOwnerWasTold,
   refundProviderFor,
   showCompletedStripeRefund,
@@ -37,16 +39,25 @@ When(
 );
 
 When(
-  "the owner opens Refund for {word} from her Actions page",
+  "the owner opens {word}'s attendee page",
   async function (this: TicketsWorld, who: string): Promise<void> {
-    await openOwnerAction(this, who, "Refund");
+    await openAttendeeAsOwner(this, who);
   },
 );
 
-When(
-  "the owner reopens Refund for {word} from her Actions page",
+Then(
+  "{word}'s attendee page does not offer Refresh payment status",
+  function (this: TicketsWorld, _who: string): void {
+    expect(() =>
+      scenarioBrowser(this).formBodyFor("Refresh payment status"),
+    ).toThrow('No form found with button text "Refresh payment status"');
+  },
+);
+
+Then(
+  "{word}'s Actions page does not offer Refund",
   async function (this: TicketsWorld, who: string): Promise<void> {
-    await openOwnerAction(this, who, "Refund");
+    await expectNoRefundAction(this, who);
   },
 );
 

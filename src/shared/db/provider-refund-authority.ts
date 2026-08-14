@@ -3,7 +3,7 @@
 /* jscpd:ignore-start -- imports */
 import { execute, queryAll, queryOne, resultRows } from "#shared/db/client.ts";
 import { storePaymentReference } from "#shared/db/payment-reference-store.ts";
-import type { Money } from "#shared/payment/money.ts";
+import { type Money, sameMoney } from "#shared/payment/money.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 import type { RefundAuthorityState } from "#shared/payment/refund-authority.ts";
 import {
@@ -15,8 +15,8 @@ import {
   refundStateMirror,
   writeRefundAuthorityState,
 } from "#shared/payment/refund-authority.ts";
-import type { RefundProviderCapability } from "#shared/payment/refund-provider-authorization.ts";
 import { REFUND_PROVIDER_CAPABILITIES } from "#shared/payment/refund-provider-authorization.ts";
+import { requireValue } from "#shared/required-value.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 /* jscpd:ignore-end */
 
@@ -68,12 +68,8 @@ const authorityRow = (row: StoredRefundAuthorityRow): RefundAuthorityRow => ({
 
 const oneAuthority = (
   rows: readonly StoredRefundAuthorityRow[],
-): RefundAuthorityRow | null => {
-  if (rows.length > 1) {
-    throw new Error("Refund identity resolved to more than one charge");
-  }
-  return rows[0] === undefined ? null : authorityRow(rows[0]);
-};
+): RefundAuthorityRow | null =>
+  rows[0] === undefined ? null : authorityRow(rows[0]);
 
 const authorityFromResult = (
   result: Parameters<typeof resultRows>[0],
@@ -180,7 +176,6 @@ const stateWrite = (
 
 export interface CreateRefundAuthority {
   readonly callbackReplayIndex?: string | undefined;
-  readonly capability: RefundProviderCapability;
   readonly captured: Money;
   readonly now: number;
   readonly reference: TaggedPaymentReference;
@@ -189,8 +184,8 @@ export interface CreateRefundAuthority {
 
 const requireCreateFacts = (input: CreateRefundAuthority): void => {
   if (
-    input.state.request.capability !== input.capability ||
-    REFUND_PROVIDER_CAPABILITIES[input.reference.provider] !== input.capability
+    REFUND_PROVIDER_CAPABILITIES[input.reference.provider] !==
+    input.state.request.capability
   ) {
     throw new Error("Refund authority facts disagree");
   }
@@ -199,15 +194,8 @@ const requireCreateFacts = (input: CreateRefundAuthority): void => {
 const requireSameAuthority = (
   row: RefundAuthorityRow,
   input: CreateRefundAuthority,
-  referenceIndex: string,
 ): void => {
-  if (
-    row.referenceIndex !== referenceIndex ||
-    row.provider !== input.reference.provider ||
-    row.state.request.capability !== input.capability ||
-    (input.callbackReplayIndex !== undefined &&
-      row.callbackReplayIndex !== input.callbackReplayIndex)
-  ) {
+  if (!sameMoney(row.captured, input.captured)) {
     throw new Error("Refund identity belongs to different charge facts");
   }
 };
@@ -218,6 +206,15 @@ export const createOrLoadRefundAuthority = async (
 ): Promise<RefundAuthorityRow> => {
   requireCreateFacts(input);
   const stored = await storePaymentReference(input.reference);
+  const callbackReplayIndex = input.callbackReplayIndex;
+  const loadConflictOwner =
+    callbackReplayIndex === undefined
+      ? () => loadRefundAuthorityByReference(stored.index)
+      : () =>
+          loadRefundCallbackBinding({
+            callbackReplayIndex,
+            referenceIndex: stored.index,
+          });
   const result = await execute(
     `INSERT INTO payment_charges
         (provider, provider_reference, reference_index, callback_replay_index,
@@ -248,7 +245,7 @@ export const createOrLoadRefundAuthority = async (
       stored.encrypted,
       stored.index,
       input.callbackReplayIndex ?? null,
-      input.capability,
+      input.state.request.capability,
       input.captured.amount,
       input.captured.currency,
       0,
@@ -263,16 +260,11 @@ export const createOrLoadRefundAuthority = async (
     ],
   );
   const returned = authorityFromResult(result);
-  const row =
-    returned ??
-    (input.callbackReplayIndex === undefined
-      ? null
-      : await loadRefundCallbackBinding({
-          callbackReplayIndex: input.callbackReplayIndex,
-          referenceIndex: stored.index,
-        }));
-  if (row === null) throw new Error("Created refund authority is missing");
-  requireSameAuthority(row, input, stored.index);
+  const row = requireValue(
+    returned ?? (await loadConflictOwner()),
+    "Created refund authority is missing",
+  );
+  requireSameAuthority(row, input);
   return row;
 };
 

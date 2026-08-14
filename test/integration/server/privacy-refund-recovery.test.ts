@@ -40,6 +40,41 @@ import {
 const casePath = (id: number): string => `/admin/privacy/refunds/${id}`;
 const MISSING_CASE_PATH = casePath(987_654_321);
 
+const unreadableProviderCheck = (sendError: string) => {
+  const read = stub(sumupPaymentProvider, "readCharge", () =>
+    Promise.resolve({ reason: "timeout", status: "unavailable" } as const),
+  );
+  const send = stub(sumupPaymentProvider, "refundCharge", () => {
+    throw new Error(sendError);
+  });
+  return {
+    read,
+    send,
+    [Symbol.dispose]: () => {
+      send.restore();
+      read.restore();
+    },
+  };
+};
+
+const expectUnreadableProviderCheck = async (
+  id: number,
+  provider: ReturnType<typeof unreadableProviderCheck>,
+  flashMessage: string,
+  activityMessage: string,
+): Promise<void> => {
+  await expectFlashRedirect(
+    casePath(id),
+    flashMessage,
+    false,
+  )(await submitCase(await testCookie(), { choice: "check_again" }, id));
+  expect(provider.read.calls).toHaveLength(1);
+  expect(provider.send.calls).toHaveLength(0);
+  expect((await getAllActivityLog()).map(({ message }) => message)).toContain(
+    activityMessage,
+  );
+};
+
 const submitCase = async (
   cookie: string,
   fields: Record<string, string> = {},
@@ -91,6 +126,12 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
 
   test("returns 404 when an owner submits a case which no longer exists", async () => {
     expectStatus(404)(await submitCase(await testCookie()));
+  });
+
+  test("returns 404 when an owner checks a case which no longer exists", async () => {
+    expectStatus(404)(
+      await submitCase(await testCookie(), { choice: "check_again" }),
+    );
   });
 
   test("requires one declared choice and a positive seen revision", async () => {
@@ -158,22 +199,14 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
         Date.now() + 60_000,
       ),
     );
-    using read = stub(sumupPaymentProvider, "readCharge", () =>
-      Promise.resolve({ reason: "timeout", status: "unavailable" } as const)
+    using provider = unreadableProviderCheck(
+      "An unreadable check must not send a refund",
     );
-    using send = stub(sumupPaymentProvider, "refundCharge", () => {
-      throw new Error("An unreadable check must not send a refund");
-    });
 
-    await expectFlashRedirect(
-      casePath(id),
+    await expectUnreadableProviderCheck(
+      id,
+      provider,
       "The provider could not supply trustworthy payment evidence. No refund was sent, and this work remains protected.",
-      false,
-    )(await submitCase(await testCookie(), { choice: "check_again" }, id));
-
-    expect(read.calls).toHaveLength(1);
-    expect(send.calls).toHaveLength(0);
-    expect((await getAllActivityLog()).map(({ message }) => message)).toContain(
       `Refund recovery ${id}: provider evidence was unreadable; no refund was sent`,
     );
   });
@@ -183,21 +216,16 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
       "owner-unreadable-ready-reference",
       readyRefundTestState("owner-unreadable-ready-request"),
     );
-    using read = stub(sumupPaymentProvider, "readCharge", () =>
-      Promise.resolve({ reason: "timeout", status: "unavailable" } as const)
+    using provider = unreadableProviderCheck(
+      "Unreadable ready work must not send a refund",
     );
-    using send = stub(sumupPaymentProvider, "refundCharge", () => {
-      throw new Error("Unreadable ready work must not send a refund");
-    });
 
-    await expectFlashRedirect(
-      casePath(id),
+    await expectUnreadableProviderCheck(
+      id,
+      provider,
       "The provider could not settle what happened. No refund was sent; check the payment there and make the required choice.",
-      false,
-    )(await submitCase(await testCookie(), { choice: "check_again" }, id));
-
-    expect(read.calls).toHaveLength(1);
-    expect(send.calls).toHaveLength(0);
+      `Refund recovery ${id}: provider evidence opened a required owner choice; no refund was sent`,
+    );
     const row = await queryOne<{ refund_state: string }>(
       "SELECT refund_state FROM payment_charges WHERE id = ?",
       [id],
@@ -208,9 +236,6 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
       kind: "needs_owner_choice",
       reason: "provider_unreadable",
     });
-    expect((await getAllActivityLog()).map(({ message }) => message)).toContain(
-      `Refund recovery ${id}: provider evidence opened a required owner choice; no refund was sent`,
-    );
   });
 
   test("a ready intent is reachable and sends only through the canonical engine", async () => {
@@ -272,6 +297,21 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
         false,
       )(await submitCase(await testCookie(), { choice: "check_again" }, id));
     }
+  });
+
+  test("refuses an owner decision made from a stale case revision", async () => {
+    const id = await addProviderRefundTestCase("stale-owner-decision");
+
+    await expectFlashRedirect(
+      casePath(id),
+      "This refund changed while you were checking it. Read the current details and choose again.",
+      false,
+    )(await submitCase(await testCookie(), { revision: "99" }, id));
+    const row = await queryOne<{ refund_revision: number }>(
+      "SELECT refund_revision FROM payment_charges WHERE id = ?",
+      [id],
+    );
+    expect(row?.refund_revision).toBe(1);
   });
 
   test("lets the owner complete the real returned-money journey without leaking the reference", async () => {

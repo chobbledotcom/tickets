@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { requiredMapValue, uniqueBy } from "#fp";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import {
@@ -46,9 +47,7 @@ export type RecordingProvider = ReadyRefundProvider & {
   requests: RefundRequest[];
 };
 export const finishedCounts = (result: RefundBatchResult): RefundCounts => {
-  if (result.kind === "blocked") {
-    throw new Error(`Expected the refund batch to run (${result.reason})`);
-  }
+  assert("counts" in result, "Expected the refund batch to run");
   return result.counts;
 };
 
@@ -140,11 +139,10 @@ const prepareProviderReference = async (
   source: RecordingProvider,
   alreadyReturned: ReadonlySet<string>,
 ): Promise<PreparedProviderReference> => {
-  if (reference.provider !== source.type) {
-    throw new Error(
-      `Test readiness received ${reference.provider} payment at ${source.type}`,
-    );
-  }
+  assert(
+    reference.provider === source.type,
+    `Test readiness received ${reference.provider} payment at ${source.type}`,
+  );
   if (
     reference.refundState === "completed" ||
     alreadyReturned.has(reference.index)
@@ -391,26 +389,14 @@ export const pendingCandidate = (
   ),
 });
 
-/** Provider that rejects each refund except named uncertain answers. */
 export const failingProvider = (
-  uncertain: Set<string>,
   refundCapability: RefundProviderCapability = "keyed",
-): RecordingProvider => {
-  const answerRefund = ({ paymentReference }: RefundRequest) =>
-    Promise.resolve<RefundAttemptResult>(
-      uncertain.has(paymentReference)
-        ? { kind: "uncertain", reason: "network_error" }
-        : { kind: "rejected", reason: "failed" },
-    );
-  return {
-    answerRefund,
-    readCharge: () =>
-      Promise.resolve({ resource: chargeMoney(), status: "found" } as const),
-    reads: [],
+): RecordingProvider =>
+  provider({
+    refund: () =>
+      Promise.resolve({
+        kind: "rejected",
+        reason: "failed",
+      }),
     refundCapability,
-    refundCharge: (request: AuthorizedRefundRequest) => answerRefund(request),
-    refunds: [],
-    requests: [],
-    type: "stripe",
-  };
-};
+  });

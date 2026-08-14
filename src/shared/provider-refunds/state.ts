@@ -73,7 +73,7 @@ export const refundAnswerFrom = (
 };
 
 export const requireCurrentRefund = async (
-  row: RefundAuthorityRow,
+  row: Pick<RefundAuthorityRow, "id">,
 ): Promise<RefundAuthorityRow> => {
   const current = await loadRefundAuthorityById(row.id);
   if (current === null) throw new Error("Refund authority disappeared");
@@ -188,32 +188,32 @@ type AnswerRefund = (
   reference: TaggedPaymentReference,
 ) => Promise<ProviderRefundResult>;
 
-/** Preserve terminal work, or turn a live disagreement into an owner choice. */
-export const answerProviderConflict: AnswerRefund = async (
-  row,
-  now,
-  reference,
-) =>
-  row.state.kind === "completed" || row.state.kind === "needs_owner_choice"
-    ? refundAnswerFrom(row, reference)
-    : await moveRefundToOwner(
-        row,
-        "provider_conflict",
-        now,
-        reference,
-        row.refunded,
-      );
+const keepKnownRefundOr =
+  (
+    keptStates: readonly RefundAuthorityState["kind"][],
+    change: AnswerRefund,
+  ): AnswerRefund =>
+  async (row, now, reference) =>
+    keptStates.includes(row.state.kind)
+      ? refundAnswerFrom(row, reference)
+      : await change(row, now, reference);
 
-export const completeRefundFromEvidence: AnswerRefund = async (
-  row,
-  now,
-  reference,
-) =>
-  await refundAfterTransition(
-    await completeRefundAuthority(row, row.captured, now, "provider"),
-    row,
-    reference,
-  );
+/** Preserve terminal work, or turn a live disagreement into an owner choice. */
+export const answerProviderConflict: AnswerRefund = keepKnownRefundOr(
+  ["completed", "needs_owner_choice"],
+  (row, now, reference) =>
+    moveRefundToOwner(row, "provider_conflict", now, reference, row.refunded),
+);
+
+export const completeRefundFromEvidence: AnswerRefund = keepKnownRefundOr(
+  ["completed"],
+  async (row, now, reference) =>
+    await refundAfterTransition(
+      await completeRefundAuthority(row, row.captured, now, "provider"),
+      row,
+      reference,
+    ),
+);
 
 export const observePendingRefund = async (
   row: RefundAuthorityRow,

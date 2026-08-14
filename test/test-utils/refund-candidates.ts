@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import {
   getRefundCandidates,
   type RefundCandidate,
@@ -13,17 +14,15 @@ export const getCompleteRefundCandidates = async (
   privateKey: CryptoKey,
 ): Promise<RefundCandidate[]> => {
   const loaded = await getRefundCandidates(attendees, privateKey);
-  if (loaded.kind === "legacy_unindexed") {
-    throw new Error("Test refund candidates contain unindexed payment history");
-  }
-  if (loaded.kind === "provider_unknown") {
-    throw new Error(
+  const problem = {
+    complete: "Test refund candidates are complete",
+    legacy_unindexed:
+      "Test refund candidates contain unindexed payment history",
+    provider_unknown:
       "Test refund candidates contain a payment with no recorded provider",
-    );
-  }
-  if (loaded.kind === "too_many_references") {
-    throw new Error("Test refund candidates contain too many payment rows");
-  }
+    too_many_references: "Test refund candidates contain too many payment rows",
+  } satisfies Record<typeof loaded.kind, string>;
+  assert(loaded.kind === "complete", problem[loaded.kind]);
   return loaded.candidates;
 };
 

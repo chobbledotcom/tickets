@@ -1,8 +1,8 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import {
   getRefundPaymentReferences,
   getRefundPaymentReferencesForAttendee,
-  type RefundPaymentReference,
   type RefundPaymentReferenceOwner,
   type RefundPaymentReferenceSet,
   type RefundPaymentReferenceSource,
@@ -23,15 +23,10 @@ const RETURNED_AT = 1_700_000_000_000;
 
 /** Build completed authority state through the production transition writers. */
 export const markProviderRefundsReturned = async (
-  references: readonly RefundPaymentReference[],
+  references: readonly TaggedRefundPaymentReference[],
   local: "due" | "recorded" = "recorded",
 ): Promise<void> => {
   for (const reference of references) {
-    if (reference.kind !== "tagged" || /\s/u.test(reference.reference)) {
-      throw new Error(
-        "A canonical refund test needs a valid provider-tagged charge",
-      );
-    }
     const capability = REFUND_PROVIDER_CAPABILITIES[reference.provider];
     const identityIndex = await refundRequestIdentityIndex(reference, 1);
     const request =
@@ -44,7 +39,6 @@ export const markProviderRefundsReturned = async (
             replayUntil: refundReplayUntil(reference.provider, RETURNED_AT),
           };
     const row = await createOrLoadRefundAuthority({
-      capability,
       captured: { amount: 500, currency: "GBP" },
       now: RETURNED_AT,
       reference,
@@ -61,9 +55,10 @@ export const markProviderRefundsReturned = async (
       RETURNED_AT,
       "provider",
     );
-    if (completed === null) {
-      throw new Error("Test refund authority completion lost its revision");
-    }
+    assert(
+      completed !== null,
+      "Test refund authority completion lost its revision",
+    );
     if (local === "recorded") {
       await recordProviderRefunds([completed], RETURNED_AT + 1);
     }
@@ -74,15 +69,13 @@ export const requireCompleteRefundReferences = (
   set: RefundPaymentReferenceSet,
   context = "Test payment history",
 ): TaggedRefundPaymentReference[] => {
-  if (set.kind === "legacy_unindexed") {
-    throw new Error(`${context} is unexpectedly unindexed`);
-  }
-  if (set.kind === "too_many_references") {
-    throw new Error(`${context} has unexpectedly many payment references`);
-  }
-  if (set.kind === "provider_unknown") {
-    throw new Error(`${context} has no recorded payment provider`);
-  }
+  const problem = {
+    complete: "is complete",
+    legacy_unindexed: "is unexpectedly unindexed",
+    provider_unknown: "has no recorded payment provider",
+    too_many_references: "has unexpectedly many payment references",
+  } satisfies Record<RefundPaymentReferenceSet["kind"], string>;
+  assert(set.kind === "complete", `${context} ${problem[set.kind]}`);
   return set.references;
 };
 

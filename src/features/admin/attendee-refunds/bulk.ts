@@ -120,7 +120,7 @@ const buildRefundProblemResponse = async (
   context: RefundResponseContext,
 ): Promise<Response> => {
   const { listing, refundAllUrl, counts, remaining } = context;
-  const { refundedCount, failedCount, notRecordedCount, pendingCount } = counts;
+  const { refundedCount, failedCount, notRecordedCount } = counts;
   // An unrecorded refund is operator work, so count it as an error.
   const errorCount = notRecordedCount;
   const problemCount = failedCount + errorCount;
@@ -128,18 +128,15 @@ const buildRefundProblemResponse = async (
     t("admin.attendees.refund_all_result_refunds", {
       count: refundedCount,
     }),
-    pendingCount > 0
-      ? t("admin.attendees.refund_all_result_pending", {
-          count: pendingCount,
-        })
-      : null,
     t("admin.attendees.refund_all_result_failures", {
       count: problemCount,
     }),
     errorCount > 0
       ? t("admin.attendees.refund_all_result_errors", { count: errorCount })
       : null,
-    remainingRefundMessage(remaining, pendingCount),
+    // Admission permits one unresolved payment outcome. Incomplete local work
+    // on an older return would have blocked before this response.
+    remainingRefundMessage(remaining, 0),
   ]).join(" ");
   await logActivity(
     `Bulk refund: ${refundActivityCounts(

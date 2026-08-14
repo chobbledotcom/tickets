@@ -1,5 +1,6 @@
 /** Test-only construction of payment rows written before provider tags existed. */
 
+import { assert } from "@std/assert";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { encryptWithOwnerKey } from "#shared/crypto/keys.ts";
 import { execute } from "#shared/db/client.ts";
@@ -29,7 +30,8 @@ export const seedHistoricalProcessedPayment = async (
       WHERE payment_session_id = ? AND attendee_id IS NULL`,
     [attendeeId, stored.encrypted, stored.index, sessionId],
   );
-  if (result.rowsAffected !== 1) {
-    throw new Error(`Could not seed historical payment ${sessionId}`);
-  }
+  assert(
+    result.rowsAffected === 1,
+    `Could not seed historical payment ${sessionId}`,
+  );
 };

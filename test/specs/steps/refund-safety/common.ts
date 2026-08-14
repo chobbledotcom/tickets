@@ -113,7 +113,7 @@ const moneyFor = (world: TicketsWorld, who: string) =>
 const legsNamed = async (world: TicketsWorld, who: string, kind: string) =>
   (await moneyFor(world, who)).filter((leg) => leg.kind === kind);
 
-const expectNoRefundAction = async (
+export const expectNoRefundAction = async (
   world: TicketsWorld,
   who: string,
 ): Promise<string[]> => {

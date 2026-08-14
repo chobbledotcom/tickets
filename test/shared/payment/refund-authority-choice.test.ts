@@ -38,7 +38,7 @@ describe("payment > refund authority owner choice", () => {
         readyRefundForTest("keyless"),
         180,
         "provider_rejected",
-      )
+      ),
     ).toThrow("cannot start from ready");
   });
 
@@ -73,19 +73,20 @@ describe("payment > refund authority owner choice", () => {
       markRefundOwnerChoiceNeeded(keyed, 510, "replay_window_expired").reason,
     ).toBe("replay_window_expired");
     expect(() =>
-      markRefundOwnerChoiceNeeded(keyless, 180, "replay_window_expired")
+      markRefundOwnerChoiceNeeded(keyless, 180, "replay_window_expired"),
     ).toThrow("reason does not match");
-    expect(() => markRefundOwnerChoiceNeeded(keyed, 510, "possibly_sent"))
-      .toThrow("reason does not match");
     expect(() =>
-      markRefundOwnerChoiceNeeded(keyless, 180, "provider_unreadable")
+      markRefundOwnerChoiceNeeded(keyed, 510, "possibly_sent"),
+    ).toThrow("reason does not match");
+    expect(() =>
+      markRefundOwnerChoiceNeeded(keyless, 180, "provider_unreadable"),
     ).toThrow("cannot start from send_armed");
     expect(() =>
       markRefundOwnerChoiceNeeded(
         readyRefundForTest("keyed"),
         180,
         "possibly_sent",
-      )
+      ),
     ).toThrow("cannot start from ready");
   });
 
@@ -150,7 +151,7 @@ describe("payment > refund authority owner choice", () => {
         nextActionAt: 210,
         replayUntil: 500,
         requestIndex: "request-two",
-      })
+      }),
     ).toThrow("Owner choice must keep the provider capability");
   });
 

@@ -2,10 +2,7 @@
 
 /* jscpd:ignore-start -- imports */
 import type { RefundAuthorityRow } from "#shared/db/provider-refund-authority.ts";
-import {
-  loadRefundAuthorityById,
-  markRefundAuthorityRecorded,
-} from "#shared/db/provider-refund-authority.ts";
+import { markRefundAuthorityRecorded } from "#shared/db/provider-refund-authority.ts";
 import { nowMs } from "#shared/now.ts";
 import type {
   ObservedRefundAdmission,
@@ -28,6 +25,7 @@ import {
   observePendingRefund,
   readRefundEvidence,
   refundAnswerFrom,
+  requireCurrentRefund,
   requireMatchingRefundProvider,
 } from "#shared/provider-refunds/state.ts";
 import {
@@ -128,7 +126,7 @@ interface OwnerRefundResult extends RefundResultFacts {
 }
 
 interface WithheldRefundResult extends RefundResultFacts {
-  readonly admission: WithheldRefund;
+  readonly admission: Extract<WithheldRefund, { kind: "read_failed" }>;
   readonly kind: "withheld";
 }
 
@@ -164,9 +162,7 @@ const reconcileRefund = async (
     return await answerProviderConflict(row, now, target.reference);
   }
   if (admission.kind === "already_returned") {
-    return row.state.kind === "completed"
-      ? refundAnswerFrom(row, target.reference)
-      : await completeRefundFromEvidence(row, now, target.reference);
+    return await completeRefundFromEvidence(row, now, target.reference);
   }
   if (admission.kind === "in_flight") {
     return await observePendingRefund(row, charge, now, target.reference);
@@ -258,9 +254,8 @@ export const recordProviderRefunds = async (
         at,
       );
       if (changed !== null) return;
-      const current = await loadRefundAuthorityById(authority.id);
+      const current = await requireCurrentRefund(authority);
       if (
-        current === null ||
         current.state.kind !== "completed" ||
         current.state.local.kind !== "recorded"
       ) {

@@ -42,7 +42,7 @@ type OwnerJourney = (world: TicketsWorld, who: string) => Promise<TestBrowser>;
 
 const HOSTED_CHECKOUT_URL = "https://provider.test/checkout";
 
-const openAttendeeAsOwner: OwnerJourney = async (world, who) => {
+export const openAttendeeAsOwner: OwnerJourney = async (world, who) => {
   const browser = await adminBrowser(world);
   await browser.clickLink("Attendees");
   await browser.clickLink(who);

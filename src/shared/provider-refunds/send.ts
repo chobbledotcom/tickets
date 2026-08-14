@@ -10,7 +10,6 @@ import type { TaggedPaymentReference } from "#shared/payment/provider-reference.
 import {
   armRefundSend,
   markRefundObservationDue,
-  mayReplayKeyedRefund,
   type RefundAuthorityState,
   rearmKeyedRefund,
   returnRefundToReady,
@@ -188,9 +187,6 @@ export const continueActiveRefund: ProviderRefundStep = withRefundWorkFacts(
       target.reference,
       row.state.request.generation,
     );
-    if (!mayReplayKeyedRefund(row.state, requestIndex, now)) {
-      return refundAnswerFrom(row, target.reference);
-    }
     const rearmed = await transitionBeforeProviderCall(
       row,
       charge,

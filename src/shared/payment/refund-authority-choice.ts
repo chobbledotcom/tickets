@@ -32,9 +32,7 @@ export const markRefundOwnerChoiceNeeded = (
   const allowed: readonly RefundAuthorityState["kind"][] =
     OWNER_CHOICE_FROM[reason];
   if (!allowed.includes(state.kind)) {
-    throw new Error(
-      `Owner choice ${reason} cannot start from ${state.kind}`,
-    );
+    throw new Error(`Owner choice ${reason} cannot start from ${state.kind}`);
   }
   const choice = {
     evidenceRevision: state.evidenceRevision,

@@ -6,11 +6,9 @@ import {
   REFRESH_BUDGET_MESSAGE,
   REFUND_BUDGET_MESSAGES,
   type RefundBudgetAudience,
-  type RefundBudgetCandidate,
   type RefundReadinessAction,
-  type RefundReadinessBudgetCheckpoint,
-  refundReadinessSubrequestCost,
-  subrequestCostFits,
+  type RefundReadinessBudget,
+  refundReadinessFits,
 } from "./budget.ts";
 import type { RefundCandidate } from "./candidates.ts";
 import { loadedRefundAttendee } from "./candidates.ts";
@@ -173,31 +171,8 @@ const ADMISSION_BY_ACTION = {
   (held: HeldRefundWork) => RefundAdmissionProblem | null
 >;
 
-const budgetFits = (
-  action: RefundReadinessAction,
-  candidates: readonly LoadedRefundAttendee[],
-  returned: ReadonlySet<string>,
-  checkpoint: RefundReadinessBudgetCheckpoint,
-): boolean => {
-  const budgetCandidates = candidates.map(
-    ({ references }): RefundBudgetCandidate => {
-      if (!references.every((reference) => reference.kind === "tagged")) {
-        throw new Error(
-          "Refund admission reached its budget without a recorded provider",
-        );
-      }
-      return { references };
-    },
-  );
-  const cost = refundReadinessSubrequestCost(
-    action,
-    budgetCandidates,
-    returned,
-    checkpoint,
-  );
-  const remaining = getSubrequestRemaining();
-  return subrequestCostFits(cost, remaining);
-};
+const budgetFits = (budget: RefundReadinessBudget): boolean =>
+  refundReadinessFits(getSubrequestRemaining(), budget);
 
 const loadedBudgetCandidates = (
   candidates: readonly RefundCandidate[],
@@ -217,63 +192,64 @@ const refuseForBudget = <TResult>(
 export const runRefundReadiness = async <TResult>(
   run: RefundReadinessRun<TResult>,
 ): Promise<TResult | BlockedRefundRun> => {
+  const loaded = loadedBudgetCandidates(run.candidates);
   if (
-    !budgetFits(
-      run.action,
-      loadedBudgetCandidates(run.candidates),
-      new Set(),
-      "before_claim",
-    )
+    !budgetFits({
+      action: run.action,
+      candidates: loaded,
+      checkpoint: "before_claim",
+      returned: new Set(),
+    })
   ) {
     return refuseForBudget(run);
   }
-  return await underAttendeeClaim(
-    run.claim,
-    loadedBudgetCandidates(run.candidates),
-    run.listingId,
-    {
-      admissionRefused: () => refuseForBudget(run),
-      admit: ({ attendees, returned }) =>
-        budgetFits(run.action, attendees, returned, "inside_claim"),
-      blocked: (block) => {
-        if (block.kind === "claim_held") {
-          return { kind: "blocked", reason: "refund_in_progress" };
-        }
-        reportCandidateProblems(run, run.candidates, block.kind);
-        return run.notReady(run.changedMessage);
-      },
-      work: async (held) => {
-        reconcileSharedReferences(held);
-        if (held.shared.size > 0) {
-          return run.notReady(reportSharedReference(run, held));
-        }
-        const admissionProblem = ADMISSION_BY_ACTION[run.action](held);
-        if (admissionProblem !== null) {
-          reportCandidateProblems(run, run.candidates, admissionProblem.reason);
-          return run.notReady(admissionProblem.message);
-        }
-        if (
-          !budgetFits(
-            run.action,
-            loadedBudgetCandidates(run.candidates),
-            held.alreadyReturned,
-            "before_provider_read",
-          )
-        ) {
-          return refuseForBudget(run);
-        }
-        const readiness = await run.prepare(
-          run.candidates,
-          held.claim,
-          held.alreadyReturned,
-        );
-        if (readiness.kind === "not_ready") {
-          return run.notReady(
-            await reportReadinessFailure(run, run.candidates, readiness, held),
-          );
-        }
-        return await run.ready(readiness.candidates, held);
-      },
+  return await underAttendeeClaim(run.claim, loaded, run.listingId, {
+    admissionRefused: () => refuseForBudget(run),
+    admit: ({ attendees, returned }) =>
+      budgetFits({
+        action: run.action,
+        candidates: attendees,
+        checkpoint: "inside_claim",
+        returned,
+      }),
+    blocked: (block) => {
+      if (block.kind === "claim_held") {
+        return { kind: "blocked", reason: "refund_in_progress" };
+      }
+      reportCandidateProblems(run, run.candidates, block.kind);
+      return run.notReady(run.changedMessage);
     },
-  );
+    work: async (held) => {
+      reconcileSharedReferences(held);
+      if (held.shared.size > 0) {
+        return run.notReady(reportSharedReference(run, held));
+      }
+      const admissionProblem = ADMISSION_BY_ACTION[run.action](held);
+      if (admissionProblem !== null) {
+        reportCandidateProblems(run, run.candidates, admissionProblem.reason);
+        return run.notReady(admissionProblem.message);
+      }
+      if (
+        !budgetFits({
+          action: run.action,
+          candidates: loaded,
+          checkpoint: "before_provider_read",
+          returned: held.alreadyReturned,
+        })
+      ) {
+        return refuseForBudget(run);
+      }
+      const readiness = await run.prepare(
+        run.candidates,
+        held.claim,
+        held.alreadyReturned,
+      );
+      if (readiness.kind === "not_ready") {
+        return run.notReady(
+          await reportReadinessFailure(run, run.candidates, readiness, held),
+        );
+      }
+      return await run.ready(readiness.candidates, held);
+    },
+  });
 };

@@ -71,7 +71,7 @@ describeWithEnv(
 
       const counts = finishedCounts(
         await processRefundBatchAt(
-          failingProvider(new Set()),
+          failingProvider(),
           [returnedAndStuckCandidate(attendeeId)],
           LISTING,
           { claim },
@@ -88,7 +88,7 @@ describeWithEnv(
 
       const counts = finishedCounts(
         await processRefundBatchAt(
-          failingProvider(new Set(), "keyless"),
+          failingProvider("keyless"),
           [refundedCandidate(21, "sess-21")],
           LISTING,
           { claim },
@@ -108,7 +108,7 @@ describeWithEnv(
 
       const counts = finishedCounts(
         await processRefundBatchAt(
-          failingProvider(new Set()),
+          failingProvider(),
           [
             refundedCandidate(attendeeId, "sess-first"),
             refundedCandidate(attendeeId, "sess-second"),
@@ -185,7 +185,7 @@ describeWithEnv(
       const claim = grantingRowClaim(new Map([[22, ["sess-22"]]]));
 
       await processRefundBatchAt(
-        failingProvider(new Set()),
+        failingProvider(),
         [refundedCandidate(22, "sess-22")],
         LISTING,
         { claim },
@@ -196,7 +196,7 @@ describeWithEnv(
 
     test("returns all-zero counts for an empty batch", async () => {
       const counts = finishedCounts(
-        await processRefundBatchAt(failingProvider(new Set()), [], LISTING, {
+        await processRefundBatchAt(failingProvider(), [], LISTING, {
           claim: grantingRowClaim(),
         }),
       );
@@ -212,7 +212,7 @@ describeWithEnv(
     test("counts a refund the ledger cannot post apart from an uncertain one", async () => {
       const counts = finishedCounts(
         await processRefundBatchAt(
-          failingProvider(new Set()),
+          failingProvider(),
           [refundedCandidate(21, "sess-missing")],
           LISTING,
           { claim: grantingRowClaim() },

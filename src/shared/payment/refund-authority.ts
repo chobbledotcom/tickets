@@ -155,6 +155,7 @@ export type NeedsOwnerChoiceRefundState = Extract<
 >;
 
 export type ActiveSentRefundState = SendArmedRefundState | ObservingRefundState;
+type AutomaticRefundState = ReadyRefundState | ActiveSentRefundState;
 
 const storedState = defineStoredJson(RefundAuthorityStateSchema);
 
@@ -185,18 +186,12 @@ export const requireActiveSentRefund = (
 
 const activeState = (
   kind: "ready" | "send_armed" | "observing",
-  state: RefundAuthorityState,
+  state: AutomaticRefundState,
   atName: "armedAt" | "lastObservedAt" | "readyAt",
   at: number,
   nextActionAt: number,
-): RefundAuthorityState => {
-  if (state.kind === "completed") {
-    throw new Error("A completed refund cannot return to active work");
-  }
-  if (state.kind === "needs_owner_choice") {
-    throw new Error("A refund awaiting its owner cannot resume automatically");
-  }
-  return validateRefundAuthorityState({
+): RefundAuthorityState =>
+  validateRefundAuthorityState({
     evidenceRevision: state.evidenceRevision,
     kind,
     local: { kind: "not_due" },
@@ -204,7 +199,6 @@ const activeState = (
     request: state.request,
     [atName]: at,
   } as RefundAuthorityState);
-};
 
 export interface ReadyRefundFacts {
   readonly evidenceRevision: number;
@@ -265,17 +259,6 @@ export const markRefundObservationDue = (
     nextActionAt,
   ) as ObservingRefundState;
 };
-
-/** Whether the same keyed request may still be repeated exactly. */
-export const mayReplayKeyedRefund = (
-  state: RefundAuthorityState,
-  requestIndex: string,
-  now: number,
-): boolean =>
-  (state.kind === "send_armed" || state.kind === "observing") &&
-  state.request.capability === "keyed" &&
-  state.request.identityIndex === requestIndex &&
-  now <= state.request.replayUntil;
 
 /** Re-arm only the same keyed generation inside its finite provider window. */
 export const rearmKeyedRefund = (

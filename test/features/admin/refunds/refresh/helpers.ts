@@ -64,7 +64,6 @@ const readyResult = (
 type HarnessValues = {
   confirmation?: "current" | "new";
   confirmationError?: Error;
-  existingUnrecorded?: readonly string[];
   existingReview?: PaymentReviewReason;
   ledger?: (
     references: readonly RefundPaymentReference[],
@@ -130,9 +129,7 @@ export const runHarness = (values: HarnessValues = {}): RefreshHarness => {
     new Map([
       [ATTENDEE_ID, references.flatMap(({ rowSessionIds }) => rowSessionIds)],
     ]),
-    values.existingUnrecorded === undefined
-      ? new Map()
-      : new Map([[ATTENDEE_ID, values.existingUnrecorded]]),
+    new Map(),
     existingReviews,
   );
   const authorities: (readonly RefundAuthorityReceipt[])[] = [];

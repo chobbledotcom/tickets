@@ -101,24 +101,23 @@ type PreparedReference =
       original: TaggedRefundPaymentReference;
     };
 
+type ObservedPreparedReference = Extract<
+  PreparedReference,
+  { kind: "observed" }
+>;
+
 type PreparedEvidence =
   | { kind: "failed"; read: RefundReadinessRead }
-  | { kind: "prepared"; reference: PreparedReference };
+  | { kind: "prepared"; reference: ObservedPreparedReference };
 
 const readinessObservations = (
-  prepared: readonly PreparedReference[],
+  prepared: readonly ObservedPreparedReference[],
 ): RefundReadinessObservation[] =>
-  prepared.flatMap((entry) =>
-    entry.kind === "observed"
-      ? [
-          {
-            charge: entry.charge,
-            identity: providerIdentity(entry.original),
-            reference: entry.original,
-          },
-        ]
-      : [],
-  );
+  prepared.map((entry) => ({
+    charge: entry.charge,
+    identity: providerIdentity(entry.original),
+    reference: entry.original,
+  }));
 
 const evidenceFailed = (
   evidence: PreparedEvidence,

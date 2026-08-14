@@ -196,11 +196,12 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
                FROM processed_payments
               WHERE payment_reference_index != ''`,
           );
-          if (payment === null) throw new Error("payment anchor was not stored");
+          if (payment === null)
+            throw new Error("payment anchor was not stored");
           attendeeId = payment.attendee_id;
           await expect(
             withTransaction((tx) =>
-              assertRowsFreeToMove(tx, [attendeeId], "merge")
+              assertRowsFreeToMove(tx, [attendeeId], "merge"),
             ),
           ).rejects.toThrow(PaymentRowsBusyError);
           return await refundCompletes(request);
@@ -211,7 +212,7 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
       );
 
       await withTransaction((tx) =>
-        assertRowsFreeToMove(tx, [attendeeId], "merge")
+        assertRowsFreeToMove(tx, [attendeeId], "merge"),
       );
     });
 

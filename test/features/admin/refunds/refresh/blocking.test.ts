@@ -47,6 +47,52 @@ describe("refresh payment under an attendee claim", () => {
     expect(run.claim.released).toEqual([run.reference.rowSessionIds]);
   });
 
+  test("fails loudly when a completed marker loses provider evidence", async () => {
+    const run = runHarness({ observed: null });
+
+    await expect(
+      refresh(run, {
+        ...run.dependencies,
+        request: (target) =>
+          Promise.resolve({
+            admission: {
+              kind: "read_failed",
+              read: { reason: "network_error", status: "unavailable" },
+            },
+            kind: "withheld",
+            reference: target.reference,
+          }),
+      }),
+    ).rejects.toThrow("Observed payment refresh lost its provider evidence");
+    expect(run.provider.refunds).toEqual([]);
+    expect(run.claim.released).toEqual([run.reference.rowSessionIds]);
+  });
+
+  for (const [name, wrongReference] of [
+    [
+      "provider",
+      { kind: "tagged", provider: "square", reference: "pi_refresh" },
+    ],
+    [
+      "reference",
+      { kind: "tagged", provider: "stripe", reference: "pi_other" },
+    ],
+  ] as const) {
+    test(`rejects an authority answer for a different ${name}`, async () => {
+      const run = runHarness();
+
+      await expect(
+        refresh(run, {
+          ...run.dependencies,
+          request: () =>
+            Promise.resolve({ kind: "unchanged", reference: wrongReference }),
+        }),
+      ).rejects.toThrow("Refund authority answered for a different payment");
+      expect(run.calls.record).toBe(0);
+      expect(run.claim.released).toEqual([run.reference.rowSessionIds]);
+    });
+  }
+
   const refusingClaim = (
     result: Awaited<ReturnType<RowClaim["claim"]>>,
   ): RowClaim => ({

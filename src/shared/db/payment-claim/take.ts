@@ -21,7 +21,7 @@ import {
 } from "#shared/db/payment-claim.ts";
 import {
   paymentReferencesByIndex,
-  type RefundPaymentReference,
+  type TaggedRefundPaymentReference,
 } from "#shared/db/payment-references.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { isoBefore, nowIso } from "#shared/now.ts";
@@ -65,10 +65,8 @@ export type ClaimResult =
  *  change the indexed payment set beneath the claim. */
 export type LoadedRefundAttendee = {
   readonly attendeeId: number;
-  /** The loaded rows already carried a claim mirror. */
-  readonly held?: boolean;
   readonly loadedPiiBlob: string;
-  readonly references: readonly RefundPaymentReference[];
+  readonly references: readonly TaggedRefundPaymentReference[];
 };
 
 /** Exact row-backed facts a pure pre-claim gate may recheck under the lock. */

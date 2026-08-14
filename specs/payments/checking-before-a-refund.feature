@@ -11,24 +11,26 @@ Feature: The site checks that a payment names its provider before refunding it
   @surface:admin
   Rule: An unknown payment provider stops every automatic money action
     Re-saving an old payment cannot turn it into a modern provider-tagged
-    payment. Refund and refresh both explain the limitation without reading or
-    sending through any configured provider.
+    payment. The attendee page explains the limitation and offers neither
+    Refund nor Refresh, without reading or sending through any configured
+    provider.
 
     @case:refund-safety.old-payment-without-a-provider-is-not-contacted
     Scenario: An old payment does not name its provider
       Given Alice bought a 45.00 Concert place through Stripe on the public booking page
       And Alice's old payment record does not name its provider
       And every payment provider is available
-      When the owner opens Refund for Alice from her Actions page
+      When the owner opens Alice's attendee page
       Then the owner is told the payment does not record its provider
+      And Alice's attendee page does not offer Refresh payment status
+      And Alice's Actions page does not offer Refund
       And no provider is contacted about Alice's payment
       And Money still shows Alice's 45.00 payment
       When the owner re-saves Alice's attendee record without changing it
-      And the owner reopens Refund for Alice from her Actions page
+      And the owner opens Alice's attendee page
       Then the owner is told the payment does not record its provider
-      And no provider is contacted about Alice's payment
-      When the owner presses Refresh payment status from Alice's attendee page
-      Then the owner is told the payment does not record its provider
+      And Alice's attendee page does not offer Refresh payment status
+      And Alice's Actions page does not offer Refund
       And no provider is contacted about Alice's payment
       And Money still shows Alice's 45.00 payment
 

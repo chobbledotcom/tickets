@@ -156,12 +156,12 @@ describeWithEnv(
         claim: async (attendees, admit) => {
           const claimed = await granted.claim(attendees, admit);
           if (claimed.kind === "claimed") {
-            const providerReadCost = refundReadinessSubrequestCost(
-              "refresh",
-              [{ references: recheckReferences }],
-              claimed.returned,
-              "before_provider_read",
-            );
+            const providerReadCost = refundReadinessSubrequestCost({
+              action: "refresh",
+              candidates: [{ references: recheckReferences }],
+              checkpoint: "before_provider_read",
+              returned: claimed.returned,
+            });
             // The claim wrapper already withholds settlement while this hook
             // runs, so leave the provider-read plan one call short directly.
             const remainingBeforeWork = providerReadCost.total - 1;

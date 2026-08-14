@@ -56,40 +56,35 @@ describe("admin refund provider > exact ledger findings", () => {
     ]);
 
     const counts = finishedCounts(
-      await processRefundBatchAt(
-        failingProvider(new Set()),
-        [candidate],
-        LISTING,
-        {
-          claim,
-          record: (postings) => {
-            const posting = postings[0];
-            if (postings.length !== 1 || posting === undefined) {
-              throw new Error("Expected one attendee ledger posting");
-            }
-            const [recordedReference, reviewReference] = posting.references;
-            if (
-              posting.references.length !== 2 ||
-              recordedReference === undefined ||
-              reviewReference === undefined
-            ) {
-              throw new Error("Expected two returned references");
-            }
-            return Promise.resolve(
-              new Map([
-                [
-                  attendeeId,
-                  refundLedgerResult(
-                    [recordedReference],
-                    [reviewReference],
-                    [reviewReference],
-                  ),
-                ],
-              ]),
-            );
-          },
+      await processRefundBatchAt(failingProvider(), [candidate], LISTING, {
+        claim,
+        record: (postings) => {
+          const posting = postings[0];
+          if (postings.length !== 1 || posting === undefined) {
+            throw new Error("Expected one attendee ledger posting");
+          }
+          const [recordedReference, reviewReference] = posting.references;
+          if (
+            posting.references.length !== 2 ||
+            recordedReference === undefined ||
+            reviewReference === undefined
+          ) {
+            throw new Error("Expected two returned references");
+          }
+          return Promise.resolve(
+            new Map([
+              [
+                attendeeId,
+                refundLedgerResult(
+                  [recordedReference],
+                  [reviewReference],
+                  [reviewReference],
+                ),
+              ],
+            ]),
+          );
         },
-      ),
+      }),
     );
 
     expect(counts).toEqual({
@@ -122,7 +117,7 @@ describe("admin refund provider > exact ledger findings", () => {
 
     await expect(
       processRefundBatchAt(
-        failingProvider(new Set()),
+        failingProvider(),
         [paidBackCandidate(attendeeId, [sessionId])],
         LISTING,
         {

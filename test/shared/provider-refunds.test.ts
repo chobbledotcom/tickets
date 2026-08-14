@@ -15,6 +15,7 @@ import { chargeMoney, foundCharge } from "#test-utils/payment-state.ts";
 import {
   completingRefundProvider,
   fakeRefundProvider,
+  notSentRefundProvider,
   refundDependencies,
   refundReference,
   sendRefundTarget,
@@ -52,11 +53,56 @@ describeWithEnv("provider refund engine", { db: true }, () => {
     ).toEqual([null, null]);
   });
 
+  test("an existing ready refund remains observation-only", async () => {
+    const payment = refundReference("txn-ready-observation", "stripe");
+    const refunding = notSentRefundProvider("stripe");
+    const dependencies = refundDependencies(refunding.provider);
+
+    expect(
+      await requestProviderRefund(sendRefundTarget(payment), dependencies),
+    ).toMatchObject({ kind: "ready" });
+    expect(
+      await requestProviderRefund(
+        {
+          evidence: { charge: chargeMoney(), kind: "observed" },
+          mode: "observe_only",
+          reference: payment,
+        },
+        dependencies,
+      ),
+    ).toMatchObject({ kind: "ready" });
+    expect(refunding.sendCount()).toBe(1);
+  });
+
+  for (const [name, raw, provider] of [
+    ["another provider", "wrong-provider", completingRefundProvider("sumup")],
+    [
+      "another capability",
+      "wrong-capability",
+      {
+        ...completingRefundProvider("stripe"),
+        refundCapability: "keyless" as const,
+      },
+    ],
+  ] as const) {
+    test(`refuses a loader returning ${name}`, async () => {
+      await expect(
+        requestProviderRefund(
+          sendRefundTarget(refundReference(`txn-${raw}`, "stripe")),
+          refundDependencies(provider),
+        ),
+      ).rejects.toThrow("Refund provider does not match its durable identity");
+    });
+  }
+
   test("a spent local-recording budget leaves returned money recoverable", async () => {
     const payment = refundReference("txn-record-budget");
+    const dependencies = refundDependencies(
+      completingRefundProvider("sumup", chargeMoney()),
+    );
     const returned = await requestProviderRefund(
       sendRefundTarget(payment),
-      refundDependencies(completingRefundProvider("sumup")),
+      dependencies,
     );
     if (returned.kind !== "returned") {
       throw new Error("Expected returned money before local recording");
@@ -77,12 +123,20 @@ describeWithEnv("provider refund engine", { db: true }, () => {
     });
 
     await recordProviderRefunds([returned.authority], 201);
-    expect(
-      await storedRefundAuthority(returned.authority.referenceIndex),
-    ).toMatchObject({
+    const recorded = await storedRefundAuthority(
+      returned.authority.referenceIndex,
+    );
+    expect(recorded).toMatchObject({
       refund_local_state: "recorded",
       refund_state_name: "completed",
     });
+    await recordProviderRefunds([returned.authority], 202);
+    expect(
+      await storedRefundAuthority(returned.authority.referenceIndex),
+    ).toEqual(recorded);
+    expect(
+      await requestProviderRefund(sendRefundTarget(payment), dependencies),
+    ).toMatchObject({ kind: "returned", local: "recorded" });
   });
 
   test("local recording refuses a stale receipt for unfinished money", async () => {

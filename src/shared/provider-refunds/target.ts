@@ -128,7 +128,6 @@ export const createTargetAuthority = async (
   if (loaded.existing !== null) return loaded.existing;
   return await createOrLoadRefundAuthority({
     ...callbackBinding(loaded.callbackReplayIndex),
-    capability: provider.refundCapability,
     captured,
     now,
     reference: target.reference,

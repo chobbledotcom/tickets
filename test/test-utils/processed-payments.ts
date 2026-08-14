@@ -134,20 +134,32 @@ export const refundReferencesFor = async (
 
 /** A reference as the production read hands it back — the fixture builder's
  *  shape with the real blind index rather than the builder's stand-in. */
-export const readReference = async (
+type ReadReferenceValues = Partial<
+  Omit<TaggedRefundPaymentReference, keyof TaggedPaymentReference>
+>;
+
+export function readReference(
+  payment: TaggedPaymentReference,
+  values?: ReadReferenceValues,
+): Promise<TaggedRefundPaymentReference>;
+export function readReference(
   payment: PaymentReference,
-  values: Partial<RefundPaymentReference> = {},
-): Promise<RefundPaymentReference> => {
+  values?: ReadReferenceValues,
+): Promise<RefundPaymentReference>;
+export async function readReference(
+  payment: PaymentReference,
+  values: ReadReferenceValues = {},
+): Promise<RefundPaymentReference> {
   const index = await paymentReferenceIndex(payment);
-  return {
+  const facts = {
     ...refundReference(payment.reference, values),
-    ...payment,
     index,
     matchingIndexes:
       values.matchingIndexes ??
       (await matchingPaymentReferenceIndexes(payment)),
   };
-};
+  return { ...facts, ...payment };
+}
 
 /** Assert the exact decrypted provider reference attached to one attendee. */
 export const expectProcessedPaymentReference = async (

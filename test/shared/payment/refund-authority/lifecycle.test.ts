@@ -8,7 +8,10 @@ import {
   readyRefund,
 } from "#shared/payment/refund-authority.ts";
 import { markRefundOwnerChoiceNeeded } from "#shared/payment/refund-authority-choice.ts";
-import { refundLifecycleFor } from "#shared/payment/refund-authority-lifecycle.ts";
+import {
+  refundLifecycleFor,
+  refundMoveRefusalOrNull,
+} from "#shared/payment/refund-authority-lifecycle.ts";
 
 const ready = () =>
   readyRefund({
@@ -70,5 +73,21 @@ describe("payment > refund authority lifecycle", () => {
       blocks: { delete: false, merge: false },
       prunable: true,
     });
+  });
+
+  test("the most urgent blocking state supplies one move refusal", () => {
+    const ownerChoice = markRefundOwnerChoiceNeeded(
+      armRefundSend(ready(), 2, 20),
+      40,
+      "possibly_sent",
+    );
+    const completed = markRefundCompleted(ready(), 40, "provider");
+    const recorded = markRefundLocalRecorded(completed, 50);
+
+    expect(
+      refundMoveRefusalOrNull([ready(), ownerChoice, completed], "delete"),
+    ).toBe(refundLifecycleFor(completed).refusal);
+    expect(refundMoveRefusalOrNull([ready()], "merge")).toBeNull();
+    expect(refundMoveRefusalOrNull([recorded], "delete")).toBeNull();
   });
 });

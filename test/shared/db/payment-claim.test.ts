@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { withTransaction } from "#shared/db/client.ts";
 import {
+  asPaymentRowRecord,
   assertRefundRowsHeld,
   readAttendeeRowStates,
 } from "#shared/db/payment-claim.ts";
@@ -50,6 +51,19 @@ const reviewOf = async (attendeeId: number) =>
     ?.state.review;
 
 describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
+  test("rejects an invalid provider-work projection at the database boundary", async () => {
+    await expect(
+      asPaymentRowRecord({
+        attendee_id: 1,
+        failure_data: "",
+        payment_reference_index: "reference-index",
+        payment_session_id: "session-one",
+        provider_refund_work: 2,
+        refund_state_name: null,
+      }),
+    ).rejects.toThrow("Provider refund work projection is invalid");
+  });
+
   describe("releasing", () => {
     test("confirmation accepts only the exact claim still holding every row", async () => {
       const attendeeId = await bookedWithPayment("sess-confirm", "pi_confirm");
