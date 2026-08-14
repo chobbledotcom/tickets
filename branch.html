@@ -62,10 +62,33 @@
         color: var(--teal);
       }
 
+      a:focus-visible {
+        outline: 3px solid var(--teal);
+        outline-offset: 3px;
+      }
+
       code {
         color: #c9fff6;
         font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
         font-size: 0.91em;
+      }
+
+      .skip-link {
+        position: fixed;
+        z-index: 20;
+        top: 0.5rem;
+        left: 0.5rem;
+        transform: translateY(-180%);
+        border-radius: 8px;
+        background: var(--ink);
+        color: var(--bg);
+        padding: 0.55rem 0.8rem;
+        font-weight: 800;
+        text-decoration: none;
+      }
+
+      .skip-link:focus {
+        transform: translateY(0);
       }
 
       .topbar {
@@ -98,11 +121,16 @@
         font-weight: 700;
       }
 
-      nav a:hover,
-      nav a:focus-visible {
+      nav a:hover {
         border-color: var(--line);
         color: var(--ink);
-        outline: none;
+      }
+
+      nav a:focus-visible {
+        border-color: var(--teal);
+        color: var(--ink);
+        outline: 3px solid var(--teal);
+        outline-offset: 2px;
       }
 
       main {
@@ -204,6 +232,14 @@
       .big-fact p {
         margin: 0;
         color: var(--muted);
+      }
+
+      .big-fact h2 {
+        max-width: none;
+        margin-bottom: 0.45rem;
+        font-size: 1.03rem;
+        line-height: 1.25;
+        letter-spacing: normal;
       }
 
       .risk-strip {
@@ -447,6 +483,8 @@
         margin: 1.6rem 0 1rem;
         gap: 0.42rem;
         grid-template-columns: repeat(8, minmax(0, 1fr));
+        list-style: none;
+        padding: 0;
       }
 
       .pipe-step {
@@ -513,9 +551,12 @@
         align-items: stretch;
         margin: 0.8rem 0;
         gap: 0.32rem;
+        list-style: none;
+        padding: 0;
       }
 
       .state {
+        position: relative;
         display: grid;
         flex: 1;
         min-height: 68px;
@@ -531,10 +572,14 @@
         font-weight: 800;
       }
 
-      .state-arrow {
-        display: grid;
+      .state:not(:last-child)::after {
+        position: absolute;
+        z-index: 2;
+        top: 50%;
+        right: -0.52rem;
+        transform: translateY(-50%);
         color: var(--muted);
-        place-items: center;
+        content: "→";
       }
 
       .side-states {
@@ -784,8 +829,23 @@
         grid-template-columns: repeat(2, 1fr);
       }
 
+      .footer-grid > * {
+        min-width: 0;
+      }
+
+      footer code {
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+
       footer p {
         margin: 0.7rem 0 0;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
       }
 
       @media (max-width: 900px) {
@@ -851,9 +911,26 @@
       }
 
       @media (max-width: 620px) {
+        nav {
+          flex-wrap: wrap;
+          justify-content: center;
+          overflow-x: visible;
+          gap: 0.2rem;
+        }
+
+        nav a {
+          padding: 0.28rem 0.48rem;
+          font-size: 0.76rem;
+        }
+
         main {
           width: min(100% - 1.2rem, 1120px);
           padding-top: 2rem;
+        }
+
+        header,
+        section {
+          scroll-margin-top: 7.5rem;
         }
 
         section {
@@ -902,15 +979,16 @@
         }
 
         .pipeline {
-          grid-template-columns: repeat(2, 1fr);
+          gap: 0.8rem;
+          grid-template-columns: 1fr;
         }
 
-        .pipe-step:nth-child(even)::after {
-          display: none;
-        }
-
-        .pipe-step:nth-child(4)::after {
-          display: none;
+        .pipeline .pipe-step:not(:last-child)::after {
+          display: block;
+          top: auto;
+          right: calc(50% - 0.4rem);
+          bottom: -0.82rem;
+          transform: rotate(90deg);
         }
 
         .failure-grid {
@@ -919,11 +997,35 @@
 
         .state-track {
           display: grid;
+          gap: 0.8rem;
           grid-template-columns: 1fr;
         }
 
-        .state-arrow {
+        .state:not(:last-child)::after {
+          top: auto;
+          right: calc(50% - 0.35rem);
+          bottom: -0.82rem;
           transform: rotate(90deg);
+        }
+
+        .chip,
+        .pipe-step span,
+        .state,
+        .side-state,
+        .axis-item,
+        .failure-card strong,
+        .failure-card p,
+        .bound span,
+        .privacy-card .level,
+        .privacy-card p,
+        .proof-stat span,
+        .proof-card p,
+        .limit-card p,
+        .proof-caveat,
+        .field,
+        .box-note,
+        .constraint {
+          font-size: 0.8rem;
         }
 
         .footer-grid {
@@ -932,6 +1034,11 @@
       }
 
       @media print {
+        @page {
+          size: A4;
+          margin: 12mm;
+        }
+
         :root {
           color-scheme: light;
           --bg: #fff;
@@ -940,9 +1047,15 @@
           --ink: #102326;
           --muted: #40585b;
           --line: #bfd0ce;
+          --teal: #08776b;
           --teal-soft: #e2f6f2;
+          --purple: #6549a8;
           --purple-soft: #f0ecff;
+          --amber: #7a5400;
           --amber-soft: #fff7db;
+          --red: #a43049;
+          --red-soft: #fcecf0;
+          --blue: #215f98;
           --blue-soft: #eaf3ff;
           --grey-soft: #edf1f1;
         }
@@ -956,6 +1069,10 @@
           display: none;
         }
 
+        .skip-link {
+          display: none;
+        }
+
         main {
           width: 100%;
           padding: 0;
@@ -963,12 +1080,86 @@
 
         section {
           margin-top: 2rem;
-          break-inside: avoid;
+        }
+
+        h1,
+        h2,
+        h3,
+        .section-number,
+        .section-lede {
+          break-after: avoid-page;
+        }
+
+        .big-fact,
+        .risk-strip,
+        .table-box,
+        .confirmation-chain,
+        .constraint-bar,
+        .pipe-step,
+        .state-panel,
+        .failure-card,
+        .provider-chips,
+        .bound,
+        .privacy-card,
+        .plain-callout,
+        .proof-stats,
+        .proof-card,
+        .limit-card {
+          break-inside: avoid-page;
+        }
+
+        footer {
+          display: none;
         }
 
         .big-fact,
         .table-box {
           box-shadow: none;
+        }
+
+        code {
+          color: #075e55;
+        }
+
+        .risk {
+          background: var(--panel);
+        }
+
+        .table-box.authority {
+          background: var(--panel-2);
+        }
+
+        .field {
+          border-color: var(--line);
+        }
+
+        .state,
+        .plain-callout {
+          color: var(--ink);
+        }
+
+        .proof-stat span {
+          color: var(--muted);
+        }
+
+        .chip,
+        .pipe-step span,
+        .state,
+        .side-state,
+        .axis-item,
+        .failure-card strong,
+        .failure-card p,
+        .bound span,
+        .privacy-card .level,
+        .privacy-card p,
+        .proof-stat span,
+        .proof-card p,
+        .limit-card p,
+        .proof-caveat,
+        .field,
+        .box-note,
+        .constraint {
+          font-size: 0.8rem;
         }
 
         a {
@@ -978,6 +1169,7 @@
     </style>
   </head>
   <body>
+    <a class="skip-link" href="#summary">Skip to briefing</a>
     <div class="topbar">
       <nav aria-label="Document sections">
         <a href="#summary">Summary</a>
@@ -1000,10 +1192,14 @@
           record decides whether money may move.
         </p>
 
-        <div class="read-three" aria-label="If you read only three things">
+        <div
+          class="read-three"
+          role="group"
+          aria-label="If you read only three things"
+        >
           <article class="big-fact">
             <b>01 · one authority</b>
-            <h3><code>payment_charges</code> owns provider truth</h3>
+            <h2><code>payment_charges</code> owns provider truth</h2>
             <p>
               Provider identity, exact Money, send generation, evidence, local
               recording and recovery state live together.
@@ -1011,7 +1207,7 @@
           </article>
           <article class="big-fact">
             <b>02 · persist first</b>
-            <h3>The send is armed before network I/O</h3>
+            <h2>The send is armed before network I/O</h2>
             <p>
               A crash can leave uncertainty, but never an invisible permission
               to send the same keyless refund again.
@@ -1019,7 +1215,7 @@
           </article>
           <article class="big-fact">
             <b>03 · two facts</b>
-            <h3>Cash returned ≠ ledger recorded</h3>
+            <h2>Cash returned ≠ ledger recorded</h2>
             <p>
               Provider completion and local accounting retire separately, so a
               failed ledger write cannot erase returned money.
@@ -1027,7 +1223,11 @@
           </article>
         </div>
 
-        <div class="risk-strip" aria-label="The three merge concerns">
+        <div
+          class="risk-strip"
+          role="group"
+          aria-label="The three merge concerns"
+        >
           <div class="risk">
             <strong><span class="dot"></span>Silent booking errors</strong>
             <span>Recover only from matching stored facts; otherwise
@@ -1053,7 +1253,7 @@
           is application identity—not a database foreign key.
         </p>
 
-        <div class="legend" aria-label="Diagram legend">
+        <div class="legend" role="group" aria-label="Diagram legend">
           <span class="chip">🔐 owner-key ciphertext</span>
           <span class="chip"># blind HMAC identity</span>
           <span class="chip">◇ queryable state mirror</span>
@@ -1062,7 +1262,7 @@
 
         <div class="schema-map">
           <div class="schema-stack">
-            <article class="table-box">
+            <div class="table-box">
               <div class="table-head">
                 <code>attendees</code><span class="badge existing"
                 >existing</span>
@@ -1073,9 +1273,9 @@
                   <code>pii_blob</code><em>🔐 PII + opaque revision fence</em>
                 </div>
               </div>
-            </article>
+            </div>
             <div class="down-arrow" aria-hidden="true">↓ 1:N</div>
-            <article class="table-box">
+            <div class="table-box">
               <div class="table-head">
                 <code>processed_payments</code><span class="badge changed"
                 >changed</span>
@@ -1088,7 +1288,8 @@
                   <code>attendee_id</code><em>attendee representation</em>
                 </div>
                 <div class="field">
-                  <code>payment_reference</code><em>🔐 raw reference</em>
+                  <code>payment_reference</code><em>🔐 new writes · legacy
+                    unqualified</em>
                 </div>
                 <div class="field">
                   <code>payment_reference_index</code><em># deliberately
@@ -1101,14 +1302,14 @@
                   <code>protected_state</code><em>◇ narrow SQL mirror</em>
                 </div>
               </div>
-            </article>
+            </div>
           </div>
 
           <div class="logical-link">
             <span># reference identity<br>logical join · no FK</span>
           </div>
 
-          <article class="table-box authority">
+          <div class="table-box authority">
             <div class="table-head">
               <code>payment_charges</code><span class="badge new"
               >rebuilt authority</span>
@@ -1144,12 +1345,12 @@
                 <code>refund_revision</code><em>↻ compare-and-swap</em>
               </div>
             </div>
-          </article>
+          </div>
         </div>
 
         <div class="schema-lower">
           <div class="confirmation-chain">
-            <article class="table-box">
+            <div class="table-box">
               <div class="table-head">
                 <code>refund_confirmations</code><span class="badge new"
                 >new</span>
@@ -1158,9 +1359,9 @@
                 One replay-safe identity for <code>HMAC(attendee + sorted exact
                   reference set)</code>.
               </p>
-            </article>
+            </div>
             <div class="chain-arrow" aria-hidden="true">→</div>
-            <article class="table-box">
+            <div class="table-box">
               <div class="table-head">
                 <code>refund_confirmation_references</code><span
                   class="badge new"
@@ -1170,20 +1371,20 @@
                 Queryable member indexes make the confirmed set exact, not a
                 prose note.
               </p>
-            </article>
+            </div>
           </div>
 
-          <article class="table-box">
+          <div class="table-box">
             <div class="table-head">
               <code>system_notes</code><span class="badge changed"
               >changed</span>
             </div>
             <p class="box-note">
-              An opaque entity-unique <code>system_name</code> lets app notes
-              replay or retire without decrypting and scanning encrypted note
-              history.
+              An opaque entity-unique <code>system_name</code> makes exact app
+              note creation idempotent without decrypting and scanning encrypted
+              note history.
             </p>
-          </article>
+          </div>
         </div>
 
         <div class="constraint-bar" aria-label="Database-enforced invariants">
@@ -1215,61 +1416,57 @@
           They do not own different refund engines.
         </p>
 
-        <div class="pipeline" aria-label="Refund pipeline">
-          <div class="pipe-step">
+        <ol class="pipeline" aria-label="Refund pipeline">
+          <li class="pipe-step">
             <b>01</b><strong>Enter</strong><span>single · bulk · refresh ·
               callback</span>
-          </div>
-          <div class="pipe-step">
+          </li>
+          <li class="pipe-step">
             <b>02</b><strong>Name target</strong><span>tagged provider + exact
               reference</span>
-          </div>
-          <div class="pipe-step">
+          </li>
+          <li class="pipe-step">
             <b>03</b><strong>Read</strong><span>found · missing · unavailable ·
               invalid</span>
-          </div>
-          <div class="pipe-step">
+          </li>
+          <li class="pipe-step">
             <b>04</b><strong>Judge</strong><span>captured, returned, pending,
               capability</span>
-          </div>
-          <div class="pipe-step">
+          </li>
+          <li class="pipe-step">
             <b>05</b><strong>Fence</strong><span>exact rows + attendee +
               authority revision</span>
-          </div>
-          <div class="pipe-step">
-            <b>06</b><strong>Arm</strong><span>persist generation before
-              I/O</span>
-          </div>
-          <div class="pipe-step">
-            <b>07</b><strong>Attempt</strong><span>completed · accepted ·
-              rejected · not_sent · uncertain</span>
-          </div>
-          <div class="pipe-step">
+          </li>
+          <li class="pipe-step">
+            <b>06</b><strong>Choose path</strong><span>refresh: observe · owner
+              permit: send path</span>
+          </li>
+          <li class="pipe-step">
+            <b>07</b><strong>Send path only</strong><span>persist arm → attempt
+              with typed result</span>
+          </li>
+          <li class="pipe-step">
             <b>08</b><strong>Finish</strong><span>persist fact → ledger → settle
               exact claim</span>
-          </div>
-        </div>
+          </li>
+        </ol>
 
         <div class="state-panel">
           <article class="state-card">
             <h3>Charge authority: provider and ledger progress</h3>
-            <div class="state-track" aria-label="Main refund authority states">
-              <div class="state">ready</div>
-              <div class="state-arrow">→</div>
-              <div class="state">send_armed</div>
-              <div class="state-arrow">→</div>
-              <div class="state">observing</div>
-              <div class="state-arrow">→</div>
-              <div class="state">completed<br>local: due</div>
-              <div class="state-arrow">→</div>
-              <div class="state">completed<br>local: recorded</div>
-            </div>
+            <ol class="state-track" aria-label="Main refund authority states">
+              <li class="state">ready</li>
+              <li class="state">send_armed</li>
+              <li class="state">observing</li>
+              <li class="state">completed<br>local: due</li>
+              <li class="state">completed<br>local: recorded</li>
+            </ol>
             <div class="side-states">
               <div class="side-state">
                 needs_provider_check<br>partial / inconclusive
               </div>
               <div class="side-state">
-                needs_owner_choice<br>genuine binary decision
+                needs_owner_choice<br>evidence-admitted decision
               </div>
             </div>
           </article>
@@ -1282,8 +1479,8 @@
                   it</span>
               </div>
               <div class="axis-item">
-                <code>review</code><span>blocks delete; requires the owner's
-                  decision</span>
+                <code>review</code><span>blocks delete; owner acknowledges,
+                  evidence retires it</span>
               </div>
               <div class="axis-item">
                 <code>unrecorded</code><span>blocks delete; Money is ahead of
@@ -1297,27 +1494,31 @@
           </article>
         </div>
 
-        <div class="failure-grid" aria-label="Failure semantics">
-          <article class="failure-card">
+        <div
+          class="failure-grid"
+          role="group"
+          aria-label="Failure semantics"
+        >
+          <div class="failure-card">
             <strong>Crash after arm</strong>
             <p>Possibly sent. Observe before any replay.</p>
-          </article>
-          <article class="failure-card">
+          </div>
+          <div class="failure-card">
             <strong>Provider returned; ledger failed</strong>
             <p>Charge stays completed/local due; repair remains reachable.</p>
-          </article>
-          <article class="failure-card">
+          </div>
+          <div class="failure-card">
             <strong>Concurrent writer</strong>
-            <p>CAS loser rereads the winning revision.</p>
-          </article>
-          <article class="failure-card">
+            <p>CAS loser cannot overwrite; it rereads or returns changed.</p>
+          </div>
+          <div class="failure-card">
             <strong>Malformed success</strong>
             <p><code>invalid</code>; never converted into send permission.</p>
-          </article>
-          <article class="failure-card">
+          </div>
+          <div class="failure-card">
             <strong>Partial evidence</strong>
             <p>Provider check—not a fake yes/no owner choice.</p>
-          </article>
+          </div>
         </div>
 
         <div class="provider-chips" aria-label="Provider retry capabilities">
@@ -1340,7 +1541,7 @@
           opened only after the request has selected one bounded target.
         </p>
 
-        <div class="bounds-grid" aria-label="Operational bounds">
+        <div class="bounds-grid" role="group" aria-label="Operational bounds">
           <div class="bound">
             <b>0</b><span>attendee decryptions on Refund All GET</span>
           </div>
@@ -1361,7 +1562,11 @@
           </div>
         </div>
 
-        <div class="privacy-grid" aria-label="Storage privacy tiers">
+        <div
+          class="privacy-grid"
+          role="group"
+          aria-label="Storage privacy tiers"
+        >
           <article class="privacy-card owner">
             <span class="level">owner-key secret</span>
             <h3>Raw personal/payment identity</h3>
@@ -1409,7 +1614,7 @@
         <p class="section-number">04 · test signal, not test theatre</p>
         <h2>What the tests actually establish.</h2>
 
-        <div class="proof-stats" aria-label="Test totals">
+        <div class="proof-stats" role="group" aria-label="Test totals">
           <div class="proof-stat">
             <b>23,351</b><span>unit + integration tests</span>
           </div>
@@ -1425,34 +1630,34 @@
         </div>
 
         <div class="proof-grid">
-          <article class="proof-card">
+          <div class="proof-card">
             <strong>Visitors</strong>
             <p>
               Owners send/decide; managers observe; callbacks and rendered
               recovery controls use real routes.
             </p>
-          </article>
-          <article class="proof-card">
+          </div>
+          <div class="proof-card">
             <strong>Storage and races</strong>
             <p>
               Migrations, constraints, CAS, claims, crashes, settlement,
               merge/delete/prune and bounds are exercised directly.
             </p>
-          </article>
-          <article class="proof-card">
+          </div>
+          <div class="proof-card">
             <strong>Architecture</strong>
             <p>
               Static checks reject a second authority, direct adapter calls,
               ambient refund selection and dead recovery controls.
             </p>
-          </article>
-          <article class="proof-card">
+          </div>
+          <div class="proof-card">
             <strong>Decision quality</strong>
             <p>
               Exhaustive state tables and mutation suites attack branches where
               a wrong money answer could otherwise hide.
             </p>
-          </article>
+          </div>
         </div>
 
         <p class="proof-caveat">
@@ -1469,34 +1674,34 @@
         <h2>What this PR deliberately does not pretend.</h2>
 
         <div class="limits-grid">
-          <article class="limit-card">
+          <div class="limit-card">
             <strong>Old unqualified payments</strong>
             <p>
               They get reduced refund functionality. There is no compatibility
               reader or provider guess.
             </p>
-          </article>
-          <article class="limit-card">
+          </div>
+          <div class="limit-card">
             <strong>Refund All</strong>
             <p>
               One attendee per submission—not yet a durable, resumable
               listing-wide intention.
             </p>
-          </article>
-          <article class="limit-card">
+          </div>
+          <div class="limit-card">
             <strong>Booking obligations</strong>
             <p>
               Stable order identity, shared-charge allocation and free
               package-member cancellation remain later work.
             </p>
-          </article>
-          <article class="limit-card">
+          </div>
+          <div class="limit-card">
             <strong>Checkout cutover</strong>
             <p>
               A confined pre-cutover session selector cannot refund; its
               replacement must delete it atomically.
             </p>
-          </article>
+          </div>
         </div>
       </section>
 
