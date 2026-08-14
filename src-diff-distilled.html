@@ -342,7 +342,7 @@
     <main>
       <header>
         <p class="eyebrow">
-          Behavior-only source review · final snapshot pending
+          Behavior-only source review · verified source checkpoint
         </p>
         <h1>What is actually new in M4 Part A?</h1>
         <p class="lede">
@@ -353,12 +353,14 @@
         </p>
         <div class="snapshot">
           <span><strong>base</strong> <code
-            >{{FINAL_BASE_SHA}}</code></span><span><strong>branch</strong> <code
-            >{{FINAL_BRANCH_SHA}}</code></span><span><strong>source
-              diff</strong> <code>{{FINAL_SRC_DIFF_SHA256}}</code></span><span
+            >470b47efef0836487d55beb8a26442dd432f6f35</code></span><span><strong
+            >source checkpoint</strong> <code
+            >31492eb2936dea7d7ac51d225d8af3f8fc18d95a</code></span><span><strong
+            >source diff</strong> <code
+            >8dfd2f2b541fd2726677ff7d07eee60beb50caeba958617cfe0cf30ef435be8e</code></span><span
           ><strong>generated</strong> <code
-            >{{FINAL_GENERATED_AT}}</code></span><span><strong>scope</strong>
-            <code>origin/main...final working tree</code></span>
+            >2026-08-14T05:23:52+01:00</code></span><span><strong>scope</strong>
+            <code>origin/main...source checkpoint</code></span>
         </div>
         <div class="metrics">
           <div class="metric"><b>6</b><span>new method families</span></div>
@@ -366,7 +368,7 @@
             <b>10</b><span>material database-touch families</span>
           </div>
           <div class="metric">
-            <b>4</b><span>old method families changed</span>
+            <b>5</b><span>old method families changed</span>
           </div>
           <div class="metric">
             <b>0</b><span>moves counted as features</span>
@@ -492,6 +494,19 @@
                 Ready-but-unreadable work can enter this exit without being
                 falsely armed first, and there is intentionally no generic
                 clear.
+              </p>
+            </li>
+            <li class="method">
+              <div>
+                <a href="src/shared/payment/refund-conflict-decision.ts"><code
+                  >refundConflictDecision</code></a><span class="where"
+                >shared/payment/refund-conflict-decision.ts</span>
+              </div>
+              <p>
+                Turn one fresh charge into the exact safe owner branch: only not
+                sent when zero return is proved, only returned when positive
+                exact return is proved, and wait when money is invalid,
+                backward, excessive, pending, or in the wrong currency.
               </p>
             </li>
             <li class="method">
@@ -947,13 +962,29 @@
             </li>
             <li class="method">
               <div>
-                <a href="src/shared/db/provider-refund-cases.ts"><code
+                <a href="src/shared/db/provider-refund-case-resolution.ts"><code
                   >resolveProviderRefundCase</code></a><span class="where"
-                >shared/db/provider-refund-cases.ts</span>
+                >shared/db/provider-refund-case-resolution.ts</span>
               </div>
               <p>
-                Apply a required provider outcome or local Money receipt to the
-                exact charge revision; a stale form changes nothing.
+                Apply only the outcome justified by the exact stored decision,
+                or local Money receipt, to the charge revision. The authority
+                change and activity audit share one transaction, so audit
+                failure rolls the decision back; a stale form changes nothing.
+              </p>
+            </li>
+            <li class="method">
+              <div>
+                <a
+                  href="src/shared/db/provider-refund-authority-change.ts"
+                ><code>transitionRefundAuthority</code> / <code
+                  >resolveRefundAuthorityMoney</code></a><span class="where"
+                >shared/db/provider-refund-authority-change.ts</span>
+              </div>
+              <p>
+                Own every revision-fenced Money/state mutation, reject
+                backwards, excessive, non-positive, or wrong-currency Money, and
+                let owner decisions join the caller's transaction.
               </p>
             </li>
             <li class="method">
@@ -1062,8 +1093,11 @@
                   admission.
                 </td>
                 <td>
-                  Create/bind and revision-CAS transitions through <code
-                  >provider-refund-authority.ts</code> only.
+                  Identity creation/binding through <code
+                  >provider-refund-authority.ts</code>; every Money/state
+                  transition through <code
+                  >provider-refund-authority-change.ts</code>. The architecture
+                  test permits exactly these two modules as one writer boundary.
                 </td>
                 <td>
                   One charge-level source of truth shared by callback and admin.
@@ -1412,6 +1446,20 @@
             </li>
             <li class="method">
               <div>
+                <a href="src/shared/currency.ts"><code
+                  >formatCurrency</code></a><span class="where"
+                >shared/currency.ts ·
+                  ui/templates/admin/provider-refund-cases.tsx</span>
+              </div>
+              <p>
+                Accept an explicit currency for delayed payment work. Owner
+                cases now display the stored charge with its own divisor,
+                symbol, and code instead of formatting it with today's site
+                currency.
+              </p>
+            </li>
+            <li class="method">
+              <div>
                 <a href="src/ui/templates/admin/attendees.tsx"><code
                   >PaymentDetails</code></a><span class="where"
                 >features/admin/attendee-page-data.ts · attendee-page.ts ·
@@ -1661,22 +1709,27 @@
         <div class="callout warn">
           <strong>Atomic-cutover caveat:</strong> this report does not claim
           that every legacy payment field or the whole checkout/session entry
-          has disappeared. The later M6–M11 replacement must activate its
-          writers, readers, jobs, completion, delivery, and M11 migration
-          together. It must replace the remaining runtime atomically, never
-          coexist as another live path.
+          has disappeared. Today <code>existing-payment-provider.ts</code> still
+          owns ambient current/last selection before a provider-tagged target
+          exists. The later M6–M11 replacement must activate its writers,
+          readers, jobs, completion, delivery, and M11 migration together while
+          deleting <code>getPaymentProviderForExistingPayments</code> and every
+          runtime payment-ownership caller. Configuration-only credential
+          enumeration may remain under an honest name; no second observer,
+          sender, fallback, read-through, bridge, or old-record branch may
+          coexist.
         </div>
       </section>
 
       <footer>
-        <strong>Reviewed one-off distillation.</strong> Final integration must
-        replace <code>{{FINAL_GENERATED_AT}}</code>, <code
-        >{{FINAL_BASE_SHA}}</code>, <code>{{FINAL_BRANCH_SHA}}</code>, <code
-        >{{FINAL_SRC_DIFF_SHA256}}</code>, <code>{{SRC_PATHS}}</code>, <code
-        >{{SRC_ADDED}}</code>, and <code>{{SRC_REMOVED}}</code> from one clean
-        snapshot. Categories were human-reviewed against the current <code
-        >origin/main...working tree</code> callers, storage, and behavior; they
-        intentionally do not claim AST-level declaration completeness.
+        <strong>Reviewed one-off distillation.</strong> The verified snapshot
+        changes 207 <code>src/</code> paths: 16,024 raw lines added and 3,628
+        removed. Its code-only total is 14,881 changed lines after excluding
+        imports, comments, and blanks. Categories were human-reviewed against
+        <code>origin/main...31492eb2936dea7d7ac51d225d8af3f8fc18d95a</code>
+        callers, storage, and behavior; they intentionally do not claim
+        AST-level declaration completeness. Documentation-only final commits may
+        follow without changing this source fingerprint.
       </footer>
     </main>
   </body>

@@ -311,8 +311,10 @@ permitted.
   claim/ledger may authorize booking or refund; the provider-qualified record is
   written in the same successful/owner-case transaction and is never a second
   authority for unprocessed work.
-- Automatic refund and `isPaymentRefunded` must use the bound attempt that
-  accepted the resource. Re-resolving global provider settings is forbidden.
+- Automatic refund must use M4's canonical `readCharge` evidence and durable
+  provider-refund authority bound to the accepted resource. The deleted
+  `isPaymentRefunded` API stays deleted; no future cutover may revive it or
+  re-resolve global provider settings.
 - Define one canonical identity per provider before any durable claim: Stripe is
   `(stripe, checkout_session, Session.id)`, Square is
   `(square, order, Order.id)`, and SumUp is `(sumup, checkout, Checkout.id)`.
@@ -633,12 +635,20 @@ that already pin #2048, #2050, #2060, and M4. Reconcile paths with the current
 tree when implementing it; no test may keep an old runtime callable merely to
 compare it with the new one.
 
-At checkpoint `FINAL_PR4_A_SHA`, M4's focused
-`resolving-uncertain-refunds.feature` has four scenarios and 43 executed
+M4's as-built authority is deliberately split without becoming parallel:
+`payment/refund-conflict-decision.ts` derives the exact safe answer,
+`db/provider-refund-authority.ts` owns identity creation/binding,
+`db/provider-refund-authority-change.ts` owns every Money/state write, and
+`db/provider-refund-case-resolution.ts` commits the owner decision with its
+activity audit. The architecture test permits exactly those two database writer
+modules as one logical boundary. Production and tests both call the same refund
+readiness implementation; a test-side copy is forbidden.
+
+At verified source checkpoint `31492eb2936dea7d7ac51d225d8af3f8fc18d95a`, M4's
+focused `resolving-uncertain-refunds.feature` has four scenarios and 43 executed
 Cucumber steps, including the unreadable-ready zero-send exit. The completed
-full run passes `FINAL_PR4_A_CUCUMBER_SCENARIOS` scenarios and
-`FINAL_PR4_A_CUCUMBER_STEPS` executed steps. Fill all three placeholders from
-the final green commit; older suite-wide counts are not authority.
+full run passes 261 scenarios and 1,863 executed steps. Older suite-wide counts
+are not authority.
 
 Direct deterministic coverage for the remaining cutover must include:
 

@@ -331,18 +331,18 @@ generalized passes: render, fold, price, capacity, revalidate.
   granularity blurs, and only when per-path prices differ. Fixing it needs a
   SQL-queryable per-path discriminator on sale legs (a transfers schema addition
   — `reference` is a hash, `kind`/`dest_id` feed reports) or re-storing the
-  per-row amount, plus a fallback for pre-upgrade rows whose legs are untagged.
-  Do it when per-row money display matters more than the schema stability of the
-  append-only ledger.
+  per-row amount. Activation must first migrate and verify old rows in bounded
+  pages. Any row that cannot be migrated keeps an explicit reduced-functionality
+  state; runtime display and accounting must never fall back to the untagged
+  shape. Do it when per-row money display matters more than the schema stability
+  of the append-only ledger.
 
-- **Confirm the v1 drain bridge is genuinely unnecessary.** The original plan
-  called for a bounded-window read-only parser for pre-cutover (v1) signed
-  metadata plus a regression test for an old-shape session paid during the
-  cutover window. No dedicated bridge was built. In practice the v2 schema added
-  `k`/`r` as _optional_ fields to the existing `e/q/p` line shape, so old
-  sessions still parse (as standalone lines). Verify this covers every
-  in-flight-session case and, if so, close this out; otherwise add the bridge +
-  drain-window test.
+- **Prove every v1 in-flight session is drained before a cutover.** The v2
+  schema added `k`/`r` as optional fields to the existing `e/q/p` line shape, so
+  old sessions appear to parse as standalone lines. Verify every old-shape
+  in-flight case. If any does not qualify, migrate or terminally drain it in a
+  bounded, verified pre-activation ceremony. Do not add a runtime parser,
+  compatibility bridge, read-through, or old-record branch.
 
 ---
 
@@ -2282,9 +2282,14 @@ speculative module set wholesale or put a second refund classifier beside
 stored `PaymentReviewReasonSchema` currently contains only `shared_reference`
 and `partially_returned_obligation`; provider disagreements that already have
 trustworthy refund authority live instead in
-`payment_charges.needs_owner_choice`. Any newly reachable M6 conflict kind must
-land with its schema, writer, required owner action, and tested retirement path
-in the same atomic cutover. Do not revive the deleted module cluster or create a
+`payment_charges.needs_owner_choice`. Its current exact decision comes from
+`payment/refund-conflict-decision.ts`; identity writes and Money/state writes
+are the one logical authority split across `db/provider-refund-authority.ts` and
+`db/provider-refund-authority-change.ts`; and
+`db/provider-refund-case-resolution.ts` commits a decision with its activity
+audit. Any newly reachable M6 conflict kind must extend those canonical
+mechanisms with its schema, required owner action, and tested retirement path in
+the same atomic cutover. Do not revive the deleted module cluster or create a
 second refund classifier/state machine.
 
 That cutover is an atomic replacement, not a runtime selector. Every checkout
@@ -2343,8 +2348,10 @@ Two ways out, both real work:
   from each reversal to the leg it reverses. This contradicts decision 8 ("a
   refund posts many rows and repeat/partial refunds are scoped by event group
   instead"), and existing plus backfilled refund legs carry no `reverses_id`, so
-  it needs a backfill or a documented fallback.
-- Add a column naming the reversed booking group, with the same backfill.
+  activation requires a bounded, verified backfill. Any unmigratable historical
+  row must remain explicitly unsupported; no runtime fallback is permitted.
+- Add a column naming the reversed booking group, with the same bounded,
+  verified migration and explicit unsupported state for unmigratable history.
 
 Start by reading `mapRefund` in `src/shared/accounting/mappers.ts` and the
 `reverses_id` note above it.

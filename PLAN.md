@@ -25,15 +25,15 @@ ledger.
 
 ## Where we are
 
-| Milestone                               | Status                                                                                                                                                                                                                                                                                                                          |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| M1 safety behavior (was PR 1)           | Merged as #2020. Also landed the M2 pure modules: `src/shared/payment/money.ts`, `resource-id.ts`, `refund-state.ts`, and `validated-session.ts`.                                                                                                                                                                               |
-| M2 money/resource vocabulary (was PR 2) | Core modules merged inside #2020. Any provider parsing still off those schemas rides with M3 or M4.                                                                                                                                                                                                                             |
-| M3 provider ownership (was PR 3)        | Complete: #2048 (payment processing core), #2050 (bounded registration delivery), #2060 (observation boundary + SumUp callback wiring; F2 closed).                                                                                                                                                                              |
-| M4 settled-money diagnosis (was PR 4)   | Part A is implemented by #2065 on `claude/m4-pr-a`: every live admin and buyer-callback refund uses one durable `payment_charges` authority, one provider-send permit, and one owner-recovery lifecycle. Whole-checkout diagnosis, stable booking obligations, allocation, and durable Refund All jobs remain later milestones. |
-| M5 cases (was PR 5)                     | The current-row review/acknowledgement slice landed in M4 Part A. Remaining aggregate case kinds ship with their M6–M8 producers and actions, not as a dormant layer.                                                                                                                                                           |
-| M6–M11 atomic aggregate cutover         | Not started as a production cutover. #2056 started its read-only verifier early. Creation, reads, jobs, completion, delivery, site effects, and bounded history migration activate together; no intermediate layer may merge as a live parallel path.                                                                           |
-| M12–M13                                 | Not started.                                                                                                                                                                                                                                                                                                                    |
+| Milestone                               | Status                                                                                                                                                                                                                                                                                                                                                                                                |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M1 safety behavior (was PR 1)           | Merged as #2020. Also landed the M2 pure modules: `src/shared/payment/money.ts`, `resource-id.ts`, `refund-state.ts`, and `validated-session.ts`.                                                                                                                                                                                                                                                     |
+| M2 money/resource vocabulary (was PR 2) | Core modules merged inside #2020. Any provider parsing still off those schemas rides with M3 or M4.                                                                                                                                                                                                                                                                                                   |
+| M3 provider ownership (was PR 3)        | Complete: #2048 (payment processing core), #2050 (bounded registration delivery), #2060 (observation boundary + SumUp callback wiring; F2 closed).                                                                                                                                                                                                                                                    |
+| M4 settled-money diagnosis (was PR 4)   | Part A is implemented by #2065 on `claude/m4-pr-a`: every actual refund send, and every admitted provider-tagged callback target once captured Money is trustworthy, uses one durable `payment_charges` authority, one provider-send permit, and one owner-recovery lifecycle. Whole-checkout diagnosis, stable booking obligations, allocation, and durable Refund All jobs remain later milestones. |
+| M5 cases (was PR 5)                     | The current-row review/acknowledgement slice landed in M4 Part A. Remaining aggregate case kinds ship with their M6–M8 producers and actions, not as a dormant layer.                                                                                                                                                                                                                                 |
+| M6–M11 atomic aggregate cutover         | Not started as a production cutover. #2056 started its read-only verifier early. Creation, reads, jobs, completion, delivery, site effects, and bounded history migration activate together; no intermediate layer may merge as a live parallel path.                                                                                                                                                 |
+| M12–M13                                 | Not started.                                                                                                                                                                                                                                                                                                                                                                                          |
 
 Budgets below count `src/` lines only. Observed totals run 4–15x the `src/`
 figure once tests, stories, and catalog copy are included (#2020: 714 src lines,
@@ -65,12 +65,12 @@ consistently wrong and governed nothing.
    next. Say so in the description. PR_WORKFLOW.md's "repository source-line
    limit" is this rule, exception included. Tests, fixtures, and documentation
    do not count against the cap; never weaken them to shrink a diff. #2065 is
-   the approved current-path exception: its
-   `FINAL_PR4_A_GROSS_CHANGED_SRC_LINES` gross changed `src/` lines cut every
-   refund caller, provider adapter, persistence writer, and recovery surface
-   over together. Fill that placeholder from the final source commit. Splitting
-   it at a live seam would have required the legacy and canonical authorities to
-   run in parallel, which this plan forbids.
+   the approved current-path exception: its `14881` gross changed `src/` code
+   lines cut every refund caller, provider adapter, persistence writer, and
+   recovery surface over together. Imports, comments, and blank lines are
+   excluded from that audited total. Splitting it at a live seam would have
+   required the legacy and canonical authorities to run in parallel, which this
+   plan forbids.
 4. **Gates.** `nix develop -c deno task precommit` passes before review. Run
    targeted mutation on the payment modules the PR changed and list the runs in
    the description. The branch-level
@@ -527,10 +527,14 @@ As-built module map:
   capability, one validated state document, its SQL mirrors, next due time, and
   revision. Reference and callback identities are each globally unique. The
   JSON/mirror checks make a state disagreeing with its indexed work columns
-  unstoreable. Only `db/provider-refund-authority.ts` writes the table, and
-  every mutation is one revision-conditional statement.
-  `db/provider-refund-cases.ts` is the sole owner queue repository; it decrypts
-  the reference only for the owner-only detail page.
+  unstoreable. Exactly two modules form its one writer boundary:
+  `db/provider-refund-authority.ts` creates identities and binds callback
+  evidence, while `db/provider-refund-authority-change.ts` owns every Money and
+  state transition as one revision-conditional statement. The architecture test
+  rejects any third writer. `db/provider-refund-cases.ts` owns bounded case
+  reads and decrypts the reference only for the owner-only detail page;
+  `db/provider-refund-case-resolution.ts` applies the exact decision and writes
+  its activity audit in one transaction.
 - **Exact claims and retry capability.**
   `payment/{row-state,claim,review,admit-move}.ts`,
   `db/payment-claim{,/scope,/take}.ts`, and
@@ -708,9 +712,13 @@ As-built module map:
 
   Provider uncertainty and charge conflicts never enter that local review
   schema. `provider-refund-cases.ts` exposes the canonical authority's own
-  revision and requires one of `provider_confirmed_not_sent`,
-  `provider_confirmed_returned`, or `money_recorded`; there is no generic clear.
-  `PaymentWorkStatus` is exactly
+  revision. `payment/refund-authority-choice.ts` derives the only legal action
+  from the exact stored evidence: ordinary uncertainty offers returned or not
+  sent; an exact zero-return conflict offers only not sent; an exact
+  positive-return conflict offers only returned; and invalid, backward,
+  wrong-currency, excessive, or pending evidence offers no money answer and can
+  only be checked again. `money_recorded` is the separate proof that the local
+  ledger caught up. There is no generic clear. `PaymentWorkStatus` is exactly
   `clear | moving | needs_money_record |
   needs_provider_recovery | needs_review`.
   A live claim comes first, then an explicit owner review, then mechanical
@@ -733,10 +741,13 @@ As-built module map:
   owner-only detail opens the reference. `ready` renders one clearly marked Send
   action; `send_armed` and `observing` render observation only; `completed/due`
   requires the separate Money-recorded confirmation; and `needs_owner_choice`
-  requires an explicit provider-returned or provider-not-sent answer. A not-sent
-  answer increments the generation and leaves `ready` work; saving the choice
-  itself sends nothing. Every form binds the exact id and revision, and a
-  concurrent change refuses instead of acting on stale evidence.
+  renders only the answer justified by the exact conflict table above. Stored
+  Money is displayed with its own currency divisor, symbol, and code, never the
+  site's current currency. A not-sent answer increments the generation and
+  leaves `ready` work; saving the choice itself sends nothing. Every form binds
+  the exact id and revision, and a concurrent change refuses instead of acting
+  on stale evidence. The revision-fenced authority change and its finite
+  activity audit commit together; an audit failure rolls the decision back.
   `refund-authority-lifecycle.ts` exhaustively declares the clearer, whether a
   choice is required, the real route, pruning, and merge/delete policy for every
   state. The architecture test proves every declared clearer is exported and
@@ -909,18 +920,17 @@ As-built module map:
   All requests, whole-listing blocker admission, and per-request failure
   isolation. `resolving-uncertain-refunds.feature` drives the real Privacy queue
   through ready send, provider observation, required owner choice, and separate
-  Money recording. At checkpoint `FINAL_PR4_A_SHA` that focused feature has four
+  Money recording. At verified source checkpoint
+  `31492eb2936dea7d7ac51d225d8af3f8fc18d95a` that focused feature has four
   scenarios and 43 executed Cucumber steps, including the unreadable-ready
-  zero-send exit. The completed full run passes `FINAL_PR4_A_CUCUMBER_SCENARIOS`
-  scenarios and `FINAL_PR4_A_CUCUMBER_STEPS` executed steps; fill all three
-  placeholders from the final green commit. The stories submit the rendered
-  forms and cross the real provider and ledger boundaries. Refund-safety
-  purchases use the public booking page: Stripe follows the production
-  completion route, while SumUp follows the real checkout staging write and
-  unsigned webhook handler. No story rewrites a stored payment's provider or
-  manufactures refund history to reach the state it tests. The recovery story
-  also merges onto a target with blank legacy PII, refreshes without a second
-  provider send, and proves deletion becomes reachable.
+  zero-send exit. The completed full run passes 261 scenarios and 1,863 executed
+  steps. The stories submit the rendered forms and cross the real provider and
+  ledger boundaries. Refund-safety purchases use the public booking page: Stripe
+  follows the production completion route, while SumUp follows the real checkout
+  staging write and unsigned webhook handler. No story rewrites a stored
+  payment's provider or manufactures refund history to reach the state it tests.
+  The recovery story also merges onto a target with blank legacy PII, refreshes
+  without a second provider send, and proves deletion becomes reachable.
   `refunding-everyone-at-once.feature` also proves that one old blank-index
   sibling anywhere in the SQL-visible refundable set stops every provider send.
 
@@ -943,12 +953,17 @@ completion path. The atomic cutover combines M6's whole-checkout reader with
 M8's durable completion and deletes that displaced writer before activation.
 
 Before a provider-tagged refund target exists, the current checkout entry still
-chooses the ambient current or last provider. A provider switch can therefore
-strand or misroute an in-flight checkout. A paid callback with a blank provider
-reference can still be terminally acknowledged, and an authenticated malformed
-Stripe completion can still be terminally dropped. These are whole-checkout
-admission and completion defects for the atomic M6/M8 cutover; they are not
-alternate paths the M4 refund authority should learn to tolerate.
+uses `shared/existing-payment-provider.ts` to choose the ambient current or last
+provider. A provider switch can therefore strand or misroute an in-flight
+checkout. A paid callback with a blank provider reference can still be
+terminally acknowledged, and an authenticated malformed Stripe completion can
+still be terminally dropped. These are whole-checkout admission and completion
+defects for the atomic M6/M8 cutover; they are not alternate paths the M4 refund
+authority should learn to tolerate. M6–M11 must replace and delete
+`getPaymentProviderForExistingPayments` and every runtime payment-ownership
+caller in the same activation. Configuration-only credential enumeration may
+remain under an honest configuration name; it must never become a second
+observer, sender, fallback, or read-through path.
 
 Part A also does not solve stable booking obligations, exact allocation, ledger
 order identity, a durable Refund All intention, or the original checkout's
