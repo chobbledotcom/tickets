@@ -30,21 +30,10 @@ src/features/public/ticket-payment.ts::loadPagePackages~0vaeh8c  Missing package
 src/features/admin/attendee-form-model.ts::parseAttendeeForm.lines.existingBooking~1genp17  ?? → ||   # existingByKey.get(key): ListingAttendeeRow|undefined — an object is always truthy
 src/features/admin/attendee-form-model.ts::parseAttendeeForm.lines.listing~1y7j49h  ?? → ||   # listingsById.get(id): ListingWithCount|undefined — an object is always truthy
 src/features/admin/attendee-form-model.ts::isPaymentLockedLine~1cyk75e  ?? → ||   # (existingBooking?.price_paid ?? 0): a number; the only falsy number is 0, and 0 ?? 0 === 0 || 0
-src/features/admin/attendee-page-data.ts::loadPackagePaths.memberPrices~1xcdymp  ?? → ||   # priceRowsByGroupId.get(): PriceRow[]|undefined — an array is always truthy
-src/features/admin/attendee-page-data.ts::packagesByListingIdFrom.groups~183l51m  ?? → ||   # byListing.get(): Map<number,number|null>|undefined — a Map is always truthy
-src/features/admin/attendee-page-data.ts::buildFormLines.standaloneBlanks~11c4q19  ?? → ||   # preselectedQty.get(): number|undefined; the only falsy number is 0, and the fallback is also 0
-src/features/admin/attendee-page-data.ts::listingBookingFor.durationDays~1vg0u7m  1 → 0   # standard bookings pass date:null, so buildCapacityCondition ignores durationDays entirely
-src/features/admin/attendee-page-data.ts::overbookedListingIds~11ijbqo  ?? → ||   # totalByListing.get(): number|undefined; the only falsy number is 0, and the fallback is also 0
 src/features/admin/attendee-page-data.ts::computeWarnings.warns~1e9bm1v  ?? → ||   # incompleteParents stores only a non-empty translated warning string, otherwise get returns undefined
-src/features/admin/attendee-page-data.ts::assembleTemplateData.balanceNotice~0gnct02  ?? → ||   # find returns a status object or undefined, and a status object is always truthy
 src/features/admin/attendee-page-data.ts::assembleTemplateData.balanceNotice~0axstbd  ?? → ||   # remaining_balance is an integer; its only falsy value is 0, which equals the fallback
-src/features/admin/attendee-page-data.ts::assembleTemplateData.balanceNotice~0g9qz7c  ?? → ||   # fullPrice is an integer or the summary is absent; 0 equals the fallback and every other amount is truthy
-src/features/admin/attendee-page-data.ts::assembleTemplateData.balanceNotice~0ec14e6  ?? → ||   # depositPaid is an integer or the summary is absent; 0 equals the fallback and every other amount is truthy
 src/features/admin/attendee-page-data.ts::assembleTemplateData.hasMixedTimings~1hmlq9c  ?? → ||   # hasMixedTimings is boolean|undefined, and false equals the fallback
-src/features/admin/attendee-page-data.ts::assembleTemplateData.questions~0wxrma2  ?? → ||   # questions is an array when present, and arrays are always truthy
 src/features/admin/attendee-page-data.ts::assembleTemplateData.selectedAnswerIds~1og9d80  ?? → ||   # selectedAnswerIds is an array when present, and arrays are always truthy
-src/features/admin/attendee-page-data.ts::assembleTemplateData.selectedTextAnswers~0av0z2p  ?? → ||   # selectedTextAnswers is a Map when present, and Maps are always truthy
-src/features/admin/attendee-page-data.ts::loadQuestionsForExisting.selectedAnswerIds~0qpejdr  ?? → ||   # attendeeAnswerMap values are arrays, and arrays are always truthy
 src/features/tickets/token-utils.ts::verifyTokensWithRealLine.verified.realBookings~1jqkiac  ?? → ||   # (attendees[i]?.bookings ?? []): ListingAttendeeRow[]|undefined — an array is always truthy, undefined→[] either way
 
 # Ticket form parsing (ticket-form.ts): `?? → ||` where the operand is an array,
@@ -170,7 +159,6 @@ src/shared/booking/page-packages.ts::stampChildRowPackages.parentId~0mh8ima  ?? 
 
 # Payment provider setup and the balance notice (main #2020): a paid amount that
 # cannot reach any branch, and a recovery count that is never exactly one.
-src/features/admin/attendee-page-data.ts::assembleTemplateData.balanceNotice~0ec14e6  0 → 1   # the fallback is used only in create mode, where fullPrice is 0; the amount paid cannot affect any balance-notice branch when no order exists
 src/features/admin/settings-page.ts::getAdvancedSettingsPageState.paymentProviderRecoveryNeeded~1fd1z1o  0 → 1   # existingPaymentProviderState resolves one configured provider directly; recoveryChoices is therefore either empty or has at least two providers, so both comparisons agree
 
 # Public order page (order.ts) — booking-span sums whose floor the capacity

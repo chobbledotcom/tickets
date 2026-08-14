@@ -9,7 +9,9 @@ import type { RefundReadinessResult } from "#routes/admin/refunds/readiness.ts";
 import { rememberReadinessFailureFindings } from "#routes/admin/refunds/readiness-findings.ts";
 import { refreshClaimedPayment } from "#routes/admin/refunds/refresh.ts";
 import {
+  type ProviderRefundResult,
   type ProviderRefundTarget,
+  type RefundAuthorityReceipt,
   requestProviderRefund,
 } from "#shared/provider-refunds.ts";
 import {
@@ -154,6 +156,80 @@ const emptyHeldWork = (): HeldRefundWork => ({
   unrecorded: new Map(),
 });
 
+type AuthorityAnswerCases = {
+  readonly [Kind in ProviderRefundResult["kind"]]: {
+    readonly answer: (
+      reference: ReturnType<typeof tagged>,
+    ) => Extract<ProviderRefundResult, { kind: Kind }>;
+    readonly preserves: boolean;
+  };
+};
+
+const authority = {
+  id: 1,
+  referenceIndex: "observed_index",
+  revision: 1,
+} satisfies RefundAuthorityReceipt;
+
+const AUTHORITY_ANSWER_CASES = {
+  changed: {
+    answer: (reference) => ({ kind: "changed", reference }),
+    preserves: false,
+  },
+  needs_owner_choice: {
+    answer: (reference) => ({
+      authority,
+      kind: "needs_owner_choice",
+      reason: "possibly_sent",
+      reference,
+    }),
+    preserves: true,
+  },
+  needs_provider_check: {
+    answer: (reference) => ({
+      authority,
+      kind: "needs_provider_check",
+      reason: "provider_conflict",
+      reference,
+    }),
+    preserves: true,
+  },
+  pending: {
+    answer: (reference) => ({
+      authority,
+      kind: "pending",
+      reference,
+      state: "observing",
+    }),
+    preserves: true,
+  },
+  ready: {
+    answer: (reference) => ({ authority, kind: "ready", reference }),
+    preserves: false,
+  },
+  returned: {
+    answer: (reference) => ({
+      authority,
+      kind: "returned",
+      local: "due",
+      reference,
+    }),
+    preserves: true,
+  },
+  unchanged: {
+    answer: (reference) => ({ kind: "unchanged", reference }),
+    preserves: false,
+  },
+  withheld: {
+    answer: (reference) => ({
+      admission: { kind: "read_failed", read: { status: "missing" } },
+      kind: "withheld",
+      reference,
+    }),
+    preserves: false,
+  },
+} satisfies AuthorityAnswerCases;
+
 describeWithEnv("failed refund evidence authority", { db: true }, () => {
   setupErrorSpy();
 
@@ -208,20 +284,22 @@ describeWithEnv("failed refund evidence authority", { db: true }, () => {
     expect(run.authorityRequests).toEqual([]);
   });
 
-  for (const [description, wrongReference] of [
-    [
-      "provider",
-      {
-        kind: "tagged",
-        provider: "square",
-        reference: "observed",
-      },
-    ],
-    [
-      "reference",
-      { kind: "tagged", provider: "stripe", reference: "somewhere_else" },
-    ],
-  ] as const) {
+  for (
+    const [description, wrongReference] of [
+      [
+        "provider",
+        {
+          kind: "tagged",
+          provider: "square",
+          reference: "observed",
+        },
+      ],
+      [
+        "reference",
+        { kind: "tagged", provider: "stripe", reference: "somewhere_else" },
+      ],
+    ] as const
+  ) {
     test(`refuses an authority answer for another ${description}`, async () => {
       const run = await oneObservedFailure(async (target) => ({
         ...(await requestAtStripe(target)),
@@ -234,15 +312,22 @@ describeWithEnv("failed refund evidence authority", { db: true }, () => {
     });
   }
 
-  test("refuses an authority answer that discards observed evidence", async () => {
-    const run = await oneObservedFailure((target) =>
-      Promise.resolve({ kind: "unchanged", reference: target.reference }),
-    );
+  for (const [kind, answerCase] of Object.entries(AUTHORITY_ANSWER_CASES)) {
+    test(`${kind} names whether it preserves observed evidence`, async () => {
+      const run = await oneObservedFailure((target) =>
+        Promise.resolve(answerCase.answer(target.reference))
+      );
 
-    await expect(run.result).rejects.toThrow(
-      "Refund authority discarded observed refund evidence",
-    );
-  });
+      if (answerCase.preserves) {
+        await run.result;
+        expect(run.claim.unrecorded).toEqual([["session_observed_index"]]);
+        return;
+      }
+      await expect(run.result).rejects.toThrow(
+        "Refund authority discarded observed refund evidence",
+      );
+    });
+  }
 
   test("keeps returned evidence when storing its authority fails", async () => {
     const reference = tagged("returned", "stripe", "returned_index");
