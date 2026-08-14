@@ -1049,7 +1049,7 @@ As-built module map:
   isolation. `resolving-uncertain-refunds.feature` drives the real Privacy queue
   through ready send, provider observation, required owner choice, and separate
   Money recording. At verified source checkpoint
-  `2e78f3d218a5becefbbcdaf5bfbf8e66a4433838` that focused feature has four
+  `a3789975d81ceaf827b33da2bc7489499bf0a922` that focused feature has four
   scenarios and 43 executed Cucumber steps, including the unreadable-ready
   zero-send exit. The completed full run passes 262 scenarios and 1,877 executed
   steps. The stories submit the rendered forms and cross the real provider and

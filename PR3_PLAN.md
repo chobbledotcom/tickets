@@ -769,7 +769,7 @@ still-paid sibling; and
 plus `test/integration/server/attendees/payment.test.ts` prove refund controls
 and provider links come from authoritative tagged work rather than legacy PII.
 
-At verified source checkpoint `2e78f3d218a5becefbbcdaf5bfbf8e66a4433838`, M4's
+At verified source checkpoint `a3789975d81ceaf827b33da2bc7489499bf0a922`, M4's
 focused `resolving-uncertain-refunds.feature` has four scenarios and 43 executed
 Cucumber steps, including the unreadable-ready zero-send exit. The completed
 full run passes 262 scenarios and 1,877 executed steps. Older suite-wide counts
