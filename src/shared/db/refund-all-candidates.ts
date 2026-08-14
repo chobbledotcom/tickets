@@ -86,6 +86,7 @@ const refundCandidateCtes = (): string => `
   WITH bookingAttendee AS (
     SELECT attendee.id,
            MIN(${refundStatus}) AS refunded,
+           MAX(attendee.pii_payment_session_id) AS pii_payment_session_id,
            MAX(
              CASE WHEN ${paidBooking} THEN 1 ELSE 0 END
            ) AS has_paid_line
@@ -104,6 +105,10 @@ const refundCandidateCtes = (): string => `
              AS completed,
            MAX(CASE WHEN NOT ${anchorSession} THEN 1 ELSE 0 END)
              AS is_current,
+           MAX(
+             CASE WHEN payment.payment_session_id = attendee.pii_payment_session_id
+                  THEN 1 ELSE 0 END
+           ) AS proves_pii_payment,
            MAX(CASE WHEN payment.protected_state = 'claim' THEN 1 ELSE 0 END)
              AS has_claim,
            MAX(CASE WHEN payment.protected_state = 'review' THEN 1 ELSE 0 END)
@@ -132,6 +137,7 @@ const refundCandidateCtes = (): string => `
            MAX(paymentReference.needs_review) AS needs_review,
            MAX(paymentReference.needs_money_record) AS needs_money_record,
            MAX(paymentReference.provider_refund) AS provider_refund,
+           MAX(paymentReference.proves_pii_payment) AS proves_pii_payment,
            MAX(paymentReference.legacy_unindexed) AS legacy_unindexed,
            MAX(
              CASE WHEN paymentReference.is_current = 1
@@ -150,8 +156,11 @@ const refundCandidateCtes = (): string => `
     SELECT attendee.id,
            attendee.refunded,
            COALESCE(payment.has_claim, 0) AS has_claim,
-           CASE WHEN attendee.has_paid_line = 1
-                     AND payment.attendee_id IS NULL
+           CASE WHEN attendee.pii_payment_session_id IS NULL
+                     OR (attendee.pii_payment_session_id != ''
+                         AND COALESCE(payment.proves_pii_payment, 0) = 0)
+                     OR (attendee.has_paid_line = 1
+                         AND payment.attendee_id IS NULL)
                 THEN 1 ELSE COALESCE(payment.legacy_unindexed, 0) END
              AS legacy_unindexed,
            COALESCE(payment.needs_review, 0) AS needs_review,

@@ -2,7 +2,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
-import { execute, getDb, setDb } from "#shared/db/client.ts";
+import { execute, getDb, type SqlStatement, setDb } from "#shared/db/client.ts";
 import { wrapExecute } from "#shared/db/libsql-call.ts";
 import { setN1GuardNotifyOnly } from "#shared/db/query-log.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
@@ -152,8 +152,8 @@ const putReturnedClaimsOnEveryPayment = async (
   return sessionIds;
 };
 
-const withPaymentDeletedBeforeReferenceLoad = async (
-  attendeeId: number,
+const withPaymentChangeBeforeReferenceLoad = async (
+  change: SqlStatement,
   work: () => Promise<void>,
 ): Promise<void> => {
   const real = getDb();
@@ -168,10 +168,7 @@ const withPaymentDeletedBeforeReferenceLoad = async (
           sql.includes("attendee_id IN")
         ) {
           changed = true;
-          await real.execute(
-            "DELETE FROM processed_payments WHERE attendee_id = ?",
-            [attendeeId],
-          );
+          await real.execute(change);
         }
         return await execute();
       }),
@@ -311,19 +308,54 @@ describeWithEnv(
         "",
         taggedPaymentReference("pi_changed_current_payment"),
       );
-      await withPaymentDeletedBeforeReferenceLoad(attendee.id, async () => {
-        await withRefundMock(refundIsRejected, async (mockRefund) => {
-          await expect(postRefundAll(listing)).rejects.toThrow(
-            "Refund All candidate set changed while it was loading",
-          );
-          expect(mockRefund.calls).toEqual([]);
-        });
-      });
+      await withPaymentChangeBeforeReferenceLoad(
+        {
+          args: [attendee.id],
+          sql: "DELETE FROM processed_payments WHERE attendee_id = ?",
+        },
+        async () => {
+          await withRefundMock(refundIsRejected, async (mockRefund) => {
+            await expect(postRefundAll(listing)).rejects.toThrow(
+              "Refund All candidate set changed while it was loading",
+            );
+            expect(mockRefund.calls).toEqual([]);
+          });
+        },
+      );
       expect(
         errors.contains(
           "Refund All candidate set changed while it was loading",
         ),
       ).toBe(true);
+    });
+
+    test("a reference becoming incomplete after batch admission stops before any send", async () => {
+      const listing = await createPaidListing();
+      const attendee = await createRefundableAttendee(
+        listing.id,
+        "Changed Payment History",
+        "changed-payment-history@example.com",
+        "pi_changed_payment_history",
+      );
+
+      await withPaymentChangeBeforeReferenceLoad(
+        {
+          args: [attendee.id],
+          sql: `UPDATE processed_payments
+                   SET payment_reference_index = ''
+                 WHERE attendee_id = ?`,
+        },
+        async () => {
+          await withRefundMock(refundIsRejected, async (mockRefund) => {
+            await expectFlashRedirect(
+              `/admin/listing/${listing.id}/refund-all`,
+              "This attendee has older payment history that cannot be refunded here. Refund it directly through the payment provider. No money was sent.",
+              false,
+            )(await postRefundAll(listing));
+            expect(mockRefund.calls).toEqual([]);
+          });
+        },
+      );
     });
 
     test("a selected PII-only payment stops an indexed sibling before any send", async () => {

@@ -553,19 +553,17 @@ that ambient choice: M4's canonical authority carries a tagged provider identity
 and passes the complete reference to `loadRefundProvider`, which loads exactly
 that adapter and verifies that it matches the tag. That older whole-checkout
 resolver must not be called, copied, or consulted as a refund fallback,
-including for old rows; an untagged refund reference is a typed
-reduced-functionality refusal until the owner-authenticated migration qualifies
-it. That migration may qualify a provider only from retained or freshly
-validated charge evidence, or from a required revision-fenced owner decision
-over providers that actually validated it. It must never use current/last
-configuration, credential order, identifier spelling, or restore the deleted
-guessed provider-dashboard link. A site already on `none` recovers when exactly
-one provider has stored credentials; when multiple do, the operator must choose
-the provider in a recovery form that keeps new sales off. That is a settings
-activation decision only; it is not historical payment ownership and cannot be
-reused by refunds. `setPaymentProviderNone` reads the current provider via an
-atomic INSERT ... SELECT subquery so a concurrent activation cannot land between
-the read and the write.
+including for old rows; an untagged refund reference is a typed permanent
+reduced-functionality refusal. The owner handles it directly in the provider
+dashboard. No migration, re-save, current/last configuration, credential order,
+identifier spelling, or guessed dashboard link may qualify it for the current
+refund engine. A site already on `none` recovers when exactly one provider has
+stored credentials; when multiple do, the operator must choose the provider in a
+recovery form that keeps new sales off. That is a settings activation decision
+only; it is not historical payment ownership and cannot be reused by refunds.
+`setPaymentProviderNone` reads the current provider via an atomic INSERT ...
+SELECT subquery so a concurrent activation cannot land between the read and the
+write.
 
 The same no-parallel-path rule binds the future aggregate cutover: either extend
 the canonical refund authority in place or fence requests, migrate and verify
@@ -2133,67 +2131,40 @@ owner work, and a visible job always names the unprocessed remainder. Reuse M4's
 summary, exact attendee claim, budget checkpoints, and settlement; do not add a
 second bulk engine or a generic clear that discards money facts.
 
-## Migrate pre-index refund references before restoring their admin actions
+## Historical refund references deliberately remain manual
 
-_Origin: Codex review on PR #2065, `src/shared/db/payment-references.ts`._
+_Product decision recorded during PR #2065 review._
 
-The payment-state column migration cannot derive blind indexes without the
-owner's private key, so old processed rows retain
-`payment_reference_index = ''`. M4 now returns `legacy_unindexed`, rather than
-the visible indexed subset, when a selected attendee has one of those rows or a
-current PII payment id with no indexed identity. An owner-encrypted indexed but
-untagged identity returns `provider_unknown`; neither refusal can load a
-provider. Single Refund, Refresh, and the selected Refund All page refuse before
-provider I/O; Refund All's PII-free summary blocks SQL-visible unindexed history
-before paging. It also requires the booking's event-group-scoped ledger sale and
-payment facts to classify a paid attendee with no reference-bearing row as
-`legacy_unindexed`; that proves money was taken without decrypting the attendee,
-while a sale-only abandoned checkout remains outside the refundable set. It
-cannot recover the raw reference or attest its provider. The claim fence catches
-an unindexed row appearing after admission. `provider_unknown` is a bounded
-typed limitation, not actionable recovery: the attendee page explains the
-missing provider and renders no dead Refresh form, while a direct Refresh
-request still refuses with zero provider calls. The atomic M6–M11 cutover's
-migration work package must still migrate PII-only references without adding a
-population decrypt to the interactive command.
+There is no migration task to restore current in-app refund controls for old
+PII-only, blank-index, or provider-untagged references. The small installed base
+does not justify a second refund path, a whole-table decrypt, or code that will
+outlive the events those bookings belonged to. The owner refunds one of these
+payments directly in Stripe, Square, SumUp, or the relevant provider.
 
-This is also the explicit historical-v1 privacy boundary. New
-`processed_payments.payment_reference` and every `payment_charges` provider
-reference are `hyb:1` owner-public-key ciphertext, and every live reader
-requires that ciphertext. With a password-wrapped v2 owner key, a database
-holder with `DB_ENCRYPTION_KEY` cannot open them. A dormant legacy v1 owner wrap
-is the explicit exception: its KEK is derivable from the stored password hash
-plus the database key, so that holder can unwrap the data key and site private
-key until the next successful login upgrades it. There is no raw-v1 reference
-compatibility decoder in current refund code; pre-cutover rows deliberately lack
-refund functionality until the fenced owner-authenticated migration records a
-provider-qualified current identity. Re-saving and merging do not create payment
-rows from a current PII id: neither operation can prove which provider owns an
-untagged historical reference. Old `provider_refunded_at` values and old
-DB-key-encrypted warning notes are migration evidence only: no live refund
-admission reads or writes them, and no note is an authority.
+`attendees.pii_payment_session_id` makes completeness visible without opening
+PII: `NULL` means historical or otherwise unqualified, `''` proves the PII had
+no payment id, and a non-empty value names the exact indexed processed-payment
+session that proves it. Normal paid booking and automatic-placeholder creation
+write that proof in their existing all-or-nothing transactions. A later balance
+does not replace it. Merge propagates a source `NULL` to the target in the merge
+transaction, while a qualified source preserves the target marker; deleting the
+source therefore cannot hide older unknown history. Pruning retains the exact
+processed row named by a non-empty marker.
 
-The atomic M6–M11 cutover must clear this boundary before its canonical runtime
-activates. Its fenced, owner-authenticated migration-only reader—not a shared
-runtime helper—must copy every available distinct historical deposit, balance,
-legacy-merge, session, and PII-only reference into owner-encrypted canonical
-evidence plus blind indexes, without persisting raw references, private-key
-material, or decrypted PII in progress state. Saving or merging an attendee is
-not this migration and creates no reference record. A distinct reference absent
-from every retained source cannot be reconstructed; preserve that
-missing-evidence conflict for a required owner decision rather than inventing an
-identity. Copy v1 plaintext and note-held references directly into owner-key
-ciphertext; never stage them under `DB_ENCRYPTION_KEY`, and delete or redact
-each source copy only after the canonical write verifies. No old runtime reader,
-dual write, or read-through may survive activation.
+Single Refund, Refresh, and Refund All fail before provider I/O when the history
+is unqualified. Refund All proves this from indexed SQL and ledger facts before
+selecting or decrypting a person, including the mixed case where a PII-only
+deposit sits beside a newer indexed balance. Re-saving an attendee does not
+qualify the row. Do not add a runtime fallback, background backfill,
+migration-only attendee-PII reader, guessed provider binding, warning-note
+authority, or parallel legacy refund engine.
 
-An old non-empty `provider_refunded_at` value does not prove a provider,
-captured Money, or full return. The migration should prefer a fresh provider
-read that proves all four facts. Where that is impossible, it needs an explicit
-audited owner attestation after external correction, revision-fenced on the
-exact source and decision. Never silently upgrade the marker, choose a provider
-by current configuration, or copy it into canonical completion as if it were
-evidence.
+The future aggregate copy may preserve SQL-visible accounting facts from these
+rows as terminal unsupported history. It must not search attendee PII or old
+free-text notes for another payment reference, and it must not turn an
+unsupported record into an actionable canonical charge. Historical plaintext
+references and old DB-key-encrypted notes remain retirement/redaction concerns,
+not inputs to current refund admission.
 
 ## A merge can delete the source before the answers and PII are saved
 

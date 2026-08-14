@@ -111,6 +111,28 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
       );
     });
 
+    test("renders no usable delete form while payment work blocks it", async () => {
+      const attendeeId = await bookedWithPayment(
+        "sess_del_get_held",
+        "pi_del_get_held",
+      );
+      await putRowState(
+        "sess_del_get_held",
+        await freshClaimSlot(attendeeId),
+        CLAIM_MIRROR,
+      );
+
+      const response = await adminGet(`/admin/attendees/${attendeeId}/delete`);
+      const html = await response.text();
+
+      expect(response.status).toBe(400);
+      expect(html).toContain(
+        "A refund for this person is still in progress. Finish or re-run the refund, then try again.",
+      );
+      expect(html).not.toContain('name="confirm_identifier"');
+      expect(html).not.toContain("Delete Attendee</button>");
+    });
+
     test("includes return_url as hidden field when provided", async () => {
       const { response } = await adminListingPage(
         (ctx) =>

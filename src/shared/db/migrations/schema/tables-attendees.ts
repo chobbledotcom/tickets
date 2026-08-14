@@ -38,6 +38,10 @@ export const attendeeTables: [name: string, table: Table][] = [
         ["checked_in", "TEXT NOT NULL DEFAULT ''"],
         ["ticket_token_index", "TEXT"],
         ["pii_blob", "TEXT NOT NULL DEFAULT ''"],
+        // NULL means unqualified history and remains unavailable to bulk
+        // refunds. Empty proves PII has no payment id. Otherwise this names
+        // the canonical payment row that proves the PII payment id.
+        ["pii_payment_session_id", "TEXT"],
         ["status_id", "INTEGER DEFAULT NULL"],
         ["split_logistics_agents", "INTEGER NOT NULL DEFAULT 0"],
         // HMAC blind-index of the attendee's phone, populated lazily the first

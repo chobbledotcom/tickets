@@ -136,7 +136,6 @@ export const answerUnreadableRefund = async (
 export const createTargetAuthority = async (
   target: ProviderRefundTarget,
   loaded: LoadedRefundTarget,
-  provider: RefundEngineProvider,
   captured: Money,
   now: number,
 ): Promise<RefundAuthorityRow> => {
@@ -146,7 +145,7 @@ export const createTargetAuthority = async (
     captured,
     now,
     reference: target.reference,
-    state: await initialRefundState(target.reference, provider, now),
+    state: await initialRefundState(target.reference, now),
   });
 };
 
@@ -155,7 +154,6 @@ export const createTargetAuthority = async (
 export const prepareTargetAuthority = async (
   target: ProviderRefundTarget,
   loaded: LoadedRefundTarget,
-  provider: RefundEngineProvider,
   now: number,
 ): Promise<RefundAuthorityRow | null> => {
   if (target.evidence.kind !== "validated_callback") {
@@ -164,7 +162,6 @@ export const prepareTargetAuthority = async (
   return await createTargetAuthority(
     target,
     loaded,
-    provider,
     target.evidence.captured,
     now,
   );

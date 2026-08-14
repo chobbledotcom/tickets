@@ -7,6 +7,7 @@
 import { expect } from "@std/expect";
 // jscpd:ignore-start
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
+import { execute } from "#shared/db/client.ts";
 import {
   browserSeenBy,
   ORGANISER,
@@ -28,6 +29,10 @@ import {
 } from "#test/specs/support/world.ts";
 import { singleItem } from "#test-utils/factories.ts";
 import { chargeMoney, refundObservation } from "#test-utils/payment-state.ts";
+import {
+  finalizeProcessedPayment,
+  taggedPaymentReference,
+} from "#test-utils/processed-payments.ts";
 import { getCompleteRefundCandidatesForListing } from "#test-utils/refund-candidates.ts";
 import {
   refundCompletes,
@@ -76,6 +81,26 @@ const firstAttendeeId = (world: TicketsWorld): number => {
   const first = requiredWorldValue(world.attendeeIds, "the people who paid")[0];
   if (first === undefined) throw new Error("No first paid attendee");
   return first;
+};
+
+/** Reproduce an old PII-only deposit followed by one modern balance payment. */
+export const leaveOnlyLaterIndexedPayment = async (
+  world: TicketsWorld,
+): Promise<void> => {
+  const attendeeId = firstAttendeeId(world);
+  await execute("DELETE FROM processed_payments WHERE attendee_id = ?", [
+    attendeeId,
+  ]);
+  await execute(
+    "UPDATE attendees SET pii_payment_session_id = NULL WHERE id = ?",
+    [attendeeId],
+  );
+  await finalizeProcessedPayment(
+    `later-balance-${attendeeId}`,
+    attendeeId,
+    "",
+    taggedPaymentReference("pi_later_indexed_balance"),
+  );
 };
 
 const firstProviderCharge = (world: TicketsWorld) => {

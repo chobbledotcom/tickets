@@ -418,6 +418,10 @@ export const MIGRATION_REGISTRY: MigrationRegistryEntry[] = [
     "2026-08-13_refund_authority",
     () => import("./2026-08-13_refund_authority.ts"),
   ),
+  entry(
+    "2026-08-14_attendee_payment_provenance",
+    () => import("./2026-08-14_attendee_payment_provenance.ts"),
+  ),
 ];
 /* jscpd:ignore-end */
 

@@ -17,6 +17,7 @@ import {
 import { businessTime } from "#routes/api/payment-processing/metadata.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import {
+  prepareSessionRefundAuthority,
   providerRefundReturned,
   refundAndFail,
   requestSessionRefund,
@@ -30,6 +31,7 @@ import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
 import { logActivity } from "#shared/db/activity-log.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
+import { attendeePaymentProvenance } from "#shared/db/attendees/payment-provenance.ts";
 import { createSystemNote } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { prepareClaimedAttendeePaymentAnchor } from "#shared/db/payment-anchor/attendee.ts";
@@ -51,6 +53,7 @@ import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 import { recordProviderRefunds } from "#shared/provider-refunds.ts";
 import { recordPlaceholderRefund } from "#shared/refund-ledger/placeholder.ts";
+import { requireValue } from "#shared/required-value.ts";
 
 /* jscpd:ignore-end */
 
@@ -206,13 +209,12 @@ export const storeRefundedBooking = async (
   if (spec.alert) addPendingWork(sendNtfyError(REFUND_ALERT_CODES[spec.alert]));
   const listingId = bookings[0]!.listingId;
   const pendingResult = placeholderFailure(spec, false);
-  const sessionFailure = await prepareSessionFailure(
-    session.id,
-    storedFailureOf(pendingResult),
-  );
   const paymentReference = paidPaymentReferenceOf(session);
-  const paymentAnchor =
-    await prepareClaimedAttendeePaymentAnchor(paymentReference);
+  const [sessionFailure, paymentAnchor, refundAuthority] = await Promise.all([
+    prepareSessionFailure(session.id, storedFailureOf(pendingResult)),
+    prepareClaimedAttendeePaymentAnchor(paymentReference),
+    prepareSessionRefundAuthority(session),
+  ]);
   const anchorWritten =
     Promise.withResolvers<
       Awaited<ReturnType<typeof paymentAnchor.forAttendee>>
@@ -228,9 +230,32 @@ export const storeRefundedBooking = async (
     },
     async (tx, attendeeId) => {
       const claimedAnchor = await paymentAnchor.forAttendee(attendeeId);
-      await tx.execute(claimedAnchor.statement);
-      const terminalized = await tx.execute(sessionFailure.statement);
-      if (terminalized.rowsAffected !== 1) {
+      const [, provenanceResult, authorityResult, terminalized] =
+        await tx.batch([
+          claimedAnchor.statement,
+          attendeePaymentProvenance.statement(claimedAnchor.sessionId),
+          refundAuthority.statement,
+          sessionFailure.statement,
+        ]);
+      attendeePaymentProvenance.require(
+        requireValue(
+          provenanceResult,
+          "Placeholder provenance write returned no result",
+        ),
+        claimedAnchor.sessionId,
+      );
+      refundAuthority.requireResult(
+        requireValue(
+          authorityResult,
+          "Placeholder refund authority write returned no result",
+        ),
+      );
+      if (
+        requireValue(
+          terminalized,
+          "Placeholder terminal write returned no result",
+        ).rowsAffected !== 1
+      ) {
         throw new Error(
           `Payment session lost its reservation before placeholder creation: ${session.id}`,
         );

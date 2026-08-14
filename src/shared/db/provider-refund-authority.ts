@@ -1,7 +1,13 @@
 /** Atomic storage for the one provider-refund authority. */
 
 /* jscpd:ignore-start -- imports */
-import { execute, queryAll, queryOne, resultRows } from "#shared/db/client.ts";
+import {
+  execute,
+  queryAll,
+  queryOne,
+  resultRows,
+  type SqlStatement,
+} from "#shared/db/client.ts";
 import { storePaymentReference } from "#shared/db/payment-reference-store.ts";
 import { type Money, sameMoney } from "#shared/payment/money.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
@@ -166,6 +172,13 @@ export interface CreateRefundAuthority {
   readonly state: Extract<RefundAuthorityState, { kind: "ready" }>;
 }
 
+export interface PreparedRefundAuthority {
+  readonly requireResult: (
+    result: Parameters<typeof resultRows>[0],
+  ) => RefundAuthorityRow;
+  readonly statement: SqlStatement;
+}
+
 const requireCreateFacts = (input: CreateRefundAuthority): void => {
   if (
     REFUND_PROVIDER_CAPABILITIES[input.reference.provider] !==
@@ -184,23 +197,46 @@ const requireSameAuthority = (
   }
 };
 
-/** Create the charge authority once, then return the row owning its identity. */
-export const createOrLoadRefundAuthority = async (
+const requireAuthority = (
+  row: RefundAuthorityRow | null,
   input: CreateRefundAuthority,
-): Promise<RefundAuthorityRow> => {
+): RefundAuthorityRow => {
+  const authority = requireValue(row, "Created refund authority is missing");
+  requireSameAuthority(authority, input);
+  return authority;
+};
+
+interface PreparedRefundAuthorityWrite {
+  readonly loadConflictOwner: () => Promise<RefundAuthorityRow | null>;
+  readonly prepared: PreparedRefundAuthority;
+}
+
+const prepareRefundAuthorityWrite = async (
+  input: CreateRefundAuthority,
+): Promise<PreparedRefundAuthorityWrite> => {
   requireCreateFacts(input);
   const stored = await storePaymentReference(input.reference);
   const callbackReplayIndex = input.callbackReplayIndex;
-  const loadConflictOwner =
-    callbackReplayIndex === undefined
-      ? () => loadRefundAuthorityByReference(stored.index)
-      : () =>
-          loadRefundCallbackBinding({
-            callbackReplayIndex,
-            referenceIndex: stored.index,
-          });
-  const result = await execute(
-    `INSERT INTO payment_charges
+  const statement: SqlStatement = {
+    args: [
+      input.reference.provider,
+      stored.encrypted,
+      stored.index,
+      input.callbackReplayIndex ?? null,
+      input.state.request.capability,
+      input.captured.amount,
+      input.captured.currency,
+      0,
+      writeRefundAuthorityState(input.state),
+      refundStateMirror(input.state),
+      refundLocalMirror(input.state),
+      refundNextActionAt(input.state),
+      1,
+      input.now,
+      input.now,
+      input.now,
+    ],
+    sql: `INSERT INTO payment_charges
         (provider, provider_reference, reference_index, callback_replay_index,
          capability, captured_amount, currency, refunded_amount, refund_state,
          refund_state_name, refund_local_state, next_refund_action_at,
@@ -224,30 +260,39 @@ export const createOrLoadRefundAuthority = async (
                AND callbackOwner.reference_index <> excluded.reference_index
           )
         RETURNING ${REFUND_AUTHORITY_COLUMNS}`,
-    [
-      input.reference.provider,
-      stored.encrypted,
-      stored.index,
-      input.callbackReplayIndex ?? null,
-      input.state.request.capability,
-      input.captured.amount,
-      input.captured.currency,
-      0,
-      writeRefundAuthorityState(input.state),
-      refundStateMirror(input.state),
-      refundLocalMirror(input.state),
-      refundNextActionAt(input.state),
-      1,
-      input.now,
-      input.now,
-      input.now,
-    ],
-  );
+  };
+  return {
+    loadConflictOwner:
+      callbackReplayIndex === undefined
+        ? () => loadRefundAuthorityByReference(stored.index)
+        : () =>
+            loadRefundCallbackBinding({
+              callbackReplayIndex,
+              referenceIndex: stored.index,
+            }),
+    prepared: {
+      requireResult: (result) =>
+        requireAuthority(refundAuthorityFromResult(result), input),
+      statement,
+    },
+  };
+};
+
+/** Prepare the exact authority upsert for a caller-owned transaction. */
+export const prepareRefundAuthority = async (
+  input: CreateRefundAuthority,
+): Promise<PreparedRefundAuthority> =>
+  (await prepareRefundAuthorityWrite(input)).prepared;
+
+/** Create the charge authority once, then return the row owning its identity. */
+export const createOrLoadRefundAuthority = async (
+  input: CreateRefundAuthority,
+): Promise<RefundAuthorityRow> => {
+  const { loadConflictOwner, prepared } =
+    await prepareRefundAuthorityWrite(input);
+  const result = await execute(prepared.statement.sql, prepared.statement.args);
   const returned = refundAuthorityFromResult(result);
-  const row = requireValue(
-    returned ?? (await loadConflictOwner()),
-    "Created refund authority is missing",
-  );
-  requireSameAuthority(row, input);
-  return row;
+  return returned === null
+    ? requireAuthority(await loadConflictOwner(), input)
+    : prepared.requireResult(result);
 };

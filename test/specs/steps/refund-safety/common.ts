@@ -113,12 +113,19 @@ const moneyFor = (world: TicketsWorld, who: string) =>
 const legsNamed = async (world: TicketsWorld, who: string, kind: string) =>
   (await moneyFor(world, who)).filter((leg) => leg.kind === kind);
 
-export const expectNoRefundAction = async (
+const ownerActionNames = async (
   world: TicketsWorld,
   who: string,
 ): Promise<string[]> => {
   const browser = await openActionsAsOwner(world, who);
-  const actions = browser.links.map(({ text }) => text.trim());
+  return browser.links.map(({ text }) => text.trim());
+};
+
+export const expectNoRefundAction = async (
+  world: TicketsWorld,
+  who: string,
+): Promise<string[]> => {
+  const actions = await ownerActionNames(world, who);
   expect(actions).not.toContain("Refund");
   return actions;
 };
@@ -213,6 +220,13 @@ Then(
   "{word}'s Actions page does not offer another Refund",
   async function (this: TicketsWorld, who: string): Promise<void> {
     await expectNoRefundAction(this, who);
+  },
+);
+
+Then(
+  "{word}'s Actions page does not offer Delete while payment work remains",
+  async function (this: TicketsWorld, who: string): Promise<void> {
+    expect(await ownerActionNames(this, who)).not.toContain("Delete attendee");
   },
 );
 

@@ -22,6 +22,7 @@ Feature: The books catch up when a returned payment could not be recorded
       And the owner is told to fix Money and refresh the payment status
       And the owner is warned not to send the refund again
       And Alice's Actions page does not offer another Refund
+      And Alice's Actions page does not offer Delete while payment work remains
       And Stripe received one request to return Alice's money
       And Money does not yet show a refund for Alice
       When Money can record refunds again

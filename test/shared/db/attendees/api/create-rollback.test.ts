@@ -168,10 +168,13 @@ describeWithEnv("db > attendee create rollback", { db: true }, () => {
     const ticketToken = "stable-missing-finalize";
     await expect(
       attendeesApi.createBookingAtomic(
-        input(
-          [{ listingId: listing.id, pricePaid: 600, quantity: 1 }],
-          ticketToken,
-        ),
+        {
+          ...input(
+            [{ listingId: listing.id, pricePaid: 600, quantity: 1 }],
+            ticketToken,
+          ),
+          paymentId: "pi_missing-finalize",
+        },
         await paidPlan(listing.id, "missing-finalize", 600, [application]),
       ),
     ).rejects.toThrow("processed_payments.processed_at");
@@ -196,10 +199,13 @@ describeWithEnv("db > attendee create rollback", { db: true }, () => {
     const ticketToken = "stable-resolved-finalize";
     await expect(
       attendeesApi.createBookingAtomic(
-        input(
-          [{ listingId: listing.id, pricePaid: 500, quantity: 1 }],
-          ticketToken,
-        ),
+        {
+          ...input(
+            [{ listingId: listing.id, pricePaid: 500, quantity: 1 }],
+            ticketToken,
+          ),
+          paymentId: "pi_resolved-finalize",
+        },
         await paidPlan(listing.id, "resolved-finalize"),
       ),
     ).rejects.toThrow("processed_payments.processed_at");

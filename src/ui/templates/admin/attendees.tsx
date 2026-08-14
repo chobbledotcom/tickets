@@ -19,7 +19,6 @@ import type {
   ListingWithCount,
 } from "#shared/types.ts";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
-import { CheckboxLabel } from "#templates/components/aggregate-sections.tsx";
 import { Badge } from "#templates/components/badge.tsx";
 import {
   type LabelledLine,
@@ -143,7 +142,7 @@ type AttendeeConfirmChanges<Data extends AttendeeConfirmData> = (
 const noAttendeeConfirmChanges = (): Record<never, never> => ({});
 
 /** Build every attendee confirmation from its fixed facts and current data. */
-const attendeeRouteConfirm =
+export const attendeeRouteConfirm =
   <Data extends AttendeeConfirmData = AttendeeConfirmData>(
     segment: string,
     config: Omit<AttendeeConfirmConfig, "action">,
@@ -162,31 +161,6 @@ const attendeeRouteConfirm =
       action: `/admin/attendees/${attendee.id}/${segment}`,
     });
   };
-
-/**
- * Admin delete attendee confirmation page
- */
-export const adminAttendeeDeletePage = attendeeRouteConfirm("delete", {
-  body: (
-    <>
-      <CheckboxLabel
-        checked
-        label={` ${t("admin.attendees.release_bookings")}`}
-        name="release_bookings"
-        value="1"
-      />
-      <p>
-        <small>{t("admin.attendees.release_bookings_note")}</small>
-      </p>
-    </>
-  ),
-  buttonText: t("admin.attendees.delete_submit"),
-  confirmKey: "admin.attendees.delete_confirm",
-  titleAction: "Delete Attendee",
-  warningPrefix: "Warning",
-  warningText:
-    "This will permanently remove this attendee from the listing and delete any associated payment records.",
-});
 
 /**
  * Admin refund attendee confirmation page

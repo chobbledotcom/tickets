@@ -3,7 +3,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 // jscpd:ignore-end
 import { queryOne } from "#shared/db/client.ts";
-import { mergePair, submitMerge } from "#test/test-utils/attendees/merge.ts";
+import {
+  getMergeVersion,
+  mergePair,
+  submitMerge,
+} from "#test/test-utils/attendees/merge.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -18,6 +22,7 @@ import {
   finalizeProcessedPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
+import { adminFormPost } from "#test-utils/session.ts";
 
 /** Who owns the payment row now, and what the prune can see on it. Both facts
  *  in one read, because "did the merge move it" and "did the marker survive"
@@ -48,17 +53,26 @@ describeWithEnv(
       return pair;
     };
 
-    describe("a refund still in progress", () => {
-      test("the merge is refused and says so", async () => {
-        const { target, source, sourceToken } =
-          await pairWithSourcePayment("sess-merge-held");
-        await putRowState(
-          "sess-merge-held",
-          await freshClaimSlot(source.id),
-          CLAIM_MIRROR,
-        );
+    /** Render an admitted preview, then let a refund claim win before POST. */
+    const submitAfterRefundStarts = async (sessionId: string) => {
+      const { target, source, sourceToken } =
+        await pairWithSourcePayment(sessionId);
+      const mergeVersion = await getMergeVersion(target.id, sourceToken);
+      await putRowState(
+        sessionId,
+        await freshClaimSlot(source.id),
+        CLAIM_MIRROR,
+      );
+      const { response } = await adminFormPost(
+        `/admin/attendees/${target.id}/merge`,
+        { merge_version: mergeVersion, source_token: sourceToken },
+      );
+      return { response, source };
+    };
 
-        const { response } = await submitMerge(target.id, sourceToken);
+    describe("a refund still in progress", () => {
+      test("a claim arriving after preview is refused and says so", async () => {
+        const { response } = await submitAfterRefundStarts("sess-merge-held");
 
         expectFlash(
           response,
@@ -70,16 +84,7 @@ describeWithEnv(
       });
 
       test("nothing moves, so the run still holds what it claimed", async () => {
-        const { target, source, sourceToken } = await pairWithSourcePayment(
-          "sess-merge-rollback",
-        );
-        await putRowState(
-          "sess-merge-rollback",
-          await freshClaimSlot(source.id),
-          CLAIM_MIRROR,
-        );
-
-        await submitMerge(target.id, sourceToken);
+        const { source } = await submitAfterRefundStarts("sess-merge-rollback");
 
         // The whole merge rolls back: had the row changed hands mid-refund, the
         // run holding it would finish against an attendee that no longer owns

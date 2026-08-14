@@ -35,6 +35,11 @@ src/shared/payment-helpers.ts::toBookingItems.foldedChildIds~1sr8ybw  ?? → || 
 src/shared/payment-helpers.ts::parsePackedFields~0lfi795  || → &&   # parsed JSON null/falsy primitives return {} in both forms; truthy primitives expose none of PACKED_KEYS and also produce {}
 src/shared/payment-helpers.ts::enforceMetadataLimits.oversizedOptionRef~1ye3wov  ?? → ||   # metadata field length is undefined or a non-negative integer; 0 and undefined both use 0
 
+# admit-move.ts declares every lifecycle rank in the closed 0/1/2 order.
+# Array.sort observes only the comparator's sign, so subtraction and division
+# give the same ordering for every pair the table can construct.
+src/shared/payment/admit-move.ts::WORST_FIRST~1pf7lh6  - → /   # closed positive ranks 0/1/2 preserve the same comparator sign
+
 # sort-listings.ts's tier constants (0/1/2 for no-date-standard/dated-
 # standard/daily) and the "date === ''" empty-date sentinel: Array.sort only
 # ever branches on tierA-tierB's SIGN (never its magnitude), so shifting the
@@ -178,11 +183,6 @@ src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.sourceAnswerId~1uekb3w 
 src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.sourceAnswerText~1vp707e  ?? → ||   # sa?.answerText is undefined or a non-empty validated answer string
 src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.targetAnswerId~0z8l3en  ?? → ||   # ta?.answerId is undefined or a positive id, never 0
 src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.targetAnswerText~0jv7oux  ?? → ||   # ta?.answerText is undefined or a non-empty validated answer string
-
-# Attendee merge service (attendee-merge.ts) — targetByKey lookup
-# `targetByKey.get(bookingKey(...)) ?? null`. Map.get returns undefined or a
-# ListingAttendeeRow object (always truthy); ?? and || agree on both.
-src/shared/merge/attendee-merge.ts::buildBookingDiffItems.tb~0xvtq6y  ?? → ||   # Map<string, ListingAttendeeRow>.get: undefined or a truthy object
 
 # Attendee merge service (attendee-merge.ts) — `applyPiiDecisions` writes the
 # merged PII into `mergedPii` and returns it; `applyAttendeeMerge` is the sole

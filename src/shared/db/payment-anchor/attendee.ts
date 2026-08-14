@@ -12,6 +12,7 @@ import { paymentAnchorReference } from "./reference.ts";
 import { anchorSessionId } from "./session.ts";
 
 export interface ClaimedAttendeePaymentAnchor {
+  readonly sessionId: string;
   readonly settlement: RowSettlement;
   readonly statement: SqlStatement;
 }
@@ -44,6 +45,7 @@ export const prepareClaimedAttendeePaymentAnchor = async (
     );
     const state = await paymentRowStateValues({ claim });
     return {
+      sessionId,
       settlement: {
         commandId,
         heldSince,

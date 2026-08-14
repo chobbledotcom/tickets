@@ -42,7 +42,6 @@ import {
   defineEntityPage,
   type EntityPage,
   type PageCtx,
-  prepareOwnerFields,
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
 import { writeFormTab } from "#routes/admin/entity-write-tab.ts";
@@ -53,8 +52,11 @@ import { getEffectiveDomain } from "#shared/config.ts";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { getNotesFor } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
+import {
+  loadPaymentMoveSnapshot,
+  type PaymentMoveSnapshot,
+} from "#shared/db/payment-admit-move.ts";
 import type { RefundPaymentReferenceSet } from "#shared/db/payment-references.ts";
-import { getPaymentWorkStatus } from "#shared/db/payment-review.ts";
 import { settings } from "#shared/db/settings.ts";
 import { isReadOnly } from "#shared/env.ts";
 import type { PaymentWorkStatus } from "#shared/payment/admit-move.ts";
@@ -77,7 +79,7 @@ import {
 } from "#templates/admin/attendees.tsx";
 
 type AttendeePageEntity = LoadedAttendee & {
-  readonly paymentWorkStatus: PaymentWorkStatus | "not_loaded";
+  readonly paymentMove: PaymentMoveSnapshot | "not_loaded";
 };
 
 const refreshPaymentAction = paymentRecoveryAction("refresh-payment");
@@ -98,14 +100,12 @@ const paymentRefreshControl = (
     : { kind: "available", url: refreshPaymentAction.url(attendeeId) };
 };
 
-/** Load payment review state only for the Actions tab. */
+/** Payment move state is loaded only for the Actions tab. */
 const loadAttendeePageEntity = async (
   id: number,
 ): Promise<AttendeePageEntity | null> => {
   const entity = await loadAttendeeForEdit(id);
-  return entity === null
-    ? null
-    : { ...entity, paymentWorkStatus: "not_loaded" };
+  return entity === null ? null : { ...entity, paymentMove: "not_loaded" };
 };
 
 /** The attendee-scoped action routes live under the entity's own base. */
@@ -117,7 +117,8 @@ const withReturn = (href: string, ctx: PageCtx): string =>
   `${href}?return_url=${encodeURIComponent(ctx.returnUrl)}`;
 
 type AttendeeActionName = keyof typeof attendeeActions;
-const alwaysAllow = (): boolean => true;
+type ActionVisibility = NonNullable<ActionDef<AttendeePageEntity>["visible"]>;
+const alwaysAllow: ActionVisibility = (): boolean => true;
 
 /** Whether this attendee still has a real booking target. */
 const hasBooking = ({ existing }: AttendeePageEntity): boolean =>
@@ -127,27 +128,28 @@ const hasBooking = ({ existing }: AttendeePageEntity): boolean =>
 const actionWhen =
   (
     action: AttendeeActionName,
-    allowed: NonNullable<
-      ActionDef<AttendeePageEntity>["visible"]
-    > = alwaysAllow,
-  ): NonNullable<ActionDef<AttendeePageEntity>["visible"]> =>
+    allowed: ActionVisibility = alwaysAllow,
+  ): ActionVisibility =>
   (entity, session) =>
     attendeeActions[action].isAvailable(hasBooking(entity)) &&
     allowed(entity, session);
 
-/** Gate owner payment actions on one named durable row state. */
+/** Show an owner action for one named durable payment state. */
+const ownerPaymentStatusWhen =
+  (status: PaymentWorkStatus, allowed: ActionVisibility): ActionVisibility =>
+  (entity, session) =>
+    isOwnerRole(session.adminLevel) &&
+    entity.paymentMove !== "not_loaded" &&
+    entity.paymentMove.work.status === status &&
+    allowed(entity, session);
+
+/** Gate an attendee route on its action scope and durable payment state. */
 const ownerPaymentWhen = (
   action: AttendeeActionName,
   status: PaymentWorkStatus,
-  allowed: (entity: AttendeePageEntity) => boolean = alwaysAllow,
-): NonNullable<ActionDef<AttendeePageEntity>["visible"]> =>
-  actionWhen(
-    action,
-    (entity, session) =>
-      isOwnerRole(session.adminLevel) &&
-      entity.paymentWorkStatus === status &&
-      allowed(entity),
-  );
+  allowed: ActionVisibility = alwaysAllow,
+): ActionVisibility =>
+  actionWhen(action, ownerPaymentStatusWhen(status, allowed));
 
 /** Build one attendee-scoped confirmation action. */
 const attendeeAction = (
@@ -174,9 +176,7 @@ const ATTENDEE_ACTIONS: readonly ActionDef<AttendeePageEntity>[] = [
     href: () => "/admin/privacy#refund-recovery",
     icon: "rotate-ccw",
     labelKey: "attendee_form.action_refund_recovery",
-    visible: (entity, session) =>
-      isOwnerRole(session.adminLevel) &&
-      entity.paymentWorkStatus === "needs_provider_recovery",
+    visible: ownerPaymentStatusWhen("needs_provider_recovery", alwaysAllow),
   },
   attendeeAction("resend-notification", {
     icon: "rotate-ccw",
@@ -195,7 +195,12 @@ const ATTENDEE_ACTIONS: readonly ActionDef<AttendeePageEntity>[] = [
     href: (entity) => `${actionBase(entity)}/delete`,
     icon: "trash-2",
     labelKey: "attendee_form.action_delete",
-    visible: actionWhen("delete"),
+    visible: actionWhen(
+      "delete",
+      ({ paymentMove }) =>
+        paymentMove !== "not_loaded" &&
+        paymentMove.admission.delete.kind === "available",
+    ),
   },
 ];
 
@@ -362,9 +367,10 @@ export const attendeePage: EntityPage<AttendeePageEntity> = defineEntityPage({
         {
           actions: ATTENDEE_ACTIONS,
           kind: "actions",
-          prepare: prepareOwnerFields<AttendeePageEntity>(async (entity) => ({
-            paymentWorkStatus: await getPaymentWorkStatus(entity.attendee.id),
-          })),
+          prepare: async (entity) => ({
+            ...entity,
+            paymentMove: await loadPaymentMoveSnapshot([entity.attendee.id]),
+          }),
           titleKey: "entity.tab.actions",
         },
         {

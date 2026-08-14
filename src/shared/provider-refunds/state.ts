@@ -144,12 +144,11 @@ const requestGeneration = async (
 
 export const initialRefundState = async (
   reference: TaggedPaymentReference,
-  provider: RefundEngineProvider,
   now: number,
 ): Promise<Extract<RefundAuthorityState, { kind: "ready" }>> => {
   const request = await requestGeneration(
     reference,
-    provider.refundCapability,
+    REFUND_PROVIDER_CAPABILITIES[reference.provider],
     1,
     now,
   );

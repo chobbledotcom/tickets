@@ -24,7 +24,10 @@ import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
 import { updateAttendeePII } from "#shared/db/attendees/update.ts";
 import { queryAll } from "#shared/db/client.ts";
 import { syncAttendeeContactTokens } from "#shared/db/contact-tokens.ts";
-import { orRefusal } from "#shared/db/payment-admit-move.ts";
+import {
+  loadPaymentMoveSnapshot,
+  orRefusal,
+} from "#shared/db/payment-admit-move.ts";
 import { getQuestionsWithListingIds } from "#shared/db/questions/queries.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
@@ -474,6 +477,11 @@ export const loadMergePanel = async (
       token,
       "Cannot merge an attendee with themselves",
     );
+  }
+  const admission = (await loadPaymentMoveSnapshot([target.id, source.id]))
+    .admission.merge;
+  if (admission.kind === "blocked") {
+    return AttendeeMergePanel(target, source, token, admission.reason);
   }
   const diff = await buildMergeDiffFor(target, source, target.id);
   return AttendeeMergePanel(target, source, token, undefined, diff);

@@ -4,6 +4,7 @@ import { deleteAttendee } from "#shared/db/attendees/delete.ts";
 import { queryOne, withTransaction } from "#shared/db/client.ts";
 import {
   assertRowsFreeToMove,
+  loadPaymentMoveSnapshot,
   orRefusal,
   PaymentRowsBusyError,
 } from "#shared/db/payment-admit-move.ts";
@@ -24,6 +25,7 @@ import {
   reviewCase,
   rowStateSlot,
   staleClaimSlot,
+  UNRECORDED_MIRROR,
 } from "#test-utils/payment-claim.ts";
 import { bookedWithPayment } from "#test-utils/processed-payments.ts";
 import { addProviderRefundTestCase } from "#test-utils/provider-refund-cases.ts";
@@ -32,6 +34,8 @@ const CLAIM_REFUSAL =
   "A refund for this person is still in progress. Finish or re-run the refund, then try again.";
 const REVIEW_REFUSAL =
   "The owner still has to resolve a payment problem for this person. Refresh or correct the payment evidence, then try again.";
+const UNRECORDED_REFUSAL =
+  "This person's money went back, but the accounts do not show it. Record it, then try again.";
 const REFUND_IN_PROGRESS_REFUSAL =
   "A provider refund for this payment is still in progress. Open Refund recovery and finish it, then try again.";
 const REFUND_OWNER_REFUSAL =
@@ -81,6 +85,9 @@ const paymentStillThere = async (sessionId: string): Promise<boolean> =>
     [sessionId],
   )) !== null;
 
+const snapshotFor = (attendeeId: number) =>
+  loadPaymentMoveSnapshot([attendeeId]);
+
 describeWithEnv(
   "db > deleting an attendee whose payment is busy",
   { db: true, encryptionKey: true },
@@ -92,6 +99,13 @@ describeWithEnv(
         await freshClaimSlot(attendeeId),
         CLAIM_MIRROR,
       );
+      expect(await snapshotFor(attendeeId)).toEqual({
+        admission: {
+          delete: { kind: "blocked", reason: CLAIM_REFUSAL },
+          merge: { kind: "blocked", reason: CLAIM_REFUSAL },
+        },
+        work: { recoveryAction: "refresh-payment", status: "moving" },
+      });
       expect(await deleteRefusal(attendeeId)).toBe(CLAIM_REFUSAL);
     });
 
@@ -130,8 +144,40 @@ describeWithEnv(
         }),
         REVIEW_MIRROR,
       );
+      expect(await snapshotFor(attendeeId)).toEqual({
+        admission: {
+          delete: { kind: "blocked", reason: REVIEW_REFUSAL },
+          merge: { kind: "available" },
+        },
+        work: { recoveryAction: "payment-review", status: "needs_review" },
+      });
       expect(await deleteRefusal(attendeeId)).toBe(REVIEW_REFUSAL);
       expect(await attendeeStillThere(attendeeId)).toBe(true);
+    });
+
+    test("unrecorded money blocks deletion but moves with a merge", async () => {
+      const attendeeId = await bookedWithPayment(
+        "sess-unrecorded-move",
+        "pi_unrecorded_move",
+      );
+      await putRowState(
+        "sess-unrecorded-move",
+        await rowStateSlot({
+          unrecorded: { returnedAt: "2026-08-12T10:00:00.000Z" },
+        }),
+        UNRECORDED_MIRROR,
+      );
+
+      expect(await snapshotFor(attendeeId)).toEqual({
+        admission: {
+          delete: { kind: "blocked", reason: UNRECORDED_REFUSAL },
+          merge: { kind: "available" },
+        },
+        work: {
+          recoveryAction: "refresh-payment",
+          status: "needs_money_record",
+        },
+      });
     });
 
     test("a payment that already ended does not hold the delete up", async () => {
@@ -166,6 +212,16 @@ describeWithEnv(
       );
       await addAuthorityFor(reference, readyAuthority("request-ready"));
 
+      expect(await snapshotFor(attendeeId)).toEqual({
+        admission: {
+          delete: { kind: "blocked", reason: REFUND_IN_PROGRESS_REFUSAL },
+          merge: { kind: "available" },
+        },
+        work: {
+          recoveryAction: null,
+          status: "needs_provider_recovery",
+        },
+      });
       expect(await deleteRefusal(attendeeId)).toBe(REFUND_IN_PROGRESS_REFUSAL);
       await withTransaction((tx) =>
         assertRowsFreeToMove(tx, [attendeeId], "merge"),
@@ -218,6 +274,13 @@ describeWithEnv(
       );
       await addAuthorityFor(reference, markRefundLocalRecorded(completed, 13));
 
+      expect(await snapshotFor(attendeeId)).toEqual({
+        admission: {
+          delete: { kind: "available" },
+          merge: { kind: "available" },
+        },
+        work: { recoveryAction: null, status: "clear" },
+      });
       expect(await deleteRefusal(attendeeId)).toBeNull();
       expect(await attendeeStillThere(attendeeId)).toBe(false);
     });

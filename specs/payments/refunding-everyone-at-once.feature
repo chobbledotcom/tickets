@@ -63,13 +63,23 @@ Feature: An organiser refunds everyone on a listing
   @surface:admin
   Rule: Refund All stops when an older payment cannot join the refund set
     A payment row from before refund indexes existed proves that the visible
-    references may be incomplete. The site returns no money until the old
-    history can be migrated safely.
+    references may be incomplete. The site returns no money and tells the
+    organiser to use the payment provider directly.
 
     @case:bulk-refund.unindexed-history-stops-every-send
     Scenario: One old unindexed payment stops every send
       Given 2 people each paid 50.00 for a Tour place
       And the first payment was stored before refund indexes existed
+      When the organiser opens Refund All
+      Then Refund All stops because older payment history is incomplete
+      And Refund All offers no way to send a refund
+      And all 2 people still have their payments
+      And the Tour has earned 100.00
+
+    @case:bulk-refund.later-indexed-payment-does-not-hide-old-deposit
+    Scenario: A later indexed balance cannot hide a PII-only deposit
+      Given 2 people each paid 50.00 for a Tour place
+      And the first person's deposit exists only in old attendee data but their later balance payment is indexed
       When the organiser opens Refund All
       Then Refund All stops because older payment history is incomplete
       And Refund All offers no way to send a refund

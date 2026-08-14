@@ -14,14 +14,20 @@ import type {
 } from "#routes/api/webhook-types.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
 import { logActivity } from "#shared/db/activity-log.ts";
+import {
+  type PreparedRefundAuthority,
+  prepareRefundAuthority,
+} from "#shared/db/provider-refund-authority.ts";
 import { t } from "#shared/i18n.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import { nowMs } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import {
   type PlaceholderRefund,
   placeholderRefund,
 } from "#shared/payment/placeholder-refund.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
+import { refundCallbackReplayIndex } from "#shared/payment/refund-request-identity.ts";
 import {
   paidPaymentReferenceOf,
   type SessionRejection,
@@ -30,6 +36,7 @@ import { reportWithheldRefund } from "#shared/payment-review.ts";
 import { parsePriceProof, verifyPrice } from "#shared/payment-signature.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
+import { initialRefundState } from "#shared/provider-refunds/state.ts";
 import {
   type ProviderRefundResult,
   requestProviderRefund,
@@ -169,19 +176,48 @@ export const providerRefundReturned = (
   return false;
 };
 
+const sessionRefundFacts = (session: ValidatedPaymentSession) => ({
+  callbackSessionId: session.id,
+  captured: { amount: session.amountTotal, currency: session.currency },
+  reference: paidPaymentReferenceOf(session),
+});
+
+const sessionRefundTarget = (session: ValidatedPaymentSession) => {
+  const facts = sessionRefundFacts(session);
+  return {
+    callbackSessionId: facts.callbackSessionId,
+    evidence: {
+      captured: facts.captured,
+      kind: "validated_callback",
+    },
+    mode: "send",
+    reference: facts.reference,
+  } as const;
+};
+
+/** Prepare the ready authority a callback must own before it becomes terminal. */
+export const prepareSessionRefundAuthority = async (
+  session: ValidatedPaymentSession,
+): Promise<PreparedRefundAuthority> => {
+  const facts = sessionRefundFacts(session);
+  const now = nowMs();
+  return await prepareRefundAuthority({
+    callbackReplayIndex: await refundCallbackReplayIndex(
+      facts.reference.provider,
+      facts.callbackSessionId,
+    ),
+    captured: facts.captured,
+    now,
+    reference: facts.reference,
+    state: await initialRefundState(facts.reference, now),
+  });
+};
+
 /** Ask the one durable authority to refund a validated callback session. */
 export const requestSessionRefund = (
   session: ValidatedPaymentSession,
 ): Promise<ProviderRefundResult> =>
-  requestProviderRefund({
-    callbackSessionId: session.id,
-    evidence: {
-      captured: { amount: session.amountTotal, currency: session.currency },
-      kind: "validated_callback",
-    },
-    mode: "send",
-    reference: paidPaymentReferenceOf(session),
-  });
+  requestProviderRefund(sessionRefundTarget(session));
 
 /** Attempt refund and log activity if successful */
 const refundAndLog = async (

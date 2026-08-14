@@ -10,6 +10,7 @@ import {
   expectRefundEveryoneUnavailable,
   firstPaymentIsLastRefundCandidate,
   leaveFirstRefundCaseForOwner,
+  leaveOnlyLaterIndexedPayment,
   openRefundEveryone,
   paidPlaceEach,
   payMoreListing,
@@ -96,6 +97,13 @@ Given(
   },
 );
 
+Given(
+  "the first person's deposit exists only in old attendee data but their later balance payment is indexed",
+  function (this: TicketsWorld): Promise<void> {
+    return leaveOnlyLaterIndexedPayment(this);
+  },
+);
+
 When(
   "the organiser tries to refund everyone and the provider turns it down",
   function (this: TicketsWorld): Promise<void> {
@@ -132,7 +140,7 @@ Then(
   function (this: TicketsWorld): void {
     expect(
       requiredWorldValue(this.bulkRefundMessage, "what the organiser was told"),
-    ).toContain("older payment history");
+    ).toContain("payment provider");
     expect(requiredWorldValue(this.refundCalls, "refund calls")()).toBe(0);
   },
 );

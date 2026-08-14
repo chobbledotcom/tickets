@@ -172,7 +172,13 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
       usages: [surcharge(m.id, 100)],
     });
 
-    const result = await createBookingAtomic(paidInput(listing.id, 600), plan);
+    const result = await createBookingAtomic(
+      {
+        ...paidInput(listing.id, 600),
+        paymentId: "pi_sess_batch_ok",
+      },
+      plan,
+    );
 
     const ok = expectBookingOk(result);
     const attendeeId = ok.attendees[0]!.id;
@@ -186,10 +192,47 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     // Session finalized atomically: attendee_id set in the same batch.
     const session = await getProcessedPayment("sess_batch_ok");
     expect(session!.attendee_id).toBe(attendeeId);
+    expect(
+      await queryOne<{ pii_payment_session_id: string }>(
+        "SELECT pii_payment_session_id FROM attendees WHERE id = ?",
+        [attendeeId],
+      ),
+    ).toEqual({ pii_payment_session_id: "sess_batch_ok" });
     // The booking row is stamped with the legs' event group, so the per-row
     // amount-paid projection resolves exactly this booking's legs.
     expect(plan.legs.length).toBeGreaterThan(0);
     expect(await storedEventGroup(attendeeId)).toBe(plan.legs[0]!.eventGroup);
+  });
+
+  test("refuses payment provenance that does not match the encrypted payment id", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 5,
+      unitPrice: 500,
+    });
+    const { plan } = await buildPlan({
+      eventId: "sess_mismatched_payment",
+      fullSubtotal: 500,
+      lines: [line(listing.id, 500, 1)],
+      sessionId: "sess_mismatched_payment",
+      total: 500,
+    });
+
+    const wrongPayment = paidInput(listing.id, 500);
+    const { paymentId: _paymentId, ...missingPayment } = wrongPayment;
+    const expectProvenanceRefused = (
+      input: Parameters<typeof createBookingAtomic>[0],
+    ): void => {
+      expect(() => createBookingAtomic(input, plan)).toThrow(
+        "Payment session sess_mismatched_payment does not match the attendee payment id",
+      );
+    };
+    expectProvenanceRefused(wrongPayment);
+    expectProvenanceRefused(missingPayment);
+
+    await expectNothingWritten(listing.id, 0);
+    expect(
+      (await getProcessedPayment("sess_mismatched_payment"))!.attendee_id,
+    ).toBe(null);
   });
 
   test("returns 'sold-out' and writes nothing when a chosen modifier is sold out", async () => {
@@ -213,7 +256,13 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
       usages: [surcharge(m.id, 100)],
     });
 
-    const result = await createBookingAtomic(paidInput(listing.id, 600), plan);
+    const result = await createBookingAtomic(
+      {
+        ...paidInput(listing.id, 600),
+        paymentId: "pi_sess_batch_soldout",
+      },
+      plan,
+    );
 
     expect(result).toBe("sold-out");
     // Nothing landed: no attendee, no legs, no stock, session left unresolved.
@@ -374,7 +423,15 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     });
     await postTransfers(plan.legs);
 
-    await expectCapacityExceeded(plan, listing.id, 500, plan.legs.length);
+    const result = await createBookingAtomic(
+      {
+        ...paidInput(listing.id, 500),
+        paymentId: "pi_sess_batch_existing_ledger",
+      },
+      plan,
+    );
+    expect(result).toEqual({ reason: "capacity_exceeded", success: false });
+    await expectNothingWritten(listing.id, plan.legs.length);
     expect(
       (await getProcessedPayment("sess_batch_existing_ledger"))!.attendee_id,
     ).toBe(null);

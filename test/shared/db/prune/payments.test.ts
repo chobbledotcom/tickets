@@ -64,6 +64,23 @@ const insertOldReferencedPayment = async (
   return attendeeId;
 };
 
+const finishRefundFor = async (
+  sessionId: string,
+  attendeeId: number,
+): Promise<void> => {
+  await postRefundCash(attendeeId);
+  const returned = markRefundCompleted(
+    readyRefundForTest("keyed", { identityIndex: `${sessionId}-charge` }),
+    30,
+    "provider",
+  );
+  await addProviderRefundTestCase(
+    `pi_${sessionId}`,
+    markRefundLocalRecorded(returned, 31),
+    "stripe",
+  );
+};
+
 describeWithEnv("db > prunePayments", { db: true }, () => {
   test("deletes old finalized payments with no useful refund reference", async () => {
     await insertFinalizedPayment("sess_old", oldEnoughToPrune());
@@ -95,22 +112,26 @@ describeWithEnv("db > prunePayments", { db: true }, () => {
     const stillPaidSession = "sess_still_paid_charge";
     const attendeeId = await insertOldReferencedPayment(returnedSession);
     await insertOldReferencedPayment(stillPaidSession, attendeeId);
-    await postRefundCash(attendeeId);
-    const returned = markRefundCompleted(
-      readyRefundForTest("keyed", { identityIndex: "returned-charge" }),
-      30,
-      "provider",
-    );
-    await addProviderRefundTestCase(
-      `pi_${returnedSession}`,
-      markRefundLocalRecorded(returned, 31),
-      "stripe",
-    );
+    await finishRefundFor(returnedSession, attendeeId);
 
     await runDatabasePruning();
 
     expect(await paymentExists(returnedSession)).toBe(false);
     expect(await paymentExists(stillPaidSession)).toBe(true);
+  });
+
+  test("keeps the payment row that proves an attendee's encrypted payment id", async () => {
+    const sessionId = "sess_attendee_provenance";
+    const attendeeId = await insertOldReferencedPayment(sessionId);
+    await execute(
+      "UPDATE attendees SET pii_payment_session_id = ? WHERE id = ?",
+      [sessionId, attendeeId],
+    );
+    await finishRefundFor(sessionId, attendeeId);
+
+    await runDatabasePruning();
+
+    expect(await paymentExists(sessionId)).toBe(true);
   });
 
   test("keeps old payment links while canonical refund work is active", async () => {

@@ -3,7 +3,9 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   mirroredMoveRefusalOrNull,
   mirrorFor,
+  PAYMENT_ROW_LIFECYCLE,
   paymentWorkFor,
+  paymentWorkForMirrors,
   type RowMove,
 } from "#shared/payment/admit-move.ts";
 import type { PaymentRowState } from "#shared/payment/row-state.ts";
@@ -43,6 +45,36 @@ const moveRefusal = (
 ): string | null => mirroredMoveRefusalOrNull(states.map(mirrorFor), move);
 
 describe("payment > admit move", () => {
+  test("every row hold declares its route, owner choice, and priority", () => {
+    const declarations = Object.fromEntries(
+      Object.entries(PAYMENT_ROW_LIFECYCLE).map(([name, rule]) => [
+        name,
+        {
+          operatorRoute: rule.operatorRoute,
+          requiresChoice: rule.requiresChoice,
+          saidFirst: rule.saidFirst,
+        },
+      ]),
+    );
+    expect(declarations).toEqual({
+      claim: {
+        operatorRoute: "/admin/attendees/:attendeeId/refresh-payment",
+        requiresChoice: false,
+        saidFirst: 0,
+      },
+      review: {
+        operatorRoute: "/admin/attendees/:attendeeId/payment-review",
+        requiresChoice: true,
+        saidFirst: 1,
+      },
+      unrecorded: {
+        operatorRoute: "/admin/attendees/:attendeeId/refresh-payment",
+        requiresChoice: false,
+        saidFirst: 2,
+      },
+    });
+  });
+
   describe("a claim stops both writers", () => {
     const cases: RowMove[] = ["delete", "merge"];
     for (const move of cases) {
@@ -154,6 +186,25 @@ describe("payment > admit move", () => {
         status: "needs_money_record",
       });
       expect(paymentWorkFor([CLAIMED], true)).toEqual({
+        recoveryAction: "refresh-payment",
+        status: "moving",
+      });
+    });
+
+    test("non-sensitive mirrors use that same summary and priority", () => {
+      expect(paymentWorkForMirrors([""], false)).toEqual({
+        recoveryAction: null,
+        status: "clear",
+      });
+      expect(paymentWorkForMirrors([], true)).toEqual({
+        recoveryAction: null,
+        status: "needs_provider_recovery",
+      });
+      expect(paymentWorkForMirrors(["unrecorded", "review"], true)).toEqual({
+        recoveryAction: "payment-review",
+        status: "needs_review",
+      });
+      expect(paymentWorkForMirrors(["review", "claim"], true)).toEqual({
         recoveryAction: "refresh-payment",
         status: "moving",
       });

@@ -64,6 +64,20 @@ const paymentRowOf = (candidate: Awaited<ReturnType<typeof candidateFor>>) => {
   return sessionId;
 };
 
+const expectLegacyRefundAllBlocked = async (
+  listingId: number,
+  total = 1,
+): Promise<void> => {
+  expect(await getRefundAllSummary(listingId)).toEqual({
+    blockedBy: "legacy_unindexed",
+    total,
+  });
+  expect(await loadRefundAllBatch(listingId)).toMatchObject({
+    blockedBy: "legacy_unindexed",
+    total,
+  });
+};
+
 const databaseReturning = (results: ResultSet[]): Client =>
   ({ batch: () => Promise.resolve(results) }) as unknown as Client;
 
@@ -180,14 +194,24 @@ describeWithEnv("db > Refund All candidates", { db: true }, () => {
       reference: "pi_new_indexed",
     });
 
-    expect(await getRefundAllSummary(listing.id)).toEqual({
-      blockedBy: "legacy_unindexed",
-      total: 1,
+    await expectLegacyRefundAllBlocked(listing.id);
+  });
+
+  test("blocks a PII-only first payment beside a later indexed payment", async () => {
+    const listing = await createPaidListing();
+    const attendee = await createPaidTestAttendee(
+      listing.id,
+      "Legacy Deposit",
+      "legacy-deposit@example.com",
+      "pi_legacy_deposit",
+    );
+    await finalizeProcessedPayment("later_balance", attendee.id, "", {
+      kind: "tagged",
+      provider: "stripe",
+      reference: "pi_later_balance",
     });
-    expect(await loadRefundAllBatch(listing.id)).toMatchObject({
-      blockedBy: "legacy_unindexed",
-      total: 1,
-    });
+
+    await expectLegacyRefundAllBlocked(listing.id);
   });
 
   test("blocks a paid PII-only attendee without counting free or unpaid bookings", async () => {

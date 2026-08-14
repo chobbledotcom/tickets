@@ -5,6 +5,7 @@ import { getAttendeeAnswersByQuestion } from "#shared/db/questions/attendee-answ
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
 import { listingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
+import { requireValue } from "#shared/required-value.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import { extractInputValue } from "#test-utils/csrf.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
@@ -32,10 +33,10 @@ export const getMergeVersion = async (
     )}`,
   );
   const html = await page.text();
-  // The merge preview template always renders the merge_version hidden input,
-  // so a missing value means the page itself is broken — let it fail loudly
-  // downstream rather than guarding an impossible state here.
-  return extractInputValue(html, "merge_version")!;
+  return requireValue(
+    extractInputValue(html, "merge_version"),
+    "Merge preview did not admit a merge form",
+  );
 };
 
 /** A merge pair: a "Jane Doe" target on one listing and a "John Smith" source

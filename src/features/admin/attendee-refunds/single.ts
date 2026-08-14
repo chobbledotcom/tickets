@@ -14,11 +14,12 @@ import { OWNER_FORM, requireOwnerOr } from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activity-log.ts";
+import { loadPaymentMoveSnapshot } from "#shared/db/payment-admit-move.ts";
 import {
   getRefundPaymentReferences,
   type TaggedRefundPaymentReference,
 } from "#shared/db/payment-references.ts";
-import { getPaymentWorkStatus } from "#shared/db/payment-review.ts";
+import type { PaymentWorkStatus } from "#shared/payment/admit-move.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee } from "#shared/types.ts";
 import {
@@ -38,17 +39,14 @@ type RefundableCharges =
 const whatIsLeftToRefund = async (
   attendee: Attendee,
 ): Promise<RefundableCharges> => {
-  const work = await getPaymentWorkStatus(attendee.id);
+  const work = (await loadPaymentMoveSnapshot([attendee.id])).work.status;
   const workReason = {
     clear: null,
     moving: t("error.refund_pending"),
     needs_money_record: t("error.refund_not_recorded"),
     needs_provider_recovery: t("error.refund_recovery_required"),
     needs_review: t("error.payment_needs_review"),
-  } satisfies Record<
-    Awaited<ReturnType<typeof getPaymentWorkStatus>>,
-    string | null
-  >;
+  } satisfies Record<PaymentWorkStatus, string | null>;
   if (workReason[work] !== null) {
     return { kind: "unsafe", reason: workReason[work] };
   }

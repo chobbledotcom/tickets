@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, withTransaction } from "#shared/db/client.ts";
+import { loadPaymentMoveSnapshot } from "#shared/db/payment-admit-move.ts";
 import {
   type PaymentRowRecord,
   readAttendeeRowStates,
@@ -8,7 +9,6 @@ import {
 import {
   acknowledgeCurrentPaymentReview,
   getPaymentReviewState,
-  getPaymentWorkStatus,
 } from "#shared/db/payment-review.ts";
 import { nowIso } from "#shared/now.ts";
 import type { PaymentReviewCase } from "#shared/payment/review.ts";
@@ -35,6 +35,9 @@ const REVIEW_ACTIVITY = "Payment review acknowledged by owner";
 
 const stateRows = (attendeeId: number): Promise<PaymentRowRecord[]> =>
   withTransaction((tx) => readAttendeeRowStates(tx, [attendeeId]));
+
+const moveWorkStatus = async (attendeeId: number) =>
+  (await loadPaymentMoveSnapshot([attendeeId])).work.status;
 
 const stateBySession = async (
   attendeeId: number,
@@ -90,10 +93,10 @@ describeWithEnv(
   () => {
     test("summarizes payment work by claim, owner review, ledger priority", async () => {
       const attendeeId = await bookedWithPayment("sess-status", "pi_status");
-      expect(await getPaymentWorkStatus(attendeeId)).toBe("clear");
+      expect(await moveWorkStatus(attendeeId)).toBe("clear");
 
       await putReview("sess-status");
-      expect(await getPaymentWorkStatus(attendeeId)).toBe("needs_review");
+      expect(await moveWorkStatus(attendeeId)).toBe("needs_review");
 
       await putRowState(
         "sess-status",
@@ -103,7 +106,7 @@ describeWithEnv(
         }),
         REVIEW_MIRROR,
       );
-      expect(await getPaymentWorkStatus(attendeeId)).toBe("needs_review");
+      expect(await moveWorkStatus(attendeeId)).toBe("needs_review");
 
       await putRowState(
         "sess-status",
@@ -120,7 +123,7 @@ describeWithEnv(
         }),
         CLAIM_MIRROR,
       );
-      expect(await getPaymentWorkStatus(attendeeId)).toBe("moving");
+      expect(await moveWorkStatus(attendeeId)).toBe("moving");
     });
 
     test("projects canonical provider work onto the attendee action state", async () => {
@@ -128,9 +131,7 @@ describeWithEnv(
       const attendeeId = await bookedWithPayment("sess-provider", reference);
       await addProviderRefundTestCase(reference, undefined, "stripe");
 
-      expect(await getPaymentWorkStatus(attendeeId)).toBe(
-        "needs_provider_recovery",
-      );
+      expect(await moveWorkStatus(attendeeId)).toBe("needs_provider_recovery");
     });
 
     test("records acknowledgement without retiring payment facts", async () => {
@@ -149,7 +150,7 @@ describeWithEnv(
       );
 
       expect(await acknowledge(attendeeId)).toEqual({ kind: "acknowledged" });
-      expect(await getPaymentWorkStatus(attendeeId)).toBe("needs_review");
+      expect(await moveWorkStatus(attendeeId)).toBe("needs_review");
       expect(await reviewOf(attendeeId, "sess-review")).toEqual({
         ...review,
         acknowledgedAt: expect.any(String),
@@ -263,7 +264,7 @@ describeWithEnv(
         "acknowledged",
         "already_acknowledged",
       ]);
-      expect(await getPaymentWorkStatus(attendeeId)).toBe("needs_review");
+      expect(await moveWorkStatus(attendeeId)).toBe("needs_review");
       expect(
         (await getAttendeeActivityLog(attendeeId)).map(
           ({ message }) => message,

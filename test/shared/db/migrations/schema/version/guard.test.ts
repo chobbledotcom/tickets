@@ -107,8 +107,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-08-12_refund_confirmations",
         "2026-08-13_payment_work_queue_index",
         "2026-08-13_refund_authority",
+        "2026-08-14_attendee_payment_provenance",
       ],
-      schemaHash: "1424cmr",
+      schemaHash: "1wprqda",
     });
   });
 
@@ -123,7 +124,7 @@ describe("db > migrations > schema change guard", () => {
       dbSchemaHash: "db_schema_hash",
       latestDbUpdate: "latest_db_update",
       latestUpdate:
-        "Make every refund entry point share one durable recovery process.",
+        "Keep new attendee payment history provably complete before bulk refunds.",
       migrationLock: "migration_lock",
       schemaMigrations: "schema_migrations",
     });

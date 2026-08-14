@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getPaymentWorkStatus } from "#shared/db/payment-review.ts";
+import { loadPaymentMoveSnapshot } from "#shared/db/payment-admit-move.ts";
 import { listProviderRefundCases } from "#shared/db/provider-refund-cases.ts";
 import {
   createPaidListing,
@@ -89,9 +89,9 @@ describeWithEnv("server (admin refund provider logging)", { db: true }, () => {
         { charge: partlyRefundedCharge() },
       );
 
-      expect(await getPaymentWorkStatus(ctx.attendee.id)).toBe(
-        "needs_provider_recovery",
-      );
+      expect(
+        (await loadPaymentMoveSnapshot([ctx.attendee.id])).work.status,
+      ).toBe("needs_provider_recovery");
     });
   });
 });

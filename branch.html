@@ -661,7 +661,7 @@
         display: grid;
         margin: 1.4rem 0 1rem;
         gap: 0.55rem;
-        grid-template-columns: repeat(6, 1fr);
+        grid-template-columns: repeat(7, 1fr);
       }
 
       .bound {
@@ -1235,7 +1235,8 @@
           </div>
           <div class="risk">
             <strong><span class="dot"></span>Population decryption</strong>
-            <span>Refund All decrypts 0 on GET and at most 1 on POST.</span>
+            <span>Refund All decrypts 0 on GET, ≤1 on POST; old PII is never
+              scanned.</span>
           </div>
           <div class="risk">
             <strong><span class="dot"></span>DB-key privacy</strong>
@@ -1264,13 +1265,16 @@
           <div class="schema-stack">
             <div class="table-box">
               <div class="table-head">
-                <code>attendees</code><span class="badge existing"
-                >existing</span>
+                <code>attendees</code><span class="badge changed">changed</span>
               </div>
               <div class="field-group">
                 <div class="field"><code>id</code><em>person identity</em></div>
                 <div class="field">
                   <code>pii_blob</code><em>🔐 PII + opaque revision fence</em>
+                </div>
+                <div class="field">
+                  <code>pii_payment_session_id</code><em>◇ proof of payment-id
+                    completeness</em>
                 </div>
               </div>
             </div>
@@ -1348,6 +1352,32 @@
           </div>
         </div>
 
+        <div class="failure-grid" aria-label="Attendee payment provenance">
+          <div class="failure-card">
+            <strong><code>NULL</code> · old / unqualified</strong>
+            <p>In-app refund stops. The owner uses the provider dashboard.</p>
+          </div>
+          <div class="failure-card">
+            <strong><code>''</code> · proven empty</strong>
+            <p>The encrypted attendee PII had no hidden payment id.</p>
+          </div>
+          <div class="failure-card">
+            <strong><code>session id</code> · proven link</strong>
+            <p>Names the exact indexed payment row that proves the PII id.</p>
+          </div>
+          <div class="failure-card">
+            <strong>Balance cannot mask deposit</strong>
+            <p>A later indexed payment never replaces earlier provenance.</p>
+          </div>
+          <div class="failure-card">
+            <strong>Merge stays fail-closed</strong>
+            <p>
+              Source <code>NULL</code> propagates; qualified source keeps the
+              target proof.
+            </p>
+          </div>
+        </div>
+
         <div class="schema-lower">
           <div class="confirmation-chain">
             <div class="table-box">
@@ -1398,8 +1428,8 @@
             capability.
           </div>
           <div class="constraint">
-            <strong>No invented migration</strong>
-            Rebuild refuses if the old charge table unexpectedly contains rows.
+            <strong>No legacy refund engine</strong>
+            No PII scan, re-save backfill, guessed provider or M11 rescue path.
           </div>
           <div class="constraint">
             <strong>Work-only indexes</strong>
@@ -1451,6 +1481,13 @@
           </li>
         </ol>
 
+        <div class="plain-callout">
+          <strong>Automatic placeholder, one atomic bundle:</strong> attendee +
+          bookings · indexed anchor + claim · attendee provenance ·
+          <code>ready</code> charge authority · terminal session result. Only
+          after commit does the provider call advance that same authority.
+        </div>
+
         <div class="state-panel">
           <article class="state-card">
             <h3>Charge authority: provider and ledger progress</h3>
@@ -1490,8 +1527,20 @@
                 <code>outcome</code><span>terminal callback result; blocks
                   nothing</span>
               </div>
+              <div class="axis-item">
+                <code>provider</code><span>blocks delete; remains reachable
+                  after merge</span>
+              </div>
             </div>
           </article>
+        </div>
+
+        <div class="plain-callout">
+          <strong>One move decision:</strong>
+          <code>PaymentMoveSnapshot</code> drives the Actions UI, the direct
+          Delete page and the transactional writer. Blocked Delete is absent for
+          owners and managers; a direct URL returns 400 with no form. Claims
+          block merge; review, unrecorded and provider work move safely.
         </div>
 
         <div
@@ -1560,6 +1609,9 @@
           <div class="bound">
             <b>20</b><span>IDs per keyset-paged recovery list</span>
           </div>
+          <div class="bound">
+            <b>0</b><span>legacy PII scans, backfills or fallback paths</span>
+          </div>
         </div>
 
         <div
@@ -1614,58 +1666,30 @@
         <p class="section-number">04 · test signal, not test theatre</p>
         <h2>What the tests actually establish.</h2>
 
-        <div class="proof-stats" role="group" aria-label="Test totals">
+        <div class="proof-stats" role="group" aria-label="Focused regressions">
           <div class="proof-stat">
-            <b>23,350</b><span>unit + integration tests</span>
-          </div>
-          <div class="proof-stat">
-            <b>100%</b><span>enforced lines + branches</span>
+            <b>atomic</b><span>terminal placeholder cannot commit without its
+              recovery authority</span>
           </div>
           <div class="proof-stat">
-            <b>33 / 365</b><span>refund scenarios / visitor steps</span>
+            <b>mixed</b><span>old deposit + newer balance still refuses before
+              provider I/O</span>
           </div>
           <div class="proof-stat">
-            <b>0</b><span>focused mutation survivors</span>
+            <b>same rule</b><span>Actions, direct Delete and transactional write
+              agree</span>
           </div>
-        </div>
-
-        <div class="proof-grid">
-          <div class="proof-card">
-            <strong>Visitors</strong>
-            <p>
-              Owners send/decide; managers observe; callbacks and rendered
-              recovery controls use real routes.
-            </p>
-          </div>
-          <div class="proof-card">
-            <strong>Storage and races</strong>
-            <p>
-              Migrations, constraints, CAS, claims, crashes, settlement,
-              merge/delete/prune and bounds are exercised directly.
-            </p>
-          </div>
-          <div class="proof-card">
-            <strong>Architecture</strong>
-            <p>
-              Static checks reject a second authority, direct adapter calls,
-              ambient refund selection and dead recovery controls.
-            </p>
-          </div>
-          <div class="proof-card">
-            <strong>Decision quality</strong>
-            <p>
-              Exhaustive state tables and mutation suites attack branches where
-              a wrong money answer could otherwise hide.
-            </p>
+          <div class="proof-stat">
+            <b>journey</b><span>Delete returns only after real money recovery
+              finishes</span>
           </div>
         </div>
 
         <p class="proof-caveat">
-          Full Cucumber catalogue: 262 scenarios / 1,877 steps. These prove code
-          invariants and simulated provider/race behaviour—not provider uptime,
-          unusual production history or the future aggregate migrations. The
-          whole-branch mutation wrapper refuses this &gt;100-file stack; the
-          safety-critical modules were run directly with zero survivors.
+          These regressions exercise the exact failure seams at SQL,
+          transaction, HTTP and rendered-visitor level. This document does not
+          claim a final green count; the repository precommit gate is the
+          release authority.
         </p>
       </section>
 
@@ -1678,7 +1702,8 @@
             <strong>Old unqualified payments</strong>
             <p>
               Refund All sees ledger-proven payments and blocks safely. It does
-              not decrypt the old reference, guess its provider or refund it.
+              not decrypt, backfill or guess. Refund manually in the provider;
+              this is a permanent boundary, not deferred migration work.
             </p>
           </div>
           <div class="limit-card">
@@ -1708,20 +1733,16 @@
       <footer data-finalize="footer-checkpoint">
         <div class="footer-grid">
           <div>
-            <strong>Source:</strong>
-            <code data-finalize="branch-head"
-            >31ed619c8f917aaf2d834fac76514b2c0dc93fb1</code>
-            against <code data-finalize="base"
-            >470b47efef0836487d55beb8a26442dd432f6f35</code>
+            <strong>Source:</strong> <code>claude/m4-pr-a</code> against
+            <code>main</code>
           </div>
           <div>
-            <strong>Diff SHA-256:</strong>
-            <code data-finalize="source-fingerprint"
-            >12f8653595a59b51941ec146782cdfb2dec30029b362689b362f824e9819c5fb</code>
+            <strong>Status:</strong> final head, fingerprint and pass counts are
+            recorded by the release gate, not frozen into this briefing
           </div>
           <div>
-            <strong>Source scale:</strong> 210 paths · 15,599 code-only changed
-            lines after excluding imports/comments/blanks
+            <strong>Scope:</strong> behavioral shapes only; imports, comments,
+            file moves and mechanical splits are intentionally omitted
           </div>
           <div>
             <strong>Deeper references:</strong>

@@ -76,6 +76,11 @@ const paymentStatement = (): PruneStatement => ({
               -- This reader cannot decrypt, so it routes on the mirrors.
               AND payment.protected_state = ''
               AND NOT EXISTS (
+                SELECT 1 FROM attendees AS attendee
+                 WHERE attendee.id = payment.attendee_id
+                   AND attendee.pii_payment_session_id = payment.payment_session_id
+              )
+              AND NOT EXISTS (
                 SELECT 1
                   FROM payment_charges AS charge
                  WHERE charge.reference_index = payment.payment_reference_index

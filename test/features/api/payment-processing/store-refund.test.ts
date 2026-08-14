@@ -24,6 +24,7 @@ import {
   markSessionFailed,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
+import { listProviderRefundCases } from "#shared/db/provider-refund-cases.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -33,46 +34,15 @@ import {
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { refundCompletes, withRefundMock } from "#test-utils/refund-routes.ts";
 import { adminGet } from "#test-utils/session.ts";
+import { bookingIntent, paymentSession } from "./index/helpers.ts";
 import {
-  bookingIntent,
-  paymentSession,
-  trustedPayment,
-} from "./index/helpers.ts";
+  placeholderSpec,
+  reservedPlaceholder,
+  storedPlaceholder,
+  storePlaceholder,
+} from "./store-refund-helpers.ts";
 
 describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
-  const specFor = (detail: string) =>
-    specForFailure({ detail, ok: false, reason: "capacity_exceeded" });
-
-  /** One reserved paid booking ready to become a quantity-0 placeholder. */
-  const placeholderFor = async (id: string) => {
-    const listing = await createTestListing({});
-    const intent = bookingIntent([{ e: listing.id, p: 1000, q: 1 }]);
-    const data = trustedPayment(id, intent, 1000);
-    const bookings = placeholderBookings(
-      [{ expectedPrice: 1000, item: intent.items[0]!, listing }],
-      intent,
-    );
-    await reserveSession(id);
-    return { bookings, data, intent, listing };
-  };
-
-  const storePlaceholder = async (
-    placeholder: Awaited<ReturnType<typeof placeholderFor>>,
-  ) =>
-    await storeRefundedBooking(
-      placeholder.data.session,
-      placeholder.intent,
-      placeholder.bookings,
-      specFor("listing full"),
-      await requirePublicStatusId(),
-    );
-
-  /** Store a placeholder for a paid-for booking on a real listing. */
-  const storeFor = async (id: string) => {
-    const placeholder = await placeholderFor(id);
-    return { ...placeholder, result: await storePlaceholder(placeholder) };
-  };
-
   describe("when the money could be sent back", () => {
     test("fences the placeholder from merging until its refund record is complete", async () => {
       let attendeeId = 0;
@@ -95,7 +65,7 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
           return await refundCompletes(request);
         },
         async () => {
-          await storeFor("cs_merge_fence");
+          await storedPlaceholder("cs_merge_fence");
         },
       );
 
@@ -106,7 +76,7 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
 
     test("tells the customer their details were saved", async () => {
       await withRefundMock(refundCompletes, async () => {
-        const { result } = await storeFor("cs_refunded");
+        const { result } = await storedPlaceholder("cs_refunded");
         expect(result.error).toBe(
           "We couldn't complete your booking, so we've saved your details and a member of our team can help you rebook.",
         );
@@ -115,7 +85,7 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
 
     test("records that the refund happened", async () => {
       await withRefundMock(refundCompletes, async () => {
-        const { result } = await storeFor("cs_refunded_flag");
+        const { result } = await storedPlaceholder("cs_refunded_flag");
         expect(result.refunded).toBe(true);
       });
     });
@@ -123,7 +93,7 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
     test("replays the completed refund instead of its pending placeholder", async () => {
       await withRefundMock(refundCompletes, async () => {
         const sessionId = "cs_refunded_replay";
-        const { data, result } = await storeFor(sessionId);
+        const { data, result } = await storedPlaceholder(sessionId);
 
         expect(await processPaymentSession(sessionId, data)).toEqual({
           error: result.error,
@@ -136,7 +106,7 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
 
     test("replays a pending refund when the committed create loses its reply", async () => {
       const sessionId = "cs_pending_refund_replay";
-      const placeholder = await placeholderFor(sessionId);
+      const placeholder = await reservedPlaceholder(sessionId);
       const createAttendee = attendeesApi.createAttendeeAtomic;
       using _createReply = stub(
         attendeesApi,
@@ -161,19 +131,19 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
 
   describe("when the money could not be sent back", () => {
     test("tells the customer a refund is being arranged", async () => {
-      const { result } = await storeFor("cs_unrefunded");
+      const { result } = await storedPlaceholder("cs_unrefunded");
       expect(result.error).toBe(
         "We couldn't complete your booking, so we've saved your details and a member of our team can help you rebook. Your refund is being arranged — please contact us if it does not arrive.",
       );
     });
 
     test("does not claim the refund happened", async () => {
-      const { result } = await storeFor("cs_unrefunded_flag");
+      const { result } = await storedPlaceholder("cs_unrefunded_flag");
       expect(result.refunded).toBeUndefined();
     });
 
     test("keeps only a non-sensitive explanatory note", async () => {
-      const { listing } = await storeFor("cs_plain_explanation");
+      const { listing } = await storedPlaceholder("cs_plain_explanation");
       const row = await queryOne<{
         note: EnvKeyEncrypted;
         system_name: string | null;
@@ -194,7 +164,7 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
     });
 
     test("keeps the unresolved refund from being deleted", async () => {
-      const { listing } = await storeFor("cs_unrefunded_delete");
+      const { listing } = await storedPlaceholder("cs_unrefunded_delete");
       const attendee = (await getAttendeesRaw(listing.id))[0];
       if (attendee === undefined) throw new Error("placeholder was not stored");
 
@@ -207,7 +177,7 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
   describe("either way", () => {
     test("rolls back when another outcome takes the session reservation", async () => {
       const sessionId = "cs_session_failure_race";
-      const placeholder = await placeholderFor(sessionId);
+      const placeholder = await reservedPlaceholder(sessionId);
       await markSessionFailed(sessionId, {
         error: "Another request already finished",
         status: 409,
@@ -219,6 +189,7 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
         );
       });
       expect(await getAttendeesRaw(placeholder.listing.id)).toEqual([]);
+      expect((await listProviderRefundCases()).cases).toEqual([]);
       expect(await processPaymentSession(sessionId, placeholder.data)).toEqual({
         error: "Another request already finished",
         status: 409,
@@ -250,7 +221,7 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
             session,
             intent,
             bookings,
-            specFor("listing full"),
+            placeholderSpec("listing full"),
             await requirePublicStatusId(),
           ),
         ).rejects.toThrow("payment anchor unavailable");
@@ -263,7 +234,7 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
 
     test("stores a tagged indexed reference with reachable recovery", async () => {
       const sessionId = "cs_indexed_recovery";
-      const { listing } = await storeFor(sessionId);
+      const { listing } = await storedPlaceholder(sessionId);
       const attendee = (await getAttendeesRaw(listing.id))[0];
       if (attendee === undefined) throw new Error("placeholder was not stored");
 
@@ -295,18 +266,18 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
     });
 
     test("is a handled outcome the provider should not retry", async () => {
-      const { result } = await storeFor("cs_status");
+      const { result } = await storedPlaceholder("cs_status");
       expect(result.status).toBe(200);
       expect(result.success).toBe(false);
     });
 
     test("carries the internal detail for the log", async () => {
-      const { result } = await storeFor("cs_detail");
+      const { result } = await storedPlaceholder("cs_detail");
       expect(result.detail).toBe("listing full");
     });
 
     test("keeps the booking, holding no places", async () => {
-      const { listing } = await storeFor("cs_kept");
+      const { listing } = await storedPlaceholder("cs_kept");
       const { getAttendeesByListingIds } = await import(
         "#shared/db/listings/attendees.ts"
       );

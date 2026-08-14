@@ -144,12 +144,11 @@ const firstLiveWork = (
 ): LiveWorkEntry | undefined =>
   WORST_FIRST.find((work) => states.some(work.found));
 
-/** Summarize any number of rows using the same priority as every row guard. */
-export const paymentWorkFor = (
-  states: readonly PaymentRowState[],
-  providerRefundWork = false,
+const paymentWorkFrom = (
+  hasWork: (work: LiveWorkEntry) => boolean,
+  providerRefundWork: boolean,
 ): PaymentWork => {
-  const work = firstLiveWork(states);
+  const work = WORST_FIRST.find(hasWork);
   if (providerRefundWork && work === undefined) {
     return { recoveryAction: null, status: "needs_provider_recovery" };
   }
@@ -157,6 +156,13 @@ export const paymentWorkFor = (
     ? { recoveryAction: null, status: "clear" }
     : { recoveryAction: work.recoveryAction, status: work.status };
 };
+
+/** Summarize any number of rows using the same priority as every row guard. */
+export const paymentWorkFor = (
+  states: readonly PaymentRowState[],
+  providerRefundWork = false,
+): PaymentWork =>
+  paymentWorkFrom((work) => states.some(work.found), providerRefundWork);
 
 const moveRefusalWhen = (
   hasWork: (work: LiveWorkEntry) => boolean,
@@ -168,17 +174,34 @@ const moveRefusalWhen = (
   return blocking === undefined ? null : blocking.refusal;
 };
 
-/** Decide from the non-sensitive mirrors used by destructive SQL guards. */
-export const mirroredMoveRefusalOrNull = (
-  mirrors: readonly string[],
-  move: RowMove,
-): string | null => {
+const liveWorkMirrors = (mirrors: readonly string[]): ReadonlySet<string> => {
   const known = new Set(["", ...WORST_FIRST.map((work) => work.mirror)]);
   const invalid = mirrors.find((mirror) => !known.has(mirror));
   if (invalid !== undefined) {
     throw new Error(`Unknown protected payment state: ${invalid}`);
   }
-  const present = new Set(mirrors);
+  return new Set(mirrors);
+};
+
+/** Summarize the non-sensitive mirrors with the same priority as decrypted
+ * row state. Pages can use this without opening anybody's payment record. */
+export const paymentWorkForMirrors = (
+  mirrors: readonly string[],
+  providerRefundWork: boolean,
+): PaymentWork => {
+  const present = liveWorkMirrors(mirrors);
+  return paymentWorkFrom(
+    (work) => present.has(work.mirror),
+    providerRefundWork,
+  );
+};
+
+/** Decide from the non-sensitive mirrors used by destructive SQL guards. */
+export const mirroredMoveRefusalOrNull = (
+  mirrors: readonly string[],
+  move: RowMove,
+): string | null => {
+  const present = liveWorkMirrors(mirrors);
   return moveRefusalWhen((work) => present.has(work.mirror), move);
 };
 

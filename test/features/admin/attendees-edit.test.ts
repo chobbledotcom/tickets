@@ -10,7 +10,7 @@ import type { ActivityLogEntry } from "#shared/db/activity-log.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import { execute } from "#shared/db/client.ts";
-import { getPaymentWorkStatus } from "#shared/db/payment-review.ts";
+import { loadPaymentMoveSnapshot } from "#shared/db/payment-admit-move.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
 import type { Attendee } from "#shared/types.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
@@ -399,7 +399,7 @@ describeWithEnv(
         },
       );
 
-      expect(await getPaymentWorkStatus(attendee.id)).toBe(
+      expect((await loadPaymentMoveSnapshot([attendee.id])).work.status).toBe(
         "needs_provider_recovery",
       );
     });

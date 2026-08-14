@@ -99,12 +99,6 @@ export const getPaymentReviewState = async (
 ): Promise<PaymentReviewState> =>
   stateFromRows(await loadAttendeeRowStates([attendeeId]));
 
-/** Read the aggregate payment-work state used by every action decision. */
-export const getPaymentWorkStatus = async (
-  attendeeId: number,
-): Promise<PaymentWorkStatus> =>
-  (await getPaymentReviewState(attendeeId)).status;
-
 const acknowledgedState = (
   { review, row }: ReviewRow,
   acknowledgedAt: string,

@@ -815,6 +815,20 @@ export const applyAttendeeMerge = async (
     // Insert moved/replaced source bookings
     ...insertStatements,
     ...checkoutStageDeleteStatements({ args: [targetId], sql: "?" }),
+    // An old source without payment provenance makes the merged history
+    // unqualified too; carry that fact before deleting its attendee row.
+    {
+      args: [targetId, sourceId],
+      sql: `UPDATE attendees
+               SET pii_payment_session_id = NULL
+             WHERE id = ?
+               AND EXISTS (
+                 SELECT 1
+                   FROM attendees AS sourceAttendee
+                  WHERE sourceAttendee.id = ?
+                    AND sourceAttendee.pii_payment_session_id IS NULL
+               )`,
+    },
     // Move source-owned payment references before deleting the source attendee,
     // so refunds on the merged person can return every charge whose ledger rows
     // now live on the target account.

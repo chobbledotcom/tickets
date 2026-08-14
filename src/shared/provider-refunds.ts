@@ -245,7 +245,7 @@ const requestOne = async (
   const provider = await dependencies.loadProvider(target.reference);
   requireMatchingRefundProvider(provider, target.reference);
   const now = dependencies.now();
-  const prepared = await prepareTargetAuthority(target, loaded, provider, now);
+  const prepared = await prepareTargetAuthority(target, loaded, now);
   const read = await readRefundEvidence(target, provider);
   if (read.status !== "found") {
     return await answerUnreadableRefund(target, prepared, read, now);
@@ -263,13 +263,7 @@ const requestOne = async (
   }
   const row =
     prepared === null
-      ? await createTargetAuthority(
-          target,
-          loaded,
-          provider,
-          read.resource.captured,
-          now,
-        )
+      ? await createTargetAuthority(target, loaded, read.resource.captured, now)
       : prepared;
   return await reconcile({
     admission,
