@@ -39,7 +39,7 @@ const target = () =>
   }) satisfies ProviderRefundTarget;
 
 const dependencies = (at: number): ProviderRefundDependencies => ({
-  loadProvider: (provider) => {
+  loadProvider: ({ provider }) => {
     if (provider !== "sumup") {
       throw new Error("The owner-recovery story asked for the wrong provider");
     }

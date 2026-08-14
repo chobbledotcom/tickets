@@ -1,9 +1,10 @@
-import { requiredMapValue, unique, uniqueBy } from "#fp";
+import { requiredMapValue, uniqueBy } from "#fp";
 import type { TaggedRefundPaymentReference } from "#shared/db/payment-references.ts";
 import type { ProviderRead } from "#shared/payment/provider-read.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
-import { loadPaymentProvider, type PaymentProvider } from "#shared/payments.ts";
+import type { PaymentProvider } from "#shared/payments.ts";
+import { loadRefundProvider } from "#shared/provider-refunds.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 import type { RefundCandidate } from "./candidates.ts";
 import type { HeldRefundClaim } from "./claim.ts";
@@ -62,11 +63,13 @@ export type RefundReadinessResult =
     };
 
 export type RefundReadinessDependencies = {
-  loadProvider: (provider: PaymentProviderType) => Promise<ReadyRefundProvider>;
+  loadProvider: (
+    reference: TaggedPaymentReference,
+  ) => Promise<ReadyRefundProvider>;
 };
 
 const DEFAULT_DEPENDENCIES: RefundReadinessDependencies = {
-  loadProvider: loadPaymentProvider,
+  loadProvider: loadRefundProvider,
 };
 
 const returned = (
@@ -171,15 +174,17 @@ const loadProviders = async (
   references: readonly TaggedRefundPaymentReference[],
   loadProvider: RefundReadinessDependencies["loadProvider"],
 ): Promise<ReadonlyMap<PaymentProviderType, ReadyRefundProvider>> => {
-  const types = unique(references.map(({ provider }) => provider));
+  const providerReferences = uniqueBy(
+    ({ provider }: TaggedRefundPaymentReference) => provider,
+  )([...references]);
   return new Map(
     await Promise.all(
-      types.map(
+      providerReferences.map(
         async (
-          type,
+          reference,
         ): Promise<readonly [PaymentProviderType, ReadyRefundProvider]> => [
-          type,
-          await loadProvider(type),
+          reference.provider,
+          await loadProvider(reference),
         ],
       ),
     ),

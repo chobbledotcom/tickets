@@ -8,7 +8,6 @@ import {
   subrequestCostFits,
 } from "#routes/admin/refunds/budget.ts";
 import type { TaggedRefundPaymentReference } from "#shared/db/payment-references.ts";
-import { PAYMENT_PROVIDER_IDS } from "#shared/payment-providers.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 
 const referenceFacts = (label: string) => ({
@@ -30,15 +29,11 @@ const taggedReference = (
   provider,
 });
 
-const externalCost = (
-  reference: TaggedRefundPaymentReference,
-  providers: readonly PaymentProviderType[],
-): number =>
+const externalCost = (reference: TaggedRefundPaymentReference): number =>
   refundReadinessSubrequestCost({
     action: "refund",
     candidates: [{ references: [reference] }],
     checkpoint: "before_claim",
-    providers,
     returned: new Set(),
   }).external;
 
@@ -49,7 +44,6 @@ describe("admin refund subrequest budget", () => {
         action: "refresh",
         candidates: [],
         checkpoint: "before_claim",
-        providers: ["stripe"],
         returned: new Set(),
       }),
     ).toEqual({ database: 0, external: 0, total: 0 });
@@ -91,7 +85,6 @@ describe("admin refund subrequest budget", () => {
             action: "refund",
             candidates,
             checkpoint,
-            providers: ["stripe"],
             returned: new Set(),
           }),
       ),
@@ -125,7 +118,6 @@ describe("admin refund subrequest budget", () => {
         action: "refund",
         candidates: [{ references }],
         checkpoint: "before_claim",
-        providers: ["stripe"],
         returned: new Set(),
       }),
     ).toEqual({ database: 50, external: 6, total: 56 });
@@ -152,7 +144,6 @@ describe("admin refund subrequest budget", () => {
         action: "refresh",
         candidates: [{ references: [completed] }],
         checkpoint: "before_claim",
-        providers: ["stripe"],
         returned: new Set(),
       }),
     ).toEqual({ database: 14, external: 0, total: 14 });
@@ -174,17 +165,8 @@ describe("admin refund subrequest budget", () => {
     ["stripe", 3],
     ["sumup", 3],
   ] as const) {
-    test(`counts the full ${provider} read, send, and recovery plan`, () => {
-      expect(externalCost(taggedReference(provider), [provider])).toBe(calls);
-    });
-
-    test(`counts no transport call when ${provider} is not configured`, () => {
-      expect(
-        externalCost(
-          taggedReference(provider),
-          PAYMENT_PROVIDER_IDS.filter((type) => type !== provider),
-        ),
-      ).toBe(0);
+    test(`prices the stored ${provider} identity without ambient configuration`, () => {
+      expect(externalCost(taggedReference(provider))).toBe(calls);
     });
   }
 });

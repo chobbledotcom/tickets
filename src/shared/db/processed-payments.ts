@@ -23,7 +23,10 @@ import {
   type SqlStatement,
   withTransaction,
 } from "#shared/db/client.ts";
-import { preparePaymentReferenceWrite } from "#shared/db/payment-reference-store.ts";
+import {
+  storePaymentReference,
+  unclaimedPaymentReference,
+} from "#shared/db/payment-reference-store.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { isoBefore, nowIso } from "#shared/now.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
@@ -175,17 +178,6 @@ export const finalizeSessionIfUnresolved = async (
   attendeeId: number,
   paymentReference: TaggedPaymentReference | null,
 ): Promise<void> => {
-  // The index goes in with the reference it indexes, never separately: a
-  // refund claim finds another row holding the same money by that column, so a
-  // reference stored without one is money no claim can see.
-  const referenceWrite = await preparePaymentReferenceWrite(paymentReference);
-  const storedReference = referenceWrite.stored;
-  const refClause = storedReference
-    ? ", payment_reference = ?, payment_reference_index = ?"
-    : "";
-  const refParams = storedReference
-    ? [storedReference.encrypted, storedReference.index]
-    : [];
   if (paymentReference === null) {
     await execute(
       `UPDATE processed_payments SET attendee_id = ? WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
@@ -193,12 +185,23 @@ export const finalizeSessionIfUnresolved = async (
     );
     return;
   }
-  const referenceClaim = referenceWrite.claim;
+  // The index goes in with the reference it indexes, never separately: a
+  // refund claim finds another row holding the same money by that column, so a
+  // reference stored without one is money no claim can see.
+  const referenceClaim = await unclaimedPaymentReference(paymentReference);
+  const storedReference = await storePaymentReference(paymentReference);
   await withTransaction(async (tx) => {
     const finalized = await tx.execute({
-      args: [attendeeId, ...refParams, sessionId, ...referenceClaim.args],
+      args: [
+        attendeeId,
+        storedReference.encrypted,
+        storedReference.index,
+        sessionId,
+        ...referenceClaim.args,
+      ],
       sql: `UPDATE processed_payments
-               SET attendee_id = ?${refClause}
+               SET attendee_id = ?, payment_reference = ?,
+                   payment_reference_index = ?
              WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}
                AND ${referenceClaim.sql}`,
     });

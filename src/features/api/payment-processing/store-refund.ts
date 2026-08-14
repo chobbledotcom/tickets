@@ -67,10 +67,14 @@ const BALANCE_CHANGED_MESSAGE =
 const BOOKING_SAVED_MESSAGE =
   "We couldn't complete your booking, so we've saved your details and a member of our team can help you rebook.";
 
+interface PlaceholderFailureResult extends PaymentFailureResult {
+  readonly status: 200;
+}
+
 const placeholderFailure = (
   spec: PlaceholderRefund,
   refunded: boolean,
-): PaymentFailureResult => ({
+): PlaceholderFailureResult => ({
   detail: spec.detail,
   error: refunded
     ? BOOKING_SAVED_MESSAGE
@@ -81,11 +85,11 @@ const placeholderFailure = (
 });
 
 const storedFailureOf = (
-  failure: PaymentFailureResult,
+  failure: PlaceholderFailureResult,
 ): StoredPaymentFailure => ({
   error: failure.error,
   ...(failure.refunded === undefined ? {} : { refunded: failure.refunded }),
-  ...(failure.status === undefined ? {} : { status: failure.status }),
+  status: failure.status,
 });
 
 const REFUND_ALERT_CODES: Record<RefundAlert, ErrorCodeType> = {

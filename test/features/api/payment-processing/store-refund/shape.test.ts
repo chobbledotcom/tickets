@@ -9,8 +9,8 @@ import {
   specForFailure,
 } from "#routes/api/payment-processing/store-refund.ts";
 import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
+import { bookingIntent } from "#test/features/api/payment-processing/index/helpers.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
-import { bookingIntent } from "../index/helpers.ts";
 
 /** A signed cart line: `e` is the listing, `k`/`r` mark a package path. */
 const line = (listingId: number, groupId?: number): BookingItem =>

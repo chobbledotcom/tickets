@@ -224,6 +224,25 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       );
     });
 
+    test("parseSessionFailure rejects a terminal outcome with a live claim", async () => {
+      const mixed = writeRowState(
+        {
+          claim: {
+            attendeeIds: [1],
+            commandId: "still-checking",
+            phase: "checking",
+            scope: "attendee_set",
+            writtenAt: "2026-08-14T08:00:00.000Z",
+          },
+          outcome: { error: "Gone" },
+        },
+        "processed_payments.failure_data",
+      );
+      await expect(parseSessionFailure(await encrypt(mixed))).rejects.toThrow(
+        "processed_payments.failure_data: invalid terminal session state",
+      );
+    });
+
     test("markSessionFailed throws a labelled error for an invalid failure", async () => {
       await expect(
         markSessionFailed("sess_invalid", {
@@ -299,11 +318,14 @@ describeWithEnv("db > processed payments", { db: true }, () => {
     test("stores a supplied payment reference while healing", async () => {
       await reserveSession("sess_heal_reference");
       const paymentReference = taggedPaymentReference("pi_healed", "square");
-      await finalizeSessionIfUnresolved(
-        "sess_heal_reference",
-        42,
-        paymentReference,
+      const calls = await countDatabaseCalls(5, () =>
+        finalizeSessionIfUnresolved(
+          "sess_heal_reference",
+          42,
+          paymentReference,
+        ),
       );
+      expect(calls).toBe(3);
       // Read the stored column before anything else looks at this attendee:
       // the refund read repairs a missing index, so asserting through it would
       // pass whether or not this write put one there.

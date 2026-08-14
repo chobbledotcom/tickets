@@ -130,7 +130,7 @@ export const prepareAtProvider =
   (source: RecordingProvider): NonNullable<RefundRunDependencies["prepare"]> =>
   (candidates, claim, alreadyReturned) =>
     prepareRefundReadiness(candidates, claim, alreadyReturned, {
-      loadProvider: (provider) => {
+      loadProvider: ({ provider }) => {
         assert(
           provider === source.type,
           `Test readiness received ${provider} payment at ${source.type}`,

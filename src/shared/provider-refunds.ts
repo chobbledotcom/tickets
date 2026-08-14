@@ -175,13 +175,22 @@ export type ProviderRefundStep = (
 
 export interface ProviderRefundDependencies {
   readonly loadProvider: (
-    provider: TaggedPaymentReference["provider"],
+    reference: TaggedPaymentReference,
   ) => Promise<RefundEngineProvider>;
   readonly now: () => number;
 }
 
+/** Load only the adapter named by a durable provider-qualified identity. */
+export const loadRefundProvider = async (
+  reference: TaggedPaymentReference,
+): Promise<RefundEngineProvider> => {
+  const provider = await loadPaymentProvider(reference.provider);
+  requireMatchingRefundProvider(provider, reference);
+  return provider;
+};
+
 const DEFAULT_DEPENDENCIES: ProviderRefundDependencies = {
-  loadProvider: loadPaymentProvider,
+  loadProvider: loadRefundProvider,
   now: nowMs,
 };
 
@@ -233,7 +242,7 @@ const requestOne = async (
   }
   const known = answerKnownRefund(target, loaded.existing);
   if (known !== null) return known;
-  const provider = await dependencies.loadProvider(target.reference.provider);
+  const provider = await dependencies.loadProvider(target.reference);
   requireMatchingRefundProvider(provider, target.reference);
   const now = dependencies.now();
   const prepared = await prepareTargetAuthority(target, loaded, provider, now);

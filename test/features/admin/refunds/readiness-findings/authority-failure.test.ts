@@ -159,7 +159,7 @@ const emptyHeldWork = (): HeldRefundWork => ({
 type AuthorityAnswerCases = {
   readonly [Kind in ProviderRefundResult["kind"]]: {
     readonly answer: (
-      reference: ReturnType<typeof tagged>,
+      reference: ProviderRefundTarget["reference"],
     ) => Extract<ProviderRefundResult, { kind: Kind }>;
     readonly preserves: boolean;
   };

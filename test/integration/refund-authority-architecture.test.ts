@@ -16,7 +16,9 @@ import {
 import { refundLifecycleFor } from "#shared/payment/refund-authority-lifecycle.ts";
 import { getAllFilesWithExt } from "#test/scripts/code-quality/detectors.ts";
 import {
+  AMBIENT_REFUND_PROVIDER_FORMS,
   couldBuildRefundAuthority,
+  couldChooseAmbientRefundProvider,
   LOWER_SEND_SOURCE_PATHS,
   LOWER_SEND_TEST_PATHS,
   PARALLEL_AUTHORITY_FORMS,
@@ -65,6 +67,20 @@ const pathsMatching = (
     .filter(({ code }) => matches(code))
     .map(({ path }) => path)
     .sort();
+
+const refundFacingSource = (
+  files: readonly { readonly code: string; readonly path: string }[],
+): readonly { readonly code: string; readonly path: string }[] =>
+  files.filter(
+    ({ path }) =>
+      path.startsWith("features/admin/attendee") ||
+      path.startsWith("features/admin/refunds/") ||
+      path === "features/admin/privacy.ts" ||
+      (path.startsWith("features/api/payment-processing/") &&
+        path !== "features/api/payment-processing/classify.ts") ||
+      path === "features/api/payment-success.ts" ||
+      path.startsWith("ui/templates/admin/"),
+  );
 
 const refundLifecycles = () => {
   const ready = readyRefund({
@@ -135,7 +151,7 @@ describe("provider-refund architecture", () => {
     ]);
   });
 
-  test("existing-provider lookup stays confined to session retrieval", async () => {
+  test("the pre-cutover whole-checkout lookup stays confined to session retrieval", async () => {
     expect(
       pathsContaining(
         await sourceFiles(),
@@ -145,6 +161,58 @@ describe("provider-refund architecture", () => {
       "features/api/payment-processing/classify.ts",
       "features/api/webhooks.ts",
       "shared/payments.ts",
+    ]);
+  });
+
+  test("recognizes every ambient or raw refund-provider choice", () => {
+    for (const form of AMBIENT_REFUND_PROVIDER_FORMS) {
+      expect(couldChooseAmbientRefundProvider(form)).toBe(true);
+    }
+  });
+
+  test("refund commands, recovery, callbacks, and UI cannot choose a provider", async () => {
+    expect(
+      pathsMatching(
+        refundFacingSource(await sourceFiles()),
+        couldChooseAmbientRefundProvider,
+      ),
+    ).toEqual([]);
+  });
+
+  test("ambient and raw provider selectors stay at reviewed boundaries", async () => {
+    const files = await sourceFiles();
+    expect(pathsContaining(files, /\bgetActivePaymentProvider\b/)).toEqual([
+      "features/api/folded-booking.ts",
+      "features/public/balance.ts",
+      "features/public/ticket-payment.ts",
+      "shared/booking.ts",
+      "shared/payments.ts",
+    ]);
+    expect(pathsContaining(files, /\bexistingPaymentProviderState\b/)).toEqual([
+      "features/admin/settings-domains.ts",
+      "features/admin/settings-general.ts",
+      "features/admin/settings-page.ts",
+      "shared/existing-payment-provider.ts",
+      "shared/payments.ts",
+    ]);
+    expect(
+      pathsContaining(files, /\borderedCredentialedPaymentProviderTypes\b/),
+    ).toEqual([]);
+    expect(pathsContaining(files, /\bloadPaymentProvider\b/)).toEqual([
+      "shared/payments.ts",
+      "shared/provider-refunds.ts",
+    ]);
+    expect(
+      pathsContaining(files, /#shared\/(?:square|stripe|sumup)-provider\.ts/),
+    ).toEqual(["shared/payments.ts"]);
+  });
+
+  test("the provider-qualified loader belongs only to readiness and authority", async () => {
+    expect(
+      pathsContaining(await sourceFiles(), /\bloadRefundProvider\b/),
+    ).toEqual([
+      "features/admin/refunds/readiness.ts",
+      "shared/provider-refunds.ts",
     ]);
   });
 

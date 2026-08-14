@@ -20,7 +20,7 @@ test("keeps each tagged provider capability with its exact reference", async () 
     heldClaim,
     new Set(),
     {
-      loadProvider: (type) => {
+      loadProvider: ({ provider: type }) => {
         const source = type === "sumup" ? sumup : stripe;
         return Promise.resolve({
           ...source,

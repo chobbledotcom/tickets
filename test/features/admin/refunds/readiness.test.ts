@@ -69,7 +69,7 @@ describe("admin refund readiness", () => {
       ),
       new Set(),
       {
-        loadProvider: (type) => {
+        loadProvider: ({ provider: type }) => {
           loads.push(type);
           return Promise.resolve(
             type === "square" ? loadedSquare : loadedStripe,
@@ -91,8 +91,9 @@ describe("admin refund readiness", () => {
     if (
       observedFirst?.kind !== "observed" ||
       observedSecond?.kind !== "observed"
-    )
+    ) {
       return;
+    }
     expect(observedFirst.charge).toBe(observed);
     expect(observedSecond.charge).toBe(observed);
     expect(observedFirst.provider).toBe(loadedSquare);

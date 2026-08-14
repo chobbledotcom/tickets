@@ -55,10 +55,32 @@ export const PARALLEL_AUTHORITY_FORMS = [
    };`,
 ] as const;
 
+const AMBIENT_REFUND_PROVIDER_MARKERS = [
+  /\bgetActivePaymentProvider\b/,
+  /\bgetPaymentProviderForExistingPayments\b/,
+  /\bexistingPaymentProviderState\b/,
+  /\borderedCredentialedPaymentProviderTypes\b/,
+  /\bloadPaymentProvider\b/,
+  /#shared\/(?:square|stripe|sumup)-provider\.ts/,
+] as const;
+
+export const couldChooseAmbientRefundProvider = (code: string): boolean =>
+  AMBIENT_REFUND_PROVIDER_MARKERS.some((marker) => marker.test(code));
+
+export const AMBIENT_REFUND_PROVIDER_FORMS = [
+  "await getPaymentProviderForExistingPayments()",
+  "await getActivePaymentProvider()",
+  "existingPaymentProviderState().provider",
+  "orderedCredentialedPaymentProviderTypes().map(loadPaymentProvider)",
+  "await loadPaymentProvider(reference.provider)",
+  'import { stripePaymentProvider } from "#shared/stripe-provider.ts"',
+] as const;
+
 export const TEST_AUTHORITY_BUILDING_PATHS = [
   "features/admin/attendee-refunds/authorization.test.ts",
   "features/admin/refunds/attempt/unrecorded.test.ts",
   "features/admin/refunds/provider/helpers.ts",
+  "features/admin/refunds/readiness-findings/authority-failure.test.ts",
   "features/admin/refunds/refresh/helpers.ts",
   "features/api/payment-processing/classify.test.ts",
   "features/api/payment-processing/index/refunds.test.ts",

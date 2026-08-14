@@ -2,6 +2,8 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
+import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import {
   placeholderBookings,
   specForFailure,
@@ -10,6 +12,7 @@ import {
 import { decrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { requirePublicStatusId } from "#shared/db/attendee-statuses.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { deleteAttendee } from "#shared/db/attendees/delete.ts";
 import { execute, queryOne, withTransaction } from "#shared/db/client.ts";
 import {
@@ -17,7 +20,10 @@ import {
   PaymentRowsBusyError,
 } from "#shared/db/payment-admit-move.ts";
 import { getRefundPaymentReferencesForAttendee } from "#shared/db/payment-references.ts";
-import { reserveSession } from "#shared/db/processed-payments.ts";
+import {
+  markSessionFailed,
+  reserveSession,
+} from "#shared/db/processed-payments.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -27,30 +33,44 @@ import {
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { refundCompletes, withRefundMock } from "#test-utils/refund-routes.ts";
 import { adminGet } from "#test-utils/session.ts";
-import { bookingIntent, paymentSession } from "./index/helpers.ts";
+import {
+  bookingIntent,
+  paymentSession,
+  trustedPayment,
+} from "./index/helpers.ts";
 
 describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
   const specFor = (detail: string) =>
     specForFailure({ detail, ok: false, reason: "capacity_exceeded" });
 
-  /** Store a placeholder for a paid-for booking on a real listing. */
-  const storeFor = async (id: string) => {
+  /** One reserved paid booking ready to become a quantity-0 placeholder. */
+  const placeholderFor = async (id: string) => {
     const listing = await createTestListing({});
     const intent = bookingIntent([{ e: listing.id, p: 1000, q: 1 }]);
-    const session = paymentSession(id, 1000, intent);
+    const data = trustedPayment(id, intent, 1000);
     const bookings = placeholderBookings(
       [{ expectedPrice: 1000, item: intent.items[0]!, listing }],
       intent,
     );
     await reserveSession(id);
-    const result = await storeRefundedBooking(
-      session,
-      intent,
-      bookings,
+    return { bookings, data, intent, listing };
+  };
+
+  const storePlaceholder = async (
+    placeholder: Awaited<ReturnType<typeof placeholderFor>>,
+  ) =>
+    await storeRefundedBooking(
+      placeholder.data.session,
+      placeholder.intent,
+      placeholder.bookings,
       specFor("listing full"),
       await requirePublicStatusId(),
     );
-    return { listing, result };
+
+  /** Store a placeholder for a paid-for booking on a real listing. */
+  const storeFor = async (id: string) => {
+    const placeholder = await placeholderFor(id);
+    return { ...placeholder, result: await storePlaceholder(placeholder) };
   };
 
   describe("when the money could be sent back", () => {
@@ -97,6 +117,44 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
       await withRefundMock(refundCompletes, async () => {
         const { result } = await storeFor("cs_refunded_flag");
         expect(result.refunded).toBe(true);
+      });
+    });
+
+    test("replays the completed refund instead of its pending placeholder", async () => {
+      await withRefundMock(refundCompletes, async () => {
+        const sessionId = "cs_refunded_replay";
+        const { data, result } = await storeFor(sessionId);
+
+        expect(await processPaymentSession(sessionId, data)).toEqual({
+          error: result.error,
+          refunded: true,
+          status: 200,
+          success: false,
+        });
+      });
+    });
+
+    test("replays a pending refund when the committed create loses its reply", async () => {
+      const sessionId = "cs_pending_refund_replay";
+      const placeholder = await placeholderFor(sessionId);
+      const createAttendee = attendeesApi.createAttendeeAtomic;
+      using _createReply = stub(
+        attendeesApi,
+        "createAttendeeAtomic",
+        async (...args: Parameters<typeof createAttendee>) => {
+          await createAttendee(...args);
+          throw new Error("placeholder create reply was lost");
+        },
+      );
+
+      await expect(storePlaceholder(placeholder)).rejects.toThrow(
+        "placeholder create reply was lost",
+      );
+      expect(await processPaymentSession(sessionId, placeholder.data)).toEqual({
+        error:
+          "We couldn't complete your booking, so we've saved your details and a member of our team can help you rebook. Your refund is being arranged — please contact us if it does not arrive.",
+        status: 200,
+        success: false,
       });
     });
   });
@@ -147,6 +205,27 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
   });
 
   describe("either way", () => {
+    test("rolls back when another outcome takes the session reservation", async () => {
+      const sessionId = "cs_session_failure_race";
+      const placeholder = await placeholderFor(sessionId);
+      await markSessionFailed(sessionId, {
+        error: "Another request already finished",
+        status: 409,
+      });
+
+      await withRefundMock(refundCompletes, async () => {
+        await expect(storePlaceholder(placeholder)).rejects.toThrow(
+          `Payment session lost its reservation before placeholder creation: ${sessionId}`,
+        );
+      });
+      expect(await getAttendeesRaw(placeholder.listing.id)).toEqual([]);
+      expect(await processPaymentSession(sessionId, placeholder.data)).toEqual({
+        error: "Another request already finished",
+        status: 409,
+        success: false,
+      });
+    });
+
     test("rolls back the placeholder when its payment anchor cannot be stored", async () => {
       const listing = await createTestListing({});
       const intent = bookingIntent([{ e: listing.id, p: 1000, q: 1 }]);

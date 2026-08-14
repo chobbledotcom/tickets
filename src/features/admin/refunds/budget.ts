@@ -4,7 +4,6 @@ import {
   paymentReferencesByIndex,
   type TaggedRefundPaymentReference,
 } from "#shared/db/payment-references.ts";
-import { orderedCredentialedPaymentProviderTypes } from "#shared/existing-payment-provider.ts";
 import { REFUND_NETWORK_RETRIES } from "#shared/payment/refund-network.ts";
 import {
   REFUND_ACTIVE_AUTHORITY_DATABASE_CALLS,
@@ -107,23 +106,18 @@ const logicalCallsAt = (
 
 const taggedReferenceCalls = (
   provider: PaymentProviderType,
-  configured: ReadonlySet<PaymentProviderType>,
   stage: ProviderCallStage,
-): number =>
-  configured.has(provider) ? physicalCalls(provider, logicalCallsAt(stage)) : 0;
+): number => physicalCalls(provider, logicalCallsAt(stage));
 
 type ReadinessProviderCalls = {
-  readonly providers: readonly PaymentProviderType[];
   readonly stage: Extract<ProviderCallStage, "complete" | "judgment">;
 };
 
 const referenceCalls = (
   calls: ReadinessProviderCalls,
 ): ((reference: TaggedRefundPaymentReference) => number) => {
-  const { providers, stage } = calls;
-  const configured = new Set(providers);
-  return (reference) =>
-    taggedReferenceCalls(reference.provider, configured, stage);
+  const { stage } = calls;
+  return (reference) => taggedReferenceCalls(reference.provider, stage);
 };
 
 const refundReferences = (
@@ -245,10 +239,9 @@ const referenceSetSubrequestCost = (
   references: readonly TaggedRefundPaymentReference[],
   active: readonly TaggedRefundPaymentReference[],
   checkpoint: RefundReadinessBudgetCheckpoint,
-  providers: readonly PaymentProviderType[],
 ): SubrequestCounts => {
   const stage = READINESS_PROVIDER_CALL_STAGES[action][checkpoint];
-  const external = sum(active.map(referenceCalls({ providers, stage })));
+  const external = sum(active.map(referenceCalls({ stage })));
   const authorityCalls =
     activeAuthorityDatabaseCalls(action, active.length) +
     (references.length - active.length) * DATABASE_MAX_ATTEMPTS;
@@ -266,7 +259,6 @@ export interface RefundReadinessBudget {
   readonly action: RefundReadinessAction;
   readonly candidates: readonly RefundBudgetCandidate[];
   readonly checkpoint: RefundReadinessBudgetCheckpoint;
-  readonly providers?: readonly PaymentProviderType[];
   readonly returned: ReadonlySet<string>;
 }
 
@@ -274,23 +266,12 @@ export const refundReadinessSubrequestCost = ({
   action,
   candidates,
   checkpoint,
-  providers,
   returned,
 }: RefundReadinessBudget): SubrequestCounts => {
   if (candidates.length === 0) return zeroSubrequests();
-  const configured =
-    providers === undefined
-      ? orderedCredentialedPaymentProviderTypes()
-      : providers;
   const references = refundReferences(candidates);
   const active = activeReferences(references, returned);
-  return referenceSetSubrequestCost(
-    action,
-    references,
-    active,
-    checkpoint,
-    configured,
-  );
+  return referenceSetSubrequestCost(action, references, active, checkpoint);
 };
 
 /** Whether the remaining allowance can carry this exact readiness work to its
