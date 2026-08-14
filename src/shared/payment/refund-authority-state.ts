@@ -3,8 +3,8 @@
 import * as v from "valibot";
 import {
   RefundConflictDecisionSchema,
-  refundConflictNeedsProviderCheck,
   ReturnedOrNotSentDecisionSchema,
+  refundConflictNeedsProviderCheck,
 } from "#shared/payment/refund-conflict-decision.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
@@ -148,8 +148,7 @@ const providerConflictStateSchema = <
     }),
     v.check(
       (state) =>
-        refundConflictNeedsProviderCheck(state.decision) ===
-          needsProviderCheck,
+        refundConflictNeedsProviderCheck(state.decision) === needsProviderCheck,
       message,
     ),
   );

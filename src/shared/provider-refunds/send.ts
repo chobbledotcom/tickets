@@ -153,24 +153,14 @@ const transitionBeforeProviderCall = (
   now: number,
   change: RefundStateChange,
 ): Promise<RefundAuthorityRow | null> =>
-  withSubrequestReserve(
-    REFUND_RESULT_DATABASE_RESERVE,
-    () =>
-      transitionRefundAuthority(
-        row,
-        now,
-        returnedRefundMoney(charge),
-        change,
-      ),
+  withSubrequestReserve(REFUND_RESULT_DATABASE_RESERVE, () =>
+    transitionRefundAuthority(row, now, returnedRefundMoney(charge), change),
   );
 
 export const armReadyRefund: ProviderRefundStep = async (work) => {
   const { charge, now, row } = work;
-  const armed = await transitionBeforeProviderCall(
-    row,
-    charge,
-    now,
-    (state) => armRefundSend(state, now, now + REFUND_OBSERVATION_DELAY_MS),
+  const armed = await transitionBeforeProviderCall(row, charge, now, (state) =>
+    armRefundSend(state, now, now + REFUND_OBSERVATION_DELAY_MS),
   );
   return await sendAfterTransition(armed, work);
 };

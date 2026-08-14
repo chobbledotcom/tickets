@@ -5,9 +5,9 @@ import { execute, type TxScope } from "#shared/db/client.ts";
 import {
   loadRefundAuthorityById,
   REFUND_AUTHORITY_COLUMNS,
-  refundAuthorityFromResult,
   type RefundAuthorityRow,
   type RefundAuthorityVersion,
+  refundAuthorityFromResult,
 } from "#shared/db/provider-refund-authority.ts";
 import type { Money } from "#shared/payment/money.ts";
 import {
@@ -145,12 +145,8 @@ export const resolveRefundAuthorityMoney = async ({
   readonly transaction: TxScope;
   readonly transition: RefundTransition;
 }): Promise<RefundAuthorityRow | null> =>
-  await changeRefundAuthority(
-    row,
-    transition,
-    money,
-    now,
-    (statement) => transaction.execute(statement),
+  await changeRefundAuthority(row, transition, money, now, (statement) =>
+    transaction.execute(statement),
   );
 
 /** Persist provider completion for the exact authority revision. */
@@ -160,11 +156,8 @@ export const completeRefundAuthority = (
   now: number,
   proof: "owner" | "provider",
 ): Promise<RefundAuthorityRow | null> =>
-  transitionRefundAuthority(
-    row,
-    now,
-    refunded,
-    (state) => markRefundCompleted(state, now, proof),
+  transitionRefundAuthority(row, now, refunded, (state) =>
+    markRefundCompleted(state, now, proof),
   );
 
 /** Finish local bookkeeping only for the exact completed revision. */
@@ -177,7 +170,8 @@ export const markRefundAuthorityRecorded = async (
   return row === null || row.revision !== expectedRevision
     ? null
     : row.state.kind === "completed" && row.state.local.kind === "recorded"
-    ? row
-    : transitionRefundAuthority(row, now, row.refunded, (state) =>
-      markRefundLocalRecorded(state, now));
+      ? row
+      : transitionRefundAuthority(row, now, row.refunded, (state) =>
+          markRefundLocalRecorded(state, now),
+        );
 };

@@ -19,13 +19,13 @@ import {
   readyRefund,
 } from "#shared/payment/refund-authority.ts";
 import {
-  readRefundAuthorityState,
-  type RefundAuthorityState,
-} from "#shared/payment/refund-authority-state.ts";
-import {
   markRefundOwnerChoiceNeeded,
   markRefundProviderConflict,
 } from "#shared/payment/refund-authority-choice.ts";
+import {
+  type RefundAuthorityState,
+  readRefundAuthorityState,
+} from "#shared/payment/refund-authority-state.ts";
 import { readProviderRefundCursor } from "#shared/provider-refund-cursor.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
@@ -103,12 +103,10 @@ const expectMoneyChoicesRejected = async (
   privateKey: CryptoKey,
 ): Promise<void> => {
   const before = await storedState(id);
-  for (
-    const choice of [
-      "provider_confirmed_not_sent",
-      "provider_confirmed_returned",
-    ] as const
-  ) {
+  for (const choice of [
+    "provider_confirmed_not_sent",
+    "provider_confirmed_returned",
+  ] as const) {
     expect(
       await resolveProviderRefundCase({
         activityMessage: `Reject provider refund case ${id}`,
@@ -139,9 +137,8 @@ describeWithEnv("provider refund recovery cases", { db: true }, () => {
 
   test("lists one bounded PII-free keyset page", async () => {
     const ids = await Promise.all(
-      Array.from(
-        { length: 21 },
-        (_, index) => addProviderRefundTestCase(`queue-${index}`),
+      Array.from({ length: 21 }, (_, index) =>
+        addProviderRefundTestCase(`queue-${index}`),
       ),
     );
     const sortedIds = ids.toSorted((left, right) => left - right);
@@ -157,7 +154,7 @@ describeWithEnv("provider refund recovery cases", { db: true }, () => {
     expect(first.cases.map(({ id }) => id)).toEqual(sortedIds.slice(0, 20));
     expect(first.nextCursor).not.toBeNull();
     const queueQuery = queries.find((query) =>
-      query.includes("FROM payment_charges AS charge")
+      query.includes("FROM payment_charges AS charge"),
     );
     expect(queueQuery).toContain("LIMIT ?");
     expect(queueQuery).not.toContain("provider_reference");
@@ -197,10 +194,7 @@ describeWithEnv("provider refund recovery cases", { db: true }, () => {
     }
 
     expect(loaded).toMatchObject({
-      choices: [
-        "provider_confirmed_returned",
-        "provider_confirmed_not_sent",
-      ],
+      choices: ["provider_confirmed_returned", "provider_confirmed_not_sent"],
       id,
       reason: "possibly_sent",
       reference: taggedReference("selected-reference"),
@@ -208,7 +202,7 @@ describeWithEnv("provider refund recovery cases", { db: true }, () => {
       state: "needs_owner_choice",
     });
     const detailQuery = queries.find((query) =>
-      query.includes("FROM payment_charges AS charge")
+      query.includes("FROM payment_charges AS charge"),
     );
     expect(detailQuery).toContain("WHERE charge.id = ?");
     expect(detailQuery).toContain("LIMIT 1");

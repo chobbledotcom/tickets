@@ -38,10 +38,8 @@ export const submitRefundCase = async (
   );
 
 const providerCheck = (answer: ProviderRead<ChargeMoney>) => {
-  const read = stub(
-    sumupPaymentProvider,
-    "readCharge",
-    () => Promise.resolve(answer),
+  const read = stub(sumupPaymentProvider, "readCharge", () =>
+    Promise.resolve(answer),
   );
   const send = stub(sumupPaymentProvider, "refundCharge");
   return {
@@ -81,4 +79,28 @@ export const expectProviderCheck = async (
       activityMessage,
     );
   }
+};
+
+export const expectStaleProviderCheckRefused = async <Stored>(
+  id: number,
+  expected: Stored,
+  load: () => Promise<Stored>,
+): Promise<void> => {
+  using read = stub(sumupPaymentProvider, "readCharge");
+  using send = stub(sumupPaymentProvider, "refundCharge");
+  await expectFlashRedirect(
+    refundCasePath(id),
+    "This refund changed while you were checking it. Read the current details and choose again.",
+    false,
+  )(
+    await submitRefundCase(
+      await testCookie(),
+      { choice: "check_again", revision: "1" },
+      id,
+    ),
+  );
+
+  expect(read.calls).toHaveLength(0);
+  expect(send.calls).toHaveLength(0);
+  expect(await load()).toEqual(expected);
 };

@@ -32,8 +32,9 @@ describe("payment > refund authority transitions", () => {
       kind: "send_armed",
       request: { generation: 1, identityIndex: "request-one" },
     });
-    expect(() => rearmKeyedRefund(observing, "another-request", 400, 430))
-      .toThrow("only its exact request");
+    expect(() =>
+      rearmKeyedRefund(observing, "another-request", 400, 430),
+    ).toThrow("only its exact request");
     expect(() => rearmKeyedRefund(observing, "request-one", 501, 530)).toThrow(
       "outside its replay window",
     );
@@ -48,7 +49,7 @@ describe("payment > refund authority transitions", () => {
           identityIndex: "expired-before-start",
           replayUntil: 500,
         },
-      })
+      }),
     ).toThrow("cannot start outside its replay window");
   });
 
@@ -78,7 +79,7 @@ describe("payment > refund authority transitions", () => {
       request: { generation: 1 },
     });
     expect(() =>
-      returnRefundToReady(readyRefundForTest("keyless"), 5, 180, 190)
+      returnRefundToReady(readyRefundForTest("keyless"), 5, 180, 190),
     ).toThrow("not armed");
   });
 

@@ -40,12 +40,12 @@ type RefundReportFacts = {
  * must be retired only after its local ledger write succeeds. */
 export type ReferenceRefund =
   | {
-    readonly authority: RefundAuthorityReceipt;
-    readonly outcome: "refunded";
-  }
+      readonly authority: RefundAuthorityReceipt;
+      readonly outcome: "refunded";
+    }
   | {
-    readonly outcome: Exclude<RefundOutcome, "refunded">;
-  };
+      readonly outcome: Exclude<RefundOutcome, "refunded">;
+    };
 
 type ReferenceStandDown = {
   readonly outcome: RefundOutcome;
@@ -149,11 +149,8 @@ const prepareReferenceRefund = (
   return {
     maySend: admission.kind === "send",
     run: (mode) =>
-      answeredOnce(
-        inFlight,
-        ready.reference.index,
-        () =>
-          askAuthority(ready, candidate.attendee.id, listingId, mode, request),
+      answeredOnce(inFlight, ready.reference.index, () =>
+        askAuthority(ready, candidate.attendee.id, listingId, mode, request),
       ),
     standDown: standDownResult(admission, {
       attendeeId: candidate.attendee.id,
@@ -201,7 +198,7 @@ const candidateResult = (
   const returned = results.flatMap((result) =>
     result.outcome === "refunded"
       ? [{ authority: result.authority, reference: result.reference }]
-      : []
+      : [],
   );
   if (
     incompleteListingId !== undefined &&
@@ -230,8 +227,8 @@ export const finishPreparedCandidate = async (
   listingId: number,
 ): Promise<CandidateRefund> => {
   const mode = prepared.attempts.some(
-      (attempt) => !attempt.maySend && attempt.standDown.outcome !== "refunded",
-    )
+    (attempt) => !attempt.maySend && attempt.standDown.outcome !== "refunded",
+  )
     ? "observe_only"
     : "send";
   const results = await mapProviderRequests(

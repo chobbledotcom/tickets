@@ -4,13 +4,13 @@
 # settings-bundles.ts: bundle is ALL_SNAPSHOT_SETTINGS when undefined (a readonly
 # array, always truthy), so ?? and || agree.
 
-# webhooks.ts: listing?.thank_you_url.trim() ?? "" — trim() returns
+# payment-success.ts: listing?.thank_you_url.trim() ?? "" — trim() returns
 # string|undefined; for "" both ?? "" and || "" yield "".
-src/features/api/webhooks.ts::singleListingThankYou~0cl1whb  ?? → ||   # string|"" fallback; "" ?? "" = "" || "" = ""
+src/features/api/payment-success.ts::singleListingThankYou~0cl1whb  ?? → ||   # string|"" fallback; "" ?? "" = "" || "" = ""
 
-# webhooks.ts: intent.thankYouUrl ?? "" — string|undefined; for ""
+# payment-success.ts: intent.thankYouUrl ?? "" — string|undefined; for ""
 # both ?? "" and || "" yield "".
-src/features/api/webhooks.ts::processSessionAndRedirect.explicitThankYou~14utous  ?? → ||   # string|"" fallback; "" ?? "" = "" || "" = ""
+src/features/api/payment-success.ts::processSessionAndRedirect.explicitThankYou~14utous  ?? → ||   # string|"" fallback; "" ?? "" = "" || "" = ""
 
 # webhooks.ts: .find(Boolean) returns undefined|truthy (Boolean("") is
 # false, so "" never returned). ?? null and || null agree.

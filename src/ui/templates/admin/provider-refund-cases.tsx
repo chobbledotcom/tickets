@@ -8,8 +8,8 @@ import type {
 import type { FlashFields } from "#shared/flash-fields.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
-import type { RefundOwnerChoiceReason } from "#shared/payment/refund-authority-state.ts";
 import type { RefundOwnerChoiceName } from "#shared/payment/refund-authority-choice.ts";
+import type { RefundOwnerChoiceReason } from "#shared/payment/refund-authority-state.ts";
 import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { renderAdminPage } from "#templates/admin/admin-page.tsx";
@@ -81,11 +81,9 @@ export const ProviderRefundCaseQueue = ({
       {page.nextCursor !== null && (
         <p>
           <a
-            href={`/admin/privacy?refund_after=${
-              encodeURIComponent(
-                page.nextCursor,
-              )
-            }`}
+            href={`/admin/privacy?refund_after=${encodeURIComponent(
+              page.nextCursor,
+            )}`}
             rel="next"
           >
             {t("privacy.refunds.next")}
@@ -100,20 +98,18 @@ type Choice = {
   readonly value: string;
 };
 
-type RefundCaseFormSchema =
-  & {
-    readonly danger: boolean;
-    readonly id: string;
-    readonly submit: string;
-  }
-  & (
-    | {
+type RefundCaseFormSchema = {
+  readonly danger: boolean;
+  readonly id: string;
+  readonly submit: string;
+} & (
+  | {
       readonly choices: readonly Choice[];
       readonly kind: "choices";
       readonly legend: string;
     }
-    | { readonly choice: "check_again"; readonly kind: "check" }
-  );
+  | { readonly choice: "check_again"; readonly kind: "check" }
+);
 
 const checkForm = (
   id: string,
@@ -185,12 +181,8 @@ const formFor = (refundCase: ProviderRefundCase): RefundCaseFormSchema =>
   refundCase.state === "needs_owner_choice"
     ? ownerChoiceForm(refundCase.choices)
     : refundCase.state === "needs_provider_check"
-    ? checkForm(
-      "refund-check-conflict",
-      "privacy.refunds.check_again",
-      false,
-    )
-    : AUTOMATIC_CASE_FORMS[refundCase.state];
+      ? checkForm("refund-check-conflict", "privacy.refunds.check_again", false)
+      : AUTOMATIC_CASE_FORMS[refundCase.state];
 
 const RefundCaseForm = ({
   refundCase,
@@ -202,23 +194,23 @@ const RefundCaseForm = ({
     <WritableOnly>
       <CsrfForm action={`${CASE_PATH}/${refundCase.id}`} id={form.id}>
         <input name="revision" type="hidden" value={refundCase.revision} />
-        {form.kind === "check"
-          ? <input name="choice" type="hidden" value={form.choice} />
-          : (
-            <fieldset class="radios">
-              <legend>{t(form.legend)}</legend>
-              {form.choices.map((choice) => (
-                <RadioOption
-                  checked={false}
-                  name="choice"
-                  required
-                  value={choice.value}
-                >
-                  {t(choice.label)}
-                </RadioOption>
-              ))}
-            </fieldset>
-          )}
+        {form.kind === "check" ? (
+          <input name="choice" type="hidden" value={form.choice} />
+        ) : (
+          <fieldset class="radios">
+            <legend>{t(form.legend)}</legend>
+            {form.choices.map((choice) => (
+              <RadioOption
+                checked={false}
+                name="choice"
+                required
+                value={choice.value}
+              >
+                {t(choice.label)}
+              </RadioOption>
+            ))}
+          </fieldset>
+        )}
         <p class="actions">
           <button class={form.danger ? "danger" : undefined} type="submit">
             {t(form.submit)}

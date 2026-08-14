@@ -39,14 +39,15 @@ const ready = (capability: "keyed" | "keyless" = "keyless") =>
     evidenceRevision: 1,
     nextActionAt: 20,
     now: 10,
-    request: capability === "keyed"
-      ? {
-        capability,
-        generation: 1,
-        identityIndex: "request-one",
-        replayUntil: 500,
-      }
-      : { capability, generation: 1, identityIndex: "request-one" },
+    request:
+      capability === "keyed"
+        ? {
+            capability,
+            generation: 1,
+            identityIndex: "request-one",
+            replayUntil: 500,
+          }
+        : { capability, generation: 1, identityIndex: "request-one" },
   });
 
 const createInput = (
@@ -264,11 +265,8 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
     expect(queries.sql[0]).toContain("UPDATE payment_charges");
     expect(queries.sql[0]).not.toContain("SELECT");
     expect(
-      await transitionRefundAuthority(
-        row,
-        31,
-        gbp(0),
-        (state) => armRefundSend(state, 31, 50),
+      await transitionRefundAuthority(row, 31, gbp(0), (state) =>
+        armRefundSend(state, 31, 50),
       ),
     ).toBeNull();
   });
@@ -288,12 +286,7 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
   test("the revision transition refuses more returned than captured", async () => {
     const row = await createOrLoadRefundAuthority(createInput());
     await expect(
-      transitionRefundAuthority(
-        row,
-        30,
-        gbp(2_501),
-        (state) => state,
-      ),
+      transitionRefundAuthority(row, 30, gbp(2_501), (state) => state),
     ).rejects.toThrow("refunded amount exceeds its capture");
   });
 
@@ -308,11 +301,8 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
     if (observed === null) throw new Error("setup transition lost");
 
     await expect(
-      transitionRefundAuthority(
-        observed,
-        31,
-        gbp(99),
-        (state) => markRefundObservationDue(state, 31, 50),
+      transitionRefundAuthority(observed, 31, gbp(99), (state) =>
+        markRefundObservationDue(state, 31, 50),
       ),
     ).rejects.toThrow("amount moved backwards");
   });

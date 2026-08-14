@@ -22,7 +22,7 @@ const rememberReturnedForCandidate = (
   const attendeeId = candidate.attendee.id;
   const indexes = new Set(returnedIndexes);
   const returned = candidate.references.filter(({ index }) =>
-    indexes.has(index)
+    indexes.has(index),
   );
   if (returned.length > 0) {
     rememberFailedRefundLedger(held.findings, attendeeId, returned);

@@ -18,8 +18,8 @@ import {
 } from "#test/specs/support/form-controls/reading.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
-  refundSafety,
   type RefundSafetyState,
+  refundSafety,
 } from "#test/specs/support/refund-safety/state.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { chargeMoney } from "#test-utils/payment-state.ts";

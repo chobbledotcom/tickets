@@ -161,6 +161,26 @@ describeWithEnv("admin refund provider", { db: true }, () => {
     expect(result).toMatchObject({ outcome: "failed", returned: [] });
   });
 
+  test("keeps a possibly-sent owner decision pending for review", async () => {
+    const reference = "pi_possibly_sent";
+    const source = provider();
+    const result = await refundReadyCandidate(
+      await canonicalReadyCandidateWithReferences([reference], source),
+      7,
+      new Map(),
+      (target) =>
+        Promise.resolve({
+          authority: { id: 1, referenceIndex: "possibly-sent", revision: 2 },
+          kind: "needs_owner_choice",
+          reason: "possibly_sent",
+          reference: target.reference,
+        }),
+    );
+
+    expect(source.refunds).toEqual([]);
+    expect(result).toMatchObject({ outcome: "pending", returned: [] });
+  });
+
   test("withholds when the provider proves no request was sent", async () => {
     const source = provider({
       refund: () =>

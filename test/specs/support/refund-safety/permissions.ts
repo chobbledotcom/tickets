@@ -17,9 +17,9 @@ import { stripTags } from "#test-utils/test-browser/parsing.ts";
 import { openListedRefundCase, openOwnerAction } from "./journeys.ts";
 import {
   refundSafety,
-  safetyBooking,
   type SavedOwnerForm,
   type SavedOwnerFormKind,
+  safetyBooking,
 } from "./state.ts";
 
 // jscpd:ignore-end
@@ -81,8 +81,9 @@ const oneButtonText = (body: string): string => {
 };
 
 const recoveryChoice = (body: string): string => {
-  const hidden = extractFormEntries(body).find(([name]) => name === "choice")
-    ?.[1];
+  const hidden = extractFormEntries(body).find(
+    ([name]) => name === "choice",
+  )?.[1];
   if (hidden !== undefined && hidden !== "") return hidden;
   const offered = choicesForQuestion(body, "choice");
   if (offered.length === 0) {
@@ -92,9 +93,10 @@ const recoveryChoice = (body: string): string => {
 };
 
 const recoveryFormOn = (html: string, path: string) => {
-  const forms = findForms(html).filter((form) =>
-    form.action === path &&
-    extractFormEntries(form.body).some(([name]) => name === "revision")
+  const forms = findForms(html).filter(
+    (form) =>
+      form.action === path &&
+      extractFormEntries(form.body).some(([name]) => name === "revision"),
   );
   if (forms.length !== 1) {
     throw new Error("The refund recovery page did not have one recovery form");
@@ -120,17 +122,18 @@ export const saveOwnerMoneyForm = async (
   if (kind === "provider-recovery") {
     await openListedRefundCase(browser);
   }
-  const details = kind === "provider-recovery"
-    ? recoveryFormOn(browser.currentHtml, browser.currentUrl)
-    : {
-      button: SIMPLE_FORM_BUTTON[kind],
-      form: findFormByButton(
-        findForms(browser.currentHtml),
-        SIMPLE_FORM_BUTTON[kind],
-        ["confirm_identifier"],
-      ),
-      values: { confirm_identifier: who },
-    };
+  const details =
+    kind === "provider-recovery"
+      ? recoveryFormOn(browser.currentHtml, browser.currentUrl)
+      : {
+          button: SIMPLE_FORM_BUTTON[kind],
+          form: findFormByButton(
+            findForms(browser.currentHtml),
+            SIMPLE_FORM_BUTTON[kind],
+            ["confirm_identifier"],
+          ),
+          values: { confirm_identifier: who },
+        };
   const saved: SavedOwnerForm = {
     attendeeId: safetyBooking(world, who).attendeeId,
     button: details.button,

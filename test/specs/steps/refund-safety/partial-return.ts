@@ -69,11 +69,7 @@ When(
     const provider = refundProviderFor(this);
     const contactsBefore = provider.reads.length + provider.sends.length;
     expect(contactsBefore).toBe(refundSafety(this).ownerContactCount);
-    await fillInAndSend(
-      scenarioBrowser(this),
-      {},
-      "Check the provider again",
-    );
+    await fillInAndSend(scenarioBrowser(this), {}, "Check the provider again");
   },
 );
 

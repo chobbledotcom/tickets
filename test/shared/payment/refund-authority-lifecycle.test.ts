@@ -12,10 +12,13 @@ import {
   markRefundProviderConflict,
 } from "#shared/payment/refund-authority-choice.ts";
 import {
+  type RefundEvidenceAction,
   refundAuthorityWorkSql,
+  refundEvidenceActionAllowed,
   refundLifecycleFor,
   refundMoveRefusalOrNull,
 } from "#shared/payment/refund-authority-lifecycle.ts";
+import type { RefundAuthorityStateName } from "#shared/payment/refund-authority-state.ts";
 
 const ready = () =>
   readyRefund({
@@ -30,6 +33,36 @@ const ready = () =>
   });
 
 describe("payment > declared refund authority lifecycle", () => {
+  test("every state declares exactly which provider evidence it accepts", () => {
+    const actions = [
+      "check_provider",
+      "observe_pending",
+      "replace_with_fresh_evidence",
+    ] as const satisfies readonly RefundEvidenceAction[];
+    const allowed: readonly (readonly [
+      RefundAuthorityStateName,
+      readonly RefundEvidenceAction[],
+    ])[] = [
+      ["completed", []],
+      ["needs_owner_choice", ["replace_with_fresh_evidence"]],
+      [
+        "needs_provider_check",
+        ["check_provider", "replace_with_fresh_evidence"],
+      ],
+      ["observing", actions],
+      ["ready", actions],
+      ["send_armed", actions],
+    ];
+
+    for (const [state, stateActions] of allowed) {
+      for (const action of actions) {
+        expect(refundEvidenceActionAllowed(state, action)).toBe(
+          stateActions.includes(action),
+        );
+      }
+    }
+  });
+
   test("unfinished work blocks deletion but can move with its indexed row", () => {
     const armed = armRefundSend(ready(), 2, 20);
     const observing = markRefundObservationDue(armed, 3, 30);
@@ -160,6 +193,28 @@ describe("payment > declared refund authority lifecycle", () => {
 
     expect(() => refundLifecycleFor(inconsistent)).toThrow(
       "Provider-check recovery received another refund state",
+    );
+  });
+
+  test("provider-check recovery rejects a conclusive not-sent decision", () => {
+    const providerCheck = markRefundProviderConflict(ready(), 40, {
+      captured: { amount: 2_500, currency: "GBP" },
+      kind: "returned",
+      refunded: { amount: 400, currency: "GBP" },
+    });
+    const inconsistent = new Proxy(providerCheck, {
+      get: (target, property, receiver) =>
+        property === "decision"
+          ? {
+              captured: { amount: 2_500, currency: "GBP" },
+              kind: "not_sent",
+              refunded: { amount: 0, currency: "GBP" },
+            }
+          : Reflect.get(target, property, receiver),
+    });
+
+    expect(() => refundLifecycleFor(inconsistent)).toThrow(
+      "Provider-check evidence cannot be not_sent",
     );
   });
 

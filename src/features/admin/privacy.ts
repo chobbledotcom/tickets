@@ -52,6 +52,7 @@ import {
   isOrphanRetentionValue,
   orphanRetentionCutoffIso,
 } from "#shared/orphan-retention.ts";
+import { refundEvidenceActionAllowed } from "#shared/payment/refund-authority-lifecycle.ts";
 import { readProviderRefundCursor } from "#shared/provider-refund-cursor.ts";
 import {
   type OwnerRecoveryRefundTarget,
@@ -82,9 +83,10 @@ const paymentWorkCursor = (request: Request) => {
 
 const handlePrivacyGet = ownerResponsePage(async (session, request, flash) => {
   const refundCursor = new URL(request.url).searchParams.get("refund_after");
-  const refundAfter = refundCursor === null
-    ? undefined
-    : await readProviderRefundCursor(refundCursor);
+  const refundAfter =
+    refundCursor === null
+      ? undefined
+      : await readProviderRefundCursor(refundCursor);
   if (refundAfter === null) {
     return htmlResponse(t("privacy.refunds.invalid_cursor"), 400);
   }
@@ -119,9 +121,11 @@ const handleRefundCaseGet: RefundCaseRoute = (request, { id }) =>
       id,
       await requireRequestPrivateKey(),
     );
-    return refundCase === null ? notFoundResponse() : htmlResponse(
-      adminProviderRefundCasePage(session, refundCase, applyFlash(request)),
-    );
+    return refundCase === null
+      ? notFoundResponse()
+      : htmlResponse(
+          adminProviderRefundCasePage(session, refundCase, applyFlash(request)),
+        );
   });
 
 const OWNER_CHOICE_LOG = {
@@ -138,17 +142,8 @@ type ExistingProviderRefundResult = Exclude<
   { kind: "changed" | "unchanged" }
 >;
 
-const AUTOMATIC_PROVIDER_CHECK = {
-  completed: false,
-  needs_owner_choice: false,
-  needs_provider_check: true,
-  observing: true,
-  ready: true,
-  send_armed: true,
-} as const satisfies Record<ProviderRefundCase["state"], boolean>;
-
 const mayCheckProvider = (refundCase: ProviderRefundCase): boolean =>
-  AUTOMATIC_PROVIDER_CHECK[refundCase.state];
+  refundEvidenceActionAllowed(refundCase.state, "check_provider");
 
 const CHECK_STOP_COPY = {
   needs_owner_choice: {
@@ -201,10 +196,10 @@ const checkProviderAgain = async (
   const result = sendsReadyRefund
     ? await requestProviderRefund(target)
     : await requestProviderRefund({
-      evidence: { kind: "read_provider" },
-      mode: "observe_only",
-      reference: refundCase.reference,
-    });
+        evidence: { kind: "read_provider" },
+        mode: "observe_only",
+        reference: refundCase.reference,
+      });
   if (result.kind === "changed") {
     return refundCaseChanged(id);
   }

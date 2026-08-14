@@ -178,12 +178,12 @@ describe("provider-refund architecture", () => {
   });
 
   test("test authority building blocks stay at reviewed boundaries", async () => {
-    const files = (await codeFilesUnder(testRoot)).filter(({ path }) =>
-      !REFUND_AUTHORITY_ARCHITECTURE_FILES.has(path)
+    const files = (await codeFilesUnder(testRoot)).filter(
+      ({ path }) => !REFUND_AUTHORITY_ARCHITECTURE_FILES.has(path),
     );
-    expect(
-      pathsMatching(files, couldBuildRefundAuthority),
-    ).toEqual(TEST_AUTHORITY_BUILDING_PATHS);
+    expect(pathsMatching(files, couldBuildRefundAuthority)).toEqual(
+      TEST_AUTHORITY_BUILDING_PATHS,
+    );
   });
 
   test("the durable authority's production and test entry points stay explicit", async () => {
@@ -191,8 +191,8 @@ describe("provider-refund architecture", () => {
     expect(pathsContaining(await sourceFiles(), authorityName)).toEqual(
       REFUND_AUTHORITY_SOURCE_PATHS,
     );
-    const tests = (await codeFilesUnder(testRoot)).filter(({ path }) =>
-      !REFUND_AUTHORITY_ARCHITECTURE_FILES.has(path)
+    const tests = (await codeFilesUnder(testRoot)).filter(
+      ({ path }) => !REFUND_AUTHORITY_ARCHITECTURE_FILES.has(path),
     );
     expect(pathsContaining(tests, authorityName)).toEqual(
       REFUND_AUTHORITY_TEST_PATHS,
@@ -201,18 +201,18 @@ describe("provider-refund architecture", () => {
 
   test("lower send mechanisms have one production call chain", async () => {
     const source = await sourceFiles();
-    const tests = (await codeFilesUnder(testRoot)).filter(({ path }) =>
-      !REFUND_AUTHORITY_ARCHITECTURE_FILES.has(path)
+    const tests = (await codeFilesUnder(testRoot)).filter(
+      ({ path }) => !REFUND_AUTHORITY_ARCHITECTURE_FILES.has(path),
     );
     for (const [mechanism, paths] of Object.entries(LOWER_SEND_SOURCE_PATHS)) {
-      expect(
-        pathsContaining(source, new RegExp(`\\b${mechanism}\\b`)),
-      ).toEqual(paths);
+      expect(pathsContaining(source, new RegExp(`\\b${mechanism}\\b`))).toEqual(
+        paths,
+      );
     }
     for (const [mechanism, paths] of Object.entries(LOWER_SEND_TEST_PATHS)) {
-      expect(
-        pathsContaining(tests, new RegExp(`\\b${mechanism}\\b`)),
-      ).toEqual(paths);
+      expect(pathsContaining(tests, new RegExp(`\\b${mechanism}\\b`))).toEqual(
+        paths,
+      );
     }
   });
 

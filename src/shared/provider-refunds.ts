@@ -252,15 +252,16 @@ const requestOne = async (
   ) {
     return { kind: "unchanged", reference: target.reference };
   }
-  const row = prepared === null
-    ? await createTargetAuthority(
-      target,
-      loaded,
-      provider,
-      read.resource.captured,
-      now,
-    )
-    : prepared;
+  const row =
+    prepared === null
+      ? await createTargetAuthority(
+          target,
+          loaded,
+          provider,
+          read.resource.captured,
+          now,
+        )
+      : prepared;
   return await reconcile({
     admission,
     charge: read.resource,

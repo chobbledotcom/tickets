@@ -47,12 +47,10 @@ describeWithEnv("provider refund state transitions", { db: true }, () => {
     expect(stored?.provider_reference).not.toContain(payment.reference);
   });
 
-  for (
-    const [reference, charge, refundedAmount] of [
-      ["txn-conflict", chargeMoney(1_000, 100), 100],
-      ["txn-impossible-return", chargeMoney(1_000, 1_001), 0],
-    ] as const
-  ) {
+  for (const [reference, charge, refundedAmount] of [
+    ["txn-conflict", chargeMoney(1_000, 100), 100],
+    ["txn-impossible-return", chargeMoney(1_000, 1_001), 0],
+  ] as const) {
     test(`provider conflict becomes provider-check work for ${reference}`, async () => {
       const payment = refundReference(reference, "stripe");
       expect(

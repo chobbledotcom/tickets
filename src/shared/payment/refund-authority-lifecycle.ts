@@ -9,19 +9,25 @@ import type {
 
 type LifecycleExit =
   | {
-    clearedBy: "resolveProviderRefundCase";
-    requiresChoice: true;
-  }
+      clearedBy: "resolveProviderRefundCase";
+      requiresChoice: true;
+    }
   | {
-    clearedBy: "markRefundAuthorityRecorded" | "requestProviderRefund";
-    requiresChoice: false;
-  };
+      clearedBy: "markRefundAuthorityRecorded" | "requestProviderRefund";
+      requiresChoice: false;
+    };
 
 type LifecycleRecovery = LifecycleExit & {
   refusal: string;
 };
 
+export type RefundEvidenceAction =
+  | "check_provider"
+  | "observe_pending"
+  | "replace_with_fresh_evidence";
+
 type LifecycleRuleWithoutState = {
+  evidence: Record<RefundEvidenceAction, boolean>;
   operatorRoute: string;
   prunable: (state: RefundAuthorityState) => boolean;
   recovery: (state: RefundAuthorityState) => LifecycleRecovery;
@@ -47,17 +53,39 @@ const refundWorkStops = {
   merge: never,
 };
 
+const NO_EVIDENCE_ACTIONS = {
+  check_provider: false,
+  observe_pending: false,
+  replace_with_fresh_evidence: false,
+} satisfies Record<RefundEvidenceAction, boolean>;
+
+const OWNER_EVIDENCE_ACTIONS = {
+  ...NO_EVIDENCE_ACTIONS,
+  replace_with_fresh_evidence: true,
+};
+
+const PROVIDER_CHECK_EVIDENCE_ACTIONS = {
+  ...OWNER_EVIDENCE_ACTIONS,
+  check_provider: true,
+};
+
+const RUNNING_EVIDENCE_ACTIONS = {
+  check_provider: true,
+  observe_pending: true,
+  replace_with_fresh_evidence: true,
+} satisfies Record<RefundEvidenceAction, boolean>;
+
 const REFUND_RECOVERY = {
-  check_partial: {
-    clearedBy: "requestProviderRefund",
-    refusal:
-      "The provider shows only part of this payment returned. Check it again in Refund recovery, then try again.",
-    requiresChoice: false,
-  },
   check_inconclusive: {
     clearedBy: "requestProviderRefund",
     refusal:
       "The provider evidence is not conclusive yet. Check it again in Refund recovery, then try again.",
+    requiresChoice: false,
+  },
+  check_partial: {
+    clearedBy: "requestProviderRefund",
+    refusal:
+      "The provider shows only part of this payment returned. Check it again in Refund recovery, then try again.",
     requiresChoice: false,
   },
   choose: {
@@ -82,7 +110,8 @@ const REFUND_RECOVERY = {
 
 const fixedRecovery =
   (recovery: LifecycleRecovery) =>
-  (_state: RefundAuthorityState): LifecycleRecovery => recovery;
+  (_state: RefundAuthorityState): LifecycleRecovery =>
+    recovery;
 
 const PROVIDER_CHECK_RECOVERY = {
   returned: REFUND_RECOVERY.check_partial,
@@ -100,6 +129,7 @@ const providerCheckRecovery = (
 };
 
 const unfinished = {
+  evidence: RUNNING_EVIDENCE_ACTIONS,
   operatorRoute: "/admin/privacy/refunds/:id",
   prunable: never,
   recovery: fixedRecovery(REFUND_RECOVERY.continue),
@@ -113,6 +143,7 @@ const completedIsRecorded = (state: RefundAuthorityState): boolean =>
 /** Every durable state declares how it ends and what it blocks. */
 const REFUND_LIFECYCLE = {
   completed: {
+    evidence: NO_EVIDENCE_ACTIONS,
     operatorRoute: "/admin/privacy/refunds/:id",
     prunable: completedIsRecorded,
     recovery: fixedRecovery(REFUND_RECOVERY.record),
@@ -125,6 +156,7 @@ const REFUND_LIFECYCLE = {
     storedWork: "local_due",
   },
   needs_owner_choice: {
+    evidence: OWNER_EVIDENCE_ACTIONS,
     operatorRoute: "/admin/privacy/refunds/:id",
     prunable: never,
     recovery: fixedRecovery(REFUND_RECOVERY.choose),
@@ -134,6 +166,7 @@ const REFUND_LIFECYCLE = {
     storedWork: "all",
   },
   needs_provider_check: {
+    evidence: PROVIDER_CHECK_EVIDENCE_ACTIONS,
     operatorRoute: "/admin/privacy/refunds/:id",
     prunable: never,
     recovery: (state) => {
@@ -154,21 +187,25 @@ const REFUND_LIFECYCLE = {
   send_armed: { ...unfinished, state: "send_armed" },
 } satisfies LifecycleRules;
 
+/** Whether this exact stored state admits one kind of fresh provider evidence. */
+export const refundEvidenceActionAllowed = (
+  state: RefundAuthorityStateName,
+  action: RefundEvidenceAction,
+): boolean => REFUND_LIFECYCLE[state].evidence[action];
+
 type RefundAuthorityColumnPrefix = "" | "charge.";
 
 /** The one SQL form of the same states that block destructive work. */
 export const refundAuthorityWorkSql = (
   prefix: RefundAuthorityColumnPrefix,
 ): string =>
-  `(${
-    Object.values(REFUND_LIFECYCLE)
-      .map((rule) =>
-        rule.storedWork === "all"
-          ? `${prefix}refund_state_name = '${rule.state}'`
-          : `(${prefix}refund_state_name = '${rule.state}' AND ${prefix}refund_local_state = 'due')`
-      )
-      .join(" OR ")
-  })`;
+  `(${Object.values(REFUND_LIFECYCLE)
+    .map((rule) =>
+      rule.storedWork === "all"
+        ? `${prefix}refund_state_name = '${rule.state}'`
+        : `(${prefix}refund_state_name = '${rule.state}' AND ${prefix}refund_local_state = 'due')`,
+    )
+    .join(" OR ")})`;
 
 export type RefundLifecycle = {
   readonly blocks: Record<RowMove, boolean>;

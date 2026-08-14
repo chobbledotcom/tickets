@@ -1,9 +1,11 @@
 /** Required owner decisions for refund outcomes evidence cannot settle. */
 
+import { sameMoney } from "#shared/payment/money.ts";
 import {
   markRefundCompleted,
   readyRefund,
 } from "#shared/payment/refund-authority.ts";
+import { refundEvidenceActionAllowed } from "#shared/payment/refund-authority-lifecycle.ts";
 import {
   type CompletedRefundState,
   type NeedsOwnerChoiceRefundState,
@@ -11,17 +13,15 @@ import {
   type ProviderConflictOwnerChoiceRefundState,
   type ReadyRefundState,
   type RefundAuthorityState,
-  type RefundAuthorityStateName,
   type RefundOwnerChoiceReason,
   type RefundRequestGeneration,
   validateRefundAuthorityState,
 } from "#shared/payment/refund-authority-state.ts";
 import {
   type RefundConflictDecision,
-  refundConflictNeedsProviderCheck,
   type RefundOwnerDecision,
+  refundConflictNeedsProviderCheck,
 } from "#shared/payment/refund-conflict-decision.ts";
-import { sameMoney } from "#shared/payment/money.ts";
 
 const OWNER_CHOICE_FROM = {
   possibly_sent: ["send_armed", "observing"],
@@ -81,15 +81,6 @@ type ProviderConflictState =
   | NeedsProviderCheckRefundState
   | ProviderConflictOwnerChoiceRefundState;
 
-const FRESH_EVIDENCE_REPLACES_STATE = {
-  completed: false,
-  needs_owner_choice: true,
-  needs_provider_check: true,
-  observing: true,
-  ready: true,
-  send_armed: true,
-} as const satisfies Record<RefundAuthorityStateName, boolean>;
-
 const FRESH_EVIDENCE_REPLACES_OWNER_REASON = {
   possibly_sent: true,
   provider_conflict: false,
@@ -102,7 +93,7 @@ const FRESH_EVIDENCE_REPLACES_OWNER_REASON = {
 export const mayReplaceRefundWithFreshEvidence = (
   state: RefundAuthorityState,
 ): boolean =>
-  FRESH_EVIDENCE_REPLACES_STATE[state.kind] &&
+  refundEvidenceActionAllowed(state.kind, "replace_with_fresh_evidence") &&
   (state.kind !== "needs_owner_choice" ||
     FRESH_EVIDENCE_REPLACES_OWNER_REASON[state.reason]);
 
@@ -133,22 +124,22 @@ export const markRefundProviderConflict = (
 export type RefundOwnerChoice =
   | { decidedAt: number; kind: "provider_confirmed_returned" }
   | {
-    capability: "keyless";
-    decidedAt: number;
-    evidenceRevision: number;
-    kind: "provider_confirmed_not_sent";
-    nextActionAt: number;
-    requestIndex: string;
-  }
+      capability: "keyless";
+      decidedAt: number;
+      evidenceRevision: number;
+      kind: "provider_confirmed_not_sent";
+      nextActionAt: number;
+      requestIndex: string;
+    }
   | {
-    capability: "keyed";
-    decidedAt: number;
-    evidenceRevision: number;
-    kind: "provider_confirmed_not_sent";
-    nextActionAt: number;
-    replayUntil: number;
-    requestIndex: string;
-  };
+      capability: "keyed";
+      decidedAt: number;
+      evidenceRevision: number;
+      kind: "provider_confirmed_not_sent";
+      nextActionAt: number;
+      replayUntil: number;
+      requestIndex: string;
+    };
 
 const nextGeneration = (
   state: NeedsOwnerChoiceRefundState,
@@ -159,16 +150,16 @@ const nextGeneration = (
   }
   return choice.capability === "keyed"
     ? {
-      capability: "keyed",
-      generation: state.request.generation + 1,
-      identityIndex: choice.requestIndex,
-      replayUntil: choice.replayUntil,
-    }
+        capability: "keyed",
+        generation: state.request.generation + 1,
+        identityIndex: choice.requestIndex,
+        replayUntil: choice.replayUntil,
+      }
     : {
-      capability: "keyless",
-      generation: state.request.generation + 1,
-      identityIndex: choice.requestIndex,
-    };
+        capability: "keyless",
+        generation: state.request.generation + 1,
+        identityIndex: choice.requestIndex,
+      };
 };
 
 export type RefundOwnerChoiceName = RefundOwnerChoice["kind"];
@@ -212,9 +203,9 @@ export const resolveRefundOwnerChoice = (
   return choice.kind === "provider_confirmed_returned"
     ? markRefundCompleted(state, choice.decidedAt, "owner")
     : readyRefund({
-      evidenceRevision: choice.evidenceRevision,
-      nextActionAt: choice.nextActionAt,
-      now: choice.decidedAt,
-      request: nextGeneration(state, choice),
-    });
+        evidenceRevision: choice.evidenceRevision,
+        nextActionAt: choice.nextActionAt,
+        now: choice.decidedAt,
+        request: nextGeneration(state, choice),
+      });
 };

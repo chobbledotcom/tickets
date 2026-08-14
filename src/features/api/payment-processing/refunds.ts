@@ -137,8 +137,7 @@ export const providerRefundReturned = (
   if (result.kind === "changed") {
     logError({
       code: ErrorCode.PAYMENT_REFUND,
-      detail:
-        `Refund authority changed before money could be sent through ${provider}`,
+      detail: `Refund authority changed before money could be sent through ${provider}`,
       listingId,
     });
     return false;
@@ -161,9 +160,10 @@ export const providerRefundReturned = (
   }
   logError({
     code: ErrorCode.PAYMENT_REFUND,
-    detail: result.kind === "ready"
-      ? `Refund was not sent for ${provider} payment; its durable request remains ready`
-      : `Refund needs an owner decision for ${provider} payment (${result.reason})`,
+    detail:
+      result.kind === "ready"
+        ? `Refund was not sent for ${provider} payment; its durable request remains ready`
+        : `Refund needs an owner decision for ${provider} payment (${result.reason})`,
     listingId,
   });
   return false;

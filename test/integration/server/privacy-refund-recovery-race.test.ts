@@ -7,17 +7,16 @@ import { queryOne } from "#shared/db/client.ts";
 import { refundRequestIdentityIndex } from "#shared/payment/refund-request-identity.ts";
 import { requestProviderRefund } from "#shared/provider-refunds.ts";
 import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
-import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { chargeMoney, foundCharge } from "#test-utils/payment-state.ts";
 import {
   addProviderRefundTestCase,
   readyRefundTestState,
 } from "#test-utils/provider-refund-cases.ts";
-import { adminGet, testCookie } from "#test-utils/session.ts";
+import { adminGet } from "#test-utils/session.ts";
 import {
+  expectStaleProviderCheckRefused,
   refundCasePath,
-  submitRefundCase,
 } from "./privacy-refund-recovery-helpers.ts";
 
 interface StoredReadyRevision {
@@ -69,23 +68,8 @@ describeWithEnv("owner refund HTTP revision fence", { db: true }, () => {
 
     const before = await storedReadyRevision(id);
     expect(before?.refund_revision).toBeGreaterThan(1);
-    using read = stub(sumupPaymentProvider, "readCharge");
-    using send = stub(sumupPaymentProvider, "refundCharge");
-
-    await expectFlashRedirect(
-      refundCasePath(id),
-      "This refund changed while you were checking it. Read the current details and choose again.",
-      false,
-    )(
-      await submitRefundCase(
-        await testCookie(),
-        { choice: "check_again", revision: "1" },
-        id,
-      ),
+    await expectStaleProviderCheckRefused(id, before, () =>
+      storedReadyRevision(id),
     );
-
-    expect(read.calls).toHaveLength(0);
-    expect(send.calls).toHaveLength(0);
-    expect(await storedReadyRevision(id)).toEqual(before);
   });
 });

@@ -23,8 +23,8 @@ const AUTHORITY_RESULT_KINDS = [
 export const couldBuildRefundAuthority = (code: string): boolean =>
   AUTHORITY_BUILDING_MARKERS.some((marker) => marker.test(code)) ||
   AUTHORITY_RESULT_KINDS.filter((kind) =>
-      new RegExp(`kind:\\s*["']${kind}["']`).test(code)
-    ).length >= 4;
+    new RegExp(`kind:\\s*["']${kind}["']`).test(code),
+  ).length >= 4;
 
 export const PARALLEL_AUTHORITY_FORMS = [
   `type RequestRefund = typeof requestProviderRefund;
@@ -88,6 +88,7 @@ export const TEST_AUTHORITY_BUILDING_PATHS = [
   "shared/provider-refunds/send.test.ts",
   "shared/provider-refunds/state-owner-revision.test.ts",
   "shared/provider-refunds/state.test.ts",
+  "shared/provider-refunds/state/contracts.test.ts",
   "shared/provider-refunds/target.test.ts",
   "shared/square-provider/provider.test.ts",
   "shared/square/refund-outcomes.test.ts",

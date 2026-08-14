@@ -13,8 +13,8 @@ import {
   markRefundLocalRecorded,
   readyRefund,
 } from "#shared/payment/refund-authority.ts";
-import type { RefundAuthorityState } from "#shared/payment/refund-authority-state.ts";
 import { markRefundProviderConflict } from "#shared/payment/refund-authority-choice.ts";
+import type { RefundAuthorityState } from "#shared/payment/refund-authority-state.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   CLAIM_MIRROR,
@@ -168,7 +168,7 @@ describeWithEnv(
 
       expect(await deleteRefusal(attendeeId)).toBe(REFUND_IN_PROGRESS_REFUSAL);
       await withTransaction((tx) =>
-        assertRowsFreeToMove(tx, [attendeeId], "merge")
+        assertRowsFreeToMove(tx, [attendeeId], "merge"),
       );
     });
 

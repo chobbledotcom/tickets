@@ -63,29 +63,30 @@ describeWithEnv(
         expect(html).not.toContain("Refresh payment status");
       });
 
-      test("links the payment id to the configured provider dashboard", async () => {
+      test("does not guess a provider for an untagged payment id", async () => {
         settings.setForTest({
-          payment_provider: "stripe",
-          stripe_secret_key: "sk_test_abc",
+          payment_provider: "sumup",
+          sumup_api_key: "configured-sumup-key",
         });
         try {
           const listing = await createTestListing(paidListing());
           const attendee = firstAttendee(
             await bookAttendee(listing, {
-              email: "linked@example.com",
-              name: "Linked User",
-              paymentId: "pi_linked_123",
+              email: "untagged@example.com",
+              name: "Untagged Payment",
+              paymentId: "pi_untagged_123",
               pricePaid: 1000,
               quantity: 1,
             }),
           );
           const response = await adminGet(`/admin/attendees/${attendee.id}`);
-          await expectHtmlResponse(
+          const html = await expectHtmlResponse(
             response,
             200,
-            'href="https://dashboard.stripe.com/test/payments/pi_linked_123"',
-            'target="_blank"',
+            "pi_untagged_123",
           );
+          expect(html).not.toContain("https://me.sumup.com");
+          expect(html).not.toContain('target="_blank"');
         } finally {
           settings.clearTestOverrides();
         }

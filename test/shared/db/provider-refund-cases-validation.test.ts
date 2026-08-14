@@ -93,11 +93,8 @@ const expectQueueFailure = (
   value: number | string,
   message: string,
 ): Promise<void> =>
-  expectCorruptCaseFailure(
-    column,
-    value,
-    message,
-    () => listProviderRefundCases(),
+  expectCorruptCaseFailure(column, value, message, () =>
+    listProviderRefundCases(),
   );
 
 const expectDetailFailure = (
@@ -196,34 +193,32 @@ describeWithEnv("provider refund case validation", { db: true }, () => {
     ).toBe(false);
   });
 
-  for (
-    const [name, column, value, message] of [
-      [
-        "state name",
-        "refund_state_name",
-        "ready",
-        "Payment charge refund-state mirrors do not match",
-      ],
-      [
-        "local state",
-        "refund_local_state",
-        "due",
-        "Payment charge refund-state mirrors do not match",
-      ],
-      [
-        "request capability",
-        "capability",
-        "keyed",
-        "Payment charge refund-state mirrors do not match",
-      ],
-      [
-        "provider capability",
-        "provider",
-        "stripe",
-        "Payment charge refund capability does not match provider",
-      ],
-    ] as const
-  ) {
+  for (const [name, column, value, message] of [
+    [
+      "state name",
+      "refund_state_name",
+      "ready",
+      "Payment charge refund-state mirrors do not match",
+    ],
+    [
+      "local state",
+      "refund_local_state",
+      "due",
+      "Payment charge refund-state mirrors do not match",
+    ],
+    [
+      "request capability",
+      "capability",
+      "keyed",
+      "Payment charge refund-state mirrors do not match",
+    ],
+    [
+      "provider capability",
+      "provider",
+      "stripe",
+      "Payment charge refund capability does not match provider",
+    ],
+  ] as const) {
     test(`rejects a ${name} mirror which disagrees with state`, async () => {
       await expectDetailFailure(column, value, message);
     });
@@ -275,14 +270,12 @@ describeWithEnv("provider refund case validation", { db: true }, () => {
 
   test("rejects malformed resolution identities before querying", async () => {
     const privateKey = await getTestPrivateKey();
-    for (
-      const input of [
-        { id: 0, revision: 1 },
-        { id: Number.NaN, revision: 1 },
-        { id: 1, revision: 0 },
-        { id: 1, revision: Number.NaN },
-      ]
-    ) {
+    for (const input of [
+      { id: 0, revision: 1 },
+      { id: Number.NaN, revision: 1 },
+      { id: 1, revision: 0 },
+      { id: 1, revision: Number.NaN },
+    ]) {
       await expect(
         resolveProviderRefundCase({
           ...input,
@@ -352,5 +345,37 @@ describeWithEnv("provider refund case validation", { db: true }, () => {
         }),
       ).toBe("changed");
     }
+  });
+
+  test("a crafted choice cannot override the exact evidence", async () => {
+    const id = await addCase(
+      "choice-not-admitted",
+      markRefundProviderConflict(
+        readyRefundTestState("choice-not-admitted-request"),
+        14,
+        {
+          captured: { amount: 2_500, currency: "GBP" },
+          kind: "not_sent",
+          refunded: { amount: 0, currency: "GBP" },
+        },
+      ),
+    );
+    const privateKey = await getTestPrivateKey();
+    const before = await loadProviderRefundCase(id, privateKey);
+
+    expect(before).toMatchObject({
+      choices: ["provider_confirmed_not_sent"],
+      state: "needs_owner_choice",
+    });
+    expect(
+      await resolveProviderRefundCase({
+        activityMessage: "Crafted refund choice",
+        choice: "provider_confirmed_returned",
+        id,
+        privateKey,
+        revision: 1,
+      }),
+    ).toBe("changed");
+    expect(await loadProviderRefundCase(id, privateKey)).toEqual(before);
   });
 });

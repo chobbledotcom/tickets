@@ -31,7 +31,7 @@ describeWithEnv("provider refund conflict recovery", { db: true }, () => {
     );
     const observed = chargeMoney(2_000);
     const refunding = completingProviderThatReads(() =>
-      Promise.resolve(foundCharge(observed))
+      Promise.resolve(foundCharge(observed)),
     );
     const dependencies = refundDependencies(refunding.provider);
 
@@ -227,9 +227,9 @@ describeWithEnv("provider refund conflict recovery", { db: true }, () => {
     expect(
       await storedRefundAuthority(await paymentReferenceIndex(payment)),
     ).toMatchObject({
-      refunded_amount: 400,
       refund_local_state: "not_due",
       refund_state_name: "needs_provider_check",
+      refunded_amount: 400,
     });
     expect(sendCount).toBe(0);
   });

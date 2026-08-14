@@ -165,6 +165,55 @@ describeWithEnv(
         expect(result).toEqual({ kind: "changed" });
         expect(await protectedStateOf("sess-deleted-first")).toBe("");
       });
+
+      test("an attendee save after loading changes the whole claim", async () => {
+        const attendeeId = await bookedWithPayment(
+          "sess-changed-attendee",
+          "pi_changed_attendee",
+        );
+        const replacement = await bookedWithPayment(
+          "sess-replacement-attendee",
+          "pi_replacement_attendee",
+        );
+
+        const result = await claimCurrentAttendeeRows(
+          [attendeeId],
+          async () => {
+            await execute(
+              `UPDATE attendees
+                SET pii_blob = (
+                  SELECT replacement.pii_blob
+                    FROM attendees AS replacement
+                   WHERE replacement.id = ?
+                )
+              WHERE id = ?`,
+              [replacement, attendeeId],
+            );
+          },
+        );
+
+        expect(result).toEqual({ kind: "changed" });
+        expect(await protectedStateOf("sess-changed-attendee")).toBe("");
+      });
+
+      test("a payment row deleted after loading changes the whole claim", async () => {
+        const attendeeId = await bookedWithPayment(
+          "sess-deleted-payment",
+          "pi_deleted_payment",
+        );
+
+        const result = await claimCurrentAttendeeRows(
+          [attendeeId],
+          async () => {
+            await execute(
+              "DELETE FROM processed_payments WHERE payment_session_id = ?",
+              ["sess-deleted-payment"],
+            );
+          },
+        );
+
+        expect(result).toEqual({ kind: "changed" });
+      });
     });
 
     describe("the reference index", () => {

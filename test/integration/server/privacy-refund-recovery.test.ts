@@ -8,8 +8,8 @@ import {
   armRefundSend,
   markRefundCompleted,
 } from "#shared/payment/refund-authority.ts";
-import { readRefundAuthorityState } from "#shared/payment/refund-authority-state.ts";
 import { markRefundProviderConflict } from "#shared/payment/refund-authority-choice.ts";
+import { readRefundAuthorityState } from "#shared/payment/refund-authority-state.ts";
 import { refundRequestIdentityIndex } from "#shared/payment/refund-request-identity.ts";
 import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
@@ -191,15 +191,11 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
       reference,
       readyRefundTestState(identity),
     );
-    using read = stub(
-      sumupPaymentProvider,
-      "readCharge",
-      () => Promise.resolve(foundCharge(chargeMoney(2_500))),
+    using read = stub(sumupPaymentProvider, "readCharge", () =>
+      Promise.resolve(foundCharge(chargeMoney(2_500))),
     );
-    using send = stub(
-      sumupPaymentProvider,
-      "refundCharge",
-      (request) => Promise.resolve(completedRefund(request.charge)),
+    using send = stub(sumupPaymentProvider, "refundCharge", (request) =>
+      Promise.resolve(completedRefund(request.charge)),
     );
 
     const detail = await adminGet(refundCasePath(id));

@@ -17,16 +17,17 @@ import {
   markRefundObservationDue,
   readyRefund,
 } from "#shared/payment/refund-authority.ts";
-import type {
-  RefundAuthorityState,
-  RefundOwnerChoiceReason,
-  RefundRequestGeneration,
-} from "#shared/payment/refund-authority-state.ts";
 import {
   markRefundOwnerChoiceNeeded,
   markRefundProviderConflict,
   mayReplaceRefundWithFreshEvidence,
 } from "#shared/payment/refund-authority-choice.ts";
+import { refundEvidenceActionAllowed } from "#shared/payment/refund-authority-lifecycle.ts";
+import type {
+  RefundAuthorityState,
+  RefundOwnerChoiceReason,
+  RefundRequestGeneration,
+} from "#shared/payment/refund-authority-state.ts";
 import {
   type RefundConflictDecision,
   refundConflictDecision,
@@ -54,26 +55,29 @@ const receipt = (row: RefundAuthorityRow): RefundAuthorityReceipt => ({
   revision: row.revision,
 });
 
+type RefundAttentionState = Extract<
+  RefundAuthorityState,
+  { kind: "needs_owner_choice" | "needs_provider_check" }
+>;
+
 type RefundAttentionOutcome =
   | {
-    readonly kind: "needs_owner_choice";
-    readonly reason: RefundOwnerChoiceReason;
-  }
+      readonly kind: "needs_owner_choice";
+      readonly reason: RefundOwnerChoiceReason;
+    }
   | {
-    readonly kind: "needs_provider_check";
-    readonly reason: "provider_conflict";
-  };
+      readonly kind: "needs_provider_check";
+      readonly reason: "provider_conflict";
+    };
 
 const refundAttentionOutcome = (
-  state: Extract<
-    RefundAuthorityState,
-    { kind: "needs_owner_choice" | "needs_provider_check" }
-  >,
-): RefundAttentionOutcome =>
-  // Keep the provider-check tag paired with its one possible reason.
-  state.kind === "needs_owner_choice"
-    ? { kind: state.kind, reason: state.reason }
-    : { kind: state.kind, reason: state.reason };
+  state: RefundAttentionState,
+): RefundAttentionOutcome => {
+  if (state.kind === "needs_owner_choice") {
+    return { kind: "needs_owner_choice", reason: state.reason };
+  }
+  return { kind: "needs_provider_check", reason: "provider_conflict" };
+};
 
 export const refundAnswerFrom = (
   row: RefundAuthorityRow,
@@ -117,7 +121,7 @@ export const refundAfterTransition = async (
   reference: TaggedPaymentReference,
 ): Promise<ProviderRefundResult> =>
   refundAnswerFrom(
-    changed ?? (await requireCurrentRefund(previous)),
+    changed === null ? await requireCurrentRefund(previous) : changed,
     reference,
   );
 
@@ -131,11 +135,11 @@ const requestGeneration = async (
   return capability === "keyless"
     ? { capability, generation, identityIndex }
     : {
-      capability,
-      generation,
-      identityIndex,
-      replayUntil: refundReplayUntil(reference.provider, now),
-    };
+        capability,
+        generation,
+        identityIndex,
+        replayUntil: refundReplayUntil(reference.provider, now),
+      };
 };
 
 export const initialRefundState = async (
@@ -185,10 +189,10 @@ export const ownerReasonWhenDue = (
   now < state.nextActionAt
     ? null
     : state.request.capability === "keyless"
-    ? "possibly_sent"
-    : now > state.request.replayUntil
-    ? "replay_window_expired"
-    : null;
+      ? "possibly_sent"
+      : now > state.request.replayUntil
+        ? "replay_window_expired"
+        : null;
 
 export const moveRefundToOwner = async (
   row: RefundAuthorityRow,
@@ -198,11 +202,8 @@ export const moveRefundToOwner = async (
   refunded: Money,
 ): Promise<ProviderRefundResult> =>
   await refundAfterTransition(
-    await transitionRefundAuthority(
-      row,
-      now,
-      refunded,
-      (state) => markRefundOwnerChoiceNeeded(state, now, reason),
+    await transitionRefundAuthority(row, now, refunded, (state) =>
+      markRefundOwnerChoiceNeeded(state, now, reason),
     ),
     row,
     reference,
@@ -223,17 +224,8 @@ const changeRefundWhen =
       ? await change(row, now, reference)
       : refundAnswerFrom(row, reference);
 
-const MAY_OBSERVE_PENDING_REFUND = {
-  completed: false,
-  needs_owner_choice: false,
-  needs_provider_check: false,
-  observing: true,
-  ready: true,
-  send_armed: true,
-} as const satisfies Record<RefundAuthorityState["kind"], boolean>;
-
 const mayObservePendingRefund = (state: RefundAuthorityState): boolean =>
-  MAY_OBSERVE_PENDING_REFUND[state.kind];
+  refundEvidenceActionAllowed(state.kind, "observe_pending");
 
 const sameConflictDecision = (
   left: RefundConflictDecision,
@@ -248,12 +240,12 @@ const conflictRefundedMoney = (
   decision: RefundConflictDecision,
 ): Money =>
   decision.kind === "returned" &&
-    decision.refunded.currency === row.captured.currency &&
-    decision.refunded.amount > row.refunded.amount
+  decision.refunded.currency === row.captured.currency &&
+  decision.refunded.amount > row.refunded.amount
     ? {
-      amount: Math.min(decision.refunded.amount, row.captured.amount),
-      currency: row.captured.currency,
-    }
+        amount: Math.min(decision.refunded.amount, row.captured.amount),
+        currency: row.captured.currency,
+      }
     : row.refunded;
 
 /** Store the exact money behind a live disagreement. Fresh evidence may
@@ -263,9 +255,8 @@ export const answerProviderConflict = (charge: ChargeMoney): AnswerRefund =>
     mayReplaceRefundWithFreshEvidence,
     async (row, now, reference) => {
       const decision = refundConflictDecision(row, charge);
-      const existingConflict = row.state.kind === "needs_provider_check"
-        ? row.state
-        : null;
+      const existingConflict =
+        row.state.kind === "needs_provider_check" ? row.state : null;
       if (
         existingConflict !== null &&
         sameConflictDecision(existingConflict.decision, decision)

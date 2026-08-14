@@ -28,10 +28,6 @@ export type ExistingPaymentProviderState = {
   recoveryChoices: PaymentProviderType[];
 };
 
-/** Provider type for callbacks and existing-payment UI. */
-export const existingPaymentProviderType = (): PaymentProviderType | null =>
-  existingPaymentProviderState().provider;
-
 /** Resolve the provider for existing payments and any required recovery choice. */
 export const existingPaymentProviderState = (
   current = settings.paymentProvider,

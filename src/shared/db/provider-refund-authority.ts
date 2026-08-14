@@ -6,8 +6,8 @@ import { storePaymentReference } from "#shared/db/payment-reference-store.ts";
 import { type Money, sameMoney } from "#shared/payment/money.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 import {
-  readRefundAuthorityState,
   type RefundAuthorityState,
+  readRefundAuthorityState,
   refundLocalMirror,
   refundNextActionAt,
   refundStateMirror,
@@ -169,7 +169,7 @@ export interface CreateRefundAuthority {
 const requireCreateFacts = (input: CreateRefundAuthority): void => {
   if (
     REFUND_PROVIDER_CAPABILITIES[input.reference.provider] !==
-      input.state.request.capability
+    input.state.request.capability
   ) {
     throw new Error("Refund authority facts disagree");
   }
@@ -191,13 +191,14 @@ export const createOrLoadRefundAuthority = async (
   requireCreateFacts(input);
   const stored = await storePaymentReference(input.reference);
   const callbackReplayIndex = input.callbackReplayIndex;
-  const loadConflictOwner = callbackReplayIndex === undefined
-    ? () => loadRefundAuthorityByReference(stored.index)
-    : () =>
-      loadRefundCallbackBinding({
-        callbackReplayIndex,
-        referenceIndex: stored.index,
-      });
+  const loadConflictOwner =
+    callbackReplayIndex === undefined
+      ? () => loadRefundAuthorityByReference(stored.index)
+      : () =>
+          loadRefundCallbackBinding({
+            callbackReplayIndex,
+            referenceIndex: stored.index,
+          });
   const result = await execute(
     `INSERT INTO payment_charges
         (provider, provider_reference, reference_index, callback_replay_index,

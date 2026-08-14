@@ -1,6 +1,7 @@
 import { getDb, insert } from "#shared/db/client.ts";
 import { storePaymentReference } from "#shared/db/payment-reference-store.ts";
 import { armRefundSend } from "#shared/payment/refund-authority.ts";
+import { markRefundOwnerChoiceNeeded } from "#shared/payment/refund-authority-choice.ts";
 import {
   type RefundAuthorityState,
   refundLocalMirror,
@@ -8,7 +9,6 @@ import {
   refundStateMirror,
   writeRefundAuthorityState,
 } from "#shared/payment/refund-authority-state.ts";
-import { markRefundOwnerChoiceNeeded } from "#shared/payment/refund-authority-choice.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 import { readyRefundForTest } from "#test-utils/refund-authority.ts";
 

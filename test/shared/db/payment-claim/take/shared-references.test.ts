@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute } from "#shared/db/client.ts";
+import { execute, requireOne } from "#shared/db/client.ts";
+import { claimAttendeeRows } from "#shared/db/payment-claim/take.ts";
 import {
   type StoredPaymentReference,
   storePaymentReference,
@@ -16,6 +17,7 @@ import {
   claimCurrentAttendeeRows,
   heldSessionIds,
 } from "#test-utils/payment-claim.ts";
+import { getCompleteRefundPaymentReferencesForAttendee } from "#test-utils/payment-references.ts";
 import {
   bookedWithPayment,
   finalizeProcessedPayment,
@@ -144,6 +146,72 @@ describeWithEnv(
       expect(heldSessionIds(squareHeld)).toEqual(["sess-provider-square"]);
       expect(stripeHeld.shared).toEqual(new Map());
       expect(squareHeld.shared).toEqual(new Map());
+    });
+
+    test("a blank matching index is a separator, never a lookup slot", async () => {
+      const attendeeId = await bookedWithPayment(
+        "sess-index-separator",
+        "pi_index_separator",
+      );
+      const attendee = await requireOne<{ pii_blob: string }>(
+        "SELECT pii_blob FROM attendees WHERE id = ?",
+        [attendeeId],
+      );
+      const references = await getCompleteRefundPaymentReferencesForAttendee({
+        currentPaymentId: "pi_index_separator",
+        id: attendeeId,
+      });
+      const matchingIndexCount = new Set(
+        references.flatMap(({ matchingIndexes }) => matchingIndexes),
+      ).size;
+
+      const { queries, result } = await runWithQueryLogContext(async () => {
+        enableQueryLog();
+        const result = await claimAttendeeRows([
+          {
+            attendeeId,
+            loadedPiiBlob: attendee.pii_blob,
+            references: references.map((reference) => ({
+              ...reference,
+              matchingIndexes: [...reference.matchingIndexes, ""],
+            })),
+          },
+        ]);
+        return { queries: getQueryLog().map(({ sql }) => sql), result };
+      });
+
+      expect(result).toMatchObject({ kind: "claimed" });
+      const sharingQuery = queries.find((sql) =>
+        sql.includes("attendee_id NOT IN"),
+      );
+      if (sharingQuery === undefined) {
+        throw new Error("The shared-reference lookup did not run");
+      }
+      expect(sharingQuery.match(/\?/g) ?? []).toHaveLength(
+        1 + matchingIndexCount,
+      );
+    });
+
+    test("an attendee with no references skips the sharing lookup", async () => {
+      const attendeeId = await bookedWithPayment(
+        "sess-no-reference",
+        "pi_no_reference",
+      );
+      await execute(
+        "DELETE FROM processed_payments WHERE payment_session_id = ?",
+        ["sess-no-reference"],
+      );
+
+      const { queries, result } = await runWithQueryLogContext(async () => {
+        enableQueryLog();
+        const result = await claimCurrentAttendeeRows([attendeeId]);
+        return { queries: getQueryLog().map(({ sql }) => sql), result };
+      });
+
+      expect(result).toMatchObject({ kind: "claimed" });
+      expect(queries.some((sql) => sql.includes("attendee_id NOT IN"))).toBe(
+        false,
+      );
     });
 
     test("refuses excessive sharing rows before decrypting their state", async () => {

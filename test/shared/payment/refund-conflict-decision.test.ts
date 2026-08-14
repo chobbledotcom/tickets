@@ -2,10 +2,10 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
 import {
-  refundConflictDecision,
   RefundConflictDecisionSchema,
-  refundConflictNeedsProviderCheck,
   ReturnedOrNotSentDecisionSchema,
+  refundConflictDecision,
+  refundConflictNeedsProviderCheck,
 } from "#shared/payment/refund-conflict-decision.ts";
 import {
   chargeMoney,
@@ -106,14 +106,14 @@ describe("payment > provider-conflict decision", () => {
         captured: { amount: 0, currency: "GBP" },
         kind: "not_sent",
         refunded: { amount: 0, currency: "GBP" },
-      })
+      }),
     ).toThrow("must prove no returned money");
     expect(() =>
       v.parse(RefundConflictDecisionSchema, {
         captured: { amount: 1_000, currency: "GBP" },
         kind: "not_sent",
         refunded: { amount: 0, currency: "USD" },
-      })
+      }),
     ).toThrow("must prove no returned money");
   });
 
@@ -130,10 +130,8 @@ describe("payment > provider-conflict decision", () => {
         captured: { amount: 1, currency: "GBP" },
         kind: "returned",
         refunded: { amount: 0, currency: "GBP" },
-      })
-    ).toThrow(
-      "A returned conflict decision must carry exact returned money",
-    );
+      }),
+    ).toThrow("A returned conflict decision must carry exact returned money");
     expect(
       v.parse(RefundConflictDecisionSchema, {
         captured: { amount: 1, currency: "GBP" },
@@ -146,7 +144,7 @@ describe("payment > provider-conflict decision", () => {
         captured: { amount: 0, currency: "GBP" },
         kind: "wait",
         refunded: { amount: 0, currency: "GBP" },
-      })
+      }),
     ).toThrow("A waiting conflict decision must carry captured money");
   });
 

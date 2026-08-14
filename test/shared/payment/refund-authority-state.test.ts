@@ -1,6 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  markRefundCompleted,
+  markRefundLocalRecorded,
+} from "#shared/payment/refund-authority.ts";
+import {
+  markRefundOwnerChoiceNeeded,
+  markRefundProviderConflict,
+} from "#shared/payment/refund-authority-choice.ts";
+import {
   readRefundAuthorityState,
   refundLocalMirror,
   refundNextActionAt,
@@ -9,26 +17,10 @@ import {
   writeRefundAuthorityState,
 } from "#shared/payment/refund-authority-state.ts";
 import {
-  armRefundSend,
-  markRefundCompleted,
-  markRefundLocalRecorded,
-  markRefundObservationDue,
-} from "#shared/payment/refund-authority.ts";
-import {
-  markRefundOwnerChoiceNeeded,
-  markRefundProviderConflict,
-} from "#shared/payment/refund-authority-choice.ts";
-import { readyRefundForTest } from "#test-utils/refund-authority.ts";
-
-const keylessArmed = () =>
-  armRefundSend(readyRefundForTest("keyless"), 120, 150);
-
-const keyedObserving = () =>
-  markRefundObservationDue(
-    armRefundSend(readyRefundForTest("keyed"), 120, 150),
-    510,
-    520,
-  );
+  keyedObservingRefundForTest,
+  keylessArmedRefundForTest,
+  readyRefundForTest,
+} from "#test-utils/refund-authority.ts";
 
 describe("payment > stored refund authority state", () => {
   test("zero is a valid recorded time", () => {
@@ -49,13 +41,13 @@ describe("payment > stored refund authority state", () => {
       writeRefundAuthorityState({
         ...keyed,
         request: { ...keyed.request, generation: 0 },
-      })
+      }),
     ).toThrow();
     expect(() =>
       writeRefundAuthorityState({
         ...keyless,
         request: { ...keyless.request, generation: 0 },
-      })
+      }),
     ).toThrow();
   });
 
@@ -63,40 +55,49 @@ describe("payment > stored refund authority state", () => {
     const state = readyRefundForTest("keyless");
     const completed = markRefundCompleted(state, 140, "provider");
 
-    expect(() => writeRefundAuthorityState({ ...state, evidenceRevision: 0 }))
-      .toThrow();
     expect(() =>
-      writeRefundAuthorityState({ ...completed, evidenceRevision: 0 })
+      writeRefundAuthorityState({ ...state, evidenceRevision: 0 }),
+    ).toThrow();
+    expect(() =>
+      writeRefundAuthorityState({ ...completed, evidenceRevision: 0 }),
     ).toThrow();
   });
 
   test("attention evidence revisions start at one", () => {
     const state = markRefundOwnerChoiceNeeded(
-      keylessArmed(),
+      keylessArmedRefundForTest(),
       180,
       "possibly_sent",
     );
 
     expect(() =>
-      validateRefundAuthorityState({ ...state, evidenceRevision: 0 })
+      validateRefundAuthorityState({ ...state, evidenceRevision: 0 }),
     ).toThrow();
   });
 
   test("every stored owner reason is admitted by its real request state", () => {
     const states = [
-      markRefundOwnerChoiceNeeded(keylessArmed(), 180, "possibly_sent"),
-      markRefundOwnerChoiceNeeded(keylessArmed(), 180, "provider_rejected"),
+      markRefundOwnerChoiceNeeded(
+        keylessArmedRefundForTest(),
+        180,
+        "possibly_sent",
+      ),
+      markRefundOwnerChoiceNeeded(
+        keylessArmedRefundForTest(),
+        180,
+        "provider_rejected",
+      ),
       markRefundOwnerChoiceNeeded(
         readyRefundForTest("keyed"),
         180,
         "provider_unreadable",
       ),
       markRefundOwnerChoiceNeeded(
-        keyedObserving(),
+        keyedObservingRefundForTest(),
         510,
         "replay_window_expired",
       ),
-      markRefundProviderConflict(keylessArmed(), 180, {
+      markRefundProviderConflict(keylessArmedRefundForTest(), 180, {
         captured: { amount: 2_000, currency: "GBP" },
         kind: "not_sent",
         refunded: { amount: 0, currency: "GBP" },
@@ -111,9 +112,10 @@ describe("payment > stored refund authority state", () => {
       "provider_conflict",
     ]);
     expect(
-      states.map((state) =>
-        readRefundAuthorityState(writeRefundAuthorityState(state), "state")
-          .kind
+      states.map(
+        (state) =>
+          readRefundAuthorityState(writeRefundAuthorityState(state), "state")
+            .kind,
       ),
     ).toEqual([
       "needs_owner_choice",
@@ -126,26 +128,35 @@ describe("payment > stored refund authority state", () => {
 
   test("owner reasons reject a request that cannot support them", () => {
     const expired = markRefundOwnerChoiceNeeded(
-      keyedObserving(),
+      keyedObservingRefundForTest(),
       510,
       "replay_window_expired",
     );
 
-    expect(() => validateRefundAuthorityState({ ...expired, openedAt: 500 }))
-      .toThrow("Owner choice reason does not match the refund request");
+    expect(() =>
+      validateRefundAuthorityState({ ...expired, openedAt: 500 }),
+    ).toThrow("Owner choice reason does not match the refund request");
   });
 
   test("provider conflicts store only under their matching attention state", () => {
-    const ownerChoice = markRefundProviderConflict(keylessArmed(), 180, {
-      captured: { amount: 2_000, currency: "GBP" },
-      kind: "not_sent",
-      refunded: { amount: 0, currency: "GBP" },
-    });
-    const providerCheck = markRefundProviderConflict(keylessArmed(), 180, {
-      captured: { amount: 2_000, currency: "GBP" },
-      kind: "returned",
-      refunded: { amount: 500, currency: "GBP" },
-    });
+    const ownerChoice = markRefundProviderConflict(
+      keylessArmedRefundForTest(),
+      180,
+      {
+        captured: { amount: 2_000, currency: "GBP" },
+        kind: "not_sent",
+        refunded: { amount: 0, currency: "GBP" },
+      },
+    );
+    const providerCheck = markRefundProviderConflict(
+      keylessArmedRefundForTest(),
+      180,
+      {
+        captured: { amount: 2_000, currency: "GBP" },
+        kind: "returned",
+        refunded: { amount: 500, currency: "GBP" },
+      },
+    );
 
     expect(validateRefundAuthorityState(ownerChoice).kind).toBe(
       "needs_owner_choice",
@@ -157,13 +168,13 @@ describe("payment > stored refund authority state", () => {
       validateRefundAuthorityState({
         ...providerCheck,
         kind: "needs_owner_choice",
-      })
+      }),
     ).toThrow("An owner-choice conflict must admit an owner decision");
     expect(() =>
       validateRefundAuthorityState({
         ...ownerChoice,
         kind: "needs_provider_check",
-      })
+      }),
     ).toThrow(
       "A provider-check state must carry evidence that cannot be decided yet",
     );
@@ -184,7 +195,7 @@ describe("payment > stored refund authority state", () => {
       validateRefundAuthorityState({
         ...ownerCompleted,
         nextActionAt: 141,
-      })
+      }),
     ).toThrow("Returned money must make its local recording due now");
   });
 
@@ -197,7 +208,7 @@ describe("payment > stored refund authority state", () => {
       readRefundAuthorityState(
         JSON.stringify({ ...state, surprise: true }),
         "test charge",
-      )
+      ),
     ).toThrow("Invalid stored JSON");
   });
 

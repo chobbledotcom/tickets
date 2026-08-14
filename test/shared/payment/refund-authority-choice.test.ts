@@ -1,11 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  armRefundSend,
-  markRefundCompleted,
-  markRefundObservationDue,
-} from "#shared/payment/refund-authority.ts";
-import { validateRefundAuthorityState } from "#shared/payment/refund-authority-state.ts";
+import { markRefundCompleted } from "#shared/payment/refund-authority.ts";
 import {
   markRefundOwnerChoiceNeeded,
   markRefundProviderConflict,
@@ -13,17 +8,12 @@ import {
   refundOwnerChoices,
   resolveRefundOwnerChoice,
 } from "#shared/payment/refund-authority-choice.ts";
-import { readyRefundForTest } from "#test-utils/refund-authority.ts";
-
-const keylessArmed = () =>
-  armRefundSend(readyRefundForTest("keyless"), 120, 150);
-
-const keyedObserving = () =>
-  markRefundObservationDue(
-    armRefundSend(readyRefundForTest("keyed"), 120, 150),
-    510,
-    520,
-  );
+import { validateRefundAuthorityState } from "#shared/payment/refund-authority-state.ts";
+import {
+  keyedObservingRefundForTest,
+  keylessArmedRefundForTest,
+  readyRefundForTest,
+} from "#test-utils/refund-authority.ts";
 
 const notSentConflict = {
   captured: { amount: 2_000, currency: "GBP" as const },
@@ -34,7 +24,7 @@ const notSentConflict = {
 describe("payment > refund authority owner choice", () => {
   test("an ambiguous keyless arm ends in a required choice, never a retry", () => {
     const choice = markRefundOwnerChoiceNeeded(
-      keylessArmed(),
+      keylessArmedRefundForTest(),
       180,
       "possibly_sent",
     );
@@ -49,13 +39,13 @@ describe("payment > refund authority owner choice", () => {
         readyRefundForTest("keyless"),
         180,
         "provider_rejected",
-      )
+      ),
     ).toThrow("cannot start from ready");
   });
 
   test("each unresolved-money reason declares its allowed source states", () => {
-    const keyless = keylessArmed();
-    const keyed = keyedObserving();
+    const keyless = keylessArmedRefundForTest();
+    const keyed = keyedObservingRefundForTest();
 
     expect(
       markRefundOwnerChoiceNeeded(keyless, 180, "possibly_sent").reason,
@@ -84,19 +74,20 @@ describe("payment > refund authority owner choice", () => {
       markRefundOwnerChoiceNeeded(keyed, 510, "replay_window_expired").reason,
     ).toBe("replay_window_expired");
     expect(() =>
-      markRefundOwnerChoiceNeeded(keyless, 180, "replay_window_expired")
+      markRefundOwnerChoiceNeeded(keyless, 180, "replay_window_expired"),
     ).toThrow("reason does not match");
-    expect(() => markRefundOwnerChoiceNeeded(keyed, 510, "possibly_sent"))
-      .toThrow("reason does not match");
     expect(() =>
-      markRefundOwnerChoiceNeeded(keyless, 180, "provider_unreadable")
+      markRefundOwnerChoiceNeeded(keyed, 510, "possibly_sent"),
+    ).toThrow("reason does not match");
+    expect(() =>
+      markRefundOwnerChoiceNeeded(keyless, 180, "provider_unreadable"),
     ).toThrow("cannot start from send_armed");
     expect(() =>
       markRefundOwnerChoiceNeeded(
         readyRefundForTest("keyed"),
         180,
         "possibly_sent",
-      )
+      ),
     ).toThrow("cannot start from ready");
   });
 
@@ -107,17 +98,17 @@ describe("payment > refund authority owner choice", () => {
       "provider",
     );
     const ordinaryChoice = markRefundOwnerChoiceNeeded(
-      keylessArmed(),
+      keylessArmedRefundForTest(),
       180,
       "possibly_sent",
     );
     const conclusiveChoice = markRefundProviderConflict(
-      keylessArmed(),
+      keylessArmedRefundForTest(),
       180,
       notSentConflict,
     );
     const rejectedChoice = markRefundOwnerChoiceNeeded(
-      keylessArmed(),
+      keylessArmedRefundForTest(),
       180,
       "provider_rejected",
     );
@@ -127,7 +118,7 @@ describe("payment > refund authority owner choice", () => {
       "provider_unreadable",
     );
     const expiredChoice = markRefundOwnerChoiceNeeded(
-      keyedObserving(),
+      keyedObservingRefundForTest(),
       510,
       "replay_window_expired",
     );
@@ -135,10 +126,11 @@ describe("payment > refund authority owner choice", () => {
     expect(mayReplaceRefundWithFreshEvidence(rejectedChoice)).toBe(true);
     expect(mayReplaceRefundWithFreshEvidence(unreadableChoice)).toBe(true);
     expect(mayReplaceRefundWithFreshEvidence(expiredChoice)).toBe(true);
-    expect(() => markRefundProviderConflict(completed, 190, notSentConflict))
-      .toThrow("Provider conflict cannot start from completed");
     expect(() =>
-      markRefundProviderConflict(conclusiveChoice, 190, notSentConflict)
+      markRefundProviderConflict(completed, 190, notSentConflict),
+    ).toThrow("Provider conflict cannot start from completed");
+    expect(() =>
+      markRefundProviderConflict(conclusiveChoice, 190, notSentConflict),
     ).toThrow("Provider conflict cannot start from needs_owner_choice");
     expect(
       markRefundProviderConflict(ordinaryChoice, 190, {
@@ -153,11 +145,15 @@ describe("payment > refund authority owner choice", () => {
   });
 
   test("new provider evidence replaces an open check with a newer revision", () => {
-    const firstCheck = markRefundProviderConflict(keylessArmed(), 180, {
-      captured: { amount: 2_000, currency: "GBP" },
-      kind: "returned",
-      refunded: { amount: 500, currency: "GBP" },
-    });
+    const firstCheck = markRefundProviderConflict(
+      keylessArmedRefundForTest(),
+      180,
+      {
+        captured: { amount: 2_000, currency: "GBP" },
+        kind: "returned",
+        refunded: { amount: 500, currency: "GBP" },
+      },
+    );
 
     expect(firstCheck.evidenceRevision).toBe(5);
     expect(mayReplaceRefundWithFreshEvidence(firstCheck)).toBe(true);
@@ -177,7 +173,7 @@ describe("payment > refund authority owner choice", () => {
 
   test("provider-returned choice makes local recording due", () => {
     const choice = markRefundOwnerChoiceNeeded(
-      keylessArmed(),
+      keylessArmedRefundForTest(),
       180,
       "possibly_sent",
     );
@@ -196,7 +192,7 @@ describe("payment > refund authority owner choice", () => {
 
   test("provider-not-sent choice authorizes exactly one new keyless generation", () => {
     const choice = markRefundOwnerChoiceNeeded(
-      keylessArmed(),
+      keylessArmedRefundForTest(),
       180,
       "possibly_sent",
     );
@@ -222,7 +218,7 @@ describe("payment > refund authority owner choice", () => {
 
   test("a new generation cannot change the provider's send capability", () => {
     const choice = markRefundOwnerChoiceNeeded(
-      keylessArmed(),
+      keylessArmedRefundForTest(),
       180,
       "possibly_sent",
     );
@@ -236,13 +232,13 @@ describe("payment > refund authority owner choice", () => {
         nextActionAt: 210,
         replayUntil: 500,
         requestIndex: "request-two",
-      })
+      }),
     ).toThrow("Owner choice must keep the provider capability");
   });
 
   test("a not-sent keyed choice starts a new finite keyed generation", () => {
     const choice = markRefundOwnerChoiceNeeded(
-      keyedObserving(),
+      keyedObservingRefundForTest(),
       510,
       "replay_window_expired",
     );
@@ -269,25 +265,37 @@ describe("payment > refund authority owner choice", () => {
 
   test("provider conflicts separate real choices from provider checks", () => {
     const notSent = markRefundProviderConflict(
-      keylessArmed(),
+      keylessArmedRefundForTest(),
       180,
       notSentConflict,
     );
-    const partial = markRefundProviderConflict(keylessArmed(), 180, {
-      captured: { amount: 2_000, currency: "GBP" },
-      kind: "returned",
-      refunded: { amount: 500, currency: "GBP" },
-    });
-    const returned = markRefundProviderConflict(keylessArmed(), 180, {
-      captured: { amount: 2_000, currency: "GBP" },
-      kind: "returned",
-      refunded: { amount: 2_000, currency: "GBP" },
-    });
-    const waiting = markRefundProviderConflict(keylessArmed(), 180, {
-      captured: { amount: 2_000, currency: "GBP" },
-      kind: "wait",
-      refunded: { amount: 0, currency: "GBP" },
-    });
+    const partial = markRefundProviderConflict(
+      keylessArmedRefundForTest(),
+      180,
+      {
+        captured: { amount: 2_000, currency: "GBP" },
+        kind: "returned",
+        refunded: { amount: 500, currency: "GBP" },
+      },
+    );
+    const returned = markRefundProviderConflict(
+      keylessArmedRefundForTest(),
+      180,
+      {
+        captured: { amount: 2_000, currency: "GBP" },
+        kind: "returned",
+        refunded: { amount: 2_000, currency: "GBP" },
+      },
+    );
+    const waiting = markRefundProviderConflict(
+      keylessArmedRefundForTest(),
+      180,
+      {
+        captured: { amount: 2_000, currency: "GBP" },
+        kind: "wait",
+        refunded: { amount: 0, currency: "GBP" },
+      },
+    );
 
     if (
       notSent.kind !== "needs_owner_choice" ||
@@ -311,13 +319,13 @@ describe("payment > refund authority owner choice", () => {
           kind: "returned",
           refunded: { amount: 500, currency: "GBP" },
         },
-      })
+      }),
     ).toThrow("Owner-choice refund state does not admit a decision");
     expect(() =>
       resolveRefundOwnerChoice(notSent, {
         decidedAt: 200,
         kind: "provider_confirmed_returned",
-      })
+      }),
     ).toThrow(
       "Owner choice provider_confirmed_returned is not allowed by not_sent",
     );
@@ -327,13 +335,13 @@ describe("payment > refund authority owner choice", () => {
       validateRefundAuthorityState({
         ...partial,
         kind: "needs_owner_choice",
-      })
+      }),
     ).toThrow("owner-choice conflict must admit an owner decision");
     expect(() =>
       validateRefundAuthorityState({
         ...notSent,
         kind: "needs_provider_check",
-      })
+      }),
     ).toThrow("provider-check state must carry evidence");
   });
 });

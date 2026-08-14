@@ -7,18 +7,18 @@ import {
 import { type Money, money } from "#shared/payment/money.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 import {
-  readRefundAuthorityState,
-  type RefundAuthorityState,
-  type RefundAuthorityStateName,
-  refundLocalMirror,
-  type RefundOwnerChoiceReason,
-  refundStateMirror,
-} from "#shared/payment/refund-authority-state.ts";
-import {
   type RefundOwnerChoices,
   refundOwnerChoices,
 } from "#shared/payment/refund-authority-choice.ts";
 import { refundAuthorityWorkSql } from "#shared/payment/refund-authority-lifecycle.ts";
+import {
+  type RefundAuthorityState,
+  type RefundAuthorityStateName,
+  type RefundOwnerChoiceReason,
+  readRefundAuthorityState,
+  refundLocalMirror,
+  refundStateMirror,
+} from "#shared/payment/refund-authority-state.ts";
 import type {
   RefundConflictDecision,
   RefundOwnerDecision,
@@ -217,9 +217,10 @@ export const listProviderRefundCases = async (
   const page = rows.slice(0, PAGE_SIZE).map(providerRefundCaseSummary);
   return {
     cases: page,
-    nextCursor: rows.length > PAGE_SIZE
-      ? await writeProviderRefundCursor(page[page.length - 1]!.id)
-      : null,
+    nextCursor:
+      rows.length > PAGE_SIZE
+        ? await writeProviderRefundCursor(page[page.length - 1]!.id)
+        : null,
   };
 };
 

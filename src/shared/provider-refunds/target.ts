@@ -81,8 +81,7 @@ export const answerKnownRefund = (
   if (
     existing?.state.kind === "completed" ||
     (existing?.state.kind === "needs_owner_choice" && target.mode === "send") ||
-    (existing?.state.kind === "needs_provider_check" &&
-      target.mode === "send")
+    (existing?.state.kind === "needs_provider_check" && target.mode === "send")
   ) {
     return refundAnswerFrom(existing, target.reference);
   }

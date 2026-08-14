@@ -34,10 +34,7 @@ const queue: ProviderRefundCasePage = {
 
 const detail: ProviderRefundCase = {
   ...queue.cases[0]!,
-  choices: [
-    "provider_confirmed_returned",
-    "provider_confirmed_not_sent",
-  ],
+  choices: ["provider_confirmed_returned", "provider_confirmed_not_sent"],
   decision: { kind: "returned_or_not_sent" },
   reason: "possibly_sent",
   reference: {

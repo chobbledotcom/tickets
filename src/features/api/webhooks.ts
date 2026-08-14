@@ -173,9 +173,9 @@ const authenticateWebhook = async (
 ): Promise<
   | Response
   | {
-    provider: NonNullable<ExistingPaymentProvider>;
-    listing: WebhookEvent;
-  }
+      provider: NonNullable<ExistingPaymentProvider>;
+      listing: WebhookEvent;
+    }
 > => {
   const provider = await getPaymentProviderOrLog(
     ErrorCode.PAYMENT_SESSION,
@@ -266,8 +266,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
     const outcome = await refundRejectedCharge(sessionResult);
     logError({
       code: ErrorCode.PAYMENT_SESSION,
-      detail:
-        `Webhook session rejected as ${sessionResult.reason} (refunded: ${outcome.refunded})`,
+      detail: `Webhook session rejected as ${sessionResult.reason} (refunded: ${outcome.refunded})`,
     });
     // A required refund that failed must retry: acknowledging would strand the
     // captured charge with no redelivery.
