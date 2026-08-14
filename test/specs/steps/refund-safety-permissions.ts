@@ -317,13 +317,6 @@ Then(
   },
 );
 
-Then(
-  /^(\w+)'s Actions page offers Mark payment reviewed(?: again)?$/,
-  function (this: TicketsWorld, who: string): Promise<void> {
-    return expectReviewAction(this, who);
-  },
-);
-
 When(
   "the owner opens Mark payment reviewed from {word}'s Actions page",
   async function (this: TicketsWorld, who: string): Promise<void> {
@@ -364,12 +357,5 @@ Then(
   "the provider has not been contacted again",
   function (this: TicketsWorld): void {
     expect(providerContacts(this)).toBe(refundSafety(this).ownerContactCount);
-  },
-);
-
-When(
-  "the owner checks {word}'s Actions page again",
-  async function (this: TicketsWorld, who: string): Promise<void> {
-    await openActionsAsOwner(this, who);
   },
 );
