@@ -19,6 +19,7 @@ import {
 import { markRefundOwnerChoiceNeeded } from "#shared/payment/refund-authority-choice.ts";
 import {
   createPaidListing,
+  createRefundableAttendee,
   markAsRefunded,
   seedTaggedBatchAttendees,
 } from "#test/features/admin/refunds-helpers.ts";
@@ -28,8 +29,8 @@ import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import {
   CLAIM_MIRROR,
   putRowState,
-  REVIEW_MIRROR,
   refundClaimFixture,
+  REVIEW_MIRROR,
   reviewCase,
   rowStateSlot,
   UNRECORDED_MIRROR,
@@ -107,28 +108,18 @@ describeWithEnv("db > Refund All candidates", { db: true }, () => {
 
   test("only a refundable attendee's work blocks the complete summary", async () => {
     const listing = await createPaidListing();
-    const settled = await createPaidTestAttendee(
+    const settled = await createRefundableAttendee(
       listing.id,
       "Settled",
       "settled@example.com",
-      "",
+      "pi_settled_summary",
     );
-    const active = await createPaidTestAttendee(
+    const active = await createRefundableAttendee(
       listing.id,
       "Active",
       "active@example.com",
-      "",
+      "pi_active_summary",
     );
-    await finalizeProcessedPayment("settled-summary", settled.id, "", {
-      kind: "tagged",
-      provider: "stripe",
-      reference: "pi_settled_summary",
-    });
-    await finalizeProcessedPayment("active-summary", active.id, "", {
-      kind: "tagged",
-      provider: "stripe",
-      reference: "pi_active_summary",
-    });
     const modernSettledCandidate = await candidateFor(listing.id, settled.id);
     const activeCandidate = await candidateFor(listing.id, active.id);
     await markProviderRefundsReturned(modernSettledCandidate.references);
