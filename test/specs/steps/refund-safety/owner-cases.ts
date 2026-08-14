@@ -111,6 +111,39 @@ Given(
 );
 
 Given(
+  "a SumUp refund intent stayed unreadable until owner attention was due",
+  async function (this: TicketsWorld): Promise<void> {
+    const provider = refundProviderFor(this);
+    const charge = chargeMoney(4_500);
+    provider.show("sumup", REFERENCE, {
+      reason: "timeout",
+      status: "unavailable",
+    });
+    const startedAt = Date.now() - OBSERVATION_DELAY;
+    const result = await requestProviderRefund(
+      {
+        ...target(),
+        callbackSessionId: "sumup-unreadable-owner-callback",
+        evidence: { captured: charge.captured, kind: "validated_callback" },
+      },
+      dependencies(startedAt),
+    );
+    expect(result.kind).toBe("withheld");
+    const stored = await loadRefundAuthorityByReference(
+      await paymentReferenceIndex(target().reference),
+    );
+    if (stored === null || stored.state.kind !== "ready") {
+      throw new Error("The unreadable callback did not leave ready work");
+    }
+    refundSafety(this).ownerCase = {
+      id: stored.id,
+      reference: REFERENCE,
+      systemTime: startedAt,
+    };
+  },
+);
+
+Given(
   "a SumUp refund lost its answer and now needs the owner",
   async function (this: TicketsWorld): Promise<void> {
     const provider = refundProviderFor(this);
@@ -219,6 +252,22 @@ Then(
   "SumUp receives exactly one refund attempt",
   function (this: TicketsWorld): void {
     expect(refundProviderFor(this).sendCount("sumup", REFERENCE)).toBe(1);
+  },
+);
+
+Then(
+  "SumUp receives no refund attempt",
+  function (this: TicketsWorld): void {
+    expect(refundProviderFor(this).sendCount("sumup", REFERENCE)).toBe(0);
+  },
+);
+
+Then(
+  "the owner is told that unreadable evidence sent no refund",
+  function (this: TicketsWorld): void {
+    expect(scenarioBrowser(this).pageText).toContain(
+      "No refund was sent; check the payment there and make the required choice.",
+    );
   },
 );
 

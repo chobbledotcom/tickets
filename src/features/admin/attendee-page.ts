@@ -47,12 +47,14 @@ import {
 } from "#routes/admin/entity-pages.ts";
 import { writeFormTab } from "#routes/admin/entity-write-tab.ts";
 import { loadPreviousBookings } from "#routes/admin/previous-bookings.ts";
+import { refundReferenceProblemMessage } from "#routes/admin/refunds/readiness-problem.ts";
 import { requireSessionOr } from "#routes/auth.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { getNotesFor } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { getPaymentWorkStatus } from "#shared/db/payment-review.ts";
+import type { RefundPaymentReferenceSet } from "#shared/db/payment-references.ts";
 import { settings } from "#shared/db/settings.ts";
 import { isReadOnly } from "#shared/env.ts";
 import type { PaymentWorkStatus } from "#shared/payment/admit-move.ts";
@@ -69,13 +71,32 @@ import {
   attendeeSummaryRows,
   ContactHistory,
 } from "#templates/admin/attendee-page.tsx";
-import { PaymentDetails } from "#templates/admin/attendees.tsx";
+import {
+  PaymentDetails,
+  type PaymentRefreshControl,
+} from "#templates/admin/attendees.tsx";
 
 type AttendeePageEntity = LoadedAttendee & {
   readonly paymentWorkStatus: PaymentWorkStatus | "not_loaded";
 };
 
 const refreshPaymentAction = paymentRecoveryAction("refresh-payment");
+
+/** Turn the canonical reference set into one renderable recovery control. */
+const paymentRefreshControl = (
+  attendeeId: number,
+  references: RefundPaymentReferenceSet,
+): PaymentRefreshControl => {
+  if (references.kind !== "complete") {
+    return {
+      kind: "unavailable",
+      message: refundReferenceProblemMessage(references),
+    };
+  }
+  return references.references.length === 0
+    ? { kind: "none" }
+    : { kind: "available", url: refreshPaymentAction.url(attendeeId) };
+};
 
 /** Load payment review state only for the Actions tab. */
 const loadAttendeePageEntity = async (
@@ -240,13 +261,11 @@ const overviewTab: TabDef<AttendeePageEntity> = {
     }),
     {
       kind: "custom",
-      load: ({ attendee, hasIndexedPaymentReference }, ctx) =>
+      load: ({ attendee, paymentReferences }, ctx) =>
         Promise.resolve(
           PaymentDetails({
             attendee,
-            refreshPaymentUrl: hasIndexedPaymentReference
-              ? refreshPaymentAction.url(attendee.id)
-              : null,
+            refresh: paymentRefreshControl(attendee.id, paymentReferences),
             // The balance link targets the owner-only Ledger tab, so it
             // must only render for owners (never render a forbidden link).
             showBalanceLink: ctx.session.adminLevel === "owner",

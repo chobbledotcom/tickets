@@ -1,5 +1,5 @@
 import type { LoadedRefundAttendee } from "#shared/db/payment-claim/take.ts";
-import type { ClaimDecision, ClaimRequest } from "#shared/payment/claim.ts";
+import type { ClaimRequest } from "#shared/payment/claim.ts";
 import type { RefundClaim } from "#shared/payment/row-state.ts";
 
 type ScopedPaymentRow = {
@@ -30,9 +30,8 @@ export const claimRequestFor = (
   return { attendeeIds, scope: "attendee_set" };
 };
 
-/** Every acquired attendee-row hold is only a checking fence. */
-export const nextClaimFor = (
-  _decision: ClaimDecision,
+/** Build the one canonical checking fence for an attendee set. */
+export const checkingClaimFor = (
   request: ClaimRequest,
   commandId: string,
   writtenAt: string,

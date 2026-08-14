@@ -25,6 +25,17 @@ Feature: The owner resolves a refund the site cannot safely decide
       Then SumUp receives exactly one refund attempt
       And the current page asks for the returned money to be recorded in Money
 
+    @case:refund-authority.unreadable-ready-intent-requires-owner-choice
+    Scenario: A ready SumUp refund stays unreadable
+      Given a SumUp refund intent stayed unreadable until owner attention was due
+      When the owner opens Privacy
+      And the owner opens the listed refund
+      Then the ready refund has one clearly marked Send control
+      When the owner sends the ready refund
+      Then SumUp receives no refund attempt
+      And the owner is told that unreadable evidence sent no refund
+      And the provider reference is shown with two required unanswered choices
+
   @rule:payments.owner-can-authorise-one-new-keyless-generation
   @surface:admin
   Rule: A confirmed unsent refund gets one new attempt

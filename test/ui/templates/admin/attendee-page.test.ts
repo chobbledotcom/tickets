@@ -133,7 +133,7 @@ describe("attendee page blocks", () => {
     expect(
       PaymentDetails({
         attendee: testAttendee({ payment_id: "" }),
-        refreshPaymentUrl: null,
+        refresh: { kind: "none" },
         showBalanceLink: true,
       }),
     ).toBeNull();
@@ -143,7 +143,10 @@ describe("attendee page blocks", () => {
     const html = String(
       PaymentDetails({
         attendee: testAttendee({ id: 7, payment_id: "" }),
-        refreshPaymentUrl: "/admin/attendees/7/refresh-payment",
+        refresh: {
+          kind: "available",
+          url: "/admin/attendees/7/refresh-payment",
+        },
         showBalanceLink: true,
       }),
     );
@@ -157,12 +160,27 @@ describe("attendee page blocks", () => {
     const html = String(
       PaymentDetails({
         attendee: testAttendee({ id: 8, payment_id: "pi_legacy" }),
-        refreshPaymentUrl: null,
+        refresh: { kind: "none" },
         showBalanceLink: true,
       }),
     );
 
     expect(html).toContain("pi_legacy");
+    expect(html).not.toContain("/refresh-payment");
+  });
+
+  test("explains an older provider-unknown payment without a dead form", () => {
+    const message = "This older payment needs manual recovery.";
+    const html = String(
+      PaymentDetails({
+        attendee: testAttendee({ id: 9, payment_id: "" }),
+        refresh: { kind: "unavailable", message },
+        showBalanceLink: true,
+      }),
+    );
+
+    expect(html).toContain("Payment Details");
+    expect(html).toContain(message);
     expect(html).not.toContain("/refresh-payment");
   });
 });

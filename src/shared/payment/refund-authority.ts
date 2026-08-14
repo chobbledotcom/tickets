@@ -95,6 +95,7 @@ const CompletedRecordedRefundStateSchema = v.strictObject({
 export const RefundOwnerChoiceReasonSchema = v.picklist([
   "possibly_sent",
   "provider_conflict",
+  "provider_unreadable",
   "replay_window_expired",
   "provider_rejected",
 ]);

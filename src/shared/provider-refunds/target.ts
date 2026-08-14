@@ -15,6 +15,7 @@ import {
   initialRefundState,
   moveRefundToOwner,
   ownerReasonWhenDue,
+  REFUND_OBSERVATION_DELAY_MS,
   refundAnswerFrom,
 } from "#shared/provider-refunds/state.ts";
 import type {
@@ -81,6 +82,19 @@ export const answerUnreadableRefund = async (
   >,
   now: number,
 ): Promise<ProviderRefundResult> => {
+  if (
+    existing?.state.kind === "ready" &&
+    (read.status !== "unavailable" ||
+      now >= existing.state.readyAt + REFUND_OBSERVATION_DELAY_MS)
+  ) {
+    return await moveRefundToOwner(
+      existing,
+      "provider_unreadable",
+      now,
+      target.reference,
+      existing.refunded,
+    );
+  }
   if (
     existing !== null &&
     (existing.state.kind === "send_armed" ||

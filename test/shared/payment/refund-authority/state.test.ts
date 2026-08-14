@@ -121,10 +121,10 @@ describe("payment > refund authority state", () => {
     });
     expect(() =>
       markRefundOwnerChoiceNeeded(keylessReady(), 180, "provider_rejected"),
-    ).toThrow("armed refund");
+    ).toThrow("cannot start from ready");
   });
 
-  test("each unresolved-money reason carries only a matching request", () => {
+  test("each unresolved-money reason declares its allowed source states", () => {
     const keyless = armRefundSend(keylessReady(), 120, 150);
     const keyed = markRefundObservationDue(
       armRefundSend(keyedReady(), 120, 150),
@@ -142,6 +142,20 @@ describe("payment > refund authority state", () => {
       markRefundOwnerChoiceNeeded(keyed, 180, "provider_conflict").reason,
     ).toBe("provider_conflict");
     expect(
+      markRefundOwnerChoiceNeeded(
+        keyedReady(),
+        180,
+        "provider_unreadable",
+      ).reason,
+    ).toBe("provider_unreadable");
+    expect(
+      markRefundOwnerChoiceNeeded(
+        keyedReady(),
+        180,
+        "provider_conflict",
+      ).reason,
+    ).toBe("provider_conflict");
+    expect(
       markRefundOwnerChoiceNeeded(keyed, 510, "replay_window_expired").reason,
     ).toBe("replay_window_expired");
     expect(() =>
@@ -150,6 +164,12 @@ describe("payment > refund authority state", () => {
     expect(() =>
       markRefundOwnerChoiceNeeded(keyed, 510, "possibly_sent"),
     ).toThrow("reason does not match");
+    expect(() =>
+      markRefundOwnerChoiceNeeded(keyless, 180, "provider_unreadable"),
+    ).toThrow("cannot start from send_armed");
+    expect(() =>
+      markRefundOwnerChoiceNeeded(keyedReady(), 180, "possibly_sent"),
+    ).toThrow("cannot start from ready");
   });
 
   test("provider-returned choice makes local recording due", () => {

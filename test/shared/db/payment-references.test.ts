@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { execute } from "#shared/db/client.ts";
-import { prepareAttendeePaymentAnchor } from "#shared/db/payment-anchor/attendee.ts";
+import { prepareClaimedAttendeePaymentAnchor } from "#shared/db/payment-anchor/attendee.ts";
 import { storePaymentReference } from "#shared/db/payment-reference-store.ts";
 import {
   attendeeIdsWithIndexedPaymentReferences,
@@ -95,8 +95,9 @@ describeWithEnv("db > payment references", { db: true }, () => {
     if (!created.success) throw new Error("setup failed");
     const attendeeId = created.attendees[0]!.id;
     const payment = taggedPaymentReference("pi_index_marker");
-    const statement = (await prepareAttendeePaymentAnchor(payment))(attendeeId);
-    await execute(statement.sql, statement.args);
+    const prepared = await prepareClaimedAttendeePaymentAnchor(payment);
+    const anchor = await prepared.forAttendee(attendeeId);
+    await execute(anchor.statement.sql, anchor.statement.args);
     const [reference] = await refundReferencesFor(
       attendeeId,
       await getTestPrivateKey(),

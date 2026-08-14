@@ -8,8 +8,8 @@ import {
   withTransaction,
 } from "#shared/db/client.ts";
 import {
+  checkingClaimFor,
   claimRequestFor,
-  nextClaimFor,
 } from "#shared/db/payment-claim/scope.ts";
 import {
   asPaymentRowRecord,
@@ -270,7 +270,7 @@ export const claimAttendeeRows = async (
       const decision = decideClaim(row.state.claim, request, staleBefore);
       return {
         decision,
-        nextClaim: nextClaimFor(decision, request, commandId, writtenAt),
+        nextClaim: checkingClaimFor(request, commandId, writtenAt),
         row,
       };
     });

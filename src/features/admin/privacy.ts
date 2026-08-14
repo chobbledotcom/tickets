@@ -49,7 +49,10 @@ import {
   orphanRetentionCutoffIso,
 } from "#shared/orphan-retention.ts";
 import { readProviderRefundCursor } from "#shared/provider-refund-cursor.ts";
-import { requestProviderRefund } from "#shared/provider-refunds.ts";
+import {
+  type ProviderRefundResult,
+  requestProviderRefund,
+} from "#shared/provider-refunds.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
   parseNonNegativeInt,
@@ -128,6 +131,29 @@ const OWNER_CHOICE_LOG = {
   provider_confirmed_returned: "privacy.refunds.log_returned",
 } as const satisfies Record<ProviderRefundOwnerChoice, string>;
 
+const CHECK_STOP = {
+  needs_owner_choice: "choice_opened",
+  pending: null,
+  ready: null,
+  returned: null,
+  unchanged: "impossible",
+  withheld: "unreadable",
+} as const satisfies Record<
+  ProviderRefundResult["kind"],
+  "choice_opened" | "impossible" | "unreadable" | null
+>;
+
+const STOPPED_CHECK_COPY = {
+  choice_opened: {
+    log: "privacy.refunds.log_choice_opened",
+    message: "privacy.refunds.choice_opened",
+  },
+  unreadable: {
+    log: "privacy.refunds.log_unreadable",
+    message: "privacy.refunds.unreadable",
+  },
+} as const;
+
 const checkProviderAgain = async (
   id: number,
   revision: number,
@@ -146,11 +172,20 @@ const checkProviderAgain = async (
     return errorRedirect(refundCasePath(id), t("privacy.refunds.changed"));
   }
   const sendsReadyRefund = refundCase.state === "ready";
-  await requestProviderRefund({
+  const result = await requestProviderRefund({
     evidence: { kind: "read_provider" },
     mode: sendsReadyRefund ? "send" : "observe_only",
     reference: refundCase.reference,
   });
+  const stopped = CHECK_STOP[result.kind];
+  if (stopped === "impossible") {
+    throw new Error("Existing refund recovery lost its durable authority");
+  }
+  if (stopped !== null) {
+    const copy = STOPPED_CHECK_COPY[stopped];
+    await logActivity(t(copy.log, { id }));
+    return errorRedirect(refundCasePath(id), t(copy.message));
+  }
   await logActivity(
     t(
       sendsReadyRefund

@@ -120,7 +120,10 @@ describe("provider-refund architecture", () => {
 
   test("only a provider-validated payment can mint an attendee payment anchor", async () => {
     expect(
-      pathsContaining(await sourceFiles(), /prepareAttendeePaymentAnchor\s*\(/),
+      pathsContaining(
+        await sourceFiles(),
+        /prepareClaimedAttendeePaymentAnchor\s*\(/,
+      ),
     ).toEqual(["features/api/payment-processing/store-refund.ts"]);
   });
 

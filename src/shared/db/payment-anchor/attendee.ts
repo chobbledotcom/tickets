@@ -1,34 +1,78 @@
 /** Durable refund identity attached to an attendee. */
 
 import { inPlaceholders, type SqlStatement } from "#shared/db/client.ts";
+import {
+  paymentRowStateValues,
+  type RowSettlement,
+} from "#shared/db/payment-claim.ts";
+import { checkingClaimFor } from "#shared/db/payment-claim/scope.ts";
 import { nowIso } from "#shared/now.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 import { paymentAnchorReference } from "./reference.ts";
 import { anchorSessionId } from "./session.ts";
 
-type PreparedAttendeePaymentAnchor = (attendeeId: number) => SqlStatement;
+export interface ClaimedAttendeePaymentAnchor {
+  readonly settlement: RowSettlement;
+  readonly statement: SqlStatement;
+}
 
-/** Prepare one payment reference before its attendee-creation transaction. */
-export const prepareAttendeePaymentAnchor = async (
+export interface PreparedClaimedAttendeePaymentAnchor {
+  readonly forAttendee: (
+    attendeeId: number,
+  ) => Promise<ClaimedAttendeePaymentAnchor>;
+}
+
+/** Prepare one payment reference and its destructive-write fence together. */
+export const prepareClaimedAttendeePaymentAnchor = async (
   payment: TaggedPaymentReference,
-): Promise<PreparedAttendeePaymentAnchor> => {
+): Promise<PreparedClaimedAttendeePaymentAnchor> => {
   const { matchingIndexes, stored } = await paymentAnchorReference(payment);
   const matchingIndexSlots = inPlaceholders(matchingIndexes);
-  return (attendeeId) => ({
-    args: [
-      anchorSessionId(attendeeId, stored.index),
-      attendeeId,
-      nowIso(),
-      stored.encrypted,
-      stored.index,
-      attendeeId,
-      attendeeId,
-      ...matchingIndexes,
-    ],
-    sql: `INSERT INTO processed_payments
+  const commandId = crypto.randomUUID();
+  const heldSince = nowIso();
+  const sessionIdFor = (attendeeId: number): string =>
+    anchorSessionId(attendeeId, stored.index);
+  let bound:
+    | {
+        readonly attendeeId: number;
+        readonly value: Promise<ClaimedAttendeePaymentAnchor>;
+      }
+    | undefined;
+  const buildFor = async (
+    attendeeId: number,
+  ): Promise<ClaimedAttendeePaymentAnchor> => {
+    const sessionId = sessionIdFor(attendeeId);
+    const claim = checkingClaimFor(
+      { attendeeIds: [attendeeId], scope: "attendee_set" },
+      commandId,
+      heldSince,
+    );
+    const state = await paymentRowStateValues({ claim });
+    return {
+      settlement: {
+        commandId,
+        heldSince,
+        rows: new Map([
+          [sessionId, { claim: "release", phase: "checking" }],
+        ]),
+      },
+      statement: {
+        args: [
+          sessionId,
+          attendeeId,
+          heldSince,
+          stored.encrypted,
+          stored.index,
+          state.failureData,
+          state.protectedState,
+          attendeeId,
+          attendeeId,
+          ...matchingIndexes,
+        ],
+        sql: `INSERT INTO processed_payments
             (payment_session_id, attendee_id, processed_at, payment_reference,
-             payment_reference_index)
-          SELECT ?, ?, ?, ?, ?
+             payment_reference_index, failure_data, protected_state)
+          SELECT ?, ?, ?, ?, ?, ?, ?
            WHERE EXISTS (
              SELECT 1 FROM attendees AS attendee WHERE attendee.id = ?
            )
@@ -37,5 +81,16 @@ export const prepareAttendeePaymentAnchor = async (
                 WHERE payment.attendee_id = ?
                   AND payment.payment_reference_index IN (${matchingIndexSlots})
              )`,
-  });
+      },
+    };
+  };
+  return {
+    forAttendee: (attendeeId) => {
+      if (bound !== undefined && bound.attendeeId !== attendeeId) {
+        throw new Error("Payment anchor was bound to another attendee");
+      }
+      bound ??= { attendeeId, value: buildFor(attendeeId) };
+      return bound.value;
+    },
+  };
 };

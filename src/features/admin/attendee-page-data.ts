@@ -44,7 +44,10 @@ import {
   listingChildren,
 } from "#shared/db/listing-parents.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
-import { attendeeIdsWithIndexedPaymentReferences } from "#shared/db/payment-references.ts";
+import {
+  getRefundPaymentReferencesForAttendee,
+  type RefundPaymentReferenceSet,
+} from "#shared/db/payment-references.ts";
 import type {
   QuestionWithAnswers,
   SelectedQuestionAnswers,
@@ -69,27 +72,31 @@ export type LoadedAttendee = {
   attendee: Attendee;
   canRefund: boolean;
   existing: ExistingLine[];
-  hasIndexedPaymentReference: boolean;
+  paymentReferences: RefundPaymentReferenceSet;
 };
 
 type AttendeePaymentFacts = Pick<
   LoadedAttendee,
-  "canRefund" | "hasIndexedPaymentReference"
+  "canRefund" | "paymentReferences"
 >;
 
-/** Load the indexed payment fact once for both display and refund admission. */
+/** Load one bounded, typed payment set for both display and refund admission. */
 const attendeePaymentFacts = async (
   attendee: Attendee,
 ): Promise<AttendeePaymentFacts> => {
-  const hasIndexedPaymentReference = (
-    await attendeeIdsWithIndexedPaymentReferences([attendee.id])
-  ).has(attendee.id);
+  const paymentReferences = await getRefundPaymentReferencesForAttendee(
+    { currentPaymentId: attendee.payment_id, id: attendee.id },
+    await requireRequestPrivateKey(),
+  );
+  const hasAutomaticPayment =
+    paymentReferences.kind === "complete" &&
+    paymentReferences.references.length > 0;
   return {
     canRefund:
       !attendee.refunded &&
-      hasIndexedPaymentReference &&
+      hasAutomaticPayment &&
       (await hasActiveBookingLine(attendee.id, attendee.listing_id)),
-    hasIndexedPaymentReference,
+    paymentReferences,
   };
 };
 

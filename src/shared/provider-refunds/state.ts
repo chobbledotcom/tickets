@@ -176,11 +176,7 @@ export const moveRefundToOwner = async (
 ): Promise<ProviderRefundResult> =>
   await refundAfterTransition(
     await transitionRefundAuthority(row, now, refunded, (state) =>
-      markRefundOwnerChoiceNeeded(
-        state.kind === "ready" ? armRefundSend(state, now, now) : state,
-        now,
-        reason,
-      ),
+      markRefundOwnerChoiceNeeded(state, now, reason),
     ),
     row,
     reference,

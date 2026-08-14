@@ -32,7 +32,8 @@ import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import { createSystemNote } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
-import { prepareAttendeePaymentAnchor } from "#shared/db/payment-anchor/attendee.ts";
+import { prepareClaimedAttendeePaymentAnchor } from "#shared/db/payment-anchor/attendee.ts";
+import { settleAttendeeRows } from "#shared/db/payment-claim.ts";
 import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
 import { ErrorCode, type ErrorCodeType, logError } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
@@ -178,7 +179,9 @@ export const storeRefundedBooking = async (
   if (spec.alert) addPendingWork(sendNtfyError(REFUND_ALERT_CODES[spec.alert]));
   const listingId = bookings[0]!.listingId;
   const paymentReference = paidPaymentReferenceOf(session);
-  const paymentAnchor = await prepareAttendeePaymentAnchor(paymentReference);
+  const paymentAnchor = await prepareClaimedAttendeePaymentAnchor(
+    paymentReference,
+  );
   // A quantity-0 overbook insert has no capacity gate and consumes no modifier
   // stock, so it always writes the row — trust it. (If the PII can't encrypt the
   // whole system is broken; we don't defend against that.)
@@ -189,7 +192,8 @@ export const storeRefundedBooking = async (
       bookings,
     },
     async (tx, attendeeId) => {
-      await tx.execute(paymentAnchor(attendeeId));
+      const anchor = await paymentAnchor.forAttendee(attendeeId);
+      await tx.execute(anchor.statement);
     },
   );
   const attendeeId = (stored as Extract<typeof stored, { success: true }>)
@@ -234,6 +238,8 @@ export const storeRefundedBooking = async (
   const noteTarget = attendeeNotes(attendeeId);
   const noteText = placeholderRefundNote(attendeeId, spec, refunded);
   await createSystemNote(noteTarget, noteText);
+  const anchor = await paymentAnchor.forAttendee(attendeeId);
+  await settleAttendeeRows(anchor.settlement);
   // Status 200: a fully-handled terminal outcome (booking kept, money returned or
   // flagged). The webhook acks it (never the 409 transient-lock retry nor a 503
   // refund retry — the booking exists, so a retry can't re-create it), and the

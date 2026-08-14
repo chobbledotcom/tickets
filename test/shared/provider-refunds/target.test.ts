@@ -4,6 +4,7 @@ import { queryAll } from "#shared/db/client.ts";
 import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import { refundCallbackReplayIndex } from "#shared/payment/refund-request-identity.ts";
 import { requestProviderRefund } from "#shared/provider-refunds.ts";
+import { REFUND_OBSERVATION_DELAY_MS } from "#shared/provider-refunds/state.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   chargeMoney,
@@ -31,7 +32,7 @@ const validatedTarget = (
 });
 
 describeWithEnv("provider refund target authority", { db: true }, () => {
-  test("an unreadable validated callback leaves one reachable ready authority", async () => {
+  test("a temporarily unavailable validated callback recovers through the same authority", async () => {
     const target = validatedTarget("txn-unreadable", "checkout-unreadable");
     let available = false;
     let sends = 0;
@@ -77,6 +78,74 @@ describeWithEnv("provider refund target authority", { db: true }, () => {
     expect(await storedRefundAuthority(index)).toMatchObject({
       refund_state_name: "completed",
     });
+  });
+
+  for (const [name, read] of [
+    ["missing", { status: "missing" }],
+    ["invalid", { reason: "missing_amount", status: "invalid" }],
+  ] as const) {
+    test(`${name} callback evidence requires an owner choice without sending`, async () => {
+      const target = validatedTarget(
+        `txn-${name}-callback`,
+        `checkout-${name}-callback`,
+      );
+      let sends = 0;
+      const provider = fakeRefundProvider(
+        "stripe",
+        () => Promise.resolve(read),
+        (request) => {
+          sends++;
+          return Promise.resolve(completedRefund(request.charge));
+        },
+      );
+
+      expect(
+        await requestProviderRefund(target, {
+          loadProvider: () => Promise.resolve(provider),
+          now: () => 100,
+        }),
+      ).toMatchObject({
+        kind: "needs_owner_choice",
+        reason: "provider_unreadable",
+      });
+      expect(sends).toBe(0);
+      expect(
+        await storedRefundAuthority(
+          await paymentReferenceIndex(target.reference),
+        ),
+      ).toMatchObject({ refund_state_name: "needs_owner_choice" });
+    });
+  }
+
+  test("persistent provider unavailability has one finite owner-choice deadline", async () => {
+    const target = validatedTarget(
+      "txn-unavailable-deadline",
+      "checkout-unavailable-deadline",
+    );
+    let now = 100;
+    let sends = 0;
+    const provider = fakeRefundProvider(
+      "stripe",
+      () => Promise.resolve({ reason: "timeout", status: "unavailable" }),
+      (request) => {
+        sends++;
+        return Promise.resolve(completedRefund(request.charge));
+      },
+    );
+    const dependencies = {
+      loadProvider: () => Promise.resolve(provider),
+      now: () => now,
+    };
+
+    expect(await requestProviderRefund(target, dependencies)).toMatchObject({
+      kind: "withheld",
+    });
+    now += REFUND_OBSERVATION_DELAY_MS;
+    expect(await requestProviderRefund(target, dependencies)).toMatchObject({
+      kind: "needs_owner_choice",
+      reason: "provider_unreadable",
+    });
+    expect(sends).toBe(0);
   });
 
   test("provider money contradicting the callback requires an owner choice", async () => {

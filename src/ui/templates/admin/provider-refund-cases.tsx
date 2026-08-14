@@ -31,6 +31,7 @@ const REASON_LABELS = {
   possibly_sent: "privacy.refunds.reason.possibly_sent",
   provider_conflict: "privacy.refunds.reason.provider_conflict",
   provider_rejected: "privacy.refunds.reason.provider_rejected",
+  provider_unreadable: "privacy.refunds.reason.provider_unreadable",
   replay_window_expired: "privacy.refunds.reason.replay_window_expired",
 } as const satisfies Record<RefundOwnerChoiceReason, string>;
 

@@ -76,6 +76,14 @@ describe("square provider order ownership", () => {
       },
     ],
     [
+      "from an earlier site domain with a missing",
+      {
+        _origin: "old.example.com",
+        items: '[{"e":1,"q":1,"p":0}]',
+        name: "Damaged earlier checkout",
+      },
+    ],
+    [
       "corrupt",
       {
         ...SQUARE_ORDER_META,

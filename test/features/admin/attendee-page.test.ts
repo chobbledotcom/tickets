@@ -13,6 +13,8 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { seedHistoricalProcessedPayment } from "#test-utils/historical-payment-references.ts";
+import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
 import { withTestSession } from "#test-utils/session.ts";
 import {
   bookAttendee,
@@ -67,6 +69,32 @@ describeWithEnv("the attendee page", { db: true }, () => {
       ]) {
         expect(html).toContain(`/admin/attendees/${id}/${slug}`);
       }
+    });
+
+    test("renders refresh for a complete provider-tagged payment", async () => {
+      const id = await bookAttendee();
+      await finalizeProcessedPayment("sess_page_refresh", id);
+
+      expect(await tabHtml(id, "")).toContain(
+        `action="/admin/attendees/${id}/refresh-payment"`,
+      );
+    });
+
+    test("explains provider-unknown history without rendering a dead refresh form", async () => {
+      const id = await bookAttendee();
+      await seedHistoricalProcessedPayment(
+        "sess_page_provider_unknown",
+        id,
+        "pi_page_provider_unknown",
+      );
+
+      const html = await tabHtml(id, "");
+      expect(html).toContain(
+        "This older payment does not record which provider took it",
+      );
+      expect(html).not.toContain(
+        `action="/admin/attendees/${id}/refresh-payment"`,
+      );
     });
   });
 

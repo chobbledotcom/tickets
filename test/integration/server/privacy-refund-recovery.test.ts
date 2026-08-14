@@ -149,6 +149,70 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
     expect(messages.join(" ")).not.toContain(reference);
   });
 
+  test("says no refund was sent when an active provider check is unreadable", async () => {
+    const id = await addProviderRefundTestCase(
+      "owner-unreadable-active-reference",
+      armRefundSend(
+        readyRefundTestState("owner-unreadable-active-request"),
+        11,
+        Date.now() + 60_000,
+      ),
+    );
+    using read = stub(sumupPaymentProvider, "readCharge", () =>
+      Promise.resolve({ reason: "timeout", status: "unavailable" } as const)
+    );
+    using send = stub(sumupPaymentProvider, "refundCharge", () => {
+      throw new Error("An unreadable check must not send a refund");
+    });
+
+    await expectFlashRedirect(
+      casePath(id),
+      "The provider could not supply trustworthy payment evidence. No refund was sent, and this work remains protected.",
+      false,
+    )(await submitCase(await testCookie(), { choice: "check_again" }, id));
+
+    expect(read.calls).toHaveLength(1);
+    expect(send.calls).toHaveLength(0);
+    expect((await getAllActivityLog()).map(({ message }) => message)).toContain(
+      `Refund recovery ${id}: provider evidence was unreadable; no refund was sent`,
+    );
+  });
+
+  test("turns a persistently unreadable ready refund into a required choice", async () => {
+    const id = await addProviderRefundTestCase(
+      "owner-unreadable-ready-reference",
+      readyRefundTestState("owner-unreadable-ready-request"),
+    );
+    using read = stub(sumupPaymentProvider, "readCharge", () =>
+      Promise.resolve({ reason: "timeout", status: "unavailable" } as const)
+    );
+    using send = stub(sumupPaymentProvider, "refundCharge", () => {
+      throw new Error("Unreadable ready work must not send a refund");
+    });
+
+    await expectFlashRedirect(
+      casePath(id),
+      "The provider could not settle what happened. No refund was sent; check the payment there and make the required choice.",
+      false,
+    )(await submitCase(await testCookie(), { choice: "check_again" }, id));
+
+    expect(read.calls).toHaveLength(1);
+    expect(send.calls).toHaveLength(0);
+    const row = await queryOne<{ refund_state: string }>(
+      "SELECT refund_state FROM payment_charges WHERE id = ?",
+      [id],
+    );
+    expect(
+      readRefundAuthorityState(row!.refund_state, "unreadable ready case"),
+    ).toMatchObject({
+      kind: "needs_owner_choice",
+      reason: "provider_unreadable",
+    });
+    expect((await getAllActivityLog()).map(({ message }) => message)).toContain(
+      `Refund recovery ${id}: provider evidence opened a required owner choice; no refund was sent`,
+    );
+  });
+
   test("a ready intent is reachable and sends only through the canonical engine", async () => {
     const reference = "owner-ready-reference";
     const identity = await refundRequestIdentityIndex(

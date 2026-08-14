@@ -9,28 +9,41 @@ import {
   type RefundOwnerChoiceReason,
   type RefundRequestGeneration,
   readyRefund,
-  requireActiveSentRefund,
   validateRefundAuthorityState,
 } from "#shared/payment/refund-authority.ts";
 
-/** Stop an armed generation at its required owner decision. */
+const OWNER_CHOICE_FROM = {
+  possibly_sent: ["send_armed", "observing"],
+  provider_conflict: ["ready", "send_armed", "observing"],
+  provider_rejected: ["send_armed", "observing"],
+  provider_unreadable: ["ready"],
+  replay_window_expired: ["send_armed", "observing"],
+} as const satisfies Record<
+  RefundOwnerChoiceReason,
+  readonly RefundAuthorityState["kind"][]
+>;
+
+/** Stop one declared source state at its required owner decision. */
 export const markRefundOwnerChoiceNeeded = (
   state: RefundAuthorityState,
   openedAt: number,
   reason: RefundOwnerChoiceReason,
 ): NeedsOwnerChoiceRefundState => {
-  const active = requireActiveSentRefund(
-    state,
-    "Owner choice requires an armed refund",
-  );
+  const allowed: readonly RefundAuthorityState["kind"][] =
+    OWNER_CHOICE_FROM[reason];
+  if (!allowed.includes(state.kind)) {
+    throw new Error(
+      `Owner choice ${reason} cannot start from ${state.kind}`,
+    );
+  }
   const choice = {
-    evidenceRevision: active.evidenceRevision,
+    evidenceRevision: state.evidenceRevision,
     kind: "needs_owner_choice",
     local: { kind: "not_due" },
     nextActionAt: null,
     openedAt,
     reason,
-    request: active.request,
+    request: state.request,
   } as const;
   return validateRefundAuthorityState(choice) as NeedsOwnerChoiceRefundState;
 };

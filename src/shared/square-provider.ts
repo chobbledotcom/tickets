@@ -13,7 +13,6 @@
  */
 
 /* jscpd:ignore-start -- imports */
-import { getEffectiveDomain } from "#shared/config.ts";
 import { logDebug } from "#shared/logger.ts";
 import { refundWithOneReread } from "#shared/payment/refund-attempt.ts";
 import { requireProviderRefundAuthorization } from "#shared/payment/refund-provider-authorization.ts";
@@ -133,9 +132,9 @@ type SquareOrderMetadata =
   | { kind: "foreign" }
   | { kind: "malformed" };
 
-/** Distinguish ordinary Square orders from damaged checkouts created by this
- * site. Contact field names are common to unrelated Square orders; only the
- * exact origin our checkout always writes is an app marker. */
+/** Distinguish ordinary Square orders from damaged app checkouts. Contact
+ * field names are common to unrelated orders; `_origin` is the app marker and
+ * stays recognisable when the site's domain changes. */
 const classifyOrderMetadata = (
   metadata: SquareOrder["metadata"],
   requirePriceProof: boolean,
@@ -147,7 +146,7 @@ const classifyOrderMetadata = (
   ) {
     return { kind: "ours", metadata };
   }
-  return metadata?._origin === getEffectiveDomain()
+  return metadata?._origin
     ? { kind: "malformed" }
     : { kind: "foreign" };
 };

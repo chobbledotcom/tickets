@@ -290,19 +290,23 @@ export const adminRefundAllAttendeesPage = (
 
 /** Render payment details section (read-only). Shared by the unified
  * add/edit attendee form. */
+export type PaymentRefreshControl =
+  | { readonly kind: "available"; readonly url: string }
+  | { readonly kind: "none" }
+  | { readonly kind: "unavailable"; readonly message: string };
+
 export const PaymentDetails = ({
   attendee,
-  refreshPaymentUrl,
+  refresh,
   showBalanceLink,
 }: {
   attendee: Attendee;
-  /** Only an indexed row supplies the reachable refresh action. */
-  refreshPaymentUrl: string | null;
+  refresh: PaymentRefreshControl;
   /** The balance link targets the owner-only Ledger tab, so callers gate it
    * on the viewer's role (never render a forbidden link). */
   showBalanceLink: boolean;
 }): JSX.Element | null => {
-  if (!attendee.payment_id && refreshPaymentUrl === null) return null;
+  if (!attendee.payment_id && refresh.kind === "none") return null;
   const isRefunded = attendee.refunded;
   const dashboardUrl = paymentDashboardUrl(attendee.payment_id);
 
@@ -346,9 +350,10 @@ export const PaymentDetails = ({
           </p>
         )}
       </div>
-      {refreshPaymentUrl !== null && (
+      {refresh.kind === "unavailable" && <p>{refresh.message}</p>}
+      {refresh.kind === "available" && (
         <SaveForm
-          action={refreshPaymentUrl}
+          action={refresh.url}
           class="inline"
           submitIcon="rotate-ccw"
           submitLabel={t("admin.attendees.refresh_payment")}

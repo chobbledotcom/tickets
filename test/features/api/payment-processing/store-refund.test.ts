@@ -18,8 +18,11 @@ import { decrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { requirePublicStatusId } from "#shared/db/attendee-statuses.ts";
 import { deleteAttendee } from "#shared/db/attendees/delete.ts";
-import { execute, queryOne } from "#shared/db/client.ts";
-import { PaymentRowsBusyError } from "#shared/db/payment-admit-move.ts";
+import { execute, queryOne, withTransaction } from "#shared/db/client.ts";
+import {
+  assertRowsFreeToMove,
+  PaymentRowsBusyError,
+} from "#shared/db/payment-admit-move.ts";
 import { getRefundPaymentReferencesForAttendee } from "#shared/db/payment-references.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -184,6 +187,34 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
   };
 
   describe("when the money could be sent back", () => {
+    test("fences the placeholder from merging until its refund record is complete", async () => {
+      let attendeeId = 0;
+      await withRefundMock(
+        async (request) => {
+          const payment = await queryOne<{ attendee_id: number }>(
+            `SELECT attendee_id
+               FROM processed_payments
+              WHERE payment_reference_index != ''`,
+          );
+          if (payment === null) throw new Error("payment anchor was not stored");
+          attendeeId = payment.attendee_id;
+          await expect(
+            withTransaction((tx) =>
+              assertRowsFreeToMove(tx, [attendeeId], "merge")
+            ),
+          ).rejects.toThrow(PaymentRowsBusyError);
+          return await refundCompletes(request);
+        },
+        async () => {
+          await storeFor("cs_merge_fence");
+        },
+      );
+
+      await withTransaction((tx) =>
+        assertRowsFreeToMove(tx, [attendeeId], "merge")
+      );
+    });
+
     test("tells the customer their details were saved", async () => {
       await withRefundMock(refundCompletes, async () => {
         const { result } = await storeFor("cs_refunded");

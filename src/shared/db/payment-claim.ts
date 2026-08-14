@@ -204,20 +204,38 @@ export const assertRefundRowsHeld = async (
  *  from that same record so the two cannot disagree. Conditioned on the row
  *  still holding exactly what we read, so a row that changed under us matches
  *  nothing. */
+export interface StoredPaymentRowState {
+  readonly failureData: EnvKeyEncrypted | "";
+  readonly protectedState: string;
+}
+
+/** Produce the encrypted record and its non-sensitive mirror together. */
+export const paymentRowStateValues = async (
+  state: PaymentRowState,
+): Promise<StoredPaymentRowState> => ({
+  failureData: isEmptyRowState(state)
+    ? ""
+    : await encrypt(writeRowState(state, SLOT)),
+  protectedState: mirrorFor(state),
+});
+
 export const paymentRowStateStatement = async (
   row: PaymentRowRecord,
   state: PaymentRowState,
-): Promise<SqlStatement> => ({
-  args: [
-    isEmptyRowState(state) ? "" : await encrypt(writeRowState(state, SLOT)),
-    mirrorFor(state),
-    row.sessionId,
-    row.slot,
-  ],
-  sql: `UPDATE processed_payments
+): Promise<SqlStatement> => {
+  const stored = await paymentRowStateValues(state);
+  return {
+    args: [
+      stored.failureData,
+      stored.protectedState,
+      row.sessionId,
+      row.slot,
+    ],
+    sql: `UPDATE processed_payments
            SET failure_data = ?, protected_state = ?
          WHERE payment_session_id = ? AND failure_data = ?`,
-});
+  };
+};
 
 export type PaymentReviewChange =
   | { readonly kind: "review"; readonly reason: PaymentReviewReason }
