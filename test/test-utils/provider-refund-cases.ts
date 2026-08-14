@@ -3,7 +3,6 @@ import { storePaymentReference } from "#shared/db/payment-reference-store.ts";
 import {
   armRefundSend,
   type RefundAuthorityState,
-  readyRefund,
   refundLocalMirror,
   refundNextActionAt,
   refundStateMirror,
@@ -11,17 +10,14 @@ import {
 } from "#shared/payment/refund-authority.ts";
 import { markRefundOwnerChoiceNeeded } from "#shared/payment/refund-authority-choice.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
+import { readyRefundForTest } from "#test-utils/refund-authority.ts";
 
 export const readyRefundTestState = (identity: string): RefundAuthorityState =>
-  readyRefund({
+  readyRefundForTest("keyless", {
     evidenceRevision: 1,
+    identityIndex: identity,
     nextActionAt: 20,
     now: 10,
-    request: {
-      capability: "keyless",
-      generation: 1,
-      identityIndex: identity,
-    },
   });
 
 export const ownerRefundChoiceTestState = (

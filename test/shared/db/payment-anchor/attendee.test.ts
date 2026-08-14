@@ -51,9 +51,9 @@ describeWithEnv("db > payment anchor > attendee", { db: true }, () => {
       const attendeeId = await makeAttendee();
       const payment = taggedPaymentReference("pi_attendee_anchor", "sumup");
       const prepared = await prepareClaimedAttendeePaymentAnchor(payment);
+      const anchor = await prepared.forAttendee(attendeeId);
 
       for (const _attempt of [1, 2]) {
-        const anchor = await prepared.forAttendee(attendeeId);
         await execute(anchor.statement.sql, anchor.statement.args);
       }
 
@@ -129,7 +129,7 @@ describeWithEnv("db > payment anchor > attendee", { db: true }, () => {
       await prepared.forAttendee(attendeeId);
 
       expect(() => prepared.forAttendee(attendeeId + 1)).toThrow(
-        "Payment anchor was bound to another attendee",
+        `Payment anchor was already bound to attendee ${attendeeId}`,
       );
     });
   });

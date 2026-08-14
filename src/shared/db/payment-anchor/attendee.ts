@@ -32,12 +32,7 @@ export const prepareClaimedAttendeePaymentAnchor = async (
   const heldSince = nowIso();
   const sessionIdFor = (attendeeId: number): string =>
     anchorSessionId(attendeeId, stored.index);
-  let bound:
-    | {
-        readonly attendeeId: number;
-        readonly value: Promise<ClaimedAttendeePaymentAnchor>;
-      }
-    | undefined;
+  let boundAttendeeId: number | undefined;
   const buildFor = async (
     attendeeId: number,
   ): Promise<ClaimedAttendeePaymentAnchor> => {
@@ -86,11 +81,13 @@ export const prepareClaimedAttendeePaymentAnchor = async (
   };
   return {
     forAttendee: (attendeeId) => {
-      if (bound !== undefined && bound.attendeeId !== attendeeId) {
-        throw new Error("Payment anchor was bound to another attendee");
+      if (boundAttendeeId !== undefined) {
+        throw new Error(
+          `Payment anchor was already bound to attendee ${boundAttendeeId}`,
+        );
       }
-      bound ??= { attendeeId, value: buildFor(attendeeId) };
-      return bound.value;
+      boundAttendeeId = attendeeId;
+      return buildFor(attendeeId);
     },
   };
 };
