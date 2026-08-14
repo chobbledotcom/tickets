@@ -34,13 +34,24 @@ const queue: ProviderRefundCasePage = {
 
 const detail: ProviderRefundCase = {
   ...queue.cases[0]!,
+  decision: { kind: "returned_or_not_sent" },
   reason: "possibly_sent",
   reference: {
     kind: "tagged",
     provider: "sumup",
     reference: "charge-17",
   },
+  state: "needs_owner_choice",
 };
+
+const automaticCase = (
+  state: Exclude<ProviderRefundCase["state"], "needs_owner_choice">,
+): ProviderRefundCase => ({
+  ...detail,
+  decision: null,
+  reason: null,
+  state,
+});
 
 describe("provider refund recovery templates", () => {
   beforeAll(async () => {
@@ -77,11 +88,77 @@ describe("provider refund recovery templates", () => {
     expect(html).not.toContain("checked");
   });
 
+  test("offers only the choice proved by exact provider-conflict money", () => {
+    const returned = adminProviderRefundCasePage(
+      OWNER_SESSION,
+      {
+        ...detail,
+        decision: { captured, kind: "returned", refunded: money(1, "GBP")! },
+        reason: "provider_conflict",
+        state: "needs_owner_choice",
+      },
+      {},
+    );
+    const notSent = adminProviderRefundCasePage(
+      OWNER_SESSION,
+      {
+        ...detail,
+        decision: {
+          captured,
+          kind: "not_sent",
+          refunded: money(0, "GBP")!,
+        },
+        reason: "provider_conflict",
+        state: "needs_owner_choice",
+      },
+      {},
+    );
+
+    expect(returned).toContain('value="provider_confirmed_returned"');
+    expect(returned).not.toContain('value="provider_confirmed_not_sent"');
+    expect(notSent).toContain('value="provider_confirmed_not_sent"');
+    expect(notSent).not.toContain('value="provider_confirmed_returned"');
+  });
+
+  test("makes inconclusive conflict evidence reachable only by rechecking", () => {
+    const html = adminProviderRefundCasePage(
+      OWNER_SESSION,
+      {
+        ...detail,
+        decision: { captured, kind: "wait", refunded: money(1, "GBP")! },
+        reason: "provider_conflict",
+        state: "needs_owner_choice",
+      },
+      {},
+    );
+
+    expect(html).toContain('id="refund-check-conflict"');
+    expect(html).toContain('name="choice" type="hidden" value="check_again"');
+    expect(html).toContain("Check the provider again");
+    expect(html).not.toContain('type="radio"');
+  });
+
+  test("shows the charge's own currency beside an irreversible choice", () => {
+    const yenCase = {
+      ...detail,
+      captured: money(1_000, "JPY")!,
+    };
+
+    const queueHtml = String(
+      <ProviderRefundCaseQueue page={{ cases: [yenCase], nextCursor: null }} />,
+    );
+    const detailHtml = adminProviderRefundCasePage(OWNER_SESSION, yenCase, {});
+
+    expect(queueHtml).toContain("¥1,000 JPY");
+    expect(detailHtml).toContain("¥1,000 JPY");
+    expect(detailHtml).not.toContain("£10");
+  });
+
   test("labels provider checks as checks without offering another send", () => {
     for (const state of ["send_armed", "observing"] as const) {
       const html = adminProviderRefundCasePage(
         OWNER_SESSION,
-        { ...detail, reason: null, state },
+        automaticCase(state),
         {},
       );
 
@@ -97,7 +174,7 @@ describe("provider refund recovery templates", () => {
   test("labels a ready refund as the one money-sending owner action", () => {
     const html = adminProviderRefundCasePage(
       OWNER_SESSION,
-      { ...detail, reason: null, state: "ready" },
+      automaticCase("ready"),
       {},
     );
 
@@ -111,7 +188,7 @@ describe("provider refund recovery templates", () => {
   test("requires a specific Money-recorded confirmation for returned cash", () => {
     const html = adminProviderRefundCasePage(
       OWNER_SESSION,
-      { ...detail, reason: null, state: "completed" },
+      automaticCase("completed"),
       {},
     );
 

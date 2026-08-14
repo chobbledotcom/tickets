@@ -38,10 +38,13 @@ import {
   purgeOrphanedAttendees,
 } from "#shared/db/orphan-attendees.ts";
 import {
-  listProviderRefundCases,
-  loadProviderRefundCase,
   type ProviderRefundOwnerChoice,
   resolveProviderRefundCase,
+} from "#shared/db/provider-refund-case-resolution.ts";
+import {
+  listProviderRefundCases,
+  loadProviderRefundCase,
+  type ProviderRefundCase,
 } from "#shared/db/provider-refund-cases.ts";
 import { settings } from "#shared/db/settings.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
@@ -135,6 +138,23 @@ type ExistingProviderRefundResult = Exclude<
   { kind: "unchanged" }
 >;
 
+type AutomaticRefundCaseState = Exclude<
+  ProviderRefundCase["state"],
+  "needs_owner_choice"
+>;
+
+const AUTOMATIC_PROVIDER_CHECK = {
+  completed: false,
+  observing: true,
+  ready: true,
+  send_armed: true,
+} as const satisfies Record<AutomaticRefundCaseState, boolean>;
+
+const mayCheckProvider = (refundCase: ProviderRefundCase): boolean =>
+  refundCase.state === "needs_owner_choice"
+    ? refundCase.decision.kind === "wait"
+    : AUTOMATIC_PROVIDER_CHECK[refundCase.state];
+
 const CHECK_STOP_COPY = {
   needs_owner_choice: {
     log: "privacy.refunds.log_choice_opened",
@@ -161,12 +181,7 @@ const checkProviderAgain = async (
     await requireRequestPrivateKey(),
   );
   if (refundCase === null) return notFoundResponse();
-  if (
-    refundCase.revision !== revision ||
-    (refundCase.state !== "ready" &&
-      refundCase.state !== "send_armed" &&
-      refundCase.state !== "observing")
-  ) {
+  if (refundCase.revision !== revision || !mayCheckProvider(refundCase)) {
     return errorRedirect(refundCasePath(id), t("privacy.refunds.changed"));
   }
   const sendsReadyRefund = refundCase.state === "ready";
@@ -218,6 +233,7 @@ const handleRefundCasePost: RefundCaseRoute = (request, { id }) =>
     }
     if (choice === "check_again") return await checkProviderAgain(id, revision);
     const result = await resolveProviderRefundCase({
+      activityMessage: t(OWNER_CHOICE_LOG[choice], { id }),
       choice,
       id,
       privateKey: await requireRequestPrivateKey(),
@@ -227,7 +243,6 @@ const handleRefundCasePost: RefundCaseRoute = (request, { id }) =>
     if (result === "changed") {
       return errorRedirect(refundCasePath(id), t("privacy.refunds.changed"));
     }
-    await logActivity(t(OWNER_CHOICE_LOG[choice], { id }));
     return redirect(PRIVACY_PATH, t("privacy.refunds.resolved"), true);
   });
 

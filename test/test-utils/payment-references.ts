@@ -8,10 +8,8 @@ import {
   type RefundPaymentReferenceSource,
   type TaggedRefundPaymentReference,
 } from "#shared/db/payment-references.ts";
-import {
-  completeRefundAuthority,
-  createOrLoadRefundAuthority,
-} from "#shared/db/provider-refund-authority.ts";
+import { createOrLoadRefundAuthority } from "#shared/db/provider-refund-authority.ts";
+import { completeRefundAuthority } from "#shared/db/provider-refund-authority-change.ts";
 import { readyRefund } from "#shared/payment/refund-authority.ts";
 import { REFUND_PROVIDER_CAPABILITIES } from "#shared/payment/refund-provider-authorization.ts";
 import { refundReplayUntil } from "#shared/payment/refund-replay-window.ts";

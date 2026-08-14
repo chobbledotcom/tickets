@@ -109,13 +109,16 @@ describe("provider-refund architecture", () => {
     ]);
   });
 
-  test("only the authority store writes durable refund rows", async () => {
+  test("only the authority identity and transition stores write refund rows", async () => {
     expect(
       pathsContaining(
         await sourceFiles(),
         /(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+payment_charges/,
       ),
-    ).toEqual(["shared/db/provider-refund-authority.ts"]);
+    ).toEqual([
+      "shared/db/provider-refund-authority-change.ts",
+      "shared/db/provider-refund-authority.ts",
+    ]);
   });
 
   test("only a provider-validated payment can mint an attendee payment anchor", async () => {

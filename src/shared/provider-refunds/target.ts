@@ -8,10 +8,9 @@ import {
   loadRefundAuthorityByReference,
   type RefundAuthorityRow,
 } from "#shared/db/provider-refund-authority.ts";
-import { type Money, sameMoney } from "#shared/payment/money.ts";
+import type { Money } from "#shared/payment/money.ts";
 import { refundCallbackReplayIndex } from "#shared/payment/refund-request-identity.ts";
 import {
-  answerProviderConflict,
   initialRefundState,
   moveRefundToOwner,
   ownerReasonWhenDue,
@@ -157,11 +156,5 @@ export const prepareTargetAuthority = async (
     target.evidence.captured,
     now,
   );
-  if (sameMoney(row.captured, target.evidence.captured)) {
-    return { kind: "continue", row };
-  }
-  return {
-    kind: "answered",
-    result: await answerProviderConflict(row, now, target.reference),
-  };
+  return { kind: "continue", row };
 };

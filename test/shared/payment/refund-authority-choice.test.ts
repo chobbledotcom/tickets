@@ -6,6 +6,8 @@ import {
 } from "#shared/payment/refund-authority.ts";
 import {
   markRefundOwnerChoiceNeeded,
+  markRefundProviderConflict,
+  refundOwnerChoices,
   resolveRefundOwnerChoice,
 } from "#shared/payment/refund-authority-choice.ts";
 import { readyRefundForTest } from "#test-utils/refund-authority.ts";
@@ -19,6 +21,12 @@ const keyedObserving = () =>
     510,
     520,
   );
+
+const notSentConflict = {
+  captured: { amount: 2_000, currency: "GBP" as const },
+  kind: "not_sent" as const,
+  refunded: { amount: 0, currency: "GBP" as const },
+};
 
 describe("payment > refund authority owner choice", () => {
   test("an ambiguous keyless arm ends in a required choice, never a retry", () => {
@@ -52,9 +60,9 @@ describe("payment > refund authority owner choice", () => {
     expect(
       markRefundOwnerChoiceNeeded(keyless, 180, "provider_rejected").reason,
     ).toBe("provider_rejected");
-    expect(
-      markRefundOwnerChoiceNeeded(keyed, 180, "provider_conflict").reason,
-    ).toBe("provider_conflict");
+    expect(markRefundProviderConflict(keyed, 180, notSentConflict).reason).toBe(
+      "provider_conflict",
+    );
     expect(
       markRefundOwnerChoiceNeeded(
         readyRefundForTest("keyed"),
@@ -63,10 +71,10 @@ describe("payment > refund authority owner choice", () => {
       ).reason,
     ).toBe("provider_unreadable");
     expect(
-      markRefundOwnerChoiceNeeded(
+      markRefundProviderConflict(
         readyRefundForTest("keyed"),
         180,
-        "provider_conflict",
+        notSentConflict,
       ).reason,
     ).toBe("provider_conflict");
     expect(
@@ -98,7 +106,7 @@ describe("payment > refund authority owner choice", () => {
     );
     const completed = resolveRefundOwnerChoice(choice, {
       decidedAt: 200,
-      kind: "provider_confirms_returned",
+      kind: "provider_confirmed_returned",
     });
 
     expect(completed).toMatchObject({
@@ -119,7 +127,7 @@ describe("payment > refund authority owner choice", () => {
       capability: "keyless",
       decidedAt: 200,
       evidenceRevision: 7,
-      kind: "provider_confirms_not_sent",
+      kind: "provider_confirmed_not_sent",
       nextActionAt: 210,
       requestIndex: "request-two",
     });
@@ -147,7 +155,7 @@ describe("payment > refund authority owner choice", () => {
         capability: "keyed",
         decidedAt: 200,
         evidenceRevision: 7,
-        kind: "provider_confirms_not_sent",
+        kind: "provider_confirmed_not_sent",
         nextActionAt: 210,
         replayUntil: 500,
         requestIndex: "request-two",
@@ -165,7 +173,7 @@ describe("payment > refund authority owner choice", () => {
       capability: "keyed",
       decidedAt: 520,
       evidenceRevision: 8,
-      kind: "provider_confirms_not_sent",
+      kind: "provider_confirmed_not_sent",
       nextActionAt: 530,
       replayUntil: 900,
       requestIndex: "request-two",
@@ -180,5 +188,41 @@ describe("payment > refund authority owner choice", () => {
         replayUntil: 900,
       },
     });
+  });
+
+  test("provider-conflict money admits only the resolution it proves", () => {
+    const notSent = markRefundProviderConflict(
+      keylessArmed(),
+      180,
+      notSentConflict,
+    );
+    const returned = markRefundProviderConflict(keylessArmed(), 180, {
+      captured: { amount: 2_000, currency: "GBP" },
+      kind: "returned",
+      refunded: { amount: 500, currency: "GBP" },
+    });
+    const waiting = markRefundProviderConflict(keylessArmed(), 180, {
+      captured: { amount: 2_000, currency: "GBP" },
+      kind: "wait",
+      refunded: { amount: 0, currency: "GBP" },
+    });
+
+    expect(refundOwnerChoices(notSent)).toEqual([
+      "provider_confirmed_not_sent",
+    ]);
+    expect(refundOwnerChoices(returned)).toEqual([
+      "provider_confirmed_returned",
+    ]);
+    expect(refundOwnerChoices(waiting)).toEqual([]);
+    expect(() =>
+      resolveRefundOwnerChoice(returned, {
+        capability: "keyless",
+        decidedAt: 200,
+        evidenceRevision: 3,
+        kind: "provider_confirmed_not_sent",
+        nextActionAt: 200,
+        requestIndex: "request-two",
+      }),
+    ).toThrow("is not allowed by returned");
   });
 });

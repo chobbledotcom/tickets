@@ -2,7 +2,7 @@
 
 /* jscpd:ignore-start -- imports */
 import type { RefundAuthorityRow } from "#shared/db/provider-refund-authority.ts";
-import { markRefundAuthorityRecorded } from "#shared/db/provider-refund-authority.ts";
+import { markRefundAuthorityRecorded } from "#shared/db/provider-refund-authority-change.ts";
 import { nowMs } from "#shared/now.ts";
 import type {
   ObservedRefundAdmission,
@@ -154,21 +154,32 @@ const DEFAULT_DEPENDENCIES: ProviderRefundDependencies = {
   now: nowMs,
 };
 
+const providerFactsConflict = ({
+  admission,
+  charge,
+  row,
+  target,
+}: RefundWorkFacts): boolean =>
+  !sameMoney(row.captured, charge.captured) ||
+  (target.evidence.kind === "validated_callback" &&
+    !sameMoney(target.evidence.captured, charge.captured)) ||
+  (row.state.kind === "needs_owner_choice" &&
+    row.state.reason === "provider_conflict") ||
+  admission.kind === "refused";
+
 const reconcileRefund = async (
-  { admission, charge, now, row, target }: RefundWorkFacts,
+  facts: RefundWorkFacts,
   work: ProviderRefundWork,
 ): Promise<ProviderRefundResult> => {
-  if (!sameMoney(row.captured, charge.captured)) {
-    return await answerProviderConflict(row, now, target.reference);
+  const { admission, charge, now, row, target } = facts;
+  if (providerFactsConflict(facts)) {
+    return await answerProviderConflict(charge)(row, now, target.reference);
   }
   if (admission.kind === "already_returned") {
     return await completeRefundFromEvidence(row, now, target.reference);
   }
   if (admission.kind === "in_flight") {
-    return await observePendingRefund(row, charge, now, target.reference);
-  }
-  if (admission.kind === "refused") {
-    return await answerProviderConflict(row, now, target.reference);
+    return await observePendingRefund(charge)(row, now, target.reference);
   }
   if (row.state.kind === "ready") {
     return target.mode === "observe_only"

@@ -143,11 +143,15 @@ describeWithEnv("provider refund state transitions", { db: true }, () => {
     expect(
       await completeRefundFromEvidence(completed, 201, payment),
     ).toMatchObject({ kind: "returned", local: "due" });
-    expect(await answerProviderConflict(completed, 201, payment)).toMatchObject(
-      { kind: "returned", local: "due" },
-    );
     expect(
-      await observePendingRefund(completed, fullyRefundedMoney(), 201, payment),
+      await answerProviderConflict(fullyRefundedMoney())(
+        completed,
+        201,
+        payment,
+      ),
+    ).toMatchObject({ kind: "returned", local: "due" });
+    expect(
+      await observePendingRefund(fullyRefundedMoney())(completed, 201, payment),
     ).toMatchObject({ kind: "returned", local: "due" });
     await expect(
       requireCurrentRefund({ id: completed.id + 1_000 }),
@@ -179,13 +183,13 @@ describeWithEnv("provider refund state transitions", { db: true }, () => {
     }
 
     expect(
-      await answerProviderConflict(ownerChoice, now, payment),
+      await answerProviderConflict(chargeMoney())(ownerChoice, now, payment),
     ).toMatchObject({
       kind: "needs_owner_choice",
       reason: "possibly_sent",
     });
     expect(
-      await observePendingRefund(ownerChoice, chargeMoney(), now, payment),
+      await observePendingRefund(chargeMoney())(ownerChoice, now, payment),
     ).toMatchObject({
       kind: "needs_owner_choice",
       reason: "possibly_sent",

@@ -208,17 +208,31 @@ When(
 Then(
   "the provider reference is shown with two required unanswered choices",
   function (this: TicketsWorld): void {
-    const browser = scenarioBrowser(this);
-    expect(browser.pageText).toContain(expectedProviderReference(this));
-    const choices = usableInputsOfKind(browser.currentHtml, "radio").filter(
-      ({ field }) => field === "choice",
-    );
-    expect(choices.map(({ tag }) => attribute(tag, "value"))).toEqual([
+    expectRequiredUnansweredChoices(this, [
       "provider_confirmed_returned",
       "provider_confirmed_not_sent",
     ]);
-    expect(choices.every(({ tag }) => hasFlag(tag, "required"))).toBe(true);
-    expect(choices.every(({ tag }) => !hasFlag(tag, "checked"))).toBe(true);
+  },
+);
+
+const expectRequiredUnansweredChoices = (
+  world: TicketsWorld,
+  expected: readonly string[],
+): void => {
+  const browser = scenarioBrowser(world);
+  expect(browser.pageText).toContain(expectedProviderReference(world));
+  const choices = usableInputsOfKind(browser.currentHtml, "radio").filter(
+    ({ field }) => field === "choice",
+  );
+  expect(choices.map(({ tag }) => attribute(tag, "value"))).toEqual(expected);
+  expect(choices.every(({ tag }) => hasFlag(tag, "required"))).toBe(true);
+  expect(choices.every(({ tag }) => !hasFlag(tag, "checked"))).toBe(true);
+};
+
+Then(
+  "the provider reference is shown with only the required returned choice",
+  function (this: TicketsWorld): void {
+    expectRequiredUnansweredChoices(this, ["provider_confirmed_returned"]);
   },
 );
 

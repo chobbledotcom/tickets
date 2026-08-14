@@ -3,10 +3,10 @@ import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { getDb, update } from "#shared/db/client.ts";
 import { storePaymentReference } from "#shared/db/payment-reference-store.ts";
+import { resolveProviderRefundCase } from "#shared/db/provider-refund-case-resolution.ts";
 import {
   listProviderRefundCases,
   loadProviderRefundCase,
-  resolveProviderRefundCase,
 } from "#shared/db/provider-refund-cases.ts";
 import {
   armRefundSend,
@@ -272,6 +272,7 @@ describeWithEnv("provider refund case validation", { db: true }, () => {
       await expect(
         resolveProviderRefundCase({
           ...input,
+          activityMessage: "Invalid refund case identity",
           choice: "provider_confirmed_returned",
           privateKey,
         }),
@@ -281,12 +282,25 @@ describeWithEnv("provider refund case validation", { db: true }, () => {
     }
   });
 
+  test("rejects an owner decision without an audit message", async () => {
+    await expect(
+      resolveProviderRefundCase({
+        activityMessage: " ",
+        choice: "provider_confirmed_returned",
+        id: 1,
+        privateKey: await getTestPrivateKey(),
+        revision: 1,
+      }),
+    ).rejects.toThrow("Refund-case activity message must not be empty");
+  });
+
   test("rejects invalid returned money in a current case", async () => {
     const id = await addCase("invalid-refunded-money");
     await corruptCase(id, "refunded_amount", -1);
 
     await expect(
       resolveProviderRefundCase({
+        activityMessage: "Invalid returned money",
         choice: "provider_confirmed_returned",
         id,
         privateKey: await getTestPrivateKey(),
@@ -316,6 +330,7 @@ describeWithEnv("provider refund case validation", { db: true }, () => {
     for (const id of [ready, retired]) {
       expect(
         await resolveProviderRefundCase({
+          activityMessage: "Choice does not apply",
           choice: "provider_confirmed_not_sent",
           id,
           privateKey,

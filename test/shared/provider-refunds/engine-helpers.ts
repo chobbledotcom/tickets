@@ -9,6 +9,7 @@ import type {
 } from "#shared/provider-refunds.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 import {
+  chargeMoney,
   completedRefund,
   foundCharge,
   fullyRefundedMoney,
@@ -31,6 +32,30 @@ export const fakeRefundProvider = (
   refundCharge: send,
   type: provider,
 });
+
+export const validatedRefundTarget = (
+  raw: string,
+  callbackSessionId: string,
+  captured = chargeMoney().captured,
+): Extract<ProviderRefundTarget, { readonly callbackSessionId: string }> => ({
+  callbackSessionId,
+  evidence: { captured, kind: "validated_callback" },
+  mode: "send",
+  reference: refundReference(raw, "stripe"),
+});
+
+export const completingProviderThatReads = (
+  readCharge: Parameters<typeof fakeRefundProvider>[1],
+) => {
+  let sendCount = 0;
+  return {
+    provider: fakeRefundProvider("stripe", readCharge, (request) => {
+      sendCount++;
+      return Promise.resolve(completedRefund(request.charge));
+    }),
+    sendCount: () => sendCount,
+  };
+};
 
 export const completingRefundProvider = (
   provider: PaymentProviderType,

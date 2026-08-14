@@ -16,7 +16,7 @@ import {
   armRefundSend,
   readyRefund,
 } from "#shared/payment/refund-authority.ts";
-import { markRefundOwnerChoiceNeeded } from "#shared/payment/refund-authority-choice.ts";
+import { markRefundProviderConflict } from "#shared/payment/refund-authority-choice.ts";
 import {
   createPaidListing,
   createRefundableAttendee,
@@ -248,10 +248,14 @@ describeWithEnv("db > Refund All candidates", { db: true }, () => {
         replayUntil: 30,
       },
     });
-    const ownerWork = markRefundOwnerChoiceNeeded(
+    const ownerWork = markRefundProviderConflict(
       armRefundSend(ready, 11, 20),
       12,
-      "provider_conflict",
+      {
+        captured: { amount: 2_500, currency: "GBP" },
+        kind: "not_sent",
+        refunded: { amount: 0, currency: "GBP" },
+      },
     );
     await addProviderRefundTestCase(
       reference.reference,

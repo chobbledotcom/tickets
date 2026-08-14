@@ -2079,21 +2079,22 @@ not touch `src/`.
 
 M4 Part A made one interactive request safe and bounded. `getRefundAllSummary`
 (`src/shared/db/refund-all-candidates.ts`) checks the whole listing through
-indexed, PII-free facts and refuses a visible review or unrecorded-money blocker
-on any attendee who is still part of the refundable set, and also refuses a
-non-empty processed reference whose blind index is blank. The blocker check runs
-before selection, so an unsafe candidate anywhere in the refundable set still
-closes the command. A settled non-candidate's independently protected work does
-not strand an unrelated refund. `loadRefundAllBatch` then selects one person,
-with claimed work first; the exact claim decision later distinguishes a live run
-from recoverable stale work. Only that PII blob is decrypted. Typed admission
-also refuses a selected person's current PII payment id when no indexed row
-carries it. The exact selected attendee goes through the same claim and physical
-provider/database budget as a single refund. It either refuses before fresh
-provider I/O or processes that person and reports how many candidates remain.
-Another form submission takes the next person. This one-attendee size follows
-the proved Bunny envelope for the maximum accepted reference set; up to five
-provider calls may overlap within that attendee.
+indexed, PII-free facts and refuses a visible review, unrecorded-money marker,
+or canonical `provider_refund` blocker on any attendee who is still part of the
+refundable set, and also refuses a non-empty processed reference whose blind
+index is blank. The blocker check runs before selection, so an unsafe candidate
+anywhere in the refundable set still closes the command. A settled
+non-candidate's independently protected work does not strand an unrelated
+refund. `loadRefundAllBatch` then selects one person, with claimed work first;
+the exact claim decision later distinguishes a live run from recoverable stale
+work. Only that PII blob is decrypted. Typed admission also refuses a selected
+person's current PII payment id when no indexed row carries it. The exact
+selected attendee goes through the same claim and physical provider/database
+budget as a single refund. It either refuses before fresh provider I/O or
+processes that person and reports how many candidates remain. Another form
+submission takes the next person. This one-attendee size follows the proved
+Bunny envelope for the maximum accepted reference set; up to five provider calls
+may overlap within that attendee.
 
 What remains is durability of the WHOLE-LISTING intention. A crash after page
 one leaves every untouched attendee discoverable, but no stored job says that
@@ -2128,16 +2129,19 @@ population decrypt to the interactive command.
 
 This is also the explicit historical-v1 privacy boundary. New
 `processed_payments.payment_reference` and every `payment_charges` provider
-reference are `hyb:1` owner-public-key ciphertext, so a database holder with
-`DB_ENCRYPTION_KEY` cannot open them. Every live reader now requires that
-ciphertext. There is no raw-v1 compatibility decoder in current refund code;
-pre-cutover rows deliberately lack refund functionality until the fenced
-owner-authenticated migration records a provider-qualified current identity.
-Re-saving and merging do not create payment rows from a current PII id: neither
-operation can prove which provider owns an untagged historical reference. Old
-`provider_refunded_at` values and old DB-key-encrypted warning notes are
-migration evidence only: no live refund admission reads or writes them, and no
-note is an authority.
+reference are `hyb:1` owner-public-key ciphertext, and every live reader
+requires that ciphertext. With a password-wrapped v2 owner key, a database
+holder with `DB_ENCRYPTION_KEY` cannot open them. A dormant legacy v1 owner wrap
+is the explicit exception: its KEK is derivable from the stored password hash
+plus the database key, so that holder can unwrap the data key and site private
+key until the next successful login upgrades it. There is no raw-v1 reference
+compatibility decoder in current refund code; pre-cutover rows deliberately lack
+refund functionality until the fenced owner-authenticated migration records a
+provider-qualified current identity. Re-saving and merging do not create payment
+rows from a current PII id: neither operation can prove which provider owns an
+untagged historical reference. Old `provider_refunded_at` values and old
+DB-key-encrypted warning notes are migration evidence only: no live refund
+admission reads or writes them, and no note is an authority.
 
 The atomic M6–M11 cutover must clear this boundary before its canonical runtime
 activates. Its fenced, owner-authenticated migration-only reader—not a shared
@@ -2282,6 +2286,12 @@ trustworthy refund authority live instead in
 land with its schema, writer, required owner action, and tested retirement path
 in the same atomic cutover. Do not revive the deleted module cluster or create a
 second refund classifier/state machine.
+
+That cutover is an atomic replacement, not a runtime selector. Every checkout
+caller moves to the new observer and completion authority in the same activation
+that deletes the displaced readers and writers. No fallback, read-through, dual
+write, second refund authority, or old-record branch may remain in request code;
+old-format decoding exists only inside the fenced migration ceremony.
 
 ## The stale-claim touch test is timing-flaky on CI
 

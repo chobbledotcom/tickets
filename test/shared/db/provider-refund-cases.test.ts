@@ -2,12 +2,14 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb, queryOne } from "#shared/db/client.ts";
 import {
+  type ProviderRefundOwnerChoice,
+  resolveProviderRefundCase,
+} from "#shared/db/provider-refund-case-resolution.ts";
+import {
   listProviderRefundCases,
   loadProviderRefundCase,
   type ProviderRefundCase,
   type ProviderRefundCasePage,
-  type ProviderRefundOwnerChoice,
-  resolveProviderRefundCase,
 } from "#shared/db/provider-refund-cases.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 import {
@@ -18,7 +20,10 @@ import {
   readRefundAuthorityState,
   readyRefund,
 } from "#shared/payment/refund-authority.ts";
-import { markRefundOwnerChoiceNeeded } from "#shared/payment/refund-authority-choice.ts";
+import {
+  markRefundOwnerChoiceNeeded,
+  markRefundProviderConflict,
+} from "#shared/payment/refund-authority-choice.ts";
 import { readProviderRefundCursor } from "#shared/provider-refund-cursor.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
@@ -79,6 +84,7 @@ const resolveCase = async (
 ): Promise<StoredState> => {
   expect(
     await resolveProviderRefundCase({
+      activityMessage: `Resolve provider refund case ${id}`,
       choice,
       id,
       privateKey: await getTestPrivateKey(),
@@ -262,12 +268,92 @@ describeWithEnv("provider refund recovery cases", { db: true }, () => {
     });
   });
 
+  test("a partial-return conflict permits only its exact returned money", async () => {
+    const state = markRefundProviderConflict(
+      readyRefundTestState("partial-conflict-request"),
+      12,
+      {
+        captured: { amount: 2_500, currency: "GBP" },
+        kind: "returned",
+        refunded: { amount: 400, currency: "GBP" },
+      },
+    );
+    const id = await addProviderRefundTestCase("partial-conflict", state);
+    const before = await storedState(id);
+    const privateKey = await getTestPrivateKey();
+
+    expect(await loadProviderRefundCase(id, privateKey)).toMatchObject({
+      decision: {
+        captured: { amount: 2_500, currency: "GBP" },
+        kind: "returned",
+        refunded: { amount: 400, currency: "GBP" },
+      },
+    });
+    expect(
+      await resolveProviderRefundCase({
+        activityMessage: `Reject provider refund case ${id}`,
+        choice: "provider_confirmed_not_sent",
+        id,
+        privateKey,
+        revision: 1,
+      }),
+    ).toBe("changed");
+    expect(await storedState(id)).toEqual(before);
+
+    const row = await resolveCase(id, "provider_confirmed_returned");
+    expect(row.refunded_amount).toBe(400);
+    expect(
+      readRefundAuthorityState(row.refund_state, "partial returned case"),
+    ).toMatchObject({
+      kind: "completed",
+      local: { kind: "due" },
+      proof: "owner",
+    });
+  });
+
+  test("waiting conflict evidence rejects every crafted money answer", async () => {
+    const id = await addProviderRefundTestCase(
+      "waiting-conflict",
+      markRefundProviderConflict(
+        readyRefundTestState("waiting-conflict-request"),
+        12,
+        {
+          captured: { amount: 2_500, currency: "GBP" },
+          kind: "wait",
+          refunded: { amount: 100, currency: "GBP" },
+        },
+      ),
+    );
+    const privateKey = await getTestPrivateKey();
+    const before = await storedState(id);
+
+    expect(await loadProviderRefundCase(id, privateKey)).toMatchObject({
+      decision: { kind: "wait" },
+    });
+    for (const choice of [
+      "provider_confirmed_not_sent",
+      "provider_confirmed_returned",
+    ] as const) {
+      expect(
+        await resolveProviderRefundCase({
+          activityMessage: `Reject provider refund case ${id}`,
+          choice,
+          id,
+          privateKey,
+          revision: 1,
+        }),
+      ).toBe("changed");
+    }
+    expect(await storedState(id)).toEqual(before);
+  });
+
   test("refuses a choice which does not apply to the current case", async () => {
     const id = await addProviderRefundTestCase("wrong-choice");
     const before = await storedState(id);
 
     expect(
       await resolveProviderRefundCase({
+        activityMessage: `Wrong provider refund choice ${id}`,
         choice: "money_recorded",
         id,
         privateKey: await getTestPrivateKey(),
@@ -283,6 +369,7 @@ describeWithEnv("provider refund recovery cases", { db: true }, () => {
 
     expect(
       await resolveProviderRefundCase({
+        activityMessage: `Stale provider refund choice ${id}`,
         choice: "provider_confirmed_returned",
         id,
         privateKey: await getTestPrivateKey(),
@@ -295,6 +382,7 @@ describeWithEnv("provider refund recovery cases", { db: true }, () => {
   test("a missing owner case remains missing", async () => {
     expect(
       await resolveProviderRefundCase({
+        activityMessage: "Missing provider refund choice",
         choice: "provider_confirmed_returned",
         id: 987_654_321,
         privateKey: await getTestPrivateKey(),

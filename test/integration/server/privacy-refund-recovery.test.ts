@@ -3,13 +3,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { handleRequest } from "#routes";
 import { queryOne } from "#shared/db/client.ts";
 import {
   armRefundSend,
   markRefundCompleted,
   readRefundAuthorityState,
 } from "#shared/payment/refund-authority.ts";
+import { markRefundProviderConflict } from "#shared/payment/refund-authority-choice.ts";
 import { refundRequestIdentityIndex } from "#shared/payment/refund-request-identity.ts";
 import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
@@ -19,12 +19,11 @@ import {
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
   chargeMoney,
   completedRefund,
   foundCharge,
-  fullyRefundedMoney,
 } from "#test-utils/payment-state.ts";
 import {
   addProviderRefundTestCase,
@@ -34,64 +33,16 @@ import {
   adminGet,
   createTestManagerSession,
   testCookie,
-  testCsrfToken,
 } from "#test-utils/session.ts";
+import {
+  expectUnreadableProviderCheck,
+  refundCasePath,
+  returnedProviderCheck,
+  submitRefundCase as submitCase,
+  unreadableProviderCheck,
+} from "./privacy-refund-recovery-helpers.ts";
 
-const casePath = (id: number): string => `/admin/privacy/refunds/${id}`;
-const MISSING_CASE_PATH = casePath(987_654_321);
-
-const unreadableProviderCheck = (sendError: string) => {
-  const read = stub(sumupPaymentProvider, "readCharge", () =>
-    Promise.resolve({ reason: "timeout", status: "unavailable" } as const),
-  );
-  const send = stub(sumupPaymentProvider, "refundCharge", () => {
-    throw new Error(sendError);
-  });
-  return {
-    read,
-    send,
-    [Symbol.dispose]: () => {
-      send.restore();
-      read.restore();
-    },
-  };
-};
-
-const expectUnreadableProviderCheck = async (
-  id: number,
-  provider: ReturnType<typeof unreadableProviderCheck>,
-  flashMessage: string,
-  activityMessage: string,
-): Promise<void> => {
-  await expectFlashRedirect(
-    casePath(id),
-    flashMessage,
-    false,
-  )(await submitCase(await testCookie(), { choice: "check_again" }, id));
-  expect(provider.read.calls).toHaveLength(1);
-  expect(provider.send.calls).toHaveLength(0);
-  expect((await getAllActivityLog()).map(({ message }) => message)).toContain(
-    activityMessage,
-  );
-};
-
-const submitCase = async (
-  cookie: string,
-  fields: Record<string, string> = {},
-  id = 987_654_321,
-): Promise<Response> =>
-  handleRequest(
-    mockFormRequest(
-      casePath(id),
-      {
-        choice: "provider_confirmed_returned",
-        csrf_token: await testCsrfToken(),
-        revision: "1",
-        ...fields,
-      },
-      cookie,
-    ),
-  );
+const MISSING_CASE_PATH = refundCasePath(987_654_321);
 
 describeWithEnv("server (provider refund recovery)", { db: true }, () => {
   testRequiresAuth(MISSING_CASE_PATH);
@@ -161,21 +112,18 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
         Date.now() + 60_000,
       ),
     );
-    using read = stub(sumupPaymentProvider, "readCharge", () =>
-      Promise.resolve(foundCharge(fullyRefundedMoney(2_500))),
+    using provider = returnedProviderCheck(
+      "Checking returned money must not send a refund",
     );
-    using send = stub(sumupPaymentProvider, "refundCharge", () => {
-      throw new Error("Checking returned money must not send a refund");
-    });
 
     await expectFlashRedirect(
-      casePath(id),
+      refundCasePath(id),
       "Checked the payment provider again.",
     )(await submitCase(await testCookie(), { choice: "check_again" }, id));
 
-    expect(read.calls).toHaveLength(1);
-    expect(read.calls[0]!.args).toEqual([reference]);
-    expect(send.calls).toHaveLength(0);
+    expect(provider.read.calls).toHaveLength(1);
+    expect(provider.read.calls[0]!.args).toEqual([reference]);
+    expect(provider.send.calls).toHaveLength(0);
     const row = await queryOne<{ refund_state: string }>(
       "SELECT refund_state FROM payment_charges WHERE id = ?",
       [id],
@@ -255,13 +203,13 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
       Promise.resolve(completedRefund(request.charge)),
     );
 
-    const detail = await adminGet(casePath(id));
+    const detail = await adminGet(refundCasePath(id));
     const detailHtml = await detail.text();
     expect(detailHtml).toContain("Send this refund");
     expect(detailHtml).toContain('button class="danger"');
     expect(detailHtml).not.toContain("Check the provider again");
     await expectFlashRedirect(
-      casePath(id),
+      refundCasePath(id),
       "Continued the ready refund safely.",
     )(await submitCase(await testCookie(), { choice: "check_again" }, id));
 
@@ -279,6 +227,53 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
     );
   });
 
+  test("rechecks inconclusive provider-conflict evidence without sending", async () => {
+    const reference = "owner-waiting-conflict-reference";
+    const id = await addProviderRefundTestCase(
+      reference,
+      markRefundProviderConflict(
+        readyRefundTestState("owner-waiting-conflict-request"),
+        12,
+        {
+          captured: { amount: 2_500, currency: "GBP" },
+          kind: "wait",
+          refunded: { amount: 100, currency: "GBP" },
+        },
+      ),
+    );
+    using provider = returnedProviderCheck(
+      "Rechecking a conflict must not send a refund",
+    );
+
+    const detail = await adminGet(refundCasePath(id));
+    expect(await detail.text()).toContain("Check the provider again");
+    await expectFlashRedirect(
+      refundCasePath(id),
+      "The provider could not settle what happened. No refund was sent; check the payment there and make the required choice.",
+      false,
+    )(await submitCase(await testCookie(), { choice: "check_again" }, id));
+
+    expect(provider.read.calls).toHaveLength(1);
+    expect(provider.send.calls).toHaveLength(0);
+    const row = await queryOne<{ refund_state: string }>(
+      "SELECT refund_state FROM payment_charges WHERE id = ?",
+      [id],
+    );
+    expect(
+      readRefundAuthorityState(row!.refund_state, "rechecked conflict"),
+    ).toMatchObject({
+      decision: { kind: "returned" },
+      kind: "needs_owner_choice",
+      reason: "provider_conflict",
+    });
+    const returnedChoice = await adminGet(refundCasePath(id));
+    const returnedChoiceHtml = await returnedChoice.text();
+    expect(returnedChoiceHtml).toContain('value="provider_confirmed_returned"');
+    expect(returnedChoiceHtml).not.toContain(
+      'value="provider_confirmed_not_sent"',
+    );
+  });
+
   test("refuses check-again outside an active provider check", async () => {
     const ownerChoice = await addProviderRefundTestCase("owner-choice-check");
     const completed = await addProviderRefundTestCase(
@@ -292,7 +287,7 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
 
     for (const id of [ownerChoice, completed]) {
       await expectFlashRedirect(
-        casePath(id),
+        refundCasePath(id),
         "This refund changed while you were checking it. Read the current details and choose again.",
         false,
       )(await submitCase(await testCookie(), { choice: "check_again" }, id));
@@ -303,7 +298,7 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
     const id = await addProviderRefundTestCase("stale-owner-decision");
 
     await expectFlashRedirect(
-      casePath(id),
+      refundCasePath(id),
       "This refund changed while you were checking it. Read the current details and choose again.",
       false,
     )(await submitCase(await testCookie(), { revision: "99" }, id));
@@ -324,7 +319,7 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
     expect(queueHtml).toContain(`Open refund ${id}`);
     expect(queueHtml).not.toContain(reference);
 
-    const detail = await adminGet(casePath(id));
+    const detail = await adminGet(refundCasePath(id));
     const detailHtml = await detail.text();
     expect(detail.status).toBe(200);
     expect(detailHtml).toContain(reference);
@@ -351,7 +346,7 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
       readRefundAuthorityState(due!.refund_state, "route result"),
     ).toMatchObject({ kind: "completed", local: { kind: "due" } });
 
-    const recording = await adminGet(casePath(id));
+    const recording = await adminGet(refundCasePath(id));
     expect(await recording.text()).toContain(
       "I confirm that this returned money is now recorded in Money.",
     );
@@ -365,7 +360,7 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
         id,
       ),
     );
-    expectStatus(404)(await adminGet(casePath(id)));
+    expectStatus(404)(await adminGet(refundCasePath(id)));
 
     const messages = (await getAllActivityLog()).map(({ message }) => message);
     expect(messages).toContain(

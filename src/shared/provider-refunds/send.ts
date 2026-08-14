@@ -1,10 +1,8 @@
 /** Arm, authorize, send, and durably interpret one exact refund generation. */
 
 /* jscpd:ignore-start -- imports */
-import {
-  type RefundAuthorityRow,
-  transitionRefundAuthority,
-} from "#shared/db/provider-refund-authority.ts";
+import type { RefundAuthorityRow } from "#shared/db/provider-refund-authority.ts";
+import { transitionRefundAuthority } from "#shared/db/provider-refund-authority-change.ts";
 import { sameMoney } from "#shared/payment/money.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 import {
@@ -16,7 +14,10 @@ import {
 } from "#shared/payment/refund-authority.ts";
 import { authorizeDurableRefundSend } from "#shared/payment/refund-provider-authorization.ts";
 import { refundRequestIdentityIndex } from "#shared/payment/refund-request-identity.ts";
-import type { ChargeMoney } from "#shared/payment/resources.ts";
+import {
+  type ChargeMoney,
+  returnedRefundMoney,
+} from "#shared/payment/resources.ts";
 import { refundIdempotencyKey } from "#shared/payment-idempotency.ts";
 import { REFUND_RESULT_DATABASE_RESERVE } from "#shared/provider-refunds/budget.ts";
 import type {
@@ -34,7 +35,6 @@ import {
   refundAfterTransition,
   refundAnswerFrom,
   requireCurrentRefund,
-  returnedRefundMoney,
 } from "./state.ts";
 import { withRefundWorkFacts } from "./work.ts";
 

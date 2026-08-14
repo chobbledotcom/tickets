@@ -7,8 +7,6 @@ import { type Money, sameMoney } from "#shared/payment/money.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 import type { RefundAuthorityState } from "#shared/payment/refund-authority.ts";
 import {
-  markRefundCompleted,
-  markRefundLocalRecorded,
   readRefundAuthorityState,
   refundLocalMirror,
   refundNextActionAt,
@@ -48,7 +46,7 @@ type StoredRefundAuthorityRow = {
   refund_state: string;
 };
 
-const AUTHORITY_COLUMNS = `id, provider, reference_index,
+export const REFUND_AUTHORITY_COLUMNS = `id, provider, reference_index,
   callback_replay_index, captured_amount, currency, refunded_amount,
   refund_state, refund_revision`;
 
@@ -71,7 +69,7 @@ const oneAuthority = (
 ): RefundAuthorityRow | null =>
   rows[0] === undefined ? null : authorityRow(rows[0]);
 
-const authorityFromResult = (
+export const refundAuthorityFromResult = (
   result: Parameters<typeof resultRows>[0],
 ): RefundAuthorityRow | null =>
   oneAuthority(resultRows<StoredRefundAuthorityRow>(result));
@@ -81,7 +79,7 @@ const loadRefundAuthority = async (
   value: number | string,
 ): Promise<RefundAuthorityRow | null> => {
   const row = await queryOne<StoredRefundAuthorityRow>(
-    `SELECT ${AUTHORITY_COLUMNS}
+    `SELECT ${REFUND_AUTHORITY_COLUMNS}
        FROM payment_charges
       WHERE ${field} = ?`,
     [value],
@@ -110,7 +108,7 @@ const loadRefundCallbackBinding = async ({
   referenceIndex,
 }: RefundCallbackBinding): Promise<RefundAuthorityRow | null> => {
   const owners = await queryAll<StoredRefundAuthorityRow>(
-    `SELECT ${AUTHORITY_COLUMNS}
+    `SELECT ${REFUND_AUTHORITY_COLUMNS}
        FROM payment_charges
       WHERE reference_index = ? OR callback_replay_index = ?`,
     [referenceIndex, callbackReplayIndex],
@@ -135,7 +133,7 @@ export const bindRefundCallbackIfChargeExists = async (
   binding: RefundCallbackBinding,
 ): Promise<RefundAuthorityRow | null> => {
   const { callbackReplayIndex, referenceIndex } = binding;
-  const changed = authorityFromResult(
+  const changed = refundAuthorityFromResult(
     await execute(
       `UPDATE payment_charges
           SET callback_replay_index = COALESCE(callback_replay_index, ?)
@@ -147,7 +145,7 @@ export const bindRefundCallbackIfChargeExists = async (
              WHERE callbackOwner.callback_replay_index = ?
                AND callbackOwner.reference_index <> ?
           )
-      RETURNING ${AUTHORITY_COLUMNS}`,
+      RETURNING ${REFUND_AUTHORITY_COLUMNS}`,
       [
         callbackReplayIndex,
         referenceIndex,
@@ -159,20 +157,6 @@ export const bindRefundCallbackIfChargeExists = async (
   if (changed !== null) return changed;
   return await loadRefundCallbackBinding(binding);
 };
-
-const stateWrite = (
-  state: RefundAuthorityState,
-  revision: number,
-  now: number,
-): readonly (string | number | null)[] => [
-  writeRefundAuthorityState(state, "payment_charges.refund_state"),
-  refundStateMirror(state),
-  refundLocalMirror(state),
-  refundNextActionAt(state),
-  revision + 1,
-  now,
-  now,
-];
 
 export interface CreateRefundAuthority {
   readonly callbackReplayIndex?: string | undefined;
@@ -239,7 +223,7 @@ export const createOrLoadRefundAuthority = async (
              WHERE callbackOwner.callback_replay_index = excluded.callback_replay_index
                AND callbackOwner.reference_index <> excluded.reference_index
           )
-        RETURNING ${AUTHORITY_COLUMNS}`,
+        RETURNING ${REFUND_AUTHORITY_COLUMNS}`,
     [
       input.reference.provider,
       stored.encrypted,
@@ -259,95 +243,11 @@ export const createOrLoadRefundAuthority = async (
       input.now,
     ],
   );
-  const returned = authorityFromResult(result);
+  const returned = refundAuthorityFromResult(result);
   const row = requireValue(
     returned ?? (await loadConflictOwner()),
     "Created refund authority is missing",
   );
   requireSameAuthority(row, input);
   return row;
-};
-
-const requireRefundAmount = (
-  row: Pick<RefundAuthorityRow, "captured" | "refunded">,
-  refunded: Money,
-): void => {
-  if (
-    refunded.currency !== row.captured.currency ||
-    refunded.amount < row.refunded.amount ||
-    refunded.amount > row.captured.amount
-  ) {
-    throw new Error(
-      "Refund observation currency changed or amount moved backwards or grew too far",
-    );
-  }
-};
-
-const changeRefundAuthorityStatement = (
-  row: RefundAuthorityVersion,
-  state: RefundAuthorityState,
-  refunded: Money,
-  now: number,
-): { readonly args: (string | number | null)[]; readonly sql: string } => {
-  requireRefundAmount(row, refunded);
-  return {
-    args: [
-      refunded.amount,
-      ...stateWrite(state, row.revision, now),
-      row.id,
-      row.revision,
-    ],
-    sql: `UPDATE payment_charges
-             SET refunded_amount = ?, refund_state = ?, refund_state_name = ?,
-                 refund_local_state = ?, next_refund_action_at = ?,
-                 refund_revision = ?, updated_at = ?, observed_at = ?
-           WHERE id = ? AND refund_revision = ?
-       RETURNING ${AUTHORITY_COLUMNS}`,
-  };
-};
-
-type RefundTransition = (state: RefundAuthorityState) => RefundAuthorityState;
-
-/** Replace one already-read revision in one database statement. */
-export const transitionRefundAuthority = async (
-  row: RefundAuthorityVersion,
-  now: number,
-  refunded: Money,
-  transition: RefundTransition,
-): Promise<RefundAuthorityRow | null> => {
-  const statement = changeRefundAuthorityStatement(
-    row,
-    transition(row.state),
-    refunded,
-    now,
-  );
-  return authorityFromResult(await execute(statement.sql, statement.args));
-};
-
-/** Persist provider completion for the exact authority revision. */
-export const completeRefundAuthority = async (
-  row: RefundAuthorityVersion,
-  refunded: Money,
-  now: number,
-  proof: "owner" | "provider",
-): Promise<RefundAuthorityRow | null> => {
-  const state = markRefundCompleted(row.state, now, proof);
-  const authority = changeRefundAuthorityStatement(row, state, refunded, now);
-  return authorityFromResult(await execute(authority.sql, authority.args));
-};
-
-/** Finish local bookkeeping only for the exact completed revision. */
-export const markRefundAuthorityRecorded = async (
-  id: number,
-  expectedRevision: number,
-  now: number,
-): Promise<RefundAuthorityRow | null> => {
-  const row = await loadRefundAuthorityById(id);
-  return row === null || row.revision !== expectedRevision
-    ? null
-    : row.state.kind === "completed" && row.state.local.kind === "recorded"
-      ? row
-      : transitionRefundAuthority(row, now, row.refunded, (state) =>
-          markRefundLocalRecorded(state, now),
-        );
 };

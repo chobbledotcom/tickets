@@ -13,7 +13,6 @@ import {
   admissionReason,
   type WithheldRefund,
 } from "#shared/payment/admit-refund.ts";
-import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 
 /** Where the refund was withheld, for the report's tags. */
@@ -29,11 +28,6 @@ type ProviderWithheldRefund = {
   readonly admission: Extract<WithheldRefund, { kind: "read_failed" }>;
   readonly reference: { readonly provider: PaymentProviderType };
 };
-
-type FailedRefundAttempt = Extract<
-  RefundAttemptResult,
-  { kind: "not_sent" | "rejected" | "uncertain" }
->;
 
 const paymentAt = (provider: PaymentProviderType): string =>
   `${provider} payment`;
@@ -76,20 +70,4 @@ export const reportProviderWithheldRefund = <
     provider: result.reference.provider,
   });
   return result;
-};
-
-/** Report a provider attempt without accepting its private reference as
- * diagnostic input. */
-export const reportFailedRefundAttempt = (
-  result: FailedRefundAttempt,
-  { attendeeId, listingId, provider }: WithheldContext,
-): void => {
-  logError({
-    attendeeId,
-    code: ErrorCode.PAYMENT_REFUND,
-    detail: `Refund ${result.kind} for ${paymentAt(
-      provider,
-    )} (${result.reason})`,
-    listingId,
-  });
 };

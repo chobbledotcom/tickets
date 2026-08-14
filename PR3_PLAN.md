@@ -633,10 +633,12 @@ that already pin #2048, #2050, #2060, and M4. Reconcile paths with the current
 tree when implementing it; no test may keep an old runtime callable merely to
 compare it with the new one.
 
-M4's focused `resolving-uncertain-refunds.feature` currently has four scenarios
-and 43 executed Cucumber steps, including the unreadable-ready zero-send exit.
-Its addition invalidates older suite-wide counts; recompute those only after the
-final full run.
+At checkpoint `FINAL_PR4_A_SHA`, M4's focused
+`resolving-uncertain-refunds.feature` has four scenarios and 43 executed
+Cucumber steps, including the unreadable-ready zero-send exit. The completed
+full run passes `FINAL_PR4_A_CUCUMBER_SCENARIOS` scenarios and
+`FINAL_PR4_A_CUCUMBER_STEPS` executed steps. Fill all three placeholders from
+the final green commit; older suite-wide counts are not authority.
 
 Direct deterministic coverage for the remaining cutover must include:
 

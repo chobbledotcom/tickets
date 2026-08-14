@@ -4,13 +4,15 @@ import { getDb } from "#shared/db/client.ts";
 import type { CreateRefundAuthority } from "#shared/db/provider-refund-authority.ts";
 import {
   bindRefundCallbackIfChargeExists,
-  completeRefundAuthority,
   createOrLoadRefundAuthority,
   loadRefundAuthorityById,
   loadRefundAuthorityByReference,
+} from "#shared/db/provider-refund-authority.ts";
+import {
+  completeRefundAuthority,
   markRefundAuthorityRecorded,
   transitionRefundAuthority,
-} from "#shared/db/provider-refund-authority.ts";
+} from "#shared/db/provider-refund-authority-change.ts";
 import {
   enableQueryLog,
   getQueryLog,

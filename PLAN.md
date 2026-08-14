@@ -65,10 +65,12 @@ consistently wrong and governed nothing.
    next. Say so in the description. PR_WORKFLOW.md's "repository source-line
    limit" is this rule, exception included. Tests, fixtures, and documentation
    do not count against the cap; never weaken them to shrink a diff. #2065 is
-   the approved current-path exception: its 19,157 gross changed `src/` lines
-   cut every refund caller, provider adapter, persistence writer, and recovery
-   surface over together. Splitting it at a live seam would have required the
-   legacy and canonical authorities to run in parallel, which this plan forbids.
+   the approved current-path exception: its
+   `FINAL_PR4_A_GROSS_CHANGED_SRC_LINES` gross changed `src/` lines cut every
+   refund caller, provider adapter, persistence writer, and recovery surface
+   over together. Fill that placeholder from the final source commit. Splitting
+   it at a live seam would have required the legacy and canonical authorities to
+   run in parallel, which this plan forbids.
 4. **Gates.** `nix develop -c deno task precommit` passes before review. Run
    targeted mutation on the payment modules the PR changed and list the runs in
    the description. The branch-level
@@ -95,6 +97,10 @@ consistently wrong and governed nothing.
    churn against them. Each must hold a complete production role when the atomic
    M6–M11 cutover activates or be dropped in that same release. Their existence
    is not permission to land unused repositories, codecs, indexes, or exports.
+   Their currently dormant buyer-bearing columns accept DB-key `enc:1`
+   ciphertext. No production writer may use that shape: before activation,
+   rebuild every buyer-bearing or raw-reference field to require owner-key
+   `hyb:1` ciphertext, or drop the table if it has no complete production role.
 8. **Port the source branch's tests** when adapting one of its modules; adapt
    existing tests rather than authoring from scratch. Never copy great-fermi's
    test-only-export exemptions.
@@ -225,17 +231,19 @@ migration; backup, restore, and redaction.
 
 New raw provider references in `processed_payments` and `payment_charges` are
 encrypted to the owner's public key. Equality uses a DB-keyed one-way index, and
-SQL-only consumers see plain state words, never the reference. A holder of the
-database and `DB_ENCRYPTION_KEY` alone therefore cannot open those new raw
-references. This is owner-key-protected at-rest storage, not an authorization
-claim that only owner requests possess the site private key: manager requests
-share that key, while owner-only refund detail and decisions are enforced at the
-route boundary. Modern password-wrapped owner keys give attendee PII the same
-at-rest separation; dormant v1 owner keys remain the existing limitation named
-below. This claim is deliberately about data stored in this database: provider
-credentials are DB-key encrypted settings, so somebody holding the database and
-environment key may be able to use those credentials to query data held by the
-provider.
+SQL-only consumers see plain state words, never the reference. With a modern v2
+password-wrapped owner key, a holder of the database and `DB_ENCRYPTION_KEY`
+alone cannot open those new raw references or attendee PII. A dormant legacy v1
+owner wrap is the explicit exception: its KEK is derivable from the stored
+password hash plus `DB_ENCRYPTION_KEY`, so that holder can unwrap the data key
+and site private key until the next successful login upgrades the wrap to v2.
+This is owner-key-protected at-rest storage, not an authorization claim that
+only owner requests possess the site private key: manager requests share that
+key, while owner-only refund detail and decisions are enforced at the route
+boundary. This claim is deliberately about data stored in this database:
+provider credentials are DB-key encrypted settings, so somebody holding the
+database and environment key may be able to use those credentials to query data
+held by the provider.
 
 `processed_payments.failure_data` has a deliberately different boundary: it is
 DB-key encrypted, so that same holder can open its lifecycle metadata. Keep it
@@ -888,10 +896,12 @@ As-built module map:
   callback, and request identities are DB-keyed one-way indexes. It stores no
   buyer name, email, phone, address, attendee PII blob, raw callback session id,
   provider response, or credentials. A database holder with `DB_ENCRYPTION_KEY`
-  can read the finite explanatory placeholder note and lifecycle metadata, but
-  not new raw payment identifiers. Modern password-wrapped owner keys also keep
-  buyer PII closed; v1 owner rows and separately DB-key-encrypted provider
-  credentials remain the explicit system-wide caveats above.
+  can read the finite explanatory placeholder note and lifecycle metadata. With
+  a v2 password-wrapped owner key they cannot open new raw payment identifiers
+  or buyer PII. A dormant v1 owner wrap can expose the data key and site private
+  key from the same database and environment key, and provider credentials
+  encrypted with the DB key may allow provider-side queries; both remain the
+  explicit system-wide caveats above.
 - **Visitor-level proof.** The Cucumber stories
   `specs/payments/{checking-before-a-refund,waiting-for-a-refund,recovering-the-money-record,refunding-a-booking,refunding-from-two-windows,only-owners-refund,refunding-everyone-at-once,resolving-uncertain-refunds}.feature`
   cover the pre-send check, a delayed provider result, repair of returned money
@@ -899,20 +909,20 @@ As-built module map:
   All requests, whole-listing blocker admission, and per-request failure
   isolation. `resolving-uncertain-refunds.feature` drives the real Privacy queue
   through ready send, provider observation, required owner choice, and separate
-  Money recording. At checkpoint `0dc3b5893` that focused feature has four
+  Money recording. At checkpoint `FINAL_PR4_A_SHA` that focused feature has four
   scenarios and 43 executed Cucumber steps, including the unreadable-ready
-  zero-send exit. Its new scenario changes the suite-wide totals, so the final
-  PR description must recompute those totals from the completed full run rather
-  than repeat an earlier number. The stories submit the rendered forms and cross
-  the real provider and ledger boundaries. Refund-safety purchases use the
-  public booking page: Stripe follows the production completion route, while
-  SumUp follows the real checkout staging write and unsigned webhook handler. No
-  story rewrites a stored payment's provider or manufactures refund history to
-  reach the state it tests. The recovery story also merges onto a target with
-  blank legacy PII, refreshes without a second provider send, and proves
-  deletion becomes reachable. `refunding-everyone-at-once.feature` also proves
-  that one old blank-index sibling anywhere in the SQL-visible refundable set
-  stops every provider send.
+  zero-send exit. The completed full run passes `FINAL_PR4_A_CUCUMBER_SCENARIOS`
+  scenarios and `FINAL_PR4_A_CUCUMBER_STEPS` executed steps; fill all three
+  placeholders from the final green commit. The stories submit the rendered
+  forms and cross the real provider and ledger boundaries. Refund-safety
+  purchases use the public booking page: Stripe follows the production
+  completion route, while SumUp follows the real checkout staging write and
+  unsigned webhook handler. No story rewrites a stored payment's provider or
+  manufactures refund history to reach the state it tests. The recovery story
+  also merges onto a target with blank legacy PII, refreshes without a second
+  provider send, and proves deletion becomes reachable.
+  `refunding-everyone-at-once.feature` also proves that one old blank-index
+  sibling anywhere in the SQL-visible refundable set stops every provider send.
 
 Known limits are deliberate and remain visible. Part A protects old history by
 refusing an incomplete or untagged selected attendee; it does not make that
@@ -1023,6 +1033,11 @@ deliberately reduced refund functionality.
 Src target: 1,200–1,800 within the sanctioned atomic-cutover exception. Creation
 and reads move together precisely so no `sumup_checkouts` projection,
 checkout-metadata preservation bridge, or projection-repair machinery exists.
+The dormant `payment_sessions` buyer-bearing fields currently accept DB-key
+`enc:1` ciphertext. Before the first M6 writer exists, rebuild those fields to
+require owner-key `hyb:1` ciphertext or drop the dormant table and replace it
+with the one canonical owner-key-protected session store. The current shape may
+never become a live compatibility store.
 
 The M6 release itself carries the restore-deploy guard (as its own commit is
 fine): once the cutover release has shipped,
@@ -1069,12 +1084,13 @@ can happen in production.
   two consumers can disagree about a part. Today's ticket-only
   `allocateReservationDeposit` does not survive the move. Store provider and
   currency on every aggregate charge. M4 already tags new current-store
-  references and discovers one older INDEXED reference only from conclusive
-  provider reads; the migration work package makes those facts intrinsic to
-  every retained historical charge in bounded pages before activation. No
-  request-time attendee scan exists. An old PII-only reference stays less
-  functional until it is explicitly materialized or migrated, and an ambiguous
-  provider becomes an owner decision rather than a configuration guess.
+  references and refuses every older indexed-but-untagged reference before
+  provider I/O. Only the fenced M11 migration may qualify that old evidence; it
+  makes provider and currency intrinsic to every retained historical charge in
+  bounded pages before activation. No request-time attendee scan or runtime
+  provider-discovery fallback exists. An old PII-only reference stays less
+  functional until migration, and an ambiguous provider becomes an owner
+  decision rather than a configuration guess.
 - Reads: keep M4's tagged `ProviderRead`/`RefundAttemptResult` contract for one
   charge, then add the whole-checkout observation only here, beside the reader
   that supplies its complete signed intent, session, charges, account, currency,
@@ -1139,7 +1155,12 @@ can happen in production.
   second refund record. The claimed whole-payment reconciliation folds both
   provider evidence and that authority's current revision. Pull-only SumUp work
   is already due through `next_refund_action_at`, so no writer-through marker or
-  provider- specific side queue is needed.
+  provider-specific side queue is needed. This is an atomic replacement, not a
+  selector between generations: after the epoch changes there is no runtime
+  fallback to either displaced checkout reader, no read-through to old payment
+  storage, no dual write, and no second completion or refund authority.
+  Migration-only decoders remain unreachable from request handlers and are
+  removed with their frozen sources.
 - During the fenced migration, adopt or expire every in-flight pre-cutover
   checkout (all three providers) atomically and idempotently: same claim,
   identity, and validation rules; concurrent callbacks and migration runs bind
@@ -1320,6 +1341,13 @@ is marked complete; if that evidence write itself is lost, the retry may
 duplicate an email — an accepted, documented outcome for messages only, never
 for webhooks or money.
 
+The dormant `payment_completion_deliveries.data` schema currently accepts DB-key
+`enc:1` ciphertext even though the payload can contain the buyer's name, email,
+phone, and address. Before the first M9 writer exists, change that column to
+require owner-key `hyb:1` ciphertext or drop the dormant table and replace it
+with the one canonical owner-key-protected delivery store. It may never become a
+live DB-key-readable queue or a compatibility mirror beside a new queue.
+
 Cutover contribution: the M8 completion runner's messages and webhooks use the
 current owner address, recover on schedule after an interruption, and one
 permanently failing destination no longer blocks the rest of the queue.
@@ -1360,10 +1388,11 @@ activation gate for the complete M6–M11 runtime, not a later bridge.
   reaches the key only through the existing request-scoped private-key path
   (`src/shared/session-private-key.ts`) — never a pasted or persisted key
   string. Unwrapped key material stays out of migration state, progress records,
-  logs, audits, and backups; decrypted PII lives only in run-bounded caches
-  cleared when the run ends; record key provenance and access audits, not the
-  key. If the key is unavailable, block the migration and preserve the source
-  rows — never silently skip charges. Back up databases before migrating.
+  logs, audits, and backups; decrypted PII lives only in the current bounded
+  page's cache, which is cleared after that page and on every abort. It never
+  accumulates across the migration run. Record key provenance and access audits,
+  not the key. If the key is unavailable, block the migration and preserve the
+  source rows — never silently skip charges. Back up databases before migrating.
   Restore an old schema only into the current application, where this same
   forward migration consumes it.
 - Copy precondition: the cutover fence has stopped every old payment writer and
@@ -1384,43 +1413,45 @@ activation gate for the complete M6–M11 runtime, not a later bridge.
   attendee-only references are copied, not skipped. The
   `2026-08-10_payment_state_columns` migration deliberately leaves every
   pre-existing `payment_reference_index` blank. Treat every such non-empty row
-  and every PII-only reference as migration input even when an attendee save has
-  already created an anchor for the current PII id: one anchor proves one
-  identity, never that the attendee's history is complete. Copy every available
-  distinct historical deposit, balance, merge, and session reference through
-  this bounded owner-authenticated cursor. A distinct reference absent from all
-  retained sources is not recoverable; report that missing evidence for the
-  owner's required migration decision rather than inventing it. Never make an
-  interactive refund request perform this migration. Historical plaintext
-  `processed_payments.payment_reference` values and raw references found in old
-  DB-key-encrypted warning notes cross directly into owner-key-encrypted
-  canonical evidence plus blind indexes; they are never persisted in migration
-  progress, logs, diagnostics, or a new DB-key-readable field. Retire the old
-  source copy only after its canonical write verifies. A reference already owned
-  by M4's `payment_charges` authority or an owner-encrypted current anchor is
-  verified and linked to the migrated aggregate payment, never copied as a new
-  charge: no duplicate payment, no false identity conflict, and no second refund
-  state. Before any source row is marked settled, its local completion facts —
-  attendee, ticket result, and recorded failure — are folded idempotently onto
-  the canonical completion records, so identity deduplication never discards the
-  booking outcome. Preserve unknown or contradictory facts without inventing
-  values — create a complete M5 case and continue. Ambiguous account assignment
-  gets its own required migration decision: the owner assigns the provider
-  account or marks the row unmigratable with a reason, recorded in the decision
-  union, and a revision-fenced copy retry consumes the decision so verification
-  resumes — no row can block M13 forever. Marking a row unmigratable is a
-  terminal, verified disposition: the decision preserves a bounded accounting
-  record as durable evidence on the owner-review case — an allowlisted set only
-  (provider, provider identities and references, amounts, currency, timestamps,
-  state, failure data, and the recorded reason), encrypted in the case's
-  evidence and readable only through the owner-only case page — never buyer PII,
-  ticket tokens, or credentials. M13 can then drop the old tables without
-  deleting the payment's money story, while the row's secrets die with the
-  tables, exactly what M12's redaction would have left had the row migrated. M12
-  never redacts this record — it contains nothing to redact, and after M13 it is
-  that payment's only copy. A source row is **settled** when it is either copied
-  and verified into a canonical payment or terminally preserved as unmigratable
-  — the one completion condition the activation transaction and M13's retirement
+  and every PII-only reference as migration input even when an owner-encrypted
+  current anchor already exists for the current PII id: one anchor proves one
+  identity, never that the attendee's history is complete. Only a validated
+  callback placeholder creates that anchor today; attendee save and merge never
+  do. Copy every available distinct historical deposit, balance, merge, and
+  session reference through this bounded owner-authenticated cursor. A distinct
+  reference absent from all retained sources is not recoverable; report that
+  missing evidence for the owner's required migration decision rather than
+  inventing it. Never make an interactive refund request perform this migration.
+  Historical plaintext `processed_payments.payment_reference` values and raw
+  references found in old DB-key-encrypted warning notes cross directly into
+  owner-key-encrypted canonical evidence plus blind indexes; they are never
+  persisted in migration progress, logs, diagnostics, or a new DB-key-readable
+  field. Retire the old source copy only after its canonical write verifies. A
+  reference already owned by M4's `payment_charges` authority or an
+  owner-encrypted current anchor is verified and linked to the migrated
+  aggregate payment, never copied as a new charge: no duplicate payment, no
+  false identity conflict, and no second refund state. Before any source row is
+  marked settled, its local completion facts — attendee, ticket result, and
+  recorded failure — are folded idempotently onto the canonical completion
+  records, so identity deduplication never discards the booking outcome.
+  Preserve unknown or contradictory facts without inventing values — create a
+  complete M5 case and continue. Ambiguous account assignment gets its own
+  required migration decision: the owner assigns the provider account or marks
+  the row unmigratable with a reason, recorded in the decision union, and a
+  revision-fenced copy retry consumes the decision so verification resumes — no
+  row can block M13 forever. Marking a row unmigratable is a terminal, verified
+  disposition: the decision preserves a bounded accounting record as durable
+  evidence on the owner-review case — an allowlisted set only (provider,
+  provider identities and references, amounts, currency, timestamps, state,
+  failure data, and the recorded reason), encrypted in the case's evidence and
+  readable only through the owner-only case page — never buyer PII, ticket
+  tokens, or credentials. M13 can then drop the old tables without deleting the
+  payment's money story, while the row's secrets die with the tables, exactly
+  what M12's redaction would have left had the row migrated. M12 never redacts
+  this record — it contains nothing to redact, and after M13 it is that
+  payment's only copy. A source row is **settled** when it is either copied and
+  verified into a canonical payment or terminally preserved as unmigratable —
+  the one completion condition the activation transaction and M13's retirement
   gate share, so an unmigratable row satisfies every gate it cannot block.
 - Copied rows are not exposed page by page. Record verified progress and release
   leases within the call budget; interruption resumes from the same cursor while
@@ -1597,7 +1628,9 @@ mechanism and a regression test, or — if implementation proves the finding wro
   retry is priced before the selected irreversible work begins.
 - New raw provider references and buyer PII require the owner's private key;
   database-keyed indexes and mirrors reveal only blind equality and state words.
-  Historical plaintext or DB-key-encrypted evidence is migrated under the
+  With a v2 owner wrap, a database plus `DB_ENCRYPTION_KEY` cannot recover that
+  private key; a dormant v1 wrap remains explicitly weaker until login upgrades
+  it. Historical plaintext or DB-key-encrypted evidence is migrated under the
   stronger boundary, preserved only in a finite owner case or frozen source
   awaiting redaction, or redacted. It is never readable by the activated runtime
   and never silently copied under `DB_ENCRYPTION_KEY`.

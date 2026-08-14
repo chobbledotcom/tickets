@@ -9,6 +9,8 @@ import type { FlashFields } from "#shared/flash-fields.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
 import type { RefundOwnerChoiceReason } from "#shared/payment/refund-authority.ts";
+import type { RefundOwnerChoiceName } from "#shared/payment/refund-authority-choice.ts";
+import type { RefundOwnerDecision } from "#shared/payment/refund-conflict-decision.ts";
 import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { renderAdminPage } from "#templates/admin/admin-page.tsx";
@@ -46,6 +48,12 @@ const STATE_EXPLANATIONS = {
 const stateLabel = (state: ProviderRefundCase["state"]): string =>
   t(STATE_LABELS[state]);
 
+const capturedAmount = ({
+  amount,
+  currency,
+}: ProviderRefundCase["captured"]): string =>
+  `${formatCurrency(amount, currency)} ${currency}`;
+
 /** The bounded refund-recovery queue. Its rows contain no reversible payment
  * reference, so rendering this list never needs the owner's private key. */
 export const ProviderRefundCaseQueue = ({
@@ -61,7 +69,7 @@ export const ProviderRefundCaseQueue = ({
         {page.cases.map((refundCase) => (
           <li>
             <strong>{PAYMENT_PROVIDERS[refundCase.provider].label}</strong>
-            {` · ${formatCurrency(refundCase.captured.amount)}`}
+            {` · ${capturedAmount(refundCase.captured)}`}
             {` · ${stateLabel(refundCase.state)} · `}
             <WritableLink href={`${CASE_PATH}/${refundCase.id}`}>
               {t("privacy.refunds.open", { id: refundCase.id })}
@@ -114,7 +122,48 @@ const checkForm = (
   submit,
 });
 
-const REFUND_CASE_FORMS = {
+const OWNER_CHOICE_OPTIONS = {
+  provider_confirmed_not_sent: {
+    label: "privacy.refunds.choice_not_sent",
+    value: "provider_confirmed_not_sent",
+  },
+  provider_confirmed_returned: {
+    label: "privacy.refunds.choice_returned",
+    value: "provider_confirmed_returned",
+  },
+} as const satisfies Record<RefundOwnerChoiceName, Choice>;
+
+const ownerChoiceForm = (
+  choices: readonly RefundOwnerChoiceName[],
+): RefundCaseFormSchema => ({
+  choices: choices.map((choice) => OWNER_CHOICE_OPTIONS[choice]),
+  danger: true,
+  id: "refund-recovery",
+  kind: "choices",
+  legend: "privacy.refunds.choice_legend",
+  submit: "privacy.refunds.submit",
+});
+
+const OWNER_DECISION_FORMS = {
+  not_sent: ownerChoiceForm(["provider_confirmed_not_sent"]),
+  returned: ownerChoiceForm(["provider_confirmed_returned"]),
+  returned_or_not_sent: ownerChoiceForm([
+    "provider_confirmed_returned",
+    "provider_confirmed_not_sent",
+  ]),
+  wait: checkForm(
+    "refund-check-conflict",
+    "privacy.refunds.check_again",
+    false,
+  ),
+} as const satisfies Record<RefundOwnerDecision["kind"], RefundCaseFormSchema>;
+
+type AutomaticCaseState = Exclude<
+  ProviderRefundCase["state"],
+  "needs_owner_choice"
+>;
+
+const AUTOMATIC_CASE_FORMS = {
   completed: {
     choices: [
       {
@@ -128,23 +177,6 @@ const REFUND_CASE_FORMS = {
     legend: "privacy.refunds.recorded_legend",
     submit: "privacy.refunds.recorded_submit",
   },
-  needs_owner_choice: {
-    choices: [
-      {
-        label: "privacy.refunds.choice_returned",
-        value: "provider_confirmed_returned",
-      },
-      {
-        label: "privacy.refunds.choice_not_sent",
-        value: "provider_confirmed_not_sent",
-      },
-    ],
-    danger: true,
-    id: "refund-recovery",
-    kind: "choices",
-    legend: "privacy.refunds.choice_legend",
-    submit: "privacy.refunds.submit",
-  },
   observing: checkForm(
     "refund-check-observing",
     "privacy.refunds.check_again",
@@ -156,14 +188,19 @@ const REFUND_CASE_FORMS = {
     "privacy.refunds.check_again",
     false,
   ),
-} as const satisfies Record<ProviderRefundCase["state"], RefundCaseFormSchema>;
+} as const satisfies Record<AutomaticCaseState, RefundCaseFormSchema>;
+
+const formFor = (refundCase: ProviderRefundCase): RefundCaseFormSchema =>
+  refundCase.state === "needs_owner_choice"
+    ? OWNER_DECISION_FORMS[refundCase.decision.kind]
+    : AUTOMATIC_CASE_FORMS[refundCase.state];
 
 const RefundCaseForm = ({
   refundCase,
 }: {
   refundCase: ProviderRefundCase;
 }): JSX.Element => {
-  const form = REFUND_CASE_FORMS[refundCase.state];
+  const form = formFor(refundCase);
   return (
     <WritableOnly>
       <CsrfForm action={`${CASE_PATH}/${refundCase.id}`} id={form.id}>
@@ -218,7 +255,7 @@ export const adminProviderRefundCasePage = (
           <dt>{t("privacy.refunds.reference")}</dt>
           <dd>{refundCase.reference.reference}</dd>
           <dt>{t("privacy.refunds.amount")}</dt>
-          <dd>{formatCurrency(refundCase.captured.amount)}</dd>
+          <dd>{capturedAmount(refundCase.captured)}</dd>
           <dt>{t("common.status")}</dt>
           <dd>{stateLabel(refundCase.state)}</dd>
           {refundCase.reason !== null && (

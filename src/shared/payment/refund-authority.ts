@@ -1,6 +1,10 @@
 /** The pure, durable life of one provider-qualified refund request. */
 
 import * as v from "valibot";
+import {
+  RefundConflictDecisionSchema,
+  ReturnedOrNotSentDecisionSchema,
+} from "#shared/payment/refund-conflict-decision.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 import { NonEmptyTextSchema } from "#shared/validation/string.ts";
@@ -103,15 +107,25 @@ export type RefundOwnerChoiceReason = v.InferOutput<
   typeof RefundOwnerChoiceReasonSchema
 >;
 
-const NeedsOwnerChoiceRefundStateSchema = v.pipe(
+const ownerChoiceFields = {
+  evidenceRevision: integerAtLeast(1),
+  kind: v.literal("needs_owner_choice"),
+  local: NotDueSchema,
+  nextActionAt: v.null(),
+  openedAt: TimeSchema,
+  request: RefundRequestGenerationSchema,
+};
+
+const OrdinaryOwnerChoiceRefundStateSchema = v.pipe(
   v.strictObject({
-    evidenceRevision: integerAtLeast(1),
-    kind: v.literal("needs_owner_choice"),
-    local: NotDueSchema,
-    nextActionAt: v.null(),
-    openedAt: TimeSchema,
-    reason: RefundOwnerChoiceReasonSchema,
-    request: RefundRequestGenerationSchema,
+    ...ownerChoiceFields,
+    decision: ReturnedOrNotSentDecisionSchema,
+    reason: v.picklist([
+      "possibly_sent",
+      "provider_rejected",
+      "provider_unreadable",
+      "replay_window_expired",
+    ]),
   }),
   v.check(
     (state) =>
@@ -123,6 +137,17 @@ const NeedsOwnerChoiceRefundStateSchema = v.pipe(
     "Owner choice reason does not match the refund request",
   ),
 );
+
+const ProviderConflictRefundStateSchema = v.strictObject({
+  ...ownerChoiceFields,
+  decision: RefundConflictDecisionSchema,
+  reason: v.literal("provider_conflict"),
+});
+
+const NeedsOwnerChoiceRefundStateSchema = v.union([
+  OrdinaryOwnerChoiceRefundStateSchema,
+  ProviderConflictRefundStateSchema,
+]);
 
 export const RefundAuthorityStateSchema = v.union([
   ReadyRefundStateSchema,
@@ -153,6 +178,10 @@ export type NeedsOwnerChoiceRefundState = Extract<
   RefundAuthorityState,
   { kind: "needs_owner_choice" }
 >;
+export type ProviderConflictRefundState = Extract<
+  NeedsOwnerChoiceRefundState,
+  { reason: "provider_conflict" }
+>;
 
 export type ActiveSentRefundState = SendArmedRefundState | ObservingRefundState;
 type AutomaticRefundState = ReadyRefundState | ActiveSentRefundState;
@@ -170,7 +199,7 @@ export const writeRefundAuthorityState = (
 ): string => storedState.write(state, context);
 
 export const validateRefundAuthorityState = (
-  state: RefundAuthorityState,
+  state: unknown,
 ): RefundAuthorityState => v.parse(RefundAuthorityStateSchema, state);
 
 /** Require a generation which may already have crossed the provider boundary. */

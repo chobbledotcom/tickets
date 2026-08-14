@@ -2,28 +2,38 @@
 
 /* jscpd:ignore-start -- imports */
 import {
-  completeRefundAuthority,
   loadRefundAuthorityById,
   type RefundAuthorityRow,
-  transitionRefundAuthority,
 } from "#shared/db/provider-refund-authority.ts";
-import type { Money } from "#shared/payment/money.ts";
+import {
+  completeRefundAuthority,
+  transitionRefundAuthority,
+} from "#shared/db/provider-refund-authority-change.ts";
+import { type Money, sameMoney } from "#shared/payment/money.ts";
 import type { ProviderRead } from "#shared/payment/provider-read.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 import {
   armRefundSend,
   markRefundObservationDue,
   type RefundAuthorityState,
+  type RefundOwnerChoiceReason,
   type RefundRequestGeneration,
   readyRefund,
 } from "#shared/payment/refund-authority.ts";
-import { markRefundOwnerChoiceNeeded } from "#shared/payment/refund-authority-choice.ts";
+import {
+  markRefundOwnerChoiceNeeded,
+  markRefundProviderConflict,
+} from "#shared/payment/refund-authority-choice.ts";
+import {
+  type RefundConflictDecision,
+  refundConflictDecision,
+} from "#shared/payment/refund-conflict-decision.ts";
 import { REFUND_PROVIDER_CAPABILITIES } from "#shared/payment/refund-provider-authorization.ts";
 import { refundReplayUntil } from "#shared/payment/refund-replay-window.ts";
 import { refundRequestIdentityIndex } from "#shared/payment/refund-request-identity.ts";
 import {
   type ChargeMoney,
-  refundMoneyReturned,
+  returnedRefundMoney,
 } from "#shared/payment/resources.ts";
 import type {
   ProviderRefundResult,
@@ -89,11 +99,6 @@ export const refundAfterTransition = async (
     changed ?? (await requireCurrentRefund(previous)),
     reference,
   );
-
-export const returnedRefundMoney = (charge: ChargeMoney): Money => ({
-  amount: refundMoneyReturned(charge),
-  currency: charge.captured.currency,
-});
 
 const requestGeneration = async (
   reference: TaggedPaymentReference,
@@ -166,10 +171,7 @@ export const ownerReasonWhenDue = (
 
 export const moveRefundToOwner = async (
   row: RefundAuthorityRow,
-  reason: Extract<
-    RefundAuthorityState,
-    { kind: "needs_owner_choice" }
-  >["reason"],
+  reason: Exclude<RefundOwnerChoiceReason, "provider_conflict">,
   now: number,
   reference: TaggedPaymentReference,
   refunded: Money,
@@ -188,25 +190,60 @@ type AnswerRefund = (
   reference: TaggedPaymentReference,
 ) => Promise<ProviderRefundResult>;
 
-const keepKnownRefundOr =
-  (
-    keptStates: readonly RefundAuthorityState["kind"][],
-    change: AnswerRefund,
-  ): AnswerRefund =>
+type RefundMayChange = (state: RefundAuthorityState) => boolean;
+
+const changeRefundWhen =
+  (mayChange: RefundMayChange, change: AnswerRefund): AnswerRefund =>
   async (row, now, reference) =>
-    keptStates.includes(row.state.kind)
-      ? refundAnswerFrom(row, reference)
-      : await change(row, now, reference);
+    mayChange(row.state)
+      ? await change(row, now, reference)
+      : refundAnswerFrom(row, reference);
 
-/** Preserve terminal work, or turn a live disagreement into an owner choice. */
-export const answerProviderConflict: AnswerRefund = keepKnownRefundOr(
-  ["completed", "needs_owner_choice"],
-  (row, now, reference) =>
-    moveRefundToOwner(row, "provider_conflict", now, reference, row.refunded),
-);
+const mayAnswerProviderConflict = (state: RefundAuthorityState): boolean =>
+  state.kind !== "completed" &&
+  (state.kind !== "needs_owner_choice" || state.reason === "provider_conflict");
 
-export const completeRefundFromEvidence: AnswerRefund = keepKnownRefundOr(
-  ["completed"],
+const mayCompleteFromEvidence = (state: RefundAuthorityState): boolean =>
+  state.kind !== "completed";
+
+const mayObservePendingRefund = (state: RefundAuthorityState): boolean =>
+  state.kind !== "completed" && state.kind !== "needs_owner_choice";
+
+const sameConflictDecision = (
+  left: RefundConflictDecision,
+  right: RefundConflictDecision,
+): boolean =>
+  left.kind === right.kind &&
+  sameMoney(left.captured, right.captured) &&
+  sameMoney(left.refunded, right.refunded);
+
+/** Preserve terminal work and store the exact provider money behind a live
+ * disagreement. A recheck can replace only the same conflict decision. */
+export const answerProviderConflict = (charge: ChargeMoney): AnswerRefund =>
+  changeRefundWhen(mayAnswerProviderConflict, async (row, now, reference) => {
+    const decision = refundConflictDecision(row, charge);
+    const existingConflict =
+      row.state.kind === "needs_owner_choice" &&
+      row.state.reason === "provider_conflict"
+        ? row.state
+        : null;
+    if (
+      existingConflict !== null &&
+      sameConflictDecision(existingConflict.decision, decision)
+    ) {
+      return refundAnswerFrom(row, reference);
+    }
+    return await refundAfterTransition(
+      await transitionRefundAuthority(row, now, row.refunded, (state) =>
+        markRefundProviderConflict(state, now, decision),
+      ),
+      row,
+      reference,
+    );
+  });
+
+export const completeRefundFromEvidence: AnswerRefund = changeRefundWhen(
+  mayCompleteFromEvidence,
   async (row, now, reference) =>
     await refundAfterTransition(
       await completeRefundAuthority(row, row.captured, now, "provider"),
@@ -215,32 +252,22 @@ export const completeRefundFromEvidence: AnswerRefund = keepKnownRefundOr(
     ),
 );
 
-export const observePendingRefund = async (
-  row: RefundAuthorityRow,
-  charge: ChargeMoney,
-  now: number,
-  reference: TaggedPaymentReference,
-): Promise<ProviderRefundResult> => {
-  if (
-    row.state.kind === "completed" ||
-    row.state.kind === "needs_owner_choice"
-  ) {
-    return refundAnswerFrom(row, reference);
-  }
-  const next = now + REFUND_OBSERVATION_DELAY_MS;
-  return await refundAfterTransition(
-    await transitionRefundAuthority(
+export const observePendingRefund = (charge: ChargeMoney): AnswerRefund =>
+  changeRefundWhen(mayObservePendingRefund, async (row, now, reference) => {
+    const next = now + REFUND_OBSERVATION_DELAY_MS;
+    return await refundAfterTransition(
+      await transitionRefundAuthority(
+        row,
+        now,
+        returnedRefundMoney(charge),
+        (state) =>
+          markRefundObservationDue(
+            state.kind === "ready" ? armRefundSend(state, now, next) : state,
+            now,
+            next,
+          ),
+      ),
       row,
-      now,
-      returnedRefundMoney(charge),
-      (state) =>
-        markRefundObservationDue(
-          state.kind === "ready" ? armRefundSend(state, now, next) : state,
-          now,
-          next,
-        ),
-    ),
-    row,
-    reference,
-  );
-};
+      reference,
+    );
+  });

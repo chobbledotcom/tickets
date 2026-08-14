@@ -48,10 +48,15 @@ export const getDecimalPlaces = (currencyCode: string): number =>
 
 /**
  * Format an amount in minor units (pence/cents) as a currency string.
- * e.g. formatCurrency(1050) → "£10.50" (when currency is GBP)
+ * e.g. formatCurrency(1050) → "£10.50" (when the site currency is GBP).
+ * A stored provider amount passes its own currency so the symbol and minor-unit
+ * divisor describe that charge rather than today's site setting.
  */
-export const formatCurrency = (minorUnits: number | string): string => {
-  const { divisor, formatter } = currencyFormat(settings.currency);
+export const formatCurrency = (
+  minorUnits: number | string,
+  currency: string = settings.currency,
+): string => {
+  const { divisor, formatter } = currencyFormat(currency);
   return formatter.format(Number(minorUnits) / divisor);
 };
 
@@ -63,7 +68,9 @@ export const formatSignedCurrency = (
 ): string =>
   minorUnits === 0
     ? formatCurrency(0)
-    : `${minorUnits < 0 ? "\u2212" : showPositive ? "+" : ""}${formatCurrency(Math.abs(minorUnits))}`;
+    : `${minorUnits < 0 ? "\u2212" : showPositive ? "+" : ""}${formatCurrency(
+        Math.abs(minorUnits),
+      )}`;
 
 /**
  * Convert major units (decimal) to minor units (integer).

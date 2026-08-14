@@ -1,6 +1,6 @@
 import * as v from "valibot";
 import { sumOf } from "#fp";
-import { MoneySchema, money } from "#shared/payment/money.ts";
+import { type Money, MoneySchema, money } from "#shared/payment/money.ts";
 import type { ProviderRead } from "#shared/payment/provider-read.ts";
 import { ResourceIdSchema } from "#shared/payment/resource-id.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
@@ -180,6 +180,12 @@ const comparedWithMoneyTaken =
  */
 export const refundMoneyReturned = (charge: ChargeMoney): number =>
   Math.max(charge.confirmedRefunded.amount, refundMoneyGivenBack(charge));
+
+/** The exact returned total in the charge's captured currency. */
+export const returnedRefundMoney = (charge: ChargeMoney): Money => ({
+  amount: refundMoneyReturned(charge),
+  currency: charge.captured.currency,
+});
 
 /** Everything back or on its way, counted once — money still going is
  *  genuinely on top of the money already returned. */

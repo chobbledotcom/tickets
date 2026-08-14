@@ -10,12 +10,9 @@ import {
   requestProviderRefund,
 } from "#shared/provider-refunds.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { chargeMoney, foundCharge } from "#test-utils/payment-state.ts";
 import {
-  chargeMoney,
-  completedRefund,
-  foundCharge,
-} from "#test-utils/payment-state.ts";
-import {
+  completingProviderThatReads,
   completingRefundProvider,
   fakeRefundProvider,
   notSentRefundProvider,
@@ -23,31 +20,8 @@ import {
   refundReference,
   sendRefundTarget,
   storedRefundAuthority,
+  validatedRefundTarget,
 } from "./engine-helpers.ts";
-
-const validatedTarget = (
-  raw: string,
-  callbackSessionId: string,
-  captured = chargeMoney().captured,
-) => ({
-  callbackSessionId,
-  evidence: { captured, kind: "validated_callback" as const },
-  mode: "send" as const,
-  reference: refundReference(raw, "stripe"),
-});
-
-const completingProviderThatReads = (
-  readCharge: Parameters<typeof fakeRefundProvider>[1],
-) => {
-  let sendCount = 0;
-  return {
-    provider: fakeRefundProvider("stripe", readCharge, (request) => {
-      sendCount++;
-      return Promise.resolve(completedRefund(request.charge));
-    }),
-    sendCount: () => sendCount,
-  };
-};
 
 const expectOwnerChoice = async (
   target: ProviderRefundTarget,
@@ -62,7 +36,10 @@ const expectOwnerChoice = async (
 
 describeWithEnv("provider refund target authority", { db: true }, () => {
   test("a temporarily unavailable validated callback recovers through the same authority", async () => {
-    const target = validatedTarget("txn-unreadable", "checkout-unreadable");
+    const target = validatedRefundTarget(
+      "txn-unreadable",
+      "checkout-unreadable",
+    );
     let available = false;
     const refunding = completingProviderThatReads(() =>
       Promise.resolve(
@@ -104,7 +81,7 @@ describeWithEnv("provider refund target authority", { db: true }, () => {
     ["invalid", { reason: "missing_documented_resource", status: "invalid" }],
   ] as const) {
     test(`${name} callback evidence requires an owner choice without sending`, async () => {
-      const target = validatedTarget(
+      const target = validatedRefundTarget(
         `txn-${name}-callback`,
         `checkout-${name}-callback`,
       );
@@ -127,7 +104,7 @@ describeWithEnv("provider refund target authority", { db: true }, () => {
   }
 
   test("persistent provider unavailability has one finite owner-choice deadline", async () => {
-    const target = validatedTarget(
+    const target = validatedRefundTarget(
       "txn-unavailable-deadline",
       "checkout-unavailable-deadline",
     );
@@ -180,7 +157,7 @@ describeWithEnv("provider refund target authority", { db: true }, () => {
   });
 
   test("provider money contradicting the callback requires an owner choice", async () => {
-    const target = validatedTarget(
+    const target = validatedRefundTarget(
       "txn-callback-mismatch",
       "checkout-callback-mismatch",
     );
@@ -218,11 +195,11 @@ describeWithEnv("provider refund target authority", { db: true }, () => {
       await requestProviderRefund(sendRefundTarget(payment), dependencies),
     ).toMatchObject({ kind: "ready" });
     await expectOwnerChoice(
-      validatedTarget(payment.reference, "checkout-existing-money"),
+      validatedRefundTarget(payment.reference, "checkout-existing-money"),
       dependencies,
       "provider_conflict",
     );
-    expect(reads).toBe(1);
+    expect(reads).toBe(2);
     expect(refunding.sendCount()).toBe(1);
   });
 
@@ -248,7 +225,7 @@ describeWithEnv("provider refund target authority", { db: true }, () => {
 
     expect(
       await requestProviderRefund(
-        validatedTarget(payment.reference, "checkout-late-callback"),
+        validatedRefundTarget(payment.reference, "checkout-late-callback"),
         dependencies,
       ),
     ).toMatchObject({ kind: "returned" });
@@ -265,14 +242,14 @@ describeWithEnv("provider refund target authority", { db: true }, () => {
     const dependencies = refundDependencies(provider);
     await requestProviderRefund(sendRefundTarget(first), dependencies);
     await requestProviderRefund(
-      validatedTarget(first.reference, "checkout-one-owner"),
+      validatedRefundTarget(first.reference, "checkout-one-owner"),
       dependencies,
     );
 
     let laterProviderLoads = 0;
     await expect(
       requestProviderRefund(
-        validatedTarget("txn-callback-intruder", "checkout-one-owner"),
+        validatedRefundTarget("txn-callback-intruder", "checkout-one-owner"),
         {
           loadProvider: () => {
             laterProviderLoads++;
@@ -291,7 +268,7 @@ describeWithEnv("provider refund target authority", { db: true }, () => {
     );
     const callbackSessionId = "checkout-new-charge-race";
     const ask = (raw: string) =>
-      requestProviderRefund(validatedTarget(raw, callbackSessionId), {
+      requestProviderRefund(validatedRefundTarget(raw, callbackSessionId), {
         loadProvider: () => Promise.resolve(refunding.provider),
         now: () => 100,
       });

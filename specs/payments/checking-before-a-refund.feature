@@ -73,5 +73,5 @@ Feature: The site checks that a payment names its provider before refunding it
       And Alice's Actions page offers Open Refund recovery
       And Money still shows Alice's 45.00 payment
       When the owner opens Open Refund recovery from Alice's Actions page
-      Then the provider reference is shown with two required unanswered choices
+      Then the provider reference is shown with only the required returned choice
       And the provider has not been contacted again

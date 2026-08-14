@@ -14,7 +14,7 @@ import {
   type RefundAuthorityState,
   readyRefund,
 } from "#shared/payment/refund-authority.ts";
-import { markRefundOwnerChoiceNeeded } from "#shared/payment/refund-authority-choice.ts";
+import { markRefundProviderConflict } from "#shared/payment/refund-authority-choice.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   CLAIM_MIRROR,
@@ -181,7 +181,11 @@ describeWithEnv(
       const armed = armRefundSend(readyAuthority("request-owner"), 11, 20);
       await addAuthorityFor(
         reference,
-        markRefundOwnerChoiceNeeded(armed, 12, "provider_conflict"),
+        markRefundProviderConflict(armed, 12, {
+          captured: { amount: 2_500, currency: "GBP" },
+          kind: "not_sent",
+          refunded: { amount: 0, currency: "GBP" },
+        }),
       );
 
       expect(await deleteRefusal(attendeeId)).toBe(REFUND_OWNER_REFUSAL);
