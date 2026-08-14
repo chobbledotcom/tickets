@@ -1,9 +1,12 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
+import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { markProviderRefundsReturned } from "#test-utils/payment-references.ts";
 import { chargeMoney, fullyRefundedMoney } from "#test-utils/payment-state.ts";
 import { expectNewCompletedRefresh, refresh, runHarness } from "./helpers.ts";
 
-describe("refresh payment under an attendee claim", () => {
+describeWithEnv("refresh payment under an attendee claim", { db: true }, () => {
   test("records exact returned evidence without asking the provider to send", async () => {
     const run = runHarness({ observed: fullyRefundedMoney() });
 
@@ -12,7 +15,7 @@ describe("refresh payment under an attendee claim", () => {
     expect(run.authorities).toHaveLength(1);
     expect(run.authorities[0]).toEqual([
       expect.objectContaining({
-        referenceIndex: `${run.reference.provider}:${run.reference.reference}`,
+        referenceIndex: await paymentReferenceIndex(run.reference),
       }),
     ]);
     expect(run.claim.released).toEqual([run.reference.rowSessionIds]);
@@ -38,6 +41,7 @@ describe("refresh payment under an attendee claim", () => {
 
   test("reuses a completed marker without a provider read or send", async () => {
     const run = runHarness({ observed: null, paymentOnly: false });
+    await markProviderRefundsReturned(run.references);
 
     await expectNewCompletedRefresh(run);
     expect(run.calls.prepare).toBe(1);

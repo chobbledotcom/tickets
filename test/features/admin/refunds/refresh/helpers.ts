@@ -13,12 +13,12 @@ import type { PaymentReviewChange } from "#shared/db/payment-claim.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { PaymentReviewReason } from "#shared/payment/review.ts";
-import type {
-  ProviderRefundTarget,
-  RefundAuthorityReceipt,
+import {
+  type ProviderRefundTarget,
+  type RefundAuthorityReceipt,
+  requestProviderRefund,
 } from "#shared/provider-refunds.ts";
 import type { RefundLedgerResult } from "#shared/refund-ledger/result.ts";
-import { requestRecordedProviderRefund } from "#test/features/admin/refunds/provider/dispatch-helpers.ts";
 import {
   type RecordingProvider,
   provider as recordingProvider,
@@ -176,7 +176,7 @@ export const runHarness = (values: HarnessValues = {}): RefreshHarness => {
     },
     request: (target, dependencies) => {
       observed.push(target);
-      return requestRecordedProviderRefund(target, dependencies);
+      return requestProviderRefund(target, dependencies);
     },
   };
   return {

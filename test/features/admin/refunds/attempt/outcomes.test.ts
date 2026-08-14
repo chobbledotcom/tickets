@@ -1,7 +1,9 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import type { ReferenceRefund } from "#routes/admin/refunds/attempt.ts";
 import { PROVIDER_REFUND_CONCURRENCY } from "#routes/admin/refunds/provider-requests.ts";
+import type { ReadyRefundCandidate } from "#routes/admin/refunds/readiness.ts";
+import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import { refundReadyCandidate } from "#test/features/admin/refunds/provider/dispatch-helpers.ts";
 import {
   completedRefund,
@@ -9,7 +11,9 @@ import {
   readyCandidate,
   readyCandidateWithReferences,
 } from "#test/features/admin/refunds/provider/helpers.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { markProviderRefundsReturned } from "#test-utils/payment-references.ts";
 import {
   chargeMoney,
   chargeMoneyWith,
@@ -18,7 +22,36 @@ import {
   refundObservation,
 } from "#test-utils/payment-state.ts";
 
-describe("admin refund provider", () => {
+const withCanonicalIndexes = async (
+  candidate: ReadyRefundCandidate,
+): Promise<ReadyRefundCandidate> => ({
+  ...candidate,
+  references: await Promise.all(
+    candidate.references.map(async (ready) => {
+      const index = await paymentReferenceIndex(ready.reference);
+      return {
+        ...ready,
+        reference: {
+          ...ready.reference,
+          index,
+          matchingIndexes: [index],
+        },
+      };
+    }),
+  ),
+});
+
+const canonicalReadyCandidate = (
+  ...input: Parameters<typeof readyCandidate>
+): Promise<ReadyRefundCandidate> =>
+  withCanonicalIndexes(readyCandidate(...input));
+
+const canonicalReadyCandidateWithReferences = (
+  ...input: Parameters<typeof readyCandidateWithReferences>
+): Promise<ReadyRefundCandidate> =>
+  withCanonicalIndexes(readyCandidateWithReferences(...input));
+
+describeWithEnv("admin refund provider", { db: true }, () => {
   const errors = setupErrorSpy();
 
   test("sends the exact charge readiness already observed", async () => {
@@ -26,7 +59,10 @@ describe("admin refund provider", () => {
     const observed = chargeMoney(731, 0, "GBP");
 
     const result = await refundReadyCandidate(
-      readyCandidate([{ charge: observed, reference: "pi_exact" }], source),
+      await canonicalReadyCandidate(
+        [{ charge: observed, reference: "pi_exact" }],
+        source,
+      ),
       7,
     );
 
@@ -45,7 +81,7 @@ describe("admin refund provider", () => {
   test("reports an accepted refund as pending", async () => {
     const source = provider({ accepted: new Set(["pi_pending"]) });
     const result = await refundReadyCandidate(
-      readyCandidateWithReferences(["pi_pending"], source),
+      await canonicalReadyCandidateWithReferences(["pi_pending"], source),
       7,
     );
 
@@ -70,7 +106,7 @@ describe("admin refund provider", () => {
         refunded: new Set(["pi_clean_a", "pi_clean_b"]),
       });
       const result = await refundReadyCandidate(
-        readyCandidate(
+        await canonicalReadyCandidate(
           [
             { reference: "pi_clean_a" },
             { charge: blockedCharge, reference: "pi_blocked" },
@@ -86,16 +122,30 @@ describe("admin refund provider", () => {
     });
   }
 
-  for (const [name, input] of [
-    ["stored canonical answer", { kind: "already_returned" as const }],
-    ["provider observation", { charge: fullyRefundedMoney() }],
+  for (const [name, reference, input, stored] of [
+    [
+      "stored canonical answer",
+      "pi_stored_canonical",
+      { kind: "already_returned" as const },
+      true,
+    ],
+    [
+      "provider observation",
+      "pi_provider_observation",
+      { charge: fullyRefundedMoney() },
+      false,
+    ],
   ] as const) {
     test(`answers returned money from a ${name} without sending`, async () => {
       const source = provider();
-      const result = await refundReadyCandidate(
-        readyCandidate([{ ...input, reference: `pi_${name}` }], source),
-        7,
+      const candidate = await canonicalReadyCandidate(
+        [{ ...input, reference }],
+        source,
       );
+      if (stored) {
+        await markProviderRefundsReturned([candidate.references[0]!.reference]);
+      }
+      const result = await refundReadyCandidate(candidate, 7);
 
       expect(source.refunds).toEqual([]);
       expect(result.outcome).toBe("refunded");
@@ -104,7 +154,7 @@ describe("admin refund provider", () => {
 
   test("maps a durable provider rejection to a failed result", async () => {
     const result = await refundReadyCandidate(
-      readyCandidateWithReferences(["pi_no"], provider()),
+      await canonicalReadyCandidateWithReferences(["pi_no"], provider()),
       7,
     );
 
@@ -117,7 +167,7 @@ describe("admin refund provider", () => {
         Promise.resolve({ kind: "not_sent", reason: "not_configured" }),
     });
     const result = await refundReadyCandidate(
-      readyCandidateWithReferences(["pi_not_sent"], source),
+      await canonicalReadyCandidateWithReferences(["pi_not_sent"], source),
       7,
     );
 
@@ -127,7 +177,7 @@ describe("admin refund provider", () => {
   test("keeps an uncertain authority pending", async () => {
     const source = provider({ throws: new Set(["pi_boom"]) });
     const result = await refundReadyCandidate(
-      readyCandidateWithReferences(["pi_boom"], source),
+      await canonicalReadyCandidateWithReferences(["pi_boom"], source),
       7,
     );
 
@@ -140,7 +190,7 @@ describe("admin refund provider", () => {
   test("keeps an unreadable completed marker pending for later evidence", async () => {
     const source = provider();
     const result = await refundReadyCandidate(
-      readyCandidate(
+      await canonicalReadyCandidate(
         [{ kind: "already_returned", reference: "pi_unreadable" }],
         source,
       ),
@@ -164,7 +214,7 @@ describe("admin refund provider", () => {
   test("returns only references whose authority says money returned", async () => {
     const source = provider({ refunded: new Set(["pi_ok"]) });
     const result = await refundReadyCandidate(
-      readyCandidateWithReferences(["pi_ok", "pi_bad"], source),
+      await canonicalReadyCandidateWithReferences(["pi_ok", "pi_bad"], source),
       7,
     );
 
@@ -195,7 +245,7 @@ describe("admin refund provider", () => {
     });
 
     const refund = refundReadyCandidate(
-      readyCandidateWithReferences(references, source),
+      await canonicalReadyCandidateWithReferences(references, source),
       7,
     );
     await firstWaveStarted.promise;
@@ -209,9 +259,13 @@ describe("admin refund provider", () => {
     const source = provider({ refunded: new Set(["pi_shared"]) });
     const inFlight = new Map<string, Promise<ReferenceRefund>>();
     const results = await Promise.all(
-      [11, 12].map((attendeeId) =>
+      [11, 12].map(async (attendeeId) =>
         refundReadyCandidate(
-          readyCandidateWithReferences(["pi_shared"], source, attendeeId),
+          await canonicalReadyCandidateWithReferences(
+            ["pi_shared"],
+            source,
+            attendeeId,
+          ),
           7,
           inFlight,
         ),
@@ -232,7 +286,7 @@ describe("admin refund provider", () => {
       refunded: new Set(["same_raw"]),
     });
     const result = await refundReadyCandidate(
-      readyCandidate(
+      await canonicalReadyCandidate(
         [
           { provider: stripe, reference: "same_raw" },
           { provider: square, reference: "same_raw" },

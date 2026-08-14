@@ -14,24 +14,26 @@ import { refundLifecycleFor } from "#shared/payment/refund-authority-lifecycle.t
 import { getAllFilesWithExt } from "#test/scripts/code-quality/detectors.ts";
 
 const sourceRoot = join(dirname(fileURLToPath(import.meta.url)), "../../src");
+const testRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-const sourceFiles = async (): Promise<
-  readonly { readonly code: string; readonly path: string }[]
-> => {
+const codeFilesUnder = async (
+  root: string,
+): Promise<readonly { readonly code: string; readonly path: string }[]> => {
   const files = (
     await Promise.all(
-      [".ts", ".tsx"].map((extension) =>
-        getAllFilesWithExt(sourceRoot, extension),
-      ),
+      [".ts", ".tsx"].map((extension) => getAllFilesWithExt(root, extension)),
     )
   ).flat();
   return await Promise.all(
     files.map(async (path) => ({
       code: await Deno.readTextFile(path),
-      path: path.replace(`${sourceRoot}/`, ""),
+      path: path.replace(`${root}/`, ""),
     })),
   );
 };
+
+const sourceFiles = (): ReturnType<typeof codeFilesUnder> =>
+  codeFilesUnder(sourceRoot);
 
 const pathsContaining = (
   files: readonly { readonly code: string; readonly path: string }[],
@@ -94,6 +96,52 @@ describe("provider-refund architecture", () => {
       "shared/stripe-provider.ts",
       "shared/sumup-provider.ts",
     ]);
+  });
+
+  test("only readiness, durable authority, and adapters read charges", async () => {
+    expect(pathsContaining(await sourceFiles(), /\.readCharge\s*\(/)).toEqual([
+      "features/admin/refunds/readiness.ts",
+      "shared/provider-refunds/state.ts",
+      "shared/square-provider.ts",
+      "shared/stripe-provider.ts",
+      "shared/sumup-provider.ts",
+    ]);
+  });
+
+  test("single and listing-wide refunds share one batch command", async () => {
+    expect(
+      pathsContaining(await sourceFiles(), /processRefundBatch\s*\(/),
+    ).toEqual([
+      "features/admin/attendee-refunds/bulk.ts",
+      "features/admin/attendee-refunds/single.ts",
+    ]);
+  });
+
+  test("refund and refresh share one readiness command", async () => {
+    const files = await sourceFiles();
+    expect(pathsContaining(files, /\bprepareRefundReadiness\b/)).toEqual([
+      "features/admin/refunds/provider.ts",
+      "features/admin/refunds/readiness.ts",
+      "features/admin/refunds/refresh.ts",
+    ]);
+    expect(pathsContaining(files, /\brunRefundReadiness\b/)).toEqual([
+      "features/admin/refunds/provider.ts",
+      "features/admin/refunds/readiness-run.ts",
+      "features/admin/refunds/refresh.ts",
+    ]);
+  });
+
+  test("tests cannot declare a second complete refund authority", async () => {
+    const files = (await codeFilesUnder(testRoot)).filter(
+      ({ path }) =>
+        path !== "integration/refund-authority-architecture.test.ts",
+    );
+    expect(
+      pathsContaining(
+        files,
+        /(?:const|let|var)\s+\w+\s*:\s*typeof\s+requestProviderRefund\s*=/,
+      ),
+    ).toEqual([]);
   });
 
   test("only provider API modules call their refund clients", async () => {

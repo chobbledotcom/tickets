@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   chargeMoney,
   chargeMoneyWith,
@@ -45,7 +46,7 @@ const expectCompletedReviewRetired = async (
   ]);
 };
 
-describe("refresh payment under an attendee claim", () => {
+describeWithEnv("refresh payment under an attendee claim", { db: true }, () => {
   test("parks an unsafe returned obligation even while its sibling remains", async () => {
     const run = runHarness({
       ledger: (references) => refundLedgerResult([], references, references),

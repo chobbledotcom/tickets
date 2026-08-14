@@ -12,6 +12,7 @@ import {
 import { oneFailedRefundCounts } from "#test/features/admin/refunds/provider/ledger-results.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { markProviderRefundsReturned } from "#test-utils/payment-references.ts";
 import { chargeMoney } from "#test-utils/payment-state.ts";
 import { grantingRowClaim } from "#test-utils/refund-routes.ts";
 
@@ -73,21 +74,23 @@ describeWithEnv(
           ),
       });
 
-      const counts = finishedCounts(
-        await processRefundBatchAt(
-          source,
-          [
-            candidate(
-              [
-                { reference: "pi_already_back", refundState: "completed" },
-                { reference: "pi_unreadable_sibling" },
-              ],
-              22,
-            ),
-          ],
-          LISTING,
-          { claim: grantingRowClaim() },
+      const entry = candidate(
+        [
+          { reference: "pi_already_back", refundState: "completed" },
+          { reference: "pi_unreadable_sibling" },
+        ],
+        22,
+      );
+      await markProviderRefundsReturned(
+        entry.references.filter(
+          ({ refundState }) => refundState === "completed",
         ),
+        "due",
+      );
+      const counts = finishedCounts(
+        await processRefundBatchAt(source, [entry], LISTING, {
+          claim: grantingRowClaim(),
+        }),
       );
 
       expect(counts).toEqual(oneFailedRefundCounts);

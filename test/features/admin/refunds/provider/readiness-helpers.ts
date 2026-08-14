@@ -7,9 +7,9 @@ import type {
 import type { RowSettlement } from "#shared/db/payment-claim.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import type { RefundProviderCapability } from "#shared/payment/refund-provider-authorization.ts";
+import { requestProviderRefund } from "#shared/provider-refunds.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 import { completedRefund } from "#test-utils/payment-state.ts";
-import { requestRecordedProviderRefund } from "./dispatch-helpers.ts";
 import { provider, type RecordingProvider } from "./helpers.ts";
 import { recordEveryRefund } from "./ledger-results.ts";
 
@@ -154,7 +154,7 @@ export const recordingWrites = (): RecordingWrites => {
         marked.push([...authorities]);
         return Promise.resolve();
       },
-      request: requestRecordedProviderRefund,
+      request: requestProviderRefund,
     },
     marked,
     recorded,

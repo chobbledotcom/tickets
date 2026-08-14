@@ -1,9 +1,10 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import type { RowClaim } from "#routes/admin/refunds/claim.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import { pendingRefundMoney, refresh, runHarness } from "./helpers.ts";
 
-describe("refresh payment under an attendee claim", () => {
+describeWithEnv("refresh payment under an attendee claim", { db: true }, () => {
   test("releases the row fence while durable authority observes a refund", async () => {
     const run = runHarness({
       observed: pendingRefundMoney(),

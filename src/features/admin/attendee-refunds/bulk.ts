@@ -65,8 +65,9 @@ const handleAdminRefundAllGet = (
             listing,
             {
               count: 0,
-              error: flash.error ?? t("error.no_attendees_to_refund"),
+              flash: flash.error,
               kind: "unavailable",
+              reason: t("error.no_attendees_to_refund"),
             },
             session,
           ),
@@ -76,11 +77,12 @@ const handleAdminRefundAllGet = (
           adminRefundAllAttendeesPage(
             listing,
             blocker === null
-              ? { count: total, error: flash.error, kind: "available" }
+              ? { count: total, flash: flash.error, kind: "available" }
               : {
                   count: total,
-                  error: compact([flash.error, blocker]).join(" "),
+                  flash: flash.error,
                   kind: "unavailable",
+                  reason: blocker,
                 },
             session,
           ),

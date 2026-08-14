@@ -24,6 +24,7 @@ import {
   sessionReference,
 } from "#test/shared/refund-ledger/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { markProviderRefundsReturned } from "#test-utils/payment-references.ts";
 import {
   chargeMoneyWith,
   refundObservation,
@@ -69,13 +70,17 @@ describeWithEnv(
         new Map([[attendeeId, ["sess-back", "sess-stuck"]]]),
       );
 
-      const counts = finishedCounts(
-        await processRefundBatchAt(
-          failingProvider(),
-          [returnedAndStuckCandidate(attendeeId)],
-          LISTING,
-          { claim },
+      const candidate = returnedAndStuckCandidate(attendeeId);
+      await markProviderRefundsReturned(
+        candidate.references.filter(
+          ({ refundState }) => refundState === "completed",
         ),
+        "due",
+      );
+      const counts = finishedCounts(
+        await processRefundBatchAt(failingProvider(), [candidate], LISTING, {
+          claim,
+        }),
       );
 
       expect(counts).toEqual(oneFailedRefundCounts);
@@ -86,10 +91,12 @@ describeWithEnv(
     test("a keyless run whose ledger post failed marks the row and lets go", async () => {
       const claim = grantingRowClaim(new Map([[21, ["sess-21"]]]));
 
+      const candidate = refundedCandidate(21, "sess-21", "sumup");
+      await markProviderRefundsReturned(candidate.references, "due");
       const counts = finishedCounts(
         await processRefundBatchAt(
           failingProvider("keyless"),
-          [refundedCandidate(21, "sess-21")],
+          [candidate],
           LISTING,
           { claim },
         ),
@@ -106,19 +113,19 @@ describeWithEnv(
         new Map([[attendeeId, ["sess-first", "sess-second"]]]),
       );
 
+      const candidates = [
+        refundedCandidate(attendeeId, "sess-first"),
+        refundedCandidate(attendeeId, "sess-second"),
+      ];
+      await markProviderRefundsReturned(
+        candidates.flatMap(({ references }) => references),
+        "due",
+      );
       const counts = finishedCounts(
-        await processRefundBatchAt(
-          failingProvider(),
-          [
-            refundedCandidate(attendeeId, "sess-first"),
-            refundedCandidate(attendeeId, "sess-second"),
-          ],
-          LISTING,
-          {
-            claim,
-            record: recordNoRefunds,
-          },
-        ),
+        await processRefundBatchAt(failingProvider(), candidates, LISTING, {
+          claim,
+          record: recordNoRefunds,
+        }),
       );
 
       expect(counts.notRecordedCount).toBe(2);
@@ -130,6 +137,13 @@ describeWithEnv(
         new Map([[24, ["sess-back", "sess-stuck"]]]),
       );
 
+      const candidate = returnedAndStuckCandidate(24);
+      await markProviderRefundsReturned(
+        candidate.references.filter(
+          ({ refundState }) => refundState === "completed",
+        ),
+        "due",
+      );
       const counts = finishedCounts(
         await processRefundBatchAt(
           provider({
@@ -141,7 +155,7 @@ describeWithEnv(
               ),
             refund: (request) => Promise.resolve(completedRefund(request)),
           }),
-          [returnedAndStuckCandidate(24)],
+          [candidate],
           LISTING,
           { claim },
         ),
@@ -184,12 +198,11 @@ describeWithEnv(
     test("a keyed run lets go after its settled answer", async () => {
       const claim = grantingRowClaim(new Map([[22, ["sess-22"]]]));
 
-      await processRefundBatchAt(
-        failingProvider(),
-        [refundedCandidate(22, "sess-22")],
-        LISTING,
-        { claim },
-      );
+      const candidate = refundedCandidate(22, "sess-22");
+      await markProviderRefundsReturned(candidate.references, "due");
+      await processRefundBatchAt(failingProvider(), [candidate], LISTING, {
+        claim,
+      });
 
       expect(claim.released).toHaveLength(1);
     });
@@ -210,13 +223,12 @@ describeWithEnv(
     });
 
     test("counts a refund the ledger cannot post apart from an uncertain one", async () => {
+      const candidate = refundedCandidate(21, "sess-missing");
+      await markProviderRefundsReturned(candidate.references, "due");
       const counts = finishedCounts(
-        await processRefundBatchAt(
-          failingProvider(),
-          [refundedCandidate(21, "sess-missing")],
-          LISTING,
-          { claim: grantingRowClaim() },
-        ),
+        await processRefundBatchAt(failingProvider(), [candidate], LISTING, {
+          claim: grantingRowClaim(),
+        }),
       );
 
       expect(counts).toEqual({

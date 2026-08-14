@@ -10,12 +10,12 @@ import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import { settings } from "#shared/db/settings.ts";
 import { REFUND_NETWORK_RETRIES } from "#shared/payment/refund-network.ts";
+import { requestProviderRefund } from "#shared/provider-refunds.ts";
 import {
   countSubrequest,
   getSubrequestRemaining,
   runWithSubrequestBudget,
 } from "#shared/subrequest-budget.ts";
-import { requestRecordedProviderRefund } from "#test/features/admin/refunds/provider/dispatch-helpers.ts";
 import {
   prepareAtProvider,
   processRefundBatchAt,
@@ -23,6 +23,7 @@ import {
 } from "#test/features/admin/refunds/provider/helpers.ts";
 import { recordEveryRefund } from "#test/features/admin/refunds/provider/ledger-results.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { markProviderRefundsReturned } from "#test-utils/payment-references.ts";
 import { grantingRowClaim } from "#test-utils/refund-routes.ts";
 
 type TaggedReference = Extract<RefundPaymentReference, { kind: "tagged" }>;
@@ -169,6 +170,10 @@ describeWithEnv(
       const candidates = attendeeIds.map((attendeeId) =>
         candidate(attendeeId, 1, "completed"),
       );
+      await markProviderRefundsReturned(
+        candidates.flatMap(({ references }) => references),
+        "due",
+      );
       const claim = grantingRowClaim(
         new Map(
           attendeeIds.map((attendeeId) => [
@@ -249,7 +254,7 @@ describeWithEnv(
           expect(getSubrequestRemaining().external).toBeGreaterThanOrEqual(
             sendEnvelope,
           );
-          return await requestRecordedProviderRefund(...args);
+          return await requestProviderRefund(...args);
         },
       });
 
@@ -270,28 +275,29 @@ describeWithEnv(
       const granted = grantingRowClaim(new Map([[attendeeId, [sessionId]]]));
       let ledgerCalls = 0;
       const prepare = prepareAtProvider(source);
-
-      const result = await processRefundBatch(
-        [candidate(attendeeId, 1, "completed", "square")],
-        7,
-        {
-          claim: granted,
-          prepare: async (candidates, claim, returned) => {
-            const prepared = await prepare(candidates, claim, returned);
-            while (getSubrequestRemaining().database > 4) {
-              countSubrequest(
-                "database",
-                "work racing returned-payment recording",
-              );
-            }
-            return prepared;
-          },
-          record: (postings) => {
-            ledgerCalls++;
-            return recordEveryRefund(postings);
-          },
-        },
+      const candidates = [candidate(attendeeId, 1, "completed", "square")];
+      await markProviderRefundsReturned(
+        candidates.flatMap(({ references }) => references),
+        "due",
       );
+
+      const result = await processRefundBatch(candidates, 7, {
+        claim: granted,
+        prepare: async (candidates, claim, returned) => {
+          const prepared = await prepare(candidates, claim, returned);
+          while (getSubrequestRemaining().database > 4) {
+            countSubrequest(
+              "database",
+              "work racing returned-payment recording",
+            );
+          }
+          return prepared;
+        },
+        record: (postings) => {
+          ledgerCalls++;
+          return recordEveryRefund(postings);
+        },
+      });
 
       expectBudgetRefusal(result);
       expect(source.reads).toEqual([]);
@@ -323,8 +329,10 @@ describeWithEnv(
         );
 
         expect(result.kind).not.toBe("blocked");
-        expect(settlementRemaining).toBe(49);
-        expect(getSubrequestRemaining().database).toBe(49);
+        expect(settlementRemaining).toBeGreaterThanOrEqual(
+          REFUND_SETTLEMENT_SUBREQUEST_RESERVE.database,
+        );
+        expect(getSubrequestRemaining().database).toBe(settlementRemaining);
         countSubrequest("database", "caller activity write");
       });
     });

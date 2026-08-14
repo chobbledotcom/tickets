@@ -22,6 +22,7 @@ import type {
   AuthorizedRefundRequest,
   RefundProviderCapability,
 } from "#shared/payment/refund-provider-authorization.ts";
+import { requireProviderRefundAuthorization } from "#shared/payment/refund-provider-authorization.ts";
 import type { RefundState } from "#shared/payment/refund-state.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
@@ -30,7 +31,6 @@ import {
   chargeMoney,
   taggedRefundReference,
 } from "#test-utils/payment-state.ts";
-import { requestRecordedProviderRefund } from "./dispatch-helpers.ts";
 
 type Reference = {
   provider?: PaymentProviderType;
@@ -38,7 +38,6 @@ type Reference = {
   refundState?: RefundState;
 };
 export type RecordingProvider = ReadyRefundProvider & {
-  answerRefund: (request: RefundRequest) => Promise<RefundAttemptResult>;
   readCharge: (reference: string) => Promise<ProviderRead<ChargeMoney>>;
   reads: string[];
   refunds: string[];
@@ -151,7 +150,6 @@ export const processRefundBatchAt = (
     prepare: prepareAtProvider(source),
     recordAuthorities:
       dependencies.recordAuthorities ?? (() => Promise.resolve()),
-    request: dependencies.request ?? requestRecordedProviderRefund,
   });
 
 export const completedRefund = (
@@ -167,7 +165,7 @@ export const provider = ({
   refunded = new Set<string>(),
   throws = new Set<string>(),
   refundCapability = "keyed",
-  paymentProvider = "stripe",
+  paymentProvider = refundCapability === "keyless" ? "sumup" : "stripe",
   read = () => Promise.resolve(chargeMoney()),
   refund,
 }: {
@@ -203,7 +201,6 @@ export const provider = ({
     );
   };
   return {
-    answerRefund,
     readCharge: async (reference: string) => {
       reads.push(reference);
       const charge = await read(reference);
@@ -213,7 +210,10 @@ export const provider = ({
     },
     reads,
     refundCapability,
-    refundCharge: (request: AuthorizedRefundRequest) => answerRefund(request),
+    refundCharge: (request: AuthorizedRefundRequest) => {
+      requireProviderRefundAuthorization(request, paymentProvider);
+      return answerRefund(request);
+    },
     refunds,
     requests,
     type: paymentProvider,
@@ -232,8 +232,9 @@ export const rowBackedReference = (
   reference: string,
   sessionId: string,
   refundState: RefundState = "none",
+  paymentProvider: PaymentProviderType = "stripe",
 ): TaggedRefundPaymentReference =>
-  taggedRefundReference(reference, "stripe", {
+  taggedRefundReference(reference, paymentProvider, {
     refundState,
     rowSessionIds: [sessionId],
     sessionIds: [sessionId],
@@ -258,9 +259,17 @@ export const refs = (id: string, count: number): RefundCandidate =>
 export const refundedCandidate = (
   attendeeId: number,
   sessionId: string,
+  paymentProvider: PaymentProviderType = "stripe",
 ): RefundCandidate => ({
   attendee: { id: attendeeId } as RefundCandidate["attendee"],
-  references: [rowBackedReference(`pi-${sessionId}`, sessionId, "completed")],
+  references: [
+    rowBackedReference(
+      `pi-${sessionId}`,
+      sessionId,
+      "completed",
+      paymentProvider,
+    ),
+  ],
 });
 
 export const pendingCandidate = (

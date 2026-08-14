@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import type { HeldRefundWork } from "#routes/admin/refunds/claim.ts";
 import {
@@ -12,17 +12,19 @@ import {
 } from "#routes/admin/refunds/readiness.ts";
 import { rememberReadinessFailureFindings } from "#routes/admin/refunds/readiness-findings.ts";
 import { refreshClaimedPayment } from "#routes/admin/refunds/refresh.ts";
-import type {
-  ProviderRefundResult,
-  ProviderRefundTarget,
+import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
+import {
+  type ProviderRefundTarget,
+  requestProviderRefund,
 } from "#shared/provider-refunds.ts";
 import { refundLedgerResult } from "#shared/refund-ledger/result.ts";
-import { requestRecordedProviderRefund } from "#test/features/admin/refunds/provider/dispatch-helpers.ts";
 import {
   heldClaim,
+  provider as readyProvider,
   stripeReadiness,
   tagged,
 } from "#test/features/admin/refunds/readiness/helpers.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import {
   chargeMoney,
@@ -83,10 +85,24 @@ type StartedFailedObservationRun = FailedObservationRun & {
 
 type RefundAuthorityRequest = NonNullable<RefundRunDependencies["request"]>;
 
+const requestAtStripe: RefundAuthorityRequest = (target) =>
+  requestProviderRefund(target, {
+    loadProvider: () => Promise.resolve(readyProvider("stripe")),
+    now: () => Date.now(),
+  });
+
+const canonicalTagged = async (
+  ...input: Parameters<typeof tagged>
+): Promise<ReturnType<typeof tagged>> => {
+  const reference = tagged(...input);
+  const index = await paymentReferenceIndex(reference);
+  return { ...reference, index, matchingIndexes: [index] };
+};
+
 const startFailedObservation = (
   candidate: RefundCandidate,
   readiness: FailedReadiness,
-  request: RefundAuthorityRequest = requestRecordedProviderRefund,
+  request: RefundAuthorityRequest = requestAtStripe,
 ): StartedFailedObservationRun => {
   const attendeeId = candidate.attendee.id;
   const rows = candidate.references.flatMap(
@@ -109,8 +125,12 @@ const runFailedObservation = async (
   charge: FailedReadiness["observations"][number]["charge"],
 ): Promise<FailedObservationRun> => {
   const attendeeId = 9;
-  const observed = tagged("observed", "stripe", "observed_index");
-  const unread = tagged("unread", "stripe", "unread_index");
+  const observed = await canonicalTagged(
+    "observed",
+    "stripe",
+    "observed_index",
+  );
+  const unread = await canonicalTagged("unread", "stripe", "unread_index");
   const run = startFailedObservation(
     {
       attendee: { id: attendeeId } as RefundCandidate["attendee"],
@@ -151,25 +171,15 @@ const runPreparationCrash = async (
   return claim;
 };
 
-type ReturnedAuthorityAnswer = Extract<
-  ProviderRefundResult,
-  { kind: "returned" }
->;
-
-const returnedAuthorityAnswer = (
-  target: ProviderRefundTarget,
-): ReturnedAuthorityAnswer => ({
-  authority: { id: 1, referenceIndex: "authority-index", revision: 1 },
-  kind: "returned",
-  local: "due",
-  reference: target.reference,
-});
-
-const oneObservedFailure = (
+const oneObservedFailure = async (
   request: RefundAuthorityRequest,
-): StartedFailedObservationRun => {
-  const observed = tagged("observed", "stripe", "observed_index");
-  const unread = tagged("unread", "stripe", "unread_index");
+): Promise<StartedFailedObservationRun> => {
+  const observed = await canonicalTagged(
+    "observed",
+    "stripe",
+    "observed_index",
+  );
+  const unread = await canonicalTagged("unread", "stripe", "unread_index");
   return startFailedObservation(
     {
       attendee: { id: 9 } as RefundCandidate["attendee"],
@@ -180,12 +190,16 @@ const oneObservedFailure = (
   );
 };
 
-describe("admin refund readiness failure evidence", () => {
+describeWithEnv("admin refund readiness failure evidence", { db: true }, () => {
   setupErrorSpy();
 
   test("carries a returned sibling observation when another read fails", async () => {
-    const returned = tagged("returned", "stripe", "returned_index");
-    const unread = tagged("unread", "stripe", "unread_index");
+    const returned = await canonicalTagged(
+      "returned",
+      "stripe",
+      "returned_index",
+    );
+    const unread = await canonicalTagged("unread", "stripe", "unread_index");
     const result = await prepareRefundReadiness(
       [
         {
@@ -234,7 +248,7 @@ describe("admin refund readiness failure evidence", () => {
   });
 
   test("protects a known return before readiness itself throws", async () => {
-    const reference = tagged(
+    const reference = await canonicalTagged(
       "known_return",
       "stripe",
       "known_return",
@@ -256,7 +270,11 @@ describe("admin refund readiness failure evidence", () => {
   });
 
   test("releases the checking fence when readiness itself throws", async () => {
-    const reference = tagged("unread_throw", "stripe", "unread_throw");
+    const reference = await canonicalTagged(
+      "unread_throw",
+      "stripe",
+      "unread_throw",
+    );
     const claim = await runPreparationCrash(reference);
 
     expect(claim.released).toEqual([reference.rowSessionIds]);
@@ -315,19 +333,24 @@ describe("admin refund readiness failure evidence", () => {
   });
 
   for (const [description, wrongReference] of [
-    ["provider", { kind: "tagged", provider: "square", reference: "observed" }],
+    [
+      "provider",
+      {
+        kind: "tagged",
+        provider: "square",
+        reference: "observed",
+      },
+    ],
     [
       "reference",
       { kind: "tagged", provider: "stripe", reference: "somewhere_else" },
     ],
   ] as const) {
     test(`refuses an authority answer for another ${description}`, async () => {
-      const run = oneObservedFailure((target) =>
-        Promise.resolve({
-          ...returnedAuthorityAnswer(target),
-          reference: wrongReference,
-        }),
-      );
+      const run = await oneObservedFailure(async (target) => ({
+        ...(await requestAtStripe(target)),
+        reference: wrongReference,
+      }));
 
       await expect(run.result).rejects.toThrow(
         "Refund authority answered for a different payment",
@@ -336,7 +359,7 @@ describe("admin refund readiness failure evidence", () => {
   }
 
   test("refuses an authority answer that discards observed evidence", async () => {
-    const run = oneObservedFailure((target) =>
+    const run = await oneObservedFailure((target) =>
       Promise.resolve({ kind: "unchanged", reference: target.reference }),
     );
 
@@ -346,9 +369,13 @@ describe("admin refund readiness failure evidence", () => {
   });
 
   test("records returned evidence before propagating a sibling authority failure", async () => {
-    const returned = tagged("returned", "stripe", "returned_index");
-    const crashed = tagged("crashed", "stripe", "crashed_index");
-    const unread = tagged("unread", "stripe", "unread_index");
+    const returned = await canonicalTagged(
+      "returned",
+      "stripe",
+      "returned_index",
+    );
+    const crashed = await canonicalTagged("crashed", "stripe", "crashed_index");
+    const unread = await canonicalTagged("unread", "stripe", "unread_index");
     const candidate = {
       attendee: { id: 9 } as RefundCandidate["attendee"],
       references: [returned, crashed, unread],
@@ -380,7 +407,7 @@ describe("admin refund readiness failure evidence", () => {
         held,
         (target) =>
           target.reference.reference === returned.reference
-            ? Promise.resolve(returnedAuthorityAnswer(target))
+            ? requestAtStripe(target)
             : Promise.reject(new Error("authority database failed")),
       ),
     ).rejects.toThrow("authority database failed");

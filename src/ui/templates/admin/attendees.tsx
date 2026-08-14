@@ -262,13 +262,14 @@ export const adminResendNotificationPage = attendeeRouteConfirm(
 type RefundAllPageState =
   | {
       readonly count: number;
-      readonly error: string | undefined;
+      readonly flash: string | undefined;
       readonly kind: "available";
     }
   | {
       readonly count: number;
-      readonly error: string;
+      readonly flash: string | undefined;
       readonly kind: "unavailable";
+      readonly reason: string;
     };
 
 export const adminRefundAllAttendeesPage = (
@@ -279,6 +280,8 @@ export const adminRefundAllAttendeesPage = (
   const confirmation = (
     <p>{t("admin.attendees.refund_all_confirm", { name: listing.name })}</p>
   );
+  const blockedNotice =
+    state.kind === "unavailable" ? <p>{state.reason}</p> : null;
   const warning = (
     <p>
       <Raw
@@ -296,13 +299,14 @@ export const adminRefundAllAttendeesPage = (
       state.kind === "unavailable" ? (
         <>
           {warning}
+          {blockedNotice}
           {confirmation}
         </>
       ) : (
         confirmation
       ),
     disabled: state.kind === "unavailable",
-    error: state.error,
+    error: state.flash,
     label: t("admin.attendees.refund_all_label"),
     name: listing.name,
     session,
