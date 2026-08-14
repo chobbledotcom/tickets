@@ -158,6 +158,14 @@ export const providerRefundReturned = (
     logDebug("Payment", "Refund sent and awaiting provider confirmation");
     return false;
   }
+  if (result.kind === "changed") {
+    logError({
+      code: ErrorCode.PAYMENT_REFUND,
+      detail: `Refund authority changed before money could be sent through ${provider}`,
+      listingId,
+    });
+    return false;
+  }
   if (result.kind === "unchanged") {
     logError({
       code: ErrorCode.PAYMENT_REFUND,

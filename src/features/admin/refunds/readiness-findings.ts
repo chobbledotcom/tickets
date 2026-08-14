@@ -38,6 +38,7 @@ type ObservedAuthorityAnswer = Extract<
 >;
 
 const PRESERVES_OBSERVED_EVIDENCE = {
+  changed: false,
   needs_owner_choice: true,
   pending: true,
   ready: false,

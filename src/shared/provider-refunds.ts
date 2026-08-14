@@ -49,6 +49,7 @@ interface ProviderRefundTargetFacts {
 }
 
 interface CallbackRefundTarget extends ProviderRefundTargetFacts {
+  readonly authority?: undefined;
   readonly callbackSessionId: string;
   readonly evidence:
     | Extract<ProviderRefundEvidence, { readonly kind: "read_provider" }>
@@ -57,6 +58,7 @@ interface CallbackRefundTarget extends ProviderRefundTargetFacts {
 }
 
 interface DirectRefundTarget extends ProviderRefundTargetFacts {
+  readonly authority?: undefined;
   readonly callbackSessionId?: undefined;
   readonly evidence: Exclude<
     ProviderRefundEvidence,
@@ -65,9 +67,25 @@ interface DirectRefundTarget extends ProviderRefundTargetFacts {
   readonly mode: "observe_only" | "send";
 }
 
-/** A callback always proves its charge afresh and explicitly asks to send.
- * Other callers must still state whether their evidence may move money. */
-export type ProviderRefundTarget = CallbackRefundTarget | DirectRefundTarget;
+type RefundAuthorityRevision = Pick<RefundAuthorityRow, "id" | "revision">;
+
+/** An owner may send only the exact authority revision they inspected. */
+export interface OwnerRecoveryRefundTarget extends ProviderRefundTargetFacts {
+  readonly authority: RefundAuthorityRevision;
+  readonly callbackSessionId?: undefined;
+  readonly evidence: Extract<
+    ProviderRefundEvidence,
+    { readonly kind: "read_provider" }
+  >;
+  readonly mode: "send";
+}
+
+/** A callback proves its charge afresh; direct callers state whether money may
+ * move; owner recovery also pins the exact authority revision it showed. */
+export type ProviderRefundTarget =
+  | CallbackRefundTarget
+  | DirectRefundTarget
+  | OwnerRecoveryRefundTarget;
 
 export type RefundEngineProvider = Pick<
   PaymentProvider,
@@ -110,6 +128,11 @@ interface ReadyRefundResult extends RefundResultFacts {
   readonly kind: "ready";
 }
 
+/** The inspected authority changed before money could be sent. */
+interface ChangedRefundResult extends RefundResultFacts {
+  readonly kind: "changed";
+}
+
 /** A read-only probe proved that no refund has started. With no existing
  * authority there is no durable work to invent. */
 interface UnchangedRefundResult extends RefundResultFacts {
@@ -123,6 +146,7 @@ interface OwnerRefundResult extends RefundResultFacts {
     RefundAuthorityState,
     { kind: "needs_owner_choice" }
   >["reason"];
+  readonly requiresChoice: boolean;
 }
 
 interface WithheldRefundResult extends RefundResultFacts {
@@ -131,6 +155,7 @@ interface WithheldRefundResult extends RefundResultFacts {
 }
 
 export type ProviderRefundResult =
+  | ChangedRefundResult
   | OwnerRefundResult
   | PendingRefundResult
   | ReadyRefundResult
@@ -196,6 +221,9 @@ const requestOne = async (
   dependencies: ProviderRefundDependencies,
 ): Promise<ProviderRefundResult> => {
   const loaded = await loadRefundTarget(target);
+  if (loaded.kind === "changed") {
+    return { kind: "changed", reference: target.reference };
+  }
   const known = answerKnownRefund(target, loaded.existing);
   if (known !== null) return known;
   const provider = await dependencies.loadProvider(target.reference.provider);
@@ -217,16 +245,15 @@ const requestOne = async (
   ) {
     return { kind: "unchanged", reference: target.reference };
   }
-  const row =
-    prepared === null
-      ? await createTargetAuthority(
-          target,
-          loaded,
-          provider,
-          read.resource.captured,
-          now,
-        )
-      : prepared;
+  const row = prepared === null
+    ? await createTargetAuthority(
+      target,
+      loaded,
+      provider,
+      read.resource.captured,
+      now,
+    )
+    : prepared;
   return await reconcile({
     admission,
     charge: read.resource,

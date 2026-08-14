@@ -47,10 +47,12 @@ describeWithEnv("provider refund state transitions", { db: true }, () => {
     expect(stored?.provider_reference).not.toContain(payment.reference);
   });
 
-  for (const [reference, charge] of [
-    ["txn-conflict", chargeMoney(1_000, 100)],
-    ["txn-impossible-return", chargeMoney(1_000, 1_001)],
-  ] as const) {
+  for (
+    const [reference, charge, refundedAmount] of [
+      ["txn-conflict", chargeMoney(1_000, 100), 100],
+      ["txn-impossible-return", chargeMoney(1_000, 1_001), 0],
+    ] as const
+  ) {
     test(`provider conflict becomes owner work for ${reference}`, async () => {
       const payment = refundReference(reference, "stripe");
       expect(
@@ -64,7 +66,7 @@ describeWithEnv("provider refund state transitions", { db: true }, () => {
       });
       expect(
         await storedRefundAuthority(await paymentReferenceIndex(payment)),
-      ).toMatchObject({ refunded_amount: 0 });
+      ).toMatchObject({ refunded_amount: refundedAmount });
     });
   }
 
@@ -248,10 +250,12 @@ describeWithEnv("provider refund state transitions", { db: true }, () => {
       reason: "provider_conflict",
     });
 
-    const changedKind = await recheck(chargeMoney(100), 103);
-    expect(changedKind.after.revision).toBe(changedKind.before.revision + 1);
-    expect(changedKind.after.state).toMatchObject({
-      decision: { kind: "not_sent" },
+    const backwardsReturn = await recheck(chargeMoney(100), 103);
+    expect(backwardsReturn.after.revision).toBe(
+      backwardsReturn.before.revision + 1,
+    );
+    expect(backwardsReturn.after.state).toMatchObject({
+      decision: { kind: "wait" },
       reason: "provider_conflict",
     });
 

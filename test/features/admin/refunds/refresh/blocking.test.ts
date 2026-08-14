@@ -69,6 +69,22 @@ describeWithEnv("refresh payment under an attendee claim", { db: true }, () => {
     expect(run.claim.released).toEqual([run.reference.rowSessionIds]);
   });
 
+  test("fails loudly when observation reaches an owner revision fence", async () => {
+    const run = runHarness();
+
+    await expect(
+      refresh(run, {
+        ...run.dependencies,
+        request: (target) =>
+          Promise.resolve({ kind: "changed", reference: target.reference }),
+      }),
+    ).rejects.toThrow(
+      "Observed payment refresh reached an owner revision fence",
+    );
+    expect(run.provider.refunds).toEqual([]);
+    expect(run.claim.released).toEqual([run.reference.rowSessionIds]);
+  });
+
   for (const [name, wrongReference] of [
     [
       "provider",

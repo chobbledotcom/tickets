@@ -7,7 +7,10 @@ import {
   markRefundObservationDue,
   readyRefund,
 } from "#shared/payment/refund-authority.ts";
-import { markRefundOwnerChoiceNeeded } from "#shared/payment/refund-authority-choice.ts";
+import {
+  markRefundOwnerChoiceNeeded,
+  markRefundProviderConflict,
+} from "#shared/payment/refund-authority-choice.ts";
 import {
   refundLifecycleFor,
   refundMoveRefusalOrNull,
@@ -56,6 +59,39 @@ describe("payment > refund authority lifecycle", () => {
       refusal:
         "The owner still has to decide what happened to a provider refund. Resolve it in Refund recovery, then try again.",
       requiresChoice: true,
+    });
+  });
+
+  test("partial money names provider recheck as its only safe exit", () => {
+    const state = markRefundProviderConflict(ready(), 40, {
+      captured: { amount: 2_500, currency: "GBP" },
+      kind: "returned",
+      refunded: { amount: 400, currency: "GBP" },
+    });
+
+    expect(refundLifecycleFor(state)).toEqual({
+      blocks: { delete: true, merge: false },
+      clearedBy: "requestProviderRefund",
+      operatorRoute: "/admin/privacy/refunds/:id",
+      prunable: false,
+      refusal:
+        "The provider shows only part of this payment returned. Check it again in Refund recovery, then try again.",
+      requiresChoice: false,
+    });
+  });
+
+  test("inconclusive evidence names provider recheck as its only exit", () => {
+    const state = markRefundProviderConflict(ready(), 40, {
+      captured: { amount: 2_500, currency: "GBP" },
+      kind: "wait",
+      refunded: { amount: 400, currency: "GBP" },
+    });
+
+    expect(refundLifecycleFor(state)).toMatchObject({
+      clearedBy: "requestProviderRefund",
+      refusal:
+        "The provider evidence is not conclusive yet. Check it again in Refund recovery, then try again.",
+      requiresChoice: false,
     });
   });
 

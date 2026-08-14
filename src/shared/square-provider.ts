@@ -38,7 +38,11 @@ import type {
 } from "#shared/payments.ts";
 import { squareApi } from "#shared/square/api.ts";
 import type { SquareOrder } from "#shared/square/order.ts";
-import type { SquarePayment } from "#shared/square/payment-outcomes.ts";
+import {
+  isSquarePaymentStatus,
+  type SquarePayment,
+  type SquarePaymentStatus,
+} from "#shared/square/payment-outcomes.ts";
 import { verifySquareWebhookSignature } from "#shared/square/webhook.ts";
 
 /** How much of a Square payment has gone back, or nothing when Square's
@@ -74,7 +78,10 @@ const sessionPayment = async (
 
 type SquareWebhookPayment =
   | { readonly kind: "other" }
-  | { readonly kind: "not_completed"; readonly status: string }
+  | {
+      readonly kind: "not_completed";
+      readonly status: Exclude<SquarePaymentStatus, "COMPLETED">;
+    }
   | {
       readonly id: string;
       readonly kind: "completed";
@@ -109,6 +116,9 @@ const webhookPayment = (listing: WebhookEvent): SquareWebhookPayment => {
   }
   if (status === null) {
     throw new Error("Square payment webhook is missing status");
+  }
+  if (!isSquarePaymentStatus(status)) {
+    throw new Error(`Square payment webhook has unknown status: ${status}`);
   }
   if (status !== "COMPLETED") return { kind: "not_completed", status };
   if (orderId === null) {

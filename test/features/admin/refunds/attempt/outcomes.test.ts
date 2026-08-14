@@ -174,6 +174,20 @@ describeWithEnv("admin refund provider", { db: true }, () => {
     expect(result).toMatchObject({ outcome: "withheld", returned: [] });
   });
 
+  test("withholds when an authority revision changed", async () => {
+    const source = provider();
+    const result = await refundReadyCandidate(
+      await canonicalReadyCandidateWithReferences(["pi_changed"], source),
+      7,
+      new Map(),
+      (target) =>
+        Promise.resolve({ kind: "changed", reference: target.reference }),
+    );
+
+    expect(result).toMatchObject({ outcome: "withheld", returned: [] });
+    expect(source.refunds).toEqual([]);
+  });
+
   test("keeps an uncertain authority pending", async () => {
     const source = provider({ throws: new Set(["pi_boom"]) });
     const result = await refundReadyCandidate(

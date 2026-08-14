@@ -88,12 +88,22 @@ describe("provider refund recovery templates", () => {
     expect(html).not.toContain("checked");
   });
 
-  test("offers only the choice proved by exact provider-conflict money", () => {
-    const returned = adminProviderRefundCasePage(
+  test("keeps a partial return checkable and offers choices only for conclusive money", () => {
+    const partial = adminProviderRefundCasePage(
       OWNER_SESSION,
       {
         ...detail,
         decision: { captured, kind: "returned", refunded: money(1, "GBP")! },
+        reason: "provider_conflict",
+        state: "needs_owner_choice",
+      },
+      {},
+    );
+    const returned = adminProviderRefundCasePage(
+      OWNER_SESSION,
+      {
+        ...detail,
+        decision: { captured, kind: "returned", refunded: captured },
         reason: "provider_conflict",
         state: "needs_owner_choice",
       },
@@ -114,6 +124,10 @@ describe("provider refund recovery templates", () => {
       {},
     );
 
+    expect(partial).toContain(
+      'name="choice" type="hidden" value="check_again"',
+    );
+    expect(partial).not.toContain('type="radio"');
     expect(returned).toContain('value="provider_confirmed_returned"');
     expect(returned).not.toContain('value="provider_confirmed_not_sent"');
     expect(notSent).toContain('value="provider_confirmed_not_sent"');

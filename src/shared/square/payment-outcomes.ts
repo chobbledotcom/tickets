@@ -122,8 +122,11 @@ const SQUARE_PAYMENT_STATUSES = [
   "CANCELED",
   "FAILED",
 ] as const;
+export type SquarePaymentStatus = (typeof SQUARE_PAYMENT_STATUSES)[number];
 
-const isSquarePaymentStatus = (status: string): boolean =>
+export const isSquarePaymentStatus = (
+  status: string,
+): status is SquarePaymentStatus =>
   SQUARE_PAYMENT_STATUSES.some((known) => known === status);
 
 const squareMoneyOrUndefined = (

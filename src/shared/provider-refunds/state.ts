@@ -15,14 +15,15 @@ import type { TaggedPaymentReference } from "#shared/payment/provider-reference.
 import {
   armRefundSend,
   markRefundObservationDue,
+  readyRefund,
   type RefundAuthorityState,
   type RefundOwnerChoiceReason,
   type RefundRequestGeneration,
-  readyRefund,
 } from "#shared/payment/refund-authority.ts";
 import {
   markRefundOwnerChoiceNeeded,
   markRefundProviderConflict,
+  refundOwnerChoices,
 } from "#shared/payment/refund-authority-choice.ts";
 import {
   type RefundConflictDecision,
@@ -69,6 +70,7 @@ export const refundAnswerFrom = (
       kind: "needs_owner_choice",
       reason: row.state.reason,
       reference,
+      requiresChoice: refundOwnerChoices(row.state).length > 0,
     };
   }
   if (row.state.kind === "ready") {
@@ -110,11 +112,11 @@ const requestGeneration = async (
   return capability === "keyless"
     ? { capability, generation, identityIndex }
     : {
-        capability,
-        generation,
-        identityIndex,
-        replayUntil: refundReplayUntil(reference.provider, now),
-      };
+      capability,
+      generation,
+      identityIndex,
+      replayUntil: refundReplayUntil(reference.provider, now),
+    };
 };
 
 export const initialRefundState = async (
@@ -164,10 +166,10 @@ export const ownerReasonWhenDue = (
   now < state.nextActionAt
     ? null
     : state.request.capability === "keyless"
-      ? "possibly_sent"
-      : now > state.request.replayUntil
-        ? "replay_window_expired"
-        : null;
+    ? "possibly_sent"
+    : now > state.request.replayUntil
+    ? "replay_window_expired"
+    : null;
 
 export const moveRefundToOwner = async (
   row: RefundAuthorityRow,
@@ -177,8 +179,11 @@ export const moveRefundToOwner = async (
   refunded: Money,
 ): Promise<ProviderRefundResult> =>
   await refundAfterTransition(
-    await transitionRefundAuthority(row, now, refunded, (state) =>
-      markRefundOwnerChoiceNeeded(state, now, reason),
+    await transitionRefundAuthority(
+      row,
+      now,
+      refunded,
+      (state) => markRefundOwnerChoiceNeeded(state, now, reason),
     ),
     row,
     reference,
@@ -217,16 +222,28 @@ const sameConflictDecision = (
   sameMoney(left.captured, right.captured) &&
   sameMoney(left.refunded, right.refunded);
 
+const conflictRefundedMoney = (
+  row: RefundAuthorityRow,
+  decision: RefundConflictDecision,
+): Money =>
+  decision.kind === "returned" &&
+    decision.refunded.currency === row.captured.currency &&
+    decision.refunded.amount > row.refunded.amount
+    ? {
+      amount: Math.min(decision.refunded.amount, row.captured.amount),
+      currency: row.captured.currency,
+    }
+    : row.refunded;
+
 /** Preserve terminal work and store the exact provider money behind a live
  * disagreement. A recheck can replace only the same conflict decision. */
 export const answerProviderConflict = (charge: ChargeMoney): AnswerRefund =>
   changeRefundWhen(mayAnswerProviderConflict, async (row, now, reference) => {
     const decision = refundConflictDecision(row, charge);
-    const existingConflict =
-      row.state.kind === "needs_owner_choice" &&
-      row.state.reason === "provider_conflict"
-        ? row.state
-        : null;
+    const existingConflict = row.state.kind === "needs_owner_choice" &&
+        row.state.reason === "provider_conflict"
+      ? row.state
+      : null;
     if (
       existingConflict !== null &&
       sameConflictDecision(existingConflict.decision, decision)
@@ -234,8 +251,11 @@ export const answerProviderConflict = (charge: ChargeMoney): AnswerRefund =>
       return refundAnswerFrom(row, reference);
     }
     return await refundAfterTransition(
-      await transitionRefundAuthority(row, now, row.refunded, (state) =>
-        markRefundProviderConflict(state, now, decision),
+      await transitionRefundAuthority(
+        row,
+        now,
+        conflictRefundedMoney(row, decision),
+        (state) => markRefundProviderConflict(state, now, decision),
       ),
       row,
       reference,

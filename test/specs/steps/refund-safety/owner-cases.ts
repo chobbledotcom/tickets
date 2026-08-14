@@ -18,8 +18,8 @@ import {
 } from "#test/specs/support/form-controls/reading.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
-  type RefundSafetyState,
   refundSafety,
+  type RefundSafetyState,
 } from "#test/specs/support/refund-safety/state.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { chargeMoney } from "#test-utils/payment-state.ts";
@@ -228,13 +228,6 @@ const expectRequiredUnansweredChoices = (
   expect(choices.every(({ tag }) => hasFlag(tag, "required"))).toBe(true);
   expect(choices.every(({ tag }) => !hasFlag(tag, "checked"))).toBe(true);
 };
-
-Then(
-  "the provider reference is shown with only the required returned choice",
-  function (this: TicketsWorld): void {
-    expectRequiredUnansweredChoices(this, ["provider_confirmed_returned"]);
-  },
-);
 
 Then(
   "the ready refund has one clearly marked Send control",

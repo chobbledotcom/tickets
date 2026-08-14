@@ -5,6 +5,7 @@ import type {
   RefundAuthorityState,
   RefundAuthorityStateName,
 } from "#shared/payment/refund-authority.ts";
+import { refundOwnerChoices } from "#shared/payment/refund-authority-choice.ts";
 
 type LifecycleExit =
   | {
@@ -16,10 +17,14 @@ type LifecycleExit =
       requiresChoice: false;
     };
 
-type LifecycleRuleWithoutState = LifecycleExit & {
-  operatorRoute: string;
+type LifecycleRecovery = LifecycleExit & {
   refusal: string;
+};
+
+type LifecycleRuleWithoutState = {
+  operatorRoute: string;
   prunable: (state: RefundAuthorityState) => boolean;
+  recovery: (state: RefundAuthorityState) => LifecycleRecovery;
   saidFirst: number;
   storedWork: "all" | "local_due";
   stops: Record<RowMove, (state: RefundAuthorityState) => boolean>;
@@ -41,13 +46,74 @@ const refundWorkStops = {
   delete: always,
   merge: never,
 };
+
+const REFUND_RECOVERY = {
+  check_partial: {
+    clearedBy: "requestProviderRefund",
+    refusal:
+      "The provider shows only part of this payment returned. Check it again in Refund recovery, then try again.",
+    requiresChoice: false,
+  },
+  check_inconclusive: {
+    clearedBy: "requestProviderRefund",
+    refusal:
+      "The provider evidence is not conclusive yet. Check it again in Refund recovery, then try again.",
+    requiresChoice: false,
+  },
+  choose: {
+    clearedBy: "resolveProviderRefundCase",
+    refusal:
+      "The owner still has to decide what happened to a provider refund. Resolve it in Refund recovery, then try again.",
+    requiresChoice: true,
+  },
+  continue: {
+    clearedBy: "requestProviderRefund",
+    refusal:
+      "A provider refund for this payment is still in progress. Open Refund recovery and finish it, then try again.",
+    requiresChoice: false,
+  },
+  record: {
+    clearedBy: "markRefundAuthorityRecorded",
+    refusal:
+      "The provider returned this money, but the local accounts do not show it. Record it in Refund recovery, then try again.",
+    requiresChoice: false,
+  },
+} as const satisfies Record<string, LifecycleRecovery>;
+
+const fixedRecovery =
+  (recovery: LifecycleRecovery) =>
+  (_state: RefundAuthorityState): LifecycleRecovery => recovery;
+
+const PROVIDER_CHECK_RECOVERY = {
+  returned: REFUND_RECOVERY.check_partial,
+  wait: REFUND_RECOVERY.check_inconclusive,
+} as const;
+
+const providerCheckRecovery = (
+  state: Extract<RefundAuthorityState, { kind: "needs_owner_choice" }>,
+): LifecycleRecovery => {
+  const kind = state.decision.kind;
+  if (kind !== "returned" && kind !== "wait") {
+    throw new Error(`Owner decision ${kind} unexpectedly has no choices`);
+  }
+  return PROVIDER_CHECK_RECOVERY[kind];
+};
+
+const ownerChoiceRecovery = (
+  state: RefundAuthorityState,
+): LifecycleRecovery => {
+  if (state.kind !== "needs_owner_choice") {
+    throw new Error("Owner-choice recovery received another refund state");
+  }
+  return refundOwnerChoices(state).length === 0
+    ? providerCheckRecovery(state)
+    : REFUND_RECOVERY.choose;
+};
+
 const unfinished = {
-  clearedBy: "requestProviderRefund",
   operatorRoute: "/admin/privacy/refunds/:id",
   prunable: never,
-  refusal:
-    "A provider refund for this payment is still in progress. Open Refund recovery and finish it, then try again.",
-  requiresChoice: false,
+  recovery: fixedRecovery(REFUND_RECOVERY.continue),
   saidFirst: 2,
   stops: refundWorkStops,
   storedWork: "all",
@@ -58,12 +124,9 @@ const completedIsRecorded = (state: RefundAuthorityState): boolean =>
 /** Every durable state declares how it ends and what it blocks. */
 const REFUND_LIFECYCLE = {
   completed: {
-    clearedBy: "markRefundAuthorityRecorded",
     operatorRoute: "/admin/privacy/refunds/:id",
     prunable: completedIsRecorded,
-    refusal:
-      "The provider returned this money, but the local accounts do not show it. Record it in Refund recovery, then try again.",
-    requiresChoice: false,
+    recovery: fixedRecovery(REFUND_RECOVERY.record),
     saidFirst: 0,
     state: "completed",
     stops: {
@@ -73,12 +136,9 @@ const REFUND_LIFECYCLE = {
     storedWork: "local_due",
   },
   needs_owner_choice: {
-    clearedBy: "resolveProviderRefundCase",
     operatorRoute: "/admin/privacy/refunds/:id",
     prunable: never,
-    refusal:
-      "The owner still has to decide what happened to a provider refund. Resolve it in Refund recovery, then try again.",
-    requiresChoice: true,
+    recovery: ownerChoiceRecovery,
     saidFirst: 1,
     state: "needs_owner_choice",
     stops: refundWorkStops,
@@ -117,16 +177,17 @@ export const refundLifecycleFor = (
   state: RefundAuthorityState,
 ): RefundLifecycle => {
   const rule = REFUND_LIFECYCLE[state.kind];
+  const recovery = rule.recovery(state);
   return {
     blocks: {
       delete: rule.stops.delete(state),
       merge: rule.stops.merge(state),
     },
-    clearedBy: rule.clearedBy,
+    clearedBy: recovery.clearedBy,
     operatorRoute: rule.operatorRoute,
     prunable: rule.prunable(state),
-    refusal: rule.refusal,
-    requiresChoice: rule.requiresChoice,
+    refusal: recovery.refusal,
+    requiresChoice: recovery.requiresChoice,
   };
 };
 
@@ -139,5 +200,7 @@ export const refundMoveRefusalOrNull = (
     .map((state) => ({ rule: REFUND_LIFECYCLE[state.kind], state }))
     .filter(({ rule, state }) => rule.stops[move](state))
     .sort((one, other) => one.rule.saidFirst - other.rule.saidFirst)[0];
-  return blocking?.rule.refusal ?? null;
+  return blocking === undefined
+    ? null
+    : blocking.rule.recovery(blocking.state).refusal;
 };

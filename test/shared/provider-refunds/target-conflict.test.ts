@@ -31,7 +31,7 @@ describeWithEnv("provider refund conflict recovery", { db: true }, () => {
     );
     const observed = chargeMoney(2_000);
     const refunding = completingProviderThatReads(() =>
-      Promise.resolve(foundCharge(observed)),
+      Promise.resolve(foundCharge(observed))
     );
     const dependencies = refundDependencies(refunding.provider);
 
@@ -138,5 +138,83 @@ describeWithEnv("provider refund conflict recovery", { db: true }, () => {
         refunded: { amount: 0, currency: "GBP" },
       },
     });
+  });
+
+  test("partial returned money cannot be forgotten by later provider reads", async () => {
+    const payment = refundReference("txn-partial-return-floor", "stripe");
+    let observed = chargeMoney(2_500, 400);
+    let sendCount = 0;
+    const provider = fakeRefundProvider(
+      "stripe",
+      () => Promise.resolve(foundCharge(observed)),
+      (request) => {
+        sendCount++;
+        return Promise.resolve(completedRefund(request.charge));
+      },
+    );
+    const dependencies = refundDependencies(provider);
+
+    const partial = await requestProviderRefund(
+      sendRefundTarget(payment),
+      dependencies,
+    );
+    expect(partial).toMatchObject({
+      kind: "needs_owner_choice",
+      reason: "provider_conflict",
+    });
+    if (partial.kind !== "needs_owner_choice") {
+      throw new Error("Expected a partial-return provider conflict");
+    }
+
+    observed = chargeMoney(2_500, 2_501);
+    const invalid = await requestProviderRefund(
+      {
+        evidence: { kind: "read_provider" },
+        mode: "observe_only",
+        reference: payment,
+      },
+      dependencies,
+    );
+    expect(invalid).toMatchObject({ kind: "needs_owner_choice" });
+
+    observed = chargeMoney(2_500);
+    const backwards = await requestProviderRefund(
+      {
+        evidence: { kind: "read_provider" },
+        mode: "observe_only",
+        reference: payment,
+      },
+      dependencies,
+    );
+    expect(backwards).toMatchObject({ kind: "needs_owner_choice" });
+    if (backwards.kind !== "needs_owner_choice") {
+      throw new Error("Expected partial-return evidence to remain protected");
+    }
+    expect(
+      await loadProviderRefundCase(
+        backwards.authority.id,
+        await getTestPrivateKey(),
+      ),
+    ).toMatchObject({
+      decision: { kind: "wait" },
+      state: "needs_owner_choice",
+    });
+    expect(
+      await resolveProviderRefundCase({
+        activityMessage: "A stale zero read cannot authorize another refund",
+        choice: "provider_confirmed_not_sent",
+        id: backwards.authority.id,
+        privateKey: await getTestPrivateKey(),
+        revision: backwards.authority.revision,
+      }),
+    ).toBe("changed");
+    expect(
+      await storedRefundAuthority(await paymentReferenceIndex(payment)),
+    ).toMatchObject({
+      refunded_amount: 400,
+      refund_local_state: "not_due",
+      refund_state_name: "needs_owner_choice",
+    });
+    expect(sendCount).toBe(0);
   });
 });

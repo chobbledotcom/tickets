@@ -59,10 +59,11 @@ Feature: The site checks that a payment names its provider before refunding it
 
   @rule:payments.any-returned-money-makes-another-refund-unsafe
   @surface:admin
-  Rule: Even one penny already returned needs an owner decision
+  Rule: Even one penny already returned needs another provider check
     The site never treats a small returned amount as no refund at all. It keeps
-    the conflict in the one Refund recovery queue and requires the owner to say
-    what the provider confirms; it never offers a second refund meanwhile.
+    the conflict in the one Refund recovery queue until a later provider check
+    is conclusive. The owner cannot call a partial return complete or send the
+    rest as though nothing was returned.
 
     @case:refund-safety.one-penny-returned-still-needs-review
     Scenario: A failed provider refund nevertheless returned one penny
@@ -73,5 +74,5 @@ Feature: The site checks that a payment names its provider before refunding it
       And Alice's Actions page offers Open Refund recovery
       And Money still shows Alice's 45.00 payment
       When the owner opens Open Refund recovery from Alice's Actions page
-      Then the provider reference is shown with only the required returned choice
+      Then the partial return can only be checked with the provider again
       And the provider has not been contacted again

@@ -34,12 +34,7 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-import {
-  chargeMoney,
-  gbp,
-  refundObservation,
-  refundResource,
-} from "#test-utils/payment-state.ts";
+import { chargeMoney } from "#test-utils/payment-state.ts";
 
 // jscpd:ignore-end
 
@@ -133,28 +128,6 @@ Then(
       throw new Error("No attendee Actions page opened");
     }
     await expectManagerActionsOpen(this, manager, attendee);
-  },
-);
-
-Given(
-  "Stripe says a failed refund returned 0.01 to {word}",
-  function (this: TicketsWorld, who: string): void {
-    const booking = safetyBooking(this, who);
-    refundProviderFor(this).showCharge("stripe", booking.paymentReference, {
-      ...chargeMoney(booking.amount, 1),
-      refunds: [
-        refundObservation({
-          amount: gbp(1),
-          reason: "provider_failed",
-          refund: {
-            ...refundResource,
-            id: `re_failed_${booking.sessionId}`,
-            parentId: booking.paymentReference,
-          },
-          status: "failed",
-        }),
-      ],
-    });
   },
 );
 

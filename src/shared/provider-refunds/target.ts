@@ -22,12 +22,16 @@ import type {
   ProviderRefundTarget,
   RefundEngineProvider,
 } from "#shared/provider-refunds.ts";
+
 /* jscpd:ignore-end */
 
-export interface LoadedRefundTarget {
+interface LoadedRefundTarget {
   readonly callbackReplayIndex: string | undefined;
   readonly existing: RefundAuthorityRow | null;
+  readonly kind: "loaded";
 }
+
+type RefundTargetLoad = LoadedRefundTarget | { readonly kind: "changed" };
 
 const callbackBinding = (
   callbackReplayIndex: string | undefined,
@@ -38,12 +42,22 @@ const callbackBinding = (
 
 export const loadRefundTarget = async (
   target: ProviderRefundTarget,
-): Promise<LoadedRefundTarget> => {
+): Promise<RefundTargetLoad> => {
   const referenceIndex = await paymentReferenceIndex(target.reference);
   if (target.callbackSessionId === undefined) {
+    const existing = await loadRefundAuthorityByReference(referenceIndex);
+    if (
+      target.authority !== undefined &&
+      (existing === null ||
+        existing.id !== target.authority.id ||
+        existing.revision !== target.authority.revision)
+    ) {
+      return { kind: "changed" };
+    }
     return {
       callbackReplayIndex: undefined,
-      existing: await loadRefundAuthorityByReference(referenceIndex),
+      existing,
+      kind: "loaded",
     };
   }
   const callbackReplayIndex = await refundCallbackReplayIndex(
@@ -56,6 +70,7 @@ export const loadRefundTarget = async (
       callbackReplayIndex,
       referenceIndex,
     }),
+    kind: "loaded",
   };
 };
 

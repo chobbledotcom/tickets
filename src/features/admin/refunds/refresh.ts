@@ -174,6 +174,9 @@ const unreturnedResult = (
   if (observed.some((result) => result.kind === "pending")) {
     return { kind: "blocked", reason: "refund_in_progress" };
   }
+  if (observed.some((result) => result.kind === "changed")) {
+    throw new Error("Observed payment refresh reached an owner revision fence");
+  }
   if (observed.some((result) => result.kind === "withheld")) {
     throw new Error("Observed payment refresh lost its provider evidence");
   }

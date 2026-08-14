@@ -36,6 +36,7 @@ import {
 } from "#test-utils/session.ts";
 import {
   expectUnreadableProviderCheck,
+  partiallyReturnedProviderCheck,
   refundCasePath,
   returnedProviderCheck,
   submitRefundCase as submitCase,
@@ -190,11 +191,15 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
       reference,
       readyRefundTestState(identity),
     );
-    using read = stub(sumupPaymentProvider, "readCharge", () =>
-      Promise.resolve(foundCharge(chargeMoney(2_500))),
+    using read = stub(
+      sumupPaymentProvider,
+      "readCharge",
+      () => Promise.resolve(foundCharge(chargeMoney(2_500))),
     );
-    using send = stub(sumupPaymentProvider, "refundCharge", (request) =>
-      Promise.resolve(completedRefund(request.charge)),
+    using send = stub(
+      sumupPaymentProvider,
+      "refundCharge",
+      (request) => Promise.resolve(completedRefund(request.charge)),
     );
 
     const detail = await adminGet(refundCasePath(id));
@@ -263,6 +268,34 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
     expect(returnedChoiceHtml).toContain('value="provider_confirmed_returned"');
     expect(returnedChoiceHtml).not.toContain(
       'value="provider_confirmed_not_sent"',
+    );
+  });
+
+  test("keeps a partial return protected without asking for a false choice", async () => {
+    const id = await addProviderRefundTestCase(
+      "owner-partial-return-reference",
+      markRefundProviderConflict(
+        readyRefundTestState("owner-partial-return-request"),
+        12,
+        {
+          captured: { amount: 2_500, currency: "GBP" },
+          kind: "returned",
+          refunded: { amount: 400, currency: "GBP" },
+        },
+      ),
+    );
+    using provider = partiallyReturnedProviderCheck();
+
+    await expectFlashRedirect(
+      refundCasePath(id),
+      "The provider still cannot prove that the whole refund finished. No refund was sent; this work remains protected and can be checked again.",
+      false,
+    )(await submitCase(await testCookie(), { choice: "check_again" }, id));
+
+    expect(provider.read.calls).toHaveLength(1);
+    expect(provider.send.calls).toHaveLength(0);
+    expect((await getAllActivityLog()).map(({ message }) => message)).toContain(
+      `Refund recovery ${id}: provider evidence still requires another check; no refund was sent`,
     );
   });
 

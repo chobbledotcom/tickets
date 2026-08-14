@@ -47,7 +47,7 @@ describe("payment > refund authority owner choice", () => {
         readyRefundForTest("keyless"),
         180,
         "provider_rejected",
-      ),
+      )
     ).toThrow("cannot start from ready");
   });
 
@@ -82,20 +82,19 @@ describe("payment > refund authority owner choice", () => {
       markRefundOwnerChoiceNeeded(keyed, 510, "replay_window_expired").reason,
     ).toBe("replay_window_expired");
     expect(() =>
-      markRefundOwnerChoiceNeeded(keyless, 180, "replay_window_expired"),
+      markRefundOwnerChoiceNeeded(keyless, 180, "replay_window_expired")
     ).toThrow("reason does not match");
+    expect(() => markRefundOwnerChoiceNeeded(keyed, 510, "possibly_sent"))
+      .toThrow("reason does not match");
     expect(() =>
-      markRefundOwnerChoiceNeeded(keyed, 510, "possibly_sent"),
-    ).toThrow("reason does not match");
-    expect(() =>
-      markRefundOwnerChoiceNeeded(keyless, 180, "provider_unreadable"),
+      markRefundOwnerChoiceNeeded(keyless, 180, "provider_unreadable")
     ).toThrow("cannot start from send_armed");
     expect(() =>
       markRefundOwnerChoiceNeeded(
         readyRefundForTest("keyed"),
         180,
         "possibly_sent",
-      ),
+      )
     ).toThrow("cannot start from ready");
   });
 
@@ -111,11 +110,10 @@ describe("payment > refund authority owner choice", () => {
       "possibly_sent",
     );
 
+    expect(() => markRefundProviderConflict(completed, 190, notSentConflict))
+      .toThrow("Provider conflict cannot start from completed");
     expect(() =>
-      markRefundProviderConflict(completed, 190, notSentConflict),
-    ).toThrow("Provider conflict cannot start from completed");
-    expect(() =>
-      markRefundProviderConflict(ordinaryChoice, 190, notSentConflict),
+      markRefundProviderConflict(ordinaryChoice, 190, notSentConflict)
     ).toThrow("Provider conflict cannot start from needs_owner_choice");
   });
 
@@ -180,7 +178,7 @@ describe("payment > refund authority owner choice", () => {
         nextActionAt: 210,
         replayUntil: 500,
         requestIndex: "request-two",
-      }),
+      })
     ).toThrow("Owner choice must keep the provider capability");
   });
 
@@ -217,10 +215,15 @@ describe("payment > refund authority owner choice", () => {
       180,
       notSentConflict,
     );
-    const returned = markRefundProviderConflict(keylessArmed(), 180, {
+    const partial = markRefundProviderConflict(keylessArmed(), 180, {
       captured: { amount: 2_000, currency: "GBP" },
       kind: "returned",
       refunded: { amount: 500, currency: "GBP" },
+    });
+    const returned = markRefundProviderConflict(keylessArmed(), 180, {
+      captured: { amount: 2_000, currency: "GBP" },
+      kind: "returned",
+      refunded: { amount: 2_000, currency: "GBP" },
     });
     const waiting = markRefundProviderConflict(keylessArmed(), 180, {
       captured: { amount: 2_000, currency: "GBP" },
@@ -234,16 +237,23 @@ describe("payment > refund authority owner choice", () => {
     expect(refundOwnerChoices(returned)).toEqual([
       "provider_confirmed_returned",
     ]);
+    expect(refundOwnerChoices(partial)).toEqual([]);
     expect(refundOwnerChoices(waiting)).toEqual([]);
     expect(() =>
-      resolveRefundOwnerChoice(returned, {
+      resolveRefundOwnerChoice(partial, {
+        decidedAt: 200,
+        kind: "provider_confirmed_returned",
+      })
+    ).toThrow("is not allowed by returned");
+    expect(() =>
+      resolveRefundOwnerChoice(partial, {
         capability: "keyless",
         decidedAt: 200,
         evidenceRevision: 3,
         kind: "provider_confirmed_not_sent",
         nextActionAt: 200,
         requestIndex: "request-two",
-      }),
+      })
     ).toThrow("is not allowed by returned");
   });
 });

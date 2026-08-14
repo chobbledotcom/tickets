@@ -31,6 +31,27 @@ Feature: The books catch up when a returned payment could not be recorded
       And Stripe received one request to return Alice's money
       And the owner can delete Alice now that the payment work is finished
 
+  @rule:payments.partial-provider-returns-stay-unresolved
+  @surface:admin
+  Rule: A partial return cannot be mistaken for a complete refund
+    If the provider reports returning only part of the captured payment, the
+    owner can check again but cannot call the whole refund returned or unsent.
+    Checking reads the provider once, sends nothing, and keeps the payment
+    protected while the evidence is still partial.
+
+    @case:refund-safety.partial-return-remains-protected-after-recheck
+    Scenario: Stripe still reports returning 4.00 of a 25.00 payment
+      Given Alice bought a 25.00 Concert place through Stripe on the public booking page
+      And Stripe says a failed refund returned 4.00 to Alice
+      When the owner signs in and tries to refund Alice from her Actions page
+      And the owner opens Open Refund recovery from Alice's Actions page
+      Then the partial return can only be checked with the provider again
+      When the owner checks the partial return with the provider
+      Then Stripe was read once more and received no refund request for Alice
+      And the partial return can only be checked with the provider again
+      And Alice's Actions page does not offer another Refund and does offer recovery
+      And Money still shows Alice's 25.00 payment
+
   @rule:payments.moved-payment-work-stays-reachable
   @surface:admin
   Rule: Moved payment work can still be finished from its new attendee

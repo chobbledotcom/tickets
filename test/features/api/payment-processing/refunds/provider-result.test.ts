@@ -20,9 +20,8 @@ const authority: RefundAuthorityReceipt = {
 };
 
 type ResultWithoutReference = ProviderRefundResult extends infer Answer
-  ? Answer extends ProviderRefundResult
-    ? Omit<Answer, "reference">
-    : never
+  ? Answer extends ProviderRefundResult ? Omit<Answer, "reference">
+  : never
   : never;
 
 const result = <Answer extends ResultWithoutReference>(
@@ -47,10 +46,12 @@ describe("callback provider-refund result", () => {
     ).toBe(true);
   });
 
-  for (const pending of [
-    { kind: "pending", state: "send_armed" },
-    { kind: "pending", state: "observing" },
-  ] as const) {
+  for (
+    const pending of [
+      { kind: "pending", state: "send_armed" },
+      { kind: "pending", state: "observing" },
+    ] as const
+  ) {
     it(`keeps ${pending.state} money pending`, () => {
       expect(providerRefundReturned(result({ authority, ...pending }))).toBe(
         false,
@@ -78,6 +79,16 @@ describe("callback provider-refund result", () => {
     expect(errors.contains("only observed for stripe payment")).toBe(true);
   });
 
+  it("reports an owner revision fence without claiming a refund", () => {
+    expect(
+      providerRefundReturned(result({ kind: "changed" }), {
+        listingId: 7,
+        provider: "stripe",
+      }),
+    ).toBe(false);
+    expect(errors.contains("authority changed before")).toBe(true);
+  });
+
   it("reports the exact reason an owner decision is required", () => {
     expect(
       providerRefundReturned(
@@ -85,6 +96,7 @@ describe("callback provider-refund result", () => {
           authority,
           kind: "needs_owner_choice",
           reason: "possibly_sent",
+          requiresChoice: true,
         }),
       ),
     ).toBe(false);

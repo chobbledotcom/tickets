@@ -119,6 +119,7 @@ const engineResult = (
       outcome: result.reason === "provider_rejected" ? "failed" : "pending",
     };
   }
+  if (result.kind === "changed") return { outcome: "withheld" };
   if (result.kind === "unchanged") return { outcome: "withheld" };
   return { outcome: "withheld" };
 };

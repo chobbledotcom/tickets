@@ -41,4 +41,14 @@ describe("square-provider payment webhook fields", () => {
       }),
     ).rejects.toThrow("Square payment webhook is missing status");
   });
+
+  test("rejects an unknown payment status", async () => {
+    await expect(
+      resolvePayment({
+        id: "pay_unknown_status",
+        order_id: "order_unknown_status",
+        status: "UNKNOWN",
+      }),
+    ).rejects.toThrow("Square payment webhook has unknown status: UNKNOWN");
+  });
 });

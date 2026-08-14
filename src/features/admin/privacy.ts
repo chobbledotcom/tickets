@@ -52,8 +52,10 @@ import {
   isOrphanRetentionValue,
   orphanRetentionCutoffIso,
 } from "#shared/orphan-retention.ts";
+import { refundOwnerChoicesForDecision } from "#shared/payment/refund-authority-choice.ts";
 import { readProviderRefundCursor } from "#shared/provider-refund-cursor.ts";
 import {
+  type OwnerRecoveryRefundTarget,
   type ProviderRefundResult,
   requestProviderRefund,
 } from "#shared/provider-refunds.ts";
@@ -67,6 +69,8 @@ import { adminProviderRefundCasePage } from "#templates/admin/provider-refund-ca
 
 const PRIVACY_PATH = "/admin/privacy";
 const refundCasePath = (id: number): string => `${PRIVACY_PATH}/refunds/${id}`;
+const refundCaseChanged = (id: number): Response =>
+  errorRedirect(refundCasePath(id), t("privacy.refunds.changed"));
 
 /** GET /admin/privacy — explainer plus the orphan-purge and erasure forms. */
 const paymentWorkCursor = (request: Request) => {
@@ -79,10 +83,9 @@ const paymentWorkCursor = (request: Request) => {
 
 const handlePrivacyGet = ownerResponsePage(async (session, request, flash) => {
   const refundCursor = new URL(request.url).searchParams.get("refund_after");
-  const refundAfter =
-    refundCursor === null
-      ? undefined
-      : await readProviderRefundCursor(refundCursor);
+  const refundAfter = refundCursor === null
+    ? undefined
+    : await readProviderRefundCursor(refundCursor);
   if (refundAfter === null) {
     return htmlResponse(t("privacy.refunds.invalid_cursor"), 400);
   }
@@ -117,11 +120,9 @@ const handleRefundCaseGet: RefundCaseRoute = (request, { id }) =>
       id,
       await requireRequestPrivateKey(),
     );
-    return refundCase === null
-      ? notFoundResponse()
-      : htmlResponse(
-          adminProviderRefundCasePage(session, refundCase, applyFlash(request)),
-        );
+    return refundCase === null ? notFoundResponse() : htmlResponse(
+      adminProviderRefundCasePage(session, refundCase, applyFlash(request)),
+    );
   });
 
 const OWNER_CHOICE_LOG = {
@@ -135,7 +136,7 @@ const isOwnerChoice = (value: string): value is ProviderRefundOwnerChoice =>
 
 type ExistingProviderRefundResult = Exclude<
   ProviderRefundResult,
-  { kind: "unchanged" }
+  { kind: "changed" | "unchanged" }
 >;
 
 type AutomaticRefundCaseState = Exclude<
@@ -152,14 +153,10 @@ const AUTOMATIC_PROVIDER_CHECK = {
 
 const mayCheckProvider = (refundCase: ProviderRefundCase): boolean =>
   refundCase.state === "needs_owner_choice"
-    ? refundCase.decision.kind === "wait"
+    ? refundOwnerChoicesForDecision(refundCase.decision).length === 0
     : AUTOMATIC_PROVIDER_CHECK[refundCase.state];
 
 const CHECK_STOP_COPY = {
-  needs_owner_choice: {
-    log: "privacy.refunds.log_choice_opened",
-    message: "privacy.refunds.choice_opened",
-  },
   pending: null,
   ready: null,
   returned: null,
@@ -168,9 +165,30 @@ const CHECK_STOP_COPY = {
     message: "privacy.refunds.unreadable",
   },
 } as const satisfies Record<
-  ExistingProviderRefundResult["kind"],
+  Exclude<ExistingProviderRefundResult["kind"], "needs_owner_choice">,
   { readonly log: string; readonly message: string } | null
 >;
+
+const OWNER_CHECK_STOP_COPY = {
+  false: {
+    log: "privacy.refunds.log_recheck_needed",
+    message: "privacy.refunds.recheck_needed",
+  },
+  true: {
+    log: "privacy.refunds.log_choice_opened",
+    message: "privacy.refunds.choice_opened",
+  },
+} as const satisfies Record<
+  `${boolean}`,
+  { readonly log: string; readonly message: string }
+>;
+
+const stoppedProviderCheck = (
+  result: ExistingProviderRefundResult,
+): { readonly log: string; readonly message: string } | null =>
+  result.kind === "needs_owner_choice"
+    ? OWNER_CHECK_STOP_COPY[`${result.requiresChoice}`]
+    : CHECK_STOP_COPY[result.kind];
 
 const checkProviderAgain = async (
   id: number,
@@ -181,20 +199,34 @@ const checkProviderAgain = async (
     await requireRequestPrivateKey(),
   );
   if (refundCase === null) return notFoundResponse();
-  if (refundCase.revision !== revision || !mayCheckProvider(refundCase)) {
-    return errorRedirect(refundCasePath(id), t("privacy.refunds.changed"));
+  if (!mayCheckProvider(refundCase)) {
+    return refundCaseChanged(id);
   }
   const sendsReadyRefund = refundCase.state === "ready";
-  const result = await requestProviderRefund({
+  if (!sendsReadyRefund && refundCase.revision !== revision) {
+    return refundCaseChanged(id);
+  }
+  const target = {
+    authority: { id, revision },
     evidence: { kind: "read_provider" },
-    mode: sendsReadyRefund ? "send" : "observe_only",
+    mode: "send",
     reference: refundCase.reference,
-  });
+  } satisfies OwnerRecoveryRefundTarget;
+  const result = sendsReadyRefund
+    ? await requestProviderRefund(target)
+    : await requestProviderRefund({
+      evidence: { kind: "read_provider" },
+      mode: "observe_only",
+      reference: refundCase.reference,
+    });
+  if (result.kind === "changed") {
+    return refundCaseChanged(id);
+  }
   assert(
     result.kind !== "unchanged",
     "Existing refund recovery lost its durable authority",
   );
-  const stopped = CHECK_STOP_COPY[result.kind];
+  const stopped = stoppedProviderCheck(result);
   if (stopped !== null) {
     await logActivity(t(stopped.log, { id }));
     return errorRedirect(refundCasePath(id), t(stopped.message));
@@ -241,7 +273,7 @@ const handleRefundCasePost: RefundCaseRoute = (request, { id }) =>
     });
     if (result === "missing") return notFoundResponse();
     if (result === "changed") {
-      return errorRedirect(refundCasePath(id), t("privacy.refunds.changed"));
+      return refundCaseChanged(id);
     }
     return redirect(PRIVACY_PATH, t("privacy.refunds.resolved"), true);
   });

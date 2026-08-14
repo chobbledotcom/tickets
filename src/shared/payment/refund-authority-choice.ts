@@ -5,17 +5,18 @@ import {
   markRefundCompleted,
   type NeedsOwnerChoiceRefundState,
   type ProviderConflictRefundState,
+  readyRefund,
   type ReadyRefundState,
   type RefundAuthorityState,
   type RefundOwnerChoiceReason,
   type RefundRequestGeneration,
-  readyRefund,
   validateRefundAuthorityState,
 } from "#shared/payment/refund-authority.ts";
 import type {
   RefundConflictDecision,
   RefundOwnerDecision,
 } from "#shared/payment/refund-conflict-decision.ts";
+import { sameMoney } from "#shared/payment/money.ts";
 
 const OWNER_CHOICE_FROM = {
   possibly_sent: ["send_armed", "observing"],
@@ -71,8 +72,8 @@ export const markRefundOwnerChoiceNeeded = (
   }) as OrdinaryOwnerChoiceRefundState;
 };
 
-/** Park a disagreement together with the exact provider money that can settle
- * it. A later read may replace only this same kind of owner decision. */
+/** Park a disagreement with its exact provider evidence. A later read may
+ * replace only this same kind of owner decision. */
 export const markRefundProviderConflict = (
   state: RefundAuthorityState,
   openedAt: number,
@@ -95,22 +96,22 @@ export const markRefundProviderConflict = (
 export type RefundOwnerChoice =
   | { decidedAt: number; kind: "provider_confirmed_returned" }
   | {
-      capability: "keyless";
-      decidedAt: number;
-      evidenceRevision: number;
-      kind: "provider_confirmed_not_sent";
-      nextActionAt: number;
-      requestIndex: string;
-    }
+    capability: "keyless";
+    decidedAt: number;
+    evidenceRevision: number;
+    kind: "provider_confirmed_not_sent";
+    nextActionAt: number;
+    requestIndex: string;
+  }
   | {
-      capability: "keyed";
-      decidedAt: number;
-      evidenceRevision: number;
-      kind: "provider_confirmed_not_sent";
-      nextActionAt: number;
-      replayUntil: number;
-      requestIndex: string;
-    };
+    capability: "keyed";
+    decidedAt: number;
+    evidenceRevision: number;
+    kind: "provider_confirmed_not_sent";
+    nextActionAt: number;
+    replayUntil: number;
+    requestIndex: string;
+  };
 
 const nextGeneration = (
   state: NeedsOwnerChoiceRefundState,
@@ -121,16 +122,16 @@ const nextGeneration = (
   }
   return choice.capability === "keyed"
     ? {
-        capability: "keyed",
-        generation: state.request.generation + 1,
-        identityIndex: choice.requestIndex,
-        replayUntil: choice.replayUntil,
-      }
+      capability: "keyed",
+      generation: state.request.generation + 1,
+      identityIndex: choice.requestIndex,
+      replayUntil: choice.replayUntil,
+    }
     : {
-        capability: "keyless",
-        generation: state.request.generation + 1,
-        identityIndex: choice.requestIndex,
-      };
+      capability: "keyless",
+      generation: state.request.generation + 1,
+      identityIndex: choice.requestIndex,
+    };
 };
 
 export type RefundOwnerChoiceName = RefundOwnerChoice["kind"];
@@ -148,11 +149,22 @@ const OWNER_CHOICES_BY_DECISION = {
   readonly RefundOwnerChoiceName[]
 >;
 
+/** Exact choices admitted by one provider decision. A partial return proves
+ * neither that the full refund finished nor that the remainder is safe to
+ * send, so its only safe action is another provider check. */
+export const refundOwnerChoicesForDecision = (
+  decision: RefundOwnerDecision,
+): readonly RefundOwnerChoiceName[] =>
+  decision.kind === "returned" &&
+    !sameMoney(decision.captured, decision.refunded)
+    ? []
+    : OWNER_CHOICES_BY_DECISION[decision.kind];
+
 /** Exact choices admitted by the evidence stored in this authority revision. */
 export const refundOwnerChoices = (
   state: NeedsOwnerChoiceRefundState,
 ): readonly RefundOwnerChoiceName[] =>
-  OWNER_CHOICES_BY_DECISION[state.decision.kind];
+  refundOwnerChoicesForDecision(state.decision);
 
 /** Apply one explicit owner answer; there is intentionally no generic clear. */
 export const resolveRefundOwnerChoice = (
@@ -168,9 +180,9 @@ export const resolveRefundOwnerChoice = (
   return choice.kind === "provider_confirmed_returned"
     ? markRefundCompleted(state, choice.decidedAt, "owner")
     : readyRefund({
-        evidenceRevision: choice.evidenceRevision,
-        nextActionAt: choice.nextActionAt,
-        now: choice.decidedAt,
-        request: nextGeneration(state, choice),
-      });
+      evidenceRevision: choice.evidenceRevision,
+      nextActionAt: choice.nextActionAt,
+      now: choice.decidedAt,
+      request: nextGeneration(state, choice),
+    });
 };

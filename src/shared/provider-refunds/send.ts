@@ -8,8 +8,8 @@ import type { TaggedPaymentReference } from "#shared/payment/provider-reference.
 import {
   armRefundSend,
   markRefundObservationDue,
-  type RefundAuthorityState,
   rearmKeyedRefund,
+  type RefundAuthorityState,
   returnRefundToReady,
 } from "#shared/payment/refund-authority.ts";
 import { authorizeDurableRefundSend } from "#shared/payment/refund-provider-authorization.ts";
@@ -134,13 +134,16 @@ const sendArmed = async ({
 const sendAfterTransition = async (
   changed: RefundAuthorityRow | null,
   work: ProviderRefundWork,
-): Promise<ProviderRefundResult> =>
-  changed === null
-    ? refundAnswerFrom(
-        await requireCurrentRefund(work.row),
-        work.target.reference,
-      )
-    : await sendArmed({ ...work, row: changed });
+): Promise<ProviderRefundResult> => {
+  if (changed !== null) return await sendArmed({ ...work, row: changed });
+  if (work.target.authority !== undefined) {
+    return { kind: "changed", reference: work.target.reference };
+  }
+  return refundAnswerFrom(
+    await requireCurrentRefund(work.row),
+    work.target.reference,
+  );
+};
 
 type RefundStateChange = (state: RefundAuthorityState) => RefundAuthorityState;
 
@@ -150,14 +153,24 @@ const transitionBeforeProviderCall = (
   now: number,
   change: RefundStateChange,
 ): Promise<RefundAuthorityRow | null> =>
-  withSubrequestReserve(REFUND_RESULT_DATABASE_RESERVE, () =>
-    transitionRefundAuthority(row, now, returnedRefundMoney(charge), change),
+  withSubrequestReserve(
+    REFUND_RESULT_DATABASE_RESERVE,
+    () =>
+      transitionRefundAuthority(
+        row,
+        now,
+        returnedRefundMoney(charge),
+        change,
+      ),
   );
 
 export const armReadyRefund: ProviderRefundStep = async (work) => {
   const { charge, now, row } = work;
-  const armed = await transitionBeforeProviderCall(row, charge, now, (state) =>
-    armRefundSend(state, now, now + REFUND_OBSERVATION_DELAY_MS),
+  const armed = await transitionBeforeProviderCall(
+    row,
+    charge,
+    now,
+    (state) => armRefundSend(state, now, now + REFUND_OBSERVATION_DELAY_MS),
   );
   return await sendAfterTransition(armed, work);
 };

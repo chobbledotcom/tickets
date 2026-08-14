@@ -9,9 +9,22 @@ import {
   markRefundObservationDue,
   readyRefund,
 } from "#shared/payment/refund-authority.ts";
-import { markRefundOwnerChoiceNeeded } from "#shared/payment/refund-authority-choice.ts";
+import {
+  markRefundOwnerChoiceNeeded,
+  markRefundProviderConflict,
+} from "#shared/payment/refund-authority-choice.ts";
 import { refundLifecycleFor } from "#shared/payment/refund-authority-lifecycle.ts";
 import { getAllFilesWithExt } from "#test/scripts/code-quality/detectors.ts";
+import {
+  couldBuildRefundAuthority,
+  LOWER_SEND_SOURCE_PATHS,
+  LOWER_SEND_TEST_PATHS,
+  PARALLEL_AUTHORITY_FORMS,
+  REFUND_AUTHORITY_ARCHITECTURE_FILES,
+  REFUND_AUTHORITY_SOURCE_PATHS,
+  REFUND_AUTHORITY_TEST_PATHS,
+  TEST_AUTHORITY_BUILDING_PATHS,
+} from "./refund-authority-architecture-fixtures.ts";
 
 const sourceRoot = join(dirname(fileURLToPath(import.meta.url)), "../../src");
 const testRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -44,6 +57,15 @@ const pathsContaining = (
     .map(({ path }) => path)
     .sort();
 
+const pathsMatching = (
+  files: readonly { readonly code: string; readonly path: string }[],
+  matches: (code: string) => boolean,
+): string[] =>
+  files
+    .filter(({ code }) => matches(code))
+    .map(({ path }) => path)
+    .sort();
+
 const refundLifecycles = () => {
   const ready = readyRefund({
     evidenceRevision: 1,
@@ -61,6 +83,11 @@ const refundLifecycles = () => {
     armed,
     markRefundObservationDue(armed, 12, 20),
     markRefundOwnerChoiceNeeded(armed, 12, "possibly_sent"),
+    markRefundProviderConflict(ready, 12, {
+      captured: { amount: 2_500, currency: "GBP" },
+      kind: "returned",
+      refunded: { amount: 400, currency: "GBP" },
+    }),
     markRefundCompleted(ready, 12, "provider"),
   ].map(refundLifecycleFor);
 };
@@ -131,17 +158,49 @@ describe("provider-refund architecture", () => {
     ]);
   });
 
-  test("tests cannot declare a second complete refund authority", async () => {
-    const files = (await codeFilesUnder(testRoot)).filter(
-      ({ path }) =>
-        path !== "integration/refund-authority-architecture.test.ts",
+  test("recognizes a parallel authority regardless of declaration form", () => {
+    for (const form of PARALLEL_AUTHORITY_FORMS) {
+      expect(couldBuildRefundAuthority(form)).toBe(true);
+    }
+  });
+
+  test("test authority building blocks stay at reviewed boundaries", async () => {
+    const files = (await codeFilesUnder(testRoot)).filter(({ path }) =>
+      !REFUND_AUTHORITY_ARCHITECTURE_FILES.has(path)
     );
     expect(
-      pathsContaining(
-        files,
-        /(?:const|let|var)\s+\w+\s*:\s*typeof\s+requestProviderRefund\s*=/,
-      ),
-    ).toEqual([]);
+      pathsMatching(files, couldBuildRefundAuthority),
+    ).toEqual(TEST_AUTHORITY_BUILDING_PATHS);
+  });
+
+  test("the durable authority's production and test entry points stay explicit", async () => {
+    const authorityName = /\brequestProviderRefunds?\b/;
+    expect(pathsContaining(await sourceFiles(), authorityName)).toEqual(
+      REFUND_AUTHORITY_SOURCE_PATHS,
+    );
+    const tests = (await codeFilesUnder(testRoot)).filter(({ path }) =>
+      !REFUND_AUTHORITY_ARCHITECTURE_FILES.has(path)
+    );
+    expect(pathsContaining(tests, authorityName)).toEqual(
+      REFUND_AUTHORITY_TEST_PATHS,
+    );
+  });
+
+  test("lower send mechanisms have one production call chain", async () => {
+    const source = await sourceFiles();
+    const tests = (await codeFilesUnder(testRoot)).filter(({ path }) =>
+      !REFUND_AUTHORITY_ARCHITECTURE_FILES.has(path)
+    );
+    for (const [mechanism, paths] of Object.entries(LOWER_SEND_SOURCE_PATHS)) {
+      expect(
+        pathsContaining(source, new RegExp(`\\b${mechanism}\\b`)),
+      ).toEqual(paths);
+    }
+    for (const [mechanism, paths] of Object.entries(LOWER_SEND_TEST_PATHS)) {
+      expect(
+        pathsContaining(tests, new RegExp(`\\b${mechanism}\\b`)),
+      ).toEqual(paths);
+    }
   });
 
   test("only provider API modules call their refund clients", async () => {

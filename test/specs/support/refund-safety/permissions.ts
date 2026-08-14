@@ -4,6 +4,7 @@
 import { expect } from "@std/expect";
 import { handleRequest } from "#routes";
 import { sessionCookie } from "#test/specs/support/evidence.ts";
+import { choicesForQuestion } from "#test/specs/support/form-controls/reading.ts";
 import { managerBrowser } from "#test/specs/support/staff-accounts.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import {
@@ -12,12 +13,13 @@ import {
   findFormByButton,
   findForms,
 } from "#test-utils/test-browser/forms.ts";
+import { stripTags } from "#test-utils/test-browser/parsing.ts";
 import { openListedRefundCase, openOwnerAction } from "./journeys.ts";
 import {
   refundSafety,
+  safetyBooking,
   type SavedOwnerForm,
   type SavedOwnerFormKind,
-  safetyBooking,
 } from "./state.ts";
 
 // jscpd:ignore-end
@@ -55,20 +57,58 @@ const hiddenValue = (html: string, name: string): string => {
   return value;
 };
 
-const actionFor = {
-  "provider-recovery": {
-    button: "Use this provider decision",
-    link: "Open Refund recovery",
-  },
-  refund: { button: "Refund Attendee", link: "Refund" },
-  review: {
-    button: "Mark payment reviewed",
-    link: "Mark payment reviewed",
-  },
-} as const satisfies Record<
-  SavedOwnerFormKind,
-  { readonly button: string; readonly link: string }
->;
+const ACTION_LINK = {
+  "provider-recovery": "Open Refund recovery",
+  refund: "Refund",
+  review: "Mark payment reviewed",
+} as const satisfies Record<SavedOwnerFormKind, string>;
+
+type SimpleOwnerForm = Exclude<SavedOwnerFormKind, "provider-recovery">;
+
+const SIMPLE_FORM_BUTTON = {
+  refund: "Refund Attendee",
+  review: "Mark payment reviewed",
+} as const satisfies Record<SimpleOwnerForm, string>;
+
+const oneButtonText = (body: string): string => {
+  const buttons = [...body.matchAll(/<button\b[^>]*>([\s\S]*?)<\/button>/gi)]
+    .map((match) => stripTags(match[1]!))
+    .filter((text) => text !== "");
+  if (buttons.length !== 1) {
+    throw new Error("The refund recovery form did not have one submit button");
+  }
+  return buttons[0]!;
+};
+
+const recoveryChoice = (body: string): string => {
+  const hidden = extractFormEntries(body).find(([name]) => name === "choice")
+    ?.[1];
+  if (hidden !== undefined && hidden !== "") return hidden;
+  const offered = choicesForQuestion(body, "choice");
+  if (offered.length === 0) {
+    throw new Error("The refund recovery form offered no choice");
+  }
+  return offered[0]!;
+};
+
+const recoveryFormOn = (html: string, path: string) => {
+  const forms = findForms(html).filter((form) =>
+    form.action === path &&
+    extractFormEntries(form.body).some(([name]) => name === "revision")
+  );
+  if (forms.length !== 1) {
+    throw new Error("The refund recovery page did not have one recovery form");
+  }
+  const form = forms[0]!;
+  return {
+    button: oneButtonText(form.body),
+    form,
+    values: {
+      choice: recoveryChoice(form.body),
+      revision: hiddenValue(form.body, "revision"),
+    },
+  };
+};
 
 /** Save the exact owner-rendered form and address a copied submission uses. */
 export const saveOwnerMoneyForm = async (
@@ -76,36 +116,30 @@ export const saveOwnerMoneyForm = async (
   who: string,
   kind: SavedOwnerFormKind,
 ): Promise<SavedOwnerForm> => {
-  const action = actionFor[kind];
-  const browser = await openOwnerAction(world, who, action.link);
+  const browser = await openOwnerAction(world, who, ACTION_LINK[kind]);
   if (kind === "provider-recovery") {
     await openListedRefundCase(browser);
   }
-  const fields =
-    kind === "provider-recovery"
-      ? ["choice", "revision"]
-      : ["confirm_identifier"];
-  const form = findFormByButton(
-    findForms(browser.currentHtml),
-    action.button,
-    fields,
-  );
-  const values =
-    kind === "provider-recovery"
-      ? {
-          choice: "provider_confirmed_not_sent",
-          revision: hiddenValue(form.body, "revision"),
-        }
-      : { confirm_identifier: who };
+  const details = kind === "provider-recovery"
+    ? recoveryFormOn(browser.currentHtml, browser.currentUrl)
+    : {
+      button: SIMPLE_FORM_BUTTON[kind],
+      form: findFormByButton(
+        findForms(browser.currentHtml),
+        SIMPLE_FORM_BUTTON[kind],
+        ["confirm_identifier"],
+      ),
+      values: { confirm_identifier: who },
+    };
   const saved: SavedOwnerForm = {
     attendeeId: safetyBooking(world, who).attendeeId,
-    button: action.button,
+    button: details.button,
     html: browser.currentHtml,
     path: browser.currentUrl,
-    values,
+    values: details.values,
   };
-  expect(form.action).toBe(browser.currentUrl);
-  expect(form.method).toBe("post");
+  expect(details.form.action).toBe(browser.currentUrl);
+  expect(details.form.method).toBe("post");
   keepSavedForm(world, kind, saved);
   return saved;
 };
