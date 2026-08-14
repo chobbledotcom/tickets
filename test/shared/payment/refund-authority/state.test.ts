@@ -12,6 +12,17 @@ import {
 import { readyRefundForTest } from "#test-utils/refund-authority.ts";
 
 describe("payment > refund authority transitions", () => {
+  test("sent-only transitions reject a ready refund", () => {
+    const ready = readyRefundForTest("keyed");
+
+    expect(() => markRefundObservationDue(ready, 120, 150)).toThrow(
+      "Refund is not armed for observation",
+    );
+    expect(() => rearmKeyedRefund(ready, "request-one", 120, 150)).toThrow(
+      "Refund is not armed for a keyed replay",
+    );
+  });
+
   test("a keyed generation carries its finite exact replay window", () => {
     const armed = armRefundSend(readyRefundForTest("keyed"), 120, 150);
     const observing = markRefundObservationDue(armed, 130, 170);

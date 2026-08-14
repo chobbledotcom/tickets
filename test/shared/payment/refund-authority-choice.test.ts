@@ -9,6 +9,7 @@ import { validateRefundAuthorityState } from "#shared/payment/refund-authority-s
 import {
   markRefundOwnerChoiceNeeded,
   markRefundProviderConflict,
+  mayReplaceRefundWithFreshEvidence,
   refundOwnerChoices,
   resolveRefundOwnerChoice,
 } from "#shared/payment/refund-authority-choice.ts";
@@ -115,7 +116,25 @@ describe("payment > refund authority owner choice", () => {
       180,
       notSentConflict,
     );
+    const rejectedChoice = markRefundOwnerChoiceNeeded(
+      keylessArmed(),
+      180,
+      "provider_rejected",
+    );
+    const unreadableChoice = markRefundOwnerChoiceNeeded(
+      readyRefundForTest("keyed"),
+      180,
+      "provider_unreadable",
+    );
+    const expiredChoice = markRefundOwnerChoiceNeeded(
+      keyedObserving(),
+      510,
+      "replay_window_expired",
+    );
 
+    expect(mayReplaceRefundWithFreshEvidence(rejectedChoice)).toBe(true);
+    expect(mayReplaceRefundWithFreshEvidence(unreadableChoice)).toBe(true);
+    expect(mayReplaceRefundWithFreshEvidence(expiredChoice)).toBe(true);
     expect(() => markRefundProviderConflict(completed, 190, notSentConflict))
       .toThrow("Provider conflict cannot start from completed");
     expect(() =>
@@ -130,6 +149,29 @@ describe("payment > refund authority owner choice", () => {
     ).toMatchObject({
       decision: { kind: "returned" },
       kind: "needs_provider_check",
+    });
+  });
+
+  test("new provider evidence replaces an open check with a newer revision", () => {
+    const firstCheck = markRefundProviderConflict(keylessArmed(), 180, {
+      captured: { amount: 2_000, currency: "GBP" },
+      kind: "returned",
+      refunded: { amount: 500, currency: "GBP" },
+    });
+
+    expect(firstCheck.evidenceRevision).toBe(5);
+    expect(mayReplaceRefundWithFreshEvidence(firstCheck)).toBe(true);
+
+    const newerCheck = markRefundProviderConflict(firstCheck, 190, {
+      captured: { amount: 2_000, currency: "GBP" },
+      kind: "wait",
+      refunded: { amount: 500, currency: "GBP" },
+    });
+
+    expect(newerCheck).toMatchObject({
+      evidenceRevision: 6,
+      kind: "needs_provider_check",
+      openedAt: 190,
     });
   });
 
@@ -261,6 +303,24 @@ describe("payment > refund authority owner choice", () => {
     expect(refundOwnerChoices(returned)).toEqual([
       "provider_confirmed_returned",
     ]);
+    expect(() =>
+      refundOwnerChoices({
+        ...returned,
+        decision: {
+          captured: { amount: 2_000, currency: "GBP" },
+          kind: "returned",
+          refunded: { amount: 500, currency: "GBP" },
+        },
+      })
+    ).toThrow("Owner-choice refund state does not admit a decision");
+    expect(() =>
+      resolveRefundOwnerChoice(notSent, {
+        decidedAt: 200,
+        kind: "provider_confirmed_returned",
+      })
+    ).toThrow(
+      "Owner choice provider_confirmed_returned is not allowed by not_sent",
+    );
     expect(partial.kind).toBe("needs_provider_check");
     expect(waiting.kind).toBe("needs_provider_check");
     expect(() =>

@@ -97,17 +97,6 @@ const CompletedRecordedRefundStateSchema = v.strictObject({
   nextActionAt: v.null(),
 });
 
-const RefundOwnerChoiceReasonSchema = v.picklist([
-  "possibly_sent",
-  "provider_conflict",
-  "provider_unreadable",
-  "replay_window_expired",
-  "provider_rejected",
-]);
-export type RefundOwnerChoiceReason = v.InferOutput<
-  typeof RefundOwnerChoiceReasonSchema
->;
-
 const attentionFields = {
   evidenceRevision: integerAtLeast(1),
   local: NotDueSchema,
@@ -213,6 +202,7 @@ export type NeedsOwnerChoiceRefundState = Extract<
   RefundAuthorityState,
   { kind: "needs_owner_choice" }
 >;
+export type RefundOwnerChoiceReason = NeedsOwnerChoiceRefundState["reason"];
 export type NeedsProviderCheckRefundState = Extract<
   RefundAuthorityState,
   { kind: "needs_provider_check" }

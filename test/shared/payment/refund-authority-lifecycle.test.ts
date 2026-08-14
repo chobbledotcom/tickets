@@ -12,6 +12,7 @@ import {
   markRefundProviderConflict,
 } from "#shared/payment/refund-authority-choice.ts";
 import {
+  refundAuthorityWorkSql,
   refundLifecycleFor,
   refundMoveRefusalOrNull,
 } from "#shared/payment/refund-authority-lifecycle.ts";
@@ -41,6 +42,9 @@ describe("payment > declared refund authority lifecycle", () => {
       expect(lifecycle.requiresChoice).toBe(false);
       expect(lifecycle.clearedBy).toBe("requestProviderRefund");
       expect(lifecycle.operatorRoute).toBe("/admin/privacy/refunds/:id");
+      expect(lifecycle.refusal).toBe(
+        "A provider refund for this payment is still in progress. Open Refund recovery and finish it, then try again.",
+      );
     }
   });
 
@@ -103,6 +107,8 @@ describe("payment > declared refund authority lifecycle", () => {
       blocks: { delete: true, merge: false },
       clearedBy: "markRefundAuthorityRecorded",
       prunable: false,
+      refusal:
+        "The provider returned this money, but the local accounts do not show it. Record it in Refund recovery, then try again.",
     });
 
     expect(
@@ -121,11 +127,50 @@ describe("payment > declared refund authority lifecycle", () => {
     );
     const completed = markRefundCompleted(ready(), 40, "provider");
     const recorded = markRefundLocalRecorded(completed, 50);
+    const providerCheck = markRefundProviderConflict(ready(), 40, {
+      captured: { amount: 2_500, currency: "GBP" },
+      kind: "returned",
+      refunded: { amount: 400, currency: "GBP" },
+    });
 
     expect(
-      refundMoveRefusalOrNull([ready(), ownerChoice, completed], "delete"),
+      refundMoveRefusalOrNull(
+        [ready(), providerCheck, ownerChoice, completed],
+        "delete",
+      ),
     ).toBe(refundLifecycleFor(completed).refusal);
+    expect(
+      refundMoveRefusalOrNull([providerCheck, ownerChoice], "delete"),
+    ).toBe(refundLifecycleFor(ownerChoice).refusal);
     expect(refundMoveRefusalOrNull([ready()], "merge")).toBeNull();
     expect(refundMoveRefusalOrNull([recorded], "delete")).toBeNull();
+  });
+
+  test("provider-check recovery rejects an inconsistent state", () => {
+    let kindReads = 0;
+    const inconsistent = new Proxy(ready(), {
+      get: (target, property, receiver) => {
+        if (property === "kind") {
+          kindReads += 1;
+          return kindReads === 1 ? "needs_provider_check" : "ready";
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() => refundLifecycleFor(inconsistent)).toThrow(
+      "Provider-check recovery received another refund state",
+    );
+  });
+
+  test("the SQL guard is derived from every blocking stored state", () => {
+    expect(refundAuthorityWorkSql("charge.")).toBe(
+      "((charge.refund_state_name = 'completed' AND charge.refund_local_state = 'due') OR " +
+        "charge.refund_state_name = 'needs_owner_choice' OR " +
+        "charge.refund_state_name = 'needs_provider_check' OR " +
+        "charge.refund_state_name = 'observing' OR " +
+        "charge.refund_state_name = 'ready' OR " +
+        "charge.refund_state_name = 'send_armed')",
+    );
   });
 });
