@@ -4,6 +4,7 @@ import type {
   ReadyRefundProvider,
   RefundReadinessDependencies,
 } from "#routes/admin/refunds/readiness.ts";
+import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import type {
   RefundPaymentReference,
   TaggedRefundPaymentReference,
@@ -50,6 +51,14 @@ export const tagged = (
   provider,
   reference,
 });
+
+export const canonicalTagged = async (
+  ...input: Parameters<typeof tagged>
+): Promise<ReturnType<typeof tagged>> => {
+  const reference = tagged(...input);
+  const index = await paymentReferenceIndex(reference);
+  return { ...reference, index, matchingIndexes: [index] };
+};
 
 export const candidate = (
   id: number,

@@ -13,6 +13,7 @@ import {
 } from "#shared/payment/refund-authority-choice.ts";
 import {
   type RefundEvidenceAction,
+  refundAuthorityPrunableSql,
   refundAuthorityWorkSql,
   refundEvidenceActionAllowed,
   refundLifecycleFor,
@@ -139,6 +140,7 @@ describe("payment > declared refund authority lifecycle", () => {
     expect(refundLifecycleFor(completed)).toMatchObject({
       blocks: { delete: true, merge: false },
       clearedBy: "markRefundAuthorityRecorded",
+      operatorRoute: "/admin/privacy/refunds/:id",
       prunable: false,
       refusal:
         "The provider returned this money, but the local accounts do not show it. Record it in Refund recovery, then try again.",
@@ -219,13 +221,14 @@ describe("payment > declared refund authority lifecycle", () => {
   });
 
   test("the SQL guard is derived from every blocking stored state", () => {
-    expect(refundAuthorityWorkSql("charge.")).toBe(
+    const work =
       "((charge.refund_state_name = 'completed' AND charge.refund_local_state = 'due') OR " +
-        "charge.refund_state_name = 'needs_owner_choice' OR " +
-        "charge.refund_state_name = 'needs_provider_check' OR " +
-        "charge.refund_state_name = 'observing' OR " +
-        "charge.refund_state_name = 'ready' OR " +
-        "charge.refund_state_name = 'send_armed')",
-    );
+      "charge.refund_state_name = 'needs_owner_choice' OR " +
+      "charge.refund_state_name = 'needs_provider_check' OR " +
+      "charge.refund_state_name = 'observing' OR " +
+      "charge.refund_state_name = 'ready' OR " +
+      "charge.refund_state_name = 'send_armed')";
+    expect(refundAuthorityWorkSql("charge.")).toBe(work);
+    expect(refundAuthorityPrunableSql("charge.")).toBe(`NOT ${work}`);
   });
 });

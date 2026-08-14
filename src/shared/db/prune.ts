@@ -23,7 +23,10 @@ import {
 import { logDebug } from "#shared/logger.ts";
 import { now, nowMs } from "#shared/now.ts";
 import { orphanRetentionCutoffIso } from "#shared/orphan-retention.ts";
-import { refundAuthorityWorkSql } from "#shared/payment/refund-authority-lifecycle.ts";
+import {
+  refundAuthorityPrunableSql,
+  refundAuthorityWorkSql,
+} from "#shared/payment/refund-authority-lifecycle.ts";
 import type { User } from "#shared/types.ts";
 import { isPositiveSafeInteger } from "#shared/validation/number.ts";
 
@@ -89,10 +92,9 @@ const paymentStatement = (): PruneStatement => ({
                        WHERE attendee.id = payment.attendee_id
                     )
                     OR EXISTS (
-                      SELECT 1 FROM transfers AS transfer
-                       WHERE transfer.kind = 'refund_cash'
-                         AND transfer.source_type = 'attendee'
-                         AND transfer.source_id = CAST(payment.attendee_id AS TEXT)
+                      SELECT 1 FROM payment_charges AS charge
+                       WHERE charge.reference_index = payment.payment_reference_index
+                         AND ${refundAuthorityPrunableSql("charge.")}
                     )
                   )
                 )

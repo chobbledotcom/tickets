@@ -207,6 +207,11 @@ export const refundAuthorityWorkSql = (
     )
     .join(" OR ")})`;
 
+/** The exact stored authority states whose evidence and local books are done. */
+export const refundAuthorityPrunableSql = (
+  prefix: RefundAuthorityColumnPrefix,
+): string => `NOT ${refundAuthorityWorkSql(prefix)}`;
+
 export type RefundLifecycle = {
   readonly blocks: Record<RowMove, boolean>;
   readonly clearedBy: string;

@@ -4,6 +4,8 @@ import { stub } from "@std/testing/mock";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { execute, queryOne } from "#shared/db/client.ts";
+import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -75,6 +77,65 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
       },
       refund,
     );
+  });
+
+  test("replays the same placeholder after its committed create loses the reply", async () => {
+    await setupStripe();
+    const id = "cs_placeholder_create_reply_lost";
+    const { data, listing } = await singleListingPayment(id, 1000, 800);
+    const createAttendee = attendeesApi.createAttendeeAtomic;
+    let completedCreates = 0;
+    using createReply = stub(
+      attendeesApi,
+      "createAttendeeAtomic",
+      async (...args: Parameters<typeof createAttendee>) => {
+        const stored = await createAttendee(...args);
+        completedCreates += 1;
+        if (completedCreates === 1) {
+          throw new Error("placeholder create reply was lost");
+        }
+        return stored;
+      },
+    );
+    using refund = stubRefundPayment("re_placeholder_create_reply_lost", 800);
+
+    await expect(processPaymentSession(id, data)).rejects.toThrow(
+      "placeholder create reply was lost",
+    );
+    const placeholder = (await getAttendeesRaw(listing.id))[0];
+    if (placeholder === undefined) {
+      throw new Error("Placeholder was not stored");
+    }
+    const anchor = await queryOne<{
+      failure_data: string;
+      payment_reference_index: string;
+    }>(
+      `SELECT failure_data, payment_reference_index
+         FROM processed_payments
+        WHERE attendee_id = ?
+          AND payment_session_id LIKE 'legacy:%'`,
+      [placeholder.id],
+    );
+    expect(anchor).toEqual({
+      failure_data: expect.stringMatching(/.+/),
+      payment_reference_index: await paymentReferenceIndex({
+        kind: "tagged",
+        provider: "stripe",
+        reference: `pi_${id}`,
+      }),
+    });
+    await execute(
+      "UPDATE processed_payments SET processed_at = ? WHERE payment_session_id = ?",
+      ["2000-01-01T00:00:00.000Z", id],
+    );
+
+    expect(await processPaymentSession(id, data)).toMatchObject({
+      status: 200,
+      success: false,
+    });
+    expect(await getAttendeesRaw(listing.id)).toHaveLength(1);
+    expect(createReply.calls).toHaveLength(1);
+    expect(refund.calls).toHaveLength(0);
   });
 
   test("keeps and refunds a booking that loses the capacity race", async () => {

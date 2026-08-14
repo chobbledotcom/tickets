@@ -82,6 +82,17 @@ const reconcileObservedWork = async (
   const relevant = uniqueBy(
     (observation: RefundReadinessObservation) => observation.reference.index,
   )(observations.filter(needsAuthority));
+  // The provider read is already money evidence. Remember a completed return
+  // before asking local authority storage to catch up, because that write is
+  // allowed to fail and must not erase what the provider told us.
+  const returned = new Set(
+    relevant.flatMap((observation) =>
+      admitObservedRefund(observation.identity.reference, observation.charge)
+        .kind === "already_returned"
+        ? [observation.reference.index]
+        : [],
+    ),
+  );
   const settled = await Promise.allSettled(
     relevant.map(async (observation) => ({
       answer: await request({
@@ -92,7 +103,6 @@ const reconcileObservedWork = async (
       observation,
     })),
   );
-  const returned = new Set<string>();
   for (const result of settled) {
     if (result.status === "rejected") continue;
     const { answer, observation } = result.value;

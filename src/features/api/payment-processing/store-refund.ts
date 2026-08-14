@@ -35,6 +35,7 @@ import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { prepareClaimedAttendeePaymentAnchor } from "#shared/db/payment-anchor/attendee.ts";
 import { settleAttendeeRows } from "#shared/db/payment-claim.ts";
 import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
+import { prepareSessionFailure } from "#shared/db/processed-payments.ts";
 import { ErrorCode, type ErrorCodeType, logError } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import {
@@ -44,6 +45,7 @@ import {
   type RefundAlert,
   type RefundCode,
 } from "#shared/payment/placeholder-refund.ts";
+import type { StoredPaymentFailure } from "#shared/payment/row-state.ts";
 import { paidPaymentReferenceOf } from "#shared/payment/validated-session.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
@@ -64,6 +66,27 @@ const BALANCE_CHANGED_MESSAGE =
  */
 const BOOKING_SAVED_MESSAGE =
   "We couldn't complete your booking, so we've saved your details and a member of our team can help you rebook.";
+
+const placeholderFailure = (
+  spec: PlaceholderRefund,
+  refunded: boolean,
+): PaymentFailureResult => ({
+  detail: spec.detail,
+  error: refunded
+    ? BOOKING_SAVED_MESSAGE
+    : `${BOOKING_SAVED_MESSAGE} Your refund is being arranged — please contact us if it does not arrive.`,
+  ...(refunded ? { refunded: true } : {}),
+  status: 200,
+  success: false,
+});
+
+const storedFailureOf = (
+  failure: PaymentFailureResult,
+): StoredPaymentFailure => ({
+  error: failure.error,
+  ...(failure.refunded === undefined ? {} : { refunded: failure.refunded }),
+  ...(failure.status === undefined ? {} : { status: failure.status }),
+});
 
 const REFUND_ALERT_CODES: Record<RefundAlert, ErrorCodeType> = {
   payment_session: ErrorCode.PAYMENT_SESSION,
@@ -178,6 +201,11 @@ export const storeRefundedBooking = async (
 ): Promise<PaymentFailureResult> => {
   if (spec.alert) addPendingWork(sendNtfyError(REFUND_ALERT_CODES[spec.alert]));
   const listingId = bookings[0]!.listingId;
+  const pendingResult = placeholderFailure(spec, false);
+  const sessionFailure = await prepareSessionFailure(
+    session.id,
+    storedFailureOf(pendingResult),
+  );
   const paymentReference = paidPaymentReferenceOf(session);
   const paymentAnchor =
     await prepareClaimedAttendeePaymentAnchor(paymentReference);
@@ -197,6 +225,12 @@ export const storeRefundedBooking = async (
     async (tx, attendeeId) => {
       const claimedAnchor = await paymentAnchor.forAttendee(attendeeId);
       await tx.execute(claimedAnchor.statement);
+      const terminalized = await tx.execute(sessionFailure.statement);
+      if (terminalized.rowsAffected !== 1) {
+        throw new Error(
+          `Payment session lost its reservation before placeholder creation: ${session.id}`,
+        );
+      }
       anchorWritten.resolve(claimedAnchor);
     },
   );
@@ -244,19 +278,13 @@ export const storeRefundedBooking = async (
   const noteText = placeholderRefundNote(attendeeId, spec, refunded);
   await createSystemNote(noteTarget, noteText);
   await settleAttendeeRows(claimedAnchor.settlement);
+  const result = placeholderFailure(spec, refunded);
+  await sessionFailure.replace(storedFailureOf(result));
   // Status 200: a fully-handled terminal outcome (booking kept, money returned or
   // flagged). The webhook acks it (never the 409 transient-lock retry nor a 503
   // refund retry — the booking exists, so a retry can't re-create it), and the
   // customer sees an informational "saved your details" message.
-  return {
-    detail: spec.detail,
-    error: refunded
-      ? BOOKING_SAVED_MESSAGE
-      : `${BOOKING_SAVED_MESSAGE} Your refund is being arranged — please contact us if it does not arrive.`,
-    ...(refunded ? { refunded: true } : {}),
-    status: 200,
-    success: false,
-  };
+  return result;
 };
 
 /** The refund reason code for each way a booking we tried can fail. */

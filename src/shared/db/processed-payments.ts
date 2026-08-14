@@ -20,6 +20,7 @@ import {
   execute,
   executeBatchWithResults,
   resultRows,
+  type SqlStatement,
   withTransaction,
 } from "#shared/db/client.ts";
 import { preparePaymentReferenceWrite } from "#shared/db/payment-reference-store.ts";
@@ -216,6 +217,50 @@ export const finalizeSessionIfUnresolved = async (
   });
 };
 
+const storedSessionFailure = (failure: StoredPaymentFailure): string =>
+  writeRowState({ outcome: failure }, FAILURE_DATA_CONTEXT);
+
+/**
+ * One terminal-failure transition that can join an existing transaction.
+ * `statement` establishes the conservative outcome; `replace` may only advance
+ * that exact write, so a racing or unrelated outcome is never overwritten.
+ */
+export interface PreparedSessionFailure {
+  readonly replace: (failure: StoredPaymentFailure) => Promise<void>;
+  readonly statement: SqlStatement;
+}
+
+export const prepareSessionFailure = async (
+  sessionId: string,
+  failure: StoredPaymentFailure,
+): Promise<PreparedSessionFailure> => {
+  const initialState = storedSessionFailure(failure);
+  const initialData = await encrypt(initialState);
+  return {
+    replace: async (replacement) => {
+      const replacementState = storedSessionFailure(replacement);
+      if (replacementState === initialState) return;
+      const changed = await execute(
+        `UPDATE processed_payments
+            SET failure_data = ?
+          WHERE payment_session_id = ?
+            AND attendee_id IS NULL
+            AND failure_data = ?`,
+        [await encrypt(replacementState), sessionId, initialData],
+      );
+      if (changed.rowsAffected !== 1) {
+        throw new Error(
+          `Payment session failure changed before completion: ${sessionId}`,
+        );
+      }
+    },
+    statement: {
+      args: [initialData, sessionId],
+      sql: `UPDATE processed_payments SET failure_data = ? WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
+    },
+  };
+};
+
 /**
  * Record a handled terminal failure on a still-unresolved session. A later
  * redirect/webhook for the same session reads this back via
@@ -228,13 +273,8 @@ export const markSessionFailed = async (
   sessionId: string,
   failure: StoredPaymentFailure,
 ): Promise<void> => {
-  await execute(
-    `UPDATE processed_payments SET failure_data = ? WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
-    [
-      await encrypt(writeRowState({ outcome: failure }, FAILURE_DATA_CONTEXT)),
-      sessionId,
-    ],
-  );
+  const prepared = await prepareSessionFailure(sessionId, failure);
+  await execute(prepared.statement.sql, prepared.statement.args);
 };
 
 /**

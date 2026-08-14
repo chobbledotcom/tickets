@@ -4,11 +4,16 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeePage } from "#routes/admin/attendee-page.ts";
 import { deleteListing } from "#shared/db/listings/delete.ts";
+import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import {
+  bookTestAttendee,
+  createTestAttendee,
+} from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { postListingSale } from "#test-utils/ledger.ts";
 import {
   CLAIM_MIRROR,
   freshClaimSlot,
@@ -19,6 +24,10 @@ import {
   staleClaimSlot,
   UNRECORDED_MIRROR,
 } from "#test-utils/payment-claim.ts";
+import {
+  getCompleteRefundPaymentReferencesForAttendee,
+  markProviderRefundsReturned,
+} from "#test-utils/payment-references.ts";
 import {
   finalizeProcessedPayment,
   taggedPaymentReference,
@@ -109,6 +118,58 @@ describeWithEnv("the attendee Actions tab", { db: true }, () => {
       expect(html).toContain(`/admin/attendees/${attendeeId}/refund`);
       // Named, not just linked — the label is what the operator reads.
       expect(html).toContain("Refund");
+    });
+
+    test("offers the unreturned charge when a sibling booking was refunded", async () => {
+      const refundedListing = await createTestListing({});
+      const openListing = await createTestListing({});
+      const attendee = await bookTestAttendee(
+        [refundedListing.id, openListing.id],
+        "Two Orders",
+        "two-orders@example.com",
+      );
+      const refundedSession = "sess-page-refunded-order";
+      const openSession = "sess-page-open-order";
+      await postListingSale({
+        attendeeId: attendee.id,
+        eventId: refundedSession,
+        gross: 500,
+        listingId: refundedListing.id,
+      });
+      await postListingSale({
+        attendeeId: attendee.id,
+        eventId: openSession,
+        gross: 500,
+        listingId: openListing.id,
+      });
+      await finalizeProcessedPayment(
+        refundedSession,
+        attendee.id,
+        "",
+        taggedPaymentReference("pi_page_refunded_order"),
+      );
+      await finalizeProcessedPayment(
+        openSession,
+        attendee.id,
+        "",
+        taggedPaymentReference("pi_page_open_order"),
+      );
+      const references =
+        await getCompleteRefundPaymentReferencesForAttendee(attendee);
+      const refunded = references.find(
+        ({ reference }) => reference === "pi_page_refunded_order",
+      );
+      if (refunded === undefined) {
+        throw new Error("The refunded order reference was not loaded");
+      }
+      await markProviderRefundsReturned([refunded]);
+      await recordAttendeeRefund(attendee.id, [refunded]);
+
+      const refundUrl = `/admin/attendees/${attendee.id}/refund`;
+      expect(await tabHtml(attendee.id, "actions")).toContain(refundUrl);
+      expect(await tabHtml(attendee.id, "actions", MANAGER)).not.toContain(
+        refundUrl,
+      );
     });
 
     test("shows only owners the review action instead of refund", async () => {

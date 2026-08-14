@@ -24,6 +24,7 @@ import {
   PaymentRowsBusyError,
 } from "#shared/db/payment-admit-move.ts";
 import { getRefundPaymentReferencesForAttendee } from "#shared/db/payment-references.ts";
+import { reserveSession } from "#shared/db/processed-payments.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -176,6 +177,7 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
       [{ expectedPrice: 1000, item: intent.items[0]!, listing }],
       intent,
     );
+    await reserveSession(id);
     const result = await storeRefundedBooking(
       session,
       intent,
@@ -196,8 +198,9 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
                FROM processed_payments
               WHERE payment_reference_index != ''`,
           );
-          if (payment === null)
+          if (payment === null) {
             throw new Error("payment anchor was not stored");
+          }
           attendeeId = payment.attendee_id;
           await expect(
             withTransaction((tx) =>
@@ -287,6 +290,7 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
         [{ expectedPrice: 1000, item: intent.items[0]!, listing }],
         intent,
       );
+      await reserveSession(session.id);
       await execute(
         `CREATE TRIGGER fail_placeholder_payment_anchor
            BEFORE INSERT ON processed_payments
@@ -405,9 +409,11 @@ describeWithEnv(
         [{ expectedPrice: 1000, item: intent.items[0]!, listing }],
         intent,
       );
+      const session = paymentSession("cs_full", 1000, intent);
+      await reserveSession(session.id);
 
       const result = await storeRefundedBooking(
-        paymentSession("cs_full", 1000, intent),
+        session,
         intent,
         bookings,
         specForFailure({

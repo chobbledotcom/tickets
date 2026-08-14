@@ -18,6 +18,7 @@ import {
 } from "#routes/admin/attendee-form-model.ts";
 import { buildAttendeeLogisticsData } from "#routes/admin/attendee-logistics.ts";
 import { withDecryptedAttendee } from "#routes/admin/attendees-route-helpers.ts";
+import { refundWorkRemains } from "#routes/admin/refunds/candidates.ts";
 import { getAttendeeActivityLog } from "#shared/db/activity-log.ts";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import {
@@ -93,8 +94,8 @@ const attendeePaymentFacts = async (
     paymentReferences.references.length > 0;
   return {
     canRefund:
-      !attendee.refunded &&
       hasAutomaticPayment &&
+      refundWorkRemains(attendee, paymentReferences.references) &&
       (await hasActiveBookingLine(attendee.id, attendee.listing_id)),
     paymentReferences,
   };

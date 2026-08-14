@@ -4,6 +4,10 @@ import { execute } from "#shared/db/client.ts";
 import { runDatabasePruning } from "#shared/db/prune.ts";
 import { PRUNE_PAYMENTS_RETENTION_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
+import {
+  markRefundCompleted,
+  markRefundLocalRecorded,
+} from "#shared/payment/refund-authority.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   bookAttendee,
@@ -22,6 +26,7 @@ import {
   addProviderRefundTestCase,
   readyRefundTestState,
 } from "#test-utils/provider-refund-cases.ts";
+import { readyRefundForTest } from "#test-utils/refund-authority.ts";
 import {
   insertClaimedPayment,
   insertFailedPayment,
@@ -34,13 +39,18 @@ import {
 const oldEnoughToPrune = () =>
   new Date(nowMs() - PRUNE_PAYMENTS_RETENTION_MS - 60_000).toISOString();
 
-const insertOldReferencedPayment = async (sessionId: string) => {
-  const attendeeId = bookedAttendee(
-    await bookAttendee(await createTestListing(), {
-      email: `${sessionId}@example.com`,
-      name: sessionId,
-    }),
-  ).id;
+const insertOldReferencedPayment = async (
+  sessionId: string,
+  existingAttendeeId?: number,
+) => {
+  const attendeeId =
+    existingAttendeeId ??
+    bookedAttendee(
+      await bookAttendee(await createTestListing(), {
+        email: `${sessionId}@example.com`,
+        name: sessionId,
+      }),
+    ).id;
   await finalizeProcessedPayment(
     sessionId,
     attendeeId,
@@ -71,13 +81,36 @@ describeWithEnv("db > prunePayments", { db: true }, () => {
     expect(await paymentExists("sess_refund_useful")).toBe(true);
   });
 
-  test("deletes old finalized payments once the attendee is refunded", async () => {
+  test("keeps refund evidence not tied to its exact charge", async () => {
     const attendeeId = await insertOldReferencedPayment("sess_refund_done");
     await postRefundCash(attendeeId);
 
     await runDatabasePruning();
 
-    expect(await paymentExists("sess_refund_done")).toBe(false);
+    expect(await paymentExists("sess_refund_done")).toBe(true);
+  });
+
+  test("keeps a sibling payment whose own charge was not returned", async () => {
+    const returnedSession = "sess_returned_charge";
+    const stillPaidSession = "sess_still_paid_charge";
+    const attendeeId = await insertOldReferencedPayment(returnedSession);
+    await insertOldReferencedPayment(stillPaidSession, attendeeId);
+    await postRefundCash(attendeeId);
+    const returned = markRefundCompleted(
+      readyRefundForTest("keyed", { identityIndex: "returned-charge" }),
+      30,
+      "provider",
+    );
+    await addProviderRefundTestCase(
+      `pi_${returnedSession}`,
+      markRefundLocalRecorded(returned, 31),
+      "stripe",
+    );
+
+    await runDatabasePruning();
+
+    expect(await paymentExists(returnedSession)).toBe(false);
+    expect(await paymentExists(stillPaidSession)).toBe(true);
   });
 
   test("keeps old payment links while canonical refund work is active", async () => {
