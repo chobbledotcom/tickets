@@ -73,7 +73,7 @@
       <p class="eyebrow">Behavior-only source review · live working tree</p>
       <h1>What is actually new in M4 Part A?</h1>
       <p class="lede">This is the distilled companion to the full infographic. It deliberately ignores imports, comments, formatting, file splits, moves, and renames. It keeps only three things: genuinely new methods, new database touches, and old methods whose behavior changed.</p>
-      <div class="snapshot"><span><strong>base</strong> <code>origin/main @ 470b47efef08</code></span><span><strong>branch</strong> <code>255274150fbd</code></span><span><strong>snapshot</strong> <code>f357e4fc9072</code></span><span><strong>scope</strong> clean <code>src/</code> tree</span></div>
+      <div class="snapshot"><span><strong>base</strong> <code>origin/main @ 470b47efef08</code></span><span><strong>branch</strong> <code>fbc8340f8dc2</code></span><span><strong>snapshot</strong> <code>9662f753a1ad</code></span><span><strong>scope</strong> clean <code>src/</code> tree</span></div>
       <div class="metrics">
         <div class="metric"><b>6</b><span>new method families</span></div>
         <div class="metric"><b>10</b><span>material database-touch families</span></div>
@@ -100,7 +100,7 @@
 
       <details open><summary>Canonical provider-refund authority</summary><ul class="method-list">
         <li class="method"><div><a href="src/shared/payment/refund-authority.ts"><code>readyRefund</code> / <code>armRefundSend</code></a><span class="where">shared/payment/refund-authority.ts</span></div><p>Create an evidence-approved generation, then durably mark that exact command as possibly crossing the provider boundary.</p></li>
-        <li class="method"><div><a href="src/shared/payment/refund-authority.ts"><code>markRefundObservationDue</code> / <code>rearmKeyedRefund</code></a><span class="where">shared/payment/refund-authority.ts</span></div><p>Keep uncertain work observation-only, or replay only the identical keyed generation inside its finite provider window.</p></li>
+        <li class="method"><div><a href="src/shared/payment/refund-authority.ts"><code>markRefundObservationDue</code> / <code>rearmKeyedRefund</code></a><span class="where">shared/payment/refund-authority.ts</span></div><p>Keep uncertain work observation-only, or replay only the identical keyed generation under its provider policy: Stripe allows one day, while Square permits no later replay.</p></li>
         <li class="method"><div><a href="src/shared/payment/refund-authority.ts"><code>returnRefundToReady</code> / <code>markRefundCompleted</code></a><span class="where">shared/payment/refund-authority.ts</span></div><p>Separate a proved-not-sent attempt from a proved return; completion starts a separate local-Money obligation.</p></li>
         <li class="method"><div><a href="src/shared/payment/refund-authority.ts"><code>markRefundLocalRecorded</code></a><span class="where">shared/payment/refund-authority.ts</span></div><p>Retire only the local accounting obligation after returned Money was successfully posted.</p></li>
         <li class="method"><div><a href="src/shared/payment/refund-authority-choice.ts"><code>markRefundOwnerChoiceNeeded</code> / <code>resolveRefundOwnerChoice</code></a><span class="where">shared/payment/refund-authority-choice.ts</span></div><p>Turn irreducible uncertainty into a required owner answer; there is intentionally no generic clear.</p></li>
@@ -249,7 +249,7 @@
       <div class="callout risk"><strong>Old reference caveat:</strong> historical plaintext or DB-key values can remain stored, but current refund authority does not decode, discover, or provider-map them. Blank-index or unqualified evidence refuses before provider I/O; later bounded owner-authenticated migration owns conversion and verified redaction.</div>
     </section>
 
-    <footer><strong>Reviewed one-off distillation.</strong> Compared <code>origin/main</code> at <code>470b47efef0836487d55beb8a26442dd432f6f35</code> with the clean <code>src/</code> tree at branch commit <code>255274150fbd03ce60adc893d86c69210e63568a</code>, snapshot <code>f357e4fc9072d4ddb749b8eae20e30e16af69b4676d41a4301baa961263f4a52</code>. Raw scope: <code>190</code> changed source paths, <code>+15,576 −3,605</code>. Categories are human-reviewed against callers, storage, and behavior; they intentionally do not claim AST-level declaration completeness. Later source edits require regeneration.</footer>
+    <footer><strong>Reviewed one-off distillation.</strong> Compared <code>origin/main</code> at <code>470b47efef0836487d55beb8a26442dd432f6f35</code> with the clean <code>src/</code> tree at branch commit <code>fbc8340f8dc2b52bdffe59f81dfa1c113c475ddc</code>, snapshot <code>9662f753a1ade94260f3ead9d0dc7e0624dee08c059c15d8d03ebb35575f0d1a</code>. Raw scope: <code>190</code> changed source paths, <code>+15,575 −3,604</code>. Categories are human-reviewed against callers, storage, and behavior; they intentionally do not claim AST-level declaration completeness. Later source edits require regeneration.</footer>
   </main>
 </body>
 </html>

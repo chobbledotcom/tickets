@@ -70,12 +70,14 @@ export type TaggedRefundPaymentReference = Extract<
 >;
 
 /** Why historical rows prevent a complete, provider-tagged reference set. */
+export type RefundReferenceProblemKind =
+  | "legacy_unindexed"
+  | "provider_unknown"
+  | "too_many_references";
+
 export type RefundReferenceProblem = {
-  readonly kind:
-    | "legacy_unindexed"
-    | "provider_unknown"
-    | "too_many_references";
-};
+  readonly [Kind in RefundReferenceProblemKind]: { readonly kind: Kind };
+}[RefundReferenceProblemKind];
 
 /** One attendee's complete refundable identities, or proof that old rows make
  * the set incomplete. No caller may receive the visible subset in the latter

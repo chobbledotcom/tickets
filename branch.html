@@ -180,14 +180,14 @@
       <p class="lede">This branch turns refunds from a collection of route-level guesses into one evidence-led process. Admin refunds and buyer-callback refunds now meet at the same durable charge record. A provider call can happen only after that record authorizes an exact generation, and returned money remains visible until the local books catch up.</p>
       <div class="snapshot">
         <span><strong>base</strong> <code>origin/main @ 470b47efef08</code></span>
-        <span><strong>branch</strong> <code>255274150fbd</code></span>
-        <span><strong>source snapshot</strong> <code>f357e4fc9072</code></span>
+        <span><strong>branch</strong> <code>fbc8340f8dc2</code></span>
+        <span><strong>source snapshot</strong> <code>9662f753a1ad</code></span>
         <span><strong>scope</strong> clean <code>src/</code> tree</span>
       </div>
       <div class="metrics">
         <div class="metric"><b>190</b><span>source paths changed</span></div>
-        <div class="metric"><b>+15,576</b><span>source lines added</span></div>
-        <div class="metric"><b>−3,605</b><span>source lines removed</span></div>
+        <div class="metric"><b>+15,575</b><span>source lines added</span></div>
+        <div class="metric"><b>−3,604</b><span>source lines removed</span></div>
         <div class="metric"><b>1</b><span>canonical provider-refund authority</span></div>
       </div>
     </header>
@@ -303,9 +303,9 @@
       <div class="grid-3">
         <article class="card"><h3>Revision compare-and-swap</h3><p>Every charge transition names the exact prior revision. A losing writer rereads the winner; it cannot overwrite newer evidence.</p></article>
         <article class="card"><h3>Exact admin claim</h3><p>The claim transaction checks attendee PII revisions, complete reference rows, sharing rows, blank indexes, and the same command identity.</p></article>
-        <article class="card"><h3>Provider capability matters</h3><p>Stripe and Square are keyed and may replay the identical generation only inside their bounded window. SumUp is keyless and never auto-replays an armed command.</p></article>
+        <article class="card"><h3>Provider capability matters</h3><p>Stripe can replay the identical keyed generation for one day. Square's keyed window ends when the command is armed, so it cannot replay later. SumUp is keyless and never auto-replays an armed command.</p></article>
         <article class="card"><h3>Arm before I/O</h3><p>The engine stores that money may move before the provider call. A crash cannot turn “possibly sent” into “safe to try again.”</p></article>
-        <article class="card"><h3>Return before release</h3><p>Known returned Money is persisted and posted before local row claims are allowed to disappear.</p></article>
+        <article class="card"><h3>Durable repair before release</h3><p>Every exit releases the short-lived row claim. When a ledger post fails, the same settlement leaves durable <code>unrecorded</code> work that blocks deletion until the books are repaired.</p></article>
         <article class="card"><h3>Destructive writes ask first</h3><p>Delete, merge, finalize, prune, and orphan cleanup read the same lifecycle rules. Delete refuses live work that would lose its repair target; merge may relocate stable indexed work but never an active claim.</p></article>
       </div>
       <div class="callout risk"><span class="mark">×</span><p><strong>Old unqualified records do not enter this state machine.</strong> Live authority requires a provider-tagged identity. A raw old reference, a DB-key ciphertext, or a reference-bearing processed row with no blind index is a typed refusal before provider I/O. The system does not search every configured provider and does not infer ownership from today’s setting.</p></div>
@@ -371,7 +371,7 @@
           <tbody>
             <tr><th>Refund capability</th><td>Keyed</td><td>Keyed</td><td>Keyless</td></tr>
             <tr><th>Charge evidence</th><td>Captured amount/currency, cumulative returned amount, refund objects and states.</td><td>Captured payment Money plus parsed refund/order resources and states.</td><td>Transaction Money plus typed refund events; absence is interpreted only where the wire contract permits it.</td></tr>
-            <tr><th>Retry rule</th><td>Same generation only inside bounded replay window.</td><td>Same generation only inside bounded replay window.</td><td>An armed generation never auto-replays.</td></tr>
+            <tr><th>Retry rule</th><td>Same generation for up to one day.</td><td>Replay window ends at arm time; no later automatic replay.</td><td>An armed generation never auto-replays.</td></tr>
             <tr><th>Malformed success</th><td colspan="3">Invalid evidence; never “not refunded,” never permission to send.</td></tr>
             <tr><th>Transport retries</th><td colspan="3">One attempt inside a command. Durable state and a later fresh read own recovery.</td></tr>
           </tbody>
@@ -477,7 +477,7 @@
       </div>
     </section>
 
-    <footer><strong>One-off live-tree report.</strong> Generated from <code>origin/main</code> at <code>470b47efef0836487d55beb8a26442dd432f6f35</code> versus the clean <code>src/</code> tree at branch commit <code>255274150fbd03ce60adc893d86c69210e63568a</code>. Snapshot <code>f357e4fc9072d4ddb749b8eae20e30e16af69b4676d41a4301baa961263f4a52</code> is the SHA-256 of the base identity plus the sorted changed-path/blob manifest; deleted paths are recorded as <code>DELETED</code>. Counts describe <code>src/</code> only. Explanations were checked against the current code and its as-built module map; later source edits require regeneration.</footer>
+    <footer><strong>One-off live-tree report.</strong> Generated from <code>origin/main</code> at <code>470b47efef0836487d55beb8a26442dd432f6f35</code> versus the clean <code>src/</code> tree at branch commit <code>fbc8340f8dc2b52bdffe59f81dfa1c113c475ddc</code>. Snapshot <code>9662f753a1ade94260f3ead9d0dc7e0624dee08c059c15d8d03ebb35575f0d1a</code> is the SHA-256 of the base identity plus the sorted changed-path/blob manifest; deleted paths are recorded as <code>DELETED</code>. Counts describe <code>src/</code> only. Explanations were checked against the current code and its as-built module map; later source edits require regeneration.</footer>
   </main>
 </body>
 </html>
