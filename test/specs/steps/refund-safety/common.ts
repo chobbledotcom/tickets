@@ -67,6 +67,26 @@ export const completedRefundFor = (
   };
 };
 
+/** Make Stripe show one charge and confirm its exact completed refund. */
+export const showCompletedStripeRefund = (
+  world: TicketsWorld,
+  who: string,
+): void => {
+  const booking = safetyBooking(world, who);
+  const provider = refundProviderFor(world);
+  provider.showCharge(
+    "stripe",
+    booking.paymentReference,
+    untouchedChargeFor(world, who),
+  );
+  provider.answer(
+    "stripe",
+    booking.paymentReference,
+    completedRefundFor(world, who),
+    { resource: returnedChargeFor(world, who), status: "found" },
+  );
+};
+
 /** Reads one booking's payment references through the production reader. */
 export const paymentReferencesFor = async (
   world: TicketsWorld,

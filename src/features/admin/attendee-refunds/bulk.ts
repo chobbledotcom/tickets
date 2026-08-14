@@ -11,6 +11,7 @@ import {
   type RefundBatchResult,
   type RefundCounts,
 } from "#routes/admin/refunds/provider.ts";
+import { refundReferenceProblemMessage } from "#routes/admin/refunds/readiness-problem.ts";
 import { requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { ownerFormById } from "#routes/entity.ts";
@@ -247,16 +248,7 @@ const processRefundAll = async (
     privateKey,
   );
   if (loaded.kind !== "complete") {
-    return fail(
-      refundAllUrl,
-      t(
-        {
-          legacy_unindexed: "error.payment_history_incomplete",
-          provider_unknown: "error.payment_provider_unknown",
-          too_many_references: "error.payment_history_too_large",
-        }[loaded.kind],
-      ),
-    );
+    return fail(refundAllUrl, refundReferenceProblemMessage(loaded));
   }
   const refundable = loaded.candidates;
 

@@ -15,6 +15,14 @@ import {
   setupConfirmation as setup,
 } from "./confirmation-fixture.ts";
 
+const expectNoVisibleConfirmation = async (
+  attendeeId: number,
+  privateKey: CryptoKey,
+): Promise<void> => {
+  expect(await getAttendeeActivityLog(attendeeId)).toEqual([]);
+  expect(await getNotesFor(attendeeNotes(attendeeId), privateKey)).toEqual([]);
+};
+
 describeWithEnv("admin refunds > confirmation", { db: true }, () => {
   test("rejects a confirmation with no returned payment", async () => {
     const refund = await setup();
@@ -155,10 +163,7 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
         "SELECT COUNT(*) AS count FROM refund_confirmation_references",
       ),
     ).toEqual({ count: 0 });
-    expect(await getAttendeeActivityLog(refund.attendee.id)).toEqual([]);
-    expect(
-      await getNotesFor(attendeeNotes(refund.attendee.id), refund.privateKey),
-    ).toEqual([]);
+    await expectNoVisibleConfirmation(refund.attendee.id, refund.privateKey);
   });
 
   test("writes nothing after the exact claim has gone", async () => {
@@ -170,10 +175,7 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
         confirmRefund({ ...refund, references: [refund.reference] }),
       ),
     ).rejects.toThrow("Refund confirmation no longer owns every payment row");
-    expect(await getAttendeeActivityLog(refund.attendee.id)).toEqual([]);
-    expect(
-      await getNotesFor(attendeeNotes(refund.attendee.id), refund.privateKey),
-    ).toEqual([]);
+    await expectNoVisibleConfirmation(refund.attendee.id, refund.privateKey);
   });
 
   test("does not open unrelated history for a current payment", async () => {

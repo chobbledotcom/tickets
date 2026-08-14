@@ -11,10 +11,9 @@ import {
 import { safetyBooking } from "#test/specs/support/refund-safety/state.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import {
-  completedRefundFor,
   expectOwnerWasTold,
   refundProviderFor,
-  returnedChargeFor,
+  showCompletedStripeRefund,
   untouchedChargeFor,
 } from "./common.ts";
 
@@ -92,19 +91,7 @@ Given(
 When(
   "Stripe recovers for {word}'s payment",
   function (this: TicketsWorld, who: string): void {
-    const booking = safetyBooking(this, who);
-    const provider = refundProviderFor(this);
-    provider.showCharge(
-      "stripe",
-      booking.paymentReference,
-      untouchedChargeFor(this, who),
-    );
-    provider.answer(
-      "stripe",
-      booking.paymentReference,
-      completedRefundFor(this, who),
-      { resource: returnedChargeFor(this, who), status: "found" },
-    );
+    showCompletedStripeRefund(this, who);
   },
 );
 

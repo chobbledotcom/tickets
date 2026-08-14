@@ -69,6 +69,14 @@ export type TaggedRefundPaymentReference = Extract<
   { kind: "tagged" }
 >;
 
+/** Why historical rows prevent a complete, provider-tagged reference set. */
+export type RefundReferenceProblem = {
+  readonly kind:
+    | "legacy_unindexed"
+    | "provider_unknown"
+    | "too_many_references";
+};
+
 /** One attendee's complete refundable identities, or proof that old rows make
  * the set incomplete. No caller may receive the visible subset in the latter
  * case. */
@@ -77,9 +85,7 @@ export type RefundPaymentReferenceSet =
       readonly kind: "complete";
       readonly references: TaggedRefundPaymentReference[];
     }
-  | { readonly kind: "legacy_unindexed" }
-  | { readonly kind: "provider_unknown" }
-  | { readonly kind: "too_many_references" };
+  | RefundReferenceProblem;
 
 /** Keep the final loaded facts for each stable payment identity. */
 export const paymentReferencesByIndex = <

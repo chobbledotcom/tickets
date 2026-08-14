@@ -12,7 +12,7 @@ import {
   findFormByButton,
   findForms,
 } from "#test-utils/test-browser/forms.ts";
-import { openOwnerAction } from "./journeys.ts";
+import { openListedRefundCase, openOwnerAction } from "./journeys.ts";
 import {
   refundSafety,
   type SavedOwnerForm,
@@ -79,13 +79,7 @@ export const saveOwnerMoneyForm = async (
   const action = actionFor[kind];
   const browser = await openOwnerAction(world, who, action.link);
   if (kind === "provider-recovery") {
-    const detail = browser.links.find(({ text }) =>
-      text.trim().startsWith("Open refund "),
-    );
-    if (detail === undefined) {
-      throw new Error("Refund recovery listed no provider case");
-    }
-    await browser.clickLink(detail.text);
+    await openListedRefundCase(browser);
   }
   const fields =
     kind === "provider-recovery"

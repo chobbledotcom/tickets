@@ -9,6 +9,7 @@ import {
 } from "#routes/admin/attendees-route-helpers.ts";
 import { refundWorkRemains } from "#routes/admin/refunds/candidates.ts";
 import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
+import { refundReferenceProblemMessage } from "#routes/admin/refunds/readiness-problem.ts";
 import { OWNER_FORM, requireOwnerOr } from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
@@ -62,13 +63,7 @@ const whatIsLeftToRefund = async (
   if (referenceSet.kind !== "complete") {
     return {
       kind: "unsafe",
-      reason: t(
-        {
-          legacy_unindexed: "error.payment_history_incomplete",
-          provider_unknown: "error.payment_provider_unknown",
-          too_many_references: "error.payment_history_too_large",
-        }[referenceSet.kind],
-      ),
+      reason: refundReferenceProblemMessage(referenceSet),
     };
   }
   const references = referenceSet.references;

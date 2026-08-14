@@ -2,6 +2,7 @@ import { filter, requiredMapValue, uniqueBy } from "#fp";
 import type { LoadedRefundAttendee } from "#shared/db/payment-claim/take.ts";
 import {
   getRefundPaymentReferences,
+  type RefundReferenceProblem,
   stillWithTheProvider,
   type TaggedRefundPaymentReference,
   underRefundClaim,
@@ -21,9 +22,7 @@ export type RefundCandidate = {
 
 export type RefundCandidateSet =
   | { readonly candidates: RefundCandidate[]; readonly kind: "complete" }
-  | { readonly kind: "legacy_unindexed" }
-  | { readonly kind: "provider_unknown" }
-  | { readonly kind: "too_many_references" };
+  | RefundReferenceProblem;
 
 /** The exact attendee revision and payment rows the claim must verify. */
 export const loadedRefundAttendee = (

@@ -26,6 +26,7 @@ import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee } from "#shared/types.ts";
 /* jscpd:ignore-end */
 import { attendeeActions } from "./attendees-route-helpers.ts";
+import { refundReferenceProblemMessage } from "./refunds/readiness-problem.ts";
 import {
   type RefreshPaymentResult,
   refreshClaimedPayment,
@@ -77,13 +78,7 @@ const loadRefreshState = async (
   if (referenceSet.kind !== "complete") {
     return redirect(
       `/admin/attendees/${attendeeId}`,
-      t(
-        {
-          legacy_unindexed: "error.payment_history_incomplete",
-          provider_unknown: "error.payment_provider_unknown",
-          too_many_references: "error.payment_history_too_large",
-        }[referenceSet.kind],
-      ),
+      refundReferenceProblemMessage(referenceSet),
       false,
       { form },
     );

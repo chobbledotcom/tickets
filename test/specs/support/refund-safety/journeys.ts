@@ -133,6 +133,19 @@ export const openOwnerAction = async (
   return browser;
 };
 
+/** Follow the first concrete refund case from a rendered recovery queue. */
+export const openListedRefundCase = async (
+  browser: TestBrowser,
+): Promise<void> => {
+  const detail = browser.links.find(({ text }) =>
+    text.trim().startsWith("Open refund "),
+  );
+  if (detail === undefined) {
+    throw new Error("Refund recovery listed no provider case");
+  }
+  await browser.clickLink(detail.text);
+};
+
 const submitOwnerAction =
   (action: string, button: string): OwnerJourney =>
   async (world, who) => {

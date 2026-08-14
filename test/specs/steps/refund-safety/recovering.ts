@@ -10,12 +10,9 @@ import {
 } from "#test/specs/support/refund-safety/state.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import {
-  completedRefundFor,
   expectOwnerWasTold,
   expectProviderSendCount,
-  refundProviderFor,
-  returnedChargeFor,
-  untouchedChargeFor,
+  showCompletedStripeRefund,
 } from "./common.ts";
 
 // jscpd:ignore-end
@@ -23,19 +20,7 @@ import {
 Given(
   "Money will temporarily refuse to record {word}'s refund",
   async function (this: TicketsWorld, who: string): Promise<void> {
-    const booking = safetyBooking(this, who);
-    const provider = refundProviderFor(this);
-    provider.showCharge(
-      "stripe",
-      booking.paymentReference,
-      untouchedChargeFor(this, who),
-    );
-    provider.answer(
-      "stripe",
-      booking.paymentReference,
-      completedRefundFor(this, who),
-      { resource: returnedChargeFor(this, who), status: "found" },
-    );
+    showCompletedStripeRefund(this, who);
     refundSafety(this).moneyFault = await makeRefundLedgerUnavailable(
       this.cleanup,
     );

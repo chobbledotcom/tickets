@@ -1,4 +1,17 @@
+import { t } from "#i18n";
+import type { RefundReferenceProblem } from "#shared/db/payment-references.ts";
 import type { RefundReadinessRead } from "./readiness.ts";
+
+const REFERENCE_PROBLEM_MESSAGE = {
+  legacy_unindexed: "error.payment_history_incomplete",
+  provider_unknown: "error.payment_provider_unknown",
+  too_many_references: "error.payment_history_too_large",
+} as const satisfies Record<RefundReferenceProblem["kind"], string>;
+
+/** Explain why provider-tagged payment history could not be loaded safely. */
+export const refundReferenceProblemMessage = (
+  problem: RefundReferenceProblem,
+): string => t(REFERENCE_PROBLEM_MESSAGE[problem.kind]);
 
 const TAGGED_EVIDENCE_REASON = {
   invalid: "returned invalid payment data",

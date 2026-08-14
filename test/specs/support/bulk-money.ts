@@ -18,6 +18,7 @@ import {
   refundByTyping,
   runStripeSuccess,
 } from "#test/specs/support/money-drivers.ts";
+import { openListedRefundCase } from "#test/specs/support/refund-safety/journeys.ts";
 import {
   type ActOnSomeMoney,
   requiredWorldValue,
@@ -185,13 +186,7 @@ export const leaveFirstRefundCaseForOwner = async (
   await browser.clickLink("Settings");
   await browser.clickLink("Privacy");
   expect(browser.containsText("Refunds needing attention")).toBe(true);
-  const detail = browser.links.find(({ text }) =>
-    text.trim().startsWith("Open refund "),
-  );
-  if (detail === undefined) {
-    throw new Error("Refund recovery listed no provider case");
-  }
-  await browser.clickLink(detail.text);
+  await openListedRefundCase(browser);
   const choices = usableInputsOfKind(browser.currentHtml, "radio").filter(
     ({ field }) => field === "choice",
   );

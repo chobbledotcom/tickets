@@ -11,6 +11,7 @@ import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
   buyPaidPlaceThroughPublicPage,
   openActionsAsOwner,
+  openListedRefundCase,
   openOwnerAction,
   ownerRefunds,
 } from "#test/specs/support/refund-safety/journeys.ts";
@@ -348,13 +349,7 @@ When(
   "the owner opens Open Refund recovery from {word}'s Actions page",
   async function (this: TicketsWorld, who: string): Promise<void> {
     const browser = await openOwnerAction(this, who, "Open Refund recovery");
-    const detail = browser.links.find(({ text }) =>
-      text.trim().startsWith("Open refund "),
-    );
-    if (detail === undefined) {
-      throw new Error("Refund recovery listed no provider case");
-    }
-    await browser.clickLink(detail.text);
+    await openListedRefundCase(browser);
   },
 );
 
