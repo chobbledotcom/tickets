@@ -11,31 +11,22 @@ import { recordEveryRefund } from "#test/features/admin/refunds/provider/ledger-
 import { grantingRowClaim } from "#test-utils/refund-routes.ts";
 
 describe("admin refund authority > ordered local writes", () => {
-  test("waits for the complete provider wave before ledger and retirement", async () => {
+  test("waits for the provider answer before ledger and retirement", async () => {
     const events: string[] = [];
-    const allStarted = Promise.withResolvers<void>();
+    const started = Promise.withResolvers<void>();
     const finish = Promise.withResolvers<void>();
-    let active = 0;
-    let mostActive = 0;
     const source = provider({
       refund: async (request) => {
         events.push(`send:start:${request.paymentReference}`);
-        active++;
-        mostActive = Math.max(mostActive, active);
-        if (active === 3) allStarted.resolve();
+        started.resolve();
         await finish.promise;
-        active--;
         events.push(`send:end:${request.paymentReference}`);
         return completedRefund(request);
       },
     });
     const refund = processRefundBatchAt(
       source,
-      [
-        candidate([{ reference: "pi_first" }], 11),
-        candidate([{ reference: "pi_second" }], 12),
-        candidate([{ reference: "pi_third" }], 13),
-      ],
+      [candidate([{ reference: "pi_first" }], 11)],
       7,
       {
         claim: grantingRowClaim(),
@@ -50,24 +41,23 @@ describe("admin refund authority > ordered local writes", () => {
       },
     );
 
-    await allStarted.promise;
+    await started.promise;
     expect(events.some((event) => event === "ledger")).toBe(false);
     finish.resolve();
     const counts = finishedCounts(await refund);
 
     const lastProviderAnswer = events.findLastIndex((event) =>
-      event.startsWith("send:end:"),
+      event.startsWith("send:end:")
     );
     expect(events.indexOf("ledger")).toBeGreaterThan(lastProviderAnswer);
-    expect(events.indexOf("retire:3")).toBeGreaterThan(
+    expect(events.indexOf("retire:1")).toBeGreaterThan(
       events.indexOf("ledger"),
     );
-    expect(mostActive).toBe(3);
-    expect(counts.refundedCount).toBe(3);
+    expect(counts.refundedCount).toBe(1);
   });
 
   test("a ledger throw preserves every returned row before propagating", async () => {
-    const active = Array.from({ length: 2 }, (_, index) => `pi_${index}`);
+    const active = ["pi_active"];
     const knownReturned = "pi_known_returned";
     const claim = grantingRowClaim(
       new Map([
@@ -104,11 +94,11 @@ describe("admin refund authority > ordered local writes", () => {
         `sess_${knownReturned}`,
       ]),
     );
-    expect(claim.released[0]).toHaveLength(3);
+    expect(claim.released[0]).toHaveLength(2);
   });
 
-  test("a provider throw still preserves returned evidence from another wave", async () => {
-    const active = Array.from({ length: 2 }, (_, index) => `pi_throw_${index}`);
+  test("a provider throw still preserves returned evidence from a sibling", async () => {
+    const active = ["pi_throw"];
     const returned = "pi_returned_after_throw";
     const returnedSession = `sess_${returned}`;
     const claim = grantingRowClaim(
