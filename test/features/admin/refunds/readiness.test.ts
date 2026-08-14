@@ -1,30 +1,36 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { prepareRefundReadiness } from "#routes/admin/refunds/readiness.ts";
-import type {
-  PaymentReferenceProviderBindingRequest,
-  PaymentReferenceProviderBindingResult,
-} from "#shared/db/payment-reference-provider.ts";
-import type { PaymentReferenceEvidence } from "#shared/payment/provider-discovery.ts";
+import type { ProviderRead } from "#shared/payment/provider-read.ts";
+import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 import {
-  boundIndexes,
   candidate,
   charge,
-  found,
   heldClaim,
   provider,
-  stripeReadiness,
   tagged,
-  untagged,
 } from "./readiness/helpers.ts";
 
+const claimFor = (
+  rows: ReadonlyMap<number, readonly string[]>,
+): typeof heldClaim => ({
+  commandId: heldClaim.commandId,
+  held: new Map(rows),
+  heldSince: heldClaim.heldSince,
+  phases: new Map(
+    [...rows.values()].flatMap((sessionIds) =>
+      sessionIds.map((sessionId) => [sessionId, "checking"] as const)
+    ),
+  ),
+});
+
 describe("admin refund readiness", () => {
-  test("deduplicates reads and carries exact evidence into every candidate", async () => {
+  test("deduplicates tagged reads and carries exact evidence into every candidate", async () => {
     const observed = charge();
     const square = provider("square");
     const stripe = provider("stripe");
-    const shared = untagged("shared");
+    const shared = tagged("shared", "square", "square_shared");
     const firstShared: typeof shared = {
       ...shared,
       heldRowSessionIds: ["session_first"],
@@ -40,45 +46,34 @@ describe("admin refund readiness", () => {
     const returned = tagged(
       "returned",
       "stripe",
-      "tagged_returned",
+      "stripe_returned",
       "completed",
     );
     const reads: string[] = [];
     const loads: PaymentProviderType[] = [];
-    const bindings: PaymentReferenceProviderBindingRequest[] = [];
-    const exactClaim = {
-      commandId: heldClaim.commandId,
-      held: new Map([
-        [1, ["session_first", "session_tagged_returned"]],
-        [2, ["session_second"]],
-      ]),
-      heldSince: heldClaim.heldSince,
-      phases: new Map([
-        ["session_first", "checking" as const],
-        ["session_tagged_returned", "checking" as const],
-        ["session_second", "checking" as const],
-      ]),
+    const readCharge = (
+      reference: string,
+    ): Promise<ProviderRead<ChargeMoney>> => {
+      reads.push(reference);
+      return Promise.resolve({ resource: observed, status: "found" });
     };
-
+    const loadedSquare = { ...square, readCharge };
+    const loadedStripe = { ...stripe, readCharge };
     const result = await prepareRefundReadiness(
       [candidate(1, [firstShared, returned]), candidate(2, [secondShared])],
-      exactClaim,
+      claimFor(
+        new Map([
+          [1, ["session_first", "session_stripe_returned"]],
+          [2, ["session_second"]],
+        ]),
+      ),
       new Set(),
       {
-        bindProviders: (request) => {
-          bindings.push(request);
-          return Promise.resolve({
-            indexes: boundIndexes(request.bindings),
-            kind: "bound",
-          });
-        },
         loadProvider: (type) => {
           loads.push(type);
-          return Promise.resolve(type === "square" ? square : stripe);
-        },
-        readEvidence: (reference) => {
-          reads.push(reference.reference);
-          return Promise.resolve(found(shared, "square", observed));
+          return Promise.resolve(
+            type === "square" ? loadedSquare : loadedStripe,
+          );
         },
       },
     );
@@ -87,32 +82,6 @@ describe("admin refund readiness", () => {
     if (result.kind !== "ready") return;
     expect(reads).toEqual(["shared"]);
     expect(loads).toEqual(["square", "stripe"]);
-    expect(bindings).toHaveLength(1);
-    expect(bindings[0]).toEqual({
-      bindings: new Map([
-        [
-          "old_shared",
-          {
-            identity: {
-              kind: "tagged",
-              provider: "square",
-              reference: "shared",
-            },
-          },
-        ],
-        [
-          "tagged_returned",
-          {
-            identity: {
-              kind: "tagged",
-              provider: "stripe",
-              reference: "returned",
-            },
-          },
-        ],
-      ]),
-      ...exactClaim,
-    });
     const [first, second] = result.candidates;
     const observedFirst = first?.references[0];
     const returnedFirst = first?.references[1];
@@ -122,158 +91,95 @@ describe("admin refund readiness", () => {
     if (
       observedFirst?.kind !== "observed" ||
       observedSecond?.kind !== "observed"
-    ) {
-      return;
-    }
+    ) return;
     expect(observedFirst.charge).toBe(observed);
     expect(observedSecond.charge).toBe(observed);
-    expect(observedFirst.provider).toBe(square);
-    expect(observedSecond.provider).toBe(square);
-    expect(observedFirst.reference.rowSessionIds).toEqual(["session_first"]);
-    expect(observedSecond.reference.rowSessionIds).toEqual(["session_second"]);
-    expect(observedFirst.reference).toMatchObject({
-      index: "bound_old_shared",
-      kind: "tagged",
-      provider: "square",
+    expect(observedFirst.provider).toBe(loadedSquare);
+    expect(observedSecond.provider).toBe(loadedSquare);
+    expect(observedFirst.reference).toBe(firstShared);
+    expect(observedSecond.reference).toBe(secondShared);
+    expect(returnedFirst).toMatchObject({
+      kind: "already_returned",
+      provider: loadedStripe,
+      reference: returned,
     });
-    expect(returnedFirst?.kind).toBe("already_returned");
-    if (returnedFirst?.kind !== "already_returned") return;
-    expect(returnedFirst.provider).toBe(stripe);
-    expect(returnedFirst.reference.index).toBe("bound_tagged_returned");
   });
 
   const unreadCases = [
-    [
-      "missing",
-      {
-        attempts: [{ provider: "stripe", result: { status: "missing" } }],
-        provider: "stripe",
-        reference: "unread",
-        source: "tagged",
-        status: "missing",
-      },
-    ],
-    [
-      "invalid",
-      {
-        attempts: [
-          {
-            provider: "stripe",
-            result: { reason: "mismatched_id", status: "invalid" },
-          },
-        ],
-        provider: "stripe",
-        reason: "mismatched_id",
-        reference: "unread",
-        source: "tagged",
-        status: "invalid",
-      },
-    ],
-    [
-      "unavailable",
-      {
-        attempts: [
-          {
-            provider: "stripe",
-            result: { reason: "timeout", status: "unavailable" },
-          },
-        ],
-        provider: "stripe",
-        reason: "timeout",
-        reference: "unread",
-        source: "tagged",
-        status: "unavailable",
-      },
-    ],
-    [
-      "unresolved",
-      {
-        attempts: [{ provider: "square", result: { status: "missing" } }],
-        reason: "no_validating_provider",
-        reference: "unread",
-        source: "untagged",
-        status: "unresolved",
-      },
-    ],
-    [
-      "incomplete discovery",
-      {
-        attempts: [
-          {
-            provider: "square",
-            result: { resource: charge(), status: "found" },
-          },
-          {
-            provider: "stripe",
-            result: { reason: "timeout", status: "unavailable" },
-          },
-        ],
-        reason: "provider_search_incomplete",
-        reference: "unread",
-        source: "untagged",
-        status: "unresolved",
-      },
-    ],
-  ] as const satisfies readonly (readonly [string, PaymentReferenceEvidence])[];
+    ["missing", { status: "missing" }],
+    ["invalid", { reason: "mismatched_id", status: "invalid" }],
+    ["unavailable", { reason: "timeout", status: "unavailable" }],
+  ] as const satisfies readonly (readonly [
+    string,
+    Exclude<ProviderRead<ChargeMoney>, { status: "found" }>,
+  ])[];
 
-  for (const [name, evidence] of unreadCases) {
-    test(`keeps ${name} evidence and does not bind`, async () => {
-      const reference = evidence.source === "tagged"
-        ? tagged("unread", "stripe", "old_unread")
-        : untagged("unread", "old_unread");
-      let bindCount = 0;
+  for (const [name, read] of unreadCases) {
+    test(`keeps exact tagged ${name} evidence`, async () => {
+      const reference = tagged("unread", "stripe", "stripe_unread");
       let loadCount = 0;
       const result = await prepareRefundReadiness(
         [candidate(1, [reference])],
         heldClaim,
         new Set(),
         {
-          bindProviders: () => {
-            bindCount++;
-            return Promise.resolve({ kind: "claim_changed" });
-          },
           loadProvider: () => {
             loadCount++;
-            return Promise.resolve(provider("stripe"));
+            return Promise.resolve({
+              ...provider("stripe"),
+              readCharge: () => Promise.resolve(read),
+            });
           },
-          readEvidence: () => Promise.resolve(evidence),
         },
       );
 
       expect(result).toEqual({
         kind: "not_ready",
         observations: [],
-        reads: [{ evidence, index: "old_unread" }],
+        reads: [{
+          evidence: {
+            ...read,
+            provider: "stripe",
+            reference: "unread",
+          },
+          index: "stripe_unread",
+        }],
         reason: "provider_evidence",
       });
-      expect(bindCount).toBe(0);
-      expect(loadCount).toBe(0);
+      expect(loadCount).toBe(1);
     });
   }
 
-  test("keeps at most five provider evidence reads in flight", async () => {
+  test("keeps at most five exact-provider reads in flight", async () => {
     const references = Array.from(
       { length: 6 },
-      (_, index) => untagged(`charge_${index}`),
+      (_, index) => tagged(`charge_${index}`, "stripe"),
     );
     const gate = Promise.withResolvers<void>();
     const firstWave = Promise.withResolvers<void>();
     let active = 0;
     let highest = 0;
     let started = 0;
+    const stripe = provider("stripe");
     const running = prepareRefundReadiness(
       [candidate(1, references)],
       heldClaim,
       new Set(),
-      stripeReadiness(async (reference) => {
-        active++;
-        started++;
-        highest = Math.max(highest, active);
-        if (started === 5) firstWave.resolve();
-        await gate.promise;
-        active--;
-        return found(reference, "stripe", charge());
-      }),
+      {
+        loadProvider: () =>
+          Promise.resolve({
+            ...stripe,
+            readCharge: async () => {
+              active++;
+              started++;
+              highest = Math.max(highest, active);
+              if (started === 5) firstWave.resolve();
+              await gate.promise;
+              active--;
+              return { resource: charge(), status: "found" };
+            },
+          }),
+      },
     );
 
     await firstWave.promise;
@@ -283,37 +189,5 @@ describe("admin refund readiness", () => {
     expect((await running).kind).toBe("ready");
     expect(started).toBe(6);
     expect(highest).toBe(5);
-  });
-
-  test("maps a provider-binding claim race", async () => {
-    const reference = untagged("binding_result");
-    const bindingResult = {
-      kind: "claim_changed",
-    } satisfies PaymentReferenceProviderBindingResult;
-    const result = await prepareRefundReadiness(
-      [candidate(1, [reference])],
-      heldClaim,
-      new Set(),
-      {
-        bindProviders: () => Promise.resolve(bindingResult),
-        loadProvider: () => Promise.resolve(provider("stripe")),
-        readEvidence: () =>
-          Promise.resolve(found(reference, "stripe", charge())),
-      },
-    );
-
-    expect(result).toEqual({
-      kind: "not_ready",
-      observations: [{
-        charge: charge(),
-        identity: {
-          kind: "tagged",
-          provider: "stripe",
-          reference: reference.reference,
-        },
-        reference,
-      }],
-      reason: "claim_changed",
-    });
   });
 });

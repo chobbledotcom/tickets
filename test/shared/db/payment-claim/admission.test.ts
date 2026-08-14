@@ -58,9 +58,8 @@ describeWithEnv(
     test("an empty command can be refused before opening a transaction", async () => {
       const calls = await countDatabaseCalls(0, async () => {
         expect(
-          await claimAttendeeRows([], ({ attendees, inherited, returned }) => {
+          await claimAttendeeRows([], ({ attendees, returned }) => {
             expect(attendees).toEqual([]);
-            expect(inherited).toEqual(new Map());
             expect(returned).toEqual(new Set());
             return false;
           }),
@@ -79,7 +78,6 @@ describeWithEnv(
 
       const result = await claimAttendeeRows([loaded], (facts) => {
         expect(facts.attendees).toEqual([loaded]);
-        expect(facts.inherited).toEqual(new Map());
         expect(facts.returned).toEqual(new Set());
         return false;
       });
@@ -102,7 +100,7 @@ describeWithEnv(
         claimRequestFor([loaded], {
           referenceIndex: "unrelated-reference-index",
           sessionId: "unrelated-session",
-        }),
+        })
       ).toThrow(/^Payment row matched no initiating attendee$/u);
     });
 

@@ -23,7 +23,6 @@ import {
   reviewCase,
   rowStateSlot,
   storedRecordOf,
-  UNRECORDED_MIRROR,
 } from "#test-utils/payment-claim.ts";
 import {
   bookedWithPayment,
@@ -89,7 +88,7 @@ describeWithEnv(
   "db > acknowledging a payment review",
   { db: true, encryptionKey: true },
   () => {
-    test("summarizes payment work by claim, unrecorded, review priority", async () => {
+    test("summarizes payment work by claim, owner review, ledger priority", async () => {
       const attendeeId = await bookedWithPayment("sess-status", "pi_status");
       expect(await getPaymentWorkStatus(attendeeId)).toBe("clear");
 
@@ -102,9 +101,9 @@ describeWithEnv(
           review: reviewCase({ kind: "partially_returned_obligation" }),
           unrecorded: { returnedAt: "2026-08-11T10:00:00.000Z" },
         }),
-        UNRECORDED_MIRROR,
+        REVIEW_MIRROR,
       );
-      expect(await getPaymentWorkStatus(attendeeId)).toBe("needs_money_record");
+      expect(await getPaymentWorkStatus(attendeeId)).toBe("needs_review");
 
       await putRowState(
         "sess-status",
@@ -162,7 +161,7 @@ describeWithEnv(
       ]);
     });
 
-    test("unrecorded money blocks the lower-priority review action", async () => {
+    test("an owner review stays reachable while its money record waits", async () => {
       const attendeeId = await bookedWithPayment("sess-money", "pi_money");
       const review = reviewCase({ kind: "partially_returned_obligation" }, "money-review");
       await putRowState(
@@ -171,19 +170,21 @@ describeWithEnv(
           review,
           unrecorded: { returnedAt: "2026-08-11T10:00:00.000Z" },
         }),
-        UNRECORDED_MIRROR,
+        REVIEW_MIRROR,
       );
 
-      expect(
-        await acknowledgeCurrentPaymentReview({
-          attendeeId,
-          listingId: LISTING_ID,
-          reviewIdentity: "unreachable-review",
+      expect(await acknowledge(attendeeId)).toEqual({ kind: "acknowledged" });
+      expect(await reviewOf(attendeeId, "sess-money")).toEqual({
+        ...review,
+        acknowledgedAt: expect.any(String),
+      });
+      expect((await stateBySession(attendeeId)).get("sess-money")).toEqual(
+        expect.objectContaining({
+          unrecorded: { returnedAt: "2026-08-11T10:00:00.000Z" },
         }),
-      ).toEqual({ kind: "nothing_to_review" });
-      expect(await reviewOf(attendeeId, "sess-money")).toEqual(review);
-      expect(await protectedStateOf("sess-money")).toBe(UNRECORDED_MIRROR);
-      expect(await getAttendeeActivityLog(attendeeId)).toEqual([]);
+      );
+      expect(await protectedStateOf("sess-money")).toBe(REVIEW_MIRROR);
+      expect(await getAttendeeActivityLog(attendeeId)).toHaveLength(1);
     });
 
     test("a claim blocks acknowledgement without changing or logging", async () => {

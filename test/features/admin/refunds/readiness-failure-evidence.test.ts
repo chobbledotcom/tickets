@@ -5,6 +5,7 @@ import {
   processRefundBatch,
   type RefundRunDependencies,
 } from "#routes/admin/refunds/provider.ts";
+import { refreshClaimedPayment } from "#routes/admin/refunds/refresh.ts";
 import {
   prepareRefundReadiness,
   type RefundReadinessResult,
@@ -13,7 +14,6 @@ import { refundLedgerResult } from "#shared/refund-ledger/result.ts";
 import type { ProviderRefundTarget } from "#shared/provider-refunds.ts";
 import { requestRecordedProviderRefund } from "#test/features/admin/refunds/provider/dispatch-helpers.ts";
 import {
-  found,
   heldClaim,
   stripeReadiness,
   tagged,
@@ -26,7 +26,6 @@ import {
   gbp,
   partlyRefundedCharge,
   refundObservation,
-  refundReference,
 } from "#test-utils/payment-state.ts";
 import { grantingRowClaim } from "#test-utils/refund-routes.ts";
 
@@ -52,11 +51,9 @@ const failedAlongside = (
   reads: [
     {
       evidence: {
-        attempts: [],
         provider: "stripe",
         reason: "timeout",
         reference: "unread",
-        source: "tagged",
         status: "unavailable",
       },
       index: "unread_index",
@@ -79,13 +76,11 @@ const runFailedObservation = async (
   const rows = [...observed.rowSessionIds, ...unread.rowSessionIds];
   const claim = grantingRowClaim(new Map([[attendeeId, rows]]));
   const authorityRequests: ProviderRefundTarget[] = [];
-  await processRefundBatch(
-    [
-      {
-        attendee: { id: attendeeId } as RefundCandidate["attendee"],
-        references: [observed, unread],
-      },
-    ],
+  await refreshClaimedPayment(
+    {
+      attendee: { id: attendeeId } as RefundCandidate["attendee"],
+      references: [observed, unread],
+    },
     3,
     {
       claim,
@@ -99,62 +94,8 @@ const runFailedObservation = async (
   return { authorityRequests, claim };
 };
 
-const unresolvedDiscovery = (
-  reference: ReturnType<typeof refundReference>,
-  charge: FailedReadiness["observations"][number]["charge"],
-): FailedReadiness => ({
-  kind: "not_ready",
-  observations: [],
-  reads: [
-    {
-      evidence: {
-        attempts: [
-          {
-            provider: "stripe",
-            result: { resource: charge, status: "found" },
-          },
-          {
-            provider: "square",
-            result: { reason: "timeout", status: "unavailable" },
-          },
-        ],
-        reason: "provider_search_incomplete",
-        reference: reference.reference,
-        source: "untagged",
-        status: "unresolved",
-      },
-      index: reference.index,
-    },
-  ],
-  reason: "provider_evidence",
-});
-
-const runUnresolvedDiscovery = async (
-  charge: FailedReadiness["observations"][number]["charge"],
-): Promise<ReturnType<typeof grantingRowClaim>> => {
-  const attendeeId = 11;
-  const reference = refundReference("ambiguous");
-  const claim = grantingRowClaim(
-    new Map([[attendeeId, reference.rowSessionIds]]),
-  );
-  await processRefundBatch(
-    [
-      {
-        attendee: { id: attendeeId } as RefundCandidate["attendee"],
-        references: [reference],
-      },
-    ],
-    3,
-    {
-      claim,
-      prepare: () => Promise.resolve(unresolvedDiscovery(reference, charge)),
-    },
-  );
-  return claim;
-};
-
 const runPreparationCrash = async (
-  reference: ReturnType<typeof refundReference>,
+  reference: ReturnType<typeof tagged>,
   record?: RefundRunDependencies["record"],
 ): Promise<ReturnType<typeof grantingRowClaim>> => {
   const attendeeId = 8;
@@ -209,19 +150,10 @@ describe("admin refund readiness failure evidence", () => {
       new Set(),
       stripeReadiness((reference) =>
         Promise.resolve(
-          reference.reference === returned.reference
-            ? found(reference, "stripe", fullyRefundedMoney())
+          reference === returned.reference
+            ? { resource: fullyRefundedMoney(), status: "found" }
             : {
-              attempts: [
-                {
-                  provider: "stripe",
-                  result: { reason: "timeout", status: "unavailable" },
-                },
-              ],
-              provider: "stripe",
               reason: "timeout",
-              reference: reference.reference,
-              source: "tagged",
               status: "unavailable",
             },
         )
@@ -243,9 +175,12 @@ describe("admin refund readiness failure evidence", () => {
   });
 
   test("protects a known return before readiness itself throws", async () => {
-    const reference = refundReference("known_return", {
-      refundState: "completed",
-    });
+    const reference = tagged(
+      "known_return",
+      "stripe",
+      "known_return",
+      "completed",
+    );
     const claim = await runPreparationCrash(
       reference,
       (postings) =>
@@ -264,7 +199,7 @@ describe("admin refund readiness failure evidence", () => {
   });
 
   test("releases the checking fence when readiness itself throws", async () => {
-    const reference = refundReference("unread_throw");
+    const reference = tagged("unread_throw", "stripe", "unread_throw");
     const claim = await runPreparationCrash(reference);
 
     expect(claim.released).toEqual([reference.rowSessionIds]);
@@ -320,17 +255,5 @@ describe("admin refund readiness failure evidence", () => {
     expect(run.claim.unrecorded).toEqual([[]]);
     expect(run.claim.reviewChanges).toEqual([new Map()]);
     expect(run.authorityRequests).toEqual([]);
-  });
-
-  test("does not turn ambiguous provider evidence into an attendee-row hold", async () => {
-    const claim = await runUnresolvedDiscovery(fullyRefundedMoney());
-
-    expect(claim.released).toEqual([["sess_ambiguous"]]);
-  });
-
-  test("releases ambiguous legacy evidence when no provider saw money move", async () => {
-    const claim = await runUnresolvedDiscovery(chargeMoney());
-
-    expect(claim.released).toEqual([["sess_ambiguous"]]);
   });
 });

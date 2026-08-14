@@ -36,22 +36,23 @@ const reviewError = (
   );
 
 const handlePaymentReviewGet = attendeeActions[ACTION].page(
-  ({ attendee, paymentReview }, session, returnUrl, error) =>
-    adminPaymentReviewPage(
-      {
-        attendee,
-        reviewIdentity:
-          paymentReview.status === "needs_review"
-            ? paymentReview.identity
-            : null,
-      },
-      session,
-      returnUrl,
-      error,
-    ),
-  async ({ paymentReview }) => {
+  ({ paymentReview }) => {
     const messageKey = REVIEW_GUARD[paymentReview.status];
-    return Promise.resolve(messageKey === null ? null : t(messageKey));
+    return {
+      reason: messageKey === null ? null : t(messageKey),
+      render: ({ attendee, paymentReview }, session, returnUrl, error) =>
+        adminPaymentReviewPage(
+          {
+            attendee,
+            reviewIdentity: paymentReview.status === "needs_review"
+              ? paymentReview.identity
+              : null,
+          },
+          session,
+          returnUrl,
+          error,
+        ),
+    };
   },
   requireOwnerOr,
 );

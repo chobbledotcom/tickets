@@ -5,7 +5,7 @@ import { requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import {
   attendeeActions,
-  type AttendeeWithListing,
+  type AttendeeWithBooking,
 } from "#routes/admin/attendees-route-helpers.ts";
 import { refundWorkRemains } from "#routes/admin/refunds/candidates.ts";
 import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
@@ -13,10 +13,9 @@ import { OWNER_FORM, requireOwnerOr } from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activity-log.ts";
-import { hasActiveBookingLine } from "#shared/db/attendees/queries.ts";
 import {
   getRefundPaymentReferences,
-  type RefundPaymentReference,
+  type TaggedRefundPaymentReference,
 } from "#shared/db/payment-references.ts";
 import { getPaymentWorkStatus } from "#shared/db/payment-review.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -32,7 +31,7 @@ import { refundError, singleRefundResultError } from "./single-result.ts";
 type RefundableCharges =
   | { kind: "nothing"; reason: string }
   | { kind: "unsafe"; reason: string }
-  | { kind: "refundable"; references: RefundPaymentReference[] };
+  | { kind: "refundable"; references: TaggedRefundPaymentReference[] };
 
 /** What remains, shared by the page guard and submitted action. */
 const whatIsLeftToRefund = async (
@@ -64,9 +63,11 @@ const whatIsLeftToRefund = async (
     return {
       kind: "unsafe",
       reason: t(
-        referenceSet.kind === "legacy_unindexed"
-          ? "error.payment_history_incomplete"
-          : "error.payment_history_too_large",
+        {
+          legacy_unindexed: "error.payment_history_incomplete",
+          provider_unknown: "error.payment_provider_unknown",
+          too_many_references: "error.payment_history_too_large",
+        }[referenceSet.kind],
       ),
     };
   }
@@ -82,22 +83,22 @@ const whatIsLeftToRefund = async (
 };
 
 interface RefundPageState {
-  page: typeof adminRefundAttendeePage;
   reason: string | null;
+  render: typeof adminRefundAttendeePage;
 }
 
 const getRefundPageState = async (
-  data: AttendeeWithListing,
+  data: AttendeeWithBooking,
 ): Promise<RefundPageState> => {
-  if (!(await hasActiveBookingLine(data.attendee.id, data.listing.id))) {
+  if (!data.activeBooking) {
     return {
-      page: adminRefundAttendeePage,
       reason: t("error.no_payment_to_refund"),
+      render: adminRefundAttendeePage,
     };
   }
   const left = await whatIsLeftToRefund(data.attendee);
   return {
-    page: left.kind === "unsafe"
+    render: left.kind === "unsafe"
       ? adminBlockedRefundAttendeePage
       : adminRefundAttendeePage,
     reason: left.kind === "refundable" ? null : left.reason,
@@ -105,8 +106,7 @@ const getRefundPageState = async (
 };
 
 const handleAdminAttendeeRefundGet = attendeeActions.refund.page(
-  async (data, ...args) => (await getRefundPageState(data)).page(data, ...args),
-  async (data) => (await getRefundPageState(data)).reason,
+  getRefundPageState,
   requireOwnerOr,
 );
 
@@ -118,7 +118,7 @@ const handleAttendeeRefund = attendeeActions.refund.verified(
     const returnUrl = form.getString("return_url");
     // An attendee needs this exact live booking line before its payment can be
     // refunded from this listing.
-    if (!(await hasActiveBookingLine(attendeeId, listingId))) {
+    if (!data.activeBooking) {
       return refundError(
         attendeeId,
         t("error.no_payment_to_refund"),

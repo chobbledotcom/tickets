@@ -177,7 +177,15 @@ describe("admin refund shared-reference readiness", () => {
         Promise.resolve({
           kind: "not_ready",
           observations: [],
-          reason: "claim_changed",
+          reads: [{
+            evidence: {
+              provider: "stripe",
+              reference: reference.reference,
+              status: "missing",
+            },
+            index: reference.index,
+          }],
+          reason: "provider_evidence",
         }),
       ready: () => Promise.resolve({ kind: "ready", message: "" }),
     });

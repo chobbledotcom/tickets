@@ -174,11 +174,10 @@ const reconcileRefund = async (
   if (admission.kind === "refused") {
     return await answerProviderConflict(row, now, target.reference);
   }
-  if (target.mode === "observe_only") {
-    return refundAnswerFrom(row, target.reference);
-  }
   if (row.state.kind === "ready") {
-    return await armReadyRefund(work);
+    return target.mode === "observe_only"
+      ? refundAnswerFrom(row, target.reference)
+      : await armReadyRefund(work);
   }
   return await continueActiveRefund(work);
 };
@@ -212,15 +211,15 @@ const requestOne = async (
   ) {
     return { kind: "unchanged", reference: target.reference };
   }
-  const row =
-    prepared.row ??
-    (await createTargetAuthority(
+  const row = prepared.row === null
+    ? await createTargetAuthority(
       target,
       loaded,
       provider,
       read.resource.captured,
       now,
-    ));
+    )
+    : prepared.row;
   return await reconcile({
     admission,
     charge: read.resource,

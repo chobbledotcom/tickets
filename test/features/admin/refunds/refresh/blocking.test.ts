@@ -28,11 +28,9 @@ describe("refresh payment under an attendee claim", () => {
         reads: [
           {
             evidence: {
-              attempts: [],
-              reason: "no_validating_provider",
+              provider: "stripe",
               reference: "pi_refresh",
-              source: "untagged",
-              status: "unresolved",
+              status: "missing",
             },
             index: "old_pi_refresh",
           },
@@ -43,27 +41,9 @@ describe("refresh payment under an attendee claim", () => {
 
     expect(await refresh(run)).toEqual({
       kind: "not_ready",
-      message:
-        "No configured payment provider recognizes this payment. Add the provider it was taken with, or refund it from that provider's dashboard.",
+      message: "Payment pi_refresh at stripe does not recognize the payment.",
     });
     expect(run.observed).toEqual([]);
-    expect(run.claim.released).toEqual([run.reference.rowSessionIds]);
-  });
-
-  test("releases the checking fence when provider evidence cannot answer", async () => {
-    const run = runHarness({
-      readiness: {
-        kind: "not_ready",
-        observations: [],
-        reason: "claim_changed",
-      },
-    });
-
-    expect(await refresh(run)).toEqual({
-      kind: "not_ready",
-      message:
-        "the payment rows changed while their providers were being recorded",
-    });
     expect(run.claim.released).toEqual([run.reference.rowSessionIds]);
   });
 

@@ -6,6 +6,7 @@ import {
   REFRESH_BUDGET_MESSAGE,
   REFUND_BUDGET_MESSAGES,
   type RefundBudgetAudience,
+  type RefundBudgetCandidate,
   type RefundReadinessAction,
   type RefundReadinessBudgetCheckpoint,
   refundReadinessSubrequestCost,
@@ -179,20 +180,24 @@ const budgetFits = (
   returned: ReadonlySet<string>,
   checkpoint: RefundReadinessBudgetCheckpoint,
 ): boolean => {
+  const budgetCandidates = candidates.map(
+    ({ references }): RefundBudgetCandidate => {
+      if (!references.every((reference) => reference.kind === "tagged")) {
+        throw new Error(
+          "Refund admission reached its budget without a recorded provider",
+        );
+      }
+      return { references };
+    },
+  );
   const cost = refundReadinessSubrequestCost(
     action,
-    candidates,
+    budgetCandidates,
     returned,
     checkpoint,
   );
   const remaining = getSubrequestRemaining();
-  const fits = subrequestCostFits(cost, remaining);
-  if (!fits) {
-    throw new Error(
-      `DEBUG refund budget ${checkpoint}: cost=${JSON.stringify(cost)} remaining=${JSON.stringify(remaining)}`,
-    );
-  }
-  return fits;
+  return subrequestCostFits(cost, remaining);
 };
 
 const loadedBudgetCandidates = (

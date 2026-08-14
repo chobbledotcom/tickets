@@ -25,8 +25,8 @@ import {
 import { orRefusal } from "#shared/db/payment-admit-move.ts";
 import { hasAnyPaymentReference } from "#shared/db/payment-references.ts";
 import {
-  ATTENDEE_DEMO_FIELDS,
   applyDemoOverrides,
+  ATTENDEE_DEMO_FIELDS,
 } from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { validateForm } from "#shared/forms/validation.ts";
@@ -61,16 +61,17 @@ import {
 } from "./attendees-list.ts";
 import { handleMergePost } from "./attendees-merge.ts";
 import {
-  type AttendeeWithListing,
+  attendeeActionPage,
   attendeeActions,
   attendeeFormAction,
+  type AttendeeWithListing,
 } from "./attendees-route-helpers.ts";
 
 /* jscpd:ignore-end */
 
 /** Handle GET /admin/attendees/:attendeeId/delete */
 const handleAdminAttendeeDeleteGet = attendeeActions.delete.page(
-  adminAttendeeDeletePage,
+  attendeeActionPage(adminAttendeeDeletePage),
 );
 
 /** Delete an attendee, log the activity, and redirect. An attendee whose
@@ -195,12 +196,11 @@ const handleAttendeeCheckin = attendeeFormAction(
     // flash on the landing tab — the old ?checkin_name= surface is gone.
     const returnUrl = form.getString("return_url");
     const filterValue = form.getString("return_filter");
-    const filterQs =
-      filterValue === "in" || filterValue === "out"
-        ? `?filter=${filterValue}`
-        : "";
-    const target =
-      returnUrl || `/admin/listing/${listingId}/attendees${filterQs}`;
+    const filterQs = filterValue === "in" || filterValue === "out"
+      ? `?filter=${filterValue}`
+      : "";
+    const target = returnUrl ||
+      `/admin/listing/${listingId}/attendees${filterQs}`;
     return redirect(target, `Checked ${data.attendee.name} ${status}`, true);
   },
 );
@@ -243,61 +243,62 @@ const buildCreateAttendeeInput = (
 };
 
 /** Handle POST /admin/listing/:listingId/attendee (add attendee manually) */
-const handleAddAttendee: TypedRouteHandler<"POST /admin/listing/:listingId/attendee"> =
-  createAuthedFormRoute<
-    AddAttendeeFormValues,
-    { listingId: number },
-    ListingWithCount
-  >({
-    form: (listing) => ({
-      validate: (form) =>
-        validateForm<AddAttendeeFormValues>(
-          form,
-          getAddAttendeeFields(
-            listing.fields,
-            listing.listing_type === "daily",
-            listing.customisable_days && listing.listing_type === "daily"
-              ? availableDayCounts(listing)
-              : undefined,
-          ),
+const handleAddAttendee: TypedRouteHandler<
+  "POST /admin/listing/:listingId/attendee"
+> = createAuthedFormRoute<
+  AddAttendeeFormValues,
+  { listingId: number },
+  ListingWithCount
+>({
+  form: (listing) => ({
+    validate: (form) =>
+      validateForm<AddAttendeeFormValues>(
+        form,
+        getAddAttendeeFields(
+          listing.fields,
+          listing.listing_type === "daily",
+          listing.customisable_days && listing.listing_type === "daily"
+            ? availableDayCounts(listing)
+            : undefined,
         ),
-    }),
-    loadContext: ({ listingId }) => getListingWithCount(listingId),
-    onInvalid: ({ error, params }) =>
-      redirect(`/admin/listing/${params.listingId}/attendees`, error, false),
-    onValid: async ({ context: listing, params, values }) => {
-      const createResult = await attendeesApi.createAttendeeAtomic(
-        buildCreateAttendeeInput(values, listing),
-      );
-      if (!createResult.success) {
-        // Back to the roster, where the quick-add form is, so the operator can
-        // correct the quantity in context.
-        return redirect(
-          `/admin/listing/${params.listingId}/attendees`,
-          t("error.not_enough_spots"),
-          false,
-        );
-      }
-      await logActivity(
-        `Attendee '${values.name}' added manually`,
-        params.listingId,
-        createResult.attendees[0]!.id,
-      );
-      // Land on the roster (Attendees tab), where the new attendee and the
-      // quick-add form live, so the flash and the added row are both in view.
+      ),
+  }),
+  loadContext: ({ listingId }) => getListingWithCount(listingId),
+  onInvalid: ({ error, params }) =>
+    redirect(`/admin/listing/${params.listingId}/attendees`, error, false),
+  onValid: async ({ context: listing, params, values }) => {
+    const createResult = await attendeesApi.createAttendeeAtomic(
+      buildCreateAttendeeInput(values, listing),
+    );
+    if (!createResult.success) {
+      // Back to the roster, where the quick-add form is, so the operator can
+      // correct the quantity in context.
       return redirect(
         `/admin/listing/${params.listingId}/attendees`,
-        `Added ${values.name}`,
-        true,
+        t("error.not_enough_spots"),
+        false,
       );
-    },
-    preprocessForm: (form) => applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS),
-  });
+    }
+    await logActivity(
+      `Attendee '${values.name}' added manually`,
+      params.listingId,
+      createResult.attendees[0]!.id,
+    );
+    // Land on the roster (Attendees tab), where the new attendee and the
+    // quick-add form live, so the flash and the added row are both in view.
+    return redirect(
+      `/admin/listing/${params.listingId}/attendees`,
+      `Added ${values.name}`,
+      true,
+    );
+  },
+  preprocessForm: (form) => applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS),
+});
 
 /** Handle GET /admin/attendees/:attendeeId/resend-notification */
 const handleAdminResendNotificationGet = attendeeActions[
   "resend-notification"
-].page(adminResendNotificationPage);
+].page(attendeeActionPage(adminResendNotificationPage));
 
 /** The entries a resend notifies. A standalone line notifies alone; a line
  * belonging to a package rehydrates EVERY line of that attendee's package, so

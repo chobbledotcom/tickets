@@ -2,17 +2,14 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
+import { getAttendeeOrNull } from "#shared/db/attendees/queries.ts";
 import { updateAttendeePII } from "#shared/db/attendees/update.ts";
 import { execute, requireOne } from "#shared/db/client.ts";
-import { claimAttendeeRows } from "#shared/db/payment-claim/take.ts";
 import { getRefundPaymentReferencesForAttendee } from "#shared/db/payment-references.ts";
 import type { Attendee } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
-import { releaseClaimRows } from "#test-utils/payment-claim.ts";
 import { requireCompleteRefundReferences } from "#test-utils/payment-references.ts";
 import {
   bookedWithPayment,
@@ -160,50 +157,20 @@ describeWithEnv(
       await expectRunStandsDown(candidate, 7);
     });
 
-    test("does not refund a legacy anchor deleted after it was loaded", async () => {
-      const listing = await createTestListing();
-      const attendee = await createPaidTestAttendee(
-        listing.id,
-        "Anchored Buyer",
-        "anchor-gone@example.com",
-        "pi_anchor_gone",
-      );
-      await resave(attendee);
-      const first = await withStoredRevision(attendee);
-      const claim = await claimAttendeeRows([
-        {
-          attendeeId: attendee.id,
-          loadedPiiBlob: first.attendee.pii_blob,
-          references: first.references,
-        },
-      ]);
-      if (claim.kind !== "claimed") throw new Error("the anchor was not held");
-      await releaseClaimRows(claim, [...claim.held.values()].flat());
-      const candidate = await withStoredRevision(attendee);
-      const [anchor] = candidate.references.flatMap(
-        (reference) => reference.rowSessionIds,
-      );
-      if (anchor === undefined) throw new Error("the anchor was not loaded");
-      await execute(
-        "DELETE FROM processed_payments WHERE payment_session_id = ?",
-        [anchor],
-      );
-
-      await expectRunStandsDown(candidate, listing.id);
-    });
-
     test("does not refund after the attendee PII revision changes", async () => {
-      const listing = await createTestListing();
-      const attendee = await createPaidTestAttendee(
-        listing.id,
-        "Original Buyer",
-        "edited-before-claim@example.com",
+      const attendeeId = await bookedWithPayment(
+        "sess_edited_before_claim",
         "pi_edited_before_claim",
       );
+      const attendee = await getAttendeeOrNull(
+        attendeeId,
+        await getTestPrivateKey(),
+      );
+      if (attendee === null) throw new Error("the attendee was not loaded");
       const candidate = await withStoredRevision(attendee);
       await resave(attendee, "Edited Buyer");
 
-      await expectRunStandsDown(candidate, listing.id);
+      await expectRunStandsDown(candidate, 7);
     });
   },
 );

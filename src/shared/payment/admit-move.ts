@@ -74,8 +74,8 @@ type LiveWork = RecoveryDeclaration & {
  * DESTROYS the row the correction needs.
  *
  * `saidFirst` puts the most urgent one first when a row carries more than one:
- * money that may be moving right now, then money that moved and is not on the
- * books, then money somebody should look at.
+ * money that may be moving right now, then a decision only the owner can make,
+ * then money whose local record can be repaired mechanically.
  */
 export const PAYMENT_ROW_LIFECYCLE = {
   claim: {
@@ -100,7 +100,7 @@ export const PAYMENT_ROW_LIFECYCLE = {
     operatorRoute: PAYMENT_RECOVERY_ROUTES["payment-review"],
     refusal:
       "The owner still has to resolve a payment problem for this person. Refresh or correct the payment evidence, then try again.",
-    saidFirst: 2,
+    saidFirst: 1,
     status: "needs_review",
     stops: { delete: true, merge: false },
   },
@@ -113,7 +113,7 @@ export const PAYMENT_ROW_LIFECYCLE = {
     operatorRoute: PAYMENT_RECOVERY_ROUTES["refresh-payment"],
     refusal:
       "This person's money went back, but the accounts do not show it. Record it, then try again.",
-    saidFirst: 1,
+    saidFirst: 2,
     status: "needs_money_record",
     stops: { delete: true, merge: false },
   },
@@ -150,10 +150,7 @@ export const paymentWorkFor = (
   providerRefundWork = false,
 ): PaymentWork => {
   const work = firstLiveWork(states);
-  if (
-    providerRefundWork &&
-    (work === undefined || work.status === "needs_review")
-  ) {
+  if (providerRefundWork && work === undefined) {
     return { recoveryAction: null, status: "needs_provider_recovery" };
   }
   return work === undefined

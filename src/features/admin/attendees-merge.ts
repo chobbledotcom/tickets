@@ -62,13 +62,13 @@ const loadMergeSource = async (
   token: string,
 ): Promise<
   | (ContactInfo & {
-      id: number;
-      lat: string;
-      lng: string;
-      payment_id: string;
-      ticket_token: string;
-      bookings: ListingAttendeeRow[];
-    })
+    id: number;
+    lat: string;
+    lng: string;
+    payment_id: string;
+    ticket_token: string;
+    bookings: ListingAttendeeRow[];
+  })
   | null
 > => {
   const pk = await requireRequestPrivateKey();
@@ -183,8 +183,9 @@ const updateTargetPiiFromDecision = async (
   const kept = decision.pii.address === "source" ? source : target;
   const other = kept === source ? target : source;
   const keptIsPinned = Boolean(kept.lat && kept.lng);
-  const addressFrom =
-    keptIsPinned || kept.address !== other.address ? kept : other;
+  const addressFrom = keptIsPinned || kept.address !== other.address
+    ? kept
+    : other;
   const email = pickPiiField(decision, "email", source, target);
   const phone = pickPiiField(decision, "phone", source, target);
   await updateAttendeePII(attendeeId, {
@@ -234,19 +235,18 @@ const bookingMoveParts = (summary: MergeSummary): [number, string][] => [
 
 /** Build a merge message's parts: a lead line, then the changed-count phrases
  * (the shared booking moves, plus the surface's own extra counts). */
-const mergeMessageParts =
-  (
-    lead: (sourceName: string, mergedPiiName: string) => string,
-    extraCounts: (summary: MergeSummary) => [number, string][],
-  ) =>
-  (
-    summary: MergeSummary,
-    sourceName: string,
-    mergedPiiName: string,
-  ): string[] => [
-    lead(sourceName, mergedPiiName),
-    ...mergeCountParts([...bookingMoveParts(summary), ...extraCounts(summary)]),
-  ];
+const mergeMessageParts = (
+  lead: (sourceName: string, mergedPiiName: string) => string,
+  extraCounts: (summary: MergeSummary) => [number, string][],
+) =>
+(
+  summary: MergeSummary,
+  sourceName: string,
+  mergedPiiName: string,
+): string[] => [
+  lead(sourceName, mergedPiiName),
+  ...mergeCountParts([...bookingMoveParts(summary), ...extraCounts(summary)]),
+];
 
 /** Build activity log message parts for a merge summary */
 const buildMergeLogParts = mergeMessageParts(
@@ -324,7 +324,6 @@ const applyMergeDecisions = async (
     diff,
     privateKey: await requireRequestPrivateKey(),
     sourceId: source.id,
-    sourcePaymentId: source.payment_id,
     sourcePii: extractSourcePii(source),
     targetId: attendeeId,
     targetPii: {
@@ -334,8 +333,9 @@ const applyMergeDecisions = async (
     },
   });
 
-  const mergedPiiName =
-    decision.pii.name === "source" ? source.name : target.name;
+  const mergedPiiName = decision.pii.name === "source"
+    ? source.name
+    : target.name;
   await updateTargetPiiFromDecision(attendeeId, decision, source, target);
 
   const { summary } = result;
@@ -415,8 +415,9 @@ const parseBookingDecisions = (
   form: FormParams,
   diff: AttendeeMergeDiff,
 ): Record<string, MergeBookingChoice> =>
-  parseConflictDecisions(diff, (key) =>
-    toBookingChoice(form.getString(`booking_${key}`)),
+  parseConflictDecisions(
+    diff,
+    (key) => toBookingChoice(form.getString(`booking_${key}`)),
   );
 
 /** Normalize a raw money choice; an empty/unknown value is left ABSENT so
@@ -434,8 +435,9 @@ const parseMoneyDecisions = (
   form: FormParams,
   diff: AttendeeMergeDiff,
 ): Record<string, MergeMoneyChoice> =>
-  parseConflictDecisions(diff, (key) =>
-    toMoneyChoice(form.getString(`money_${key}`)),
+  parseConflictDecisions(
+    diff,
+    (key) => toMoneyChoice(form.getString(`money_${key}`)),
   );
 
 /** Parse merge decision form data into AttendeeMergeDecisionInput */
@@ -491,9 +493,11 @@ export const handleMergePost: ParamsRoute<AttendeeRouteParams> = mergeHandler(
     // Where anything that stops the merge sends the operator: back to the
     // Actions tab's merge panel, where the decision radios reset (they always
     // have) but the message flashes and the search re-runs.
-    const mergePanel = `/admin/attendees/${target.id}/actions?token=${encodeURIComponent(
-      sourceToken,
-    )}`;
+    const mergePanel = `/admin/attendees/${target.id}/actions?token=${
+      encodeURIComponent(
+        sourceToken,
+      )
+    }`;
     const validation = validateAttendeeMergeDecision(diff, decision);
     if (!validation.valid) {
       return errorRedirect(mergePanel, validation.errors.join("; "));

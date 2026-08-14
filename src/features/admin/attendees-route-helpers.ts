@@ -21,7 +21,7 @@ import { createAuthedHandler } from "#shared/app-forms.ts";
 import { decryptAttendeeOrNull } from "#shared/db/attendees/pii.ts";
 import {
   getAttendeeOrNull,
-  getFirstBookingListingId,
+  getFirstBooking,
 } from "#shared/db/attendees/queries.ts";
 import { getListingWithAttendeeRaw } from "#shared/db/listings/attendees.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
@@ -93,7 +93,7 @@ type PaymentReviewActionData = AttendeeActionData & {
 const loadAttendeeActionData: (
   attendeeId: number,
 ) => Promise<AttendeeActionData | null> = withDecryptedAttendee((attendee) =>
-  Promise.resolve({ attendee }),
+  Promise.resolve({ attendee })
 );
 
 const loadPaymentReviewActionData: (
@@ -101,20 +101,27 @@ const loadPaymentReviewActionData: (
 ) => Promise<PaymentReviewActionData | null> = withDecryptedAttendee(
   async (attendee) => ({
     attendee,
-    listingId: await getFirstBookingListingId(attendee.id),
+    listingId: (await getFirstBooking(attendee.id))?.listingId ?? null,
     paymentReview: await getPaymentReviewState(attendee.id),
   }),
 );
 
-/** Load the first stored booking and its live listing for a booking action. */
+export type AttendeeWithBooking = AttendeeWithListing & {
+  /** The selected booking row itself proves whether a live line remains. */
+  activeBooking: boolean;
+};
+
+/** Load the first stored booking and its listing for a booking action. */
 const loadAttendeeWithBooking: (
   attendeeId: number,
-) => Promise<AttendeeWithListing | null> = withDecryptedAttendee(
+) => Promise<AttendeeWithBooking | null> = withDecryptedAttendee(
   async (attendee) => {
-    const listingId = await getFirstBookingListingId(attendee.id);
-    if (listingId === null) return null;
-    const listing = await getListingWithCount(listingId);
-    return listing === null ? null : { attendee, listing };
+    const booking = await getFirstBooking(attendee.id);
+    if (booking === null) return null;
+    const listing = await getListingWithCount(booking.listingId);
+    return listing === null
+      ? null
+      : { activeBooking: booking.active, attendee, listing };
   },
 );
 
@@ -150,6 +157,22 @@ type AttendeeActionRenderer<Data> = (
   error?: string,
 ) => string | Promise<string>;
 
+type AttendeeActionPage<Data> = {
+  /** A refusal renders its explanation but never leaves an enabled form. */
+  readonly reason: string | null;
+  readonly render: AttendeeActionRenderer<Data>;
+};
+
+type AttendeeActionPagePreparation<Data> = (
+  data: Data,
+) => AttendeeActionPage<Data> | Promise<AttendeeActionPage<Data>>;
+
+/** A page with no data-dependent admission work. */
+export const attendeeActionPage = <Data>(
+  render: AttendeeActionRenderer<Data>,
+): AttendeeActionPagePreparation<Data> =>
+() => ({ reason: null, render });
+
 type AttendeeActionRoute = ParamsRoute<AttendeeIdRouteParams>;
 
 type AttendeeActionDefinition<
@@ -160,8 +183,7 @@ type AttendeeActionDefinition<
   isAvailable: (hasBooking: boolean) => boolean;
   load: (attendeeId: number) => Promise<Data | null>;
   page: (
-    render: AttendeeActionRenderer<Data>,
-    guard?: (data: Data) => Promise<string | null>,
+    prepare: AttendeeActionPagePreparation<Data>,
     requireSession?: SessionGuard<AuthSession>,
   ) => AttendeeActionRoute;
   verified: (
@@ -194,22 +216,21 @@ const defineAttendeeAction = <
     isAvailable: (hasBooking) => scope === "attendee" || hasBooking,
     load,
     page: (
-      render,
-      guard,
+      prepare,
       requireSession: SessionGuard<AuthSession> = requireSessionOr,
     ) =>
       actionHandler(requireSession)(async (data, session, request) => {
         const returnUrl = getReturnUrl(request);
-        const blocked = guard ? await guard(data) : null;
-        if (blocked !== null) {
+        const page = await prepare(data);
+        if (page.reason !== null) {
           return htmlResponse(
-            await render(data, session, returnUrl, blocked),
+            await page.render(data, session, returnUrl, page.reason),
             400,
           );
         }
         const flash = applyFlash(request);
         return htmlResponse(
-          await render(data, session, returnUrl, flash.error),
+          await page.render(data, session, returnUrl, flash.error),
         );
       }),
     url: (attendeeId) => attendeeActionUrl(attendeeId, action),
@@ -239,7 +260,7 @@ const attendeeAction = <Action extends string>(action: Action) =>
     loadAttendeeActionData,
   );
 const bookingAction = <Action extends string>(action: Action) =>
-  defineAttendeeAction<AttendeeWithListing, Action>(
+  defineAttendeeAction<AttendeeWithBooking, Action>(
     action,
     "booking",
     loadAttendeeWithBooking,
@@ -249,11 +270,13 @@ const bookingAction = <Action extends string>(action: Action) =>
 const defineAttendeeActions = <
   const Actions extends Record<string, { readonly action: string }>,
 >(
-  actions: Actions & {
-    [Action in keyof Actions]: {
-      readonly action: Extract<Action, string>;
-    };
-  },
+  actions:
+    & Actions
+    & {
+      [Action in keyof Actions]: {
+        readonly action: Extract<Action, string>;
+      };
+    },
 ): Actions => actions;
 
 /** The complete action schema. Adding an action means choosing its scope once;
@@ -283,7 +306,7 @@ type AttendeeIdRouteParams = { attendeeId: number };
  * the parsed form. Shared by the note and logistics POSTs. */
 export const attendeeFormPost = (
   handle: IdFormHandler,
-): ((request: Request, params: AttendeeIdRouteParams) => Promise<Response>) =>
+): (request: Request, params: AttendeeIdRouteParams) => Promise<Response> =>
   createAuthedHandler<AttendeeIdRouteParams>({
     handle: ({ form, params, session }) =>
       handle(params.attendeeId, session, form),
@@ -307,7 +330,7 @@ type AttendeeFormAction = ResponseHandler<
 /** Create an attendee form handler with typed IDs */
 export const attendeeFormAction = (
   handler: AttendeeFormAction,
-): ((request: Request, params: AttendeeRouteParams) => Promise<Response>) =>
+): (request: Request, params: AttendeeRouteParams) => Promise<Response> =>
   createAuthedHandler<AttendeeRouteParams, AttendeeWithListing>({
     handle: ({ context, form, params, session }) =>
       handler(context, session, form, params.listingId, params.attendeeId),

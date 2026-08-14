@@ -4,10 +4,11 @@ import type {
   ReadyRefundProvider,
   RefundReadinessDependencies,
 } from "#routes/admin/refunds/readiness.ts";
-import type { PaymentReferenceProviderBindingRequest } from "#shared/db/payment-reference-provider.ts";
-import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
-import type { PaymentReferenceEvidence } from "#shared/payment/provider-discovery.ts";
-import type { PaymentReference } from "#shared/payment/provider-reference.ts";
+import type {
+  RefundPaymentReference,
+  TaggedRefundPaymentReference,
+} from "#shared/db/payment-references.ts";
+import type { ProviderRead } from "#shared/payment/provider-read.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 import { provider as recordingProvider } from "#test/features/admin/refunds/provider/helpers.ts";
@@ -38,16 +39,6 @@ const referenceFacts = (
   sessionIds: [`session_${index}`],
 });
 
-export const untagged = (
-  reference: string,
-  index = `old_${reference}`,
-  refundState: RefundPaymentReference["refundState"] = "none",
-): Extract<RefundPaymentReference, { kind: "untagged" }> => ({
-  ...referenceFacts(index, refundState),
-  kind: "untagged",
-  reference,
-});
-
 export const tagged = (
   reference: string,
   provider: PaymentProviderType,
@@ -62,7 +53,7 @@ export const tagged = (
 
 export const candidate = (
   id: number,
-  references: RefundPaymentReference[],
+  references: TaggedRefundPaymentReference[],
 ): RefundCandidate => ({
   attendee: { id } as RefundCandidate["attendee"],
   references,
@@ -87,37 +78,8 @@ export const provider = (
 ): ReadyRefundProvider =>
   recordingProvider({ paymentProvider: type, refundCapability });
 
-export const found = (
-  reference: PaymentReference,
-  provider: PaymentProviderType,
-  observed: ChargeMoney,
-): PaymentReferenceEvidence => ({
-  attempts: [
-    {
-      provider,
-      result: { resource: observed, status: "found" },
-    },
-  ],
-  charge: observed,
-  provider,
-  reference: reference.reference,
-  source: reference.kind === "tagged" ? "tagged" : "discovered",
-  status: "found",
-});
-
-export const boundIndexes = (
-  bindings: PaymentReferenceProviderBindingRequest["bindings"],
-): ReadonlyMap<string, string> =>
-  new Map([...bindings.keys()].map((index) => [index, `bound_${index}`]));
-
 export const stripeReadiness = (
-  readEvidence: RefundReadinessDependencies["readEvidence"],
+  readCharge: (reference: string) => Promise<ProviderRead<ChargeMoney>>,
 ): Partial<RefundReadinessDependencies> => ({
-  bindProviders: (request) =>
-    Promise.resolve({
-      indexes: boundIndexes(request.bindings),
-      kind: "bound",
-    }),
-  loadProvider: () => Promise.resolve(provider("stripe")),
-  readEvidence,
+  loadProvider: () => Promise.resolve({ ...provider("stripe"), readCharge }),
 });

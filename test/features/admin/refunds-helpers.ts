@@ -1,8 +1,12 @@
 import { expect } from "@std/expect";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
-import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import {
+  createPaidAttendeeWithoutLedger,
+  createPaidTestAttendee,
+} from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { postListingSale } from "#test-utils/ledger.ts";
 import {
   finalizeProcessedPayment,
   taggedPaymentReference,
@@ -63,11 +67,24 @@ export const setupRefundTest = async (
   paymentId: string,
 ): Promise<RefundCtx> => {
   const listing = await createPaidListing();
-  const attendee = await createPaidTestAttendee(
+  const attendee = await createPaidAttendeeWithoutLedger(
     listing.id,
     "John Doe",
     "john@example.com",
-    paymentId,
+    "",
+  );
+  const paymentSessionId = `refund-route-${attendee.id}`;
+  await postListingSale({
+    attendeeId: attendee.id,
+    eventId: paymentSessionId,
+    gross: 500,
+    listingId: listing.id,
+  });
+  await finalizeProcessedPayment(
+    paymentSessionId,
+    attendee.id,
+    "",
+    taggedPaymentReference(paymentId),
   );
   return {
     attendee,

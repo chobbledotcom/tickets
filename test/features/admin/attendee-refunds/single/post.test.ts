@@ -22,6 +22,10 @@ import { mockFormRequest } from "#test-utils/mocks.ts";
 import { claimCurrentAttendeeRows } from "#test-utils/payment-claim.ts";
 import { chargeMoney, fullyRefundedMoney } from "#test-utils/payment-state.ts";
 import {
+  finalizeProcessedPayment,
+  taggedPaymentReference,
+} from "#test-utils/processed-payments.ts";
+import {
   refundCompletes,
   refundIsRejected,
   refundStaysPending,
@@ -88,13 +92,13 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       )(await submitRefund(ctx));
     });
 
-    test("explains when no configured provider recognizes the payment", async () => {
+    test("explains when the payment's recorded provider is not configured", async () => {
       const ctx = await setupRefundTest("pi_test_noprov");
       const response = await submitRefund(ctx);
       await expectFlashRedirect(
         `/admin/attendees/${ctx.attendee.id}/refund`,
         expect.stringContaining(
-          "No configured payment provider recognizes this payment",
+          "Payment pi_test_noprov at stripe could not answer (not_configured)",
         ),
         false,
       )(response);
@@ -224,7 +228,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       });
     });
 
-    test("a provider that never answered is checked instead of sent again", async () => {
+    test("a provider that never answered leaves one durable pending request", async () => {
       // The call died before the provider said anything, so nobody knows
       // whether the money moved. Its canonical authority stays observable and
       // refuses to expose a second provider call.
@@ -236,13 +240,16 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
           reason: "network_error",
         }),
         async (mockRefund) => {
-          for (const response of [await submitRefund(ctx), await submitRefund(ctx)]) {
-            await expectFlashRedirect(
-              "/admin/privacy#refund-recovery",
-              "A refund for this payment is still settling. Refresh payment status after it completes.",
-              false,
-            )(response);
-          }
+          await expectFlashRedirect(
+            "/admin/privacy#refund-recovery",
+            "A refund for this payment is still settling. Refresh payment status after it completes.",
+            false,
+          )(await submitRefund(ctx));
+          await expectFlashRedirect(
+            `/admin/attendees/${ctx.attendee.id}/actions`,
+            "A provider refund needs the owner's attention in Privacy → Refund recovery before another refund can continue.",
+            false,
+          )(await submitRefund(ctx));
           expect(mockRefund.calls.length).toBe(1);
         },
       );
@@ -260,7 +267,13 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
           listing.id,
           "John Doe",
           "john@example.com",
-          "pi_unrecorded",
+          "",
+        );
+        await finalizeProcessedPayment(
+          `refund-route-unrecorded-${attendee.id}`,
+          attendee.id,
+          "",
+          taggedPaymentReference("pi_unrecorded"),
         );
         const ctx: RefundCtx = {
           attendee,

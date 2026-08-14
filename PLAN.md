@@ -235,12 +235,12 @@ references and buyer PII must never enter it. Every current writer uses the one
 `PaymentRowState` stored schema. Live readers reject historical bare terminal
 failure and review shapes instead of normalizing them into a parallel runtime.
 Historical plaintext `processed_payments.payment_reference` values are not
-readable by live refund code. Saving that attendee adds the new owner-encrypted
-indexed anchor for its current PII id, but deliberately does not rewrite or
-delete a distinct historical row. Old DB-key-encrypted refund-warning notes
-remain display history until the owner deletes them or the bounded
-migration/redaction ceremony removes them. No interactive request performs a
-population decrypt or rewrite.
+readable by live refund code. Saving or merging that attendee cannot turn a PII
+payment id into refund authority: neither action can prove its provider, and
+neither writes a payment row. Old DB-key-encrypted refund-warning notes remain
+display history until the owner deletes them or the bounded migration/redaction
+ceremony removes them. No interactive request performs a population decrypt or
+rewrite.
 
 Do not copy `payment-runtime/legacy-replay.ts`, `legacy-sumup.ts`,
 `operator-legacy-read.ts`, or any equivalent runtime branch selected by record
@@ -329,16 +329,16 @@ Provider cutovers move Stripe, Square, and SumUp together behind exhaustive
 records keyed by provider, so adding or omitting a provider is a compile error.
 
 The approved work has one current-path stack and one atomic aggregate cutover.
-The current-path stack now has M4 Part A's exhaustive provider outcomes, indexed
-legacy-reference readiness, exact admin claims, one callback/admin provider
-authority and send permit, bounded selected-page execution, exact ledger repair,
-and owner-visible recovery. The aggregate cutover turns whole-checkout problems
-into durable cases without duplicating that lifecycle, makes attendee merge
-atomic, moves checkout, reads, completion, delivery, and site effects to stable
-booking obligations with exact allocations, migrates retained history under the
-owner key, then removes every old runtime reader and writer before activation.
-Its internal work packages are individually testable, but are not live release
-layers.
+The current-path stack now has M4 Part A's exhaustive provider outcomes,
+provider-tagged reference admission with explicit refusal for older untagged
+references, exact admin claims, one callback/admin provider authority and send
+permit, bounded selected-page execution, exact ledger repair, and owner-visible
+recovery. The aggregate cutover turns whole-checkout problems into durable cases
+without duplicating that lifecycle, makes attendee merge atomic, moves checkout,
+reads, completion, delivery, and site effects to stable booking obligations with
+exact allocations, migrates retained history under the owner key, then removes
+every old runtime reader and writer before activation. Its internal work
+packages are individually testable, but are not live release layers.
 
 ### Stack A — finish the current path (M3–M4; M5 behavior follows its producers)
 
@@ -379,7 +379,7 @@ As-built module map:
 | Local work and destructive moves | `PaymentWorkStatus`; `PaymentRecoveryAction`; `paymentWorkFor`; `moveRefusalOrNull`; `assertRowsFreeToMove`; `PaymentRowsBusyError`; `ATTENDEE_DATA_RULES`                                                                                                                                                                                                                                                                                                                                                          | `test/shared/payment/admit-move.test.ts`; `test/shared/db/payment-admit-move.test.ts`; `test/shared/provider-refunds.test.ts`; `test/shared/db/attendees/{dependent-data,delete}.test.ts`                                                                                                                                                                                                                                |
 | Exact Money repair               | `computeAttendeeRefunds`; `RefundLedgerResult`; `REFUND_LEDGER_BATCH_DATABASE_CALLS`                                                                                                                                                                                                                                                                                                                                                                                                                                | `test/shared/refund-ledger/plan/{partial,reference-placement,whole-account}.test.ts`; `test/shared/refund-ledger/record/batch.test.ts`; `test/features/admin/refunds/provider/batch/{ledger-findings,ledger}.test.ts`                                                                                                                                                                                                    |
 | Bounded command support          | `refundReadinessSubrequestCost`; `refundPreparedSubrequestCost`; `REFUND_SETTLEMENT_SUBREQUEST_RESERVE`; `REFUND_LEDGER_SUBREQUEST_RESERVE`; `REFUND_CALLER_SUBREQUEST_RESERVE`; `REFUND_KNOWN_AUTHORITY_DATABASE_CALLS`; `REFUND_OBSERVED_AUTHORITY_DATABASE_CALLS`; `REFUND_ACTIVE_AUTHORITY_DATABASE_CALLS`; `REFUND_RESULT_DATABASE_RESERVE`; `REFUND_AUTHORITY_RECORD_DATABASE_CALLS`; `withSubrequestReserve`; `withDeferredErrorReports`; `getRefundCandidates`; `getRefundAllSummary`; `loadRefundAllBatch` | `test/features/admin/refunds/{budget,claim-settlement,candidates}.test.ts`; `test/features/admin/refunds/provider/batch/budget.test.ts`; `test/features/admin/refunds/dispatch/budget-lifecycle.test.ts`; `test/features/admin/refunds/readiness-run/refresh-budget.test.ts`; `test/shared/provider-refunds/{budget,send}.test.ts`; `test/shared/subrequest-budget.test.ts`; `test/integration/logger/log-error.test.ts` |
-| Private indexed references       | `storePaymentReference`; `loadPaymentReference`; `prepareAttendeePaymentAnchor`; `getRefundPaymentReferences`; `MAX_REFUND_REFERENCES_PER_ATTENDEE`                                                                                                                                                                                                                                                                                                                                                                 | `test/shared/db/payment-anchor/{attendee,reference}.test.ts`; `test/shared/db/payment-references{,/storage}.test.ts`; `test/features/api/payment-processing/store-refund.test.ts`                                                                                                                                                                                                                                        |
+| Private indexed references       | `storePaymentReference`; `loadPaymentReference`; `prepareAttendeePaymentAnchor`; `getRefundPaymentReferences`; `MAX_REFUND_REFERENCES_PER_ATTENDEE`                                                                                                                                                                                                                                                                                                                                                                 | `test/shared/db/payment-anchor/{attendee,reference}.test.ts`; `test/shared/db/payment-references{,/readiness,/storage}.test.ts`; `test/features/api/payment-processing/store-refund.test.ts`; `test/integration/refund-authority-architecture.test.ts`                                                                                                                                                                   |
 
 - **Refund-only rules.** `src/shared/validation/kind.ts` and
   `src/shared/payment/{resources,conflict,diagnose,refund,admit-refund}.ts`
@@ -394,52 +394,54 @@ As-built module map:
   `2026-08-10_payment_state_columns.ts`, `tables-attendees.ts`,
   `db/payment-reference-store.ts`, `db/payment-reference-rows.ts`,
   `db/payment-references.ts`,
-  `db/payment-anchor/{reference,session,attendee}.ts`, and
-  `db/attendees/pii-write.ts` keep a new raw reference under the owner key and a
-  DB-keyed blind equality index beside it. That index is deliberately NOT
-  unique: several attendee/payment rows may legitimately represent one provider
-  charge, and the claim must expand to all of them. `protected_state` is only a
-  plaintext state word. `getRefundPaymentReferences` accepts an explicitly
-  named, decrypted `currentPaymentId` and returns the exhaustive
-  `complete | legacy_unindexed | too_many_references`
+  `db/payment-anchor/{reference,session,attendee}.ts` keep a new raw reference
+  under the owner key and a DB-keyed blind equality index beside it. That index
+  is deliberately NOT unique: several attendee/payment rows may legitimately
+  represent one provider charge, and the claim must expand to all of them.
+  `protected_state` is only a plaintext state word. `getRefundPaymentReferences`
+  accepts an explicitly named, decrypted `currentPaymentId` and returns the
+  exhaustive
+  `complete | legacy_unindexed | provider_unknown | too_many_references`
   `RefundPaymentReferenceSet`; it never exposes only an unsafe subset. Its SQL
   names only the selected attendee ids and retrieves at most the declared ten
   references plus one proof of overflow per attendee. A non-empty historical
   `processed_payments.payment_reference` with a blank `payment_reference_index`,
   or a current PII payment id absent from that attendee's indexed identities,
   makes the attendee `legacy_unindexed` before provider I/O. An eleventh
-  reference makes it `too_many_references` before decryption or provider I/O.
-  Once either refusal is proved, that attendee's reference bodies are not
-  decrypted.
+  reference makes it `too_many_references` before decryption or provider I/O. An
+  indexed reference without an authenticated provider tag makes it
+  `provider_unknown`. Once any refusal is proved, the attendee cannot reach
+  provider I/O; unindexed and oversized sets are also refused before their
+  reference bodies are decrypted.
 
   `loadPaymentReference` requires owner-key `hyb:1` ciphertext and throws at the
   storage boundary for a raw or DB-key value. There is no live plaintext
   decoder. Pre-cutover rows with no usable owner-encrypted index therefore stay
-  unavailable until the attendee is re-saved or the future fenced migration
-  converts them; accepting reduced old-payment functionality avoids both a
-  compatibility path and a population decrypt.
+  unavailable until the future fenced migration converts them. Attendee save and
+  merge never materialize an old PII payment id as a processed-payment row. They
+  cannot prove which provider owns it, and this slice has no untagged writer or
+  runtime binding path. Accepting reduced old-payment functionality avoids both
+  a compatibility path and a population decrypt.
 
-  Saving an attendee appends an owner-encrypted indexed anchor only for that
-  attendee's current PII payment id. It does not index or rewrite distinct
-  historical deposit, balance, merge, or session rows. A PII-only current id can
-  therefore become usable after save; a distinct old processed row remains
-  unavailable until the atomic cutover's M11 migration. Anchoring is append-only
-  and idempotent: re-saving does not duplicate an identity, changing the legacy
-  PII payment id preserves the earlier indexed identity, and an existing current
-  indexed checkout row suppresses a redundant anchor. `legacy_unindexed` is a
-  derived compatibility refusal, not persisted work, and neither acknowledgement
-  nor a generic clear retires it. Historical application behavior never assigned
-  one payment ID to separate attendees, so this path does not scan or decrypt
-  unrelated attendee PII for hypothetical old sharing; indexed representations
-  and merges still expand by blind identity.
-- **Provider ownership.** `payment/provider-discovery.ts`,
-  `db/payment-reference-provider.ts`, and
-  `features/admin/refunds/{readiness,readiness-findings,readiness-problem,ready-admission,readiness-run}.ts`
-  bind an untagged indexed reference only when exactly one credentialed provider
-  returns `found` and every other provider returns `missing`. `found` beside an
-  unavailable or invalid read is incomplete evidence, not permission to guess;
-  configuration may order discovery but never decide ownership. Historical
-  returned markers do not attest a provider or amount. A tagged provider is
+  `prepareAttendeePaymentAnchor` accepts only a provider-tagged identity and is
+  called only by the validated callback placeholder transaction. It cannot be
+  called by attendee save or merge; the architecture test pins that sole
+  production caller. Distinct old deposit, balance, merge, session, and PII-only
+  references remain unavailable until the atomic cutover's M11 migration.
+  `legacy_unindexed` and `provider_unknown` are derived historical-data
+  refusals, not runtime compatibility paths or persisted work, and neither
+  acknowledgement nor a generic clear retires them. Historical application
+  behavior never assigned one payment ID to separate attendees, so this path
+  does not scan or decrypt unrelated attendee PII for hypothetical old sharing;
+  indexed representations and merges still expand by blind identity.
+- **Provider ownership.** New checkout, callback, and placeholder writes carry
+  the provider inside the owner-encrypted reference. Admin admission accepts
+  only that provider-tagged identity. An untagged indexed reference returns
+  `provider_unknown` before loading any provider; it is never searched for,
+  inferred from current configuration, or bound by a runtime repair. The old
+  provider-discovery and binding modules were deleted with their callers and
+  tests, and the architecture gate rejects their return. Historical returned
+  markers do not attest a provider or amount. A tagged provider is
   authoritative, not a search hint: if it is unconfigured or its read is
   missing, unavailable, or invalid, the row stops there and no other adapter is
   tried. Readiness, capability, and dispatch remain per reference, so one merged
@@ -503,8 +505,9 @@ As-built module map:
   indexed attendee set. Inside the claim transaction, the command rereads every
   non-empty reference row owned by the selected attendees, including blank-index
   rows, plus indexed sharing rows. A blank-index row present at initial load
-  yields `legacy_unindexed`; one that appears between load and claim makes the
-  exact row-set comparison return `changed`. Neither path can reach the provider
+  yields `legacy_unindexed`; an indexed but untagged reference yields
+  `provider_unknown`; and a row that appears between load and claim makes the
+  exact row-set comparison return `changed`. None can reach the provider
   authority. The transaction also fences each attendee's exact `pii_blob`
   revision and exact `(attendee, session, reference index)` set, expands
   matching indexed representations, and preserves the initiating attendee scope
@@ -617,10 +620,13 @@ As-built module map:
   movement stays `in_doubt`. An unexpected preparation throw likewise keeps
   every still-unproved row in doubt.
 
-  A ledger throw records the exact known return before propagating; a marker or
-  settlement failure retains the claim. `finally` guarantees a settlement
-  attempt, but accumulated evidence — never control-flow optimism — decides what
-  may release. Repeated repair preserves the first `unrecorded.returnedAt` date
+  A ledger throw first turns every provider-confirmed return into exact
+  `unrecorded` work and keeps every still-unproved row in doubt, then attempts
+  settlement before propagating the original error. A secondary settlement
+  failure is reported without replacing that root failure, and a successful
+  return is not exposed to the caller until settlement lands. Accumulated
+  evidence — never control-flow optimism — decides what may release. Repeated
+  repair preserves the first `unrecorded.returnedAt` date
   (`test/shared/db/payment-claim/unrecorded-date.test.ts`). The batch ledger
   uses one bounded snapshot: a stored conflict parks only its attendee, while a
   database failure marks every unproved plan unrecorded. The bound is
@@ -647,12 +653,14 @@ As-built module map:
   `provider-refund-cases.ts` exposes the canonical authority's own revision and
   requires one of `provider_confirmed_not_sent`, `provider_confirmed_returned`,
   or `money_recorded`. There is no generic clear. `PaymentWorkStatus` is exactly
-  `clear | moving |
-  needs_money_record | needs_review`, with claim, unrecorded
-  money, then review as the fixed priority. The form HMAC binds the complete
-  sorted `[sessionId, caseId, reason]` set; its transaction rereads that set,
-  stamps only unacknowledged cases, and writes one activity entry. Any claim
-  blocks acknowledgement, regardless of age or phase. Managers can neither
+  `clear | moving | needs_money_record | needs_provider_recovery |
+  needs_review`.
+  A live claim comes first, then an explicit owner review, then mechanical
+  ledger repair, then canonical provider recovery. In particular, a generic
+  repair action cannot hide the decision it is waiting for. The form HMAC binds
+  the complete sorted `[sessionId, caseId, reason]` set; its transaction rereads
+  that set, stamps only unacknowledged cases, and writes one activity entry. Any
+  claim blocks acknowledgement, regardless of age or phase. Managers can neither
   acknowledge review nor send refunds, in the rendered UI or at GET/POST
   authorization boundaries. Refresh intentionally remains available to an
   authenticated manager because it observes and repairs existing work but has no
@@ -699,10 +707,11 @@ As-built module map:
   merge and delete, while review and unrecorded money block delete and travel
   with a merge. The same admission joins matching `payment_charges`: every
   unfinished generation, owner choice, or completed return whose Money is due
-  blocks both merge and delete; completed-and-recorded authority is settled. The
-  authority belongs to its globally unique charge rather than an attendee, so
-  merge never copies or reparents it. It moves only the processed reference that
-  lets the surviving attendee reach that same row.
+  blocks deletion. Merge is relocation rather than destruction, so it may move
+  the indexed processed reference while the globally unique charge authority
+  stays in place; merge never copies or reparents that authority. The surviving
+  attendee therefore reaches the same unresolved row and its real recovery
+  route.
 
   The two lifecycle-derived plaintext mirrors gate prune and orphan purge. Empty
   local-row work plus a prunable canonical authority deliberately preserves
@@ -713,14 +722,15 @@ As-built module map:
   (`test/shared/db/prune/payments.test.ts`).
 
   Merge admits both source and target inside the transaction, because the source
-  rows move and the target set grows. It mints a legacy anchor only when no
-  matching current source row is moving in that same transaction, preventing a
-  false `shared_reference` case. `ATTENDEE_DATA_RULES` exhaustively declares
-  delete, repoint, or retention for every attendee-linked table, and production
-  delete statements derive from it. Its schema tests walk the live database,
-  reject undeclared attendee-id-like columns and payment tables, require every
-  named column to exist, require children before parents, and prove production
-  emits the declared operations
+  rows move and the target set grows. It relocates only reference-bearing rows
+  already admitted by that transaction; it never mints a row from either
+  attendee's PII payment id. This prevents both a false `shared_reference` case
+  and a provider-less identity from becoming live authority.
+  `ATTENDEE_DATA_RULES` exhaustively declares delete, repoint, or retention for
+  every attendee-linked table, and production delete statements derive from it.
+  Its schema tests walk the live database, reject undeclared attendee-id-like
+  columns and payment tables, require every named column to exist, require
+  children before parents, and prove production emits the declared operations
   (`test/shared/db/attendees/{dependent-data,delete}.test.ts`).
 
   Protected orphans are excluded from both scheduled and manual purge. The
@@ -830,22 +840,22 @@ As-built module map:
   provider send.
 
 Known limits are deliberate and remain visible. Part A protects old history by
-refusing an incomplete selected attendee; it does not make that history
-refundable and never decrypts or backfills an attendee population. Attendee save
-repairs only a PII-only current id; M11's bounded owner-authenticated cutover
-ceremony is the clearing path for distinct pre-index processed references. A
-distinct old reference that was never stored cannot be reconstructed from PII
-that remembers only another payment. Refund All's PII-free summary cannot
-discover a PII-only attendee with no reference-bearing processed row; this is
-the accepted compatibility cost of not decrypting a population. Part A does not
-erase historical plaintext references or old DB-key-encrypted warning notes. It
-does not cut the buyer callback classifier over:
-`payment-processing/classify.ts` still judges a paid session from its signed
-total and currency and does not read `refundOutcomeOf` or charge-level refund
-evidence. A provider session that still reads paid after its charge was
-externally returned can therefore still enter the current booking completion
-path. The atomic cutover combines M6's whole-checkout reader with M8's durable
-completion and deletes that displaced writer before activation.
+refusing an incomplete or untagged selected attendee; it does not make that
+history refundable and never decrypts or backfills an attendee population.
+Attendee save and merge do not mint payment rows from old PII. M11's bounded,
+owner-authenticated cutover ceremony is the only path that may qualify
+pre-cutover identities for refund work. A distinct old reference that was never
+stored cannot be reconstructed from PII that remembers only another payment.
+Refund All's PII-free summary cannot discover a PII-only attendee with no
+reference-bearing processed row; this is the accepted compatibility cost of not
+decrypting a population. Part A does not erase historical plaintext references
+or old DB-key-encrypted warning notes. It does not cut the buyer callback
+classifier over: `payment-processing/classify.ts` still judges a paid session
+from its signed total and currency and does not read `refundOutcomeOf` or
+charge-level refund evidence. A provider session that still reads paid after its
+charge was externally returned can therefore still enter the current booking
+completion path. The atomic cutover combines M6's whole-checkout reader with
+M8's durable completion and deletes that displaced writer before activation.
 
 Part A also does not solve stable booking obligations, exact allocation, ledger
 order identity, a durable Refund All intention, or the original checkout's

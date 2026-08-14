@@ -9,6 +9,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { getRefundCandidates } from "#routes/admin/refunds/candidates.ts";
 import { execute } from "#shared/db/client.ts";
 import type { Attendee } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
@@ -18,6 +19,7 @@ import {
   bookedAttendee,
 } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { seedHistoricalProcessedPayment } from "#test-utils/historical-payment-references.ts";
 import {
   CLAIM_MIRROR,
   freshClaimSlot,
@@ -146,5 +148,25 @@ describeWithEnv("admin refunds > who a run picks up", { db: true }, () => {
     await expect(candidateIds([attendee])).rejects.toThrow(
       "Test refund candidates contain unindexed payment history",
     );
+  });
+
+  test("refuses a payment whose provider was never recorded", async () => {
+    const listing = await createTestListing({ maxAttendees: 50 });
+    const attendee = bookedAttendee(
+      await bookAttendee(listing, {
+        email: "provider-unknown-candidate@example.com",
+        name: "Provider Unknown",
+        paymentId: "pi_provider_unknown_candidate",
+      }),
+    );
+    await seedHistoricalProcessedPayment(
+      "sess_provider_unknown_candidate",
+      attendee.id,
+      attendee.payment_id,
+    );
+
+    expect(
+      await getRefundCandidates([attendee], await getTestPrivateKey()),
+    ).toEqual({ kind: "provider_unknown" });
   });
 });

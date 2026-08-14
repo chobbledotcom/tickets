@@ -27,20 +27,21 @@ import { grantingRowClaim } from "#test-utils/refund-routes.ts";
 
 type TaggedReference = Extract<RefundPaymentReference, { kind: "tagged" }>;
 
-const stripeReference = (
+const taggedReference = (
   attendeeId: number,
   offset: number,
   refundState: RefundPaymentReference["refundState"] = "none",
+  paymentProvider: TaggedReference["provider"] = "stripe",
 ): TaggedReference => {
   const reference = `pi_budget_${attendeeId}_${offset}`;
-  const index = `index_of_stripe_${reference}`;
+  const index = `index_of_${paymentProvider}_${reference}`;
   const sessionId = `session_${reference}`;
   return {
     heldRowSessionIds: [],
     index,
     kind: "tagged",
     matchingIndexes: [index],
-    provider: "stripe",
+    provider: paymentProvider,
     reference,
     refundState,
     rowSessionIds: [sessionId],
@@ -52,11 +53,13 @@ const candidate = (
   attendeeId: number,
   referenceCount: number,
   refundState: RefundPaymentReference["refundState"] = "none",
+  paymentProvider: TaggedReference["provider"] = "stripe",
 ) => ({
   attendee: { id: attendeeId } as RefundCandidate["attendee"],
   references: Array.from(
     { length: referenceCount },
-    (_, offset) => stripeReference(attendeeId, offset, refundState),
+    (_, offset) =>
+      taggedReference(attendeeId, offset, refundState, paymentProvider),
   ),
 });
 
@@ -141,7 +144,7 @@ describeWithEnv(
             ...Array.from({ length: 10 }, (_, offset) => ({
               attendeeId: 41 + offset,
               loadedPiiBlob: "",
-              references: [stripeReference(41 + offset, 0)],
+              references: [taggedReference(41 + offset, 0)],
             })),
           ];
           return grant.claim(raced, admit);
@@ -272,7 +275,7 @@ describeWithEnv(
       const prepare = prepareAtProvider(source);
 
       const result = await processRefundBatch(
-        [candidate(attendeeId, 1, "completed")],
+        [candidate(attendeeId, 1, "completed", "square")],
         7,
         {
           claim: granted,
@@ -317,7 +320,7 @@ describeWithEnv(
         countSubrequest("database", "request work");
         const result = await processRefundBatchAt(
           provider({ paymentProvider: "square" }),
-          [candidate(50, 1)],
+          [candidate(50, 1, "none", "square")],
           7,
           { claim, record: recordEveryRefund },
         );

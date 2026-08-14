@@ -16,7 +16,6 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   finalizeReservedPayment,
-  readReference,
   refundReferencesFor,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
@@ -111,35 +110,22 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     ]);
   });
 
-  test("preserves the source's legacy payment ID on the target", async () => {
+  test("does not manufacture refund authority from a PII-only source payment", async () => {
     const { source, target } = await createMergePair();
-    const sourceWithLegacyPayment = {
+    const sourceWithPiiPayment = {
       ...source,
-      payment_id: "pi_source_legacy",
+      payment_id: "pi_source_pii_only",
     };
 
     const { result } = await runMerge({
-      source: sourceWithLegacyPayment,
+      source: sourceWithPiiPayment,
       target,
     });
 
     expect(result.success).toBe(true);
-    // The index is written on the way in, so a refund claim can see the money
-    // it carries the way it sees any other charge. A legacy-merge charge (no
-    // live session) whose refund was never observed reads as "unknown", not a
-    // definite "none".
     expect(
       await refundReferencesFor(target.id, await getTestPrivateKey()),
-    ).toEqual([
-      await readReference(
-        { kind: "untagged", reference: "pi_source_legacy" },
-        {
-          refundState: "unknown",
-          rowSessionIds: [`legacy-merge:${source.id}`],
-          sessionIds: [],
-        },
-      ),
-    ]);
+    ).toEqual([]);
   });
 
   test("preserves package_group_id when moving a source package booking", async () => {

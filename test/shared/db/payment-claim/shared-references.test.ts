@@ -6,6 +6,7 @@ import {
   storePaymentReference,
 } from "#shared/db/payment-reference-store.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { historicalPaymentReferenceStorage } from "#test-utils/historical-payment-references.ts";
 import {
   claimCurrentAttendeeRows,
   heldSessionIds,
@@ -64,10 +65,7 @@ describeWithEnv(
     test("a tagged reference claims its matching old untagged holder", async () => {
       const tagged = await bookedWithPayment("sess-alias-tagged", "pi_alias");
       await bookedWithPayment("sess-alias-untagged", "temporary_alias");
-      const old = await storePaymentReference({
-        kind: "untagged",
-        reference: "pi_alias",
-      });
+      const old = await historicalPaymentReferenceStorage("pi_alias");
       await repointPaymentRow("sess-alias-untagged", old);
 
       const held = await claimCurrentAttendeeRows([tagged]);

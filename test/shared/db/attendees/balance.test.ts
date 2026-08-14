@@ -18,7 +18,6 @@ import {
 } from "#shared/db/attendees/balance.ts";
 import { getDb } from "#shared/db/client.ts";
 import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
-import { storePaymentReference } from "#shared/db/payment-reference-store.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
 import {
   enableQueryLog,
@@ -34,6 +33,7 @@ import {
 } from "#test-utils/balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { historicalPaymentReferenceStorage } from "#test-utils/historical-payment-references.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import { expectRefundReferences } from "#test-utils/payment-references.ts";
 import {
@@ -144,10 +144,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     const holder = await createReservedAttendee(1);
     const target = await createReservedAttendee(1500);
     const reference = "pi_alias_held_elsewhere";
-    const stored = await storePaymentReference({
-      kind: "untagged",
-      reference,
-    });
+    const stored = await historicalPaymentReferenceStorage(reference);
     await reserveSession("legacy-alias-held");
     await getDb().execute({
       args: [

@@ -33,9 +33,14 @@ type LifecycleRules = {
   [Name in RefundAuthorityStateName]: LifecycleRule & { state: Name };
 };
 
-const always = (): boolean => true;
-const never = (): boolean => false;
-const unfinishedStops = { delete: always, merge: always };
+const always = (_state: RefundAuthorityState): boolean => true;
+const never = (_state: RefundAuthorityState): boolean => false;
+// A merge relocates the indexed row that reaches this charge; it does not
+// destroy or reparent the charge authority itself.
+const refundWorkStops = {
+  delete: always,
+  merge: never,
+};
 const unfinished = {
   clearedBy: "requestProviderRefund",
   operatorRoute: "/admin/privacy/refunds/:id",
@@ -45,7 +50,7 @@ const unfinished = {
   requiresChoice: false,
   saidFirst: 2,
   storedWork: "all",
-  stops: unfinishedStops,
+  stops: refundWorkStops,
 } satisfies LifecycleRuleWithoutState;
 const completedIsRecorded = (state: RefundAuthorityState): boolean =>
   state.kind === "completed" && state.local.kind === "recorded";
@@ -64,7 +69,7 @@ const REFUND_LIFECYCLE = {
     storedWork: "local_due",
     stops: {
       delete: (state) => !completedIsRecorded(state),
-      merge: (state) => !completedIsRecorded(state),
+      merge: never,
     },
   },
   needs_owner_choice: {
@@ -77,7 +82,7 @@ const REFUND_LIFECYCLE = {
     saidFirst: 1,
     state: "needs_owner_choice",
     storedWork: "all",
-    stops: unfinishedStops,
+    stops: refundWorkStops,
   },
   observing: { ...unfinished, state: "observing" },
   ready: { ...unfinished, state: "ready" },

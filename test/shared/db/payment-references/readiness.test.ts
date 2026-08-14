@@ -21,8 +21,8 @@ import {
   resaveAttendee,
 } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { seedHistoricalProcessedPayment } from "#test-utils/historical-payment-references.ts";
 import { protectedStateOf } from "#test-utils/payment-claim.ts";
-import { getCompleteRefundPaymentReferencesForAttendee } from "#test-utils/payment-references.ts";
 import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
 
@@ -57,10 +57,11 @@ describeWithEnv("db > payment reference readiness", { db: true }, () => {
         paymentId: "unrelated_legacy_payment",
       }),
     );
-    await finalizeProcessedPayment("unrelated_unindexed", unrelated.id, "", {
-      kind: "untagged",
-      reference: "unrelated_old_row",
-    });
+    await seedHistoricalProcessedPayment(
+      "unrelated_unindexed",
+      unrelated.id,
+      "unrelated_old_row",
+    );
     await execute(
       `UPDATE processed_payments
           SET payment_reference = ?, payment_reference_index = ?
@@ -100,10 +101,11 @@ describeWithEnv("db > payment reference readiness", { db: true }, () => {
         paymentId: "pi_pii_only_old",
       }),
     );
-    await finalizeProcessedPayment("old_unindexed", attendee.id, "", {
-      kind: "untagged",
-      reference: "pi_unindexed_old",
-    });
+    await seedHistoricalProcessedPayment(
+      "old_unindexed",
+      attendee.id,
+      "pi_unindexed_old",
+    );
     await execute(
       `UPDATE processed_payments
           SET payment_reference_index = ''
@@ -140,16 +142,11 @@ describeWithEnv("db > payment reference readiness", { db: true }, () => {
       Array.from(
         { length: MAX_REFUND_REFERENCES_PER_ATTENDEE + 5 },
         (_, index) =>
-          finalizeProcessedPayment(
-            `large-history-${index}`,
-            attendee.id,
-            "",
-            {
-              kind: "tagged",
-              provider: "stripe",
-              reference: `pi_large_history_${index}`,
-            },
-          ),
+          finalizeProcessedPayment(`large-history-${index}`, attendee.id, "", {
+            kind: "tagged",
+            provider: "stripe",
+            reference: `pi_large_history_${index}`,
+          }),
       ),
     );
     await execute(
@@ -158,17 +155,19 @@ describeWithEnv("db > payment reference readiness", { db: true }, () => {
     );
 
     expect(
-      (await getRefundPaymentReferences(
-        [{ currentPaymentId: "", id: attendee.id }],
-        await getTestPrivateKey(),
-      )).get(attendee.id),
+      (
+        await getRefundPaymentReferences(
+          [{ currentPaymentId: "", id: attendee.id }],
+          await getTestPrivateKey(),
+        )
+      ).get(attendee.id),
     ).toEqual({ kind: "too_many_references" });
     expect(await loadSelectedPaymentReferenceRows([attendee.id])).toHaveLength(
       MAX_REFUND_REFERENCES_PER_ATTENDEE + 1,
     );
   });
 
-  test("re-saving one old attendee creates one append-only indexed anchor", async () => {
+  test("re-saving a PII-only payment does not manufacture refund identity", async () => {
     const listing = await createTestListing();
     const attendee = bookedAttendee(
       await bookAttendee(listing, {
@@ -181,14 +180,15 @@ describeWithEnv("db > payment reference readiness", { db: true }, () => {
     await resaveAttendee(attendee);
     await resaveAttendee(attendee);
 
-    const rows = await paymentRowsFor(attendee.id);
-    expect(rows).toHaveLength(1);
-    expect(rows[0]!.payment_reference_index).not.toBe("");
+    expect(await paymentRowsFor(attendee.id)).toEqual([]);
     expect(
-      (await getCompleteRefundPaymentReferencesForAttendee(attendee)).map(
-        (reference) => reference.reference,
-      ),
-    ).toEqual(["resaved_legacy_payment"]);
+      (
+        await getRefundPaymentReferences(
+          [{ currentPaymentId: attendee.payment_id, id: attendee.id }],
+          await getTestPrivateKey(),
+        )
+      ).get(attendee.id),
+    ).toEqual({ kind: "legacy_unindexed" });
   });
 
   test("an ordinary save never reads or opens unnamed note history", async () => {
@@ -213,7 +213,7 @@ describeWithEnv("db > payment reference readiness", { db: true }, () => {
     }
 
     expect(queries.some((sql) => sql.includes("system_notes"))).toBe(false);
-    expect(await paymentRowsFor(attendee.id)).toHaveLength(1);
+    expect(await paymentRowsFor(attendee.id)).toEqual([]);
     const warning = await queryAll<{ system_name: string | null }>(
       `SELECT system_name
          FROM system_notes AS note
@@ -223,7 +223,7 @@ describeWithEnv("db > payment reference readiness", { db: true }, () => {
     expect(warning).toEqual([{ system_name: null }]);
   });
 
-  test("an atomic attendee edit materializes its existing legacy payment", async () => {
+  test("an atomic attendee edit does not manufacture refund identity", async () => {
     const listing = await createTestListing();
     const attendee = bookedAttendee(
       await bookAttendee(listing, {
@@ -263,10 +263,10 @@ describeWithEnv("db > payment reference readiness", { db: true }, () => {
     );
 
     expect(result.success).toBe(true);
-    expect(await paymentRowsFor(attendee.id)).toHaveLength(1);
+    expect(await paymentRowsFor(attendee.id)).toEqual([]);
   });
 
-  test("a changed legacy payment keeps the earlier indexed identity", async () => {
+  test("a changed PII-only payment remains unindexed", async () => {
     const listing = await createTestListing();
     const attendee = bookedAttendee(
       await bookAttendee(listing, {
@@ -289,17 +289,15 @@ describeWithEnv("db > payment reference readiness", { db: true }, () => {
       ticket_token: attendee.ticket_token,
     });
 
-    expect(await paymentRowsFor(attendee.id)).toHaveLength(2);
+    expect(await paymentRowsFor(attendee.id)).toEqual([]);
     expect(
       (
-        await getCompleteRefundPaymentReferencesForAttendee({
-          currentPaymentId: "second_legacy_payment",
-          id: attendee.id,
-        })
-      )
-        .map((reference) => reference.reference)
-        .sort(),
-    ).toEqual(["first_legacy_payment", "second_legacy_payment"]);
+        await getRefundPaymentReferences(
+          [{ currentPaymentId: "second_legacy_payment", id: attendee.id }],
+          await getTestPrivateKey(),
+        )
+      ).get(attendee.id),
+    ).toEqual({ kind: "legacy_unindexed" });
   });
 
   test("re-saving a finalized payment does not add a redundant anchor", async () => {

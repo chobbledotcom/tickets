@@ -118,6 +118,21 @@ describe("provider-refund architecture", () => {
     ).toEqual(["shared/db/provider-refund-authority.ts"]);
   });
 
+  test("only a provider-validated payment can mint an attendee payment anchor", async () => {
+    expect(
+      pathsContaining(await sourceFiles(), /prepareAttendeePaymentAnchor\s*\(/),
+    ).toEqual(["features/api/payment-processing/store-refund.ts"]);
+  });
+
+  test("only old-row reads and collision checks recognize untagged references", async () => {
+    expect(
+      pathsContaining(await sourceFiles(), /kind:\s*["']untagged["']/),
+    ).toEqual([
+      "shared/db/payment-reference-store.ts",
+      "shared/payment/provider-reference.ts",
+    ]);
+  });
+
   test("only immutable schema history names the legacy returned-payment column", async () => {
     expect(
       pathsContaining(await sourceFiles(), /provider_refunded_at/),
@@ -137,7 +152,7 @@ describe("provider-refund architecture", () => {
     expect(
       pathsContaining(
         await sourceFiles(),
-        /payment-refund-dispatch|returned_marker|sendRefundIfAdmitted|tryRefund/,
+        /payment-reference-provider|provider-discovery|payment-refund-dispatch|returned_marker|sendRefundIfAdmitted|tryRefund/,
       ),
     ).toEqual([]);
   });

@@ -73,7 +73,15 @@ const runCountedRefresh = async (
           return Promise.resolve({
             kind: "not_ready",
             observations: [],
-            reason: "claim_changed",
+            reads: [{
+              evidence: {
+                provider: "stripe",
+                reference: "pi_full",
+                status: "missing",
+              },
+              index: "full",
+            }],
+            reason: "provider_evidence",
           });
         },
       },
@@ -142,6 +150,7 @@ describeWithEnv(
     });
 
     test("rechecks remaining room immediately before its provider reads", async () => {
+      const recheckReferences = references(1, "recheck");
       const granted = grantingRowClaim(new Map([[25, ["session_recheck_0"]]]));
       const claim: RowClaim = {
         claim: async (attendees, admit) => {
@@ -149,7 +158,7 @@ describeWithEnv(
           if (claimed.kind === "claimed") {
             const providerReadCost = refundReadinessSubrequestCost(
               "refresh",
-              attendees,
+              [{ references: recheckReferences }],
               claimed.returned,
               "before_provider_read",
             );
@@ -165,7 +174,7 @@ describeWithEnv(
         settle: granted.settle,
       };
 
-      const run = await runRefusedRefresh(25, references(1, "recheck"), claim);
+      const run = await runRefusedRefresh(25, recheckReferences, claim);
 
       expect(run.result).toEqual(REFUSED);
       expect(run.providerReads).toBe(0);
@@ -198,11 +207,19 @@ describeWithEnv(
       expect(providerReads).toBe(0);
     });
 
-    test("refuses two independently retryable observations before provider reads", async () => {
+    test("admits two independently retryable observations", async () => {
       const run = await runCountedRefresh(27, 2);
 
-      expect(run.result).toEqual(REFUSED);
+      expect(run.result).toMatchObject({ kind: "not_ready" });
       expect(run.claims).toBe(1);
+      expect(run.providerReads).toBe(1);
+    });
+
+    test("refuses three independently retryable observations before provider reads", async () => {
+      const run = await runCountedRefresh(29, 3);
+
+      expect(run.result).toEqual(REFUSED);
+      expect(run.claims).toBe(0);
       expect(run.providerReads).toBe(0);
     });
 

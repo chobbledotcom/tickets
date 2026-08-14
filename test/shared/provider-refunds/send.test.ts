@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import { loadRefundAuthorityByReference } from "#shared/db/provider-refund-authority.ts";
+import { DAY_MS } from "#shared/now.ts";
 import type { RefundAuthorityState } from "#shared/payment/refund-authority.ts";
 import { REFUND_OBSERVATION_DELAY_MS } from "#shared/provider-refunds/state.ts";
 import {
@@ -28,6 +29,107 @@ import {
 } from "./engine-helpers.ts";
 
 describeWithEnv("provider refund engine sends", { db: true }, () => {
+  for (const unfinished of ["send_armed", "observing"] as const) {
+    test(`an observation-only check escalates a due keyless ${unfinished} generation`, async () => {
+      const payment = refundReference(`txn-observe-due-${unfinished}`);
+      let now = 100;
+      let sends = 0;
+      const provider = fakeRefundProvider(
+        "sumup",
+        () => Promise.resolve(foundCharge()),
+        () => {
+          sends++;
+          if (unfinished === "send_armed") {
+            throw new Error("provider process crashed");
+          }
+          return Promise.resolve({
+            kind: "uncertain",
+            reason: "network_error",
+          });
+        },
+      );
+      const dependencies = refundDependencies(provider, () => now);
+      const first = requestProviderRefund(
+        sendRefundTarget(payment),
+        dependencies,
+      );
+      if (unfinished === "send_armed") {
+        await expect(first).rejects.toThrow("provider process crashed");
+      } else {
+        expect(await first).toMatchObject({
+          kind: "pending",
+          state: "observing",
+        });
+      }
+
+      now += REFUND_OBSERVATION_DELAY_MS;
+      expect(
+        await requestProviderRefund(
+          {
+            evidence: { charge: chargeMoney(), kind: "observed" },
+            mode: "observe_only",
+            reference: payment,
+          },
+          dependencies,
+        ),
+      ).toMatchObject({
+        kind: "needs_owner_choice",
+        reason: "possibly_sent",
+      });
+      expect(sends).toBe(1);
+      expect(
+        await storedRefundAuthority(await paymentReferenceIndex(payment)),
+      ).toMatchObject({ refund_state_name: "needs_owner_choice" });
+    });
+  }
+
+  test("an observation-only check never replays and escalates an expired keyed generation", async () => {
+    const payment = refundReference("txn-observe-keyed", "stripe");
+    let now = 100;
+    let sends = 0;
+    const provider = fakeRefundProvider(
+      "stripe",
+      () => Promise.resolve(foundCharge()),
+      () => {
+        sends++;
+        return Promise.resolve({ kind: "uncertain", reason: "network_error" });
+      },
+    );
+    const dependencies = refundDependencies(provider, () => now);
+
+    expect(
+      await requestProviderRefund(sendRefundTarget(payment), dependencies),
+    ).toMatchObject({ kind: "pending", state: "observing" });
+    now += REFUND_OBSERVATION_DELAY_MS;
+    expect(
+      await requestProviderRefund(
+        {
+          evidence: { charge: chargeMoney(), kind: "observed" },
+          mode: "observe_only",
+          reference: payment,
+        },
+        dependencies,
+      ),
+    ).toMatchObject({ kind: "pending", state: "observing" });
+    expect(sends).toBe(1);
+
+    now = 100 + DAY_MS + 1;
+    expect(
+      await requestProviderRefund(
+        {
+          evidence: { charge: chargeMoney(), kind: "observed" },
+          mode: "observe_only",
+          reference: payment,
+        },
+        dependencies,
+      ),
+    ).toMatchObject({
+      kind: "needs_owner_choice",
+      reason: "replay_window_expired",
+    });
+    expect(sends).toBe(1);
+  });
+
   test("one keyless generation is sent once and later evidence completes it", async () => {
     const payment = refundReference("txn-one-send");
     let returned = false;
@@ -115,9 +217,10 @@ describeWithEnv("provider refund engine sends", { db: true }, () => {
 
     await expect(
       runWithSubrequestBudget(() =>
-        withSubrequestAllowance({ database: 2, external: 10, total: 12 }, () =>
-          requestProviderRefund(target, dependencies),
-        ),
+        withSubrequestAllowance(
+          { database: 2, external: 10, total: 12 },
+          () => requestProviderRefund(target, dependencies),
+        )
       ),
     ).rejects.toThrow("Subrequest reserve unavailable");
     expect(sends).toBe(0);
@@ -203,9 +306,12 @@ describeWithEnv("provider refund engine sends", { db: true }, () => {
     const provider = fakeRefundProvider(
       "sumup",
       () => Promise.resolve(foundCharge()),
-      async () => {
+      () => {
         sends++;
-        return { kind: "uncertain", reason: "network_error" };
+        return Promise.resolve({
+          kind: "uncertain",
+          reason: "network_error",
+        });
       },
     );
     const dependencies = refundDependencies(provider);

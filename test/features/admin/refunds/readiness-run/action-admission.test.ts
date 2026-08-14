@@ -6,7 +6,7 @@ import type { RowSettlement } from "#shared/db/payment-claim.ts";
 import type { PaymentReviewReason } from "#shared/payment/review.ts";
 import {
   candidate,
-  untagged,
+  tagged,
 } from "#test/features/admin/refunds/readiness/helpers.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 
@@ -14,7 +14,7 @@ const ATTENDEE_ID = 23;
 const COMMAND_ID = "admission-command";
 const HELD_SINCE = "2026-08-12T12:00:00.000Z";
 const ROW_SESSION_ID = "session_admission";
-const REFERENCE = untagged("admission", "admission");
+const REFERENCE = tagged("admission", "stripe", "admission");
 const CANDIDATE = candidate(ATTENDEE_ID, [REFERENCE]);
 
 type SafetyState = {
@@ -31,7 +31,10 @@ const SAFETY_STATES = [
     name: "owner review",
     refundMessage:
       "This payment still needs owner review. Refresh or correct the payment evidence before another refund.",
-    reviews: new Map([[ROW_SESSION_ID, { kind: "partially_returned_obligation" } as const]]),
+    reviews: new Map([[
+      ROW_SESSION_ID,
+      { kind: "partially_returned_obligation" } as const,
+    ]]),
     unrecorded: new Map(),
   },
   {

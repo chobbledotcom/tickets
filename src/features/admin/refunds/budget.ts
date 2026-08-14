@@ -2,7 +2,7 @@ import { sum } from "#fp";
 import { DATABASE_MAX_ATTEMPTS } from "#shared/db/client.ts";
 import {
   paymentReferencesByIndex,
-  type RefundPaymentReference,
+  type TaggedRefundPaymentReference,
 } from "#shared/db/payment-references.ts";
 import { orderedCredentialedPaymentProviderTypes } from "#shared/existing-payment-provider.ts";
 import { REFUND_NETWORK_RETRIES } from "#shared/payment/refund-network.ts";
@@ -59,7 +59,7 @@ const PROVIDER_CALL_PLANS = {
 } satisfies Record<PaymentProviderType, ProviderCallPlan>;
 
 export type RefundBudgetCandidate = {
-  readonly references: readonly RefundPaymentReference[];
+  readonly references: readonly TaggedRefundPaymentReference[];
 };
 
 const physicalCalls = (
@@ -119,45 +119,25 @@ type ReadinessProviderCalls = {
   readonly stage: Extract<ProviderCallStage, "complete" | "judgment">;
 };
 
-/** Discovery reads every configured provider, then only the matching one can
- * reach the send stage. */
-const untaggedReferenceCalls = ({
-  providers,
-  stage,
-}: ReadinessProviderCalls): number =>
-  sum(
-    providers.map((provider) =>
-      physicalCalls(provider, ({ judgmentReads }) => judgmentReads)
-    ),
-  ) +
-  (stage === "judgment" ? 0 : Math.max(
-    0,
-    ...providers.map((provider) =>
-      physicalCalls(provider, logicalCallsAt("send"))
-    ),
-  ));
-
 const referenceCalls = (
   calls: ReadinessProviderCalls,
-): (reference: RefundPaymentReference) => number => {
+): (reference: TaggedRefundPaymentReference) => number => {
   const { providers, stage } = calls;
   const configured = new Set(providers);
   return (reference) =>
-    reference.kind === "tagged"
-      ? taggedReferenceCalls(reference.provider, configured, stage)
-      : untaggedReferenceCalls(calls);
+    taggedReferenceCalls(reference.provider, configured, stage);
 };
 
 const refundReferences = (
   candidates: readonly RefundBudgetCandidate[],
-): RefundPaymentReference[] => [
+): TaggedRefundPaymentReference[] => [
   ...paymentReferencesByIndex(candidates).values(),
 ];
 
 const activeReferences = (
-  references: readonly RefundPaymentReference[],
+  references: readonly TaggedRefundPaymentReference[],
   returned: ReadonlySet<string>,
-): RefundPaymentReference[] =>
+): TaggedRefundPaymentReference[] =>
   references.filter(
     (reference) =>
       reference.refundState !== "completed" && !returned.has(reference.index),
@@ -173,7 +153,6 @@ const CLAIM_DATABASE_CALLS = 6;
 // Admission runs before the claim batch and transaction commit.
 const CLAIM_DATABASE_CALLS_AFTER_ADMISSION = 2;
 const SETTLEMENT_DATABASE_CALLS = DATABASE_MAX_ATTEMPTS * 2;
-const PROVIDER_BINDING_DATABASE_CALLS = 4;
 const REFRESH_RECORDING_DATABASE_CALLS = REFUND_LEDGER_BATCH_DATABASE_CALLS;
 const RETURNED_PAYMENT_DATABASE_CALLS = REFUND_LEDGER_BATCH_DATABASE_CALLS;
 
@@ -185,19 +164,17 @@ const RETURNED_PAYMENT_DATABASE_CALLS = REFUND_LEDGER_BATCH_DATABASE_CALLS;
  */
 const DATABASE_CALL_PLANS = {
   before_claim: {
-    fixed: CLAIM_DATABASE_CALLS +
-      PROVIDER_BINDING_DATABASE_CALLS,
+    fixed: CLAIM_DATABASE_CALLS,
     pricesAuthority: true,
     whenRecordingReturns: RETURNED_PAYMENT_DATABASE_CALLS,
   },
   before_provider_read: {
-    fixed: PROVIDER_BINDING_DATABASE_CALLS,
+    fixed: 0,
     pricesAuthority: true,
     whenRecordingReturns: RETURNED_PAYMENT_DATABASE_CALLS,
   },
   inside_claim: {
-    fixed: CLAIM_DATABASE_CALLS_AFTER_ADMISSION +
-      PROVIDER_BINDING_DATABASE_CALLS,
+    fixed: CLAIM_DATABASE_CALLS_AFTER_ADMISSION,
     pricesAuthority: true,
     whenRecordingReturns: RETURNED_PAYMENT_DATABASE_CALLS,
   },
@@ -213,7 +190,6 @@ const refreshAdmissionDatabasePlan = (
   beforeAdmissionCalls: number,
 ): DatabaseCallPlan => ({
   fixed: beforeAdmissionCalls +
-    PROVIDER_BINDING_DATABASE_CALLS +
     REFRESH_RECORDING_DATABASE_CALLS,
   pricesAuthority: true,
   whenRecordingReturns: 0,
@@ -223,8 +199,7 @@ const READINESS_DATABASE_CALL_PLANS = {
   refresh: {
     before_claim: refreshAdmissionDatabasePlan(CLAIM_DATABASE_CALLS),
     before_provider_read: {
-      fixed: PROVIDER_BINDING_DATABASE_CALLS +
-        REFRESH_RECORDING_DATABASE_CALLS,
+      fixed: REFRESH_RECORDING_DATABASE_CALLS,
       pricesAuthority: true,
       whenRecordingReturns: 0,
     },
@@ -281,8 +256,8 @@ const activeAuthorityDatabaseCalls = (
 
 const referenceSetSubrequestCost = (
   action: RefundReadinessAction,
-  references: readonly RefundPaymentReference[],
-  active: readonly RefundPaymentReference[],
+  references: readonly TaggedRefundPaymentReference[],
+  active: readonly TaggedRefundPaymentReference[],
   checkpoint: RefundReadinessBudgetCheckpoint,
   providers: readonly PaymentProviderType[],
 ): SubrequestCounts => {

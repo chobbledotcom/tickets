@@ -1,7 +1,6 @@
 import { ErrorCode, logError } from "#shared/logger.ts";
 
 export type RefundNotStartedReason =
-  | "claim_changed"
   | "owner_review"
   | "payment_set_changed"
   | "provider_evidence"

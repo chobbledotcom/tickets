@@ -2088,13 +2088,15 @@ The payment-state column migration cannot derive blind indexes without the
 owner's private key, so old processed rows retain
 `payment_reference_index = ''`. M4 now returns `legacy_unindexed`, rather than
 the visible indexed subset, when a selected attendee has one of those rows or a
-current PII payment id with no indexed identity. Single Refund, Refresh, and the
-selected Refund All page refuse before provider I/O; Refund All's PII-free
-summary blocks SQL-visible unindexed history before paging, and the claim fence
-catches an unindexed row appearing after admission. A PII-only attendee with no
-reference-bearing row is not visible to Refund All's SQL summary; Single Refund
-and Refresh refuse it, while the atomic M6–M11 cutover's migration work package
-must migrate it without adding a population decrypt to the interactive command.
+current PII payment id with no indexed identity. An owner-encrypted indexed but
+untagged identity returns `provider_unknown`; neither refusal can load a
+provider. Single Refund, Refresh, and the selected Refund All page refuse before
+provider I/O; Refund All's PII-free summary blocks SQL-visible unindexed history
+before paging, and the claim fence catches an unindexed row appearing after
+admission. A PII-only attendee with no reference-bearing row is not visible to
+Refund All's SQL summary; Single Refund and Refresh refuse it, while the atomic
+M6–M11 cutover's migration work package must migrate it without adding a
+population decrypt to the interactive command.
 
 This is also the explicit historical-v1 privacy boundary. New
 `processed_payments.payment_reference` and every `payment_charges` provider
@@ -2103,25 +2105,25 @@ reference are `hyb:1` owner-public-key ciphertext, so a database holder with
 ciphertext. There is no raw-v1 compatibility decoder in current refund code;
 pre-cutover rows deliberately lack refund functionality until the fenced
 owner-authenticated migration records a provider-qualified current identity.
-Re-saving may add an owner-encrypted safety anchor for the current PII id, but
-it cannot prove which provider owns an untagged historical reference and does
-not make that reference refundable. Old `provider_refunded_at` values and old
-DB-key-encrypted warning notes are migration evidence only: no live refund
-admission reads or writes them, and no note is an authority.
+Re-saving and merging do not create payment rows from a current PII id: neither
+operation can prove which provider owns an untagged historical reference. Old
+`provider_refunded_at` values and old DB-key-encrypted warning notes are
+migration evidence only: no live refund admission reads or writes them, and no
+note is an authority.
 
 The atomic M6–M11 cutover must clear this boundary before its canonical runtime
 activates. Its fenced, owner-authenticated migration-only reader—not a shared
 runtime helper—must copy every available distinct historical deposit, balance,
-merge, session, and PII-only reference into owner-encrypted canonical evidence
-plus blind indexes, without persisting raw references, private-key material, or
-decrypted PII in progress state. Saving an attendee is not this migration: it
-anchors only the current PII payment id. A distinct reference absent from every
-retained source cannot be reconstructed; preserve that missing-evidence conflict
-for a required owner decision rather than inventing an identity. Copy v1
-plaintext and note-held references directly into owner-key ciphertext; never
-stage them under `DB_ENCRYPTION_KEY`, and delete or redact each source copy only
-after the canonical write verifies. No old runtime reader, dual write, or
-read-through may survive activation.
+legacy-merge, session, and PII-only reference into owner-encrypted canonical
+evidence plus blind indexes, without persisting raw references, private-key
+material, or decrypted PII in progress state. Saving or merging an attendee is
+not this migration and creates no reference record. A distinct reference absent
+from every retained source cannot be reconstructed; preserve that
+missing-evidence conflict for a required owner decision rather than inventing an
+identity. Copy v1 plaintext and note-held references directly into owner-key
+ciphertext; never stage them under `DB_ENCRYPTION_KEY`, and delete or redact
+each source copy only after the canonical write verifies. No old runtime reader,
+dual write, or read-through may survive activation.
 
 An old non-empty `provider_refunded_at` value does not prove a provider,
 captured Money, or full return. The migration should prefer a fresh provider

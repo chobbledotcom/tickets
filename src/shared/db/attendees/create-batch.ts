@@ -19,7 +19,7 @@ import { batchFinalizeStatements } from "#shared/db/payment-finalize.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { namedError } from "#shared/named-error.ts";
 import { nowIso } from "#shared/now.ts";
-import type { PaymentReference } from "#shared/payment/provider-reference.ts";
+import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 
 export type PreparedWrite = {
   enc: EncryptedAttendeeData;
@@ -38,7 +38,10 @@ export type AttendeeCreationWork = (
 export type BookingBatchPlan = {
   usages: ModifierUsage[];
   legs: TransferInput[];
-  finalize?: { paymentReference: PaymentReference | null; sessionId: string };
+  finalize?: {
+    paymentReference: TaggedPaymentReference | null;
+    sessionId: string;
+  };
 };
 
 /** The newly inserted attendee is always found by its unique stable token. */

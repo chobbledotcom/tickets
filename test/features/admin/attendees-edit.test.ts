@@ -5,6 +5,7 @@ import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import { mapBooking } from "#shared/accounting/mappers.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
+import { REFRESH_BUDGET_MESSAGE } from "#routes/admin/refunds/budget.ts";
 import type { ActivityLogEntry } from "#shared/db/activity-log.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
@@ -17,7 +18,6 @@ import { expectErrorFlash, expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createPaidAttendeeWithoutLedger,
-  resaveAttendee,
 } from "#test-utils/db-helpers/attendee-payments.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -30,6 +30,7 @@ import {
   markProviderRefundsReturned,
 } from "#test-utils/payment-references.ts";
 import {
+  finalizeProcessedPayment,
   finalizeReservedPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
@@ -53,15 +54,22 @@ const setupBalanceRefresh = async (
     listing.id,
     "John Doe",
     "john@example.com",
-    "pi_refresh_deposit",
+    "",
     500,
   );
+  const depositSessionId = "refresh-deposit-session";
   await postPaymentLeg(
     attendee.id,
     500,
-    "refresh-deposit-session",
+    depositSessionId,
     listing.id,
     800,
+  );
+  await finalizeProcessedPayment(
+    depositSessionId,
+    attendee.id,
+    "",
+    taggedPaymentReference("pi_refresh_deposit"),
   );
   await postTransfers([
     {
@@ -82,6 +90,30 @@ const setupBalanceRefresh = async (
     taggedPaymentReference(balancePaymentId),
   );
   return attendee;
+};
+
+const setupTaggedRefresh = async (
+  label: string,
+  name: string,
+): Promise<{ attendee: Attendee; listingId: number }> => {
+  const listing = await createTestListing({
+    maxAttendees: 50,
+    unitPrice: 800,
+  });
+  const attendee = await createPaidAttendeeWithoutLedger(
+    listing.id,
+    name,
+    `${label}@example.com`,
+    "",
+    500,
+  );
+  await finalizeProcessedPayment(
+    `refresh-${label}-session`,
+    attendee.id,
+    "",
+    taggedPaymentReference(`pi_${label}`),
+  );
+  return { attendee, listingId: listing.id };
 };
 
 /** Submits the refresh-payment route with a stubbed provider so each refund
@@ -127,7 +159,7 @@ const expectIncompleteRefreshRefused = async (
 
 describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
   describe("POST /admin/attendees/:attendeeId/refresh-payment", () => {
-    test("records provider-refunded deposit and balance charges", async () => {
+    test("refuses two unresolved tagged charges before provider reads", async () => {
       const attendee = await setupBalanceRefresh(
         "refresh-balance-session",
         "pi_refresh_balance",
@@ -139,15 +171,14 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
           Promise.resolve(
             ["pi_refresh_balance", "pi_refresh_deposit"].includes(reference),
           ),
+        REFRESH_BUDGET_MESSAGE,
+        false,
       );
 
-      expect([...queried].sort()).toEqual([
-        "pi_refresh_balance",
-        "pi_refresh_deposit",
-      ]);
+      expect(queried).toEqual([]);
     });
 
-    test("does not refresh an indexed balance while an old deposit is unindexed", async () => {
+    test("does not refresh an indexed balance while its tagged deposit is unindexed", async () => {
       const attendee = await setupBalanceRefresh(
         "refresh-incomplete-balance-session",
         "pi_refresh_incomplete_balance",
@@ -158,22 +189,6 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
           WHERE attendee_id = ?
             AND payment_session_id != ?`,
         [attendee.id, "refresh-incomplete-balance-session"],
-      );
-
-      await expectIncompleteRefreshRefused(attendee);
-    });
-
-    test("does not refresh an indexed balance while its deposit exists only in PII", async () => {
-      const balanceSessionId = "refresh-pii-only-balance-session";
-      const attendee = await setupBalanceRefresh(
-        balanceSessionId,
-        "pi_refresh_pii_only_balance",
-      );
-      await execute(
-        `DELETE FROM processed_payments
-          WHERE attendee_id = ?
-            AND payment_session_id != ?`,
-        [attendee.id, balanceSessionId],
       );
 
       await expectIncompleteRefreshRefused(attendee);
@@ -218,17 +233,17 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
         ],
         email: "first-real@example.com",
         name: "First Real",
-        paymentId: "pi_refresh_first_real",
+        paymentId: "",
       });
       if (!created.success) throw new Error(`setup failed: ${created.reason}`);
       const attendee = created.attendees[0]!;
-      await resaveAttendee(attendee);
+      const paymentSessionId = "refresh-first-real-session";
       await postTransfers(
         await mapBooking({
           amountPaid: 500,
           attendeeId: attendee.id,
           bookingFee: 0,
-          eventId: "pi_refresh_first_real",
+          eventId: paymentSessionId,
           lines: [
             { gross: 300, listingId: laterReal.id },
             { gross: 200, listingId: firstReal.id },
@@ -236,6 +251,12 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
           modifiers: [],
           occurredAt: OCCURRED_AT,
         }),
+      );
+      await finalizeProcessedPayment(
+        paymentSessionId,
+        attendee.id,
+        "",
+        taggedPaymentReference("pi_refresh_first_real"),
       );
 
       await submitRefreshPayment(attendee, () => Promise.resolve(true));
@@ -304,16 +325,9 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
     });
 
     test("reports the status is current when a provider charge is not refunded", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        unitPrice: 800,
-      });
-      const attendee = await createPaidAttendeeWithoutLedger(
-        listing.id,
+      const { attendee } = await setupTaggedRefresh(
+        "not_refunded",
         "Not Refunded",
-        "not-refunded@example.com",
-        "pi_not_refunded",
-        500,
       );
 
       const queried = await submitRefreshPayment(
@@ -327,16 +341,9 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
     });
 
     test("reports a refund already in progress when another run owns the payment", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        unitPrice: 800,
-      });
-      const attendee = await createPaidAttendeeWithoutLedger(
-        listing.id,
+      const { attendee } = await setupTaggedRefresh(
+        "already_refreshing",
         "Already Refreshing",
-        "already-refreshing@example.com",
-        "pi_already_refreshing",
-        500,
       );
       await claimCurrentAttendeeRows([attendee.id]);
 
@@ -354,16 +361,9 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
       const errors = setupErrorSpy();
 
       test("records a refund-not-recorded error and reports the broken promise", async () => {
-        const listing = await createTestListing({
-          maxAttendees: 50,
-          unitPrice: 800,
-        });
-        const attendee = await createPaidAttendeeWithoutLedger(
-          listing.id,
+        const { attendee, listingId } = await setupTaggedRefresh(
+          "refunded_no_ledger",
           "Refunded No Ledger",
-          "refunded-no-ledger@example.com",
-          "pi_refunded_no_ledger",
-          500,
         );
 
         await submitRefreshPayment(
@@ -376,7 +376,7 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
         // the incident must reach the classified error fan-out too.
         expect(
           errors.contains(
-            `[Error] E_INVARIANT_REPORTED listing=${listing.id} ` +
+            `[Error] E_INVARIANT_REPORTED listing=${listingId} ` +
               `attendee=${attendee.id} detail="error.refund_not_recorded"`,
           ),
         ).toBe(true);
@@ -389,12 +389,10 @@ describeWithEnv(
   "server (admin attendee refresh payment) > a charge only partly returned",
   { db: true },
   () => {
-    const errors = setupErrorSpy();
-
-    test("is reported to the owner rather than read as nothing returned", async () => {
-      const attendee = await setupBalanceRefresh(
-        "refresh-partial-session",
-        "pi_refresh_partial",
+    test("is sent to owner refund recovery rather than read as nothing returned", async () => {
+      const { attendee } = await setupTaggedRefresh(
+        "refresh_partial",
+        "Partly Refunded",
       );
 
       await withRefreshPaymentMoney(
@@ -413,9 +411,9 @@ describeWithEnv(
         },
       );
 
-      expect(errors.contains("partially_returned_obligation")).toBe(true);
-      expect(errors.contains("an owner needs to look at it")).toBe(true);
-      expect(await getPaymentWorkStatus(attendee.id)).toBe("needs_review");
+      expect(await getPaymentWorkStatus(attendee.id)).toBe(
+        "needs_provider_recovery",
+      );
     });
   },
 );

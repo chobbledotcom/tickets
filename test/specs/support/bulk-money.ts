@@ -184,7 +184,7 @@ export const leaveFirstRefundCaseForOwner = async (
   expect(requiredWorldValue(world.refundCalls, "first refund calls")()).toBe(0);
   await browser.clickLink("Settings");
   await browser.clickLink("Privacy");
-  expect(browser.containsText("Refund recovery")).toBe(true);
+  expect(browser.containsText("Refunds needing attention")).toBe(true);
   const detail = browser.links.find(({ text }) =>
     text.trim().startsWith("Open refund ")
   );

@@ -232,11 +232,17 @@ describeWithEnv(
         "",
         taggedPaymentReference("pi_settled_review"),
       );
-      await createPaidTestAttendee(
+      const remaining = await createPaidTestAttendee(
         listing.id,
         "Refund Candidate",
         "refund-candidate@example.com",
-        "pi_remaining_candidate",
+        "",
+      );
+      await finalizeProcessedPayment(
+        "remaining-candidate",
+        remaining.id,
+        "",
+        taggedPaymentReference("pi_remaining_candidate"),
       );
       const settledCandidate = (await refundCandidatesFor(listing.id)).find(
         ({ attendee }) => attendee.id === settled.id,
@@ -282,27 +288,6 @@ describeWithEnv(
         EXPECTED_REFUND_ALL_PAGE_SIZE,
       );
       expect(states.filter((state) => state === "claim")).toHaveLength(1);
-    });
-
-    test("fails closed when a selected payment disappears before references load", async () => {
-      const listing = await createPaidListing();
-      const attendee = await createPaidTestAttendee(
-        listing.id,
-        "Changed Payment",
-        "changed-payment@example.com",
-        "pi_changed_payment",
-      );
-      await withPaymentDeletedBeforeReferenceLoad(attendee.id, async () => {
-        await withRefundMock(refundIsRejected, async (mockRefund) => {
-          const response = await postRefundAll(listing);
-          await expectFlashRedirect(
-            `/admin/listing/${listing.id}/refund-all`,
-            expect.stringContaining("older payment history"),
-            false,
-          )(response);
-          expect(mockRefund.calls).toEqual([]);
-        });
-      });
     });
 
     test("throws when a selected current payment disappears while loading", async () => {

@@ -5,14 +5,11 @@ import {
   type RefundConfirmation,
 } from "#routes/admin/refunds/confirmation.ts";
 import { queryOne } from "#shared/db/client.ts";
-import { bindPaymentReferenceProviders } from "#shared/db/payment-reference-provider.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
-import type { Attendee } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import {
   bookAttendee,
   bookedAttendee,
-  resaveAttendee,
 } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { claimCurrentAttendeeRows } from "#test-utils/payment-claim.ts";
@@ -59,11 +56,6 @@ export const confirmFixturePaymentAndReplay = async (
 
 export const setupConfirmation = async (
   payments: readonly PaymentFixture[] = [DEFAULT_PAYMENT],
-  options: {
-    anchorOnly?: boolean;
-    beforeClaim?: (attendee: Attendee) => Promise<void>;
-    paymentId?: string;
-  } = {},
 ): Promise<ConfirmationFixture> => {
   const [first, ...later] = payments;
   assert(first !== undefined, "confirmation setup needs a payment");
@@ -72,41 +64,33 @@ export const setupConfirmation = async (
     await bookAttendee(listing, {
       email: "buyer@example.com",
       name: "Buyer",
-      ...(options.paymentId === undefined
-        ? {}
-        : { paymentId: options.paymentId }),
     }),
   );
-  if (options.anchorOnly) {
-    assert(
-      options.paymentId === first.paymentReference && later.length === 0,
-      "an anchor-only confirmation needs its one payment in attendee PII",
-    );
-    await resaveAttendee(attendee);
-  } else {
-    await finalizeProcessedPayment(
-      first.sessionId,
-      attendee.id,
-      "tok",
-      taggedPaymentReference(first.paymentReference),
-    );
-    await Promise.all(
-      later.map((payment) =>
-        finalizeProcessedPayment(
-          payment.sessionId,
-          attendee.id,
-          `tok-${payment.sessionId}`,
-          taggedPaymentReference(payment.paymentReference),
-        )
-      ),
-    );
-  }
-  if (options.beforeClaim) await options.beforeClaim(attendee);
+  await finalizeProcessedPayment(
+    first.sessionId,
+    attendee.id,
+    "tok",
+    taggedPaymentReference(first.paymentReference),
+  );
+  await Promise.all(
+    later.map((payment) =>
+      finalizeProcessedPayment(
+        payment.sessionId,
+        attendee.id,
+        `tok-${payment.sessionId}`,
+        taggedPaymentReference(payment.paymentReference),
+      )
+    ),
+  );
   const privateKey = await getTestPrivateKey();
   const loaded = await refundReferencesFor(attendee.id, privateKey);
   assert(loaded !== undefined, "payment references were omitted");
-  const [loadedReference] = loaded;
-  assert(loadedReference !== undefined, "no payment reference was found");
+  const references: TaggedReference[] = loaded.map((reference) => {
+    assert(reference.kind === "tagged", "the payment provider was not stored");
+    return reference;
+  });
+  const [reference] = references;
+  assert(reference !== undefined, "no payment reference was found");
   const claimed = await claimCurrentAttendeeRows([attendee.id]);
   assert(claimed.kind === "claimed", "the claim was refused");
   const claim = {
@@ -115,35 +99,6 @@ export const setupConfirmation = async (
     heldSince: claimed.heldSince,
     phases: claimed.phases,
   };
-  const bound = await bindPaymentReferenceProviders({
-    bindings: new Map(
-      loaded.map((boundReference) => [
-        boundReference.index,
-        {
-          identity: {
-            kind: "tagged" as const,
-            provider: boundReference.kind === "tagged"
-              ? boundReference.provider
-              : "stripe",
-            reference: boundReference.reference,
-          },
-        },
-      ]),
-    ),
-    ...claim,
-  });
-  assert(bound.kind === "bound", "the provider was not bound");
-  const stored = await refundReferencesFor(attendee.id, privateKey);
-  assert(stored !== undefined, "bound payment references were omitted");
-  const references: TaggedReference[] = stored.map((storedReference) => {
-    assert(
-      storedReference.kind === "tagged",
-      "the provider binding was not stored",
-    );
-    return storedReference;
-  });
-  const [reference] = references;
-  assert(reference !== undefined, "the bound reference was not found");
   return {
     attendee: { id: attendee.id },
     attendeeName: attendee.name,

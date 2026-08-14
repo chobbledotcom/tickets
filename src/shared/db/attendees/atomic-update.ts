@@ -102,10 +102,10 @@ const lineBooking = (line: AtomicDesiredLine) => ({
 export type UpdateAttendeeAtomicResult =
   | { success: true }
   | {
-      success: false;
-      reason: AttendeeUpdateFailureReason;
-      listingIds: number[];
-    };
+    success: false;
+    reason: AttendeeUpdateFailureReason;
+    listingIds: number[];
+  };
 
 /** A pre-fetched existing booking row plus its line key. */
 export type ExistingLine = {
@@ -167,11 +167,13 @@ const preflightCapacityFailure = async (
   desired: AtomicDesiredLine[],
   existingByKey: Map<string, ListingAttendeeRow>,
   allowOverbook: boolean,
-): Promise<{
-  success: false;
-  reason: "capacity_exceeded";
-  listingIds: number[];
-} | null> => {
+): Promise<
+  {
+    success: false;
+    reason: "capacity_exceeded";
+    listingIds: number[];
+  } | null
+> => {
   if (allowOverbook) return null;
   const changed = changedLinesForPreflight(desired, existingByKey);
   if (changed.length === 0) return null;
@@ -246,9 +248,11 @@ const updateStatementFor = (
     oldPin.packageGroupId,
   ];
   const setClause =
-    `UPDATE listing_attendees SET quantity = ?, start_at = ?, end_at = ?${noQuantityResetColumns(
-      line.quantity,
-    )}` +
+    `UPDATE listing_attendees SET quantity = ?, start_at = ?, end_at = ?${
+      noQuantityResetColumns(
+        line.quantity,
+      )
+    }` +
     " WHERE attendee_id = ? AND listing_id = ? AND start_at IS ? AND parent_listing_id = ? AND package_group_id = ?";
   if (skipCapacityGuard) {
     return { args: [line.quantity, startAt, endAt, ...pin], sql: setClause };
@@ -264,8 +268,7 @@ const updateStatementFor = (
  * Apply a desired final-state line set to an existing attendee atomically.
  *
  * - `attendeeId` — the attendee being edited.
- * - `pii` — all PII facts, encrypted inside the same boundary that
- *   materializes an old payment identity.
+ * - `pii` — all PII facts, encrypted inside the same transaction.
  * - `desired` — the desired final-state line set.
  */
 export const applyAttendeeAtomicEdit = async (

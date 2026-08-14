@@ -13,7 +13,7 @@ import {
 import {
   HELD_SINCE,
   LISTING_ID,
-  noValidatingProvider,
+  missingAtProvider,
   type Prepare,
   readyPreparation,
   recordingProvider,
@@ -21,14 +21,13 @@ import {
   releasedRows,
   rowClaimHarness,
   taggedReference,
-  untaggedReference,
 } from "./readiness-helpers.ts";
 
 describe("admin refund provider readiness integration", () => {
   const errors = setupErrorSpy();
 
-  test("claims unresolved, passes exact facts, and releases a fresh unread claim", async () => {
-    const reference = untaggedReference("same", "stored_same");
+  test("claims unread evidence, passes exact facts, and releases the row", async () => {
+    const reference = taggedReference("stripe", "same", "stored_same");
     const batch = [candidateWithReferences([reference], 11)];
     const held = new Map([[11, reference.rowSessionIds]]);
     const returned = new Set(["returned_by_claim"]);
@@ -43,7 +42,7 @@ describe("admin refund provider readiness integration", () => {
       preparedBatch = candidates;
       preparedClaim = exactClaim;
       preparedReturned = alreadyReturned;
-      return Promise.resolve(noValidatingProvider(reference));
+      return Promise.resolve(missingAtProvider(reference));
     };
 
     const counts = finishedCounts(
@@ -70,19 +69,16 @@ describe("admin refund provider readiness integration", () => {
     ).toBe(true);
   });
 
-  test("dispatches equal raw references by tagged index and reuses exact evidence", async () => {
+  test("keeps equal raw references distinct by provider without resending a return", async () => {
     const stripe = recordingProvider("stripe");
     const square = recordingProvider("square");
-    const sumup = recordingProvider("sumup", "keyless");
     const stripeCharge = chargeMoney(1100);
-    const squareCharge = chargeMoney(2200);
     const stripeRef = taggedReference("stripe", "same_raw", "stripe_same");
-    const squareRef = taggedReference("square", "same_raw", "square_same");
-    const returnedRef = taggedReference("sumup", "same_raw", "sumup_same");
-    const source = candidateWithReferences(
-      [stripeRef, squareRef, returnedRef],
-      21,
-    );
+    const squareRef = {
+      ...taggedReference("square", "same_raw", "square_same"),
+      refundState: "completed" as const,
+    };
+    const source = candidateWithReferences([stripeRef, squareRef], 21);
     const claim = rowClaimHarness({
       held: new Map([
         [21, source.references.flatMap(({ rowSessionIds }) => rowSessionIds)],
@@ -96,11 +92,10 @@ describe("admin refund provider readiness integration", () => {
         prepare: readyPreparation([
           readyCandidateFrom(source, [
             observedReference(stripeRef, stripe, stripeCharge),
-            observedReference(squareRef, square, squareCharge),
             {
               kind: "already_returned",
-              provider: sumup,
-              reference: returnedRef,
+              provider: square,
+              reference: squareRef,
             },
           ]),
         ]),
@@ -109,17 +104,13 @@ describe("admin refund provider readiness integration", () => {
     );
 
     expect(stripe.requests).toHaveLength(1);
-    expect(square.requests).toHaveLength(1);
-    expect(sumup.requests).toEqual([]);
+    expect(square.requests).toEqual([]);
     expect(stripe.requests[0]?.paymentReference).toBe("same_raw");
-    expect(square.requests[0]?.paymentReference).toBe("same_raw");
     expect(stripe.requests[0]?.charge).toBe(stripeCharge);
-    expect(square.requests[0]?.charge).toBe(squareCharge);
     expect(writes.marked.flat().map(({ referenceIndex }) => referenceIndex))
       .toEqual([
         `${stripeRef.provider}:${stripeRef.reference}`,
         `${squareRef.provider}:${squareRef.reference}`,
-        `${returnedRef.provider}:${returnedRef.reference}`,
       ]);
     expect(counts.refundedCount).toBe(1);
   });

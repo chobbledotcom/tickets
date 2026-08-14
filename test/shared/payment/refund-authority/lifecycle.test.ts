@@ -23,14 +23,14 @@ const ready = () =>
   });
 
 describe("payment > refund authority lifecycle", () => {
-  test("every unfinished automatic state blocks destructive actions", () => {
+  test("unfinished work blocks deletion but can move with its indexed row", () => {
     const armed = armRefundSend(ready(), 2, 20);
     const observing = markRefundObservationDue(armed, 3, 30);
 
     for (const state of [ready(), armed, observing]) {
       const lifecycle = refundLifecycleFor(state);
       expect(lifecycle.blocks.delete).toBe(true);
-      expect(lifecycle.blocks.merge).toBe(true);
+      expect(lifecycle.blocks.merge).toBe(false);
       expect(lifecycle.prunable).toBe(false);
       expect(lifecycle.requiresChoice).toBe(false);
       expect(lifecycle.clearedBy).toBe("requestProviderRefund");
@@ -46,7 +46,7 @@ describe("payment > refund authority lifecycle", () => {
     );
 
     expect(refundLifecycleFor(state)).toEqual({
-      blocks: { delete: true, merge: true },
+      blocks: { delete: true, merge: false },
       clearedBy: "resolveProviderRefundCase",
       operatorRoute: "/admin/privacy/refunds/:id",
       prunable: false,
@@ -59,7 +59,7 @@ describe("payment > refund authority lifecycle", () => {
   test("returned money stays protected until local books are recorded", () => {
     const completed = markRefundCompleted(ready(), 40, "provider");
     expect(refundLifecycleFor(completed)).toMatchObject({
-      blocks: { delete: true, merge: true },
+      blocks: { delete: true, merge: false },
       clearedBy: "markRefundAuthorityRecorded",
       prunable: false,
     });

@@ -2,62 +2,58 @@
 @owner:payments @risk:high
 @actor:organiser @actor:customer
 @edition:managed @edition:self-hosted
-Feature: The site checks an old payment before refunding it
-  An old booking may not say which provider took its payment. Before returning
-  money, the site asks every possible provider and acts only when their answers
-  leave one safe choice.
+Feature: The site checks that a payment names its provider before refunding it
+  Automatic refunds use only the provider recorded when the payment was made.
+  If an older payment does not name one, the site stops before contacting any
+  provider rather than trying several possible providers.
 
-  @rule:payments.one-provider-can-safely-identify-an-old-payment
+  @rule:payments.old-payments-without-a-provider-fail-closed
   @surface:admin
-  Rule: One clear provider answer is enough to refund an old payment
-    The owner can refund an old booking when exactly one provider recognises
-    its payment and every other provider confirms that it is not theirs.
+  Rule: An unknown payment provider stops every automatic money action
+    Re-saving an old payment cannot turn it into a modern provider-tagged
+    payment. Refund and refresh both explain the limitation without reading or
+    sending through any configured provider.
 
-    @case:refund-safety.one-provider-recognises-the-old-payment
-    Scenario: Stripe alone recognises an old payment
+    @case:refund-safety.old-payment-without-a-provider-is-not-contacted
+    Scenario: An old payment does not name its provider
       Given Alice bought a 45.00 Concert place through the public booking page
       And Alice's old payment record does not name its provider
-      And Stripe recognises the payment while the other providers do not
-      When the owner signs in and refunds Alice from her Actions page
-      Then Alice is handed back 45.00 once
-      And Alice's payment record now names Stripe
-      And Money shows one refund for Alice
-
-  @rule:payments.every-provider-must-answer-before-an-old-payment-moves
-  @surface:admin
-  Rule: An unanswered provider check stops the refund
-    A provider being offline leaves a real possibility that it took the
-    payment, so the site waits rather than guessing.
-
-    @case:refund-safety.provider-outage-waits-for-a-clear-answer
-    Scenario: One provider recognises the payment while another is offline
-      Given Alice bought a 45.00 Concert place through the public booking page
-      And Alice's old payment record does not name its provider
-      And Stripe recognises the payment while Square cannot be reached
-      When the owner signs in and tries to refund Alice from her Actions page
-      Then the owner is told the provider checks could not be completed
-      And no provider is asked to return Alice's money
+      And every payment provider is available
+      When the owner opens Refund for Alice from her Actions page
+      Then the owner is told the payment does not record its provider
+      And no provider is contacted about Alice's payment
       And Money still shows Alice's 45.00 payment
-      When Square recovers and confirms the payment is not theirs
+      When the owner re-saves Alice's attendee record without changing it
+      And the owner reopens Refund for Alice from her Actions page
+      Then the owner is told the payment does not record its provider
+      And no provider is contacted about Alice's payment
+      When the owner presses Refresh payment status from Alice's attendee page
+      Then the owner is told the payment does not record its provider
+      And no provider is contacted about Alice's payment
+      And Money still shows Alice's 45.00 payment
+
+  @rule:payments.a-provider-tag-is-authority-not-a-search-hint
+  @surface:admin
+  Rule: A recorded provider is the only provider the site may contact
+    Another provider may happen to accept the same-looking reference. That is
+    not evidence that it took this payment. An outage is retried only at the
+    provider recorded by checkout.
+
+    @case:refund-safety.tagged-provider-outage-never-searches-elsewhere
+    Scenario: Stripe is offline while Square recognises the same reference
+      Given Alice bought a 45.00 Concert place through the public booking page
+      And every payment provider is available
+      And Square would recognise Alice's Stripe payment
+      And Stripe cannot be reached for Alice's payment
+      When the owner signs in and tries to refund Alice from her Actions page
+      Then the owner is told Stripe could not answer
+      And only Stripe is asked to check Alice's payment
+      And no provider is asked to return Alice's money
+      When Stripe recovers for Alice's payment
       And the owner retries the refund from Alice's Actions page
       Then Alice is handed back 45.00 once
+      And only Stripe was ever contacted about Alice's payment
       And Money shows one refund for Alice
-
-  @rule:payments.two-matching-providers-stop-an-unsafe-refund
-  @surface:admin
-  Rule: Two providers recognising one old reference stops the refund
-    The site cannot safely choose between two genuine matches. It explains the
-    conflict without moving money.
-
-    @case:refund-safety.two-providers-recognise-the-old-payment
-    Scenario: Stripe and Square both recognise the same old reference
-      Given Alice bought a 45.00 Concert place through the public booking page
-      And Alice's old payment record does not name its provider
-      And Stripe and Square both recognise the payment
-      When the owner signs in and tries to refund Alice from her Actions page
-      Then the owner is told to choose which provider took the payment
-      And no provider is asked to return Alice's money
-      And Money still shows Alice's 45.00 payment
 
   @rule:payments.any-returned-money-makes-another-refund-unsafe
   @surface:admin

@@ -130,7 +130,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
       { e: open.id, p: 300, q: 1 },
       { e: closed.id, p: 400, q: 1 },
     ]);
-    using refund = stubRefundPayment("re_items_closed");
+    using refund = stubRefundPayment("re_items_closed", 700);
 
     expect(
       failureResult(
@@ -166,7 +166,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
       { e: first.id, k: "p", p: 300, q: 1, r: group.id },
       { e: second.id, k: "p", p: 400, q: 1, r: group.id },
     ]);
-    using refund = stubRefundPayment("re_hidden_package");
+    using refund = stubRefundPayment("re_hidden_package", 700);
 
     expect(
       failureResult(
@@ -207,7 +207,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
     ).toEqual([null, null]);
 
     await deactivateTestListing(member.id);
-    using refund = stubRefundPayment("re_stale_hidden");
+    using refund = stubRefundPayment("re_stale_hidden", 700);
     expect(
       failureResult(
         await validateAllItems(

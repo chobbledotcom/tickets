@@ -13,7 +13,7 @@ import type {
   RefundReadinessObservation,
   RefundReadinessRead,
 } from "#routes/admin/refunds/readiness.ts";
-import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
+import type { TaggedRefundPaymentReference } from "#shared/db/payment-references.ts";
 import type { ProviderRead } from "#shared/payment/provider-read.ts";
 import type {
   RefundAttemptResult,
@@ -25,14 +25,17 @@ import type { RefundState } from "#shared/payment/refund-state.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 import { requestRecordedProviderRefund } from "./dispatch-helpers.ts";
-import { sessionReference } from "#test/shared/refund-ledger/helpers.ts";
 import {
   acceptedRefund,
   chargeMoney,
   refundReference,
 } from "#test-utils/payment-state.ts";
 
-type Reference = { reference: string; refundState?: RefundState };
+type Reference = {
+  provider?: PaymentProviderType;
+  reference: string;
+  refundState?: RefundState;
+};
 export type RecordingProvider = ReadyRefundProvider & {
   answerRefund: (request: RefundRequest) => Promise<RefundAttemptResult>;
   readCharge: (reference: string) => Promise<ProviderRead<ChargeMoney>>;
@@ -46,18 +49,42 @@ export const finishedCounts = (result: RefundBatchResult): RefundCounts => {
   }
   return result.counts;
 };
+
+const taggedReference = (
+  reference: string,
+  provider: PaymentProviderType,
+  values: Partial<
+    Omit<
+      TaggedRefundPaymentReference,
+      "kind" | "provider" | "reference"
+    >
+  > = {},
+): TaggedRefundPaymentReference => {
+  const stored = refundReference(reference, values);
+  const index = values.index ?? `index_of_${provider}_${reference}`;
+  return {
+    ...stored,
+    ...values,
+    index,
+    kind: "tagged",
+    matchingIndexes: values.matchingIndexes ?? [index],
+    provider,
+  };
+};
+
 export const candidate = (
   references: Reference[],
   id = 42,
 ): RefundCandidate => ({
   attendee: { id } as RefundCandidate["attendee"],
-  references: references.map(({ reference, refundState = "none" }) =>
-    refundReference(reference, { refundState })
+  references: references.map(
+    ({ provider = "stripe", reference, refundState = "none" }) =>
+      taggedReference(reference, provider, { refundState }),
   ),
 });
 
 export const candidateWithReferences = (
-  references: RefundPaymentReference[],
+  references: TaggedRefundPaymentReference[],
   id = 42,
 ): RefundCandidate => ({ ...candidate([], id), references });
 type ReadyReferenceInput = {
@@ -72,12 +99,9 @@ export const readyReference = (
   defaultProvider: RecordingProvider,
 ): ReadyRefundReference => {
   const source = input.provider ?? defaultProvider;
-  const reference = {
-    ...refundReference(input.reference),
+  const reference = taggedReference(input.reference, source.type, {
     index: input.index ?? `index_of_${source.type}_${input.reference}`,
-    kind: "tagged" as const,
-    provider: source.type,
-  };
+  });
   return input.kind === "already_returned"
     ? { kind: "already_returned", provider: source, reference }
     : {
@@ -102,7 +126,7 @@ export const readyCandidateFrom = (
 ): ReadyRefundCandidate => ({ attendee: source.attendee, references });
 
 export const observedReference = (
-  reference: Extract<RefundPaymentReference, { kind: "tagged" }>,
+  reference: TaggedRefundPaymentReference,
   source: RecordingProvider,
   charge: ChargeMoney = chargeMoney(),
 ): ReadyRefundReference => ({
@@ -128,10 +152,15 @@ type PreparedProviderReference =
   | RefundReadinessRead;
 
 const prepareProviderReference = async (
-  reference: RefundPaymentReference,
+  reference: TaggedRefundPaymentReference,
   source: RecordingProvider,
   alreadyReturned: ReadonlySet<string>,
 ): Promise<PreparedProviderReference> => {
+  if (reference.provider !== source.type) {
+    throw new Error(
+      `Test readiness received ${reference.provider} payment at ${source.type}`,
+    );
+  }
   if (
     reference.refundState === "completed" ||
     alreadyReturned.has(reference.index)
@@ -143,11 +172,9 @@ const prepareProviderReference = async (
     ? { charge: read.resource, kind: "observed" }
     : {
       evidence: {
-        attempts: [{ provider: source.type, result: read }],
-        reason: "no_validating_provider",
+        ...read,
+        provider: source.type,
         reference: reference.reference,
-        source: "untagged",
-        status: "unresolved",
       },
       index: reference.index,
     };
@@ -159,7 +186,7 @@ const isReadinessFailure = (
 
 const preparationObservations = (
   prepared: PreparedProviderReference,
-  reference: RefundPaymentReference,
+  reference: TaggedRefundPaymentReference,
   source: RecordingProvider,
 ): RefundReadinessObservation[] => {
   if (isReadinessFailure(prepared) || prepared.kind === "already_returned") {
@@ -177,24 +204,17 @@ const preparationObservations = (
 };
 
 const readyReferenceFrom = (
-  reference: RefundPaymentReference,
+  reference: TaggedRefundPaymentReference,
   prepared: Exclude<PreparedProviderReference, RefundReadinessRead>,
   source: RecordingProvider,
 ): ReadyRefundReference => {
-  const tagged = {
-    ...reference,
-    index: `index_of_${source.type}_${reference.reference}`,
-    kind: "tagged" as const,
-    provider: source.type,
-    rowSessionIds: reference.rowSessionIds,
-  };
   return prepared.kind === "already_returned"
-    ? { kind: "already_returned", provider: source, reference: tagged }
+    ? { kind: "already_returned", provider: source, reference }
     : {
       charge: prepared.charge,
       kind: "observed",
       provider: source,
-      reference: tagged,
+      reference,
     };
 };
 
@@ -202,7 +222,7 @@ export const prepareAtProvider =
   (source: RecordingProvider): NonNullable<RefundRunDependencies["prepare"]> =>
   async (candidates, _claim, alreadyReturned) => {
     const references = uniqueBy(
-      (reference: RefundPaymentReference) => reference.index,
+      (reference: TaggedRefundPaymentReference) => reference.index,
     )(candidates.flatMap((candidate) => candidate.references));
     const preparedReferences = await Promise.all(
       references.map(async (reference) => ({
@@ -344,8 +364,10 @@ export const unreadableProvider = (
 export const rowBackedReference = (
   reference: string,
   sessionId: string,
-): RefundPaymentReference =>
-  refundReference(reference, {
+  refundState: RefundState = "none",
+): TaggedRefundPaymentReference =>
+  taggedReference(reference, "stripe", {
+    refundState,
     rowSessionIds: [sessionId],
     sessionIds: [sessionId],
   });
@@ -371,7 +393,7 @@ export const refundedCandidate = (
   sessionId: string,
 ): RefundCandidate => ({
   attendee: { id: attendeeId } as RefundCandidate["attendee"],
-  references: [sessionReference(sessionId)],
+  references: [rowBackedReference(`pi-${sessionId}`, sessionId, "completed")],
 });
 
 export const pendingCandidate = (
@@ -380,7 +402,7 @@ export const pendingCandidate = (
 ): RefundCandidate => ({
   attendee: { id: attendeeId } as RefundCandidate["attendee"],
   references: references.map((reference) =>
-    refundReference(reference, { sessionIds: [] })
+    taggedReference(reference, "stripe", { sessionIds: [] })
   ),
 });
 

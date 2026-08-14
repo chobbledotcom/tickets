@@ -1,17 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { decrypt, ENCRYPTION_PREFIX } from "#shared/crypto/encryption.ts";
-import { HYBRID_PREFIX } from "#shared/crypto/keys.ts";
-import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { execute, queryOne } from "#shared/db/client.ts";
-import {
-  loadPaymentReference,
-  paymentReferenceIndex,
-  storePaymentReference,
-} from "#shared/db/payment-reference-store.ts";
+import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import {
   getRefundPaymentReferences,
-  legacyMergePaymentReferenceStatement,
   type RefundPaymentReferenceSet,
 } from "#shared/db/payment-references.ts";
 import type { UntaggedPaymentReference } from "#shared/payment/provider-reference.ts";
@@ -22,7 +14,6 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { requireCompleteRefundReferences } from "#test-utils/payment-references.ts";
 import {
   finalizeProcessedPayment,
-  readReference,
   refundReferencesFor,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
@@ -66,26 +57,6 @@ const expectLegacyReferenceUnavailable = async (
 };
 
 describeWithEnv("db > payment reference storage", { db: true }, () => {
-  test("stores a tagged reference encrypted with its provider-aware index", async () => {
-    const payment = taggedPaymentReference("pi_secret", "square");
-    const stored = await storePaymentReference(payment);
-
-    expect(stored.encrypted).not.toContain(payment.reference);
-    expect(stored.encrypted.startsWith(HYBRID_PREFIX)).toBe(true);
-    expect(stored.encrypted.startsWith(ENCRYPTION_PREFIX)).toBe(false);
-    await expect(
-      decrypt(stored.encrypted as unknown as EnvKeyEncrypted),
-    ).rejects.toThrow();
-    expect(stored.index).toBe(await paymentReferenceIndex(payment));
-    expect(
-      await loadPaymentReference(
-        stored.encrypted,
-        await getTestPrivateKey(),
-        "stored test payment reference",
-      ),
-    ).toEqual(payment);
-  });
-
   test("returns an empty map for no attendees", async () => {
     expect(
       await getRefundPaymentReferences([], await getTestPrivateKey()),
@@ -153,91 +124,6 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
         }),
       ),
     ).toEqual([{ kind: "tagged", reference: "pi_duplicate" }]);
-  });
-
-  test("reads merged legacy ids as session-less untagged references", async () => {
-    const listing = await createTestListing({ maxAttendees: 50 });
-    const created = await bookAttendee(listing, {
-      email: "merged-legacy-ref@example.com",
-      name: "Merged Legacy Ref",
-    });
-    if (!created.success) throw new Error("setup failed");
-    const attendeeId = created.attendees[0]!.id;
-    const statement = await legacyMergePaymentReferenceStatement(
-      attendeeId,
-      12345,
-      "pi_merged_legacy",
-    );
-    if (!statement) throw new Error("setup failed");
-    await execute(statement.sql, statement.args);
-
-    expect(
-      await refundReferencesFor(attendeeId, await getTestPrivateKey()),
-    ).toEqual([
-      await readReference(untagged("pi_merged_legacy"), {
-        refundState: "unknown",
-        rowSessionIds: ["legacy-merge:12345"],
-        sessionIds: [],
-      }),
-    ]);
-  });
-
-  test("indexes a merged legacy payment so a claim can see it", async () => {
-    const listing = await createTestListing({ maxAttendees: 50 });
-    const created = await bookAttendee(listing, {
-      email: "merged-legacy-index@example.com",
-      name: "Merged Legacy Index",
-    });
-    if (!created.success) throw new Error("setup failed");
-    const attendeeId = created.attendees[0]!.id;
-    const statement = await legacyMergePaymentReferenceStatement(
-      attendeeId,
-      54321,
-      "pi_merged_indexed",
-    );
-    if (!statement) throw new Error("setup failed");
-    await execute(statement.sql, statement.args);
-
-    expect(await indexOf("legacy-merge:54321")).toEqual({
-      value: await paymentReferenceIndex(untagged("pi_merged_indexed")),
-    });
-  });
-
-  test("does not anchor a merged payment already held by a checkout row", async () => {
-    const listing = await createTestListing({ maxAttendees: 50 });
-    const target = await bookAttendee(listing, {
-      email: "merge-anchor-target@example.com",
-      name: "Merge Anchor Target",
-    });
-    const source = await bookAttendee(listing, {
-      email: "merge-anchor-source@example.com",
-      name: "Merge Anchor Source",
-    });
-    if (!target.success || !source.success) throw new Error("setup failed");
-    const [targetAttendee] = target.attendees;
-    const [sourceAttendee] = source.attendees;
-    if (targetAttendee === undefined || sourceAttendee === undefined) {
-      throw new Error("setup created no attendees");
-    }
-    const targetId = targetAttendee.id;
-    const sourceId = sourceAttendee.id;
-    const reference = "pi_merge_current";
-    await finalizeProcessedPayment(
-      "sess_merge_current",
-      sourceId,
-      "",
-      taggedPaymentReference(reference),
-    );
-
-    const statement = await legacyMergePaymentReferenceStatement(
-      targetId,
-      sourceId,
-      reference,
-    );
-    if (!statement) throw new Error("setup failed");
-    await execute(statement.sql, statement.args);
-
-    expect(await indexOf(`legacy-merge:${sourceId}`)).toBeNull();
   });
 
   test("leaves an unindexed plaintext reference unavailable", async () => {

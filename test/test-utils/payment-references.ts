@@ -10,6 +10,7 @@ import {
   type RefundPaymentReferenceOwner,
   type RefundPaymentReferenceSet,
   type RefundPaymentReferenceSource,
+  type TaggedRefundPaymentReference,
 } from "#shared/db/payment-references.ts";
 import { readyRefund } from "#shared/payment/refund-authority.ts";
 import { REFUND_PROVIDER_CAPABILITIES } from "#shared/payment/refund-provider-authorization.ts";
@@ -71,19 +72,22 @@ export const markProviderRefundsReturned = async (
 export const requireCompleteRefundReferences = (
   set: RefundPaymentReferenceSet,
   context = "Test payment history",
-): RefundPaymentReference[] => {
+): TaggedRefundPaymentReference[] => {
   if (set.kind === "legacy_unindexed") {
     throw new Error(`${context} is unexpectedly unindexed`);
   }
   if (set.kind === "too_many_references") {
     throw new Error(`${context} has unexpectedly many payment references`);
   }
+  if (set.kind === "provider_unknown") {
+    throw new Error(`${context} has no recorded payment provider`);
+  }
   return set.references;
 };
 
 export const getCompleteRefundPaymentReferences = async (
   attendees: readonly RefundPaymentReferenceSource[],
-): Promise<Map<number, RefundPaymentReference[]>> =>
+): Promise<Map<number, TaggedRefundPaymentReference[]>> =>
   new Map(
     [
       ...(await getRefundPaymentReferences(
@@ -101,7 +105,7 @@ export const getCompleteRefundPaymentReferences = async (
 
 export const getCompleteRefundPaymentReferencesForAttendee = async (
   attendee: RefundPaymentReferenceSource | RefundPaymentReferenceOwner,
-): Promise<RefundPaymentReference[]> =>
+): Promise<TaggedRefundPaymentReference[]> =>
   requireCompleteRefundReferences(
     await getRefundPaymentReferencesForAttendee(
       "currentPaymentId" in attendee ? attendee : {

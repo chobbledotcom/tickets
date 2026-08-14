@@ -137,10 +137,10 @@ describe("payment > admit move", () => {
       });
     });
 
-    test("claim, unrecorded money, then review is the one shared priority", () => {
+    test("claim, owner review, then ledger repair is the one shared priority", () => {
       expect(paymentWorkFor([UNDER_REVIEW, UNRECORDED])).toEqual({
-        recoveryAction: "refresh-payment",
-        status: "needs_money_record",
+        recoveryAction: "payment-review",
+        status: "needs_review",
       });
       expect(paymentWorkFor([UNDER_REVIEW, UNRECORDED, CLAIMED])).toEqual({
         recoveryAction: "refresh-payment",
@@ -148,10 +148,10 @@ describe("payment > admit move", () => {
       });
     });
 
-    test("canonical provider work outranks a local review but not unsettled local money", () => {
+    test("local work is resolved before canonical provider recovery", () => {
       expect(paymentWorkFor([UNDER_REVIEW], true)).toEqual({
-        recoveryAction: null,
-        status: "needs_provider_recovery",
+        recoveryAction: "payment-review",
+        status: "needs_review",
       });
       expect(paymentWorkFor([UNRECORDED], true)).toEqual({
         recoveryAction: "refresh-payment",
@@ -185,8 +185,8 @@ describe("payment > admit move", () => {
       expect(mirrorFor({ ...CLAIMED, ...UNDER_REVIEW })).toBe("claim");
     });
 
-    test("money off the books outranks a review, and a claim outranks both", () => {
-      expect(mirrorFor({ ...UNRECORDED, ...UNDER_REVIEW })).toBe("unrecorded");
+    test("an owner review outranks ledger repair, and a claim outranks both", () => {
+      expect(mirrorFor({ ...UNRECORDED, ...UNDER_REVIEW })).toBe("review");
       expect(mirrorFor({ ...CLAIMED, ...UNRECORDED })).toBe("claim");
     });
 

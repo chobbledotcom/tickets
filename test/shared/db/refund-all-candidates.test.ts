@@ -117,12 +117,17 @@ describeWithEnv("db > Refund All candidates", { db: true }, () => {
       listing.id,
       "Active",
       "active@example.com",
-      "pi_active_summary",
+      "",
     );
     await finalizeProcessedPayment("settled-summary", settled.id, "", {
       kind: "tagged",
       provider: "stripe",
       reference: "pi_settled_summary",
+    });
+    await finalizeProcessedPayment("active-summary", active.id, "", {
+      kind: "tagged",
+      provider: "stripe",
+      reference: "pi_active_summary",
     });
     const modernSettledCandidate = await candidateFor(listing.id, settled.id);
     const activeCandidate = await candidateFor(listing.id, active.id);
@@ -154,14 +159,19 @@ describeWithEnv("db > Refund All candidates", { db: true }, () => {
     });
   });
 
-  test("blocks a mixed old and indexed payment history before selecting a batch", async () => {
+  test("blocks a mixed unindexed and indexed history before selecting a batch", async () => {
     const listing = await createPaidListing();
     const attendee = await createPaidTestAttendee(
       listing.id,
       "Mixed Payment",
       "mixed-payment@example.com",
-      "pi_old_unindexed",
+      "",
     );
+    await finalizeProcessedPayment("old_unindexed_payment", attendee.id, "", {
+      kind: "tagged",
+      provider: "stripe",
+      reference: "pi_old_unindexed",
+    });
     const oldPayment = await candidateFor(listing.id, attendee.id);
     await execute(
       `UPDATE processed_payments

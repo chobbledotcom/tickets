@@ -7,7 +7,7 @@ import {
   refundReadinessSubrequestCost,
   subrequestCostFits,
 } from "#routes/admin/refunds/budget.ts";
-import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
+import type { TaggedRefundPaymentReference } from "#shared/db/payment-references.ts";
 import { PAYMENT_PROVIDER_IDS } from "#shared/payment-providers.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 
@@ -24,19 +24,14 @@ const referenceFacts = (label: string) => ({
 const taggedReference = (
   provider: PaymentProviderType,
   label: string = provider,
-): Extract<RefundPaymentReference, { kind: "tagged" }> => ({
+): TaggedRefundPaymentReference => ({
   ...referenceFacts(label),
   kind: "tagged",
   provider,
 });
 
-const untaggedReference = (): RefundPaymentReference => ({
-  ...referenceFacts("old"),
-  kind: "untagged",
-});
-
 const externalCost = (
-  reference: RefundPaymentReference,
+  reference: TaggedRefundPaymentReference,
   providers: readonly PaymentProviderType[],
 ): number =>
   refundReadinessSubrequestCost(
@@ -97,9 +92,9 @@ describe("admin refund subrequest budget", () => {
           ),
       ),
     ).toEqual([
-      { database: 34, external: 3, total: 37 },
-      { database: 30, external: 1, total: 31 },
-      { database: 28, external: 1, total: 29 },
+      { database: 30, external: 3, total: 33 },
+      { database: 26, external: 1, total: 27 },
+      { database: 24, external: 1, total: 25 },
     ]);
     const prepared = {
       activeAuthorityCount: 1,
@@ -129,7 +124,7 @@ describe("admin refund subrequest budget", () => {
         "before_claim",
         ["stripe"],
       ),
-    ).toEqual({ database: 54, external: 6, total: 60 });
+    ).toEqual({ database: 50, external: 6, total: 56 });
   });
 
   test("reserves canonical lookup and ledger work for returned money", () => {
@@ -158,7 +153,7 @@ describe("admin refund subrequest budget", () => {
         "before_claim",
         ["stripe"],
       ),
-    ).toEqual({ database: 18, external: 0, total: 18 });
+    ).toEqual({ database: 14, external: 0, total: 14 });
   });
 
   test("prices no late work when preparation can neither send nor return money", () => {
@@ -192,20 +187,6 @@ describe("admin refund subrequest budget", () => {
           PAYMENT_PROVIDER_IDS.filter((type) => type !== provider),
         ),
       ).toBe(0);
-    });
-  }
-
-  for (
-    const [providers, calls] of [
-      [[], 0],
-      [["square"], 3],
-      [["stripe"], 3],
-      [["sumup"], 3],
-      [["square", "stripe", "sumup"], 5],
-    ] as const
-  ) {
-    test(`counts ${calls} calls to discover an old reference through ${providers.length} providers`, () => {
-      expect(externalCost(untaggedReference(), providers)).toBe(calls);
     });
   }
 });

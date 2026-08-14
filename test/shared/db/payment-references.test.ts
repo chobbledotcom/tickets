@@ -9,7 +9,6 @@ import {
   getRefundPaymentReferences,
   getRefundPaymentReferencesForAttendee,
   hasAnyPaymentReference,
-  legacyMergePaymentReferenceStatement,
   stillWithTheProvider,
   underRefundClaim,
 } from "#shared/db/payment-references.ts";
@@ -113,10 +112,6 @@ describeWithEnv("db > payment references", { db: true }, () => {
       (await refundReferencesFor(attendeeId, await getTestPrivateKey()))[0]
         ?.refundState,
     ).toBe("completed");
-  });
-
-  test("a legacy merge with no payment id needs no statement", async () => {
-    expect(await legacyMergePaymentReferenceStatement(1, 2, "")).toBe(null);
   });
 
   test("finds indexed references without loading their encrypted values", async () => {

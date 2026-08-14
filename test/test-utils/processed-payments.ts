@@ -10,6 +10,7 @@ import {
 import {
   getRefundPaymentReferences,
   type RefundPaymentReference,
+  type TaggedRefundPaymentReference,
 } from "#shared/db/payment-references.ts";
 import {
   type ProcessedPayment,
@@ -60,7 +61,7 @@ export const finalizeReservedPayment = async (
   sessionId: string,
   attendeeId: number,
   ticketToken = "tok-test",
-  paymentReference: PaymentReference = taggedPaymentReference(
+  paymentReference: TaggedPaymentReference = taggedPaymentReference(
     `pi_${sessionId}`,
   ),
 ): Promise<void> => {
@@ -80,7 +81,7 @@ export const finalizeProcessedPayment = async (
   sessionId: string,
   attendeeId: number,
   ticketToken = "tok-test",
-  paymentReference: PaymentReference = taggedPaymentReference(
+  paymentReference: TaggedPaymentReference = taggedPaymentReference(
     `pi_${sessionId}`,
   ),
 ): Promise<void> => {
@@ -118,7 +119,7 @@ export const bookedWithPayment = async (
 export const refundReferencesFor = async (
   attendeeId: number,
   privateKey: CryptoKey,
-): Promise<RefundPaymentReference[]> =>
+): Promise<TaggedRefundPaymentReference[]> =>
   requireCompleteRefundReferences(
     requiredMapValue(
       await getRefundPaymentReferences(

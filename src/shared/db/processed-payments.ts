@@ -25,7 +25,7 @@ import {
 import { preparePaymentReferenceWrite } from "#shared/db/payment-reference-store.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { isoBefore, nowIso } from "#shared/now.ts";
-import type { PaymentReference } from "#shared/payment/provider-reference.ts";
+import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 import {
   readRowState,
   type StoredPaymentFailure,
@@ -75,7 +75,8 @@ const execWithSessionId = (sessionId: string, sql: string): Promise<unknown> =>
 /** A void write parameterized by a single payment session ID: curries the SQL,
  * returns a function that runs it for one session. */
 const sessionIdWrite =
-  (sql: string) => async (sessionId: string): Promise<void> => {
+  (sql: string) =>
+  async (sessionId: string): Promise<void> => {
     await execWithSessionId(sessionId, sql);
   };
 
@@ -122,8 +123,7 @@ export const reserveSession = async (
   const [claimResult, lookupResult] = await executeBatchWithResults([
     {
       args: [sessionId, claimedAt, staleBefore],
-      sql:
-        `INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at)
+      sql: `INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at)
             VALUES (?, NULL, ?)
             ON CONFLICT(payment_session_id) DO UPDATE SET
               attendee_id = NULL,
@@ -138,8 +138,7 @@ export const reserveSession = async (
     },
     {
       args: [sessionId],
-      sql:
-        "SELECT payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data, payment_reference FROM processed_payments WHERE payment_session_id = ?",
+      sql: "SELECT payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data, payment_reference FROM processed_payments WHERE payment_session_id = ?",
     },
   ]);
   if (resultRows(claimResult!)[0] !== undefined) return { reserved: true };
@@ -173,7 +172,7 @@ export const encryptTicketTokens = (
 export const finalizeSessionIfUnresolved = async (
   sessionId: string,
   attendeeId: number,
-  paymentReference: PaymentReference | null,
+  paymentReference: TaggedPaymentReference | null,
 ): Promise<void> => {
   // The index goes in with the reference it indexes, never separately: a
   // refund claim finds another row holding the same money by that column, so a
@@ -232,9 +231,7 @@ export const markSessionFailed = async (
   await execute(
     `UPDATE processed_payments SET failure_data = ? WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
     [
-      await encrypt(
-        writeRowState({ outcome: failure }, FAILURE_DATA_CONTEXT),
-      ),
+      await encrypt(writeRowState({ outcome: failure }, FAILURE_DATA_CONTEXT)),
       sessionId,
     ],
   );
@@ -250,13 +247,12 @@ export const parseSessionFailure = async (
   failureData: EnvKeyEncrypted | "",
 ): Promise<StoredPaymentFailure | null> => {
   if (!failureData) return null;
-  const state = readRowState(
-    await decrypt(failureData),
-    FAILURE_DATA_CONTEXT,
-  );
+  const state = readRowState(await decrypt(failureData), FAILURE_DATA_CONTEXT);
   if (
-    state.outcome === undefined || state.claim !== undefined ||
-    state.review !== undefined || state.unrecorded !== undefined
+    state.outcome === undefined ||
+    state.claim !== undefined ||
+    state.review !== undefined ||
+    state.unrecorded !== undefined
   ) {
     throw new Error(`${FAILURE_DATA_CONTEXT}: invalid terminal session state`);
   }

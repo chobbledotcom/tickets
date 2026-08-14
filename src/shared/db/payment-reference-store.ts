@@ -14,6 +14,7 @@ import {
   type PaymentReference,
   paymentReferenceIndexInput,
   readPaymentReference,
+  type TaggedPaymentReference,
 } from "#shared/payment/provider-reference.ts";
 import { PaymentProviderSchema } from "#shared/types.ts";
 
@@ -60,7 +61,7 @@ export const matchingPaymentReferenceIndexes = async (
 
 /** SQL fact used by reference-bearing finalizers inside their own write. */
 export const unclaimedPaymentReference = async (
-  reference: PaymentReference,
+  reference: TaggedPaymentReference,
 ): Promise<PaymentReferenceClaimGuard> => {
   const indexes = await matchingPaymentReferenceIndexes(reference);
   return {
@@ -77,7 +78,7 @@ export const unclaimedPaymentReference = async (
 
 /** Encrypt a reference and calculate its matching index as one value. */
 export const storePaymentReference = async (
-  reference: PaymentReference,
+  reference: TaggedPaymentReference,
 ): Promise<StoredPaymentReference> => ({
   encrypted: await encryptWithOwnerKey(
     paymentReferenceIndexInput(reference),
@@ -110,7 +111,7 @@ export const loadPaymentReference = async (
 
 /** The encrypted value and live-claim guard one finalize must write together. */
 export const preparePaymentReferenceWrite = async (
-  reference: PaymentReference | null,
+  reference: TaggedPaymentReference | null,
 ): Promise<PreparedPaymentReferenceWrite> =>
   reference === null
     ? { claim: { args: [], sql: "1 = 1" }, stored: null }

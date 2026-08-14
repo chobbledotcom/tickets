@@ -25,7 +25,6 @@ export type TaggedReference = Extract<
   RefundPaymentReference,
   { kind: "tagged" }
 >;
-type UntaggedReference = Extract<RefundPaymentReference, { kind: "untagged" }>;
 
 export const recordingProvider = (
   type: PaymentProviderType,
@@ -54,32 +53,21 @@ export const taggedReference = (
   sessionIds: [sessionId],
 });
 
-export const untaggedReference = (
-  raw: string,
-  key: string,
-  state: UntaggedReference["refundState"] = "none",
-): UntaggedReference => {
-  const { provider: _provider, ...facts } = taggedReference("stripe", raw, key);
-  return { ...facts, kind: "untagged", refundState: state };
-};
-
 export const readyPreparation =
   (candidates: ReadyRefundCandidate[]): Prepare => () =>
     Promise.resolve({ candidates, kind: "ready" });
 
-export const noValidatingProvider = (
-  reference: RefundPaymentReference,
+export const missingAtProvider = (
+  reference: TaggedReference,
 ): RefundReadinessResult => ({
   kind: "not_ready",
   observations: [],
   reads: [
     {
       evidence: {
-        attempts: [{ provider: "stripe", result: { status: "missing" } }],
-        reason: "no_validating_provider",
+        provider: reference.provider,
         reference: reference.reference,
-        source: "untagged",
-        status: "unresolved",
+        status: "missing",
       },
       index: reference.index,
     },

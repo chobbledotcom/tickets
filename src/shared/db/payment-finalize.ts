@@ -7,7 +7,7 @@ import {
   UNRESOLVED_RESERVATION,
 } from "#shared/db/processed-payments.ts";
 import { CLAIM_MIRROR } from "#shared/payment/admit-move.ts";
-import type { PaymentReference } from "#shared/payment/provider-reference.ts";
+import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 
 /** Abort a batch unless the immediately preceding finalize updated one row.
  * `requiredWhen` lets a conditional operation remain a normal no-op when its
@@ -41,7 +41,7 @@ const buildFinalizeStatements = async (
   attendeeIdSql: string,
   attendeeIdArgs: InValue[],
   sessionId: string,
-  paymentReference: PaymentReference | null,
+  paymentReference: TaggedPaymentReference | null,
   ticketTokens: string[],
   guard: string,
   guardArgs: InValue[] = [],
@@ -78,7 +78,7 @@ export const batchFinalizeStatements = (
   sessionId: string,
   attendeeIdSql: string,
   attendeeIdArg: InValue,
-  paymentReference: PaymentReference | null,
+  paymentReference: TaggedPaymentReference | null,
   ticketToken: string,
 ): Promise<SqlStatement[]> =>
   buildFinalizeStatements(
@@ -96,7 +96,7 @@ export const balanceFinalizeStatements = (
   sessionId: string,
   attendeeId: number,
   expectedAmount: number,
-  paymentReference: PaymentReference,
+  paymentReference: TaggedPaymentReference,
 ): Promise<SqlStatement[]> =>
   buildFinalizeStatements(
     "?",

@@ -1,34 +1,22 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { execute, queryAll, queryOne } from "#shared/db/client.ts";
-import {
-  attendeePaymentAnchorStatements,
-  prepareAttendeePaymentAnchor,
-} from "#shared/db/payment-anchor/attendee.ts";
+import { prepareAttendeePaymentAnchor } from "#shared/db/payment-anchor/attendee.ts";
 import {
   loadPaymentReference,
   paymentReferenceIndex,
 } from "#shared/db/payment-reference-store.ts";
-import type { PaymentReference } from "#shared/payment/provider-reference.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import {
-  finalizeProcessedPayment,
-  taggedPaymentReference,
-} from "#test-utils/processed-payments.ts";
+import { taggedPaymentReference } from "#test-utils/processed-payments.ts";
 
 type StoredAnchor = {
   payment_reference: string;
   payment_reference_index: string;
   payment_session_id: string;
 };
-
-const untagged = (reference: string): PaymentReference => ({
-  kind: "untagged",
-  reference,
-});
 
 const makeAttendee = async (): Promise<number> => {
   const listing = await createTestListing({ maxAttendees: 20 });
@@ -91,52 +79,6 @@ describeWithEnv("db > payment anchor > attendee", { db: true }, () => {
           [await paymentReferenceIndex(payment)],
         ),
       ).toEqual({ count: 0 });
-    });
-  });
-
-  describe("an old PII payment id", () => {
-    test("a blank id produces no statement", async () => {
-      expect(await attendeePaymentAnchorStatements(1, "")).toEqual([]);
-    });
-
-    test("is stored as untagged", async () => {
-      const attendeeId = await makeAttendee();
-      const payment = untagged("pi_old_attendee");
-      const [statement] = await attendeePaymentAnchorStatements(
-        attendeeId,
-        payment.reference,
-      );
-      if (statement === undefined) throw new Error("anchor was not prepared");
-      await execute(statement.sql, statement.args);
-
-      const [row] = await anchorRows(attendeeId);
-      if (row === undefined) throw new Error("anchor was not stored");
-      expect(
-        await loadPaymentReference(
-          row.payment_reference,
-          await getTestPrivateKey(),
-          "legacy attendee anchor test",
-        ),
-      ).toEqual(payment);
-    });
-
-    test("does not duplicate a checkout row with the tagged spelling", async () => {
-      const attendeeId = await makeAttendee();
-      const reference = "pi_already_finalized";
-      await finalizeProcessedPayment(
-        "sess_already_finalized",
-        attendeeId,
-        "",
-        taggedPaymentReference(reference, "stripe"),
-      );
-      const [statement] = await attendeePaymentAnchorStatements(
-        attendeeId,
-        reference,
-      );
-      if (statement === undefined) throw new Error("anchor was not prepared");
-      await execute(statement.sql, statement.args);
-
-      expect(await anchorRows(attendeeId)).toEqual([]);
     });
   });
 });

@@ -8,12 +8,7 @@
 
 import { requiredMapValue } from "#fp";
 /* jscpd:ignore-start */
-import { inPlaceholders, type SqlStatement } from "#shared/db/client.ts";
-import { paymentAnchorReference } from "#shared/db/payment-anchor/reference.ts";
-import {
-  isAnchorSession,
-  legacyMergeSessionId,
-} from "#shared/db/payment-anchor/session.ts";
+import { isAnchorSession } from "#shared/db/payment-anchor/session.ts";
 import {
   loadSelectedPaymentReferenceRows,
   MAX_REFUND_REFERENCES_PER_ATTENDEE,
@@ -24,7 +19,6 @@ import {
   loadIndexedPaymentReference,
   matchingPaymentReferenceIndexes,
 } from "#shared/db/payment-reference-store.ts";
-import { nowIso } from "#shared/now.ts";
 import { CLAIM_MIRROR } from "#shared/payment/admit-move.ts";
 import type {
   PaymentReference,
@@ -69,12 +63,22 @@ export type RefundPaymentReference =
   | (RefundPaymentReferenceFacts & TaggedPaymentReference)
   | (RefundPaymentReferenceFacts & UntaggedPaymentReference);
 
+/** A provider-tagged identity admitted to automatic refund work. */
+export type TaggedRefundPaymentReference = Extract<
+  RefundPaymentReference,
+  { kind: "tagged" }
+>;
+
 /** One attendee's complete refundable identities, or proof that old rows make
  * the set incomplete. No caller may receive the visible subset in the latter
  * case. */
 export type RefundPaymentReferenceSet =
-  | { readonly kind: "complete"; readonly references: RefundPaymentReference[] }
+  | {
+    readonly kind: "complete";
+    readonly references: TaggedRefundPaymentReference[];
+  }
   | { readonly kind: "legacy_unindexed" }
+  | { readonly kind: "provider_unknown" }
   | { readonly kind: "too_many_references" };
 
 /** Keep the final loaded facts for each stable payment identity. */
@@ -194,11 +198,15 @@ const asRefundReferences = async (
     })),
   );
 
+const providersAreKnown = (
+  references: readonly RefundPaymentReference[],
+): references is TaggedRefundPaymentReference[] =>
+  references.every((reference) => reference.kind === "tagged");
+
 /**
  * Refundable provider references for each attendee. New processed_payments rows
- * carry per-session references. An old PII-only reference becomes refundable
- * only after an attendee save materializes that one durable indexed anchor.
- * Other unindexed historical rows make the whole attendee set unavailable.
+ * carry per-session provider-tagged references. Indexed-but-untagged history
+ * and unindexed historical rows remain unavailable to automatic money work.
  */
 export const getRefundPaymentReferences = async <
   Owner extends RefundPaymentReferenceOwner,
@@ -272,6 +280,9 @@ export const getRefundPaymentReferences = async <
           ) {
             return [attendee.id, { kind: "legacy_unindexed" }];
           }
+          if (!providersAreKnown(references)) {
+            return [attendee.id, { kind: "provider_unknown" }];
+          }
           return [attendee.id, { kind: "complete", references }];
         },
       ),
@@ -339,40 +350,3 @@ export const hasAnyPaymentReference = async (
   attendee: RefundPaymentReferenceSource,
 ): Promise<boolean> =>
   (await getAttendeeIdsWithPaymentReference([attendee])).has(attendee.id);
-
-export const legacyMergePaymentReferenceStatement = async (
-  targetId: number,
-  sourceId: number,
-  sourcePaymentId: string,
-): Promise<SqlStatement | null> => {
-  if (sourcePaymentId === "") return null;
-  const anchorReference = await paymentAnchorReference({
-    kind: "untagged",
-    reference: sourcePaymentId,
-  });
-  const { matchingIndexes, stored } = anchorReference;
-  const matchingIndexSlots = inPlaceholders(matchingIndexes);
-  return {
-    args: [
-      legacyMergeSessionId(sourceId),
-      targetId,
-      nowIso(),
-      stored.encrypted,
-      stored.index,
-      sourceId,
-      ...matchingIndexes,
-    ],
-    // A current checkout row already carries this charge and will move in the
-    // same transaction. The anchor exists only for PII-only legacy payments.
-    sql: `INSERT OR IGNORE INTO processed_payments
-          (payment_session_id, attendee_id, processed_at, payment_reference,
-           payment_reference_index)
-          SELECT ?, ?, ?, ?, ?
-           WHERE NOT EXISTS (
-             SELECT 1 FROM processed_payments AS payment
-              WHERE payment.attendee_id = ?
-                AND payment.payment_reference != ''
-                AND payment.payment_reference_index IN (${matchingIndexSlots})
-           )`,
-  };
-};

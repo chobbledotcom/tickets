@@ -2,8 +2,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import { loadRefundAuthorityByReference } from "#shared/db/provider-refund-authority.ts";
-import { requestProviderRefund } from "#shared/provider-refunds.ts";
 import { REFUND_OBSERVATION_DELAY_MS } from "#shared/provider-refunds/state.ts";
+import { requestProviderRefund } from "#shared/provider-refunds.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   chargeMoney,
@@ -85,9 +85,11 @@ describeWithEnv("provider refund state transitions", { db: true }, () => {
     expect(answer).toMatchObject({ kind: "pending", state: "observing" });
     expect(sends).toBe(0);
     expect(
-      (await loadRefundAuthorityByReference(
-        await paymentReferenceIndex(payment),
-      ))?.state,
+      (
+        await loadRefundAuthorityByReference(
+          await paymentReferenceIndex(payment),
+        )
+      )?.state,
     ).toMatchObject({
       kind: "observing",
       nextActionAt: 100 + REFUND_OBSERVATION_DELAY_MS,

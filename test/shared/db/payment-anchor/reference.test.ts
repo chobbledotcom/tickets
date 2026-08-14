@@ -35,22 +35,4 @@ describeWithEnv("db > payment anchor > reference", { db: true }, () => {
       ),
     ).toEqual(payment);
   });
-
-  test("an old untagged reference checks every provider spelling", async () => {
-    const payment = untagged("pi_anchor_legacy");
-    const prepared = await paymentAnchorReference(payment);
-    const expected = await Promise.all([
-      paymentReferenceIndex(payment),
-      paymentReferenceIndex(
-        taggedPaymentReference(payment.reference, "stripe"),
-      ),
-      paymentReferenceIndex(
-        taggedPaymentReference(payment.reference, "square"),
-      ),
-      paymentReferenceIndex(taggedPaymentReference(payment.reference, "sumup")),
-    ]);
-
-    expect(prepared.stored.index).toBe(expected[0]);
-    expect(prepared.matchingIndexes).toEqual(expected);
-  });
 });

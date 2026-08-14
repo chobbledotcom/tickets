@@ -1,14 +1,6 @@
 import { requiredMapValue, unique, uniqueBy } from "#fp";
-import {
-  bindPaymentReferenceProviders,
-  type PaymentReferenceProviderBinding,
-  type PaymentReferenceProviderBindingResult,
-} from "#shared/db/payment-reference-provider.ts";
-import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
-import {
-  type PaymentReferenceEvidence,
-  readPaymentReferenceEvidence,
-} from "#shared/payment/provider-discovery.ts";
+import type { TaggedRefundPaymentReference } from "#shared/db/payment-references.ts";
+import type { ProviderRead } from "#shared/payment/provider-read.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import { loadPaymentProvider, type PaymentProvider } from "#shared/payments.ts";
@@ -16,11 +8,6 @@ import type { PaymentProviderType } from "#shared/types.ts";
 import type { RefundCandidate } from "./candidates.ts";
 import type { HeldRefundClaim } from "./claim.ts";
 import { mapProviderRequests } from "./provider-requests.ts";
-
-type TaggedRefundPaymentReference = Extract<
-  RefundPaymentReference,
-  { kind: "tagged" }
->;
 
 /** The provider surface an already-read refund attempt still needs. */
 export type ReadyRefundProvider = Pick<
@@ -33,22 +20,22 @@ type ReadyRefundReferenceBase = {
   reference: TaggedRefundPaymentReference;
 };
 
-/** One reference after every provider read and provider binding has finished. */
+/** One provider-tagged reference after its exact provider read has finished. */
 export type ReadyRefundReference =
   | (ReadyRefundReferenceBase & {
-      charge: ChargeMoney;
-      kind: "observed";
-    })
+    charge: ChargeMoney;
+    kind: "observed";
+  })
   | (ReadyRefundReferenceBase & { kind: "already_returned" });
 
 export type ReadyRefundCandidate = Omit<RefundCandidate, "references"> & {
   references: ReadyRefundReference[];
 };
 
-export type FailedPaymentReferenceEvidence = Exclude<
-  PaymentReferenceEvidence,
-  { status: "found" }
->;
+export type FailedPaymentReferenceEvidence = {
+  provider: PaymentProviderType;
+  reference: string;
+} & Exclude<ProviderRead<ChargeMoney>, { status: "found" }>;
 
 export type RefundReadinessRead = {
   evidence: FailedPaymentReferenceEvidence;
@@ -59,71 +46,60 @@ export type RefundReadinessRead = {
 export type RefundReadinessObservation = {
   readonly charge: ChargeMoney;
   readonly identity: TaggedPaymentReference;
-  readonly reference: RefundPaymentReference;
+  readonly reference: TaggedRefundPaymentReference;
 };
 
 export type RefundReadinessResult =
   | {
-      candidates: ReadyRefundCandidate[];
-      kind: "ready";
-    }
+    candidates: ReadyRefundCandidate[];
+    kind: "ready";
+  }
   | {
-      kind: "not_ready";
-      observations: readonly RefundReadinessObservation[];
-      reads: RefundReadinessRead[];
-      reason: "provider_evidence";
-    }
-  | {
-      kind: "not_ready";
-      observations: readonly RefundReadinessObservation[];
-      reason: "claim_changed";
-    };
+    kind: "not_ready";
+    observations: readonly RefundReadinessObservation[];
+    reads: RefundReadinessRead[];
+    reason: "provider_evidence";
+  };
 
 export type RefundReadinessDependencies = {
-  bindProviders: typeof bindPaymentReferenceProviders;
   loadProvider: (provider: PaymentProviderType) => Promise<ReadyRefundProvider>;
-  readEvidence: typeof readPaymentReferenceEvidence;
 };
 
 const DEFAULT_DEPENDENCIES: RefundReadinessDependencies = {
-  bindProviders: bindPaymentReferenceProviders,
   loadProvider: loadPaymentProvider,
-  readEvidence: readPaymentReferenceEvidence,
 };
 
 const returned = (
-  reference: RefundPaymentReference,
+  reference: TaggedRefundPaymentReference,
   alreadyReturned: ReadonlySet<string>,
 ): boolean =>
   reference.refundState === "completed" || alreadyReturned.has(reference.index);
 
 const uniqueReferences = (
   candidates: readonly RefundCandidate[],
-): RefundPaymentReference[] =>
-  uniqueBy((reference: RefundPaymentReference) => reference.index)(
+): TaggedRefundPaymentReference[] =>
+  uniqueBy((reference: TaggedRefundPaymentReference) => reference.index)(
     candidates.flatMap(({ references }) => references),
   );
 
 const providerIdentity = (
-  reference: RefundPaymentReference,
-  provider: PaymentProviderType,
+  reference: TaggedRefundPaymentReference,
 ): TaggedPaymentReference => ({
   kind: "tagged",
-  provider,
+  provider: reference.provider,
   reference: reference.reference,
 });
 
-type PreparedReferenceBase = {
-  identity: TaggedPaymentReference;
-  original: RefundPaymentReference;
-};
-
 type PreparedReference =
-  | (PreparedReferenceBase & { charge: ChargeMoney; kind: "observed" })
-  | (PreparedReferenceBase & {
-      kind: "already_returned";
-      original: TaggedRefundPaymentReference;
-    });
+  | {
+    charge: ChargeMoney;
+    kind: "observed";
+    original: TaggedRefundPaymentReference;
+  }
+  | {
+    kind: "already_returned";
+    original: TaggedRefundPaymentReference;
+  };
 
 type PreparedEvidence =
   | { kind: "failed"; read: RefundReadinessRead }
@@ -136,10 +112,10 @@ const readinessObservations = (
     entry.kind === "observed"
       ? [{
         charge: entry.charge,
-        identity: entry.identity,
+        identity: providerIdentity(entry.original),
         reference: entry.original,
       }]
-      : [],
+      : []
   );
 
 const evidenceFailed = (
@@ -147,43 +123,55 @@ const evidenceFailed = (
 ): evidence is Extract<PreparedEvidence, { kind: "failed" }> =>
   evidence.kind === "failed";
 
-const prepareEvidence = (
-  original: RefundPaymentReference,
-  evidence: PaymentReferenceEvidence,
-): PreparedEvidence =>
-  evidence.status === "found"
+const readReference = async (
+  reference: TaggedRefundPaymentReference,
+  providers: ReadonlyMap<PaymentProviderType, ReadyRefundProvider>,
+): Promise<PreparedEvidence> => {
+  const read = await requiredMapValue(
+    providers,
+    reference.provider,
+    `Refund readiness lost provider ${reference.provider}`,
+  ).readCharge(reference.reference);
+  return read.status === "found"
     ? {
-        kind: "prepared",
-        reference: {
-          charge: evidence.charge,
-          identity: providerIdentity(original, evidence.provider),
-          kind: "observed",
-          original,
+      kind: "prepared",
+      reference: {
+        charge: read.resource,
+        kind: "observed",
+        original: reference,
+      },
+    }
+    : {
+      kind: "failed",
+      read: {
+        evidence: {
+          ...read,
+          provider: reference.provider,
+          reference: reference.reference,
         },
-      }
-    : { kind: "failed", read: { evidence, index: original.index } };
+        index: reference.index,
+      },
+    };
+};
 
 const readReferences = (
-  references: readonly RefundPaymentReference[],
-  readEvidence: RefundReadinessDependencies["readEvidence"],
+  references: readonly TaggedRefundPaymentReference[],
+  providers: ReadonlyMap<PaymentProviderType, ReadyRefundProvider>,
 ): Promise<PreparedEvidence[]> =>
-  mapProviderRequests(references, async (reference) =>
-    prepareEvidence(reference, await readEvidence(reference)),
+  mapProviderRequests(
+    references,
+    (reference) => readReference(reference, providers),
   );
 
 const alreadyReturnedReference = (
   reference: TaggedRefundPaymentReference,
-): PreparedReference => ({
-  identity: providerIdentity(reference, reference.provider),
-  kind: "already_returned",
-  original: reference,
-});
+): PreparedReference => ({ kind: "already_returned", original: reference });
 
 const loadProviders = async (
-  references: readonly PreparedReference[],
+  references: readonly TaggedRefundPaymentReference[],
   loadProvider: RefundReadinessDependencies["loadProvider"],
 ): Promise<ReadonlyMap<PaymentProviderType, ReadyRefundProvider>> => {
-  const types = unique(references.map(({ identity }) => identity.provider));
+  const types = unique(references.map(({ provider }) => provider));
   return new Map(
     await Promise.all(
       types.map(
@@ -198,38 +186,24 @@ const loadProviders = async (
   );
 };
 
-const taggedReference = (
-  original: RefundPaymentReference,
-  prepared: PreparedReference,
-  index: string,
-): TaggedRefundPaymentReference => ({
-  ...original,
-  ...prepared.identity,
-  index,
-});
-
 const readyReference = (
-  original: RefundPaymentReference,
   prepared: PreparedReference,
   provider: ReadyRefundProvider,
-  index: string,
-): ReadyRefundReference => {
-  const reference = taggedReference(original, prepared, index);
-  return prepared.kind === "already_returned"
+  reference: TaggedRefundPaymentReference,
+): ReadyRefundReference =>
+  prepared.kind === "already_returned"
     ? { kind: "already_returned", provider, reference }
     : {
-        charge: prepared.charge,
-        kind: "observed",
-        provider,
-        reference,
-      };
-};
+      charge: prepared.charge,
+      kind: "observed",
+      provider,
+      reference,
+    };
 
 const readyCandidates = (
   candidates: readonly RefundCandidate[],
   preparedByIndex: ReadonlyMap<string, PreparedReference>,
   providers: ReadonlyMap<PaymentProviderType, ReadyRefundProvider>,
-  boundIndexes: ReadonlyMap<string, string>,
 ): ReadyRefundCandidate[] =>
   candidates.map((candidate) => ({
     attendee: candidate.attendee,
@@ -240,64 +214,33 @@ const readyCandidates = (
         `Refund readiness lost payment reference ${reference.index}`,
       );
       return readyReference(
-        reference,
         prepared,
         requiredMapValue(
           providers,
-          prepared.identity.provider,
-          `Refund readiness lost provider ${prepared.identity.provider}`,
+          reference.provider,
+          `Refund readiness lost provider ${reference.provider}`,
         ),
-        requiredMapValue(
-          boundIndexes,
-          reference.index,
-          `Provider binding lost payment reference ${reference.index}`,
-        ),
+        reference,
       );
     }),
   }));
 
-const bindingResult = (
-  result: PaymentReferenceProviderBindingResult,
-  candidates: readonly RefundCandidate[],
-  prepared: readonly PreparedReference[],
-  providers: ReadonlyMap<PaymentProviderType, ReadyRefundProvider>,
-): RefundReadinessResult => {
-  const observations = readinessObservations(prepared);
-  switch (result.kind) {
-    case "claim_changed":
-      return { kind: "not_ready", observations, reason: "claim_changed" };
-    case "bound":
-      return {
-        candidates: readyCandidates(
-          candidates,
-          new Map(prepared.map((entry) => [entry.original.index, entry])),
-          providers,
-          result.indexes,
-        ),
-        kind: "ready",
-      };
-  }
-};
-
-/** Resolve and bind every charge before a refund run may send any money. */
+/** Read every current charge at its stored provider before any refund may send. */
 export const prepareRefundReadiness = async (
   candidates: readonly RefundCandidate[],
-  claim: HeldRefundClaim,
+  _claim: HeldRefundClaim,
   alreadyReturned: ReadonlySet<string>,
   dependencies: Partial<RefundReadinessDependencies> = {},
 ): Promise<RefundReadinessResult> => {
-  const { bindProviders, loadProvider, readEvidence } = {
-    ...DEFAULT_DEPENDENCIES,
-    ...dependencies,
-  };
+  const { loadProvider } = { ...DEFAULT_DEPENDENCIES, ...dependencies };
   const references = uniqueReferences(candidates);
-  const marked = references.filter(
-    (reference): reference is TaggedRefundPaymentReference =>
-      reference.kind === "tagged" && returned(reference, alreadyReturned),
+  const providers = await loadProviders(references, loadProvider);
+  const marked = references.filter((reference) =>
+    returned(reference, alreadyReturned)
   );
   const readings = await readReferences(
     references.filter((reference) => !returned(reference, alreadyReturned)),
-    readEvidence,
+    providers,
   );
   const preparedReadings = readings.filter(
     (reading): reading is Extract<PreparedEvidence, { kind: "prepared" }> =>
@@ -314,22 +257,16 @@ export const prepareRefundReadiness = async (
       reason: "provider_evidence",
     };
   }
-
   const prepared = [
     ...preparedReadings.map(({ reference }) => reference),
     ...marked.map(alreadyReturnedReference),
   ];
-  const providers = await loadProviders(prepared, loadProvider);
-  const result = await bindProviders({
-    bindings: new Map(
-      prepared.map(({ identity, original }) => [
-        original.index,
-        {
-          identity,
-        } satisfies PaymentReferenceProviderBinding,
-      ]),
+  return {
+    candidates: readyCandidates(
+      candidates,
+      new Map(prepared.map((entry) => [entry.original.index, entry])),
+      providers,
     ),
-    ...claim,
-  });
-  return bindingResult(result, candidates, prepared, providers);
+    kind: "ready",
+  };
 };

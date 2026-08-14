@@ -16,8 +16,8 @@ import {
 import {
   ATTENDEE_FIELDS,
   type AttendeeRowFor,
-  type GetAttendeesQuery,
   getAttendees,
+  type GetAttendeesQuery,
   pricePaidFromLedger,
   refundedFromLedger,
 } from "#shared/db/attendees/select.ts";
@@ -42,24 +42,33 @@ import { guardFor } from "#shared/validation/guard.ts";
  */
 export const listingAttendeeRowColumnsFrom = (sourceName: string): string => {
   const column = columnFrom(sourceName);
-  return `${column("listing_id")}, ${column("start_at")}, ${column(
-    "end_at",
-  )}, ${column("quantity")}, ${column("checked_in")}, ${refundedFromLedger(
-    column("attendee_id"),
-    column("listing_id"),
-    `${column("quantity")} = 0`,
-  )}, ${pricePaidFromLedger(
-    column("attendee_id"),
-    column("listing_id"),
-    column("ledger_event_group"),
-    column("id"),
-  )}, ${column("ledger_event_group")}, ${column("attachment_downloads")}, ${column(
-    "order_token",
-  )}, ${column("parent_listing_id")}, ${column("package_group_id")}`;
+  return `${column("listing_id")}, ${column("start_at")}, ${
+    column(
+      "end_at",
+    )
+  }, ${column("quantity")}, ${column("checked_in")}, ${
+    refundedFromLedger(
+      column("attendee_id"),
+      column("listing_id"),
+      `${column("quantity")} = 0`,
+    )
+  }, ${
+    pricePaidFromLedger(
+      column("attendee_id"),
+      column("listing_id"),
+      column("ledger_event_group"),
+      column("id"),
+    )
+  }, ${column("ledger_event_group")}, ${column("attachment_downloads")}, ${
+    column(
+      "order_token",
+    )
+  }, ${column("parent_listing_id")}, ${column("package_group_id")}`;
 };
 
-export const LISTING_ATTENDEE_ROW_COLS =
-  listingAttendeeRowColumnsFrom("listing_attendees");
+export const LISTING_ATTENDEE_ROW_COLS = listingAttendeeRowColumnsFrom(
+  "listing_attendees",
+);
 
 /**
  * The fields the browsing tables (the dashboard's newest attendees and the
@@ -283,15 +292,15 @@ export const getAttendeePiiBlobsForListings = (
 ): Promise<OwnerKeyEncrypted[]> =>
   listingIds.length === 0
     ? Promise.resolve([])
-    : // quantity > 0: only attendees with a real line on these listings — a
-      // no-quantity sentinel line doesn't make someone an "attendee of X".
-      selectAudiencePiiBlobs(
-        `id IN (
+    // quantity > 0: only attendees with a real line on these listings — a
+    // no-quantity sentinel line doesn't make someone an "attendee of X".
+    : selectAudiencePiiBlobs(
+      `id IN (
        SELECT DISTINCT attendee_id FROM listing_attendees
        WHERE listing_id IN (${inPlaceholders(listingIds)}) AND quantity > 0
      )`,
-        listingIds,
-      );
+      listingIds,
+    );
 
 /**
  * Get the encrypted PII blobs for attendees whose booking on one listing covers
@@ -360,22 +369,31 @@ export const hasActiveBookingLine = (
     [attendeeId, listingId],
   );
 
+export type FirstBooking = {
+  readonly active: boolean;
+  readonly listingId: number;
+};
+
 /** The first real booking, or a no-quantity placeholder when no real one
- * remains. Missing is expected for an orphan attendee. */
-export const getFirstBookingListingId = async (
+ * remains. The returned row itself proves whether the action has a live
+ * booking; callers do not need a second existence query. */
+export const getFirstBooking = async (
   attendeeId: number,
-): Promise<number | null> =>
-  (
-    await queryOne<{ listing_id: number }>(
-      `SELECT listingAttendee.listing_id
+): Promise<FirstBooking | null> => {
+  const row = await queryOne<{ listing_id: number; quantity: number }>(
+    `SELECT listingAttendee.listing_id
+              , listingAttendee.quantity
          FROM listing_attendees AS listingAttendee
         WHERE listingAttendee.attendee_id = ?
         ORDER BY (listingAttendee.quantity > 0) DESC,
                  listingAttendee.start_at, listingAttendee.listing_id
         LIMIT 1`,
-      [attendeeId],
-    )
-  )?.listing_id ?? null;
+    [attendeeId],
+  );
+  return row === null
+    ? null
+    : { active: Number(row.quantity) > 0, listingId: Number(row.listing_id) };
+};
 
 /**
  * True when any of the listings has a paid line for this attendee — a gross
@@ -392,11 +410,13 @@ export const hasPaidLine = rowExistsForIdList(
      WHERE listingAttendee.attendee_id = ? AND listingAttendee.listing_id IN (${listingIdPlaceholders})
        AND EXISTS (
          SELECT 1 FROM transfers
-         WHERE ${saleLegPredicate(
-           "listingAttendee.attendee_id",
-           "listingAttendee.listing_id",
-           "listingAttendee.ledger_event_group",
-         )}
+         WHERE ${
+      saleLegPredicate(
+        "listingAttendee.attendee_id",
+        "listingAttendee.listing_id",
+        "listingAttendee.ledger_event_group",
+      )
+    }
        ) LIMIT 1`,
 );
 
@@ -418,7 +438,7 @@ export const hasPaidLine = rowExistsForIdList(
  */
 export const getAttendeeRaw = async (id: number): Promise<Attendee | null> =>
   (await loadAttendeeRows({ join: "left", where: { attendeeIds: [id] } }))[0] ??
-  null;
+    null;
 
 /**
  * Get attendees by ID without decrypting PII, one row per (attendee, booking).

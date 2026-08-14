@@ -11,6 +11,7 @@ import {
   provider,
   refundedCandidate,
   rowBackedCandidate,
+  rowBackedReference,
   unreadableProvider,
 } from "#test/features/admin/refunds/provider/helpers.ts";
 import {
@@ -23,11 +24,9 @@ import {
   sessionReference,
 } from "#test/shared/refund-ledger/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import {
   chargeMoneyWith,
   refundObservation,
-  refundReference,
 } from "#test-utils/payment-state.ts";
 import { grantingRowClaim } from "#test-utils/refund-routes.ts";
 
@@ -36,7 +35,7 @@ const LISTING = 7;
 const returnedAndStuckCandidate = (attendeeId: number): RefundCandidate => ({
   attendee: { id: attendeeId } as RefundCandidate["attendee"],
   references: [
-    sessionReference("sess-back"),
+    rowBackedReference("pi-sess-back", "sess-back", "completed"),
     ...rowBackedCandidate(attendeeId, "sess-stuck", "pi_stuck").references,
   ],
 });
@@ -45,72 +44,6 @@ describeWithEnv(
   "admin refund provider > processRefundBatch > ledger",
   { db: true },
   () => {
-    const errors = setupErrorSpy();
-
-    test("tallies refunded and failed candidates in one batch", async () => {
-      await postBooking({ attendeeId: 11, eventId: "sess-11" });
-
-      const counts = finishedCounts(
-        await processRefundBatchAt(
-          failingProvider(new Set(["pi_boom"])),
-          [
-            refundedCandidate(11, "sess-11"),
-            pendingCandidate(12, ["pi_fail"]),
-            pendingCandidate(13, ["pi_boom", "pi_two"]),
-          ],
-          LISTING,
-          { claim: grantingRowClaim() },
-        ),
-      );
-
-      expect(counts).toEqual({
-        failedCount: 2,
-        notRecordedCount: 0,
-        pendingCount: 0,
-        refundedCount: 1,
-      });
-      expect(errors.contains("Admin bulk refund failed for 1 payment(s)")).toBe(
-        true,
-      );
-      expect(errors.contains("Admin bulk refund failed for 2 payment(s)"))
-        .toBe(true);
-      expect(errors.contains("pi_boom")).toBe(false);
-      expect(errors.contains("pi_two")).toBe(false);
-    });
-
-    test("records the charges that came back when a sibling is refused", async () => {
-      const attendeeId = 31;
-      await postBooking({ attendeeId, eventId: "sess-back" });
-      await postBooking({ attendeeId, eventId: "sess-stuck" });
-
-      const counts = finishedCounts(
-        await processRefundBatchAt(
-          provider({
-            refund: (request) =>
-              Promise.resolve(
-                request.paymentReference === "pi_back"
-                  ? completedRefund(request)
-                  : { kind: "rejected", reason: "failed" },
-              ),
-          }),
-          [
-            {
-              attendee: { id: attendeeId } as RefundCandidate["attendee"],
-              references: [
-                refundReference("pi_back", { sessionIds: ["sess-back"] }),
-                refundReference("pi_stuck", { sessionIds: ["sess-stuck"] }),
-              ],
-            },
-          ],
-          LISTING,
-          { claim: grantingRowClaim() },
-        ),
-      );
-
-      expect(counts).toEqual(oneFailedRefundCounts);
-      expect(await refundCashAmounts(attendeeId)).toEqual([5000]);
-    });
-
     test("counts a refund the provider could not send as failed", async () => {
       const counts = finishedCounts(
         await processRefundBatchAt(
@@ -232,7 +165,7 @@ describeWithEnv(
             {
               attendee: { id: 25 } as RefundCandidate["attendee"],
               references: [
-                sessionReference("sess-came"),
+                rowBackedReference("pi-sess-came", "sess-came", "completed"),
                 ...rowBackedCandidate(25, "sess-dark", "pi_dark").references,
               ],
             },

@@ -24,7 +24,7 @@ import type {
 import { type TxScope, update } from "#shared/db/client.ts";
 import type { ModifierUsage } from "#shared/db/modifier-usage.ts";
 import { nowIso } from "#shared/now.ts";
-import type { PaymentReference } from "#shared/payment/provider-reference.ts";
+import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 
 /**
  * The attendee id stitched into the booking facts when building legs for the
@@ -43,7 +43,10 @@ const BATCH_LEG_ATTENDEE_PLACEHOLDER = 1;
 export const bookingBatchPlan = async (
   usages: ModifierUsage[],
   ledger: { pricedOrder: PricedOrder; occurredAt: string; eventId: string },
-  finalize?: { paymentReference: PaymentReference | null; sessionId: string },
+  finalize?: {
+    paymentReference: TaggedPaymentReference | null;
+    sessionId: string;
+  },
 ): Promise<BookingBatchPlan> => ({
   ...(finalize !== undefined ? { finalize } : {}),
   legs: await mapBooking(

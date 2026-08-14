@@ -2,8 +2,8 @@ import { filter, requiredMapValue, uniqueBy } from "#fp";
 import type { LoadedRefundAttendee } from "#shared/db/payment-claim/take.ts";
 import {
   getRefundPaymentReferences,
-  type RefundPaymentReference,
   stillWithTheProvider,
+  type TaggedRefundPaymentReference,
   underRefundClaim,
 } from "#shared/db/payment-references.ts";
 import type { Attendee } from "#shared/types.ts";
@@ -16,12 +16,13 @@ type RefundCandidateAttendee = Pick<
 
 export type RefundCandidate = {
   attendee: RefundCandidateAttendee;
-  references: RefundPaymentReference[];
+  references: TaggedRefundPaymentReference[];
 };
 
 export type RefundCandidateSet =
   | { readonly candidates: RefundCandidate[]; readonly kind: "complete" }
   | { readonly kind: "legacy_unindexed" }
+  | { readonly kind: "provider_unknown" }
   | { readonly kind: "too_many_references" };
 
 /** The exact attendee revision and payment rows the claim must verify. */
@@ -47,7 +48,7 @@ export const loadedRefundAttendee = (
  */
 export const refundWorkRemains = (
   attendee: Pick<Attendee, "refunded">,
-  references: readonly RefundPaymentReference[],
+  references: readonly TaggedRefundPaymentReference[],
 ): boolean =>
   !attendee.refunded ||
   stillWithTheProvider(references) ||

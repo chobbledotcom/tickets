@@ -13,11 +13,11 @@ import { AUTH_FORM, withAuth } from "#routes/auth.ts";
 /* jscpd:ignore-start */
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { getFirstBookingListingId } from "#shared/db/attendees/queries.ts";
+import { getFirstBooking } from "#shared/db/attendees/queries.ts";
 /* jscpd:ignore-end */
 import {
   getRefundPaymentReferencesForAttendee,
-  type RefundPaymentReference,
+  type TaggedRefundPaymentReference,
 } from "#shared/db/payment-references.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { reportRefundNotRecorded } from "#shared/invariant-errors.ts";
@@ -45,8 +45,11 @@ const loadRefreshContext = async (
   const data = await attendeeActions["refresh-payment"].load(attendeeId);
   if (data === null) return null;
   const { attendee } = data;
-  const firstBookingId = await getFirstBookingListingId(attendee.id);
-  return { attendee, listingId: firstBookingId ?? attendee.listing_id };
+  const firstBooking = await getFirstBooking(attendee.id);
+  return {
+    attendee,
+    listingId: firstBooking?.listingId ?? attendee.listing_id,
+  };
 };
 
 /** Load the attendee, listing, and payment references for a refresh. Returns
@@ -60,7 +63,7 @@ const loadRefreshState = async (
   | {
     attendee: Attendee;
     listingId: number;
-    references: readonly RefundPaymentReference[];
+    references: readonly TaggedRefundPaymentReference[];
   }
 > => {
   const ctx = await loadRefreshContext(attendeeId);
@@ -75,9 +78,11 @@ const loadRefreshState = async (
     return redirect(
       `/admin/attendees/${attendeeId}`,
       t(
-        referenceSet.kind === "legacy_unindexed"
-          ? "error.payment_history_incomplete"
-          : "error.payment_history_too_large",
+        {
+          legacy_unindexed: "error.payment_history_incomplete",
+          provider_unknown: "error.payment_provider_unknown",
+          too_many_references: "error.payment_history_too_large",
+        }[referenceSet.kind],
       ),
       false,
       { form },

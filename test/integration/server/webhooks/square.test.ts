@@ -117,7 +117,7 @@ describeWithEnv("Square payment webhooks", { db: true }, () => {
       event,
       squareOrderRead({
         id: "order-private-sentinel",
-        metadata: { _origin: "tickets.example" },
+        metadata: { _origin: "localhost" },
         state: "COMPLETED",
         totalMoney: squareMoney(1000),
       }),
@@ -152,6 +152,7 @@ describeWithEnv("Square payment webhooks", { db: true }, () => {
         squareOrderRead({
           id: "order-damaged-proof",
           metadata: {
+            _origin: "localhost",
             items: '[{"e":1,"q":1,"p":1000}]',
             name: "Alice",
             ...(priceProof === undefined ? {} : { price_proof: priceProof }),

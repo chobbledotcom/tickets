@@ -11,8 +11,8 @@ import {
   armRefundSend,
   markRefundObservationDue,
   mayReplayKeyedRefund,
-  type RefundAuthorityState,
   rearmKeyedRefund,
+  type RefundAuthorityState,
   returnRefundToReady,
 } from "#shared/payment/refund-authority.ts";
 import { authorizeDurableRefundSend } from "#shared/payment/refund-provider-authorization.ts";
@@ -138,9 +138,9 @@ const sendAfterTransition = async (
 ): Promise<ProviderRefundResult> =>
   changed === null
     ? refundAnswerFrom(
-        await requireCurrentRefund(work.row),
-        work.target.reference,
-      )
+      await requireCurrentRefund(work.row),
+      work.target.reference,
+    )
     : await sendArmed({ ...work, row: changed });
 
 type RefundStateChange = (state: RefundAuthorityState) => RefundAuthorityState;
@@ -151,14 +151,19 @@ const transitionBeforeProviderCall = (
   now: number,
   change: RefundStateChange,
 ): Promise<RefundAuthorityRow | null> =>
-  withSubrequestReserve(REFUND_RESULT_DATABASE_RESERVE, () =>
-    transitionRefundAuthority(row, now, returnedRefundMoney(charge), change),
+  withSubrequestReserve(
+    REFUND_RESULT_DATABASE_RESERVE,
+    () =>
+      transitionRefundAuthority(row, now, returnedRefundMoney(charge), change),
   );
 
 export const armReadyRefund: ProviderRefundStep = async (work) => {
   const { charge, now, row } = work;
-  const armed = await transitionBeforeProviderCall(row, charge, now, (state) =>
-    armRefundSend(state, now, now + REFUND_OBSERVATION_DELAY_MS),
+  const armed = await transitionBeforeProviderCall(
+    row,
+    charge,
+    now,
+    (state) => armRefundSend(state, now, now + REFUND_OBSERVATION_DELAY_MS),
   );
   return await sendAfterTransition(armed, work);
 };
@@ -179,6 +184,9 @@ export const continueActiveRefund: ProviderRefundStep = withRefundWorkFacts(
       );
     }
     if (now < row.state.nextActionAt) {
+      return refundAnswerFrom(row, target.reference);
+    }
+    if (target.mode === "observe_only") {
       return refundAnswerFrom(row, target.reference);
     }
     const requestIndex = await refundRequestIdentityIndex(

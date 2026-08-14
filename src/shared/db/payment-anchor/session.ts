@@ -32,10 +32,8 @@ export const isAnchorSession = (sessionId: string): boolean =>
 /** SQL condition matching the same stored anchor spellings as
  * {@link isAnchorSession}. The column expression comes from our own query. */
 export const paymentAnchorSessionCondition = (column: string): string =>
-  `(${ANCHOR_SESSION_PREFIXES.map(
-    (prefix) => `${column} LIKE '${prefix}%'`,
-  ).join(" OR ")})`;
-
-/** The session id a merge writes for a legacy payment it is carrying over. */
-export const legacyMergeSessionId = (sourceId: number): string =>
-  `${LEGACY_MERGE_SESSION_PREFIX}${sourceId}`;
+  `(${
+    ANCHOR_SESSION_PREFIXES.map(
+      (prefix) => `${column} LIKE '${prefix}%'`,
+    ).join(" OR ")
+  })`;

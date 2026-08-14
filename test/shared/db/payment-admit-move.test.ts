@@ -158,7 +158,7 @@ describeWithEnv(
   "db > moving an attendee whose provider refund is unfinished",
   { db: true, encryptionKey: true },
   () => {
-    test("an automatic refund blocks deletion and merge", async () => {
+    test("an automatic refund blocks deletion but its indexed row may move", async () => {
       const reference = "pi_authority_ready";
       const attendeeId = await bookedWithPayment(
         "sess-authority-ready",
@@ -167,11 +167,9 @@ describeWithEnv(
       await addAuthorityFor(reference, readyAuthority("request-ready"));
 
       expect(await deleteRefusal(attendeeId)).toBe(REFUND_IN_PROGRESS_REFUSAL);
-      await expect(
-        withTransaction((tx) =>
-          assertRowsFreeToMove(tx, [attendeeId], "merge")
-        ),
-      ).rejects.toThrow(REFUND_IN_PROGRESS_REFUSAL);
+      await withTransaction((tx) =>
+        assertRowsFreeToMove(tx, [attendeeId], "merge")
+      );
     });
 
     test("an unresolved provider outcome blocks deletion", async () => {

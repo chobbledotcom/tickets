@@ -158,8 +158,7 @@ const buildRefundAllResponse = async (
 ): Promise<Response> => {
   const { counts, listing, refundAllUrl, remaining, totalRefundable } = context;
   const refundedCount = counts.refundedCount;
-  const hasProblems =
-    counts.failedCount + counts.notRecordedCount > 0;
+  const hasProblems = counts.failedCount + counts.notRecordedCount > 0;
 
   if (hasProblems) {
     return buildRefundProblemResponse({
@@ -253,9 +252,11 @@ const processRefundAll = async (
     return fail(
       refundAllUrl,
       t(
-        loaded.kind === "legacy_unindexed"
-          ? "error.payment_history_incomplete"
-          : "error.payment_history_too_large",
+        {
+          legacy_unindexed: "error.payment_history_incomplete",
+          provider_unknown: "error.payment_provider_unknown",
+          too_many_references: "error.payment_history_too_large",
+        }[loaded.kind],
       ),
     );
   }

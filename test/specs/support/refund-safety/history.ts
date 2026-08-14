@@ -2,12 +2,10 @@
 
 import { getAttendeeOrNull } from "#shared/db/attendees/queries.ts";
 import { execute, queryAll } from "#shared/db/client.ts";
-import {
-  loadIndexedPaymentReference,
-  storePaymentReference,
-} from "#shared/db/payment-reference-store.ts";
+import { loadIndexedPaymentReference } from "#shared/db/payment-reference-store.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { historicalPaymentReferenceStorage } from "#test-utils/historical-payment-references.ts";
 
 type StoredReferenceRow = {
   readonly payment_reference: string;
@@ -74,15 +72,16 @@ const oneModernPayment = async (attendeeId: number): Promise<ModernPayment> => {
   return { provider: payment.provider, reference: payment.reference, row };
 };
 
-const changeStoredPaymentReference = (
-  replacementFor: (reference: string) => Promise<ReplacementReference>,
-  change: string,
-): ChangePaymentHistory =>
-async (attendeeId) => {
-  const { provider, reference, row } = await oneModernPayment(attendeeId);
-  const replacement = await replacementFor(reference);
-  const result = await execute(
-    `UPDATE processed_payments
+const changeStoredPaymentReference =
+  (
+    replacementFor: (reference: string) => Promise<ReplacementReference>,
+    change: string,
+  ): ChangePaymentHistory =>
+  async (attendeeId) => {
+    const { provider, reference, row } = await oneModernPayment(attendeeId);
+    const replacement = await replacementFor(reference);
+    const result = await execute(
+      `UPDATE processed_payments
         SET payment_reference = ?, payment_reference_index = ?
       WHERE payment_session_id = ?
         AND payment_reference = ?
@@ -93,21 +92,21 @@ async (attendeeId) => {
             FROM payment_charges AS charge
            WHERE charge.reference_index = processed_payments.payment_reference_index
         )`,
-    [
-      replacement.encrypted,
-      replacement.index,
-      row.payment_session_id,
-      row.payment_reference,
-      row.payment_reference_index,
-    ],
-  );
-  if (result.rowsAffected !== 1) {
-    throw new Error(
-      `Payment ${row.payment_session_id} changed while ${change}`,
+      [
+        replacement.encrypted,
+        replacement.index,
+        row.payment_session_id,
+        row.payment_reference,
+        row.payment_reference_index,
+      ],
     );
-  }
-  return { provider, reference };
-};
+    if (result.rowsAffected !== 1) {
+      throw new Error(
+        `Payment ${row.payment_session_id} changed while ${change}`,
+      );
+    }
+    return { provider, reference };
+  };
 
 /**
  * Turn a just-completed booking into the oldest supported storage shape.
@@ -131,10 +130,6 @@ export const makeBookingPaymentHistorical: ChangePaymentHistory =
  */
 export const forgetStoredPaymentProvider: ChangePaymentHistory =
   changeStoredPaymentReference(
-    (reference) =>
-      storePaymentReference({
-        kind: "untagged",
-        reference,
-      }),
+    historicalPaymentReferenceStorage,
     "forgetting its provider",
   );
