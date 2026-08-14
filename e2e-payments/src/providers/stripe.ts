@@ -1,16 +1,30 @@
 /* jscpd:ignore-start */
 import type { BrowserSession } from "#e2e/browser.ts";
 import { config } from "#e2e/config.ts";
-import { log, warn } from "#e2e/log.ts";
+import { log } from "#e2e/log.ts";
 import { clickFirst, fillFirst } from "./card.ts";
 import {
+  awaitReturnToApp,
   configureProvider,
-  exerciseAdminRefund,
   hostedCheckout,
+  providerFetch,
+  refundObservationVia,
+  requiredField,
 } from "./shared.ts";
-import type { PaymentProvider } from "./types.ts";
+import type { PaidSandboxCheckout, PaymentProvider } from "./types.ts";
 
 /* jscpd:ignore-end */
+
+/** A Stripe REST call (form-encoded GET/DELETE with the test-mode key). */
+const stripeApi = <T>(
+  secretKey: string,
+  path: string,
+  method?: string,
+): Promise<T> =>
+  providerFetch("stripe", `https://api.stripe.com${path}`, {
+    headers: { Authorization: `Bearer ${secretKey}` },
+    ...(method === undefined ? {} : { method }),
+  }) as Promise<T>;
 
 const saveStripeKey = async (
   session: BrowserSession,
@@ -23,7 +37,7 @@ const saveStripeKey = async (
 const testStripeConnection = async (session: BrowserSession): Promise<void> => {
   const button = session.page.locator("#stripe-test-btn");
   const result = session.page.locator("#stripe-test-result");
-  await button.click({ force: true, timeout: config.actionTimeoutMs });
+  await button.click({ timeout: config.actionTimeoutMs });
   await result.waitFor({ state: "visible", timeout: config.navTimeoutMs });
 
   const text = await result.innerText();
@@ -50,75 +64,82 @@ const testStripeConnection = async (session: BrowserSession): Promise<void> => {
   );
 };
 
-/**
- * Whether `url` points at a cloudflared quick-tunnel host
- * (`trycloudflare.com` or any `*.trycloudflare.com` subdomain). Substring
- * matching also catches a URL that just happens to mention the tunnel domain
- * in its query string, which would delete an unrelated webhook endpoint, so
- * the hostname is parsed and matched explicitly. Invalid or missing URLs are
- * left alone.
- */
-const isTrycloudflareTunnelUrl = (raw: string | undefined): boolean => {
-  if (!raw) return false;
-  try {
-    const { hostname } = new URL(raw);
-    return (
-      hostname === "trycloudflare.com" ||
-      hostname.endsWith(".trycloudflare.com")
+/** The checkout session id embedded in the hosted page's URL (cs_test_…). */
+const sessionFromUrl = (url: string): string => {
+  const match = url.match(/(cs_test_|cs_live_)[A-Za-z0-9]+/);
+  const id = match?.[0];
+  if (!id) {
+    throw new Error(
+      `the Stripe Checkout page URL carries no checkout session id: ${url}`,
     );
-  } catch {
-    return false;
   }
+  return id;
+};
+
+/** The PaymentIntent a paid checkout session names. */
+const paymentIntentOf = async (
+  secretKey: string,
+  checkoutSessionId: string,
+): Promise<string> => {
+  const session = await stripeApi<{ payment_intent?: string }>(
+    secretKey,
+    `/v1/checkout/sessions/${encodeURIComponent(checkoutSessionId)}`,
+  );
+  return requiredField(
+    session.payment_intent,
+    "stripe",
+    `payment_intent on checkout session ${checkoutSessionId}`,
+  );
+};
+
+type StripeRefund = {
+  amount?: number;
+  currency?: string;
+  status?: string;
 };
 
 export const stripe: PaymentProvider = {
-  afterPaidBooking: exerciseAdminRefund,
-  // Each run registers a webhook endpoint for its ephemeral *.trycloudflare.com
-  // URL, and the throwaway DB forgets the id — so without cleanup they pile up
-  // and Stripe eventually rejects new ones (accounts cap webhook endpoints).
-  // Delete every endpoint pointing at a trycloudflare tunnel, which also sweeps
-  // up any orphans left by earlier runs.
-  cleanup: async (secrets): Promise<void> => {
-    const headers = { Authorization: `Bearer ${secrets.secretKey}` };
-    try {
-      const res = await fetch(
-        "https://api.stripe.com/v1/webhook_endpoints?limit=100",
-        { headers },
-      );
-      if (!res.ok) {
-        warn(`  Stripe webhook cleanup: list failed (HTTP ${res.status})`);
-        return;
-      }
-      const body = (await res.json()) as {
+  /**
+   * Delete all and only the webhook endpoints pointing at THIS scenario's
+   * exact webhook URL, walking the list with proper pagination. Exact URL
+   * matching also cleans an endpoint left by a configuration step that failed
+   * before its id could be recorded, and never touches another consumer's
+   * endpoint — unlike the account-wide sweep this replaces. Failures throw:
+   * a leaked endpoint fails the scenario.
+   */
+  cleanup: async (owned, secrets): Promise<void> => {
+    const secretKey = secrets.secretKey;
+    const exactUrl = `${owned.publicBaseUrl}/payment/webhook`;
+    let startingAfter: string | undefined;
+    let deleted = 0;
+    for (;;) {
+      const page = await stripeApi<{
         data?: { id: string; url?: string }[];
-      };
-      const stale = (body.data ?? []).filter((e) =>
-        isTrycloudflareTunnelUrl(e.url),
+        has_more?: boolean;
+      }>(
+        secretKey,
+        `/v1/webhook_endpoints?limit=100${
+          startingAfter
+            ? `&starting_after=${encodeURIComponent(startingAfter)}`
+            : ""
+        }`,
       );
-      for (const endpoint of stale) {
-        try {
-          const del = await fetch(
-            `https://api.stripe.com/v1/webhook_endpoints/${endpoint.id}`,
-            { headers, method: "DELETE" },
-          );
-          if (del.ok) {
-            log(`  deleted stale Stripe webhook endpoint ${endpoint.id}`);
-          } else {
-            warn(
-              `  failed to delete stale Stripe webhook endpoint ${endpoint.id} (HTTP ${del.status})`,
-            );
-          }
-        } catch (err) {
-          warn(
-            `  failed to delete stale Stripe webhook endpoint ${endpoint.id}: ${String(err)}`,
-          );
-        }
+      const endpoints = page.data ?? [];
+      for (const endpoint of endpoints) {
+        if (endpoint.url !== exactUrl) continue;
+        await stripeApi(
+          secretKey,
+          `/v1/webhook_endpoints/${endpoint.id}`,
+          "DELETE",
+        );
+        deleted++;
+        log(`  deleted this scenario's Stripe webhook endpoint ${endpoint.id}`);
       }
-      if (stale.length === 0) {
-        log("  no stale Stripe webhook endpoints to clean");
-      }
-    } catch (err) {
-      warn(`  Stripe webhook cleanup skipped: ${String(err)}`);
+      if (!page.has_more || endpoints.length === 0) break;
+      startingAfter = endpoints[endpoints.length - 1]?.id;
+    }
+    if (deleted === 0) {
+      log("  no Stripe webhook endpoints to clean for this URL");
     }
   },
 
@@ -129,12 +150,46 @@ export const stripe: PaymentProvider = {
     await saveStripeKey(session, secrets.secretKey);
     await testStripeConnection(session);
   }),
-  firstBookingConfirmation: "webhook",
   name: "stripe",
+
+  observeRefund: refundObservationVia(
+    "stripe",
+    (checkout, secrets) =>
+      stripeApi<{ data?: StripeRefund[] }>(
+        secrets.secretKey,
+        `/v1/refunds?payment_intent=${encodeURIComponent(
+          checkout.paymentIntentId,
+        )}&limit=100`,
+      ),
+    (list) => {
+      const refunds = list.data ?? [];
+      // Nothing settled yet would make the sum a lie — report pending.
+      const succeeded = refunds.filter(
+        (refund) => refund.status === "succeeded",
+      );
+      if (succeeded.length === 0 || succeeded.length !== refunds.length) {
+        return null;
+      }
+      return {
+        amount: succeeded.reduce(
+          (sum, refund) =>
+            sum +
+            requiredField(
+              refund.amount,
+              "stripe",
+              "amount on a succeeded refund",
+            ),
+          0,
+        ),
+        currency: succeeded[0]?.currency,
+      };
+    },
+  ),
 
   payHostedCheckout: hostedCheckout(
     "Filling Stripe Checkout hosted page…",
-    async (page) => {
+    async (page, ctx): Promise<PaidSandboxCheckout> => {
+      const checkoutSessionId = sessionFromUrl(page.url());
       // Stripe Checkout renders the card fields at the top level with stable ids
       // (#cardNumber/#cardExpiry/#cardCvc/#billingName/#billingPostalCode). Email
       // is prefilled from the booking. US ZIP (42424) to match the account's
@@ -192,6 +247,23 @@ export const stripe: PaymentProvider = {
         ".SubmitButton",
         'button:has-text("Pay")',
       ]);
+
+      // The browser is heading back to the app's return URL (held or real —
+      // a held route still commits to that URL).
+      const returnUrl = await awaitReturnToApp("stripe", page, ctx.baseUrl);
+      const paymentIntentId = await paymentIntentOf(
+        ctx.secrets.secretKey,
+        checkoutSessionId,
+      );
+      log(
+        `  Stripe checkout ${checkoutSessionId} paid (PaymentIntent ${paymentIntentId})`,
+      );
+      return {
+        checkoutSessionId,
+        paymentIntentId,
+        provider: "stripe",
+        returnUrl,
+      };
     },
   ),
   setupCountry: "US",

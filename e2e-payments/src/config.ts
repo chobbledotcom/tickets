@@ -27,24 +27,43 @@ const num = (key: string, fallback: number): number => {
   return Number.isFinite(n) ? n : fallback;
 };
 
+/** A short lowercase identity fragment, unique per run/scenario. */
+export const randomId = (bytes = 5): string =>
+  crypto
+    .getRandomValues(new Uint8Array(bytes))
+    .reduce((acc, b) => acc + b.toString(16).padStart(2, "0"), "");
+
+/** Admin credentials for one scenario's fresh install. Password must be 8+. */
+export interface OwnerCredentials {
+  password: string;
+  username: string;
+}
+
+/** Random owner credentials — never the repository-known defaults, because a
+ * tunneled app is briefly public. */
+export const randomOwnerCredentials = (): OwnerCredentials => {
+  const id = randomId();
+  return { password: `E2e!${randomId(8)}`, username: `e2e-${id}` };
+};
+
+/** The unique booker identity one scenario books with. */
+export interface BookerIdentity {
+  email: string;
+  name: string;
+}
+
+/** A fresh, provider-acceptable booker email and name, unique to this run. */
+export const newBookerIdentity = (runId: string): BookerIdentity => ({
+  email: `e2e-${runId}-${randomId(3)}@mailinator.com`,
+  name: `E2E Booker ${randomId(3)}`,
+});
+
 export const config = {
-  /** Per-element action timeout. Kept short: with force interactions an element
-   * is acted on as soon as it is attached, so a long wait here only delays a
-   * genuine failure (and its screenshot). */
+  /** Per-element action timeout for ordinary application controls. */
   actionTimeoutMs: num("E2E_ACTION_TIMEOUT_MS", 15_000),
-  adminPassword: env("ADMIN_PASSWORD") ?? "password",
 
-  /** Admin credentials created by the setup wizard. Password must be 8+ chars. */
-  adminUsername: env("ADMIN_USERNAME") ?? "admin",
-
-  /** Where to drop screenshots / server logs on failure. */
+  /** Where screenshots, journals, and server logs land (under e2e-payments). */
   artifactsDir: env("E2E_ARTIFACTS_DIR") ?? "artifacts",
-  /**
-   * Email used for the booking. NOT a reserved domain: `example.com` is
-   * rejected by some payment processors (Square returns "invalid email"), so
-   * default to a real, disposable-mail domain.
-   */
-  bookerEmail: env("E2E_BOOKER_EMAIL") ?? "e2e-booker@mailinator.com",
   /**
    * Path to a Chromium executable. The managed environment pre-installs one at
    * /opt/pw-browsers/chromium; CI installs its own via `playwright install` and
@@ -60,9 +79,11 @@ export const config = {
   /** Deno binary used to boot the app server. */
   denoBin: env("DENO_BIN") ?? "deno",
 
-  /** Force the tunnel on/off. Stripe always needs it; default follows target. */
+  /** Force the tunnel on/off for local runs (`1`/`0`); default follows target. */
   forceTunnel: env("E2E_TUNNEL"),
   headless: bool("HEADLESS", true),
+  /** The one step allowance big enough for the slow hosted-payment step. */
+  hostedPaymentStepTimeoutMs: num("E2E_HOSTED_PAYMENT_TIMEOUT_MS", 240_000),
   navTimeoutMs: num("E2E_NAV_TIMEOUT_MS", 45_000),
 
   /** Ntfy endpoint pinged on failure (e.g. `https://ntfy.sh/your-topic`). Unset ⇒ no notification. */
@@ -78,6 +99,17 @@ export const config = {
    * zero-decimal currency (e.g. JPY via JP) is unsupported.
    */
   setupCountry: env("SETUP_COUNTRY") ?? "GB",
+  /** Bounded startup allowance for the Before hook's server+tunnel+browser. */
+  startupTimeoutMs: num("E2E_STARTUP_TIMEOUT_MS", 300_000),
+  /**
+   * The bounded Cucumber step timeout for this harness (Cucumber's own default
+   * is five seconds, far below real browser/provider allowances). Hooks set
+   * their own explicit timeouts; only the genuinely long hosted-payment step
+   * carries a larger one.
+   */
+  stepTimeoutMs: num("E2E_STEP_TIMEOUT_MS", 120_000),
+  /** Bounded teardown allowance for the After hook's full resource sweep. */
+  teardownTimeoutMs: num("E2E_TEARDOWN_TIMEOUT_MS", 120_000),
   /** How many times to (re)spawn cloudflared before giving up. trycloudflare
    * quick tunnels intermittently fail to register, so retry rather than fail
    * the whole leg on the first miss. */
@@ -101,20 +133,27 @@ export const needsTunnel = (target: Target): boolean => {
   // Stripe registers its webhook endpoint against a public HTTPS URL at config
   // time, so it cannot be set up without a tunnel. Square/SumUp confirm via the
   // browser return URL, which providers expect to be a public HTTPS URL — hence
-  // the tunnel for them too. Stripe's first return request is held in Playwright
-  // so only its signed webhook can create the booking. Square's webhook needs a
-  // manually-signed subscription and is not tested here; SumUp needs no
-  // signature. See the providers' notes and the README.
+  // the tunnel for them too. The free target runs on the local URL only.
   return target !== "free";
 };
 
-/** Read the secrets for a provider; returns null if any required one is absent. */
+/**
+ * Read the secrets for a paid provider. A missing secret is a failed nightly
+ * contract, not a skip: this throws before any browser or provider call. The
+ * workflow passes only the selected provider's credentials into each job, so
+ * another provider's usable credential is never even present.
+ */
 export const providerSecrets = (
   provider: ProviderName,
-): Record<string, string> | null => {
+): Record<string, string> => {
   if (provider === "stripe") {
     const key = env("STRIPE_SECRET_KEY");
-    if (!key) return null;
+    if (!key) {
+      throw new Error(
+        "STRIPE_SECRET_KEY is not set — the Stripe sandbox target cannot run. " +
+          "Configure the repository secret; missing provider coverage fails the nightly contract.",
+      );
+    }
     // Fail closed unless this is a Stripe test-mode secret key. The harness
     // registers webhook endpoints and creates checkout sessions, which must
     // never touch a live account. Match the app exactly: detectStripeKeyMode
@@ -132,16 +171,23 @@ export const providerSecrets = (
   if (provider === "square") {
     const token = env("SQUARE_ACCESS_TOKEN");
     const locationId = env("SQUARE_LOCATION_ID");
-    if (!token || !locationId) return null;
-    return {
-      locationId,
-      sandbox: bool("SQUARE_SANDBOX", true) ? "true" : "false",
-      token,
-    };
+    if (!token || !locationId) {
+      throw new Error(
+        "SQUARE_ACCESS_TOKEN/SQUARE_LOCATION_ID not set — the Square sandbox target cannot run. " +
+          "Configure the repository secrets; missing provider coverage fails the nightly contract.",
+      );
+    }
+    // The harness always drives the sandbox API base: there is no production
+    // mode knob to leave enabled by mistake.
+    return { locationId, token };
   }
-  // sumup
   const apiKey = env("SUMUP_API_KEY");
   const merchantCode = env("SUMUP_MERCHANT_CODE");
-  if (!apiKey || !merchantCode) return null;
+  if (!apiKey || !merchantCode) {
+    throw new Error(
+      "SUMUP_API_KEY/SUMUP_MERCHANT_CODE not set — the SumUp sandbox target cannot run. " +
+        "Configure the repository secrets; missing provider coverage fails the nightly contract.",
+    );
+  }
   return { apiKey, merchantCode };
 };

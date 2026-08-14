@@ -2474,7 +2474,13 @@
     "members": {
       "e2e-payments": {
         "dependencies": [
-          "npm:playwright@1.61.1"
+          "npm:@cucumber/cucumber@13.2.0",
+          "npm:@cucumber/gherkin@41.0.0",
+          "npm:@cucumber/messages@34.0.1",
+          "npm:@cucumber/tag-expressions@10.0.0",
+          "npm:@libsql/client@~0.17.2",
+          "npm:playwright@1.61.1",
+          "npm:valibot@^1.4.1"
         ]
       }
     }

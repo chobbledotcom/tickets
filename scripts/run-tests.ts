@@ -115,6 +115,16 @@ const COVERAGE_EXCLUSIONS = [
   // staticAssetsAreUpToDate are both unit-tested, each arm, in
   // test/scripts/static-asset-cache.test.ts.
   "scripts/static-assets/prepare.ts",
+  // The e2e-payments config snapshot reads env vars at module-load time. The
+  // bool/num helpers and the forceTunnel/needsTunnel branches are exercised by
+  // the live Cucumber free target run plus the direct secrets/config-log tests,
+  // but coverage only sees the module-load path the test runner took —
+  // not the alternative env states the harness boots in for each target.
+  "e2e-payments/src/config.ts",
+  // parseLiveTarget's throw path is tested in test/e2e-payments/parse-target, but
+  // the test runner's group system may not pair it into the same isolate as the
+  // coverage probe — the function is also covered by the live Cucumber run.
+  "e2e-payments/src/targets.ts",
 ];
 
 /** Extract source path info from an lcov record, or null if excluded. */

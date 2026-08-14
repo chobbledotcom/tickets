@@ -3,11 +3,19 @@ import { log } from "#e2e/log.ts";
 import { squareRequestInit } from "#shared/square/transport.ts";
 import {
   configureProvider,
-  exerciseAdminRefund,
   hostedCheckout,
+  noProviderCleanup,
+  type ProviderRequest,
+  providerFetch,
   readLoggedId,
+  refundObservationVia,
+  requiredField,
 } from "./shared.ts";
-import type { HostedCheckoutContext, PaymentProvider } from "./types.ts";
+import type {
+  HostedCheckoutContext,
+  PaidSandboxCheckout,
+  PaymentProvider,
+} from "./types.ts";
 
 /**
  * Square. Payment confirmation is asserted via the browser return URL
@@ -37,15 +45,15 @@ import type { HostedCheckoutContext, PaymentProvider } from "./types.ts";
  * the order the app created — and finally drive the browser to the app's real
  * return URL (/payment/success?orderId=…). The app then runs its genuine
  * return-handling: retrieveOrder → the order now has a COMPLETED tender → the
- * session is "paid" → the booking is created and the income ledger is recorded,
- * all asserted by assertPaidBookingConfirmed. Only Square's non-existent hosted
- * card UI is bypassed; every line of the app's payment path is exercised.
+ * session is "paid" → the booking is created and the income ledger is recorded.
+ * Only Square's non-existent hosted card UI is bypassed; every line of the
+ * app's payment path is exercised.
+ *
+ * The sandbox API base is the only one this driver knows: there is no
+ * production mode knob to leave enabled by mistake.
  */
 
-const SQUARE_API = {
-  production: "https://connect.squareup.com",
-  sandbox: "https://connect.squareupsandbox.com",
-} as const;
+const SQUARE_SANDBOX_API = "https://connect.squareupsandbox.com";
 
 // Square's universal sandbox "successful Visa" card nonce. Completing a payment
 // with this against the order marks it COMPLETED with a card tender.
@@ -65,31 +73,28 @@ const readOrderId = (logPath: string): Promise<string> =>
     "[Square] Payment link created orderId=…",
   );
 
-/** Authenticated Square REST call; throws with the API body on a non-2xx. */
-const squareFetch = async (
-  base: string,
+/** Authenticated Square sandbox REST call; throws with the API body on a
+ * non-2xx. */
+const squareFetch = (
   token: string,
   path: string,
   init?: SquareRequest,
-): Promise<unknown> => {
-  const res = await fetch(`${base}${path}`, squareRequestInit(token, init));
-  const text = await res.text();
-  if (!res.ok) {
-    throw new Error(`Square API ${path} → HTTP ${res.status}: ${text}`);
-  }
-  return text ? JSON.parse(text) : {};
-};
+): Promise<unknown> =>
+  providerFetch(
+    "square",
+    `${SQUARE_SANDBOX_API}${path}`,
+    squareRequestInit(token, init) as ProviderRequest,
+  );
 
 /**
  * Complete the Square sandbox payment for the order the app created, then send
  * the browser to the app's real return URL so the app confirms and books it.
+ * Returns the exact order/payment identity this scenario owns.
  */
 const completeViaSandboxApi = async (
   page: Page,
   ctx: HostedCheckoutContext,
-): Promise<void> => {
-  const sandbox = ctx.secrets.sandbox === "true";
-  const base = sandbox ? SQUARE_API.sandbox : SQUARE_API.production;
+): Promise<PaidSandboxCheckout> => {
   const token = ctx.secrets.token;
 
   const orderId = await readOrderId(ctx.serverLogPath);
@@ -100,7 +105,6 @@ const completeViaSandboxApi = async (
   // Read the order back to pay the exact amount/currency it was created for
   // (matching the app's signed total — a mismatch would be refused).
   const orderResp = (await squareFetch(
-    base,
     token,
     `/v2/orders/${encodeURIComponent(orderId)}`,
   )) as {
@@ -114,12 +118,14 @@ const completeViaSandboxApi = async (
   };
   const order = orderResp.order;
   const amountMoney = order?.net_amount_due_money ?? order?.total_money;
-  const locationId = order?.location_id ?? ctx.secrets.locationId;
-  if (!amountMoney || !locationId) {
+  const locationId = requiredField(
+    order?.location_id ?? ctx.secrets.locationId,
+    "square",
+    `location_id on order ${orderId}`,
+  );
+  if (!amountMoney) {
     throw new Error(
-      `Square: order ${orderId} missing total/location (got ${JSON.stringify(
-        order,
-      )})`,
+      `Square: order ${orderId} missing total (got ${JSON.stringify(order)})`,
     );
   }
   log(
@@ -130,29 +136,24 @@ const completeViaSandboxApi = async (
   // taken against an OPEN order ("The order must be OPEN to be paid" → the
   // authorised payment is otherwise voided). Transition DRAFT → OPEN first.
   if (order?.state && order.state !== "OPEN") {
-    await squareFetch(
-      base,
-      token,
-      `/v2/orders/${encodeURIComponent(orderId)}`,
-      {
-        body: {
-          idempotency_key: crypto.randomUUID(),
-          order: {
-            location_id: locationId,
-            state: "OPEN",
-            version: order.version,
-          },
+    await squareFetch(token, `/v2/orders/${encodeURIComponent(orderId)}`, {
+      body: {
+        idempotency_key: crypto.randomUUID(),
+        order: {
+          location_id: locationId,
+          state: "OPEN",
+          version: order.version,
         },
-        method: "PUT",
       },
-    );
+      method: "PUT",
+    });
     log(`  transitioned order ${orderId} ${order.state} → OPEN`);
   }
 
   // CreatePayment with the sandbox test nonce, linked to the order and
   // auto-completed → the order gains a COMPLETED card tender, which is exactly
   // what the app's retrieveSession treats as "paid".
-  const payResp = (await squareFetch(base, token, "/v2/payments", {
+  const payResp = (await squareFetch(token, "/v2/payments", {
     body: {
       amount_money: amountMoney,
       autocomplete: true,
@@ -163,7 +164,12 @@ const completeViaSandboxApi = async (
     },
     method: "POST",
   })) as { payment?: { id?: string; status?: string } };
-  log(`  payment ${payResp.payment?.id} status=${payResp.payment?.status}`);
+  const paymentId = requiredField(
+    payResp.payment?.id,
+    "square",
+    `payment id for order ${orderId}`,
+  );
+  log(`  payment ${paymentId} status=${payResp.payment?.status}`);
   if (payResp.payment?.status !== "COMPLETED") {
     throw new Error(
       `Square: sandbox payment did not complete (status=${payResp.payment?.status})`,
@@ -177,28 +183,40 @@ const completeViaSandboxApi = async (
   )}`;
   log(`  navigating the browser to the app return URL: ${returnUrl}`);
   await page.goto(returnUrl, { waitUntil: "domcontentloaded" });
+  return { orderId, paymentId, provider: "square", returnUrl };
 };
 
 export const square: PaymentProvider = {
-  // Exercise the real Square sandbox refund API (POST /v2/refunds → Valibot
-  // schema parse → COMPLETED check → payment_id/amount verification → ledger
-  // posting) plus the admin refresh-payment route. This is the only e2e path
-  // that exercises the confirmed-Square-refund contract from this PR.
-  afterPaidBooking: exerciseAdminRefund,
+  // Sandbox payments and refunds are append-only resources; Square has no
+  // ephemeral webhook endpoint for this harness to remove.
+  cleanup: noProviderCleanup,
   configure: configureProvider("square", async (session, secrets) => {
     await session.fill("square_access_token", secrets.token);
     await session.fill("square_location_id", secrets.locationId);
-    if (secrets.sandbox === "true") await session.check("square_sandbox");
+    // The sandbox checkbox is the only mode this harness can drive.
+    await session.check("square_sandbox");
     await session.clickButton("Update Square Credentials");
   }),
-  firstBookingConfirmation: "return",
   name: "square",
+
+  observeRefund: refundObservationVia(
+    "square",
+    (checkout, secrets) =>
+      squareFetch(
+        secrets.token,
+        `/v2/payments/${encodeURIComponent(checkout.paymentId)}`,
+      ) as Promise<{ payment?: { refunded_money?: SquareMoney } }>,
+    (payment) => {
+      const refunded = payment.payment?.refunded_money;
+      // A refund call that has not landed yet reports nothing returned.
+      if (!refunded || refunded.amount <= 0) return null;
+      return { amount: refunded.amount, currency: refunded.currency };
+    },
+  ),
 
   payHostedCheckout: hostedCheckout(
     "Completing Square sandbox payment…",
-    async (page, ctx) => {
-      await completeViaSandboxApi(page, ctx);
-    },
+    completeViaSandboxApi,
   ),
   // The Square sandbox account/location has a FIXED currency and rejects a
   // payment link whose amount is in any other currency ("This business can only

@@ -1,11 +1,12 @@
 /* jscpd:ignore-start */
 import { readFileSync } from "node:fs";
-import { type BrowserSession, requirePageText } from "#e2e/browser.ts";
+import type { Page } from "playwright";
+import type { BrowserSession } from "#e2e/browser.ts";
 import type { ProviderName } from "#e2e/config.ts";
 import { config } from "#e2e/config.ts";
-import { BOOKER_NAME } from "#e2e/flow.ts";
 import { log } from "#e2e/log.ts";
 import { pollUntil } from "#e2e/util.ts";
+import { readJson } from "#shared/read-json.ts";
 import type { ConfigureProvider, PayHostedCheckout } from "./types.ts";
 
 /* jscpd:ignore-end */
@@ -13,8 +14,10 @@ import type { ConfigureProvider, PayHostedCheckout } from "./types.ts";
 /**
  * Recover a provider-side id the app logged while creating a checkout (e.g.
  * `[Square] Payment link created orderId=…`, `[SumUp] Checkout created id=…`).
- * Polled briefly because the log write and our read race the redirect; the
- * last match wins so a retried creation reads the id that actually went live.
+ * The database (and so the log) is fresh per scenario, so the id found here
+ * belongs to this scenario alone; polled briefly because the log write and our
+ * read race the redirect. The last match wins so a retried creation reads the
+ * id that actually went live.
  */
 export const readLoggedId = async (
   logPath: string,
@@ -38,6 +41,177 @@ export const readLoggedId = async (
   throw new Error(
     `could not find the provider id in the app server log (${logPath}). ` +
       `Expected a '${expectedLine}' line.`,
+  );
+};
+
+/**
+ * A documented provider field that is absent is a broken boundary, not a
+ * zero/empty value to default away: a raw sandbox response missing it fails
+ * the run right here, at the provider boundary.
+ */
+export const requiredField = <T>(
+  value: T | null | undefined,
+  provider: ProviderName,
+  what: string,
+): T => {
+  if (value === undefined || value === null || value === "") {
+    throw new Error(
+      `${provider}'s response is missing the documented field "${what}" — refusing to default it`,
+    );
+  }
+  return value;
+};
+
+/** Refuse a checkout that was not paid by the provider being asked about,
+ * narrowing it to that provider's checkout shape. */
+export function expectProvider<
+  P extends import("./types.ts").PaidSandboxCheckout["provider"],
+>(
+  checkout: import("./types.ts").PaidSandboxCheckout,
+  provider: P,
+): asserts checkout is Extract<
+  import("./types.ts").PaidSandboxCheckout,
+  { provider: P }
+> {
+  if (checkout.provider !== provider) {
+    throw new Error(
+      `this checkout was not paid with ${provider}: ${checkout.provider}`,
+    );
+  }
+}
+
+/** The honest observation for a refund that may have landed but is not yet
+ * settled or visible: pending, with the observation time — never reported as
+ * completed and never defaulted to a partial sum. */
+export const pendingRefund =
+  (): import("./types.ts").SandboxRefundObservation => ({
+    kind: "pending",
+    observedAt: new Date().toISOString(),
+  });
+
+/** A settled refund, carrying the actually returned amount and currency —
+ * both required fields, so a provider answer missing either fails here. */
+export const completedRefund = (
+  provider: ProviderName,
+  currency: string | null | undefined,
+  returnedAmount: number,
+): import("./types.ts").SandboxRefundObservation => ({
+  currency: requiredField(currency, provider, "currency on the refund"),
+  kind: "completed",
+  returnedAmount,
+});
+
+/** The money a provider resource proves was returned, or null when the
+ * resource names no refund. */
+export type RefundWithin<Resource> = (
+  resource: Resource,
+) => { amount: number; currency: string | null | undefined } | null;
+
+/** Read one provider resource once and turn it into a refund observation: a
+ * read that throws, or one whose resource names no refund, is honestly
+ * pending — never defaulted to zero and never guessed as completed. */
+export const observeViaRead = async <Resource>(
+  provider: ProviderName,
+  read: () => Promise<Resource>,
+  refundWithin: RefundWithin<Resource>,
+): Promise<import("./types.ts").SandboxRefundObservation> => {
+  let resource: Resource;
+  try {
+    resource = await read();
+  } catch {
+    return pendingRefund();
+  }
+  const refund = refundWithin(resource);
+  if (refund === null) return pendingRefund();
+  return completedRefund(provider, refund.currency, refund.amount);
+};
+
+/** Build a provider's `observeRefund` from its one read plus the rule that
+ * reads the refund out of the resource — the exhaustive method shape is
+ * written once, here. */
+export const refundObservationVia =
+  <P extends import("./types.ts").ProviderName, Resource>(
+    provider: P,
+    read: (
+      checkout: Extract<
+        import("./types.ts").PaidSandboxCheckout,
+        { provider: P }
+      >,
+      secrets: Record<string, string>,
+    ) => Promise<Resource>,
+    refundWithin: RefundWithin<Resource>,
+  ): PaymentProviderReader =>
+  async (checkout, secrets) => {
+    expectProvider(checkout, provider);
+    return await observeViaRead(
+      provider,
+      () => read(checkout, secrets),
+      refundWithin,
+    );
+  };
+
+/** The read-only refund-observation method every provider implements. */
+type PaymentProviderReader = (
+  checkout: import("./types.ts").PaidSandboxCheckout,
+  secrets: Record<string, string>,
+) => Promise<import("./types.ts").SandboxRefundObservation>;
+
+/** Wait until the browser is back on the app origin and return the exact URL
+ * it came back on — the checkout's own return binding, not a reconstruction. */
+export const awaitReturnToApp = async (
+  provider: ProviderName,
+  page: Page,
+  baseUrl: string,
+): Promise<string> => {
+  const backHome = await pollUntil(90_000, () =>
+    Promise.resolve(page.url().startsWith(baseUrl) ? page.url() : null),
+  );
+  return requiredField(
+    backHome,
+    provider,
+    "the return URL the browser came back on",
+  );
+};
+
+/** Options for one provider REST call; `body` is already serialised. */
+export interface ProviderRequest {
+  body?: string;
+  headers?: Record<string, string>;
+  method?: string;
+}
+
+/**
+ * One authenticated provider REST call that throws with the API's own answer
+ * on a non-2xx and returns the parsed JSON (or `{}` for an empty body). A
+ * response whose body is not valid JSON fails here, at the boundary.
+ */
+export const providerFetch = async (
+  provider: ProviderName,
+  url: string,
+  init: ProviderRequest = {},
+): Promise<unknown> => {
+  const res = await fetch(url, {
+    ...init,
+    headers: {
+      Accept: "application/problem+json, application/json",
+      ...(init.headers ?? {}),
+    },
+    method: init.method ?? "GET",
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(
+      `${provider} API ${url} → HTTP ${res.status}: ${text.slice(0, 300)}`,
+    );
+  }
+  if (text === "") return {};
+  const parsed = await readJson(() => JSON.parse(text));
+  return parsed.ok ? parsed.value : notJson(provider, text);
+};
+
+const notJson = (provider: ProviderName, text: string): never => {
+  throw new Error(
+    `${provider}'s response was not valid JSON: ${text.slice(0, 120)}`,
   );
 };
 
@@ -102,62 +276,9 @@ export const hostedCheckout =
   async (page, ctx) => {
     log(message);
     await page.waitForLoadState("domcontentloaded");
-    await drive(page, ctx);
+    return await drive(page, ctx);
   };
 
-/**
- * Exercise the admin refund flow after a paid booking: open the attendee,
- * refresh the payment status (polls the real provider API), then submit the
- * admin refund form and verify the refund is recorded. This exercises the
- * provider's real sandbox refund API (POST /v2/refunds for Square,
- * refunds.create for Stripe), the Valibot boundary validation, and the ledger
- * posting — the full round-trip from admin UI through provider to ledger.
- */
-export const exerciseAdminRefund = async (
-  session: BrowserSession,
-): Promise<void> => {
-  const attendee = session.page.getByRole("link", {
-    exact: true,
-    name: BOOKER_NAME,
-  });
-  const attendeeHref = await attendee.getAttribute("href");
-  if (!attendeeHref) {
-    throw new Error(`Could not open paid attendee "${BOOKER_NAME}"`);
-  }
-  await session.goto(attendeeHref);
-
-  await session.clickButton("Refresh payment status");
-  await requirePageText(
-    session,
-    "Payment status is up to date",
-    "payment-status-failed",
-    'Expected the app page to contain "Payment status is up to date"',
-  );
-
-  await session.clickLink("Actions");
-  await session.clickLink("Refund");
-  await session.fill("confirm_identifier", BOOKER_NAME);
-  await session.clickButton("Refund Attendee");
-  await requirePageText(
-    session,
-    "Refund issued",
-    "refund-failed",
-    'Expected the app page to contain "Refund issued"',
-  );
-
-  await session.clickLink("Overview");
-  const paymentDetails = await session.page
-    .locator(".prose", { hasText: "Payment Details" })
-    .first()
-    .innerText();
-  if (
-    !paymentDetails.includes("Refund Status:") ||
-    !paymentDetails.includes("Refunded")
-  ) {
-    await session.dumpPage("refund-not-recorded");
-    throw new Error(
-      `Refund was not recorded on the attendee. Payment details:\n${paymentDetails}`,
-    );
-  }
-  log("  refund, ledger recording, and status verification passed");
-};
+/** The honest no-op cleanup for providers whose sandbox resources are all
+ * append-only (payments, refunds) with nothing ephemeral to remove. */
+export const noProviderCleanup = (): Promise<void> => Promise.resolve();

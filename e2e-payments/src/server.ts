@@ -19,6 +19,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 export const repoRoot = resolve(here, "..", "..");
 
 export interface AppServer {
+  /** The exact libsql URL of this server's fresh ephemeral database. */
+  dbUrl: string;
   /** Local base URL, e.g. http://127.0.0.1:38123 */
   localBaseUrl: string;
   /** Path to the app server's captured stdout/stderr log. */
@@ -98,6 +100,7 @@ export const startAppServer = async (): Promise<AppServer> => {
         await res.body?.cancel();
         log(`App server is up at ${localBaseUrl} (log: ${logPath})`);
         return {
+          dbUrl,
           localBaseUrl,
           logPath,
           port,

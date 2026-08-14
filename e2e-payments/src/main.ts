@@ -1,266 +1,136 @@
 /**
- * Entrypoint for the payment sandbox e2e run.
+ * Entrypoint for the payment sandbox e2e run — a thin target/Cucumber
+ * boundary.
  *
- *   npm run e2e -- <stripe|square|sumup|free>
- *   E2E_PROVIDER=stripe npm run e2e
+ *   nix develop -c deno task e2e free
+ *   nix develop -c deno task e2e stripe
+ *   nix develop -c deno task e2e square
+ *   nix develop -c deno task e2e sumup
  *
- * Boots the real app server against a throwaway DB, (optionally) exposes it via
- * a cloudflared tunnel, then drives a real browser through a full paid booking
- * against the provider's sandbox — card entry on the hosted checkout included.
- * "free" runs the same journey without money (harness self-test; no secrets).
+ * Parses the target, validates its secrets (missing paid credentials fail
+ * before any browser or provider call), maps the target to its exhaustive
+ * case selection, cleans the artifact root and builds static assets once,
+ * then hands everything to the repository's shared Cucumber runner. The
+ * runner supplies metadata validation, defined order, strict mode, zero
+ * retries, reports, and progress output; this boundary only verifies the
+ * catalog/count handshake, publishes the result, notifies on failure, and
+ * sets the exit status.
  *
- * Exit codes: 0 = passed (or skipped for lack of secrets), 1 = failed.
+ * Exit codes: 0 = executed and passed, 1 = failed.
  */
 
-import { appendFileSync, readFileSync } from "node:fs";
-import { type BrowserSession, launchBrowser } from "./browser.ts";
-import { config, needsTunnel, providerSecrets, type Target } from "./config.ts";
-import {
-  assertFreeThankYou,
-  assertPaidBookingConfirmed,
-  assertRedirectedToCheckout,
-  createListing,
-  login,
-  runSetup,
-  submitBooking,
-} from "./flow.ts";
-import { fail, log, step, warn } from "./log.ts";
+import { appendFileSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import type { Envelope } from "@cucumber/messages";
+import { runSpecs } from "#scripts/specs/run.ts";
+import { providerSecrets } from "./config.ts";
+import { fail, log, step } from "./log.ts";
 import { notifyFailure } from "./notify.ts";
-import { runComplexOrderJourney } from "./order-flow.ts";
-import { providers } from "./providers/index.ts";
-import type { PaymentProvider } from "./providers/types.ts";
-import { type AppServer, buildStaticAssets, startAppServer } from "./server.ts";
-import { noTunnel, startTunnel, type Tunnel } from "./tunnel.ts";
+import { buildStaticAssets, repoRoot } from "./server.ts";
+import {
+  caseExpression,
+  LIVE_FEATURE_PATH,
+  type LiveTarget,
+  parseLiveTarget,
+  TARGET_CASES,
+  verifyCatalogTargets,
+  verifyExecutedCases,
+} from "./targets.ts";
 
-/**
- * Print the tail of the app server's log to stdout. On CI the server log is
- * only saved as an artifact, so a server-side failure (e.g. "Failed to create
- * payment session" — the real provider API error is logged there, not shown in
- * the browser) is invisible in the job output. Surfacing it makes the job log
- * self-diagnosing without downloading artifacts.
- */
-const dumpServerLog = (logPath: string, lines = 20): void => {
-  try {
-    const all = readFileSync(logPath, "utf8").split("\n");
-    // The app logs one SQL statement per line, so a raw tail is almost all
-    // noise. Pull out the lines that actually explain a failure — provider
-    // API calls and errors — then add a short tail for surrounding context.
-    const RELEVANT =
-      /error|declin|fail|invalid|\[payment\]|\[stripe\]|\[square\]|\[sumup\]/i;
-    const IGNORE = /\[SQL\]|\[Request\]/i;
-    const signal = all.filter((l) => RELEVANT.test(l) && !IGNORE.test(l));
-    warn(`----- app server log: relevant lines (${logPath}) -----`);
-    warn((signal.length ? signal : all.slice(-lines)).join("\n"));
-    warn(`----- app server log: last ${lines} lines -----`);
-    warn(all.slice(-lines).join("\n"));
-    warn("----- end app server log -----");
-  } catch (err) {
-    warn(`could not read app server log ${logPath}: ${String(err)}`);
-  }
-};
+const artifactsRoot = join(repoRoot, "e2e-payments", "artifacts");
 
-const parseTarget = (): Target => {
-  const raw = (
-    process.argv[2] ??
-    process.env.E2E_PROVIDER ??
-    "free"
-  ).toLowerCase();
-  if (
-    raw === "free" ||
-    raw === "stripe" ||
-    raw === "square" ||
-    raw === "sumup"
-  ) {
-    return raw;
-  }
-  throw new Error(
-    `unknown target "${raw}" (expected stripe|square|sumup|free)`,
+interface JournalSummary {
+  caseId: string;
+  finalLocalState: string | null;
+  pendingObserved: boolean;
+}
+
+/** The concise, truthful per-case outcome table for the job summary. */
+const writeStepSummary = (target: LiveTarget): void => {
+  const summaryPath = process.env.GITHUB_STEP_SUMMARY;
+  if (!summaryPath) return;
+  const journals = readdirSync(artifactsRoot)
+    .filter((name) => name.endsWith("-journal.json"))
+    .sort();
+  const rows = journals.map((name) => {
+    try {
+      const journal = JSON.parse(
+        readFileSync(join(artifactsRoot, name), "utf8"),
+      ) as JournalSummary;
+      const outcome = journal.finalLocalState ?? "no refund outcome";
+      const pending = journal.pendingObserved
+        ? " (pending genuinely observed)"
+        : "";
+      return `${journal.caseId} | ${target} | ${outcome}${pending} | ${name}`;
+    } catch {
+      return `(unreadable journal) | ${target} | unknown | ${name}`;
+    }
+  });
+  const table = [
+    "case | provider | outcome | journal",
+    "--- | --- | --- | ---",
+    ...rows,
+  ].join("\n");
+  appendFileSync(
+    summaryPath,
+    `\n## Live payment cases (${target})\n\n${table}\n`,
   );
 };
 
-type ConfiguredPayment = {
-  provider: PaymentProvider;
-  secrets: Record<string, string>;
+const publishResult = (): void => {
+  log("RESULT: executed");
+  const output = process.env.GITHUB_OUTPUT;
+  if (output) appendFileSync(output, "result=executed\n");
 };
 
-/** Keep the first Stripe return out of the app so only its webhook can create
- * the booking. The route applies once; the later complex-order journey still
- * exercises the normal browser return path. */
-const holdAppReturn = async (session: BrowserSession): Promise<void> => {
-  const appOrigin = new URL(session.baseUrl).origin;
-  await session.page.route(
-    (url) => url.origin === appOrigin && url.pathname === "/payment/success",
-    (route) =>
-      route.fulfill({
-        body: "The browser return is held while the webhook confirms payment.",
-        contentType: "text/plain",
-        status: 202,
-      }),
-    { times: 1 },
+const run = async (): Promise<void> => {
+  const target = parseLiveTarget(
+    process.argv[2] ?? process.env.E2E_PROVIDER ?? "free",
   );
-};
-
-const runJourneys = async ({
-  country,
-  payment,
-  server,
-  session,
-  tunnel,
-}: {
-  country: string;
-  payment: ConfiguredPayment | null;
-  server: AppServer;
-  session: BrowserSession;
-  tunnel: Tunnel;
-}): Promise<void> => {
-  await runSetup(session, country);
-  await login(session);
-
-  if (payment) {
-    await payment.provider.configure(session, payment.secrets);
-  }
-
-  const ticketPath = await createListing(session, {
-    priceMinor: payment ? config.unitPrice : 0,
-  });
-  await submitBooking(session, ticketPath);
-
-  let payForComplexOrder: (() => Promise<void>) | undefined;
-  if (!payment) {
-    await assertFreeThankYou(session);
-  } else {
-    const hostedCheckoutContext = {
-      baseUrl: tunnel.publicBaseUrl,
-      secrets: payment.secrets,
-      serverLogPath: server.logPath,
-    };
-    const payOnHostedCheckout = async (
-      message: string,
-      confirmation: PaymentProvider["firstBookingConfirmation"] = "return",
-    ): Promise<void> => {
-      step(message);
-      await assertRedirectedToCheckout(session);
-      if (confirmation === "webhook") await holdAppReturn(session);
-      await payment.provider.payHostedCheckout(
-        session.page,
-        hostedCheckoutContext,
-      );
-    };
-    await payOnHostedCheckout(
-      `Paying on the ${payment.provider.name} hosted checkout`,
-      payment.provider.firstBookingConfirmation,
-    );
-    await assertPaidBookingConfirmed(session);
-    await payment.provider.afterPaidBooking?.(session, hostedCheckoutContext);
-    payForComplexOrder = () =>
-      payOnHostedCheckout(
-        `Paying the complex order on the ${payment.provider.name} hosted checkout`,
-      );
-  }
-
-  // The second journey on the same server: a COMPLEX order — a package, one
-  // member also on its own row, and a plain listing, all booked through the
-  // /order gallery in one checkout, then verified path-by-path in admin.
-  await runComplexOrderJourney(session, {
-    paid: payment !== null,
-    ...(payForComplexOrder ? { payHostedCheckout: payForComplexOrder } : {}),
-  });
-};
-
-const reportFailure = async (
-  error: unknown,
-  target: Target,
-  session: BrowserSession | null,
-  server: AppServer | null,
-): Promise<never> => {
-  const message = error instanceof Error ? error.message : String(error);
-  fail(`FAIL — ${target}: ${message}`);
-  // Each step is isolated so a failure in one cannot skip the rest or
-  // replace the original error a caller is about to rethrow.
-  if (session) await session.screenshot(`fail-${target}`).catch(() => {});
-  if (server) dumpServerLog(server.logPath);
-  // notifyFailure has its own internal try/catch, but guard the await so a
-  // future change to that helper can never overwrite the journey error: the
-  // original error must always be the one rethrown, regardless of ntfy state.
-  await notifyFailure(target).catch(() => {});
-  throw error;
-};
-
-const stopRun = async (
-  session: BrowserSession | null,
-  tunnel: Tunnel | null,
-  payment: ConfiguredPayment | null,
-  server: AppServer | null,
-): Promise<void> => {
-  // Each teardown step is isolated so a failure in one cannot prevent the
-  // rest from running — otherwise a failed session.stop could leave the
-  // app-server child alive and the CI job would hang instead of failing.
-  if (session) await session.stop().catch(() => {});
-  if (tunnel) await tunnel.stop().catch(() => {});
-  // Cleanup is best-effort because this runs after both passes and failures.
-  // A failed provider cleanup must not hide the original journey result.
-  if (payment?.provider.cleanup) {
-    await payment.provider.cleanup(payment.secrets).catch(() => {});
-  }
-  if (server) await server.stop().catch(() => {});
-};
-
-type RunResult = "executed" | "skipped";
-
-const run = async (): Promise<RunResult> => {
-  const target = parseTarget();
   step(`Payment sandbox e2e — target: ${target}`);
 
-  const provider = target === "free" ? null : providers[target];
-  const secrets = provider ? providerSecrets(provider.name) : {};
-  if (provider && !secrets) {
-    log(`SKIP: no sandbox secrets configured for ${target}; nothing to run.`);
-    return "skipped";
+  // A paid target without its secrets is a failed nightly contract, not a
+  // skip: this throws before any browser or provider call.
+  if (target !== "free") {
+    providerSecrets(target);
   }
-  const payment = provider && secrets ? { provider, secrets } : null;
 
-  const country =
-    process.env.SETUP_COUNTRY?.trim() ||
-    provider?.setupCountry ||
-    config.setupCountry;
+  // The artifact root is cleaned here, BEFORE the Cucumber formatters open
+  // their report files — cleaning inside a hook could delete the live reports.
+  rmSync(artifactsRoot, { force: true, recursive: true });
+  await buildStaticAssets();
 
-  // Resources are declared up front and acquired inside the try, so a failure
-  // during startup (tunnel/browser) still tears down whatever was created —
-  // otherwise the app-server child keeps the Node process alive and the CI job
-  // hangs instead of failing cleanly.
-  let server: Awaited<ReturnType<typeof startAppServer>> | null = null;
-  let tunnel: Awaited<ReturnType<typeof startTunnel>> | null = null;
-  let session: Awaited<ReturnType<typeof launchBrowser>> | null = null;
+  const cases = TARGET_CASES[target];
+  const summary = await runSpecs(
+    { paths: [LIVE_FEATURE_PATH], tags: caseExpression(cases) },
+    {
+      env: { E2E_PROVIDER: target },
+      reportDir: join(artifactsRoot, "cucumber"),
+      support: [
+        "e2e-payments/src/cucumber/support/**/*.ts",
+        "e2e-payments/src/cucumber/steps/**/*.ts",
+      ],
+    },
+    {
+      beforeRun: (catalog) => verifyCatalogTargets(catalog),
+      onSuccess: (messages: Envelope[]) => verifyExecutedCases(messages, cases),
+      // e2e-payments/.tmp is a fixed path, so scenarios must not overlap.
+      parallel: 1,
+    },
+  );
 
-  try {
-    await buildStaticAssets();
-    server = await startAppServer();
-    tunnel = needsTunnel(target)
-      ? await startTunnel(server.port)
-      : noTunnel(server.localBaseUrl);
-    session = await launchBrowser(tunnel.publicBaseUrl);
-    log(`Driving the app at ${tunnel.publicBaseUrl}`);
-
-    await runJourneys({ country, payment, server, session, tunnel });
-
-    step(`PASS — ${target} end-to-end booking completed`);
-  } catch (err) {
-    await reportFailure(err, target, session, server);
-  } finally {
-    await stopRun(session, tunnel, payment, server);
-  }
-  return "executed";
-};
-
-const publishResult = (result: RunResult): void => {
-  log(`RESULT: ${result}`);
-  const output = process.env.GITHUB_OUTPUT;
-  if (output) appendFileSync(output, `result=${result}\n`);
-};
-
-run()
-  .then(publishResult)
-  .catch((err) => {
-    fail(err instanceof Error ? (err.stack ?? err.message) : String(err));
+  writeStepSummary(target);
+  if (!summary.success) {
+    fail(`FAIL — ${target}: the Cucumber run reported failures`);
+    await notifyFailure(target).catch(() => {});
     process.exitCode = 1;
-  });
+    return;
+  }
+  publishResult();
+  step(`PASS — ${target}: ${cases.length} case(s) executed`);
+};
+
+run().catch((err) => {
+  fail(err instanceof Error ? (err.stack ?? err.message) : String(err));
+  process.exitCode = 1;
+});
