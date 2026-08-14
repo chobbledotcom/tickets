@@ -15,7 +15,7 @@ Feature: Only an owner decides what happens to refunds needing attention
 
     @case:refund-permissions.manager-sees-no-refund-action
     Scenario: A manager opens a refundable booking
-      Given Alice bought a 45.00 Concert place through the public booking page
+      Given Alice bought a 45.00 Concert place through Stripe on the public booking page
       And the owner invited Morgan as a manager
       And Morgan accepted the invitation, chose a password and signed in
       When Morgan opens Alice's Actions page
@@ -24,7 +24,7 @@ Feature: Only an owner decides what happens to refunds needing attention
 
     @case:refund-permissions.manager-sees-no-provider-recovery-action
     Scenario: A manager opens a booking that needs a provider decision
-      Given Bob bought a 45.00 Concert place through the public booking page
+      Given Bob bought a 45.00 Concert place through Stripe on the public booking page
       And Stripe says a failed refund returned 0.01 to Bob
       And the owner tried the refund and was offered Open Refund recovery
       And the owner invited Morgan as a manager
@@ -41,7 +41,7 @@ Feature: Only an owner decides what happens to refunds needing attention
 
     @case:refund-permissions.manager-cannot-open-or-send-refund
     Scenario: A manager uses the owner's refund address
-      Given Alice bought a 45.00 Concert place through the public booking page
+      Given Alice bought a 45.00 Concert place through Stripe on the public booking page
       And the owner invited Morgan as a manager
       And Morgan accepted the invitation, chose a password and signed in
       When Morgan opens the owner's saved refund confirmation address for Alice
@@ -53,7 +53,7 @@ Feature: Only an owner decides what happens to refunds needing attention
 
     @case:refund-permissions.manager-cannot-open-or-resolve-provider-recovery
     Scenario: A manager uses the owner's provider-recovery address
-      Given Alice bought a 45.00 Concert place through the public booking page
+      Given Alice bought a 45.00 Concert place through Stripe on the public booking page
       And Stripe says a failed refund returned 0.01 to Alice
       And the owner tried the refund and was offered Open Refund recovery
       And the owner invited Morgan as a manager
@@ -75,7 +75,7 @@ Feature: Only an owner decides what happens to refunds needing attention
     @case:refund-permissions.owner-can-acknowledge-review
     Scenario: The owner marks a payment reviewed
       Given new bookings pay a 10.00 deposit
-      And Alice bought a 45.00 Concert place through the public booking page
+      And Alice bought a 45.00 Concert place through Stripe on the public booking page
       And Stripe is ready to return Alice's payment
       And the owner returned the deposit and was offered Mark payment reviewed
       When the owner opens Mark payment reviewed from Alice's Actions page
@@ -88,7 +88,7 @@ Feature: Only an owner decides what happens to refunds needing attention
     @case:refund-permissions.manager-cannot-acknowledge-local-review
     Scenario: A manager uses the owner's local payment-review address
       Given new bookings pay a 10.00 deposit
-      And Alice bought a 45.00 Concert place through the public booking page
+      And Alice bought a 45.00 Concert place through Stripe on the public booking page
       And Stripe is ready to return Alice's payment
       And the owner returned the deposit and was offered Mark payment reviewed
       And the owner invited Morgan as a manager

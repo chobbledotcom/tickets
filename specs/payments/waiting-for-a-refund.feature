@@ -15,11 +15,11 @@ Feature: A refund in progress is checked, never sent again
 
     @case:refund-safety.accepted-refund-settles-after-refresh
     Scenario: Stripe accepts a refund and finishes it later
-      Given Alice bought a 45.00 Concert place through the public booking page
+      Given Alice bought a 45.00 Concert place through Stripe on the public booking page
       And Stripe will accept Alice's refund but leave it settling
       When the owner signs in and refunds Alice from her Actions page
       Then the owner is told the refund is still settling and to refresh its status
-      And Alice's Actions page does not offer Refund
+      And Alice's Actions page does not offer another Refund and does offer recovery
       And Alice's attendee page offers Refresh payment status
       When the owner presses Refresh payment status while it is still settling
       Then Stripe has received one request to return Alice's money
@@ -38,11 +38,11 @@ Feature: A refund in progress is checked, never sent again
 
     @case:refund-safety.sumup-lost-answer-is-never-resent
     Scenario: SumUp loses the connection after receiving the refund
-      Given Alice bought a 45.00 Concert place through the public booking page
+      Given Alice bought a 45.00 Concert place through SumUp on the public booking page
       And SumUp loses the connection after receiving Alice's refund request
       When the owner signs in and refunds Alice from her Actions page
       Then the owner is warned not to send the refund again
-      And Alice's Actions page does not offer Refund
+      And Alice's Actions page does not offer another Refund and does offer recovery
       When enough time passes for the site to check again
       And the owner presses Refresh payment status from Alice's attendee page
       Then SumUp has received one request to return Alice's money

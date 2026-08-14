@@ -6,7 +6,6 @@ import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { claimLeaseMs } from "#shared/payment/claim.ts";
 import type { ProviderRefundResource } from "#shared/payment/resources.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
-import { forgetStoredPaymentProvider } from "#test/specs/support/refund-safety/history.ts";
 import { safetyBooking } from "#test/specs/support/refund-safety/state.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { refundObservation } from "#test-utils/payment-state.ts";
@@ -132,13 +131,10 @@ When(
 
 Given(
   "SumUp loses the connection after receiving {word}'s refund request",
-  async function (this: TicketsWorld, who: string): Promise<void> {
+  function (this: TicketsWorld, who: string): void {
     clockFor(this);
     const booking = safetyBooking(this, who);
-    await forgetStoredPaymentProvider(booking.attendeeId);
     const provider = refundProviderFor(this);
-    await provider.useForNewPayments("sumup");
-    provider.show("stripe", booking.paymentReference, { status: "missing" });
     provider.showCharge(
       "sumup",
       booking.paymentReference,
@@ -167,10 +163,12 @@ When(
   },
 );
 
-for (const [providerName, provider] of [
+const STORY_PROVIDERS = [
   ["Stripe", "stripe"],
   ["SumUp", "sumup"],
-] as const) {
+] as const;
+
+for (const [providerName, provider] of STORY_PROVIDERS) {
   Then(
     `${providerName} has received one request to return {word}'s money`,
     function (this: TicketsWorld, who: string): void {

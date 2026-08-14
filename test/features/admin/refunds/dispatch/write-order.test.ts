@@ -10,6 +10,9 @@ import {
 import { recordEveryRefund } from "#test/features/admin/refunds/provider/ledger-results.ts";
 import { grantingRowClaim } from "#test-utils/refund-routes.ts";
 
+const isProviderAnswer = (event: string): boolean =>
+  event.startsWith("send:end:");
+
 describe("admin refund authority > ordered local writes", () => {
   test("waits for the provider answer before ledger and retirement", async () => {
     const events: string[] = [];
@@ -46,9 +49,7 @@ describe("admin refund authority > ordered local writes", () => {
     finish.resolve();
     const counts = finishedCounts(await refund);
 
-    const lastProviderAnswer = events.findLastIndex((event) =>
-      event.startsWith("send:end:")
-    );
+    const lastProviderAnswer = events.findLastIndex(isProviderAnswer);
     expect(events.indexOf("ledger")).toBeGreaterThan(lastProviderAnswer);
     expect(events.indexOf("retire:1")).toBeGreaterThan(
       events.indexOf("ledger"),

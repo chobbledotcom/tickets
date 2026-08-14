@@ -116,12 +116,13 @@ When(
 );
 
 Then(
-  "the organiser is told the refund failed",
+  "the organiser is told the refund failed and shown what needs attention",
   async function (this: TicketsWorld): Promise<void> {
     expectRefundMessage(
       this,
-      `/admin/attendees/${bookingId(this)}/refund`,
+      "/admin/privacy",
       "Refund failed",
+      "Refunds needing attention",
     );
     expect(timesProviderWasAsked(this)).toBe(1);
   },

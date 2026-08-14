@@ -9,7 +9,6 @@ import {
 import { scenarioBrowser } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
-  buyPaidPlaceThroughPublicPage,
   openActionsAsOwner,
   openListedRefundCase,
   openOwnerAction,
@@ -77,18 +76,6 @@ Given(
       job: "where new bookings start",
       name: "Reserved",
     });
-  },
-);
-
-Given(
-  "{word} bought a {float} {word} place through the public booking page",
-  async function (
-    this: TicketsWorld,
-    who: string,
-    pounds: number,
-    listing: string,
-  ): Promise<void> {
-    await buyPaidPlaceThroughPublicPage(this, who, pounds.toFixed(2), listing);
   },
 );
 

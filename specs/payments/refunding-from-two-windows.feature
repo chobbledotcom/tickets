@@ -15,7 +15,7 @@ Feature: Other organiser actions wait while a refund is moving
 
     @case:refund-safety.two-windows-submit-one-refund
     Scenario: Two refund forms are submitted while the provider is answering
-      Given Alice bought a 45.00 Concert place through the public booking page
+      Given Alice bought a 45.00 Concert place through Stripe on the public booking page
       And the owner signs in through two separate browsers
       And opens Alice's refund confirmation in both browsers
       And types Alice's exact name into both rendered forms
@@ -34,7 +34,7 @@ Feature: Other organiser actions wait while a refund is moving
 
     @case:refund-safety.delete-waits-for-moving-refund
     Scenario: Another browser deletes the booking while Stripe is answering
-      Given Alice bought a 45.00 Concert place through the public booking page
+      Given Alice bought a 45.00 Concert place through Stripe on the public booking page
       And the owner signs in through two separate browsers
       And opens Alice's refund confirmation in the first browser
       And opens Alice's delete confirmation in the second browser
@@ -54,7 +54,7 @@ Feature: Other organiser actions wait while a refund is moving
 
     @case:refund-safety.merge-waits-for-moving-refund
     Scenario: Another browser merges the booking while Stripe is answering
-      Given Alice bought a 45.00 Concert place through the public booking page
+      Given Alice bought a 45.00 Concert place through Stripe on the public booking page
       And another Alice bought a free Workshop place through the public page
       And the owner signs in through two separate browsers
       And opens the paid Alice's refund confirmation in the first browser

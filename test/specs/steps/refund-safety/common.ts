@@ -113,6 +113,16 @@ const moneyFor = (world: TicketsWorld, who: string) =>
 const legsNamed = async (world: TicketsWorld, who: string, kind: string) =>
   (await moneyFor(world, who)).filter((leg) => leg.kind === kind);
 
+const expectNoRefundAction = async (
+  world: TicketsWorld,
+  who: string,
+): Promise<string[]> => {
+  const browser = await openActionsAsOwner(world, who);
+  const actions = browser.links.map(({ text }) => text.trim());
+  expect(actions).not.toContain("Refund");
+  return actions;
+};
+
 /** A full paid booking still has its one cash receipt and no cash refund. */
 export const expectPaidWithoutRefund = async (
   world: TicketsWorld,
@@ -200,10 +210,17 @@ Then(
 );
 
 Then(
-  "{word}'s Actions page does not offer Refund",
+  "{word}'s Actions page does not offer another Refund",
   async function (this: TicketsWorld, who: string): Promise<void> {
-    const browser = await openActionsAsOwner(this, who);
-    expect(browser.findLink("Refund")).toBeNull();
+    await expectNoRefundAction(this, who);
+  },
+);
+
+Then(
+  "{word}'s Actions page does not offer another Refund and does offer recovery",
+  async function (this: TicketsWorld, who: string): Promise<void> {
+    const actions = await expectNoRefundAction(this, who);
+    expect(actions).toContain("Open Refund recovery");
   },
 );
 

@@ -16,7 +16,7 @@ Feature: The site checks that a payment names its provider before refunding it
 
     @case:refund-safety.old-payment-without-a-provider-is-not-contacted
     Scenario: An old payment does not name its provider
-      Given Alice bought a 45.00 Concert place through the public booking page
+      Given Alice bought a 45.00 Concert place through Stripe on the public booking page
       And Alice's old payment record does not name its provider
       And every payment provider is available
       When the owner opens Refund for Alice from her Actions page
@@ -41,7 +41,7 @@ Feature: The site checks that a payment names its provider before refunding it
 
     @case:refund-safety.tagged-provider-outage-never-searches-elsewhere
     Scenario: Stripe is offline while Square recognises the same reference
-      Given Alice bought a 45.00 Concert place through the public booking page
+      Given Alice bought a 45.00 Concert place through Stripe on the public booking page
       And every payment provider is available
       And Square would recognise Alice's Stripe payment
       And Stripe cannot be reached for Alice's payment
@@ -64,7 +64,7 @@ Feature: The site checks that a payment names its provider before refunding it
 
     @case:refund-safety.one-penny-returned-still-needs-review
     Scenario: A failed provider refund nevertheless returned one penny
-      Given Alice bought a 45.00 Concert place through the public booking page
+      Given Alice bought a 45.00 Concert place through Stripe on the public booking page
       And Stripe says a failed refund returned 0.01 to Alice
       When the owner signs in and tries to refund Alice from her Actions page
       Then no provider is asked to return any more money

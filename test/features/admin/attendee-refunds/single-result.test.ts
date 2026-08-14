@@ -37,7 +37,7 @@ type ErrorResultCase = {
 const ERROR_RESULTS: readonly ErrorResultCase[] = [
   {
     message:
-      "A refund for this payment is still settling. Refresh payment status after it completes.",
+      "A refund for this payment is still settling. Do not send the refund again. Refresh payment status after it completes.",
     name: "a run blocked by another claim",
     result: { kind: "blocked", reason: "refund_in_progress" },
     url: ACTIONS_URL,
@@ -61,7 +61,7 @@ const ERROR_RESULTS: readonly ErrorResultCase[] = [
   },
   {
     message:
-      "A refund for this payment is still settling. Refresh payment status after it completes.",
+      "A refund for this payment is still settling. Do not send the refund again. Refresh payment status after it completes.",
     name: "a provider-accepted refund",
     result: counts({ pendingCount: 1 }),
     url: RECOVERY_URL,
@@ -91,7 +91,7 @@ describe("single refund result", () => {
     );
     expectRedirectWithFlash(
       ACTIONS_URL,
-      "A refund for this payment is still settling. Refresh payment status after it completes.",
+      "A refund for this payment is still settling. Do not send the refund again. Refresh payment status after it completes.",
       false,
     )(requireResponse(response));
   });

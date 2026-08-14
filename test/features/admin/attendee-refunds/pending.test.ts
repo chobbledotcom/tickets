@@ -114,7 +114,7 @@ describeWithEnv("server (admin refunds still settling)", { db: true }, () => {
     await withRefundMock(refundCompletes, async (mockRefund) => {
       await expectFlashRedirect(
         refundAllUrl(listing.id),
-        "A refund for this payment is still settling. Refresh payment status after it completes. 2 refunds remain. Submit again to continue.",
+        "A refund for this payment is still settling. Do not send the refund again. Refresh payment status after it completes. 2 refunds remain. Submit again to continue.",
         false,
       )(await postRefundAll(listing));
       if (mockRefund.calls.length !== 0) {

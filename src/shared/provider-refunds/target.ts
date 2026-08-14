@@ -29,6 +29,13 @@ export interface LoadedRefundTarget {
   readonly existing: RefundAuthorityRow | null;
 }
 
+const callbackBinding = (
+  callbackReplayIndex: string | undefined,
+): { readonly callbackReplayIndex?: string } => {
+  if (callbackReplayIndex === undefined) return {};
+  return { callbackReplayIndex };
+};
+
 export const loadRefundTarget = async (
   target: ProviderRefundTarget,
 ): Promise<LoadedRefundTarget> => {
@@ -58,7 +65,7 @@ export const answerKnownRefund = (
 ): ProviderRefundResult | null => {
   if (
     existing?.state.kind === "completed" ||
-    existing?.state.kind === "needs_owner_choice"
+    (existing?.state.kind === "needs_owner_choice" && target.mode === "send")
   ) {
     return refundAnswerFrom(existing, target.reference);
   }
@@ -103,21 +110,17 @@ export const createTargetAuthority = async (
   provider: RefundEngineProvider,
   captured: Money,
   now: number,
-): Promise<RefundAuthorityRow> =>
-  loaded.existing === null
-    ? await createOrLoadRefundAuthority({
-        ...(loaded.callbackReplayIndex === undefined
-          ? {}
-          : {
-              callbackReplayIndex: loaded.callbackReplayIndex,
-            }),
-        capability: provider.refundCapability,
-        captured,
-        now,
-        reference: target.reference,
-        state: await initialRefundState(target.reference, provider, now),
-      })
-    : loaded.existing;
+): Promise<RefundAuthorityRow> => {
+  if (loaded.existing !== null) return loaded.existing;
+  return await createOrLoadRefundAuthority({
+    ...callbackBinding(loaded.callbackReplayIndex),
+    capability: provider.refundCapability,
+    captured,
+    now,
+    reference: target.reference,
+    state: await initialRefundState(target.reference, provider, now),
+  });
+};
 
 export type PreparedTargetAuthority =
   | { readonly kind: "continue"; readonly row: RefundAuthorityRow | null }

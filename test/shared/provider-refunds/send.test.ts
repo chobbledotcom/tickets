@@ -4,7 +4,13 @@ import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import { loadRefundAuthorityByReference } from "#shared/db/provider-refund-authority.ts";
 import { DAY_MS } from "#shared/now.ts";
 import type { RefundAuthorityState } from "#shared/payment/refund-authority.ts";
+import type { ChargeMoney } from "#shared/payment/resources.ts";
 import { REFUND_OBSERVATION_DELAY_MS } from "#shared/provider-refunds/state.ts";
+import type {
+  ProviderRefundDependencies,
+  ProviderRefundResult,
+  RefundEngineProvider,
+} from "#shared/provider-refunds.ts";
 import {
   recordProviderRefunds,
   requestProviderRefund,
@@ -13,6 +19,7 @@ import {
   runWithSubrequestBudget,
   withSubrequestAllowance,
 } from "#shared/subrequest-budget.ts";
+import type { PaymentProviderType } from "#shared/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   chargeMoney,
@@ -28,26 +35,69 @@ import {
   storedRefundAuthority,
 } from "./engine-helpers.ts";
 
+const uncertainProvider = (
+  provider: PaymentProviderType,
+  onSend: () => void,
+  readCharge: () => ChargeMoney = chargeMoney,
+): RefundEngineProvider =>
+  fakeRefundProvider(
+    provider,
+    () => Promise.resolve(foundCharge(readCharge())),
+    () => {
+      onSend();
+      return Promise.resolve({ kind: "uncertain", reason: "network_error" });
+    },
+  );
+
+interface SendCounter {
+  count(): number;
+  sent(): void;
+}
+
+const sendCounter = (): SendCounter => {
+  let count = 0;
+  return {
+    count: () => count,
+    sent: () => {
+      count++;
+    },
+  };
+};
+
+const observeRefund = (
+  reference: ReturnType<typeof refundReference>,
+  charge: ChargeMoney,
+  dependencies: ProviderRefundDependencies,
+): Promise<ProviderRefundResult> =>
+  requestProviderRefund(
+    { evidence: { charge, kind: "observed" }, mode: "observe_only", reference },
+    dependencies,
+  );
+
+const expectKeylessOwnerChoice = async (
+  reference: ReturnType<typeof refundReference>,
+  dependencies: ProviderRefundDependencies,
+): Promise<void> => {
+  const result = await observeRefund(reference, chargeMoney(), dependencies);
+  expect(result).toMatchObject({
+    kind: "needs_owner_choice",
+    reason: "possibly_sent",
+  });
+};
+
 describeWithEnv("provider refund engine sends", { db: true }, () => {
   for (const unfinished of ["send_armed", "observing"] as const) {
     test(`an observation-only check escalates a due keyless ${unfinished} generation`, async () => {
       const payment = refundReference(`txn-observe-due-${unfinished}`);
       let now = 100;
-      let sends = 0;
-      const provider = fakeRefundProvider(
-        "sumup",
-        () => Promise.resolve(foundCharge()),
-        () => {
-          sends++;
-          if (unfinished === "send_armed") {
-            throw new Error("provider process crashed");
-          }
-          return Promise.resolve({
-            kind: "uncertain",
-            reason: "network_error",
-          });
-        },
-      );
+      const sends = sendCounter();
+      const recordSend = () => {
+        sends.sent();
+        if (unfinished === "send_armed") {
+          throw new Error("provider process crashed");
+        }
+      };
+      const provider = uncertainProvider("sumup", recordSend);
       const dependencies = refundDependencies(provider, () => now);
       const first = requestProviderRefund(
         sendRefundTarget(payment),
@@ -63,20 +113,8 @@ describeWithEnv("provider refund engine sends", { db: true }, () => {
       }
 
       now += REFUND_OBSERVATION_DELAY_MS;
-      expect(
-        await requestProviderRefund(
-          {
-            evidence: { charge: chargeMoney(), kind: "observed" },
-            mode: "observe_only",
-            reference: payment,
-          },
-          dependencies,
-        ),
-      ).toMatchObject({
-        kind: "needs_owner_choice",
-        reason: "possibly_sent",
-      });
-      expect(sends).toBe(1);
+      await expectKeylessOwnerChoice(payment, dependencies);
+      expect(sends.count()).toBe(1);
       expect(
         await storedRefundAuthority(await paymentReferenceIndex(payment)),
       ).toMatchObject({ refund_state_name: "needs_owner_choice" });
@@ -86,65 +124,36 @@ describeWithEnv("provider refund engine sends", { db: true }, () => {
   test("an observation-only check never replays and escalates an expired keyed generation", async () => {
     const payment = refundReference("txn-observe-keyed", "stripe");
     let now = 100;
-    let sends = 0;
-    const provider = fakeRefundProvider(
-      "stripe",
-      () => Promise.resolve(foundCharge()),
-      () => {
-        sends++;
-        return Promise.resolve({ kind: "uncertain", reason: "network_error" });
-      },
-    );
+    const sends = sendCounter();
+    const provider = uncertainProvider("stripe", sends.sent);
     const dependencies = refundDependencies(provider, () => now);
 
     expect(
       await requestProviderRefund(sendRefundTarget(payment), dependencies),
     ).toMatchObject({ kind: "pending", state: "observing" });
     now += REFUND_OBSERVATION_DELAY_MS;
-    expect(
-      await requestProviderRefund(
-        {
-          evidence: { charge: chargeMoney(), kind: "observed" },
-          mode: "observe_only",
-          reference: payment,
-        },
-        dependencies,
-      ),
-    ).toMatchObject({ kind: "pending", state: "observing" });
-    expect(sends).toBe(1);
+    const pending = await observeRefund(payment, chargeMoney(), dependencies);
+    expect(pending).toMatchObject({ kind: "pending", state: "observing" });
+    expect(sends.count()).toBe(1);
 
     now = 100 + DAY_MS + 1;
-    expect(
-      await requestProviderRefund(
-        {
-          evidence: { charge: chargeMoney(), kind: "observed" },
-          mode: "observe_only",
-          reference: payment,
-        },
-        dependencies,
-      ),
-    ).toMatchObject({
+    const expired = await observeRefund(payment, chargeMoney(), dependencies);
+    expect(expired).toMatchObject({
       kind: "needs_owner_choice",
       reason: "replay_window_expired",
     });
-    expect(sends).toBe(1);
+    expect(sends.count()).toBe(1);
   });
 
   test("one keyless generation is sent once and later evidence completes it", async () => {
     const payment = refundReference("txn-one-send");
     let returned = false;
-    let sends = 0;
-    const provider = fakeRefundProvider(
-      "sumup",
-      () =>
-        Promise.resolve(
-          foundCharge(returned ? fullyRefundedMoney() : chargeMoney()),
-        ),
-      () => {
-        sends++;
-        return Promise.resolve({ kind: "uncertain", reason: "network_error" });
-      },
-    );
+    const sends = sendCounter();
+    function currentCharge(): ChargeMoney {
+      return returned ? fullyRefundedMoney() : chargeMoney();
+    }
+    const read = currentCharge;
+    const provider = uncertainProvider("sumup", sends.sent, read);
     const dependencies = refundDependencies(provider);
     const target = sendRefundTarget(payment, "checkout-one");
 
@@ -154,12 +163,12 @@ describeWithEnv("provider refund engine sends", { db: true }, () => {
     expect((await requestProviderRefund(target, dependencies)).kind).toBe(
       "pending",
     );
-    expect(sends).toBe(1);
+    expect(sends.count()).toBe(1);
 
     returned = true;
     const completed = await requestProviderRefund(target, dependencies);
     expect(completed).toMatchObject({ kind: "returned", local: "due" });
-    expect(sends).toBe(1);
+    expect(sends.count()).toBe(1);
     if (completed.kind !== "returned") {
       throw new Error("Expected a returned refund authority");
     }
@@ -171,6 +180,31 @@ describeWithEnv("provider refund engine sends", { db: true }, () => {
       refund_state_name: "completed",
       refunded_amount: 1_000,
     });
+  });
+
+  test("later proof retires a keyless owner decision without another send", async () => {
+    const payment = refundReference("txn-owner-proof");
+    let now = 100;
+    const sends = sendCounter();
+    const provider = uncertainProvider("sumup", sends.sent);
+    const dependencies = refundDependencies(provider, () => now);
+
+    expect(
+      await requestProviderRefund(
+        sendRefundTarget(payment, "checkout-owner-proof"),
+        dependencies,
+      ),
+    ).toMatchObject({ kind: "pending", state: "observing" });
+    now += REFUND_OBSERVATION_DELAY_MS;
+    await expectKeylessOwnerChoice(payment, dependencies);
+
+    const completed = await observeRefund(
+      payment,
+      fullyRefundedMoney(),
+      dependencies,
+    );
+    expect(completed).toMatchObject({ kind: "returned", local: "due" });
+    expect(sends.count()).toBe(1);
   });
 
   test("a crash after durable arming never repeats a keyless provider call", async () => {
@@ -209,19 +243,20 @@ describeWithEnv("provider refund engine sends", { db: true }, () => {
     );
     const target = sendRefundTarget(payment);
     const dependencies = refundDependencies(provider);
+    const requestRefund = () => requestProviderRefund(target, dependencies);
+    const requestWithoutResultReserve = () =>
+      withSubrequestAllowance(
+        { database: 2, external: 10, total: 12 },
+        requestRefund,
+      );
 
-    expect(await requestProviderRefund(target, dependencies)).toMatchObject({
+    expect(await requestRefund()).toMatchObject({
       kind: "ready",
     });
     sends = 0;
 
-    await expect(
-      runWithSubrequestBudget(() =>
-        withSubrequestAllowance({ database: 2, external: 10, total: 12 }, () =>
-          requestProviderRefund(target, dependencies),
-        ),
-      ),
-    ).rejects.toThrow("Subrequest reserve unavailable");
+    const refused = runWithSubrequestBudget(requestWithoutResultReserve);
+    await expect(refused).rejects.toThrow("Subrequest reserve unavailable");
     expect(sends).toBe(0);
     expect(
       await storedRefundAuthority(await paymentReferenceIndex(payment)),
@@ -301,18 +336,8 @@ describeWithEnv("provider refund engine sends", { db: true }, () => {
 
   test("concurrent callers share the revision-fenced send", async () => {
     const payment = refundReference("txn-race");
-    let sends = 0;
-    const provider = fakeRefundProvider(
-      "sumup",
-      () => Promise.resolve(foundCharge()),
-      () => {
-        sends++;
-        return Promise.resolve({
-          kind: "uncertain",
-          reason: "network_error",
-        });
-      },
-    );
+    const sends = sendCounter();
+    const provider = uncertainProvider("sumup", sends.sent);
     const dependencies = refundDependencies(provider);
     const target = sendRefundTarget(payment, "checkout-race");
 
@@ -320,6 +345,6 @@ describeWithEnv("provider refund engine sends", { db: true }, () => {
       requestProviderRefund(target, dependencies),
       requestProviderRefund(target, dependencies),
     ]);
-    expect(sends).toBe(1);
+    expect(sends.count()).toBe(1);
   });
 });

@@ -97,5 +97,5 @@ Feature: An organiser refunds a booking
     Scenario: The payment provider turns down the refund
       Given a customer paid 45.00 for a Show place
       When the organiser asks for a refund and the provider turns it down
-      Then the organiser is told the refund failed
+      Then the organiser is told the refund failed and shown what needs attention
       And the Show has still earned 45.00 and no money was handed back

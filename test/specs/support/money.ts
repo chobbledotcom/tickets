@@ -107,9 +107,9 @@ export const buyPlaceWithExtra = async (
   await setupStripe();
   // The story may already have put this listing on sale (with its extra charge
   // attached), so reuse it rather than selling a second one of the same name.
-  const listingId =
-    world.things.recall("listing", name)?.id ??
-    (await sellPlacesAt(world, name, pounds)).id;
+  const remembered = world.things.recall("listing", name);
+  const listing = remembered ?? (await sellPlacesAt(world, name, pounds));
+  const listingId = listing.id;
   const price = minorUnits(pounds);
   world.attendeeId = await runStripeSuccess(world, {
     email: `${who.toLowerCase().replaceAll(" ", ".")}@example.com`,
@@ -197,11 +197,13 @@ export const expectMoneyHandedBack = async (
 export const expectRefundMessage = (
   world: TicketsWorld,
   path: string,
-  message: string,
+  ...messages: string[]
 ): void => {
   // Read the page the refund left behind — asking for an admin browser here
   // would navigate away from it first.
   const browser = scenarioBrowser(world);
   expect(browser.currentUrl).toBe(path);
-  expect(browser.containsText(message)).toBe(true);
+  for (const message of messages) {
+    expect(browser.containsText(message)).toBe(true);
+  }
 };

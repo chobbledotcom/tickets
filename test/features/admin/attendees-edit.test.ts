@@ -341,7 +341,7 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
 
       expectErrorFlash(
         response,
-        "A refund for this payment is still settling. Refresh payment status after it completes.",
+        "A refund for this payment is still settling. Do not send the refund again. Refresh payment status after it completes.",
       );
     });
 

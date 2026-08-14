@@ -208,7 +208,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
         const response = await submitRefund(ctx);
         await expectFlashRedirect(
           "/admin/privacy#refund-recovery",
-          "A refund for this payment is still settling. Refresh payment status after it completes.",
+          "A refund for this payment is still settling. Do not send the refund again. Refresh payment status after it completes.",
           false,
         )(response);
       });
@@ -221,7 +221,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       await withRefundMock(refundCompletes, async (mockRefund) => {
         await expectFlashRedirect(
           `/admin/attendees/${ctx.attendee.id}/actions`,
-          "A refund for this payment is still settling. Refresh payment status after it completes.",
+          "A refund for this payment is still settling. Do not send the refund again. Refresh payment status after it completes.",
           false,
         )(await submitRefund(ctx));
         expect(mockRefund.calls).toEqual([]);
@@ -243,7 +243,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
         async (mockRefund) => {
           await expectFlashRedirect(
             "/admin/privacy#refund-recovery",
-            "A refund for this payment is still settling. Refresh payment status after it completes.",
+            "A refund for this payment is still settling. Do not send the refund again. Refresh payment status after it completes.",
             false,
           )(await submitRefund(ctx));
           await expectFlashRedirect(

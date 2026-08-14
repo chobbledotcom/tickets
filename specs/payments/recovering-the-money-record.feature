@@ -15,13 +15,13 @@ Feature: The books catch up when a returned payment could not be recorded
 
     @case:refund-safety.money-catches-up-after-recording-failure
     Scenario: Stripe returns the money while Money is temporarily unavailable
-      Given Alice bought a 45.00 Concert place through the public booking page
+      Given Alice bought a 45.00 Concert place through Stripe on the public booking page
       And Money will temporarily refuse to record Alice's refund
       When the owner signs in and refunds Alice from her Actions page
       Then the owner is warned that the provider returned Alice's money but Money did not record it
       And the owner is told to fix Money and refresh the payment status
       And the owner is warned not to send the refund again
-      And Alice's Actions page does not offer Refund
+      And Alice's Actions page does not offer another Refund
       And Stripe received one request to return Alice's money
       And Money does not yet show a refund for Alice
       When Money can record refunds again
@@ -41,7 +41,7 @@ Feature: The books catch up when a returned payment could not be recorded
 
     @case:refund-safety.merged-payment-work-can-be-refreshed
     Scenario: Returned money moves onto a free booking before Money catches up
-      Given Alice bought a 45.00 Concert place through the public booking page
+      Given Alice bought a 45.00 Concert place through Stripe on the public booking page
       And Money will temporarily refuse to record Alice's refund
       When the owner signs in and refunds Alice from her Actions page
       Then the owner is warned that the provider returned Alice's money but Money did not record it
