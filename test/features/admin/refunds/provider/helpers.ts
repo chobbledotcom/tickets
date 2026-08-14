@@ -1,5 +1,4 @@
 import { assert } from "@std/assert";
-import { requiredMapValue, uniqueBy } from "#fp";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import {
   processRefundBatch,
@@ -11,9 +10,8 @@ import type {
   ReadyRefundCandidate,
   ReadyRefundProvider,
   ReadyRefundReference,
-  RefundReadinessObservation,
-  RefundReadinessRead,
 } from "#routes/admin/refunds/readiness.ts";
+import { prepareRefundReadiness } from "#routes/admin/refunds/readiness.ts";
 import type { TaggedRefundPaymentReference } from "#shared/db/payment-references.ts";
 import type { ProviderRead } from "#shared/payment/provider-read.ts";
 import type {
@@ -129,132 +127,18 @@ export const readyCandidateWithReferences = (
     id,
   );
 
-type PreparedProviderReference =
-  | { kind: "already_returned" }
-  | { charge: ChargeMoney; kind: "observed" }
-  | RefundReadinessRead;
-
-const prepareProviderReference = async (
-  reference: TaggedRefundPaymentReference,
-  source: RecordingProvider,
-  alreadyReturned: ReadonlySet<string>,
-): Promise<PreparedProviderReference> => {
-  assert(
-    reference.provider === source.type,
-    `Test readiness received ${reference.provider} payment at ${source.type}`,
-  );
-  if (
-    reference.refundState === "completed" ||
-    alreadyReturned.has(reference.index)
-  ) {
-    return { kind: "already_returned" };
-  }
-  const read = await source.readCharge(reference.reference);
-  return read.status === "found"
-    ? { charge: read.resource, kind: "observed" }
-    : {
-        evidence: {
-          ...read,
-          provider: source.type,
-          reference: reference.reference,
-        },
-        index: reference.index,
-      };
-};
-
-const isReadinessFailure = (
-  reference: PreparedProviderReference,
-): reference is RefundReadinessRead => "evidence" in reference;
-
-const preparationObservations = (
-  prepared: PreparedProviderReference,
-  reference: TaggedRefundPaymentReference,
-  source: RecordingProvider,
-): RefundReadinessObservation[] => {
-  if (isReadinessFailure(prepared) || prepared.kind === "already_returned") {
-    return [];
-  }
-  return [
-    {
-      charge: prepared.charge,
-      identity: {
-        kind: "tagged",
-        provider: source.type,
-        reference: reference.reference,
-      },
-      reference,
-    },
-  ];
-};
-
-const readyReferenceFrom = (
-  reference: TaggedRefundPaymentReference,
-  prepared: Exclude<PreparedProviderReference, RefundReadinessRead>,
-  source: RecordingProvider,
-): ReadyRefundReference =>
-  prepared.kind === "already_returned"
-    ? { kind: "already_returned", provider: source, reference }
-    : {
-        charge: prepared.charge,
-        kind: "observed",
-        provider: source,
-        reference,
-      };
-
 export const prepareAtProvider =
   (source: RecordingProvider): NonNullable<RefundRunDependencies["prepare"]> =>
-  async (candidates, _claim, alreadyReturned) => {
-    const references = uniqueBy(
-      (reference: TaggedRefundPaymentReference) => reference.index,
-    )(candidates.flatMap((candidate) => candidate.references));
-    const preparedReferences = await Promise.all(
-      references.map(async (reference) => ({
-        prepared: await prepareProviderReference(
-          reference,
-          source,
-          alreadyReturned,
-        ),
-        reference,
-      })),
-    );
-    const failures = preparedReferences
-      .map(({ prepared }) => prepared)
-      .filter(isReadinessFailure);
-    const preparedByIndex = new Map(
-      preparedReferences
-        .filter(
-          (
-            entry,
-          ): entry is typeof entry & {
-            prepared: Exclude<PreparedProviderReference, RefundReadinessRead>;
-          } => !isReadinessFailure(entry.prepared),
-        )
-        .map(({ reference, prepared }) => [reference.index, prepared]),
-    );
-    return failures.length > 0
-      ? {
-          kind: "not_ready",
-          observations: preparedReferences.flatMap(({ prepared, reference }) =>
-            preparationObservations(prepared, reference, source),
-          ),
-          reads: failures,
-          reason: "provider_evidence",
-        }
-      : {
-          candidates: candidates.map((candidate) => ({
-            attendee: candidate.attendee,
-            references: candidate.references.map((reference) => {
-              const prepared = requiredMapValue(
-                preparedByIndex,
-                reference.index,
-                `Test readiness lost payment reference ${reference.index}`,
-              );
-              return readyReferenceFrom(reference, prepared, source);
-            }),
-          })),
-          kind: "ready",
-        };
-  };
+  (candidates, claim, alreadyReturned) =>
+    prepareRefundReadiness(candidates, claim, alreadyReturned, {
+      loadProvider: (provider) => {
+        assert(
+          provider === source.type,
+          `Test readiness received ${provider} payment at ${source.type}`,
+        );
+        return Promise.resolve(source);
+      },
+    });
 
 export const processRefundBatchAt = (
   source: RecordingProvider,

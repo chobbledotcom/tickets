@@ -134,10 +134,6 @@ export const createTargetAuthority = async (
   });
 };
 
-export type PreparedTargetAuthority =
-  | { readonly kind: "continue"; readonly row: RefundAuthorityRow | null }
-  | { readonly kind: "answered"; readonly result: ProviderRefundResult };
-
 /** A validated callback establishes captured money before a flaky provider
  * read. The read still gates every send. */
 export const prepareTargetAuthority = async (
@@ -145,16 +141,15 @@ export const prepareTargetAuthority = async (
   loaded: LoadedRefundTarget,
   provider: RefundEngineProvider,
   now: number,
-): Promise<PreparedTargetAuthority> => {
+): Promise<RefundAuthorityRow | null> => {
   if (target.evidence.kind !== "validated_callback") {
-    return { kind: "continue", row: loaded.existing };
+    return loaded.existing;
   }
-  const row = await createTargetAuthority(
+  return await createTargetAuthority(
     target,
     loaded,
     provider,
     target.evidence.captured,
     now,
   );
-  return { kind: "continue", row };
 };

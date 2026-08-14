@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   armRefundSend,
+  markRefundCompleted,
   markRefundObservationDue,
 } from "#shared/payment/refund-authority.ts";
 import {
@@ -96,6 +97,26 @@ describe("payment > refund authority owner choice", () => {
         "possibly_sent",
       ),
     ).toThrow("cannot start from ready");
+  });
+
+  test("a provider conflict cannot replace completed work or another owner decision", () => {
+    const completed = markRefundCompleted(
+      readyRefundForTest("keyless"),
+      170,
+      "provider",
+    );
+    const ordinaryChoice = markRefundOwnerChoiceNeeded(
+      keylessArmed(),
+      180,
+      "possibly_sent",
+    );
+
+    expect(() =>
+      markRefundProviderConflict(completed, 190, notSentConflict),
+    ).toThrow("Provider conflict cannot start from completed");
+    expect(() =>
+      markRefundProviderConflict(ordinaryChoice, 190, notSentConflict),
+    ).toThrow("Provider conflict cannot start from needs_owner_choice");
   });
 
   test("provider-returned choice makes local recording due", () => {

@@ -202,24 +202,23 @@ const requestOne = async (
   requireMatchingRefundProvider(provider, target.reference);
   const now = dependencies.now();
   const prepared = await prepareTargetAuthority(target, loaded, provider, now);
-  if (prepared.kind === "answered") return prepared.result;
   const read = await readRefundEvidence(target, provider);
   if (read.status !== "found") {
-    return await answerUnreadableRefund(target, prepared.row, read, now);
+    return await answerUnreadableRefund(target, prepared, read, now);
   }
   const admission = admitObservedRefund(
     target.reference.reference,
     read.resource,
   );
   if (
-    prepared.row === null &&
+    prepared === null &&
     target.mode === "observe_only" &&
     admission.kind === "send"
   ) {
     return { kind: "unchanged", reference: target.reference };
   }
   const row =
-    prepared.row === null
+    prepared === null
       ? await createTargetAuthority(
           target,
           loaded,
@@ -227,7 +226,7 @@ const requestOne = async (
           read.resource.captured,
           now,
         )
-      : prepared.row;
+      : prepared;
   return await reconcile({
     admission,
     charge: read.resource,

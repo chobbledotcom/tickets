@@ -58,7 +58,7 @@ describeWithEnv("db > payment references", { db: true }, () => {
       "sess_returned",
       attendeeId,
       "",
-      taggedPaymentReference("pi_returned"),
+      taggedPaymentReference("checkout-returned", "sumup"),
     );
 
     const before = requireCompleteRefundReferences(

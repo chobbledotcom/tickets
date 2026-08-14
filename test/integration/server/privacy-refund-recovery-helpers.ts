@@ -33,16 +33,11 @@ export const submitRefundCase = async (
     ),
   );
 
-const providerCheck = (
-  answer: ProviderRead<ChargeMoney>,
-  sendError: string,
-) => {
+const providerCheck = (answer: ProviderRead<ChargeMoney>) => {
   const read = stub(sumupPaymentProvider, "readCharge", () =>
     Promise.resolve(answer),
   );
-  const send = stub(sumupPaymentProvider, "refundCharge", () => {
-    throw new Error(sendError);
-  });
+  const send = stub(sumupPaymentProvider, "refundCharge");
   return {
     read,
     send,
@@ -53,11 +48,11 @@ const providerCheck = (
   };
 };
 
-export const unreadableProviderCheck = (sendError: string) =>
-  providerCheck({ reason: "timeout", status: "unavailable" }, sendError);
+export const unreadableProviderCheck = () =>
+  providerCheck({ reason: "timeout", status: "unavailable" });
 
-export const returnedProviderCheck = (sendError: string) =>
-  providerCheck(foundCharge(fullyRefundedMoney(2_500)), sendError);
+export const returnedProviderCheck = () =>
+  providerCheck(foundCharge(fullyRefundedMoney(2_500)));
 
 export const expectUnreadableProviderCheck = async (
   id: number,

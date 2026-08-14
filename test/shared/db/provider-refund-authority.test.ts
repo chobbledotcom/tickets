@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { getDb } from "#shared/db/client.ts";
 import type { CreateRefundAuthority } from "#shared/db/provider-refund-authority.ts";
 import {
@@ -25,6 +26,7 @@ import {
   readyRefund,
 } from "#shared/payment/refund-authority.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { gbp } from "#test-utils/payment-state.ts";
 
 const reference = (
@@ -123,6 +125,43 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
     expect(
       await getDb().execute("SELECT id FROM payment_charges"),
     ).toMatchObject({ rows: [{ id: first.id }] });
+  });
+
+  test("an empty upsert result recovers only an exact existing authority", async () => {
+    const plainInput = createInput(reference("tx-plain-recovery"));
+    const plain = await createOrLoadRefundAuthority(plainInput);
+    const callbackInput = {
+      ...createInput(reference("tx-callback-recovery")),
+      callbackReplayIndex: "callback-recovery",
+    };
+    const callback = await createOrLoadRefundAuthority(callbackInput);
+    const realExecute = getDb().execute.bind(getDb());
+    using _execute = stub(getDb(), "execute", async (...args) => {
+      const statement: unknown = args[0];
+      const sql = (() => {
+        if (typeof statement === "string") return statement;
+        if (
+          typeof statement === "object" &&
+          statement !== null &&
+          "sql" in statement &&
+          typeof statement.sql === "string"
+        ) {
+          return statement.sql;
+        }
+        throw new Error("Database statement has no SQL");
+      })();
+      return sql.includes("INSERT INTO payment_charges")
+        ? emptyResultSet()
+        : await realExecute(...args);
+    });
+
+    expect(await createOrLoadRefundAuthority(plainInput)).toEqual(plain);
+    expect(await createOrLoadRefundAuthority(callbackInput)).toEqual(callback);
+    await expect(
+      createOrLoadRefundAuthority(
+        createInput(reference("tx-missing-recovery")),
+      ),
+    ).rejects.toThrow("Created refund authority is missing");
   });
 
   test("creation refuses a provider with the wrong refund capability", async () => {
@@ -245,6 +284,25 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
         (state) => state,
       ),
     ).rejects.toThrow("currency changed");
+  });
+
+  test("the revision transition refuses a non-positive capture", async () => {
+    const row = await createOrLoadRefundAuthority(createInput());
+    await expect(
+      transitionRefundAuthority(
+        { ...row, captured: gbp(0) },
+        30,
+        gbp(0),
+        (state) => state,
+      ),
+    ).rejects.toThrow("captured amount must be positive");
+  });
+
+  test("the revision transition refuses more returned than captured", async () => {
+    const row = await createOrLoadRefundAuthority(createInput());
+    await expect(
+      transitionRefundAuthority(row, 30, gbp(2_501), (state) => state),
+    ).rejects.toThrow("refunded amount exceeds its capture");
   });
 
   test("a later observation cannot forget money already returned", async () => {

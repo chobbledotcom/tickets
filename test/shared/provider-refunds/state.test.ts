@@ -17,6 +17,7 @@ import {
   completedRefund,
   foundCharge,
   fullyRefundedMoney,
+  gbp,
   refundObservation,
 } from "#test-utils/payment-state.ts";
 import {
@@ -193,6 +194,75 @@ describeWithEnv("provider refund state transitions", { db: true }, () => {
     ).toMatchObject({
       kind: "needs_owner_choice",
       reason: "possibly_sent",
+    });
+  });
+
+  test("only an identical provider conflict leaves its owner case unchanged", async () => {
+    const payment = refundReference("txn-exact-owner-conflict", "stripe");
+    const returnedMoney = (amount: number) =>
+      chargeMoneyWith({
+        captured: gbp(100),
+        confirmedRefunded: gbp(amount),
+        refunds: [refundObservation({ amount: gbp(amount) })],
+      });
+    const index = await paymentReferenceIndex(payment);
+    const current = async () => {
+      const row = await loadRefundAuthorityByReference(index);
+      if (row === null) throw new Error("Expected a refund authority");
+      return row;
+    };
+    const recheck = async (
+      charge: ReturnType<typeof chargeMoney>,
+      now: number,
+    ) => {
+      const before = await current();
+      const answer = await answerProviderConflict(charge)(before, now, payment);
+      return { after: await current(), answer, before };
+    };
+
+    expect(
+      await requestProviderRefund(
+        sendRefundTarget(payment),
+        refundDependencies(
+          completingRefundProvider("stripe", returnedMoney(10)),
+        ),
+      ),
+    ).toMatchObject({
+      kind: "needs_owner_choice",
+      reason: "provider_conflict",
+    });
+
+    const identical = await recheck(returnedMoney(10), 101);
+    expect(identical.answer).toMatchObject({
+      authority: { revision: identical.before.revision },
+      kind: "needs_owner_choice",
+    });
+    expect(identical.after.revision).toBe(identical.before.revision);
+
+    const changedReturn = await recheck(returnedMoney(20), 102);
+    expect(changedReturn.after.revision).toBe(
+      changedReturn.before.revision + 1,
+    );
+    expect(changedReturn.after.state).toMatchObject({
+      decision: { kind: "returned", refunded: gbp(20) },
+      reason: "provider_conflict",
+    });
+
+    const changedKind = await recheck(chargeMoney(100), 103);
+    expect(changedKind.after.revision).toBe(changedKind.before.revision + 1);
+    expect(changedKind.after.state).toMatchObject({
+      decision: { kind: "not_sent" },
+      reason: "provider_conflict",
+    });
+
+    await recheck(chargeMoney(100, 101), 104);
+    const changedCapture = await recheck(chargeMoney(200, 201), 105);
+    expect(changedCapture.after.revision).toBe(
+      changedCapture.before.revision + 1,
+    );
+    expect(changedCapture.after.state).toMatchObject({
+      decision: { captured: gbp(200), kind: "wait" },
+      reason: "provider_conflict",
     });
   });
 });

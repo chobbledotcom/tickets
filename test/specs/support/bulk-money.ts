@@ -7,11 +7,7 @@
 import { expect } from "@std/expect";
 // jscpd:ignore-start
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
-import {
-  attribute,
-  hasFlag,
-  usableInputsOfKind,
-} from "#test/specs/support/form-controls/reading.ts";
+import { usableInputsOfKind } from "#test/specs/support/form-controls/reading.ts";
 import { sellSomethingAt } from "#test/specs/support/listings.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import {
@@ -187,15 +183,11 @@ export const leaveFirstRefundCaseForOwner = async (
   await browser.clickLink("Privacy");
   expect(browser.containsText("Refunds needing attention")).toBe(true);
   await openListedRefundCase(browser);
-  const choices = usableInputsOfKind(browser.currentHtml, "radio").filter(
-    ({ field }) => field === "choice",
+  expect(browser.pageText).toContain("Check the provider again");
+  expect(browser.currentHtml).toContain(
+    'name="choice" type="hidden" value="check_again"',
   );
-  expect(choices.map(({ tag }) => attribute(tag, "value"))).toEqual([
-    "provider_confirmed_returned",
-    "provider_confirmed_not_sent",
-  ]);
-  expect(choices.every(({ tag }) => hasFlag(tag, "required"))).toBe(true);
-  expect(choices.every(({ tag }) => !hasFlag(tag, "checked"))).toBe(true);
+  expect(usableInputsOfKind(browser.currentHtml, "radio")).toEqual([]);
 };
 
 /** Replace the contradictory report with an untouched charge. */

@@ -112,9 +112,7 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
         Date.now() + 60_000,
       ),
     );
-    using provider = returnedProviderCheck(
-      "Checking returned money must not send a refund",
-    );
+    using provider = returnedProviderCheck();
 
     await expectFlashRedirect(
       refundCasePath(id),
@@ -147,9 +145,7 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
         Date.now() + 60_000,
       ),
     );
-    using provider = unreadableProviderCheck(
-      "An unreadable check must not send a refund",
-    );
+    using provider = unreadableProviderCheck();
 
     await expectUnreadableProviderCheck(
       id,
@@ -164,9 +160,7 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
       "owner-unreadable-ready-reference",
       readyRefundTestState("owner-unreadable-ready-request"),
     );
-    using provider = unreadableProviderCheck(
-      "Unreadable ready work must not send a refund",
-    );
+    using provider = unreadableProviderCheck();
 
     await expectUnreadableProviderCheck(
       id,
@@ -241,9 +235,7 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
         },
       ),
     );
-    using provider = returnedProviderCheck(
-      "Rechecking a conflict must not send a refund",
-    );
+    using provider = returnedProviderCheck();
 
     const detail = await adminGet(refundCasePath(id));
     expect(await detail.text()).toContain("Check the provider again");
