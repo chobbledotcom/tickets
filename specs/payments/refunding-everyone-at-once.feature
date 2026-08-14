@@ -53,8 +53,9 @@ Feature: An organiser refunds everyone on a listing
       And the provider reports returning more than it took on the first payment
       And the owner tried the first refund and left its refund case unresolved
       And the provider corrects the first payment to show no refund
-      When the organiser tries to refund everyone
+      When the organiser opens Refund All
       Then Refund All stops before asking the provider to return money
+      And Refund All offers no way to send a refund
       And all 2 people still have their payments
       And the Tour has earned 100.00
 
@@ -69,7 +70,8 @@ Feature: An organiser refunds everyone on a listing
     Scenario: One old unindexed payment stops every send
       Given 2 people each paid 50.00 for a Tour place
       And the first payment was stored before refund indexes existed
-      When the organiser tries to refund everyone
+      When the organiser opens Refund All
       Then Refund All stops because older payment history is incomplete
+      And Refund All offers no way to send a refund
       And all 2 people still have their payments
       And the Tour has earned 100.00

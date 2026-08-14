@@ -259,34 +259,57 @@ export const adminResendNotificationPage = attendeeRouteConfirm(
 /**
  * Admin refund all attendees confirmation page
  */
+type RefundAllPageState =
+  | {
+      readonly count: number;
+      readonly error: string | undefined;
+      readonly kind: "available";
+    }
+  | {
+      readonly count: number;
+      readonly error: string;
+      readonly kind: "unavailable";
+    };
+
 export const adminRefundAllAttendeesPage = (
   listing: ListingWithCount,
-  refundableCount: number,
+  state: RefundAllPageState,
   session: AdminSession,
-  error?: string,
-): string =>
-  ConfirmPage({
+): string => {
+  const confirmation = (
+    <p>{t("admin.attendees.refund_all_confirm", { name: listing.name })}</p>
+  );
+  const warning = (
+    <p>
+      <Raw
+        html={t("admin.attendees.refund_all_warning", {
+          count: state.count,
+        })}
+      />
+    </p>
+  );
+  return ConfirmPage({
     action: `/admin/listing/${listing.id}/refund-all`,
     active: "/admin/",
     buttonText: t("admin.attendees.refund_all_submit"),
-    children: (
-      <p>{t("admin.attendees.refund_all_confirm", { name: listing.name })}</p>
-    ),
-    error,
+    children:
+      state.kind === "unavailable" ? (
+        <>
+          {warning}
+          {confirmation}
+        </>
+      ) : (
+        confirmation
+      ),
+    disabled: state.kind === "unavailable",
+    error: state.error,
     label: t("admin.attendees.refund_all_label"),
     name: listing.name,
     session,
     title: `Refund All: ${listing.name}`,
-    warning: (
-      <p>
-        <Raw
-          html={t("admin.attendees.refund_all_warning", {
-            count: refundableCount,
-          })}
-        />
-      </p>
-    ),
+    warning,
   });
+};
 
 /** Render payment details section (read-only). Shared by the unified
  * add/edit attendee form. */

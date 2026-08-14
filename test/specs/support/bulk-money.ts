@@ -7,6 +7,11 @@
 import { expect } from "@std/expect";
 // jscpd:ignore-start
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
+import {
+  browserSeenBy,
+  ORGANISER,
+  openAdminPage,
+} from "#test/specs/support/browser.ts";
 import { usableInputsOfKind } from "#test/specs/support/form-controls/reading.ts";
 import { sellSomethingAt } from "#test/specs/support/listings.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
@@ -27,6 +32,7 @@ import { getCompleteRefundCandidatesForListing } from "#test-utils/refund-candid
 import {
   refundCompletes,
   refundIsRejected,
+  withRefundMock,
 } from "#test-utils/refund-routes.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
@@ -129,6 +135,29 @@ export const refuseNextRefund = (world: TicketsWorld): Promise<void> =>
 /** Try Refund All with a provider that would return every payment it receives. */
 export const tryToRefundEveryone = (world: TicketsWorld): Promise<void> =>
   refundEveryone(world, refundCompletes);
+
+/** Open the listing-wide refund page without reaching around a missing form. */
+export const openRefundEveryone = async (
+  world: TicketsWorld,
+): Promise<void> => {
+  await withRefundMock(refundCompletes, async (mockRefund) => {
+    const browser = await openAdminPage(
+      world,
+      REFUND_FORM_BY_TARGET.listing.page(theListing(world)),
+    );
+    world.bulkRefundMessage = browser.pageText;
+    world.refundCalls = () => mockRefund.calls.length;
+  });
+};
+
+/** The blocked page explains the state but cannot submit a refund. */
+export const expectRefundEveryoneUnavailable = (world: TicketsWorld): void => {
+  const html = browserSeenBy(world, ORGANISER).currentHtml;
+  expect(html).not.toContain("Refund All Attendees");
+  expect(html).not.toContain(
+    `action="${REFUND_FORM_BY_TARGET.listing.page(theListing(world))}"`,
+  );
+};
 
 /** Prove the reviewed payment is the final member of the complete command. */
 export const firstPaymentIsLastRefundCandidate = async (

@@ -72,11 +72,14 @@ const sessionPayment = async (
   );
 };
 
-type SquareWebhookPayment = {
-  id: string | null;
-  orderId: string | null;
-  status: unknown;
-};
+type SquareWebhookPayment =
+  | { readonly kind: "other" }
+  | { readonly kind: "not_completed"; readonly status: string }
+  | {
+      readonly id: string;
+      readonly kind: "completed";
+      readonly orderId: string;
+    };
 
 const webhookPaymentObject = (
   object: Record<string, unknown>,
@@ -88,27 +91,30 @@ const webhookPaymentObject = (
   return object;
 };
 
-const textOrNull = (value: unknown): string | null =>
-  typeof value === "string" ? value : null;
-
-const isNonCompletedStatus = (status: unknown): status is string =>
-  typeof status === "string" && status !== "COMPLETED";
+const nonEmptyTextOrNull = (value: unknown): string | null =>
+  typeof value === "string" && value.length > 0 ? value : null;
 
 const minorUnitNumber = (amount: bigint | null | undefined): number | null =>
   typeof amount === "bigint" ? Number(amount) : null;
 
 const webhookPayment = (listing: WebhookEvent): SquareWebhookPayment => {
+  if (!listing.type.startsWith("payment.")) return { kind: "other" };
   const object = listing.data.object;
   const payment = webhookPaymentObject(object);
-  const id = textOrNull(payment.id);
-  const orderId = textOrNull(payment.order_id);
-  if (!id && listing.type.startsWith("payment.")) {
+  const id = nonEmptyTextOrNull(payment.id);
+  const status = nonEmptyTextOrNull(payment.status);
+  const orderId = nonEmptyTextOrNull(payment.order_id);
+  if (id === null) {
     throw new Error("Square payment webhook is missing id");
   }
-  if (!orderId && id && payment.status === "COMPLETED") {
+  if (status === null) {
+    throw new Error("Square payment webhook is missing status");
+  }
+  if (status !== "COMPLETED") return { kind: "not_completed", status };
+  if (orderId === null) {
     throw new Error("Completed Square payment is missing order id");
   }
-  return { id, orderId, status: payment.status };
+  return { id, kind: "completed", orderId };
 };
 
 const readSessionOrder = async (
@@ -253,10 +259,10 @@ export const squarePaymentProvider: PaymentProvider = {
     listing: WebhookEvent,
   ): Promise<WebhookSessionResult> {
     const payment = webhookPayment(listing);
-    if (!payment.orderId || !payment.id) return null;
+    if (payment.kind === "other") return null;
 
     // Skip non-completed payments to avoid unnecessary API calls
-    if (isNonCompletedStatus(payment.status)) {
+    if (payment.kind === "not_completed") {
       logDebug(
         "Square",
         `Skipping webhook for non-completed payment (status=${payment.status})`,

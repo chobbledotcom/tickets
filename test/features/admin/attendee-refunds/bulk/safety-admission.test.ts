@@ -19,6 +19,7 @@ import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
   CLAIM_MIRROR,
   protectedStateOf,
@@ -37,9 +38,11 @@ import {
 import { getCompleteRefundCandidatesForListing } from "#test-utils/refund-candidates.ts";
 import {
   postRefundAll,
+  refundAllUrl,
   refundIsRejected,
   withRefundMock,
 } from "#test-utils/refund-routes.ts";
+import { testCookie } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
 
@@ -197,6 +200,25 @@ describeWithEnv(
         REVIEWED_SET_SIZE,
         putReviewOnLastPayment,
       );
+    });
+
+    test("a blocker explains why Refund All is unavailable without offering its form", async () => {
+      const listing = await createPaidListing({ maxAttendees: 500 });
+      await seedTaggedBatchAttendees(listing, "pi_blocked_page_", 2);
+      await putReviewOnLastPayment(listing.id, 2);
+
+      const response = await awaitTestRequest(refundAllUrl(listing.id), {
+        cookie: await testCookie(),
+      });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain(
+        "This payment needs an owner review before another refund can be attempted.",
+      );
+      expect(html).not.toContain(
+        `action="/admin/listing/${listing.id}/refund-all"`,
+      );
+      expect(html).not.toContain("Refund All Attendees");
     });
 
     test("a review after the first refund batch stops every provider send", async () => {

@@ -7,8 +7,10 @@ import { execute } from "#shared/db/client.ts";
 import {
   contradictFirstPayment,
   correctFirstPayment,
+  expectRefundEveryoneUnavailable,
   firstPaymentIsLastRefundCandidate,
   leaveFirstRefundCaseForOwner,
+  openRefundEveryone,
   paidPlaceEach,
   payMoreListing,
   payYourOwnPrice,
@@ -108,6 +110,13 @@ When(
   },
 );
 
+When(
+  "the organiser opens Refund All",
+  function (this: TicketsWorld): Promise<void> {
+    return openRefundEveryone(this);
+  },
+);
+
 Then(
   "Refund All stops before asking the provider to return money",
   function (this: TicketsWorld): void {
@@ -125,6 +134,13 @@ Then(
       requiredWorldValue(this.bulkRefundMessage, "what the organiser was told"),
     ).toContain("older payment history");
     expect(requiredWorldValue(this.refundCalls, "refund calls")()).toBe(0);
+  },
+);
+
+Then(
+  "Refund All offers no way to send a refund",
+  function (this: TicketsWorld): void {
+    expectRefundEveryoneUnavailable(this);
   },
 );
 

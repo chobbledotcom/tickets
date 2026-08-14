@@ -36,6 +36,18 @@ import { adminRefundAllAttendeesPage } from "#templates/admin/attendees.tsx";
 
 /* jscpd:ignore-end */
 
+const REFUND_ALL_BLOCKER_MESSAGES = {
+  legacy_unindexed: t("error.payment_history_incomplete"),
+  owner_review: t("error.payment_needs_review"),
+  provider_refund: t("error.refund_recovery_required"),
+  unrecorded_money: t("error.refund_not_recorded"),
+} satisfies Record<Exclude<RefundAllSummary["blockedBy"], null>, string>;
+
+const refundAllBlockerMessage = (
+  blockedBy: RefundAllSummary["blockedBy"],
+): string | null =>
+  blockedBy === null ? null : REFUND_ALL_BLOCKER_MESSAGES[blockedBy];
+
 const handleAdminRefundAllGet = (
   request: Request,
   { id }: ListingRouteParams,
@@ -44,19 +56,34 @@ const handleAdminRefundAllGet = (
     const listing = await getListingWithCount(id);
     if (listing === null) return notFoundResponse();
     const flash = applyFlash(request);
-    const { total } = await getRefundAllSummary(id);
+    const summary = await getRefundAllSummary(id);
+    const blocker = refundAllBlockerMessage(summary.blockedBy);
+    const { total } = summary;
     return total === 0
       ? htmlResponse(
           adminRefundAllAttendeesPage(
             listing,
-            0,
+            {
+              count: 0,
+              error: flash.error ?? t("error.no_attendees_to_refund"),
+              kind: "unavailable",
+            },
             session,
-            flash.error ?? t("error.no_attendees_to_refund"),
           ),
           400,
         )
       : htmlResponse(
-          adminRefundAllAttendeesPage(listing, total, session, flash.error),
+          adminRefundAllAttendeesPage(
+            listing,
+            blocker === null
+              ? { count: total, error: flash.error, kind: "available" }
+              : {
+                  count: total,
+                  error: compact([flash.error, blocker]).join(" "),
+                  kind: "unavailable",
+                },
+            session,
+          ),
         );
   });
 
@@ -224,15 +251,8 @@ const processRefundAll = async (
   if (error) return error;
 
   const batch = await loadRefundAllBatch(listing.id);
-  const blockerMessage = {
-    legacy_unindexed: t("error.payment_history_incomplete"),
-    owner_review: t("error.payment_needs_review"),
-    provider_refund: t("error.refund_recovery_required"),
-    unrecorded_money: t("error.refund_not_recorded"),
-  } satisfies Record<Exclude<RefundAllSummary["blockedBy"], null>, string>;
-  if (batch.blockedBy !== null) {
-    return fail(refundAllUrl, blockerMessage[batch.blockedBy]);
-  }
+  const blocker = refundAllBlockerMessage(batch.blockedBy);
+  if (blocker !== null) return fail(refundAllUrl, blocker);
   const privateKey = await requireRequestPrivateKey();
   const loaded = await getRefundCandidates(
     await Promise.all(
