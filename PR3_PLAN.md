@@ -21,7 +21,9 @@ canonical refund schema or engine must either extend it in place or fence
 requests, migrate and verify every retained row, switch one epoch, and delete
 the displaced path in the same release. Record age or old shape may cause a
 typed refusal or migration-only decode; it may never select a live legacy
-fallback.
+fallback. The M11 migration may qualify an untagged historical identifier only
+from retained or freshly validated provider evidence, never the current/last
+provider, credential order, identifier spelling, or a guessed dashboard link.
 
 ### Implementation progress
 
@@ -45,14 +47,19 @@ The evidence has produced four shipped foundations:
   replaces ordinary ambiguity and advances the revision rather than leaving a
   stale not-sent choice available. Owner sends and decisions are
   revision-fenced; observation-only checks cannot overwrite a concurrent
-  revision. Its automatic placeholder atomically mints the indexed anchor and
-  canonical `checking` row state with the attendee/bookings, then releases that
+  revision. Identical provider-check evidence alone preserves a revision;
+  changed evidence advances it. Its automatic placeholder atomically mints the
+  attendee/bookings, indexed anchor, canonical `checking` row state, and a
+  conservative terminal outcome for the original session, then releases that
   fence only after provider, ledger, authority, activity, and note work
-  finishes. Refund All's summary decrypts zero attendee PII and its command
+  finishes. The final outcome replaces only that exact terminal write. A lost
+  committed-create reply therefore replays one placeholder without another
+  provider send. Refund All's summary decrypts zero attendee PII and its command
   decrypts zero or one; a shared claim admits at most 100 outside rows, using
-  row 101 only to refuse before decrypting shared state. Square webhook payment
-  statuses are a closed five-value set, so missing or new provider words fail
-  instead of becoming a skipped callback.
+  row 101 only to refuse before decrypting shared state. Blank indexes never
+  identify shared rows, and a set with no real index skips the sharing query.
+  Square webhook payment statuses are a closed five-value set, so missing or new
+  provider words fail instead of becoming a skipped callback.
 
 The checkout observer, provider-qualified completion identity, callback/body
 boundary, and remaining scope/price/replay work are not partially implemented by
@@ -125,31 +132,58 @@ these corrections before using it:
   Provider conflicts are stricter: exact zero or full return can admit the one
   justified owner answer; partial, invalid, backward, wrong-currency, excessive,
   or pending evidence is `needs_provider_check` and can only be observed again.
+  Identical evidence preserves that case revision; any changed returned amount
+  or conclusion advances it.
 - **Configuration:** whole-checkout provider choice, browser/callback
   observation, and verification still use ambient configuration at separate
-  points.
+  points. The attendee refund/dashboard guess does not: its discovery and
+  binding path was deleted.
 - **Refund safety:** `tryRefund` is gone. Real sends use tagged references
   through `requestProviderRefund`/`requestProviderRefunds` and never re-resolve
-  a provider after admission. The remaining gap is earlier whole-checkout
-  provider selection before the target is tagged.
+  a provider after admission. An untagged id is inert display text, not a
+  provider search hint, and gets no guessed provider-dashboard link even when a
+  provider is configured. The remaining gap is earlier whole-checkout provider
+  selection before the target is tagged.
 - **Persistence and review:** `payment_charges` is the canonical durable
   authority for refund sends, provider checks, and owner choices. Stored-shape
   parsing/mirrors live in `payment/refund-authority-state.ts`; automatic
   transitions in `payment/refund-authority.ts`; conflict and choice transitions
-  in `payment/refund-authority-choice.ts`; exits in
-  `payment/refund-authority-lifecycle.ts`; and the two provider-authority
-  database modules remain its sole writer boundary.
-  `processed_payments.payment_session_id` remains a flat checkout identity until
-  M6-M11; local `payment_state.review` is not a second provider authority.
-  `checkingClaimFor` is the sole constructor for ordinary and placeholder
-  attendee fences. `provider_unknown` remains a bounded typed old-data refusal,
-  and the attendee page explains it without rendering a dead Refresh form.
+  in `payment/refund-authority-choice.ts`; and the one exhaustive
+  `payment/refund-authority-lifecycle.ts` declaration names each state's
+  admitted evidence actions, clearer, required-choice flag, owner route,
+  pruning, and delete/merge policy. Its blocking and pruning SQL derive from the
+  same table. The two provider-authority database modules remain its sole writer
+  boundary. `processed_payments.payment_session_id` remains a flat checkout
+  identity until M6-M11; local `payment_state.review` is not a second provider
+  authority. `checkingClaimFor` is the sole constructor for ordinary and
+  placeholder attendee fences. `provider_unknown` remains a bounded typed
+  old-data refusal, and the attendee page explains it without rendering a dead
+  Refresh form.
 - **Admin bounds:** Refund All's GET reads indexed summaries and decrypts zero
   attendee PII. Its POST decrypts zero when blocked/empty and one selected
   attendee otherwise. A claim's blind-index expansion accepts at most 100
   outside sharing rows; SQL row 101 proves overflow and returns
   `too_many_reference_holders` before decrypting shared `failure_data`, writing
-  a claim, or calling a provider.
+  a claim, or calling a provider. Blank indexes never join rows, and a set with
+  no non-empty index skips the sharing query. Any loaded attendee PII revision
+  or exact payment-row set drift returns `changed` for the whole claim without a
+  partial write.
+- **Owner and UI admission:** every submitted choice is rederived from current
+  stored evidence; a crafted choice is rejected unchanged. A rendered revision
+  loses before provider I/O after any transition, including a concurrent
+  `send_armed` generation. Refund and Refresh visibility derives from the
+  complete indexed reference set and canonical authority work, not legacy PII.
+- **Placeholder and settlement atomicity:** one transaction writes the
+  placeholder attendee/bookings, indexed claimed anchor, and conservative
+  terminal session outcome; its final result is an exact compare-and-set
+  replacement. A lost committed-create reply replays without a second attendee
+  or send. Every proved returned observation enters settlement findings before a
+  fallible authority write, so one authority failure cannot discard returned
+  evidence from itself or a sibling.
+- **Retention:** an old referenced row is prunable only when its own blind index
+  matches a canonical charge whose lifecycle says it is complete and locally
+  recorded. An attendee-wide Money refund or a returned sibling charge is not
+  deletion authority.
 - **Remaining faults:** blank paid references are still terminally acknowledged,
   site proof and strict webhook-envelope work remain incomplete, and
   whole-callback diagnostics still expose more detail than the target permits.
@@ -678,35 +712,55 @@ transitions; `payment/refund-authority-choice.ts` owns conflict/owner
 transitions, derives the non-empty allowed-choice set, and exports the
 exhaustive `mayReplaceRefundWithFreshEvidence` rule;
 `payment/refund-conflict-decision.ts` derives the exact safe answer; and
-`payment/refund-authority-lifecycle.ts` declares every block and exit.
-`db/provider-refund-authority.ts` owns identity creation/binding and
-`db/provider-refund-authority-change.ts` owns every Money/state write;
-`db/provider-refund-case-resolution.ts` uses that writer inside the transaction
-that also commits the owner activity audit. The architecture test permits
-exactly those two database writer modules as one logical boundary. Production
-and tests both call the same refund readiness implementation; a test-side copy
-is forbidden.
+`payment/refund-authority-lifecycle.ts` is the one exhaustive record of every
+admitted evidence action, block, clearer, required-choice flag, operator route,
+and pruning rule. `refundAuthorityWorkSql` and `refundAuthorityPrunableSql`
+derive from that record. `db/provider-refund-authority.ts` owns identity
+creation/binding and `db/provider-refund-authority-change.ts` owns every
+Money/state write; `db/provider-refund-case-resolution.ts` uses that writer
+inside the transaction that also commits the owner activity audit. The
+architecture test permits exactly those two database writer modules as one
+logical boundary. Production and tests both call the same refund readiness
+implementation; a test-side copy is forbidden.
 
 The state schema itself separates `needs_owner_choice` from
 `needs_provider_check`: the first cannot be stored without a real answer, while
 the second cannot be resolved by an owner money guess. Exact zero return admits
 only not sent, exact full return only returned, and partial/inconclusive
 evidence only Check again. A fresh partial or invalid observation replaces
-ordinary ambiguity and increments the revision; conclusive conflict choices do
-not get rewritten by later reads. Rendered owner sends and choices carry the
+ordinary ambiguity and increments the revision; identical provider-check
+evidence is the only recheck that preserves it, while any changed amount or
+conclusion advances it. Conclusive conflict choices do not get rewritten by
+later reads. The server rederives the allowed choice from current evidence and
+rejects a crafted answer unchanged. Rendered owner sends and choices carry the
 authority id and revision, with the send losing before provider I/O and every
-write losing its CAS rather than overwriting newer evidence. These boundaries
-are pinned by `test/shared/payment/refund-authority-choice.test.ts`,
-`test/shared/provider-refunds/{state,state-owner-revision}.test.ts`, and
-`test/integration/server/privacy-refund-recovery-race.test.ts`.
+write losing its CAS rather than overwriting newer evidence. A form rendered
+before a concurrent transition to `send_armed` is stale too and makes no
+provider call. These boundaries are pinned by
+`test/shared/payment/refund-authority-{choice,lifecycle}.test.ts`,
+`test/shared/provider-refunds/{state,state-owner-revision}.test.ts`,
+`test/shared/db/provider-refund-cases-validation.test.ts`, and
+`test/integration/server/privacy-refund-recovery{,-active-revision,-race}.test.ts`.
 
 The other current hard bounds are executable too:
 `test/shared/square-provider/webhook-fields.test.ts` rejects missing and unknown
 Square payment statuses;
-`test/shared/db/payment-claim/take/shared-references.test.ts` accepts 100
-outside sharing rows and uses row 101 only to refuse before decrypting shared
-state; and `test/shared/db/refund-all-candidates.test.ts` pins a PII-free
-summary plus selection before the one-row encrypted attendee join.
+`test/shared/db/payment-claim/take/shared-references.test.ts` proves blank
+indexes never join, zero indexes skip the sharing query, 100 outside rows are
+accepted, and row 101 refuses before decrypting shared state;
+`test/shared/db/payment-claim/{admission,take}.test.ts` proves PII and exact-row
+drift return `changed` without a partial claim;
+`test/shared/db/refund-all-candidates.test.ts` pins a PII-free summary plus
+selection before the one-row encrypted attendee join;
+`test/features/admin/refunds/readiness-findings/authority-failure.test.ts`
+proves returned observations survive a fallible authority write;
+`test/features/api/payment-processing/index/refunds.test.ts` proves a lost
+placeholder-create reply replays one committed attendee and no provider send;
+`test/shared/db/prune/payments.test.ts` proves exact-charge pruning retains a
+still-paid sibling; and
+`test/features/admin/attendee-page-data/refunds-ui.test.ts` plus
+`test/integration/server/attendees/payment.test.ts` prove refund controls and
+provider links come from authoritative tagged work rather than legacy PII.
 
 At verified source checkpoint `31492eb2936dea7d7ac51d225d8af3f8fc18d95a`, M4's
 focused `resolving-uncertain-refunds.feature` has four scenarios and 43 executed

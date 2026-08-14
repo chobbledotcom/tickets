@@ -1,3 +1,5 @@
+/** Provider observations survive a later refund-authority storage failure. */
+
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";

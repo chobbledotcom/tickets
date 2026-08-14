@@ -742,9 +742,14 @@
               Matching payment and ticket facts recover the booking; a proved
               rollback creates the protected quantity-zero record and enters the
               canonical refund path; every ambiguous or contradictory shape
-              rethrows the original error. The proof is <code
+              rethrows the original error. Placeholder creation also commits its
+              indexed claim and a conservative handled session outcome in the
+              same transaction. If the commit reply is lost, the error still
+              propagates, but a later delivery replays that outcome instead of
+              creating a second attendee or sending money again. The proof is <code
               >recovery.test.ts</code>, <code>recovery-decision.test.ts</code>,
-              and the webhook post-commit recovery suite.
+              the webhook post-commit recovery suite, and the lost-placeholder-
+              reply regression in <code>index/refunds.test.ts</code>.
             </p>
           </article>
           <article class="card after">
@@ -1215,6 +1220,8 @@
             <p>
               Every charge transition names the exact prior revision. A losing
               writer rereads the winner; it cannot overwrite newer evidence.
+              Replaying identical provider evidence does not manufacture a new
+              revision, while materially changed evidence always does.
             </p>
           </article>
           <article class="card">
@@ -1226,6 +1233,8 @@
               the revision. The old “not sent” form then loses its revision
               fence before it can authorize another generation. A conclusive
               provider-conflict owner choice is not overwritten by later reads.
+              POST also rederives the exact choices from that stored revision;
+              a crafted but otherwise valid answer cannot enter the transaction.
             </p>
           </article>
           <article class="card">
@@ -1235,7 +1244,10 @@
               reference rows, sharing rows, blank indexes, and the same command
               identity. Shared-holder discovery reads at most 101 rows: 100 is
               accepted, while the sentinel row returns a typed refusal before
-              shared state decryption or any claim write.
+              shared state decryption or any claim write. Blank indexes never
+              share an identity, a set with no usable index skips the sharing
+              query, and either PII revision drift or a disappeared payment row
+              returns <code>changed</code>.
             </p>
           </article>
           <article class="card">
@@ -1261,7 +1273,10 @@
               claim. Before a failed ledger post is rethrown, provider-confirmed
               returns are marked for durable <code>unrecorded</code> work and
               unproved rows remain in doubt; settlement then tries to persist
-              that answer. If the settlement write itself fails, it is reported
+              that answer. Fully-returned provider observations enter those
+              findings before the fallible authority write, so a database error
+              cannot erase evidence that money is back. If the settlement write
+              itself fails, it is reported
               and the claim may remain; a successful work path throws that
               settlement error, while a failed work path keeps its original
               error. The automatic-placeholder claim intentionally follows the
@@ -1452,7 +1467,9 @@
               Refresh; no references render nothing; legacy, too-large, or
               provider-unknown sets show the real refusal in plain text and
               withhold the unusable control. Protected payment details remain
-              visible even when legacy PII has no payment ID.
+              visible even when legacy PII has no payment ID. The Refund action
+              asks the same remaining-charge-work rule as the command, so one
+              refunded booking cannot hide an unreturned sibling charge.
             </p>
           </article>
           <article class="card">
@@ -1892,10 +1909,12 @@
               >shared/payment/{refund-authority,refund-authority-state,refund-authority-choice,refund-conflict-decision,refund-authority-lifecycle}</code><p>
                 A strict stored union for ready, armed, observing, completed,
                 owner-choice, and provider-check states; pure transitions; exact
-                conflict decisions; and one declared clear/prune/delete/merge
-                policy for every state. The schema makes an empty owner choice
-                invalid and keeps partial or inconclusive evidence in a separate
-                check-again state.
+                conflict decisions; and one declared evidence-action,
+                clear/route/prune/delete/merge policy for every state. The schema
+                makes an empty owner choice invalid and keeps partial or
+                inconclusive evidence in a separate check-again state. Identical
+                evidence is a replay and retains its revision; changed evidence
+                advances it.
               </p>
             </article>
             <article class="module">
@@ -1992,7 +2011,9 @@
               <code>shared/db/processed-payments · payment-finalize</code><p>
                 Write encrypted reference and index together, encode local state
                 plus mirror together, and refuse finalization under a live
-                claim.
+                claim. A failed paid booking prepares one terminal session
+                transition that can join attendee creation, then advances only
+                that exact conservative outcome by compare-and-swap.
               </p>
             </article>
             <article class="module">
@@ -2008,7 +2029,10 @@
                 merge/{attendee-merge,attendee-merge-types}</code><p>
                 Relocate stable indexed work through merge, refuse active
                 claims, preserve repair targets through listing deletion and
-                retention, and use indexes rather than PII scans.
+                retention, and use indexes rather than PII scans. Pruning asks
+                the same lifecycle declaration whether this exact indexed charge
+                is settled; an attendee-wide refund leg cannot delete an
+                unreturned sibling payment.
               </p>
             </article>
             <article class="module">
@@ -2140,6 +2164,8 @@
             source paths. Structural deletions include <code
             >features/admin/require-provider.ts</code>, <code
             >shared/refund-ledger.ts</code>, and <code>shared/square.ts</code>;
+            the ambient <code>shared/payment-dashboard.ts</code> provider guess is
+            deleted too;
             their still-needed behavior either moved into the one shared
             mechanism or was removed.
           </p>
@@ -2178,7 +2204,11 @@
             <p>
               This is the current-charge refund authority, not the later
               whole-payment, allocation, decision, effect, or delivery
-              aggregate. Those later layers must link to it, not build a second
+              aggregate. In particular, the current ledger cannot safely mark a
+              zero-price member of a paid package refunded when the order key has
+              been overwritten by a later order. M7 must introduce the stable,
+              joinable booking obligation that fixes this without guessing.
+              Those later layers must link to this authority, not build a second
               engine.
             </p>
           </article>

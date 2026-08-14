@@ -553,12 +553,16 @@ that ambient choice: M4's canonical authority carries a tagged provider identity
 and loads exactly that adapter. That older whole-checkout resolver must not be
 called, copied, or consulted as a refund fallback, including for old rows; an
 untagged refund reference is a typed reduced-functionality refusal until the
-owner-authenticated migration qualifies it. A site already on `none` recovers
-when exactly one provider has stored credentials; when multiple do, the operator
-must choose the provider in a recovery form that keeps new sales off.
-`setPaymentProviderNone` reads the current provider via an atomic INSERT ...
-SELECT subquery so a concurrent activation cannot land between the read and the
-write.
+owner-authenticated migration qualifies it. That migration may qualify a
+provider only from retained or freshly validated charge evidence, or from a
+required revision-fenced owner decision over providers that actually validated
+it. It must never use current/last configuration, credential order, identifier
+spelling, or restore the deleted guessed provider-dashboard link. A site already
+on `none` recovers when exactly one provider has stored credentials; when
+multiple do, the operator must choose the provider in a recovery form that keeps
+new sales off. `setPaymentProviderNone` reads the current provider via an atomic
+INSERT ... SELECT subquery so a concurrent activation cannot land between the
+read and the write.
 
 The same no-parallel-path rule binds the future aggregate cutover: either extend
 the canonical refund authority in place or fence requests, migrate and verify
@@ -2433,22 +2437,12 @@ the free-package-member arm and the two-orders-on-one-listing case both become
 expressible. Note the same weakness applies to `pricePaidFromLedger`, which
 already keys on this column.
 
-## Pruning may delete a sibling charge that never came back
-
-_Origin: Codex on PR #2065, review of 774d1949._
-
-`paymentStatement` in `src/shared/db/prune.ts` treats the attendee's
-`refund_cash` leg as permission to delete their unprotected payment rows. With
-partial reversal that leg now exists after only SOME of a multi-charge
-attendee's money has come back, so the row carrying a still-unreturned sibling
-charge can age out and be deleted. If that row is the only durable copy of a
-balance or merged payment reference, a later refund attempt cannot find the
-charge.
-
-Pruning has to establish that each ROW's own charge was returned before deleting
-it, rather than reading one attendee-wide leg. Note this shares the correlation
-problem above — a reversal leg cannot currently be traced to the charge it
-reversed — so the two are likely one piece of work.
+Do not conflate that deferred booking-order identity with payment retention.
+PR4-A closed the sibling-pruning fault independently: an old referenced row may
+age out only when its exact blind reference index matches a completed,
+locally-recorded canonical charge. An attendee-wide `refund_cash` leg or a
+returned sibling charge is never deletion authority. Keep that exact-charge rule
+when the stable obligation model replaces the current booking projection.
 
 ## The stripe-mock start-count test races its own subprocesses
 

@@ -555,10 +555,11 @@
               </div>
               <p>
                 Declare the real clearer, whether a money choice is required,
-                the operator route, pruning rule, and merge/delete effect for
-                every durable state. Static checks prove the clearer export and
-                route exist; route/template journeys prove the usable control is
-                actually rendered to the permitted role.
+                the operator route, pruning rule, merge/delete effect, and each
+                allowed fresh-evidence action for every durable state. Static
+                checks prove the clearer export and route exist; route/template
+                journeys prove the usable control is actually rendered to the
+                permitted role.
               </p>
             </li>
             <li class="method">
@@ -592,6 +593,10 @@
                 inconclusive proof advances the revision, preserves the known
                 returned-Money floor, and remains provider-check work. It cannot
                 send or overwrite a conclusive provider-conflict owner choice.
+                Identical evidence is a true replay and leaves the revision
+                unchanged. Owner-choice POSTs rederive the exact legal choices
+                from the stored revision, so a crafted but schema-valid answer is
+                refused rather than written.
               </p>
             </li>
             <li class="method">
@@ -1533,9 +1538,12 @@
                 rather than the legacy PII payment ID. It shows indexed work
                 after merge, withholds Refresh for <code>provider_unknown</code>
                 and other incomplete sets, and explains why the action is
-                unavailable. Route and template journeys prove recovery remains
-                reachable after merge or listing deletion and that managers see
-                no forbidden refund, owner-choice, or review control.
+                unavailable. Refund visibility asks the same
+                <code>refundWorkRemains</code> rule as the command, so a returned
+                sibling cannot hide another charge still with its provider.
+                Route and template journeys prove recovery remains reachable
+                after merge or listing deletion and that managers see no
+                forbidden refund, owner-choice, or review control.
               </p>
             </li>
           </ul>
@@ -1548,13 +1556,17 @@
               <div>
                 <a href="src/shared/db/processed-payments.ts"><code
                   >reserveSession</code> / <code
-                  >finalizeSessionIfUnresolved</code></a><span class="where"
+                  >finalizeSessionIfUnresolved</code> / <code
+                  >prepareSessionFailure</code></a><span class="where"
                 >shared/db/processed-payments.ts</span>
               </div>
               <p>
                 Clear/write reference index with its reference, refuse finalize
                 under a matching claim, and fail loudly on corrupt stored
-                outcome state.
+                outcome state. A failed paid booking can commit its placeholder,
+                indexed claim, and conservative handled outcome atomically, then
+                compare-and-swap only that exact outcome after settlement. A
+                lost commit reply therefore cannot create a second placeholder.
               </p>
             </li>
             <li class="method">
@@ -1612,7 +1624,10 @@
               </div>
               <p>
                 Plain lifecycle mirrors preserve unfinished work regardless of
-                age, while settled authority does not retain data forever.
+                age, while settled authority does not retain data forever. A
+                processed row is prunable only when its own blind index reaches a
+                prunable canonical charge; one attendee-wide refund leg cannot
+                erase an unreturned sibling charge.
               </p>
             </li>
           </ul>
@@ -1763,6 +1778,10 @@
           proved, or rethrows the original error. <code>recovery.test.ts</code>,
           <code>recovery-decision.test.ts</code>, and the webhook post-commit
           recovery suite exercise all three outcomes.
+          Placeholder creation separately commits the attendee, indexed claimed
+          anchor, and conservative terminal session result together. A simulated
+          post-commit reply loss rethrows on the first request, then replays one
+          attendee with zero new creates and zero provider sends.
         </div>
         <div class="callout">
           <strong>No broad decryption:</strong> whole-listing and maintenance
@@ -1792,7 +1811,8 @@
           Blank-index or unqualified evidence refuses before provider I/O. Only
           the future bounded, owner-authenticated and owner-authorized M11
           migration may qualify them, with verified canonical writes before
-          source redaction.
+          source redaction. Unqualified values render as inert text; the deleted
+          ambient dashboard helper must not return as a guessed provider link.
         </div>
         <div class="callout warn">
           <strong>Atomic-cutover caveat:</strong> this report does not claim

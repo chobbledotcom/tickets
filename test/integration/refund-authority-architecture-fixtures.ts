@@ -122,7 +122,7 @@ export const REFUND_AUTHORITY_TEST_PATHS = [
   "features/admin/refunds/provider/dispatch-helpers.ts",
   "features/admin/refunds/provider/mixed-capability.test.ts",
   "features/admin/refunds/provider/readiness-helpers.ts",
-  "features/admin/refunds/readiness-failure-evidence.test.ts",
+  "features/admin/refunds/readiness-findings/authority-failure.test.ts",
   "features/admin/refunds/refresh/helpers.ts",
   "integration/server/privacy-refund-recovery-race.test.ts",
   "shared/payment/refund-authority-lifecycle.test.ts",
