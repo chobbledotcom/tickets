@@ -597,7 +597,7 @@
     <main>
       <header>
         <p class="eyebrow">
-          M4 Part A · provisional working snapshot compared with origin/main
+          M4 Part A · final source review compared with origin/main
         </p>
         <h1>One charge. One refund authority. No guessing.</h1>
         <p class="lede">
@@ -609,42 +609,41 @@
           generation, and returned money remains visible until the local books
           catch up.
         </p>
-        <!-- FINALIZE: replace data-finalize values after the final green commit. -->
-        <div class="snapshot" data-snapshot="provisional">
+        <div class="snapshot" data-snapshot="final">
           <span data-finalize="base"><strong>base</strong> <code
             >470b47efef0836487d55beb8a26442dd432f6f35</code></span>
-          <span data-finalize="branch-head"><strong>provisional HEAD</strong>
-            <code>d91a8ec86</code></span>
-          <span data-finalize="working-state"><strong>working state</strong>
-            <code>HEAD + final uncommitted fixes</code></span>
+          <span data-finalize="branch-head"><strong>source checkpoint</strong>
+            <code>2e78f3d218a5becefbbcdaf5bfbf8e66a4433838</code></span>
+          <span data-finalize="working-state"><strong>report state</strong>
+            <code>source fixed; documentation finalized afterward</code></span>
           <span data-finalize="source-fingerprint"><strong>source
-              fingerprint</strong> <code>pending final commit</code></span>
+              fingerprint</strong> <code
+            >8a1f161bdbe04513efad4c06a779df14e02bc60e8b35967ef65675050e688cf5</code></span>
           <span data-finalize="generated"><strong>generated</strong> <code
-            >2026-08-14T07:18:00+01:00</code></span>
+            >2026-08-14T09:56:27+01:00</code></span>
           <span data-finalize="scope"><strong>scope</strong>
-            <code>origin/main..working tree</code></span>
+            <code>origin/main...source checkpoint</code></span>
         </div>
         <div class="metrics">
           <div class="metric" data-finalize="source-paths">
-            <b>208</b><span>source paths changed</span>
+            <b>210</b><span>source paths changed</span>
           </div>
           <div class="metric" data-finalize="source-added">
-            <b>+16537</b><span>source lines added</span>
+            <b>+16762</b><span>source lines added</span>
           </div>
           <div class="metric" data-finalize="source-removed">
-            <b>−3682</b><span>source lines removed</span>
+            <b>−3912</b><span>source lines removed</span>
           </div>
           <div class="metric">
             <b>1</b><span>canonical provider-refund authority</span>
           </div>
         </div>
-        <div class="callout warn" data-finalize="snapshot-note">
-          <span class="mark">≈</span><p>
-            <strong>Provisional values:</strong> the explanation covers the
-            complete working tree. Commit, fingerprint, source totals, and test
-            totals are isolated in <code>data-finalize</code> fields so the
-            final green checkpoint can replace them without changing the design
-            narrative.
+        <div class="callout good" data-finalize="snapshot-note">
+          <span class="mark">✓</span><p>
+            <strong>Verified values:</strong> the explanation, source totals,
+            fingerprint, and test totals describe the committed source
+            checkpoint. The plan and these reports were finalized afterward;
+            those documentation-only edits do not alter the source comparison.
           </p>
         </div>
       </header>
@@ -746,10 +745,11 @@
               indexed claim and a conservative handled session outcome in the
               same transaction. If the commit reply is lost, the error still
               propagates, but a later delivery replays that outcome instead of
-              creating a second attendee or sending money again. The proof is <code
-              >recovery.test.ts</code>, <code>recovery-decision.test.ts</code>,
-              the webhook post-commit recovery suite, and the lost-placeholder-
-              reply regression in <code>index/refunds.test.ts</code>.
+              creating a second attendee or sending money again. The proof is
+              <code>recovery.test.ts</code>, <code
+              >recovery-decision.test.ts</code>, the webhook post-commit
+              recovery suite, and the lost-placeholder- reply regression in
+              <code>index/refunds.test.ts</code>.
             </p>
           </article>
           <article class="card after">
@@ -937,8 +937,14 @@
             rejects a third writer. The old refund-local sender, discovery
             fallback, read-through admission helper, and live <code
             >provider_refunded_at</code> reader are absent; the same test fails
-            if any returns. The temporary checkout-session selector is not a
-            refund fallback: an exact allowlist confines <code
+            if any returns. Every refund-facing adapter load passes the complete
+            <code>TaggedPaymentReference</code> through <code
+            >loadRefundProvider</code>, which loads only the tagged provider and
+            verifies the match. The same gate rejects current/last-provider
+            selectors, provider-state lookup, credential enumeration, raw
+            provider loading, and direct adapter imports in refund-facing code.
+            The temporary checkout-session selector is not a refund fallback: an
+            exact allowlist confines <code
             >getPaymentProviderForExistingPayments</code> to <code
             >classify.ts</code>, <code>webhooks.ts</code>, and its declaration
             in
@@ -970,8 +976,9 @@
           <article class="step">
             <h3>Read the charge</h3>
             <p>
-              The named provider returns captured and returned Money or one
-              explicit missing/unavailable/invalid answer.
+              The provider tagged on the stored reference—and no provider
+              selected from current settings—returns captured and returned Money
+              or one explicit missing/unavailable/invalid answer.
             </p>
           </article>
           <article class="step">
@@ -1233,8 +1240,8 @@
               the revision. The old “not sent” form then loses its revision
               fence before it can authorize another generation. A conclusive
               provider-conflict owner choice is not overwritten by later reads.
-              POST also rederives the exact choices from that stored revision;
-              a crafted but otherwise valid answer cannot enter the transaction.
+              POST also rederives the exact choices from that stored revision; a
+              crafted but otherwise valid answer cannot enter the transaction.
             </p>
           </article>
           <article class="card">
@@ -1276,11 +1283,11 @@
               that answer. Fully-returned provider observations enter those
               findings before the fallible authority write, so a database error
               cannot erase evidence that money is back. If the settlement write
-              itself fails, it is reported
-              and the claim may remain; a successful work path throws that
-              settlement error, while a failed work path keeps its original
-              error. The automatic-placeholder claim intentionally follows the
-              stricter all-effects rule described above.
+              itself fails, it is reported and the claim may remain; a
+              successful work path throws that settlement error, while a failed
+              work path keeps its original error. The automatic-placeholder
+              claim intentionally follows the stricter all-effects rule
+              described above.
             </p>
           </article>
           <article class="card">
@@ -1546,8 +1553,10 @@
               Budgets include physical database retries, exact provider
               attempts, judgment and recovery reads, claim admission, rollback,
               returned-Money writes, ledger work, settlement, and route tails.
-              If the selected command does not fit, nothing narrows itself after
-              a first send.
+              Every active reference is priced from its stored provider tag,
+              even when that provider is not currently configured. If the
+              selected command does not fit, nothing narrows itself after a
+              first send.
             </p>
           </article>
           <article class="card">
@@ -1698,12 +1707,12 @@
           pure rule tests, database and route integration tests, architecture
           guards, mutation expectations, and visitor-level payment stories. Last
           complete run: <code data-finalize="unit-tests"
-          >23,299 unit and integration tests</code>, <code
+          >23,351 unit and integration tests</code>, <code
             data-finalize="cucumber-scenarios"
           >262 scenarios</code>, and <code data-finalize="cucumber-steps"
-          >1,877 steps</code>. These are provisional until the final green
-          commit. The stories include a real owner journey where unreadable
-          SumUp evidence sends nothing and opens the required decision.
+          >1,877 steps</code>. The stories include a real owner journey where
+          unreadable SumUp evidence sends nothing and opens the required
+          decision.
         </p>
         <div class="test-stack">
           <article class="test-level">
@@ -1726,10 +1735,10 @@
           <article class="test-level">
             <h3>Human journeys</h3>
             <p>
-              Cucumber drives pre-send checking, waiting, Money repair,
-              two-window races, owner-only controls, Refund All blockers, and
-              owner resolution from the rendered form through provider and
-              ledger boundaries.
+              Eight refund stories drive 33 scenarios and 365 steps through
+              pre-send checking, waiting, Money repair, two-window races,
+              owner-only controls, Refund All blockers, and owner resolution
+              from the rendered form through provider and ledger boundaries.
             </p>
           </article>
         </div>
@@ -1741,10 +1750,12 @@
             legacy live reads of <code>provider_refunded_at</code>, or a
             declared recovery action without a real registered route. It also
             pins every production and test entry to the same <code
-            >requestProviderRefund</code> engine, exact-allowlists the temporary
-            checkout provider selector, and pairs route checks with rendered
-            role/state journeys so “route exists but no usable control” cannot
-            count as recovery.
+            >requestProviderRefund</code> engine, rejects every ambient/raw
+            provider selector in refund-facing source, exact-allowlists <code
+            >loadRefundProvider</code> to readiness and authority, confines the
+            temporary checkout provider selector, and pairs route checks with
+            rendered role/state journeys so “route exists but no usable control”
+            cannot count as recovery.
           </p>
         </div>
       </section>
@@ -1861,8 +1872,8 @@
               </p>
             </article>
             <article class="module">
-              <code>features/api/webhooks · features/read-json-body ·
-                shared/read-json</code><p>
+              <code>features/api/payment-success · features/api/webhooks ·
+                features/read-json-body · shared/read-json</code><p>
                 Keep malformed bodies and signed/provider-authenticated callback
                 failures distinct; parsing errors do not become silent skips.
               </p>
@@ -1910,8 +1921,8 @@
                 A strict stored union for ready, armed, observing, completed,
                 owner-choice, and provider-check states; pure transitions; exact
                 conflict decisions; and one declared evidence-action,
-                clear/route/prune/delete/merge policy for every state. The schema
-                makes an empty owner choice invalid and keeps partial or
+                clear/route/prune/delete/merge policy for every state. The
+                schema makes an empty owner choice invalid and keeps partial or
                 inconclusive evidence in a separate check-again state. Identical
                 evidence is a replay and retains its revision; changed evidence
                 advances it.
@@ -1929,11 +1940,13 @@
                 · provider-refund-cursor</code><p>
                 The sole engine and owner-queue cursor. Both admin and callback
                 entries load, reconcile, arm, send/observe, and persist through
-                it. Ready work may wait through one five-minute
-                unavailable-evidence grace, then must expose the owner-choice
-                exit. New full provider proof can finish an ordinary ambiguity;
-                partial, backward, or inconclusive proof instead advances the
-                revision and remains provider-check work.
+                it. <code>loadRefundProvider</code> accepts the complete tagged
+                reference, loads only its named adapter, and checks the match.
+                Ready work may wait through one five-minute unavailable-evidence
+                grace, then must expose the owner-choice exit. New full provider
+                proof can finish an ordinary ambiguity; partial, backward, or
+                inconclusive proof instead advances the revision and remains
+                provider-check work.
               </p>
             </article>
             <article class="module">
@@ -2054,7 +2067,9 @@
             <article class="module">
               <code>shared/db/client · existing-payment-provider</code><p>
                 Expose physical DB retry count to the budget and separate
-                credential availability from historical charge ownership.
+                credential availability from historical charge ownership. The
+                credential-order helper was deleted from refund budgeting;
+                stored provider identity alone determines the worst-case cost.
               </p>
             </article>
             <article class="module">
@@ -2158,16 +2173,15 @@
 
         <div class="callout" data-finalize="source-path-accounting">
           <span class="mark">Σ</span><p>
-            <strong>Provisional raw path accounting:</strong> the complete
-            working tree contains <strong>99 added</strong>, <strong>106
-              modified</strong>, and <strong>3 deleted</strong>
+            <strong>Final raw path accounting:</strong> the source checkpoint
+            contains <strong>100 added</strong>, <strong>106 modified</strong>,
+            and <strong>4 deleted</strong>
             source paths. Structural deletions include <code
             >features/admin/require-provider.ts</code>, <code
             >shared/refund-ledger.ts</code>, and <code>shared/square.ts</code>;
-            the ambient <code>shared/payment-dashboard.ts</code> provider guess is
-            deleted too;
-            their still-needed behavior either moved into the one shared
-            mechanism or was removed.
+            the ambient <code>shared/payment-dashboard.ts</code> provider guess
+            is deleted too; their still-needed behavior either moved into the
+            one shared mechanism or was removed.
           </p>
         </div>
       </section>
@@ -2205,11 +2219,11 @@
               This is the current-charge refund authority, not the later
               whole-payment, allocation, decision, effect, or delivery
               aggregate. In particular, the current ledger cannot safely mark a
-              zero-price member of a paid package refunded when the order key has
-              been overwritten by a later order. M7 must introduce the stable,
-              joinable booking obligation that fixes this without guessing.
-              Those later layers must link to this authority, not build a second
-              engine.
+              zero-price member of a paid package refunded when the order key
+              has been overwritten by a later order. M7 must introduce the
+              stable, joinable booking obligation that fixes this without
+              guessing. Those later layers must link to this authority, not
+              build a second engine.
             </p>
           </article>
           <article class="card boundary">
@@ -2229,9 +2243,12 @@
               >getPaymentProviderForExistingPayments</code> and every runtime
               payment-ownership caller in the same change that switches writers,
               readers, jobs, completion, delivery, and migration. There must be
-              no dual-run or read-through window. Configuration-only credential
-              enumeration may remain under an honest name; no second observer,
-              sender, fallback, bridge, or old-record branch may survive.
+              no dual-run or read-through window. After that cutover, credential
+              enumeration may exist only inside settings and activation
+              recovery. It is never payment ownership and cannot enter refund
+              admission, budgeting, provider loading, observation, sending, or
+              dashboard links. No second observer, sender, fallback, bridge, or
+              old-record branch may survive.
             </p>
           </article>
           <article class="card boundary">
@@ -2258,13 +2275,13 @@
       </section>
 
       <footer data-finalize="footer-checkpoint">
-        <strong>Provisional complete-working-tree report.</strong> Source counts
-        describe <code>src/</code> only. At finalization, replace this named
-        field with the final commit and SHA-256 source fingerprint;
-        documentation-only commits may then follow without changing that source
-        diff. The current narrative was audited against <code
-        >origin/main@470b47efef0836487d55beb8a26442dd432f6f35...HEAD@d91a8ec86 +
-          final uncommitted fixes</code> and its as-built module map.
+        <strong>Final reviewed source report.</strong> Source counts describe
+        <code>src/</code> only. The narrative was audited against <code
+        >origin/main@470b47efef0836487d55beb8a26442dd432f6f35...2e78f3d218a5becefbbcdaf5bfbf8e66a4433838</code>
+        and source fingerprint <code
+        >8a1f161bdbe04513efad4c06a779df14e02bc60e8b35967ef65675050e688cf5</code>.
+        Documentation-only finalization followed without changing that source
+        diff.
       </footer>
     </main>
   </body>

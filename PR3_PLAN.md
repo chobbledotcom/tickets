@@ -140,10 +140,14 @@ these corrections before using it:
   binding path was deleted.
 - **Refund safety:** `tryRefund` is gone. Real sends use tagged references
   through `requestProviderRefund`/`requestProviderRefunds` and never re-resolve
-  a provider after admission. An untagged id is inert display text, not a
-  provider search hint, and gets no guessed provider-dashboard link even when a
-  provider is configured. The remaining gap is earlier whole-checkout provider
-  selection before the target is tagged.
+  a provider after admission. Readiness and real sends pass the complete tagged
+  reference to `loadRefundProvider`; it loads only the named adapter and
+  verifies that the adapter matches the tag. Refund-facing code cannot accept a
+  bare provider type, consult current/last configuration or credential order,
+  call raw `loadPaymentProvider`, or import adapters directly. An untagged id is
+  inert display text, not a provider search hint, and gets no guessed
+  provider-dashboard link even when a provider is configured. The remaining gap
+  is earlier whole-checkout provider selection before the target is tagged.
 - **Persistence and review:** `payment_charges` is the canonical durable
   authority for refund sends, provider checks, and owner choices. Stored-shape
   parsing/mirrors live in `payment/refund-authority-state.ts`; automatic
@@ -161,8 +165,11 @@ these corrections before using it:
   Refresh form.
 - **Admin bounds:** Refund All's GET reads indexed summaries and decrypts zero
   attendee PII. Its POST decrypts zero when blocked/empty and one selected
-  attendee otherwise. A claim's blind-index expansion accepts at most 100
-  outside sharing rows; SQL row 101 proves overflow and returns
+  attendee otherwise. Readiness derives every active tagged reference's cost
+  from its stored provider identity; it takes no configured-provider input and
+  never prices a reference at zero because credentials are absent, so ambient
+  configuration cannot change admission. A claim's blind-index expansion accepts
+  at most 100 outside sharing rows; SQL row 101 proves overflow and returns
   `too_many_reference_holders` before decrypting shared `failure_data`, writing
   a claim, or calling a provider. Blank indexes never join rows, and a set with
   no non-empty index skips the sharing query. Any loaded attendee PII revision
@@ -758,14 +765,14 @@ proves returned observations survive a fallible authority write;
 placeholder-create reply replays one committed attendee and no provider send;
 `test/shared/db/prune/payments.test.ts` proves exact-charge pruning retains a
 still-paid sibling; and
-`test/features/admin/attendee-page-data/refunds-ui.test.ts` plus
-`test/integration/server/attendees/payment.test.ts` prove refund controls and
-provider links come from authoritative tagged work rather than legacy PII.
+`test/features/admin/attendee-page-data/{refund-actions,refunds-ui}.test.ts`
+plus `test/integration/server/attendees/payment.test.ts` prove refund controls
+and provider links come from authoritative tagged work rather than legacy PII.
 
-At verified source checkpoint `31492eb2936dea7d7ac51d225d8af3f8fc18d95a`, M4's
+At verified source checkpoint `2e78f3d218a5becefbbcdaf5bfbf8e66a4433838`, M4's
 focused `resolving-uncertain-refunds.feature` has four scenarios and 43 executed
 Cucumber steps, including the unreadable-ready zero-send exit. The completed
-full run passes 261 scenarios and 1,863 executed steps. Older suite-wide counts
+full run passes 262 scenarios and 1,877 executed steps. Older suite-wide counts
 are not authority.
 
 Direct deterministic coverage for the remaining cutover must include:

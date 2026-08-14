@@ -1,6 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  REFRESH_BUDGET_MESSAGE,
+  REFUND_BUDGET_MESSAGES,
   REFUND_LEDGER_SUBREQUEST_RESERVE,
   REFUND_SETTLEMENT_SUBREQUEST_RESERVE,
   refundPreparedSubrequestCost,
@@ -8,6 +10,7 @@ import {
   subrequestCostFits,
 } from "#routes/admin/refunds/budget.ts";
 import type { TaggedRefundPaymentReference } from "#shared/db/payment-references.ts";
+import { REFUND_NETWORK_RETRIES } from "#shared/payment/refund-network.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 
 const referenceFacts = (label: string) => ({
@@ -37,7 +40,27 @@ const externalCost = (reference: TaggedRefundPaymentReference): number =>
     returned: new Set(),
   }).external;
 
+const setSquareRetries = (retries: number): void => {
+  Object.defineProperty(REFUND_NETWORK_RETRIES, "square", {
+    configurable: true,
+    enumerable: true,
+    value: retries,
+    writable: true,
+  });
+};
+
 describe("admin refund subrequest budget", () => {
+  test("keeps actionable guidance on every budget refusal", () => {
+    expect(REFUND_BUDGET_MESSAGES).toEqual({
+      bulk: "This run has too many payments to refund at once. Refund fewer attendees at a time.",
+      single:
+        "This attendee has too many payments to refund in one go. Refund them from the provider dashboard.",
+    });
+    expect(REFRESH_BUDGET_MESSAGE).toBe(
+      "This attendee has too many payments to refresh safely in one request. No provider was contacted, and automatic refresh is unavailable for this payment set.",
+    );
+  });
+
   test("prices no work when there are no candidates", () => {
     expect(
       refundReadinessSubrequestCost({
@@ -149,6 +172,17 @@ describe("admin refund subrequest budget", () => {
     ).toEqual({ database: 14, external: 0, total: 14 });
   });
 
+  test("does not reserve returned-money recording twice before a refresh read", () => {
+    expect(
+      refundReadinessSubrequestCost({
+        action: "refresh",
+        candidates: [{ references: [taggedReference("stripe")] }],
+        checkpoint: "before_provider_read",
+        returned: new Set(),
+      }),
+    ).toEqual({ database: 20, external: 1, total: 21 });
+  });
+
   test("prices no late work when preparation can neither send nor return money", () => {
     expect(
       refundPreparedSubrequestCost({
@@ -158,6 +192,27 @@ describe("admin refund subrequest budget", () => {
         sendReferences: [],
       }),
     ).toEqual({ database: 0, external: 0, total: 0 });
+  });
+
+  test("prices a live send even when it cannot record returned money", () => {
+    expect(
+      refundPreparedSubrequestCost({
+        activeAuthorityCount: 1,
+        mayRecordReturns: false,
+        returnedAuthorityCount: 0,
+        sendReferences: [{ index: "index_live", provider: "stripe" }],
+      }),
+    ).toEqual({ database: 24, external: 2, total: 26 });
+  });
+
+  test("multiplies logical provider work by every physical attempt", () => {
+    const originalRetries = REFUND_NETWORK_RETRIES.square;
+    setSquareRetries(1);
+    try {
+      expect(externalCost(taggedReference("square"))).toBe(6);
+    } finally {
+      setSquareRetries(originalRetries);
+    }
   });
 
   for (const [provider, calls] of [

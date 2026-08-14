@@ -28,7 +28,6 @@ export const REFRESH_BUDGET_MESSAGE =
 
 type ProviderCallPlan = {
   readonly judgmentReads: number;
-  readonly networkAttempts: number;
   readonly recoveryReads: number;
   readonly sends: number;
 };
@@ -37,19 +36,16 @@ type ProviderCallPlan = {
 const PROVIDER_CALL_PLANS = {
   square: {
     judgmentReads: 1,
-    networkAttempts: REFUND_NETWORK_RETRIES.square + 1,
     recoveryReads: 1,
     sends: 1,
   },
   stripe: {
     judgmentReads: 1,
-    networkAttempts: REFUND_NETWORK_RETRIES.stripe + 1,
     recoveryReads: 1,
     sends: 1,
   },
   sumup: {
     judgmentReads: 1,
-    networkAttempts: REFUND_NETWORK_RETRIES.sumup + 1,
     recoveryReads: 1,
     sends: 1,
   },
@@ -64,7 +60,7 @@ const physicalCalls = (
   logicalCalls: (plan: ProviderCallPlan) => number,
 ): number => {
   const plan = PROVIDER_CALL_PLANS[provider];
-  return logicalCalls(plan) * plan.networkAttempts;
+  return logicalCalls(plan) * (REFUND_NETWORK_RETRIES[provider] + 1);
 };
 
 type ProviderCallStage = "complete" | "judgment" | "send";

@@ -550,19 +550,22 @@ New sales and existing payments are now resolved by different questions:
 completion entry points. When sales are off, that existing-payment path falls
 back to the last activated provider. Actual provider refund sends no longer use
 that ambient choice: M4's canonical authority carries a tagged provider identity
-and loads exactly that adapter. That older whole-checkout resolver must not be
-called, copied, or consulted as a refund fallback, including for old rows; an
-untagged refund reference is a typed reduced-functionality refusal until the
-owner-authenticated migration qualifies it. That migration may qualify a
-provider only from retained or freshly validated charge evidence, or from a
-required revision-fenced owner decision over providers that actually validated
-it. It must never use current/last configuration, credential order, identifier
-spelling, or restore the deleted guessed provider-dashboard link. A site already
-on `none` recovers when exactly one provider has stored credentials; when
-multiple do, the operator must choose the provider in a recovery form that keeps
-new sales off. `setPaymentProviderNone` reads the current provider via an atomic
-INSERT ... SELECT subquery so a concurrent activation cannot land between the
-read and the write.
+and passes the complete reference to `loadRefundProvider`, which loads exactly
+that adapter and verifies that it matches the tag. That older whole-checkout
+resolver must not be called, copied, or consulted as a refund fallback,
+including for old rows; an untagged refund reference is a typed
+reduced-functionality refusal until the owner-authenticated migration qualifies
+it. That migration may qualify a provider only from retained or freshly
+validated charge evidence, or from a required revision-fenced owner decision
+over providers that actually validated it. It must never use current/last
+configuration, credential order, identifier spelling, or restore the deleted
+guessed provider-dashboard link. A site already on `none` recovers when exactly
+one provider has stored credentials; when multiple do, the operator must choose
+the provider in a recovery form that keeps new sales off. That is a settings
+activation decision only; it is not historical payment ownership and cannot be
+reused by refunds. `setPaymentProviderNone` reads the current provider via an
+atomic INSERT ... SELECT subquery so a concurrent activation cannot land between
+the read and the write.
 
 The same no-parallel-path rule binds the future aggregate cutover: either extend
 the canonical refund authority in place or fence requests, migrate and verify
@@ -1102,16 +1105,19 @@ counts database calls and external fetch/storage calls separately and together;
 nested allowances reserve mandatory cleanup, and each interactive transaction
 keeps one rollback call outside its working allowance. M4 Part A also prices the
 EXACT selected admin refund attendee over physical provider retries, database
-work, rollback, settlement, and the caller tail before fresh provider I/O.
-Refund All uses a PII-free whole-listing safety summary, then selects one
-person; its GET decrypts zero attendee PII, and its POST decrypts zero when
-blocked/empty or exactly one when admitted. It does not pretend one request can
-finish an arbitrary listing. Blind-index claim expansion separately accepts at
-most 100 sharing rows outside the selected attendee set and retrieves row 101
-only as an overflow sentinel. Overflow refuses before decrypting shared row
-state, writing a claim, or calling a provider. The paths below still have
-data-dependent fan-out or need resumable work; counting them makes an overrun
-loud, but does not itself make a large operation finish.
+work, rollback, settlement, and the caller tail before fresh provider I/O. The
+cost comes from each stored provider-tagged identity, takes no list of
+configured providers, and never becomes zero because credentials are absent;
+ambient configuration therefore cannot change refund admission. Refund All uses
+a PII-free whole-listing safety summary, then selects one person; its GET
+decrypts zero attendee PII, and its POST decrypts zero when blocked/empty or
+exactly one when admitted. It does not pretend one request can finish an
+arbitrary listing. Blind-index claim expansion separately accepts at most 100
+sharing rows outside the selected attendee set and retrieves row 101 only as an
+overflow sentinel. Overflow refuses before decrypting shared row state, writing
+a claim, or calling a provider. The paths below still have data-dependent
+fan-out or need resumable work; counting them makes an overrun loud, but does
+not itself make a large operation finish.
 
 - ~~**Package carts and payment completion.**~~ Done. `resolveCartSlugs` now
   resolves every package slug through `loadCartPackagesBySlugs`

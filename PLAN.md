@@ -394,7 +394,7 @@ As-built module map:
 | Provider reads and attempts      | `ProviderRead`; `providerFailure`; `RefundAttemptResult`; `RefundRequest`; `refundOutcomeAfterReread`; `refundWithOneReread`; `SquarePaymentStatus`; `isSquarePaymentStatus`                                                                                                                                                                                                                 | `test/shared/payment/{provider-failures,refund-attempt}.test.ts`; `test/shared/stripe-provider/{outcomes,refund-outcomes}.test.ts`; `test/shared/square/refund-outcomes.test.ts`; `test/shared/sumup/{transaction,provider-money}.test.ts`; `test/shared/square-provider/{metadata,webhook-fields}.test.ts`                                                                                                              |
 | Durable provider state           | `RefundAuthorityState`; `RefundAuthorityStateName`; `readRefundAuthorityState`; `writeRefundAuthorityState`; `validateRefundAuthorityState`; `refundStateMirror`; `refundLocalMirror`; `refundNextActionAt`; `readyRefund`; `armRefundSend`; `markRefundObservationDue`; `rearmKeyedRefund`; `returnRefundToReady`; `markRefundCompleted`; `markRefundLocalRecorded`                         | `test/shared/payment/refund-authority-state.test.ts`; `test/shared/payment/refund-authority/state.test.ts`; `test/shared/provider-refunds/state/contracts.test.ts`; `test/integration/refund-authority-architecture.test.ts`                                                                                                                                                                                             |
 | Conflict, choice, and lifecycle  | `RefundConflictDecisionSchema`; `refundConflictDecision`; `refundConflictNeedsProviderCheck`; `markRefundOwnerChoiceNeeded`; `mayReplaceRefundWithFreshEvidence`; `markRefundProviderConflict`; `refundOwnerChoices`; `resolveRefundOwnerChoice`; `refundEvidenceActionAllowed`; `refundLifecycleFor`; `refundAuthorityWorkSql`; `refundAuthorityPrunableSql`; `refundMoveRefusalOrNull`     | `test/shared/payment/refund-authority-choice.test.ts`; `test/shared/payment/refund-authority-lifecycle.test.ts`; `test/shared/payment/refund-authority/state.test.ts`; `test/shared/provider-refunds/{state,target-conflict}.test.ts`; `test/integration/refund-authority-architecture.test.ts`                                                                                                                          |
-| Provider permit and one engine   | `ProviderRefundEvidence`; `ProviderRefundTarget`; `ProviderRefundResult`; `RefundAuthorityReceipt`; `ProviderRefundDependencies`; `RefundEngineProvider`; `AuthorizedRefundRequest`; `authorizeDurableRefundSend`; `requireProviderRefundAuthorization`; `requestProviderRefunds`; `requestProviderRefund`; `recordProviderRefunds`                                                          | `test/shared/provider-refunds/{target,state,work,send,budget}.test.ts`; `test/shared/provider-refunds/send/outcomes.test.ts`; `test/shared/provider-refunds.test.ts`; `test/integration/refund-authority-architecture.test.ts`                                                                                                                                                                                           |
+| Provider permit and one engine   | `ProviderRefundEvidence`; `ProviderRefundTarget`; `ProviderRefundResult`; `RefundAuthorityReceipt`; `ProviderRefundDependencies`; `RefundEngineProvider`; `loadRefundProvider`; `AuthorizedRefundRequest`; `authorizeDurableRefundSend`; `requireProviderRefundAuthorization`; `requestProviderRefunds`; `requestProviderRefund`; `recordProviderRefunds`                                    | `test/shared/provider-refunds/{target,state,work,send,budget}.test.ts`; `test/shared/provider-refunds/send/outcomes.test.ts`; `test/shared/provider-refunds.test.ts`; `test/integration/refund-authority-architecture.test.ts`                                                                                                                                                                                           |
 | Atomic authority storage         | `createOrLoadRefundAuthority`; `bindRefundCallbackIfChargeExists`; `transitionRefundAuthority`; `resolveRefundAuthorityMoney`; `completeRefundAuthority`; `markRefundAuthorityRecorded`                                                                                                                                                                                                      | `test/shared/db/provider-refund-authority.test.ts`; `test/shared/provider-refunds/{target,state,work,send}.test.ts`                                                                                                                                                                                                                                                                                                      |
 | Callback and placeholder cutover | `requestSessionRefund`; `refundRejectedCharge`; `storeRefundedBooking`                                                                                                                                                                                                                                                                                                                       | `test/features/api/payment-processing/refunds/{provider-result,rejected-charge}.test.ts`; `test/features/api/payment-processing/{index/refunds,store-refund}.test.ts`; callback integration suites under `test/integration/server/`                                                                                                                                                                                      |
 | Admin claims and dispatch        | `claimLeaseMs`; `checkingClaimFor`; `claimAttendeeRows`; `underAttendeeClaim`; `runRefundReadiness`; `rememberReadinessFailureFindings`; `requestReadyRefund`; `dispatchRefundBatch`; `refreshClaimedPayment`; `AuthorityBearingReference`; `recordedRefundAuthorities`                                                                                                                      | `test/shared/payment/claim.test.ts`; `test/shared/db/payment-claim/{admission,take,unrecorded-date}.test.ts`; `test/shared/db/payment-claim/take/shared-references.test.ts`; `test/features/admin/refunds/{claim,readiness-failure-evidence}.test.ts`; `test/features/admin/refunds/readiness-findings/authority-failure.test.ts`; `test/features/admin/refunds/dispatch/{budget-lifecycle,write-order}.test.ts`         |
@@ -404,7 +404,7 @@ As-built module map:
 | Exact Money repair               | `refundMoneyReturned`; `refundMoneyAccountedFor`; `computeAttendeeRefunds`; `RefundLedgerResult`; `REFUND_LEDGER_BATCH_DATABASE_CALLS`                                                                                                                                                                                                                                                       | `test/shared/payment/resources.test.ts`; `test/shared/refund-ledger/plan/{partial,reference-placement,whole-account}.test.ts`; `test/shared/refund-ledger/record/batch.test.ts`; `test/features/admin/refunds/provider/batch/{ledger-findings,ledger}.test.ts`                                                                                                                                                           |
 | Bounded command support          | `refundReadinessSubrequestCost`; `refundPreparedSubrequestCost`; `REFUND_SETTLEMENT_SUBREQUEST_RESERVE`; `REFUND_LEDGER_SUBREQUEST_RESERVE`; `REFUND_OBSERVED_AUTHORITY_DATABASE_CALLS`; `REFUND_ACTIVE_AUTHORITY_DATABASE_CALLS`; `REFUND_RESULT_DATABASE_RESERVE`; `withSubrequestReserve`; `withDeferredErrorReports`; `getRefundCandidates`; `getRefundAllSummary`; `loadRefundAllBatch` | `test/features/admin/refunds/{budget,claim-settlement,candidates}.test.ts`; `test/features/admin/refunds/provider/batch/budget.test.ts`; `test/features/admin/refunds/dispatch/budget-lifecycle.test.ts`; `test/features/admin/refunds/readiness-run/refresh-budget.test.ts`; `test/shared/provider-refunds/{budget,send}.test.ts`; `test/shared/subrequest-budget.test.ts`; `test/integration/logger/log-error.test.ts` |
 | Private indexed references       | `storePaymentReference`; `loadPaymentReference`; `prepareClaimedAttendeePaymentAnchor`; `getRefundPaymentReferences`; `MAX_REFUND_REFERENCES_PER_ATTENDEE`                                                                                                                                                                                                                                   | `test/shared/db/payment-anchor/{attendee,reference}.test.ts`; `test/shared/db/payment-references{,/readiness,/storage}.test.ts`; `test/features/api/payment-processing/store-refund.test.ts`; `test/integration/refund-authority-architecture.test.ts`                                                                                                                                                                   |
-| Attendee refund controls         | `refundWorkRemains`; `loadAttendeeForEdit`; `attendeePage`                                                                                                                                                                                                                                                                                                                                   | `test/features/admin/attendee-page-data/refunds-ui.test.ts`; `test/features/admin/attendee-page/actions.test.ts`; `test/integration/server/attendees/payment.test.ts`; `specs/payments/checking-before-a-refund.feature`                                                                                                                                                                                                 |
+| Attendee refund controls         | `refundWorkRemains`; `loadAttendeeForEdit`; `attendeePage`                                                                                                                                                                                                                                                                                                                                   | `test/features/admin/attendee-page-data/{refund-actions,refunds-ui}.test.ts`; `test/features/admin/attendee-page/actions.test.ts`; `test/integration/server/attendees/payment.test.ts`; `specs/payments/checking-before-a-refund.feature`                                                                                                                                                                                |
 
 - **Authority module ownership.** `payment/refund-authority-state.ts` owns the
   one stored union, its parser, serializer, validation, and SQL mirrors.
@@ -495,16 +495,22 @@ As-built module map:
   markers do not attest a provider or amount. A tagged provider is
   authoritative, not a search hint: if it is unconfigured or its read is
   missing, unavailable, or invalid, the row stops there and no other adapter is
-  tried. Readiness, capability, and dispatch remain per reference, so one merged
-  attendee may safely carry payments from different providers.
-  `provider_unknown` is a bounded typed limitation, not recoverable work. The
-  attendee page explains that the old row did not record its provider and does
-  not render a Refresh form whose route can only refuse; Single Refund, Refund
-  All admission, and a direct Refresh request all remain fail-closed with zero
-  provider calls. The old ambient provider-to-dashboard guess was deleted too:
-  an untagged payment id is inert display text, with no provider dashboard link
-  or external-link target even when one provider is currently configured. M11's
-  owner-authenticated migration is its only qualification path.
+  tried. Every refund-facing adapter load receives the complete
+  `TaggedPaymentReference` and goes through `loadRefundProvider`, which loads
+  only `reference.provider` and verifies that the returned adapter matches the
+  tag. Refund code cannot accept a bare provider type, consult current/last
+  configuration, enumerate stored credentials, call raw `loadPaymentProvider`,
+  or import provider adapters directly. Readiness, capability, and dispatch
+  remain per reference, so one merged attendee may safely carry payments from
+  different providers. `provider_unknown` is a bounded typed limitation, not
+  recoverable work. The attendee page explains that the old row did not record
+  its provider and does not render a Refresh form whose route can only refuse;
+  Single Refund, Refund All admission, and a direct Refresh request all remain
+  fail-closed with zero provider calls. The old ambient provider-to-dashboard
+  guess was deleted too: an untagged payment id is inert display text, with no
+  provider dashboard link or external-link target even when one provider is
+  currently configured. M11's owner-authenticated migration is its only
+  qualification path.
 - **Provider boundary.**
   `payment/{provider-read,provider-failures,refund-attempt,refund-network}.ts`
   and the Stripe, Square, and SumUp adapters replace nullable reads and booleans
@@ -656,9 +662,14 @@ As-built module map:
   Only `shared/provider-refunds/send.ts` can mint `AuthorizedRefundRequest`, and
   every provider adapter requires that permit. The architecture test rejects any
   second mint import, adapter/API caller, `payment_charges` writer, legacy
-  refund path, or live read/write of `provider_refunded_at`. Attendee-claim
-  settlement still matches the exact command id, lease time, and `checking`
-  phase, so a stalled predecessor cannot release a successor's fence.
+  refund path, or live read/write of `provider_refunded_at`. It also rejects
+  current/last provider selectors, `existingPaymentProviderState`, the deleted
+  `orderedCredentialedPaymentProviderTypes`, raw `loadPaymentProvider`, and
+  direct adapter imports in refund-facing code. `loadRefundProvider` has an
+  exact production allowlist: admin refund readiness and the provider-refund
+  authority. Attendee-claim settlement still matches the exact command id, lease
+  time, and `checking` phase, so a stalled predecessor cannot release a
+  successor's fence.
 
   `paymentRowStateStatement` writes the encrypted `failure_data` record and its
   derived plaintext mirror in ONE conditional statement, matching the exact
@@ -674,30 +685,34 @@ As-built module map:
   `features/admin/refunds/{attempt,budget,candidates,claim,dispatch,provider,provider-requests,readiness-run,waves}.ts`,
   `subrequest-budget.ts`, and `db/client.ts` price physical provider retries,
   database retries, rollback, settlement, and caller tails at several
-  checkpoints before fresh provider I/O. A selected command that cannot fit
-  refuses without narrowing or sending. Dispatch reserves the exact post-arm
-  send, bounded reread, and returned-money recording allowance around the arm
-  transaction itself. Claim acquisition runs inside the settlement reserve; it
-  is not counted a second time in the plan. An arm retry therefore cannot
-  consume the permission it is about to persist: exhaustion before commit is
-  proved `not_sent`, while a durable keyless `send_armed` phase is reserved for
-  a genuinely uncertain dispatch. The engine's declared worst-case database
-  envelopes are four calls for an already-known terminal authority, sixteen for
-  an observation that creates durable work, twenty for an active send, eight
-  reserved while the provider call is in flight, and twelve to retire returned
-  local work. That final retirement is not pre-reserved: a completed return
-  whose local books are due is canonical recoverable work, not an unsafe partial
-  send. The envelopes derive from `DATABASE_MAX_ATTEMPTS`, not hand-counted
-  happy-path SQL. One unresolved reference fits; two independently retryable
-  sends or observations refuse before either provider read. Provider calls
-  overlap by at most five. One attendee may still carry up to ten references, so
-  even the one-attendee Refund All batch can refuse safely before its first
-  provider call. `logger.ts:withDeferredErrorReports` queues non-critical
-  activity, notification, and Sentry fan-out until the money-critical command
-  finishes, and flushes the queue even on a throw, so diagnostics cannot consume
-  the subrequests reserved for settlement or rollback. Nested scopes share one
-  outer flush boundary, and independent or overlapping errors each persist; only
-  recursive reporting caused by that persistence attempt is suppressed
+  checkpoints before fresh provider I/O. The readiness budget prices every
+  active tagged reference from its stored provider identity. It has no
+  configured-provider argument and never assigns zero cost because credentials
+  appear absent; ambient settings cannot change refund admission. A selected
+  command that cannot fit refuses without narrowing or sending. Dispatch
+  reserves the exact post-arm send, bounded reread, and returned-money recording
+  allowance around the arm transaction itself. Claim acquisition runs inside the
+  settlement reserve; it is not counted a second time in the plan. An arm retry
+  therefore cannot consume the permission it is about to persist: exhaustion
+  before commit is proved `not_sent`, while a durable keyless `send_armed` phase
+  is reserved for a genuinely uncertain dispatch. The engine's declared
+  worst-case database envelopes are four calls for an already-known terminal
+  authority, sixteen for an observation that creates durable work, twenty for an
+  active send, eight reserved while the provider call is in flight, and twelve
+  to retire returned local work. That final retirement is not pre-reserved: a
+  completed return whose local books are due is canonical recoverable work, not
+  an unsafe partial send. The envelopes derive from `DATABASE_MAX_ATTEMPTS`, not
+  hand-counted happy-path SQL. One unresolved reference fits; two independently
+  retryable sends or observations refuse before either provider read. Provider
+  calls overlap by at most five. One attendee may still carry up to ten
+  references, so even the one-attendee Refund All batch can refuse safely before
+  its first provider call. `logger.ts:withDeferredErrorReports` queues
+  non-critical activity, notification, and Sentry fan-out until the
+  money-critical command finishes, and flushes the queue even on a throw, so
+  diagnostics cannot consume the subrequests reserved for settlement or
+  rollback. Nested scopes share one outer flush boundary, and independent or
+  overlapping errors each persist; only recursive reporting caused by that
+  persistence attempt is suppressed
   (`test/integration/logger/log-error.test.ts`).
 - **Refund All admission.** `db/refund-all-candidates.ts` first computes a
   PII-free whole-listing count and detects any visible `review`, `unrecorded`,
@@ -859,6 +874,7 @@ As-built module map:
   absent when no tagged automatic payment exists, no active booking remains, or
   the exact authority says the cash work is finished; a legacy PII id or paid
   display value cannot make the action appear. These rules are pinned by
+  `test/features/admin/attendee-page-data/refund-actions.test.ts`,
   `test/features/admin/attendee-page-data/refunds-ui.test.ts`,
   `test/features/admin/attendee-page/actions.test.ts`, and
   `test/integration/server/attendees/payment.test.ts`. Clean evidence retires
@@ -1033,9 +1049,9 @@ As-built module map:
   isolation. `resolving-uncertain-refunds.feature` drives the real Privacy queue
   through ready send, provider observation, required owner choice, and separate
   Money recording. At verified source checkpoint
-  `31492eb2936dea7d7ac51d225d8af3f8fc18d95a` that focused feature has four
+  `2e78f3d218a5becefbbcdaf5bfbf8e66a4433838` that focused feature has four
   scenarios and 43 executed Cucumber steps, including the unreadable-ready
-  zero-send exit. The completed full run passes 261 scenarios and 1,863 executed
+  zero-send exit. The completed full run passes 262 scenarios and 1,877 executed
   steps. The stories submit the rendered forms and cross the real provider and
   ledger boundaries. Refund-safety purchases use the public booking page: Stripe
   follows the production completion route, while SumUp follows the real checkout
@@ -1076,9 +1092,10 @@ still be terminally dropped. These are whole-checkout admission and completion
 defects for the atomic M6/M8 cutover; they are not alternate paths the M4 refund
 authority should learn to tolerate. M6–M11 must replace and delete
 `getPaymentProviderForExistingPayments` and every runtime payment-ownership
-caller in the same activation. Configuration-only credential enumeration may
-remain under an honest configuration name; it must never become a second
-observer, sender, fallback, or read-through path.
+caller in the same activation. After that cutover, credential enumeration may
+exist only inside settings/activation recovery. It is never payment ownership
+and must not enter refund admission, budgeting, provider loading, observation,
+sending, or dashboard links.
 
 Part A also does not solve stable booking obligations, exact allocation, ledger
 order identity, a durable Refund All intention, or the original checkout's
