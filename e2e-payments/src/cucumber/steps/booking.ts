@@ -81,9 +81,9 @@ const payStripeWithHeldReturn = async (world: LiveWorld): Promise<void> => {
 
 /** The return-confirmed providers share one step body: submit the booking,
  * then settle it on the provider's own page. */
-const payOnHostedPage = async function (this: LiveWorld): Promise<void> {
-  await sendVisitorToCheckout(this);
-  await payHosted(this);
+const payOnHostedPage = async (world: LiveWorld): Promise<void> => {
+  await sendVisitorToCheckout(world);
+  await payHosted(world);
 };
 
 /** Every hosted-payment step: the text it is known by, and how it pays. */

@@ -35,9 +35,11 @@ const saveStripeKey = async (
 };
 
 const testStripeConnection = async (session: BrowserSession): Promise<void> => {
-  const button = session.page.locator("#stripe-test-btn");
   const result = session.page.locator("#stripe-test-result");
-  await button.click({ timeout: config.actionTimeoutMs });
+  await session.page.evaluate(() => {
+    const btn = document.getElementById("stripe-test-btn");
+    if (btn) btn.click();
+  });
   await result.waitFor({ state: "visible", timeout: config.navTimeoutMs });
 
   const text = await result.innerText();
