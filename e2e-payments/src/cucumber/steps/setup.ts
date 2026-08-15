@@ -90,6 +90,10 @@ Given(
   "the owner has published a package, its members and a plain listing",
   async function (this: LiveWorld): Promise<void> {
     await this.prepareOwner();
+    // A paid catalog needs the provider configured before anything is booked,
+    // or the whole order prices as a provider-less free reservation.
+    const paid = this.target !== "free";
+    if (paid) await configureCurrentProvider(this);
     const { runId } = this.scenario;
     const catalog: OrderCatalog = {
       kit: `E2E Kit ${runId}`,
@@ -104,7 +108,7 @@ Given(
         catalog,
         owner: this.scenario.owner,
       },
-      { paid: this.target !== "free" },
+      { paid },
     );
     this.rememberBuiltOrder(built, catalog);
     this.recordPhase("order-catalog-published");

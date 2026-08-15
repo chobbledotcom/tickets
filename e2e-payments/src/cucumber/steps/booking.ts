@@ -366,6 +366,9 @@ Then(
 
 When(
   "a separate visitor submits them together using {word}",
+  // The hosted-payment allowance: this step also settles the provider's
+  // checkout page, which alone can take minutes over a fresh tunnel.
+  { timeout: config.hostedPaymentStepTimeoutMs },
   async function (this: LiveWorld, provider: string): Promise<void> {
     const paid = provider.toLowerCase() !== "free";
     if (paid && this.target !== provider.toLowerCase()) {

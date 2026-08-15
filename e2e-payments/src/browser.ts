@@ -12,7 +12,13 @@
 
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { type Browser, chromium, type Locator, type Page } from "playwright";
+import {
+  type Browser,
+  chromium,
+  type Locator,
+  type Page,
+  type Route,
+} from "playwright";
 import { browserLaunchOptions } from "#scripts/browser-options.ts";
 import { config } from "./config.ts";
 import { log } from "./log.ts";
@@ -323,34 +329,42 @@ export const launchAppBrowser = async (
 /**
  * Hold the FIRST app return navigation (e.g. `/payment/success?session_id=…`)
  * so only a webhook can create the booking, and hand back the exact URL the
- * checkout produced once the browser tries to follow it. The URL is captured
- * from the intercepted request itself, before the page leaves it.
+ * checkout produced once the browser tries to follow it. The route is
+ * registered on the whole browser CONTEXT: a cross-origin redirect (Stripe's
+ * return) is a main-frame navigation the page-level route can occasionally
+ * miss, while a context route catches it regardless of which frame initiated.
  */
 export const holdFirstAppReturn = (
   session: BrowserSession,
 ): { capturedUrl: () => Promise<string> } => {
   const appOrigin = new URL(session.baseUrl).origin;
   let captured: string | undefined;
-  session.page.route(
-    (url) => url.origin === appOrigin && url.pathname === "/payment/success",
-    (route) => {
-      captured = route.request().url();
-      route.fulfill({
-        body: "The browser return is held while the webhook confirms payment.",
-        contentType: "text/plain",
-        status: 202,
-      });
-    },
-    { times: 1 },
-  );
+  const isAppReturn = (url: URL): boolean =>
+    url.origin === appOrigin && url.pathname === "/payment/success";
+  const handler = (route: Route): void => {
+    if (captured !== undefined) {
+      void route.continue();
+      return;
+    }
+    captured = route.request().url();
+    void route.fulfill({
+      body: "The browser return is held while the webhook confirms payment.",
+      contentType: "text/plain",
+      status: 202,
+    });
+  };
+  const context = session.page.context();
+  void context.route(isAppReturn, handler);
   return {
     capturedUrl: async (): Promise<string> => {
       // The route handler sets `captured` when the browser attempts the
       // return navigation; poll because the caller may beat the handler by
-      // a microtask.
+      // a microtask. Unregister the hold either way so later steps (the
+      // replay) reach the app untouched.
       const found = await pollUntil(30_000, () =>
         Promise.resolve(captured ?? null),
       );
+      await context.unroute(isAppReturn, handler);
       if (found !== null) return found;
       throw new Error(
         `the held return has not been navigated yet (at ${session.page.url()})`,

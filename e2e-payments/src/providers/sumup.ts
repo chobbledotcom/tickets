@@ -121,14 +121,21 @@ export const sumup: PaymentProvider = {
         (event) => event.event_type === "REFUND",
       );
       if (refundEvents.length === 0) return null;
+      // SumUp's history reports money in MAJOR units (1.37); the shared
+      // observation carries minor units like every other provider. The
+      // harness only runs 2-decimal currencies (GBP/USD — the documented
+      // setup assumption), so a fixed hundredfold conversion is exact.
+      const toMinor = (major: number): number => Math.round(major * 100);
       return {
         amount: refundEvents.reduce(
           (sum, event) =>
             sum +
-            requiredField(
-              event.amount,
-              "sumup",
-              "amount on a REFUND transaction event",
+            toMinor(
+              requiredField(
+                event.amount,
+                "sumup",
+                "amount on a REFUND transaction event",
+              ),
             ),
           0,
         ),
