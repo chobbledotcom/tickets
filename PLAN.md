@@ -443,8 +443,7 @@ As-built module map:
   never invents the signed checkout total or booking allocation that this slice
   cannot read.
 - **Reference identity and storage.** Migrations
-  `2026-08-10_payment_state_columns.ts`,
-  `2026-08-14_attendee_payment_provenance.ts`, `tables-attendees.ts`,
+  `2026-08-10_refund_authority_records.ts`, `tables-attendees.ts`,
   `db/payment-reference-store.ts`, `db/payment-reference-rows.ts`,
   `db/payment-references.ts`,
   `db/payment-anchor/{reference,session,attendee}.ts`, and
@@ -580,7 +579,7 @@ As-built module map:
   `test/shared/payment/refund-attempt.test.ts` pin the wire meaning, one-read
   count, and this evidence table.
 - **Canonical authority storage.**
-  `db/migrations/2026-08-13_refund_authority.ts` activates the previously
+  `db/migrations/2026-08-10_refund_authority_records.ts` rebuilds the previously
   unwritten `payment_charges` table only after proving it empty; a populated
   table makes deployment fail rather than reinterpreting unknown data. Its
   schema stores provider, owner-key-encrypted reference, blind reference and
@@ -805,16 +804,16 @@ As-built module map:
 - **Confirmation and review.** `features/admin/refunds/confirmation.ts`,
   `db/refund-confirmations.ts`, `db/payment-review.ts`,
   `db/notes/{queries,types}.ts`, and migration
-  `2026-08-12_refund_confirmations.ts` store one replay-safe confirmation keyed
-  by the attendee and sorted provider-aware blind indexes. The confirmation,
-  held-row assertion, generic activity, and optional named confirmation note
-  commit together. Confirmation never scans, decrypts, or deletes historical
-  note history, including for an old anchor. Old manual-refund warnings are
-  compatibility display history only: a successful indexed confirmation leaves
-  them visible beside the authoritative confirmation, and the owner may delete
-  each note through the ordinary note action. This deliberately trades automatic
-  cleanup of old display history for constant request work; do not restore a
-  history scan to tidy it.
+  `2026-08-10_refund_authority_records.ts` store one replay-safe confirmation
+  keyed by the attendee and sorted provider-aware blind indexes. The
+  confirmation, held-row assertion, generic activity, and optional named
+  confirmation note commit together. Confirmation never scans, decrypts, or
+  deletes historical note history, including for an old anchor. Old
+  manual-refund warnings are compatibility display history only: a successful
+  indexed confirmation leaves them visible beside the authoritative
+  confirmation, and the owner may delete each note through the ordinary note
+  action. This deliberately trades automatic cleanup of old display history for
+  constant request work; do not restore a history scan to tidy it.
 
   Local `PaymentReviewReason` stores only `shared_reference` and
   `partially_returned_obligation`. Acknowledgement stamps the exact case
@@ -971,7 +970,7 @@ As-built module map:
   work has its own “Refund recovery” list on the same owner page and links by
   authority id, so it remains reachable even when the listing no longer exists.
 - **Migration and restore parity.** Migration
-  `2026-08-13_payment_work_queue_index.ts` installs the partial
+  `2026-08-10_refund_authority_records.ts` installs the partial
   `processed_payments(attendee_id) WHERE protected_state != ''` recovery-queue
   index. `schema-sync.ts` emits partial predicates and treats columns used only
   by a predicate as dependencies; historical restore support finds the same

@@ -401,26 +401,15 @@ export const MIGRATION_REGISTRY: MigrationRegistryEntry[] = [
     "2026-08-04_login_attempt_stamp",
     () => import("./2026-08-04_login_attempt_stamp.ts"),
   ),
+  // Everything the durable refund authority needs, in one migration. It drops
+  // the dormant payment-record tables before the declarative apply reaches
+  // them: this release redefines those tables, and the apply can only ADD
+  // COLUMN to a table that already exists — which SQLite refuses for the new
+  // PRIMARY KEY. Splitting this work apart is what let an upgrade break, so
+  // keep the drop and the apply in the same migration.
   entry(
-    "2026-08-10_payment_state_columns",
-    () => import("./2026-08-10_payment_state_columns.ts"),
-  ),
-  entry(
-    "2026-08-12_refund_confirmations",
-    () => import("./2026-08-12_refund_confirmations.ts"),
-  ),
-  entry(
-    "2026-08-13_payment_work_queue_index",
-    () => import("./2026-08-13_payment_work_queue_index.ts"),
-  ),
-  // Activate the still-empty aggregate charge table as the one refund sender.
-  entry(
-    "2026-08-13_refund_authority",
-    () => import("./2026-08-13_refund_authority.ts"),
-  ),
-  entry(
-    "2026-08-14_attendee_payment_provenance",
-    () => import("./2026-08-14_attendee_payment_provenance.ts"),
+    "2026-08-10_refund_authority_records",
+    () => import("./2026-08-10_refund_authority_records.ts"),
   ),
 ];
 /* jscpd:ignore-end */

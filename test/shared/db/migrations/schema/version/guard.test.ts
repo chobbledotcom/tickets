@@ -103,11 +103,7 @@ describe("db > migrations > schema change guard", () => {
         "2026-07-28_note_entities",
         "2026-07-26_payment_records",
         "2026-08-04_login_attempt_stamp",
-        "2026-08-10_payment_state_columns",
-        "2026-08-12_refund_confirmations",
-        "2026-08-13_payment_work_queue_index",
-        "2026-08-13_refund_authority",
-        "2026-08-14_attendee_payment_provenance",
+        "2026-08-10_refund_authority_records",
       ],
       schemaHash: "1wprqda",
     });
@@ -124,7 +120,7 @@ describe("db > migrations > schema change guard", () => {
       dbSchemaHash: "db_schema_hash",
       latestDbUpdate: "latest_db_update",
       latestUpdate:
-        "Keep new attendee payment history provably complete before bulk refunds.",
+        "Give every refund one durable record, so money can be checked, recovered, and never sent twice.",
       migrationLock: "migration_lock",
       schemaMigrations: "schema_migrations",
     });
