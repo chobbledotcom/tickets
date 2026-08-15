@@ -107,20 +107,18 @@ export type RefundWithin<Resource> = (
   resource: Resource,
 ) => { amount: number; currency: string | null | undefined } | null;
 
-/** Read one provider resource once and turn it into a refund observation: a
- * read that throws, or one whose resource names no refund, is honestly
- * pending — never defaulted to zero and never guessed as completed. */
+/** Read one provider resource once and turn it into a refund observation.
+ * A transport failure — outage, rejected credentials, malformed body —
+ * propagates: the nightly run must not report green without ever learning
+ * what the provider returned. `pending` is reserved for a successful read
+ * whose resource honestly reports no settled refund yet (or the SumUp
+ * history's settling lag). */
 export const observeViaRead = async <Resource>(
   provider: ProviderName,
   read: () => Promise<Resource>,
   refundWithin: RefundWithin<Resource>,
 ): Promise<import("./types.ts").SandboxRefundObservation> => {
-  let resource: Resource;
-  try {
-    resource = await read();
-  } catch {
-    return pendingRefund();
-  }
+  const resource = await read();
   const refund = refundWithin(resource);
   if (refund === null) return pendingRefund();
   return completedRefund(provider, refund.currency, refund.amount);

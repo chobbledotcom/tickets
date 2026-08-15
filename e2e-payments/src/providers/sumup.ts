@@ -64,6 +64,7 @@ type SumupTransactionBody = {
     amount?: number;
     currency?: string;
     event_type?: string;
+    status?: string;
   }[];
 };
 
@@ -121,20 +122,36 @@ export const sumup: PaymentProvider = {
         (event) => event.event_type === "REFUND",
       );
       if (refundEvents.length === 0) return null;
+      // A FAILED refund never returned money — report it as the failure it
+      // is, never as a pending or completed observation.
+      if (refundEvents.some((event) => event.status === "FAILED")) {
+        throw new Error(
+          "sumup's refund event reports FAILED — the refund did not succeed",
+        );
+      }
+      // Only money whose event status proves it was paid out counts as
+      // returned — the same mapping production applies
+      // (src/shared/sumup/money.ts): REFUNDED/SUCCESSFUL completed,
+      // PENDING/SCHEDULED still settling. Settling events report nothing
+      // yet, so the observation stays honestly pending.
+      const settledEvents = refundEvents.filter(
+        (event) => event.status === "REFUNDED" || event.status === "SUCCESSFUL",
+      );
+      if (settledEvents.length === 0) return null;
       // SumUp's history reports money in MAJOR units (1.37); the shared
       // observation carries minor units like every other provider. The
       // harness only runs 2-decimal currencies (GBP/USD — the documented
       // setup assumption), so a fixed hundredfold conversion is exact.
       const toMinor = (major: number): number => Math.round(major * 100);
       return {
-        amount: refundEvents.reduce(
+        amount: settledEvents.reduce(
           (sum, event) =>
             sum +
             toMinor(
               requiredField(
                 event.amount,
                 "sumup",
-                "amount on a REFUND transaction event",
+                "amount on a settled REFUND transaction event",
               ),
             ),
           0,
