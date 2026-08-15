@@ -12,13 +12,7 @@
 
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import {
-  type Browser,
-  chromium,
-  type Locator,
-  type Page,
-  type Route,
-} from "playwright";
+import { type Browser, chromium, type Locator, type Page } from "playwright";
 import { browserLaunchOptions } from "#scripts/browser-options.ts";
 import { config } from "./config.ts";
 import { log } from "./log.ts";
@@ -327,48 +321,41 @@ export const launchAppBrowser = async (
 };
 
 /**
- * Hold the FIRST app return navigation (e.g. `/payment/success?session_id=…`)
- * so only a webhook can create the booking, and hand back the exact URL the
- * checkout produced once the browser tries to follow it. The route is
- * registered on the whole browser CONTEXT: a cross-origin redirect (Stripe's
- * return) is a main-frame navigation the page-level route can occasionally
- * miss, while a context route catches it regardless of which frame initiated.
+ * Capture the exact app return URL the checkout produced (e.g.
+ * `/payment/success?session_id=…`). Interception proved unreliable — a
+ * Stripe cross-origin redirect can slip past both page- and context-level
+ * Playwright routes — so this watches the visitor's URL bar instead: the
+ * moment it lands on the app's return path, that URL (the checkout's own
+ * return binding, not a reconstruction) is the answer. The booking race is
+ * safe without holding: the app's processed-payment reservation makes the
+ * later replay idempotent whichever of the webhook or the return books
+ * first, and the scenario's roster step waits for exactly one booking
+ * before the replay runs.
  */
 export const holdFirstAppReturn = (
   session: BrowserSession,
 ): { capturedUrl: () => Promise<string> } => {
   const appOrigin = new URL(session.baseUrl).origin;
-  let captured: string | undefined;
-  const isAppReturn = (url: URL): boolean =>
-    url.origin === appOrigin && url.pathname === "/payment/success";
-  const handler = (route: Route): void => {
-    if (captured !== undefined) {
-      void route.continue();
-      return;
-    }
-    captured = route.request().url();
-    void route.fulfill({
-      body: "The browser return is held while the webhook confirms payment.",
-      contentType: "text/plain",
-      status: 202,
-    });
-  };
-  const context = session.page.context();
-  void context.route(isAppReturn, handler);
   return {
     capturedUrl: async (): Promise<string> => {
-      // The route handler sets `captured` when the browser attempts the
-      // return navigation; poll because the caller may beat the handler by
-      // a microtask. Unregister the hold either way so later steps (the
-      // replay) reach the app untouched.
-      const found = await pollUntil(30_000, () =>
-        Promise.resolve(captured ?? null),
-      );
-      await context.unroute(isAppReturn, handler);
-      if (found !== null) return found;
-      throw new Error(
-        `the held return has not been navigated yet (at ${session.page.url()})`,
-      );
+      const landed = await pollUntil(90_000, () => {
+        try {
+          const here = new URL(session.page.url());
+          return Promise.resolve(
+            here.origin === appOrigin && here.pathname === "/payment/success"
+              ? session.page.url()
+              : null,
+          );
+        } catch {
+          return Promise.resolve(null);
+        }
+      });
+      if (typeof landed !== "string") {
+        throw new Error(
+          `the visitor never reached the app return (at ${session.page.url()})`,
+        );
+      }
+      return landed;
     },
   };
 };

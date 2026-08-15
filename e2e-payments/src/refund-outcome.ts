@@ -53,54 +53,63 @@ const completedClaims = (page: RefundPageFacts): Claim[] => [
   { claim: "the Delete action is available", ok: page.deleteActionVisible },
 ];
 
-/** The safe protected state while refund work is unfinished: nothing claims
- * the refund completed, nothing can send or destroy, the owner is warned, and
- * Refresh stays reachable. */
-const unfinishedWorkClaims = (page: RefundPageFacts): Claim[] => [
+/** The durable safety of the observing state: nothing claims the refund
+ * completed, nothing can send or destroy, and Refresh stays reachable. The
+ * one-shot flash warning is deliberately NOT required here — it lives on the
+ * page the submission redirected to and can be gone by the time the facts
+ * are gathered; the fault scenario asserts it via classifyReturnedLocalDue,
+ * which reads the landing page directly. */
+const observingClaims = (page: RefundPageFacts): Claim[] => [
   { claim: "the Refunded status is not shown", ok: !page.refundedVisible },
   refundActionUnavailable(page),
   { claim: "the Delete action is unavailable", ok: !page.deleteActionVisible },
-  {
-    claim: "an unfinished-refund warning is shown",
-    ok: page.unfinishedWorkWarningVisible,
-  },
   { claim: "Refresh remains reachable", ok: page.refreshReachable },
 ];
 
 /**
- * Classify the state after the one rendered Refund submission. The LOCAL page
- * state is the source of truth — it reports what the app honestly recorded at
- * submission time. The provider's later observation only corroborates: a
- * provider that has since completed a refund the app recorded as observing
- * does not contradict the app (the observation just became eligible for a
- * Refresh), so the provider amount is checked separately by the caller.
+ * Classify the state after the one rendered Refund submission. The page
+ * positively proves "recorded" only when it shows the Refunded status —
+ * anything less is the honest observing state (a settling provider leaves
+ * exactly that: not refunded yet, sends blocked), whose own safety claims
+ * must then hold.
  */
 export const classifySubmittedRefund = (
   page: RefundPageFacts,
 ): RefundOutcome => {
-  if (page.unfinishedWorkWarningVisible) {
-    // The app honestly reported unfinished refund work at submission time.
+  if (page.refundedVisible) {
     requireClaims(
-      unfinishedWorkClaims(page),
-      "the refund was accepted but the page does not show the safe observing state",
+      completedClaims(page),
+      "the attendee says Refunded but the rest of the page disagrees",
     );
-    return { kind: "refund_observing" };
+    return { kind: "refund_recorded" };
   }
   requireClaims(
-    completedClaims(page),
-    "the page does not show the refund as recorded",
+    observingClaims(page),
+    "the refund is not shown as recorded, so the page must show the safe observing state",
   );
-  return { kind: "refund_recorded" };
+  return { kind: "refund_observing" };
 };
+
+/** The claims of the returned-but-unrecorded fault state: the durable
+ * observing protections PLUS the explicit warning that money already went
+ * back and must not be sent again — this state is reached straight from the
+ * submission's redirect, so the warning is still on the page. */
+const returnedLocalDueClaims = (page: RefundPageFacts): Claim[] => [
+  ...observingClaims(page),
+  {
+    claim: "an unfinished-refund warning is shown",
+    ok: page.unfinishedWorkWarningVisible,
+  },
+];
 
 /**
  * Classify the state after the provider returned money while the local Money
- * write failed: the same safe protected state as observing — a warning not to
- * refund again, no Refund and no Delete, and Refresh reachable.
+ * write failed: the safe protected state plus the warning not to refund
+ * again.
  */
 export const classifyReturnedLocalDue = (page: RefundPageFacts): void => {
   requireClaims(
-    unfinishedWorkClaims(page),
+    returnedLocalDueClaims(page),
     "money was returned but the page does not show the durable unrecorded state",
   );
 };
