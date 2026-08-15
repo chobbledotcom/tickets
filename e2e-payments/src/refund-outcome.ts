@@ -43,6 +43,13 @@ const refundActionUnavailable = (page: RefundPageFacts): Claim => ({
   ok: !page.refundActionVisible,
 });
 
+/** What positively proves the refund was recorded: the Refunded status is
+ * up, the send is gone, and no unfinished work remains. Delete's return is
+ * deliberately NOT a claim here — a provider-side-completed refund whose
+ * retirement (observation expiry, queue sweep) has not caught up yet still
+ * blocks Delete for a while, and that is a safe recorded state, not a
+ * disagreement. The Stripe recovery scenario proves Delete reachability
+ * where retirement was actually completed. */
 const completedClaims = (page: RefundPageFacts): Claim[] => [
   { claim: "the Refunded status is visible", ok: page.refundedVisible },
   refundActionUnavailable(page),
@@ -50,7 +57,6 @@ const completedClaims = (page: RefundPageFacts): Claim[] => [
     claim: "no unfinished-refund warning is shown",
     ok: !page.unfinishedWorkWarningVisible,
   },
-  { claim: "the Delete action is available", ok: page.deleteActionVisible },
 ];
 
 /** The durable safety of the observing state: nothing claims the refund

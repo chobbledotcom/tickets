@@ -304,16 +304,18 @@ Then(
   "destructive actions are unavailable while observation is unfinished",
   async function (this: LiveWorld): Promise<void> {
     await attendeeTabOf(this, "actions");
-    if (this.refundResult?.outcome === "refund_observing") {
-      await requireNoExactLink(
-        ownerOf(this),
-        "Delete",
-        "Delete action offered while the refund is still observed",
-      );
+    if (this.refundResult?.outcome === "refund_recorded") {
+      // Recorded: the send is gone (its own step proves that). Delete may or
+      // may not be back yet — a provider-side-completed refund whose
+      // retirement has not caught up safely blocks Delete for a while, which
+      // the Stripe recovery scenario covers where retirement completed.
       return;
     }
-    // Recorded: the destructive action must genuinely work.
-    await requireDeleteReachable(this);
+    await requireNoExactLink(
+      ownerOf(this),
+      "Delete",
+      "Delete action offered while the refund is still observed",
+    );
   },
 );
 

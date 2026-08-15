@@ -57,10 +57,15 @@ describe("classifying a submitted refund", () => {
     ).toThrow(/Refund action is unavailable/);
   });
 
-  it("fails a recorded page missing the Delete action", () => {
-    expect(() =>
-      classifySubmittedRefund({ ...recordedFacts, deleteActionVisible: false }),
-    ).toThrow(/Delete action is available/);
+  it("records even while Delete is still blocked by retirement", () => {
+    // A provider-side-completed refund whose retirement has not caught up
+    // safely blocks Delete; that is still a recorded refund.
+    expect(
+      classifySubmittedRefund({
+        ...recordedFacts,
+        deleteActionVisible: false,
+      }),
+    ).toEqual({ kind: "refund_recorded" });
   });
 
   it("fails a recorded page still showing the warning", () => {

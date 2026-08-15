@@ -176,20 +176,24 @@ const visitorFollowsHeldReturn = async (world: LiveWorld): Promise<void> => {
   world.recordPhase("return-replayed");
 };
 
-When(
-  "the visitor retries the exact browser return",
-  async function (this: LiveWorld): Promise<void> {
-    await visitorFollowsHeldReturn(this);
-  },
-);
+/** Every exact-return replay When: the step text and where the URL lives —
+ * the Stripe held return (captured from the URL bar) or the checkout's own
+ * recorded return binding. */
+const RETURN_REPLAY_STEPS: readonly [string, (world: LiveWorld) => string][] = [
+  ["the visitor retries the exact browser return", (w) => w.heldReturn],
+  [
+    "the visitor retries the exact payment return",
+    (w) => w.paidCheckout.returnUrl,
+  ],
+  ["the visitor retries the exact return", (w) => w.paidCheckout.returnUrl],
+];
 
-When(
-  "the visitor retries the exact payment return",
-  async function (this: LiveWorld): Promise<void> {
-    await this.resources.visitor.goto(this.paidCheckout.returnUrl);
+for (const [text, urlOf] of RETURN_REPLAY_STEPS) {
+  When(text, async function (this: LiveWorld) {
+    await this.resources.visitor.goto(urlOf(this));
     this.recordPhase("return-replayed");
-  },
-);
+  });
+}
 
 Then(
   "the owner sees one attendee and the captured income once",
