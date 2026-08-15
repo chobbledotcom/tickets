@@ -148,7 +148,18 @@ describe("payment > stored refund authority state", () => {
         refunded: { amount: 0, currency: "GBP" },
       },
     );
+    // Only inconclusive evidence stays a provider check; a settled return —
+    // full or partial — is an owner decision.
     const providerCheck = markRefundProviderConflict(
+      keylessArmedRefundForTest(),
+      180,
+      {
+        captured: { amount: 2_000, currency: "GBP" },
+        kind: "wait",
+        refunded: { amount: 0, currency: "GBP" },
+      },
+    );
+    const partialReturn = markRefundProviderConflict(
       keylessArmedRefundForTest(),
       180,
       {
@@ -163,6 +174,9 @@ describe("payment > stored refund authority state", () => {
     );
     expect(validateRefundAuthorityState(providerCheck).kind).toBe(
       "needs_provider_check",
+    );
+    expect(validateRefundAuthorityState(partialReturn).kind).toBe(
+      "needs_owner_choice",
     );
     expect(() =>
       validateRefundAuthorityState({

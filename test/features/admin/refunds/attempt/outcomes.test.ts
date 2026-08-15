@@ -4,6 +4,10 @@ import type { ReferenceRefund } from "#routes/admin/refunds/attempt.ts";
 import { PROVIDER_REFUND_CONCURRENCY } from "#routes/admin/refunds/provider-requests.ts";
 import type { ReadyRefundCandidate } from "#routes/admin/refunds/readiness.ts";
 import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
+import type {
+  ProviderRefundResult,
+  ProviderRefundTarget,
+} from "#shared/provider-refunds.ts";
 import { refundReadyCandidate } from "#test/features/admin/refunds/provider/dispatch-helpers.ts";
 import {
   completedRefund,
@@ -161,25 +165,39 @@ describeWithEnv("admin refund provider", { db: true }, () => {
     expect(result).toMatchObject({ outcome: "failed", returned: [] });
   });
 
-  test("keeps a possibly-sent owner decision pending for review", async () => {
-    const reference = "pi_possibly_sent";
-    const source = provider();
-    const result = await refundReadyCandidate(
-      await canonicalReadyCandidateWithReferences([reference], source),
-      7,
-      new Map(),
-      (target) =>
-        Promise.resolve({
-          authority: { id: 1, referenceIndex: "possibly-sent", revision: 2 },
-          kind: "needs_owner_choice",
-          reason: "possibly_sent",
-          reference: target.reference,
-        }),
-    );
+  for (const [name, answer] of [
+    [
+      "a possibly-sent owner decision",
+      (target: ProviderRefundTarget): ProviderRefundResult => ({
+        authority: { id: 1, referenceIndex: "possibly-sent", revision: 2 },
+        kind: "needs_owner_choice",
+        reason: "possibly_sent",
+        reference: target.reference,
+      }),
+    ],
+    [
+      "a provider-check conflict",
+      (target: ProviderRefundTarget): ProviderRefundResult => ({
+        authority: { id: 1, referenceIndex: "waiting", revision: 2 },
+        kind: "needs_provider_check",
+        reason: "provider_conflict",
+        reference: target.reference,
+      }),
+    ],
+  ] as const) {
+    test(`keeps ${name} pending for review`, async () => {
+      const source = provider();
+      const result = await refundReadyCandidate(
+        await canonicalReadyCandidateWithReferences(["pi_attention"], source),
+        7,
+        new Map(),
+        (target) => Promise.resolve(answer(target)),
+      );
 
-    expect(source.refunds).toEqual([]);
-    expect(result).toMatchObject({ outcome: "pending", returned: [] });
-  });
+      expect(source.refunds).toEqual([]);
+      expect(result).toMatchObject({ outcome: "pending", returned: [] });
+    });
+  }
 
   test("withholds when the provider proves no request was sent", async () => {
     const source = provider({

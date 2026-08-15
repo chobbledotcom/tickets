@@ -8,11 +8,7 @@ import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
-import {
-  chargeMoney,
-  foundCharge,
-  fullyRefundedMoney,
-} from "#test-utils/payment-state.ts";
+import { foundCharge, fullyRefundedMoney } from "#test-utils/payment-state.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
 /* jscpd:ignore-end */
 
@@ -57,9 +53,6 @@ export const unreadableProviderCheck = () =>
 
 export const returnedProviderCheck = () =>
   providerCheck(foundCharge(fullyRefundedMoney(2_500)));
-
-export const partiallyReturnedProviderCheck = () =>
-  providerCheck(foundCharge(chargeMoney(2_500, 400)));
 
 export const expectProviderCheck = async (
   id: number,

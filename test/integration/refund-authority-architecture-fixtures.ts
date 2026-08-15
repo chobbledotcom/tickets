@@ -17,6 +17,7 @@ const AUTHORITY_RESULT_KINDS = [
   "ready",
   "returned",
   "unchanged",
+  "wait",
   "withheld",
 ] as const;
 
@@ -78,6 +79,7 @@ export const AMBIENT_REFUND_PROVIDER_FORMS = [
 
 export const TEST_AUTHORITY_BUILDING_PATHS = [
   "features/admin/attendee-refunds/authorization.test.ts",
+  "features/admin/refunds/attempt/outcomes.test.ts",
   "features/admin/refunds/attempt/unrecorded.test.ts",
   "features/admin/refunds/provider/helpers.ts",
   "features/admin/refunds/readiness-findings/authority-failure.test.ts",
@@ -105,12 +107,14 @@ export const TEST_AUTHORITY_BUILDING_PATHS = [
   "shared/payment/admit-refund.test.ts",
   "shared/payment/refund-attempt.test.ts",
   "shared/payment/refund-authority-choice.test.ts",
+  "shared/payment/refund-authority-state.test.ts",
   "shared/provider-refunds.test.ts",
   "shared/provider-refunds/engine-helpers.ts",
   "shared/provider-refunds/send.test.ts",
   "shared/provider-refunds/state-owner-revision.test.ts",
   "shared/provider-refunds/state.test.ts",
   "shared/provider-refunds/state/contracts.test.ts",
+  "shared/provider-refunds/target-conflict.test.ts",
   "shared/provider-refunds/target.test.ts",
   "shared/square-provider/provider.test.ts",
   "shared/square/refund-outcomes.test.ts",

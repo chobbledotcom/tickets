@@ -39,7 +39,7 @@ const providerCheckState = (identityIndex: string): RefundAuthorityState =>
     100,
     {
       captured: gbp(2_500),
-      kind: "returned",
+      kind: "wait",
       refunded: gbp(400),
     },
   );

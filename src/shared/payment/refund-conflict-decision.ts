@@ -1,7 +1,7 @@
 /** Exact provider money and the owner resolution it can safely support. */
 
 import * as v from "valibot";
-import { type Money, MoneySchema, sameMoney } from "#shared/payment/money.ts";
+import { type Money, MoneySchema } from "#shared/payment/money.ts";
 import {
   type ChargeMoney,
   refundMoneyAccountedFor,
@@ -68,13 +68,12 @@ export type RefundConflictDecision = v.InferOutput<
   typeof RefundConflictDecisionSchema
 >;
 
-/** Evidence that cannot yet support an owner decision must be checked again. */
+/** Only evidence that cannot support a decision yet must be checked again.
+ * A partial return is a settled provider fact — money that came back and
+ * money that did not — so it is an owner decision, never a recheck. */
 export const refundConflictNeedsProviderCheck = (
   decision: RefundConflictDecision,
-): boolean =>
-  decision.kind === "wait" ||
-  (decision.kind === "returned" &&
-    !sameMoney(decision.captured, decision.refunded));
+): boolean => decision.kind === "wait";
 
 export const ReturnedOrNotSentDecisionSchema = v.strictObject({
   kind: v.literal("returned_or_not_sent"),

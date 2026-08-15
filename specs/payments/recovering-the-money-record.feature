@@ -36,9 +36,10 @@ Feature: The books catch up when a returned payment could not be recorded
   @surface:admin
   Rule: A partial return cannot be mistaken for a complete refund
     If the provider reports returning only part of the captured payment, the
-    owner can check again but cannot call the whole refund returned or unsent.
-    Checking reads the provider once, sends nothing, and keeps the payment
-    protected while the evidence is still partial.
+    owner must decide what to record. The only offered decision is that the
+    returned part came back; the site never offers to send the rest as
+    though nothing was returned, and the payment stays protected until the
+    owner decides.
 
     @case:refund-safety.partial-return-remains-protected-after-recheck
     Scenario: Stripe still reports returning 4.00 of a 25.00 payment
@@ -46,10 +47,8 @@ Feature: The books catch up when a returned payment could not be recorded
       And Stripe says a failed refund returned 4.00 to Alice
       When the owner signs in and tries to refund Alice from her Actions page
       And the owner opens Open Refund recovery from Alice's Actions page
-      Then the partial return can only be checked with the provider again
-      When the owner checks the partial return with the provider
-      Then Stripe was read once more and received no refund request for Alice
-      And the partial return can only be checked with the provider again
+      Then the partial return asks for the owner's decision and never a resend
+      And no provider was contacted again for Alice
       And Alice's Actions page does not offer another Refund and does offer recovery
       And Money still shows Alice's 25.00 payment
 

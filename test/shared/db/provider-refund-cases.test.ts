@@ -69,12 +69,13 @@ const keyedOwnerChoice = (identity: string): RefundAuthorityState =>
 type StoredState = {
   refund_revision: number;
   refund_state: string;
+  refund_state_name: string;
   refunded_amount: number;
 };
 
 const storedState = (id: number): Promise<StoredState | null> =>
   queryOne<StoredState>(
-    `SELECT refund_revision, refund_state, refunded_amount
+    `SELECT refund_revision, refund_state, refund_state_name, refunded_amount
        FROM payment_charges
       WHERE id = ?`,
     [id],
@@ -293,7 +294,7 @@ describeWithEnv("provider refund recovery cases", { db: true }, () => {
     });
   });
 
-  test("a partial return stays unresolved instead of reversing the full payment", async () => {
+  test("a partial return resolves as returned with only the partial money", async () => {
     const state = markRefundProviderConflict(
       readyRefundTestState("partial-conflict-request"),
       12,
@@ -312,14 +313,37 @@ describeWithEnv("provider refund recovery cases", { db: true }, () => {
     const privateKey = await getTestPrivateKey();
 
     expect(await loadProviderRefundCase(id, privateKey)).toMatchObject({
-      decision: {
-        captured: { amount: 2_500, currency: "GBP" },
-        kind: "returned",
-        refunded: { amount: 400, currency: "GBP" },
-      },
-      state: "needs_provider_check",
+      state: "needs_owner_choice",
     });
-    await expectMoneyChoicesRejected(id, privateKey);
+    // "Not sent" would forget the money that did come back.
+    expect(
+      await resolveProviderRefundCase({
+        activityMessage: "Reject a false not-sent for a partial return",
+        choice: "provider_confirmed_not_sent",
+        id,
+        privateKey,
+        revision: 1,
+      }),
+    ).toBe("changed");
+    expect((await storedState(id))?.refund_state_name).toBe(
+      "needs_owner_choice",
+    );
+
+    // Confirming the return completes with the partial amount — never the
+    // full payment — and recording keeps that exact money.
+    expect(
+      await resolveProviderRefundCase({
+        activityMessage: "Confirm a partial provider return",
+        choice: "provider_confirmed_returned",
+        id,
+        privateKey,
+        revision: 1,
+      }),
+    ).toBe("resolved");
+    expect(await storedState(id)).toMatchObject({
+      refund_state_name: "completed",
+      refunded_amount: 400,
+    });
   });
 
   test("waiting conflict evidence rejects every crafted money answer", async () => {

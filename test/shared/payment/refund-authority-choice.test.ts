@@ -140,7 +140,7 @@ describe("payment > refund authority owner choice", () => {
       }),
     ).toMatchObject({
       decision: { kind: "returned" },
-      kind: "needs_provider_check",
+      kind: "needs_owner_choice",
     });
   });
 
@@ -150,7 +150,7 @@ describe("payment > refund authority owner choice", () => {
       180,
       {
         captured: { amount: 2_000, currency: "GBP" },
-        kind: "returned",
+        kind: "wait",
         refunded: { amount: 500, currency: "GBP" },
       },
     );
@@ -299,10 +299,11 @@ describe("payment > refund authority owner choice", () => {
 
     if (
       notSent.kind !== "needs_owner_choice" ||
-      returned.kind !== "needs_owner_choice"
+      returned.kind !== "needs_owner_choice" ||
+      partial.kind !== "needs_owner_choice"
     ) {
       throw new Error(
-        "Conclusive conflict evidence must require an owner choice",
+        "Conclusive conflict evidence — not sent, returned, or partial — must require an owner choice",
       );
     }
     expect(refundOwnerChoices(notSent)).toEqual([
@@ -311,16 +312,10 @@ describe("payment > refund authority owner choice", () => {
     expect(refundOwnerChoices(returned)).toEqual([
       "provider_confirmed_returned",
     ]);
-    expect(() =>
-      refundOwnerChoices({
-        ...returned,
-        decision: {
-          captured: { amount: 2_000, currency: "GBP" },
-          kind: "returned",
-          refunded: { amount: 500, currency: "GBP" },
-        },
-      }),
-    ).toThrow("Owner-choice refund state does not admit a decision");
+    // A partial return confirms the money that came back and nothing else.
+    expect(refundOwnerChoices(partial)).toEqual([
+      "provider_confirmed_returned",
+    ]);
     expect(() =>
       resolveRefundOwnerChoice(notSent, {
         decidedAt: 200,
@@ -329,11 +324,10 @@ describe("payment > refund authority owner choice", () => {
     ).toThrow(
       "Owner choice provider_confirmed_returned is not allowed by not_sent",
     );
-    expect(partial.kind).toBe("needs_provider_check");
     expect(waiting.kind).toBe("needs_provider_check");
     expect(() =>
       validateRefundAuthorityState({
-        ...partial,
+        ...waiting,
         kind: "needs_owner_choice",
       }),
     ).toThrow("owner-choice conflict must admit an owner decision");

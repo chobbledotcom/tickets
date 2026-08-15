@@ -36,7 +36,6 @@ import {
 } from "#test-utils/session.ts";
 import {
   expectProviderCheck,
-  partiallyReturnedProviderCheck,
   refundCasePath,
   returnedProviderCheck,
   submitRefundCase as submitCase,
@@ -279,14 +278,46 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
       "sumup",
       400,
     );
-    using provider = partiallyReturnedProviderCheck();
 
-    await expectProviderCheck(
-      id,
-      provider,
-      "The provider still cannot prove that the whole refund finished. No refund was sent; this work remains protected and can be checked again.",
-      `Refund recovery ${id}: provider evidence still requires another check; no refund was sent`,
+    // A settled partial return is an owner decision: the page offers only
+    // "returned" — "not sent" would forget the money that did come back.
+    const page = await adminGet(refundCasePath(id));
+    const html = await page.text();
+    expect(html).toContain('value="provider_confirmed_returned"');
+    expect(html).not.toContain('value="provider_confirmed_not_sent"');
+
+    const refuse = async (body: Record<string, string>): Promise<void> => {
+      await expectFlashRedirect(
+        refundCasePath(id),
+        "This refund changed while you were checking it. Read the current details and choose again.",
+        false,
+      )(await submitCase(await testCookie(), body, id));
+    };
+    // "Check again" is not an exit for a settled fact, and neither is the
+    // false not-sent choice.
+    await refuse({ choice: "check_again" });
+    await refuse({
+      choice: "provider_confirmed_not_sent",
+      revision: "1",
+    });
+
+    // Confirming the return keeps exactly the partial money.
+    await expectFlashRedirect(
+      "/admin/privacy",
+      "Saved the provider decision.",
+    )(
+      await submitCase(
+        await testCookie(),
+        { choice: "provider_confirmed_returned", revision: "1" },
+        id,
+      ),
     );
+    expect(
+      await queryOne<{ refund_state_name: string; refunded_amount: number }>(
+        "SELECT refund_state_name, refunded_amount FROM payment_charges WHERE id = ?",
+        [id],
+      ),
+    ).toMatchObject({ refund_state_name: "completed", refunded_amount: 400 });
   });
 
   test("refuses check-again outside an active provider check", async () => {

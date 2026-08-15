@@ -11,6 +11,7 @@ import {
   chargeMoneyWith,
   completedRefund,
   foundCharge,
+  gbp,
   refundObservation,
 } from "#test-utils/payment-state.ts";
 import {
@@ -170,16 +171,17 @@ describeWithEnv("provider refund conflict recovery", { db: true }, () => {
     );
     const dependencies = refundDependencies(provider);
 
+    // A settled partial return is an owner decision, not a recheck.
     const partial = await requestProviderRefund(
       sendRefundTarget(payment),
       dependencies,
     );
     expect(partial).toMatchObject({
-      kind: "needs_provider_check",
+      kind: "needs_owner_choice",
       reason: "provider_conflict",
     });
-    if (partial.kind !== "needs_provider_check") {
-      throw new Error("Expected a partial-return provider conflict");
+    if (partial.kind !== "needs_owner_choice") {
+      throw new Error("Expected a partial-return owner conflict");
     }
 
     observed = chargeMoney(2_500, 2_501);
@@ -191,7 +193,7 @@ describeWithEnv("provider refund conflict recovery", { db: true }, () => {
       },
       dependencies,
     );
-    expect(invalid).toMatchObject({ kind: "needs_provider_check" });
+    expect(invalid).toMatchObject({ kind: "needs_owner_choice" });
 
     observed = chargeMoney(2_500);
     const backwards = await requestProviderRefund(
@@ -202,8 +204,8 @@ describeWithEnv("provider refund conflict recovery", { db: true }, () => {
       },
       dependencies,
     );
-    expect(backwards).toMatchObject({ kind: "needs_provider_check" });
-    if (backwards.kind !== "needs_provider_check") {
+    expect(backwards).toMatchObject({ kind: "needs_owner_choice" });
+    if (backwards.kind !== "needs_owner_choice") {
       throw new Error("Expected partial-return evidence to remain protected");
     }
     expect(
@@ -212,9 +214,11 @@ describeWithEnv("provider refund conflict recovery", { db: true }, () => {
         await getTestPrivateKey(),
       ),
     ).toMatchObject({
-      decision: { kind: "wait" },
-      state: "needs_provider_check",
+      decision: { kind: "returned", refunded: gbp(400) },
+      state: "needs_owner_choice",
     });
+    // A partial return admits only "returned" — a stale zero read cannot
+    // authorize another refund.
     expect(
       await resolveProviderRefundCase({
         activityMessage: "A stale zero read cannot authorize another refund",
@@ -228,7 +232,7 @@ describeWithEnv("provider refund conflict recovery", { db: true }, () => {
       await storedRefundAuthority(await paymentReferenceIndex(payment)),
     ).toMatchObject({
       refund_local_state: "not_due",
-      refund_state_name: "needs_provider_check",
+      refund_state_name: "needs_owner_choice",
       refunded_amount: 400,
     });
     expect(sendCount).toBe(0);

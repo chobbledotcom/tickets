@@ -1,10 +1,9 @@
 // jscpd:ignore-start
-import { Given, Then, When } from "@cucumber/cucumber";
+import { Given, Then } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { refundProviderFor } from "#test/specs/steps/refund-safety/common.ts";
 import { scenarioBrowser } from "#test/specs/support/browser.ts";
 import { usableInputsOfKind } from "#test/specs/support/form-controls/reading.ts";
-import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
   refundSafety,
   safetyBooking,
@@ -44,43 +43,38 @@ Given(
   },
 );
 
-const expectOnlyProviderCheck = (world: TicketsWorld): void => {
-  const browser = scenarioBrowser(world);
-  expect(browser.pageText).toContain("Check the provider again");
-  expect(browser.pageText).not.toContain("make the required choice");
-  expect(browser.currentHtml).toContain(
-    'name="choice" type="hidden" value="check_again"',
-  );
-  expect(browser.currentHtml).not.toContain("provider_confirmed_returned");
-  expect(browser.currentHtml).not.toContain("provider_confirmed_not_sent");
-  expect(usableInputsOfKind(browser.currentHtml, "radio")).toEqual([]);
-};
-
+/** The partial-return case: the only offered decision is that the returned
+ * part came back — the page offers no resend and no provider check, because
+ * the evidence is already final and checking again could not change it. */
 Then(
-  "the partial return can only be checked with the provider again",
+  "the partial return asks for the owner's decision and never a resend",
   function (this: TicketsWorld): void {
-    expectOnlyProviderCheck(this);
-  },
-);
-
-When(
-  "the owner checks the partial return with the provider",
-  async function (this: TicketsWorld): Promise<void> {
-    const provider = refundProviderFor(this);
-    const contactsBefore = provider.reads.length + provider.sends.length;
-    expect(contactsBefore).toBe(refundSafety(this).ownerContactCount);
-    await fillInAndSend(scenarioBrowser(this), {}, "Check the provider again");
+    const browser = scenarioBrowser(this);
+    expect(browser.pageText).toContain("Owner decision needed");
+    // The one radio is the returned-only decision; "not sent" would re-arm
+    // a send that pays the returned part twice, and "check again" cannot
+    // change final evidence.
+    expect(usableInputsOfKind(browser.currentHtml, "radio")).toEqual([
+      {
+        field: "choice",
+        tag: '<input name="choice" required type="radio" value="provider_confirmed_returned">',
+      },
+    ]);
+    expect(browser.currentHtml).not.toContain(
+      'value="provider_confirmed_not_sent"',
+    );
+    expect(browser.currentHtml).not.toContain('value="check_again"');
   },
 );
 
 Then(
-  "Stripe was read once more and received no refund request for {word}",
+  "no provider was contacted again for {word}",
   function (this: TicketsWorld, who: string): void {
     const provider = refundProviderFor(this);
     const booking = safetyBooking(this, who);
     expect(provider.sends).toEqual([]);
     expect(provider.reads.length + provider.sends.length).toBe(
-      refundSafety(this).ownerContactCount + 1,
+      refundSafety(this).ownerContactCount,
     );
     expect(provider.reads.at(-1)).toEqual({
       provider: "stripe",

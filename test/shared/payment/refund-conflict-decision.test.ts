@@ -148,7 +148,7 @@ describe("payment > provider-conflict decision", () => {
     ).toThrow("A waiting conflict decision must carry captured money");
   });
 
-  test("only partial or inconclusive evidence needs another provider check", () => {
+  test("only inconclusive evidence needs another provider check", () => {
     expect(
       refundConflictNeedsProviderCheck({
         captured: { amount: 100, currency: "GBP" },
@@ -156,13 +156,15 @@ describe("payment > provider-conflict decision", () => {
         refunded: { amount: 0, currency: "GBP" },
       }),
     ).toBe(true);
+    // A settled return — full or partial — is an owner decision, never a
+    // recheck: the old partial-recheck exit was a provable no-op.
     expect(
       refundConflictNeedsProviderCheck({
         captured: { amount: 100, currency: "GBP" },
         kind: "returned",
         refunded: { amount: 40, currency: "GBP" },
       }),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       refundConflictNeedsProviderCheck({
         captured: { amount: 100, currency: "GBP" },

@@ -1,6 +1,5 @@
 /** Required owner decisions for refund outcomes evidence cannot settle. */
 
-import { sameMoney } from "#shared/payment/money.ts";
 import {
   markRefundCompleted,
   readyRefund,
@@ -180,13 +179,10 @@ export const refundOwnerChoices = (
   if (decision.kind === "not_sent") {
     return ["provider_confirmed_not_sent"];
   }
-  if (
-    decision.kind === "returned" &&
-    sameMoney(decision.captured, decision.refunded)
-  ) {
-    return ["provider_confirmed_returned"];
-  }
-  throw new Error("Owner-choice refund state does not admit a decision");
+  // A settled return — full or partial — confirms the money that came back
+  // and nothing else: "not sent" would re-arm a send that pays the returned
+  // part a second time.
+  return ["provider_confirmed_returned"];
 };
 
 /** Apply one explicit owner answer; there is intentionally no generic clear. */

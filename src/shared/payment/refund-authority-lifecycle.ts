@@ -82,12 +82,6 @@ const REFUND_RECOVERY = {
       "The provider evidence is not conclusive yet. Check it again in Refund recovery, then try again.",
     requiresChoice: false,
   },
-  check_partial: {
-    clearedBy: "requestProviderRefund",
-    refusal:
-      "The provider shows only part of this payment returned. Check it again in Refund recovery, then try again.",
-    requiresChoice: false,
-  },
   choose: {
     clearedBy: "resolveProviderRefundCase",
     refusal:
@@ -113,19 +107,16 @@ const fixedRecovery =
   (_state: RefundAuthorityState): LifecycleRecovery =>
     recovery;
 
-const PROVIDER_CHECK_RECOVERY = {
-  returned: REFUND_RECOVERY.check_partial,
-  wait: REFUND_RECOVERY.check_inconclusive,
-} as const;
-
+/** A provider-check state always carries inconclusive ("wait") evidence — a
+ * settled return, full or partial, is an owner decision instead — so its
+ * recovery is always to check again until the evidence settles one way. */
 const providerCheckRecovery = (
   state: NeedsProviderCheckRefundState,
 ): LifecycleRecovery => {
-  const kind = state.decision.kind;
-  if (kind !== "returned" && kind !== "wait") {
-    throw new Error(`Provider-check evidence cannot be ${kind}`);
+  if (state.decision.kind !== "wait") {
+    throw new Error(`Provider-check evidence cannot be ${state.decision.kind}`);
   }
-  return PROVIDER_CHECK_RECOVERY[kind];
+  return REFUND_RECOVERY.check_inconclusive;
 };
 
 const unfinished = {

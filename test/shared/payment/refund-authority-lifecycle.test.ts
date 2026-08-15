@@ -10,6 +10,8 @@ import {
 import {
   markRefundOwnerChoiceNeeded,
   markRefundProviderConflict,
+  refundOwnerChoices,
+  resolveRefundOwnerChoice,
 } from "#shared/payment/refund-authority-choice.ts";
 import {
   type RefundEvidenceAction,
@@ -32,6 +34,25 @@ const ready = () =>
       identityIndex: "request-one",
     },
   });
+
+/** £4 of £25 returned — a settled partial provider return. */
+const partialReturnConflict = () =>
+  markRefundProviderConflict(ready(), 40, {
+    captured: { amount: 2_500, currency: "GBP" },
+    kind: "returned",
+    refunded: { amount: 400, currency: "GBP" },
+  });
+
+const partialReturnOwnerChoice = (): Extract<
+  ReturnType<typeof partialReturnConflict>,
+  { kind: "needs_owner_choice" }
+> => {
+  const state = partialReturnConflict();
+  if (state.kind !== "needs_owner_choice") {
+    throw new Error(`partial return parked as ${state.kind}, not a choice`);
+  }
+  return state;
+};
 
 describe("payment > declared refund authority lifecycle", () => {
   test("every state declares exactly which provider evidence it accepts", () => {
@@ -100,23 +121,45 @@ describe("payment > declared refund authority lifecycle", () => {
     });
   });
 
-  test("partial money names provider recheck as its only safe exit", () => {
-    const state = markRefundProviderConflict(ready(), 40, {
-      captured: { amount: 2_500, currency: "GBP" },
-      kind: "returned",
-      refunded: { amount: 400, currency: "GBP" },
-    });
-    expect(state.kind).toBe("needs_provider_check");
-
-    expect(refundLifecycleFor(state)).toEqual({
+  test("partial money names the required owner exit", () => {
+    // A settled partial return is an owner decision, not a recheck — the
+    // old "check again" exit was a provable no-op (unchanged provider money
+    // writes nothing), so it only ever cleared by moving real money at the
+    // provider.
+    expect(refundLifecycleFor(partialReturnOwnerChoice())).toEqual({
       blocks: { delete: true, merge: false },
-      clearedBy: "requestProviderRefund",
+      clearedBy: "resolveProviderRefundCase",
       operatorRoute: "/admin/privacy/refunds/:id",
       prunable: false,
       refusal:
-        "The provider shows only part of this payment returned. Check it again in Refund recovery, then try again.",
-      requiresChoice: false,
+        "The owner still has to decide what happened to a provider refund. Resolve it in Refund recovery, then try again.",
+      requiresChoice: true,
     });
+  });
+
+  test("partial money admits only the returned choice", () => {
+    // "Not sent" would re-arm a send that pays the returned part twice.
+    expect(refundOwnerChoices(partialReturnOwnerChoice())).toEqual([
+      "provider_confirmed_returned",
+    ]);
+  });
+
+  test("confirming a partial return completes with the partial money", () => {
+    const resolved = resolveRefundOwnerChoice(partialReturnOwnerChoice(), {
+      decidedAt: 60,
+      kind: "provider_confirmed_returned",
+    });
+    expect(resolved).toMatchObject({
+      completedAt: 60,
+      kind: "completed",
+      local: { kind: "due", returnedAt: 60 },
+      proof: "owner",
+    });
+    // Completed-and-recorded is prunable: the owner's decision really
+    // unblocks the delete the old no-op exit kept blocked forever.
+    expect(
+      refundLifecycleFor(markRefundLocalRecorded(resolved, 70)).prunable,
+    ).toBe(true);
   });
 
   test("inconclusive evidence names provider recheck as its only exit", () => {
@@ -201,8 +244,8 @@ describe("payment > declared refund authority lifecycle", () => {
   test("provider-check recovery rejects a conclusive not-sent decision", () => {
     const providerCheck = markRefundProviderConflict(ready(), 40, {
       captured: { amount: 2_500, currency: "GBP" },
-      kind: "returned",
-      refunded: { amount: 400, currency: "GBP" },
+      kind: "wait",
+      refunded: { amount: 0, currency: "GBP" },
     });
     const inconsistent = new Proxy(providerCheck, {
       get: (target, property, receiver) =>

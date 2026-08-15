@@ -47,21 +47,34 @@ describeWithEnv("provider refund state transitions", { db: true }, () => {
     expect(stored?.provider_reference).not.toContain(payment.reference);
   });
 
-  for (const [reference, charge, refundedAmount] of [
-    ["txn-conflict", chargeMoney(1_000, 100), 100],
-    ["txn-impossible-return", chargeMoney(1_000, 1_001), 0],
+  for (const [reference, charge, refundedAmount, expected] of [
+    [
+      "txn-conflict",
+      chargeMoney(1_000, 100),
+      100,
+      {
+        kind: "needs_owner_choice",
+        reason: "provider_conflict",
+      },
+    ],
+    [
+      "txn-impossible-return",
+      chargeMoney(1_000, 1_001),
+      0,
+      {
+        kind: "needs_provider_check",
+        reason: "provider_conflict",
+      },
+    ],
   ] as const) {
-    test(`provider conflict becomes provider-check work for ${reference}`, async () => {
+    test(`provider conflict becomes ${expected.kind} work for ${reference}`, async () => {
       const payment = refundReference(reference, "stripe");
       expect(
         await requestProviderRefund(
           sendRefundTarget(payment),
           refundDependencies(completingRefundProvider("stripe", charge)),
         ),
-      ).toMatchObject({
-        kind: "needs_provider_check",
-        reason: "provider_conflict",
-      });
+      ).toMatchObject(expected);
       expect(
         await storedRefundAuthority(await paymentReferenceIndex(payment)),
       ).toMatchObject({ refunded_amount: refundedAmount });
@@ -206,7 +219,7 @@ describeWithEnv("provider refund state transitions", { db: true }, () => {
         dependencies,
       ),
     ).toMatchObject({
-      kind: "needs_provider_check",
+      kind: "needs_owner_choice",
       reason: "provider_conflict",
     });
     const providerCheck = await loadRefundAuthorityByReference(
@@ -217,7 +230,7 @@ describeWithEnv("provider refund state transitions", { db: true }, () => {
       revision: ownerChoice.revision + 1,
       state: {
         decision: { kind: "returned" },
-        kind: "needs_provider_check",
+        kind: "needs_owner_choice",
       },
     });
     expect(sends).toBe(1);
@@ -225,11 +238,13 @@ describeWithEnv("provider refund state transitions", { db: true }, () => {
 
   test("only identical provider-check evidence leaves its case unchanged", async () => {
     const payment = refundReference("txn-exact-owner-conflict", "stripe");
-    const returnedMoney = (amount: number) =>
+    const waitMoney = (captured: number, refunded: number) =>
       chargeMoneyWith({
-        captured: gbp(100),
-        confirmedRefunded: gbp(amount),
-        refunds: [refundObservation({ amount: gbp(amount) })],
+        captured: gbp(captured),
+        // More returned than captured: money the provider cannot have sent,
+        // so the read is inconclusive and parks as a provider check.
+        confirmedRefunded: gbp(refunded),
+        refunds: [refundObservation({ amount: gbp(refunded) })],
       });
     const index = await paymentReferenceIndex(payment);
     const current = async () => {
@@ -250,7 +265,7 @@ describeWithEnv("provider refund state transitions", { db: true }, () => {
       await requestProviderRefund(
         sendRefundTarget(payment),
         refundDependencies(
-          completingRefundProvider("stripe", returnedMoney(10)),
+          completingRefundProvider("stripe", waitMoney(100, 101)),
         ),
       ),
     ).toMatchObject({
@@ -258,40 +273,30 @@ describeWithEnv("provider refund state transitions", { db: true }, () => {
       reason: "provider_conflict",
     });
 
-    const identical = await recheck(returnedMoney(10), 101);
+    const identical = await recheck(waitMoney(100, 101), 101);
     expect(identical.answer).toMatchObject({
       authority: { revision: identical.before.revision },
       kind: "needs_provider_check",
     });
     expect(identical.after.revision).toBe(identical.before.revision);
 
-    const changedReturn = await recheck(returnedMoney(20), 102);
-    expect(changedReturn.after.revision).toBe(
-      changedReturn.before.revision + 1,
-    );
-    expect(changedReturn.after.state).toMatchObject({
-      decision: { kind: "returned", refunded: gbp(20) },
-      kind: "needs_provider_check",
-      reason: "provider_conflict",
-    });
-
-    const backwardsReturn = await recheck(chargeMoney(100), 103);
-    expect(backwardsReturn.after.revision).toBe(
-      backwardsReturn.before.revision + 1,
-    );
-    expect(backwardsReturn.after.state).toMatchObject({
-      decision: { kind: "wait" },
-      kind: "needs_provider_check",
-      reason: "provider_conflict",
-    });
-
-    await recheck(chargeMoney(100, 101), 104);
-    const changedCapture = await recheck(chargeMoney(200, 201), 105);
+    const changedCapture = await recheck(waitMoney(200, 201), 102);
     expect(changedCapture.after.revision).toBe(
       changedCapture.before.revision + 1,
     );
     expect(changedCapture.after.state).toMatchObject({
       decision: { captured: gbp(200), kind: "wait" },
+      kind: "needs_provider_check",
+      reason: "provider_conflict",
+    });
+
+    // Once the evidence settles into an exact partial return, the case
+    // becomes an owner decision — a settled fact, never a recheck.
+    const settled = await recheck(chargeMoney(100, 20), 103);
+    expect(settled.after.revision).toBe(settled.before.revision + 1);
+    expect(settled.after.state).toMatchObject({
+      decision: { kind: "returned", refunded: gbp(20) },
+      kind: "needs_owner_choice",
       reason: "provider_conflict",
     });
   });
