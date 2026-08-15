@@ -239,6 +239,8 @@ When(
 Then(
   "the refund is either recorded or visibly waiting for observation",
   async function (this: LiveWorld): Promise<void> {
+    // The provider's returned amount must be exact whenever it is visible at
+    // all — regardless of whether the local record has caught up yet.
     const observation = await observeRefund(this);
     if (
       observation.kind === "completed" &&
@@ -249,10 +251,10 @@ Then(
           `${config.unitPrice} — not the exact amount`,
       );
     }
-    const outcome = classifySubmittedRefund(
-      await gatherRefundPageFacts(this),
-      observation,
-    );
+    // The LOCAL page state classifies the outcome: the app honestly reports
+    // what was recorded at submission time, and a provider that completes a
+    // refund moments later only makes the observation Refresh-eligible.
+    const outcome = classifySubmittedRefund(await gatherRefundPageFacts(this));
     this.recordRefundState({ outcome: outcome.kind, provider: this.target });
   },
 );

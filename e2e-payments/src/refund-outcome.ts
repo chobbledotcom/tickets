@@ -7,8 +7,6 @@
  * best-effort guess.
  */
 
-import type { SandboxRefundObservation } from "./providers/types.ts";
-
 /** What the owner-facing pages show after a refund submission. */
 export interface RefundPageFacts {
   /** The attendee Actions tab still offers its Delete action. */
@@ -70,27 +68,29 @@ const unfinishedWorkClaims = (page: RefundPageFacts): Claim[] => [
 ];
 
 /**
- * Classify the state after the one rendered Refund submission. A provider that
- * reports the full amount back must have recorded locally (and re-enabled the
- * destructive controls); a provider still settling must show the safe
- * observing state and nothing that could send again.
+ * Classify the state after the one rendered Refund submission. The LOCAL page
+ * state is the source of truth — it reports what the app honestly recorded at
+ * submission time. The provider's later observation only corroborates: a
+ * provider that has since completed a refund the app recorded as observing
+ * does not contradict the app (the observation just became eligible for a
+ * Refresh), so the provider amount is checked separately by the caller.
  */
 export const classifySubmittedRefund = (
   page: RefundPageFacts,
-  provider: SandboxRefundObservation,
 ): RefundOutcome => {
-  if (provider.kind === "completed") {
+  if (page.unfinishedWorkWarningVisible) {
+    // The app honestly reported unfinished refund work at submission time.
     requireClaims(
-      completedClaims(page),
-      "the provider returned the full amount but the local result disagrees",
+      unfinishedWorkClaims(page),
+      "the refund was accepted but the page does not show the safe observing state",
     );
-    return { kind: "refund_recorded" };
+    return { kind: "refund_observing" };
   }
   requireClaims(
-    unfinishedWorkClaims(page),
-    "the refund may have landed but the page does not show the safe observing state",
+    completedClaims(page),
+    "the page does not show the refund as recorded",
   );
-  return { kind: "refund_observing" };
+  return { kind: "refund_recorded" };
 };
 
 /**

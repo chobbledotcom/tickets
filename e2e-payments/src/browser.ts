@@ -17,6 +17,7 @@ import { browserLaunchOptions } from "#scripts/browser-options.ts";
 import { config } from "./config.ts";
 import { log } from "./log.ts";
 import { repoRoot } from "./server.ts";
+import { pollUntil } from "./util.ts";
 
 export interface BrowserSession {
   /** Absolute base the page navigates against (tunnel or local). */
@@ -344,7 +345,13 @@ export const holdFirstAppReturn = (
   );
   return {
     capturedUrl: async (): Promise<string> => {
-      if (captured !== undefined) return captured;
+      // The route handler sets `captured` when the browser attempts the
+      // return navigation; poll because the caller may beat the handler by
+      // a microtask.
+      const found = await pollUntil(30_000, () =>
+        Promise.resolve(captured ?? null),
+      );
+      if (found !== null) return found;
       throw new Error(
         `the held return has not been navigated yet (at ${session.page.url()})`,
       );

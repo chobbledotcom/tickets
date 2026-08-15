@@ -59,6 +59,7 @@ const sumupFetch = (apiKey: string, path: string): Promise<unknown> =>
 
 /** One SumUp transaction's refund events, as the history API returns them. */
 type SumupTransactionBody = {
+  currency?: string;
   transaction_events?: {
     amount?: number;
     currency?: string;
@@ -131,7 +132,12 @@ export const sumup: PaymentProvider = {
             ),
           0,
         ),
-        currency: refundEvents[0]?.currency,
+        // SumUp does not reliably repeat the currency on every REFUND event;
+        // the transaction's own currency carries it (production reads it the
+        // same way — src/shared/sumup/transaction.ts).
+        currency:
+          refundEvents.find((event) => event.currency)?.currency ??
+          transaction.currency,
       };
     },
   ),

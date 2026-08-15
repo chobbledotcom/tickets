@@ -25,6 +25,7 @@ import {
   incomeLedgerText,
   setSelectOrInput,
   waitForAppReturn,
+  waitForHostedCheckout,
 } from "./flow.ts";
 import { log, step } from "./log.ts";
 
@@ -317,6 +318,10 @@ export const bookComplexOrder = async (
     if (!opts.payHostedCheckout) {
       throw new Error("paid journey needs payHostedCheckout");
     }
+    // The booking POST lands on an app reserved page first; only once the
+    // browser has actually left for the provider's hosted checkout does the
+    // payment session exist for the provider driver to settle.
+    await waitForHostedCheckout(session);
     await opts.payHostedCheckout();
   }
   // Paid: back from the hosted checkout. Free: already on the reserved page.
