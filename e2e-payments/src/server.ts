@@ -32,6 +32,14 @@ export interface AppServer {
 /** Pick a port in a high range; the OS will reject a genuine clash on bind. */
 const pickPort = (): number => 34_000 + Math.floor(Math.random() * 4_000);
 
+/** The child's env without NTFY_URL, so the app under test never notifies. */
+const withoutNtfy = (
+  env: Record<string, string | undefined>,
+): Record<string, string | undefined> => {
+  const { NTFY_URL: _dropped, ...rest } = env;
+  return rest;
+};
+
 /** Build the static client assets the app reads at import time. Run once. */
 export const buildStaticAssets = async (): Promise<void> => {
   log("Building static assets (deno task build:static)…");
@@ -78,7 +86,12 @@ export const startAppServer = async (): Promise<AppServer> => {
     {
       cwd: repoRoot,
       env: {
-        ...process.env,
+        // Drop NTFY_URL: the scenarios deliberately cause real server errors
+        // (the Money fault, the SumUp refusals, the price-change refund), and
+        // the app under test would faithfully ping ntfy for each — making a
+        // green run look like an incident. The harness's own failure
+        // notification is the only one a run should send.
+        ...withoutNtfy(process.env),
         DB_ENCRYPTION_KEY: config.dbEncryptionKey,
         DB_URL: dbUrl,
         PORT: String(port),
