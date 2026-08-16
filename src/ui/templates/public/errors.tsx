@@ -4,7 +4,10 @@ import { getRenewalUrl } from "#shared/env.ts";
 import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import { RawParagraph } from "#templates/components/prose-heading.tsx";
+import {
+  ProseHeading,
+  RawParagraph,
+} from "#templates/components/prose-heading.tsx";
 import { Layout } from "#templates/layout.tsx";
 import { simplePublicPage } from "./prose-page.tsx";
 
@@ -12,21 +15,16 @@ import { simplePublicPage } from "./prose-page.tsx";
 
 /**
  * Curried error-page factory. The temporary/database-busy/migration/
- * not-activated pages share the
- *   String(<Layout headExtra={headStyle} title={t(titleKey)}>
- *     <div class="prose"><h1>{t(headingKey)}</h1>{body...}</div></Layout>)
- * shape; this captures it so the four pages only declare their differences
- * (head style, title/heading keys, body).
+ * not-activated pages share the one prose-heading shape; this captures it so
+ * the four pages only declare their differences (head style, title/heading
+ * keys, body).
  */
 const errorPage =
   (titleKey: string, headingKey: string, headExtra: string) =>
   (body: Child): string =>
     String(
       <Layout headExtra={headExtra} title={t(titleKey)}>
-        <div class="prose">
-          <h1>{t(headingKey)}</h1>
-          {body}
-        </div>
+        <ProseHeading heading={t(headingKey)}>{body}</ProseHeading>
       </Layout>,
     );
 

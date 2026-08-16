@@ -3483,3 +3483,117 @@ label:hover .embed-toggle-badge,
     margin-top: 0;
   }
 }
+
+/* System map (/admin/schema): the derived state-machine diagrams */
+.schema-machine {
+  margin-top: var(--space-lg);
+}
+
+.schema-widget {
+  border: 1px solid var(--color-table);
+  border-radius: var(--border-radius);
+  overflow-x: auto;
+  padding: var(--space-s);
+
+  svg.schema-map {
+    display: block;
+    max-width: 100%;
+    min-width: 640px;
+  }
+}
+
+.schema-node {
+  cursor: pointer;
+
+  rect {
+    fill: var(--color-bg-secondary);
+    stroke: var(--color-table);
+    stroke-width: 1.5;
+  }
+
+  text {
+    fill: var(--color-text);
+    font-size: 13px;
+  }
+
+  &:hover rect,
+  &[data-selected] rect {
+    fill: var(--color-accent);
+    stroke-width: 3;
+  }
+
+  &:focus {
+    outline: none;
+
+    rect {
+      stroke-dasharray: 4 2;
+    }
+  }
+}
+
+.schema-node-start {
+  fill: var(--color-text-secondary);
+  font-size: 14px;
+}
+
+.schema-edge {
+  fill: none;
+  stroke: var(--color-text-secondary);
+  stroke-width: 1.5;
+  transition: opacity 100ms ease;
+
+  /* Dim every arrow until its source state is chosen */
+  .schema-widget[data-schema-selected] & {
+    opacity: 0.2;
+  }
+}
+
+.schema-edge-live {
+  opacity: 1;
+  stroke-width: 2.5;
+}
+
+.schema-edge-owner {
+  stroke: var(--color-danger, #cc0000);
+}
+
+.schema-edge-provider {
+  stroke: var(--color-link);
+}
+
+.schema-edge-system {
+  stroke: var(--color-secondary);
+}
+
+.schema-actor {
+  border-radius: var(--border-radius);
+  font-size: 0.85em;
+  padding: 0 var(--space-s);
+  white-space: nowrap;
+}
+
+.schema-actor-owner {
+  background-color: #cc000015;
+}
+
+.schema-actor-provider {
+  background-color: #791a8115;
+}
+
+.schema-actor-system {
+  background-color: #920de915;
+}
+
+.schema-facts {
+  dt {
+    font-weight: bold;
+  }
+
+  dd {
+    margin: 0 0 var(--space-s) 0;
+  }
+}
+
+.schema-widget-hint {
+  color: var(--color-text-secondary);
+}

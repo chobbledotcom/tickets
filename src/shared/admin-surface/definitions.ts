@@ -42,6 +42,7 @@ export const ADMIN_SURFACE_AREAS = {
   privacy: ["privacy"],
   questions: ["listing", "questions"],
   scanner: ["listing"],
+  schemaAtlas: ["schema"],
   seeds: ["seeds"],
   servicing: ["servicing"],
   sessions: ["sessions"],
