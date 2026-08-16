@@ -2,6 +2,7 @@
 
 import { execute } from "#shared/db/client.ts";
 import type { PutsThingsBack } from "#test/specs/support/memory.ts";
+import { refundLedgerFaultTrigger } from "#test-utils/refund-ledger-fault.ts";
 
 const REFUND_LEDGER_FAULT = "refund_story_ledger_fault";
 
@@ -24,14 +25,7 @@ const dropRefundLedgerFault = async (): Promise<void> => {
 export const makeRefundLedgerUnavailable = async (
   cleanup: Pick<PutsThingsBack, "add">,
 ): Promise<RefundLedgerFault> => {
-  await execute(`
-    CREATE TRIGGER ${REFUND_LEDGER_FAULT}
-    BEFORE INSERT ON transfers
-    WHEN substr(NEW.kind, 1, 7) = 'refund_'
-    BEGIN
-      SELECT RAISE(ABORT, 'refund ledger unavailable in this story');
-    END
-  `);
+  await execute(refundLedgerFaultTrigger(REFUND_LEDGER_FAULT));
   cleanup.add(dropRefundLedgerFault);
   return { restore: dropRefundLedgerFault };
 };

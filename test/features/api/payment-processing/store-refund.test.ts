@@ -32,6 +32,7 @@ import {
   getAttendeesRaw,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withRefundLedgerFault } from "#test-utils/refund-ledger-fault.ts";
 import { refundCompletes, withRefundMock } from "#test-utils/refund-routes.ts";
 import { adminGet } from "#test-utils/session.ts";
 import { bookingIntent, paymentSession } from "./index/helpers.ts";
@@ -102,6 +103,28 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
           success: false,
         });
       });
+    });
+
+    test("keeps the row saying unrecorded when Money misses the return", async () => {
+      await withRefundLedgerFault(() =>
+        withRefundMock(refundCompletes, async () => {
+          const { result } = await storedPlaceholder("cs_ledger_miss");
+          // The buyer's answer stays the handled 200 — money DID come back;
+          // catching the books up is operator work, not the buyer's problem.
+          expect(result.refunded).toBe(true);
+        }),
+      );
+      // The row keeps the truth the refresh route clears — money returned,
+      // books not caught up — and the authority stays due and visible.
+      const row = await queryOne<{ protected_state: string }>(
+        `SELECT protected_state FROM processed_payments
+          WHERE payment_reference_index != ''`,
+      );
+      expect(row?.protected_state).toBe("unrecorded");
+      const charge = await queryOne<{ refund_local_state: string }>(
+        "SELECT refund_local_state FROM payment_charges",
+      );
+      expect(charge?.refund_local_state).toBe("due");
     });
 
     test("replays a pending refund when the committed create loses its reply", async () => {

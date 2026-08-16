@@ -18,6 +18,7 @@ import {
 } from "#routes/api/payment-processing/create.ts";
 import { businessTime } from "#routes/api/payment-processing/metadata.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
+import { completePlaceholderMoney } from "#routes/api/payment-processing/placeholder-completion.ts";
 import {
   prepareSessionRefundAuthority,
   providerRefundReturned,
@@ -30,7 +31,6 @@ import type {
 } from "#routes/api/webhook-types.ts";
 import { bookingDateFields } from "#shared/booking-date-fields.ts";
 import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import { attendeePaymentProvenance } from "#shared/db/attendees/payment-provenance.ts";
@@ -40,6 +40,7 @@ import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { prepareClaimedAttendeePaymentAnchor } from "#shared/db/payment-anchor/attendee.ts";
 import { settleAttendeeRows } from "#shared/db/payment-claim.ts";
 import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
+import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import type { PreparedSessionFailure } from "#shared/db/processed-payments.ts";
 import { prepareSessionFailure } from "#shared/db/processed-payments.ts";
 import { ErrorCode, type ErrorCodeType, logError } from "#shared/logger.ts";
@@ -56,7 +57,6 @@ import type { StoredPaymentFailure } from "#shared/payment/row-state.ts";
 import { paidPaymentReferenceOf } from "#shared/payment/validated-session.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
-import { recordProviderRefunds } from "#shared/provider-refunds.ts";
 import { recordPlaceholderRefund } from "#shared/refund-ledger/placeholder.ts";
 import { requireValue } from "#shared/required-value.ts";
 
@@ -318,42 +318,52 @@ export const storeRefundedBooking = async (
     listingId,
     provider: session.provider,
   });
-  const recording = await recordPlaceholderRefund(
-    {
+  if (refundResult.kind === "returned") {
+    // The money came back: finish its records through the shared, resumable
+    // completion. A ledger miss keeps the row saying "unrecorded" rather
+    // than failing the buyer's 200 answer — the refresh route finishes it.
+    await completePlaceholderMoney({
+      activityMessage: `Automatic refund (${spec.code}); booking kept at quantity 0`,
       amount: session.amountTotal,
       attendeeId,
-      eventId: session.id,
+      dueAuthority:
+        refundResult.local === "due" ? refundResult.authority : null,
       listingId,
       occurredAt: businessTime(session),
-    },
-    spec.code,
-    refunded,
-  );
-  if (
-    refunded &&
-    recording.posted &&
-    refundResult.kind === "returned" &&
-    refundResult.local === "due"
-  ) {
-    await recordProviderRefunds([refundResult.authority]);
-  }
-  if (refunded) {
-    await logActivity(
-      `Automatic refund (${spec.code}); booking kept at quantity 0`,
-      listingId,
-      attendeeId,
-    );
+      onLedgerMiss: "mark_unrecorded",
+      referenceIndexes: [
+        await paymentReferenceIndex(paidPaymentReferenceOf(session)),
+      ],
+      sessionId: session.id,
+      settlement: claimedAnchor.settlement,
+      spec,
+    });
   } else {
+    // Nothing returned: the payment leg still lands so the books show the
+    // money in, the refund stays with its recovery routes, and the note
+    // tells the operator the refund is still being arranged.
+    await recordPlaceholderRefund(
+      {
+        amount: session.amountTotal,
+        attendeeId,
+        eventId: session.id,
+        listingId,
+        occurredAt: businessTime(session),
+      },
+      spec.code,
+      false,
+    );
     logError({
       code: ErrorCode.PAYMENT_REFUND,
       detail: `Stored-but-unrefunded booking ${attendeeId} (${spec.code}): ${spec.detail}`,
       listingId,
     });
+    await createSystemNote(
+      attendeeNotes(attendeeId),
+      placeholderRefundNote(attendeeId, spec, false),
+    );
+    await settleAttendeeRows(claimedAnchor.settlement);
   }
-  const noteTarget = attendeeNotes(attendeeId);
-  const noteText = placeholderRefundNote(attendeeId, spec, refunded);
-  await createSystemNote(noteTarget, noteText);
-  await settleAttendeeRows(claimedAnchor.settlement);
   const result = placeholderFailure(spec, refunded);
   await sessionFailure.replace(storedFailureOf(result));
   // Status 200: a fully-handled terminal outcome (booking kept, money returned or

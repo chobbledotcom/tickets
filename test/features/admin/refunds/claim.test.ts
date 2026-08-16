@@ -56,6 +56,35 @@ describe("admin refunds > attendee claim", () => {
     expect(claim.settlements).toEqual([]);
   });
 
+  test("a refused admission without its gate fails loudly", async () => {
+    const claim = claimResult({ kind: "not_admitted" });
+    await expect(
+      underAttendeeClaim(claim, LOADED, 9, {
+        blocked: (block: RefundRunBlock) => block,
+        work: () => Promise.reject(new Error("work must not start")),
+      }),
+    ).rejects.toThrow("Refund claim refused without an admission gate");
+    expect(claim.settlements).toEqual([]);
+  });
+
+  test("lets go of the fence when the work itself fails", async () => {
+    const claim = claimResult(claimedRows(new Map([[5, ["sess-five"]]])));
+    await expect(
+      underAttendeeClaim(claim, LOADED, 5, {
+        blocked: () => "blocked",
+        work: () => Promise.reject(new Error("work exploded")),
+      }),
+    ).rejects.toThrow("work exploded");
+    // The failure still let go of the fence.
+    expect(claim.settlements).toEqual([
+      {
+        commandId: "test-command",
+        heldSince: "2026-08-11T12:00:00.000Z",
+        rows: new Map([["sess-five", { claim: "release", phase: "checking" }]]),
+      },
+    ]);
+  });
+
   test("releases every checking fence while preserving discovered facts", async () => {
     const unrecorded = new Map<number, readonly string[]>([
       [3, ["sess-three"]],

@@ -14,6 +14,7 @@
 /* jscpd:ignore-start -- imports */
 import { attendeeBaseFields } from "#routes/api/payment-processing/create.ts";
 import { extractIntentFromMetadata } from "#routes/api/payment-processing/metadata.ts";
+import { completePlaceholderMoney } from "#routes/api/payment-processing/placeholder-completion.ts";
 import {
   type RejectionOutcome,
   type ReturnedRejectionReceipt,
@@ -24,11 +25,8 @@ import {
   storeClaimedPlaceholder,
 } from "#routes/api/payment-processing/store-refund.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
 import { requirePublicStatusId } from "#shared/db/attendee-statuses.ts";
-import { createSystemNote } from "#shared/db/notes/queries.ts";
-import { attendeeNotes } from "#shared/db/notes/target.ts";
-import { settleAttendeeRows } from "#shared/db/payment-claim.ts";
+import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import {
   prepareSessionFailure,
   releaseReservation,
@@ -37,18 +35,13 @@ import {
 import { loadRefundAuthorityById } from "#shared/db/provider-refund-authority.ts";
 import { t } from "#shared/i18n.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import {
-  placeholderRefund,
-  placeholderRefundNote,
-} from "#shared/payment/placeholder-refund.ts";
+import { placeholderRefund } from "#shared/payment/placeholder-refund.ts";
 import { completedAtOf } from "#shared/payment/refund-authority-state.ts";
 import {
   type MalformedRejection,
   rejectedChargeReference,
   type SessionRejection,
 } from "#shared/payment/validated-session.ts";
-import { recordProviderRefunds } from "#shared/provider-refunds.ts";
-import { recordPlaceholderRefund } from "#shared/refund-ledger/placeholder.ts";
 import { requireValue } from "#shared/required-value.ts";
 
 /* jscpd:ignore-end */
@@ -160,40 +153,23 @@ const storeRejectedTarget = async (
     ),
     sessionId: rejection.sessionId,
   });
-  const recording = await recordPlaceholderRefund(
-    {
-      amount: authority.captured.amount,
-      attendeeId,
-      eventId: rejection.sessionId,
-      listingId,
-      occurredAt: new Date(returnedAtMs).toISOString(),
-    },
-    spec.code,
-    true,
-  );
-  if (!recording.posted) {
-    // The books must not silently miss returned money: fail the delivery so
-    // the provider redelivers, while the authority stays due and visible.
-    throw new Error(
-      `Money for rejected session ${rejection.sessionId} could not be recorded`,
-    );
-  }
-  // Inside the fence the legs are always fresh — a delivery that stored the
-  // outcome never re-enters, and a failed store released the fence before
-  // any leg was posted. Only the authority's own recording can vary: an
-  // owner may have recorded it by hand between a failed store and this
-  // redelivery, and a recorded authority must not be recorded again.
-  if (returned.local === "due") {
-    await recordProviderRefunds([returned.authority]);
-  }
-  await createSystemNote(
-    attendeeNotes(attendeeId),
-    placeholderRefundNote(attendeeId, spec, true),
-  );
-  await settleAttendeeRows(claimedAnchor.settlement);
-  await logActivity(
-    `Automatic refund (${spec.code}); rejected payment kept at quantity 0`,
-    listingId,
+  // An owner may have recorded the authority by hand between a failed store
+  // and this redelivery; a recorded authority must not be recorded again. A
+  // ledger miss throws: the delivery fails, the provider redelivers, and the
+  // authority stays due and visible meanwhile.
+  await completePlaceholderMoney({
+    activityMessage: `Automatic refund (${spec.code}); rejected payment kept at quantity 0`,
+    amount: authority.captured.amount,
     attendeeId,
-  );
+    dueAuthority: returned.local === "due" ? returned.authority : null,
+    listingId,
+    occurredAt: new Date(returnedAtMs).toISOString(),
+    onLedgerMiss: "throw",
+    referenceIndexes: [
+      await paymentReferenceIndex(rejectedChargeReference(rejection)),
+    ],
+    sessionId: rejection.sessionId,
+    settlement: claimedAnchor.settlement,
+    spec,
+  });
 };

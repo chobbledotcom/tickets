@@ -3,6 +3,11 @@
 
 import { expect } from "@std/expect";
 import { spy, stub } from "@std/testing/mock";
+import {
+  bookingEventGroup,
+  refundEventGroup,
+} from "#shared/accounting/mappers.ts";
+import { transfersByEventGroup } from "#shared/accounting/queries.ts";
 import { settings } from "#shared/db/settings.ts";
 import type {
   RefundAttemptResult,
@@ -93,6 +98,16 @@ export const withSucceedingRefundFor = (
       ),
     capturedAmount,
   );
+
+/** Prove the session's books hold exactly one payment and one return leg —
+ *  the shape every replay and resume must leave untouched. */
+export const expectOnePairOfLegs = async (sessionId: string): Promise<void> => {
+  const bookingGroup = await bookingEventGroup(sessionId);
+  expect((await transfersByEventGroup(bookingGroup)).length).toBe(1);
+  expect(
+    (await transfersByEventGroup(await refundEventGroup(bookingGroup))).length,
+  ).toBe(1);
+};
 
 /** A refundable malformed-charge rejection this instance signed, so its
  *  ownership check passes and the refund goes ahead. Metadata overrides let

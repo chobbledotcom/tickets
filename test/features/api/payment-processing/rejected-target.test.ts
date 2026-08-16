@@ -17,7 +17,7 @@ import {
 } from "#shared/accounting/mappers.ts";
 import { transfersByEventGroup } from "#shared/accounting/queries.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { execute, queryAll, queryOne } from "#shared/db/client.ts";
+import { queryAll, queryOne } from "#shared/db/client.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
 import { loadRefundAuthorityById } from "#shared/db/provider-refund-authority.ts";
 import { completedAtOf } from "#shared/payment/refund-authority-state.ts";
@@ -26,7 +26,9 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { singleItem } from "#test-utils/factories.ts";
+import { withRefundLedgerFault } from "#test-utils/refund-ledger-fault.ts";
 import {
+  expectOnePairOfLegs,
   ourRejection,
   withSucceedingRefundFor,
 } from "#test-utils/rejected-charge.ts";
@@ -125,12 +127,7 @@ describeWithEnv("a refunded rejection's Money target", { db: true }, () => {
     expect(again.result.settled).toBe(true);
 
     expect((await ghostAttendees(listing.id)).length).toBe(1);
-    const bookingGroup = await bookingEventGroup(rejection.sessionId);
-    expect((await transfersByEventGroup(bookingGroup)).length).toBe(1);
-    expect(
-      (await transfersByEventGroup(await refundEventGroup(bookingGroup)))
-        .length,
-    ).toBe(1);
+    await expectOnePairOfLegs(rejection.sessionId);
   });
 
   /** Settle with a succeeding refund, then prove this delivery stored
@@ -164,19 +161,13 @@ describeWithEnv("a refunded rejection's Money target", { db: true }, () => {
     const { listing, rejection } = await rejectionFor("pi_ledger_down");
     // The same real write-boundary fault the recovery stories use: only
     // refund legs are refused, so the atomic two-leg post rolls back whole.
-    await execute(`CREATE TRIGGER reject_refund_legs
-      BEFORE INSERT ON transfers
-      WHEN substr(NEW.kind, 1, 7) = 'refund_'
-      BEGIN SELECT RAISE(ABORT, 'refund ledger unavailable'); END`);
-    try {
-      await expect(
+    await withRefundLedgerFault(() =>
+      expect(
         withSucceedingRefundFor(CAPTURED)(() =>
           settleRejectedCharge(rejection),
         ),
-      ).rejects.toThrow("could not be recorded");
-    } finally {
-      await execute("DROP TRIGGER IF EXISTS reject_refund_legs");
-    }
+      ).rejects.toThrow("could not be recorded"),
+    );
     // The ghost and its outcome are stored; the books hold nothing at all,
     // and the authority stays due — parked and visible, ready for a retry.
     expect((await ghostAttendees(listing.id)).length).toBe(1);
