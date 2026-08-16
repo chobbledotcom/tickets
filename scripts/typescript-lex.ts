@@ -111,21 +111,40 @@ const KEYWORD_BEFORE_REGEX = new Set([
 ]);
 
 /**
- * Whether the `/` at `start` opens a regular expression rather than dividing,
- * decided by what comes before it. Without this a regex holding a quote — say
- * `/viewBox="([^"]+)"/` — reads as an unterminated string, and every comment
- * and string after it in the file is then found in the wrong place.
+ * Asks, of one file's text, whether the `/` at a position opens a regular
+ * expression rather than dividing — decided by what precedes it. Without this a
+ * regex holding a quote — say `/viewBox="([^"]+)"/` — reads as an unterminated
+ * string, and every comment and string after it is found in the wrong place.
+ *
+ * `commentStarts` maps each consumed comment's final character to where it
+ * opened, so the scan can step back over one: a comment is invisible to the
+ * code that follows it, and `x = // note` then `/re/` must read the `=`.
  */
-const isRegexStart = (content: string, start: number): boolean => {
-  let index = start - 1;
-  while (index >= 0 && /\s/.test(content.charAt(index))) index -= 1;
-  if (index < 0) return true;
-  const char = content.charAt(index);
-  if (BEFORE_REGEX.has(char)) return true;
-  if (!isIdentifierChar(char)) return false;
-  let wordStart = index;
-  while (wordStart >= 0 && isIdentifierChar(content[wordStart])) wordStart -= 1;
-  return KEYWORD_BEFORE_REGEX.has(content.slice(wordStart + 1, index + 1));
+const regexTester = (
+  content: string,
+  commentStarts: ReadonlyMap<number, number>,
+): ((start: number) => boolean) => {
+  const codeCharBefore = (start: number): number => {
+    let index = start - 1;
+    for (;;) {
+      while (index >= 0 && /\s/.test(content.charAt(index))) index -= 1;
+      const commentStart = commentStarts.get(index);
+      if (commentStart === undefined) return index;
+      index = commentStart - 1;
+    }
+  };
+  return (start) => {
+    const index = codeCharBefore(start);
+    if (index < 0) return true;
+    const char = content.charAt(index);
+    if (BEFORE_REGEX.has(char)) return true;
+    if (!isIdentifierChar(char)) return false;
+    let wordStart = index;
+    while (wordStart >= 0 && isIdentifierChar(content[wordStart])) {
+      wordStart -= 1;
+    }
+    return KEYWORD_BEFORE_REGEX.has(content.slice(wordStart + 1, index + 1));
+  };
 };
 
 /**
@@ -173,11 +192,16 @@ export interface LexicalSpan {
  * versa — so callers that care about only one kind still have to walk both.
  */
 export function* lexicalSpans(content: string): Generator<LexicalSpan> {
+  // Where each comment consumed so far opened, keyed by its last character, so
+  // the regex test can step back over one.
+  const commentStarts = new Map<number, number>();
+  const startsRegex = regexTester(content, commentStarts);
   let index = 0;
   while (index < content.length) {
     const pastComment = skipComment(content, index);
     if (pastComment !== index) {
       yield { end: pastComment, kind: "comment", start: index };
+      commentStarts.set(pastComment - 1, index);
       index = pastComment;
       continue;
     }
@@ -187,7 +211,7 @@ export function* lexicalSpans(content: string): Generator<LexicalSpan> {
       index = end;
       continue;
     }
-    if (content[index] === "/" && isRegexStart(content, index)) {
+    if (content[index] === "/" && startsRegex(index)) {
       index = skipRegex(content, index);
       continue;
     }

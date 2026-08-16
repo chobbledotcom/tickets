@@ -53,6 +53,7 @@
  */
 
 import { selectMutationTests } from "#scripts/mutation/test-map.ts";
+import { blankSpans } from "#scripts/typescript-lex.ts";
 import { nonBlankLines } from "#shared/split.ts";
 import type { RunCommand } from "./git.ts";
 
@@ -101,6 +102,44 @@ export const partitionChanged = (paths: string[]): ChangedFiles => ({
   tests: paths.filter(isTestFile),
 });
 
+/**
+ * A file's code with its comments and blank lines gone. Comparing two revisions
+ * this way says whether anything a mutant could act on actually changed —
+ * every operator mutates code, never a comment. Strings are left alone, so a
+ * changed string literal still reads as a real change.
+ */
+export const codeShape = (content: string): string =>
+  blankSpans(content, false)
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .filter((line) => line.length > 0)
+    .join("\n");
+
+/**
+ * The sources whose change is more than comments. A comment-only diff can
+ * produce no mutant, so mutating the file would demand a kill rate for code
+ * this branch never touched — which is exactly what a pass that shortens
+ * docstrings does across dozens of files.
+ */
+const withCodeChanges = async (
+  run: RunCommand,
+  base: string,
+  sources: string[],
+): Promise<string[]> => {
+  const changed: string[] = [];
+  for (const path of sources) {
+    const before = await run(["git", "show", `${base}:${path}`]);
+    const after = await run(["git", "show", `HEAD:${path}`]);
+    // A file either revision cannot show (added, or renamed into place) has no
+    // pair to compare, so it counts as changed.
+    const comparable = before.success && after.success;
+    if (!comparable || codeShape(before.stdout) !== codeShape(after.stdout)) {
+      changed.push(path);
+    }
+  }
+  return changed;
+};
+
 /** The base ref to diff against: the integration branch — `origin/main`, then a
  *  local `main`. The first that resolves to a commit wins; null when neither
  *  does, so the caller skips rather than mutating the whole tree. */
@@ -140,7 +179,11 @@ export const changedFiles = async (
     if (/no merge base/i.test(result.stderr)) return null;
     throw new Error(`git diff ${base}...HEAD failed: ${result.stderr.trim()}`);
   }
-  return partitionChanged(nonBlankLines(result.stdout));
+  const changed = partitionChanged(nonBlankLines(result.stdout));
+  return {
+    sources: await withCodeChanges(run, base, changed.sources),
+    tests: changed.tests,
+  };
 };
 
 /**

@@ -8,8 +8,8 @@
  *
  * `?tier=alpha|beta|release` (default `release`) returns only the sites whose
  * own channel accepts that tier: release reaches every site, beta reaches beta
- * and alpha, alpha only alpha. An unrecognised tier is a 400, and the default
- * keeps a caller that omits it seeing the whole fleet.
+ * and alpha, alpha only alpha. An unrecognised tier is a 400, and omitting
+ * `tier` returns the whole fleet.
  *
  * The route is disabled unless MAIN_INSTANCE_KEY is set, so a plain instance
  * 404s rather than advertising it, and the key is compared in constant time.

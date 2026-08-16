@@ -7,12 +7,12 @@
  * key. The provider only sees the digest, which it cannot forge, so the webhook
  * trusts the total and its surrounding fields rather than re-deriving them.
  *
- * It binds the whole logical metadata, not just the obviously price-determining
- * subset, so a field feeding pricing indirectly (email or phone, through
- * visit-gated modifiers) or feeding fulfilment cannot be altered while the
- * proof stays valid — any change is rejected as tampering.
+ * It binds the whole logical metadata, not just the price-determining subset,
+ * so a field feeding pricing indirectly — email or phone, via visit-gated
+ * modifiers — or feeding fulfilment cannot change while the proof stays valid.
  *
- * Two keys are excluded: `price_proof`, which cannot sign itself, and
+ * Three keys are excluded: `price_proof`, which cannot sign itself; `b`, the
+ * wire-only packed entry, since both sides work on the unpacked shape; and
  * `_origin`, left unsigned so the webhook's foreign-session detection can read
  * it — binding it would push a tampered-origin session down the no-refund
  * foreign path and strand a paying customer. `canonicalPricePayload` is the one

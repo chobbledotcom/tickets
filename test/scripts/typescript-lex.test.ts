@@ -132,6 +132,34 @@ describe("lexicalSpans over regular expressions", () => {
   test("stops at the end of an unterminated regex rather than looping", () => {
     expect(spans('const r = /abc"')).toEqual([]);
   });
+
+  test("looks past a comment to the code that decides the regex", () => {
+    // The comment's last word is not a token: what precedes the regex here is
+    // the `;`, so the `/` opens a regex and its quote never starts a string.
+    expect(spans('const a = 1; // see x\n/a"b/.test(s)')).toEqual([
+      { kind: "comment", text: "// see x" },
+    ]);
+  });
+
+  test("looks past a run of comments, not just the nearest", () => {
+    expect(spans('// one\n// two\n/a"b/.test(s); const s = "after";')).toEqual([
+      { kind: "comment", text: "// one" },
+      { kind: "comment", text: "// two" },
+      { kind: "string", text: '"after"' },
+    ]);
+  });
+
+  test("treats a slash after a call result as division, not a regex", () => {
+    expect(spans('const half = f() / 2; const s = "x";')).toEqual([
+      { kind: "string", text: '"x"' },
+    ]);
+  });
+
+  test("stops a candidate regex at a newline, so it was division", () => {
+    expect(spans('x = (a) ? /b\nconst s = "after";')).toEqual([
+      { kind: "string", text: '"after"' },
+    ]);
+  });
 });
 
 describe("blankSpans over lexicalSpans", () => {
