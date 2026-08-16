@@ -141,6 +141,13 @@ export const settledRowState = (
       )
     : null;
 
+/** Whether the row carries live work: a claim, a review, or unrecorded
+ * money. A terminal outcome may never share a row with any of these. */
+export const hasLiveRowWork = (state: PaymentRowState): boolean =>
+  state.claim !== undefined ||
+  state.review !== undefined ||
+  state.unrecorded !== undefined;
+
 /** The terminal outcome of a checkout that ended. Throws on any live work —
  * the pure form of the SQL fence that only lets an outcome land on an empty
  * slot, so a settled word can never bury a claim, a review, or unrecorded
@@ -149,11 +156,7 @@ export const withOutcome = (
   state: PaymentRowState,
   failure: StoredPaymentFailure,
 ): PaymentRowState => {
-  if (
-    state.claim !== undefined ||
-    state.review !== undefined ||
-    state.unrecorded !== undefined
-  ) {
+  if (hasLiveRowWork(state)) {
     throw new Error("A terminal outcome cannot land on live payment work");
   }
   return { outcome: failure };

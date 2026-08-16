@@ -256,8 +256,3 @@ src/shared/payment/money.ts::CurrencySchema~1qa2mi1  Currency must be three uppe
 src/shared/payment/resource-id.ts::ResourceIdSchema~1pmki6u  Resource id must be text with no whitespace → ""   # message text of the resource-id regex; validation outcome is identical
 
 src/shared/schema-atlas/types.ts::atlasState.facts~0j1zyry ?? → ||   # extra.facts is an array when present, and arrays are always truthy
-
-# schema-atlas/refund-authority.ts: every representative state behind a node
-# shares the node's lifecycle rule, so facts from reps[0] and reps[1] are
-# identical; the per-node facts assertions would fail if that invariant broke.
-src/shared/schema-atlas/refund-authority.ts::refundAuthorityAtlas.states.facts~1o131tp 0 → 1   # all reps of a node produce the same lifecycle facts

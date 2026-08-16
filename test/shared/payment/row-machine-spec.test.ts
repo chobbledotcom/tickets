@@ -95,6 +95,8 @@ describe("the payment row table", () => {
       notTransitions: {
         claimHeldBy:
           "the identity predicate — every settle cell runs it inside settledRowState",
+        hasLiveRowWork:
+          "the exclusivity predicate — write_outcome throws through it, and the stored-failure parser shares it",
       },
     },
   ]);

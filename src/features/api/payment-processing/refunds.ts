@@ -28,6 +28,7 @@ import type { TaggedPaymentReference } from "#shared/payment/provider-reference.
 import { refundCallbackReplayIndex } from "#shared/payment/refund-request-identity.ts";
 import {
   paidPaymentReferenceOf,
+  rejectedChargeReference,
   type SessionRejection,
 } from "#shared/payment/validated-session.ts";
 import { reportWithheldRefund } from "#shared/payment-review.ts";
@@ -100,11 +101,7 @@ export const refundRejectedCharge = async (
     callbackSessionId: rejection.sessionId,
     evidence: { kind: "read_provider" },
     mode: "send",
-    reference: {
-      kind: "tagged",
-      provider: rejection.provider,
-      reference: rejection.paymentReference,
-    },
+    reference: rejectedChargeReference(rejection),
   });
   const refunded = providerRefundReturned(result);
   return {

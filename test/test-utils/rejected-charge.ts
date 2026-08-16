@@ -8,7 +8,7 @@ import type {
   RefundAttemptResult,
   RefundRequest,
 } from "#shared/payment/refund-attempt.ts";
-import type { SessionRejection } from "#shared/payment/validated-session.ts";
+import type { MalformedRejection } from "#shared/payment/validated-session.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
 import { paymentsApi } from "#shared/payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
@@ -101,7 +101,7 @@ export const withSucceedingRefundFor = (
 export const ourRejection = (
   paymentReference: string,
   metadata: Partial<SessionMetadata> = {},
-): Extract<SessionRejection, { reason: "malformed_charge" }> => ({
+): MalformedRejection => ({
   metadata: signedMeta(
     { email: "a@example.com", items: "[]", name: "A", ...metadata },
     500,

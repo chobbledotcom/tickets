@@ -19,6 +19,7 @@ import {
 import type { PaymentRowState } from "#shared/payment/row-state.ts";
 import {
   atlasStatesFromSpec,
+  factsAndStart,
   type MachineLayouts,
 } from "#shared/schema-atlas/machine-spec.ts";
 import type { AtlasMachine, AtlasState } from "#shared/schema-atlas/types.ts";
@@ -61,10 +62,7 @@ export const rowLifecycleAtlas = (): AtlasMachine => ({
     { events: ROW_EVENTS, nodeOf: rowNodeOf, nodes: ROW_NODES },
     "schema.row.state",
     LAYOUTS,
-    ({ id, reps }) => ({
-      facts: rowFacts(reps[0]!.state),
-      ...(id === "free" ? { start: true as const } : {}),
-    }),
+    factsAndStart(rowFacts, "free"),
   ),
   titleKey: "schema.row.title",
 });

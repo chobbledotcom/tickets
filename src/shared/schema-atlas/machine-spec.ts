@@ -142,6 +142,22 @@ export const movesIn = <NodeId extends string, EventId extends string>(
 
 type AtlasStateExtras = Parameters<typeof atlasState>[4];
 
+/** The usual node extras: facts read from the node's first shape, and the
+ * start flag on one named node. A node always carries at least one shape,
+ * and all of a node's shapes share its lifecycle rule (the graph suites pin
+ * both), so the first shape speaks for the whole node. */
+export const factsAndStart =
+  <State>(
+    factsOf: (
+      state: State,
+    ) => NonNullable<NonNullable<AtlasStateExtras>["facts"]>,
+    startId: string,
+  ) =>
+  (node: MachineNode<State, string>): AtlasStateExtras => ({
+    facts: factsOf(node.reps[0]!.state),
+    ...(node.id === startId ? { start: true as const } : {}),
+  });
+
 /** Where each of a machine's nodes sits on its map. */
 export type MachineLayouts<NodeId extends string> = Readonly<
   Record<NodeId, AtlasState["layout"]>

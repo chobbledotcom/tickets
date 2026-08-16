@@ -2530,6 +2530,19 @@ rather than from a one-shot write that a later replay cannot find. Starting
 point: the final update in `store-refund.ts` and what
 `handleReservationConflict` replays.
 
+The rejected-charge target (`rejected-target.ts`, CodeRabbit on PR #2079) has
+the same window: the ghost's terminal outcome is stored atomically with the
+ghost, so a failure in the money writes after it (ledger legs, authority
+recording, note, claim settle) leaves the target incomplete and redelivery exits
+at the fence. Money is not lost — the authority stays parked in Refund recovery
+with its owner route, the same designed degraded mode as `storeRefundedBooking`
+above — but completion is manual, not mechanical. The fix is the same one this
+entry names: make the post-store money completion resumable from observable
+state, shared by both keep-and-refund flows, rather than terminal-first with a
+manual tail. The building blocks already behave idempotently
+(`recordPlaceholderRefund` reports `posted`, `recordProviderRefunds` is guarded
+by the authority's `local` state).
+
 ## Harden the live payment harness so green means what it claims
 
 _Origin: Codex review on PR #2065 (a dozen threads on `e2e-payments/`), all

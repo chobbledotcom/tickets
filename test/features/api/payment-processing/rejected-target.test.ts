@@ -120,18 +120,25 @@ describeWithEnv("a refunded rejection's Money target", { db: true }, () => {
     ).toBe(1);
   });
 
-  it("keeps today's behavior when the metadata cannot name the booking", async () => {
-    // items "[]" fails the intent schema, so there is nothing true to store.
-    const rejection = ourRejection("pi_unreadable");
+  /** Settle with a succeeding refund, then prove this delivery stored
+   * nothing: no attendee anywhere and no ledger legs under the session. */
+  const settleWithoutStoring = async (
+    rejection: ReturnType<typeof ourRejection>,
+  ) => {
     const { result } = await withSucceedingRefundFor(CAPTURED)(() =>
       settleRejectedCharge(rejection),
     );
     expect(result.refunded).toBe(true);
-
     expect(await attendeeCount()).toBe(0);
     expect(
       await transfersByEventGroup(await bookingEventGroup(rejection.sessionId)),
     ).toEqual([]);
+    return result;
+  };
+
+  it("keeps today's behavior when the metadata cannot name the booking", async () => {
+    // items "[]" fails the intent schema, so there is nothing true to store.
+    const result = await settleWithoutStoring(ourRejection("pi_unreadable"));
     // The authority stays with its owner route, exactly as before the fix.
     const authority = await loadRefundAuthorityById(
       result.returned!.authority.id,
@@ -193,14 +200,7 @@ describeWithEnv("a refunded rejection's Money target", { db: true }, () => {
     expect(await reserveSession(rejection.sessionId)).toEqual({
       reserved: true,
     });
-    const { result } = await withSucceedingRefundFor(CAPTURED)(() =>
-      settleRejectedCharge(rejection),
-    );
-    expect(result.refunded).toBe(true);
-    // The racing holder owns the persistence; this delivery stored nothing.
-    expect(await attendeeCount()).toBe(0);
-    expect(
-      await transfersByEventGroup(await bookingEventGroup(rejection.sessionId)),
-    ).toEqual([]);
+    // The racing holder owns the persistence; this delivery stores nothing.
+    await settleWithoutStoring(rejection);
   });
 });

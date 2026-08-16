@@ -36,7 +36,10 @@ import {
   type StoredPaymentFailure,
   writeRowState,
 } from "#shared/payment/row-state.ts";
-import { withOutcome } from "#shared/payment/row-transitions.ts";
+import {
+  hasLiveRowWork,
+  withOutcome,
+} from "#shared/payment/row-transitions.ts";
 
 export { STALE_RESERVATION_MS };
 
@@ -295,12 +298,7 @@ export const parseSessionFailure = async (
 ): Promise<StoredPaymentFailure | null> => {
   if (!failureData) return null;
   const state = readRowState(await decrypt(failureData), FAILURE_DATA_CONTEXT);
-  if (
-    state.outcome === undefined ||
-    state.claim !== undefined ||
-    state.review !== undefined ||
-    state.unrecorded !== undefined
-  ) {
+  if (state.outcome === undefined || hasLiveRowWork(state)) {
     throw new Error(`${FAILURE_DATA_CONTEXT}: invalid terminal session state`);
   }
   return state.outcome;

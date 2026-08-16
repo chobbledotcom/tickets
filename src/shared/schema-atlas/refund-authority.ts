@@ -18,6 +18,7 @@ import {
 /* jscpd:ignore-start -- imports */
 import {
   atlasStatesFromSpec,
+  factsAndStart,
   type MachineLayouts,
 } from "#shared/schema-atlas/machine-spec.ts";
 import type { AtlasMachine, AtlasState } from "#shared/schema-atlas/types.ts";
@@ -55,13 +56,7 @@ export const refundAuthorityAtlas = (): AtlasMachine => ({
     { events: REFUND_EVENTS, nodeOf: refundNodeOf, nodes: REFUND_NODES },
     "schema.refund.state",
     LAYOUTS,
-    ({ id, reps }) => ({
-      // A node always carries at least one shape, and all of a node's
-      // shapes share its lifecycle rule (the graph suite pins both), so
-      // the first shape speaks for the whole node.
-      facts: lifecycleFacts(reps[0]!.state),
-      ...(id === "ready" ? { start: true as const } : {}),
-    }),
+    factsAndStart(lifecycleFacts, "ready"),
   ),
   titleKey: "schema.refund.title",
 });

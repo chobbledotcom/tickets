@@ -31,6 +31,21 @@ export type SessionRejection =
       sessionId: string;
     };
 
+/** A rejection that still names a real provider charge. */
+export type MalformedRejection = Extract<
+  SessionRejection,
+  { reason: "malformed_charge" }
+>;
+
+/** The provider-tagged identity of the charge a malformed rejection names. */
+export const rejectedChargeReference = (
+  rejection: MalformedRejection,
+): TaggedPaymentReference => ({
+  kind: "tagged",
+  provider: rejection.provider,
+  reference: rejection.paymentReference,
+});
+
 /** The durable charge identity proved by a validated session, or no charge for
  * a free checkout. A non-empty invalid id contradicts the session boundary and
  * fails where it is turned into storage/provider input. */

@@ -11,6 +11,7 @@
  * against.
  */
 
+/* jscpd:ignore-start -- imports */
 import { attendeeBaseFields } from "#routes/api/payment-processing/create.ts";
 import { extractIntentFromMetadata } from "#routes/api/payment-processing/metadata.ts";
 import {
@@ -41,10 +42,16 @@ import {
   placeholderRefund,
   placeholderRefundNote,
 } from "#shared/payment/placeholder-refund.ts";
-import type { SessionRejection } from "#shared/payment/validated-session.ts";
+import {
+  type MalformedRejection,
+  rejectedChargeReference,
+  type SessionRejection,
+} from "#shared/payment/validated-session.ts";
 import { recordProviderRefunds } from "#shared/provider-refunds.ts";
 import { recordPlaceholderRefund } from "#shared/refund-ledger/placeholder.ts";
 import { requireValue } from "#shared/required-value.ts";
+
+/* jscpd:ignore-end */
 
 /** What a later delivery reads back for this session; the buyer answer is
  * the refunded message below. */
@@ -64,8 +71,23 @@ export const settleRejectedCharge = async (
   const outcome = await refundRejectedCharge(rejection);
   // Only a malformed_charge rejection can carry returned money — a blank
   // reference names no charge, so refundRejectedCharge never refunds one.
-  if (rejection.reason === "malformed_charge" && outcome.returned !== null) {
-    await persistRejectedTarget(rejection, outcome.returned);
+  if (rejection.reason !== "malformed_charge" || outcome.returned === null) {
+    return outcome;
+  }
+  const reservation = await reserveSession(rejection.sessionId);
+  if (!reservation.reserved) {
+    // A stored outcome means an earlier delivery already made the target;
+    // a fresh empty hold means a racing delivery is making it right now.
+    return outcome;
+  }
+  try {
+    await storeRejectedTarget(rejection, outcome.returned);
+  } catch (error) {
+    // A failure before the outcome is stored must give the fence back, or
+    // redelivery collides with the empty hold until it goes stale. Once the
+    // outcome is stored, the release matches no unresolved row and no-ops.
+    await releaseReservation(rejection.sessionId);
+    throw error;
   }
   return outcome;
 };
@@ -91,29 +113,8 @@ export const answerRejectedSession = async (
   );
 };
 
-const persistRejectedTarget = async (
-  rejection: Extract<SessionRejection, { reason: "malformed_charge" }>,
-  returned: ReturnedRejectionReceipt,
-): Promise<void> => {
-  const reservation = await reserveSession(rejection.sessionId);
-  if (!reservation.reserved) {
-    // A stored outcome means an earlier delivery already made the target;
-    // a fresh empty hold means a racing delivery is making it right now.
-    return;
-  }
-  try {
-    await storeRejectedTarget(rejection, returned);
-  } catch (error) {
-    // A failure before the outcome is stored must give the fence back, or
-    // redelivery collides with the empty hold until it goes stale. Once the
-    // outcome is stored, the release matches no unresolved row and no-ops.
-    await releaseReservation(rejection.sessionId);
-    throw error;
-  }
-};
-
 const storeRejectedTarget = async (
-  rejection: Extract<SessionRejection, { reason: "malformed_charge" }>,
+  rejection: MalformedRejection,
   returned: ReturnedRejectionReceipt,
 ): Promise<void> => {
   const intent = extractIntentFromMetadata(rejection.metadata);
@@ -146,11 +147,7 @@ const storeRejectedTarget = async (
       intent,
       await requirePublicStatusId(),
     ),
-    paymentReference: {
-      kind: "tagged",
-      provider: rejection.provider,
-      reference: rejection.paymentReference,
-    },
+    paymentReference: rejectedChargeReference(rejection),
     sessionFailure: await prepareSessionFailure(
       rejection.sessionId,
       STORED_OUTCOME,

@@ -16,14 +16,14 @@
  * move belongs to the payment-review machine. */
 
 import { acknowledgePaymentReview } from "#shared/payment/review.ts";
-import {
-  isEmptyRowState,
-  type PaymentRowState,
-  type RefundClaim,
+import type {
+  PaymentRowState,
+  RefundClaim,
 } from "#shared/payment/row-state.ts";
 import {
   checkingClaimFor,
   grantClaim,
+  hasLiveRowWork,
   type PaymentRowSettlement,
   settledRowState,
   withOutcome,
@@ -78,7 +78,7 @@ const namesByWork = (
 
 export const rowNodeOf = (state: PaymentRowState): RowNodeId => {
   if (state.outcome !== undefined) {
-    if (!isEmptyRowState({ ...state, outcome: undefined })) {
+    if (hasLiveRowWork(state)) {
       throw new Error("A terminal outcome cannot share a row with live work");
     }
     return "settled";
@@ -93,21 +93,26 @@ export const rowNodeOf = (state: PaymentRowState): RowNodeId => {
       ]);
 };
 
-/** Settle a fixture state under the spec's own hold; a fixture that lost
- * its hold is a bug in the fixtures, not a machine refusal. */
-const settle = (
-  state: PaymentRowState,
-  change: Omit<PaymentRowSettlement, "claim" | "phase">,
-): PaymentRowState => {
-  const out = settledRowState(
-    state,
-    { ...RELEASE, ...change },
-    HELD,
-    RETURNED_AT,
-  );
-  if (out === null) throw new Error("Spec fixture lost its own hold");
-  return out;
-};
+/** Settle a state under the spec's own hold, or throw the given refusal. */
+const settleOr =
+  (refusal: string) =>
+  (
+    state: PaymentRowState,
+    change: Omit<PaymentRowSettlement, "claim" | "phase">,
+  ): PaymentRowState => {
+    const out = settledRowState(
+      state,
+      { ...RELEASE, ...change },
+      HELD,
+      RETURNED_AT,
+    );
+    if (out === null) throw new Error(refusal);
+    return out;
+  };
+
+/** Settle a fixture state; a fixture that lost its own hold is a bug in
+ * the fixtures, not a machine refusal. */
+const settle = settleOr("Spec fixture lost its own hold");
 
 const held = (state: PaymentRowState): PaymentRowState =>
   grantClaim(state, SPEC_CLAIM);
@@ -197,18 +202,8 @@ const settleEvent = (
   id,
   labelKey: `schema.row.edge.${id}`,
   movesMoney: false,
-  run: (state) => {
-    const out = settledRowState(
-      state,
-      { ...RELEASE, ...change },
-      HELD,
-      RETURNED_AT,
-    );
-    if (out === null) {
-      throw new Error("This settlement does not hold the row");
-    }
-    return out;
-  },
+  run: (state) =>
+    settleOr("This settlement does not hold the row")(state, change),
 });
 
 /** Every way one row's record can move, each running the real transition.
