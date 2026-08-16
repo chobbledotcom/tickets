@@ -32,6 +32,10 @@ export const getSteps = (): Step[] => {
     // Guard the user-facing copy catalog against the mechanical simple-language
     // rules (see the "Simple Language" section of AGENTS.md).
     { cmd: [deno, "task", "check:copy"], name: "check:copy" },
+    // Hold comments to the length and width limits, which the formatter cannot
+    // do — Biome never reflows comment text (see "Comments are short" in
+    // AGENTS.md, and docs/comment-policy.md for how the limits ratchet down).
+    { cmd: [deno, "task", "check:comments"], name: "check:comments" },
     // Catch a known-equivalent entry that no longer points at a real mutant on
     // the branch that moved it, rather than in review. Resolution only — the
     // audit that re-proves equivalence runs lint and type-check per entry and

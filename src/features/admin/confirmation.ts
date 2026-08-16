@@ -37,12 +37,7 @@ export type FormGuard<TSession> = Guard<[TSession, FormParams]>;
 export const verifyIdentifier = (expected: string, provided: string): boolean =>
   expected.trim().toLowerCase() === provided.trim().toLowerCase();
 
-/**
- * Verify a form confirmation field matches an expected value, or return an error redirect.
- * One function to handle all confirmation flows consistently:
- *   const error = verifyOrRedirect(form, listing.name, "/admin/listing/1/delete", "Listing name", "deletion");
- *   if (error) return error;
- */
+/** Checks the form's confirm field, returning a redirect when it differs. */
 export const verifyOrRedirect = (
   form: FormParams,
   expected: string,
@@ -60,12 +55,7 @@ export const verifyOrRedirect = (
   return null;
 };
 
-/**
- * Verify a JSON body confirmation field matches an expected value, or return an error message.
- * API-safe counterpart to verifyOrRedirect for JSON endpoints:
- *   const error = verifyIdentifierOrJsonError(listing.name, body.confirm_identifier, "Listing name");
- *   if (error) return errorResponse(error);
- */
+/** The JSON counterpart: the error message, or null when it matches. */
 export const verifyIdentifierOrJsonError = (
   expected: string,
   provided: unknown,

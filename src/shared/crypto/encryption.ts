@@ -58,7 +58,8 @@ export function onEncryptionKeyChange(cb: () => void): void {
 /**
  * Explicitly set or clear the encryption key for testing.
  * Bypasses Deno.env to avoid races between parallel test workers.
- * Automatically clears all crypto caches (encryption, HMAC, and any registered via onEncryptionKeyChange).
+ * Clears every crypto cache, including any registered by
+ * `onEncryptionKeyChange`.
  */
 export const setEncryptionKeyForTest = (key: string | null): void => {
   setEncryptionKeyOverride(key);
@@ -152,9 +153,7 @@ export const formatPrefixed = (
   ...parts: Uint8Array[]
 ): string => `${prefix}${parts.map(toBase64).join(":")}`;
 
-/**
- * Encrypt plaintext with an AES-GCM key, returning prefixed format: enc:1:$base64iv:$base64ciphertext
- */
+/** AES-GCM encrypts to `enc:1:<base64 iv>:<base64 ciphertext>`. */
 export const symmetricEncrypt = async (
   plaintext: string,
   key: CryptoKey,

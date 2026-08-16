@@ -158,7 +158,7 @@ export type ActionHandlerConfig<TSession = AuthSession> = {
   successRedirect: string | ((session: TSession, form: FormParams) => string);
   /** Optional custom error mapping (falls back to errorRedirect with message) */
   onError?: ErrorMapper;
-  /** Thunk returning a Set-Cookie header for the success redirect, evaluated per request (e.g. clearSessionCookie) */
+  /** Set-Cookie for the success redirect, built fresh on every request. */
   cookie?: () => string;
   /** Secret to redact from the activity log (e.g. API key shown in flash but not logged) */
   redactedSecret?: SessionFormOptionalString<TSession>;

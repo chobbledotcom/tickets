@@ -87,29 +87,114 @@ export const skipCommentOrString = (content: string, start: number): number => {
   return isQuoteAt(content, start) ? skipString(content, start) : start;
 };
 
-/** Replace comments and optionally strings with spaces while keeping offsets. */
-export const blankSpans = (content: string, blankStrings: boolean): string => {
-  const output = content.split("");
-  const blank = (from: number, to: number): void => {
-    for (let index = from; index < to; index += 1) {
-      if (output[index] !== "\n") output[index] = " ";
+/**
+ * Punctuation that cannot end an expression, so a `/` straight after it opens
+ * a regular expression rather than dividing.
+ */
+const BEFORE_REGEX = new Set("(,=:[!&|?{};+-*%~^<>".split(""));
+
+/** Words that cannot end an expression either. */
+const KEYWORD_BEFORE_REGEX = new Set([
+  "await",
+  "case",
+  "delete",
+  "do",
+  "else",
+  "in",
+  "instanceof",
+  "new",
+  "of",
+  "return",
+  "typeof",
+  "void",
+  "yield",
+]);
+
+/**
+ * Whether the `/` at `start` opens a regular expression rather than dividing,
+ * decided by what comes before it. Without this a regex holding a quote — say
+ * `/viewBox="([^"]+)"/` — reads as an unterminated string, and every comment
+ * and string after it in the file is then found in the wrong place.
+ */
+const isRegexStart = (content: string, start: number): boolean => {
+  let index = start - 1;
+  while (index >= 0 && /\s/.test(content[index])) index -= 1;
+  if (index < 0) return true;
+  const char = content[index];
+  if (BEFORE_REGEX.has(char)) return true;
+  if (!isIdentifierChar(char)) return false;
+  let wordStart = index;
+  while (wordStart >= 0 && isIdentifierChar(content[wordStart])) wordStart -= 1;
+  return KEYWORD_BEFORE_REGEX.has(content.slice(wordStart + 1, index + 1));
+};
+
+/**
+ * Skip a regular expression literal at `start`. A `/` inside a `[…]` class is
+ * literal, so the scan tracks whether it is inside one.
+ */
+const skipRegex = (content: string, start: number): number => {
+  let index = start + 1;
+  let inClass = false;
+  while (index < content.length) {
+    const char = content[index];
+    if (char === "\\") {
+      index += 2;
+      continue;
     }
-  };
+    if (char === "\n") return start + 1;
+    if (char === "[") inClass = true;
+    else if (char === "]") inClass = false;
+    else if (char === "/" && !inClass) break;
+    index += 1;
+  }
+  index += 1;
+  while (index < content.length && /[a-z]/.test(content[index])) index += 1;
+  return index;
+};
+
+/** One stretch of non-executable text, and where it sits in the source. */
+export interface LexicalSpan {
+  end: number;
+  kind: "comment" | "string";
+  start: number;
+}
+
+/**
+ * Every comment and quoted string, in source order. Walking once from the top
+ * is what keeps a `//` inside a string from reading as a comment, and vice
+ * versa — so callers that care about only one kind still have to walk both.
+ */
+export function* lexicalSpans(content: string): Generator<LexicalSpan> {
   let index = 0;
   while (index < content.length) {
     const pastComment = skipComment(content, index);
     if (pastComment !== index) {
-      blank(index, pastComment);
+      yield { end: pastComment, kind: "comment", start: index };
       index = pastComment;
       continue;
     }
     if (isQuoteAt(content, index)) {
       const end = skipString(content, index);
-      if (blankStrings) blank(index, end);
+      yield { end, kind: "string", start: index };
       index = end;
       continue;
     }
+    if (content[index] === "/" && isRegexStart(content, index)) {
+      index = skipRegex(content, index);
+      continue;
+    }
     index += 1;
+  }
+}
+
+/** Replace comments and optionally strings with spaces while keeping offsets. */
+export const blankSpans = (content: string, blankStrings: boolean): string => {
+  const output = content.split("");
+  for (const span of lexicalSpans(content)) {
+    if (span.kind === "string" && !blankStrings) continue;
+    for (let index = span.start; index < span.end; index += 1) {
+      if (output[index] !== "\n") output[index] = " ";
+    }
   }
   return output.join("");
 };

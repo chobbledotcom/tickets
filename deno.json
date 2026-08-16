@@ -28,6 +28,7 @@
     "typecheck": "deno check src test cli scripts && deno check --config=e2e-payments/deno.json e2e-payments/src",
     "cpd": "deno run -A scripts/cpd.ts --config .jscpd.json && deno run -A scripts/cpd.ts --config .jscpd.test.json && deno run -A scripts/cpd.ts --config .jscpd.specs.json && deno run -A scripts/cpd.ts --config .jscpd.css.json src/ui/static/style.scss",
     "check:copy": "deno run --allow-read=src/locales scripts/check-copy.ts",
+    "check:comments": "deno run --allow-read=src scripts/check-comments.ts",
     "precommit": "deno run -A scripts/precommit.ts",
     "precommit:mutation": "deno run -A scripts/precommit-mutation.ts",
     "find-unused-src": "deno run --allow-read scripts/find-unused-src.ts",

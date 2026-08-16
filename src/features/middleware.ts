@@ -107,7 +107,7 @@ export const getSecurityHeaders = (
   "content-security-policy": csp,
 });
 
-/** Single slug: alphanumeric segments joined by single hyphens or underscores (e.g. "a1b2", "my-listing", "my_listing") */
+/** One slug: letter/number runs joined by single hyphens or underscores. */
 const SLUG = "[a-z0-9]+(?:[-_][a-z0-9]+)*";
 
 /** Matches /ticket/ with one or more slugs separated by + */

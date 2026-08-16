@@ -88,7 +88,7 @@ const buildStandardListingDateMap = (
     return acc;
   }, new Map())(listings);
 
-/** Compile all possible dates from listings (available + existing attendee dates + standard listing dates) */
+/** Every date a listing offers: available, already booked, and fixed. */
 const compileDateOptions = (
   dailyListings: ListingWithCount[],
   attendeeDates: string[],

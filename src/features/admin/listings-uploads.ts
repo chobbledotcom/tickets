@@ -82,7 +82,7 @@ const processFormFile = async (opts: {
   return detail;
 };
 
-/** Process attachment from multipart form and attach to listing. Returns error message if validation fails. */
+/** Attaches a multipart upload to a listing, or says why it was rejected. */
 const processFormAttachment = (
   formData: FormData,
   listingId: number,

@@ -90,12 +90,9 @@ export interface ResourceConfig<
   Values extends FieldValues = FieldValues,
   State = never,
 > extends AfterCommitConfig {
-  /** Side-effect run after a successful create/update with the written row's
-   * id, parsed input, raw form, and narrow pre-update state — e.g. to persist join-table rows (a listing's
-   * groups) or dynamic inputs (a group's per-listing package prices) that live
-   * outside the main table. Runs inside the SAME transaction as the row write
-   * (it receives the transaction scope), so a failure rolls the row write back
-   * rather than leaving partial state. */
+  /** Writes the rows that live outside the main table — a listing's groups, a
+   * group's per-listing prices — after the row itself is written. Shares the
+   * row write's transaction, so a failure here rolls that write back too. */
   afterWrite?: (
     tx: TxScope,
     id: number,

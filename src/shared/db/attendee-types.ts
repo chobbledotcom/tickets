@@ -72,7 +72,7 @@ export type ListingBooking = {
   quantity?: number;
   pricePaid?: number;
   date?: string | null;
-  /** Booking duration in days (defaults to 1 for 1-day bookings). Only meaningful when date is set. */
+  /** Days booked, defaulting to 1. Means nothing unless `date` is set. */
   durationDays?: number;
   /** Shared per-order token written on every row of one checkout (defaults to
    * "" — legacy/parent-less bookings). Set once per create, not per caller. */

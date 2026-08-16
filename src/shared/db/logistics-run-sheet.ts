@@ -2,8 +2,8 @@
  * Run-sheet access: which booking legs an agent owns on a given day, and the
  * row-identity filter the agent check-in uses to keep only those rows in view.
  *
- * Read the {@link https://github.com/chobbledotcom/tickets/blob/main/AGENTS.md#modularised modularised}
- * note for why this lives apart from `logistics.ts` (assignment reads/writes).
+ * Kept apart from `logistics.ts`, which reads and writes assignments — see
+ * "Modularised" in AGENTS.md.
  */
 
 import { compact, flatMap, uniqueBy } from "#fp";
