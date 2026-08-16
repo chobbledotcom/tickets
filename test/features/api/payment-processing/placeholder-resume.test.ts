@@ -13,11 +13,14 @@ import {
   settlementForHeldClaim,
 } from "#routes/api/payment-processing/placeholder-resume.ts";
 import { requestSessionRefund } from "#routes/api/payment-processing/refunds.ts";
+import { bookingEventGroup } from "#shared/accounting/mappers.ts";
+import { transfersByEventGroup } from "#shared/accounting/queries.ts";
 import { decrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { execute, queryOne } from "#shared/db/client.ts";
 import { prepareClaimedAttendeePaymentAnchor } from "#shared/db/payment-anchor/attendee.ts";
 import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
+import { placeholderRefund } from "#shared/payment/placeholder-refund.ts";
 import { readRowState } from "#shared/payment/row-state.ts";
 import { paidPaymentReferenceOf } from "#shared/payment/validated-session.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -25,6 +28,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { taggedPaymentReference } from "#test-utils/processed-payments.ts";
+import { withRefundLedgerFault } from "#test-utils/refund-ledger-fault.ts";
 import { refundCompletes, withRefundMock } from "#test-utils/refund-routes.ts";
 import { expectOnePairOfLegs } from "#test-utils/rejected-charge.ts";
 import {
@@ -90,6 +94,7 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
   const finishMoneyByHand = async (
     placeholder: Awaited<ReturnType<typeof reservedPlaceholder>>,
     settlement: Parameters<typeof completePlaceholderMoney>[0]["settlement"],
+    onLedgerMiss: "throw" | "mark_unrecorded" = "throw",
   ) =>
     await withRefundMock(refundCompletes, async () => {
       const session = placeholder.data.session;
@@ -109,17 +114,13 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
         dueAuthority: sent.authority,
         listingId: placeholder.listing.id,
         occurredAt: businessTime(session),
-        onLedgerMiss: "throw",
+        onLedgerMiss,
         referenceIndexes: [
           await paymentReferenceIndex(paidPaymentReferenceOf(session)),
         ],
         sessionId: session.id,
         settlement,
-        spec: {
-          code: "capacity_full",
-          detail: "listing full",
-          reason: "the event filled up while they were paying",
-        },
+        spec: placeholderRefund("capacity_full")("listing full"),
       });
     });
 
@@ -194,6 +195,44 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
       refund_state_name: "completed",
     });
     expect(await heldAnchorRow().catch(() => null)).toBeNull();
+  });
+
+  test("keeps the books' truth when a ledger miss lost only the final words", async () => {
+    const sessionId = "cs_resume_unrecorded_words";
+    const placeholder = await crashedPlaceholderStore(sessionId);
+    // The crashed run sent the refund and hit a ledger fault: the row was
+    // settled saying "unrecorded" and the claim released, but the delivery
+    // died before the final words were stored.
+    await withRefundLedgerFault(async () =>
+      finishMoneyByHand(
+        placeholder,
+        await rebuiltSettlement(),
+        "mark_unrecorded",
+      ),
+    );
+    expect(await anchorMirror()).toBe("unrecorded");
+
+    const answer = await processPaymentSession(sessionId, placeholder.data);
+
+    // The provider really returned the money, so the words advance to the
+    // refunded answer — the same one an uncrashed ledger-miss delivery
+    // gives — while the row keeps saying the books are behind and the
+    // authority stays due, both pointing at the refresh route.
+    expect(answer).toEqual({
+      error: REFUNDED_ANSWER,
+      refunded: true,
+      status: 200,
+      success: false,
+    });
+    expect(await anchorMirror()).toBe("unrecorded");
+    expect(await chargeState()).toEqual({
+      refund_local_state: "due",
+      refund_state_name: "completed",
+    });
+    expect(await noteCount()).toBe(0);
+    expect(
+      await transfersByEventGroup(await bookingEventGroup(sessionId)),
+    ).toEqual([]);
   });
 
   test("a redelivery mends only the final words when everything else finished", async () => {

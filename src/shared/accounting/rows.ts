@@ -10,6 +10,7 @@
 import type { InValue } from "@libsql/client";
 import { ATTENDEE } from "#shared/accounting/accounts.ts";
 import {
+  orIgnore,
   queryAll,
   resultRows,
   type SqlStatement,
@@ -147,19 +148,6 @@ export const insertStatement = (
   t: TransferInput,
   recordedAt: string,
 ): SqlStatement => renderInsert(legColumns(t, recordedAt));
-
-/**
- * Rewrite a built transfer INSERT as `INSERT OR IGNORE`, so a leg whose unique
- * `reference` is already stored is dropped rather than raising a constraint
- * error. The one-shot backfill wraps {@link insertStatement} with this for
- * idempotency: a re-run re-derives the same references and the duplicates are
- * skipped. Takes the built statement (not the columns) so the column list still
- * lives only in {@link insertStatement}.
- */
-export const orIgnore = (statement: SqlStatement): SqlStatement => ({
-  args: statement.args,
-  sql: statement.sql.replace(/^INSERT INTO/, "INSERT OR IGNORE INTO"),
-});
 
 /**
  * A guarded INSERT for one transfer: `INSERT … SELECT … WHERE <guard>`, so a leg

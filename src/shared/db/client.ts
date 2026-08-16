@@ -869,6 +869,18 @@ type RawSql = { [RAW_SQL]: string };
 export const rawSql = (expr: string): RawSql => ({ [RAW_SQL]: expr }) as RawSql;
 
 /**
+ * Rewrite a built INSERT as `INSERT OR IGNORE`, so a row whose unique key is
+ * already stored is dropped instead of raising a constraint error. This is
+ * the once-only latch resumable flows lean on: a replayed write re-derives
+ * the same key and lands nowhere. It silences every conflict on the
+ * statement, so use it only where the unique key IS the idempotency rule.
+ */
+export const orIgnore = (statement: SqlStatement): SqlStatement => ({
+  args: [...statement.args],
+  sql: statement.sql.replace(/^INSERT INTO/, "INSERT OR IGNORE INTO"),
+});
+
+/**
  * Build an INSERT statement from a table name and column→value record.
  *
  * ```ts

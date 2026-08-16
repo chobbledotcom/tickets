@@ -11,7 +11,7 @@
 
 import { logActivity } from "#shared/db/activity-log.ts";
 import { withTransaction } from "#shared/db/client.ts";
-import { createNamedSystemNote } from "#shared/db/notes/queries.ts";
+import { createSystemNote } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
 import {
   type RowSettlement,
@@ -75,7 +75,7 @@ const confirmOnce = async (
       referenceIndexes: completion.referenceIndexes,
     });
     if (written.kind === "current") return;
-    await createNamedSystemNote(
+    await createSystemNote(
       attendeeNotes(completion.attendeeId),
       placeholderRefundNote(completion.attendeeId, completion.spec, true),
       { key: written.identity, purpose: "refund_confirmation" },

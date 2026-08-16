@@ -3,7 +3,6 @@ import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { queryOne } from "#shared/db/client.ts";
 import {
-  createNamedSystemNote,
   createOwnerNote,
   createSystemNote,
   deleteNotes,
@@ -146,11 +145,11 @@ describeWithEnv("db > notes", { db: true }, () => {
       key: "one-confirmation",
       purpose: "refund_confirmation",
     } as const;
-    await createNamedSystemNote(target, "first", name);
+    await createSystemNote(target, "first", name);
 
     // A replayed named write is a no-op, so a resumed flow can re-run its
     // note step without a second copy landing.
-    await createNamedSystemNote(target, "duplicate", name);
+    await createSystemNote(target, "duplicate", name);
 
     const notes = await getNotesFor(target, await getTestPrivateKey());
     expect(notes).toHaveLength(1);
@@ -161,7 +160,7 @@ describeWithEnv("db > notes", { db: true }, () => {
     const target = attendeeNotes(await makeAttendee());
 
     await expect(
-      createNamedSystemNote(target, "unreachable", {
+      createSystemNote(target, "unreachable", {
         key: "",
         purpose: "refund_confirmation",
       }),

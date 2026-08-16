@@ -19,10 +19,10 @@ import {
   legReference,
   type RefPart,
 } from "#shared/accounting/refs.ts";
-import { insertStatement, orIgnore } from "#shared/accounting/rows.ts";
+import { insertStatement } from "#shared/accounting/rows.ts";
 /* jscpd:ignore-end */
 import { postTransfersTx } from "#shared/accounting/store.ts";
-import type { TxScope } from "#shared/db/client.ts";
+import { orIgnore, type TxScope } from "#shared/db/client.ts";
 import type { AccountRef, TransferInput } from "#shared/ledger/types.ts";
 import { nowIso } from "#shared/now.ts";
 

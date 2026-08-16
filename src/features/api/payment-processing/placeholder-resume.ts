@@ -28,7 +28,7 @@ import type {
   PaymentResult,
   ValidatedSession,
 } from "#routes/api/webhook-types.ts";
-import { createNamedSystemNote } from "#shared/db/notes/queries.ts";
+import { createSystemNote } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
 import {
   type AnchorRowWork,
@@ -140,7 +140,7 @@ const recordUnreturnedRefund = async (
     detail: `Stored-but-unrefunded booking ${work.attendeeId} (${work.spec.code}): ${work.spec.detail}`,
     listingId: work.listingId,
   });
-  await createNamedSystemNote(
+  await createSystemNote(
     attendeeNotes(work.attendeeId),
     placeholderRefundNote(work.attendeeId, work.spec, false),
     { key: unreturnedNoteKey(work), purpose: "refund_unreturned" },
