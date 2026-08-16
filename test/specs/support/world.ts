@@ -13,6 +13,7 @@ import type {
   ThingsByKind,
 } from "#test/specs/support/memory.ts";
 import type { BookingAttempt } from "#test/specs/support/public-booking.ts";
+import type { RefundLedgerFault } from "#test/specs/support/refund-safety/faults.ts";
 import type { RefundSafetyState } from "#test/specs/support/refund-safety/state.ts";
 import type {
   CodeOnScreen,
@@ -143,6 +144,7 @@ export interface TicketsWorld extends World, EvidencePages {
     emailCall: () => RecordedFetchCall | undefined;
   };
   modifierId?: number;
+  moneyFault?: RefundLedgerFault;
   newStayLength?: number;
   orderCatalogSpec?: JourneyCatalogSpec;
   orderCtx?: OrderJourneyCtx;
