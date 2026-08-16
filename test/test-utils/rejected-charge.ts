@@ -10,7 +10,6 @@ import type {
 } from "#shared/payment/refund-attempt.ts";
 import type { MalformedRejection } from "#shared/payment/validated-session.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
-import { paymentsApi } from "#shared/payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 import { completedStripeRefund } from "#test/test-utils/stripe/fixtures.ts";
