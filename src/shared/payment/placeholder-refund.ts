@@ -19,8 +19,9 @@ const REFUND_REASONS = {
     alert: "payment_session",
     reason: "the listing was removed while they were paying",
   },
+  // No alert entry: only storeRefundedBooking sends alerts, and this code is
+  // minted by the rejected-charge path, which logs PAYMENT_SESSION itself.
   malformed_charge: {
-    alert: "payment_session",
     reason:
       "the provider reported the payment in a form the site could not read",
   },

@@ -41,7 +41,6 @@ describe("payment > placeholder refund reasons", () => {
         reason: "the listing was removed while they were paying",
       },
       {
-        alert: "payment_session",
         code: "malformed_charge",
         detail: "d",
         reason:
@@ -70,7 +69,6 @@ describe("payment > placeholder refund reasons", () => {
     expect(
       placeholderRefund("malformed_charge")("session cs_1 unreadable"),
     ).toEqual({
-      alert: "payment_session",
       code: "malformed_charge",
       detail: "session cs_1 unreadable",
       reason:

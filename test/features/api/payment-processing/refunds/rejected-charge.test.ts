@@ -1,7 +1,10 @@
 import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
 import { refundRejectedCharge } from "#routes/api/payment-processing/refunds.ts";
-import { answerRejectedSession } from "#routes/api/payment-processing/rejected-target.ts";
+import {
+  answerRejectedSession,
+  settleRejectedCharge,
+} from "#routes/api/payment-processing/rejected-target.ts";
 import {
   completedStripeRefund,
   stripeRefundRequestShape,
@@ -117,6 +120,17 @@ describeWithEnv("rejected session refunds", { db: true }, () => {
       ).toEqual({ refunded: false, returned: null, settled: true });
     }));
 
+  it("settles a blank-reference rejection without storing a target", () =>
+    withStripeProvider(async () => {
+      expect(
+        await settleRejectedCharge({
+          provider: "stripe",
+          reason: "blank_reference",
+          sessionId: "cs_blank_settle",
+        }),
+      ).toEqual({ refunded: false, returned: null, settled: true });
+    }));
+
   /** Run the callbacks' answer for a rejection, collecting what it logged. */
   const answerFor = async (
     reference: string,
@@ -145,4 +159,16 @@ describeWithEnv("rejected session refunds", { db: true }, () => {
       ]);
     });
   }
+
+  it("answers 503 for a charge left unsettled, so the caller comes back", async () => {
+    const { result } = await withRefundAnswering(() => ({
+      kind: "rejected",
+      reason: "rejected",
+    }))(() => answerFor("pi_refused"));
+    expect(result.status).toBe(503);
+    expect(result.page).toContain("We could not find this payment session.");
+    expect(result.logged).toEqual([
+      "Session rejected as malformed_charge (session=cs_pi_refused, refunded: false)",
+    ]);
+  });
 });

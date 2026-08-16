@@ -9,15 +9,18 @@
 
 import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { settleRejectedCharge } from "#routes/api/payment-processing/rejected-target.ts";
 import {
   bookingEventGroup,
   refundEventGroup,
 } from "#shared/accounting/mappers.ts";
 import { transfersByEventGroup } from "#shared/accounting/queries.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { queryAll, queryOne } from "#shared/db/client.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
 import { loadRefundAuthorityById } from "#shared/db/provider-refund-authority.ts";
+import { recordProviderRefunds } from "#shared/provider-refunds.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
@@ -125,7 +128,7 @@ describeWithEnv("a refunded rejection's Money target", { db: true }, () => {
     );
     expect(result.refunded).toBe(true);
 
-    expect(await ghostAttendees(rejection.sessionId)).toEqual([]);
+    expect(await attendeeCount()).toBe(0);
     expect(
       await transfersByEventGroup(await bookingEventGroup(rejection.sessionId)),
     ).toEqual([]);
@@ -135,6 +138,54 @@ describeWithEnv("a refunded rejection's Money target", { db: true }, () => {
     );
     expect(authority?.state.kind).toBe("completed");
     expect(authority?.state.local.kind).toBe("due");
+  });
+
+  it("releases its fence when storing the ghost fails, so redelivery retries", async () => {
+    const { rejection } = await rejectionFor("pi_store_fails");
+    const broken = stub(attendeesApi, "createAttendeeAtomic", () => {
+      throw new Error("synthetic store failure");
+    });
+    try {
+      await expect(
+        withSucceedingRefundFor(CAPTURED)(() =>
+          settleRejectedCharge(rejection),
+        ),
+      ).rejects.toThrow("synthetic store failure");
+    } finally {
+      broken.restore();
+    }
+    // The empty hold is gone: the next delivery claims the session at once
+    // instead of waiting out the stale-reservation timer.
+    expect(await reserveSession(rejection.sessionId)).toEqual({
+      reserved: true,
+    });
+    expect(await attendeeCount()).toBe(0);
+  });
+
+  it("skips the local recording when the owner already recorded the authority", async () => {
+    const listing = await createTestListing({});
+    // First delivery: unreadable metadata, so no target is stored and the
+    // fence is given back — the authority parks as completed and due.
+    const unreadable = ourRejection("pi_owner_raced");
+    const first = await withSucceedingRefundFor(CAPTURED)(() =>
+      settleRejectedCharge(unreadable),
+    );
+    await recordProviderRefunds([first.result.returned!.authority]);
+    // Redelivery carries readable metadata: the target is stored now, but
+    // the already-recorded authority must not be recorded a second time.
+    const redelivered = ourRejection("pi_owner_raced", {
+      items: singleItem(listing.id, 1, 500),
+    });
+    const second = await withSucceedingRefundFor(CAPTURED)(() =>
+      settleRejectedCharge(redelivered),
+    );
+    expect(second.result.returned!.local).toBe("recorded");
+    expect((await ghostAttendees(listing.id)).length).toBe(1);
+    const authority = await loadRefundAuthorityById(
+      second.result.returned!.authority.id,
+    );
+    expect(authority?.state.kind).toBe("completed");
+    expect(authority?.state.local.kind).toBe("recorded");
   });
 
   it("leaves a racing delivery's fresh hold alone", async () => {

@@ -215,11 +215,21 @@ export const saveSessionAnswers = async (
   await saveAttendeeAnswers(grouped);
 };
 
+/** The identity fields every stored attendee starts from: who the buyer said
+ * they are, the payment that proves it, and the status the row begins in. */
+export type AttendeeBaseFields = Pick<
+  BookingIntent,
+  "address" | "email" | "name" | "phone" | "special_instructions"
+> & {
+  paymentId: string;
+  statusId: number;
+};
+
 export const attendeeBaseFields = (
   paymentId: string,
   intent: BookingIntent,
   publicStatusId: number,
-) => ({
+): AttendeeBaseFields => ({
   address: intent.address,
   email: intent.email,
   name: intent.name,

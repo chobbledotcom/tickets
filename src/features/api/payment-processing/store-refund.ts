@@ -10,6 +10,7 @@
 import type { ResultSet } from "@libsql/client";
 /* jscpd:ignore-start -- imports */
 import {
+  type AttendeeBaseFields,
   attendeeBaseFields,
   bookingSlot,
   type HonourResult,
@@ -227,7 +228,7 @@ export const storeClaimedPlaceholder = async (config: {
     readonly require: (result: ResultSet) => void;
     readonly statement: SqlStatement;
   };
-  readonly fields: ReturnType<typeof attendeeBaseFields>;
+  readonly fields: AttendeeBaseFields;
   readonly paymentReference: TaggedPaymentReference;
   readonly sessionFailure: PreparedSessionFailure;
   readonly sessionId: string;

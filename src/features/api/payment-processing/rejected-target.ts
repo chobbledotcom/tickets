@@ -37,7 +37,6 @@ import { loadRefundAuthorityById } from "#shared/db/provider-refund-authority.ts
 import { t } from "#shared/i18n.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
-import { sameMoney } from "#shared/payment/money.ts";
 import {
   placeholderRefund,
   placeholderRefundNote,
@@ -45,6 +44,7 @@ import {
 import type { SessionRejection } from "#shared/payment/validated-session.ts";
 import { recordProviderRefunds } from "#shared/provider-refunds.ts";
 import { recordPlaceholderRefund } from "#shared/refund-ledger/placeholder.ts";
+import { requireValue } from "#shared/required-value.ts";
 
 /** What a later delivery reads back for this session; the buyer answer is
  * the refunded message below. */
@@ -62,11 +62,11 @@ export const settleRejectedCharge = async (
   rejection: SessionRejection,
 ): Promise<RejectionOutcome> => {
   const outcome = await refundRejectedCharge(rejection);
-  if (outcome.returned === null) return outcome;
-  if (rejection.reason !== "malformed_charge") {
-    throw new Error("A blank-reference rejection cannot have returned money");
+  // Only a malformed_charge rejection can carry returned money — a blank
+  // reference names no charge, so refundRejectedCharge never refunds one.
+  if (rejection.reason === "malformed_charge" && outcome.returned !== null) {
+    await persistRejectedTarget(rejection, outcome.returned);
   }
-  await persistRejectedTarget(rejection, outcome.returned);
   return outcome;
 };
 
@@ -101,6 +101,21 @@ const persistRejectedTarget = async (
     // a fresh empty hold means a racing delivery is making it right now.
     return;
   }
+  try {
+    await storeRejectedTarget(rejection, returned);
+  } catch (error) {
+    // A failure before the outcome is stored must give the fence back, or
+    // redelivery collides with the empty hold until it goes stale. Once the
+    // outcome is stored, the release matches no unresolved row and no-ops.
+    await releaseReservation(rejection.sessionId);
+    throw error;
+  }
+};
+
+const storeRejectedTarget = async (
+  rejection: Extract<SessionRejection, { reason: "malformed_charge" }>,
+  returned: ReturnedRejectionReceipt,
+): Promise<void> => {
   const intent = extractIntentFromMetadata(rejection.metadata);
   if (intent === null) {
     // The metadata cannot name the booking lines, so there is nothing true
@@ -114,16 +129,12 @@ const persistRejectedTarget = async (
     return;
   }
   // The malformed session cannot say what was captured; the authority's own
-  // provider-read money can, and a completed return must be the whole sum.
-  const authority = await loadRefundAuthorityById(returned.authority.id);
-  if (
-    authority === null ||
-    !sameMoney(authority.captured, authority.refunded)
-  ) {
-    throw new Error(
-      `Refunded rejected session ${rejection.sessionId} does not show a full provider return`,
-    );
-  }
+  // provider-read money can. A returned receipt means the engine recorded a
+  // full provider return, so the row's captured sum is the true round-trip.
+  const authority = requireValue(
+    await loadRefundAuthorityById(returned.authority.id),
+    `Refunded rejected session ${rejection.sessionId} lost its refund authority row`,
+  );
   const spec = placeholderRefund("malformed_charge")(
     `Provider reported session ${rejection.sessionId} in a form the site could not read`,
   );
@@ -146,7 +157,7 @@ const persistRejectedTarget = async (
     ),
     sessionId: rejection.sessionId,
   });
-  const recording = await recordPlaceholderRefund(
+  await recordPlaceholderRefund(
     {
       amount: authority.captured.amount,
       attendeeId,
@@ -157,7 +168,12 @@ const persistRejectedTarget = async (
     spec.code,
     true,
   );
-  if (recording.posted && returned.local === "due") {
+  // Inside the fence the legs are always fresh — a delivery that stored the
+  // outcome never re-enters, and a failed store released the fence before
+  // any leg was posted. Only the authority's own recording can vary: an
+  // owner may have recorded it by hand between a failed store and this
+  // redelivery, and a recorded authority must not be recorded again.
+  if (returned.local === "due") {
     await recordProviderRefunds([returned.authority]);
   }
   await createSystemNote(

@@ -72,3 +72,9 @@ src/shared/db/activity-log.ts::logActivity~078kit2  Activity log row missing →
 # throws; successful execution cannot yield zero rows, so the last-resort error
 # label cannot be observed through any database state.
 src/shared/sumup/transaction.ts::readSumupTransaction.events~0aphohd  ?? → ||   # validated transaction_events is an array or undefined; every array is truthy, so both operators select the same events or empty fallback
+
+# settleAttendeeRows reads its rows with WHERE payment_session_id IN
+# ([...rows.keys()]), so every row the settle callback sees carries a
+# sessionId that is a key of that same map. requiredMapValue can never miss
+# there, and no input can observe the message on that unreachable throw.
+src/shared/db/payment-claim.ts::settleAttendeeRows~1iaqh2o Refund settlement lost a payment row→""   # unreachable: the IN-clause is built from the same map's keys
