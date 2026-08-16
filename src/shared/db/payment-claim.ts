@@ -20,10 +20,6 @@ import { nowIso } from "#shared/now.ts";
 import { mirrorFor } from "#shared/payment/admit-move.ts";
 import { refundAuthorityWorkSql } from "#shared/payment/refund-authority-lifecycle.ts";
 import {
-  openPaymentReview,
-  type PaymentReviewReason,
-} from "#shared/payment/review.ts";
-import {
   EMPTY_ROW_STATE,
   isEmptyRowState,
   type PaymentRowState,
@@ -31,6 +27,11 @@ import {
   readRowState,
   writeRowState,
 } from "#shared/payment/row-state.ts";
+import {
+  claimHeldBy,
+  type PaymentRowSettlement,
+  settledRowState,
+} from "#shared/payment/row-transitions.ts";
 
 /* jscpd:ignore-end */
 
@@ -161,20 +162,18 @@ export const assertRefundRowsHeld = async (
   const rows = await Promise.all(stored.map(asPaymentRowRecord));
   if (
     rows.length !== sessionIds.length ||
-    rows.some((row) => {
-      const stored = row.state.claim;
-      return (
-        stored === undefined ||
-        stored.commandId !== claim.commandId ||
-        stored.writtenAt !== claim.heldSince ||
-        stored.phase !==
-          requiredMapValue(
+    rows.some(
+      (row) =>
+        !claimHeldBy(row.state.claim, {
+          commandId: claim.commandId,
+          heldSince: claim.heldSince,
+          phase: requiredMapValue(
             claim.phases,
             row.sessionId,
             "Refund confirmation lost a payment-row phase",
-          )
-      );
-    })
+          ),
+        }),
+    )
   ) {
     throw new Error("Refund confirmation no longer owns every payment row");
   }
@@ -210,24 +209,6 @@ export const paymentRowStateStatement = async (
            SET failure_data = ?, protected_state = ?
          WHERE payment_session_id = ? AND failure_data = ?`,
   };
-};
-
-export type PaymentReviewChange =
-  | { readonly kind: "review"; readonly reason: PaymentReviewReason }
-  | {
-      readonly kind: "resolved";
-      readonly reason: PaymentReviewReason["kind"];
-    };
-
-export type PaymentBooksChange = "recorded" | "unrecorded";
-
-/** Every change one run can make to one exact row. Omitted facts are
- * preserved; no absence silently clears an older repair target. */
-export type PaymentRowSettlement = {
-  readonly books?: PaymentBooksChange;
-  readonly claim: "release";
-  readonly phase: RefundClaimPhase;
-  readonly review?: PaymentReviewChange;
 };
 
 /** The exact row transitions made under one durable claim. */
@@ -277,75 +258,20 @@ const rewriteRows = async (
   if (writes.length > 0) await executeBatch(writes);
 };
 
-/** Put on or take off the row's books-behind word without disturbing its
- * other state. A retry keeps the date the first failed ledger write stored. */
-const withBooksChange = (
-  state: PaymentRowState,
-  change: PaymentBooksChange | undefined,
-): PaymentRowState => {
-  if (change === undefined) return state;
-  const { unrecorded: _was, ...kept } = state;
-  if (change === "recorded") return kept;
-  return {
-    ...kept,
-    unrecorded:
-      state.unrecorded === undefined
-        ? { returnedAt: nowIso() }
-        : state.unrecorded,
-  };
-};
-
-/** Apply only the review decision this run made, preserving it when the run
- * made none. */
-const withReviewChange = (
-  state: PaymentRowState,
-  change: PaymentReviewChange | undefined,
-): PaymentRowState => {
-  if (change === undefined) return state;
-  if (
-    change.kind === "resolved" &&
-    state.review?.reason.kind !== change.reason
-  ) {
-    return state;
-  }
-  if (
-    change.kind === "review" &&
-    state.review?.reason.kind === change.reason.kind
-  ) {
-    return state;
-  }
-  const { review: _was, ...kept } = state;
-  return change.kind === "resolved"
-    ? kept
-    : { ...kept, review: openPaymentReview(change.reason) };
-};
-
-const releaseClaim = (state: PaymentRowState): PaymentRowState => {
-  const { claim: _released, ...kept } = state;
-  return kept;
-};
-
 export const settleAttendeeRows = ({
   commandId,
   heldSince,
   rows,
 }: RowSettlement): Promise<void> =>
-  rewriteRows([...rows.keys()], (row) => {
-    const change = requiredMapValue(
-      rows,
-      row.sessionId,
-      "Refund settlement lost a payment row",
-    );
-    const claim = row.state.claim;
-    if (
-      claim === undefined ||
-      claim.commandId !== commandId ||
-      claim.writtenAt !== heldSince ||
-      claim.phase !== change.phase
-    ) {
-      return null;
-    }
-    return releaseClaim(
-      withReviewChange(withBooksChange(row.state, change.books), change.review),
-    );
-  });
+  rewriteRows([...rows.keys()], (row) =>
+    settledRowState(
+      row.state,
+      requiredMapValue(
+        rows,
+        row.sessionId,
+        "Refund settlement lost a payment row",
+      ),
+      { commandId, heldSince },
+      nowIso(),
+    ),
+  );

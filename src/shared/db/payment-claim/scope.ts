@@ -1,6 +1,5 @@
 import type { LoadedRefundAttendee } from "#shared/db/payment-claim/take.ts";
 import type { ClaimRequest } from "#shared/payment/claim.ts";
-import type { RefundClaim } from "#shared/payment/row-state.ts";
 
 type ScopedPaymentRow = {
   readonly referenceIndex: string;
@@ -29,16 +28,3 @@ export const claimRequestFor = (
   }
   return { attendeeIds, scope: "attendee_set" };
 };
-
-/** Build the one canonical checking fence for an attendee set. */
-export const checkingClaimFor = (
-  request: ClaimRequest,
-  commandId: string,
-  writtenAt: string,
-): RefundClaim => ({
-  attendeeIds: [...request.attendeeIds],
-  commandId,
-  phase: "checking",
-  scope: request.scope,
-  writtenAt,
-});

@@ -31,10 +31,12 @@ import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { isoBefore, nowIso } from "#shared/now.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 import {
+  EMPTY_ROW_STATE,
   readRowState,
   type StoredPaymentFailure,
   writeRowState,
 } from "#shared/payment/row-state.ts";
+import { withOutcome } from "#shared/payment/row-transitions.ts";
 
 export { STALE_RESERVATION_MS };
 
@@ -221,7 +223,9 @@ export const finalizeSessionIfUnresolved = async (
 };
 
 const storedSessionFailure = (failure: StoredPaymentFailure): string =>
-  writeRowState({ outcome: failure }, FAILURE_DATA_CONTEXT);
+  // The SQL fence already guarantees the slot is empty; the pure guard makes
+  // the same law hold for every future caller.
+  writeRowState(withOutcome(EMPTY_ROW_STATE, failure), FAILURE_DATA_CONTEXT);
 
 /**
  * One terminal-failure transition that can join an existing transaction.
