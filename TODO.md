@@ -2452,3 +2452,154 @@ that leaves children behind is worth a look on its own.
 
 The two sibling cases (`toBe(1)`) are not exposed, since one attempt gives the
 single child far longer to write before the read.
+
+## A schema migration between the two payment-record migrations can stop an upgrade
+
+_Origin: Codex review on PR #2065 (thread on
+`src/shared/db/migrations/registry.ts`)._
+
+`2026-08-10_refund_authority_records` drops the dormant payment tables before
+its own apply, because `applySchemaChanges`
+(`src/shared/db/migrations/schema-sync.ts`) reconciles the WHOLE current schema
+and can only `ADD COLUMN` — and SQLite refuses to add a `PRIMARY KEY` column.
+That guard protects only `2026-08-10` itself.
+
+A site that ran an intermediate build of this branch (one carrying
+`2026-07-26_payment_records` but not `2026-08-10`) holds a `payment_charges`
+without the `id` primary key. On upgrade, `2026-08-04_login_attempt_stamp` — a
+`schemaMigration` registered BETWEEN the two — runs `applySchemaChanges` first,
+which scans the whole schema and emits
+`ALTER TABLE payment_charges ADD COLUMN id INTEGER PRIMARY KEY AUTOINCREMENT`.
+SQLite rejects that, and the upgrade stops before `2026-08-10` can drop the
+table. Every migration between the two payments migrations has the same shape of
+risk; only the site's own position in the chain decides whether it bites.
+
+The migration chain tests cannot see this: replaying historical migrations uses
+the CURRENT schema at every step, so a test "from 2026-07-26" creates
+`payment_charges` in its final shape and never reproduces a deployed
+intermediate shape.
+
+Fix options: move the dormant-table drop into the earliest migration that would
+otherwise ALTER them (or into `2026-07-26` itself, dropping its own tables when
+they exist in a foreign shape), or give `schemaMigration` a per-migration table
+scope so intermediate applies never touch tables the migration does not declare.
+The empty-rows guard in `clearDormantPaymentTables` is the model for the drop;
+keep the loud refusal on non-empty tables.
+
+## A completed Square webhook whose order reads as missing is acked, not retried
+
+_Origin: Codex review on PR #2065 (thread on `src/shared/square-provider.ts`)._
+
+In `resolveWebhookSession`, a completed payment webhook calls
+`retrieveSession(orderId, paymentId)`. `readSessionOrder` maps a `missing` order
+read to `null` (a debug log), `resolveWebhookSession` turns `null` into
+`"skip"`, and the webhook handler acknowledges 200 — so Square stops
+redelivering. The codebase already treats the adjacent lag windows as retryable:
+malformed metadata for a completed payment throws
+(`UNUSABLE_METADATA.
+retryCompletedWebhook`), and a payment that does not read
+back COMPLETED throws (`readOrderPayment`). A missing order is the same
+eventual-consistency window — the webhook can genuinely arrive before the order
+is readable — and should fail the boundary the same way instead of skipping, so
+Square redelivers and the buyer does not stay charged with no booking and no
+refund.
+
+Starting point: `readSessionOrder` in `src/shared/square-provider.ts` — a
+`missing` read under a `paidPaymentId` should throw like the malformed case.
+
+## A refunded rejection leaves its authority parked with only an owner attestation
+
+_Origin: Codex review on PR #2065 (thread on
+`src/features/api/payment-processing/refunds.ts`)._
+
+When a malformed paid session is refunded through `refundRejectedCharge`, the
+provider money came back but the path converts the result to booleans and never
+records or retires the authority's local-money obligation. A rejected session
+created no attendee and no ledger entry, so there is no Money target to repair —
+yet the canonical authority sits in `completed/due` in Refund recovery, offering
+only the "recorded in Money" attestation, which is untrue for money that has no
+Money target.
+
+Either complete these no-local-ledger authorities as locally settled when the
+provider return is confirmed, or persist a recordable local target. Related:
+"Bind a rejected session's refund authority to checkout completion" above — the
+whole-checkout outcome work is the natural home for the terminal result; this
+narrower retirement may land first.
+
+## The final placeholder refund outcome is never retried
+
+_Origin: Codex review on PR #2065 (thread on
+`src/features/api/payment-processing/store-refund.ts`)._
+
+`storeRefundedBooking` completes the provider refund, ledger posting, note, and
+claim release, then replaces the session's pending failure with the final
+"refunded" outcome. If that last `sessionFailure.replace` fails transiently, the
+row still carries the conservative pending failure written when the placeholder
+was created — and because `handleReservationConflict` replays any non-empty
+`failure_data`, every retry re-enters through the placeholder path and never
+reaches this replacement. The buyer is permanently told the refund "is being
+arranged" although it completed.
+
+The final outcome needs to be idempotent on replay: derive it from state the
+retry can observe (the authority/ledger legs the earlier steps already wrote)
+rather than from a one-shot write that a later replay cannot find. Starting
+point: the final update in `store-refund.ts` and what
+`handleReservationConflict` replays.
+
+## Harden the live payment harness so green means what it claims
+
+_Origin: Codex review on PR #2065 (a dozen threads on `e2e-payments/`), all
+verified against the code and none blocking the merge — the nightly run passes,
+but each item is a way it could pass while proving less than its steps claim._
+
+- **Partial-startup leak** (`cucumber/support/hooks.ts`): the `Before` hook
+  acquires server → tunnel → browser → sessions with no unwind; a rejection
+  after the first acquire leaks the app-server child into later scenarios.
+  Attach each resource as it is acquired or unwind in `finally`.
+- **No failure notification before the summary** (`main.ts`): the terminal
+  `run().catch` reports but never calls `notifyFailure`, so missing credentials
+  and other pre-summary failures ping nothing.
+- **Ambiguous click replay** (`browser.ts` `actOnControl`): when `ordinary()`
+  dispatched a submission but its navigation wait failed, the still-interactable
+  control is submitted again through the DOM fallback — a second POST on live
+  refund forms. Only fall back for failures proven to predate dispatch.
+- **Chromium surviving teardown** (`browser.ts` `stop`): when both close paths
+  fail, the hook logs and resolves; the leaked browser keeps consuming runner
+  resources. Reject or kill the process.
+- **Provider fetches without a bound** (`providers/shared.ts`): the harness's
+  own fetches carry no abort signal (the production transports now share
+  `PROVIDER_TIMEOUT_MS`); a hung sandbox read outlives its hook.
+- **Malformed Stripe list answers** (`providers/stripe.ts`): both the
+  endpoint-list and refund-list reads default a missing `data` field to `[]`, so
+  a malformed 2xx can silently pass as "nothing there". Validate the documented
+  fields at the boundary.
+- **Partial final refund passes** (`cucumber/steps/refund.ts`): the final
+  non-growth check only rejects amounts GREATER than the capture; a completed
+  400-of-2500 observation after the first check passes. Require exactness for
+  every completed final observation.
+- **Broad refresh assertion** (`cucumber/steps/refund.ts`): the second,
+  observation-only refresh matches `/payment status/i`, which the rendered
+  button satisfies — an erroring refresh still passes. Assert the specific
+  outcome (the exact-amount first refresh is the model).
+- **Protection not rechecked after refresh** (`cucumber/steps/refund.ts`): the
+  Refund/Delete-unavailable assertions run before the final refresh; a refresh
+  that re-enabled them would pass. Re-read the actions after it.
+- **Vacuous webhook coverage** (`cucumber/steps/booking.ts`):
+  `holdFirstAppReturn` captures the return URL but holds nothing (interception
+  proved unreliable), so the browser return can book before "Stripe's signed
+  webhook confirms the payment" — the step then only polls the roster and passes
+  with the webhook broken. Assert independent webhook evidence (or rename the
+  claim).
+- **memberB never verified** (`order-flow.ts`): `verifyComplexOrder` asserts
+  member A's two paths and the plain listing; member B's booking line and its £6
+  kit income are never checked in either the free or paid scenario.
+- **Configured artifact directory ignored** (`main.ts`): cleanup, reports, and
+  the step summary use the hard-coded `e2e-payments/artifacts` while scenarios
+  write under `E2E_ARTIFACTS_DIR`; derive the root from config.
+
+The coverage-exclusion thread from the same round (`scripts/run-tests.ts`) is
+the same theme: the harness modules are excluded wholesale with the reasoning
+recorded beside the list, and the pure helpers stay covered. The durable fix is
+the one Codex names — push the env/config parsing behind injectable seams so
+those branches get direct in-process tests — which is worth doing when the
+harness is next open.
