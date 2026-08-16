@@ -216,14 +216,14 @@ export const saveSessionAnswers = async (
 };
 
 export const attendeeBaseFields = (
-  session: ValidatedPaymentSession,
+  paymentId: string,
   intent: BookingIntent,
   publicStatusId: number,
 ) => ({
   address: intent.address,
   email: intent.email,
   name: intent.name,
-  paymentId: session.paymentReference,
+  paymentId,
   phone: intent.phone,
   special_instructions: intent.special_instructions,
   statusId: publicStatusId,
@@ -312,7 +312,7 @@ export const createAttendeeForSession = async (
     );
     prepared = {
       attendeeInput: {
-        ...attendeeBaseFields(session, intent, publicStatusId),
+        ...attendeeBaseFields(session.paymentReference, intent, publicStatusId),
         bookings,
         parentIdsByChild,
         remainingBalance,

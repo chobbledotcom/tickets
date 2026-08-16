@@ -19,6 +19,11 @@ const REFUND_REASONS = {
     alert: "payment_session",
     reason: "the listing was removed while they were paying",
   },
+  malformed_charge: {
+    alert: "payment_session",
+    reason:
+      "the provider reported the payment in a form the site could not read",
+  },
   price_changed: {
     reason: "the listing price changed while they were paying",
   },

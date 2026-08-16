@@ -20,11 +20,11 @@ import {
   paymentSessionErrorLogger,
 } from "#routes/api/payment-processing/classify.ts";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
+import { failureDetail } from "#routes/api/payment-processing/refunds.ts";
 import {
   answerRejectedSession,
-  failureDetail,
-  refundRejectedCharge,
-} from "#routes/api/payment-processing/refunds.ts";
+  settleRejectedCharge,
+} from "#routes/api/payment-processing/rejected-target.ts";
 import {
   handlePaymentSuccess,
   paymentSessionId,
@@ -263,7 +263,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   // is refunded rather than acked into limbo — the money was captured, so it
   // must not disappear. A blank-reference rejection cannot be refunded.
   if (isSessionRejection(sessionResult)) {
-    const outcome = await refundRejectedCharge(sessionResult);
+    const outcome = await settleRejectedCharge(sessionResult);
     logError({
       code: ErrorCode.PAYMENT_SESSION,
       detail: `Webhook session rejected as ${sessionResult.reason} (refunded: ${outcome.refunded})`,

@@ -241,6 +241,15 @@ GitHub.
   error. See
   [Offensive Programming](#offensive-programming--never-suppress-errors) for the
   full rules.
+- **Attribute money to its true item at write time — plan so data never needs a
+  migration**: A migration can add a column, but it cannot recover a fact we
+  never stored, and a data-repair migration is the gnarliest change we ship — it
+  runs once, on every site, against data we cannot see, and a bad one stops an
+  upgrade. Treat "we can fix the records up later" as a design smell: a money
+  movement lands against its true money item on the day it happens, never
+  against a placeholder or a wrong identity that a future migration must
+  re-attribute. Prefer additive schema and correct attribution now over stored
+  rewrites later.
 - **Trust application invariants**: Do not design normal code paths around
   database states the application says are impossible. If an impossible state is
   observed, raise it as an error and repair the data explicitly rather than

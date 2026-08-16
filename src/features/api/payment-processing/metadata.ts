@@ -14,7 +14,10 @@ import {
   BookingIntentSchema,
 } from "#shared/booking-intent.ts";
 import { nowIso } from "#shared/now.ts";
-import type { ValidatedPaymentSession } from "#shared/payments.ts";
+import type {
+  SessionMetadata,
+  ValidatedPaymentSession,
+} from "#shared/payments.ts";
 
 /**
  * The ledger occurredAt for a payment: the provider's checkout time — the
@@ -66,8 +69,13 @@ const wholeNumberField = (raw: string): number | undefined =>
  */
 export const extractIntent = (
   session: ValidatedPaymentSession,
+): BookingIntent | null => extractIntentFromMetadata(session.metadata);
+
+/** Read the booking a metadata blob describes, or null when it cannot be
+ * read as one — a rejected session's blob may predate the current shape. */
+export const extractIntentFromMetadata = (
+  metadata: SessionMetadata,
 ): BookingIntent | null => {
-  const { metadata } = session;
   const result = v.safeParse(BookingIntentSchema, {
     address: metadata.address,
     allocations: parseAnswerRefs(metadata.allocations),

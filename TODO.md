@@ -1861,6 +1861,11 @@ be created from invented facts. A later callback or browser return is the only
 current recovery for that case. A blank reference has no usable identity and is
 terminally treated as settled elsewhere.
 
+One sliver moved here from the since-fixed "parked authority" entry: a refunded
+rejection whose metadata cannot be read as a booking still stores no Money
+target (`settleRejectedCharge` keeps the old behavior for it), so its authority
+stays in completed/due until this whole-checkout work lands.
+
 What is still absent is the checkout-completion half. No processed-payment
 terminal result links durable refund authority to "this session was refused",
 and the unavailable-read case has no durable owner row, so the booking
@@ -2504,25 +2509,6 @@ refund.
 
 Starting point: `readSessionOrder` in `src/shared/square-provider.ts` — a
 `missing` read under a `paidPaymentId` should throw like the malformed case.
-
-## A refunded rejection leaves its authority parked with only an owner attestation
-
-_Origin: Codex review on PR #2065 (thread on
-`src/features/api/payment-processing/refunds.ts`)._
-
-When a malformed paid session is refunded through `refundRejectedCharge`, the
-provider money came back but the path converts the result to booleans and never
-records or retires the authority's local-money obligation. A rejected session
-created no attendee and no ledger entry, so there is no Money target to repair —
-yet the canonical authority sits in `completed/due` in Refund recovery, offering
-only the "recorded in Money" attestation, which is untrue for money that has no
-Money target.
-
-Either complete these no-local-ledger authorities as locally settled when the
-provider return is confirmed, or persist a recordable local target. Related:
-"Bind a rejected session's refund authority to checkout completion" above — the
-whole-checkout outcome work is the natural home for the terminal result; this
-narrower retirement may land first.
 
 ## The final placeholder refund outcome is never retried
 

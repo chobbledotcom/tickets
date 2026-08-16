@@ -7,6 +7,7 @@
  * note. A balance session settles the existing attendee instead of creating one.
  */
 
+import type { ResultSet } from "@libsql/client";
 /* jscpd:ignore-start -- imports */
 import {
   attendeeBaseFields,
@@ -32,11 +33,13 @@ import { logActivity } from "#shared/db/activity-log.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import { attendeePaymentProvenance } from "#shared/db/attendees/payment-provenance.ts";
+import type { SqlStatement } from "#shared/db/client.ts";
 import { createSystemNote } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { prepareClaimedAttendeePaymentAnchor } from "#shared/db/payment-anchor/attendee.ts";
 import { settleAttendeeRows } from "#shared/db/payment-claim.ts";
 import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
+import type { PreparedSessionFailure } from "#shared/db/processed-payments.ts";
 import { prepareSessionFailure } from "#shared/db/processed-payments.ts";
 import { ErrorCode, type ErrorCodeType, logError } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
@@ -47,6 +50,7 @@ import {
   type RefundAlert,
   type RefundCode,
 } from "#shared/payment/placeholder-refund.ts";
+import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 import type { StoredPaymentFailure } from "#shared/payment/row-state.ts";
 import { paidPaymentReferenceOf } from "#shared/payment/validated-session.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
@@ -199,6 +203,86 @@ export const settleBalanceSession = async (
  * resolved outcome (the note's manual-refund instruction stands) rather than
  * released for re-processing.
  */
+/** The claimed anchor a stored placeholder hands back for its follow-up
+ * money work. */
+type ClaimedPlaceholderAnchor = Awaited<
+  ReturnType<
+    Awaited<
+      ReturnType<typeof prepareClaimedAttendeePaymentAnchor>
+    >["forAttendee"]
+  >
+>;
+
+/**
+ * Store the quantity-0 ghost with its claimed anchor, provenance, terminal
+ * outcome, and any extra statement, in one transaction. A quantity-0
+ * overbook insert has no capacity gate and consumes no modifier stock, so
+ * it always writes the row — trust it. (If the PII can't encrypt the whole
+ * system is broken; we don't defend against that.) The caller does its
+ * money work afterwards and then settles the anchor's born claim.
+ */
+export const storeClaimedPlaceholder = async (config: {
+  readonly bookings: PlaceholderBookings;
+  readonly extra?: {
+    readonly require: (result: ResultSet) => void;
+    readonly statement: SqlStatement;
+  };
+  readonly fields: ReturnType<typeof attendeeBaseFields>;
+  readonly paymentReference: TaggedPaymentReference;
+  readonly sessionFailure: PreparedSessionFailure;
+  readonly sessionId: string;
+}): Promise<{
+  readonly attendeeId: number;
+  readonly claimedAnchor: ClaimedPlaceholderAnchor;
+}> => {
+  const paymentAnchor = await prepareClaimedAttendeePaymentAnchor(
+    config.paymentReference,
+  );
+  const anchorWritten = Promise.withResolvers<ClaimedPlaceholderAnchor>();
+  const stored = await attendeesApi.createAttendeeAtomic(
+    { ...config.fields, allowOverbook: true, bookings: config.bookings },
+    async (tx, attendeeId) => {
+      const claimedAnchor = await paymentAnchor.forAttendee(attendeeId);
+      const results = await tx.batch([
+        claimedAnchor.statement,
+        attendeePaymentProvenance.statement(claimedAnchor.sessionId),
+        ...(config.extra === undefined ? [] : [config.extra.statement]),
+        config.sessionFailure.statement,
+      ]);
+      // Positional results, named at the boundary: the anchor write comes
+      // first, then provenance, the optional extra, and the terminal last.
+      attendeePaymentProvenance.require(
+        requireValue(
+          results[1],
+          "Placeholder provenance write returned no result",
+        ),
+        claimedAnchor.sessionId,
+      );
+      if (config.extra !== undefined) {
+        config.extra.require(
+          requireValue(
+            results[2],
+            "Placeholder extra write returned no result",
+          ),
+        );
+      }
+      const terminalized = requireValue(
+        results[results.length - 1],
+        "Placeholder terminal write returned no result",
+      );
+      if (terminalized.rowsAffected !== 1) {
+        throw new Error(
+          `Payment session lost its reservation before placeholder creation: ${config.sessionId}`,
+        );
+      }
+      anchorWritten.resolve(claimedAnchor);
+    },
+  );
+  const attendeeId = (stored as Extract<typeof stored, { success: true }>)
+    .attendees[0]!.id;
+  return { attendeeId, claimedAnchor: await anchorWritten.promise };
+};
+
 export const storeRefundedBooking = async (
   session: ValidatedPaymentSession,
   intent: BookingIntent,
@@ -209,63 +293,25 @@ export const storeRefundedBooking = async (
   if (spec.alert) addPendingWork(sendNtfyError(REFUND_ALERT_CODES[spec.alert]));
   const listingId = bookings[0]!.listingId;
   const pendingResult = placeholderFailure(spec, false);
-  const paymentReference = paidPaymentReferenceOf(session);
-  const [sessionFailure, paymentAnchor, refundAuthority] = await Promise.all([
+  const [sessionFailure, refundAuthority] = await Promise.all([
     prepareSessionFailure(session.id, storedFailureOf(pendingResult)),
-    prepareClaimedAttendeePaymentAnchor(paymentReference),
     prepareSessionRefundAuthority(session),
   ]);
-  const anchorWritten =
-    Promise.withResolvers<
-      Awaited<ReturnType<typeof paymentAnchor.forAttendee>>
-    >();
-  // A quantity-0 overbook insert has no capacity gate and consumes no modifier
-  // stock, so it always writes the row — trust it. (If the PII can't encrypt the
-  // whole system is broken; we don't defend against that.)
-  const stored = await attendeesApi.createAttendeeAtomic(
-    {
-      ...attendeeBaseFields(session, intent, publicStatusId),
-      allowOverbook: true,
-      bookings,
+  const { attendeeId, claimedAnchor } = await storeClaimedPlaceholder({
+    bookings,
+    extra: {
+      require: (result) => refundAuthority.requireResult(result),
+      statement: refundAuthority.statement,
     },
-    async (tx, attendeeId) => {
-      const claimedAnchor = await paymentAnchor.forAttendee(attendeeId);
-      const [, provenanceResult, authorityResult, terminalized] =
-        await tx.batch([
-          claimedAnchor.statement,
-          attendeePaymentProvenance.statement(claimedAnchor.sessionId),
-          refundAuthority.statement,
-          sessionFailure.statement,
-        ]);
-      attendeePaymentProvenance.require(
-        requireValue(
-          provenanceResult,
-          "Placeholder provenance write returned no result",
-        ),
-        claimedAnchor.sessionId,
-      );
-      refundAuthority.requireResult(
-        requireValue(
-          authorityResult,
-          "Placeholder refund authority write returned no result",
-        ),
-      );
-      if (
-        requireValue(
-          terminalized,
-          "Placeholder terminal write returned no result",
-        ).rowsAffected !== 1
-      ) {
-        throw new Error(
-          `Payment session lost its reservation before placeholder creation: ${session.id}`,
-        );
-      }
-      anchorWritten.resolve(claimedAnchor);
-    },
-  );
-  const attendeeId = (stored as Extract<typeof stored, { success: true }>)
-    .attendees[0]!.id;
-  const claimedAnchor = await anchorWritten.promise;
+    fields: attendeeBaseFields(
+      session.paymentReference,
+      intent,
+      publicStatusId,
+    ),
+    paymentReference: paidPaymentReferenceOf(session),
+    sessionFailure,
+    sessionId: session.id,
+  });
   const refundResult = await requestSessionRefund(session);
   const refunded = providerRefundReturned(refundResult, {
     listingId,
