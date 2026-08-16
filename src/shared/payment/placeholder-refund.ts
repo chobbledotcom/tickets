@@ -1,4 +1,7 @@
 /** Why a signed payment became a quantity-0 placeholder. */
+
+import * as v from "valibot";
+
 export type PlaceholderRefund = {
   alert?: RefundAlert;
   code: RefundCode;
@@ -8,8 +11,24 @@ export type PlaceholderRefund = {
 
 export type RefundAlert = "payment_session" | "webhook_price_signature";
 
+/** Every reason code, as a schema, so a stored code can be validated on the
+ * way back in and the reason table below must stay exhaustive. */
+export const RefundCodeSchema = v.picklist([
+  "capacity_full",
+  "charge_mismatch",
+  "listing_removed",
+  "malformed_charge",
+  "price_changed",
+  "sold_out",
+  "unexpected_error",
+]);
+export type RefundCode = v.InferOutput<typeof RefundCodeSchema>;
+
 /** The complete schema of placeholder-refund reasons and operator wording. */
-const REFUND_REASONS = {
+const REFUND_REASONS: Record<
+  RefundCode,
+  { reason: string; alert?: RefundAlert }
+> = {
   capacity_full: { reason: "the event filled up while they were paying" },
   charge_mismatch: {
     alert: "webhook_price_signature",
@@ -35,9 +54,7 @@ const REFUND_REASONS = {
     alert: "payment_session",
     reason: "an unexpected error stopped the booking being completed",
   },
-} as const satisfies Record<string, { reason: string; alert?: RefundAlert }>;
-
-export type RefundCode = keyof typeof REFUND_REASONS;
+};
 
 /** Add an internal detail to one reason from the shared schema. */
 export const placeholderRefund =

@@ -29,23 +29,28 @@ import {
 } from "#shared/provider-refunds.ts";
 import { recordPlaceholderRefund } from "#shared/refund-ledger/placeholder.ts";
 
-export type PlaceholderMoneyCompletion = {
-  readonly activityMessage: string;
-  readonly amount: number;
+/** The durable facts that name one placeholder's money work — every one
+ * re-derivable from stored rows, so a resumed delivery can rebuild them. */
+export interface PlaceholderMoneyTarget {
   readonly attendeeId: number;
-  /** The authority still owing its local recording, or null once recorded. */
-  readonly dueAuthority: RefundAuthorityReceipt | null;
   readonly listingId: number;
   /** The business time the money moved — must be the same on every run. */
   readonly occurredAt: string;
-  /** What a ledger miss does: fail the delivery so the provider redelivers,
-   * or keep the row saying "unrecorded" for the refresh route. */
-  readonly onLedgerMiss: "throw" | "mark_unrecorded";
   readonly referenceIndexes: readonly string[];
   readonly sessionId: string;
   readonly settlement: RowSettlement;
   readonly spec: PlaceholderRefund;
-};
+}
+
+export interface PlaceholderMoneyCompletion extends PlaceholderMoneyTarget {
+  readonly activityMessage: string;
+  readonly amount: number;
+  /** The authority still owing its local recording, or null once recorded. */
+  readonly dueAuthority: RefundAuthorityReceipt | null;
+  /** What a ledger miss does: fail the delivery so the provider redelivers,
+   * or keep the row saying "unrecorded" for the refresh route. */
+  readonly onLedgerMiss: "throw" | "mark_unrecorded";
+}
 
 const settledWithBooks = (
   settlement: RowSettlement,

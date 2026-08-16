@@ -18,11 +18,15 @@ import {
 import { transfersByEventGroup } from "#shared/accounting/queries.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { queryAll, queryOne } from "#shared/db/client.ts";
-import { reserveSession } from "#shared/db/processed-payments.ts";
+import {
+  finalizeSessionIfUnresolved,
+  reserveSession,
+} from "#shared/db/processed-payments.ts";
 import { loadRefundAuthorityById } from "#shared/db/provider-refund-authority.ts";
 import { completedAtOf } from "#shared/payment/refund-authority-state.ts";
 import { recordProviderRefunds } from "#shared/provider-refunds.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { singleItem } from "#test-utils/factories.ts";
@@ -182,6 +186,78 @@ describeWithEnv("a refunded rejection's Money target", { db: true }, () => {
       refund_local_state: "due",
       refund_state_name: "completed",
     });
+  });
+
+  it("finishes the interrupted tail on the next delivery, exactly once", async () => {
+    const { listing, rejection } = await rejectionFor("pi_ledger_resumed");
+    await withRefundLedgerFault(() =>
+      expect(
+        withSucceedingRefundFor(CAPTURED)(() =>
+          settleRejectedCharge(rejection),
+        ),
+      ).rejects.toThrow("could not be recorded"),
+    );
+
+    // The fault lifts and the provider redelivers: the same entry point
+    // finds the held anchor and finishes the money records from it.
+    const { result } = await withSucceedingRefundFor(CAPTURED)(() =>
+      settleRejectedCharge(rejection),
+    );
+    expect(result).toEqual({
+      refunded: true,
+      returned: result.returned,
+      settled: true,
+    });
+    await expectOnePairOfLegs(rejection.sessionId);
+    const charge = await queryOne<{
+      refund_state_name: string;
+      refund_local_state: string;
+    }>("SELECT refund_state_name, refund_local_state FROM payment_charges", []);
+    expect(charge).toEqual({
+      refund_local_state: "recorded",
+      refund_state_name: "completed",
+    });
+    const anchor = await queryOne<{ protected_state: string }>(
+      "SELECT protected_state FROM processed_payments WHERE payment_reference_index != ''",
+      [],
+    );
+    expect(anchor?.protected_state).toBe("");
+
+    // A third delivery finds nothing left to do and changes nothing.
+    await withSucceedingRefundFor(CAPTURED)(() =>
+      settleRejectedCharge(rejection),
+    );
+    await expectOnePairOfLegs(rejection.sessionId);
+    expect((await ghostAttendees(listing.id)).length).toBe(1);
+  });
+
+  it("resumes nothing when the session row was finalized another way", async () => {
+    const { listing, rejection } = await rejectionFor("pi_finalized_row");
+    // A finalized idempotency row for the session id is the one shape the
+    // resume must leave entirely alone.
+    const made = await bookAttendee(listing, {
+      email: "done@example.com",
+      name: "Already Done",
+    });
+    if (!made.success) throw new Error("attendee setup failed");
+    await reserveSession(rejection.sessionId);
+    await finalizeSessionIfUnresolved(
+      rejection.sessionId,
+      made.attendees[0]!.id,
+      null,
+    );
+
+    const { result } = await withSucceedingRefundFor(CAPTURED)(() =>
+      settleRejectedCharge(rejection),
+    );
+
+    expect(result.refunded).toBe(true);
+    expect(
+      await queryOne<{ total: number }>(
+        "SELECT COUNT(*) AS total FROM processed_payments WHERE payment_session_id LIKE 'legacy:%'",
+        [],
+      ),
+    ).toEqual({ total: 0 });
   });
 
   it("releases its fence when storing the ghost fails, so redelivery retries", async () => {

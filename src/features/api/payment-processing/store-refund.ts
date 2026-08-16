@@ -18,12 +18,13 @@ import {
 } from "#routes/api/payment-processing/create.ts";
 import { businessTime } from "#routes/api/payment-processing/metadata.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
-import { completePlaceholderMoney } from "#routes/api/payment-processing/placeholder-completion.ts";
+import {
+  finishPlaceholderRefund,
+  storedPlaceholderOutcome,
+} from "#routes/api/payment-processing/placeholder-resume.ts";
 import {
   prepareSessionRefundAuthority,
-  providerRefundReturned,
   refundAndFail,
-  requestSessionRefund,
 } from "#routes/api/payment-processing/refunds.ts";
 import type {
   PaymentFailureResult,
@@ -35,32 +36,23 @@ import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import { attendeePaymentProvenance } from "#shared/db/attendees/payment-provenance.ts";
 import type { SqlStatement } from "#shared/db/client.ts";
-import { createSystemNote } from "#shared/db/notes/queries.ts";
-import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { prepareClaimedAttendeePaymentAnchor } from "#shared/db/payment-anchor/attendee.ts";
-import { settleAttendeeRows } from "#shared/db/payment-claim.ts";
 import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
 import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import type { PreparedSessionFailure } from "#shared/db/processed-payments.ts";
 import { prepareSessionFailure } from "#shared/db/processed-payments.ts";
-import { ErrorCode, type ErrorCodeType, logError } from "#shared/logger.ts";
+import { ErrorCode, type ErrorCodeType } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import {
   type PlaceholderRefund,
   placeholderRefund,
-  placeholderRefundNote,
   type RefundAlert,
   type RefundCode,
 } from "#shared/payment/placeholder-refund.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
-import {
-  type StoredPaymentFailure,
-  sessionAnswerOf,
-} from "#shared/payment/row-state.ts";
 import { paidPaymentReferenceOf } from "#shared/payment/validated-session.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
-import { recordPlaceholderRefund } from "#shared/refund-ledger/placeholder.ts";
 import { requireValue } from "#shared/required-value.ts";
 
 /* jscpd:ignore-end */
@@ -68,41 +60,6 @@ import { requireValue } from "#shared/required-value.ts";
 /** User-facing message when the outstanding balance changed mid-payment. */
 const BALANCE_CHANGED_MESSAGE =
   "The outstanding balance for this booking changed while you were paying.";
-
-/**
- * User-facing message when a signed-by-us payment can't be honoured (price
- * changed, charge mismatch, sold out, or an unexpected error) so the booking is
- * kept and refunded. The refund clause is appended by formatPaymentError (or the
- * refund-pending suffix below), so this just covers "we saved your details".
- */
-const BOOKING_SAVED_MESSAGE =
-  "We couldn't complete your booking, so we've saved your details and a member of our team can help you rebook.";
-
-interface PlaceholderFailureResult extends PaymentFailureResult {
-  readonly status: 200;
-}
-
-const placeholderFailure = (
-  spec: PlaceholderRefund,
-  refunded: boolean,
-): PlaceholderFailureResult => ({
-  detail: spec.detail,
-  error: refunded
-    ? BOOKING_SAVED_MESSAGE
-    : `${BOOKING_SAVED_MESSAGE} Your refund is being arranged — please contact us if it does not arrive.`,
-  ...(refunded ? { refunded: true } : {}),
-  status: 200,
-  success: false,
-});
-
-// A stored placeholder outcome is the replayed answer plus the marker that
-// tells a later delivery to check the follow-up money records.
-const storedFailureOf = (
-  failure: PlaceholderFailureResult,
-): StoredPaymentFailure => ({
-  completion: "placeholder",
-  ...sessionAnswerOf(failure),
-});
 
 const REFUND_ALERT_CODES: Record<RefundAlert, ErrorCodeType> = {
   payment_session: ErrorCode.PAYMENT_SESSION,
@@ -302,9 +259,8 @@ export const storeRefundedBooking = async (
   if (spec.alert) addPendingWork(sendNtfyError(REFUND_ALERT_CODES[spec.alert]));
   const listingId = bookings[0]!.listingId;
   const paymentReference = paidPaymentReferenceOf(session);
-  const pendingResult = placeholderFailure(spec, false);
   const [sessionFailure, refundAuthority] = await Promise.all([
-    prepareSessionFailure(session.id, storedFailureOf(pendingResult)),
+    prepareSessionFailure(session.id, storedPlaceholderOutcome(spec, false)),
     prepareSessionRefundAuthority(session),
   ]);
   const { attendeeId, claimedAnchor } = await storeClaimedPlaceholder({
@@ -322,64 +278,19 @@ export const storeRefundedBooking = async (
     sessionFailure,
     sessionId: session.id,
   });
-  const refundResult = await requestSessionRefund(session);
-  const refunded = providerRefundReturned(refundResult, {
+  // Status 200: a fully-handled terminal outcome (booking kept, money
+  // returned or flagged). The webhook acks it (never the 409 transient-lock
+  // retry nor a 503 refund retry — the booking exists, so a retry can't
+  // re-create it), and the customer sees a "saved your details" message.
+  return finishPlaceholderRefund(session, {
+    attendeeId,
     listingId,
-    provider: session.provider,
+    occurredAt: businessTime(session),
+    referenceIndexes: [await paymentReferenceIndex(paymentReference)],
+    sessionId: session.id,
+    settlement: claimedAnchor.settlement,
+    spec,
   });
-  if (refundResult.kind === "returned") {
-    // The money came back: finish its records through the shared, resumable
-    // completion. A ledger miss keeps the row saying "unrecorded" rather
-    // than failing the buyer's 200 answer — the refresh route finishes it.
-    await completePlaceholderMoney({
-      activityMessage: `Automatic refund (${spec.code}); booking kept at quantity 0`,
-      amount: session.amountTotal,
-      attendeeId,
-      // A fresh session's returned refund is always still due locally: the
-      // reservation fence means this flow runs once per session, so nothing
-      // can have recorded the just-created authority yet.
-      dueAuthority: refundResult.authority,
-      listingId,
-      occurredAt: businessTime(session),
-      onLedgerMiss: "mark_unrecorded",
-      referenceIndexes: [await paymentReferenceIndex(paymentReference)],
-      sessionId: session.id,
-      settlement: claimedAnchor.settlement,
-      spec,
-    });
-  } else {
-    // Nothing returned: the payment leg still lands so the books show the
-    // money in, the refund stays with its recovery routes, and the note
-    // tells the operator the refund is still being arranged.
-    await recordPlaceholderRefund(
-      {
-        amount: session.amountTotal,
-        attendeeId,
-        eventId: session.id,
-        listingId,
-        occurredAt: businessTime(session),
-      },
-      spec.code,
-      false,
-    );
-    logError({
-      code: ErrorCode.PAYMENT_REFUND,
-      detail: `Stored-but-unrefunded booking ${attendeeId} (${spec.code}): ${spec.detail}`,
-      listingId,
-    });
-    await createSystemNote(
-      attendeeNotes(attendeeId),
-      placeholderRefundNote(attendeeId, spec, false),
-    );
-    await settleAttendeeRows(claimedAnchor.settlement);
-  }
-  const result = placeholderFailure(spec, refunded);
-  await sessionFailure.replace(storedFailureOf(result));
-  // Status 200: a fully-handled terminal outcome (booking kept, money returned or
-  // flagged). The webhook acks it (never the 409 transient-lock retry nor a 503
-  // refund retry — the booking exists, so a retry can't re-create it), and the
-  // customer sees an informational "saved your details" message.
-  return result;
 };
 
 /** The refund reason code for each way a booking we tried can fail. */

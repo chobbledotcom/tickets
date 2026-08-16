@@ -79,7 +79,7 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
     );
   });
 
-  test("replays the same placeholder after its committed create loses the reply", async () => {
+  test("finishes the crashed placeholder's refund on replay, never a second create", async () => {
     await setupStripe();
     const id = "cs_placeholder_create_reply_lost";
     const { data, listing } = await singleListingPayment(id, 1000, 800);
@@ -129,13 +129,25 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
       ["2000-01-01T00:00:00.000Z", id],
     );
 
+    // The crashed delivery never sent the refund, so the replay resumes the
+    // tail: one refund goes out, the money records land, and the booking is
+    // never created twice.
     expect(await processPaymentSession(id, data)).toMatchObject({
+      refunded: true,
       status: 200,
       success: false,
     });
     expect(await getAttendeesRaw(listing.id)).toHaveLength(1);
     expect(createReply.calls).toHaveLength(1);
-    expect(refund.calls).toHaveLength(0);
+    expect(refund.calls).toHaveLength(1);
+
+    // A further replay finds everything finished and sends nothing more.
+    expect(await processPaymentSession(id, data)).toMatchObject({
+      refunded: true,
+      status: 200,
+      success: false,
+    });
+    expect(refund.calls).toHaveLength(1);
   });
 
   test("keeps and refunds a booking that loses the capacity race", async () => {

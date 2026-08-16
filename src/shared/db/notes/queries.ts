@@ -51,7 +51,7 @@ const writeNote = async (
   transaction?: TxScope,
 ): Promise<void> => {
   if (name?.key === "") throw new Error("A named system note needs a key");
-  const { sql, args } = insert("system_notes", {
+  const inserted = insert("system_notes", {
     created: nowIso(),
     entity_id: target.id,
     entity_type: target.kind,
@@ -59,10 +59,16 @@ const writeNote = async (
     system_name: name === null ? null : storedSystemNoteName(name),
     type,
   });
+  // A named note is unique by its name: a replayed write is a no-op, so a
+  // resumable flow can re-run its note step without a second copy landing.
+  const sql =
+    name === null
+      ? inserted.sql
+      : inserted.sql.replace(/^INSERT INTO/, "INSERT OR IGNORE INTO");
   if (transaction === undefined) {
-    await execute(sql, args);
+    await execute(sql, inserted.args);
   } else {
-    await transaction.execute({ args, sql });
+    await transaction.execute({ args: inserted.args, sql });
   }
 };
 

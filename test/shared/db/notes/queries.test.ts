@@ -140,7 +140,7 @@ describeWithEnv("db > notes", { db: true }, () => {
     expect(ownerStored?.note).not.toContain("owner secret");
   });
 
-  test("refuses a second app-written note with the same indexed name", async () => {
+  test("keeps only the first app-written note for one indexed name", async () => {
     const target = attendeeNotes(await makeAttendee());
     const name = {
       key: "one-confirmation",
@@ -148,9 +148,13 @@ describeWithEnv("db > notes", { db: true }, () => {
     } as const;
     await createNamedSystemNote(target, "first", name);
 
-    await expect(
-      createNamedSystemNote(target, "duplicate", name),
-    ).rejects.toThrow();
+    // A replayed named write is a no-op, so a resumed flow can re-run its
+    // note step without a second copy landing.
+    await createNamedSystemNote(target, "duplicate", name);
+
+    const notes = await getNotesFor(target, await getTestPrivateKey());
+    expect(notes).toHaveLength(1);
+    expect(notes[0]!.note).toBe("first");
   });
 
   test("refuses an app-written note whose indexed name is empty", async () => {

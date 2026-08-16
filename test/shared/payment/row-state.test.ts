@@ -195,7 +195,7 @@ describe("sessionAnswerOf", () => {
   test("strips the completion marker and keeps every message field", () => {
     expect(
       sessionAnswerOf({
-        completion: "placeholder",
+        completion: { code: "malformed_charge" },
         error: "The payment could not be read, so it was refunded.",
         refunded: true,
         status: 400,
@@ -211,5 +211,31 @@ describe("sessionAnswerOf", () => {
     expect(sessionAnswerOf({ error: "Sold out." })).toEqual({
       error: "Sold out.",
     });
+  });
+});
+
+describe("the completion marker", () => {
+  test("round-trips with the refund code that names its reason", () => {
+    const marked: PaymentRowState = {
+      outcome: {
+        completion: { code: "capacity_full" },
+        error: "Refund being arranged",
+        status: 200,
+      },
+    };
+    expect(readRowState(writeRowState(marked, CONTEXT), CONTEXT)).toEqual(
+      marked,
+    );
+  });
+
+  test("refuses a marker naming a refund code that does not exist", () => {
+    const rogue = JSON.stringify({
+      outcome: {
+        completion: { code: "not_a_refund_code" },
+        error: "Refund being arranged",
+        status: 200,
+      },
+    });
+    expect(() => readRowState(rogue, CONTEXT)).toThrow(CONTEXT);
   });
 });

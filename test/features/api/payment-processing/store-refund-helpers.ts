@@ -1,9 +1,12 @@
+import { expect } from "@std/expect";
+import { stub } from "@std/testing/mock";
 import {
   placeholderBookings,
   specForFailure,
   storeRefundedBooking,
 } from "#routes/api/payment-processing/store-refund.ts";
 import { requirePublicStatusId } from "#shared/db/attendee-statuses.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { bookingIntent, trustedPayment } from "./index/helpers.ts";
@@ -39,4 +42,28 @@ export const storePlaceholder = async (
 export const storedPlaceholder = async (id: string) => {
   const placeholder = await reservedPlaceholder(id);
   return { ...placeholder, result: await storePlaceholder(placeholder) };
+};
+
+/** The ghost, claim, authority, and pending outcome all commit, then the
+ * delivery dies before its refund tail runs at all — the exact crash the
+ * redelivery resume has to finish. */
+export const crashedPlaceholderStore = async (sessionId: string) => {
+  const placeholder = await reservedPlaceholder(sessionId);
+  const createAttendee = attendeesApi.createAttendeeAtomic;
+  const broken = stub(
+    attendeesApi,
+    "createAttendeeAtomic",
+    async (...args: Parameters<typeof createAttendee>) => {
+      await createAttendee(...args);
+      throw new Error("placeholder create reply was lost");
+    },
+  );
+  try {
+    await expect(storePlaceholder(placeholder)).rejects.toThrow(
+      "placeholder create reply was lost",
+    );
+  } finally {
+    broken.restore();
+  }
+  return placeholder;
 };

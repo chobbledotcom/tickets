@@ -16,6 +16,10 @@ import { attendeeBaseFields } from "#routes/api/payment-processing/create.ts";
 import { extractIntentFromMetadata } from "#routes/api/payment-processing/metadata.ts";
 import { completePlaceholderMoney } from "#routes/api/payment-processing/placeholder-completion.ts";
 import {
+  findHeldAnchor,
+  settlementForHeldClaim,
+} from "#routes/api/payment-processing/placeholder-resume.ts";
+import {
   type RejectionOutcome,
   type ReturnedRejectionReceipt,
   refundRejectedCharge,
@@ -26,8 +30,10 @@ import {
 } from "#routes/api/payment-processing/store-refund.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
 import { requirePublicStatusId } from "#shared/db/attendee-statuses.ts";
+import type { RowSettlement } from "#shared/db/payment-claim.ts";
 import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import {
+  type ProcessedPayment,
   prepareSessionFailure,
   releaseReservation,
   reserveSession,
@@ -35,7 +41,11 @@ import {
 import { loadRefundAuthorityById } from "#shared/db/provider-refund-authority.ts";
 import { t } from "#shared/i18n.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import { placeholderRefund } from "#shared/payment/placeholder-refund.ts";
+import {
+  type PlaceholderRefund,
+  placeholderRefund,
+} from "#shared/payment/placeholder-refund.ts";
+import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 import { completedAtOf } from "#shared/payment/refund-authority-state.ts";
 import {
   type MalformedRejection,
@@ -50,7 +60,7 @@ import { requireValue } from "#shared/required-value.ts";
  * the refunded message below. The marker tells a replay to check that the
  * follow-up money records finished. */
 const STORED_OUTCOME = {
-  completion: "placeholder",
+  completion: { code: "malformed_charge" },
   error: "The payment could not be read, so it was refunded.",
   refunded: true,
   status: 400,
@@ -71,8 +81,11 @@ export const settleRejectedCharge = async (
   }
   const reservation = await reserveSession(rejection.sessionId);
   if (!reservation.reserved) {
-    // A stored outcome means an earlier delivery already made the target;
-    // a fresh empty hold means a racing delivery is making it right now.
+    await resumeRejectedTarget(
+      rejection,
+      outcome.returned,
+      reservation.existing,
+    );
     return outcome;
   }
   try {
@@ -85,6 +98,86 @@ export const settleRejectedCharge = async (
     throw error;
   }
   return outcome;
+};
+
+/** The one completion call the fresh store and a resumed redelivery share;
+ * only where the target's facts come from differs. */
+const completeRejectedMoney =
+  (facts: {
+    readonly amount: number;
+    readonly listingId: number;
+    readonly reference: TaggedPaymentReference;
+    readonly returned: ReturnedRejectionReceipt;
+    readonly sessionId: string;
+    readonly spec: PlaceholderRefund;
+  }) =>
+  async (target: {
+    readonly attendeeId: number;
+    readonly occurredAt: string;
+    readonly settlement: RowSettlement;
+  }): Promise<void> => {
+    await completePlaceholderMoney({
+      activityMessage: `Automatic refund (${facts.spec.code}); rejected payment kept at quantity 0`,
+      amount: facts.amount,
+      attendeeId: target.attendeeId,
+      dueAuthority:
+        facts.returned.local === "due" ? facts.returned.authority : null,
+      listingId: facts.listingId,
+      occurredAt: target.occurredAt,
+      onLedgerMiss: "throw",
+      referenceIndexes: [await paymentReferenceIndex(facts.reference)],
+      sessionId: facts.sessionId,
+      settlement: target.settlement,
+      spec: facts.spec,
+    });
+  };
+
+/**
+ * A redelivery that lost the fence: when an earlier delivery stored the
+ * target but crashed before its money records finished, the ghost's anchor
+ * row still holds the claim — rebuild the completion from durable rows and
+ * finish it. A fresh empty hold (racing delivery), a finalized row, or a
+ * free anchor all leave nothing to resume.
+ */
+const resumeRejectedTarget = async (
+  rejection: MalformedRejection,
+  returned: ReturnedRejectionReceipt,
+  existing: ProcessedPayment,
+): Promise<void> => {
+  if (existing.attendee_id !== null || existing.failure_data === "") return;
+  const reference = rejectedChargeReference(rejection);
+  const search = await findHeldAnchor(reference, rejection.sessionId);
+  if (search.held === null) return;
+  const { claim, record } = search.held;
+  const intent = requireValue(
+    extractIntentFromMetadata(rejection.metadata),
+    `Resumed rejected session ${rejection.sessionId} lost its readable metadata`,
+  );
+  const authority = requireValue(
+    await loadRefundAuthorityById(returned.authority.id),
+    `Resumed rejected session ${rejection.sessionId} lost its refund authority row`,
+  );
+  await completeRejectedMoney({
+    amount: authority.captured.amount,
+    listingId: intent.items[0]!.e,
+    reference,
+    returned,
+    sessionId: rejection.sessionId,
+    // The only code this flow ever stores, so the resume needs no read to
+    // rebuild it — see STORED_OUTCOME above.
+    spec: placeholderRefund("malformed_charge")(
+      `Resumed after a crashed delivery of session ${rejection.sessionId}`,
+    ),
+  })({
+    attendeeId: record.attendeeId,
+    // The anchor row was born carrying the instant the money came back, so
+    // every resume posts the same legs the first delivery would have.
+    occurredAt: requireValue(
+      record.state.unrecorded,
+      `Resumed rejected anchor for session ${rejection.sessionId} lost its return time`,
+    ).returnedAt,
+    settlement: settlementForHeldClaim(record.sessionId, claim),
+  });
 };
 
 /**
@@ -165,17 +258,16 @@ const storeRejectedTarget = async (
   // and this redelivery; a recorded authority must not be recorded again. A
   // ledger miss throws: the delivery fails, the provider redelivers, and the
   // authority stays due and visible meanwhile.
-  await completePlaceholderMoney({
-    activityMessage: `Automatic refund (${spec.code}); rejected payment kept at quantity 0`,
+  await completeRejectedMoney({
     amount: authority.captured.amount,
-    attendeeId,
-    dueAuthority: returned.local === "due" ? returned.authority : null,
     listingId,
-    occurredAt: returnInstant,
-    onLedgerMiss: "throw",
-    referenceIndexes: [await paymentReferenceIndex(paymentReference)],
+    reference: paymentReference,
+    returned,
     sessionId: rejection.sessionId,
-    settlement: claimedAnchor.settlement,
     spec,
+  })({
+    attendeeId,
+    occurredAt: returnInstant,
+    settlement: claimedAnchor.settlement,
   });
 };
