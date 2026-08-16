@@ -71,8 +71,10 @@ const paymentStatement = (): PruneStatement => ({
               -- returned-money marker with it, leaving a retry to send the
               -- same payout again.
               --
-              -- Keeping it strands nothing: a stale claim is resumable, so the
-              -- next run for that attendee picks the row up and settles it.
+              -- Keeping it strands nothing: a refund run's stale claim is
+              -- resumable by the next run for that attendee, and a stored
+              -- placeholder's held work is finished by webhook redelivery or
+              -- the attendee page's refresh route.
               -- This reader cannot decrypt, so it routes on the mirrors.
               AND payment.protected_state = ''
               AND NOT EXISTS (

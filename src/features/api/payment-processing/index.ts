@@ -52,6 +52,7 @@ import {
 } from "#shared/db/processed-payments.ts";
 import { logDebug } from "#shared/logger.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
+import { sessionAnswerOf } from "#shared/payment/row-state.ts";
 import { paymentReferenceOf } from "#shared/payment/validated-session.ts";
 import type { BookingLedgerDisposition } from "#shared/session-ledger.ts";
 
@@ -78,7 +79,7 @@ const handleReservationConflict = async (
   // already issued, sold out, price changed) without re-validating or
   // re-refunding. failure_data is encrypted, so this read is async.
   const failure = await parseSessionFailure(existing.failure_data);
-  if (failure) return { ...failure, success: false };
+  if (failure) return { ...sessionAnswerOf(failure), success: false };
   // Otherwise reserved but not finalized — another request is mid-flight.
   return {
     error: "Payment is being processed. Please wait a moment and refresh.",

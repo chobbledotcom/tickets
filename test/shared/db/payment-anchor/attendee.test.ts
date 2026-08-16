@@ -9,6 +9,7 @@ import {
   loadPaymentReference,
   paymentReferenceIndex,
 } from "#shared/db/payment-reference-store.ts";
+import { rowNodeOf } from "#shared/payment/row-machine-spec.ts";
 import { readRowState } from "#shared/payment/row-state.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -114,6 +115,45 @@ describeWithEnv("db > payment anchor > attendee", { db: true }, () => {
       });
 
       await settleAttendeeRows(anchor.settlement);
+      expect(await anchorRows(attendeeId)).toMatchObject([
+        { failure_data: "", protected_state: "" },
+      ]);
+    });
+
+    test("born with returned money, the row holds claim and unrecorded work", async () => {
+      const attendeeId = await makeAttendee();
+      const returnedAt = "2026-08-16T09:00:00.000Z";
+      const prepared = await prepareClaimedAttendeePaymentAnchor(
+        taggedPaymentReference("pi_born_unrecorded"),
+        returnedAt,
+      );
+      const anchor = await prepared.forAttendee(attendeeId);
+      await execute(anchor.statement.sql, anchor.statement.args);
+
+      const [held] = await anchorRows(attendeeId);
+      if (held === undefined || held.failure_data === "") {
+        throw new Error("claimed anchor was not stored");
+      }
+      const state = readRowState(
+        await decrypt(held.failure_data),
+        "born unrecorded test",
+      );
+      expect(rowNodeOf(state)).toBe("claim_unrecorded");
+      expect(state.unrecorded).toEqual({ returnedAt });
+      // The claim outranks the money marker in the one-word mirror.
+      expect(held.protected_state).toBe("claim");
+
+      // Settling with the books recorded clears both pieces of work.
+      await settleAttendeeRows({
+        commandId: anchor.settlement.commandId,
+        heldSince: anchor.settlement.heldSince,
+        rows: new Map([
+          [
+            anchor.sessionId,
+            { books: "recorded", claim: "release", phase: "checking" },
+          ],
+        ]),
+      });
       expect(await anchorRows(attendeeId)).toMatchObject([
         { failure_data: "", protected_state: "" },
       ]);

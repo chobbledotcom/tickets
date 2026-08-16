@@ -95,6 +95,9 @@ const placeholderFailure = (
 const storedFailureOf = (
   failure: PlaceholderFailureResult,
 ): StoredPaymentFailure => ({
+  // The marker tells a replayed delivery to check the follow-up money
+  // records; it is stripped from the answer the caller sees.
+  completion: "placeholder",
   error: failure.error,
   ...(failure.refunded === undefined ? {} : { refunded: failure.refunded }),
   status: failure.status,
@@ -232,12 +235,16 @@ export const storeClaimedPlaceholder = async (config: {
   readonly paymentReference: TaggedPaymentReference;
   readonly sessionFailure: PreparedSessionFailure;
   readonly sessionId: string;
+  /** Set when the money already came back before this store, so the row is
+   * born saying the books have not caught up yet. */
+  readonly unrecordedAt?: string;
 }): Promise<{
   readonly attendeeId: number;
   readonly claimedAnchor: ClaimedPlaceholderAnchor;
 }> => {
   const paymentAnchor = await prepareClaimedAttendeePaymentAnchor(
     config.paymentReference,
+    config.unrecordedAt,
   );
   const anchorWritten = Promise.withResolvers<ClaimedPlaceholderAnchor>();
   const stored = await attendeesApi.createAttendeeAtomic(

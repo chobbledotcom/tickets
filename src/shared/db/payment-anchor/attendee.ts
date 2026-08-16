@@ -27,9 +27,14 @@ export interface PreparedClaimedAttendeePaymentAnchor {
   ) => Promise<ClaimedAttendeePaymentAnchor>;
 }
 
-/** Prepare one payment reference and its destructive-write fence together. */
+/** Prepare one payment reference and its destructive-write fence together.
+ * When the money already came back before this row is born — the rejected
+ * charge flow refunds first — `unrecordedAt` stamps that truth on the row
+ * from its first write, so a crash before the books catch up leaves a state
+ * every scan and route already understands. */
 export const prepareClaimedAttendeePaymentAnchor = async (
   payment: TaggedPaymentReference,
+  unrecordedAt?: string,
 ): Promise<PreparedClaimedAttendeePaymentAnchor> => {
   const { matchingIndexes, stored } = await paymentAnchorReference(payment);
   const matchingIndexSlots = inPlaceholders(matchingIndexes);
@@ -48,7 +53,12 @@ export const prepareClaimedAttendeePaymentAnchor = async (
       heldSince,
     );
     const state = await paymentRowStateValues(
-      grantClaim(EMPTY_ROW_STATE, claim),
+      grantClaim(
+        unrecordedAt === undefined
+          ? EMPTY_ROW_STATE
+          : { unrecorded: { returnedAt: unrecordedAt } },
+        claim,
+      ),
     );
     return {
       sessionId,

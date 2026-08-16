@@ -47,8 +47,10 @@ import { requireValue } from "#shared/required-value.ts";
 /* jscpd:ignore-end */
 
 /** What a later delivery reads back for this session; the buyer answer is
- * the refunded message below. */
+ * the refunded message below. The marker tells a replay to check that the
+ * follow-up money records finished. */
 const STORED_OUTCOME = {
+  completion: "placeholder",
   error: "The payment could not be read, so it was refunded.",
   refunded: true,
   status: 400,
@@ -131,10 +133,12 @@ const storeRejectedTarget = async (
   );
   // The moment the provider finished returning the money — durable on the
   // authority row before the fence, so every delivery posts the same legs.
-  const returnedAtMs = requireValue(
-    completedAtOf(authority.state),
-    `Refunded rejected session ${rejection.sessionId} has a receipt but no completed authority`,
-  );
+  const returnInstant = new Date(
+    requireValue(
+      completedAtOf(authority.state),
+      `Refunded rejected session ${rejection.sessionId} has a receipt but no completed authority`,
+    ),
+  ).toISOString();
   const spec = placeholderRefund("malformed_charge")(
     `Provider reported session ${rejection.sessionId} in a form the site could not read`,
   );
@@ -152,6 +156,9 @@ const storeRejectedTarget = async (
       STORED_OUTCOME,
     ),
     sessionId: rejection.sessionId,
+    // The money is already back, so the row is born saying the books have
+    // not caught up — the truth the completion below clears.
+    unrecordedAt: returnInstant,
   });
   // An owner may have recorded the authority by hand between a failed store
   // and this redelivery; a recorded authority must not be recorded again. A
@@ -163,7 +170,7 @@ const storeRejectedTarget = async (
     attendeeId,
     dueAuthority: returned.local === "due" ? returned.authority : null,
     listingId,
-    occurredAt: new Date(returnedAtMs).toISOString(),
+    occurredAt: returnInstant,
     onLedgerMiss: "throw",
     referenceIndexes: [
       await paymentReferenceIndex(rejectedChargeReference(rejection)),

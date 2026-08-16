@@ -5,6 +5,7 @@ import {
   isEmptyRowState,
   type PaymentRowState,
   readRowState,
+  sessionAnswerOf,
   writeRowState,
 } from "#shared/payment/row-state.ts";
 import { reviewCase } from "#test-utils/payment-claim.ts";
@@ -188,4 +189,27 @@ describe("isEmptyRowState", () => {
       expect(isEmptyRowState(state)).toBe(false);
     });
   }
+});
+
+describe("sessionAnswerOf", () => {
+  test("strips the completion marker and keeps every message field", () => {
+    expect(
+      sessionAnswerOf({
+        completion: "placeholder",
+        error: "The payment could not be read, so it was refunded.",
+        refunded: true,
+        status: 400,
+      }),
+    ).toEqual({
+      error: "The payment could not be read, so it was refunded.",
+      refunded: true,
+      status: 400,
+    });
+  });
+
+  test("an unmarked failure answers unchanged, optional fields absent", () => {
+    expect(sessionAnswerOf({ error: "Sold out." })).toEqual({
+      error: "Sold out.",
+    });
+  });
 });
