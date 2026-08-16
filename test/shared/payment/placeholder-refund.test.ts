@@ -55,8 +55,7 @@ describe("payment > placeholder refund reasons", () => {
       {
         code: "sold_out",
         detail: "d",
-        reason:
-          "an add-on or extra they chose sold out while they were paying",
+        reason: "an add-on or extra they chose sold out while they were paying",
       },
       {
         alert: "payment_session",
@@ -68,14 +67,15 @@ describe("payment > placeholder refund reasons", () => {
   });
 
   test("a spec carries its code, wording, and detail", () => {
-    expect(placeholderRefund("malformed_charge")("session cs_1 unreadable"))
-      .toEqual({
-        alert: "payment_session",
-        code: "malformed_charge",
-        detail: "session cs_1 unreadable",
-        reason:
-          "the provider reported the payment in a form the site could not read",
-      });
+    expect(
+      placeholderRefund("malformed_charge")("session cs_1 unreadable"),
+    ).toEqual({
+      alert: "payment_session",
+      code: "malformed_charge",
+      detail: "session cs_1 unreadable",
+      reason:
+        "the provider reported the payment in a form the site could not read",
+    });
     expect(placeholderRefund("price_changed")("was 500, now 600")).toEqual({
       code: "price_changed",
       detail: "was 500, now 600",
