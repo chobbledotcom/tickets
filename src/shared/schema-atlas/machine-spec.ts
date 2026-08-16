@@ -83,39 +83,62 @@ export type MachineMovesReader<
     tag: string,
   ) => NodeId | "refused";
   readonly plain: (node: NodeId, event: EventId) => NodeId;
+  /** The shape tags a split cell names; empty for plain or absent cells. */
+  readonly splitTags: (node: NodeId, event: EventId) => readonly string[];
+  /** Every node one cell can land on; empty when the cell is absent. */
+  readonly targets: (node: NodeId, event: EventId) => readonly NodeId[];
 };
 
 export const movesIn = <NodeId extends string, EventId extends string>(
   moves: MachineMoves<NodeId, EventId>,
 ): MachineMovesReader<NodeId, EventId> => {
-  const cellOf = (
+  /** Answers one cell by what it holds: absent, a plain node, or a split. */
+  const readCell = <Out>(
     node: NodeId,
     event: EventId,
-  ): ExpectedMove<NodeId> | undefined => moves[node][event];
+    read: {
+      readonly absent: () => Out;
+      readonly plain: (move: NodeId) => Out;
+      readonly split: (move: SplitMove<NodeId>) => Out;
+    },
+  ): Out => {
+    const move: ExpectedMove<NodeId> | undefined = moves[node][event];
+    if (move === undefined) return read.absent();
+    return isSplit(move) ? read.split(move) : read.plain(move);
+  };
+  const refusePlain = (node: NodeId, event: EventId): never => {
+    throw new Error(`${node} × ${event} does not name one plain move`);
+  };
+  // The list readers' shared empty answer: an absent cell names nothing.
+  const none = (): readonly never[] => [];
   return {
-    expected: (node, event, tag) => {
-      const move = cellOf(node, event);
-      if (move === undefined) return "refused";
-      // A tag missing from a split is the declared refusal for that shape.
-      if (isSplit(move)) return move.perRep[tag] ?? "refused";
-      return move;
-    },
-    plain: (node, event) => {
-      const move = cellOf(node, event);
-      if (move === undefined || isSplit(move)) {
-        throw new Error(`${node} × ${event} does not name one plain move`);
-      }
-      return move;
-    },
+    expected: (node, event, tag) =>
+      readCell<NodeId | "refused">(node, event, {
+        absent: () => "refused",
+        plain: (move) => move,
+        // A tag missing from a split is the declared refusal for that shape.
+        split: (move) => move.perRep[tag] ?? "refused",
+      }),
+    plain: (node, event) =>
+      readCell<NodeId>(node, event, {
+        absent: () => refusePlain(node, event),
+        plain: (move) => move,
+        split: () => refusePlain(node, event),
+      }),
+    splitTags: (node, event) =>
+      readCell<readonly string[]>(node, event, {
+        absent: none,
+        plain: none,
+        split: (move) => Object.keys(move.perRep),
+      }),
+    targets: (node, event) =>
+      readCell<readonly NodeId[]>(node, event, {
+        absent: none,
+        plain: (move) => [move],
+        split: (move) => compact(Object.values(move.perRep)),
+      }),
   };
 };
-
-/** Every node one declared cell can land on: the plain target, or each
- * target of a split. */
-export const expectedTargets = <NodeId extends string>(
-  move: ExpectedMove<NodeId>,
-): readonly NodeId[] =>
-  isSplit(move) ? compact(Object.values(move.perRep)) : [move];
 
 type AtlasStateExtras = Parameters<typeof atlasState>[4];
 

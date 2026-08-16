@@ -1,11 +1,10 @@
-/** Shared executors for machine-spec mirror tests: the conformance sweep
- * and the table-shape checks every machine runs the same way. */
+/** Shared executors for machine-spec mirror tests: the conformance sweep,
+ * the table-shape checks, and the exports-drive-the-spec guard every
+ * machine runs the same way. */
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
-  type ExpectedMove,
-  expectedTargets,
   type MachineEvent,
   type MachineMoves,
   type MachineNode,
@@ -20,6 +19,9 @@ export type MachineSpec<
   EventId extends string,
 > = {
   readonly events: readonly MachineEvent<State, EventId>[];
+  /** Laws every successful move must keep, asserted on each swept cell —
+   * e.g. a value that may never change, or a counter that only grows. */
+  readonly invariants?: (source: State, result: State, cell: string) => void;
   readonly moves: MachineMoves<NodeId, EventId>;
   readonly nodeOf: (state: State) => NodeId;
   readonly nodes: readonly MachineNode<State, NodeId>[];
@@ -37,7 +39,9 @@ const checkCell = <State, NodeId extends string, EventId extends string>(
   if (want === "refused") {
     expectRefusal(() => event.run(rep.state), cell);
   } else {
-    expect(spec.nodeOf(event.run(rep.state)), cell).toBe(want);
+    const result = event.run(rep.state);
+    expect(spec.nodeOf(result), cell).toBe(want);
+    spec.invariants?.(rep.state, result, cell);
   }
 };
 
@@ -71,14 +75,11 @@ export const registerConformanceSweep = <
 ): void => {
   for (const node of spec.nodes) {
     test(`${node.id} answers every event for each of its shapes`, () => {
-      let executed = 0;
       for (const event of spec.events) {
         for (const rep of node.reps) {
-          executed++;
           checkCell(spec, node, event, rep);
         }
       }
-      expect(executed).toBe(spec.events.length * node.reps.length);
     });
   }
 };
@@ -91,14 +92,6 @@ export type MachinePins = {
   readonly shapes: number;
 };
 
-const tableEntries = <NodeId extends string, EventId extends string>(
-  moves: MachineMoves<NodeId, EventId>,
-  node: NodeId,
-): readonly [string, ExpectedMove<NodeId>][] =>
-  Object.entries(moves[node]).filter(
-    (entry): entry is [string, ExpectedMove<NodeId>] => entry[1] !== undefined,
-  );
-
 /** Registers the table-shape checks shared by every machine: pinned sizes,
  * shapes sitting on their own node, real targets, and split cells naming
  * only shapes their node has. Call inside a describe. */
@@ -110,6 +103,8 @@ export const registerTableChecks = <
   spec: MachineSpec<State, NodeId, EventId>,
   pins: MachinePins,
 ): void => {
+  const reader = movesIn(spec.moves);
+
   test(`the sweep's size is pinned: ${pins.nodes} nodes × ${pins.events} events over ${pins.shapes} shapes`, () => {
     expect(spec.nodes.length).toBe(pins.nodes);
     expect(spec.events.length).toBe(pins.events);
@@ -136,11 +131,11 @@ export const registerTableChecks = <
     expect(Object.keys(spec.moves).sort()).toEqual([...nodeIds].sort());
     const known = new Set<string>(nodeIds);
     for (const node of spec.nodes) {
-      for (const [eventId, move] of tableEntries(spec.moves, node.id)) {
-        for (const target of expectedTargets(move)) {
+      for (const event of spec.events) {
+        for (const target of reader.targets(node.id, event.id)) {
           expect(
             known.has(target),
-            `${node.id} × ${eventId} -> ${target}`,
+            `${node.id} × ${event.id} -> ${target}`,
           ).toBe(true);
         }
       }
@@ -150,14 +145,53 @@ export const registerTableChecks = <
   test("a split cell names only shapes its node actually has", () => {
     for (const node of spec.nodes) {
       const tags = new Set(node.reps.map(({ tag }) => tag));
-      for (const [eventId, move] of tableEntries(spec.moves, node.id)) {
-        if (typeof move === "string") continue;
-        for (const tag of Object.keys(move.perRep)) {
+      for (const event of spec.events) {
+        for (const tag of reader.splitTags(node.id, event.id)) {
           expect(
             tags.has(tag),
-            `${node.id} × ${eventId} splits on unknown [${tag}]`,
+            `${node.id} × ${event.id} splits on unknown [${tag}]`,
           ).toBe(true);
         }
+      }
+    }
+  });
+};
+
+/** One module whose exports the machine spec must drive: its filename, and
+ * the exports that are deliberately not transitions, each named with the
+ * check that covers it instead. */
+export type DrivenModule = {
+  readonly file: string;
+  readonly notTransitions: Readonly<Record<string, string>>;
+};
+
+/** Registers the guard that keeps a machine spec honest about its surface:
+ * every `export const` of each named module must be imported by the spec
+ * module (an import is a real binding — an unused one fails lint), so a new
+ * transition stays red here until the table models it. Call inside a
+ * describe. */
+export const registerDrivenExportsCheck = (
+  sourceDir: string,
+  specFile: string,
+  modules: readonly DrivenModule[],
+): void => {
+  test("every exported transition drives the machine spec", async () => {
+    const spec = await Deno.readTextFile(`${sourceDir}/${specFile}`);
+    for (const { file, notTransitions } of modules) {
+      const source = await Deno.readTextFile(`${sourceDir}/${file}`);
+      const names = [...source.matchAll(/^export const (\w+)/gm)].map(
+        (match) => match[1]!,
+      );
+      expect(names.length, file).toBeGreaterThan(0);
+      for (const name of names) {
+        if (name in notTransitions) continue;
+        const imported = new RegExp(
+          `import\\s*\\{[^}]*\\b${name}\\b[^}]*\\}\\s*from\\s*"[^"]*/${file}"`,
+        ).test(spec);
+        expect(
+          imported,
+          `${file} exports ${name} but the machine spec never imports it`,
+        ).toBe(true);
       }
     }
   });

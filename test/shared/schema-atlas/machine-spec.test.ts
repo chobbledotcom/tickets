@@ -7,7 +7,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   atlasStatesFromSpec,
-  expectedTargets,
   type MachineEvent,
   machineRep,
   movesIn,
@@ -18,10 +17,11 @@ import {
 type ToyNodeId = "" | "on";
 type ToyEventId = "flip" | "halt";
 
-const resolve = movesIn<ToyNodeId, ToyEventId>({
+const reader = movesIn<ToyNodeId, ToyEventId>({
   "": { flip: "on" },
   on: { flip: { perRep: { lit: "" } }, halt: "on" },
-}).expected;
+});
+const resolve = reader.expected;
 
 describe("the machine-spec framework", () => {
   test("a plain cell names the move for every shape", () => {
@@ -54,12 +54,16 @@ describe("the machine-spec framework", () => {
     expect(() => plain("on", "flip")).toThrow("does not name one plain move");
   });
 
-  test("expectedTargets lists the plain target or every split target", () => {
-    expect(expectedTargets<ToyNodeId>("on")).toEqual(["on"]);
-    expect(expectedTargets<ToyNodeId>({ perRep: { a: "", b: "on" } })).toEqual([
-      "",
-      "on",
-    ]);
+  test("targets lists the plain target, every split target, or nothing", () => {
+    expect(reader.targets("", "flip")).toEqual(["on"]);
+    expect(reader.targets("on", "flip")).toEqual([""]);
+    expect(reader.targets("", "halt")).toEqual([]);
+  });
+
+  test("splitTags names a split's shapes and nothing else", () => {
+    expect(reader.splitTags("on", "flip")).toEqual(["lit"]);
+    expect(reader.splitTags("", "flip")).toEqual([]);
+    expect(reader.splitTags("", "halt")).toEqual([]);
   });
 
   test("machineRep pairs a tag with its stored shape", () => {

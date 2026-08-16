@@ -14,15 +14,25 @@ import {
   REVIEW_EVENTS,
   REVIEW_NODES,
   REVIEW_REASONS,
+  type ReviewSlot,
   reviewNodeOf,
 } from "#shared/payment/review-machine-spec.ts";
 import {
   registerConformanceSweep,
+  registerDrivenExportsCheck,
   registerTableChecks,
 } from "#test/test-utils/machine-spec.ts";
 
 const REVIEW_SPEC = {
   events: REVIEW_EVENTS,
+  // The machine-wide law: a move that keeps a case held (acknowledging)
+  // keeps that exact case — same id, same reason — so an old form can
+  // never end up pointing at a different disagreement.
+  invariants: (source: ReviewSlot, result: ReviewSlot, cell: string): void => {
+    if (source === undefined || result === undefined) return;
+    expect(result.caseId, cell).toBe(source.caseId);
+    expect(result.reason.kind, cell).toBe(source.reason.kind);
+  },
   moves: EXPECTED_MOVES,
   nodeOf: reviewNodeOf,
   nodes: REVIEW_NODES,
@@ -67,28 +77,15 @@ describe("the payment review table", () => {
     expect(REVIEW_EVENTS.filter(({ movesMoney }) => movesMoney)).toEqual([]);
   });
 
-  test("every exported review function drives the machine spec", async () => {
-    // Exports that are not transitions, each named with what covers it.
-    const NOT_TRANSITIONS: Readonly<Record<string, string>> = {
-      PaymentReviewCaseSchema:
-        "the stored shape — validated where cases are read and written",
-      PaymentReviewReasonSchema:
-        "the reason shape — validated where cases are read and written",
-    };
-    const spec = await Deno.readTextFile(
-      join(paymentSourceDir, "review-machine-spec.ts"),
-    );
-    const source = await Deno.readTextFile(join(paymentSourceDir, "review.ts"));
-    const names = [...source.matchAll(/^export const (\w+)/gm)].map(
-      (match) => match[1]!,
-    );
-    expect(names.length).toBeGreaterThan(0);
-    for (const name of names) {
-      if (name in NOT_TRANSITIONS) continue;
-      expect(
-        spec.includes(name),
-        `review.ts exports ${name} but the machine spec never drives it`,
-      ).toBe(true);
-    }
-  });
+  registerDrivenExportsCheck(paymentSourceDir, "review-machine-spec.ts", [
+    {
+      file: "review.ts",
+      notTransitions: {
+        PaymentReviewCaseSchema:
+          "the stored shape — validated where cases are read and written",
+        PaymentReviewReasonSchema:
+          "the reason shape — validated where cases are read and written",
+      },
+    },
+  ]);
 });

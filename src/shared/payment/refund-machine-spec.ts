@@ -511,7 +511,7 @@ export const REFUND_MOVES: MachineMovesReader<RefundNodeId, RefundEventId> =
   movesIn(EXPECTED_MOVES);
 
 /** The map event each owner choice fires. */
-export const OWNER_EVENT_FOR = {
+const OWNER_EVENT_FOR = {
   provider_confirmed_not_sent: "owner_confirms_not_sent",
   provider_confirmed_returned: "owner_confirms_returned",
 } as const satisfies Record<RefundOwnerChoiceName, RefundEventId>;

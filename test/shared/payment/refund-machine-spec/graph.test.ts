@@ -10,7 +10,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import { refundLifecycleFor } from "#shared/payment/refund-authority-lifecycle.ts";
 import type { RefundAuthorityState } from "#shared/payment/refund-authority-state.ts";
 import {
-  EXPECTED_MOVES,
   REFUND_EVENTS,
   REFUND_MOVES,
   REFUND_NODES,
@@ -20,10 +19,6 @@ import {
   type RefundNodeId,
   refundNodeOf,
 } from "#shared/payment/refund-machine-spec.ts";
-import {
-  type ExpectedMove,
-  expectedTargets,
-} from "#shared/schema-atlas/machine-spec.ts";
 import type { AtlasActor } from "#shared/schema-atlas/types.ts";
 
 const ALL_ACTORS: readonly AtlasActor[] = ["owner", "provider", "system"];
@@ -47,11 +42,7 @@ const successors = (
   actors: readonly AtlasActor[],
 ): readonly RefundNodeId[] =>
   REFUND_EVENTS.filter((event) => actors.includes(event.actor)).flatMap(
-    (event) => {
-      const move: ExpectedMove<RefundNodeId> | undefined =
-        EXPECTED_MOVES[from][event.id];
-      return move === undefined ? [] : expectedTargets(move);
-    },
+    (event) => REFUND_MOVES.targets(from, event.id),
   );
 
 /** Every node the table lets a record reach from `start`, for the given
@@ -219,6 +210,23 @@ describe("the refund machine graph", () => {
     // check's 4 events × 3 shapes, choice_open's 6 × 4, and one owner exit
     // for each of the 3 shapes behind the two settled decisions.
     expect(checkedExits).toBe(12 + 24 + 3 + 3);
+  });
+
+  test("every shape of a blocking node has its own way out", () => {
+    // The union graph cannot see a strand that hits only one capability:
+    // if every exit from a node were split away from one shape, that shape
+    // would wait forever while the node as a whole looked alive.
+    for (const node of REFUND_NODES.filter(blocksDelete)) {
+      for (const { tag } of node.reps) {
+        const exits = REFUND_EVENTS.filter((event) => {
+          const target = REFUND_MOVES.expected(node.id, event.id, tag);
+          return target !== "refused" && target !== node.id;
+        });
+        expect(exits.length, `${node.id} [${tag}] is stranded`).toBeGreaterThan(
+          0,
+        );
+      }
+    }
   });
 
   test("every blocking node's declared clearer drives a declared exit", () => {
