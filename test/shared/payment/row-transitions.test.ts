@@ -6,6 +6,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { openPaymentReview } from "#shared/payment/review.ts";
+import type { PaymentRowState } from "#shared/payment/row-state.ts";
 import {
   checkingClaimFor,
   claimHeldBy,
@@ -14,7 +15,6 @@ import {
   settledRowState,
   withOutcome,
 } from "#shared/payment/row-transitions.ts";
-import type { PaymentRowState } from "#shared/payment/row-state.ts";
 
 const COMMAND = "row-transitions-command";
 const HELD_SINCE = "2026-08-16T10:00:00.000Z";
@@ -117,7 +117,10 @@ describe("payment > row transitions", () => {
     expect(
       settledRowState(
         state,
-        { ...release, review: { kind: "resolved", reason: "shared_reference" } },
+        {
+          ...release,
+          review: { kind: "resolved", reason: "shared_reference" },
+        },
         HELD,
         "x",
       ),
@@ -129,7 +132,10 @@ describe("payment > row transitions", () => {
     expect(
       settledRowState(
         claimed({ review }),
-        { ...release, review: { kind: "resolved", reason: "shared_reference" } },
+        {
+          ...release,
+          review: { kind: "resolved", reason: "shared_reference" },
+        },
         HELD,
         "x",
       ),

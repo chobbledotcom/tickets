@@ -1,0 +1,248 @@
+/** Whole-machine properties computed over the declared row table: every
+ * node reachable, every live node able to come free, the one clearer
+ * really dropping each kind of work, the terminal outcome sealed off from
+ * live work, and the lifecycle's words — mirror, status, refusals —
+ * proven for every stored shape rather than a hand-picked few. */
+
+import { expect } from "@std/expect";
+import { describe, it as test } from "@std/testing/bdd";
+import {
+  mirroredMoveRefusalOrNull,
+  mirrorFor,
+  PAYMENT_ROW_LIFECYCLE,
+  type PaymentWork,
+  paymentWorkFor,
+  paymentWorkForMirrors,
+} from "#shared/payment/admit-move.ts";
+import {
+  ROW_EVENTS,
+  ROW_MOVES,
+  ROW_NODES,
+  type RowNode,
+  type RowNodeId,
+} from "#shared/payment/row-machine-spec.ts";
+
+const nodeById = (id: RowNodeId): RowNode => {
+  const node = ROW_NODES.find((candidate) => candidate.id === id);
+  if (node === undefined) throw new Error(`Unknown row node ${id}`);
+  return node;
+};
+
+/** Every node one declared step away from `from`. */
+const successors = (from: RowNodeId): readonly RowNodeId[] =>
+  ROW_EVENTS.flatMap((event) => ROW_MOVES.targets(from, event.id));
+
+/** Every node the table lets a row reach from `start`. */
+const reachableFrom = (start: RowNodeId): Set<RowNodeId> => {
+  const seen = new Set<RowNodeId>([start]);
+  const queue: RowNodeId[] = [start];
+  for (let index = 0; index < queue.length; index++) {
+    for (const next of successors(queue[index]!)) {
+      if (!seen.has(next)) {
+        seen.add(next);
+        queue.push(next);
+      }
+    }
+  }
+  return seen;
+};
+
+const LIVE_NODES = ROW_NODES.filter(
+  ({ id }) => id !== "free" && id !== "settled",
+);
+
+/** The lifecycle's words for each node, asserted for every shape below.
+ * Refusal sentences come from the table itself, so the words the operator
+ * reads are the words the machine proves. */
+const NODE_FACTS: Readonly<
+  Record<
+    RowNodeId,
+    {
+      readonly mirror: string;
+      readonly refusals: {
+        readonly delete: string | null;
+        readonly merge: string | null;
+      };
+      readonly work: PaymentWork;
+    }
+  >
+> = {
+  claim: {
+    mirror: "claim",
+    refusals: {
+      delete: PAYMENT_ROW_LIFECYCLE.claim.refusal,
+      merge: PAYMENT_ROW_LIFECYCLE.claim.refusal,
+    },
+    work: { recoveryAction: "refresh-payment", status: "moving" },
+  },
+  claim_review: {
+    mirror: "claim",
+    refusals: {
+      delete: PAYMENT_ROW_LIFECYCLE.claim.refusal,
+      merge: PAYMENT_ROW_LIFECYCLE.claim.refusal,
+    },
+    work: { recoveryAction: "refresh-payment", status: "moving" },
+  },
+  claim_review_unrecorded: {
+    mirror: "claim",
+    refusals: {
+      delete: PAYMENT_ROW_LIFECYCLE.claim.refusal,
+      merge: PAYMENT_ROW_LIFECYCLE.claim.refusal,
+    },
+    work: { recoveryAction: "refresh-payment", status: "moving" },
+  },
+  claim_unrecorded: {
+    mirror: "claim",
+    refusals: {
+      delete: PAYMENT_ROW_LIFECYCLE.claim.refusal,
+      merge: PAYMENT_ROW_LIFECYCLE.claim.refusal,
+    },
+    work: { recoveryAction: "refresh-payment", status: "moving" },
+  },
+  free: {
+    mirror: "",
+    refusals: { delete: null, merge: null },
+    work: { recoveryAction: null, status: "clear" },
+  },
+  review: {
+    mirror: "review",
+    refusals: {
+      delete: PAYMENT_ROW_LIFECYCLE.review.refusal,
+      merge: null,
+    },
+    work: { recoveryAction: "payment-review", status: "needs_review" },
+  },
+  review_unrecorded: {
+    mirror: "review",
+    refusals: {
+      delete: PAYMENT_ROW_LIFECYCLE.review.refusal,
+      merge: null,
+    },
+    work: { recoveryAction: "payment-review", status: "needs_review" },
+  },
+  settled: {
+    mirror: "",
+    refusals: { delete: null, merge: null },
+    work: { recoveryAction: null, status: "clear" },
+  },
+  unrecorded: {
+    mirror: "unrecorded",
+    refusals: {
+      delete: PAYMENT_ROW_LIFECYCLE.unrecorded.refusal,
+      merge: null,
+    },
+    work: { recoveryAction: "refresh-payment", status: "needs_money_record" },
+  },
+};
+
+describe("the payment row graph", () => {
+  test("every node is reachable from free", () => {
+    expect([...reachableFrom("free")].sort()).toEqual(
+      ROW_NODES.map(({ id }) => id).sort(),
+    );
+  });
+
+  test("every live node can come free", () => {
+    for (const node of LIVE_NODES) {
+      expect(reachableFrom(node.id).has("free"), `${node.id} cannot end`).toBe(
+        true,
+      );
+    }
+  });
+
+  test("every shape of a live node has its own way out", () => {
+    for (const node of LIVE_NODES) {
+      for (const { tag } of node.reps) {
+        const hasExit = ROW_EVENTS.some(
+          (event) => ROW_MOVES.expected(node.id, event.id, tag) !== "refused",
+        );
+        expect(hasExit, `${node.id} [${tag}] is stranded`).toBe(true);
+      }
+    }
+  });
+
+  test("the one clearer drops each kind of work from every node holding it", () => {
+    for (const [field, entry] of Object.entries(PAYMENT_ROW_LIFECYCLE)) {
+      expect(entry.clearedBy, field).toBe("settleAttendeeRows");
+      for (const node of ROW_NODES) {
+        if (!node.reps.some(({ state }) => entry.found(state))) continue;
+        if (node.id.startsWith("claim")) {
+          // Held: some settlement must land where the work is gone.
+          const drops = ROW_EVENTS.some(
+            (event) =>
+              event.id.startsWith("settle_") &&
+              node.reps.some(({ tag }) => {
+                const target = ROW_MOVES.expected(node.id, event.id, tag);
+                if (target === "refused") return false;
+                return nodeById(target).reps.every(
+                  ({ state }) => !entry.found(state),
+                );
+              }),
+          );
+          expect(drops, `${field} never drops from ${node.id}`).toBe(true);
+        } else {
+          // Claimless: the hold must go on first, and the work must still
+          // be there when it does — the settle then drops it (proved by
+          // the held branch above and the liveness walk).
+          const target = ROW_MOVES.plain(node.id, "claim_granted");
+          expect(
+            nodeById(target).reps.some(({ state }) => entry.found(state)),
+            `${field} is lost taking the hold on ${node.id}`,
+          ).toBe(true);
+        }
+      }
+    }
+  });
+
+  test("a terminal outcome is sealed off from live work", () => {
+    for (const node of LIVE_NODES) {
+      for (const { tag } of node.reps) {
+        expect(
+          ROW_MOVES.expected(node.id, "write_outcome", tag),
+          `${node.id} [${tag}] must refuse a terminal outcome`,
+        ).toBe("refused");
+      }
+    }
+    for (const node of ROW_NODES) {
+      for (const event of ROW_EVENTS) {
+        for (const { tag } of node.reps) {
+          const target = ROW_MOVES.expected(node.id, event.id, tag);
+          if (target !== "settled") continue;
+          expect(event.id, `${node.id} × ${event.id} lands on settled`).toBe(
+            "write_outcome",
+          );
+        }
+      }
+    }
+  });
+
+  test("the lifecycle's words hold for every stored shape", () => {
+    for (const node of ROW_NODES) {
+      const facts = NODE_FACTS[node.id];
+      for (const { state, tag } of node.reps) {
+        const cell = `${node.id} [${tag}]`;
+        expect(mirrorFor(state), cell).toBe(facts.mirror);
+        expect(paymentWorkFor([state]), cell).toEqual(facts.work);
+        for (const move of ["delete", "merge"] as const) {
+          expect(
+            mirroredMoveRefusalOrNull([mirrorFor(state)], move),
+            `${cell} ${move}`,
+          ).toBe(facts.refusals[move]);
+        }
+      }
+    }
+  });
+
+  test("the words and the stored record always agree", () => {
+    for (const node of ROW_NODES) {
+      for (const { state, tag } of node.reps) {
+        for (const providerWork of [false, true]) {
+          expect(
+            paymentWorkFor([state], providerWork),
+            `${node.id} [${tag}] provider=${providerWork}`,
+          ).toEqual(paymentWorkForMirrors([mirrorFor(state)], providerWork));
+        }
+      }
+    }
+  });
+});
