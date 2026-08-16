@@ -49,6 +49,8 @@
   "privacy.refunds.provider": "Payment provider",
   "privacy.refunds.reference": "Provider reference",
   "privacy.refunds.amount": "Amount",
+  "privacy.refunds.returned_amount": "Provider returned",
+  "privacy.refunds.not_returned_amount": "Not returned",
   "privacy.refunds.reason": "Why this needs attention",
   "privacy.refunds.reason.possibly_sent": "The provider may have received the refund, but the site could not prove what happened.",
   "privacy.refunds.reason.provider_conflict": "The provider shows conflicting refund information, so the site cannot safely decide whether money was returned or another refund may be sent.",

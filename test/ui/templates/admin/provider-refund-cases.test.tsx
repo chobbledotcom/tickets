@@ -24,6 +24,7 @@ const queue: ProviderRefundCasePage = {
       captured,
       id: 17,
       provider: "sumup",
+      refunded: money(0, "GBP")!,
       revision: 4,
       state: "needs_owner_choice",
       updatedAt: Date.UTC(2026, 7, 13, 10, 30),
@@ -93,6 +94,52 @@ describe("provider refund recovery templates", () => {
     expect(html).not.toContain("checked");
   });
 
+  test("shows the returned part and the missing part before an owner acts", () => {
+    const partialCase: ProviderRefundCase = {
+      ...detail,
+      captured: money(2_500, "GBP")!,
+      choices: ["provider_confirmed_returned"],
+      decision: {
+        captured: money(2_500, "GBP")!,
+        kind: "returned",
+        refunded: money(400, "GBP")!,
+      },
+      reason: "provider_conflict",
+      refunded: money(400, "GBP")!,
+      state: "needs_owner_choice",
+    };
+    const awaitingMoney: ProviderRefundCase = {
+      ...automaticCase("completed"),
+      refunded: money(400, "GBP")!,
+    };
+
+    for (const [name, html] of [
+      [
+        "the returned choice",
+        adminProviderRefundCasePage(OWNER_SESSION, partialCase, {}),
+      ],
+      [
+        "the Money attestation",
+        adminProviderRefundCasePage(OWNER_SESSION, awaitingMoney, {}),
+      ],
+    ] as const) {
+      expect(html, name).toContain("£25 GBP");
+      expect(html, name).toContain("Provider returned");
+      expect(html, name).toContain("£4 GBP");
+      expect(html, name).toContain("Not returned");
+      expect(html, name).toContain("£21 GBP");
+    }
+
+    const nothingReturned = adminProviderRefundCasePage(
+      OWNER_SESSION,
+      detail,
+      {},
+    );
+    expect(nothingReturned).toContain("£25 GBP");
+    expect(nothingReturned).not.toContain("Provider returned");
+    expect(nothingReturned).not.toContain("Not returned");
+  });
+
   test("separates a partial provider check from conclusive owner choices", () => {
     const partial = adminProviderRefundCasePage(
       OWNER_SESSION,
@@ -112,6 +159,7 @@ describe("provider refund recovery templates", () => {
         choices: ["provider_confirmed_returned"],
         decision: { captured, kind: "returned", refunded: captured },
         reason: "provider_conflict",
+        refunded: captured,
         state: "needs_owner_choice",
       },
       {},
@@ -138,6 +186,8 @@ describe("provider refund recovery templates", () => {
     expect(partial).not.toContain('type="radio"');
     expect(returned).toContain('value="provider_confirmed_returned"');
     expect(returned).not.toContain('value="provider_confirmed_not_sent"');
+    expect(returned).toContain("Provider returned");
+    expect(returned).not.toContain("Not returned");
     expect(notSent).toContain('value="provider_confirmed_not_sent"');
     expect(notSent).not.toContain('value="provider_confirmed_returned"');
   });
@@ -165,6 +215,7 @@ describe("provider refund recovery templates", () => {
     const yenCase = {
       ...detail,
       captured: money(1_000, "JPY")!,
+      refunded: money(0, "JPY")!,
     };
 
     const queueHtml = String(

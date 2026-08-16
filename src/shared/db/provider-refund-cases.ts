@@ -38,6 +38,7 @@ export interface ProviderRefundCaseSummary {
   readonly captured: Money;
   readonly id: number;
   readonly provider: PaymentProviderType;
+  readonly refunded: Money;
   readonly revision: number;
   readonly state: ProviderRefundCaseState;
   readonly updatedAt: number;
@@ -102,6 +103,7 @@ interface SummaryRow {
   readonly currency: string;
   readonly id: Whole;
   readonly provider: string;
+  readonly refunded_amount: Whole;
   readonly revision: Whole;
   readonly state: ProviderRefundCaseState;
   readonly updated_at: Whole;
@@ -141,10 +143,15 @@ export const providerRefundCaseSummary = (
   if (captured === null) {
     throw new Error("payment_charges captured money is invalid");
   }
+  const refunded = money(row.refunded_amount, row.currency);
+  if (refunded === null) {
+    throw new Error("payment_charges refunded money is invalid");
+  }
   return {
     captured,
     id: refundCaseWholeNumber(row.id, "id", 1),
     provider: providerFrom(row.provider),
+    refunded,
     revision: refundCaseWholeNumber(row.revision, "refund_revision", 1),
     state: row.state,
     updatedAt: refundCaseWholeNumber(row.updated_at, "updated_at", 0),
@@ -204,6 +211,7 @@ export const listProviderRefundCases = async (
             charge.provider,
             charge.captured_amount,
             charge.currency,
+            charge.refunded_amount,
             charge.refund_revision AS revision,
             charge.refund_state_name AS state,
             charge.updated_at
@@ -233,6 +241,7 @@ const detailRow = (id: number): Promise<StoredProviderRefundCase | null> =>
             charge.capability,
             charge.captured_amount,
             charge.currency,
+            charge.refunded_amount,
             charge.refund_state,
             charge.refund_state_name AS state,
             charge.refund_local_state,
@@ -240,7 +249,7 @@ const detailRow = (id: number): Promise<StoredProviderRefundCase | null> =>
             charge.updated_at
        FROM payment_charges AS charge
       WHERE charge.id = ?
-        AND ${CASE_SQL}
+         AND ${CASE_SQL}
       LIMIT 1`,
     [id],
   );

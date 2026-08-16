@@ -18,7 +18,6 @@ import {
   type StoredProviderRefundCase,
 } from "#shared/db/provider-refund-cases.ts";
 import { nowMs } from "#shared/now.ts";
-import { money } from "#shared/payment/money.ts";
 import { markRefundLocalRecorded } from "#shared/payment/refund-authority.ts";
 import {
   type RefundOwnerChoice,
@@ -178,15 +177,11 @@ const resolveInTransaction = async (
     return "changed";
   }
   const summary = providerRefundCaseSummary(row);
-  const refunded = money(row.refunded_amount, row.currency);
-  if (refunded === null) {
-    throw new Error("payment_charges refunded money is invalid");
-  }
   const authority: RefundAuthorityVersion = {
     captured: summary.captured,
     id: summary.id,
     referenceIndex: row.reference_index,
-    refunded,
+    refunded: summary.refunded,
     revision,
     state,
   };

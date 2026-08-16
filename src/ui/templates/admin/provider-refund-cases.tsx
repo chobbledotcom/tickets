@@ -49,11 +49,35 @@ const STATE_EXPLANATIONS = {
 const stateLabel = (state: ProviderRefundCase["state"]): string =>
   t(STATE_LABELS[state]);
 
-const capturedAmount = ({
+const formattedMoney = ({
   amount,
   currency,
 }: ProviderRefundCase["captured"]): string =>
   `${formatCurrency(amount, currency)} ${currency}`;
+
+/** The money an owner needs in view before acting: the capture, what the
+ * provider returned, and — when only part came back — the part that did not. */
+const detailMoneyRows = (
+  refundCase: ProviderRefundCase,
+): readonly (readonly [string, ProviderRefundCase["captured"]])[] => {
+  const rows: (readonly [string, ProviderRefundCase["captured"]])[] = [
+    ["privacy.refunds.amount", refundCase.captured],
+  ];
+  if (refundCase.refunded.amount > 0) {
+    rows.push(["privacy.refunds.returned_amount", refundCase.refunded]);
+    const notReturned = refundCase.captured.amount - refundCase.refunded.amount;
+    if (notReturned > 0) {
+      rows.push([
+        "privacy.refunds.not_returned_amount",
+        {
+          amount: notReturned,
+          currency: refundCase.captured.currency,
+        },
+      ]);
+    }
+  }
+  return rows;
+};
 
 /** The bounded refund-recovery queue. Its rows contain no reversible payment
  * reference, so rendering this list never needs the owner's private key. */
@@ -70,7 +94,7 @@ export const ProviderRefundCaseQueue = ({
         {page.cases.map((refundCase) => (
           <li>
             <strong>{PAYMENT_PROVIDERS[refundCase.provider].label}</strong>
-            {` · ${capturedAmount(refundCase.captured)}`}
+            {` · ${formattedMoney(refundCase.captured)}`}
             {` · ${stateLabel(refundCase.state)} · `}
             <WritableLink href={`${CASE_PATH}/${refundCase.id}`}>
               {t("privacy.refunds.open", { id: refundCase.id })}
@@ -243,8 +267,12 @@ export const adminProviderRefundCasePage = (
           <dd>{PAYMENT_PROVIDERS[refundCase.provider].label}</dd>
           <dt>{t("privacy.refunds.reference")}</dt>
           <dd>{refundCase.reference.reference}</dd>
-          <dt>{t("privacy.refunds.amount")}</dt>
-          <dd>{capturedAmount(refundCase.captured)}</dd>
+          {detailMoneyRows(refundCase).map(([label, value]) => (
+            <>
+              <dt>{t(label)}</dt>
+              <dd>{formattedMoney(value)}</dd>
+            </>
+          ))}
           <dt>{t("common.status")}</dt>
           <dd>{stateLabel(refundCase.state)}</dd>
           {refundCase.reason !== null && (

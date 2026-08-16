@@ -281,10 +281,15 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
 
     // A settled partial return is an owner decision: the page offers only
     // "returned" — "not sent" would forget the money that did come back.
+    // The money the choice attests is in view before the owner acts.
     const page = await adminGet(refundCasePath(id));
     const html = await page.text();
     expect(html).toContain('value="provider_confirmed_returned"');
     expect(html).not.toContain('value="provider_confirmed_not_sent"');
+    expect(html).toContain("Provider returned");
+    expect(html).toContain("£4 GBP");
+    expect(html).toContain("Not returned");
+    expect(html).toContain("£21 GBP");
 
     const refuse = async (body: Record<string, string>): Promise<void> => {
       await expectFlashRedirect(
