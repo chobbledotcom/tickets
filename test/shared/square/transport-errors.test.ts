@@ -1,6 +1,8 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { FakeTime } from "@std/testing/time";
 import { settings } from "#shared/db/settings.ts";
+import { PROVIDER_TIMEOUT_MS } from "#shared/payment/provider-timeout.ts";
 import { squareApi } from "#shared/square/api.ts";
 import {
   SquareApiError,
@@ -186,5 +188,23 @@ describeSquare(() => {
         expect((error as Error).message).not.toContain(privateDetail);
       });
     }
+
+    test("gives up on a provider that never answers", async () => {
+      using time = new FakeTime();
+      const hangs = (...args: unknown[]): Promise<unknown> =>
+        new Promise((_resolve, reject) => {
+          const signal = (args[1] as RequestInit | undefined)?.signal;
+          signal?.addEventListener("abort", () => {
+            reject(signal.reason);
+          });
+        });
+      installMockFetch(hangs);
+      const pending = squareApi.readPayment("pay_hang");
+      await time.tickAsync(PROVIDER_TIMEOUT_MS);
+      expect(await pending).toEqual({
+        reason: "timeout",
+        status: "unavailable",
+      });
+    });
   });
 });

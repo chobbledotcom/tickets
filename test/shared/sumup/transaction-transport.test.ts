@@ -1,5 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
+import { FakeTime } from "@std/testing/time";
+import { PROVIDER_TIMEOUT_MS } from "#shared/payment/provider-timeout.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { setupSumupSuite } from "#test-utils/sumup.ts";
@@ -142,5 +145,22 @@ describe("sumup transaction transport", () => {
       kind: "uncertain",
       reason: "provider_error",
     });
+  });
+
+  test("gives up on a provider that never answers", async () => {
+    using time = new FakeTime();
+    using _hangs = stub(
+      globalThis,
+      "fetch",
+      (_input: unknown, init?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            reject(init.signal!.reason);
+          });
+        }),
+    );
+    const pending = sumupApi.refundTransaction("txn");
+    await time.tickAsync(PROVIDER_TIMEOUT_MS);
+    expect(await pending).toEqual({ kind: "uncertain", reason: "timeout" });
   });
 });

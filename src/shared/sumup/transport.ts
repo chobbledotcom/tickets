@@ -1,4 +1,5 @@
 import { fetchText } from "#shared/fetch.ts";
+import { PROVIDER_TIMEOUT_MS } from "#shared/payment/provider-timeout.ts";
 import { readJson } from "#shared/read-json.ts";
 
 const SUMUP_API_BASE = "https://api.sumup.com";
@@ -45,6 +46,7 @@ const sumupRequest = async (
       "Content-Type": "application/json",
     },
     method,
+    signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
   });
   if (!response.ok) throw new SumupApiError(response.status);
   return response.text;

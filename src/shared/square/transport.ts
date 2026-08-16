@@ -4,6 +4,7 @@ import { isNotNullish } from "#fp";
 import { type FetchResult, fetchText } from "#shared/fetch.ts";
 import { isAbortOrTimeoutError } from "#shared/named-error.ts";
 import type { ProviderUnavailableReason } from "#shared/payment/provider-read.ts";
+import { PROVIDER_TIMEOUT_MS } from "#shared/payment/provider-timeout.ts";
 /* jscpd:ignore-end */
 
 /** Square API version for all requests. */
@@ -125,7 +126,10 @@ const fetchSquareResponse = async (
   init: ReturnType<typeof squareRequestInit>,
 ): Promise<FetchResult> => {
   try {
-    return await fetchText(url, init);
+    return await fetchText(url, {
+      ...init,
+      signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+    });
   } catch (error) {
     const reason = squareConnectionReason(error);
     if (!reason) throw error;

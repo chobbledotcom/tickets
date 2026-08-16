@@ -5,6 +5,7 @@ import {
   checkoutFailure,
   type ProviderCheckoutError,
 } from "#shared/payment/checkout-failure.ts";
+import { PROVIDER_TIMEOUT_MS } from "#shared/payment/provider-timeout.ts";
 import {
   cachedClientFactory,
   createWithClient,
@@ -13,7 +14,6 @@ import { createStripeClient, type StripeClient } from "./client.ts";
 import { stripeMock } from "./mock.ts";
 import {
   STRIPE_MAX_NETWORK_RETRIES,
-  STRIPE_TIMEOUT_MS,
   StripeApiError,
   type StripeClientConfig,
   StripeConnectionError,
@@ -49,7 +49,7 @@ export const sanitizeStripeError = (error: unknown): string => {
 
 const PRODUCTION_CONFIG = {
   maxNetworkRetries: STRIPE_MAX_NETWORK_RETRIES,
-  timeout: STRIPE_TIMEOUT_MS,
+  timeout: PROVIDER_TIMEOUT_MS,
 } satisfies StripeClientConfig;
 
 interface StripeRuntimeConfig {

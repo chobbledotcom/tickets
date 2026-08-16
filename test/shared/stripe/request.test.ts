@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { PROVIDER_TIMEOUT_MS } from "#shared/payment/provider-timeout.ts";
 import { REFUND_NETWORK_RETRIES } from "#shared/payment/refund-network.ts";
 import {
   createStripeClient,
@@ -8,7 +9,6 @@ import {
 import {
   STRIPE_API_VERSION,
   STRIPE_MAX_NETWORK_RETRIES,
-  STRIPE_TIMEOUT_MS,
 } from "#shared/stripe/request.ts";
 import {
   getSubrequestUsage,
@@ -82,7 +82,7 @@ const expectTwoCountedCheckoutAttempts = async (
 describe("Stripe request transport", () => {
   test("keeps the production timeout and retry limits explicit", () => {
     expect(STRIPE_API_VERSION).toBe("2026-04-22.dahlia");
-    expect(STRIPE_TIMEOUT_MS).toBe(20_000);
+    expect(PROVIDER_TIMEOUT_MS).toBe(20_000);
     expect(STRIPE_MAX_NETWORK_RETRIES).toBe(2);
     expect(REFUND_NETWORK_RETRIES.stripe).toBe(0);
   });

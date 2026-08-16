@@ -5,12 +5,12 @@ import {
   namedError,
 } from "#shared/named-error.ts";
 import { delay } from "#shared/now.ts";
+import { PROVIDER_TIMEOUT_MS } from "#shared/payment/provider-timeout.ts";
 import { countExternalSubrequest } from "#shared/subrequest-budget.ts";
 import { encodeStripeForm, type StripeFormValue } from "./form.ts";
 import { parseStripeErrorBody } from "./schemas.ts";
 
 export const STRIPE_API_VERSION = "2026-04-22.dahlia";
-export const STRIPE_TIMEOUT_MS = 20_000;
 export const STRIPE_MAX_NETWORK_RETRIES = 2;
 
 const STRIPE_API_URL = "https://api.stripe.com";
@@ -267,7 +267,7 @@ const fullConfig = (
     maxNetworkRetries = STRIPE_MAX_NETWORK_RETRIES,
     random = Math.random,
     sleep: sleepImpl = delay,
-    timeout = STRIPE_TIMEOUT_MS,
+    timeout = PROVIDER_TIMEOUT_MS,
   }: StripeClientConfig,
 ): RequestConfig => ({
   apiBase,
