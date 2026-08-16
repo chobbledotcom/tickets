@@ -17,21 +17,21 @@ import { completedStripeRefund } from "#test/test-utils/stripe/fixtures.ts";
 import { signedMeta } from "#test-utils/factories.ts";
 import { foundStripeIntent } from "#test-utils/stripe/responses.ts";
 
-/** Run `body` with Stripe as the provider a refund resolves to. The key has
- *  to be there as well as the choice: an existing payment is only refunded
- *  through a provider this site still holds credentials for. */
+/** Run `body` with the site configured for `selected` payments — the real
+ *  settings value the configured-provider read consults — while holding the
+ *  Stripe key an existing Stripe payment's refund still needs. */
 export const withProviderSelected = async <T>(
   selected: PaymentProviderType,
   body: () => Promise<T>,
 ): Promise<T> => {
-  const original = paymentsApi.getConfiguredProvider;
-  paymentsApi.getConfiguredProvider = () => selected;
-  settings.setForTest({ stripe_secret_key: "sk_test_rejected_charge" });
+  settings.setForTest({
+    payment_provider: selected,
+    stripe_secret_key: "sk_test_rejected_charge",
+  });
   try {
     return await body();
   } finally {
     settings.clearTestOverrides();
-    paymentsApi.getConfiguredProvider = original;
   }
 };
 

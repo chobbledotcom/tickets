@@ -28,6 +28,7 @@ import {
   settledRowState,
   withOutcome,
 } from "#shared/payment/row-transitions.ts";
+import { requireValue } from "#shared/required-value.ts";
 import {
   type MachineEvent,
   type MachineMoves,
@@ -129,15 +130,13 @@ const OPEN_A = {
 const reviewOpen = settle(held({}), OPEN_A);
 /** The same row after the owner saw its case — written the way the
  * acknowledge route writes it. */
-const seenReview = (state: PaymentRowState): PaymentRowState => {
-  if (state.review === undefined) {
-    throw new Error("Spec fixture expected a review on the row");
-  }
-  return {
-    ...state,
-    review: acknowledgePaymentReview(state.review, SEEN_AT),
-  };
-};
+const seenReview = (state: PaymentRowState): PaymentRowState => ({
+  ...state,
+  review: acknowledgePaymentReview(
+    requireValue(state.review, "Spec fixture expected a review on the row"),
+    SEEN_AT,
+  ),
+});
 const reviewSeen = seenReview(reviewOpen);
 const unrecordedOnly = settle(held({}), { books: "unrecorded" });
 const reviewUnrecordedOpen = settle(held(reviewOpen), { books: "unrecorded" });
