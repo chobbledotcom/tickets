@@ -143,6 +143,7 @@ const storeRejectedTarget = async (
     `Provider reported session ${rejection.sessionId} in a form the site could not read`,
   );
   const listingId = intent.items[0]!.e;
+  const paymentReference = rejectedChargeReference(rejection);
   const { attendeeId, claimedAnchor } = await storeClaimedPlaceholder({
     bookings: datelessGhostBookings(intent.items),
     fields: attendeeBaseFields(
@@ -150,7 +151,7 @@ const storeRejectedTarget = async (
       intent,
       await requirePublicStatusId(),
     ),
-    paymentReference: rejectedChargeReference(rejection),
+    paymentReference,
     sessionFailure: await prepareSessionFailure(
       rejection.sessionId,
       STORED_OUTCOME,
@@ -172,9 +173,7 @@ const storeRejectedTarget = async (
     listingId,
     occurredAt: returnInstant,
     onLedgerMiss: "throw",
-    referenceIndexes: [
-      await paymentReferenceIndex(rejectedChargeReference(rejection)),
-    ],
+    referenceIndexes: [await paymentReferenceIndex(paymentReference)],
     sessionId: rejection.sessionId,
     settlement: claimedAnchor.settlement,
     spec,

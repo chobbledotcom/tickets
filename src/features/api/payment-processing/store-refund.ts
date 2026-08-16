@@ -53,7 +53,10 @@ import {
   type RefundCode,
 } from "#shared/payment/placeholder-refund.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
-import type { StoredPaymentFailure } from "#shared/payment/row-state.ts";
+import {
+  type StoredPaymentFailure,
+  sessionAnswerOf,
+} from "#shared/payment/row-state.ts";
 import { paidPaymentReferenceOf } from "#shared/payment/validated-session.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
@@ -92,15 +95,13 @@ const placeholderFailure = (
   success: false,
 });
 
+// A stored placeholder outcome is the replayed answer plus the marker that
+// tells a later delivery to check the follow-up money records.
 const storedFailureOf = (
   failure: PlaceholderFailureResult,
 ): StoredPaymentFailure => ({
-  // The marker tells a replayed delivery to check the follow-up money
-  // records; it is stripped from the answer the caller sees.
   completion: "placeholder",
-  error: failure.error,
-  ...(failure.refunded === undefined ? {} : { refunded: failure.refunded }),
-  status: failure.status,
+  ...sessionAnswerOf(failure),
 });
 
 const REFUND_ALERT_CODES: Record<RefundAlert, ErrorCodeType> = {
@@ -300,6 +301,7 @@ export const storeRefundedBooking = async (
 ): Promise<PaymentFailureResult> => {
   if (spec.alert) addPendingWork(sendNtfyError(REFUND_ALERT_CODES[spec.alert]));
   const listingId = bookings[0]!.listingId;
+  const paymentReference = paidPaymentReferenceOf(session);
   const pendingResult = placeholderFailure(spec, false);
   const [sessionFailure, refundAuthority] = await Promise.all([
     prepareSessionFailure(session.id, storedFailureOf(pendingResult)),
@@ -316,7 +318,7 @@ export const storeRefundedBooking = async (
       intent,
       publicStatusId,
     ),
-    paymentReference: paidPaymentReferenceOf(session),
+    paymentReference,
     sessionFailure,
     sessionId: session.id,
   });
@@ -333,14 +335,14 @@ export const storeRefundedBooking = async (
       activityMessage: `Automatic refund (${spec.code}); booking kept at quantity 0`,
       amount: session.amountTotal,
       attendeeId,
-      dueAuthority:
-        refundResult.local === "due" ? refundResult.authority : null,
+      // A fresh session's returned refund is always still due locally: the
+      // reservation fence means this flow runs once per session, so nothing
+      // can have recorded the just-created authority yet.
+      dueAuthority: refundResult.authority,
       listingId,
       occurredAt: businessTime(session),
       onLedgerMiss: "mark_unrecorded",
-      referenceIndexes: [
-        await paymentReferenceIndex(paidPaymentReferenceOf(session)),
-      ],
+      referenceIndexes: [await paymentReferenceIndex(paymentReference)],
       sessionId: session.id,
       settlement: claimedAnchor.settlement,
       spec,
