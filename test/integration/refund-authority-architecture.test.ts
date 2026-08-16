@@ -3,17 +3,8 @@ import { fileURLToPath } from "node:url";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { PAYMENT_ROW_LIFECYCLE } from "#shared/payment/admit-move.ts";
-import {
-  armRefundSend,
-  markRefundCompleted,
-  markRefundObservationDue,
-  readyRefund,
-} from "#shared/payment/refund-authority.ts";
-import {
-  markRefundOwnerChoiceNeeded,
-  markRefundProviderConflict,
-} from "#shared/payment/refund-authority-choice.ts";
 import { refundLifecycleFor } from "#shared/payment/refund-authority-lifecycle.ts";
+import { REFUND_NODES } from "#shared/payment/refund-machine-spec.ts";
 import { getAllFilesWithExt } from "#test/scripts/code-quality/detectors.ts";
 import {
   AMBIENT_REFUND_PROVIDER_FORMS,
@@ -82,31 +73,12 @@ const refundFacingSource = (
       path.startsWith("ui/templates/admin/"),
   );
 
-const refundLifecycles = () => {
-  const ready = readyRefund({
-    evidenceRevision: 1,
-    nextActionAt: 20,
-    now: 10,
-    request: {
-      capability: "keyless",
-      generation: 1,
-      identityIndex: "architecture-refund-request",
-    },
-  });
-  const armed = armRefundSend(ready, 11, 20);
-  return [
-    ready,
-    armed,
-    markRefundObservationDue(armed, 12, 20),
-    markRefundOwnerChoiceNeeded(armed, 12, "possibly_sent"),
-    markRefundProviderConflict(ready, 12, {
-      captured: { amount: 2_500, currency: "GBP" },
-      kind: "returned",
-      refunded: { amount: 400, currency: "GBP" },
-    }),
-    markRefundCompleted(ready, 12, "provider"),
-  ].map(refundLifecycleFor);
-};
+/** Every stored shape the machine spec declares, through the lifecycle —
+ * so a new state joins this gate the moment it joins the map. */
+const refundLifecycles = () =>
+  REFUND_NODES.flatMap(({ reps }) => reps.map(({ state }) => state)).map(
+    refundLifecycleFor,
+  );
 
 describe("provider-refund architecture", () => {
   test("only the durable engine can import the money-send permit mint", async () => {

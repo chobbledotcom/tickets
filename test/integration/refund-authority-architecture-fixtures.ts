@@ -1,6 +1,9 @@
 export const REFUND_AUTHORITY_ARCHITECTURE_FILES = new Set([
   "integration/refund-authority-architecture-fixtures.ts",
   "integration/refund-authority-architecture.test.ts",
+  // Names the clearers as lifecycle data for the binding property, without
+  // touching the authority entry points themselves.
+  "shared/payment/refund-machine-spec/graph.test.ts",
 ]);
 
 const AUTHORITY_BUILDING_MARKERS = [

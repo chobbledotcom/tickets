@@ -15,15 +15,17 @@ import {
   type RefundNodeId,
   refundNodeOf,
 } from "#shared/payment/refund-machine-spec.ts";
+/* jscpd:ignore-start -- imports */
 import {
-  type AtlasMachine,
-  type AtlasState,
-  atlasState,
-  edgesFromTriggers,
-} from "#shared/schema-atlas/types.ts";
+  atlasStatesFromSpec,
+  type MachineLayouts,
+} from "#shared/schema-atlas/machine-spec.ts";
+import type { AtlasMachine, AtlasState } from "#shared/schema-atlas/types.ts";
+
+/* jscpd:ignore-end */
 
 /** Where each node sits on the map. */
-const LAYOUTS: Readonly<Record<RefundNodeId, AtlasState["layout"]>> = {
+const LAYOUTS: MachineLayouts<RefundNodeId> = {
   check: { x: 900, y: 250 },
   choice_not_sent: { x: 370, y: 540 },
   choice_open: { x: 370, y: 400 },
@@ -49,21 +51,14 @@ const lifecycleFacts = (state: RefundAuthorityState): AtlasState["facts"] => {
 export const refundAuthorityAtlas = (): AtlasMachine => ({
   id: "refund",
   introKey: "schema.refund.intro",
-  states: REFUND_NODES.map(({ id, reps }) =>
-    atlasState(
-      "schema.refund.state",
-      id,
-      LAYOUTS[id],
-      edgesFromTriggers(
-        REFUND_EVENTS,
-        refundNodeOf,
-        reps.map(({ state }) => state),
-      ),
-      {
-        facts: lifecycleFacts(reps[0]!.state),
-        ...(id === "ready" ? { start: true as const } : {}),
-      },
-    ),
+  states: atlasStatesFromSpec(
+    { events: REFUND_EVENTS, nodeOf: refundNodeOf, nodes: REFUND_NODES },
+    "schema.refund.state",
+    LAYOUTS,
+    ({ id, reps }) => ({
+      facts: lifecycleFacts(reps[0]!.state),
+      ...(id === "ready" ? { start: true as const } : {}),
+    }),
   ),
   titleKey: "schema.refund.title",
 });

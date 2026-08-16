@@ -29,6 +29,7 @@ import {
   markRefundProviderConflict,
   mayReplaceRefundWithFreshEvidence,
   type RefundOwnerChoice,
+  type RefundOwnerChoiceName,
   resolveRefundOwnerChoice,
 } from "#shared/payment/refund-authority-choice.ts";
 import type {
@@ -37,7 +38,16 @@ import type {
 } from "#shared/payment/refund-authority-state.ts";
 import type { RefundConflictDecision } from "#shared/payment/refund-conflict-decision.ts";
 import { refundReplayUntil } from "#shared/payment/refund-replay-window.ts";
-import type { AtlasTrigger } from "#shared/schema-atlas/types.ts";
+import {
+  type ExpectedMove,
+  type MachineEvent,
+  type MachineMoves,
+  type MachineMovesReader,
+  type MachineNode,
+  type MachineRepresentative,
+  movesIn,
+  machineRep as rep,
+} from "#shared/schema-atlas/machine-spec.ts";
 
 const NOW = 1_750_000_000_000;
 const NEXT = NOW + 60_000;
@@ -122,13 +132,7 @@ export const refundNodeOf = (state: RefundAuthorityState): RefundNodeId => {
 
 /** One stored state standing for a whole family the machine must treat the
  * same way — keyed, keyless, or keyed past its replay window. */
-export type RefundRepresentative = {
-  readonly state: RefundAuthorityState;
-  readonly tag: string;
-};
-
-const rep = (tag: string, state: RefundAuthorityState): RefundRepresentative =>
-  ({ state, tag }) as const;
+export type RefundRepresentative = MachineRepresentative<RefundAuthorityState>;
 
 const readyKeyed = readyRefund({
   evidenceRevision: 1,
@@ -166,10 +170,7 @@ const family = (
 ): readonly RefundRepresentative[] =>
   armedStates.map(({ state, tag }) => rep(tag, run(state)));
 
-export type RefundNode = {
-  readonly id: RefundNodeId;
-  readonly reps: readonly RefundRepresentative[];
-};
+export type RefundNode = MachineNode<RefundAuthorityState, RefundNodeId>;
 
 /** Every node with the real states behind it — all built by the production
  * constructors, several through multi-step paths, so a representative can
@@ -191,6 +192,9 @@ export const REFUND_NODES: readonly RefundNode[] = [
     reps: family((state) => markRefundObservationDue(state, NOW, NEXT)),
   },
   {
+    // The one node with no owner or system exit: only fresh provider
+    // evidence can settle an inconclusive conflict, so it may wait.
+    awaits: "provider",
     id: "check",
     reps: family((state) =>
       markRefundProviderConflict(state, NOW, WAIT_EVIDENCE),
@@ -309,11 +313,10 @@ export type RefundEventId =
   | "replay"
   | "unreadable";
 
-export type RefundMachineEvent = AtlasTrigger<RefundAuthorityState> & {
-  readonly id: RefundEventId;
-  /** Whether the engine step behind this event sends real money. */
-  readonly movesMoney: boolean;
-};
+export type RefundMachineEvent = MachineEvent<
+  RefundAuthorityState,
+  RefundEventId
+>;
 
 /** Every way a stored refund can move, each running the real transition. */
 export const REFUND_EVENTS: readonly RefundMachineEvent[] = [
@@ -437,19 +440,12 @@ export const REFUND_EVENTS: readonly RefundMachineEvent[] = [
   },
 ];
 
-/** Where one event must land: one node for every representative, or a node
- * per representative tag when the capability rules split the outcome. A tag
- * missing from a split means that representative must refuse. */
-export type ExpectedMove =
-  | RefundNodeId
-  | { readonly perRep: Readonly<Partial<Record<string, RefundNodeId>>> };
-
-type NodeMoves = Readonly<Partial<Record<RefundEventId, ExpectedMove>>>;
-
 /** send_armed and observing are one family to every transition — the code
  * itself guards them together (requireActiveSentRefund) — so they share one
  * declared row. */
-const ACTIVE_SENT_MOVES: NodeMoves = {
+const ACTIVE_SENT_MOVES: Readonly<
+  Partial<Record<RefundEventId, ExpectedMove<RefundNodeId>>>
+> = {
   conflict_not_sent: "choice_not_sent",
   conflict_returned: "choice_returned",
   conflict_wait: "check",
@@ -472,7 +468,7 @@ const ACTIVE_SENT_MOVES: NodeMoves = {
  *   admission is the gate that does).
  * - `send_armed/observing × expired` fires only for the representative whose
  *   window has actually closed — the split IS the replay-window rule. */
-export const EXPECTED_MOVES: Readonly<Record<RefundNodeId, NodeMoves>> = {
+export const EXPECTED_MOVES: MachineMoves<RefundNodeId, RefundEventId> = {
   check: {
     conflict_not_sent: "choice_not_sent",
     conflict_returned: "choice_returned",
@@ -509,15 +505,29 @@ export const EXPECTED_MOVES: Readonly<Record<RefundNodeId, NodeMoves>> = {
   send_armed: ACTIVE_SENT_MOVES,
 };
 
-/** The declared destination of one cell, or "refused" when the transition
- * must throw for that representative. */
-export const expectedMove = (
-  node: RefundNodeId,
-  event: RefundEventId,
-  tag: string,
-): RefundNodeId | "refused" => {
-  const move = EXPECTED_MOVES[node][event];
-  if (move === undefined) return "refused";
-  if (typeof move === "string") return move;
-  return move.perRep[tag] ?? "refused";
-};
+/** The table's readers: the declared destination of one cell, or the one
+ * plain answer a whole row of shapes shares. */
+export const REFUND_MOVES: MachineMovesReader<RefundNodeId, RefundEventId> =
+  movesIn(EXPECTED_MOVES);
+
+/** The map event each owner choice fires. */
+export const OWNER_EVENT_FOR = {
+  provider_confirmed_not_sent: "owner_confirms_not_sent",
+  provider_confirmed_returned: "owner_confirms_returned",
+} as const satisfies Record<RefundOwnerChoiceName, RefundEventId>;
+
+/** The node an owner choice puts the record on, read from the open
+ * decision's row of the table. The open decision offers both answers to
+ * every shape, so the cell must be a plain one — a split there is a bug
+ * the resolver refuses loudly. */
+export const refundChoiceTarget = (
+  choice: RefundOwnerChoiceName,
+): RefundNodeId => REFUND_MOVES.plain("choice_open", OWNER_EVENT_FOR[choice]);
+
+/** Whether the machine declares any money-sending move out of this node.
+ * An owner action that runs the engine in "send" mode from such a node can
+ * move real money; pure evidence checks ("observe only") never can. */
+export const refundNodeSendsMoney = (node: RefundNodeId): boolean =>
+  REFUND_EVENTS.some(
+    (event) => event.movesMoney && EXPECTED_MOVES[node][event.id] !== undefined,
+  );

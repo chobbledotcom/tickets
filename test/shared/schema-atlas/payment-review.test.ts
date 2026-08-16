@@ -11,6 +11,10 @@ describe("the payment review atlas", () => {
     expect(machine.id).toBe("review");
     expect(machine.titleKey).toBe("schema.review.title");
     expect(machine.introKey).toBe("schema.review.intro");
+    // The empty slot is where a fresh row starts, and nowhere else is.
+    expect(
+      machine.states.filter(({ start }) => start === true).map(({ id }) => id),
+    ).toEqual(["none"]);
     expect(
       machine.states.map(({ id, labelKey, detailKey, layout }) => ({
         detailKey,

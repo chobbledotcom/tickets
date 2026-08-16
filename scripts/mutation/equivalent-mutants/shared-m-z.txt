@@ -1,6 +1,5 @@
 # Known-equivalent mutants — see README.txt in this directory.
 
-
 # settings-bundles.ts: bundle is ALL_SNAPSHOT_SETTINGS when undefined (a readonly
 # array, always truthy), so ?? and || agree.
 
@@ -256,18 +255,7 @@ src/shared/payment-signature.ts::canonicalPricePayload.entries~0kqbt3q  1 → 0 
 src/shared/payment/money.ts::CurrencySchema~1qa2mi1  Currency must be three uppercase letters → ""   # message text of the currency regex; validation outcome is identical
 src/shared/payment/resource-id.ts::ResourceIdSchema~1pmki6u  Resource id must be text with no whitespace → ""   # message text of the resource-id regex; validation outcome is identical
 
-# Schema-atlas derivation: refusal text is thrown to refuse and never read, the
-# seen-at stamp only separates defined from undefined, a node's representative
-# states share one lifecycle rule by design, and arrays are always truthy.
-src/shared/schema-atlas/payment-review.ts::SEEN_AT~1rcm9v2 2026-08-16T00:00:00.000Z → ""   # nodeIdOf only distinguishes acknowledgedAt undefined vs defined; no atlas output reads the value
-src/shared/schema-atlas/payment-review.ts::opensFor~0joorcc A row with a review cannot open another → ""   # refusal message is thrown to refuse a transition; the derived map reads only throw-vs-return
-src/shared/schema-atlas/payment-review.ts::TRIGGERS.run~1ysp6bm Only an unseen case can be acknowledged → ""   # same: refusal text, never surfaced by the map
 src/shared/schema-atlas/types.ts::atlasState.facts~0j1zyry ?? → ||   # extra.facts is an array when present, and arrays are always truthy
-
-# refund-machine-spec.ts: move.perRep[tag] holds RefundNodeId literals (all
-# non-empty strings, checked by the table-target test) or undefined, so ??
-# and || pick "refused" for exactly the same inputs.
-src/shared/payment/refund-machine-spec.ts::expectedMove~1xj22h8  ?? → ||   # perRep values are non-empty node ids; never falsy when present
 
 # schema-atlas/refund-authority.ts: every representative state behind a node
 # shares the node's lifecycle rule, so facts from reps[0] and reps[1] are
