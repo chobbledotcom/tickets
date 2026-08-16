@@ -178,17 +178,22 @@ describe("the refund machine graph", () => {
     expect(declaredWaits).toEqual(["check"]);
   });
 
-  test("the entering-events map matches the table", () => {
+  test("the entering-events map matches the table in both directions", () => {
+    // Set equality proves each listed event really parks records here AND
+    // that no unlisted event does — an omission would silently drop that
+    // event from the settled-money re-entry proof below.
     for (const attention of ATTENTION_NODES) {
-      for (const enter of ENTERING_EVENTS[attention]) {
-        const landsThere = REFUND_NODES.some((node) =>
+      const landing = REFUND_EVENTS.filter((event) =>
+        REFUND_NODES.some((node) =>
           node.reps.some(
             ({ tag }) =>
-              REFUND_MOVES.expected(node.id, enter, tag) === attention,
+              REFUND_MOVES.expected(node.id, event.id, tag) === attention,
           ),
-        );
-        expect(landsThere, `${enter} never lands on ${attention}`).toBe(true);
-      }
+        ),
+      ).map(({ id }) => id);
+      expect([...landing].sort(), attention).toEqual(
+        [...ENTERING_EVENTS[attention]].sort(),
+      );
     }
   });
 
