@@ -1085,9 +1085,11 @@ query logging and table-scoped cache invalidation stay automatic.
 - `deno task start` - Run the server
 - `deno task dev` - Run the server with `--watch`, restarting it whenever a
   source file changes. `build:static` runs once at the start, so an edit to a
-  static asset still needs the task restarted. With `DB_URL=:memory:` each
-  restart begins with an empty database, so pass `DB_URL=file:./local.db` to
-  keep one across edits
+  static asset still needs the task restarted. The dev database is the
+  gitignored `local.db` at the repo root (its key lives beside it in
+  `.db-key`), so data survives restarts; delete both files to start fresh.
+  `:memory:` is not a valid dev URL — interactive transactions open a second
+  connection, and each in-memory connection is its own empty database
 - `deno task serve` - The bare server command that `start` and `dev` both call,
   so the permissions and entry point live in one place. `dev` sets
   `SERVE_WATCH=--watch` to add the watcher. Prefer `start` or `dev`, which build
