@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
-import { queryOne } from "#shared/db/client.ts";
+import { execute, queryOne } from "#shared/db/client.ts";
 import {
   createOwnerNote,
   createSystemNote,
@@ -12,6 +12,7 @@ import {
   getNotesFor,
   loadNotesForAttendees,
   loadNotesForListing,
+  noteDeleteStatement,
 } from "#shared/db/notes/queries.ts";
 import { openNotes } from "#shared/db/notes/sealing.ts";
 import {
@@ -252,6 +253,22 @@ describeWithEnv("db > notes", { db: true }, () => {
     expect(await getNoteRows("attendee", [owner])).toEqual([]);
     // The other attendee's note is untouched.
     expect((await getNoteRows("attendee", [other]))[0]?.id).toBe(otherRow!.id);
+  });
+
+  test("noteDeleteStatement clears only the chosen records' notes", async () => {
+    const keep = await makeAttendee("Keep Notes");
+    const drop = await makeAttendee("Drop Notes");
+    await createSystemNote(attendeeNotes(keep), "kept");
+    await createSystemNote(attendeeNotes(drop), "dropped");
+
+    const statement = noteDeleteStatement("attendee", {
+      args: [drop],
+      sql: "SELECT id FROM attendees WHERE id = ?",
+    });
+    await execute(statement.sql, statement.args);
+
+    expect(await getNoteRows("attendee", [drop])).toEqual([]);
+    expect(await getNoteRows("attendee", [keep])).toHaveLength(1);
   });
 
   test("deletes nothing, and asks the database nothing, for an empty list", async () => {
