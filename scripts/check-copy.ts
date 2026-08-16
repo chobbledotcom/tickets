@@ -6,5 +6,6 @@
  */
 
 import { CATALOG_DIR, runCopyCheck } from "./check-copy/run.ts";
+import { consoleOutput } from "./check-report.ts";
 
-Deno.exit(runCopyCheck(CATALOG_DIR, console.log, console.error));
+Deno.exit(runCopyCheck(CATALOG_DIR, consoleOutput));

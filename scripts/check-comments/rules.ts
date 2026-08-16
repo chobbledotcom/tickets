@@ -39,11 +39,20 @@ const newlinesBetween = (content: string, from: number, to: number): number => {
   return count;
 };
 
-/** One comment as written, with the line it opens on. */
+/** One comment as written, with where on the page it opens. */
 interface SourceComment {
+  /** How many characters precede it on its own line. */
+  column: number;
   line: number;
   text: string;
 }
+
+/** How far `offset` sits from the start of its line. */
+const columnOf = (content: string, offset: number): number => {
+  let index = offset;
+  while (index > 0 && content.charAt(index - 1) !== "\n") index -= 1;
+  return offset - index;
+};
 
 /**
  * Every comment in a file, directives dropped, in source order. Spans arrive in
@@ -60,7 +69,7 @@ export const readComments = (content: string): SourceComment[] => {
     scanned = span.start;
     const text = content.slice(span.start, span.end);
     if (DIRECTIVE.test(text)) continue;
-    comments.push({ line, text });
+    comments.push({ column: columnOf(content, span.start), line, text });
   }
   return comments;
 };
@@ -99,11 +108,10 @@ const widestLine = (text: string): { offset: number; width: number } => {
 const tooWide = (
   comment: SourceComment,
   limits: CommentLimits,
-  indent: number,
 ): CommentIssue | null => {
   const { offset, width } = widestLine(comment.text);
-  // Only the opening line carries the indent; continuation lines include it.
-  const columns = offset === 0 ? width + indent : width;
+  // Only the opening line sits at a column; later lines carry their own indent.
+  const columns = offset === 0 ? width + comment.column : width;
   if (columns <= limits.maxColumns) return null;
   return {
     fix: "Shorten the wording rather than rewrapping it.",
@@ -113,23 +121,16 @@ const tooWide = (
   };
 };
 
-/** How far the comment opening on `line` is indented. */
-const indentOf = (content: string, line: number): number => {
-  const text = content.split("\n")[line - 1] ?? "";
-  return text.length - text.trimStart().length;
-};
-
 /** Every limit one file's comments break, ordered by where they appear. */
 export const findCommentIssues = (
   content: string,
   limits: CommentLimits,
 ): CommentIssue[] =>
-  readComments(content).flatMap((comment) => {
-    const indent = indentOf(content, comment.line);
-    return [tooLong(comment, limits), tooWide(comment, limits, indent)].filter(
+  readComments(content).flatMap((comment) =>
+    [tooLong(comment, limits), tooWide(comment, limits)].filter(
       (issue): issue is CommentIssue => issue !== null,
-    );
-  });
+    ),
+  );
 
 /** One issue as a reader-friendly line. */
 export const formatIssue = (file: string, issue: CommentIssue): string =>

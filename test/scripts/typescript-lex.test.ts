@@ -122,6 +122,16 @@ describe("lexicalSpans over regular expressions", () => {
     const source = 'const a = b / c; const d = "kept";';
     expect(spans(source)).toEqual([{ kind: "string", text: '"kept"' }]);
   });
+
+  test("reads a regex opening the very first character as a regex", () => {
+    expect(spans('/"/.test(x); const s = "after";')).toEqual([
+      { kind: "string", text: '"after"' },
+    ]);
+  });
+
+  test("stops at the end of an unterminated regex rather than looping", () => {
+    expect(spans('const r = /abc"')).toEqual([]);
+  });
 });
 
 describe("blankSpans over lexicalSpans", () => {

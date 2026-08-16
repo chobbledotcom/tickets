@@ -27,14 +27,14 @@ describe("readComments", () => {
   test("finds a line comment and a block comment", () => {
     const found = readComments("// one\nconst a = 1;\n/* two */\n");
     expect(found).toEqual([
-      { line: 1, text: "// one" },
-      { line: 3, text: "/* two */" },
+      { column: 0, line: 1, text: "// one" },
+      { column: 0, line: 3, text: "/* two */" },
     ]);
   });
 
   test("reports the line a comment opens on, not the file start", () => {
     const found = readComments("const a = 1;\n\n\n// here\n");
-    expect(found).toEqual([{ line: 4, text: "// here" }]);
+    expect(found).toEqual([{ column: 0, line: 4, text: "// here" }]);
   });
 
   test("ignores a comment marker inside a string", () => {
@@ -55,7 +55,9 @@ describe("readComments", () => {
       "// test-groups: run-alone",
       "// kept",
     ].join("\n");
-    expect(readComments(source)).toEqual([{ line: 7, text: "// kept" }]);
+    expect(readComments(source)).toEqual([
+      { column: 0, line: 7, text: "// kept" },
+    ]);
   });
 
   test("keeps a comment that merely mentions a directive-like word", () => {
@@ -99,6 +101,17 @@ describe("comment-width rule", () => {
 
   test("flags a comment one column over the limit", () => {
     expect(rules(`// ${"a".repeat(38)}\n`)).toEqual(["comment-width"]);
+  });
+
+  test("counts what precedes a trailing comment on its own line", () => {
+    // A comment after code starts at that code's end, so its width is measured
+    // from there — not from the line's indent, which is 0 here.
+    const source = `const a = 1; // ${"z".repeat(27)}`;
+    expect(source).toHaveLength(43);
+    expect(rules(source)).toEqual(["comment-width"]);
+    expect(onlyIssue(source).problem).toBe(
+      "comment line is 43 columns (limit 40)",
+    );
   });
 
   test("counts the indent of the line the comment opens on", () => {

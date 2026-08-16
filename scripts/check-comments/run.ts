@@ -3,6 +3,7 @@
  * pure rules in `rules.ts` flag. Kept thin so the logic stays testable.
  */
 
+import { type CheckOutput, reportCheck } from "#scripts/check-report.ts";
 import { collectFiles } from "#scripts/walk-files.ts";
 import { type CommentLimits, findCommentIssues, formatIssue } from "./rules.ts";
 
@@ -36,9 +37,12 @@ const isExempt = (relative: string): boolean =>
     entry.endsWith("/") ? relative.startsWith(entry) : relative === entry,
   );
 
-/** The part of `path` below `root`, with no leading slash. */
+/**
+ * The part of `path` below `root`. `collectFiles` joins every path it yields
+ * from `root`, so the prefix is always there to drop.
+ */
 const relativeTo = (root: string, path: string): string =>
-  path.startsWith(`${root}/`) ? path.slice(root.length + 1) : path;
+  path.slice(root.length + 1);
 
 /**
  * Check every source file's comments. Logs a line per issue (or a success
@@ -47,8 +51,7 @@ const relativeTo = (root: string, path: string): string =>
 export const runCommentCheck = async (
   root: string,
   limits: CommentLimits,
-  log: (line: string) => void,
-  logError: (line: string) => void,
+  output: CheckOutput,
 ): Promise<number> => {
   const files = await collectFiles(
     root,
@@ -61,15 +64,11 @@ export const runCommentCheck = async (
       found.push(formatIssue(file, issue));
     }
   }
-  if (found.length === 0) {
-    log(
-      `Every comment in ${root} is at most ${limits.maxLines} lines and ${limits.maxColumns} columns.`,
-    );
-    return 0;
-  }
-  for (const line of found) logError(line);
-  logError(
-    `\n${found.length} comment issue(s) found. See "Comments are short" in AGENTS.md.`,
-  );
-  return 1;
+  return reportCheck({
+    ...output,
+    found,
+    guide: '"Comments are short" in AGENTS.md',
+    noun: "comment",
+    success: `Every comment in ${root} is at most ${limits.maxLines} lines and ${limits.maxColumns} columns.`,
+  });
 };

@@ -12,8 +12,10 @@ describe("runCommentCheck", () => {
   let dir = "";
   let logs: string[] = [];
   let errors: string[] = [];
-  const log = (line: string) => logs.push(line);
-  const logError = (line: string) => errors.push(line);
+  const output = {
+    log: (line: string) => logs.push(line),
+    logError: (line: string) => errors.push(line),
+  };
   const tight = { maxColumns: 40, maxLines: 2 };
 
   beforeEach(async () => {
@@ -25,7 +27,7 @@ describe("runCommentCheck", () => {
 
   test("passes a clean tree and says what it enforced", async () => {
     await write(dir, "src/a.ts", "// short\nexport const a = 1;\n");
-    expect(await runCommentCheck(dir, tight, log, logError)).toBe(0);
+    expect(await runCommentCheck(dir, tight, output)).toBe(0);
     expect(logs).toEqual([
       `Every comment in ${dir} is at most 2 lines and 40 columns.`,
     ]);
@@ -34,7 +36,7 @@ describe("runCommentCheck", () => {
 
   test("fails and names the offending file and line", async () => {
     await write(dir, "src/a.ts", "/**\n * a\n * b\n */\nexport const a = 1;\n");
-    expect(await runCommentCheck(dir, tight, log, logError)).toBe(1);
+    expect(await runCommentCheck(dir, tight, output)).toBe(1);
     expect(errors[0]).toContain(`${dir}/src/a.ts:1`);
     expect(errors[0]).toContain("comment runs 4 lines (limit 2)");
     expect(errors.at(-1)).toContain("1 comment issue(s) found");
@@ -43,35 +45,35 @@ describe("runCommentCheck", () => {
   test("counts every issue across several files", async () => {
     await write(dir, "src/a.ts", "/**\n * a\n * b\n */\n");
     await write(dir, "src/b.ts", "/**\n * a\n * b\n */\n");
-    expect(await runCommentCheck(dir, tight, log, logError)).toBe(1);
+    expect(await runCommentCheck(dir, tight, output)).toBe(1);
     expect(errors.at(-1)).toContain("2 comment issue(s) found");
   });
 
   test("checks .tsx as well as .ts", async () => {
     await write(dir, "src/a.tsx", "/**\n * a\n * b\n */\n");
-    expect(await runCommentCheck(dir, tight, log, logError)).toBe(1);
+    expect(await runCommentCheck(dir, tight, output)).toBe(1);
   });
 
   test("skips files that are not TypeScript", async () => {
     await write(dir, "src/a.md", "/**\n * a\n * b\n */\n");
     await write(dir, "src/a.json", "{}\n");
-    expect(await runCommentCheck(dir, tight, log, logError)).toBe(0);
+    expect(await runCommentCheck(dir, tight, output)).toBe(0);
   });
 
   test("skips built client assets, which are generated", async () => {
     await write(dir, "ui/static/bundle.ts", "/**\n * a\n * b\n */\n");
-    expect(await runCommentCheck(dir, tight, log, logError)).toBe(0);
+    expect(await runCommentCheck(dir, tight, output)).toBe(0);
   });
 
   test("skips the deno doc barrels, whose prose is the published output", async () => {
     await write(dir, "doc.ts", "/**\n * a\n * b\n */\n");
     await write(dir, "docs/crypto.ts", "/**\n * a\n * b\n */\n");
-    expect(await runCommentCheck(dir, tight, log, logError)).toBe(0);
+    expect(await runCommentCheck(dir, tight, output)).toBe(0);
   });
 
   test("still checks a file whose name merely starts with doc", async () => {
     await write(dir, "docket.ts", "/**\n * a\n * b\n */\n");
-    expect(await runCommentCheck(dir, tight, log, logError)).toBe(1);
+    expect(await runCommentCheck(dir, tight, output)).toBe(1);
   });
 
   test("skips a shipped migration, which is history and never changes", async () => {
@@ -80,7 +82,7 @@ describe("runCommentCheck", () => {
       "shared/db/migrations/2026-06-26_attendees_kind.ts",
       "/**\n * a\n * b\n */\n",
     );
-    expect(await runCommentCheck(dir, tight, log, logError)).toBe(0);
+    expect(await runCommentCheck(dir, tight, output)).toBe(0);
   });
 
   test("still checks the migration machinery beside them", async () => {
@@ -94,14 +96,14 @@ describe("runCommentCheck", () => {
       "shared/db/migrations/schema-sync.ts",
       "/**\n * a\n * b\n */\n",
     );
-    expect(await runCommentCheck(dir, tight, log, logError)).toBe(1);
+    expect(await runCommentCheck(dir, tight, output)).toBe(1);
     expect(errors.at(-1)).toContain("2 comment issue(s) found");
   });
 
   test("reports files in a stable order", async () => {
     await write(dir, "src/b.ts", "/**\n * a\n * b\n */\n");
     await write(dir, "src/a.ts", "/**\n * a\n * b\n */\n");
-    await runCommentCheck(dir, tight, log, logError);
+    await runCommentCheck(dir, tight, output);
     expect(errors[0]).toContain("/a.ts");
     expect(errors[1]).toContain("/b.ts");
   });
