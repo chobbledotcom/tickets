@@ -170,48 +170,24 @@ const existingQuestionIdsTx = (
   );
 
 /**
- * Replace every listed attendee's answers in one atomic transaction: each
- * attendee's existing answers are deleted, then their new answer set inserted,
- * committing (or rolling back) as one. The `Map<attendeeId, answerIds>` is the
- * single shape every save situation reduces to — one answer set shared across
- * attendees, a by-question selection, or the per-listing grouping from
- * `groupListingAnswerSets` — so callers build the map and this builds the SQL.
- * Repeated question answers collapse to the last value before insert, matching
- * the single-answer-per-question invariant.
+ * Replace every listed attendee's answers in one atomic transaction: the
+ * existing answers are deleted, then the new set inserted, committing or
+ * rolling back as one. Every save situation reduces to the same
+ * `Map<attendeeId, answerIds>`, so callers build the map and this builds the
+ * SQL. Repeated answers to one question collapse to the last value.
  *
- * The delete, the in-between reads, the free-text string interning, and the
- * insert all run inside one `withTransaction` on `tx.execute`:
+ * The encrypted and HMAC-indexed string rows are computed before the
+ * transaction opens, since that work is CPU-bound and would otherwise hold the
+ * SQLite writer open for nothing. Then, all on the transaction: delete every
+ * attendee's rows in one `IN (…)`; read which questions and answers still
+ * exist, so one deleted between checkout and finalize is skipped rather than
+ * orphaned; intern the free-text rows in a fixed three round trips; and insert
+ * at most two multi-row batches, so the statement count stays flat however many
+ * attendees a save covers.
  *
- * 0. Precompute the encrypted + HMAC-indexed string rows BEFORE opening the
- *    transaction (`prepareStringRows`). The crypto is CPU-bound and holds no DB
- *    statement, so running it inside the tx would hold the SQLite writer open
- *    for nothing; doing it up front keeps only real statements on the tx.
- * 1. DELETE — one `IN (...)` statement for every attendee at once; SQLite
- *    triggers fire per affected row (there is no statement-level trigger form),
- *    so `strings.used_count` is decremented once per row regardless of whether
- *    the DELETE matches one row or many.
- * 2. Read `answer_id → question_id` and which text questions still exist, so a
- *    question or answer deleted between checkout and finalize is skipped rather
- *    than producing an orphan row. These run on the tx to share the save's
- *    snapshot.
- * 3. Intern the precomputed free-text rows via `internStringRows(rows, tx)` —
- *    one batched multi-row `INSERT OR IGNORE` + refresh `created` + one
- *    read-your-writes `SELECT`, all on the tx, so the SELECT sees the rows the
- *    INSERT just wrote in the same transaction. The intern phase is a fixed 3
- *    round trips regardless of how many unique texts are saved.
- * 4. INSERT — at most two multi-row `VALUES` batches: one for every attendee's
- *    choice answers, one for every attendee's text answers. Batching across
- *    attendees keeps the statement count at a handful regardless of how many
- *    attendees a multi-listing/package save covers, staying within the
- *    transaction round-trip guard.
- *
- * The delete runs before the string refresh so a consistent `used_count`
- * snapshot is seen: a string this save drops to 0 (its last attendee removed) is
- * then re-created or refreshed by the interning path, keeping it alive past its
- * now-stale reference until this save re-inserts. Atomicity: a failure in any
- * step rolls the whole save back — an attendee's prior answers survive a failed
- * re-save rather than being left empty (the gap the previous two-batch
- * delete-then-insert left when the INSERT failed after the DELETE had committed).
+ * The delete runs first so `used_count` is seen consistently: a string this
+ * save drops to zero is re-created by the interning path. A failure at any step
+ * rolls the save back, so prior answers survive rather than being emptied.
  */
 export const saveAttendeeAnswers = async (
   answersByAttendee: Map<number, number[] | AttendeeAnswerSet>,

@@ -355,25 +355,19 @@ const copyGroupEdgePlans = async (
  * cloned child is never left standalone-bookable (the silent gate-drop this
  * guards against):
  *
- * 1. **Outgoing** — for every cloned parent, the clone requires the **remapped**
- *    child set: an intra-group child points at *its* clone, while a child
- *    **outside** the group keeps referencing the original external listing so the
- *    clone still has a working gate.
- * 2. **Incoming** — for every cloned child whose parent is **outside** the group,
+ * 1. Outgoing — each cloned parent requires the remapped child set: an
+ *    intra-group child points at its clone, while a child outside the group
+ *    keeps referencing the original, so the clone still has a working gate.
+ * 2. Incoming — for a cloned child whose parent sits outside the group,
  *    recreate `outsideParent → clonedChild` so the clone stays a child rather
- *    than a standalone bookable listing. (A child whose parent is *inside* the
- *    group is already covered by the outgoing walk.)
+ *    than standalone. A parent inside the group is already covered above.
  *
- * Each remapped/added set is written through the validated
- * {@link copyDuplicatedChildEdges} path. A no-op when no cloned member touches an
- * edge.
- *
- * Returns the **distinct** edge-copy validation errors collected across both
- * walks: {@link copyDuplicatedChildEdges} returns (rather than throws)
- * when a cloned parent's edge set fails validation, so a clone can be left
- * gateless while the bulk duplicate otherwise succeeds. Surfacing these lets the
- * caller warn the operator instead of silently producing a gateless standalone
- * clone. An empty array means every edge copied cleanly.
+ * Each set is written through the validated {@link copyDuplicatedChildEdges},
+ * which returns rather than throws when validation fails, so a clone can be
+ * left gateless while the bulk duplicate otherwise succeeds. The distinct
+ * errors from both walks are returned so the caller can warn the operator
+ * instead of silently producing a gateless standalone clone; an empty array
+ * means every edge copied cleanly.
  */
 export const remapDuplicatedGroupEdges = async (
   idMap: ReadonlyMap<number, number>,

@@ -232,14 +232,12 @@ const planGroup = (
  * one event's legs (sharing one `eventGroup`), validated and inserted with the
  * same rules as {@link postTransfersTx}, but all committed together.
  *
- * Unlike opening a write transaction per event (which contends the single SQLite
- * writer — SQLITE_BUSY — once enough overlap) or reading-then-writing inside one
- * long interactive transaction (whose open result sets block the commit at
- * scale — "SQL statements in progress"), this splits the work in two: a read-only
- * *prepare* (validate every group against a bulk-loaded {@link BatchSnapshot},
- * building the insert statements) followed by a write-only *apply* (one atomic
- * `batch` of just those inserts). So the reads never sit inside the write and the
- * batch commits cleanly no matter how many events it carries.
+ * A write transaction per event contends the single SQLite writer, and
+ * reading-then-writing inside one long interactive transaction lets open result
+ * sets block the commit at scale. So the work splits in two: a read-only
+ * prepare validates every group against a bulk-loaded {@link BatchSnapshot} and
+ * builds the statements, then a write-only apply commits one atomic `batch` of
+ * just those inserts. The reads never sit inside the write.
  *
  * Idempotent per event and ordered to match `groups` (an empty group → a zero
  * result). All-or-nothing: a conflict throws before any write, and a write error

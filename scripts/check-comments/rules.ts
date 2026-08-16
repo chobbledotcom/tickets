@@ -30,24 +30,13 @@ export interface CommentIssue {
 const DIRECTIVE =
   /jscpd:ignore|<reference|deno-lint-ignore|biome-ignore|@ts-expect-error|@ts-ignore|@ts-nocheck|@ts-self-types|deno-fmt-ignore|test-groups:|sourceMappingURL/;
 
-/** The 1-based line each offset in `content` falls on. */
-const lineStarts = (content: string): number[] => {
-  const starts = [0];
-  for (let index = 0; index < content.length; index += 1) {
-    if (content[index] === "\n") starts.push(index + 1);
+/** How many newlines `content` holds between `from` and `to`. */
+const newlinesBetween = (content: string, from: number, to: number): number => {
+  let count = 0;
+  for (let index = from; index < to; index += 1) {
+    if (content.charAt(index) === "\n") count += 1;
   }
-  return starts;
-};
-
-const lineAt = (starts: number[], offset: number): number => {
-  let low = 0;
-  let high = starts.length - 1;
-  while (low < high) {
-    const mid = (low + high + 1) >> 1;
-    if (starts[mid] <= offset) low = mid;
-    else high = mid - 1;
-  }
-  return low + 1;
+  return count;
 };
 
 /** One comment as written, with the line it opens on. */
@@ -56,15 +45,22 @@ interface SourceComment {
   text: string;
 }
 
-/** Every comment in a file, directives dropped, in source order. */
+/**
+ * Every comment in a file, directives dropped, in source order. Spans arrive in
+ * order, so the line number advances by counting newlines since the last one
+ * rather than re-scanning from the top for each.
+ */
 export const readComments = (content: string): SourceComment[] => {
-  const starts = lineStarts(content);
   const comments: SourceComment[] = [];
+  let scanned = 0;
+  let line = 1;
   for (const span of lexicalSpans(content)) {
     if (span.kind !== "comment") continue;
+    line += newlinesBetween(content, scanned, span.start);
+    scanned = span.start;
     const text = content.slice(span.start, span.end);
     if (DIRECTIVE.test(text)) continue;
-    comments.push({ line: lineAt(starts, span.start), text });
+    comments.push({ line, text });
   }
   return comments;
 };

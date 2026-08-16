@@ -241,26 +241,20 @@ const canCreateTrigger = (
  * Recreate a table from its SCHEMA definition, preserving data for matching
  * columns.
  *
- * The rebuild (copy into a fresh table), its indexes, and its triggers all run
- * inside ONE interactive transaction, so the table is never committed without
- * the indexes and triggers that enforce its invariants. Any failure rolls the
- * whole rebuild back and leaves the original table untouched, instead of
- * leaving a live table missing (say) a UNIQUE index until the migration is
- * retried — a window in which duplicate rows could land and then permanently
- * break the index re-creation. An interactive transaction (rather than a batch)
- * is what makes this possible. The ordered statements run as one structured
- * batch inside that transaction. Each trigger body remains one statement, so
- * its internal semicolons are not treated as batch separators, and one network
- * call replaces one call per rebuild/index/trigger statement.
+ * The copy, its indexes and its triggers all run inside one interactive
+ * transaction, so the table is never committed without the indexes and triggers
+ * enforcing its invariants. Any failure rolls the whole rebuild back rather
+ * than leaving a live table missing a UNIQUE index until the migration retries,
+ * a window in which duplicates could land and permanently break the index. The
+ * statements run as one structured batch inside that transaction, so each
+ * trigger body stays a single statement whose semicolons are not read as
+ * separators, in one network call.
  *
- * The new table is created WITHOUT foreign keys (only column definitions), so
- * any FKs the original table had are removed after recreation.
- *
- * IMPORTANT: If other tables have FKs referencing this table and contain data,
- * those tables must be recreated FIRST (to remove their FK constraints).
- * Otherwise DROP TABLE will fail with FOREIGN KEY constraint in libsql.
- * We do NOT use PRAGMA foreign_keys=OFF because it doesn't persist across
- * HTTP requests in remote libsql (Turso).
+ * The new table is created without foreign keys, so any the original had are
+ * removed. If other tables hold FKs referencing this one and contain data,
+ * recreate those first, or DROP TABLE fails on the constraint. Note that
+ * `PRAGMA foreign_keys=OFF` is no help: it does not persist across HTTP
+ * requests in remote libsql.
  */
 export const recreateTable = async (tableName: string): Promise<void> => {
   const tableSchema = currentSchemaTable(tableName);

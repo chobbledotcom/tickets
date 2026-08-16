@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  type CommentIssue,
   type CommentLimits,
   findCommentIssues,
   formatIssue,
@@ -11,6 +12,16 @@ const LIMITS: CommentLimits = { maxColumns: 40, maxLines: 3 };
 
 const rules = (source: string, limits: CommentLimits = LIMITS): string[] =>
   findCommentIssues(source, limits).map((issue) => issue.rule);
+
+/** The one issue `source` should raise, failing loudly when it raises none. */
+const onlyIssue = (
+  source: string,
+  limits: CommentLimits = LIMITS,
+): CommentIssue => {
+  const [issue] = findCommentIssues(source, limits);
+  if (!issue) throw new Error(`expected an issue for: ${source}`);
+  return issue;
+};
 
 describe("readComments", () => {
   test("finds a line comment and a block comment", () => {
@@ -63,7 +74,7 @@ describe("comment-length rule", () => {
   });
 
   test("counts the lines it found and the limit it broke", () => {
-    const [issue] = findCommentIssues("/**\n * a\n * b\n */\n", LIMITS);
+    const issue = onlyIssue("/**\n * a\n * b\n */\n");
     expect(issue.problem).toBe("comment runs 4 lines (limit 3)");
     expect(issue.line).toBe(1);
   });
@@ -101,10 +112,7 @@ describe("comment-width rule", () => {
 
   test("reports the widest line inside a block, not the first", () => {
     const source = `/**\n * short\n * ${"b".repeat(45)}\n */\n`;
-    const [issue] = findCommentIssues(source, {
-      maxColumns: 40,
-      maxLines: 10,
-    });
+    const issue = onlyIssue(source, { maxColumns: 40, maxLines: 10 });
     expect(issue.rule).toBe("comment-width");
     expect(issue.line).toBe(3);
     expect(issue.problem).toBe("comment line is 48 columns (limit 40)");
@@ -145,7 +153,7 @@ describe("findCommentIssues", () => {
 
 describe("formatIssue", () => {
   test("names the file, the line, the problem, and the fix", () => {
-    const [issue] = findCommentIssues("/**\n * a\n * b\n */\n", LIMITS);
+    const issue = onlyIssue("/**\n * a\n * b\n */\n");
     expect(formatIssue("src/a.ts", issue)).toBe(
       "src/a.ts:1  comment runs 4 lines (limit 3)\n    Say only what the code cannot, or give the confusing part a name that carries the explanation.",
     );

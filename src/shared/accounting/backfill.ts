@@ -13,12 +13,10 @@
  * round-trip-per-attendee backfill would blow on real booking history, evicting
  * the isolate mid-run and leaving the migration lock held. An attendee's legs
  * and row-stamp always land together, so each posts all-or-nothing — which is
- * what lets the guard read "has legs" as "fully posted". Legs use
- * `INSERT OR IGNORE` on the unique reference, so a re-run is a no-op.
- *
- * That guard skips an attendee already carrying legs, so a booking the live
- * path recorded is never double-posted. Currency needs no guard: a site has
- * one, fixed at setup.
+ * what lets the guard skip an attendee already carrying legs, so a booking the
+ * live path recorded is never double-posted. Legs use `INSERT OR IGNORE` on the
+ * unique reference, so a re-run is a no-op, and currency needs no guard at all:
+ * a site has one, fixed at setup.
  */
 
 /* jscpd:ignore-start */

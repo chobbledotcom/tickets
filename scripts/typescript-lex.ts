@@ -118,9 +118,9 @@ const KEYWORD_BEFORE_REGEX = new Set([
  */
 const isRegexStart = (content: string, start: number): boolean => {
   let index = start - 1;
-  while (index >= 0 && /\s/.test(content[index])) index -= 1;
+  while (index >= 0 && /\s/.test(content.charAt(index))) index -= 1;
   if (index < 0) return true;
-  const char = content[index];
+  const char = content.charAt(index);
   if (BEFORE_REGEX.has(char)) return true;
   if (!isIdentifierChar(char)) return false;
   let wordStart = index;
@@ -154,7 +154,9 @@ const regexBodyEnd = (content: string, start: number): number => {
 /** Skip a regular expression literal at `start`, including its flags. */
 const skipRegex = (content: string, start: number): number => {
   let index = regexBodyEnd(content, start);
-  while (index < content.length && /[a-z]/.test(content[index])) index += 1;
+  while (index < content.length && /[a-z]/.test(content.charAt(index))) {
+    index += 1;
+  }
   return index;
 };
 

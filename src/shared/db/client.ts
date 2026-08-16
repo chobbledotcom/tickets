@@ -742,25 +742,21 @@ const runWriteTransactionOnce = async <T>(
 const writeQueue: { tail: Promise<unknown> } = { tail: Promise.resolve() };
 
 /**
- * Run `work` inside one interactive write transaction, committing on success and
- * rolling back (then rethrowing) on any error. Use this — rather than a plain
- * batch — when a multi-step write needs conditional logic between steps, e.g.
- * create → check capacity → finalize, where a zero-row guard must abort and undo
- * everything.
+ * Run `work` inside one interactive write transaction, committing on success
+ * and rolling back (then rethrowing) on any error. Use this rather than a plain
+ * batch when a multi-step write needs logic between steps — create → check
+ * capacity → finalize, where a zero-row guard must abort and undo everything.
  *
- * Concurrent calls serialise: each waits for the previous interactive
- * transaction to settle before it begins, so two never overlap on the shared
- * connection (the documented "concurrent writers serialise rather than failing
- * the loser"). A genuinely contended lock — e.g. a non-transactional read racing
- * the commit — is still retried a few times with backoff (each retry re-runs
- * `work` on a fresh transaction, the prior attempt having rolled back), and a
- * database that stays locked surfaces as {@link DatabaseBusyError}. A fleeting
- * upstream gateway error is not retried here — see {@link runWriteTransactionOnce}
- * — so it surfaces as itself. Statements run
- * through the provided `execute` are tracked, and their table-scoped cache
- * invalidations fire once after the commit succeeds — so callers get the same
- * automatic invalidation as the single-statement `execute`, driven by the writes
- * themselves rather than by each call site remembering to invalidate.
+ * Concurrent calls serialise: each waits for the previous transaction to settle,
+ * so two never overlap on the shared connection. A genuinely contended lock is
+ * retried a few times with backoff, each retry re-running `work` on a fresh
+ * transaction, and a database that stays locked surfaces as
+ * {@link DatabaseBusyError}. A fleeting upstream gateway error is not retried
+ * here — see {@link runWriteTransactionOnce} — so it surfaces as itself.
+ *
+ * Statements run through the provided `execute` are tracked, and their
+ * table-scoped cache invalidations fire once the commit succeeds, so callers
+ * get the same automatic invalidation as a single-statement `execute`.
  */
 export const withTransaction = <T>(work: TransactionWork<T>): Promise<T> => {
   // The async body runs synchronously up to its first await — reading the prior
@@ -916,25 +912,14 @@ const equalityClauses = (
 
 /**
  * Build an UPDATE statement from a table name, a column→value record for the
- * SET clause, and a column→value record for the WHERE clause (equality checks,
- * ANDed together). The counterpart of {@link insert} — use it instead of
- * hand-writing the `UPDATE … SET … WHERE …` string when every condition is a
- * plain `column = value` match; a write that needs a richer guard (`IS NULL`,
- * an inequality, a subquery) keeps its own SQL. SET values may be
- * {@link rawSql} expressions (e.g. a counter increment).
+ * SET clause, and one for the WHERE clause, ANDed as equality checks. The
+ * counterpart of {@link insert}; a write needing a richer guard (`IS NULL`, an
+ * inequality, a subquery) keeps its own SQL. SET values may be {@link rawSql}
+ * expressions, such as a counter increment.
  *
  * ```ts
  * update("attendees", { pii_blob: encrypted }, { id: 4 })
- * // → { sql: "UPDATE attendees SET pii_blob = ? WHERE id = ?",
- * //     args: [encrypted, 4] }
- *
- * update(
- *   "listing_attendees",
- *   { attachment_downloads: rawSql("attachment_downloads + 1") },
- *   { attendee_id: 1, listing_id: 2 },
- * )
- * // → { sql: "UPDATE listing_attendees SET attachment_downloads = attachment_downloads + 1
- * //           WHERE attendee_id = ? AND listing_id = ?", args: [1, 2] }
+ * // → UPDATE attendees SET pii_blob = ? WHERE id = ?  args [encrypted, 4]
  * ```
  */
 export const update = (

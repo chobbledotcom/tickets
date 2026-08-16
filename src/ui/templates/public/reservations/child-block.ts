@@ -156,20 +156,17 @@ const renderChildOption = (
   return `<label class="child-option">${select} ${label}</label>${priceHtml}${input.attributesHtml}`;
 };
 
-/** Render a sole bookable child as INFORMATIONAL (auto-select preserved): no
- * submitted `child_qty_<parentId>_<childId>` field at all — the server fold
- * auto-fills the sole child to the parent's quantity Q whenever nothing was
- * submitted, so emitting a fixed quantity would over-submit and the fold would
- * reject it as "too many" when Q is below that cap. Instead show
- * just the child's name plus its (non-zero) price, and — for a pay-more sole child
- * — its (non-required) price input, which the fold reads for the auto-selected
- * child. No-JS safe: nothing posts a quantity for it.
+/** Render a sole bookable child as informational, keeping the auto-select: it
+ * submits no `child_qty_<parentId>_<childId>` field at all, because the server
+ * fold auto-fills a sole child to the parent's quantity, so emitting a fixed
+ * quantity would over-submit and be rejected as "too many". It shows just the
+ * child's name and price, plus a pay-more child's optional price input, which
+ * the fold reads. Nothing posts a quantity, so it is safe without JS.
  *
- * The buyer makes no choice for a sole child, so it carries no "choose an option"
- * prompt (that lives on the parent's `<legend>`, suppressed for a sole child — see
- * {@link renderChildBlock}). A HIDDEN child shows nothing visible — the operator
- * hid it from public view — but keeps its data markers and pay-more price input so
- * the fold and the compat/required client scripts still drive off them.
+ * The buyer makes no choice here, so there is no "choose an option" prompt —
+ * that lives on the parent's `<legend>`. A hidden child shows nothing visible
+ * but keeps its data markers and price input, so the fold and the client
+ * scripts still drive off them.
  *
  * The informational marker ALSO carries the same date/span compatibility
  * attributes a selectable child option does ({@link childDateAttrs}) so on a

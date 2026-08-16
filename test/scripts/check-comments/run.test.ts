@@ -74,6 +74,30 @@ describe("runCommentCheck", () => {
     expect(await runCommentCheck(dir, tight, log, logError)).toBe(1);
   });
 
+  test("skips a shipped migration, which is history and never changes", async () => {
+    await write(
+      dir,
+      "shared/db/migrations/2026-06-26_attendees_kind.ts",
+      "/**\n * a\n * b\n */\n",
+    );
+    expect(await runCommentCheck(dir, tight, log, logError)).toBe(0);
+  });
+
+  test("still checks the migration machinery beside them", async () => {
+    await write(
+      dir,
+      "shared/db/migrations/runner.ts",
+      "/**\n * a\n * b\n */\n",
+    );
+    await write(
+      dir,
+      "shared/db/migrations/schema-sync.ts",
+      "/**\n * a\n * b\n */\n",
+    );
+    expect(await runCommentCheck(dir, tight, log, logError)).toBe(1);
+    expect(errors.at(-1)).toContain("2 comment issue(s) found");
+  });
+
   test("reports files in a stable order", async () => {
     await write(dir, "src/b.ts", "/**\n * a\n * b\n */\n");
     await write(dir, "src/a.ts", "/**\n * a\n * b\n */\n");

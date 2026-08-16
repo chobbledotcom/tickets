@@ -3,22 +3,18 @@
 /** Disable a child whose date/day-count the current selection can't serve
  * (progressive enhancement).
  *
- * A parent's date and day-count selectors are the UNION across its children's
- * availability, so a buyer can pick a date (or span) only SOME children support.
- * The no-JS baseline lets the buyer put quantity on an incompatible child and the
- * server fold rejects it. With JS we tighten it: each bookable child qty control
- * carries the server's holiday-aware `data-child-dates` (a daily child's
- * serveable starts PER selectable span, encoded `span:d,d|span:d,d`)
- * and/or `data-child-spans` (a customisable/fixed-daily child's supported day
- * counts). On a `date` / `day_count` change we DISABLE and zero any child the
- * current selection can't serve, re-enabling it when a compatible selection returns.
+ * A parent's date and day-count selectors are the union across its children, so
+ * a buyer can pick a date or span only some children support. Without JS the
+ * server fold rejects that at submit. With JS we tighten it: each bookable
+ * child's quantity control carries the server's holiday-aware
+ * `data-child-dates` and `data-child-spans`, and on a `date` or `day_count`
+ * change we disable and zero any child the selection cannot serve, re-enabling
+ * it when a compatible one returns.
  *
- * A SOLE auto-selected child has no `child_qty_*` control (it is informational,
- * the fold auto-fills it), so there is nothing to disable, yet "Includes …" would
- * still show and the submit would hit `child_sold_out`. So a sole child instead
- * FLAGS/disables its PARENT: its quantity selector is disabled+zeroed and the sole
- * block marked `data-sole-incompatible`, surfacing that the parent can't be booked
- * for that date/span.
+ * A sole auto-selected child has no quantity control to disable, yet
+ * "Includes …" would still show and the submit would hit `child_sold_out`. So
+ * it disables its parent instead: the parent's quantity selector is zeroed and
+ * the block marked `data-sole-incompatible`.
  *
  * Only JS-driven disabling is toggled: a SERVER-disabled (sold out) child carries
  * no `data-child-qty` marker, so it is never touched and stays disabled throughout. */

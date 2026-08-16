@@ -636,20 +636,14 @@ const keepPackageDatesChildrenCanServe = (
  * Children are loaded by relationship only — bookability is evaluated at
  * render/submit against the resolved date.
  *
- * Not applying the date-less GROUP cap to a daily parent's children needs
- * no code here: the date-less group aggregate that {@link
- * buildTicketListingsWithGroupCapacity} applies via {@link
- * getGroupRemainingByListingId} **already excludes every daily listing** (its cap
- * is per-date, so a cumulative count is meaningless). A daily parent's group is
- * type-homogeneous (`validateGroupListingType`), so any child co-grouped with it is
- * itself daily and *never* gets a date-less group clamp: it carries no
- * group-remaining entry, and the fold skips a daily child's date-less
- * `maxPurchasable` outright ({@link foldChild}), deferring its per-date group
- * capacity to the date-aware {@link checkAvailability} (rejects, never clamps). A
- * *standard* child can never share a daily parent's group (homogeneity blocks it at
- * save), so the "standard child of a daily parent pre-marked sold out by the
- * date-less group aggregate" state is unreachable —
- * there is no clamp to suppress.
+ * Keeping the date-less group cap off a daily parent's children needs no code
+ * here. That aggregate already excludes every daily listing, its cap being
+ * per-date, and a daily parent's group is type-homogeneous, so any child
+ * co-grouped with it is daily too: it carries no group-remaining entry, and
+ * {@link foldChild} skips a daily child's date-less `maxPurchasable`, leaving
+ * per-date capacity to the date-aware {@link checkAvailability}, which rejects
+ * rather than clamps. Homogeneity blocks a standard child from a daily parent's
+ * group at save, so there is no clamp to suppress.
  */
 export const loadChildrenByParentId = async (
   listings: TicketListing[],

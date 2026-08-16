@@ -56,29 +56,22 @@ export const dropHiddenPackageMembers = async <T extends { id: number }>(
 
 /**
  * How a discovery surface should treat each listing:
- * - `childIds` — **every** child of some parent (the STRUCTURAL set). Used by the
- *   group-liveness gate, which must treat a flagged child as a non-member of the
- *   group page: a group whose only members are `bookable_alone` children is not
- *   advertised live, since its `/ticket/<group>` page still folds them away. A
- *   flagged child's *own* page and catalog card are its surfaces, not the group's.
- * - `nonStandaloneChildIds` — the subset of `childIds` that are NOT sold on their
- *   own (`bookable_alone = 0`), the GATE set. A booking can never start from such
- *   a child, so its standalone CTA (and feed/gallery/builder/share
- *   affordance) is suppressed, matching what `getNonStandaloneChildIds` rejects at
- *   the booking entry point. A `bookable_alone` child is excluded here, so its own
- *   card/detail/API entry renders normally even though it still folds under its
- *   parents.
- * - `addOnChildIds` — the subset of `nonStandaloneChildIds` with at least one
- *   **bookable** parent (active AND not sold out AND not registration-closed, its
- *   own date-less row availability). Such a child has a live parent page that can
- *   offer and fold it, so its card shows the "available as an add-on" note. A
- *   child whose every parent is inactive/sold out/closed has *no* parent page to
- *   offer it (a dead end), so the note would point at nothing: it renders
- *   **unavailable** instead. A
- *   `bookable_alone` child is never added — its card shows its own Book CTA.
- * - `soldOutParentIds` — parents with no bookable child (combined parent+child
- *   demand); their card must render sold out (and be omitted from
- *   feeds/gallery), since the booking gate would reject the order.
+ * - `childIds` — every child of some parent, the structural set. The
+ *   group-liveness gate treats a flagged child as a non-member, so a group whose
+ *   only members are `bookable_alone` children is not advertised live: its
+ *   `/ticket/<group>` page still folds them away, and such a child's own page
+ *   and card are its surfaces instead.
+ * - `nonStandaloneChildIds` — those not sold on their own, the gate set. A
+ *   booking can never start from one, so its standalone call to action is
+ *   suppressed, matching what the booking entry point rejects. A
+ *   `bookable_alone` child is excluded, so its own card renders normally.
+ * - `addOnChildIds` — those with at least one bookable parent, so a live parent
+ *   page can offer and fold them and the card shows "available as an add-on". A
+ *   child whose every parent is inactive, sold out or closed is a dead end, so
+ *   it renders unavailable rather than pointing at nothing.
+ * - `soldOutParentIds` — parents with no bookable child, on combined
+ *   parent-and-child demand; their card renders sold out and leaves the feeds,
+ *   since the booking gate would reject the order.
  */
 export type DiscoveryClassification = {
   childIds: ReadonlySet<number>;
@@ -299,27 +292,23 @@ export const applyParentSoldOut = (
   );
 
 /**
- * Project the booking page's own listings to sold-out for any parent whose children
- * are ALL unavailable, reusing the page's already-built
- * `childrenByParentId` rather than re-querying. Mirrors discovery/feed behaviour on
- * `/ticket/<parent>` so a parent with no bookable child renders sold out (no
- * quantity selector / Book control) instead of a form that could only fail with the
- * child-sold-out error at submit. A listing with no child edge is left
- * untouched; the authoritative date-specific rejection still happens in the submit
- * fold.
+ * Show the booking page's own listings as sold out for any parent whose
+ * children are all unavailable, reusing the page's `childrenByParentId` rather
+ * than re-querying. This matches the discovery and feed surfaces, so a parent
+ * with no bookable child renders sold out instead of offering a form that could
+ * only fail at submit. A listing with no child edge is left untouched, and the
+ * authoritative date-specific rejection still happens in the submit fold.
  *
- * `caps` carries the PER-GROUP shared facts (the group a parent and child SHARE)
- * so the test uses the *combined* parent+child demand: a
- * parent and its child in the same capped group consume two spots, so a parent with
- * a single remaining group spot reads sold out here too — matching what submit-time
- * `checkBatchAvailability` would reject. The shared `staticCap` is date-INDEPENDENT,
- * so a parent whose only child shares a group too small to ever hold both reads sold
- * out even when that child is daily (no per-date remaining without a date).
+ * `caps` carries the facts a parent and child share, so the test uses their
+ * combined demand: two of them in one capped group consume two spots, so a
+ * parent with a single spot left reads sold out here exactly as submit-time
+ * `checkBatchAvailability` would reject it. That shared cap is
+ * date-independent, so a group too small to ever hold both reads sold out even
+ * for a daily child.
  *
- * `holidays` lets a daily child's render-time bookability be judged by its own
- * calendar rather than the date-less `isSoldOut` aggregate (see
- * {@link childCanBeBooked}), so a daily child full on one date doesn't force its
- * parent's page sold out for every date.
+ * `holidays` lets a daily child's bookability be judged by its own calendar
+ * rather than the date-less aggregate (see {@link childCanBeBooked}), so a
+ * child full on one date does not force its parent sold out for every date.
  */
 export const applyBookingPageParentSoldOut = (
   listings: readonly TicketListing[],

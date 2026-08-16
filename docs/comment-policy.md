@@ -1,12 +1,18 @@
-# Options for capping comments per file
+# Comment limits: the measurement, the options, and where we are
 
-An exploration, not a decision. It measures what the comments in `src/` cost
-today, tests the three claims that prompted the question, and prices every cap
-we could set. Nothing here is wired into `precommit` yet.
+This measured what the comments in `src/` cost, tested the three claims that
+prompted the question, priced every cap we could set, and now records the
+decision taken and what is left to do.
 
-All numbers come from `src/` at commit `470b47e` (1,181 files, 161,904 lines),
-counted with the repo's own lexer (`scripts/typescript-lex.ts`), so a `//`
-inside a string is never miscounted.
+**Decided and shipped.** A comment may run at most **20 lines**, and one of its
+lines at most **100 columns**. `deno task check:comments` enforces both in
+`precommit`; the numbers live in `scripts/check-comments/run.ts` and are meant
+to come down. See [Where we are](#where-we-are) for the remaining steps.
+
+All measurements come from `src/` at commit `470b47e` (1,181 files, 161,904
+lines), counted with the repo's own lexer (`scripts/typescript-lex.ts`), so a
+`//` inside a string is never miscounted. They describe the tree **before** the
+first ratchet step, which is what makes the costs below meaningful.
 
 **One unit, used throughout.** A "comment" below means one comment as the lexer
 sees it — a `/* */` or `/** */` block, or a single `//` line — and excludes the
@@ -261,11 +267,55 @@ is not available: the directives are comments too.
 **Two things worth doing whichever way this goes**, because both enforce rules
 that already exist:
 
-1. Fail on a comment line over 80 columns. 1,291 lines are already over, and
-   nothing catches them.
+1. Fail on a comment line over 80 columns. Nothing catches them today.
 2. Delete the 29 comments naming code that no longer exists, and the ~239 that
    explain what the code replaced.
 
 Biome has no rule for any of this, so enforcement is a script. `skipComment` in
 `scripts/typescript-lex.ts` already does the parsing; a checker plus its
 `precommit` step is roughly 80 lines.
+
+## Where we are
+
+The checker is in `scripts/check-comments/`, wired into `precommit`, and the
+tree is green at **20 lines and 100 columns**. Both numbers ratchet: lower one
+in `run.ts`, bring the tree to it, repeat. Directives, the `deno doc` barrels,
+and shipped dated migrations are exempt — the last because they are append-only
+history the repo already declines to edit, the same reason `.jscpd.json` ignores
+that glob.
+
+Two things the analysis got wrong, found by building it:
+
+- **The width problem is bigger and more independent than measured.** The 1,291
+  figure above counts only lines inside multi-line comments. Including
+  single-line comments it is **1,708 over 80 columns, across 459 files**, and
+  88% of them sit at 81–85 columns. Length capping barely dents it: even at a
+  one-line cap, 417 remain, because a one-line comment can still be 120 columns
+  wide. That is why the width limit starts at 100 rather than 80, and why it has
+  to ratchet separately from the length limit.
+- **The count of over-length comments was slightly understated**, because the
+  lexer was mis-parsing regular expressions and lost its place in three files.
+  Fixing it revealed three comments in `db/client.ts` and `schema-sync.ts` that
+  had been hidden.
+
+Remaining steps, from the staged table above, now that ≤ 20 is done:
+
+| Next | Comments to rewrite | Files touched | Cumulative |
+| ---- | ------------------- | ------------- | ---------- |
+| ≤ 16 | 55                  | 51            | 96         |
+| ≤ 12 | 132                 | 118           | 228        |
+| ≤ 8  | 332                 | 259           | 560        |
+| ≤ 6  | 438                 | 296           | 998        |
+| ≤ 4  | 875                 | 429           | 1,873      |
+| ≤ 3  | 609                 | 334           | 2,482      |
+| ≤ 2  | 914                 | 412           | 3,396      |
+
+On width, 100 → 90 is about 80 comments and 90 → 80 about 1,470 more, so the
+last step there is the single biggest piece of work left in this whole plan.
+
+One judgement worth recording for whoever takes the next step: bringing a
+docstring under a limit is not a formatting job. Most of what came out was
+narration of the code below, or an account of what the code used to be — the
+[banned classes](#the-three-claims-tested), not the load-bearing "why". When a
+comment resists shortening, that is the signal AGENTS.md describes: the code
+underneath probably wants the clarity instead.

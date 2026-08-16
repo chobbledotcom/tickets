@@ -1,25 +1,22 @@
 /**
  * Public order page.
  *
- * `GET /order` renders a gallery of every bookable listing AND package as a
- * grid of selectable cards with a floating cart. Selection, the live count,
- * and showing/hiding the cart are pure CSS (`:checked` + a counter + `:has()`),
- * so the page works with no JavaScript.
+ * `GET /order` renders every bookable listing and package as selectable cards
+ * with a floating cart. Selection, the count, and showing the cart are pure CSS
+ * (`:checked`, a counter and `:has()`), so it works with no JavaScript.
  *
- * An enhancement script keeps availability live as the visitor builds their
- * order: on every change it asks `GET /order/availability` how each card now
- * stands and greys out what no longer fits, naming the earlier choice to
- * remove when the visitor's own selection holds the contested capacity. Items
- * needing a date prompt for it rather than guessing. The evaluation itself is
- * the pure `#shared/order` core, so the same process can drive other surfaces.
+ * An enhancement script keeps availability live: on every change it asks
+ * `GET /order/availability` how each card stands and greys out what no longer
+ * fits, naming the earlier choice to remove when the visitor's own selection
+ * holds the capacity. The evaluation is the pure `#shared/order` core.
  *
- * The cart is a GET form back to `/order`; a request carrying a selection
- * redirects to `/ticket/<slugs>?q_<id>=1…&date=…`, where a slug may name a
- * package. Nothing selected is ever dropped, because the booking page and its
- * submit remain the availability authority — so what this page shows is only
- * advisory. An option's demand covers its direct listings, not the required
- * children the form folds under them, so two selections contending for a
- * shared child pool read as available here and are refused at the form.
+ * The cart is a GET form back to `/order`; a selection redirects to
+ * `/ticket/<slugs>?q_<id>=1…&date=…`, where a slug may name a package. Nothing
+ * is ever dropped, because the booking page and its submit remain the
+ * availability authority — so this page is only advisory. An option's demand
+ * covers its direct listings, not the required children the form folds under
+ * them, so two selections sharing a child pool look available here and are
+ * refused at the form.
  */
 
 import { compact, requiredMapValue, uniqueBy } from "#fp";

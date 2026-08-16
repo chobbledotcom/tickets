@@ -2,12 +2,11 @@
  * Reconcile an older backup's dump with the current schema before replaying it.
  *
  * A restore rebuilds the database at the current schema then replays the
- * backup's INSERTs, and the backup's own schema_migrations rows make the next
- * boot replay whatever it predates. Columns added since the backup round-trip
- * fine; a column a later migration dropped breaks the replay, because the
- * dump still writes to it. Re-adding those columns first rebuilds the
- * backup-era table faithfully, and the pending migration then reshapes the data
- * exactly as a live upgrade would.
+ * backup's INSERTs, and its schema_migrations rows make the next boot replay
+ * whatever it predates. Columns added since round-trip fine; one a later
+ * migration dropped breaks the replay, because the dump still writes to it.
+ * Re-adding those first rebuilds the backup-era table, and the pending
+ * migration then reshapes the data as a live upgrade would.
  *
  * Direction matters. Re-adding is only legitimate for a dump older than this
  * build, where a pending migration exists to consume the re-added columns. A
@@ -16,9 +15,8 @@
  * refuses it rather than making the rollback look successful. And with nothing
  * pending, an unknown column is corruption rather than history: nothing is
  * re-added and the INSERT fails loudly. `dumpMigrationState` answers both
- * questions from the dump itself.
- *
- * This module is pure: dump statements in, ALTER statements and analysis out.
+ * questions from the dump itself. This module is pure: dump statements in,
+ * ALTER statements and analysis out.
  */
 
 import { mapNotNullish } from "#fp";
