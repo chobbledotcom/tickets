@@ -17,9 +17,10 @@ import {
 } from "#shared/accounting/mappers.ts";
 import { transfersByEventGroup } from "#shared/accounting/queries.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { queryAll, queryOne } from "#shared/db/client.ts";
+import { execute, queryAll, queryOne } from "#shared/db/client.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
 import { loadRefundAuthorityById } from "#shared/db/provider-refund-authority.ts";
+import { completedAtOf } from "#shared/payment/refund-authority-state.ts";
 import { recordProviderRefunds } from "#shared/provider-refunds.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -95,6 +96,18 @@ describeWithEnv("a refunded rejection's Money target", { db: true }, () => {
     expect(authority?.state.kind).toBe("completed");
     expect(authority?.state.local.kind).toBe("recorded");
 
+    // Both legs carry the provider's return instant, so every delivery
+    // would post the exact same identity.
+    const returnInstant = new Date(
+      completedAtOf(authority!.state)!,
+    ).toISOString();
+    expect(payment.map(({ occurredAt }) => occurredAt)).toEqual([
+      returnInstant,
+    ]);
+    expect(returned.map(({ occurredAt }) => occurredAt)).toEqual([
+      returnInstant,
+    ]);
+
     // The ghost's born claim was settled, so nothing holds the row.
     const mirror = await queryOne<{ protected_state: string }>(
       "SELECT protected_state FROM processed_payments WHERE attendee_id = ?",
@@ -145,6 +158,39 @@ describeWithEnv("a refunded rejection's Money target", { db: true }, () => {
     );
     expect(authority?.state.kind).toBe("completed");
     expect(authority?.state.local.kind).toBe("due");
+  });
+
+  it("fails the delivery when Money cannot record the return", async () => {
+    const { listing, rejection } = await rejectionFor("pi_ledger_down");
+    // The same real write-boundary fault the recovery stories use: only
+    // refund legs are refused, so the atomic two-leg post rolls back whole.
+    await execute(`CREATE TRIGGER reject_refund_legs
+      BEFORE INSERT ON transfers
+      WHEN substr(NEW.kind, 1, 7) = 'refund_'
+      BEGIN SELECT RAISE(ABORT, 'refund ledger unavailable'); END`);
+    try {
+      await expect(
+        withSucceedingRefundFor(CAPTURED)(() =>
+          settleRejectedCharge(rejection),
+        ),
+      ).rejects.toThrow("could not be recorded");
+    } finally {
+      await execute("DROP TRIGGER IF EXISTS reject_refund_legs");
+    }
+    // The ghost and its outcome are stored; the books hold nothing at all,
+    // and the authority stays due — parked and visible, ready for a retry.
+    expect((await ghostAttendees(listing.id)).length).toBe(1);
+    expect(
+      await transfersByEventGroup(await bookingEventGroup(rejection.sessionId)),
+    ).toEqual([]);
+    const charge = await queryOne<{
+      refund_state_name: string;
+      refund_local_state: string;
+    }>("SELECT refund_state_name, refund_local_state FROM payment_charges", []);
+    expect(charge).toEqual({
+      refund_local_state: "due",
+      refund_state_name: "completed",
+    });
   });
 
   it("releases its fence when storing the ghost fails, so redelivery retries", async () => {

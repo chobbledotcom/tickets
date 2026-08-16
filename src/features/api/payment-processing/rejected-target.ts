@@ -37,11 +37,11 @@ import {
 import { loadRefundAuthorityById } from "#shared/db/provider-refund-authority.ts";
 import { t } from "#shared/i18n.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import { nowIso } from "#shared/now.ts";
 import {
   placeholderRefund,
   placeholderRefundNote,
 } from "#shared/payment/placeholder-refund.ts";
+import { completedAtOf } from "#shared/payment/refund-authority-state.ts";
 import {
   type MalformedRejection,
   rejectedChargeReference,
@@ -136,6 +136,12 @@ const storeRejectedTarget = async (
     await loadRefundAuthorityById(returned.authority.id),
     `Refunded rejected session ${rejection.sessionId} lost its refund authority row`,
   );
+  // The moment the provider finished returning the money — durable on the
+  // authority row before the fence, so every delivery posts the same legs.
+  const returnedAtMs = requireValue(
+    completedAtOf(authority.state),
+    `Refunded rejected session ${rejection.sessionId} has a receipt but no completed authority`,
+  );
   const spec = placeholderRefund("malformed_charge")(
     `Provider reported session ${rejection.sessionId} in a form the site could not read`,
   );
@@ -154,17 +160,24 @@ const storeRejectedTarget = async (
     ),
     sessionId: rejection.sessionId,
   });
-  await recordPlaceholderRefund(
+  const recording = await recordPlaceholderRefund(
     {
       amount: authority.captured.amount,
       attendeeId,
       eventId: rejection.sessionId,
       listingId,
-      occurredAt: nowIso(),
+      occurredAt: new Date(returnedAtMs).toISOString(),
     },
     spec.code,
     true,
   );
+  if (!recording.posted) {
+    // The books must not silently miss returned money: fail the delivery so
+    // the provider redelivers, while the authority stays due and visible.
+    throw new Error(
+      `Money for rejected session ${rejection.sessionId} could not be recorded`,
+    );
+  }
   // Inside the fence the legs are always fresh — a delivery that stored the
   // outcome never re-enters, and a failed store released the fence before
   // any leg was posted. Only the authority's own recording can vary: an

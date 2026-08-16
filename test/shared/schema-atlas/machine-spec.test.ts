@@ -7,6 +7,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   atlasStatesFromSpec,
+  factsAndStart,
   type MachineEvent,
   machineRep,
   movesIn,
@@ -24,6 +25,27 @@ const reader = movesIn<ToyNodeId, ToyEventId>({
 const resolve = reader.expected;
 
 describe("the machine-spec framework", () => {
+  test("factsAndStart reads the first shape and flags only the start node", () => {
+    const extras = factsAndStart(
+      (state: boolean) => [
+        { labelKey: "toy.fact", value: state ? "lit" : "dark" },
+      ],
+      "on",
+    );
+    // Two shapes: the FIRST speaks for the node, and a non-start node
+    // carries no start flag.
+    expect(
+      extras({
+        id: "",
+        reps: [machineRep("off", false), machineRep("dim", true)],
+      }),
+    ).toEqual({ facts: [{ labelKey: "toy.fact", value: "dark" }] });
+    expect(extras({ id: "on", reps: [machineRep("on", true)] })).toEqual({
+      facts: [{ labelKey: "toy.fact", value: "lit" }],
+      start: true,
+    });
+  });
+
   test("a plain cell names the move for every shape", () => {
     expect(resolve("", "flip", "anything")).toBe("on");
   });
