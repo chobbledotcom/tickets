@@ -14,10 +14,8 @@
  * the deletes can never commit while a line silently fails. A zero-row capacity
  * statement is not itself an error, which is exactly why the guard is needed,
  * and a plain batch is required because the edge runtime does not support
- * interactive transactions reliably.
- *
- * A guard clause rejects "remove every line" up front, so the deletes can never
- * strip the attendee down to an orphan row.
+ * interactive transactions reliably. A guard clause rejects "remove every line"
+ * up front, so the deletes can never leave the attendee an orphan row.
  */
 
 import type { InValue } from "@libsql/client";

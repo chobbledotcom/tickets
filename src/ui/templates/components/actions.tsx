@@ -188,9 +188,9 @@ type IconLinkProps = {
 
 /**
  * Build an icon link renderer: takes the link class and icon name, returns a
- * component taking {@link IconLinkProps}. {@link BackButton} and {@link GuideLink}
- * are specialisations of this — they share the `<a class=... href=...><Icon/><span>{children}</span></a>`
- * shape; only the class and icon differ.
+ * component taking {@link IconLinkProps}. {@link BackButton} and
+ * {@link GuideLink} are specialisations that share its anchor-icon-label
+ * shape, differing only in class and icon.
  */
 const iconLink =
   (

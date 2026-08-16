@@ -75,8 +75,8 @@ export const CONTACT_FIELDS = ContactFieldSchema.options;
 export const isContactField = guardFor(ContactFieldSchema);
 
 /**
- * Contact fields setting for an listing (comma-separated ContactField names, or empty for name-only).
- * Alias kept for documentation; runtime enforcement happens in parseListingFields.
+ * A listing's contact fields, as comma-separated ContactField names, or empty
+ * for name only. `parseListingFields` is what enforces it at runtime.
  */
 export type ListingFields = string;
 

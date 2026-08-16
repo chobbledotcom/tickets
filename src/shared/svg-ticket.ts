@@ -10,7 +10,7 @@ import { formatDateLabel, formatDatetimeLabel } from "#shared/dates.ts";
 import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import { generateQrSvg } from "#shared/qr.ts";
 
-/** Non-PII ticket data for SVG rendering (extends shared wallet fields with display-formatted values) */
+/** Non-PII ticket data for the SVG, with its values already formatted. */
 export type SvgTicketData = Pick<
   WalletPassData,
   | "listingName"

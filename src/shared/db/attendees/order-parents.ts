@@ -13,11 +13,10 @@
  * order. The free and paid paths both reach `createAttendeeAtomic` with the
  * full folded booking set, so neither needs parent-awareness.
  *
- * The unique index on `(listing_id, attendee_id, start_at, parent_listing_id)`
- * keeps the same child chosen under two parents as two rows, so
- * {@link expandChildAllocations} emits one per `(child, parent)`. A child whose
- * booked quantity exceeds its allocations also gets a parent-less remainder
- * row, so no unit — or its price — is ever dropped.
+ * The unique index keeps the same child chosen under two parents as two rows,
+ * so {@link expandChildAllocations} emits one per `(child, parent)`. A child
+ * whose booked quantity exceeds its allocations also gets a parent-less
+ * remainder row, so no unit — or its price — is ever dropped.
  */
 
 import { reduce } from "#fp";

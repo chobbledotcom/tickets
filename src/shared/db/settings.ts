@@ -2,30 +2,14 @@
  * Settings — sync reads, async writes.
  *
  * Call `settings.loadKeys(keys)` before a request to populate the snapshot.
- * After that, every setting is a plain sync property:
+ * After that every setting is a plain sync property, and writes go through
+ * `settings.update.*`:
  *
- *   settings.theme            // "light"
- *   settings.headerImageUrl   // string
- *   settings.stripe.secretKey // string
- *
- * Writes go through `settings.update.*`:
- *
+ *   settings.theme                      // "light"
  *   await settings.update.theme("dark");
- *   await settings.update.headerImageUrl(url);
  *
- * This entry file assembles the {@link settings} namespace over the helpers
- * split across `./settings/`:
- *   - `settings/cache.ts`        — raw-row cache + version stamp
- *   - `settings/snapshot.ts`    — in-memory snapshot + `snap`/test overrides
- *   - `settings/raw-writes.ts`   — DB writers + encrypted/plaintext factories
- *   - `settings/accessors.ts`    — generated string getter/writer pairs
- *   - `settings/apply.ts`        — per-key snapshot appliers + key lists
- *   - `settings/load.ts`         — `loadKeys` + `invalidateCache`
- *   - `settings/setup.ts`        — setup-complete gate + initial site ceremony
- *   - `settings/password.ts`     — owner password re-wrap
- *   - `settings/current-task.ts` — single-flight `current_task` lock
- *   - `settings/mask.ts`         — `MASK_SENTINEL`/`isMaskSentinel`
- *   - `settings/constants.ts`   — `MAX_*_LENGTH` limits + `keyModeOf`
+ * This entry file assembles the {@link settings} namespace over the helpers in
+ * `./settings/`, each file named for the job it does.
  */
 
 import * as v from "valibot";

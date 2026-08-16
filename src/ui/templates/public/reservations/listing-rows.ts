@@ -222,7 +222,7 @@ const renderPackageSection = (input: PackageRenderInput): string => {
   }" data-package-section="${pkg.groupId}">${heading}${body}</fieldset>`;
 };
 
-/** Render controls for a single listing: quantity input + pay-more (no listing name/image/description). */
+/** Controls for one listing — quantity and pay-more — without its details. */
 const renderSingleListingControls = (
   info: TicketListing,
   node: BookingNode,

@@ -14,14 +14,12 @@
  * the pure `#shared/order` core, so the same process can drive other surfaces.
  *
  * The cart is a GET form back to `/order`; a request carrying a selection
- * redirects to the booking page `/ticket/<slugs>?q_<id>=1…&date=…`, where a
- * slug may name a package. Nothing selected is ever dropped, because the
- * booking page and its submit remain the availability authority.
- *
- * What this page shows is advisory. An option's demand covers its direct
- * listings, not the required children the form folds under them, so two
- * selections contending for a shared child pool read as available here and are
- * refused at the form.
+ * redirects to `/ticket/<slugs>?q_<id>=1…&date=…`, where a slug may name a
+ * package. Nothing selected is ever dropped, because the booking page and its
+ * submit remain the availability authority — so what this page shows is only
+ * advisory. An option's demand covers its direct listings, not the required
+ * children the form folds under them, so two selections contending for a
+ * shared child pool read as available here and are refused at the form.
  */
 
 import { compact, requiredMapValue, uniqueBy } from "#fp";

@@ -1,23 +1,19 @@
 /**
  * Orphaned-attendee cleanup.
  *
- * An "orphaned" attendee is a row in `attendees` with no surviving
- * `listing_attendees` link — typically left behind when the only listing they
- * were booked onto is deleted (deleteListing removes the bookings but
- * deliberately leaves the attendee, see db/listings/delete.ts). These rows still hold
- * encrypted personal data but no longer belong to any listing, so the Privacy
- * page lets the owner purge those older than a chosen age.
+ * An orphaned attendee has no surviving `listing_attendees` link, typically
+ * because the only listing they booked was deleted — `deleteListing` removes
+ * the bookings but deliberately leaves the attendee. They still hold encrypted
+ * personal data, so the Privacy page lets the owner purge those past a chosen
+ * age.
  *
- * The purge deletes the same dependent rows the canonical single-attendee
- * `deleteAttendee` does, so "purge orphans" is exactly "deleteAttendee applied
- * to every orphan", just set-based in one batch. No listing aggregates need
- * restoring: an orphan has no bookings contributing to any listing's totals.
+ * The purge deletes the same dependent rows `deleteAttendee` does, set-based in
+ * one batch. No listing aggregates need restoring, since an orphan contributes
+ * to no listing's totals.
  *
- * The `transfers` ledger is append-only history and is never touched by the
- * purge — a cost-bearing servicing event's `service_cost` legs remain in the
- * table as orphaned history, the same way sale legs for a deleted listing
- * remain. The ledger UI resolves the listing/account labels to "Deleted
- * listing" when the underlying row is gone.
+ * The `transfers` ledger is append-only and never touched: a servicing event's
+ * legs stay as orphaned history, the way a deleted listing's sale legs do, and
+ * the ledger UI labels the missing row "Deleted listing".
  */
 
 import { attendeeDependentDeleteStatements } from "#shared/db/attendees/delete.ts";

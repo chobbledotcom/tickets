@@ -192,7 +192,7 @@ type BuiltSiteForm = FormDefinition<ReturnType<typeof getBuiltSiteFields>>;
 export const getBuiltSiteForm = (): BuiltSiteForm =>
   defineForm({ fields: getBuiltSiteFields() });
 
-/** Password field with new-password autocomplete (reused across setup, change password, and join forms) */
+/** Password field telling the browser to offer a new password, not a saved one. */
 const newPasswordField = <TName extends string>(
   name: TName,
   label: string,

@@ -2,31 +2,23 @@
  * One-shot backfill of the transfers ledger from existing booking rows.
  *
  * No production modifier or reservation has ever existed, so every historical
- * booking is paid in full: an attendee's `listing_attendees` rows with
- * `price_paid > 0` reconstruct to one `sale` per listing plus a single
- * `payment` for the lot (the attendee nets to zero), and a refunded attendee
- * also gets the matching reversal. One event group per attendee
- * (`backfill:att:<id>`) mirrors the live booking flow — a multi-listing booking
- * is one order — so a later admin refund still finds a single booking order via
- * {@link file://../refund-ledger.ts}.
+ * booking is paid in full: rows with `price_paid > 0` reconstruct to one `sale`
+ * per listing plus a single `payment` for the lot, and a refunded attendee gets
+ * the matching reversal. One event group per attendee mirrors the live flow, so
+ * a later refund still finds a single booking order. It reuses the live
+ * mappers, so references and validation match the dual-write path exactly.
  *
- * It reuses the live mappers, so references and validation match the
- * dual-write path exactly. Legs are written with `INSERT OR IGNORE` keyed on
- * the unique reference, making a re-run a no-op, and in batches rather than
- * interactive transactions so it never contends the single SQLite writer.
- *
- * A whole page of attendees goes in one batch (see {@link ATTENDEE_PAGE}): the
- * migration runs inline on an edge isolate whose subrequest budget a
+ * A whole page of attendees goes in one batch (see {@link ATTENDEE_PAGE}): this
+ * runs inline on an edge isolate whose subrequest budget a
  * round-trip-per-attendee backfill would blow on real booking history, evicting
- * the isolate mid-run and leaving the migration lock held. One batch per page
- * costs O(pages) round-trips, and an attendee's legs and row-stamp always land
- * together, so each attendee still posts all-or-nothing — which is what lets
- * the guard read "has legs" as "fully posted".
+ * the isolate mid-run and leaving the migration lock held. An attendee's legs
+ * and row-stamp always land together, so each posts all-or-nothing — which is
+ * what lets the guard read "has legs" as "fully posted". Legs use
+ * `INSERT OR IGNORE` on the unique reference, so a re-run is a no-op.
  *
  * That guard skips an attendee already carrying legs, so a booking the live
- * path recorded is never double-posted. It never normally fires, since the
- * preceding migration rebuilds the ledger empty. Currency needs no guard: a
- * site has one, fixed at setup.
+ * path recorded is never double-posted. Currency needs no guard: a site has
+ * one, fixed at setup.
  */
 
 /* jscpd:ignore-start */

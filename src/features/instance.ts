@@ -15,9 +15,8 @@
  * 404s rather than advertising it, and the key is compared in constant time.
  * Each token returned is that site's own FULL-ACCESS credential, so treat the
  * response as write-capable production secrets even though callers only read.
- * The per-site DB_ENCRYPTION_KEY is never included, leaving PII unreadable to
- * whoever holds the response. It is a POST so the key and the response stay
- * out of access-log query strings.
+ * DB_ENCRYPTION_KEY is never included, leaving PII unreadable to whoever holds
+ * it. A POST keeps the key and response out of access-log query strings.
  */
 
 import { apiErrorResponse } from "#routes/api/cors.ts";

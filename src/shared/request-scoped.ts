@@ -1,34 +1,24 @@
 /**
  * Request-scoped state, safe against leaked async contexts.
  *
- * A dozen modules keep some piece of per-request state — the collection cache,
- * the pending-work queue, the locale, the client IP, the query log — that is
- * set at the request boundary and read deep inside rendering or data code, so
- * it can't be threaded through as arguments. Plain module globals race under
- * concurrency: one edge isolate serving two requests at once has one global,
- * so request B's write clobbers request A's value while A is parked on an
- * `await`. Backing each piece with an `AsyncLocalStorage` scope fixes that.
+ * A dozen modules keep per-request state — the collection cache, the pending
+ * work queue, the locale, the client IP, the query log — set at the request
+ * boundary and read deep inside rendering, so it cannot be threaded through as
+ * arguments. Module globals race: one edge isolate serving two requests has one
+ * global, so request B's write clobbers request A's while A is parked on an
+ * `await`. An `AsyncLocalStorage` scope per piece fixes that.
  *
- * The runtime adds one trap: it can re-attach a *finished* request's async
- * context to later, unrelated work (on Deno 2.5.6 a forced GC at a test
- * boundary deterministically left the test runner's whole continuation chain
- * inside a request context that had ended long before). Post-request reads of
- * request state are meaningless in this app — pending work is flushed before
- * the response is sent — so a store seen after its scope settled is always
- * this runtime leak, and reads must treat it exactly like being outside a
- * scope.
+ * The runtime adds one trap: it can re-attach a finished request's context to
+ * later, unrelated work. Post-request reads are meaningless here — pending work
+ * is flushed before the response is sent — so a store seen after its scope
+ * settled is always that leak, and reads treat it as being outside a scope.
  *
- * This module is the only place allowed to touch `AsyncLocalStorage`, so that
- * rule cannot be bypassed. Everything else builds on one of three factories:
- *
- * - {@link createScope} — the base mechanism: a store per `run`, `current()`
- *   while the scope is live, `undefined` outside or after it ends.
- * - {@link createScopedValue} — one fixed value per scope, with a fallback
- *   for reads outside any scope (locale, client IP, request ID).
- * - {@link createRequestScoped} — a mutable container per scope, falling back
- *   to a shared ambient container outside any scope, so unit tests that
- *   render a component directly keep the simple set-then-read behaviour
- *   (iframe mode, CSRF token, saved form data).
+ * This is the only module allowed to touch `AsyncLocalStorage`, so the rule
+ * cannot be bypassed. Everything else builds on {@link createScope} (a store
+ * per `run`), {@link createScopedValue} (one fixed value per scope with a
+ * fallback outside it), or {@link createRequestScoped} (a mutable container
+ * falling back to a shared ambient one, so a test rendering a component
+ * directly keeps simple set-then-read behaviour).
  */
 
 import { AsyncLocalStorage } from "node:async_hooks";

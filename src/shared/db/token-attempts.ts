@@ -6,20 +6,14 @@
  * only MAX_TOKEN_404S distinct invalid tokens inside a single TOKEN_WINDOW_MS
  * window trigger a TOKEN_LOCKOUT_MS lockout.
  *
- * Data stored per IP (hashed):
- *   - recent_tokens: JSON array of hashed tokens in the current window (max
- *     MAX_TOKEN_404S entries; cleared to "[]" once locked). Only ever written
- *     by the single recording statement below, which merges inside the
- *     database — the stored set is never read back into JS.
- *   - window_start: ms-epoch when the current counting window began. When
- *     now - window_start exceeds TOKEN_WINDOW_MS the window tumbles and the
- *     counter resets.
- *   - locked_until / last_attempt: lockout timestamp and last-touched marker
- *     (the latter drives prune).
+ * Per hashed IP it stores `recent_tokens` (the window's hashed tokens, merged
+ * inside the database by the recording statement below and never read back into
+ * JS), `window_start` (which tumbles once TOKEN_WINDOW_MS passes), and
+ * `locked_until` / `last_attempt`, the latter driving prune.
  *
- * We intentionally do NOT store a per-attempt timestamp for each hashed token.
- * A single window_start is enough to enforce the limit and keeps the on-disk
- * profile (timing of individual invalid-link clicks) small.
+ * There is deliberately no per-attempt timestamp: one `window_start` enforces
+ * the limit, and storing less keeps the timing of individual invalid-link
+ * clicks off disk.
  */
 
 /* jscpd:ignore-start */
