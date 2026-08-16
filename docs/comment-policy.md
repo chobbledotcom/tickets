@@ -8,28 +8,42 @@ All numbers come from `src/` at commit `470b47e` (1,181 files, 161,904 lines),
 counted with the repo's own lexer (`scripts/typescript-lex.ts`), so a `//`
 inside a string is never miscounted.
 
+**One unit, used throughout.** A "comment" below means one comment as the lexer
+sees it — a `/* */` or `/** */` block, or a single `//` line — and excludes the
+machine-read directives, which are not prose and cannot be deleted. Every table
+in this document counts that way, so a cap in one table can be compared with a
+cost in another. Two other counts exist and are reported once, here, so they are
+never confused with the working unit:
+
+- **12,045** comments including directives, of which **630** are directives: 542
+  `jscpd:ignore`, 80 `<reference`, 7 `deno-lint-ignore`, 1 `biome-ignore`. Those
+  four are every directive in `src/`, and they sum to the 630.
+- **9,744** comment _blocks_, which is the same corpus with each run of
+  consecutive `//` lines merged into one. Only the "blocks" figure uses this;
+  nothing is priced against it.
+
 ## What is there now
 
-|                         |                                           |
-| ----------------------- | ----------------------------------------- |
-| Comment blocks          | 9,744                                     |
-| Comment lines           | 30,071 (18.6% of `src/`)                  |
-| Median blocks per file  | 4 (p90 = 20, worst = 125)                 |
-| Files with no comments  | 112 (9.5%)                                |
-| Machine-read directives | 630 (542 `jscpd:ignore`, 80 `<reference`) |
+|                                   |                           |
+| --------------------------------- | ------------------------- |
+| Prose comments                    | 11,415                    |
+| Prose comment lines               | 29,433 (18.2% of `src/`)  |
+| All comment lines inc. directives | 30,071 (18.6%)            |
+| Median prose comments per file    | 4 (p90 = 25, worst = 142) |
+| Files with no prose comments      | 122 (10.3%)               |
 
 The shape matters more than the total. Sorted by how many lines each size of
-comment occupies:
+comment occupies (rows sum to the 11,415 / 29,433 above):
 
 | Comment length | Comments | Lines | Share of comment mass |
 | -------------- | -------- | ----- | --------------------- |
-| 1 line         | 7,125    | 7,125 | 24.2%                 |
+| 1 line         | 7,126    | 7,126 | 24.2%                 |
 | 2 lines        | 893      | 1,786 | 6.1%                  |
 | 3–4 lines      | 1,523    | 5,178 | 17.6%                 |
 | 5–9 lines      | 1,433    | 9,088 | 30.9%                 |
 | 10+ lines      | 440      | 6,255 | 21.3%                 |
 
-**Half the prose lives in 1,873 comments — 16% of the comments.** The 7,125
+**Half the prose lives in 1,873 comments — 16% of the comments.** The 7,126
 one-liners are 62% of the comments but under a quarter of the text.
 
 Separately: 837 files (71%) open with a header docstring, and those headers are
@@ -79,7 +93,7 @@ six content words or fewer, nearly all of them already in the identifier) finds
 **454 comments that only restate the name below them**. `AGENTS.md` bans this
 class in as many words. Samples:
 
-```
+```text
 /** Service account email address */   serviceAccountEmail: string;
 /** Error result with message */       type ErrorResult = …
 /** Create */                          const handleCreate: RouteHandlerFn = …
@@ -103,13 +117,13 @@ drifts.
 **2. It is satisfied by splitting the file.** Comments move with the code they
 sit on, so any count cap can be met by cutting a file in two — and `AGENTS.md`
 already pushes files toward 400 lines, so the escape hatch is not just open, it
-is signposted. Arithmetically, holding today's 11,414 prose comments under a cap
+is signposted. Arithmetically, holding today's 11,415 prose comments under a cap
 needs at least this many files:
 
 | Cap | Files needed | We have 1,181       |
 | --- | ------------ | ------------------- |
-| 1   | 11,414       | 9.7× more           |
-| 2   | 5,707        | 4.8× more           |
+| 1   | 11,415       | 9.7× more           |
+| 2   | 5,708        | 4.8× more           |
 | 3   | 3,805        | 3.2× more           |
 | 5   | 2,283        | 1.9× more           |
 | 10  | 1,142        | already satisfiable |
@@ -126,7 +140,9 @@ which any real rule would do anyway.
 ## Every option, priced
 
 Directives exempt throughout. "Files over" is how many files fail on day one;
-"lines" is roughly how much prose has to go.
+"lines" is roughly how much prose has to go. Every figure here is the **whole**
+cost of adopting that rule, not a per-step one — the staged table further down
+splits the same totals into per-PR instalments.
 
 | Rule                                      | Files over | Comments to rewrite | Lines removed |
 | ----------------------------------------- | ---------- | ------------------- | ------------- |
@@ -135,12 +151,12 @@ Directives exempt throughout. "Files over" is how many files fail on day one;
 | 5 comments                                | 527 (45%)  | 7,525               | 11,236        |
 | 10 comments                               | 338 (29%)  | 5,315               | 6,718         |
 | **B — max comment lines per file**        |            |                     |               |
-| 10 lines                                  | 633 (54%)  | —                   | 20,933        |
+| 10 lines                                  | 633 (54%)  | —                   | 20,934        |
 | 20 lines                                  | 443 (38%)  | —                   | 15,511        |
 | 30 lines                                  | 330 (28%)  | —                   | 11,612        |
 | **C — max share of file that is comment** |            |                     |               |
-| 10%                                       | 706 (60%)  | —                   | 16,249        |
-| 15%                                       | 586 (50%)  | —                   | 11,178        |
+| 10%                                       | 706 (60%)  | —                   | 16,250        |
+| 15%                                       | 586 (50%)  | —                   | 11,179        |
 | **D — max lines in any one comment**      |            |                     |               |
 | 1 line                                    | 910 (77%)  | 4,289               | 18,018        |
 | 2 lines                                   | 866 (73%)  | 3,396               | 13,729        |
@@ -200,7 +216,7 @@ lines is the norm; a paragraph above a few lines of code is a smell" — and 29.
 of comments break it, with 16.4% at the "paragraph" size. The gap is not a
 missing rule, it is that nothing checks the rule we wrote. A length cap:
 
-- hits the half of the prose that actually drifts, and leaves 7,125 accurate
+- hits the half of the prose that actually drifts, and leaves 7,126 accurate
   one-liners alone;
 - cannot be gamed by splitting a file;
 - leaves every mandated comment (`catch`, `*OrNull`, hand-rolled reason,
@@ -215,19 +231,27 @@ work either way.
 
 **Land it by lowering one number, not by grandfathering files.** The repo has no
 allow-lists and should not gain one. Set the cap in config at a number that
-passes today and lower it per PR; each step is bounded:
+passes today and lower it per PR; each step is bounded.
 
-| Step | Comments to rewrite | Files touched |
-| ---- | ------------------- | ------------- |
-| ≤ 20 | 41                  | 38            |
-| ≤ 12 | 132                 | 118           |
-| ≤ 8  | 332                 | 259           |
-| ≤ 6  | 438                 | 296           |
-| ≤ 4  | 875                 | 429           |
-| ≤ 3  | 609                 | 334           |
-| ≤ 2  | 914                 | 412           |
+The first two columns are **incremental** — the work that one PR takes on, being
+only the comments that step newly catches. The last column is the running total,
+and it is what matches option D above: the cumulative figure at ≤ 2 is 3,396,
+the same number option D prices.
 
-The last three steps are still large and would split by directory.
+| Step | Comments this step | Files this step | Cumulative comments |
+| ---- | ------------------ | --------------- | ------------------- |
+| ≤ 20 | 41                 | 38              | 41                  |
+| ≤ 12 | 132                | 118             | 228                 |
+| ≤ 8  | 332                | 259             | 560                 |
+| ≤ 6  | 438                | 296             | 998                 |
+| ≤ 4  | 875                | 429             | 1,873               |
+| ≤ 3  | 609                | 334             | 2,482               |
+| ≤ 2  | 914                | 412             | 3,396               |
+
+(The ≤ 16 step, omitted for brevity, adds 55 comments between ≤ 20 and ≤ 12.)
+Each step's own cost falls and rises because the comments are not spread evenly
+across lengths — ≤ 4 catches a large cluster, ≤ 3 a smaller one. The last three
+steps are still large and would split by directory.
 
 **If a stricter version is wanted, the honest maximum is one line, not zero.**
 It costs 4,289 comments and 18,018 lines, and it ends hand-wrapping outright — a
