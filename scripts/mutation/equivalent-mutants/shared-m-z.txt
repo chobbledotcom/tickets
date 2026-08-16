@@ -262,5 +262,14 @@ src/shared/payment/resource-id.ts::ResourceIdSchema~1pmki6u  Resource id must be
 src/shared/schema-atlas/payment-review.ts::SEEN_AT~1rcm9v2 2026-08-16T00:00:00.000Z → ""   # nodeIdOf only distinguishes acknowledgedAt undefined vs defined; no atlas output reads the value
 src/shared/schema-atlas/payment-review.ts::opensFor~0joorcc A row with a review cannot open another → ""   # refusal message is thrown to refuse a transition; the derived map reads only throw-vs-return
 src/shared/schema-atlas/payment-review.ts::TRIGGERS.run~1ysp6bm Only an unseen case can be acknowledged → ""   # same: refusal text, never surfaced by the map
-src/shared/schema-atlas/refund-authority.ts::node.facts~0lxafd7 0 → 1   # every representative state behind a node shares the node's lifecycle rule, so facts from states[0] and states[1] are identical; the per-node facts assertions would fail if that invariant ever broke
 src/shared/schema-atlas/types.ts::atlasState.facts~0j1zyry ?? → ||   # extra.facts is an array when present, and arrays are always truthy
+
+# refund-machine-spec.ts: move.perRep[tag] holds RefundNodeId literals (all
+# non-empty strings, checked by the table-target test) or undefined, so ??
+# and || pick "refused" for exactly the same inputs.
+src/shared/payment/refund-machine-spec.ts::expectedMove~1xj22h8  ?? → ||   # perRep values are non-empty node ids; never falsy when present
+
+# schema-atlas/refund-authority.ts: every representative state behind a node
+# shares the node's lifecycle rule, so facts from reps[0] and reps[1] are
+# identical; the per-node facts assertions would fail if that invariant broke.
+src/shared/schema-atlas/refund-authority.ts::refundAuthorityAtlas.states.facts~1o131tp 0 → 1   # all reps of a node produce the same lifecycle facts
