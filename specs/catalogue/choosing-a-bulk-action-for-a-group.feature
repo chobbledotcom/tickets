@@ -7,10 +7,10 @@ Feature: The organiser chooses what to do with a group from a landing page
   An organiser with a group of listings opens the group's bulk-actions
   page to see what they can do with the whole group at once. The page
   always offers a copy, and it offers taking the group off sale or
-  bringing it back on sale only when those actions make sense — you
-  cannot take an already-off-sale group off sale again, and you cannot
-  bring a group back when nothing is off sale. An empty group has
-  nothing to activate or deactivate, so only the copy is offered.
+  bringing it back only when the action would do something — taking off
+  sale needs at least one listing still on sale, and bringing back
+  waits until every listing is off sale. An empty group has nothing to
+  switch either way, so only the copy is offered.
 
   @rule:catalogue.bulk-actions-landing-offers-copy-and-deactivate-when-active
   Rule: A group with active listings offers copy and deactivate
@@ -43,12 +43,13 @@ Feature: The organiser chooses what to do with a group from a landing page
       And the organiser is not offered a way to take the group off sale
       And the page says it holds 1 listing
 
-  @rule:catalogue.bulk-actions-landing-mixed-and-empty-offer-copy-only
-  Rule: A mixed or empty group offers only the copy
-    When some listings are on sale and some are off, or when the group
-    has no listings at all, only the copy is offered — the deactivate
-    link needs at least one active listing, and the reactivate link needs
-    every listing to be off sale.
+  @rule:catalogue.bulk-actions-landing-mixed-and-empty-groups
+  Rule: A mixed group can still be taken off sale; an empty group offers only the copy
+    A group with some listings on sale and some off can still be copied
+    and taken off sale — the deactivate link needs only one listing
+    still on sale. Bringing the group back needs every listing to be off
+    sale, so a mixed group is not offered it. A group with no listings
+    has nothing to switch either way, so only the copy is offered.
 
     @case:catalogue.bulk-actions-landing-mixed
     Scenario: A mixed group offers copy and deactivate but not reactivate
@@ -56,7 +57,8 @@ Feature: The organiser chooses what to do with a group from a landing page
       And the site has a group called "Mixed" with "Inactive One" on sale
       And "Inactive One" is taken off sale
       When the organiser opens the bulk actions page for the "Mixed" group
-      Then the organiser is offered a way to take the group off sale
+      Then the organiser is offered a way to copy the group
+      And the organiser is offered a way to take the group off sale
       And the organiser is not offered a way to bring the group back on sale
       And the page says it holds 2 listings
 

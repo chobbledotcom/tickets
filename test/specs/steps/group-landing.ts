@@ -18,11 +18,6 @@ const LANDING_PATH = bulkActionPath("");
  *  the action-link hrefs from its id rather than parsing the browser URL. */
 const landingGroup = new WeakMap<TicketsWorld, string>();
 
-const actionLinkHref = (
-  groupId: number,
-  action: "duplicate" | "deactivate" | "reactivate",
-): string => `/admin/groups/${groupId}/bulk-actions/${action}`;
-
 Given(
   "the site has a group called {string} with no listings",
   async function (this: TicketsWorld, groupName: string): Promise<void> {
@@ -56,7 +51,7 @@ const assertOffered = async (
   if (!groupName) throw new Error("No bulk-actions page was opened");
   const group = await groupNamed(groupName);
   const browser = world.things.require("browser", ORGANISER);
-  const href = actionLinkHref(group.id, action);
+  const href = bulkActionPath(action)(group.id);
   expect(browser.links.some((l) => l.href === href)).toBe(expected);
 };
 
