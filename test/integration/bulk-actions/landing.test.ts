@@ -10,37 +10,9 @@ import { adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("Admin bulk actions landing page", { db: true }, () => {
   describe("GET /admin/groups/:id/bulk-actions", () => {
-    test("renders the bulk-actions landing page with a duplicate link", async () => {
-      const group = await createTestGroup({ name: "My Group" });
-      await createTestListing({ groupId: group.id, name: "Listing A" });
-      await createTestListing({ groupId: group.id, name: "Listing B" });
-
-      const response = await adminGet(`/admin/groups/${group.id}/bulk-actions`);
-      const html = await response.text();
-
-      expect(response.status).toBe(200);
-      expect(html).toContain("Bulk Actions");
-      expect(html).toContain("Duplicate Group");
-      expect(html).toContain(
-        `/admin/groups/${group.id}/bulk-actions/duplicate`,
-      );
-      // Plural noun is used when the group has multiple listings.
-      expect(html).toContain("all 2 listings");
-    });
-
-    test("uses singular 'listing' when the group has exactly one", async () => {
-      const group = await createTestGroup({ name: "Solo Group" });
-      await createTestListing({ groupId: group.id, name: "Only Listing" });
-
-      const response = await adminGet(`/admin/groups/${group.id}/bulk-actions`);
-      const html = await response.text();
-
-      expect(html).toContain("all 1 listing");
-      // Guard against the plural-suffix "listings" slipping through
-      expect(html).not.toContain("1 listings");
-    });
-
     test("returns 404 for a non-existent group", async () => {
+      // Not-found boundary — a story cannot reach this path (it sets up a
+      // real group first), so it stays as a direct technical contract.
       const response = await adminGet("/admin/groups/999999/bulk-actions");
       expect(response.status).toBe(404);
     });
@@ -53,17 +25,22 @@ describeWithEnv("Admin bulk actions landing page", { db: true }, () => {
     });
   });
 
-  describe("GET /admin/groups/:id/bulk-actions — conditional links", () => {
-    /** Fetch the bulk-actions landing page for `group` and assert which of the
-     *  deactivate/reactivate links it shows. Every test in this block follows
-     *  the same GET-then-assert-on-action-links shape; this collapses the
-     *  repeated `adminGet` + `toContain`/`not.toContain` scaffold. */
-    const expectActionLinks = async (
+  describe("GET /admin/groups/:id/bulk-actions — rendered branches", () => {
+    /** Fetch the landing page for `group` and assert which of the
+     *  deactivate/reactivate links its HTML carries, plus the rendered
+     *  member-count phrase. The story `catalogue.choosing-a-bulk-action-for-
+     *  a-group` states these rules in the organiser's terms; these pins own
+     *  the direct coverage of the template's `hasActive`/`allDeactivated`
+     *  branches and the count copy, which a Cucumber journey may never be
+     *  the only cover of. */
+    const expectLandingRender = async (
       group: { id: number },
       visible: ("deactivate" | "reactivate")[],
-    ): Promise<void> => {
+      countPhrase: string,
+    ): Promise<string> => {
       const response = await adminGet(`/admin/groups/${group.id}/bulk-actions`);
       const html = await response.text();
+      expect(response.status).toBe(200);
       for (const action of ["deactivate", "reactivate"] as const) {
         const href = `/admin/groups/${group.id}/bulk-actions/${action}`;
         if (visible.includes(action)) {
@@ -72,28 +49,12 @@ describeWithEnv("Admin bulk actions landing page", { db: true }, () => {
           expect(html).not.toContain(href);
         }
       }
+      expect(html).toContain(countPhrase);
+      return html;
     };
 
-    test("shows deactivate link and hides reactivate when all listings are active", async () => {
-      const group = await createTestGroup({ name: "All Active" });
-      await createTestListing({ groupId: group.id, name: "Active Listing" });
-
-      await expectActionLinks(group, ["deactivate"]);
-    });
-
-    test("shows reactivate link and hides deactivate when all listings are deactivated", async () => {
-      const group = await createTestGroup({ name: "All Off" });
-      const listing = await createTestListing({
-        groupId: group.id,
-        name: "Off Listing",
-      });
-      await listingsTable.update(listing.id, { active: false });
-
-      await expectActionLinks(group, ["reactivate"]);
-    });
-
-    test("shows only deactivate link when group is mixed (some active, some inactive)", async () => {
-      const group = await createTestGroup({ name: "Mixed" });
+    test("a mixed group renders the deactivate link, no reactivate link, and the plural count", async () => {
+      const group = await createTestGroup({ name: "Mixed Pin" });
       await createTestListing({ groupId: group.id, name: "Still Active" });
       const inactive = await createTestListing({
         groupId: group.id,
@@ -101,21 +62,37 @@ describeWithEnv("Admin bulk actions landing page", { db: true }, () => {
       });
       await listingsTable.update(inactive.id, { active: false });
 
-      await expectActionLinks(group, ["deactivate"]);
+      const html = await expectLandingRender(
+        group,
+        ["deactivate"],
+        "all 2 listings",
+      );
+      // The copy action is offered unconditionally on the success render.
+      expect(html).toContain(
+        `/admin/groups/${group.id}/bulk-actions/duplicate`,
+      );
     });
 
-    test("hides both deactivate and reactivate for an empty group", async () => {
-      const group = await createTestGroup({ name: "Empty Group" });
+    test("an all-deactivated group renders the reactivate link and the singular count", async () => {
+      const group = await createTestGroup({ name: "All Off Pin" });
+      const listing = await createTestListing({
+        groupId: group.id,
+        name: "Off Listing",
+      });
+      await listingsTable.update(listing.id, { active: false });
 
-      const response = await adminGet(`/admin/groups/${group.id}/bulk-actions`);
-      const html = await response.text();
+      const html = await expectLandingRender(
+        group,
+        ["reactivate"],
+        "all 1 listing",
+      );
+      // Guard against the plural-suffix "listings" slipping through for 1.
+      expect(html).not.toContain("1 listings");
+    });
 
-      expect(html).not.toContain(
-        `/admin/groups/${group.id}/bulk-actions/deactivate`,
-      );
-      expect(html).not.toContain(
-        `/admin/groups/${group.id}/bulk-actions/reactivate`,
-      );
+    test("an empty group renders neither the deactivate nor the reactivate link", async () => {
+      const group = await createTestGroup({ name: "Empty Pin" });
+      await expectLandingRender(group, [], "all 0 listings");
     });
   });
 });

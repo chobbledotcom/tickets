@@ -9,8 +9,8 @@ import { ORGANISER, scenarioBrowser } from "#test/specs/support/browser.ts";
 import {
   addressesWrittenTo,
   addressOf,
-  asksNotToHearAboutPromotions,
   bookedOnto,
+  bookersFor,
   listingOffersEmailAction,
   type MessageWritten,
   ownerHasAnEmailProvider,
@@ -19,33 +19,20 @@ import {
   previewOffersADraftToSendThemselves,
   sendsWhatWasPreviewed,
   siteOffersToSend,
+  theOneWhoAsked,
   timesTheProviderWasAsked,
   watchWhatIsSent,
   wordsTheyWrote,
   writesToListing,
   writesToListingDay,
 } from "#test/specs/support/bulk-email.ts";
+import { asksNotToHearAboutPromotions } from "#test/specs/support/email-choices.ts";
 import {
   type TicketsWorld,
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
 
 // jscpd:ignore-end
-
-/** The addresses a story gives the people it books on. Kept here so every
- * scenario books the same people and a later step can name one of them. */
-const BOOKERS = ["first@example.com", "second@example.com"];
-
-const bookersFor = (howMany: number): string[] => {
-  // Quietly booking fewer people than the story asked for would make every
-  // count below it right for the wrong reason.
-  if (howMany > BOOKERS.length) {
-    throw new Error(
-      `Only ${BOOKERS.length} people can be booked, the story asked for ${howMany}`,
-    );
-  }
-  return BOOKERS.slice(0, howMany);
-};
 
 /** Book people onto a listing, with the watch on the outside world standing by
  * first. Even a story with no provider set up needs it: a send that should have
@@ -89,12 +76,12 @@ Given(
   },
 );
 
-/** The first person a story booked is the one it unsubscribes, so "one of them"
- * and "they" mean the same person however many were booked. */
-const theOneWhoAsked = (): string => BOOKERS[0]!;
-
-const asksNotToHear = (): Promise<void> =>
-  asksNotToHearAboutPromotions(theOneWhoAsked());
+/** The ask arrives through the reader's own choices page — the same journey
+ * the asking-to-be-left-alone story proves — so this story's Given exercises
+ * the one mechanism a reader really has. */
+const asksNotToHear = async (): Promise<void> => {
+  await asksNotToHearAboutPromotions(theOneWhoAsked());
+};
 
 Given(
   "{string} has booked onto {string} for day {int}",

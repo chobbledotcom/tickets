@@ -53,6 +53,8 @@ describeWithEnv("Admin bulk actions — reactivate", { db: true }, () => {
     });
 
     test("returns 404 when the group does not exist", async () => {
+      // Not-found boundary — a story cannot reach this path (it sets up a
+      // real group first), so it stays as a direct technical contract.
       const response = await adminGet(
         "/admin/groups/999999/bulk-actions/reactivate",
       );
@@ -62,6 +64,11 @@ describeWithEnv("Admin bulk actions — reactivate", { db: true }, () => {
 
   describe("POST /admin/groups/:id/bulk-actions/reactivate", () => {
     test("reactivates every listing in the group when the name is confirmed", async () => {
+      // Pins the reactivate success branch for the coverage gate: the toggle
+      // skips the deactivation-only orphan guard, `setGroupListingsActive`
+      // runs with active = true, and every member comes back. The story
+      // `@case:catalogue.reactivate-confirms-and-brings-every-member-back`
+      // states the same rule in the organiser's terms.
       const { group, a, b } = await createInactiveListGroup("Bring Back");
 
       const { response } = await adminFormPost(
@@ -75,6 +82,11 @@ describeWithEnv("Admin bulk actions — reactivate", { db: true }, () => {
     });
 
     test("rejects when the group name does not match and leaves listings inactive", async () => {
+      // Pins the shared group-toggle mismatch redirect for the coverage gate —
+      // the deactivate twin of this test was replaced by its story, so this is
+      // the one direct cover of that branch for both directions. The story
+      // `@case:catalogue.reactivate-refuses-with-a-wrong-name` states the
+      // same rule in the organiser's terms.
       const group = await createTestGroup({ name: "Stay Off" });
       const listing = await createTestListing({
         groupId: group.id,

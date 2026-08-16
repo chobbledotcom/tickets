@@ -11,7 +11,6 @@
 // jscpd:ignore-start
 import { t } from "#i18n";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
-import { hashEmail, unsubscribeHash } from "#shared/db/contact-preferences.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   ORGANISER,
@@ -82,22 +81,48 @@ const sendsMade = (world: TicketsWorld) =>
 export const timesTheProviderWasAsked = (world: TicketsWorld): number =>
   sendsMade(world).length;
 
+/** Every payload entry the provider was handed, across every send — one
+ * person's copy each for providers that send per recipient. */
+const copiesHanded = (world: TicketsWorld): unknown[] =>
+  sendsMade(world).flatMap(({ body }) => (Array.isArray(body) ? body : [body]));
+
+/** The `to` list one payload entry carries, or nothing when it has none. */
+const addressesOn = (one: unknown): unknown =>
+  (one as { to?: unknown } | null)?.to;
+
 /** Every address the site really handed the provider, across every send. A send
  * carrying nothing readable is a broken watch or a broken payload rather than
  * an answer, so it fails loudly instead of reading as "nobody was written
  * to". */
 export const addressesWrittenTo = (world: TicketsWorld): string[] =>
-  sendsMade(world)
-    .flatMap(({ body }) => (Array.isArray(body) ? body : [body]))
-    .flatMap((one) => {
-      const to = (one as { to?: unknown } | null)?.to;
-      if (!Array.isArray(to) || to.some((who) => typeof who !== "string")) {
-        throw new Error(
-          `The site sent to the provider with no readable addresses: ${JSON.stringify(one)}`,
-        );
-      }
-      return to as string[];
-    });
+  copiesHanded(world).flatMap((one) => {
+    const to = addressesOn(one);
+    if (!Array.isArray(to) || to.some((who) => typeof who !== "string")) {
+      throw new Error(
+        `The site sent to the provider with no readable addresses: ${JSON.stringify(one)}`,
+      );
+    }
+    return to as string[];
+  });
+
+/** One person's copy of what was really sent: the payload entry the provider
+ * was handed for that address. A story reading a link out of an email fails
+ * loudly when that person was sent nothing, or when their copy carries no
+ * readable body. */
+export const whatWasSentTo = (
+  world: TicketsWorld,
+  email: string,
+): { html: string } => {
+  const copy = copiesHanded(world).find((one) => {
+    const to = addressesOn(one);
+    return Array.isArray(to) && to.includes(email);
+  });
+  const html = (copy as { html?: unknown } | undefined)?.html;
+  if (typeof html !== "string" || html === "") {
+    throw new Error(`Nothing readable was sent to ${email}`);
+  }
+  return { html };
+};
 
 /** People booked onto a listing the story names, each through the form on that
  * listing's own roster. Their addresses are kept under the listing's name, so a
@@ -214,12 +239,25 @@ export const writesToListingDay = (
 /** The addresses of everyone the story booked onto one listing. */
 export const bookedOnto: ReadsWhatWasKept<"booked"> = whatWasKeptFor("booked");
 
-/** Somebody tells the site they would rather not hear about promotions. */
-export const asksNotToHearAboutPromotions = async (
-  email: string,
-): Promise<void> => {
-  await unsubscribeHash(await hashEmail(email));
+/** The addresses the stories give the people they book, in booking order.
+ * Kept here so every scenario books the same people and a later step — in
+ * this story or the reader's own — can name one of them. */
+export const BOOKERS = ["first@example.com", "second@example.com"];
+
+export const bookersFor = (howMany: number): string[] => {
+  // Quietly booking fewer people than the story asked for would make every
+  // count below it right for the wrong reason.
+  if (howMany > BOOKERS.length) {
+    throw new Error(
+      `Only ${BOOKERS.length} people can be booked, the story asked for ${howMany}`,
+    );
+  }
+  return BOOKERS.slice(0, howMany);
 };
+
+/** The first person a story booked is the one who acts on their own copy, so
+ * "one of them" and "they" mean the same person however many were booked. */
+export const theOneWhoAsked = (): string => BOOKERS[0]!;
 
 /** The way in to writing to one listing's attendees, off that listing's own
  * page, or nothing when the page offers none. Found by where the link goes
