@@ -1,30 +1,23 @@
 /**
  * Attendee-side parent/child persistence (booking metadata).
  *
- * A checkout that books a parent listing plus its chosen child add-ons creates
+ * A checkout booking a parent listing plus its chosen child add-ons creates
  * several `listing_attendees` rows under one attendee. This module annotates
- * those rows, purely additively, with two facts the booking flow already knows
- * implicitly:
+ * them, purely additively, with an `orderToken` shared by every row of the
+ * checkout, so admin can group an order back together, and a
+ * `parentListingId` naming which parent a folded child was chosen under.
  *
- *   - `orderToken` — one token shared by every row of the checkout, so the admin
- *     can group an order's rows back together.
- *   - `parentListingId` — for a folded child row, which parent listing the buyer
- *     chose it under.
- *
- * The pairing is RECOMPUTED from the persisted `listing_parents` edges and the
- * order's own booking set rather than threaded through the (cap-sensitive,
- * signed) paid round-trip: a child row's parent is the parent edge whose listing
- * is also booked in the same order. This runs identically for the free path and
- * the paid webhook path — both reach `createAttendeeAtomic` with the full folded
- * booking set (parents ∪ chosen children) — so neither needs parent-awareness.
+ * The pairing is recomputed from the persisted `listing_parents` edges and the
+ * order's own booking set rather than threaded through the signed paid
+ * round-trip: a child row's parent is the parent edge also booked in the same
+ * order. The free and paid paths both reach `createAttendeeAtomic` with the
+ * full folded booking set, so neither needs parent-awareness.
  *
  * The unique index on `(listing_id, attendee_id, start_at, parent_listing_id)`
- * keeps the SAME child chosen under two parents as two distinct rows (one per
- * parent, faithful provenance), so {@link expandChildAllocations} emits one row
- * per `(child, parent)` allocation. A child whose booked quantity exceeds its
- * summed allocations (units bought without a parent in the same order — only
- * reachable once a child listing is bookable on its own) also gets a parent-less
- * remainder row, so no unit — or its price — is ever dropped.
+ * keeps the same child chosen under two parents as two rows, so
+ * {@link expandChildAllocations} emits one per `(child, parent)`. A child whose
+ * booked quantity exceeds its allocations also gets a parent-less remainder
+ * row, so no unit — or its price — is ever dropped.
  */
 
 import { reduce } from "#fp";

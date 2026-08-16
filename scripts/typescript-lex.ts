@@ -129,10 +129,11 @@ const isRegexStart = (content: string, start: number): boolean => {
 };
 
 /**
- * Skip a regular expression literal at `start`. A `/` inside a `[…]` class is
- * literal, so the scan tracks whether it is inside one.
+ * The index just past a regex body's closing slash. A `/` inside a `[…]` class
+ * is literal, so the scan tracks whether it is inside one. A newline means the
+ * `/` was division after all, so the caller gets back just past it.
  */
-const skipRegex = (content: string, start: number): number => {
+const regexBodyEnd = (content: string, start: number): number => {
   let index = start + 1;
   let inClass = false;
   while (index < content.length) {
@@ -142,12 +143,17 @@ const skipRegex = (content: string, start: number): number => {
       continue;
     }
     if (char === "\n") return start + 1;
+    if (char === "/" && !inClass) return index + 1;
     if (char === "[") inClass = true;
-    else if (char === "]") inClass = false;
-    else if (char === "/" && !inClass) break;
+    if (char === "]") inClass = false;
     index += 1;
   }
-  index += 1;
+  return index;
+};
+
+/** Skip a regular expression literal at `start`, including its flags. */
+const skipRegex = (content: string, start: number): number => {
+  let index = regexBodyEnd(content, start);
   while (index < content.length && /[a-z]/.test(content[index])) index += 1;
   return index;
 };

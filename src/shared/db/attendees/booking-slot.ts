@@ -2,23 +2,16 @@
  * Booking-slot identity — the single definition of "which row" a listing line
  * targets.
  *
- * A booking slot is `(listing_id, date, parent_listing_id, package_group_id)`:
- * the `listing_attendees` unique index is
- * `(listing_id, attendee_id, start_at, parent_listing_id, package_group_id)`,
- * so for one attendee a listing id plus its date, the parent it was folded
- * under, and the package it was booked through uniquely identify a row. The
- * `parentListingId` dimension keeps the same child listing chosen under two
- * different parents as two distinct rows; the `packageGroupId` dimension keeps
- * the same listing booked through two overlapping packages (or a package plus
- * its own standalone row) in one order as one faithful row per path. Both the
- * form-validation layer (which rejects duplicate lines before writing) and the
- * DB write layer (create + atomic edit) dedupe on this same identity, so it
- * lives in one dependency-free module they can all import without dragging in
- * the rest of the DB layer.
+ * A booking slot is `(listing_id, date, parent_listing_id, package_group_id)`,
+ * which for one attendee picks out exactly one row of the
+ * `listing_attendees` unique index. The `parentListingId` dimension keeps the
+ * same child chosen under two parents as two rows; `packageGroupId` keeps the
+ * same listing booked through two overlapping packages as one row per path.
  *
- * The default `parentListingId = 0` / `packageGroupId = 0` mirrors the DB
- * defaults: standalone bookings, parent rows themselves, and legacy rows all
- * carry 0.
+ * Form validation and the DB write layer both dedupe on this identity, so it
+ * lives in one dependency-free module they can import without dragging in the
+ * rest of the DB layer. A `parentListingId` or `packageGroupId` of 0 mirrors
+ * the DB default that standalone and parent rows carry.
  */
 
 import { seenBefore } from "#shared/seen-before.ts";

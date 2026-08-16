@@ -10,26 +10,23 @@
  * is one order — so a later admin refund still finds a single booking order via
  * {@link file://../refund-ledger.ts}.
  *
- * It reuses the live mappers, so references and validation match the dual-write
- * path exactly. Each attendee's legs are written with `INSERT OR IGNORE` keyed
- * on the unique reference, which makes a re-run a no-op, in batches rather than
- * interactive transactions so it never contends the single SQLite writer
- * mid-migration.
+ * It reuses the live mappers, so references and validation match the
+ * dual-write path exactly. Legs are written with `INSERT OR IGNORE` keyed on
+ * the unique reference, making a re-run a no-op, and in batches rather than
+ * interactive transactions so it never contends the single SQLite writer.
  *
- * A whole page of attendees is written in one batch (see {@link ATTENDEE_PAGE})
- * rather than one batch per attendee: the migration runs inline on a Bunny edge
- * isolate whose subrequest/CPU budget a round-trip-per-attendee backfill would
- * blow on any real booking history, evicting the isolate mid-run and leaving the
- * migration lock held (endless 503s). One batch per page keeps the cost at
- * O(pages) round-trips, and an attendee's legs and row-stamp always land in the
- * same batch, so each attendee still posts all-or-nothing — the already-ledgered
- * guard relies on "has legs ⟺ fully posted".
+ * A whole page of attendees goes in one batch (see {@link ATTENDEE_PAGE}): the
+ * migration runs inline on an edge isolate whose subrequest budget a
+ * round-trip-per-attendee backfill would blow on real booking history, evicting
+ * the isolate mid-run and leaving the migration lock held. One batch per page
+ * costs O(pages) round-trips, and an attendee's legs and row-stamp always land
+ * together, so each attendee still posts all-or-nothing — which is what lets
+ * the guard read "has legs" as "fully posted".
  *
- * A guard keeps it safe even though, at the Phase-0 point it runs (the ledger is
- * rebuilt empty by the immediately-preceding migration), it never normally fires:
- * an attendee that already carries ledger legs is skipped, so a booking the live
- * dual-write path already recorded is never double-posted. (Currency needs no
- * guard — a site has one, fixed at setup, so every transfer shares it.)
+ * That guard skips an attendee already carrying legs, so a booking the live
+ * path recorded is never double-posted. It never normally fires, since the
+ * preceding migration rebuilds the ledger empty. Currency needs no guard: a
+ * site has one, fixed at setup.
  */
 
 /* jscpd:ignore-start */

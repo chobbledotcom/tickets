@@ -2,31 +2,18 @@
  * The `listing_prices` table: generalised per-listing pricing, one row per
  * (listing, pricing *dimension*, key within it). A `price_type` names the
  * dimension and `price_id` the key:
- *  - `("base", "")`        — the listing's single fixed price (mirrors the
- *                            surviving `listings.unit_price` column, the hot-path
- *                            read; {@link syncListingPrices} keeps it in step).
- *  - `("day_count", "<n>")`— the price for an n-day booking. SOURCE of truth (the
- *                            `listings.day_prices` column was migrated in and
- *                            dropped); written from input by the listing write
- *                            paths and read back via a `json_group_object`
- *                            projection in `db/listings/select.ts`.
- *  - `("group", "<groupId>")` — a package group's flat per-member price override:
- *    the per-unit price this member charges inside that package, whatever the
- *    span. These rows are the SOURCE of truth (the legacy
- *    `group_listings.package_price` column was migrated in and dropped); a member
- *    with no override has no row. {@link groupFlatPriceStatements} writes them and
- *    the `getGroupPackagePrices` subquery in `db/groups.ts` reads them back.
- *  - `("group_day", "<groupId>/<n>")` — a package group's per-day override for
- *    this member: the member's per-unit price for an n-day booking of that
- *    package. Like `group`, these rows are the SOURCE of truth (no legacy column
- *    exists); {@link getGroupDayPrices} is their read API.
- *  - reserved for later: `("start_day", "friday")` (weekday pricing) — the shape
- *    admits it with no schema change; nothing writes it yet.
+ *  - `("base", "")` — the listing's fixed price. Mirrors the hot-path
+ *    `listings.unit_price` column, which {@link syncListingPrices} keeps in step.
+ *  - `("day_count", "<n>")` — the price for an n-day booking.
+ *  - `("group", "<groupId>")` — what this member charges per unit inside that
+ *    package, whatever the span. A member with no override has no row.
+ *  - `("group_day", "<groupId>/<n>")` — the same, for an n-day booking of that
+ *    package. {@link getGroupDayPrices} reads them.
+ *  - `("start_day", "friday")` is reserved for weekday pricing: the shape admits
+ *    it with no schema change, and nothing writes it yet.
  *
- * The `base` row mirrors the surviving `listings.unit_price` column; `day_count`,
- * `group`, and `group_day` rows are the SOURCE of truth (their columns were
- * migrated in and dropped, or never existed). This module owns writing all of
- * them.
+ * Every row but `base` is the source of truth for its price. This module owns
+ * writing all of them.
  */
 
 import { compact, mapNotNullish } from "#fp";

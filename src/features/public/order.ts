@@ -6,27 +6,22 @@
  * and showing/hiding the cart are pure CSS (`:checked` + a counter + `:has()`),
  * so the page works with no JavaScript.
  *
- * A small enhancement script keeps availability LIVE as the visitor builds
- * their order: on every change it asks `GET /order/availability` (same wire
- * format as the cart form) how each card now stands, and greys out what no
- * longer fits — naming the earlier choice to remove when the visitor's own
- * selection holds the contested capacity ("Remove <name> to add" rather than
- * "Sold out"). Items needing a date (daily listings, packages with daily
- * members) prompt for the date field instead of guessing. The evaluation is
- * the pure `#shared/order` core; this module only loads its inputs, so the
- * same process can drive other surfaces (e.g. an admin day-booking screen).
+ * An enhancement script keeps availability live as the visitor builds their
+ * order: on every change it asks `GET /order/availability` how each card now
+ * stands and greys out what no longer fits, naming the earlier choice to
+ * remove when the visitor's own selection holds the contested capacity. Items
+ * needing a date prompt for it rather than guessing. The evaluation itself is
+ * the pure `#shared/order` core, so the same process can drive other surfaces.
  *
- * The cart is a GET form that submits back to `/order`; when the request
- * carries a selection the handler 303-redirects to the canonical booking page
- * `/ticket/<slugs>?q_<id>=1…&date=…` — slugs may name packages, so one booking
- * carries every chosen bundle alongside ordinary listings. Nothing selected is
- * ever dropped: the booking page and its submit stay the availability
- * authority, so the redirect can't silently shrink an order.
+ * The cart is a GET form back to `/order`; a request carrying a selection
+ * redirects to the booking page `/ticket/<slugs>?q_<id>=1…&date=…`, where a
+ * slug may name a package. Nothing selected is ever dropped, because the
+ * booking page and its submit remain the availability authority.
  *
- * Known advisory limits (the booking form still enforces the real thing): an
- * option's demand covers its direct listings, not the required children the
- * form will auto-fold under them, so two selections contending for a shared
- * child pool read as available here and are refused at the form instead.
+ * What this page shows is advisory. An option's demand covers its direct
+ * listings, not the required children the form folds under them, so two
+ * selections contending for a shared child pool read as available here and are
+ * refused at the form.
  */
 
 import { compact, requiredMapValue, uniqueBy } from "#fp";

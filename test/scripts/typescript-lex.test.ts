@@ -42,8 +42,11 @@ describe("lexicalSpans", () => {
   });
 
   test("walks into a template substitution", () => {
-    expect(spans('const a = `x${"y"}z`;')).toEqual([
-      { kind: "string", text: '`x${"y"}z`' },
+    // Built as a template literal with an escaped `$`, so the fixture carries a
+    // substitution as data without this file interpolating one.
+    const literal = `\`x\${"y"}z\``;
+    expect(spans(`const a = ${literal};`)).toEqual([
+      { kind: "string", text: literal },
     ]);
   });
 

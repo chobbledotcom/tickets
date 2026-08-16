@@ -3,25 +3,18 @@
  * SQL from the trigger-maintained columns and the transfers ledger — so the
  * Overview never loads (nor decrypts) a listing's individual attendee rows.
  *
- * The one figure that historically forced a full attendee scan was the
- * "incomplete payment" split: a booking that recognised a sale but never linked
- * any provider payment reference. Legacy paid checkouts carry the ledger shadow
- * (`sale` plus `payment` in the booking group); balance-paid/provider-less
- * checkouts carry a processed payment reference. So "incomplete" is a recognised
- * sale with neither a booking-group payment nor a processed provider reference,
- * that still owes money and was never refunded:
+ * The subtle figure is the "incomplete payment" split — a booking that
+ * recognised a sale but never linked a provider payment:
  *
  *   incomplete  ⇔  sale leg AND no booking payment AND no processed reference
  *                  AND nothing still owed AND not refunded
  *
- * The last two clauses keep already-settled and already-refunded bookings out:
- * a refunded balance-paid booking can have its processed reference pruned once a
- * `refund_cash` leg exists, which would otherwise make it look like a bare sale.
+ * The last two clauses keep settled and refunded bookings out: a refunded
+ * balance-paid booking can have its processed reference pruned once a
+ * `refund_cash` leg exists, which would otherwise read as a bare sale.
  *
- * Everything the Overview shows is derived from that split plus the plain
- * quantity/check-in columns, matching the pre-existing template derivation
- * (`computeAttendeeStats` / `getCheckedInStats` / `calculateTotalRevenue`) row
- * for row while reading only aggregates.
+ * Everything else the Overview shows comes from that split plus the plain
+ * quantity and check-in columns.
  */
 
 /* jscpd:ignore-start */
