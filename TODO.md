@@ -2510,39 +2510,6 @@ refund.
 Starting point: `readSessionOrder` in `src/shared/square-provider.ts` — a
 `missing` read under a `paidPaymentId` should throw like the malformed case.
 
-## The final placeholder refund outcome is never retried
-
-_Origin: Codex review on PR #2065 (thread on
-`src/features/api/payment-processing/store-refund.ts`)._
-
-`storeRefundedBooking` completes the provider refund, ledger posting, note, and
-claim release, then replaces the session's pending failure with the final
-"refunded" outcome. If that last `sessionFailure.replace` fails transiently, the
-row still carries the conservative pending failure written when the placeholder
-was created — and because `handleReservationConflict` replays any non-empty
-`failure_data`, every retry re-enters through the placeholder path and never
-reaches this replacement. The buyer is permanently told the refund "is being
-arranged" although it completed.
-
-The final outcome needs to be idempotent on replay: derive it from state the
-retry can observe (the authority/ledger legs the earlier steps already wrote)
-rather than from a one-shot write that a later replay cannot find. Starting
-point: the final update in `store-refund.ts` and what
-`handleReservationConflict` replays.
-
-The rejected-charge target (`rejected-target.ts`, CodeRabbit on PR #2079) has
-the same window: the ghost's terminal outcome is stored atomically with the
-ghost, so a failure in the money writes after it (ledger legs, authority
-recording, note, claim settle) leaves the target incomplete and redelivery exits
-at the fence. Money is not lost — the authority stays parked in Refund recovery
-with its owner route, the same designed degraded mode as `storeRefundedBooking`
-above — but completion is manual, not mechanical. The fix is the same one this
-entry names: make the post-store money completion resumable from observable
-state, shared by both keep-and-refund flows, rather than terminal-first with a
-manual tail. The building blocks already behave idempotently
-(`recordPlaceholderRefund` reports `posted`, `recordProviderRefunds` is guarded
-by the authority's `local` state).
-
 ## Harden the live payment harness so green means what it claims
 
 _Origin: Codex review on PR #2065 (a dozen threads on `e2e-payments/`), all
