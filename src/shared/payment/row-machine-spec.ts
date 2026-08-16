@@ -16,9 +16,10 @@
  * move belongs to the payment-review machine. */
 
 import { acknowledgePaymentReview } from "#shared/payment/review.ts";
-import type {
-  PaymentRowState,
-  RefundClaim,
+import {
+  isEmptyRowState,
+  type PaymentRowState,
+  type RefundClaim,
 } from "#shared/payment/row-state.ts";
 import {
   checkingClaimFor,
@@ -64,24 +65,32 @@ export type RowNodeId =
 /** The map node one stored row belongs to. Throws on a terminal outcome
  * sharing the slot with live work — the same law `parseSessionFailure`
  * enforces when reading a stored slot back. */
+const namesByWork = (
+  state: PaymentRowState,
+  names: readonly [RowNodeId, RowNodeId, RowNodeId, RowNodeId],
+): RowNodeId => {
+  const [both, reviewOnly, unrecordedOnly, neither] = names;
+  if (state.review !== undefined) {
+    return state.unrecorded === undefined ? reviewOnly : both;
+  }
+  return state.unrecorded === undefined ? neither : unrecordedOnly;
+};
+
 export const rowNodeOf = (state: PaymentRowState): RowNodeId => {
-  const hasClaim = state.claim !== undefined;
-  const hasReview = state.review !== undefined;
-  const hasUnrecorded = state.unrecorded !== undefined;
   if (state.outcome !== undefined) {
-    if (hasClaim || hasReview || hasUnrecorded) {
+    if (!isEmptyRowState({ ...state, outcome: undefined })) {
       throw new Error("A terminal outcome cannot share a row with live work");
     }
     return "settled";
   }
-  if (hasClaim) {
-    if (hasReview) {
-      return hasUnrecorded ? "claim_review_unrecorded" : "claim_review";
-    }
-    return hasUnrecorded ? "claim_unrecorded" : "claim";
-  }
-  if (hasReview) return hasUnrecorded ? "review_unrecorded" : "review";
-  return hasUnrecorded ? "unrecorded" : "free";
+  return state.claim === undefined
+    ? namesByWork(state, ["review_unrecorded", "review", "unrecorded", "free"])
+    : namesByWork(state, [
+        "claim_review_unrecorded",
+        "claim_review",
+        "claim_unrecorded",
+        "claim",
+      ]);
 };
 
 /** Settle a fixture state under the spec's own hold; a fixture that lost

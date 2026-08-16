@@ -7,6 +7,7 @@ import {
   paymentWorkFor,
   paymentWorkForMirrors,
   type RowMove,
+  rowWorkMirrorSql,
 } from "#shared/payment/admit-move.ts";
 import type { PaymentRowState } from "#shared/payment/row-state.ts";
 import { reviewCase } from "#test-utils/payment-claim.ts";
@@ -257,5 +258,15 @@ describe("payment > admit move", () => {
         "Unknown protected payment state: mystery",
       );
     });
+  });
+
+  test("the SQL work predicates render the table's own words", () => {
+    expect(rowWorkMirrorSql("payment.", "claim")).toBe(
+      "payment.protected_state = 'claim'",
+    );
+    expect(rowWorkMirrorSql("", "review")).toBe("protected_state = 'review'");
+    expect(rowWorkMirrorSql("payment.", "unrecorded")).toBe(
+      "payment.protected_state = 'unrecorded'",
+    );
   });
 });

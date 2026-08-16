@@ -17,6 +17,7 @@ import {
   type SqlStatement,
 } from "#shared/db/client.ts";
 import { paymentAnchorSessionCondition } from "#shared/db/payment-anchor/session.ts";
+import { rowWorkMirrorSql } from "#shared/payment/admit-move.ts";
 import { refundAuthorityWorkSql } from "#shared/payment/refund-authority-lifecycle.ts";
 import { requireValue } from "#shared/required-value.ts";
 
@@ -109,11 +110,11 @@ const refundCandidateCtes = (): string => `
              CASE WHEN payment.payment_session_id = attendee.pii_payment_session_id
                   THEN 1 ELSE 0 END
            ) AS proves_pii_payment,
-           MAX(CASE WHEN payment.protected_state = 'claim' THEN 1 ELSE 0 END)
+           MAX(CASE WHEN ${rowWorkMirrorSql("payment.", "claim")} THEN 1 ELSE 0 END)
              AS has_claim,
-           MAX(CASE WHEN payment.protected_state = 'review' THEN 1 ELSE 0 END)
+           MAX(CASE WHEN ${rowWorkMirrorSql("payment.", "review")} THEN 1 ELSE 0 END)
              AS needs_review,
-           MAX(CASE WHEN payment.protected_state = 'unrecorded' THEN 1 ELSE 0 END)
+           MAX(CASE WHEN ${rowWorkMirrorSql("payment.", "unrecorded")} THEN 1 ELSE 0 END)
              AS needs_money_record,
            MAX(CASE WHEN payment.payment_reference_index = '' THEN 1 ELSE 0 END)
              AS legacy_unindexed,

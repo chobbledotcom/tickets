@@ -21,6 +21,7 @@ import {
   type RowNode,
   type RowNodeId,
 } from "#shared/payment/row-machine-spec.ts";
+import type { PaymentRowState } from "#shared/payment/row-state.ts";
 
 const nodeById = (id: RowNodeId): RowNode => {
   const node = ROW_NODES.find((candidate) => candidate.id === id);
@@ -135,6 +136,56 @@ const NODE_FACTS: Readonly<
   },
 };
 
+/** Whether some settlement out of a held node lands where this work is
+ * gone from every shape. */
+const settleDrops = (
+  node: RowNode,
+  found: (state: PaymentRowState) => boolean,
+): boolean =>
+  ROW_EVENTS.some(
+    (event) =>
+      event.id.startsWith("settle_") &&
+      node.reps.some(({ tag }) => {
+        const target = ROW_MOVES.expected(node.id, event.id, tag);
+        if (target === "refused") return false;
+        return nodeById(target).reps.every(({ state }) => !found(state));
+      }),
+  );
+
+/** A held node must have a settlement that lands where this work is gone;
+ * a claimless one must take the hold with the work still in place — the
+ * settle then drops it (proved by the held case and the liveness walk). */
+const expectClearerReaches = (
+  field: string,
+  found: (state: PaymentRowState) => boolean,
+  node: RowNode,
+): void => {
+  if (node.id.startsWith("claim")) {
+    expect(
+      settleDrops(node, found),
+      `${field} never drops from ${node.id}`,
+    ).toBe(true);
+    return;
+  }
+  const target = ROW_MOVES.plain(node.id, "claim_granted");
+  expect(
+    nodeById(target).reps.some(({ state }) => found(state)),
+    `${field} is lost taking the hold on ${node.id}`,
+  ).toBe(true);
+};
+
+/** Every (node × event × shape) cell whose declared target is `settled`. */
+const cellsLandingOnSettled = (): readonly string[] =>
+  ROW_NODES.flatMap((node) =>
+    ROW_EVENTS.flatMap((event) =>
+      node.reps.flatMap(({ tag }) =>
+        ROW_MOVES.expected(node.id, event.id, tag) === "settled"
+          ? [`${node.id} × ${event.id}`]
+          : [],
+      ),
+    ),
+  );
+
 describe("the payment row graph", () => {
   test("every node is reachable from free", () => {
     expect([...reachableFrom("free")].sort()).toEqual(
@@ -166,30 +217,7 @@ describe("the payment row graph", () => {
       expect(entry.clearedBy, field).toBe("settleAttendeeRows");
       for (const node of ROW_NODES) {
         if (!node.reps.some(({ state }) => entry.found(state))) continue;
-        if (node.id.startsWith("claim")) {
-          // Held: some settlement must land where the work is gone.
-          const drops = ROW_EVENTS.some(
-            (event) =>
-              event.id.startsWith("settle_") &&
-              node.reps.some(({ tag }) => {
-                const target = ROW_MOVES.expected(node.id, event.id, tag);
-                if (target === "refused") return false;
-                return nodeById(target).reps.every(
-                  ({ state }) => !entry.found(state),
-                );
-              }),
-          );
-          expect(drops, `${field} never drops from ${node.id}`).toBe(true);
-        } else {
-          // Claimless: the hold must go on first, and the work must still
-          // be there when it does — the settle then drops it (proved by
-          // the held branch above and the liveness walk).
-          const target = ROW_MOVES.plain(node.id, "claim_granted");
-          expect(
-            nodeById(target).reps.some(({ state }) => entry.found(state)),
-            `${field} is lost taking the hold on ${node.id}`,
-          ).toBe(true);
-        }
+        expectClearerReaches(field, entry.found, node);
       }
     }
   });
@@ -203,17 +231,10 @@ describe("the payment row graph", () => {
         ).toBe("refused");
       }
     }
-    for (const node of ROW_NODES) {
-      for (const event of ROW_EVENTS) {
-        for (const { tag } of node.reps) {
-          const target = ROW_MOVES.expected(node.id, event.id, tag);
-          if (target !== "settled") continue;
-          expect(event.id, `${node.id} × ${event.id} lands on settled`).toBe(
-            "write_outcome",
-          );
-        }
-      }
-    }
+    expect(cellsLandingOnSettled()).toEqual([
+      "free × write_outcome",
+      "settled × write_outcome",
+    ]);
   });
 
   test("the lifecycle's words hold for every stored shape", () => {
