@@ -170,8 +170,9 @@ const outsiderIdsOf = (world: TicketsWorld, groupName: string): number[] => {
 Then(
   "the organiser is told the group name does not match",
   function (this: TicketsWorld): void {
-    expect(whatTheyWereTold(this, ORGANISER))
-      .toContain("Group name does not match");
+    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+      "Group name does not match",
+    );
   },
 );
 
