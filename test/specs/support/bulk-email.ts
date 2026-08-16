@@ -81,22 +81,29 @@ const sendsMade = (world: TicketsWorld) =>
 export const timesTheProviderWasAsked = (world: TicketsWorld): number =>
   sendsMade(world).length;
 
+/** Every payload entry the provider was handed, across every send — one
+ * person's copy each for providers that send per recipient. */
+const copiesHanded = (world: TicketsWorld): unknown[] =>
+  sendsMade(world).flatMap(({ body }) => (Array.isArray(body) ? body : [body]));
+
+/** The `to` list one payload entry carries, or nothing when it has none. */
+const addressesOn = (one: unknown): unknown =>
+  (one as { to?: unknown } | null)?.to;
+
 /** Every address the site really handed the provider, across every send. A send
  * carrying nothing readable is a broken watch or a broken payload rather than
  * an answer, so it fails loudly instead of reading as "nobody was written
  * to". */
 export const addressesWrittenTo = (world: TicketsWorld): string[] =>
-  sendsMade(world)
-    .flatMap(({ body }) => (Array.isArray(body) ? body : [body]))
-    .flatMap((one) => {
-      const to = (one as { to?: unknown } | null)?.to;
-      if (!Array.isArray(to) || to.some((who) => typeof who !== "string")) {
-        throw new Error(
-          `The site sent to the provider with no readable addresses: ${JSON.stringify(one)}`,
-        );
-      }
-      return to as string[];
-    });
+  copiesHanded(world).flatMap((one) => {
+    const to = addressesOn(one);
+    if (!Array.isArray(to) || to.some((who) => typeof who !== "string")) {
+      throw new Error(
+        `The site sent to the provider with no readable addresses: ${JSON.stringify(one)}`,
+      );
+    }
+    return to as string[];
+  });
 
 /** One person's copy of what was really sent: the payload entry the provider
  * was handed for that address. A story reading a link out of an email fails
@@ -106,12 +113,10 @@ export const whatWasSentTo = (
   world: TicketsWorld,
   email: string,
 ): { html: string } => {
-  const copy = sendsMade(world)
-    .flatMap(({ body }) => (Array.isArray(body) ? body : [body]))
-    .find((one) => {
-      const to = (one as { to?: unknown } | null)?.to;
-      return Array.isArray(to) && to.includes(email);
-    });
+  const copy = copiesHanded(world).find((one) => {
+    const to = addressesOn(one);
+    return Array.isArray(to) && to.includes(email);
+  });
   const html = (copy as { html?: unknown } | undefined)?.html;
   if (typeof html !== "string" || html === "") {
     throw new Error(`Nothing readable was sent to ${email}`);
