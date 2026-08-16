@@ -28,10 +28,11 @@ Feature: The organiser chooses what to do with a group from a landing page
       And the page says it holds 1 listing
 
   @rule:catalogue.bulk-actions-landing-offers-copy-and-reactivate-when-inactive
-  Rule: A group with no active listings offers copy and reactivate
-    When every listing in the group is off sale, the organiser can copy
-    the group or bring it back on sale. The deactivate action is not
-    offered, because there is nothing on sale to take off.
+  Rule: A group whose listings are all off sale offers copy and reactivate
+    When a group has listings and every one of them is off sale, the
+    organiser can copy the group or bring it back on sale. The
+    deactivate action is not offered, because there is nothing on sale
+    to take off.
 
     @case:catalogue.bulk-actions-landing-all-inactive
     Scenario: An all-inactive group offers copy and reactivate
