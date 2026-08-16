@@ -11,7 +11,6 @@
 // jscpd:ignore-start
 import { t } from "#i18n";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
-import { hashEmail, unsubscribeHash } from "#shared/db/contact-preferences.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   ORGANISER,
@@ -98,6 +97,27 @@ export const addressesWrittenTo = (world: TicketsWorld): string[] =>
       }
       return to as string[];
     });
+
+/** One person's copy of what was really sent: the payload entry the provider
+ * was handed for that address. A story reading a link out of an email fails
+ * loudly when that person was sent nothing, or when their copy carries no
+ * readable body. */
+export const whatWasSentTo = (
+  world: TicketsWorld,
+  email: string,
+): { html: string } => {
+  const copy = sendsMade(world)
+    .flatMap(({ body }) => (Array.isArray(body) ? body : [body]))
+    .find((one) => {
+      const to = (one as { to?: unknown } | null)?.to;
+      return Array.isArray(to) && to.includes(email);
+    });
+  const html = (copy as { html?: unknown } | undefined)?.html;
+  if (typeof html !== "string" || html === "") {
+    throw new Error(`Nothing readable was sent to ${email}`);
+  }
+  return { html };
+};
 
 /** People booked onto a listing the story names, each through the form on that
  * listing's own roster. Their addresses are kept under the listing's name, so a
@@ -214,12 +234,25 @@ export const writesToListingDay = (
 /** The addresses of everyone the story booked onto one listing. */
 export const bookedOnto: ReadsWhatWasKept<"booked"> = whatWasKeptFor("booked");
 
-/** Somebody tells the site they would rather not hear about promotions. */
-export const asksNotToHearAboutPromotions = async (
-  email: string,
-): Promise<void> => {
-  await unsubscribeHash(await hashEmail(email));
+/** The addresses the stories give the people they book, in booking order.
+ * Kept here so every scenario books the same people and a later step — in
+ * this story or the reader's own — can name one of them. */
+export const BOOKERS = ["first@example.com", "second@example.com"];
+
+export const bookersFor = (howMany: number): string[] => {
+  // Quietly booking fewer people than the story asked for would make every
+  // count below it right for the wrong reason.
+  if (howMany > BOOKERS.length) {
+    throw new Error(
+      `Only ${BOOKERS.length} people can be booked, the story asked for ${howMany}`,
+    );
+  }
+  return BOOKERS.slice(0, howMany);
 };
+
+/** The first person a story booked is the one who acts on their own copy, so
+ * "one of them" and "they" mean the same person however many were booked. */
+export const theOneWhoAsked = (): string => BOOKERS[0]!;
 
 /** The way in to writing to one listing's attendees, off that listing's own
  * page, or nothing when the page offers none. Found by where the link goes

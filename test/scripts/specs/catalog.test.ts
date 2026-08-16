@@ -14,6 +14,7 @@ describe("Cucumber story catalog", () => {
       "access.letting-another-system-in",
       "access.setting-a-site-up",
       "access.what-an-editor-can-do",
+      "attendees.asking-to-be-left-alone",
       "attendees.checking-people-in-at-the-door",
       "attendees.downloading-the-attendee-list",
       "attendees.editing-and-moving",

@@ -2,8 +2,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { queryOne } from "#shared/db/client.ts";
 import {
-  getVisits,
   hashEmail,
   isHashUnsubscribed,
   unsubscribeHash,
@@ -14,7 +14,6 @@ import {
   expectRedirect,
   followRedirectWithFlash,
 } from "#test-utils/assertions.ts";
-import { setContactVisits } from "#test-utils/contact-preferences.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 
@@ -31,6 +30,19 @@ const postUnsubscribe = async (
   );
 };
 
+/** Whether a contact_preferences row exists for the hash at all. Every
+ * production read answers the same for "no row" and "a zeroed row", and the
+ * forget pin's claim is precisely that the row is gone. */
+const rowExists = async (hash: string): Promise<boolean> =>
+  (await queryOne<{ present: number }>(
+    "SELECT 1 AS present FROM contact_preferences WHERE contact_hash = ?",
+    [hash],
+  )) !== null;
+
+// The GET renders and POST actions are told in the customer's terms by the
+// story `attendees.asking-to-be-left-alone`; these pins own the direct
+// coverage of each branch, which a Cucumber journey may never be the only
+// cover of.
 describeWithEnv("routes (unsubscribe)", { db: true }, () => {
   describe("GET /unsubscribe", () => {
     test("shows the subscribed state for a known hash", async () => {
@@ -76,33 +88,20 @@ describeWithEnv("routes (unsubscribe)", { db: true }, () => {
   });
 
   describe("POST /unsubscribe", () => {
-    test("unsubscribes the hash", async () => {
+    test("unsubscribes the hash and confirms with an info flash", async () => {
       const hash = await hashEmail("leaver@example.com");
       const response = await postUnsubscribe({
         action: "unsubscribe",
         email: hash,
       });
-      expectRedirect(response, "/unsubscribe");
+      // The redirect carries the hash back, so the page still knows them.
+      expectRedirect(
+        response,
+        "/unsubscribe",
+        `email=${encodeURIComponent(hash)}`,
+      );
       expect(await isHashUnsubscribed(hash)).toBe(true);
-    });
 
-    test("resubscribes the hash", async () => {
-      const hash = await hashEmail("returner@example.com");
-      await unsubscribeHash(hash);
-      const response = await postUnsubscribe({
-        action: "resubscribe",
-        email: hash,
-      });
-      expectRedirect(response, "/unsubscribe");
-      expect(await isHashUnsubscribed(hash)).toBe(false);
-    });
-
-    test("confirms unsubscribing with an info flash", async () => {
-      const hash = await hashEmail("confirm@example.com");
-      const response = await postUnsubscribe({
-        action: "unsubscribe",
-        email: hash,
-      });
       const followed = await followRedirectWithFlash(response, handleRequest);
       const html = await expectHtmlResponse(
         followed,
@@ -113,13 +112,20 @@ describeWithEnv("routes (unsubscribe)", { db: true }, () => {
       expect(html).not.toContain('class="success"');
     });
 
-    test("confirms resubscribing with a success flash", async () => {
-      const hash = await hashEmail("welcomeback@example.com");
+    test("resubscribes the hash and confirms with a success flash", async () => {
+      const hash = await hashEmail("returner@example.com");
       await unsubscribeHash(hash);
       const response = await postUnsubscribe({
         action: "resubscribe",
         email: hash,
       });
+      expectRedirect(
+        response,
+        "/unsubscribe",
+        `email=${encodeURIComponent(hash)}`,
+      );
+      expect(await isHashUnsubscribed(hash)).toBe(false);
+
       const followed = await followRedirectWithFlash(response, handleRequest);
       const html = await expectHtmlResponse(
         followed,
@@ -130,20 +136,23 @@ describeWithEnv("routes (unsubscribe)", { db: true }, () => {
       expect(html).not.toContain('class="info"');
     });
 
-    test("forgets the contact row", async () => {
+    test("forgetting deletes the contact row outright", async () => {
       const hash = await hashEmail("forgetme@example.com");
-      await setContactVisits(hash, 1);
-      const response = await postUnsubscribe({
-        action: "forget",
-        email: hash,
-      });
+      await unsubscribeHash(hash);
+      expect(await rowExists(hash)).toBe(true);
+
+      const response = await postUnsubscribe({ action: "forget", email: hash });
       expectRedirect(response, "/unsubscribe");
-      expect(await getVisits(hash)).toBe(0);
+      expect(await rowExists(hash)).toBe(false);
     });
 
-    test("redirects with an error when the hash is missing", async () => {
+    test("explains a POST with no hash instead of acting", async () => {
+      // Unreachable through the rendered page (its forms always carry the
+      // hash), so this stays a direct contract with no story scenario.
       const response = await postUnsubscribe({ action: "unsubscribe" });
       expectRedirect(response, "/unsubscribe");
+      const followed = await followRedirectWithFlash(response, handleRequest);
+      await expectHtmlResponse(followed, 200, "That link is invalid.");
     });
 
     test("rejects an invalid CSRF token", async () => {
