@@ -290,35 +290,49 @@ describeWithEnv("placeholder money completion", { db: true }, () => {
     ).toEqual({ failure_data: "", protected_state: "" });
   });
 
-  it("finishes the tail when the first delivery died at authority retirement", async () => {
+  /** Die at one exact point of the first delivery under a real database
+   * fault, prove the crash state and the books, then redeliver clean and
+   * prove the words landed exactly once. Returns the rejection so a test
+   * can add its own point-specific checks. */
+  const crashesThenFinishes = async (
+    reference: string,
+    fault: <T>(body: () => Promise<T>) => Promise<T>,
+    message: string,
+  ) => {
     const listing = await createTestListing({});
-    const rejection = ourRejection("pi_retire_window", {
+    const rejection = ourRejection(reference, {
       items: singleItem(listing.id, 1, 500),
     });
-    // The refund returns and the ledger posts, then the retirement write
-    // refuses — the delivery fails with the books already recorded.
-    await withAuthorityRetirementFault(() =>
+    await fault(() =>
       expect(
         withSucceedingRefundFor(CAPTURED)(() =>
           settleRejectedCharge(rejection),
         ),
-      ).rejects.toThrow("authority retirement unavailable"),
+      ).rejects.toThrow(message),
     );
-    await expectLegalJointStates(
-      rejection.sessionId,
-      "after a retirement crash",
-    );
+    await expectLegalJointStates(rejection.sessionId, `after: ${message}`);
     await expectOnePairOfLegs(rejection.sessionId);
     expect(await storedNote()).toBeNull();
+    expect(await activityCount()).toBe(0);
 
-    // The redelivery finishes only what is missing: retirement, the note and
-    // activity line, and the release — the legs never double.
     await withSucceedingRefundFor(CAPTURED)(() =>
       settleRejectedCharge(rejection),
     );
     await expectOnePairOfLegs(rejection.sessionId);
     expect((await storedNote())?.total).toBe(1);
     expect(await activityCount()).toBe(1);
+    return rejection;
+  };
+
+  it("finishes the tail when the first delivery died at authority retirement", async () => {
+    // The refund returns and the ledger posts, then the retirement write
+    // refuses — the redelivery finishes retirement, words, and release
+    // without doubling the legs.
+    const rejection = await crashesThenFinishes(
+      "pi_retire_window",
+      withAuthorityRetirementFault,
+      "authority retirement unavailable",
+    );
     const referenceIndex = await paymentReferenceIndex(
       rejectedChargeReference(rejection),
     );
@@ -327,34 +341,13 @@ describeWithEnv("placeholder money completion", { db: true }, () => {
   });
 
   it("finishes the tail when the first delivery died at the confirmation", async () => {
-    const listing = await createTestListing({});
-    const rejection = ourRejection("pi_confirm_window", {
-      items: singleItem(listing.id, 1, 500),
-    });
     // Ledger and retirement land, then the once-only latch refuses — the
-    // note and activity line ride its transaction, so neither exists yet.
-    await withRefundConfirmationFault(() =>
-      expect(
-        withSucceedingRefundFor(CAPTURED)(() =>
-          settleRejectedCharge(rejection),
-        ),
-      ).rejects.toThrow("refund confirmation unavailable"),
+    // note and activity line ride its transaction, so neither exists until
+    // the redelivery writes them exactly once.
+    await crashesThenFinishes(
+      "pi_confirm_window",
+      withRefundConfirmationFault,
+      "refund confirmation unavailable",
     );
-    await expectLegalJointStates(
-      rejection.sessionId,
-      "after a confirmation crash",
-    );
-    await expectOnePairOfLegs(rejection.sessionId);
-    expect(await storedNote()).toBeNull();
-    expect(await activityCount()).toBe(0);
-
-    // The redelivery tolerates the already-recorded authority and writes the
-    // words exactly once.
-    await withSucceedingRefundFor(CAPTURED)(() =>
-      settleRejectedCharge(rejection),
-    );
-    await expectOnePairOfLegs(rejection.sessionId);
-    expect((await storedNote())?.total).toBe(1);
-    expect(await activityCount()).toBe(1);
   });
 });

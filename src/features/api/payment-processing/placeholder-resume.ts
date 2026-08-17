@@ -266,9 +266,9 @@ export const resumePlaceholderSession = async (
         : { outcome: stored },
       false,
     ),
-    search.rows.length === 0
-      ? ["absent"]
-      : search.rows.map((row) => authorityFactOf(row.refundStateName)),
+    // A row whose reference carries no charge answers with a null name and
+    // becomes "absent" here; no rows at all means nothing to check.
+    search.rows.map((row) => authorityFactOf(row.refundStateName)),
     `resume of session ${session.id}`,
   );
   if (search.held !== null) {

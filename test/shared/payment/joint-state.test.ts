@@ -9,6 +9,7 @@ import {
   type JointRowFact,
   jointRowFactOf,
 } from "#shared/payment/joint-state.ts";
+import { openPaymentReview } from "#shared/payment/review.ts";
 import type { PaymentRowState } from "#shared/payment/row-state.ts";
 
 const HELD: PaymentRowState = {
@@ -66,9 +67,19 @@ describe("payment joint state", () => {
     expect(jointRowFactOf({}, true)).toBe("free_finalized");
     expect(jointRowFactOf(HELD, false)).toBe("claim");
     expect(jointRowFactOf(SETTLED, true)).toBe("settled");
-    // A stored row keeps its pending outcome beside the claim through the
-    // whole crash window — the live work names the fact, not the outcome.
+    // A stored row keeps its pending outcome beside its live work through
+    // the whole crash window — the live work names the fact, whichever kind
+    // it is, and the outcome rides along.
     expect(jointRowFactOf({ ...HELD, ...SETTLED }, false)).toBe("claim");
+    const review = openPaymentReview({ kind: "shared_reference" });
+    expect(jointRowFactOf({ review, ...SETTLED }, false)).toBe("review");
+    expect(
+      jointRowFactOf(
+        { unrecorded: { returnedAt: "2026-08-17T10:00:00.000Z" }, ...SETTLED },
+        false,
+      ),
+    ).toBe("unrecorded");
+    expect(jointRowFactOf({ ...HELD, review }, false)).toBe("claim_review");
   });
 
   test("an armed send is illegal on every row without a held claim", () => {
