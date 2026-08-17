@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   type AuthorityFact,
   assertJointStateLegal,
+  authorityFactOf,
   ILLEGAL_JOINT_STATES,
   illegalJointReasonOrNull,
   type JointRowFact,
@@ -40,8 +41,7 @@ const AUTHORITY_FACTS: readonly AuthorityFact[] = [
   "ready",
   "send_armed",
   "observing",
-  "completed_due",
-  "completed_recorded",
+  "completed",
   "needs_owner_choice",
   "needs_provider_check",
 ];
@@ -66,6 +66,9 @@ describe("payment joint state", () => {
     expect(jointRowFactOf({}, true)).toBe("free_finalized");
     expect(jointRowFactOf(HELD, false)).toBe("claim");
     expect(jointRowFactOf(SETTLED, true)).toBe("settled");
+    // A stored row keeps its pending outcome beside the claim through the
+    // whole crash window — the live work names the fact, not the outcome.
+    expect(jointRowFactOf({ ...HELD, ...SETTLED }, false)).toBe("claim");
   });
 
   test("an armed send is illegal on every row without a held claim", () => {
@@ -92,6 +95,15 @@ describe("payment joint state", () => {
         ).toBe(true);
       }
     }
+  });
+
+  test("maps stored authority names, and refuses one it has never heard of", () => {
+    expect(authorityFactOf(null)).toBe("absent");
+    expect(authorityFactOf("completed")).toBe("completed");
+    expect(authorityFactOf("send_armed")).toBe("send_armed");
+    expect(() => authorityFactOf("half_done")).toThrow(
+      "Unknown refund authority state name: half_done",
+    );
   });
 
   test("the assertion names the flow, the facts, and the broken invariant", () => {

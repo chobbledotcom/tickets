@@ -44,6 +44,11 @@ import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import { advanceSessionFailure } from "#shared/db/processed-payments.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import {
+  assertJointStateLegal,
+  authorityFactOf,
+  jointRowFactOf,
+} from "#shared/payment/joint-state.ts";
+import {
   type PlaceholderRefund,
   placeholderRefund,
   placeholderRefundNote,
@@ -251,6 +256,20 @@ export const resumePlaceholderSession = async (
   const search = await findHeldAnchor(
     paidPaymentReferenceOf(session),
     session.id,
+  );
+  // A resume navigates a combination of machines a crash left behind, so
+  // prove the combination is one a flow can produce before acting on it.
+  assertJointStateLegal(
+    jointRowFactOf(
+      search.held !== null
+        ? { claim: search.held.claim, outcome: stored }
+        : { outcome: stored },
+      false,
+    ),
+    search.rows.length === 0
+      ? ["absent"]
+      : search.rows.map((row) => authorityFactOf(row.refundStateName)),
+    `resume of session ${session.id}`,
   );
   if (search.held !== null) {
     const { claim, record } = search.held;

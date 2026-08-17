@@ -20,17 +20,39 @@
 import { type ROW_NODES, rowNodeOf } from "#shared/payment/row-machine-spec.ts";
 import type { PaymentRowState } from "#shared/payment/row-state.ts";
 
-/** One charge's refund authority as this seam sees it: its state name, or
- * "absent" when the row's references have no charge at all. */
+/** One charge's refund authority as this seam sees it: the stored state
+ * name (whether its local recording is done is a separate column and a
+ * separate concern), or "absent" when the row's references have no charge
+ * at all. */
 export type AuthorityFact =
   | "absent"
   | "ready"
   | "send_armed"
   | "observing"
-  | "completed_due"
-  | "completed_recorded"
+  | "completed"
   | "needs_owner_choice"
   | "needs_provider_check";
+
+const AUTHORITY_NAMES: readonly AuthorityFact[] = [
+  "ready",
+  "send_armed",
+  "observing",
+  "completed",
+  "needs_owner_choice",
+  "needs_provider_check",
+];
+
+/** The authority fact for one stored state name — null means the reference
+ * carries no charge. An unknown name throws: it would mean the authority
+ * machine grew a state this seam has never heard of. */
+export const authorityFactOf = (name: string | null): AuthorityFact => {
+  if (name === null) return "absent";
+  const known = AUTHORITY_NAMES.find((candidate) => candidate === name);
+  if (known === undefined) {
+    throw new Error(`Unknown refund authority state name: ${name}`);
+  }
+  return known;
+};
 
 /** One row as this seam sees it: its machine node, with the free node split
  * by delivery phase — the only split the phase adds. */
@@ -88,12 +110,29 @@ export const ILLEGAL_JOINT_STATES: readonly IllegalJointState[] = [
 
 /** The row fact for one parsed row state, split by phase when free.
  * `finalized` is the phase axis: true once the session booked (attendee
- * set), false while the reservation is in flight. */
+ * set), false while the reservation is in flight. A stored row carries its
+ * pending outcome beside its live work through the whole crash window, so
+ * the fact comes from the live work alone — only a row holding nothing but
+ * an outcome is settled. */
 export const jointRowFactOf = (
   state: PaymentRowState,
   finalized: boolean,
 ): JointRowFact => {
-  const node = rowNodeOf(state);
+  const hasLiveWork =
+    state.claim !== undefined ||
+    state.review !== undefined ||
+    state.unrecorded !== undefined;
+  const node = rowNodeOf(
+    hasLiveWork
+      ? {
+          ...(state.claim === undefined ? {} : { claim: state.claim }),
+          ...(state.review === undefined ? {} : { review: state.review }),
+          ...(state.unrecorded === undefined
+            ? {}
+            : { unrecorded: state.unrecorded }),
+        }
+      : state,
+  );
   if (node !== "free") return node;
   return finalized ? "free_finalized" : "free_reserved";
 };
