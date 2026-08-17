@@ -114,6 +114,27 @@ describe("attendeeColumns", () => {
       attendeeColumns("inner", ATTENDEE_FIELDS).length,
     );
   });
+
+  // These are correlated, so each runs per row of the outer query — the cost is
+  // database work, not subrequests, the whole SELECT being one round-trip either
+  // way. Pinning them keeps the count in the module header true.
+  test("each ledger field emits a fixed number of subqueries", () => {
+    const subqueries = (field: AttendeeField): number =>
+      (attendeeColumns("inner", [field]).match(/\(SELECT/g) ?? []).length;
+    expect(subqueries("price_paid")).toBe(6);
+    expect(subqueries("refunded")).toBe(4);
+    expect(subqueries("remaining_balance")).toBe(1);
+  });
+
+  test("the cheap fields add no subquery at all", () => {
+    for (const field of [
+      "end_date",
+      "attachment_downloads",
+      "package_group_id",
+    ] as const) {
+      expect(attendeeColumns("inner", [field])).not.toContain("(SELECT");
+    }
+  });
 });
 
 describe("attendee filter and order SQL", () => {
